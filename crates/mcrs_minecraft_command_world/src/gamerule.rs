@@ -5,8 +5,8 @@ use mcrs_minecraft_command_engine::{
     Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Feedback,
 };
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaContext};
-use mcrs_minecraft_engine::game_rules::GameRules;
 use mcrs_minecraft_engine::server_edit::ServerEdit;
+use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_game_rule::{GameRule, GameRuleValueType};
 use mcrs_minecraft_text::{IntoText, Text};
 

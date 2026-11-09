@@ -9,7 +9,7 @@ use mcrs_minecraft_command_engine::{
     Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, Feedback,
 };
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaContext};
-use mcrs_minecraft_engine::game_rules::GameRules;
+use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_engine_world::voxel_update::BlockSetRequest;
 use mcrs_minecraft_engine_world::world::sub_app::DimensionLabel;
 use mcrs_minecraft_game_rule::GameRule;

@@ -2,9 +2,9 @@ use bevy_ecs::change_detection::Mut;
 use bevy_ecs::world::World;
 use mcrs_minecraft_command_engine::Worlds;
 use mcrs_minecraft_damage::Hit;
-use mcrs_minecraft_engine::coordinator::birth_clock::BirthClock;
 use mcrs_minecraft_engine_brain::EntityRows;
 use mcrs_minecraft_engine_physics::{MobChanges, hurt_mob};
+use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_entity_rows::Placed;
 
 /// The command effect that hits the mob row `at` of this world.

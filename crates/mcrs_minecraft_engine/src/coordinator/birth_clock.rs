@@ -1,19 +1,15 @@
-//! The birth clock of the world: the birth tick that every new entity UUID hashes. It rises by
-//! one at the start of every server tick, nothing else changes it, and the save keeps it, so the
-//! inputs of a new UUID never repeat in one world.
+//! The upkeep of the [`BirthClock`]: it rises at the start of every server tick, and the save
+//! keeps it.
 
 use bevy_app::{App, FixedFirst, Plugin, Startup};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_engine_world::aoi::every_n_ticks;
+use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
 use mcrs_minecraft_save::{SaveError, read_birth_clock, read_level_dat, write_birth_clock};
 use tracing::error;
 
 use crate::persistence::AUTOSAVE_INTERVAL;
-
-/// The value of the birth clock in the current tick.
-#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct BirthClock(pub u64);
 
 pub struct BirthClockPlugin;
 

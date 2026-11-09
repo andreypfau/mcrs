@@ -1,11 +1,11 @@
 use bevy_ecs::prelude::With;
 use bevy_ecs::system::{Query, Res, SystemParam};
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
-use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_entity_key::{BirthSource, EntityKey};
 use mcrs_minecraft_resource::ResourceKeyBuf;
 
-use crate::coordinator::birth_clock::BirthClock;
+use crate::birth_clock::BirthClock;
+use crate::world::dimension::Dimension;
 use crate::world_seed::WorldSeed;
 
 /// The inputs of the new UUIDs of this world: the world seed, the key of its dimension and the
@@ -38,10 +38,10 @@ impl EntityBirths<'_, '_> {
 mod tests {
     use std::num::NonZeroU32;
 
+    use crate::owned_columns::{OwnedColumns, region_partition};
     use bevy_ecs::system::RunSystemOnce;
     use bevy_ecs::world::World;
     use mcrs_engine_cell::CellIndex;
-    use mcrs_minecraft_engine_world::owned_columns::{OwnedColumns, region_partition};
     use mcrs_minecraft_entity_key::BirthSequences;
     use mcrs_minecraft_resource::ResourceLocationBuf;
     use mcrs_voxel::{BlockPos, ColumnPos};

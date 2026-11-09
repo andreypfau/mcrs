@@ -10,9 +10,9 @@ use mcrs_minecraft_command_engine::{
     Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Feedback,
     Worlds,
 };
-use mcrs_minecraft_engine::entity_births::EntityBirths;
 use mcrs_minecraft_engine::teleport::{MAX_XZ, MAX_Y};
 use mcrs_minecraft_engine_physics::{MobExtras, MobSpawnRequest, SpawnSetup};
+use mcrs_minecraft_engine_world::entity_births::EntityBirths;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::registry_keys::ENTITY_TYPE;

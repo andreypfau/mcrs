@@ -8,7 +8,7 @@ use mcrs_minecraft_engine_world::tick_pace::TickPace;
 use mcrs_minecraft_environment::AdvanceTime;
 use mcrs_minecraft_game_rule::GameRule;
 
-use crate::game_rules::GameRules;
+use mcrs_minecraft_engine_world::game_rules::GameRules;
 
 /// A change to the state that the host owns for the whole server.
 #[derive(Event, Clone, Copy, Debug, PartialEq, Eq)]

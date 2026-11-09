@@ -51,7 +51,6 @@ use mcrs_minecraft_volume::PalettedSection;
 use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::FxHashSet;
 
-use crate::block_drops::{BlockDrops, ItemDropped};
 use crate::block_update::{BroadcastMarks, remove_replaced_block_entities};
 use crate::bus::{PacketPayload, PacketPriority};
 use crate::cell_mail::CellOutbox;
@@ -62,7 +61,8 @@ use crate::column_ticks::{ColumnTicks, LandedTicks, StoredTick};
 use crate::coordinator::clock::GameTime;
 use crate::random_tick_speed::RandomTickSpeed;
 use crate::world_kinds::{WorldFacts, WorldKinds};
-use crate::world_seed::WorldSeed;
+use mcrs_minecraft_engine_world::block_drops::{BlockDrops, ItemDropped};
+use mcrs_minecraft_engine_world::world_seed::WorldSeed;
 
 /// Rules under which no block reacts: no block has a behaviour that a specification states yet.
 /// Writes, neighbour and shape updates, scheduled ticks and block events still run, and a tick

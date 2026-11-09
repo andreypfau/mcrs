@@ -4,7 +4,7 @@ use std::mem;
 use bevy_ecs::resource::Resource;
 use mcrs_engine_cell::CellId;
 
-use crate::entity_ids::EntityIdRange;
+use mcrs_minecraft_engine_world::entity_ids::EntityIdRange;
 
 /// The global entity ids that no cell holds yet, and the ranges granted for the next tick of
 /// each cell. The ranges never return, so no two cells share an id.
@@ -56,7 +56,7 @@ mod tests {
     use mcrs_engine_muxer::EntityId;
 
     use super::*;
-    use crate::entity_ids::CellEntityIds;
+    use mcrs_minecraft_engine_world::entity_ids::CellEntityIds;
 
     #[test]
     fn first_granted_id_is_not_zero() {

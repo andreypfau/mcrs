@@ -7,8 +7,8 @@ use bevy_ecs::system::ResMut;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
 use mcrs_minecraft_damage::HitOutcome;
-use mcrs_minecraft_engine::coordinator::birth_clock::BirthClock;
-use mcrs_minecraft_engine::entity_ids::CellEntityIds;
+use mcrs_minecraft_engine_world::birth_clock::BirthClock;
+use mcrs_minecraft_engine_world::entity_ids::CellEntityIds;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::pig_sound_variant_keys;
@@ -41,7 +41,7 @@ use crate::mobs::Mobs;
 const LEFT_HANDED: f64 = 0.05;
 
 /// The spawn requests that wait for an entity id, in the order of the life cycle. The cell gets
-/// [`ENTITY_ID_RANGE_LEN`](mcrs_minecraft_engine::entity_ids::ENTITY_ID_RANGE_LEN) ids in each
+/// [`ENTITY_ID_RANGE_LEN`](mcrs_minecraft_engine_world::entity_ids::ENTITY_ID_RANGE_LEN) ids in each
 /// tick, so a longer run of requests spawns over several ticks instead of losing its mobs.
 #[derive(Resource, Debug, Default)]
 pub struct PendingSpawns(pub VecDeque<MobSpawnRequest>);
