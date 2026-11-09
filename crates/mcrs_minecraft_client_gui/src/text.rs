@@ -5,7 +5,7 @@ use mcrs_minecraft_protocol_game::text::color::RgbColor;
 use mcrs_minecraft_protocol_game::text::{Color, Text, TextContent, TranslateArg};
 
 use crate::font::{ClickEvent, Font, Hover, Span};
-use crate::language::Language;
+use crate::language::ClientLanguage;
 
 #[derive(Clone, Copy)]
 struct Inherited<'a> {
@@ -60,7 +60,12 @@ fn push(out: &mut Vec<Span>, text: impl Into<String>, style: Inherited) {
     }
 }
 
-fn collect<'a>(text: &'a Text, language: &Language, parent: Inherited<'a>, out: &mut Vec<Span>) {
+fn collect<'a>(
+    text: &'a Text,
+    language: &ClientLanguage,
+    parent: Inherited<'a>,
+    out: &mut Vec<Span>,
+) {
     let style = Inherited {
         color: text.style.color.map_or(parent.color, argb),
         bold: text.style.bold.unwrap_or(parent.bold),
@@ -108,7 +113,7 @@ fn collect<'a>(text: &'a Text, language: &Language, parent: Inherited<'a>, out: 
 
 /// The spans of a text component in `color` where it sets none. Content that needs the world
 /// (scores, selectors, NBT) shows nothing.
-pub fn text_spans(text: &Text, language: &Language, color: u32) -> Vec<Span> {
+pub fn text_spans(text: &Text, language: &ClientLanguage, color: u32) -> Vec<Span> {
     let mut out = Vec::new();
     collect(
         text,
@@ -252,7 +257,7 @@ mod tests {
             .insertion("ins");
         let mut text = text;
         text.extra.push(Text::text("cd").insertion("own"));
-        let spans = text_spans(&text, &Language::default(), 0xFFFF_FFFF);
+        let spans = text_spans(&text, &ClientLanguage::default(), 0xFFFF_FFFF);
         assert_eq!(spans.len(), 2);
         assert!(spans.iter().all(|span| span.click.is_some()));
         assert_eq!(spans[0].insertion.as_deref(), Some("ins"));
@@ -273,7 +278,7 @@ mod tests {
                 vec!["Alex".color(Color::GOLD), "hi".into_text()],
             )
             .color(Color::GRAY);
-            let spans = text_spans(&text, Language::corpus(), 0xFFFF_FFFF);
+            let spans = text_spans(&text, ClientLanguage::corpus(), 0xFFFF_FFFF);
             assert_eq!(
                 spans,
                 [

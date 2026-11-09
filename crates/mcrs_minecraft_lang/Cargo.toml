@@ -1,0 +1,15 @@
+[package]
+name = "mcrs_minecraft_lang"
+description = "A language file of the game: translation patterns by key, and the filler of their placeholders"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+serde_json.workspace = true

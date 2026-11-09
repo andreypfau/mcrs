@@ -3517,6 +3517,7 @@ dependencies = [
  "mcrs_minecraft_assets",
  "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block",
+ "mcrs_minecraft_client_jar",
  "mcrs_minecraft_client_world",
  "mcrs_minecraft_console",
  "mcrs_minecraft_dimension",
@@ -3526,6 +3527,7 @@ dependencies = [
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_registries",
+ "mcrs_minecraft_lang",
  "mcrs_minecraft_network",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
@@ -3882,6 +3884,7 @@ dependencies = [
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_lang",
  "mcrs_minecraft_model",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
@@ -4223,14 +4226,12 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "flume",
- "mcrs_minecraft_client_jar",
- "mcrs_minecraft_command",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_engine",
  "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_lang",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_text",
- "serde_json",
  "tracing",
 ]
 
@@ -4779,6 +4780,13 @@ name = "mcrs_minecraft_keys"
 version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_resource",
+]
+
+[[package]]
+name = "mcrs_minecraft_lang"
+version = "0.5.8"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]

@@ -11,6 +11,7 @@ use bevy_app::{App, AppExit, Plugin, PluginGroup, Update};
 use bevy_ecs::error::{BevyError, ErrorContext, FallbackErrorHandler, Severity};
 use bevy_ecs::message::MessageWriter;
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
+use mcrs_minecraft_client_jar::{Directory, Progress, RELEASE, candidates, locate};
 use mcrs_minecraft_console::{ConsolePlugin, log_console_answers};
 use mcrs_minecraft_engine::banlist::{BANLIST_FILE, BanList};
 use mcrs_minecraft_engine::coordinator::ops::{OPS_FILE, OpList};
@@ -20,6 +21,7 @@ use mcrs_minecraft_engine_server::{
     Placement, ServerCorePlugin, ServerNetworkPlugin, ShutdownRequest,
 };
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
+use mcrs_minecraft_lang::{EN_US, Language};
 use mcrs_minecraft_server::{MinecraftServerPlugins, VanillaMobBrainPlugin};
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;
@@ -96,7 +98,7 @@ fn serve() -> AppExit {
     if !on_off("MCRS_MOB_AI", variable("MCRS_MOB_AI").as_deref(), true) {
         server = server.disable::<VanillaMobBrainPlugin>();
     }
-    app.add_plugins((server, ConsolePlugin));
+    app.add_plugins((server, ConsolePlugin { language: english() }));
     let (signal_send, mut signal_recv) = tokio::sync::mpsc::channel(1);
     tokio::spawn(async move {
         shutdown_signal().await;
@@ -212,6 +214,29 @@ fn loopback_ops(value: Option<&str>) -> LoopbackOps {
     } else {
         LoopbackOps::Deny
     }
+}
+
+/// The English language of the installed client jar, for the console answers. Without the jar,
+/// an answer reads as its translation key and its arguments.
+fn english() -> Language {
+    let Some(jar) = locate(&candidates(), &RELEASE.jar, &Progress::default()) else {
+        bevy_log::warn!("no client jar; the console writes translation keys, not English");
+        return Language::default();
+    };
+    let path = format!("assets/{EN_US}");
+    let read = Directory::of(&jar)
+        .and_then(|directory| directory.read(&jar, |name| name == path))
+        .and_then(|files| {
+            let (_, bytes) = files
+                .into_iter()
+                .next()
+                .ok_or_else(|| format!("the client jar holds no {path}"))?;
+            Language::from_json(&bytes).map_err(|error| error.to_string())
+        });
+    read.unwrap_or_else(|error| {
+        bevy_log::warn!(%error, "the console writes translation keys, not English");
+        Language::default()
+    })
 }
 
 /// `RUST_LOG` replaces the default filter, so it can lower the levels that the default raises for

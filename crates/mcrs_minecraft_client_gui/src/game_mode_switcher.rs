@@ -10,7 +10,7 @@ use mcrs_minecraft_protocol_game::text::{Color, IntoText, Text};
 use crate::cursor_grab::grab;
 use crate::debug_screen_overlay::{DebugModifier, toggle_overlay};
 use crate::font::{Span, draw_centered_text};
-use crate::language::Language;
+use crate::language::ClientLanguage;
 use crate::scene::{GuiAtlas, GuiQuad, GuiScene, sprite};
 use mcrs_minecraft_client_world::chat::ChatMessage;
 use mcrs_minecraft_client_world::game_mode::{LocalGameMode, PermissionLevel};
@@ -140,7 +140,7 @@ fn switch_game_mode(
 pub fn draw(
     screen: Res<Screen>,
     atlas: Option<Res<GuiAtlas>>,
-    language: Option<Res<Language>>,
+    language: Option<Res<ClientLanguage>>,
     mut scene: ResMut<GuiScene>,
 ) {
     let Screen::GameModeSwitcher(selected) = *screen else {
@@ -165,7 +165,7 @@ fn switcher(
     height: i32,
     selected: GameMode,
     atlas: &GuiAtlas,
-    language: &Language,
+    language: &ClientLanguage,
     out: &mut Vec<GuiQuad>,
 ) {
     let font = &atlas.0.font;

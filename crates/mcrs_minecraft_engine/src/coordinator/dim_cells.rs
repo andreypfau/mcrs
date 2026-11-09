@@ -806,15 +806,13 @@ mod tests {
             pitch: 0.0,
             anchor: LookAnchor::Feet,
         };
-        ToDim::Command(Box::new(CommandHandoff {
-            to: label,
-            output: PlayerSession(1),
-            line: "execute if block ~ ~ ~ stone".into(),
-            origin: source.clone(),
-            stage: 1,
-            sources: vec![source],
-            cost: 0,
-        }))
+        ToDim::Command(Box::new(CommandHandoff::single(
+            label,
+            PlayerSession(1),
+            "execute if block ~ ~ ~ stone".into(),
+            source,
+            1,
+        )))
     }
 
     #[test]

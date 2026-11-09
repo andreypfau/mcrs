@@ -55,6 +55,21 @@ impl SourceState {
         }
     }
 
+    /// The source of the server console: no entity, the highest level, at the origin of the
+    /// dimension labelled `dimension`.
+    pub fn server(dimension: Entity) -> Self {
+        Self {
+            level: CommandLevel::Owners,
+            player: None,
+            mob: None,
+            dimension,
+            position: DVec3::ZERO,
+            yaw: 0.0,
+            pitch: 0.0,
+            anchor: LookAnchor::Feet,
+        }
+    }
+
     /// The source looking along `look`.
     #[must_use]
     pub fn with_look(&self, look: Look) -> Self {
@@ -92,4 +107,26 @@ pub struct CommandHandoff {
     pub sources: Vec<SourceState>,
     /// What the stages before it cost, against the sequence limit.
     pub cost: usize,
+}
+
+impl CommandHandoff {
+    /// The handoff of one source, `origin`, that runs `line` on from `stage` in the dimension
+    /// `to`, with nothing spent yet.
+    pub fn single(
+        to: Entity,
+        output: PlayerSession,
+        line: String,
+        origin: SourceState,
+        stage: usize,
+    ) -> Self {
+        Self {
+            to,
+            output,
+            line,
+            sources: vec![origin.clone()],
+            origin,
+            stage,
+            cost: 0,
+        }
+    }
 }

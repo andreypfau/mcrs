@@ -2,7 +2,6 @@ use bevy_ecs::prelude::*;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
 use mcrs_minecraft_engine_world::session::PlayerSession;
 
-use crate::answer_log::LogEntry;
 use crate::console_plugin::Console;
 
 /// Writes each system message for the server console since the last call to the log, one line
@@ -17,13 +16,13 @@ pub fn log_console_answers(world: &mut World) {
     }
 }
 
-fn log_answers(mut packets: MessageReader<OutboundPlayerPacket>, mut console: ResMut<Console>) {
+fn log_answers(mut packets: MessageReader<OutboundPlayerPacket>, console: Res<Console>) {
     for packet in packets.read() {
         let (PacketTarget::SinglePlayer(PlayerSession::SERVER), PacketPayload::SystemChat(chat)) =
             (&packet.target, &packet.data)
         else {
             continue;
         };
-        console.log.push(LogEntry::Answer(chat.content.clone()));
+        console.log.push(chat.content.clone());
     }
 }

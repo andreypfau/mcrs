@@ -11,7 +11,7 @@ use mcrs_minecraft_chat_client::{
 use crate::chat_suggestions;
 use crate::font::{self, Font, Hover, Span};
 use crate::item_decorations::WHITE;
-use crate::language::Language;
+use crate::language::ClientLanguage;
 use crate::scene::{self, GuiAtlas, GuiConfig, GuiQuad, GuiScene, GuiSize};
 use crate::text::{self, Wrap};
 use crate::tooltip::Tooltip;
@@ -73,7 +73,7 @@ fn with_alpha(color: u32, alpha: f32) -> u32 {
 /// The mouse over the open chat, and where the log makes its tooltip requests.
 pub(crate) struct Pointer<'a> {
     pub at: IVec2,
-    pub language: &'a Language,
+    pub language: &'a ClientLanguage,
     pub tooltip: &'a mut Tooltip,
     pub icon: IVec2,
 }
@@ -243,7 +243,7 @@ fn hover_lines(
     hover: &Hover,
     gui_width: i32,
     advanced: bool,
-    language: &Language,
+    language: &ClientLanguage,
     font: &Font,
     rows: &mut Vec<Vec<Span>>,
 ) {
@@ -362,7 +362,7 @@ pub fn draw(
     (chat, lines): (Res<Chat>, Res<crate::chat_input::ChatLines>),
     input: Res<ChatInput>,
     screen: Res<Screen>,
-    (language, atlas): (Option<Res<Language>>, Option<Res<GuiAtlas>>),
+    (language, atlas): (Option<Res<ClientLanguage>>, Option<Res<GuiAtlas>>),
     time: Res<Time<Real>>,
     config: Res<GuiConfig>,
     mut scene: ResMut<GuiScene>,
@@ -449,7 +449,7 @@ mod tests {
                     &hover,
                     427,
                     advanced,
-                    Language::corpus(),
+                    ClientLanguage::corpus(),
                     corpus_font(),
                     &mut rows,
                 );
@@ -482,7 +482,11 @@ mod tests {
             let mut lines = mcrs_minecraft_chat_client::ChatLines::default();
             chat.log.push(Text::text("hi"), 0, None);
             lines.sync(&chat.log, None, |text, _, rows| {
-                rows.push(text::text_spans(text, Language::corpus(), 0xFFFF_FFFF));
+                rows.push(text::text_spans(
+                    text,
+                    ClientLanguage::corpus(),
+                    0xFFFF_FFFF,
+                ));
             });
             let size = GuiSize {
                 width: 400,

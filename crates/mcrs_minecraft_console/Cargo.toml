@@ -12,15 +12,13 @@ doctest = false
 workspace = true
 
 [dependencies]
-mcrs_minecraft_client_jar.workspace = true
-mcrs_minecraft_command.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_lang.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_text.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
 flume.workspace = true
-serde_json.workspace = true
 tracing.workspace = true

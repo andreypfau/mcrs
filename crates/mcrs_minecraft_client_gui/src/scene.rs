@@ -18,7 +18,7 @@ use crate::hotbar::hotbar;
 use crate::inventory_screen::inventory_screen;
 use crate::item_decorations::{Decorated, WHITE, decorations};
 use crate::item_resolve::{GuiVertex, ItemRenderLayers};
-use crate::language::Language;
+use crate::language::ClientLanguage;
 use crate::sprite::{GuiSprite, Scaling};
 use crate::tooltip::{Tooltip, TooltipSprites};
 use mcrs_minecraft_client_world::player::Player;
@@ -426,7 +426,8 @@ fn draw_screens(
 /// Loads the GUI textures and the translations from `pack`, or says which of them it lacks.
 pub fn load_gui_atlas(pack: &ResourceSet, commands: &mut Commands) -> Result<(), String> {
     let atlas = GuiAtlasData::load(pack).map_err(|reason| format!("the GUI textures: {reason}"))?;
-    let language = Language::load(pack).map_err(|reason| format!("the translations: {reason}"))?;
+    let language =
+        ClientLanguage::load(pack).map_err(|reason| format!("the translations: {reason}"))?;
     commands.insert_resource(GuiAtlas(Arc::new(atlas)));
     commands.insert_resource(language);
     Ok(())

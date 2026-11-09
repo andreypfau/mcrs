@@ -147,6 +147,7 @@ mcrs_minecraft_enchantment = { path = "crates/mcrs_minecraft_enchantment" }
 mcrs_minecraft_biome_file = { path = "crates/mcrs_minecraft_biome_file" }
 mcrs_minecraft_profile = { path = "crates/mcrs_minecraft_profile" }
 mcrs_minecraft_text = { path = "crates/mcrs_minecraft_text" }
+mcrs_minecraft_lang = { path = "crates/mcrs_minecraft_lang" }
 mcrs_minecraft_entity = { path = "crates/mcrs_minecraft_entity" }
 mcrs_minecraft_entity_model = { path = "crates/mcrs_minecraft_entity_model" }
 mcrs_minecraft_pack_file = { path = "crates/mcrs_minecraft_pack_file" }
@@ -232,7 +233,9 @@ bevy_app.workspace = true
 bevy_log.workspace = true
 tokio = { version = "1", features = ["full"] }
 mcrs_minecraft_server.workspace = true
+mcrs_minecraft_client_jar.workspace = true
 mcrs_minecraft_console.workspace = true
+mcrs_minecraft_lang.workspace = true
 mcrs_minecraft_engine_server.workspace = true
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_engine_world.workspace = true

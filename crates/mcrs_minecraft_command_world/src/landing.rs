@@ -15,15 +15,13 @@ pub(crate) fn run_next_tick<S: CommandSet>(
     label: &DimensionLabel,
     invocation: &Invocation,
 ) {
-    let handoff = CommandHandoff {
-        to: label.0,
-        output: invocation.output,
-        line: context.line().to_owned(),
-        origin: invocation.source.clone(),
-        stage: invocation.stage(),
-        sources: vec![invocation.source.clone()],
-        cost: 0,
-    };
+    let handoff = CommandHandoff::single(
+        label.0,
+        invocation.output,
+        context.line().to_owned(),
+        invocation.source.clone(),
+        invocation.stage(),
+    );
     commands.queue(move |world: &mut World| {
         world.get_resource_or_init::<DimMail>().hand_off(handoff);
     });
