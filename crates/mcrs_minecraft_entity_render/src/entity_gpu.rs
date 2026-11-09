@@ -256,6 +256,12 @@ impl EntityGpu {
         self.slots.capacity
     }
 
+    /// The state records of the slots.
+    #[must_use]
+    pub fn slot_states(&self) -> &Buffer {
+        &self.slots.states
+    }
+
     /// The counters of the last frame: bones, then the visible count of each definition, then
     /// the face count of each array, then the mobs that did not fit.
     #[must_use]
@@ -276,6 +282,7 @@ impl EntityGpu {
     }
 
     /// Grows the slot buffers to `upload.slot_capacity` and writes the records of `upload`.
+    /// The grow copy has its own submission: it must run before the queue writes of this call.
     pub fn upload(
         &mut self,
         device: &Device,
@@ -285,7 +292,11 @@ impl EntityGpu {
     ) {
         if upload.slot_capacity > self.slots.capacity {
             let grown = SlotBuffers::new(device, upload.slot_capacity.next_power_of_two());
-            self.slots.copy_into(&grown, encoder);
+            let mut grow = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("entity slot grow"),
+            });
+            self.slots.copy_into(&grown, &mut grow);
+            queue.submit([grow.finish()]);
             self.frame.impostors = impostor_list(device, grown.capacity);
             self.frame.impostor_draws = impostor_draws(device, grown.capacity);
             self.slots = grown;
