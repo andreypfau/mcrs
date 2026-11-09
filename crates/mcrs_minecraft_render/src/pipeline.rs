@@ -110,6 +110,9 @@ impl Pipelines {
                 shader: shaders.cull.clone(),
                 shader_defs: shader_defs.clone(),
                 entry_point: Some(entry.to_owned().into()),
+                // The cull reads its workgroup counters before it first writes them. Metal hands out
+                // zeroed workgroup memory; DX12 and Vulkan hand out garbage unless wgpu zeroes it.
+                zero_initialize_workgroup_memory: true,
                 ..default()
             })
         };
