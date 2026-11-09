@@ -577,6 +577,13 @@ columns next to `id`. B2 splits a column further only where a measurement shows 
   accepted state in `PlayerRows` (MVC-PRED-012).
 - Side tables are keyed by `EntityId`, never by row.
 
+**Open part of decision 24.** The player position still lives in the `Transform` component. The
+server has no `PlayerRows` store yet. A copy of `Transform` in rows would give a second home for
+the position, and its tile could disagree with the tile of the replication for one tick. The
+movement check must write the player row first. Then `Transform` becomes a projection of the row,
+and the rows become the one home of the player position. The player state already holds a `Body`
+and the shared `Orientation`, and players and server entities use the same `TileKey::at`.
+
 ### 6.4 Classification
 
 | Data | Class (bevy-ecs) | Home | Writer |
