@@ -10,7 +10,6 @@ doctest = false
 [lints]
 workspace = true
 
-# std: the spawns of a tick wait in a BTreeMap
 [dependencies]
 bevy_app.workspace = true
 bevy_ecs.workspace = true
