@@ -144,8 +144,6 @@ fn collect<'w, 'm, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>>(
             transform: *transform,
             tints: tints.iter().map(|tint| evaluator.tint(tint)).collect(),
         }),
-        // A special model contributes its lighting and an empty layer;
-        // chests, banners, heads and the like draw nothing until they get renderers.
         BakedNode::Special {
             properties,
             transform,

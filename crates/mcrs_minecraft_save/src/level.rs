@@ -132,7 +132,6 @@ pub fn read_world_gen_settings(
     parse_world_gen_settings(&read_bytes(&path)?, &path, registries)
 }
 
-// Only the seed and the dimensions are written; bonus_chest and generate_structures are dropped, and the first writer that preserves a vanilla file needs them.
 pub fn write_world_gen_settings(
     world: &Path,
     settings: &WorldGenSettings,

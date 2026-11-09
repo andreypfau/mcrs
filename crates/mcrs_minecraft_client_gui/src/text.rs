@@ -53,7 +53,6 @@ fn number(tag: &NbtTag) -> String {
     }
 }
 
-// Every span clones its hover event into a Box; spans borrowing the hover from the Text lift it.
 fn push(out: &mut Vec<Span>, text: impl Into<String>, style: Inherited) {
     let text = text.into();
     if !text.is_empty() {

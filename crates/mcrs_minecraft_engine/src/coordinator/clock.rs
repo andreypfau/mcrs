@@ -18,9 +18,6 @@ pub struct EditClock {
 }
 
 /// The tick counter that every dimension reads as its game time.
-// The game time and the clock states start fresh each run and a player gets
-// `set_time` only after a change; reading and writing them with the save, and a full
-// `set_time` on join and every 20 ticks, lift it.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct GameTime(pub i64);
 

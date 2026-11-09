@@ -115,8 +115,6 @@ impl DimensionView<'_, '_> {
         blocks.get_cell(local(x)?, local(y)?, local(z)?)
     }
 
-    // A linear scan of the block entities of one section; an index by position in the
-    // section lifts it.
     pub(crate) fn block_entity(&self, pos: [i32; 3]) -> Option<&GeneratedBlockEntity> {
         let section = self.section(pos)?;
         let [x, y, z] = pos;

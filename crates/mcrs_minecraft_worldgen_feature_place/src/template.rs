@@ -85,8 +85,6 @@ fn value_of<'a>(layout: &'a BlockLayout, state: VoxelId, name: &str) -> Option<&
 
 /// `BlockState.rotate` for a rotation about Y, over the property names the
 /// block overrides act on.
-// Every placed block looks its properties up by name; the upgrade is
-// a per-block table built once from `layouts`, as `tree/provider.rs` does.
 pub fn rotate_state(world: &WorldStates, state: VoxelId, rotation: Rotation) -> VoxelId {
     if rotation == Rotation::None || world.unrotated.contains(state.0 as usize) {
         return state;
@@ -882,11 +880,6 @@ fn place_liquid<W: WorldGenVolume>(volume: &mut W, pos: BlockPos, state: VoxelId
 /// `StructureTemplate.placeInWorld` for one palette the caller has already
 /// drawn. The template's entities land in `spawns`, clipped by their block
 /// position and never finalized.
-// Only the villager pair is placed, and only unfinalized, which is
-// what the igloo asks for. A jigsaw piece finalizes what it places, so the
-// jigsaw kinds (village villagers and animals, cushions, golems, piglins, the
-// hoglin, outpost allays) are frozen but stay unplaced; the upgrade is a
-// finalized `GeneratedKind` per kind.
 #[expect(
     clippy::too_many_lines,
     reason = "runs the processor chain over every block of the palette and then writes the blocks and their block entities, in the reference's order"

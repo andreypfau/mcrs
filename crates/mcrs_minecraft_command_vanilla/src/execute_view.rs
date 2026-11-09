@@ -98,8 +98,6 @@ impl ExecuteView<'_, '_> {
                 let name = entry.identifier.as_str();
                 let in_subject = match predicate.subject {
                     ResourceOrTag::Entry(id) => id == name,
-                    // The tag is found by a scan of the tag names per test; a tag id
-                    // resolved when the argument is parsed lifts it.
                     ResourceOrTag::Tag(tag) => {
                         let id = u16::try_from(index.index()).ok();
                         context
@@ -111,9 +109,6 @@ impl ExecuteView<'_, '_> {
                 };
                 let passes = in_subject
                     && predicate.test(entry, state)
-                    // The block entity is serialized to NBT per test; matching the
-                    // predicate compound against the entity without serializing needs a visitor
-                    // on the block entity type.
                     && predicate.test_data(|| {
                         let entry = self.dimension.block_entity(pos)?;
                         saved_data(entry).ok()

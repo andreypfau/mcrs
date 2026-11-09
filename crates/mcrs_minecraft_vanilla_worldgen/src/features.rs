@@ -152,8 +152,6 @@ fn build_dimension_features(
     registries: Res<CurrentRegistries>,
     mut exit: MessageWriter<AppExit>,
 ) {
-    // Every named template is cloned, though only the templates a
-    // template feature places are read from here; upgrade = collect those alone.
     let template_names = match named_templates(&registries) {
         Ok(names) => names,
         Err(error) => {

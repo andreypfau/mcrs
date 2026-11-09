@@ -28,8 +28,6 @@ pub fn ignore_structure_and_air(
 
 /// `RandomizableContainer.setBlockEntityLootTable`: the container this run
 /// placed at `pos`, if any, takes the table and a seed from the stream.
-// The chest-shaped containers only; a hopper, decorated pot or
-// crafter under a marker needs its own arm.
 pub fn seed_container_loot<W: WorldGenVolume>(
     volume: &mut W,
     pos: BlockPos,

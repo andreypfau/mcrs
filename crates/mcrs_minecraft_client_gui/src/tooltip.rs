@@ -51,7 +51,6 @@ impl Tooltip {
     }
 }
 
-// No gap after the first line; only an item tooltip sets that flag, and none exists.
 /// The width and the height of the content box.
 pub fn content_size(font: &Font, lines: &[Vec<Span>]) -> IVec2 {
     let width = lines.iter().map(|line| font.width(line)).max().unwrap_or(0);
@@ -70,8 +69,6 @@ pub fn content_origin(mouse: IVec2, size: IVec2, gui: IVec2) -> IVec2 {
     at
 }
 
-// Always the default sprites; only an item's `tooltip_style` selects others, and item
-// tooltips do not exist yet.
 /// The background, the outline and the lines of the request, if there is one. A sprite the pack
 /// lacks draws as the missing sprite.
 pub fn draw(tooltip: &Tooltip, gui: GuiSize, atlas: &GuiAtlasData, out: &mut Vec<GuiQuad>) {

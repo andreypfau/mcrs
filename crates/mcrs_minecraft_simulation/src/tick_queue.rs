@@ -382,8 +382,6 @@ impl<T: TickKind> TickQueue<T> {
                 self.index.reindex(*section, entry);
             }
         }
-        // A section that does not run ticks but has a due head is popped and
-        // re-indexed every tick; a wake-up on its property change would lift this.
         out.retain(|section| eligible(*section));
         self.tidy_index();
     }
@@ -400,7 +398,6 @@ impl<T: TickKind> TickQueue<T> {
         let Reverse(tick) = entry.heap.pop()?;
         entry.release(tick.local, tick.kind);
         if entry.heap.is_empty() {
-            // An emptied section keeps up to 64 slots; the number is not measured.
             entry.heap.shrink_to(KEPT_CAPACITY);
             entry.pending.shrink_to(KEPT_CAPACITY);
         }

@@ -277,8 +277,6 @@ impl Candidate for EntityCandidate<'_> {
         }
     }
 
-    // Experience, player tags and teams have no state in the server yet: every player is
-    // at level 0, has no tag and no team. Their components lift it.
     fn experience_level(&self) -> Option<i32> {
         match self {
             Self::Player(_) => Some(0),

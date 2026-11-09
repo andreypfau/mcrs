@@ -48,8 +48,6 @@ fn offset(origin: BlockPos, at: LocalPos) -> BlockPos {
     )
 }
 
-// `uniform`, `palette`, `for_each` and `copy_to` on these handles make 4096 `voxel`
-// calls; a store with dense or paletted sections lifts it by handing out its own handle.
 impl<S: VoxelStore + ?Sized> SectionBlocks for VoxelSection<'_, S> {
     #[inline]
     fn get(&self, at: LocalPos) -> BlockStateId {

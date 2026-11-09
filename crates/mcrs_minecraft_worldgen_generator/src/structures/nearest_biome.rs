@@ -7,8 +7,6 @@ const Y_STEP: i32 = 64;
 /// The nearest sample point with one of the `wanted` biomes, searched ring by
 /// ring so the search stops once no farther ring can be nearer. `None` for a dimension with no
 /// height.
-// The search runs on the caller's thread, as long as a few seconds for a biome that is
-// absent; a task the tick polls lifts it.
 pub fn nearest_biome(
     mut biome_at: impl FnMut(IVec3) -> Option<u16>,
     wanted: &[u16],

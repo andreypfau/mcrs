@@ -152,7 +152,6 @@ fn structure(
     let frozen = index.map(|index| &index.tables().frozen);
     let id_of = |name: &ResourceLocationBuf| frozen?.structure_ids.get(name).copied();
     let lookup = context.lookup().registry_lookup();
-    // `StructureIndex::locate` takes a slice and builds its own placement lists per search; an iterator parameter and caller-owned scratch lift both allocations.
     let structures: Vec<StructureId> = lookup
         .ids(STRUCTURE.location(), value)
         .ok_or_else(invalid)?
@@ -230,8 +229,6 @@ pub(crate) fn run(
                 Distance::Spatial,
             )
         }
-        // The server stores no points of interest yet, so the search finds none; a
-        // point of interest index lifts it.
         Branch::Poi => {
             let value = context.arg(&call.invocation, command.poi)?;
             return Err(not_found("commands.locate.poi.not_found", value));

@@ -714,8 +714,6 @@ impl PieceContext<'_> {
         })
     }
 
-    // A scan of every frozen element per loaded piece; an index keyed
-    // on element content if loading a saved region ever shows up in a profile.
     fn element_id<E: serde::de::Error>(
         &self,
         wanted: &PoolElement,

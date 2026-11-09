@@ -1,8 +1,3 @@
-// Every reference in a built template pool is a
-// `ResourceLocation<Arc<str>>`, one allocation each, and a structure template is
-// built as a typed value, encoded to NBT and parsed back by the asset loader. A
-// `Holder` that is `Reference(Id<T>)` and a loader that takes typed templates
-// lift both.
 mod beta;
 mod biome;
 mod density;

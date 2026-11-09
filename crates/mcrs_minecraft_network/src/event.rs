@@ -199,10 +199,6 @@ mod loop_plugin {
                             ),
                             Ok(None) => {}
                             Err(malformed) => {
-                                // Once the server accepts a login the game disconnects
-                                // in the configuration protocol, but this loop cannot see that
-                                // the login was accepted; handing it the client's protocol
-                                // lifts it.
                                 conn.reject(state, &malformed);
                                 commands.entity(entity).remove::<ServerSideConnection>();
                                 break;

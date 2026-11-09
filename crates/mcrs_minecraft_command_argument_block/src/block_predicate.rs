@@ -13,9 +13,6 @@ use mcrs_voxel::BlockStateId;
 
 /// The value of a `block_predicate`. The property list and the data compound stay text and are
 /// read again by the test, so the value borrows the command line and owns nothing.
-// The test re-reads the property names and the SNBT per call. Resolving property and
-// value indices, or holding the parsed `NbtCompound`, needs an owned value, which the
-// allocation-free parse test forbids; a caller-owned compiled predicate lifts it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BlockPredicate<'a> {
     pub subject: ResourceOrTag<'a>,

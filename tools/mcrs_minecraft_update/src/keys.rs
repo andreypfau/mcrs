@@ -199,7 +199,7 @@ pub fn generate(
             _ => None,
         };
         if let Some(report) = report {
-            if above_catalog.contains(krate) {
+            if above_catalog.contains(krate) && !own_lists.contains(krate) {
                 return Err(format!(
                     "{registry}: {krate} owns this static registry and depends on {CATALOG_CRATE}, \
                      so the catalog cannot list it"

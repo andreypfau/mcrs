@@ -1150,17 +1150,18 @@ pub fn run_region(
     })
 }
 
+/// The section list of a flat dimension: exactly the sections of its dimension type.
+pub fn flat_y_sections(min_y: i32, section_count: u32) -> Arc<[i32]> {
+    let bottom = min_y >> SectionPos::BITS;
+    (bottom..bottom + section_count as i32).collect()
+}
+
 /// The section list every column of one dimension is generated over.
 ///
 /// One list for the whole dimension, not one per dispatch: a delta names a cell
 /// by its index in this list, so two columns that disagreed on it would write
 /// past each other, and the three stages of one column would not line up
 /// section for section.
-pub fn flat_y_sections(min_y: i32, section_count: u32) -> Arc<[i32]> {
-    let bottom = min_y >> SectionPos::BITS;
-    (bottom..bottom + section_count as i32).collect()
-}
-
 pub fn dimension_y_sections(router: &NoiseRouter, min_y: i32, section_count: u32) -> Arc<[i32]> {
     let config_bottom = min_y >> SectionPos::BITS;
     let noise_bottom = router.noise.min_y >> SectionPos::BITS;
