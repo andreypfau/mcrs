@@ -246,3 +246,86 @@ impl<'rows, M> MovedStates<'rows, M> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::mem;
+
+    use bevy_ecs::system::RunSystemOnce;
+    use bevy_ecs::world::World;
+    use bevy_tasks::TaskPool;
+    use glam::DVec3;
+    use mcrs_minecraft_engine_physics::EntityWrites;
+    use mcrs_minecraft_engine_physics::FLOOR;
+    use mcrs_minecraft_engine_physics::Mob;
+    use mcrs_minecraft_engine_physics::TestScene;
+    use mcrs_minecraft_engine_physics::mob_body;
+    use mcrs_minecraft_engine_physics::mob_row;
+    use mcrs_minecraft_entity::EntityTypeData;
+    use mcrs_minecraft_entity_key::EntityKey;
+    use mcrs_minecraft_protocol_game::entity::MobLooks;
+
+    use super::*;
+
+    #[test]
+    fn a_mob_that_crosses_a_tile_moves_in_its_new_tile_with_its_state_after_the_pass() {
+        let pool = ComputeTaskPool::get_or_init(TaskPool::default);
+        let mut scene = TestScene::<()>::new(2, 0, 0, 1);
+        let id = EntityId(2);
+        let row = mob_row(&EntityTypeData::PIG);
+        let mut state = mob_body(
+            &EntityTypeData::PIG,
+            &row,
+            EntityKey(2),
+            DVec3::new(31.9, f64::from(FLOOR), 5.5),
+        );
+        state.body.velocity = DVec3::new(0.5, 0.0, 0.0);
+        scene.rows.spawn(id, state, row);
+        scene.step(pool, 1, &mut EntityWrites::default());
+        let to = TileKey::new(1, 0, 0);
+        assert_eq!(
+            scene.rows.tile_of(id),
+            Some(to),
+            "the push of 0.5 takes the pig over the edge of its tile"
+        );
+
+        let now = scene
+            .rows
+            .state_of(Placed { tile: to, id })
+            .map(mob_state)
+            .expect("the pig has a row in its new tile");
+        let mut world = World::new();
+        world.insert_resource(mem::take(&mut scene.rows));
+        let mut mobs = Mobs::default();
+        mobs.0.insert(
+            id,
+            Mob {
+                kind: &EntityTypeData::PIG,
+                uuid: 2,
+                looks: MobLooks::default(),
+                custom_name: None,
+                tags: Vec::new(),
+            },
+        );
+        world.insert_resource(mobs);
+        world.insert_resource(MobChanges::default());
+        world.insert_resource(TileEvents::default());
+        world
+            .run_system_once(publish_mobs::<()>)
+            .expect("the publish runs");
+
+        let deltas = world.resource_mut::<TileEvents>().take();
+        let moves: Vec<(TileKey, MobState)> = deltas
+            .tiles
+            .iter()
+            .flat_map(|delta| delta.events.iter().map(move |event| (delta.tile, event)))
+            .filter_map(|(tile, event)| match &event.event {
+                EntityEvent::Move(ReplicationData::Mob(MobReport::Move(state))) => {
+                    Some((tile, *state))
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(moves, [(to, now)], "one move, from the row after the pass");
+    }
+}
