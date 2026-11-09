@@ -33,7 +33,7 @@ of this document that owns the value. Section 15 lists these rules.
 - **Mob**, **entity type**, **type data**, **entity data**, **default value**, **dirty entry**,
   **spawn request**, **first spawn setup**, **hook**: as `entity-tracking.md`, section 0.1, defines
   them.
-- **Birth key**, **merge point**, **pair action**, **decision**, **reflex**, **goal**: as
+- **Order key**, **merge point**, **pair action**, **decision**, **reflex**, **goal**: as
   `entity-ai-timing.md`, section 0.1, defines them.
 - **Animal**: an entity of one of the four types `pig`, `cow`, `sheep` and `chicken`. In this
   document, "animal" never means another type.
@@ -71,7 +71,7 @@ of this document that owns the value. Section 15 lists these rules.
 - **Initiator**: of two animals that breed, the animal whose breed goal completes the breed. The
   other animal is the **partner**.
 - **Keyed random value**: a random value from a stream (AIT-LAG-008). The stream is a function of
-  the world seed, the birth key of the entity, the tick and the purpose of the value. The value does
+  the world seed, the UUID of the entity, the tick and the purpose of the value. The value does
   not depend on the order of the entities or on the thread count.
 - **Creative player**: a player in the game mode `creative`.
 
@@ -472,8 +472,8 @@ distribution for the random values, confidence: high). The breed goal of the ini
 breed with its partner. The steps:
 
 1. Make the child of ANIM-BREED-002. Its age is −24000. Its position is the position of the
-   initiator. Its yaw and its pitch are 0. Its birth key has the source kind `entity` and the birth
-   key of the initiator (PHY-CMP-013).
+   initiator. Its yaw and its pitch are 0. Its new UUID has the source kind `entity` and the
+   UUID of the initiator as its source key (PHY-CMP-013).
 2. Find the love cause of the initiator. If it has none, use the love cause of the partner. If that
    player is online, add 1 to its statistic `minecraft:custom` / `minecraft:animals_bred`. Then run
    the advancement trigger `minecraft:bred_animals` for the player, with both parents and the child.
@@ -868,7 +868,7 @@ order. A rule that changes another entity or the world needs a merge point.
 | age step | ANIM-AGE-002 | age, age lock, alive | age; entry 16 and the box at a crossing | each tick | none. A crossing changes the box, so the grid sees it at the next freeze |
 | love step | ANIM-LOVE-002 | age, love time | love time | each tick | none |
 | growth particles | ANIM-AGE-007 | two timers | two timers; particle packets | each tick while a timer is more than 0 | packets only |
-| egg | ANIM-TICK-001 | egg timer, age, alive, jockey flag, variant | egg timer | each tick; an event about one time in 9000 ticks | a new item entity, and a sound. The item is a spawn request with a birth key of the kind `entity` |
+| egg | ANIM-TICK-001 | egg timer, age, alive, jockey flag, variant | egg timer | each tick; an event about one time in 9000 ticks | a new item entity, and a sound. The item is a spawn request with a new UUID of the kind `entity` |
 | chicken fall | ANIM-TICK-002 | on-ground flag, velocity | velocity | each tick, inside the hot tick after the push | none |
 | ambient sound | ANIM-TICK-004 | counter, alive | counter | each tick | a sound packet, about one time in 400 ticks |
 | boost | ANIM-RIDE-003 | boost state, controller | boost state | each tick with a controller | none |
@@ -892,9 +892,9 @@ These conclusions follow:
 - Each random value of these rules is a keyed random value (ANIM-DEV-001). The purpose of a value
   names the rule, for example "egg timer" or "ambient". Thus the result does not depend on the
   order of the tiles.
-- Each new entity of these rules is a spawn request with a birth key of the kind `entity` and the
-  parent key of the animal. The sequence counts the requests of one animal in one tick. The life
-  cycle of `DomainInput` applies them in the order of the birth keys.
+- Each new entity of these rules is a spawn request with a new UUID of the kind `entity` and the
+  UUID of the animal as its source key. The sequence counts the requests of one animal in one tick. The life
+  cycle of `DomainInput` applies them in the order of their UUIDs.
 
 ## 14. Intentional deviations
 
@@ -917,7 +917,7 @@ These conclusions follow:
   is one less than the age of the initiator (experiment ANIM-E6).
 - **This server:** the breed is a pair action at the merge point at the start of a tick
   (AIT-CPL-004). When both animals of a pair complete the breed goal in one tick, the animal with
-  the smaller birth key is the initiator. Both parents then do the age step in the same tick, so
+  the smaller UUID is the initiator. Both parents then do the age step in the same tick, so
   their ages are equal.
 - **Visible to the client:** no. The age of a parent differs by at most 1 tick.
 - **Test:** a test accepts a difference of 1 in the ages of the parents.

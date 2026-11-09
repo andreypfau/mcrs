@@ -25,7 +25,7 @@ Section 14 is the implementation plan.
 | Work inside one system | per-tile dependency counters: a tile task starts when the tasks it reads from are done. Bevy stays the scheduler between systems | §3.9 |
 | Sequential groups | collider groups (PHY-CMP-018) and explosion groups (PHY-CMP-020), found from the start-of-tick state; both start at the beginning of `Simulate` and overlap the main pass | §3.5 |
 | Unit of causality | one entity for one tick; a mount tree is one unit (PHY-ORD-014); a sequential group is one unit | §3.5, §3.6 |
-| Order key | the persisted birth key of PHY-CMP-013, never the network id | §4 |
+| Order key | the persisted UUID of PHY-CMP-013, never the network id | §4 |
 | Writers | one writer per row in each phase; commands before the freeze; the block domain in `WorldWrite` (PHY-BLK-001); a server vehicle places its rider (PHY-SRV-011) | §3.7 |
 | Writes and claims | binned by target tile; applied and arbitrated per target tile in parallel; writes at the start of the next tick (PHY-CMP-015), claims after the block domain (PHY-CMP-017) | §3.7 |
 | Frozen state | the grid is written inside the pass into a back buffer; the freeze patches only tiles that changed after the pass | §3.4 |
@@ -84,9 +84,9 @@ replace them (§10.6).
 | Crowd damage random value | a stream of (key, tick) | PHY-CMP-014, PHY-DEV-006 | no shared random source in the pass |
 | Writes to other entities | start of the next tick, in key order | PHY-CMP-015, PHY-DEV-005 | binned merge point (§3.7) |
 | Claims | once per tick after the block domain; `command < entity < block`; several grants to one winner in the order of the target keys | PHY-CMP-017 | binned arbitration (§3.7) |
-| Item phase | an offset 0–3 from the birth key | PHY-CMP-016, PHY-DEV-007 | §6.6 |
+| Item phase | an offset 0–3 from the UUID | PHY-CMP-016, PHY-DEV-007 | §6.6 |
 | Push cap | mutual top-`K`, only with `max_entity_cramming` 0 | PHY-CMP-019, PHY-DEV-008 | §12.6 |
-| Explosions | sequential groups in birth-key order; rays of one explosion in parallel with keyed random values; opt-in wave mode for groups larger than `N`; other exploders as writes at `T + 1` | PHY-EXP-001..003, PHY-CMP-020, PHY-CMP-022, PHY-DEV-009..011 | §3.5 |
+| Explosions | sequential groups in UUID order; rays of one explosion in parallel with keyed random values; opt-in wave mode for groups larger than `N`; other exploders as writes at `T + 1` | PHY-EXP-001..003, PHY-CMP-020, PHY-CMP-022, PHY-DEV-009..011 | §3.5 |
 | Block domain on entities | same tick, after the entity pass, in block order | PHY-BLK-001/002 | §3.7 |
 | Riding player | the vehicle writes its position; the client gives only the rotation | PHY-SRV-011 | §3.6 |
 | Start-of-tick state of a player | the state after the moves of this tick are accepted | PHY-CMP-021 (PHY-DEV-012 is the alternative, not used) | `predict` before the main pass (§3.9, §8.2) |
@@ -191,7 +191,7 @@ of PHY-ORD-005 without a move. Each living row runs the push in each tick.
 
 ### 3.5 Sequential groups
 
-Two rules make a small set of entities tick in sequence, in birth-key order. The freeze finds the
+Two rules make a small set of entities tick in sequence, in UUID order. The freeze finds the
 groups from `F_T`, so the set of groups does not depend on the thread count or the layout. Each
 group is one task. Both kinds start at the beginning of `Simulate` and overlap the main pass,
 through the per-tile dependency counters of §3.9.
@@ -279,7 +279,7 @@ same in each layout.
 ```rust
 pub enum WriterKey {              // variant order is the order of PHY-CMP-017
     Command { sequence: u64 },
-    Entity { key: BirthKey },
+    Entity { key: EntityKey },
     Block { pos: YzxPos },        // compared by y, then z, then x
 }
 ```
@@ -367,39 +367,36 @@ Output:       tile events from mover lists; AI delta (versioned), block changes,
 
 | Key | What it is | Persisted | Used for |
 |-----|------------|-----------|----------|
-| `BirthKey` | PHY-CMP-013: the birth tick, the source key (kind, then the parent key, the block position, the chunk and attempt, the saved list position, the command sequence or the login order), the sequence. Kept across a change of dimension | yes, with the phase offset of PHY-CMP-016 | the push order, the item phase, the crowd damage stream, the groups, the AI random streams, the bins, claims |
+| `EntityKey` | PHY-CMP-013: the UUID of the entity, compared as an unsigned 128-bit integer. Kept across a change of dimension | yes, as the UUID of the entity | the push order, the item phase, the crowd damage stream, the groups, the AI random streams, the bins, claims |
 | `EntityId` | the global runtime id from the coordinator's ranges; the wire id | no | the slot map of the store, side tables, the protocol |
 | `Entity` | the Bevy entity of the cold state of a mob or a player | no | ECS only |
 
-The source key of kind `entity` holds the birth key of the parent, which nests without a bound. The
-stored form (PHY-CMP-013, digest form) is:
+The order key is the UUID. An entity without a UUID gets a new one from its birth inputs:
 
 ```rust
-pub struct BirthKey {             // 32 bytes; Ord in field order
-    tick: u64,
-    kind: SourceKind,             // load < player < command < spawn < block < entity
-    source: u128,                 // block: y, z, x packed in order; spawn: chunk and attempt;
-                                  // load: chunk and list position; command, player: sequence;
-                                  // entity: a 128-bit digest of the parent's stored key
-    sequence: u32,
+pub struct EntityKey(pub u128);   // the UUID; Ord by value
+
+impl EntityKey {
+    // A fixed 128-bit hash of the world seed, the birth tick, the source kind number
+    // (load 0, player 1, command 2, spawn 3, block 4, entity 5), the 128-bit source key
+    // (block: y, z, x; spawn: chunk and attempt; load: chunk and list position;
+    // command: sequence; entity: the UUID of the parent) and the sequence,
+    // with the version 4 and the variant of RFC 9562.
+    pub fn born(world_seed: u64, tick: u64, source: &BirthSource, sequence: u32) -> Self;
 }
 ```
 
-The comparison follows PHY-CMP-024: tick, kind, source value (a digest as an unsigned 128-bit
-integer), sequence, then the UUID. The UUID is made at birth from the parent's stored key, the birth
-tick and the sequence, with a keyed hash that is independent of the digest function (a different
-algorithm and key), and is saved with the entity. Two entities compare equal only when both 128-bit
-functions collide, about `2^-256` per pair. The row keeps the UUID in a side table keyed by
-`EntityId`; the comparison reads it only on a tie.
+The birth inputs never repeat in one world, and a spawn with the UUID of an entity of the world is
+refused. Thus two entities never compare equal (PHY-CMP-024). A UUID from a save, a load or a
+summon `UUID` stays as it is. The phase offset of PHY-CMP-016 is the two lowest bits of the UUID,
+so the save does not keep it.
 
-The coordinator gives the key of a login, in the order of the placements of the tick, so the key
-does not depend on the cells. A player keeps its key across a change of cell or dimension. The
-player file holds the key and the phase offset under `mcrs:birth`. A player keeps its own UUID, the
-UUID of its profile.
+A player has the UUID of its profile, so it never gets a new UUID. The player file keeps no key of
+this implementation. A read drops the `mcrs:birth` compound of an older file.
 
 The birth tick reads the birth clock of the coordinator. The file `data/mcrs/birth_clock.dat` holds
 the value that the clock reaches at the next save, one autosave interval ahead. After a crash, the
-clock thus continues above every tick that a saved key can hold.
+clock thus continues above every tick that a saved UUID can hold as a birth input.
 
 ## 5. AI: reflexes in the tick, decisions in a pipeline
 
@@ -431,7 +428,7 @@ tile (technique: 10 per tick), which defers a projectile, never deletes it.
 The decisions of AIT-DEC-001 run in the AI stage, a kernel without Bevy on a link per world.
 
 - **Issue (AIT-CDN-001).** The hot tick issues each part at its vanilla period (AIT-VAN-025), with
-  the phase from the birth key (AIT-DEV-003), never by backlog, wall time or load.
+  the phase from the UUID (AIT-DEV-003), never by backlog, wall time or load.
 - **Versioned snapshot (AIT-LAG-001).** A decision of issue tick `T` reads the bodies and steering
   states at the start of `T`, the block copy of `T`, the player table of `T`, the facts before `T`,
   and the brain state after the earlier decisions of its entity. The tick sends, per tick, the rows
@@ -444,7 +441,7 @@ The decisions of AIT-DEC-001 run in the AI stage, a kernel without Bevy on a lin
 - **Cheap inputs (technique).** Behaviour conditions re-run only when an input changed, by a change
   counter on the memories; only mobs with a path hear block changes on it (an active-navigator set
   per tile); path types and tag bits per state are precomputed.
-- **Random values (AIT-LAG-008)** come from a stream of the world seed, the birth key, the issue
+- **Random values (AIT-LAG-008)** come from a stream of the world seed, the UUID, the issue
   tick and the part.
 - **Output.** A decision writes only the brain and steering state of its entity (AIT-DEC-007). A
   change of another entity or of shared state is a proposal.
@@ -453,7 +450,7 @@ The decisions of AIT-DEC-001 run in the AI stage, a kernel without Bevy on a lin
 
 - **Decisions per tile (AIT-LAG-002).** A decision applies before the hot step of its entity, at
   the start of the tile task in the main pass of `T + k`, after the merge point changed the entity,
-  in the order `(issue tick, birth key)` within the tile (AIT-LAG-007). The merge point keeps only
+  in the order `(issue tick, UUID)` within the tile (AIT-LAG-007). The merge point keeps only
   the proposals.
 - **Revalidation (AIT-LAG-005/006).** The task checks each decision against the current state: the
   entity was removed or changed dimension; the attack target is not alive, not in the dimension,
@@ -464,7 +461,7 @@ The decisions of AIT-DEC-001 run in the AI stage, a kernel without Bevy on a lin
   keeps its state; a fact goes to the brain.
 - **Proposals (AIT-CPL-002..005)** keep one global point, at the merge point of `DomainInput`. They
   are split into components of proposals that name a common entity (union-find), and the components
-  are granted in parallel, each in the order `(issue tick, birth key)`. An item merge grant enters
+  are granted in parallel, each in the order `(issue tick, UUID)`. An item merge grant enters
   the claim arbitration of its tick (AIT-CPL-005, PHY-CMP-017).
 - **Timers** that a decision starts count from the application (AIT-LAG-010); hold times end by
   AIT-LAG-009.
@@ -550,7 +547,7 @@ pub struct TileRows {                       // SoA; sorted by motion class; moun
     size: Vec<BodySize>,
     rest: Vec<Rest>,
     steering: Vec<Steering>,
-    key: Vec<BirthKey>,
+    key: Vec<EntityKey>,
     id: Vec<EntityId>,
     awake: Vec<u32>,
     movers: Vec<u32>,
@@ -575,7 +572,7 @@ columns next to `id`. B2 splits a column further only where a measurement shows 
 | Data | Class (bevy-ecs) | Home | Writer |
 |------|------------------|------|--------|
 | position, velocity, rotation, pose, motion state, rest, steering | authoritative | rows | the writer of the phase (§3.7) |
-| motion class, birth key | authoritative, immutable | rows | the life cycle |
+| motion class, UUID | authoritative, immutable | rows | the life cycle |
 | body size | derived from class, pose, `scale`, baby; cached per row | rows | one projection at the merge point; `tick_player` derives it from the pose on read (§9) |
 | accepted player state, server copy | authoritative | `PlayerRows` + `Prediction` | `predict`, the server part |
 | grid rows, position table | materialized, frozen | `BodyGrid` | the pass (back buffer), the freeze patch |
@@ -592,7 +589,7 @@ pub struct GridRow {                        // 80 bytes; bodies only
     pub position: DVec3,
     pub half_width: f32,
     pub height: f32,
-    pub key: BirthKey,
+    pub key: EntityKey,
     pub root_vehicle: EntityId,
     pub team: TeamSlot,
     pub flags: GridFlags,                   // pushable, push_targets, collider kind, spectator,
@@ -1032,7 +1029,7 @@ pub struct BlockOverlay<'a, W> { base: &'a W, blocks: &'a FxHashMap<BlockPos, Bl
 
 /// The driver picks the front grid plus `ColliderEnds`, or a live view (exact-parity mode).
 pub trait BodyView {
-    fn colliders(&self, query: Aabb, mover: BirthKey, out: &mut Vec<EntityCollider>); // PHY-SHP-009
+    fn colliders(&self, query: Aabb, mover: EntityKey, out: &mut Vec<EntityCollider>); // PHY-SHP-009
     fn neighbours(&self, of: &GridRow, out: &mut Vec<GridRow>);                     // PHY-RCH-006
     fn position(&self, entity: EntityId) -> Option<PositionRow>;
 }
@@ -1105,7 +1102,7 @@ pub fn tick_entity<W: CollisionWorld, B: BodyView>(
     actions: &mut Vec<BlockAction>, scratch: &mut Scratch,
 ) -> TickOutcome;
 /// PHY-CMP-012: the push of the neighbours from the start-of-tick grid, added to `velocity` in
-/// the order of their birth keys; the crowd draw of PHY-CMP-014 comes from `stream`; with
+/// the order of their UUIDs; the crowd draw of PHY-CMP-014 comes from `stream`; with
 /// `max_entity_cramming` 0 only mutual `cap`-nearest pairs push (PHY-CMP-019).
 pub fn push_entity<B: BodyView>(
     bodies: &B, of: &GridRow, rules: &PushRules, stream: &KeyedStream, velocity: &mut DVec3,
@@ -1156,7 +1153,7 @@ pub fn move_body<W: CollisionWorld, B: BodyView>(
 /// Writes or claims of one task, binned by target tile. `E` is the write or the claim type.
 pub struct EffectBuffer<E> { bins: Vec<EffectBin<E>> }   // a bin: a tile and its entries
 pub struct Keyed<E> {
-    pub target: BirthKey, pub target_id: EntityId, pub writer: WriterKey, pub sequence: u32,
+    pub target: EntityKey, pub target_id: EntityId, pub writer: WriterKey, pub sequence: u32,
     pub effect: E,
 }
 /// Per tile: late AI decisions (`T` = a decision), or the gathered bins (`T` = `Keyed<E>`),
@@ -1411,11 +1408,11 @@ PHY-CMP-019 applies (PHY-DEV-008). Jacobi also spreads the rows of a heavy tile 
 3. AI throughput: 44 cores of AI work at the target cost.
 4. No `Changed<T>` scan over a cold population larger than ~10k.
 5. The serial-path changes of §11.
-6. Correctness: the birth key and the claim arbitration before any determinism or dupe test.
+6. Correctness: the UUID order key and the claim arbitration before any determinism or dupe test.
 
 ## 13. Spec requests
 
-Resolved earlier: R1 (PHY-CMP-013 digest form), R2 (PHY-CMP-017 cross-cell claims), R3 (PHY-CMP-020
+Resolved earlier: R1 (PHY-CMP-013 order key), R2 (PHY-CMP-017 cross-cell claims), R3 (PHY-CMP-020
 step 4), R4 (PHY-EXP-003, PHY-DEV-010), R5 (MVC-VEH-001..014), R6 (AIT-CPL-005), R7 (AIT U1, U6),
 R8 (AIT U2), R9 (SIM-MODEL-009), R10 (SIM-MODEL-102(a)), R11 (SIM-RND-004), and the earlier PHY,
 MVC, REPL and AIT requests.
@@ -1426,14 +1423,14 @@ The requests of this revision:
 |---|------|--------|--------|
 | R12 | SIM-MODEL-009, SIM OQ-13 | Footprint bounds of shape functions and of the side effects of placement and removal | Resolved: SIM-MODEL-009 Tables 4–7 (shape functions, side effects, scheduled-tick handlers, block-event handlers). Open part: the bounds of block entities (SIM OQ-13) |
 | R13 | PHY-CMP-008 | The moves of a player and the entity pass | Resolved: PHY-CMP-021 (moves before the pass conform); PHY-DEV-012 is the alternative, not used |
-| R14 | PHY-CMP-017 | The order of several grants to one winner | Resolved: PHY-CMP-017 step 5 (target birth keys) |
+| R14 | PHY-CMP-017 | The order of several grants to one winner | Resolved: PHY-CMP-017 step 5 (target UUIDs) |
 | R15 | SIM-RND-001, SIM-MODEL-102(a) | A re-run uses the drawn position; picks of sections interleave | Resolved: SIM-RND-001 |
 | R16 | PHY-CMP-020 | Opt-in wave mode | Resolved: PHY-CMP-022, PHY-DEV-011 |
 | R17 | AIT-LAG-002 | Decisions at the start of the tile task | Resolved: AIT-LAG-002 |
 | R18 | PHY-ORD-013 / MVC-MODE-003 | Coarse triggers as data | Resolved: MVC-MODE-003 (off-grid coordinates, potent sulfur up to 25 blocks below) |
 | R19 | PHY-CMP-020 step 1 | A creeper that reaches its fuse seeds a group | Resolved: AIT-RFX-002 |
 | R20 | REPL §7.4, MVC-UNC-007 | An entity in the near zone of a viewer is always tier 0 | Resolved in REPL §7.4 (this design's own document) |
-| R21 | PHY-CMP-024 | The order of two keys after a digest collision | Resolved: PHY-CMP-024 (UUID from an independent function) |
+| R21 | PHY-CMP-024 | The order of two equal keys | Resolved: PHY-CMP-024 (the UUID is the key, and a duplicate UUID is refused) |
 | R22 | AIT-CPL-006 | The place of the raid tick | Resolved: AIT-CPL-006 (after the merge point, before the pass) |
 
 No request of this note is open. The open spec question that this design depends on is SIM OQ-13
@@ -1479,7 +1476,7 @@ working. Steps in one track run in sequence; tracks marked ∥ run in parallel w
 | Step | Crate | Scope | Rules | Tests | Exit |
 |------|-------|-------|-------|-------|------|
 | B0 | `mcrs_minecraft_physics` | the boundaries of §9: `EffectBuffer` bins with `WriterKey`, `BlockOverlay`, `ColliderEnds` per tile, grid back buffer, row-only life cycle, `TileQueues`, `masks()` as `Option` | — | compile-level and unit tests | types stable; later steps only fill them |
-| B1 | `mcrs_minecraft_engine`, save | birth key, its digest form, the UUID made at birth, the phase offset, persistence | PHY-CMP-013, 016, 024 | save and load equality; one cell against four give equal keys | before any determinism test |
+| B1 | `mcrs_minecraft_engine`, save | the UUID as the order key, the new UUID from the birth inputs, the phase offset, persistence | PHY-CMP-013, 016, 024 | save and load equality; one cell against four give equal keys | before any determinism test |
 | B2 | `mcrs_minecraft_engine_physics` | `EntityRows`, `BodyGrid` (grid in the pass, patch at the freeze), `entity_tick` over tiles with counters, rest per tile, bins, merge point per target tile, row-only items and orbs | PHY-CMP-008, 009, 012, 015, PHY-INV-015 | tick determinism for 1, 2, 8 threads and task splits; grid patch equals rebuild | 100k items and walkers at ≤ 5 ms on 16 cores |
 | B3 | `mcrs_minecraft_engine_physics` | claims per target tile; pickups, hoppers, merges, command kills | PHY-CMP-017 | property: one winner, lowest key, any thread count | dupe tests pass |
 | B4 | `mcrs_minecraft_engine_physics` | collider groups with waves; explosion groups with the overlay, creeper seeds, the opt-in wave mode; counters | PHY-CMP-018, 020, 022, PHY-EXP-001..003, AIT-RFX-002 | boats do not tunnel; TNT cannon; group finding determinism | E29–E31 within PHY-DEV-002 |
@@ -1625,10 +1622,10 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     never closed. The engine does not give the open progress to the kernel yet.
 39. PHY-INP-011, the order and the precision of the push out. Resolved: PHY-INP-011 states the
     f64 offset and the overwrite per axis.
-40. PHY-CMP-013, a player with a saved birth key. Resolved: PHY-CMP-013. A player keeps its saved
-    key at each login and at a respawn; only a player without one gets a key of the kind `player`.
-41. PHY-CMP-024, the input of the UUID. Resolved: PHY-CMP-024. For the kind `entity` the input
-    also holds the UUID of the parent, so a digest collision upstream keeps about `2^-256`.
+40. PHY-CMP-013, the key of a player. Resolved: PHY-CMP-013. A player keeps the UUID of its
+    profile at each login and at a respawn, and the UUID is its order key.
+41. PHY-CMP-024, a tie of two keys. Resolved: PHY-CMP-024. The UUID is the key, and a spawn with
+    a UUID of the world is refused, so no tie exists.
 42. PHY-CMP-013, the birth tick across a restart. Resolved: PHY-CMP-013. The birth tick is a birth
     clock of the world: it advances in every server tick, also a frozen one, the save keeps it, and
     no command changes it. The game time is saved and no command sets it, but it stops while the

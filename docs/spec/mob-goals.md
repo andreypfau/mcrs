@@ -32,11 +32,11 @@ each animal type, for example its attributes, its food items, its love state and
   evaluation**, **evaluation unit**, **path**, **guidance**, **path follower**, **move control**,
   **look control**, **jump control**, **look target**, **line of sight**, **idle time**,
   **follow range**, **reflex**, **decision**, **issue tick**, **snapshot**, **application**,
-  **pair action**, **proposal**, **grant**, **birth key**, **player table**: as
+  **pair action**, **proposal**, **grant**, **player table**: as
   `entity-ai-timing.md`, section 0.1, defines them.
 - **Request**, **reach range**, **speed modifier**, **done**, **mob path type**, **malus**,
   **legacy solid flag**: as `pathfinding.md`, section 0.1 and PATH-REQ-001, define them.
-- **Order key**: the birth key of an entity, compared as PHY-CMP-013 states.
+- **Order key**: the UUID of an entity, compared as PHY-CMP-013 states.
 - **Feet point**: the position of an entity.
 - **Eye point**: the point `(x, y + e, z)` of an entity at position `(x, y, z)`, where `e` is the
   eye height of its current dimensions.

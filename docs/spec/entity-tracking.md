@@ -206,7 +206,7 @@ pass of its dimension world. The row has:
 
 - the motion row of the type: the category, the dimensions and the step height of TRK-TYPE-001;
 - the living state with the default attributes of TRK-TYPE-003;
-- the birth key of PHY-CMP-013 and the UUID of PHY-CMP-024;
+- the UUID of PHY-CMP-013, which is also its order key;
 - a network id from the ids of the cell;
 - the yaw of `Living`, as raw f32 degrees.
 
@@ -220,19 +220,19 @@ walker tick of PHY-ORD-002 moves the mob in each tick. Until `mob-goals.md` give
 steering: its input vector is zero and it does not jump.
 
 **TRK-LIFE-002** (`source_suggested`, semantic, confidence: medium). A spawn request has the
-type, the position, the rotation, the velocity, the source of the birth key and the entity data
+type, the position, the rotation, the velocity, the UUID and the entity data
 values that differ from the defaults. These systems make spawn requests:
 
 - the `summon` command (section 3), with the birth source of the kind `command` and the command
   sequence of PHY-CMP-013. The command sequence is the index of the effect of the command in the
-  command effect buffer of the world in the tick, from 0. The command computes the birth key from
-  the birth clock and this sequence when it runs, and the UUID as `birth_uuid(key, None)`. Thus the
-  success message of TRK-SUM-004 has the UUID, and the spawn request carries the key and the UUID;
+  command effect buffer of the world in the tick, from 0. A summon without a `UUID` key computes a
+  new UUID from the world seed, the birth clock and this sequence when it runs (PHY-CMP-013). Thus
+  the success message of TRK-SUM-004 has the UUID, and the spawn request carries it;
 - natural spawning (`natural-spawning.md`), with the birth source of the kind `spawn`;
 - any later system that adds a mob, with the birth source that PHY-CMP-013 gives it.
 
-The life cycle of `DomainInput` applies the spawn requests of the tick in the order of their birth
-keys (`physics-architecture.md`, section 3.9). The command effects apply in `DomainInput` before
+The life cycle of `DomainInput` applies the spawn requests of the tick in the order of their
+UUIDs (`physics-architecture.md`, section 3.9). The command effects apply in `DomainInput` before
 the life cycle, so the new row ticks first in the `Simulate` of the same tick.
 
 **TRK-LIFE-003** (`black_box_confirmed`, semantic, confidence: high). A new mob of a spawn request
@@ -280,11 +280,11 @@ for `<entity>`.
    fail with `commands.summon.failed.peaceful`. G1 skips this step (TRK-DEV-003).
 4. Let `setup` be true when the `<nbt>` node is absent, and false when it is present. Check the
    compound with TRK-SUM-003.
-5. Compute the birth key and the UUID (TRK-LIFE-002). Make a spawn request of `type` at `pos` in
+5. Compute the UUID (TRK-LIFE-002). Make a spawn request of `type` at `pos` in
    the source dimension, with no rotation. When `setup` is true, the mob also gets the first spawn
    setup of its type.
 6. If an entity with the same UUID exists in the dimension, fail with
-   `commands.summon.failed.uuid`. A UUID of PHY-CMP-024 cannot collide in practice, so G1 does not
+   `commands.summon.failed.uuid`. A new UUID of PHY-CMP-013 cannot collide in practice, so G1 does not
    implement this step.
 7. Send the success message of TRK-SUM-004. The result is 1.
 
@@ -983,14 +983,13 @@ update before it: the fall damage made the health entry dirty, which made an upd
 3. **Mob rows** (`mcrs_minecraft_engine_physics`). Spawn requests in the life cycle of
    `DomainInput` (TRK-LIFE-001 to TRK-LIFE-003). The cold state is a side table from `EntityId` to
    the entity type (`physics-architecture.md` §15, question 56). Add the birth source
-   `BirthSource::Command { order }` to `mcrs_minecraft_physics`. Its kind is the existing
-   `SourceKind::Command`, which sorts after `Player` and before `Spawn`; its packed source value is
-   `order`, as for `Player { order }`. `order` is the index of the effect in the command effect
+   `BirthSource::Command { order }` to `mcrs_minecraft_entity_key`. Its kind number is 2 and its
+   source key is `order` (PHY-CMP-013). `order` is the index of the effect in the command effect
    buffer of the world in the tick, from 0. A kernel change is allowed here, because PHY-CMP-013
    requires the source and the kernel lacks it. The removal requests of TRK-LIFE-004 are a hook: G1 adds no producer.
 4. **The `summon` command** (`mcrs_minecraft_command_vanilla`). The argument
    `minecraft:nbt_compound_tag` in `VanillaArgument`. TRK-SUM-001 to TRK-SUM-004: the handler
-   computes the birth key and the UUID, writes the spawn request as a command effect, and sends the
+   computes the UUID, writes the spawn request as a command effect, and sends the
    message.
 5. **Tile deltas of mobs** (Output stage of the dimension). The engine pass keeps no mover list.
    In each tick, publish one `Move` event for each mob row that ticked, with the position, the

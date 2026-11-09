@@ -136,7 +136,7 @@ Confidence: high. Experiment: summon three pigs, and run `kill @e[type=pig]`. Th
   2. Each kill applies when the command runs, before the next entity pass of the dimension.
   3. After the last kill, the command sends the feedback of CMD-KILL-005.
 - **Postconditions:** a later command of the same tick sees each victim in the dying state or
-  removed. The birth keys of the victims do not change the result, because each kill writes only
+  removed. The UUIDs of the victims do not change the result, because each kill writes only
   its own victim.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium.

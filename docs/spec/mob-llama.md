@@ -30,7 +30,7 @@ goals. This document cites those rules, and states only the changes for the llam
 - **Server**, **tick**, **entity**, **living entity**, **position**, **velocity**, **box**, **f32**,
   **f64**: as `entity-physics.md`, section 0.1, defines them.
 - **Mob**, **goal**, **control flag**, **full evaluation**, **evaluation unit**, **reflex**,
-  **decision**, **issue tick**, **snapshot**, **proposal**, **grant**, **pair action**, **birth
+  **decision**, **issue tick**, **snapshot**, **proposal**, **grant**, **pair action**, **order
   key**, **idle time**, **follow range**: as `entity-ai-timing.md`, section 0.1, defines them.
 - **Goal list**, **target list**, **priority**, **examined**, **start condition**, **continue
   condition**, **start action**, **stop action**, **goal tick**, **per-tick goal**, **evaluation
@@ -674,7 +674,7 @@ the direction and the pitch, confidence: medium). A spit at the target `t` does 
 3. The direction is the unit vector of `(dx, dy + a, dz)`. Add three independent values `0.172275 ×
    (u − v)` to its three parts, with `u` and `v` uniform in `[0, 1)`. Multiply the sum by 1.5. The
    result is the velocity of the spit. Its yaw and pitch follow the velocity.
-4. Add the spit to the world (a spawn request with a birth key of the kind `entity`).
+4. Add the spit to the world (a spawn request with a new UUID of the kind `entity`).
 5. Play the spit sound of LLAMA-TYPE-005 at the llama, unless the llama is silent.
 6. Set the spit flag to true (LLAMA-TGT-002).
 

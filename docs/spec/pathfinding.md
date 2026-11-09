@@ -28,7 +28,7 @@ document states what they compute. `gold-farm.md`, step G4, is the reason for th
   `entity-physics.md`, section 0.1, defines them.
 - **Mob**, **goal**, **path**, **path search**, **next node**, **guidance**, **path follower**,
   **move control**, **jump control**, **follow range**, **decision**, **reflex**, **issue tick**,
-  **snapshot**, **birth key**: as `entity-ai-timing.md`, section 0.1, defines them.
+  **snapshot**, **order key**: as `entity-ai-timing.md`, section 0.1, defines them.
 - **Block position**: the integer position `(floor(x), floor(y), floor(z))` of a point.
 - **Mob block position**: the block position of the position of a mob.
 - **Air**: a state of the block `air`, `cave_air` or `void_air`.
