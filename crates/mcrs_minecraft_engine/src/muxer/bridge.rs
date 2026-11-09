@@ -282,6 +282,15 @@ pub const DEPTH_DRAIN_TARGET: usize = 192;
 /// Sixteen batches at the socket's cap.
 const STALLED_WRITER_BYTES: usize = 16 * mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_SOCKET;
 
+/// A writer that took nothing for this long while it holds [`STALLED_WRITER_BYTES`] has a dead
+/// socket. A client that reads slowly still takes a batch now and then, and the keep-alive
+/// timeout ends it if it falls far behind, as vanilla does.
+const STALLED_WRITER_TIME: Duration = Duration::from_secs(30);
+
+/// Past this, a connection goes even when its writer still takes batches, to bound the memory
+/// that one client holds on the server.
+const MAX_UNSENT_BYTES: usize = 256 * 1024 * 1024;
+
 /// Hands queued outbound packets to every active connection's writer, enforces the
 /// shedding policy, and kicks connections whose writer is dead or has stalled.
 ///
@@ -452,9 +461,14 @@ fn ready_to_write(
         return false;
     }
 
-    // A writer that is behind takes what it can; one that has stalled for this much is a dead
-    // socket, not a slow one.
-    if !conn.raw.flush_unsent_deferred(wakes) && conn.raw.unsent_bytes() > STALLED_WRITER_BYTES {
+    // A writer that is behind takes what it can; one that holds many bytes and took nothing for
+    // a long time is a dead socket, not a slow one.
+    let has_room = conn.raw.flush_unsent_deferred(wakes);
+    let unsent = conn.raw.unsent_bytes();
+    let stalled = !has_room
+        && unsent > STALLED_WRITER_BYTES
+        && conn.raw.since_handover() > STALLED_WRITER_TIME;
+    if stalled || unsent > MAX_UNSENT_BYTES {
         warn!(
             conn = ?entity,
             unsent_bytes = conn.raw.unsent_bytes(),

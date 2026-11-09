@@ -248,6 +248,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
             announced_compression: None,
             awaits_login_acknowledgement: false,
             signal,
+            handed_at: Instant::now(),
             inbound_switch: Some(inbound_switch),
             play_switch: None,
             queue,
@@ -415,6 +416,8 @@ pub struct RawConnection {
     /// What was written and not yet taken by the writer, sent ahead of anything newer: a slow
     /// socket delays what it is sent and never loses it.
     queue: WriterQueue,
+    /// When the writer last took a batch, or when the connection began.
+    handed_at: Instant,
     signal: Arc<WriterSignal>,
     inbound_switch: Option<mpsc::UnboundedSender<InboundSwitch>>,
     play_switch: Option<mpsc::UnboundedSender<InboundSwitch>>,
@@ -491,6 +494,7 @@ impl RawConnection {
             announced_compression: None,
             awaits_login_acknowledgement: false,
             signal: Arc::new(WriterSignal::default()),
+            handed_at: Instant::now(),
             inbound_switch: Some(mpsc::unbounded_channel().0),
             play_switch: None,
             queue: WriterQueue::default(),
@@ -532,7 +536,10 @@ impl RawConnection {
         let mut sent = false;
         while let Some(batch) = self.queue.pop() {
             match self.outgoing.try_send(batch) {
-                Ok(()) => sent = true,
+                Ok(()) => {
+                    sent = true;
+                    self.handed_at = Instant::now();
+                }
                 Err(TrySendError::Full(batch)) => {
                     self.queue.push_front(batch);
                     return HandOver { sent, room: false };
@@ -545,6 +552,12 @@ impl RawConnection {
 
     pub fn unsent_bytes(&self) -> usize {
         self.queue.closed_bytes()
+    }
+
+    /// The time since the writer last took a batch: a slow client keeps it short, a dead socket
+    /// lets it grow.
+    pub fn since_handover(&self) -> std::time::Duration {
+        self.handed_at.elapsed()
     }
 
     /// Writes the compression packet of LOGIN. In the immediate mode both directions switch
