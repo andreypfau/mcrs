@@ -29,7 +29,6 @@ pub enum PureInput {
 
 /// One instruction of a [`PureProgram`]. Control flow is structured: each `If` has one `Else`
 /// and one `EndIf`.
-#[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PureInstr {
     Constant {

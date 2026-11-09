@@ -125,7 +125,6 @@ fn write_instr(out: &mut String, instr: PureInstr) -> core::fmt::Result {
         PureInstr::Else { .. } => out.write_str("} else {"),
         PureInstr::EndIf => out.write_str("}"),
         PureInstr::Return { src } => write!(out, "return molang_pose_clamp(r{});", src.index()),
-        _ => Ok(()),
     }
 }
 

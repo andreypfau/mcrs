@@ -117,7 +117,6 @@ fn every_pure_expression_of_the_corpus_lowers_to_valid_wgsl() {
                     let reason = format!("{reason:?}");
                     format!("state {}", reason.split('(').next().unwrap_or_default())
                 }
-                other => format!("unclassified {other:?}"),
             },
         };
         if record.kind == "animation" && record.field.starts_with("bones.") {

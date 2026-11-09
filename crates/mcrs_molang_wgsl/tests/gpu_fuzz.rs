@@ -114,7 +114,6 @@ fn reason_name(class: &ChannelClass) -> String {
             let name = text.split('(').next().unwrap_or_default();
             format!("state {name}")
         }
-        other => format!("unclassified {other:?}"),
     }
 }
 

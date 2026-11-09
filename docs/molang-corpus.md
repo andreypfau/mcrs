@@ -72,10 +72,10 @@ The tool gives each occurrence one rate class of `docs/molang.md`, section 6:
 2. A query that MOLQ does not define gets a guess from the words of its name. The guess applies
    to 1,060 of 3,048 query calls.
 3. A written variable has the join of the rates of its writes, to a fixed point. A write in
-   `scripts.initialize` gives at most `EntityTick`, because it runs one time for each subject.
-4. An external variable is `EntityFrame`.
-5. `this` is `AnimationFrame` in an animation and `EntityFrame` in each other file kind.
-6. A `context.` value is `EntityTick`. A resource reference is `Load`.
+   `scripts.initialize` gives at most `entity_tick`, because it runs one time for each subject.
+4. An external variable is `entity_frame`.
+5. `this` is `animation_frame` in an animation and `entity_frame` in each other file kind.
+6. A `context.` value is `entity_tick`. A resource reference is `load`.
 7. A random call does not change the rate class. The column `random` counts these occurrences.
 
 The rate of an occurrence is the join of the rates of all its reads. Particle variables have
@@ -154,31 +154,31 @@ The queries with the most uses:
 
 | Query | Uses | Expressions | MOLQ | Rate | File kinds (expressions) |
 |---|---|---|---|---|---|
-| `life_time` | 359 | 326 | yes | EntityFrame | animation 278, animation_controller 5, client_entity 24, render_controller 19 |
-| `is_baby` | 300 | 296 | yes | EntityTick | animation 6, animation_controller 101, bp_entity 15, client_entity 75, particle 3, render_controller 96 |
-| `modified_move_speed` | 281 | 230 | yes | EntityFrame | animation 116, animation_controller 49, client_entity 65 |
-| `modified_distance_moved` | 238 | 208 | yes | EntityFrame | animation 157, client_entity 51 |
-| `last_hit_by_player` | 84 | 84 | no | EntityTick (guess) | bp_entity 84 |
-| `target_x_rotation` | 77 | 77 | yes | EntityFrame | animation 55, client_entity 22 |
-| `anim_time` | 74 | 74 | yes | AnimationFrame | animation 73, client_entity 1 |
-| `get_equipped_item_name` | 74 | 40 | no | EntityTick (guess) | animation 4, animation_controller 19, attachable 1, render_controller 16 |
-| `variant` | 72 | 47 | yes | EntityTick | animation_controller 4, bp_entity 2, client_entity 11, render_controller 30 |
-| `target_y_rotation` | 68 | 68 | yes | EntityFrame | animation 62, client_entity 6 |
-| `is_saddled` | 60 | 58 | yes | EntityTick | render_controller 58 |
-| `frame_alpha` | 58 | 52 | yes | Frame | animation 6, animation_controller 2, attachable 3, client_entity 31, particle 2, render_controller 8 |
-| `is_in_water` | 55 | 51 | yes | EntityTick | animation_controller 40, client_entity 9, particle 2 |
-| `delta_time` | 48 | 33 | yes | EntityFrame | animation 6, client_entity 27 |
-| `is_spectator` | 44 | 44 | no | EntityTick (guess) | client_entity 4, render_controller 40 |
-| `model_scale` | 40 | 37 | yes | EntityTick | animation 27, client_entity 10 |
-| `is_on_ground` | 39 | 39 | yes | EntityTick | animation_controller 36, bp_entity 1, client_entity 2 |
-| `head_y_rotation` | 31 | 31 | yes | EntityFrame | animation 31 |
-| `is_riding` | 29 | 29 | yes | EntityTick | animation 1, animation_controller 22, client_entity 6 |
-| `get_root_locator_offset` | 28 | 28 | no | EntityFrame (guess) | animation 28 |
-| `equipment_count` | 25 | 25 | no | EntityTick (guess) | bp_entity 24, client_entity 1 |
-| `is_sitting` | 25 | 20 | no | EntityTick (guess) | animation_controller 18, client_entity 2 |
-| `item_is_charged` | 25 | 17 | no | EntityTick (guess) | animation 5, animation_controller 4, render_controller 8 |
-| `owner_identifier` | 25 | 25 | no | EntityTick (guess) | attachable 25 |
-| `has_rider` | 24 | 21 | yes | EntityTick | animation_controller 1, client_entity 1, render_controller 19 |
+| `life_time` | 359 | 326 | yes | entity_frame | animation 278, animation_controller 5, client_entity 24, render_controller 19 |
+| `is_baby` | 300 | 296 | yes | entity_tick | animation 6, animation_controller 101, bp_entity 15, client_entity 75, particle 3, render_controller 96 |
+| `modified_move_speed` | 281 | 230 | yes | entity_frame | animation 116, animation_controller 49, client_entity 65 |
+| `modified_distance_moved` | 238 | 208 | yes | entity_frame | animation 157, client_entity 51 |
+| `last_hit_by_player` | 84 | 84 | no | entity_tick (guess) | bp_entity 84 |
+| `target_x_rotation` | 77 | 77 | yes | entity_frame | animation 55, client_entity 22 |
+| `anim_time` | 74 | 74 | yes | animation_frame | animation 73, client_entity 1 |
+| `get_equipped_item_name` | 74 | 40 | no | entity_tick (guess) | animation 4, animation_controller 19, attachable 1, render_controller 16 |
+| `variant` | 72 | 47 | yes | entity_tick | animation_controller 4, bp_entity 2, client_entity 11, render_controller 30 |
+| `target_y_rotation` | 68 | 68 | yes | entity_frame | animation 62, client_entity 6 |
+| `is_saddled` | 60 | 58 | yes | entity_tick | render_controller 58 |
+| `frame_alpha` | 58 | 52 | yes | frame | animation 6, animation_controller 2, attachable 3, client_entity 31, particle 2, render_controller 8 |
+| `is_in_water` | 55 | 51 | yes | entity_tick | animation_controller 40, client_entity 9, particle 2 |
+| `delta_time` | 48 | 33 | yes | entity_frame | animation 6, client_entity 27 |
+| `is_spectator` | 44 | 44 | no | entity_tick (guess) | client_entity 4, render_controller 40 |
+| `model_scale` | 40 | 37 | yes | entity_tick | animation 27, client_entity 10 |
+| `is_on_ground` | 39 | 39 | yes | entity_tick | animation_controller 36, bp_entity 1, client_entity 2 |
+| `head_y_rotation` | 31 | 31 | yes | entity_frame | animation 31 |
+| `is_riding` | 29 | 29 | yes | entity_tick | animation 1, animation_controller 22, client_entity 6 |
+| `get_root_locator_offset` | 28 | 28 | no | entity_frame (guess) | animation 28 |
+| `equipment_count` | 25 | 25 | no | entity_tick (guess) | bp_entity 24, client_entity 1 |
+| `is_sitting` | 25 | 20 | no | entity_tick (guess) | animation_controller 18, client_entity 2 |
+| `item_is_charged` | 25 | 17 | no | entity_tick (guess) | animation 5, animation_controller 4, render_controller 8 |
+| `owner_identifier` | 25 | 25 | no | entity_tick (guess) | attachable 25 |
+| `has_rider` | 24 | 21 | yes | entity_tick | animation_controller 1, client_entity 1, render_controller 19 |
 
 The four queries `life_time`, `is_baby`, `modified_move_speed` and `modified_distance_moved`
 have 39% of all query uses. The 32 MOLQ queries that the corpus uses have 1,988 uses (65%).
@@ -330,17 +330,15 @@ The particle query `spellcolor` is not in this list, because its expressions do 
   `first_person_item_rotation_factor` (20) and `is_brandishing_spear` (19). The external
   particle variables with the most reads are `particle_random_1` (343), `particle_age` (180),
   `particle_random_2` (175), `particle_random_3` (86) and `particle_lifetime` (69).
-- The written variables by rate class: entity store `Constant` 53, `EntityTick` 67,
-  `EntityFrame` 287, `AnimationFrame` 1; particle store `Constant` 25, `EntityFrame` 14.
+- The written variables by rate class: entity store `constant` 53, `entity_tick` 67,
+  `entity_frame` 287, `animation_frame` 1; particle store `constant` 25, `entity_frame` 14.
 
 ## 8. Sizes
 
 | Measure | Set | Count | p50 | p90 | p99 | max |
 |---|---|---|---|---|---|---|
-| tokens | occurrences | 39,990 | 1 | 5 | 27 | 4,626 |
 | AST nodes | occurrences | 39,990 | 2 | 4 | 14 | 1,880 |
 | statements of complex expressions | occurrences | 281 | 2 | 8 | 36 | 176 |
-| tokens | distinct | 5,011 | 3 | 19 | 65 | 4,626 |
 | AST nodes | distinct | 5,011 | 2 | 11 | 31 | 1,880 |
 | statements of complex expressions | distinct | 135 | 3 | 10 | 38 | 176 |
 
@@ -352,7 +350,7 @@ path such as `v.a.b` is one node. The largest expression is one `pre_animation` 
 
 All JSON forms:
 
-| Group | Total | Constant | Load | Frame | EntityTick | EntityFrame | AnimationFrame | random |
+| Group | Total | constant | load | frame | entity_tick | entity_frame | animation_frame | random |
 |---|---|---|---|---|---|---|---|---|
 | all | 39,990 | 84.5% | 3.3% | 0.0% | 2.9% | 5.7% | 3.5% | 749 |
 | animation keyframe | 29,331 | 99.8% | 0.0% | 0.0% | 0.0% | 0.0% | 0.2% | 0 |
@@ -360,7 +358,7 @@ All JSON forms:
 
 Text expressions only:
 
-| Group | Total | Constant | Load | Frame | EntityTick | EntityFrame | AnimationFrame | random |
+| Group | Total | constant | load | frame | entity_tick | entity_frame | animation_frame | random |
 |---|---|---|---|---|---|---|---|---|
 | all | 7,176 | 13.7% | 18.5% | 0.1% | 16.4% | 32.0% | 19.3% | 749 |
 | animation bone channel | 2,314 | 0.7% | 0.0% | 0.1% | 6.2% | 37.2% | 55.7% | 0 |
@@ -375,12 +373,12 @@ Text expressions only:
 - 99.8% of keyframe values are JSON numbers. A keyframe value is constant, but the sampler of
   the channel reads `anim_time`.
 - In bone channels, 93% of text expressions need a value for each frame. 56% are
-  `AnimationFrame`: they read `this`, `anim_time` or a variable that an animation writes.
-- In render controllers, 73% of text expressions are `Load`: a resource reference, or an
+  `animation_frame`: they read `this`, `anim_time` or a variable that an animation writes.
+- In render controllers, 73% of text expressions are `load`: a resource reference, or an
   array element with a constant index.
-- In particles, the `EntityFrame` share comes from external particle variables, for example
+- In particles, the `entity_frame` share comes from external particle variables, for example
   `particle_age`. These values change for each particle, not for each entity.
-- `Frame` alone is rare: 5 text expressions read only frame values such as `frame_alpha`.
+- `frame` alone is rare: 5 text expressions read only frame values such as `frame_alpha`.
 
 ## 10. Gaps in MOL
 
@@ -423,8 +421,8 @@ These constructs parse, but other rules give them a later milestone or no meanin
 ## 11. Facts for the IR and the VM
 
 - Straight-line code dominates: 39,709 of 39,990 occurrences are simple expressions. The
-  p99 size of a distinct expression is 65 tokens and 31 AST nodes.
-- A few `pre_animation` scripts are large: up to 176 statements and 4,626 tokens. The compiler
+  p99 size of a distinct expression is 31 AST nodes.
+- A few `pre_animation` scripts are large: up to 176 statements and 1,880 AST nodes. The compiler
   must not have a cost that grows faster than linearly in the expression size.
 - 84.5% of all occurrences, and 99.8% of keyframes, are constants. A keyframe track can store
   numbers and skip the VM.

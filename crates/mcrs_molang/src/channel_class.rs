@@ -22,7 +22,6 @@ const ANGLE_LIMIT: f32 = 1e6;
 
 /// The processor class of a channel expression.
 #[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
 pub enum ChannelClass {
     /// The value is fixed for each pack load and host key: the host computes it once on the CPU.
     Constant,

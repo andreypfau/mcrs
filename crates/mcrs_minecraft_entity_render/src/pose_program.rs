@@ -416,9 +416,6 @@ impl Generator<'_> {
                 ChannelClass::State(reason) => Err(PoseProgramError(format!(
                     "{context}: a channel runs on the CPU ({reason:?}), which the GPU pose cannot read yet"
                 ))),
-                other => Err(PoseProgramError(format!(
-                    "{context}: a channel has the class {other:?}, which the GPU pose cannot read yet"
-                ))),
             },
         }
     }

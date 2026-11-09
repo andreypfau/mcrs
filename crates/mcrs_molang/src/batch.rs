@@ -74,16 +74,9 @@ fn map2<const N: usize>(
     }
 }
 
-// The named arms fix the function inside the loop so that it inlines and vectorises; the
-// `other` arm matches on the function for each lane.
 fn unary_column<const N: usize>(function: UnaryFn, dst: &mut [f32; N], a: &[f32; N]) {
     match function {
         UnaryFn::Negate => map1(dst, a, |x| -x),
-        UnaryFn::Not => map1(dst, a, |x| UnaryFn::Not.apply(x)),
-        UnaryFn::Truthy => map1(dst, a, |x| UnaryFn::Truthy.apply(x)),
-        UnaryFn::Abs => map1(dst, a, |x| UnaryFn::Abs.apply(x)),
-        UnaryFn::Floor => map1(dst, a, |x| UnaryFn::Floor.apply(x)),
-        UnaryFn::Sign => map1(dst, a, |x| UnaryFn::Sign.apply(x)),
         other => map1(dst, a, |x| other.apply(x)),
     }
 }
@@ -105,8 +98,6 @@ fn binary_column<const N: usize>(
         BinaryFn::GreaterEqual => map2(dst, a, b, |x, y| math::number(x >= y)),
         BinaryFn::Equal => map2(dst, a, b, |x, y| math::number(x == y)),
         BinaryFn::NotEqual => map2(dst, a, b, |x, y| math::number(x != y)),
-        BinaryFn::BothTruthy => map2(dst, a, b, |x, y| BinaryFn::BothTruthy.apply(x, y)),
-        BinaryFn::EitherTruthy => map2(dst, a, b, |x, y| BinaryFn::EitherTruthy.apply(x, y)),
         BinaryFn::Min => map2(dst, a, b, math::min),
         BinaryFn::Max => map2(dst, a, b, math::max),
         other => map2(dst, a, b, |x, y| other.apply(x, y)),
