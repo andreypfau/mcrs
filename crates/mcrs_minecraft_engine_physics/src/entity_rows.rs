@@ -112,7 +112,7 @@ impl EntityRows {
     #[must_use]
     pub fn state_of(&self, at: Placed) -> Option<&EntityState> {
         let rows = &self.tiles.get(&at.tile)?.rows;
-        let row = rows.ids().iter().position(|&held| held == at.id)?;
+        let row = rows.row_of(at.id)?;
         rows.states().get(row)
     }
 

@@ -1,6 +1,7 @@
 use core::iter;
 
 use mcrs_engine_muxer::EntityId;
+use rustc_hash::FxHashMap;
 
 use crate::EntityState;
 use crate::MotionRow;
@@ -13,6 +14,8 @@ pub struct TileRows {
     state: Vec<EntityState>,
     motion: Vec<MotionRow>,
     id: Vec<EntityId>,
+    /// The position of each id in the columns.
+    rows: FxHashMap<EntityId, usize>,
     free_ids: Vec<EntityId>,
 }
 
@@ -47,6 +50,7 @@ impl TileRows {
 
     /// Adds a row that keeps its id, such as a row that comes from another tile.
     pub fn insert_row(&mut self, row: Row) {
+        self.rows.insert(row.id, self.id.len());
         self.state.push(row.state);
         self.motion.push(row.motion);
         self.id.push(row.id);
@@ -54,12 +58,26 @@ impl TileRows {
 
     /// Removes the row of `id` and gives it; `None` when the tile has no such row.
     pub fn despawn_row(&mut self, id: EntityId) -> Option<Row> {
-        let row = self.id.iter().position(|&held| held == id)?;
-        Some(Row {
+        let row = self.row_of(id)?;
+        self.rows.remove(&id);
+        let removed = Row {
             id: self.id.swap_remove(row),
             motion: self.motion.swap_remove(row),
             state: self.state.swap_remove(row),
-        })
+        };
+        if let Some(&moved) = self.id.get(row) {
+            self.rows.insert(moved, row);
+        }
+        Some(removed)
+    }
+
+    /// The position of the row of `id` in [`Self::ids`]; `None` when the tile has no such row.
+    #[must_use]
+    pub fn row_of(&self, id: EntityId) -> Option<usize> {
+        self.rows
+            .get(&id)
+            .copied()
+            .filter(|&row| self.id.get(row) == Some(&id))
     }
 
     #[must_use]
@@ -75,7 +93,7 @@ impl TileRows {
 
     /// The row of `id`, open to its writer; `None` when the tile has no such row.
     pub fn row_mut(&mut self, id: EntityId) -> Option<RowMut<'_>> {
-        let row = self.id.iter().position(|&held| held == id)?;
+        let row = self.row_of(id)?;
         Some(RowMut {
             state: self.state.get_mut(row)?,
             motion: self.motion.get(row)?,
@@ -89,5 +107,34 @@ impl TileRows {
             self.id.iter().copied(),
         )
         .map(|((state, motion), id)| RowMut { state, motion, id })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::BirthKey;
+    use crate::Body;
+    use crate::SourceKind;
+
+    #[test]
+    fn each_row_is_found_by_its_id_after_despawns_from_the_middle_and_the_end() {
+        let mut rows = TileRows::default();
+        for index in 0..6 {
+            let key = BirthKey::new(0, SourceKind::Spawn, 0, index);
+            rows.insert_row(Row {
+                state: EntityState::new(key, Body::default(), None),
+                motion: MotionRow::item(),
+                id: EntityId(u64::from(index) + 10),
+            });
+        }
+        for gone in [EntityId(11), EntityId(15), EntityId(10)] {
+            assert_eq!(rows.despawn_row(gone).map(|row| row.id), Some(gone));
+            assert_eq!(rows.row_of(gone), None, "{gone:?} left the tile");
+        }
+        for (at, &id) in rows.ids().iter().enumerate() {
+            assert_eq!(rows.row_of(id), Some(at), "the index follows each swap");
+        }
+        assert_eq!(rows.ids().len(), 3);
     }
 }
