@@ -538,21 +538,21 @@ does so one tick later, as in BRK-DRP-006. See result R45.
 **BRK-LOOT-004** (`black_box_confirmed`, semantic). A survival break with a harvest and without Silk
 Touch drops the experience of this table. A range is a random integer from the first value to the
 second value, both included. Other blocks drop no experience, for example iron ore, copper ore, gold
-ore and ancient debris. A break with Silk Touch or without a harvest drops no experience. See result
+ore, their deepslate forms and ancient debris. A break with Silk Touch or without a harvest drops no experience. See result
 R46.
 
 | Block | Experience |
 |-------|------------|
 | coal ore, deepslate coal ore | 0 to 2 |
 | nether gold ore | 0 to 1 |
-| diamond ore, deepslate diamond ore, emerald ore | 3 to 7 |
-| lapis ore, nether quartz ore | 2 to 5 |
-| redstone ore, lit or not lit | 1 to 5 |
+| diamond ore, deepslate diamond ore, emerald ore, deepslate emerald ore | 3 to 7 |
+| lapis ore, deepslate lapis ore, nether quartz ore | 2 to 5 |
+| redstone ore, deepslate redstone ore, lit or not lit | 1 to 5 |
 | spawner | 15 to 43 |
 | sculk | 1 |
 | sculk sensor, calibrated sculk sensor, sculk shrieker, sculk catalyst | 5 |
 
-The deepslate forms of the other ores in the table were not tested. The server divides the
+The server divides the
 experience into orbs. Each orb takes the largest value of 37, 17, 7, 3 and 1 that is not more than
 the remainder. For example, 5 gives the orbs 3, 1 and 1. The vanilla client gets the value of an orb
 in `set_entity_data`, and the reference sends that packet two times for each orb.
@@ -696,7 +696,7 @@ and the experience orbs. Count the tick count from the acknowledgement of the st
 | E52 | Do E35 for each case of R43. | R43 |
 | E53 | Break stone 40 times at once with a netherite pickaxe with Efficiency V and Unbreaking III, with Haste amplifier 1. Do it 10 times without Unbreaking. Read the damage. Break stone with a wooden pickaxe with the damage 58, and read all the packets. | R44 |
 | E54 | Break a chest with contents, a shulker box with contents, and stone with a torch, sand or the lower part of an oak door on it. | R45 |
-| E55 | With Haste amplifier 50, break each block of R46 60 times with a netherite pickaxe with Efficiency V, or a netherite hoe with Efficiency V for the sculk blocks. Break diamond ore and sculk 10 times with Silk Touch, and diamond ore 10 times with a wooden pickaxe. Sum the values of the experience orbs, one value for each entity id. | R46 |
+| E55 | With Haste amplifier 50, break each block of R46 60 times, the deepslate forms included, with a netherite pickaxe with Efficiency V, or a netherite hoe with Efficiency V for the sculk blocks. Break diamond ore and sculk 10 times with Silk Touch, and diamond ore 10 times with a wooden pickaxe. Sum the values of the experience orbs, one value for each entity id. | R46 |
 
 Experiments E28 to E33, E45, E46 and E47 have no captured result. Nobody has run them yet.
 
@@ -1298,7 +1298,11 @@ red shulker box: the finish came at a progress less than 0.7, and the box broke 
 | sculk | 1: 60 |
 | sculk sensor, calibrated sculk sensor | 5: 59, 4: 1 |
 | sculk shrieker, sculk catalyst | 5: 60 |
-| iron ore, copper ore, gold ore, ancient debris | 0: 60 |
+| deepslate emerald ore | 3: 11, 4: 13, 5: 13, 6: 12, 7: 11 |
+| deepslate lapis ore | 2: 14, 3: 14, 4: 17, 5: 15 |
+| deepslate redstone ore | 1: 11, 2: 15, 3: 13, 4: 10, 5: 11 |
+| lit deepslate redstone ore | 1: 9, 2: 7, 3: 17, 4: 13, 5: 14 |
+| iron ore, copper ore, gold ore, their deepslate forms, ancient debris | 0: 60 |
 | diamond ore with Silk Touch, sculk with Silk Touch, diamond ore with a wooden pickaxe (10 breaks each) | 0 |
 
 The orbs of one break had the values 1, 1 and 3 for 5, 3 and 3 for 6, 7 for 7, and 1, 1, 37 for 39.
