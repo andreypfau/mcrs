@@ -48,7 +48,7 @@ pub enum BiomeLookup {
     None,
 }
 
-/// `TheEndBiomeSource`: the five biomes it draws from, by registry id.
+/// The five biomes the end's biome source draws from, by registry id.
 #[derive(Clone, Copy, Debug)]
 pub struct EndBiomes {
     pub end: u16,
@@ -77,8 +77,7 @@ impl EndBiomes {
         })
     }
 
-    /// `getNoiseBiome`: the central island within 64 chunks of the origin,
-    /// elsewhere the erosion at the chunk's centre column.
+    /// The end biome at `quart`: the end itself within 64 chunks of the origin, elsewhere a pick by the erosion at the chunk's centre column.
     fn at(&self, router: &NoiseRouter, ws: &mut Workspace, quart: IVec3) -> u16 {
         let block: IVec3 = quart << 2;
         let chunk_x = block.x >> 4;
@@ -109,7 +108,68 @@ impl EndBiomes {
 pub(crate) const CLIMATE_ROOTS: [usize; 6] =
     [TEMPERATURE, VEGETATION, CONTINENTS, EROSION, DEPTH, RIDGES];
 
-const MAX_STRUCTURE_DISTANCE: i32 = 8;
+/// How far from a column, in chunks, a start can still reach it.
+pub const MAX_STRUCTURE_DISTANCE: i32 = 8;
+
+/// A square of `SIDE` chunks per side whose structure starts are computed together.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct StartTile {
+    pub x: i32,
+    pub z: i32,
+}
+
+// A larger tile lets `StartTile::reaching` return a tile no chunk of the square lies in, a smaller one lets the square meet three tiles a side.
+const _: () = assert!(StartTile::SIDE == 2 * MAX_STRUCTURE_DISTANCE);
+
+impl StartTile {
+    /// Chunks per side of a tile.
+    pub const SIDE: i32 = 16;
+
+    /// The tile that holds `chunk`.
+    pub fn containing(chunk: ColumnPos) -> StartTile {
+        StartTile {
+            x: chunk.x.div_euclid(Self::SIDE),
+            z: chunk.z.div_euclid(Self::SIDE),
+        }
+    }
+
+    /// The tiles that hold the chunks within [`MAX_STRUCTURE_DISTANCE`] of `column`: always two by two.
+    pub fn reaching(column: ColumnPos) -> [StartTile; 4] {
+        let first = Self::containing(ColumnPos::new(
+            column.x - MAX_STRUCTURE_DISTANCE,
+            column.z - MAX_STRUCTURE_DISTANCE,
+        ));
+        [
+            first,
+            StartTile {
+                x: first.x + 1,
+                ..first
+            },
+            StartTile {
+                z: first.z + 1,
+                ..first
+            },
+            StartTile {
+                x: first.x + 1,
+                z: first.z + 1,
+            },
+        ]
+    }
+
+    /// The chunks of this tile, `x` outer and `z` inner.
+    pub fn chunks(self) -> impl Iterator<Item = ColumnPos> {
+        let (min_x, min_z) = (self.x * Self::SIDE, self.z * Self::SIDE);
+        (min_x..min_x + Self::SIDE)
+            .flat_map(move |x| (min_z..min_z + Self::SIDE).map(move |z| ColumnPos::new(x, z)))
+    }
+}
+
+fn footprint(column: ColumnPos) -> BoundingBox {
+    BoundingBox {
+        min: BlockPos::new(column.x * 16, i32::MIN, column.z * 16),
+        max: BlockPos::new(column.x * 16 + 15, i32::MAX, column.z * 16 + 15),
+    }
+}
 
 type RingSets = Vec<(SetId, Vec<ColumnPos>)>;
 type StartCell = Arc<OnceLock<Option<Start>>>;
@@ -125,8 +185,7 @@ pub struct StructureIndex {
     accessor_min_y: i32,
     accessor_height: i32,
     rings: RingSets,
-    // Unbounded; only gate-passing chunks enter, but the memo grows
-    // with the explored area until the staging store's wanted set evicts it.
+    // Unbounded; `tile_starts` and `reaching` give the same starts without it, for one owner to keep and evict by tile.
     starts: Mutex<HashMap<(SetId, ColumnPos), StartCell>>,
 }
 
@@ -250,8 +309,7 @@ impl StructureIndex {
         site(&mut self.context(view, chunk, structure))
     }
 
-    /// `Structure.generate` for one structure at one chunk, whatever its
-    /// set's draw would select there.
+    /// The start of one structure at one chunk, whatever its set's draw would select there.
     pub fn start_of(&self, chunk: ColumnPos, structure: StructureId) -> Option<Start> {
         let mut view = self.view();
         let site = self
@@ -297,21 +355,51 @@ impl StructureIndex {
         })
     }
 
+    /// The structure starts of every chunk of `tile`, chunk by chunk and a chunk's in the order of the live sets, computed with one view and kept nowhere.
+    pub fn tile_starts(&self, tile: StartTile) -> Vec<(ColumnPos, Start)> {
+        let mut view = self.view();
+        let mut starts = Vec::new();
+        for chunk in tile.chunks() {
+            for (set, _) in &self.tables.live {
+                if self.gate(*set, chunk)
+                    && let Some(start) = self.start_in(&mut view, *set, chunk)
+                {
+                    starts.push((chunk, start));
+                }
+            }
+        }
+        starts
+    }
+
+    /// What [`Self::starts_reaching`] answers, from the [`Self::tile_starts`] of the four tiles `tile` hands over for [`StartTile::reaching`].
+    pub fn reaching<'a>(
+        &self,
+        column: ColumnPos,
+        tile: impl FnMut(StartTile) -> &'a [(ColumnPos, Start)],
+    ) -> Vec<(ColumnPos, Start)> {
+        let footprint = footprint(column);
+        let mut starts: Vec<(ColumnPos, Start)> = StartTile::reaching(column)
+            .into_iter()
+            .flat_map(tile)
+            .filter(|(chunk, start)| {
+                chunk.chebyshev_distance(column) <= MAX_STRUCTURE_DISTANCE
+                    && start.bounds.intersects(footprint)
+            })
+            .cloned()
+            .collect();
+        self.in_step_order(&mut starts);
+        starts
+    }
+
     /// Every start whose bounds cross `column`, from every chunk within
     /// [`MAX_STRUCTURE_DISTANCE`] of it, in `(step, step_index, chunk.x, chunk.z)`
     /// order.
-    // Starts of one structure are ordered by chunk, where the
-    // reference walks a `LongOpenHashSet`; only a column two starts of one
-    // structure both cross can tell the difference.
+    // Starts of one structure are ordered by chunk, where the game's order is a hash order; only a column two starts of one structure both cross can tell the difference.
     pub fn starts_reaching(&self, column: ColumnPos) -> Vec<(ColumnPos, Start)> {
-        let frozen = &self.tables.frozen;
         if self.tables.live.is_empty() {
             return Vec::new();
         }
-        let footprint = BoundingBox {
-            min: BlockPos::new(column.x * 16, i32::MIN, column.z * 16),
-            max: BlockPos::new(column.x * 16 + 15, i32::MAX, column.z * 16 + 15),
-        };
+        let footprint = footprint(column);
         let mut view = self.view();
         let mut starts: Vec<(ColumnPos, Start)> = Vec::new();
         let radius = MAX_STRUCTURE_DISTANCE;
@@ -326,18 +414,27 @@ impl StructureIndex {
                 );
             }
         }
+        self.in_step_order(&mut starts);
+        starts
+    }
+
+    fn in_step_order(&self, starts: &mut [(ColumnPos, Start)]) {
+        let frozen = &self.tables.frozen;
         starts.sort_by_key(|(chunk, start)| {
             let structure = &frozen.structures[usize::from(start.structure.0)];
             (structure.step, structure.step_index, chunk.x, chunk.z)
         });
-        starts
     }
 
     /// The terrain adaptation term of `column`, or `None` where it is zero
     /// throughout.
     pub fn beard(&self, column: ColumnPos) -> Option<Beard> {
+        self.beard_from(column, &self.starts_reaching(column))
+    }
+
+    /// [`Self::beard`] from the starts [`Self::starts_reaching`] or [`Self::reaching`] gave for `column`.
+    pub fn beard_from(&self, column: ColumnPos, starts: &[(ColumnPos, Start)]) -> Option<Beard> {
         let frozen = &self.tables.frozen;
-        let starts = self.starts_reaching(column);
         let pieces = starts.iter().flat_map(|(_, start)| {
             let adaptation = frozen.structures[usize::from(start.structure.0)].adaptation;
             start.pieces.iter().map(move |piece| {
@@ -399,8 +496,7 @@ impl StructureIndex {
             .map(|(structure, _)| structure)
     }
 
-    /// `tryGenerateStructure` over the set's draw with removal: a site that
-    /// passes its biome test.
+    /// The set's draw with removal at `chunk`: the first structure whose site passes its biome test, with that site.
     fn selected_site(
         &self,
         view: &mut View<'_>,
