@@ -1,7 +1,7 @@
 use bevy_ecs::resource::Resource;
 use mcrs_engine_muxer::EntityId;
 use mcrs_minecraft_entity::EntityTypeData;
-use mcrs_minecraft_replication::MobLooks;
+use mcrs_minecraft_protocol_game::entity::MobLooks;
 use rustc_hash::FxHashMap;
 
 /// The cold state of each mob row of the world, by its id.

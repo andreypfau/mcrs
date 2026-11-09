@@ -2,10 +2,9 @@ use mcrs_minecraft_damage::Hit;
 use mcrs_minecraft_damage::HitOutcome;
 use mcrs_minecraft_entity_rows::Placed;
 use mcrs_minecraft_entity_rows::RowStore;
-use mcrs_minecraft_replication::MobSignal;
 
 use crate::mob_life::MobChanges;
-use crate::mob_life::Signaled;
+use crate::mob_life::Struck;
 
 /// Hurts the mob row `at` and queues what its viewers see; `None` when `at` is not a living row.
 pub fn hurt_mob<M>(
@@ -21,15 +20,12 @@ pub fn hurt_mob<M>(
     if outcome == HitOutcome::Rejected {
         return Some(outcome);
     }
-    let mut signal = |signal| changes.signals.push(Signaled { at, signal });
-    if outcome == HitOutcome::Full {
-        signal(MobSignal::Hurt {
-            damage_type: hit.damage_type,
-        });
-    }
-    if !living.is_alive() {
-        signal(MobSignal::Died);
-    }
+    changes.strikes.push(Struck {
+        at,
+        damage_type: hit.damage_type,
+        outcome,
+        died: !living.is_alive(),
+    });
     changes.touched.push(at);
     Some(outcome)
 }

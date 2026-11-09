@@ -6,6 +6,7 @@ use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
+use mcrs_minecraft_damage::HitOutcome;
 use mcrs_minecraft_engine::coordinator::birth_clock::BirthClock;
 use mcrs_minecraft_engine::entity_ids::CellEntityIds;
 use mcrs_minecraft_entity::EntityTypeData;
@@ -16,7 +17,6 @@ use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_entity_rows::Placed;
 use mcrs_minecraft_entity_rows::RowStore;
-use mcrs_minecraft_entity_rows::VisibleState;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::Category;
 use mcrs_minecraft_physics::Dimensions;
@@ -25,11 +25,9 @@ use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_protocol_game::entity::MetaDataValue;
 use mcrs_minecraft_protocol_game::entity::MetadataEntry;
+use mcrs_minecraft_protocol_game::entity::MobLooks;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_registries::Registries;
-use mcrs_minecraft_replication::MobLooks;
-use mcrs_minecraft_replication::MobSignal;
-use mcrs_minecraft_replication::MobState;
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_resource::ResourceLocation;
 
@@ -48,26 +46,52 @@ const LEFT_HANDED: f64 = 0.05;
 #[derive(Resource, Debug, Default)]
 pub struct PendingSpawns(pub VecDeque<MobSpawnRequest>);
 
-/// The mobs that came into the world and left it in this tick, for the tile events.
+/// What happened to the mobs in this tick outside the rows: their spawns, the rows that a
+/// command changed and the hits. The publish of the tick reads them, and the end of the tick
+/// clears them.
 #[derive(Resource, Debug, Default)]
 pub struct MobChanges {
     pub(crate) spawned: Vec<Spawned>,
-    /// The rows that a command changed outside the pass.
     pub(crate) touched: Vec<Placed>,
-    pub(crate) signals: Vec<Signaled>,
+    pub(crate) strikes: Vec<Struck>,
 }
 
-/// What a mob shows its viewers in the tick, besides its state.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Signaled {
-    pub(crate) at: Placed,
-    pub(crate) signal: MobSignal,
+impl MobChanges {
+    /// The mobs that spawned in this tick, in spawn order.
+    #[must_use]
+    pub fn spawned(&self) -> &[Spawned] {
+        &self.spawned
+    }
+
+    /// The rows that a command changed outside the pass, in the order of the changes.
+    #[must_use]
+    pub fn touched(&self) -> &[Placed] {
+        &self.touched
+    }
+
+    /// The hits that a mob took and did not reject, in the order of the hits.
+    #[must_use]
+    pub fn strikes(&self) -> &[Struck] {
+        &self.strikes
+    }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Spawned {
-    pub(crate) id: EntityId,
-    pub(crate) state: MobState,
+/// A mob that came into the world, with its state at the spawn, where its tracking starts.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Spawned {
+    pub id: EntityId,
+    pub start: EntityState,
+}
+
+/// A hit that the mob row `at` did not reject.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Struck {
+    pub at: Placed,
+    /// The network id of the damage type of the hit.
+    pub damage_type: u32,
+    pub outcome: HitOutcome,
+    /// Whether the mob is dying after the hit.
+    pub died: bool,
 }
 
 /// The motion row of a mob of `kind`: a walker with the adult box of the type.
@@ -147,10 +171,7 @@ pub(crate) fn spawn_mobs<M: Send + Sync + 'static>(
             SpawnSetup::None => MobLooks::default(),
         };
         looks.no_ai = request.extras.no_ai;
-        changes.spawned.push(Spawned {
-            id,
-            state: mob_state(&VisibleState::from(&state)),
-        });
+        changes.spawned.push(Spawned { id, start: state });
         rows.spawn(id, state, row);
         uuids.0.insert(request.uuid, id);
         mobs.0.insert(
@@ -166,18 +187,22 @@ pub(crate) fn spawn_mobs<M: Send + Sync + 'static>(
     }
 }
 
-/// The state of a living row that its viewers see, as the replication sends it.
-pub(crate) fn mob_state(state: &VisibleState) -> MobState {
-    MobState {
-        position: state.position,
-        velocity: state.velocity,
-        yaw: state.yaw,
-        pitch: state.pitch,
-        head_yaw: state.head_yaw,
-        on_ground: state.on_ground,
-        health: state.health,
-        dying: state.dying,
+/// The end of the tick of the mobs, after their publish: the cold table forgets the mobs whose
+/// rows left the world, and the changes of the tick clear.
+pub(crate) fn end_mob_changes<M: Send + Sync + 'static>(
+    rows: Res<RowStore<M>>,
+    mut mobs: ResMut<Mobs>,
+    mut uuids: ResMut<MobUuids>,
+    mut changes: ResMut<MobChanges>,
+) {
+    for removed in rows.changes().removed() {
+        if let Some(mob) = mobs.0.remove(&removed.id) {
+            uuids.0.remove(&mob.uuid);
+        }
     }
+    changes.spawned.clear();
+    changes.touched.clear();
+    changes.strikes.clear();
 }
 
 /// The values of the first spawn setup of an animal that its viewers see (ANIM-SPAWN-001): a

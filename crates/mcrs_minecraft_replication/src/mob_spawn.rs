@@ -1,8 +1,8 @@
 use mcrs_minecraft_entity::EntityTypeData;
 use uuid::Uuid;
 
-use crate::mob_looks::MobLooks;
 use crate::mob_state::MobState;
+use mcrs_minecraft_protocol_game::entity::MobLooks;
 
 /// What a world publishes when a mob comes into it.
 #[derive(Clone, Debug, PartialEq)]

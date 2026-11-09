@@ -10,8 +10,8 @@ use mcrs_minecraft_protocol_game::entity_data_index::{
     HEALTH, MOB_FLAG_LEFT_HANDED, MOB_FLAG_NO_AI, MOB_FLAGS, POSE,
 };
 
-use crate::mob_looks::MobLooks;
 use crate::mob_state::MobState;
+use mcrs_minecraft_protocol_game::entity::MobLooks;
 
 /// The living entries of a mob that change in its life.
 #[derive(Clone, Copy, Debug)]

@@ -17,6 +17,7 @@ mcrs_minecraft_command_vanilla.workspace = true
 mcrs_minecraft_command_world.workspace = true
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_engine_brain.workspace = true
+mcrs_minecraft_engine_mob_replication.workspace = true
 mcrs_minecraft_engine_physics.workspace = true
 mcrs_minecraft_engine_server.workspace = true
 mcrs_minecraft_engine_world.workspace = true

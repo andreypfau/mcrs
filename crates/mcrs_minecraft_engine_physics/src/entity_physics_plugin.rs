@@ -10,6 +10,7 @@ use bevy_ecs::prelude::With;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::SystemCondition;
+use bevy_ecs::schedule::SystemSet;
 use bevy_ecs::schedule::common_conditions::resource_exists;
 use bevy_ecs::schedule::common_conditions::resource_exists_and_changed;
 use bevy_ecs::system::Commands;
@@ -28,7 +29,6 @@ use mcrs_minecraft_engine::coordinator::birth_clock::BirthClock;
 use mcrs_minecraft_engine::entity_births::EntityBirths;
 use mcrs_minecraft_engine::entity_ids::CellEntityIds;
 use mcrs_minecraft_engine::game_rules::GameRules;
-use mcrs_minecraft_engine::tile_events::TileEvents;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::BlockPlaced;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
@@ -54,16 +54,16 @@ use crate::EntityWrites;
 use crate::block_world::BlockWorld;
 use crate::mob_life::MobChanges;
 use crate::mob_life::PendingSpawns;
+use crate::mob_life::end_mob_changes;
 use crate::mob_life::spawn_mobs;
-use crate::mob_publish::publish_mobs;
 use crate::mob_spawn_request::MobSpawnRequest;
 use crate::mobs::MobUuids;
 use crate::mobs::Mobs;
 use crate::tile_at::tile_at;
 
 /// The entity pass of a dimension world: the merge point, the life cycle and the freeze in
-/// `DomainInput`, the pass in `Simulate`, the tile moves and then the tile events of the mobs in
-/// `Project`. The rows are a [`RowStore<M>`] resource with the mob column `M`, which the pass
+/// `DomainInput`, the pass in `Simulate`, and in `Project` the tile moves, then the systems of
+/// [`MobPublish`], then the end of the tick of the mobs. The rows are a [`RowStore<M>`] resource with the mob column `M`, which the pass
 /// moves with its row and never reads.
 #[derive(Debug)]
 pub struct EntityPhysicsPlugin<M> {
@@ -85,6 +85,12 @@ impl<M> Default for EntityPhysicsPlugin<M> {
         }
     }
 }
+
+/// The systems that publish what the mobs did in the tick, such as their tile events: in
+/// `Project`, after the tile moves of the rows, while [`Mobs`] still holds the mobs whose rows
+/// left the world and [`MobChanges`] the changes of the tick.
+#[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct MobPublish;
 
 /// The tables of the kernel, from the block definitions and tags of the world.
 #[derive(Resource, Debug)]
@@ -117,7 +123,6 @@ impl<M: Send + Sync + 'static> Plugin for EntityPhysicsPlugin<M> {
         app.init_resource::<MobUuids>();
         app.init_resource::<MobChanges>();
         app.init_resource::<PendingSpawns>();
-        app.init_resource::<TileEvents>();
         app.add_message::<MobSpawnRequest>();
         app.add_message::<ItemDropped>();
         app.add_message::<BlockPlaced>();
@@ -143,9 +148,16 @@ impl<M: Send + Sync + 'static> Plugin for EntityPhysicsPlugin<M> {
                 .run_if(resource_exists::<PhysicsTables>)
                 .in_set(TickSet::Simulate),
         );
+        app.configure_sets(
+            FixedUpdate,
+            MobPublish
+                .in_set(TickSet::Project)
+                .after(move_rows::<M>)
+                .before(end_mob_changes::<M>),
+        );
         app.add_systems(
             FixedUpdate,
-            (move_rows::<M>, publish_mobs::<M>)
+            (move_rows::<M>, end_mob_changes::<M>)
                 .chain()
                 .in_set(TickSet::Project),
         );

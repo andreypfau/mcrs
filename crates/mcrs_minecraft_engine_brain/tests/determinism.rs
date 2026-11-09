@@ -34,7 +34,7 @@ use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_rows::Placed;
 use mcrs_minecraft_goals::PigBrain;
-use mcrs_minecraft_replication::MobLooks;
+use mcrs_minecraft_protocol_game::entity::MobLooks;
 
 const PIGS: u32 = 2000;
 const TICKS: u64 = 200;

@@ -26,11 +26,9 @@ use mcrs_voxel::SectionPos;
 use crate::BodyGrid;
 use crate::Executor;
 use crate::MobIntent;
-use crate::Moved;
 use crate::Placed;
 use crate::RowStore;
 use crate::TileRows;
-use crate::VisibleState;
 use crate::front_grid::FrontGrid;
 use crate::front_grid::grid_row;
 use crate::row_store::Leaving;
@@ -69,7 +67,7 @@ struct TileStep {
     expired: Vec<EntityId>,
     /// The rows whose position is in another tile now.
     left: Vec<EntityId>,
-    moved: Vec<Moved>,
+    moved: Vec<EntityId>,
     /// The living rows of `expired`.
     died: Vec<EntityId>,
 }
@@ -128,7 +126,10 @@ impl<M: Send> RowStore<M> {
                     id,
                 }));
             expired.extend(step.expired);
-            self.moved.extend(step.moved);
+            self.moved.extend(step.moved.into_iter().map(|id| Placed {
+                tile: step.tile,
+                id,
+            }));
             self.leaving.extend(step.left.into_iter().map(|id| Leaving {
                 from: step.tile,
                 id,
@@ -210,10 +211,7 @@ fn tick_tile<W: CollisionWorld, B: BodyView, M>(
             if let Some(looked) = looked
                 && (!same_bits(&before, &state.body) || state.living.map(rotations) != Some(looked))
             {
-                moved.push(Moved {
-                    id: row.id,
-                    state: VisibleState::from(&*state),
-                });
+                moved.push(row.id);
             }
             state.age = state.age.wrapping_add(1);
             let expires = matches!(

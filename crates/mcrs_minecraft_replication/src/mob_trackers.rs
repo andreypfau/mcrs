@@ -12,13 +12,13 @@ use crate::delivery::Delivery;
 use crate::encode::record;
 use crate::hold_set::HoldSet;
 use crate::mob_bundle::spawn_extras;
-use crate::mob_looks::MobLooks;
 use crate::mob_signal::MobSignal;
 use crate::mob_spawn::MobSpawn;
 use crate::mob_state::MobState;
 use crate::mob_tracker::MobTracker;
 use crate::player_input::Backlog;
 use crate::wire_id::wire_id;
+use mcrs_minecraft_protocol_game::entity::MobLooks;
 
 const BLOCKS_PER_COLUMN: u32 = 16;
 

@@ -100,6 +100,7 @@ mcrs_minecraft_entity_key = { path = "crates/mcrs_minecraft_entity_key" }
 mcrs_minecraft_physics = { path = "crates/mcrs_minecraft_physics" }
 mcrs_minecraft_collision_table = { path = "crates/mcrs_minecraft_collision_table" }
 mcrs_minecraft_engine_physics = { path = "crates/mcrs_minecraft_engine_physics" }
+mcrs_minecraft_engine_mob_replication = { path = "crates/mcrs_minecraft_engine_mob_replication" }
 mcrs_minecraft_entity_rows = { path = "crates/mcrs_minecraft_entity_rows" }
 mcrs_minecraft_brain = { path = "crates/mcrs_minecraft_brain" }
 mcrs_minecraft_goals = { path = "crates/mcrs_minecraft_goals" }

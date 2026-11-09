@@ -4413,11 +4413,30 @@ dependencies = [
  "mcrs_minecraft_item",
  "mcrs_minecraft_mob_control",
  "mcrs_minecraft_physics",
+ "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
- "mcrs_minecraft_replication",
  "mcrs_minecraft_volume",
  "mcrs_voxel",
  "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_engine_mob_replication"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_tasks",
+ "mcrs_engine_muxer",
+ "mcrs_minecraft_damage",
+ "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_physics",
+ "mcrs_minecraft_entity_key",
+ "mcrs_minecraft_entity_rows",
+ "mcrs_minecraft_physics",
+ "mcrs_minecraft_replication",
+ "rustc-hash 2.1.1",
+ "uuid",
 ]
 
 [[package]]
@@ -4446,7 +4465,6 @@ dependencies = [
  "mcrs_minecraft_physics",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
- "mcrs_minecraft_replication",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_volume",
  "mcrs_voxel",
@@ -4454,7 +4472,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing",
- "uuid",
 ]
 
 [[package]]
@@ -5380,6 +5397,7 @@ dependencies = [
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_engine",
  "mcrs_minecraft_engine_brain",
+ "mcrs_minecraft_engine_mob_replication",
  "mcrs_minecraft_engine_physics",
  "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_engine_server",

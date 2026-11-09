@@ -19,7 +19,6 @@ use crate::Executor;
 use crate::Keyed;
 use crate::MobIntent;
 use crate::MobRows;
-use crate::Moved;
 use crate::Placed;
 use crate::Row;
 use crate::TileBodies;
@@ -48,8 +47,8 @@ pub struct RowStore<M> {
     pub(crate) woken: BTreeSet<TileKey>,
     /// The rows that the pass moved out of their tile, with that tile.
     pub(crate) leaving: Vec<Leaving>,
-    /// The living rows whose visible state changed in the last pass.
-    pub(crate) moved: Vec<Moved>,
+    /// The living rows whose visible state changed in the last pass, with their tile in it.
+    pub(crate) moved: Vec<Placed>,
     pub(crate) changes: Changes,
     /// The largest half width of a body that the grid ever held.
     pub(crate) reach: f32,
@@ -186,6 +185,12 @@ impl<M> RowStore<M> {
         self.tiles.len()
     }
 
+    /// The rows of `tile`; `None` when the world never had a row in it.
+    #[must_use]
+    pub fn tile(&self, tile: TileKey) -> Option<&TileRows<M>> {
+        self.tiles.get(&tile).map(|entry| &entry.rows)
+    }
+
     /// The rows of each tile, in tile order.
     pub fn tiles(&self) -> impl Iterator<Item = (TileKey, &TileRows<M>)> {
         self.tiles.iter().map(|(&tile, entry)| (tile, &entry.rows))
@@ -206,9 +211,11 @@ impl<M> RowStore<M> {
         &self.changes
     }
 
-    /// The living rows whose visible state changed in the last pass, in tile order.
+    /// The living rows whose visible state changed in the last pass, in tile order, each with
+    /// its tile in the pass. A row that crossed since is in [`Self::tile_of`]; a row that left the
+    /// world is in no tile.
     #[must_use]
-    pub fn moved(&self) -> &[Moved] {
+    pub fn moved(&self) -> &[Placed] {
         &self.moved
     }
 
