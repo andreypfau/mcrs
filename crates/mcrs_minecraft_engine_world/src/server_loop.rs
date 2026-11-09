@@ -26,7 +26,7 @@ pub struct VoxelServerPlugin {
     /// host's compute pool.
     pub worlds: Placement,
     /// The thread count of the compute pool, for an app that owns the task pools. `None` keeps
-    /// one thread under [`Placement::Inline`] and the Bevy default otherwise.
+    /// one thread under [`Placement::Inline`] and one thread for each logical core otherwise.
     pub compute_threads: Option<NonZeroUsize>,
 }
 
@@ -37,7 +37,11 @@ impl Plugin for VoxelServerPlugin {
             _ if !self.owns_task_pools => None,
             (Some(threads), _) => Some(threads.get()),
             (None, Placement::Inline) => Some(1),
-            (None, _) => None,
+            // The Bevy default keeps a quarter of the cores each for the I/O and the async
+            // pools, which a server tick leaves idle; the tick runs on the compute pool.
+            (None, _) => std::thread::available_parallelism()
+                .ok()
+                .map(NonZeroUsize::get),
         };
         let task_pool_options = match compute_threads {
             Some(threads) => TaskPoolOptions {
