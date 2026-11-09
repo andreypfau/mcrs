@@ -4,6 +4,7 @@ use mcrs_minecraft_brain::Fact;
 use mcrs_minecraft_brain::FactKind;
 use mcrs_minecraft_brain::MobId;
 use mcrs_minecraft_brain::MobView;
+use mcrs_minecraft_brain::PlayerTable;
 use mcrs_minecraft_engine_physics::MobIntent;
 use mcrs_minecraft_physics::TileRows;
 use mcrs_minecraft_volume::BlockVolume;
@@ -20,6 +21,7 @@ pub(crate) struct TileTask<'a> {
     pub(crate) rows: &'a TileRows,
     pub(crate) mobs: &'a mut [HostMob],
     pub(crate) due: &'a [Decision],
+    pub(crate) players: &'a PlayerTable,
     pub(crate) tick: u64,
 }
 
@@ -52,10 +54,11 @@ impl TileTask<'_> {
             let Some(mob) = slot.and_then(|at| self.mobs.get_mut(at)) else {
                 continue;
             };
-            let observed = mob.observe(hot, self.tick, state);
+            let observed = mob.observe(hot, self.players, self.tick, state);
             let kinds = [
                 (observed.struck, FactKind::Hurt),
                 (observed.idle_reset, FactKind::IdleReset),
+                (observed.resumed, FactKind::Resumed),
             ];
             for (set, kind) in kinds {
                 if set {

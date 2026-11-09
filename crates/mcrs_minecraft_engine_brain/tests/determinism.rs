@@ -13,6 +13,7 @@ use mcrs_minecraft_brain::OrderKey;
 use mcrs_minecraft_brain::PlayerFlags;
 use mcrs_minecraft_brain::PlayerId;
 use mcrs_minecraft_brain::PlayerRow;
+use mcrs_minecraft_brain::PlayerTable;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::WorldSeed;
 use mcrs_minecraft_damage::Hit;
@@ -134,9 +135,10 @@ impl Run {
             collision: &self.scene.tables.collision,
             mobs: &self.mobs,
             panic_causes: &self.causes,
-            players: &self.players,
         };
-        self.ai.prepare(&hot, &mut self.scene.rows, &self.pool);
+        let players = PlayerTable::new(self.players.iter().copied());
+        self.ai
+            .prepare(&hot, players, &mut self.scene.rows, &self.pool);
         let world = BlockGoalWorld::new(&self.scene.blocks, &self.scene.tables.collision);
         self.ai.run_stage(&self.pool, &world);
         let tiles = self.scene.rows.tiles_mut().count();

@@ -88,11 +88,13 @@ impl MobAi {
     }
 
     /// The hot side of the next AI tick, before the entity pass: follows the life cycle of the
-    /// mobs, publishes the snapshot, applies the due decisions and queues an intent for each
-    /// living mob of the stage.
+    /// mobs, publishes the snapshot with `players`, the players of the dimension at the end of
+    /// the last tick, applies the due decisions and queues an intent for each living mob of the
+    /// stage.
     pub fn prepare<V: BlockVolume + Sync>(
         &mut self,
         hot: &HotTick<'_, V>,
+        players: PlayerTable,
         rows: &mut EntityRows,
         pool: &TaskPool,
     ) {
@@ -115,6 +117,7 @@ impl MobAi {
                 rows: tile_rows,
                 mobs,
                 due: due.get(&tile).map_or(&[], Vec::as_slice),
+                players: &players,
                 tick,
             });
         }
@@ -133,7 +136,7 @@ impl MobAi {
         let outs = in_order(outs);
         due.clear();
         let ran = Instant::now();
-        self.publish(tick, outs, hot, rows);
+        self.publish(tick, outs, players, rows);
         self.stats.life_cycle = followed.duration_since(started);
         self.stats.tile_tasks = ran.duration_since(followed);
         self.stats.publish = ran.elapsed();
@@ -284,11 +287,11 @@ impl MobAi {
         by_tile
     }
 
-    fn publish<V>(
+    fn publish(
         &mut self,
         tick: u64,
         outs: Vec<TileOut>,
-        hot: &HotTick<'_, V>,
+        players: PlayerTable,
         rows: &mut EntityRows,
     ) {
         let mut facts: BTreeMap<TileKey, Vec<Fact>> = BTreeMap::new();
@@ -314,8 +317,7 @@ impl MobAi {
         for (tile, facts) in facts {
             self.replica.publish_facts(tick, tile_id(tile), facts);
         }
-        self.replica
-            .publish_players(tick, PlayerTable::new(hot.players.iter().copied()));
+        self.replica.publish_players(tick, players);
         self.pipeline.issue(tick);
         self.stats.applied = applied;
     }

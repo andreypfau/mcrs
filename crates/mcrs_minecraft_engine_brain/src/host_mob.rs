@@ -10,6 +10,7 @@ use mcrs_minecraft_brain::MobId;
 use mcrs_minecraft_brain::MobView;
 use mcrs_minecraft_brain::OrderKey;
 use mcrs_minecraft_brain::Panic;
+use mcrs_minecraft_brain::PlayerTable;
 use mcrs_minecraft_engine_physics::MobIntent;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_goals::STROLL_IDLE_LIMIT;
@@ -57,6 +58,11 @@ pub(crate) struct HostMob {
     panic: Panic,
     /// The tick in which the life cycle last found the mob.
     pub(crate) seen: u64,
+    /// The age of the row at the last observe. The pass adds 1 in each tick in which the row
+    /// ticks, so an equal age at the next observe means a tick with no step.
+    age: Option<u32>,
+    /// The row did not tick in the tick before the last observe.
+    stalled: bool,
     /// What the controls of this tick read of the row, from [`HostMob::observe`]; `None` for a
     /// row that is not a living row, or a dying one.
     row: Option<RowFacts>,
@@ -78,6 +84,8 @@ pub(crate) struct Observed {
     /// A hit passed the tests of DMG-HIT-001 since the last observe: wake event 1.
     pub(crate) struck: bool,
     pub(crate) idle_reset: bool,
+    /// The row ticked again after a tick with no step: wake event 7.
+    pub(crate) resumed: bool,
 }
 
 impl HostMob {
@@ -108,6 +116,8 @@ impl HostMob {
             damage: None,
             panic: Panic::Calm,
             seen: tick,
+            age: None,
+            stalled: false,
             row: None,
         })
     }
@@ -121,6 +131,7 @@ impl HostMob {
     pub(crate) fn observe<V>(
         &mut self,
         hot: &HotTick<'_, V>,
+        players: &PlayerTable,
         tick: u64,
         state: &EntityState,
     ) -> Observed {
@@ -165,7 +176,7 @@ impl HostMob {
                 },
             });
         }
-        let near = hot.players.iter().any(|player| {
+        let near = players.rows().iter().any(|player| {
             player.is_qualified()
                 && player.position.distance_squared(self.position) < NEAR_PLAYER * NEAR_PLAYER
         });
@@ -176,6 +187,12 @@ impl HostMob {
         };
         let idle_reset = idle_time == 0 && self.idle_time >= STROLL_IDLE_LIMIT;
         self.idle_time = idle_time;
+        let stalled = self.age == Some(state.age);
+        let resumed = self.stalled && !stalled;
+        self.stalled = stalled;
+        self.age = Some(state.age);
+        // IN_WATER stays clear without the fluid model (GOAL-FLT-003). The row holds no fire
+        // ticks, passengers or age, which ON_FIRE, CONTROLLED and BABY need.
         let marks = [
             (living.is_alive(), MobFlags::ALIVE),
             (state.body.flags.on_ground, MobFlags::ON_GROUND),
@@ -194,11 +211,14 @@ impl HostMob {
                 flags,
                 idle_time: self.idle_time,
                 damage: self.damage,
+                // Only a mob passenger or a boat disables a flag (GOAL-FRM-008), and only the
+                // float, which needs the fluid model, holds one by a reflex.
                 disabled: ControlFlags::NONE,
                 path: self.control.applied(),
             },
             struck: struck_now,
             idle_reset,
+            resumed,
         }
     }
 

@@ -6,11 +6,9 @@ use bevy_app::FixedUpdate;
 use bevy_app::Plugin;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::With;
-use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::SystemCondition;
 use bevy_ecs::schedule::SystemSet;
-use bevy_ecs::schedule::common_conditions::not;
 use bevy_ecs::schedule::common_conditions::resource_exists;
 use bevy_ecs::schedule::common_conditions::resource_exists_and_changed;
 use bevy_ecs::system::Commands;
@@ -25,6 +23,7 @@ use mcrs_minecraft_brain::OrderKey;
 use mcrs_minecraft_brain::PlayerFlags;
 use mcrs_minecraft_brain::PlayerId;
 use mcrs_minecraft_brain::PlayerRow;
+use mcrs_minecraft_brain::PlayerTable;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::WorldSeed as StageSeed;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
@@ -80,39 +79,50 @@ pub enum MobBrainSet {
     Stage,
 }
 
-/// The configuration of the stage until the first tick inserts [`MobAi`].
-#[derive(Resource, Clone, Copy, Debug)]
-struct StageSettings(MobBrainPlugin);
-
 impl Plugin for MobBrainPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(StageSettings(*self));
+        let ready = resource_exists::<PanicCauses>
+            .and_then(resource_exists::<PhysicsTables>)
+            .and_then(resource_exists::<MobAi>);
         app.configure_sets(
             FixedUpdate,
             (
                 MobBrainSet::Prepare
                     .after(TickSet::ClientInput)
-                    .before(TickSet::Simulate),
-                MobBrainSet::Stage.in_set(TickSet::Simulate),
+                    .before(TickSet::Simulate)
+                    .run_if(ready.clone()),
+                MobBrainSet::Stage.in_set(TickSet::Simulate).run_if(ready),
             ),
         );
-        let ready = resource_exists::<PanicCauses>
-            .and_then(resource_exists::<PhysicsTables>)
-            .and_then(resource_exists::<MobAi>);
         app.add_systems(
             FixedUpdate,
             (
-                build_panic_causes.run_if(resource_exists_and_changed::<CurrentRegistries>),
-                start.run_if(not(resource_exists::<MobAi>)),
-                prepare.run_if(ready.clone()),
-            )
-                .chain()
-                .in_set(MobBrainSet::Prepare),
+                build_panic_causes
+                    .run_if(resource_exists_and_changed::<CurrentRegistries>)
+                    .after(TickSet::ClientInput)
+                    .before(MobBrainSet::Prepare),
+                prepare.in_set(MobBrainSet::Prepare),
+                run_stage.in_set(MobBrainSet::Stage),
+            ),
         );
-        app.add_systems(
-            FixedUpdate,
-            run_stage.run_if(ready).in_set(MobBrainSet::Stage),
+    }
+
+    /// A dimension world has its [`WorldSeed`] before its plugins build; a world without one
+    /// keys the AI by the seed 0.
+    fn finish(&self, app: &mut App) {
+        let seed = StageSeed(
+            app.world()
+                .get_resource::<WorldSeed>()
+                .map_or(0, |seed| seed.0),
         );
+        let config = match StageConfig::new(seed).with_delay(self.max_lag, self.delay) {
+            Ok(config) => config,
+            Err(error) => {
+                tracing::error!(%error, "the AI keeps its default delay");
+                StageConfig::new(seed)
+            }
+        };
+        app.insert_resource(MobAi::new(config));
     }
 }
 
@@ -130,19 +140,6 @@ fn build_panic_causes(mut commands: Commands, registries: Res<CurrentRegistries>
     commands.insert_resource(panic_causes);
 }
 
-fn start(mut commands: Commands, settings: Res<StageSettings>, seed: Option<Res<WorldSeed>>) {
-    let seed = StageSeed(seed.map_or(0, |seed| seed.0));
-    let StageSettings(plugin) = *settings;
-    let config = match StageConfig::new(seed).with_delay(plugin.max_lag, plugin.delay) {
-        Ok(config) => config,
-        Err(error) => {
-            tracing::error!(%error, "the AI keeps its default delay");
-            StageConfig::new(seed)
-        }
-    };
-    commands.insert_resource(MobAi::new(config));
-}
-
 #[expect(
     clippy::too_many_arguments,
     reason = "a system names each resource and query that it reads"
@@ -156,13 +153,11 @@ fn prepare(
     players: Query<(Entity, &EntityUuid, &Transform, Option<&PlayerGameMode>), With<Player>>,
     mut rows: ResMut<EntityRows>,
     mut ai: ResMut<MobAi>,
-    mut table: Local<Vec<PlayerRow>>,
 ) {
     let Some(blocks) = world.get(*dimension) else {
         return;
     };
-    table.clear();
-    table.extend(players.iter().map(|(entity, uuid, transform, mode)| {
+    let table = PlayerTable::new(players.iter().map(|(entity, uuid, transform, mode)| {
         let spectator = mode.is_some_and(|mode| mode.0 == GameMode::Spectator);
         PlayerRow {
             player: PlayerId(entity.to_bits()),
@@ -183,9 +178,8 @@ fn prepare(
         collision: tables.collision(),
         mobs: &mobs,
         panic_causes: &panic_causes,
-        players: &table,
     };
-    ai.prepare(&hot, &mut rows, ComputeTaskPool::get());
+    ai.prepare(&hot, table, &mut rows, ComputeTaskPool::get());
 }
 
 fn run_stage(
