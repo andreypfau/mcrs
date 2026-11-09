@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::deserializer::NbtReadHelper;
+use crate::encoding::NbtEncoding;
 use crate::serializer::WriteAdaptor;
 use crate::tag::NbtTag;
 use crate::{END_ID, Error, Nbt, get_nbt_string};
@@ -19,14 +20,16 @@ impl NbtCompound {
         }
     }
 
-    pub fn skip_content<R: Read + Seek>(reader: &mut NbtReadHelper<R>) -> Result<(), Error> {
+    pub fn skip_content<R: Read + Seek, E: NbtEncoding>(
+        reader: &mut NbtReadHelper<R, E>,
+    ) -> Result<(), Error> {
         loop {
-            let tag_id = reader.get_u8_be()?;
+            let tag_id = reader.get_u8()?;
             if tag_id == END_ID {
                 break;
             }
 
-            let len = reader.get_u16_be()?;
+            let len = E::read_string_length(&mut reader.reader)?;
             reader.skip_bytes(len as i64)?;
 
             NbtTag::skip_data(reader, tag_id)?;
@@ -35,13 +38,13 @@ impl NbtCompound {
         Ok(())
     }
 
-    pub fn deserialize_content<R: Read + Seek>(
-        reader: &mut NbtReadHelper<R>,
+    pub fn deserialize_content<R: Read + Seek, E: NbtEncoding>(
+        reader: &mut NbtReadHelper<R, E>,
     ) -> Result<NbtCompound, Error> {
         let mut compound = NbtCompound::new();
 
         loop {
-            let tag_id = reader.get_u8_be()?;
+            let tag_id = reader.get_u8()?;
             if tag_id == END_ID {
                 break;
             }
@@ -54,13 +57,16 @@ impl NbtCompound {
         Ok(compound)
     }
 
-    pub fn serialize_content<W: Write>(&self, w: &mut WriteAdaptor<W>) -> Result<(), Error> {
+    pub fn serialize_content<W: Write, E: NbtEncoding>(
+        &self,
+        w: &mut WriteAdaptor<W, E>,
+    ) -> Result<(), Error> {
         for (name, tag) in &self.child_tags {
-            w.write_u8_be(tag.get_type_id())?;
-            NbtTag::String(name.clone()).serialize_data(w)?;
+            w.write_u8(tag.get_type_id())?;
+            E::write_string(w, name)?;
             tag.serialize_data(w)?;
         }
-        w.write_u8_be(END_ID)?;
+        w.write_u8(END_ID)?;
         Ok(())
     }
 
