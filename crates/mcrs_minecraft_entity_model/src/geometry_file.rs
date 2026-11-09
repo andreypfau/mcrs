@@ -6,8 +6,8 @@ use crate::diagnostic::Diagnostic;
 use crate::format_version::{FormatVersion, Shape};
 use crate::geometry::Geometry;
 use crate::geometry_error::GeometryError;
-use crate::json::{Json, JsonObject};
 use crate::load_error::LoadError;
+use mcrs_minecraft_pack_file::{Json, JsonObject};
 
 const CURRENT_ROOT_FIELDS: [&str; 2] = ["format_version", "minecraft:geometry"];
 const CURRENT_GEOMETRY_FIELDS: [&str; 2] = ["description", "bones"];

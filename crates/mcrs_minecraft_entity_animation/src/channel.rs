@@ -1,8 +1,5 @@
-use mcrs_minecraft_entity_model::Json;
+use mcrs_minecraft_pack_file::{DiagnosticKind, FieldCompiler, Json};
 use mcrs_molang::Expression;
-
-use crate::animation_diagnostic::{AnimationDiagnostic, DiagnosticKind};
-use crate::field_compiler::FieldCompiler;
 
 /// How the sample between a keyframe and the next one is computed.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -162,11 +159,11 @@ impl Channel {
             let time = match key.trim().parse::<f32>() {
                 Ok(time) if time.is_finite() && time >= 0.0 => time,
                 _ => {
-                    compiler.diagnostics.push(AnimationDiagnostic::new(
+                    compiler.report(
                         DiagnosticKind::ContentError,
                         &context,
                         "a keyframe time is not a number of seconds",
-                    ));
+                    );
                     continue;
                 }
             };
@@ -220,11 +217,11 @@ fn keyframe(
         Some(Json::String(mode)) if mode == "linear" => LerpMode::Linear,
         Some(Json::String(mode)) if mode == "catmullrom" => LerpMode::CatmullRom,
         Some(_) => {
-            compiler.diagnostics.push(AnimationDiagnostic::new(
+            compiler.report(
                 DiagnosticKind::ContentError,
                 context,
                 "`lerp_mode` is not `linear` or `catmullrom`",
-            ));
+            );
             LerpMode::Linear
         }
     };
@@ -232,11 +229,11 @@ fn keyframe(
         (Some(pre), Some(post)) => (pre, post),
         (Some(value), None) | (None, Some(value)) => (value.clone(), value),
         (None, None) => {
-            compiler.diagnostics.push(AnimationDiagnostic::new(
+            compiler.report(
                 DiagnosticKind::ContentError,
                 context,
                 "a keyframe object has no `pre` and no `post`",
-            ));
+            );
             return None;
         }
     };
@@ -266,11 +263,11 @@ fn vector(json: &Json, compiler: &mut FieldCompiler, context: &str) -> Option<[E
             compiler.compile(z, &format!("{context}/z")),
         ]),
         _ => {
-            compiler.diagnostics.push(AnimationDiagnostic::new(
+            compiler.report(
                 DiagnosticKind::ContentError,
                 context,
                 "a value is not a number, an expression or an array of one or three",
-            ));
+            );
             None
         }
     }

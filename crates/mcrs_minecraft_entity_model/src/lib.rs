@@ -2,7 +2,7 @@
 //! the conversion to internal space, the bake to a static model, the bone transform and the
 //! GPU records of a model.
 
-// std: serde_json
+// std: mcrs_minecraft_pack_file
 
 mod bake;
 mod baked_geometry;
@@ -18,7 +18,6 @@ mod geometry_error;
 mod geometry_file;
 mod geometry_file_bone;
 mod gpu_record;
-mod json;
 mod load_error;
 mod resolve_parents;
 pub mod space;
@@ -42,7 +41,6 @@ pub use gpu_record::{
     BONE_NEVER_RENDER, BoneRecord, CUBOID_EXPLICIT, CUBOID_MIRROR, CuboidRecord, INFLATE_STEP,
     ModelRecord, NO_PARENT, RecordError,
 };
-pub use json::{Json, JsonError, JsonObject};
 pub use load_error::LoadError;
 pub use resolve_parents::resolve_parents;
 pub use uv_rect::{UvRect, rotate_corners};

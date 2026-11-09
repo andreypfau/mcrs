@@ -21,12 +21,12 @@ pub struct JsonObject {
 
 /// A syntax error of a file, at a 1-based line and column.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct JsonError {
+pub struct SyntaxError {
     pub line: usize,
     pub column: usize,
 }
 
-impl fmt::Display for JsonError {
+impl fmt::Display for SyntaxError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             formatter,
@@ -36,13 +36,13 @@ impl fmt::Display for JsonError {
     }
 }
 
-impl core::error::Error for JsonError {}
+impl core::error::Error for SyntaxError {}
 
 impl Json {
     /// Parses JSON that can also hold `//` and `/* */` comments and a comma after the last
     /// element of an array or an object.
-    pub fn parse_lenient(text: &str) -> Result<Self, JsonError> {
-        serde_json::from_str(&strict_text(text)).map_err(|error| JsonError {
+    pub fn parse_lenient(text: &str) -> Result<Self, SyntaxError> {
+        serde_json::from_str(&strict_text(text)).map_err(|error| SyntaxError {
             line: error.line(),
             column: error.column(),
         })

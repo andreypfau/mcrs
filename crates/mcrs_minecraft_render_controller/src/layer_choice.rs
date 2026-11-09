@@ -2,7 +2,7 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TextureChoice {
     /// A short name of the map `textures` of the client entity, by its index in
-    /// [`crate::ClientEntityResources::textures`].
+    /// [`mcrs_minecraft_pack_file::ClientEntityFile::textures`].
     Named(usize),
     /// A texture identifier that a string expression gave, as its `string_hash`.
     Identifier(u64),
@@ -13,7 +13,7 @@ pub enum TextureChoice {
 pub struct LayerChoice {
     /// The index of the render controller entry of the client entity.
     pub entry: usize,
-    /// The geometry, by its index in [`crate::ClientEntityResources::geometries`].
+    /// The geometry, by its index in [`mcrs_minecraft_pack_file::ClientEntityFile::geometries`].
     pub geometry: usize,
     pub texture: TextureChoice,
     /// The `part_visibility` patterns in order, each with its value in this frame.

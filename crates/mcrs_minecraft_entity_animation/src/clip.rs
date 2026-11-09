@@ -1,9 +1,7 @@
-use mcrs_minecraft_entity_model::{Json, JsonObject};
+use mcrs_minecraft_pack_file::{DiagnosticKind, FieldCompiler, Json, JsonObject};
 use mcrs_molang::Expression;
 
-use crate::animation_diagnostic::{AnimationDiagnostic, DiagnosticKind};
 use crate::channel::Channel;
-use crate::field_compiler::FieldCompiler;
 
 /// What a clip does when its time passes its length.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -174,11 +172,11 @@ fn bones(
             Some(relative) => match relative.get("rotation") {
                 Some(Json::String(target)) if target == "entity" => true,
                 _ => {
-                    compiler.diagnostics.push(AnimationDiagnostic::new(
+                    compiler.report(
                         DiagnosticKind::Unsupported,
                         &context,
                         "`relative_to` other than `rotation: entity`",
-                    ));
+                    );
                     false
                 }
             },
@@ -201,9 +199,5 @@ fn bones(
 }
 
 fn content_error(compiler: &mut FieldCompiler, context: &str, message: &str) {
-    compiler.diagnostics.push(AnimationDiagnostic::new(
-        DiagnosticKind::ContentError,
-        context,
-        message,
-    ));
+    compiler.report(DiagnosticKind::ContentError, context, message);
 }

@@ -1,12 +1,12 @@
 use core::fmt;
 
-use mcrs_minecraft_entity_model::JsonError;
+use crate::json::SyntaxError;
 
 /// A file of the entity pack that the loader cannot read.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PackFileError {
     /// The text is not JSON.
-    Syntax(JsonError),
+    Syntax(SyntaxError),
     /// The root has no object with this name.
     NoRoot(&'static str),
 }

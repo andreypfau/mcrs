@@ -1,12 +1,11 @@
-use mcrs_minecraft_entity_animation::{AnimationDiagnostic, DiagnosticKind, EntityQuery};
-use mcrs_minecraft_entity_model::Json;
+use mcrs_minecraft_entity_animation::EntityQuery;
+use mcrs_minecraft_pack_file::{ClientEntityFile, DiagnosticKind, FieldCompiler, PackDiagnostic};
 use mcrs_molang::{
-    Arguments, CompileOptions, Expression, LiteralKey, Milestone, QueryDeclaration, QueryRegistry,
-    QueryScope, QuerySlot, QueryValues, Rate, ResourceKind, ResourceSet, ScalarVm, Source, Subject,
-    Value, ValueType, VariableLayout, Variables, string_hash,
+    Arguments, Expression, LiteralKey, Milestone, QueryDeclaration, QueryRegistry, QueryScope,
+    QuerySlot, QueryValues, Rate, ResourceKind, ResourceSet, ScalarVm, Subject, Value, ValueType,
+    VariableLayout, Variables, string_hash,
 };
 
-use crate::client_entity_resources::ClientEntityResources;
 use crate::layer_choice::{LayerChoice, TextureChoice};
 use crate::render_controller_file::RenderControllerLibrary;
 use crate::render_query::RenderQuery;
@@ -34,9 +33,9 @@ impl RenderControllers {
     /// Compiles the render controller list of `entity`. An element with a load error goes to
     /// `diagnostics` and draws nothing.
     pub fn compile(
-        entity: &ClientEntityResources,
+        entity: &ClientEntityFile,
         library: &RenderControllerLibrary,
-        diagnostics: &mut Vec<AnimationDiagnostic>,
+        diagnostics: &mut Vec<PackDiagnostic>,
     ) -> Self {
         let mut resources = ResourceSet::default();
         for (id, (short, _)) in (0u32..).zip(&entity.geometries) {
@@ -48,12 +47,7 @@ impl RenderControllers {
         for (id, (short, _)) in (0u32..).zip(&entity.materials) {
             resources.insert(ResourceKind::Material, short, id);
         }
-        let mut compiler = Compiler {
-            registry: registry(),
-            layout: VariableLayout::new(),
-            resources,
-            diagnostics,
-        };
+        let mut compiler = FieldCompiler::new(registry());
         let mut layers = Vec::new();
         for entry in &entity.render_controllers {
             let context = format!("{}/{}", entity.identifier, entry.identifier);
@@ -73,14 +67,12 @@ impl RenderControllers {
                 );
             }
             let condition = match &entry.condition {
-                Some(json) => compiler.compile(json, &format!("{context}/condition"), false),
+                Some(json) => compiler.try_compile(json, &format!("{context}/condition"), None),
                 None => Some(Expression::Constant(Value::Number(1.0))),
             };
-            let Some(geometry) = source
-                .geometry
-                .as_ref()
-                .and_then(|json| compiler.compile(json, &format!("{context}/geometry"), true))
-            else {
+            let Some(geometry) = source.geometry.as_ref().and_then(|json| {
+                compiler.try_compile(json, &format!("{context}/geometry"), Some(&resources))
+            }) else {
                 compiler.report(
                     DiagnosticKind::LoadError,
                     &context,
@@ -88,10 +80,9 @@ impl RenderControllers {
                 );
                 continue;
             };
-            let texture = source
-                .textures
-                .first()
-                .and_then(|json| compiler.compile(json, &format!("{context}/textures"), true));
+            let texture = source.textures.first().and_then(|json| {
+                compiler.try_compile(json, &format!("{context}/textures"), Some(&resources))
+            });
             let (Some(condition), Some(texture)) = (condition, texture) else {
                 continue;
             };
@@ -100,7 +91,7 @@ impl RenderControllers {
                 .iter()
                 .filter_map(|(pattern, json)| {
                     let context = format!("{context}/part_visibility/{pattern}");
-                    Some((pattern.clone(), compiler.compile(json, &context, false)?))
+                    Some((pattern.clone(), compiler.try_compile(json, &context, None)?))
                 })
                 .collect();
             layers.push(CompiledLayer {
@@ -131,6 +122,7 @@ impl RenderControllers {
                     .map(RenderQuery::Entity)
             })
             .collect();
+        diagnostics.append(&mut compiler.diagnostics);
         Self {
             layers,
             slots,
@@ -215,50 +207,6 @@ fn registry() -> QueryRegistry {
     registry
 }
 
-struct Compiler<'a> {
-    registry: QueryRegistry,
-    layout: VariableLayout,
-    resources: ResourceSet,
-    diagnostics: &'a mut Vec<AnimationDiagnostic>,
-}
-
-impl Compiler<'_> {
-    fn report(&mut self, kind: DiagnosticKind, context: &str, message: &str) {
-        self.diagnostics
-            .push(AnimationDiagnostic::new(kind, context, message));
-    }
-
-    /// `None` for a load error, which goes to the diagnostics.
-    fn compile(&mut self, json: &Json, context: &str, resources: bool) -> Option<Expression> {
-        let source = match json {
-            Json::Number(value) => Source::Number(*value),
-            Json::Bool(value) => Source::Bool(*value),
-            Json::String(text) => Source::Text(text),
-            _ => Source::Other,
-        };
-        let options = CompileOptions {
-            milestone: Milestone::Two,
-            resources: resources.then_some(&self.resources),
-            ..CompileOptions::default()
-        };
-        match mcrs_molang::compile(&source, &mut self.layout, &mut self.registry, &options) {
-            Ok(compiled) => {
-                for warning in compiled.warnings {
-                    let message = format!("{:?} `{}`", warning.kind, warning.name);
-                    self.report(DiagnosticKind::LoadWarning, context, &message);
-                }
-                Some(compiled.expression)
-            }
-            Err(errors) => {
-                for error in errors {
-                    self.report(DiagnosticKind::LoadError, context, &error.to_string());
-                }
-                None
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -267,8 +215,8 @@ mod tests {
     const PIG_CONTROLLERS: &str =
         include_str!("../../../assets/mcrs/entity/render_controllers/pig.render_controllers.json");
 
-    fn pig() -> (ClientEntityResources, RenderControllers) {
-        let entity = ClientEntityResources::parse(PIG_ENTITY).unwrap();
+    fn pig() -> (ClientEntityFile, RenderControllers) {
+        let entity = ClientEntityFile::parse(PIG_ENTITY).unwrap();
         let mut library = RenderControllerLibrary::new();
         library.add_file(PIG_CONTROLLERS).unwrap();
         let mut diagnostics = Vec::new();
@@ -315,6 +263,42 @@ mod tests {
                 body.texture,
                 TextureChoice::Identifier(string_hash("minecraft:entity/pig/pig_cold"))
             );
+        }
+    }
+
+    #[test]
+    fn a_versioned_expression_object_compiles_like_its_expression() {
+        let entity = ClientEntityFile::parse(
+            r#"{"minecraft:client_entity": {"description": {"identifier": "test:mob",
+                "geometry": {"default": "geometry.mob"}, "textures": {"default": "mob"},
+                "render_controllers": [{"controller.render.mob": {"expression": "q.is_baby"}}]}}}"#,
+        )
+        .unwrap();
+        let mut library = RenderControllerLibrary::new();
+        library
+            .add_file(
+                r#"{"render_controllers": {"controller.render.mob": {
+                    "geometry": {"expression": "Geometry.default", "version": 1},
+                    "textures": ["Texture.default"]}}}"#,
+            )
+            .unwrap();
+        let mut diagnostics = Vec::new();
+        let controllers = RenderControllers::compile(&entity, &library, &mut diagnostics);
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.kind == DiagnosticKind::LoadWarning),
+            "{diagnostics:#?}"
+        );
+        let mut vm = ScalarVm::new();
+        for (baby, layers) in [(true, 1), (false, 0)] {
+            let choices = controllers.evaluate(&mut vm, |query| {
+                Some(Value::Number(match query {
+                    RenderQuery::Entity(EntityQuery::IsBaby) if baby => 1.0,
+                    _ => 0.0,
+                }))
+            });
+            assert_eq!(choices.len(), layers, "baby {baby}");
         }
     }
 }

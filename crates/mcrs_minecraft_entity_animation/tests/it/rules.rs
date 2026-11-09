@@ -3,10 +3,10 @@
 
 use glam::Vec3;
 use mcrs_minecraft_entity_animation::{
-    ClientEntityDefinition, ClipLibrary, EntityAnimation, EntityQuery, Pose, PoseBinding, PoseBone,
-    QuerySource, Rig,
+    ClipLibrary, EntityAnimation, EntityQuery, Pose, PoseBinding, PoseBone, QuerySource, Rig,
 };
 use mcrs_minecraft_entity_model::{BakedGeometry, GeometryFile};
+use mcrs_minecraft_pack_file::ClientEntityFile;
 use mcrs_molang::{ScalarVm, Value};
 
 /// One bone with the rest rotation 20° about X.
@@ -50,7 +50,7 @@ impl Fixture {
             .iter()
             .map(|name| format!(r#""{name}": "animation.test.{name}""#))
             .collect();
-        let definition = ClientEntityDefinition::parse(&format!(
+        let definition = ClientEntityFile::parse(&format!(
             r#"{{"format_version": "1.10.0", "minecraft:client_entity": {{"description": {{
                 "identifier": "test", "animations": {{{}}}, "scripts": {scripts}}}}}}}"#,
             names.join(", ")

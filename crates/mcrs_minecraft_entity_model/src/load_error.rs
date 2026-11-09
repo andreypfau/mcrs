@@ -1,13 +1,13 @@
 use core::fmt;
 
-use crate::json::JsonError;
+use mcrs_minecraft_pack_file::SyntaxError;
 
 /// A content error that rejects a whole geometry file.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum LoadError {
     /// The text is not lenient JSON.
-    Syntax(JsonError),
+    Syntax(SyntaxError),
     /// The root of the file is not an object.
     NotAnObject,
     /// The file has no `format_version` string.
@@ -45,8 +45,8 @@ impl core::error::Error for LoadError {
     }
 }
 
-impl From<JsonError> for LoadError {
-    fn from(error: JsonError) -> Self {
+impl From<SyntaxError> for LoadError {
+    fn from(error: SyntaxError) -> Self {
         LoadError::Syntax(error)
     }
 }

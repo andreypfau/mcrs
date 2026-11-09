@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use mcrs_minecraft_entity_animation::PackFileError;
-use mcrs_minecraft_entity_model::{Json, JsonObject};
+use mcrs_minecraft_pack_file::{Json, JsonObject, PackFileError};
 
 /// The fields of one render controller that the client reads.
 #[derive(Clone, Debug, PartialEq)]

@@ -1,11 +1,11 @@
+use mcrs_minecraft_pack_file::{
+    ClientEntityFile, DiagnosticKind, FieldCompiler, PackDiagnostic, SCALE_FIELDS,
+};
 use mcrs_molang::{Accesses, Expression, QueryRegistry, QuerySlot, VariableLayout, VariableSlot};
 
-use crate::animation_diagnostic::{AnimationDiagnostic, DiagnosticKind};
-use crate::client_entity_definition::ClientEntityDefinition;
 use crate::clip::Clip;
 use crate::clip_library::ClipLibrary;
 use crate::entity_query::EntityQuery;
-use crate::field_compiler::FieldCompiler;
 
 /// What an element of the `animate` list plays.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -80,11 +80,11 @@ impl Rig {
     /// Compiles the client entity with the clips of `library`. A problem gives a diagnostic and
     /// the default of the field.
     pub fn compile(
-        definition: &ClientEntityDefinition,
+        definition: &ClientEntityFile,
         library: &ClipLibrary,
-        diagnostics: &mut Vec<AnimationDiagnostic>,
+        diagnostics: &mut Vec<PackDiagnostic>,
     ) -> Self {
-        let mut compiler = FieldCompiler::new();
+        let mut compiler = FieldCompiler::new(EntityQuery::registry());
         let identifier = definition.identifier.as_str();
         let scripts = &definition.scripts;
         let initialize = (!scripts.initialize.is_empty()).then(|| {
@@ -100,7 +100,7 @@ impl Rig {
         let scale: Vec<Expression> = scripts
             .scale
             .iter()
-            .zip(["scale", "scalex", "scaley", "scalez"])
+            .zip(SCALE_FIELDS)
             .map(|(json, name)| match json {
                 Some(json) => compiler.compile(json, &format!("{identifier}/scripts/{name}")),
                 None => FieldCompiler::constant(1.0),
@@ -182,7 +182,7 @@ struct Resolved<'a> {
 }
 
 fn resolve(
-    definition: &ClientEntityDefinition,
+    definition: &ClientEntityFile,
     library: &ClipLibrary,
     short_name: &str,
     resolved: Resolved<'_>,
@@ -191,11 +191,11 @@ fn resolve(
 ) -> Option<AnimateTarget> {
     let Resolved { clips, bones } = resolved;
     let Some(identifier) = definition.animation(short_name) else {
-        compiler.diagnostics.push(AnimationDiagnostic::new(
+        compiler.report(
             DiagnosticKind::ContentError,
             context,
             "the short name is not in `animations`",
-        ));
+        );
         return None;
     };
     if let Some(index) = clips.iter().position(|clip| clip.identifier == identifier) {
@@ -214,11 +214,7 @@ fn resolve(
     } else {
         (DiagnosticKind::ContentError, "no clip has this identifier")
     };
-    compiler.diagnostics.push(AnimationDiagnostic::new(
-        kind,
-        context,
-        format!("{message}: {identifier}"),
-    ));
+    compiler.report(kind, context, format!("{message}: {identifier}"));
     None
 }
 

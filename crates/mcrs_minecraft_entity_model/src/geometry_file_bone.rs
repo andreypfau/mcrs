@@ -7,7 +7,7 @@ use crate::format_version::{FormatVersion, Shape};
 use crate::geometry::{Bone, Geometry, Locator};
 use crate::geometry_error::GeometryError;
 use crate::geometry_file::{Reader, boolean, number, numbers, string, vec2, vec3};
-use crate::json::{Json, JsonObject};
+use mcrs_minecraft_pack_file::{Json, JsonObject};
 
 const CURRENT_BONE_FIELDS: [&str; 12] = [
     "name",

@@ -14,16 +14,16 @@ pub enum DiagnosticKind {
     Unsupported,
 }
 
-/// One problem of an animation file or a client entity file.
+/// One problem of a file of the entity pack.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AnimationDiagnostic {
+pub struct PackDiagnostic {
     pub kind: DiagnosticKind,
     /// Where the problem is, for example `animation.frog.walk/bones/body/rotation`.
     pub context: String,
     pub message: String,
 }
 
-impl AnimationDiagnostic {
+impl PackDiagnostic {
     #[must_use]
     pub fn new(kind: DiagnosticKind, context: &str, message: impl Into<String>) -> Self {
         Self {
@@ -34,7 +34,7 @@ impl AnimationDiagnostic {
     }
 }
 
-impl fmt::Display for AnimationDiagnostic {
+impl fmt::Display for PackDiagnostic {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let kind = match self.kind {
             DiagnosticKind::ContentError => "content error",

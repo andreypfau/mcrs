@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
-use mcrs_minecraft_entity_model::{Json, JsonObject};
-
-use crate::pack_file_error::PackFileError;
+use mcrs_minecraft_pack_file::{Json, JsonObject, PackFileError};
 
 /// The clips of the animation files of a pack, by identifier, before a client entity compiles
 /// them.

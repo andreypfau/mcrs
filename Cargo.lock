@@ -4549,6 +4549,7 @@ dependencies = [
  "glam",
  "mcrs_minecraft_entity_model",
  "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_pack_file",
  "mcrs_molang",
  "serde",
  "serde_json",
@@ -4561,6 +4562,7 @@ dependencies = [
  "bytemuck",
  "glam",
  "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_pack_file",
  "serde",
  "serde_json",
 ]
@@ -4582,6 +4584,7 @@ dependencies = [
  "mcrs_minecraft_entity_model",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_pack_file",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_render",
  "mcrs_minecraft_render_controller",
@@ -4977,6 +4980,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_pack_file"
+version = "0.5.8"
+dependencies = [
+ "mcrs_molang",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mcrs_minecraft_particle"
 version = "0.5.8"
 dependencies = [
@@ -5169,7 +5181,7 @@ name = "mcrs_minecraft_render_controller"
 version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_entity_animation",
- "mcrs_minecraft_entity_model",
+ "mcrs_minecraft_pack_file",
  "mcrs_molang",
 ]
 

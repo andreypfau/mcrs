@@ -13,5 +13,5 @@ workspace = true
 
 [dependencies]
 mcrs_minecraft_entity_animation.workspace = true
-mcrs_minecraft_entity_model.workspace = true
+mcrs_minecraft_pack_file.workspace = true
 mcrs_molang.workspace = true

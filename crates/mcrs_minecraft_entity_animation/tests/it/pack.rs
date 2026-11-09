@@ -2,8 +2,9 @@
 
 use std::path::{Path, PathBuf};
 
-use mcrs_minecraft_entity_animation::{ClientEntityDefinition, ClipLibrary, Rig};
+use mcrs_minecraft_entity_animation::{ClipLibrary, Rig};
 use mcrs_minecraft_entity_model::{BakedGeometry, GeometryFile};
+use mcrs_minecraft_pack_file::ClientEntityFile;
 
 pub fn entity_pack() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/mcrs/entity")
@@ -15,8 +16,7 @@ pub fn read(path: &str) -> String {
 
 /// The rig of a mob from its client entity file and its animation file. A diagnostic fails.
 pub fn rig(mob: &str) -> Rig {
-    let definition =
-        ClientEntityDefinition::parse(&read(&format!("entity/{mob}.entity.json"))).unwrap();
+    let definition = ClientEntityFile::parse(&read(&format!("entity/{mob}.entity.json"))).unwrap();
     let mut library = ClipLibrary::new();
     library
         .add_file(&read(&format!("animations/{mob}.animation.json")))

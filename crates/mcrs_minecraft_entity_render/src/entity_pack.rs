@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 
-use mcrs_minecraft_entity_animation::{ClientEntityDefinition, ClipLibrary, Rig};
+use mcrs_minecraft_entity_animation::{ClipLibrary, Rig};
 use mcrs_minecraft_entity_model::{
     BakedGeometry, Diagnostic, Geometry, GeometryFile, resolve_parents,
 };
-use mcrs_minecraft_render_controller::{
-    ClientEntityResources, RenderControllerLibrary, RenderControllers,
-};
+use mcrs_minecraft_pack_file::ClientEntityFile;
+use mcrs_minecraft_render_controller::{RenderControllerLibrary, RenderControllers};
 
 use crate::entity_library::DefinitionSource;
 
@@ -16,7 +15,7 @@ pub const DEATH_FLIP: f32 = 90.0;
 /// One client entity of the pack, compiled.
 #[derive(Clone, Debug)]
 pub struct PackEntity {
-    pub resources: ClientEntityResources,
+    pub resources: ClientEntityFile,
     pub rig: Rig,
     pub controllers: RenderControllers,
     /// The geometries in the order of the geometry map of the client entity.
@@ -67,18 +66,15 @@ impl EntityPack {
         }
         let geometries = bake_geometries(read, &geometry_paths, &mut pack.diagnostics);
         for (path, text) in entities {
-            let (definition, resources) = match (
-                ClientEntityDefinition::parse(text),
-                ClientEntityResources::parse(text),
-            ) {
-                (Ok(definition), Ok(resources)) => (definition, resources),
-                (Err(error), _) | (_, Err(error)) => {
+            let resources = match ClientEntityFile::parse(text) {
+                Ok(resources) => resources,
+                Err(error) => {
                     pack.diagnostics.push(format!("{path}: {error}"));
                     continue;
                 }
             };
             let mut diagnostics = Vec::new();
-            let rig = Rig::compile(&definition, &clips, &mut diagnostics);
+            let rig = Rig::compile(&resources, &clips, &mut diagnostics);
             let compiled = RenderControllers::compile(&resources, &controllers, &mut diagnostics);
             pack.diagnostics.extend(
                 diagnostics

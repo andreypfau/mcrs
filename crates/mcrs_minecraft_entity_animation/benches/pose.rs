@@ -9,10 +9,10 @@ use std::path::Path;
 
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use mcrs_minecraft_entity_animation::{
-    ClientEntityDefinition, ClipLibrary, EntityAnimation, EntityQuery, Pose, PoseBinding,
-    QuerySource, Rig,
+    ClipLibrary, EntityAnimation, EntityQuery, Pose, PoseBinding, QuerySource, Rig,
 };
 use mcrs_minecraft_entity_model::GeometryFile;
+use mcrs_minecraft_pack_file::ClientEntityFile;
 use mcrs_molang::{ScalarVm, Value};
 
 const PIGS: usize = 10_000;
@@ -44,7 +44,7 @@ fn read(path: &str) -> String {
 }
 
 fn bench_pig(c: &mut Criterion) {
-    let definition = ClientEntityDefinition::parse(&read("entity/pig.entity.json")).unwrap();
+    let definition = ClientEntityFile::parse(&read("entity/pig.entity.json")).unwrap();
     let mut library = ClipLibrary::new();
     library
         .add_file(&read("animations/pig.animation.json"))
