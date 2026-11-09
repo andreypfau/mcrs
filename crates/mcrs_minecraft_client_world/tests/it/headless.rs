@@ -8,6 +8,8 @@ fn the_client_world_links_no_window_or_renderer() {
             "tree",
             "--offline",
             "--locked",
+            "--config",
+            "resolver.feature-unification=\"selected\"",
             "--package",
             env!("CARGO_PKG_NAME"),
             "--edges",
