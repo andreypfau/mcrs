@@ -5,6 +5,7 @@ use core::hash::Hasher;
 
 use glam::DVec3;
 use mcrs_minecraft_brain::Applied;
+use mcrs_minecraft_brain::BlockPos;
 use mcrs_minecraft_brain::Cadence;
 use mcrs_minecraft_brain::ControlFlags;
 use mcrs_minecraft_brain::DamageCause;
@@ -39,6 +40,7 @@ use mcrs_minecraft_entity::EntityTypeData;
 
 use crate::FlatGround;
 use crate::PigBrain;
+use crate::Pond;
 use crate::STROLL_IDLE_LIMIT;
 
 /// How the pen sets the idle time of a pig.
@@ -94,6 +96,7 @@ struct HostPig {
     idle_time: u32,
     damage: Option<DamageRecord>,
     panic: Panic,
+    on_fire: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -149,6 +152,7 @@ impl PigPen {
                     },
                     damage: None,
                     panic: Panic::Calm,
+                    on_fire: false,
                 }
             })
             .collect();
@@ -178,7 +182,10 @@ impl PigPen {
             .collect();
         Self {
             config,
-            ground: FlatGround { side: config.side },
+            ground: FlatGround {
+                side: config.side,
+                pond: None,
+            },
             pipeline: DecisionPipeline::new(&stage_config),
             stage,
             replica: Replica::default(),
@@ -301,6 +308,7 @@ impl PigPen {
         self.pigs.get(index).map(|pig| PenPig {
             position: pig.position,
             walk_speed: pig.walk.map(|walk| walk.per_tick),
+            walk_target: pig.walk.map(|walk| walk.target),
             look: match pig.look {
                 Look::Idle => PenLook::Idle,
                 Look::At { .. } => PenLook::AtPlayer,
@@ -319,6 +327,18 @@ impl PigPen {
         }
     }
 
+    /// Fills `pond` with water. A pig whose feet are in it is in water.
+    pub fn flood(&mut self, pond: Pond) {
+        self.ground.pond = Some(pond);
+    }
+
+    /// Sets whether pig `index` burns.
+    pub fn set_on_fire(&mut self, index: usize, on_fire: bool) {
+        if let Some(pig) = self.pigs.get_mut(index) {
+            pig.on_fire = on_fire;
+        }
+    }
+
     /// Moves the players to `players`.
     pub fn set_players(&mut self, players: Vec<PlayerRow>) {
         self.players = players;
@@ -327,7 +347,14 @@ impl PigPen {
     fn publish(&mut self, tick: u64) {
         let mut tiles: BTreeMap<TileId, Vec<MobView>> = BTreeMap::new();
         for (index, pig) in self.pigs.iter().enumerate() {
-            tiles.entry(pig.tile).or_default().push(view(index, pig));
+            let in_water = self
+                .ground
+                .pond
+                .is_some_and(|pond| pond.holds(BlockPos::containing(pig.position)));
+            tiles
+                .entry(pig.tile)
+                .or_default()
+                .push(view(index, pig, in_water));
         }
         for (tile, views) in tiles {
             self.replica.publish_tile(tick, tile, views);
@@ -451,6 +478,8 @@ pub struct PenPig {
     pub position: DVec3,
     /// The blocks that the pig walks in each tick, while it walks.
     pub walk_speed: Option<f64>,
+    /// The end of the walk, while the pig walks.
+    pub walk_target: Option<DVec3>,
     pub look: PenLook,
     pub panic: Panic,
 }
@@ -497,11 +526,16 @@ const fn ended(ticket: Ticket) -> Applied {
     }
 }
 
-fn view(index: usize, pig: &HostPig) -> MobView {
-    let mut flags = MobFlags::ALIVE.union(MobFlags::ON_GROUND);
-    if pig.panic == Panic::Panicking {
-        flags = flags.union(MobFlags::IN_PANIC);
-    }
+fn view(index: usize, pig: &HostPig, in_water: bool) -> MobView {
+    let marks = [
+        (pig.panic == Panic::Panicking, MobFlags::IN_PANIC),
+        (in_water, MobFlags::IN_WATER),
+        (pig.on_fire, MobFlags::ON_FIRE),
+    ];
+    let flags = marks.into_iter().filter(|(set, _)| *set).fold(
+        MobFlags::ALIVE.union(MobFlags::ON_GROUND),
+        |flags, (_, flag)| flags.union(flag),
+    );
     MobView {
         mob: mob(index),
         key: pig.key,

@@ -15,6 +15,7 @@ use mcrs_minecraft_goals::IdleRule;
 use mcrs_minecraft_goals::PenConfig;
 use mcrs_minecraft_goals::PenLook;
 use mcrs_minecraft_goals::PigPen;
+use mcrs_minecraft_goals::Pond;
 use mcrs_minecraft_goals::run_tiles;
 
 /// The steady speed on grass of a pig with the speed modifier `m` (GOAL-CTL-002): E-G2 measures
@@ -169,4 +170,71 @@ fn a_pig_looks_at_a_player_within_six_blocks_and_never_at_one_farther() {
     for (index, seen) in looked.iter().enumerate() {
         assert_eq!(*seen, index % 2 == 0, "pig {index} at 5.9 or 6.1 blocks");
     }
+}
+
+/// GOAL-STR-002: a pig in water searches land with `L(15, 7)`. From the middle of a pond whose
+/// shore is 12 or more blocks away, the search on land `L(10, 7)` finds nothing, and `D(10, 7)`
+/// rejects water by its malus, so only the search in water starts a stroll.
+#[test]
+fn a_pig_in_the_middle_of_a_pond_strolls_to_land_beyond_ten_blocks() {
+    let pond = Pond {
+        min_x: 20,
+        min_z: 20,
+        max_x: 43,
+        max_z: 43,
+    };
+    let mut pen = pen(1, 64, IdleRule::AlwaysNear).unwrap();
+    pen.flood(pond);
+    let start = DVec3::new(32.5, 0.0, 32.5);
+    pen.place_pig(0, start);
+    let mut target = None;
+    while target.is_none() && pen.tick() <= 3_000 {
+        pen.step(run_tiles);
+        let pig = pen.pig(0).unwrap();
+        if is_speed(pig.walk_speed, 1.0) {
+            target = pig.walk_target;
+        }
+    }
+    let target = target.expect("the pig strolls out of the pond");
+    let block = (target.x.floor() as i32, target.z.floor() as i32);
+    let in_pond = (pond.min_x..=pond.max_x).contains(&block.0)
+        && (pond.min_z..=pond.max_z).contains(&block.1);
+    assert!(!in_pond, "the stroll ends on land: {target}");
+    let reach = (target.x - start.x).abs().max((target.z - start.z).abs());
+    assert!(
+        (10.5..=15.5).contains(&reach),
+        "the land lies beyond the 10 blocks of L(10, 7) and within the 15 of L(15, 7): {target}"
+    );
+}
+
+/// GOAL-PNC-002, GOAL-PNC-003, E-G12: a burning pig with a fresh panic record runs to the nearest
+/// water block, the block position itself, not to a position of `D(5, 4)`.
+#[test]
+fn a_burning_pig_panics_into_the_nearest_water() {
+    let mut pen = pen(1, 64, IdleRule::AlwaysFar).unwrap();
+    pen.flood(Pond {
+        min_x: 13,
+        min_z: 20,
+        max_x: 36,
+        max_z: 43,
+    });
+    pen.place_pig(0, DVec3::new(10.5, 0.0, 32.5));
+    while pen.tick() < 20 {
+        pen.step(run_tiles);
+    }
+    pen.set_on_fire(0, true);
+    pen.hurt(0, DamageCause::Panic);
+    let mut target = None;
+    while target.is_none() && pen.tick() <= 30 {
+        pen.step(run_tiles);
+        let pig = pen.pig(0).unwrap();
+        if is_speed(pig.walk_speed, 1.25) {
+            target = pig.walk_target;
+        }
+    }
+    assert_eq!(
+        target,
+        Some(DVec3::new(13.5, 0.0, 32.5)),
+        "the panic walks into the water 3 blocks east"
+    );
 }
