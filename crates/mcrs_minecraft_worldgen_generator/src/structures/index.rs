@@ -377,6 +377,9 @@ impl StructureIndex {
         column: ColumnPos,
         tile: impl FnMut(StartTile) -> &'a [(ColumnPos, Start)],
     ) -> Vec<(ColumnPos, Start)> {
+        if self.tables.live.is_empty() {
+            return Vec::new();
+        }
         let footprint = footprint(column);
         let mut starts: Vec<(ColumnPos, Start)> = StartTile::reaching(column)
             .into_iter()
