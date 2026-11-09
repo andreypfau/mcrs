@@ -584,13 +584,17 @@ impl RawConnection {
                     options: OptionFlags::new()
                         .with_compression(self.announced_compression.is_some()),
                 });
-                if let Some(threshold) = self.announced_compression
-                    && let Some(switches) = switches
-                {
-                    let _ = switches.send(InboundSwitch::After {
-                        packet_id: ServerboundLoginAcknowledged::ID,
-                        threshold,
-                    });
+                if let Some(threshold) = self.announced_compression {
+                    // The client reads every frame after `login_finished` as compressed
+                    // (LOGIN-SW-004). A frame the server writes before the acknowledgement
+                    // arrives, which a slow network makes likely, must be compressed too.
+                    self.queue.switch_compression(threshold);
+                    if let Some(switches) = switches {
+                        let _ = switches.send(InboundSwitch::After {
+                            packet_id: ServerboundLoginAcknowledged::ID,
+                            threshold,
+                        });
+                    }
                 }
                 self.awaits_login_acknowledgement = true;
             }
@@ -608,16 +612,10 @@ impl RawConnection {
     /// Call once the `login_acknowledged` that answers `login_finished` is accepted.
     pub fn login_acknowledged(&mut self) {
         self.awaits_login_acknowledgement = false;
-        if self.switch_mode == SwitchMode::Acknowledged
-            && let Some(threshold) = self.announced_compression
-        {
-            self.queue.switch_compression(threshold);
-        }
     }
 
-    /// In the acknowledged mode, between `login_finished` and its acknowledgement, the client
-    /// decompresses what it reads and the server does not yet compress what it writes, so no
-    /// frame written then can be read.
+    /// In the acknowledged mode, the time between `login_finished` and its acknowledgement, in
+    /// which the client is not in the configuration state yet.
     pub fn awaits_login_acknowledgement(&self) -> bool {
         self.awaits_login_acknowledgement
     }
@@ -905,6 +903,47 @@ mod tests {
             assert_eq!(
                 (second.id, &second.payload[..]),
                 (StatusResponse::ID, &body_of(&status)[..])
+            );
+        });
+    }
+
+    #[test]
+    fn an_acknowledged_login_compresses_each_frame_after_login_finished_also_before_the_ack() {
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        runtime.block_on(async {
+            let (mut connection, mut peer) = loopback(SwitchMode::Acknowledged).await;
+            connection.announce_compression(CompressionThreshold(256));
+            connection.finish_login(
+                GameProfile {
+                    id: Uuid::nil(),
+                    username: mcrs_minecraft_protocol::Bounded("Steve"),
+                    properties: Default::default(),
+                },
+                Uuid::nil(),
+            );
+            connection.append(&PingRequest { payload: 7 }).unwrap();
+            connection.flush().unwrap();
+
+            let mut wire = BytesMut::new();
+            let mut frames = Vec::new();
+            tokio::time::timeout(Duration::from_secs(10), async {
+                while frames.len() < 3 {
+                    match mcrs_minecraft_protocol::frame::split_frame(&mut wire) {
+                        Ok(frame) => frames.push(frame),
+                        Err(error) if error.is_incomplete() => {
+                            peer.read_buf(&mut wire).await.unwrap();
+                        }
+                        Err(error) => panic!("{error}"),
+                    }
+                }
+            })
+            .await
+            .unwrap();
+            let leading_var_int = |frame: &Bytes| VarInt::decode(&mut &frame[..]).unwrap().0;
+            assert_eq!(
+                leading_var_int(&frames[2]),
+                0,
+                "a small frame in the compressed format, with no data length"
             );
         });
     }
