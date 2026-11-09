@@ -334,6 +334,15 @@ mobs in each tick: an absolute position at the base of the tracker, the velocity
 and the entity data. Thus the client holds the state of every other viewer, and the next relative
 move fits its base. A missed mob gets no relative move until its state goes.
 
+The writer of a connection has two lanes. The ordered lane holds the columns, the teleports, the
+keep-alives, the probes and every other packet in the order of the server. The deferred lane
+holds the entity bytes of the Muxer in their own order, so a spawn stays before the updates of
+its entity and a removal after them. The writer takes the deferred lane only when the ordered
+lane is empty, in batches of 64 KiB, so a column waits behind little entity data. A respawn, a
+login and a disconnect fence the lanes: the deferred bytes go before them. The server kicks a
+connection for a stalled writer only when the writer took nothing for 30 s while 64 MiB wait, or
+when 256 MiB wait.
+
 This rule replaces the cap of TRK-RNG-003 for mobs. TRK-RNG-003 lets the cap and the budget stop
 a pairing, but then a viewer in a crowd holds the first ranks of each tile, not the nearest mobs.
 In a pen of 50,000 pigs, the vanilla server pairs about 27,000 pigs with a viewer at the fence,
