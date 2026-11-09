@@ -198,7 +198,9 @@ fn send_movement(
                 look,
                 flags,
             }),
-            MovePacket::Pos => connection.write_packet(&ServerboundMovePlayerPos { position, flags }),
+            MovePacket::Pos => {
+                connection.write_packet(&ServerboundMovePlayerPos { position, flags })
+            }
             MovePacket::Rot => connection.write_packet(&ServerboundMovePlayerRot { look, flags }),
         }
     }
