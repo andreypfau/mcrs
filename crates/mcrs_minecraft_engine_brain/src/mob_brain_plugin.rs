@@ -34,6 +34,7 @@ use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::world_seed::WorldSeed;
 use mcrs_minecraft_engine_physics::EntityRows;
 use mcrs_minecraft_engine_physics::Mobs;
+use mcrs_minecraft_engine_world::entity::EntityUuid;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::tick::TickSet;
@@ -170,7 +171,7 @@ fn prepare(
     world: WorldView,
     cells: Res<GoalCells>,
     mobs: Res<Mobs>,
-    players: Query<(Entity, &Transform, Option<&PlayerGameMode>), With<Player>>,
+    players: Query<(Entity, &EntityUuid, &Transform, Option<&PlayerGameMode>), With<Player>>,
     mut rows: ResMut<EntityRows>,
     mut ai: ResMut<MobAi>,
     mut table: Local<Vec<PlayerRow>>,
@@ -179,12 +180,12 @@ fn prepare(
         return;
     };
     table.clear();
-    table.extend(players.iter().map(|(entity, transform, mode)| {
+    table.extend(players.iter().map(|(entity, uuid, transform, mode)| {
         let spectator = mode.is_some_and(|mode| mode.0 == GameMode::Spectator);
         let position = transform.translation;
         PlayerRow {
             player: PlayerId(entity.to_bits()),
-            key: OrderKey::new(u128::from(entity.to_bits())),
+            key: OrderKey::new(uuid.0.as_u128()),
             position: Point::new(position.x, position.y, position.z),
             eye_height: EntityTypeData::PLAYER.eye_height,
             flags: if spectator {

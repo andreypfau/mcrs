@@ -12,6 +12,8 @@ use crate::QueryEntity;
 /// The state of a player at the start of a tick: the values that one tick reads and writes.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct PlayerState {
+    /// The UUID of the profile of the player, its order key.
+    pub key: EntityKey,
     pub position: DVec3,
     pub velocity: DVec3,
     pub pose: Pose,
@@ -92,7 +94,7 @@ impl PlayerState {
     /// The player as the entity of a query of colliders.
     pub(crate) fn query_entity(&self) -> QueryEntity {
         QueryEntity {
-            key: EntityKey(0),
+            key: self.key,
             position: self.position,
             fall_distance: self.fall_distance,
             shift: self.shift0,

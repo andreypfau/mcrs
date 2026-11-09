@@ -12,7 +12,6 @@ workspace = true
 
 # std: mcrs_minecraft_move_validate, for the reported move
 [dependencies]
-mcrs_minecraft_entity_key.workspace = true
 glam.workspace = true
 mcrs_voxel.workspace = true
 mcrs_minecraft_physics.workspace = true

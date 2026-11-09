@@ -2620,10 +2620,11 @@ An entity that comes into existence without a UUID gets a new UUID. The new UUID
 of 128 bits of these birth inputs, in this order:
 
 1. the world seed;
-2. the birth tick: the value of the birth clock of the world in the tick of the birth;
-3. the number of the kind of the source, as the table states;
-4. the source key: 128 bits, as the table states;
-5. the sequence: the number of the entity among the entities of the same source and tick, from 0.
+2. the dimension key, for example `minecraft:overworld`: first its length in bytes, then its bytes;
+3. the birth tick: the value of the birth clock of the world in the tick of the birth;
+4. the number of the kind of the source, as the table states;
+5. the source key: 128 bits, as the table states;
+6. the sequence: the number of the entity among the entities of the same source and tick, from 0.
 
 The hash then sets the version bits to 4 and the variant bits to the variant of RFC 9562. Thus the
 client takes the value as a random UUID. The implementation uses no shared random source for the
@@ -2633,7 +2634,7 @@ hash. Each process with the same inputs gives the same UUID, at each thread coun
 |--------------|---------------|------------|
 | a load of a saved entity that has no UUID | `load` (0) | the chunk position, then the position of the entity in the saved list of that chunk |
 | no way of birth: a player always has the UUID of its profile | `player` (1) | not used |
-| a command | `command` (2) | the sequence number of the command in the command effect buffer of the tick |
+| a command | `command` (2) | the index of the cell of the dimension that runs the command, then the sequence number of the command in the command effect buffer of that cell in the tick |
 | a natural spawn | `spawn` (3) | the chunk position, then the number of the spawn attempt in that chunk and tick |
 | a block creates it, for example a dispenser, a spawner, a primed TNT from a block or the drops of a block | `block` (4) | the block position: `y`, `z` and `x`, 32 bits each |
 | another entity creates it, for example a drop, a projectile, a child or an experience orb | `entity` (5) | the UUID of the parent |
@@ -2834,14 +2835,26 @@ player.
 The copy does not do the travel step. `movement-checks.md` reads this velocity as the velocity that
 the server expects.
 
-**PHY-CMP-024** (`source_suggested`, semantic, confidence: medium). Two entities of one world
-never have the same UUID, so two order keys are never equal. A new UUID comes from birth inputs that
-never repeat in one world (PHY-CMP-013). A spawn with the UUID of an entity of the world is
-refused. Thus no rule needs a second comparison after the UUID.
+**PHY-CMP-024** (`source_suggested`, semantic, confidence: medium). Two new UUIDs of one server
+never come from the same birth inputs. The birth clock never repeats a tick (PHY-CMP-013). In one
+tick, the inputs of two births differ in one of these ways:
 
-Two new UUIDs can collide only when the hash of PHY-CMP-013 collides. The probability for one pair
-is about `2^-122`, because the version and the variant fix 6 of the 128 bits. The refusal of a
-duplicate also covers this case.
+- Two dimensions have two dimension keys. The hash reads the length of the key before its bytes,
+  so two keys never give the same words.
+- Two cells of one dimension run commands with two cell indexes in the source key.
+- One cell numbers its commands, and one block or one parent numbers its entities, by the sequence.
+- Only the cell that owns a block changes it, so one block in one tick has one source of births.
+
+Two new UUIDs can thus be equal only when the hash collides. The probability for one pair is about
+`2^-122`, because the version and the variant fix 6 of the 128 bits.
+
+A spawn with a given UUID is refused when an entity of the world that applies the spawn has that
+UUID. Each cell of a dimension is such a world. The rules of PHY-CMP-013 compare only the entities
+of one world, so this check is sufficient for them while each entity stays in its world. Two
+dimensions can thus hold the same given UUID. A move of an entity to another world must check its
+UUID against that world again.
+
+Thus no rule needs a second comparison after the UUID.
 
 **PHY-CMP-025** (`source_suggested`, semantic, confidence: medium). Policy `semantic`: the start
 state of an item that a block drops. Let `(bx, by, bz)` be the block position. Let `U(a, b)` be

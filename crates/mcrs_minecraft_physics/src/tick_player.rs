@@ -91,7 +91,7 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
         shift: keys.shift,
         keeps_to_edges: !flight,
         intent: (side == Side::OwnClient).then(|| intent(move_input, yaw)),
-        ..player_mover(EntityKey(0), side, out)
+        ..player_mover(out.key, side, out)
     };
     let start_position = body.position;
     let air_speed = air_speed(flight, sprint, out.flight_speed);

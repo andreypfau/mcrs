@@ -4933,7 +4933,6 @@ dependencies = [
  "criterion",
  "glam",
  "mcrs_minecraft_client_ticks",
- "mcrs_minecraft_entity_key",
  "mcrs_minecraft_move_validate",
  "mcrs_minecraft_physics",
  "mcrs_voxel",

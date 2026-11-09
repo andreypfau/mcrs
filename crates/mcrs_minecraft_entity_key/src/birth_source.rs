@@ -6,8 +6,10 @@ use crate::EntityKey;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum BirthSource {
-    /// A command effect, by its index in the command effect buffer of the world in the tick.
+    /// A command effect, by the cell of the dimension that runs the command and the index of the
+    /// effect in the command effect buffer of that cell in the tick.
     Command {
+        cell: u32,
         order: u32,
     },
     Block(BlockPos),
@@ -25,11 +27,11 @@ impl BirthSource {
         }
     }
 
-    /// The source key: the order of a command, a block position by `y`, then `z`, then `x`, or the
+    /// The source key: the cell and the order of a command, a block position by `y`, then `z`, then `x`, or the
     /// UUID of the parent.
     pub(crate) fn packed(&self) -> u128 {
         match *self {
-            Self::Command { order } => u128::from(order),
+            Self::Command { cell, order } => u128::from(cell) << 32 | u128::from(order),
             Self::Block(pos) => {
                 u128::from(pos.y.cast_unsigned()) << 64
                     | u128::from(pos.z.cast_unsigned()) << 32

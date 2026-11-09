@@ -7,26 +7,40 @@ use crate::BirthSource;
 pub struct EntityKey(pub u128);
 
 impl EntityKey {
-    /// The UUID of the entity number `sequence` that `source` brings into existence in `tick` of
-    /// the world with `world_seed`: a fixed hash of these inputs, with the version 4 and the
-    /// variant of RFC 9562 so that a client takes it as a random UUID.
+    /// The UUID of the entity number `sequence` that `source` brings into existence in `tick` in
+    /// the dimension with the key `dimension` of the world with `world_seed`: a fixed hash of
+    /// these inputs, with the version 4 and the variant of RFC 9562 so that a client takes it as
+    /// a random UUID. Two different sets of inputs give two different streams of words to the
+    /// hash, because the length of the dimension key comes before its bytes.
     #[must_use]
-    pub fn born(world_seed: u64, tick: u64, source: &BirthSource, sequence: u32) -> Self {
+    pub fn born(
+        world_seed: u64,
+        dimension: &str,
+        tick: u64,
+        source: &BirthSource,
+        sequence: u32,
+    ) -> Self {
         let packed = source.packed();
-        let words = [
-            world_seed,
+        let mut lanes = Lanes::new();
+        lanes.push(world_seed);
+        lanes.push(dimension.len() as u64);
+        for chunk in dimension.as_bytes().chunks(8) {
+            let mut bytes = [0; 8];
+            for (slot, byte) in bytes.iter_mut().zip(chunk) {
+                *slot = *byte;
+            }
+            lanes.push(u64::from_le_bytes(bytes));
+        }
+        for word in [
             tick,
             source.kind(),
             (packed >> 64) as u64,
             packed as u64,
             u64::from(sequence),
-        ];
-        let mut high = 0x243F_6A88_85A3_08D3;
-        let mut low = 0x1319_8A2E_0370_7344;
-        for word in words {
-            high = mix(high ^ word);
-            low = mix(low ^ word.rotate_left(32)).wrapping_add(high);
+        ] {
+            lanes.push(word);
         }
+        let Lanes { high, low } = lanes;
         let hash = u128::from(mix(high)) << 64 | u128::from(mix(low ^ high));
         Self(hash & !(0xF << 76) & !(0x3 << 62) | 0x4 << 76 | 0x2 << 62)
     }
@@ -42,6 +56,26 @@ impl EntityKey {
     #[inline]
     pub(crate) const fn words(&self) -> [u64; 2] {
         [(self.0 >> 64) as u64, self.0 as u64]
+    }
+}
+
+/// Two lanes of 64 bits that absorb words, for a hash of 128 bits.
+struct Lanes {
+    high: u64,
+    low: u64,
+}
+
+impl Lanes {
+    fn new() -> Self {
+        Self {
+            high: 0x243F_6A88_85A3_08D3,
+            low: 0x1319_8A2E_0370_7344,
+        }
+    }
+
+    fn push(&mut self, word: u64) {
+        self.high = mix(self.high ^ word);
+        self.low = mix(self.low ^ word.rotate_left(32)).wrapping_add(self.high);
     }
 }
 

@@ -1,7 +1,6 @@
 use std::mem;
 
 use glam::DVec3;
-use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_physics::BlockAction;
 use mcrs_minecraft_physics::BlockOverlay;
@@ -368,7 +367,7 @@ fn add_moves_back<W: CollisionWorld, B: BodyView>(
         let dimensions = dimensions_of(state.pose, &state.attributes);
         let bounds = Aabb::of_body(state.position, dimensions.width, dimensions.height);
         let entity = QueryEntity {
-            key: EntityKey(0),
+            key: state.key,
             position: state.position,
             fall_distance: state.fall_distance,
             shift: state.shift0,

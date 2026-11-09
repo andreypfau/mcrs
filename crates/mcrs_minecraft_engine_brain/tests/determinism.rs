@@ -104,7 +104,7 @@ impl Run {
         }
         let players = vec![PlayerRow {
             player: PlayerId(1),
-            key: OrderKey::new(1),
+            key: OrderKey::new(u128::MAX),
             position: Point::new(0.5, f64::from(FLOOR), 0.5),
             eye_height: 1.62,
             flags: PlayerFlags::ALIVE,

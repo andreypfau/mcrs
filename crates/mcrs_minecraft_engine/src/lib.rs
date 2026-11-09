@@ -45,6 +45,7 @@ pub mod dimension_change;
 pub mod dimension_generators;
 pub mod drain_player_despawn;
 mod enter_level_packets;
+pub mod entity_births;
 pub mod entity_ids;
 pub mod foreign_views;
 mod game_mode;

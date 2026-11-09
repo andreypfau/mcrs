@@ -377,17 +377,26 @@ The order key is the UUID. An entity without a UUID gets a new one from its birt
 pub struct EntityKey(pub u128);   // the UUID; Ord by value
 
 impl EntityKey {
-    // A fixed 128-bit hash of the world seed, the birth tick, the source kind number
-    // (load 0, player 1, command 2, spawn 3, block 4, entity 5), the 128-bit source key
-    // (block: y, z, x; spawn: chunk and attempt; load: chunk and list position;
-    // command: sequence; entity: the UUID of the parent) and the sequence,
+    // A fixed 128-bit hash of the world seed, the dimension key (its length, then its
+    // bytes), the birth tick, the source kind number (load 0, player 1, command 2,
+    // spawn 3, block 4, entity 5), the 128-bit source key (block: y, z, x; spawn: chunk
+    // and attempt; load: chunk and list position; command: the cell index, then the
+    // sequence in that cell; entity: the UUID of the parent) and the sequence,
     // with the version 4 and the variant of RFC 9562.
-    pub fn born(world_seed: u64, tick: u64, source: &BirthSource, sequence: u32) -> Self;
+    pub fn born(
+        world_seed: u64,
+        dimension: &str,
+        tick: u64,
+        source: &BirthSource,
+        sequence: u32,
+    ) -> Self;
 }
 ```
 
-The birth inputs never repeat in one world, and a spawn with the UUID of an entity of the world is
-refused. Thus two entities never compare equal (PHY-CMP-024). A UUID from a save, a load or a
+The birth inputs of two new UUIDs never repeat in one server: the dimension key and the cell index
+of a command separate the worlds that tick in parallel. A spawn with a given UUID is refused when
+an entity of the world that applies it has that UUID. Thus two entities of one world never compare
+equal (PHY-CMP-024). `EntityBirths` in `mcrs_minecraft_engine` reads the inputs of a world. A UUID from a save, a load or a
 summon `UUID` stays as it is. The phase offset of PHY-CMP-016 is the two lowest bits of the UUID,
 so the save does not keep it.
 

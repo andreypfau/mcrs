@@ -10,14 +10,13 @@ use mcrs_minecraft_command_engine::{
     Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Feedback,
     Worlds,
 };
-use mcrs_minecraft_engine::coordinator::birth_clock::BirthClock;
+use mcrs_minecraft_engine::entity_births::EntityBirths;
 use mcrs_minecraft_engine::teleport::{MAX_XZ, MAX_Y};
-use mcrs_minecraft_engine::world_seed::WorldSeed;
 use mcrs_minecraft_engine_physics::{MobExtras, MobSpawnRequest, SpawnSetup};
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::registry_keys::ENTITY_TYPE;
-use mcrs_minecraft_entity_key::{BirthSource, EntityKey};
+use mcrs_minecraft_entity_key::BirthSource;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_text::Text;
@@ -74,13 +73,12 @@ fn spawnable(position: DVec3) -> bool {
 }
 
 /// TRK-SUM-002: one mob of the type at the position, or at the source, with the first spawn setup
-/// of its type. A summon without a UUID gives the mob a new one from the world seed, the birth
-/// clock and the command sequence.
+/// of its type. A summon without a UUID gives the mob a new one from the world seed, the
+/// dimension, the birth clock, the cell and the command sequence of the cell.
 pub(crate) fn run(
     In(call): In<Call<(), SummonCommand>>,
     context: VanillaContext,
-    clock: Res<BirthClock>,
-    seed: Option<Res<WorldSeed>>,
+    births: EntityBirths,
     mut output: CommandOutput,
     mut spawns: ResMut<EffectQueue<MobSpawnRequest>>,
     mut order: Local<SummonOrder>,
@@ -116,9 +114,9 @@ pub(crate) fn run(
             (SpawnSetup::None, read_keys(compound).ok_or_else(failed)?)
         }
     };
-    if order.tick != clock.0 {
+    if order.tick != births.tick() {
         *order = SummonOrder {
-            tick: clock.0,
+            tick: births.tick(),
             ..SummonOrder::default()
         };
     }
@@ -130,10 +128,12 @@ pub(crate) fn run(
             vec![],
         ));
     }
-    let source = BirthSource::Command { order: order.next };
+    let source = BirthSource::Command {
+        cell: births.cell(),
+        order: order.next,
+    };
     order.next = order.next.wrapping_add(1);
-    let uuid = uuid
-        .unwrap_or_else(|| EntityKey::born(seed.map_or(0, |seed| seed.0), clock.0, &source, 0).0);
+    let uuid = uuid.unwrap_or_else(|| births.born(&source, 0).0);
     order.uuids.insert(uuid);
     let name = display_name(
         entity_type,

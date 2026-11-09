@@ -23,16 +23,15 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_collision_table::collision_table;
 use mcrs_minecraft_engine::block_drops::ItemDropped;
 use mcrs_minecraft_engine::coordinator::birth_clock::BirthClock;
+use mcrs_minecraft_engine::entity_births::EntityBirths;
 use mcrs_minecraft_engine::entity_ids::CellEntityIds;
 use mcrs_minecraft_engine::game_rules::GameRules;
 use mcrs_minecraft_engine::tile_events::TileEvents;
-use mcrs_minecraft_engine::world_seed::WorldSeed;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::BlockPlaced;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
 use mcrs_minecraft_entity_key::BirthSource;
-use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_game_rule::GameRule;
 use mcrs_minecraft_item::ItemStack;
@@ -137,13 +136,11 @@ fn apply_writes(mut rows: ResMut<EntityRows>, mut writes: ResMut<EntityWrites>) 
 /// source of its new UUID.
 fn spawn_dropped_items(
     mut dropped: MessageReader<ItemDropped>,
-    clock: Res<BirthClock>,
-    seed: Option<Res<WorldSeed>>,
+    births: EntityBirths,
     mut ids: ResMut<CellEntityIds>,
     mut rows: ResMut<EntityRows>,
     mut stacks: ResMut<ItemStacks>,
 ) {
-    let seed = seed.map_or(0, |seed| seed.0);
     let mut sequences: BTreeMap<[i32; 3], u32> = BTreeMap::new();
     for drop in dropped.read() {
         let Some(id) = ids.allocate() else {
@@ -154,10 +151,10 @@ fn spawn_dropped_items(
         let sequence = sequences
             .entry([drop.at.x, drop.at.y, drop.at.z])
             .or_default();
-        let key = EntityKey::born(seed, clock.0, &source, *sequence);
+        let key = births.born(&source, *sequence);
         *sequence = sequence.wrapping_add(1);
         let row = MotionRow::item();
-        let body = dropped_item(drop.at, &KeyedStream::new(&key, clock.0), &row);
+        let body = dropped_item(drop.at, &KeyedStream::new(&key, births.tick()), &row);
         let mut state = EntityState::new(key, body, None);
         state.phase = key.phase_offset();
         rows.spawn(id, state, row);
@@ -247,7 +244,7 @@ mod tests {
         let source = BirthSource::Block(at);
         let bodies: Vec<Body> = (0..1000)
             .map(|tick| {
-                let key = EntityKey::born(0, tick, &source, 0);
+                let key = EntityKey::born(0, "minecraft:overworld", tick, &source, 0);
                 dropped_item(at, &KeyedStream::new(&key, tick), &row)
             })
             .collect();
