@@ -11,8 +11,8 @@ use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 
+use crate::answer_log::{AnswerLog, LogEntry};
 use crate::console_lines::{ConsoleInput, spawn_console_thread};
-use crate::language::Language;
 
 /// The most console lines that one tick hands on. A burst of lines runs over several ticks, in
 /// order, so that no tick runs them all.
@@ -30,18 +30,18 @@ impl Plugin for ConsolePlugin {
         app.insert_resource(Console {
             receive,
             pending: VecDeque::new(),
-            language: Language::default(),
+            log: AnswerLog::spawn(),
         });
         app.add_systems(Update, send_console_lines);
     }
 }
 
-/// The console lines that wait for a running overworld, and the language of the answers.
+/// The console lines that wait for a running overworld, and the log of the answers.
 #[derive(Resource)]
 pub(crate) struct Console {
     receive: flume::Receiver<ConsoleInput>,
     pending: VecDeque<String>,
-    pub(crate) language: Language,
+    pub(crate) log: AnswerLog,
 }
 
 /// Hands the oldest console lines, at most [`MAX_LINES_PER_TICK`], to the overworld, which runs
@@ -54,7 +54,7 @@ fn send_console_lines(
     let console = &mut *console;
     for input in console.receive.try_iter() {
         match input {
-            ConsoleInput::Language(language) => console.language = language,
+            ConsoleInput::Language(language) => console.log.push(LogEntry::Language(language)),
             ConsoleInput::Line(line) => console.pending.push_back(line),
         }
     }
