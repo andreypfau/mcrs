@@ -766,25 +766,15 @@ frozen and counted but not placed.
 | Structure sets, structures, pools, processor lists, templates, the frozen tables | truth | the freeze build | cloned into the sub-app once, like the routers (`crates/mcrs_minecraft_vanilla_worldgen/src/routers.rs`, `DimensionRouters`, `build_dimension_routers`) |
 | Ring positions per dimension | projection of the seed | the index, at construction | P4; a few hundred kilobytes of biome sampling, once |
 | `site(C, S)` for a chunk `C` and structure `S` | projection of the seed | the index, memoised per chunk | L2; cheap; what search asks (R6) |
-| `starts_at(C)` for a chunk `C` | projection of the seed | the index, memoised per chunk | P2–P6 then §3–§4; expensive (a village layout), reused by fill, run and gameplay |
+| `starts_at(C)` for a chunk `C` | projection of the seed | the generation stage's staging store, by tile of 16 by 16 chunks (I2) | P2–P6 then §3–§4; expensive (a village layout), reused by fill, run and gameplay |
 | The beard term of a fill | derived, temporary | the fill task | A4; added into the fill's density, never stored |
 | `starts.<id>` and `References` in the chunk NBT | projection, written for the format | the save writer | I5 |
 | A start's `references` counter | **truth** | gameplay, the map that claims it | L6 |
 | A structure's blocks in a column | projection of the seed, until edited | the column's run | §7; `worldgen.md` §16 |
 
-**I2. Shape and owner.** One index per dimension: the frozen tables, the ring
-positions, and a concurrent memo from chunk position to an owning slice of
-starts (usually empty), each slot filled once by whichever task asks first.
-Generation lives outside the ECS (X1), and so does the index: it sits beside
-the staging store in the generation actor (`crates/mcrs_minecraft_vanilla_worldgen/src/generation_actor.rs`, `GenerationActor`) and is handed to fill and run tasks as an owning handle
-(X7). The sub-app receives the same handle as a read-only resource for the
-consumers of I4. Two tasks racing on one cell compute the same bits (St1); a
-once-cell per slot removes the duplicate work, and nothing else needs a lock.
-A slot has two levels, filled independently: the *site* level, which records
-per structure whether the site step passed and where (L2), and the *layout*
-level, which holds the pieces. Search fills the first and never the second
-(R6); fill and run fill the second, computing the first on the way if it is
-empty.
+**I2. Shape and owner.** One index per dimension holds the frozen tables and the ring positions, and nothing in it changes after construction. It computes and does not keep: a start (§3, §4) is a pure function of the seed and the chunk, and so is a site (L2). Starts are a product of the ladder, like the snapshots and the deltas (`scattering.md` §3.2). The generation stage (`crates/mcrs_minecraft_vanilla_worldgen/src/generation_stage.rs`, `GenerationStage`) keeps them in its staging store, one entry per tile of 16 by 16 chunks. A pool task computes a tile's starts with one view of the terrain (`StructureIndex::tile_starts`) and sends them back as a message; only the stage inserts and evicts them, so the store has one writer and needs no lock. The chunks within eight of a column (L5) form a 17 by 17 square, which always meets exactly two by two tiles: a fill or a run is ready when those four tiles are in the store, and `StructureIndex::reaching` composes them into the starts of I3, in the order M5 gives. No two tasks compute one tile at once, and a tile computed again is bit-identical (St1). Search (§9) keeps nothing either: each site is computed when it is asked. Fill and run tasks, and the consumers of I4 in the sub-app, receive the index as an owning handle (X7).
+
+Status: the index still keeps a per-chunk memo behind a lock, which `StructureIndex::starts_reaching` reads and nothing evicts. `tile_starts` and `reaching` exist beside it, and a test shows that they list the same starts in the same order; moving the starts into the staging store comes next. R6, SD11 and the `site(C, S)` row of I1 still describe a site level of a memo, which was never built.
 
 **I3. The query.** *Starts reaching column `U`*: for each live set, for each
 chunk `C` within eight chunks of `U` (L5), the starts of `C` whose box
@@ -822,15 +812,7 @@ now include the structure registries' content hash, the template version pin
 world whose datapack changed is refused rather than seamed. A stored
 `references` counter is truth (L6) and never regenerated.
 
-**I6. Eviction.** The memo is bounded the way the staging store is (Q7): a
-chunk's slot is kept while any column within its reach is wanted, and a slot
-dropped and recomputed is bit-identical. The reference keeps starts for the
-life of the chunk and re-reads region files to answer `/locate` outside the
-loaded area (`StructureCheck.checkStart`, `StructureCheck.canCreateStructure`); with I5's priming that
-path becomes "load the chunk's `starts` tag if the chunk is on disk, else
-derive", and the negative cache the reference keeps for chunks without starts
-on disk (`StructureCheck.loadedChunks`, `StructureCheck.featureChecks`, `StructureCheck.chunksWithoutStartsInStorage`, `StructureCheck.checkStart`, capped at 131 072 entries and cleared wholesale) is
-a detail of that path.
+**I6. Eviction.** The starts leave the staging store through the store's own `retain`, beside the snapshots and the deltas (Q7), and a tile evicted and computed again is bit-identical (St1). A start is needed while a column it can reach may still be filled or run. Such a column lies within eight chunks of the start's chunk (L5), and the stage fills or runs a column only within `LOADING_RINGS` plus two rings per rung of a view (`GenerationStage::evict_outside_halo`). A tile is therefore kept while one of its chunks lies within that reach plus eight of a view, so the store holds starts for the views, not for the explored area. Search outside the loaded area derives each site from the seed; once the save carries starts (I5), a chunk on disk can answer from its `starts` tag instead. Until the starts move into the store, the index's memo is not evicted and grows with the explored area.
 
 ---
 
