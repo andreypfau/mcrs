@@ -803,6 +803,10 @@ load on the machine can explain a part of the difference.
 
 ### A.4 Entity compute passes
 
+The probe no longer has the synthetic kernels of A.4 and A.5. The `stress_field` example of
+`mcrs_minecraft_entity_render` times the production passes. A.4 and A.5 record the run of
+2026-11-07.
+
 ```
 cull   slots   10000 kept  300‰   0.0034 ms median  0.0032 min    0.34 ns/slot
 cull   slots  100000 kept  300‰   0.0189 ms median  0.0186 min    0.19 ns/slot
