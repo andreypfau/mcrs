@@ -5,6 +5,10 @@ use mcrs_minecraft_core::numeric;
 /// The angle `a mod 360`, in `[-180, 180)`.
 #[must_use]
 pub fn wrap(angle: f32) -> f32 {
+    // `fmodf` is a library call; an angle already in the range is its own result.
+    if (-180.0..180.0).contains(&angle) {
+        return angle;
+    }
     numeric::wrap_degrees(angle)
 }
 

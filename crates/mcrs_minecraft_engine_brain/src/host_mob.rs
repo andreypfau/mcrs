@@ -135,7 +135,13 @@ impl HostMob {
         if let Some(turned) = self.turned {
             self.rotations = turned;
         }
-        let hit = hot.mobs.0.get(&self.id).and_then(|mob| mob.last_hit);
+        // A hit that the cooldown accepts leaves the cooldown above zero up to the next observe,
+        // so a row without a cooldown has no new hit, and the lookup in the map is skipped.
+        let hit = if living.damage_cooldown > 0 {
+            hot.mobs.0.get(&self.id).and_then(|mob| mob.last_hit)
+        } else {
+            self.last_hit
+        };
         let hurt = hit.is_some() && hit != self.last_hit;
         self.last_hit = hit;
         if hurt && let Some(hit) = hit {
