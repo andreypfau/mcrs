@@ -296,6 +296,8 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
     }
 }
 
+const OWN_FEATURES: [&str; 2] = ["--config", "resolver.feature-unification=\"selected\""];
+
 const WASM32_CLIENT_FEATURES: [&[&str]; 2] = [&[], &["--no-default-features"]];
 
 fn wasm32(ctx: &Context) -> Outcome {
@@ -310,6 +312,8 @@ fn wasm32(ctx: &Context) -> Outcome {
         let mut args = vec![
             "build",
             "--locked",
+            OWN_FEATURES[0],
+            OWN_FEATURES[1],
             "--target",
             "wasm32-unknown-unknown",
             "-p",
@@ -334,7 +338,9 @@ fn build_for(
     condition: &str,
     fix: &str,
 ) -> Outcome {
-    let mut args = vec!["build", "--locked", "--target", target];
+    let mut args = vec!["build", "--locked"];
+    args.extend(OWN_FEATURES);
+    args.extend(["--target", target]);
     for package in packages {
         args.extend(["-p", package]);
     }
@@ -363,6 +369,7 @@ fn no_bevy(ctx: &Context) -> Outcome {
         ));
     }
     let mut args = vec!["check", "--locked", "--no-default-features"];
+    args.extend(OWN_FEATURES);
     for package in NO_BEVY_PACKAGES {
         args.extend(["-p", package]);
     }
@@ -382,6 +389,8 @@ fn linked_forbidden(
     let args = [
         "tree",
         "--locked",
+        OWN_FEATURES[0],
+        OWN_FEATURES[1],
         "--all-features",
         "--edges",
         "normal",
