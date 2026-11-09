@@ -177,8 +177,11 @@ pub(crate) fn run(
     view.readable(from)?;
     view.readable(to)?;
     let region = Region::new(from, to);
-    let limit = rules.as_deref().cloned().unwrap_or_default();
-    region.check(limit.get(GameRule::MaxBlockModifications))?;
+    let limit = rules.as_deref().map_or_else(
+        || GameRules::default().get(GameRule::MaxBlockModifications),
+        |rules| rules.get(GameRule::MaxBlockModifications),
+    );
+    region.check(limit)?;
     let block = context.arg(&call.invocation, command.block)?;
     let state = blocks
         .as_deref()
