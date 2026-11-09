@@ -6,6 +6,7 @@ use mcrs_minecraft_physics::BirthKey;
 use mcrs_minecraft_physics::TileRows;
 
 use crate::host_mob::HostMob;
+use crate::row_hosts::row_hosts;
 
 /// The life cycle of the mobs of one tile in one AI tick: marks each mob of the stage that is
 /// still in the tile, and finds the rows that came into the tile and the mobs that left it.
@@ -35,10 +36,14 @@ pub(crate) struct LifeOut {
 impl LifeTask<'_> {
     pub(crate) fn run(&mut self, tick: u64, mobs: &Mobs) -> LifeOut {
         let mut out = LifeOut::default();
+        let slots = row_hosts(
+            self.rows.ids(),
+            self.mobs.as_deref().map_or(&[], Vec::as_slice),
+        );
         for (row, id) in self.rows.ids().iter().enumerate() {
             if let Some(held) = self.mobs.as_deref_mut()
-                && let Ok(at) = held.binary_search_by_key(id, |host| host.id)
-                && let Some(host) = held.get_mut(at)
+                && let Some(Some(at)) = slots.get(row)
+                && let Some(host) = held.get_mut(*at)
             {
                 host.seen = tick;
                 continue;

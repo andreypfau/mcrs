@@ -13,6 +13,7 @@ mod mob_brain_plugin;
 mod order_key;
 mod panic_causes;
 mod path_type;
+mod row_hosts;
 mod tile_task;
 
 pub use ai_stats::AiStats;

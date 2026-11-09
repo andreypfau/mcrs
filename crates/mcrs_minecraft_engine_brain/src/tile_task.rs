@@ -11,6 +11,7 @@ use mcrs_minecraft_volume::BlockVolume;
 use crate::BlockGoalWorld;
 use crate::HotTick;
 use crate::host_mob::HostMob;
+use crate::row_hosts::row_hosts;
 
 /// The hot side of one tile in one AI tick: the snapshot of its mobs, the application of the
 /// due decisions in the order of their issue ticks and keys, and the controls before the travel.
@@ -46,8 +47,9 @@ impl TileTask<'_> {
             applied: 0,
         };
         let rows = self.rows;
-        for (id, state) in rows.ids().iter().zip(rows.states()) {
-            let Some(mob) = find(self.mobs, id.0) else {
+        let slots = row_hosts(rows.ids(), self.mobs);
+        for (slot, state) in slots.iter().zip(rows.states()) {
+            let Some(mob) = slot.and_then(|at| self.mobs.get_mut(at)) else {
                 continue;
             };
             let observed = mob.observe(hot, self.tick, state);
