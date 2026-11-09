@@ -12,8 +12,9 @@ pub const SIDE_PLANES: usize = 5;
 #[derive(Resource, Clone, Copy, Debug, PartialEq)]
 pub struct FrameView {
     pub clip_from_relative: Mat4,
-    /// The left, right, bottom, top and near planes, each `(normal, d)` with the inside where
-    /// `normal · p + d > 0`.
+    /// The left, right, bottom and top planes, then the `w + z` plane of the projection, which
+    /// lies behind the eye and is looser than the near plane. Each is `(normal, d)` with the
+    /// inside where `normal · p + d > 0`.
     pub frustum: [Vec4; SIDE_PLANES],
     pub camera_section: IVec3,
     /// The eye relative to the origin of the camera section.

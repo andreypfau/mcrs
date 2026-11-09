@@ -167,9 +167,9 @@ are values of `C`. The `time` pose inputs of `docs/molang.md`, section 10.2, com
 
 The GPU computes `C` with no upload in each tick. The state record holds a clock offset `O`, the
 client tick at which the age was `0`. While the entity ticks, `C = T − O + pt`, where `T` is the
-client tick of the frame uniforms. When the entity stops (the entity is outside the ticking area,
-or the tick rate freezes it), the CPU sets the flag `clock stopped` and writes the fixed age into
-the base field. Then `C` is that age. When the entity ticks again, the CPU writes a new base.
+client tick of the frame uniforms. The state record has no flag that stops the clock. When the
+entity stops (the entity is outside the ticking area, or the tick rate freezes it), the CPU writes
+no new offset, and `C` continues to follow `T`.
 
 ### 4.3 Cull record, 16 B
 
@@ -198,7 +198,7 @@ tick.
 |---|---|---|
 | 0 | 4 | client entity definition `u16`, active layer mask `u8`, spare `u8` |
 | 4 | 16 | four layers: model `u16` and variant `u16` for each layer |
-| 20 | 4 | flags: baby, invisible, upside down, clock stopped, and the others of the spec |
+| 20 | 4 | flags: baby and dying in the low half, the hidden palette entries 0 to 15 in the high half |
 | 24 | 4 | hurt start, a value of `C`, `f32` |
 | 28 | 4 | death start, a value of `C`, `f32` |
 | 32 | 4 | block light `u8`, sky light `u8`, spare `u16` |
