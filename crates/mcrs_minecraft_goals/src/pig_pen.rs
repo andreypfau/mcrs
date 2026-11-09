@@ -5,7 +5,6 @@ use core::hash::Hasher;
 
 use glam::DVec3;
 use mcrs_minecraft_brain::Applied;
-use mcrs_minecraft_brain::BlockPos;
 use mcrs_minecraft_brain::Cadence;
 use mcrs_minecraft_brain::ControlFlags;
 use mcrs_minecraft_brain::DamageCause;
@@ -17,14 +16,11 @@ use mcrs_minecraft_brain::FactKind;
 use mcrs_minecraft_brain::KeyedRandom;
 use mcrs_minecraft_brain::LookIntent;
 use mcrs_minecraft_brain::MobFlags;
-use mcrs_minecraft_brain::MobId;
 use mcrs_minecraft_brain::MobView;
-use mcrs_minecraft_brain::OrderKey;
 use mcrs_minecraft_brain::Panic;
 use mcrs_minecraft_brain::Part;
 use mcrs_minecraft_brain::PathIntent;
 use mcrs_minecraft_brain::PlayerFlags;
-use mcrs_minecraft_brain::PlayerId;
 use mcrs_minecraft_brain::PlayerRow;
 use mcrs_minecraft_brain::PlayerTable;
 use mcrs_minecraft_brain::Progress;
@@ -33,10 +29,13 @@ use mcrs_minecraft_brain::Stage;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::TickContext;
 use mcrs_minecraft_brain::Ticket;
-use mcrs_minecraft_brain::TileId;
 use mcrs_minecraft_brain::TileWork;
 use mcrs_minecraft_brain::WorldSeed;
 use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::TileKey;
+use mcrs_voxel::BlockPos;
 
 use crate::FlatGround;
 use crate::PigBrain;
@@ -78,7 +77,7 @@ pub struct PigPen {
     replica: Replica,
     players: Vec<PlayerRow>,
     pigs: Vec<HostPig>,
-    facts: BTreeMap<TileId, Vec<Fact>>,
+    facts: BTreeMap<TileKey, Vec<Fact>>,
     tick: u64,
     decisions: u64,
     waits: u64,
@@ -86,9 +85,9 @@ pub struct PigPen {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct HostPig {
-    key: OrderKey,
+    key: EntityKey,
     position: DVec3,
-    tile: TileId,
+    tile: TileKey,
     cadence: Cadence,
     walk: Option<Walk>,
     path: Applied,
@@ -134,14 +133,14 @@ impl PigPen {
         let mut stage = Stage::new(stage_config);
         let pigs: Vec<HostPig> = (0..config.pigs)
             .map(|index| {
-                let key = OrderKey::new(u128::from(index) << 64);
+                let key = EntityKey(u128::from(index) << 64);
                 let mut random = KeyedRandom::new(seed, &key, 0, PLACE);
                 let position = DVec3::new(random.unit() * side, 0.0, random.unit() * side);
                 let offset = u8::try_from(random.below(4)).unwrap_or(0);
                 HostPig {
                     key,
                     position,
-                    tile: TileId::at(position),
+                    tile: TileKey::at(position),
                     cadence: Cadence::new(1, offset),
                     walk: None,
                     path: Applied::default(),
@@ -167,10 +166,10 @@ impl PigPen {
         }
         let players = (0..config.players)
             .map(|index| {
-                let key = OrderKey::new(u128::from(index) << 64 | 1);
+                let key = EntityKey(u128::from(index) << 64 | 1);
                 let mut random = KeyedRandom::new(seed, &key, 0, PLACE);
                 PlayerRow {
-                    player: PlayerId(u64::from(index)),
+                    player: EntityId(u64::from(index)),
                     key,
                     position: DVec3::new(random.unit() * side, 0.0, random.unit() * side),
                     eye_height: 1.62,
@@ -322,7 +321,7 @@ impl PigPen {
     pub fn place_pig(&mut self, index: usize, position: DVec3) {
         if let Some(pig) = self.pigs.get_mut(index) {
             pig.position = position;
-            pig.tile = TileId::at(position);
+            pig.tile = TileKey::at(position);
             self.stage.relocate(mob(index), pig.tile);
         }
     }
@@ -345,12 +344,12 @@ impl PigPen {
     }
 
     fn publish(&mut self, tick: u64) {
-        let mut tiles: BTreeMap<TileId, Vec<MobView>> = BTreeMap::new();
+        let mut tiles: BTreeMap<TileKey, Vec<MobView>> = BTreeMap::new();
         for (index, pig) in self.pigs.iter().enumerate() {
             let in_water = self
                 .ground
                 .pond
-                .is_some_and(|pond| pond.holds(BlockPos::containing(pig.position)));
+                .is_some_and(|pond| pond.holds(BlockPos::from(pig.position)));
             tiles
                 .entry(pig.tile)
                 .or_default()
@@ -458,7 +457,7 @@ impl PigPen {
                 pig.idle_time = 0;
                 facts[2] = Some(FactKind::Hurt);
             }
-            pig.tile = TileId::at(pig.position);
+            pig.tile = TileKey::at(pig.position);
             if pig.tile != from {
                 self.stage.relocate(mob, pig.tile);
             }
@@ -508,8 +507,8 @@ pub fn run_tiles(work: &mut [TileWork<'_, PigBrain>], cx: &TickContext<'_, FlatG
     }
 }
 
-fn mob(index: usize) -> MobId {
-    MobId(index as u64)
+fn mob(index: usize) -> EntityId {
+    EntityId(index as u64)
 }
 
 const fn running(ticket: Ticket) -> Applied {

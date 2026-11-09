@@ -7,18 +7,18 @@ use crate::Decision;
 use crate::Intents;
 use crate::IssuedDecisions;
 use crate::MobBrain;
-use crate::MobId;
 use crate::MobView;
-use crate::OrderKey;
 use crate::PlayerRow;
 use crate::Replica;
 use crate::StageConfig;
 use crate::TileBrains;
-use crate::TileId;
 use crate::Turn;
 use crate::WakeMode;
 use crate::tile_brains::Removed;
 use glam::DVec3;
+use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::TileKey;
 
 /// The brains of the mobs of one world, by tile. A tick of the stage is a parallel map over its
 /// tiles ([`Stage::work`] and [`TileWork::run`]) and a gather ([`Stage::collect`]); the result does
@@ -26,14 +26,14 @@ use glam::DVec3;
 #[derive(Clone, Debug)]
 pub struct Stage<B> {
     config: StageConfig,
-    tiles: BTreeMap<TileId, TileBrains<B>>,
-    locations: BTreeMap<MobId, Location>,
+    tiles: BTreeMap<TileKey, TileBrains<B>>,
+    locations: BTreeMap<EntityId, Location>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Location {
-    tile: TileId,
-    key: OrderKey,
+    tile: TileKey,
+    key: EntityKey,
 }
 
 /// The read-only inputs of the tile tasks of one stage tick.
@@ -48,7 +48,7 @@ pub struct TickContext<'a, W: ?Sized> {
 /// The work of one tile in one stage tick.
 #[derive(Debug)]
 pub struct TileWork<'a, B> {
-    tile: TileId,
+    tile: TileKey,
     brains: &'a mut TileBrains<B>,
 }
 
@@ -69,7 +69,14 @@ impl<B> Stage<B> {
 
     /// Adds the brain of a mob that entered `tile`; its first full evaluation is the first of
     /// `cadence`. A mob that the stage keeps already loses its old brain.
-    pub fn spawn(&mut self, tile: TileId, mob: MobId, key: OrderKey, cadence: Cadence, brain: B) {
+    pub fn spawn(
+        &mut self,
+        tile: TileKey,
+        mob: EntityId,
+        key: EntityKey,
+        cadence: Cadence,
+        brain: B,
+    ) {
         self.despawn(mob);
         let wake = cadence.next_evaluation(0);
         self.tiles
@@ -80,7 +87,7 @@ impl<B> Stage<B> {
     }
 
     /// Removes the brain of a mob that left the world.
-    pub fn despawn(&mut self, mob: MobId) -> Option<B> {
+    pub fn despawn(&mut self, mob: EntityId) -> Option<B> {
         let location = self.locations.remove(&mob)?;
         let tiles = self.tiles.get_mut(&location.tile)?;
         let removed = tiles.remove(&location.key);
@@ -91,7 +98,7 @@ impl<B> Stage<B> {
     }
 
     /// Moves the brain of a mob that the hot tick moved into another tile.
-    pub fn relocate(&mut self, mob: MobId, to: TileId) {
+    pub fn relocate(&mut self, mob: EntityId, to: TileKey) {
         let Some(location) = self.locations.get_mut(&mob) else {
             return;
         };
@@ -120,9 +127,9 @@ impl<B> Stage<B> {
 
     /// Moves each brain of `moves` as [`Self::relocate`] does, with one pass over each tile that a
     /// brain leaves or enters.
-    pub fn relocate_all(&mut self, moves: impl IntoIterator<Item = (MobId, TileId)>) {
-        let mut leaving: BTreeMap<TileId, Vec<OrderKey>> = BTreeMap::new();
-        let mut targets: BTreeMap<OrderKey, TileId> = BTreeMap::new();
+    pub fn relocate_all(&mut self, moves: impl IntoIterator<Item = (EntityId, TileKey)>) {
+        let mut leaving: BTreeMap<TileKey, Vec<EntityKey>> = BTreeMap::new();
+        let mut targets: BTreeMap<EntityKey, TileKey> = BTreeMap::new();
         for (mob, to) in moves {
             let Some(location) = self.locations.get_mut(&mob) else {
                 continue;
@@ -134,7 +141,7 @@ impl<B> Stage<B> {
             leaving.entry(from).or_default().push(location.key);
             targets.insert(location.key, to);
         }
-        let mut entering: BTreeMap<TileId, Vec<Removed<B>>> = BTreeMap::new();
+        let mut entering: BTreeMap<TileKey, Vec<Removed<B>>> = BTreeMap::new();
         for (from, mut keys) in leaving {
             let Some(tiles) = self.tiles.get_mut(&from) else {
                 continue;
@@ -157,7 +164,7 @@ impl<B> Stage<B> {
 
     /// The tile of `mob`.
     #[must_use]
-    pub fn tile_of(&self, mob: MobId) -> Option<TileId> {
+    pub fn tile_of(&self, mob: EntityId) -> Option<TileKey> {
         self.locations.get(&mob).map(|location| location.tile)
     }
 
@@ -171,7 +178,7 @@ impl<B> Stage<B> {
         self.locations.is_empty()
     }
 
-    pub fn tiles(&self) -> impl Iterator<Item = (TileId, &TileBrains<B>)> {
+    pub fn tiles(&self) -> impl Iterator<Item = (TileKey, &TileBrains<B>)> {
         self.tiles.iter().map(|(&tile, brains)| (tile, brains))
     }
 
@@ -206,7 +213,7 @@ impl<B> Stage<B> {
 
 impl<B> TileWork<'_, B> {
     #[must_use]
-    pub const fn tile(&self) -> TileId {
+    pub const fn tile(&self) -> TileKey {
         self.tile
     }
 
@@ -291,8 +298,8 @@ impl<B> TileWork<'_, B> {
 fn view_of<'a>(
     views: &'a [MobView],
     index: usize,
-    mob: MobId,
-    key: &OrderKey,
+    mob: EntityId,
+    key: &EntityKey,
 ) -> Option<&'a MobView> {
     if let Some(view) = views.get(index)
         && view.mob == mob

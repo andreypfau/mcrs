@@ -1,5 +1,5 @@
 use glam::DVec3;
-use mcrs_minecraft_brain::BlockPos;
+use mcrs_voxel::BlockPos;
 
 use crate::GoalWorld;
 
@@ -22,11 +22,10 @@ pub fn straight_route<W: GoalWorld + ?Sized>(
         return None;
     }
     let steps = libm::ceil(length / STEP) as u32;
-    let mut level = BlockPos::containing(from).y;
+    let mut level = BlockPos::from(from).y;
     for step in 1..=steps {
         let share = f64::from(step) / f64::from(steps);
-        let sample =
-            BlockPos::containing(DVec3::new(from.x + dx * share, 0.0, from.z + dz * share));
+        let sample = BlockPos::from(DVec3::new(from.x + dx * share, 0.0, from.z + dz * share));
         level = [0, 1, -1].into_iter().map(|rise| level + rise).find(|y| {
             world
                 .cell(BlockPos::new(sample.x, *y, sample.z))

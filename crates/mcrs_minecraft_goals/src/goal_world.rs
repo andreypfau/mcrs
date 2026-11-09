@@ -1,5 +1,5 @@
 use glam::DVec3;
-use mcrs_minecraft_brain::BlockPos;
+use mcrs_voxel::BlockPos;
 
 use crate::BuildHeight;
 use crate::GroundCell;

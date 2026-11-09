@@ -2,7 +2,7 @@
 //! UUID, its keyed random stream and the tile that holds it. Physics, the brain, the save and the
 //! muxer share them without the physics kernel.
 
-// std: none of its own; glam and mcrs_voxel enable it in the workspace. alloc: BTreeMap
+// alloc: BTreeMap
 
 #![no_std]
 

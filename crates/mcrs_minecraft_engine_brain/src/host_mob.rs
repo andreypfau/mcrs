@@ -1,18 +1,16 @@
 use glam::DVec3;
-use mcrs_engine_muxer::EntityId;
-use mcrs_minecraft_brain::BlockPos;
 use mcrs_minecraft_brain::ControlFlags;
 use mcrs_minecraft_brain::DamageCause;
 use mcrs_minecraft_brain::DamageRecord;
 use mcrs_minecraft_brain::Intents;
 use mcrs_minecraft_brain::MobFlags;
-use mcrs_minecraft_brain::MobId;
 use mcrs_minecraft_brain::MobView;
-use mcrs_minecraft_brain::OrderKey;
 use mcrs_minecraft_brain::Panic;
 use mcrs_minecraft_brain::PlayerTable;
 use mcrs_minecraft_engine_physics::MobIntent;
 use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_goals::STROLL_IDLE_LIMIT;
 use mcrs_minecraft_mob_control::BodyData;
 use mcrs_minecraft_mob_control::BodyFlags;
@@ -27,6 +25,7 @@ use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MoveInput;
 use mcrs_minecraft_physics::Steering;
 use mcrs_minecraft_volume::BlockVolume;
+use mcrs_voxel::BlockPos;
 
 use crate::BlockGoalWorld;
 use crate::HotTick;
@@ -39,7 +38,7 @@ const NEAR_PLAYER: f64 = 32.0;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct HostMob {
     pub(crate) id: EntityId,
-    pub(crate) key: OrderKey,
+    pub(crate) key: EntityKey,
     kind: &'static EntityTypeData,
     head_yaw_limit: f32,
     control: MobControl,
@@ -92,7 +91,7 @@ impl HostMob {
     /// The host of a mob of `kind`, or `None` when `kind` is not a mob type.
     pub(crate) fn new(
         id: EntityId,
-        key: OrderKey,
+        key: EntityKey,
         kind: &'static EntityTypeData,
         tick: u64,
     ) -> Option<Self> {
@@ -120,10 +119,6 @@ impl HostMob {
             stalled: false,
             row: None,
         })
-    }
-
-    pub(crate) const fn mob(&self) -> MobId {
-        MobId(self.id.0)
     }
 
     /// The end of the last tick: the body rotation after its travel, the damage record, the idle
@@ -204,7 +199,7 @@ impl HostMob {
             .fold(MobFlags::NONE, |flags, (_, flag)| flags.union(flag));
         Observed {
             view: MobView {
-                mob: self.mob(),
+                mob: self.id,
                 key: self.key,
                 position: self.position,
                 eye_height: self.kind.eye_height,
@@ -239,7 +234,7 @@ impl HostMob {
         tick: u64,
     ) -> Option<(MobIntent, Option<PathEnd>)> {
         let row = self.row.take()?;
-        let feet = BlockPos::containing(self.position);
+        let feet = BlockPos::from(self.position);
         let input = ControlInput {
             tick,
             position: self.position,

@@ -1,9 +1,9 @@
 use glam::DVec3;
-use mcrs_minecraft_brain::BlockPos;
 use mcrs_minecraft_brain::DamageCause;
 use mcrs_minecraft_brain::MobFlags;
 use mcrs_minecraft_brain::MobView;
 use mcrs_minecraft_brain::Turn;
+use mcrs_voxel::BlockPos;
 
 use crate::CellFlags;
 use crate::GoalWorld;
@@ -30,7 +30,7 @@ pub fn panic_record_fresh(view: &MobView, tick: u64) -> bool {
 /// collision shape, else the default search `D(5, 4)`.
 pub fn panic_destination<W: GoalWorld + ?Sized>(turn: &Turn<'_, W>) -> Option<DVec3> {
     let view = turn.view;
-    let block = BlockPos::containing(view.position);
+    let block = BlockPos::from(view.position);
     if view.flags.contains(MobFlags::ON_FIRE)
         && turn
             .world

@@ -49,8 +49,10 @@ impl EntityKey {
         (self.0 & 3) as u8
     }
 
+    /// The high and then the low 64 bits: the order in which a keyed stream absorbs the key.
     #[inline]
-    pub(crate) const fn words(&self) -> [u64; 2] {
+    #[must_use]
+    pub const fn words(&self) -> [u64; 2] {
         [(self.0 >> 64) as u64, self.0 as u64]
     }
 }

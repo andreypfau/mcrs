@@ -1,11 +1,11 @@
-use crate::MobId;
+use mcrs_minecraft_entity_key::EntityId;
 
 /// An event of the hot tick that a decision of a later tick must see: the wake events of
 /// GOAL-WAKE-005. A fact wakes the brain of its mob at its first full evaluation whose snapshot
 /// holds it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Fact {
-    pub mob: MobId,
+    pub mob: EntityId,
     pub kind: FactKind,
 }
 

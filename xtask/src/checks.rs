@@ -28,13 +28,15 @@ const WASM32_PACKAGES: [&str; 11] = [
     "mcrs_minecraft_biome_file",
 ];
 
-const NO_STD_PACKAGES: [&str; 6] = [
+const NO_STD_PACKAGES: [&str; 8] = [
     "mcrs_command",
     "mcrs_minecraft_brain",
     "mcrs_minecraft_chat",
+    "mcrs_minecraft_entity_key",
     "mcrs_minecraft_goals",
     "mcrs_molang",
     "mcrs_molang_wgsl",
+    "mcrs_voxel",
 ];
 
 const NO_BEVY_PACKAGES: [&str; 97] = [

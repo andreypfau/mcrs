@@ -2,9 +2,9 @@ use glam::DVec3;
 use mcrs_minecraft_brain::Intents;
 use mcrs_minecraft_brain::LookIntent;
 use mcrs_minecraft_brain::PlayerFlags;
-use mcrs_minecraft_brain::PlayerId;
 use mcrs_minecraft_brain::PlayerRow;
 use mcrs_minecraft_brain::Turn;
+use mcrs_minecraft_entity_key::EntityId;
 
 use crate::Gate;
 use crate::GoalWorld;
@@ -26,7 +26,7 @@ pub struct LookParams {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct LookAtPlayerGoal {
     gate: Gate,
-    player: Option<PlayerId>,
+    player: Option<EntityId>,
     count: u8,
 }
 

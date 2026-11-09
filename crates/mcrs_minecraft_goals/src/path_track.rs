@@ -1,11 +1,11 @@
 use glam::DVec3;
-use mcrs_minecraft_brain::BlockPos;
 use mcrs_minecraft_brain::Intents;
 use mcrs_minecraft_brain::MobView;
 use mcrs_minecraft_brain::PathIntent;
 use mcrs_minecraft_brain::Progress;
 use mcrs_minecraft_brain::Ticket;
 use mcrs_minecraft_brain::Turn;
+use mcrs_voxel::BlockPos;
 
 use crate::GoalWorld;
 
@@ -48,10 +48,7 @@ impl PathTrack {
         self.issued = self.issued.next();
         let ticket = self.issued;
         intents.path = Some(
-            match turn
-                .world
-                .route(turn.view.position, BlockPos::containing(target))
-            {
+            match turn.world.route(turn.view.position, BlockPos::from(target)) {
                 Some(end) => {
                     self.route = Route::Walking;
                     PathIntent::Walk {

@@ -1,11 +1,11 @@
-use mcrs_engine_muxer::TileKey;
 use mcrs_minecraft_brain::Decision;
 use mcrs_minecraft_brain::Fact;
 use mcrs_minecraft_brain::FactKind;
-use mcrs_minecraft_brain::MobId;
 use mcrs_minecraft_brain::MobView;
 use mcrs_minecraft_brain::PlayerTable;
 use mcrs_minecraft_engine_physics::MobIntent;
+use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::TileRows;
 use mcrs_minecraft_volume::BlockVolume;
 
@@ -32,7 +32,7 @@ pub(crate) struct TileOut {
     /// The wake events for the snapshot of this tick.
     pub(crate) facts: Vec<Fact>,
     /// The mobs whose path ended in this tick, for the snapshot of the next one.
-    pub(crate) ended: Vec<MobId>,
+    pub(crate) ended: Vec<EntityId>,
     pub(crate) intents: Vec<MobIntent>,
     pub(crate) applied: usize,
 }
@@ -62,10 +62,7 @@ impl TileTask<'_> {
             ];
             for (set, kind) in kinds {
                 if set {
-                    out.facts.push(Fact {
-                        mob: mob.mob(),
-                        kind,
-                    });
+                    out.facts.push(Fact { mob: mob.id, kind });
                 }
             }
             out.views.push(observed.view);
@@ -80,7 +77,7 @@ impl TileTask<'_> {
             if let Some((intent, ended)) = mob.steer(&world, self.tick) {
                 out.intents.push(intent);
                 if ended.is_some() {
-                    out.ended.push(mob.mob());
+                    out.ended.push(mob.id);
                 }
             }
         }

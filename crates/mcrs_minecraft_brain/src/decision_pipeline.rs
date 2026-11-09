@@ -7,14 +7,14 @@ use core::fmt;
 use crate::AiDelay;
 use crate::Decision;
 use crate::StageConfig;
-use crate::TileId;
+use mcrs_minecraft_entity_key::TileKey;
 
 /// The decisions of one issue tick, per tile of the mob at the issue, each tile in the order of
 /// the order keys.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct IssuedDecisions {
     pub tick: u64,
-    pub tiles: BTreeMap<TileId, Vec<Decision>>,
+    pub tiles: BTreeMap<TileKey, Vec<Decision>>,
 }
 
 impl IssuedDecisions {

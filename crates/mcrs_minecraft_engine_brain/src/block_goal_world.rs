@@ -1,5 +1,4 @@
 use glam::DVec3;
-use mcrs_minecraft_brain::BlockPos;
 use mcrs_minecraft_goals::BuildHeight;
 use mcrs_minecraft_goals::CellFlags;
 use mcrs_minecraft_goals::GoalWorld;
@@ -12,6 +11,7 @@ use mcrs_minecraft_physics::StateCollision;
 use mcrs_minecraft_physics::sight_clear;
 use mcrs_minecraft_volume::BlockVolume;
 use mcrs_minecraft_volume::Unavailable;
+use mcrs_voxel::BlockPos;
 
 use crate::sight_blocks::SightBlocks;
 

@@ -5,23 +5,20 @@ use std::time::Instant;
 
 use bevy_ecs::resource::Resource;
 use bevy_tasks::TaskPool;
-use mcrs_engine_muxer::EntityId;
-use mcrs_engine_muxer::TileKey;
 use mcrs_minecraft_brain::Cadence;
 use mcrs_minecraft_brain::Decision;
 use mcrs_minecraft_brain::DecisionPipeline;
 use mcrs_minecraft_brain::Fact;
 use mcrs_minecraft_brain::FactKind;
-use mcrs_minecraft_brain::MobId;
-use mcrs_minecraft_brain::OrderKey;
 use mcrs_minecraft_brain::PlayerTable;
 use mcrs_minecraft_brain::Replica;
 use mcrs_minecraft_brain::Stage;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::TickContext;
-use mcrs_minecraft_brain::TileId;
 use mcrs_minecraft_engine_physics::EntityRows;
 use mcrs_minecraft_engine_physics::Mobs;
+use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_goals::GoalWorld;
 use mcrs_minecraft_goals::PigBrain;
 use mcrs_minecraft_physics::TileRows;
@@ -49,7 +46,7 @@ pub struct MobAi {
     tiles: BTreeMap<TileKey, Vec<HostMob>>,
     index: FxHashMap<EntityId, TileKey>,
     /// The mobs whose path ended in the last tick.
-    ended: Vec<MobId>,
+    ended: Vec<EntityId>,
     /// The AI ticks so far: the clock of the cadences, the keyed random values and the damage
     /// records.
     tick: u64,
@@ -224,23 +221,23 @@ impl MobAi {
         }
         let mut moving: FxHashMap<EntityId, HostMob> =
             departed.into_iter().map(|host| (host.id, host)).collect();
-        let mut relocated: Vec<(MobId, TileId)> = Vec::new();
+        let mut relocated: Vec<(EntityId, TileKey)> = Vec::new();
         let mut entering: BTreeMap<TileKey, Vec<HostMob>> = BTreeMap::new();
         for arrival in arrivals {
             let host = match moving.remove(&arrival.id) {
                 Some(mut host) => {
-                    relocated.push((host.mob(), tile_id(arrival.tile)));
+                    relocated.push((host.id, arrival.tile));
                     host.seen = tick;
                     host
                 }
                 None => {
-                    let key = OrderKey::new(arrival.key.0);
+                    let key = arrival.key;
                     let Some(host) = HostMob::new(arrival.id, key, arrival.kind, tick) else {
                         continue;
                     };
                     self.stage.spawn(
-                        tile_id(arrival.tile),
-                        host.mob(),
+                        arrival.tile,
+                        host.id,
                         key,
                         Cadence::new(tick, arrival.phase),
                         PigBrain::default(),
@@ -257,7 +254,7 @@ impl MobAi {
         }
         for id in moving.into_keys() {
             self.index.remove(&id);
-            self.stage.despawn(MobId(id.0));
+            self.stage.despawn(id);
         }
         self.tiles.retain(|_, hosts| !hosts.is_empty());
         self.stats.mobs = self.index.len();
@@ -276,7 +273,7 @@ impl MobAi {
         };
         for decisions in issued {
             for decision in decisions.tiles.into_values().flatten() {
-                if let Some(&tile) = self.index.get(&EntityId(decision.mob.0)) {
+                if let Some(&tile) = self.index.get(&decision.mob) {
                     by_tile.entry(tile).or_default().push(decision);
                 }
             }
@@ -296,7 +293,7 @@ impl MobAi {
     ) {
         let mut facts: BTreeMap<TileKey, Vec<Fact>> = BTreeMap::new();
         for mob in mem::take(&mut self.ended) {
-            if let Some(&tile) = self.index.get(&EntityId(mob.0)) {
+            if let Some(&tile) = self.index.get(&mob) {
                 facts.entry(tile).or_default().push(Fact {
                     mob,
                     kind: FactKind::PathEnded,
@@ -306,8 +303,7 @@ impl MobAi {
         let mut applied: usize = 0;
         for out in outs {
             applied = applied.saturating_add(out.applied);
-            self.replica
-                .publish_tile(tick, tile_id(out.tile), out.views);
+            self.replica.publish_tile(tick, out.tile, out.views);
             if !out.facts.is_empty() {
                 facts.entry(out.tile).or_default().extend(out.facts);
             }
@@ -315,7 +311,7 @@ impl MobAi {
             rows.steer_all(out.tile, out.intents);
         }
         for (tile, facts) in facts {
-            self.replica.publish_facts(tick, tile_id(tile), facts);
+            self.replica.publish_facts(tick, tile, facts);
         }
         self.replica.publish_players(tick, players);
         self.pipeline.issue(tick);
@@ -350,10 +346,6 @@ fn in_order<T>(groups: Vec<Vec<(usize, T)>>) -> Vec<T> {
     let mut outs: Vec<(usize, T)> = groups.into_iter().flatten().collect();
     outs.sort_unstable_by_key(|(index, _)| *index);
     outs.into_iter().map(|(_, out)| out).collect()
-}
-
-fn tile_id(tile: TileKey) -> TileId {
-    TileId::new(tile.x, tile.z)
 }
 
 /// Adds `entering` to `hosts`, which is sorted by id, in one merge.

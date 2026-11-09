@@ -1,4 +1,4 @@
-use mcrs_engine_muxer::EntityId;
+use mcrs_minecraft_entity_key::EntityId;
 
 use crate::host_mob::HostMob;
 

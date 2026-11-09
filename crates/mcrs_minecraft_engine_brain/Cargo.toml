@@ -17,7 +17,6 @@ bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_tasks.workspace = true
 glam.workspace = true
-mcrs_engine_muxer.workspace = true
 mcrs_minecraft_brain.workspace = true
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_entity.workspace = true

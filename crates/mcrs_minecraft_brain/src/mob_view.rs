@@ -1,15 +1,15 @@
 use crate::ControlFlags;
-use crate::MobId;
-use crate::OrderKey;
 use crate::Ticket;
 use glam::DVec3;
+use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_entity_key::EntityKey;
 
 /// The state of one mob that the decisions of one issue tick read: the row and the guidance state
 /// at the start of that tick.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MobView {
-    pub mob: MobId,
-    pub key: OrderKey,
+    pub mob: EntityId,
+    pub key: EntityKey,
     pub position: DVec3,
     pub eye_height: f32,
     pub flags: MobFlags,

@@ -1,11 +1,11 @@
 use mcrs_minecraft_brain::Cadence;
 use mcrs_minecraft_brain::KeyedRandom;
-use mcrs_minecraft_brain::OrderKey;
 use mcrs_minecraft_brain::Part;
 use mcrs_minecraft_brain::WorldSeed;
+use mcrs_minecraft_entity_key::EntityKey;
 
 fn first_values(seed: u64, key: u128, tick: u64, part: u32) -> [u64; 4] {
-    let mut random = KeyedRandom::new(WorldSeed(seed), &OrderKey::new(key), tick, Part(part));
+    let mut random = KeyedRandom::new(WorldSeed(seed), &EntityKey(key), tick, Part(part));
     [(); 4].map(|()| random.next_u64())
 }
 
@@ -27,14 +27,22 @@ fn a_stream_depends_on_each_of_its_keys_and_on_nothing_else() {
 }
 
 #[test]
+fn a_stream_absorbs_the_high_word_of_the_key_before_the_low_word() {
+    assert_eq!(
+        first_values(7, 1 << 64 | 2, 100, 1)[0],
+        0x6C33_1228_048B_6B72,
+        "SplitMix64 over the seed, the words 1 and 2, the tick and the part"
+    );
+}
+
+#[test]
 fn trials_to_success_follow_the_geometric_law() {
     let chance = 1.0 / 60.0;
     let samples = 200_000_u32;
     let mut sum = 0.0;
     let mut first = 0_u32;
     for draw in 0..samples {
-        let mut random =
-            KeyedRandom::new(WorldSeed(5), &OrderKey::new(u128::from(draw)), 0, Part(0));
+        let mut random = KeyedRandom::new(WorldSeed(5), &EntityKey(u128::from(draw)), 0, Part(0));
         let trials = random.trials_to_success(chance);
         sum += f64::from(trials);
         first += u32::from(trials == 1);

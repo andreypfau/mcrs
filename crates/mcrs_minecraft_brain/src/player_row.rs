@@ -1,20 +1,19 @@
-use crate::MobId;
-use crate::OrderKey;
-use crate::PlayerId;
 use glam::DVec3;
+use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_entity_key::EntityKey;
 
 /// One player of the player table of a dimension, at the end of the previous tick.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PlayerRow {
-    pub player: PlayerId,
-    pub key: OrderKey,
+    pub player: EntityId,
+    pub key: EntityKey,
     pub position: DVec3,
     pub eye_height: f32,
     pub flags: PlayerFlags,
     /// The visibility factor of the player toward the mob types of the stage, from 0 to 1.
     pub visibility: f32,
     /// The mob that the player rides directly.
-    pub vehicle: Option<MobId>,
+    pub vehicle: Option<EntityId>,
 }
 
 impl PlayerRow {

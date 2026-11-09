@@ -3733,6 +3733,8 @@ version = "0.5.8"
 dependencies = [
  "glam",
  "libm",
+ "mcrs_minecraft_entity_key",
+ "mcrs_voxel",
 ]
 
 [[package]]
@@ -4396,7 +4398,6 @@ dependencies = [
  "bevy_ecs",
  "bevy_tasks",
  "glam",
- "mcrs_engine_muxer",
  "mcrs_minecraft_brain",
  "mcrs_minecraft_damage",
  "mcrs_minecraft_engine",
@@ -4743,7 +4744,9 @@ dependencies = [
  "libm",
  "mcrs_minecraft_brain",
  "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_key",
  "mcrs_minecraft_goals",
+ "mcrs_voxel",
  "rayon",
 ]
 
@@ -4911,7 +4914,9 @@ dependencies = [
  "glam",
  "mcrs_minecraft_brain",
  "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_key",
  "mcrs_minecraft_numeric",
+ "mcrs_voxel",
 ]
 
 [[package]]

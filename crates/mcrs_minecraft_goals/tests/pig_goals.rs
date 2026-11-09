@@ -4,13 +4,13 @@ use glam::DVec3;
 use mcrs_minecraft_brain::AiDelay;
 use mcrs_minecraft_brain::ConfigError;
 use mcrs_minecraft_brain::DamageCause;
-use mcrs_minecraft_brain::OrderKey;
 use mcrs_minecraft_brain::Panic;
 use mcrs_minecraft_brain::PlayerFlags;
-use mcrs_minecraft_brain::PlayerId;
 use mcrs_minecraft_brain::PlayerRow;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::WorldSeed;
+use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_goals::IdleRule;
 use mcrs_minecraft_goals::PenConfig;
 use mcrs_minecraft_goals::PenLook;
@@ -152,8 +152,8 @@ fn a_pig_looks_at_a_player_within_six_blocks_and_never_at_one_farther() {
         pen.place_pig(index, position);
     }
     pen.set_players(vec![PlayerRow {
-        player: PlayerId(1),
-        key: OrderKey::new(1 << 64 | 1),
+        player: EntityId(1),
+        key: EntityKey(1 << 64 | 1),
         position: centre,
         eye_height: 1.62,
         flags: PlayerFlags::ALIVE,

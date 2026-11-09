@@ -5,14 +5,14 @@ use alloc::vec::Vec;
 use crate::Fact;
 use crate::MobView;
 use crate::PlayerTable;
-use crate::TileId;
+use mcrs_minecraft_entity_key::TileKey;
 
 /// The snapshots that the decisions of the last ticks read. A tile keeps a version for each tick
 /// in which the host published it, so a decision of issue tick `T` processed late still reads the
 /// views of `T`; a tile that the host did not publish again keeps its older version.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Replica {
-    tiles: BTreeMap<TileId, VecDeque<TileVersion>>,
+    tiles: BTreeMap<TileKey, VecDeque<TileVersion>>,
     players: VecDeque<PlayersVersion>,
     facts: VecDeque<TickFacts>,
 }
@@ -32,13 +32,13 @@ struct PlayersVersion {
 #[derive(Clone, Debug, Default, PartialEq)]
 struct TickFacts {
     tick: u64,
-    tiles: BTreeMap<TileId, Vec<Fact>>,
+    tiles: BTreeMap<TileKey, Vec<Fact>>,
 }
 
 impl Replica {
     /// Publishes the views of the mobs of `tile` at the start of `tick`. The stage expects one
     /// view for each mob that it keeps in the tile; the views are sorted here by order key.
-    pub fn publish_tile(&mut self, tick: u64, tile: TileId, mut views: Vec<MobView>) {
+    pub fn publish_tile(&mut self, tick: u64, tile: TileKey, mut views: Vec<MobView>) {
         views.sort_by_key(|view| view.key);
         let versions = self.tiles.entry(tile).or_default();
         if let Some(last) = versions.back_mut()
@@ -64,7 +64,7 @@ impl Replica {
     pub fn publish_facts(
         &mut self,
         tick: u64,
-        tile: TileId,
+        tile: TileKey,
         facts: impl IntoIterator<Item = Fact>,
     ) {
         let at = match self.facts.back() {
@@ -84,7 +84,7 @@ impl Replica {
 
     /// The views of `tile` at the start of `tick`: the newest version at `tick` or before.
     #[must_use]
-    pub fn views(&self, tile: TileId, tick: u64) -> &[MobView] {
+    pub fn views(&self, tile: TileKey, tick: u64) -> &[MobView] {
         self.tiles
             .get(&tile)
             .and_then(|versions| versions.iter().rev().find(|version| version.tick <= tick))
@@ -102,7 +102,7 @@ impl Replica {
 
     /// The facts that the host published with the snapshot of `tick` for `tile`.
     #[must_use]
-    pub fn facts(&self, tile: TileId, tick: u64) -> &[Fact] {
+    pub fn facts(&self, tile: TileKey, tick: u64) -> &[Fact] {
         self.facts
             .iter()
             .find(|entry| entry.tick == tick)

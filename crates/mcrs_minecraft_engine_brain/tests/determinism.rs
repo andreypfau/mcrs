@@ -8,10 +8,7 @@ use std::hash::Hasher;
 use bevy_tasks::TaskPool;
 use bevy_tasks::TaskPoolBuilder;
 use glam::DVec3;
-use mcrs_engine_muxer::EntityId;
-use mcrs_minecraft_brain::OrderKey;
 use mcrs_minecraft_brain::PlayerFlags;
-use mcrs_minecraft_brain::PlayerId;
 use mcrs_minecraft_brain::PlayerRow;
 use mcrs_minecraft_brain::PlayerTable;
 use mcrs_minecraft_brain::StageConfig;
@@ -33,6 +30,7 @@ use mcrs_minecraft_engine_physics::mob_body;
 use mcrs_minecraft_engine_physics::mob_row;
 use mcrs_minecraft_engine_physics::tile_at;
 use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_replication::MobLooks;
 
@@ -87,8 +85,8 @@ impl Run {
             );
         }
         let players = vec![PlayerRow {
-            player: PlayerId(1),
-            key: OrderKey::new(u128::MAX),
+            player: EntityId(1),
+            key: EntityKey(u128::MAX),
             position: DVec3::new(0.5, f64::from(FLOOR), 0.5),
             eye_height: 1.62,
             flags: PlayerFlags::ALIVE,

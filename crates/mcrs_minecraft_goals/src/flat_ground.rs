@@ -1,5 +1,5 @@
 use glam::DVec3;
-use mcrs_minecraft_brain::BlockPos;
+use mcrs_voxel::BlockPos;
 
 use crate::BuildHeight;
 use crate::CellFlags;
@@ -31,7 +31,7 @@ pub struct Pond {
 
 impl Pond {
     #[must_use]
-    pub const fn holds(&self, at: BlockPos) -> bool {
+    pub fn holds(&self, at: BlockPos) -> bool {
         at.y == 0
             && self.min_x <= at.x
             && at.x <= self.max_x

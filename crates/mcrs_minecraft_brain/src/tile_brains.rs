@@ -2,15 +2,15 @@ use alloc::vec::Vec;
 
 use crate::Cadence;
 use crate::Decision;
-use crate::MobId;
-use crate::OrderKey;
 use crate::PlayerRow;
+use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_entity_key::EntityKey;
 
 /// The brains of the mobs of one tile, in columns, in the order of their order keys.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TileBrains<B> {
-    pub(crate) ids: Vec<MobId>,
-    pub(crate) keys: Vec<OrderKey>,
+    pub(crate) ids: Vec<EntityId>,
+    pub(crate) keys: Vec<EntityKey>,
     pub(crate) cadences: Vec<Cadence>,
     /// The next tick at which each brain runs a full evaluation without a fact.
     pub(crate) wakes: Vec<u64>,
@@ -38,8 +38,8 @@ impl<B> Default for TileBrains<B> {
 /// One brain of a tile, as [`TileBrains::iter`] gives it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BrainEntry<'a, B> {
-    pub mob: MobId,
-    pub key: OrderKey,
+    pub mob: EntityId,
+    pub key: EntityKey,
     pub cadence: Cadence,
     pub wake: u64,
     pub brain: &'a B,
@@ -80,8 +80,8 @@ impl<B> TileBrains<B> {
 
     pub(crate) fn insert(
         &mut self,
-        mob: MobId,
-        key: OrderKey,
+        mob: EntityId,
+        key: EntityKey,
         cadence: Cadence,
         wake: u64,
         brain: B,
@@ -94,7 +94,7 @@ impl<B> TileBrains<B> {
         self.brains.insert(at, brain);
     }
 
-    pub(crate) fn remove(&mut self, key: &OrderKey) -> Option<Removed<B>> {
+    pub(crate) fn remove(&mut self, key: &EntityKey) -> Option<Removed<B>> {
         let at = self.keys.binary_search(key).ok()?;
         if at >= self.ids.len() {
             return None;
@@ -110,7 +110,7 @@ impl<B> TileBrains<B> {
 
     /// Removes the brains of `keys`, which are sorted, in one pass over the columns; gives them in
     /// key order.
-    pub(crate) fn remove_all(&mut self, keys: &[OrderKey]) -> Vec<Removed<B>> {
+    pub(crate) fn remove_all(&mut self, keys: &[EntityKey]) -> Vec<Removed<B>> {
         let leaves: Vec<bool> = self
             .keys
             .iter()
@@ -191,14 +191,14 @@ impl<B> TileBrains<B> {
             })
     }
 
-    pub(crate) fn position(&self, mob: MobId) -> Option<usize> {
+    pub(crate) fn position(&self, mob: EntityId) -> Option<usize> {
         self.ids.iter().position(|id| *id == mob)
     }
 }
 
 pub(crate) struct Removed<B> {
-    pub(crate) mob: MobId,
-    pub(crate) key: OrderKey,
+    pub(crate) mob: EntityId,
+    pub(crate) key: EntityKey,
     pub(crate) cadence: Cadence,
     pub(crate) wake: u64,
     pub(crate) brain: B,

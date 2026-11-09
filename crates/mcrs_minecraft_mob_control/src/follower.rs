@@ -1,8 +1,8 @@
 use glam::DVec3;
 use mcrs_minecraft_brain::Applied;
-use mcrs_minecraft_brain::BlockPos;
 use mcrs_minecraft_brain::PathIntent;
 use mcrs_minecraft_brain::Progress;
+use mcrs_voxel::BlockPos;
 
 use crate::BodyFlags;
 use crate::ControlInput;
@@ -78,7 +78,7 @@ impl Follower {
                 speed_modifier,
             } => {
                 self.route = Some(Route {
-                    node: BlockPos::containing(target),
+                    node: BlockPos::from(target),
                     floor: target.y,
                     speed_modifier,
                 });
@@ -151,7 +151,7 @@ impl Follower {
             || flags.contains(BodyFlags::IN_LIQUID)
             || flags.contains(BodyFlags::PASSENGER);
         if !can_update {
-            let block = BlockPos::containing(position);
+            let block = BlockPos::from(position);
             return position.y > f64::from(node.y) && block.x == node.x && block.z == node.z;
         }
         let width = input.body.width;

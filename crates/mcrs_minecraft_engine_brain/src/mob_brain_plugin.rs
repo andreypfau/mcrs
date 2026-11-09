@@ -19,14 +19,13 @@ use bevy_ecs::system::ResMut;
 use bevy_ecs::system::Single;
 use bevy_tasks::ComputeTaskPool;
 use mcrs_minecraft_brain::AiDelay;
-use mcrs_minecraft_brain::OrderKey;
 use mcrs_minecraft_brain::PlayerFlags;
-use mcrs_minecraft_brain::PlayerId;
 use mcrs_minecraft_brain::PlayerRow;
 use mcrs_minecraft_brain::PlayerTable;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::WorldSeed as StageSeed;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
+use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine::world_seed::WorldSeed;
 use mcrs_minecraft_engine_physics::EntityRows;
 use mcrs_minecraft_engine_physics::Mobs;
@@ -34,10 +33,13 @@ use mcrs_minecraft_engine_physics::PhysicsTables;
 use mcrs_minecraft_engine_world::entity::EntityUuid;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
 use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item::damage_type::DamageType;
 use mcrs_minecraft_item::damage_type_tag_keys::PANIC_CAUSES;
@@ -150,18 +152,18 @@ fn prepare(
     tables: Res<PhysicsTables>,
     panic_causes: Res<PanicCauses>,
     mobs: Res<Mobs>,
-    players: Query<(Entity, &EntityUuid, &Transform, Option<&PlayerGameMode>), With<Player>>,
+    players: Query<(&Owner, &EntityUuid, &Transform, Option<&PlayerGameMode>), With<Player>>,
     mut rows: ResMut<EntityRows>,
     mut ai: ResMut<MobAi>,
 ) {
     let Some(blocks) = world.get(*dimension) else {
         return;
     };
-    let table = PlayerTable::new(players.iter().map(|(entity, uuid, transform, mode)| {
+    let table = PlayerTable::new(players.iter().map(|(owner, uuid, transform, mode)| {
         let spectator = mode.is_some_and(|mode| mode.0 == GameMode::Spectator);
         PlayerRow {
-            player: PlayerId(entity.to_bits()),
-            key: OrderKey::new(uuid.0.as_u128()),
+            player: EntityId(u64::from(player_network_id(owner.0).cast_unsigned())),
+            key: EntityKey(uuid.0.as_u128()),
             position: transform.translation,
             eye_height: EntityTypeData::PLAYER.eye_height,
             flags: if spectator {

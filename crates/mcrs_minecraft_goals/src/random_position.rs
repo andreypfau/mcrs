@@ -1,6 +1,6 @@
 use glam::DVec3;
-use mcrs_minecraft_brain::BlockPos;
 use mcrs_minecraft_brain::KeyedRandom;
+use mcrs_voxel::BlockPos;
 
 use crate::CellFlags;
 use crate::GoalWorld;
@@ -78,7 +78,7 @@ fn best_of_tries(
         let a = random.symmetric(range.horizontal);
         let b = random.symmetric(range.vertical);
         let c = random.symmetric(range.horizontal);
-        let candidate = BlockPos::containing(DVec3::new(
+        let candidate = BlockPos::from(DVec3::new(
             feet.x + f64::from(a),
             feet.y + f64::from(b),
             feet.z + f64::from(c),

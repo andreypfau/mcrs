@@ -1,14 +1,14 @@
 //! Moving many brains at once leaves each tile as moving them one at a time does.
 
 use mcrs_minecraft_brain::Cadence;
-use mcrs_minecraft_brain::MobId;
-use mcrs_minecraft_brain::OrderKey;
 use mcrs_minecraft_brain::Stage;
 use mcrs_minecraft_brain::StageConfig;
-use mcrs_minecraft_brain::TileId;
 use mcrs_minecraft_brain::WorldSeed;
+use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::TileKey;
 
-type Snapshot = Vec<(TileId, Vec<(MobId, OrderKey, u64, u32)>)>;
+type Snapshot = Vec<(TileKey, Vec<(EntityId, EntityKey, u64, u32)>)>;
 
 fn snapshot(stage: &Stage<u32>) -> Snapshot {
     stage
@@ -34,11 +34,11 @@ fn relocating_brains_at_once_equals_relocating_them_one_by_one() {
     };
     let mut stage = Stage::new(StageConfig::new(WorldSeed(1)));
     for mob in 0..600_u64 {
-        let tile = TileId::new(next(4) as i32, next(4) as i32);
-        let key = OrderKey::new(u128::from(next(1 << 40)) << 20 | u128::from(mob));
+        let tile = TileKey::new(next(4) as i32, 0, next(4) as i32);
+        let key = EntityKey(u128::from(next(1 << 40)) << 20 | u128::from(mob));
         stage.spawn(
             tile,
-            MobId(mob),
+            EntityId(mob),
             key,
             Cadence::new(0, (mob % 4) as u8),
             mob as u32,
@@ -46,14 +46,14 @@ fn relocating_brains_at_once_equals_relocating_them_one_by_one() {
     }
     let mut single = stage.clone();
     for _ in 0..5 {
-        let moves: Vec<(MobId, TileId)> = (0..150)
+        let moves: Vec<(EntityId, TileKey)> = (0..150)
             .map(|_| {
                 (
-                    MobId(next(650)),
-                    TileId::new(next(5) as i32, next(4) as i32),
+                    EntityId(next(650)),
+                    TileKey::new(next(5) as i32, 0, next(4) as i32),
                 )
             })
-            .filter(|(mob, _)| *mob != MobId(649))
+            .filter(|(mob, _)| *mob != EntityId(649))
             .collect();
         let mut seen = std::collections::BTreeSet::new();
         let moves: Vec<_> = moves
