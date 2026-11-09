@@ -317,9 +317,10 @@ fn nbt_floats_keep_vanillas_number_semantics() {
         let mut bytes = Vec::new();
         mcrs_minecraft_nbt::to_bytes_unnamed(&tag, &mut bytes).unwrap();
         let mut cursor = std::io::Cursor::new(&bytes[..]);
-        let mut d = mcrs_minecraft_nbt::deserializer::Deserializer::new(&mut cursor, false);
-        let value =
-            ItemComponentValue::deserialize_value(kind, &mut d).map_err(|e| e.to_string())?;
+        let value = {
+            let mut d = mcrs_minecraft_nbt::deserializer::Deserializer::new(&mut cursor, false);
+            ItemComponentValue::deserialize_value(kind, &mut d).map_err(|e| e.to_string())?
+        };
         resolved(value).map(|value| persistent_json(&value))
     }
     fn compound(entries: Vec<(&str, NbtTag)>) -> NbtTag {
