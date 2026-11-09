@@ -170,3 +170,30 @@ fn a_head_packet_turns_the_head_and_the_body_stays_within_the_limit() {
     assert!((frame.body_yaw + 60.0).abs() < 1e-4, "{}", frame.body_yaw);
     assert!((frame.relative_head_yaw + 75.0).abs() < 1e-4);
 }
+
+#[test]
+fn each_mob_type_of_the_server_turns_its_body_after_its_head() {
+    for kind in [
+        EntityType::Cow,
+        EntityType::Sheep,
+        EntityType::Chicken,
+        EntityType::ZombifiedPiglin,
+    ] {
+        let mut client = Client::new();
+        client.receive(add_entity(PIG, kind, DVec3::new(0.5, 64.0, 0.0), 0.0, 0.0));
+        client.receive(ClientboundRotateHead {
+            entity_id: VarInt(PIG),
+            y_head_rot: ByteAngle::from_degrees(-135.0),
+        });
+        for _ in 0..3 {
+            client.tick();
+        }
+        let frame = client.inputs(PIG, |inputs| inputs.frame(1.0));
+        assert!(
+            (frame.body_yaw + 60.0).abs() < 1e-4,
+            "{kind:?} body yaw {}",
+            frame.body_yaw
+        );
+        assert!(frame.eye_position.y > 64.0, "{kind:?} has an eye height");
+    }
+}

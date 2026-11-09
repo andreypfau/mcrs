@@ -1,6 +1,6 @@
 use bytes::{Bytes, BytesMut};
+use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
-use mcrs_minecraft_mob::MobType;
 use mcrs_minecraft_protocol::{Result, VarInt, write_record};
 use mcrs_minecraft_protocol_game::clientbound::{
     AttributeSnapshot, ClientboundSetEntityData, ClientboundUpdateAttributes,
@@ -75,11 +75,16 @@ pub(crate) fn health_entry(health: f32) -> MetadataEntry<'static> {
 /// and no modifier (TRK-DATA-004).
 pub(crate) fn spawn_extras(
     id: VarInt,
-    kind: MobType,
+    kind: &EntityTypeData,
     looks: &MobLooks,
     health: f32,
     dying: bool,
 ) -> Result<Bytes> {
+    let movement_speed = kind
+        .base_attributes
+        .map_or(Attribute::MovementSpeed.definition().default, |base| {
+            base.movement_speed
+        });
     let mut bytes = BytesMut::new();
     write_record(
         &mut bytes,
@@ -94,7 +99,7 @@ pub(crate) fn spawn_extras(
             entity_id: id,
             attributes: vec![AttributeSnapshot {
                 attribute: Attribute::MovementSpeed,
-                base: kind.movement_speed(),
+                base: movement_speed,
                 modifiers: Vec::new(),
             }],
         },

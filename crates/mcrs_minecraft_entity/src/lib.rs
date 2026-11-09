@@ -1,4 +1,8 @@
 pub mod attribute;
+mod base_attributes;
+mod entity_type_data;
+mod life;
+mod mob_data;
 #[rustfmt::skip]
 pub mod attribute_keys;
 #[rustfmt::skip]
@@ -48,6 +52,10 @@ pub mod villager;
 mod wire;
 
 pub use attribute::AttributeDefinition;
+pub use base_attributes::BaseAttributes;
+pub use entity_type_data::EntityTypeData;
+pub use life::Life;
+pub use mob_data::MobData;
 
 pub const PLAYER_WIDTH: f64 = 0.6;
 pub const PLAYER_HEIGHT: f64 = 1.8;

@@ -24,6 +24,10 @@ use mcrs_minecraft_mob_control::MobControl;
 use mcrs_minecraft_mob_control::Rotations;
 
 const MOBS: u32 = 50_000;
+const PIG_LOOK: LookDefaults = LookDefaults {
+    turn_speed: 10.0,
+    pitch_limit: 40.0,
+};
 
 struct Mob {
     control: MobControl,
@@ -38,7 +42,7 @@ fn mobs() -> Vec<Mob> {
                 0.0,
                 f64::from(index / 250) * 4.0 + 0.5,
             );
-            let mut control = MobControl::new(LookDefaults::ANIMAL);
+            let mut control = MobControl::new(PIG_LOOK);
             let intents = match index % 3 {
                 0 => Intents {
                     path: Some(PathIntent::Walk {

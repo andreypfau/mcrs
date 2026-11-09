@@ -47,7 +47,7 @@ impl MobView<'_> {
     }
 
     pub(crate) fn entity_type(&self) -> EntityType {
-        self.mob.kind.entity_type()
+        self.mob.kind.entity_type
     }
 
     /// The display name (TRK-SUM-004): the custom name, or the name of the type, with the type

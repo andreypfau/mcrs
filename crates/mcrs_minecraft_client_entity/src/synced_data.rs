@@ -1,12 +1,11 @@
 use bevy_ecs::component::Component;
+use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::variant::{FrogVariant, PigVariant};
 use mcrs_minecraft_protocol_game::clientbound::{AttributeOperation, AttributeSnapshot};
 use mcrs_minecraft_protocol_game::entity::{MetaDataValue, MetadataEntry, Pose};
 use mcrs_minecraft_protocol_game::text::{Text, TextContent};
 use mcrs_minecraft_resource::Id;
-
-use crate::kind::{KindTraits, Life};
 
 const SHARED_FLAGS: u8 = 0;
 const CUSTOM_NAME: u8 = 2;
@@ -79,22 +78,23 @@ impl Default for SyncedData {
 }
 
 impl SyncedData {
-    /// Stores the entries that an entity of `traits` has. An entry of an index that the type
-    /// does not have, or of another wire type, changes nothing.
+    /// Stores the entries that an entity of the type of `data` has. An entry of an index that
+    /// the type does not have, or of another wire type, changes nothing. A type with no `data`
+    /// has only the entries of an entity.
     pub fn apply<'a>(
         &mut self,
-        traits: &KindTraits,
+        data: Option<&EntityTypeData>,
         entries: impl IntoIterator<Item = &'a MetadataEntry<'a>>,
     ) {
         for entry in entries {
-            self.apply_entry(traits, entry);
+            self.apply_entry(data, entry);
         }
     }
 
-    fn apply_entry(&mut self, traits: &KindTraits, entry: &MetadataEntry<'_>) {
-        let living = traits.is_living();
-        let ageable = traits.is_ageable();
-        let mob = matches!(traits.life, Life::Mob(_));
+    fn apply_entry(&mut self, data: Option<&EntityTypeData>, entry: &MetadataEntry<'_>) {
+        let living = data.is_some_and(EntityTypeData::is_living);
+        let ageable = data.is_some_and(EntityTypeData::is_ageable);
+        let mob = data.is_some_and(|data| data.mob().is_some());
         match (entry.index, &entry.value) {
             (SHARED_FLAGS, MetaDataValue::Byte(flags)) => self.shared_flags = *flags as u8,
             (CUSTOM_NAME, MetaDataValue::OptionalText(name)) => {
@@ -134,8 +134,8 @@ impl SyncedData {
     }
 
     #[must_use]
-    pub fn is_on_fire(&self, traits: &KindTraits) -> bool {
-        self.shared_flags & ON_FIRE != 0 && !traits.fire_immune
+    pub fn is_on_fire(&self, data: Option<&EntityTypeData>) -> bool {
+        self.shared_flags & ON_FIRE != 0 && !data.is_some_and(|data| data.fire_immune)
     }
 
     #[must_use]
@@ -226,11 +226,11 @@ mod tests {
 
     #[test]
     fn a_pig_reads_the_living_and_ageable_indices_and_its_variant() {
-        let traits = KindTraits::of(EntityType::Pig);
+        let type_data = EntityTypeData::of(EntityType::Pig);
         let mut data = SyncedData::default();
         let variant = Id::checked(2, 4).unwrap();
         data.apply(
-            &traits,
+            type_data,
             &[
                 entry(0, MetaDataValue::Byte(0x21)),
                 entry(9, MetaDataValue::Float(0.0)),
@@ -239,7 +239,7 @@ mod tests {
                 entry(7, MetaDataValue::VarInt(VarInt(140))),
             ],
         );
-        assert!(data.is_on_fire(&traits));
+        assert!(data.is_on_fire(type_data));
         assert!(data.is_invisible());
         assert!(data.is_dying());
         assert!(data.baby);
@@ -249,23 +249,23 @@ mod tests {
 
     #[test]
     fn the_plain_text_of_the_custom_name_turns_an_entity_upside_down() {
-        let traits = KindTraits::of(EntityType::Pig);
+        let type_data = EntityTypeData::of(EntityType::Pig);
         let mut data = SyncedData::default();
         let name = |text: Text| entry(2, MetaDataValue::OptionalText(Some(text)));
-        data.apply(&traits, &[name(Text::text("Dinner") + "bone")]);
+        data.apply(type_data, &[name(Text::text("Dinner") + "bone")]);
         assert!(data.upside_down, "the siblings count in the plain text");
-        data.apply(&traits, &[name(Text::text("dinnerbone"))]);
+        data.apply(type_data, &[name(Text::text("dinnerbone"))]);
         assert!(!data.upside_down, "the comparison is case sensitive");
-        data.apply(&traits, &[name(Text::text("Grumm"))]);
-        data.apply(&traits, &[entry(2, MetaDataValue::OptionalText(None))]);
+        data.apply(type_data, &[name(Text::text("Grumm"))]);
+        data.apply(type_data, &[entry(2, MetaDataValue::OptionalText(None))]);
         assert!(!data.upside_down, "a removed name is not upside down");
     }
 
     #[test]
     fn an_index_of_another_type_is_ignored() {
-        let traits = KindTraits::of(EntityType::Player);
+        let type_data = EntityTypeData::of(EntityType::Player);
         let mut data = SyncedData::default();
-        data.apply(&traits, &[entry(16, MetaDataValue::Boolean(true))]);
+        data.apply(type_data, &[entry(16, MetaDataValue::Boolean(true))]);
         assert!(!data.baby, "a player has no baby flag at index 16");
     }
 }

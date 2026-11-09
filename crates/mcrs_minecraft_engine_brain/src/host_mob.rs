@@ -12,8 +12,8 @@ use mcrs_minecraft_brain::Panic;
 use mcrs_minecraft_brain::Point;
 use mcrs_minecraft_engine_physics::MobHit;
 use mcrs_minecraft_engine_physics::MobIntent;
+use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_goals::STROLL_IDLE_LIMIT;
-use mcrs_minecraft_mob::MobType;
 use mcrs_minecraft_mob_control::BodyData;
 use mcrs_minecraft_mob_control::ControlFlags;
 use mcrs_minecraft_mob_control::ControlInput;
@@ -32,8 +32,6 @@ use crate::HotTick;
 
 /// A player nearer than this resets the idle time of a mob (AIT-VAN-020).
 const NEAR_PLAYER: f64 = 32.0;
-/// The largest difference of the head yaw from the body yaw of an animal.
-const HEAD_YAW_LIMIT: f32 = 75.0;
 
 /// One mob of the stage on the side of the hot tick: its controls and the state that its view
 /// holds besides its row.
@@ -41,7 +39,8 @@ const HEAD_YAW_LIMIT: f32 = 75.0;
 pub(crate) struct HostMob {
     pub(crate) id: EntityId,
     pub(crate) key: OrderKey,
-    kind: MobType,
+    kind: &'static EntityTypeData,
+    head_yaw_limit: f32,
     control: MobControl,
     /// The input of the last step before the travel: the body rotation of that step runs at the
     /// start of the next tick, since the pass has no step after the travel.
@@ -82,12 +81,23 @@ pub(crate) struct Observed {
 }
 
 impl HostMob {
-    pub(crate) fn new(id: EntityId, key: OrderKey, kind: MobType, tick: u64) -> Self {
-        Self {
+    /// The host of a mob of `kind`, or `None` when `kind` is not a mob type.
+    pub(crate) fn new(
+        id: EntityId,
+        key: OrderKey,
+        kind: &'static EntityTypeData,
+        tick: u64,
+    ) -> Option<Self> {
+        let mob = kind.mob()?;
+        Some(Self {
             id,
             key,
             kind,
-            control: MobControl::new(LookDefaults::ANIMAL),
+            head_yaw_limit: mob.head_yaw_limit,
+            control: MobControl::new(LookDefaults {
+                turn_speed: mob.head_turn_speed,
+                pitch_limit: mob.pitch_limit,
+            }),
             travelled: None,
             turned: None,
             position: Point::default(),
@@ -99,7 +109,7 @@ impl HostMob {
             panic: Panic::Calm,
             seen: tick,
             row: None,
-        }
+        })
     }
 
     pub(crate) const fn mob(&self) -> MobId {
@@ -189,7 +199,7 @@ impl HostMob {
                 mob: self.mob(),
                 key: self.key,
                 position: self.position,
-                eye_height: self.kind.eye_height(),
+                eye_height: self.kind.eye_height,
                 flags,
                 idle_time: self.idle_time,
                 damage: self.damage,
@@ -219,16 +229,15 @@ impl HostMob {
     ) -> Option<(MobIntent, Option<PathEnd>)> {
         let row = self.row.take()?;
         let feet = self.position.block();
-        let [width, _] = self.kind.size();
         let input = ControlInput {
             tick,
             position: self.position,
             rotations: self.rotations,
             body: BodyData {
-                width,
-                eye_height: self.kind.eye_height(),
+                width: self.kind.width,
+                eye_height: self.kind.eye_height,
                 step_height: row.step_height,
-                head_yaw_limit: HEAD_YAW_LIMIT,
+                head_yaw_limit: self.head_yaw_limit,
             },
             flags: if row.on_ground {
                 ControlFlags::ON_GROUND

@@ -9,9 +9,10 @@ use mcrs_engine_muxer::EntityId;
 use mcrs_engine_muxer::TileKey;
 use mcrs_minecraft_engine::coordinator::birth_clock::BirthClock;
 use mcrs_minecraft_engine::entity_ids::CellEntityIds;
+use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::pig_sound_variant_keys;
 use mcrs_minecraft_entity::registry_keys::PIG_SOUND_VARIANT;
-use mcrs_minecraft_mob::MobType;
 use mcrs_minecraft_physics::Birth;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::Category;
@@ -78,21 +79,27 @@ pub struct Placed {
 
 /// The motion row of a mob of `kind`: a walker with the adult box of the type.
 #[must_use]
-pub fn mob_row(kind: MobType) -> MotionRow {
-    let [width, height] = kind.size();
+pub fn mob_row(kind: &EntityTypeData) -> MotionRow {
     MotionRow::living(
         Category::Walker,
-        Dimensions::scalable(width, height).with_eye_height(kind.eye_height()),
+        Dimensions::scalable(kind.width, kind.height).with_eye_height(kind.eye_height),
     )
 }
 
 /// The state of a new mob of `kind` at `position`, with no velocity and no rotation
 /// (TRK-LIFE-003) and the base attributes of the type.
 #[must_use]
-pub fn mob_body(kind: MobType, row: &MotionRow, key: Birth, position: DVec3) -> EntityState {
+pub fn mob_body(
+    kind: &EntityTypeData,
+    row: &MotionRow,
+    key: Birth,
+    position: DVec3,
+) -> EntityState {
     let mut living = Living::of(row);
-    living.attributes.movement_speed = kind.movement_speed();
-    living.health = kind.max_health();
+    if let Some(base) = kind.base_attributes {
+        living.attributes.movement_speed = base.movement_speed;
+        living.health = base.max_health;
+    }
     let body = Body {
         position,
         ..Body::default()
@@ -178,12 +185,16 @@ pub(crate) fn spawn_mobs(
 /// The values of the first spawn setup of an animal that its viewers see (ANIM-SPAWN-001): a
 /// sound variant of equal chances and a left hand with the chance 0.05, from the keyed stream of
 /// the new mob. The variant keeps its default.
-fn first_looks(kind: MobType, stream: &KeyedStream, registries: Option<&Registries>) -> MobLooks {
-    if !kind.is_animal() {
+fn first_looks(
+    kind: &EntityTypeData,
+    stream: &KeyedStream,
+    registries: Option<&Registries>,
+) -> MobLooks {
+    if !kind.is_ageable() {
         return MobLooks::default();
     }
-    let variant = match kind {
-        MobType::Pig => MobVariant::Pig {
+    let variant = match kind.entity_type {
+        EntityType::Pig => MobVariant::Pig {
             variant: None,
             sound: pick(
                 registries,

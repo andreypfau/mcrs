@@ -1,7 +1,8 @@
 use mcrs_engine_muxer::EntityId;
 use mcrs_engine_muxer::TileKey;
 use mcrs_minecraft_engine_physics::Mobs;
-use mcrs_minecraft_mob::MobType;
+use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_physics::BirthKey;
 use mcrs_minecraft_physics::TileRows;
 
@@ -23,7 +24,7 @@ pub(crate) struct Arrival {
     pub(crate) tile: TileKey,
     pub(crate) key: BirthKey,
     pub(crate) phase: u8,
-    pub(crate) kind: MobType,
+    pub(crate) kind: &'static EntityTypeData,
 }
 
 #[derive(Default)]
@@ -57,7 +58,7 @@ impl LifeTask<'_> {
             let Some(mob) = mobs.0.get(id) else {
                 continue;
             };
-            if mob.kind == MobType::Pig && !mob.looks.no_ai {
+            if mob.kind.entity_type == EntityType::Pig && !mob.looks.no_ai {
                 out.arrivals.push(Arrival {
                     id: *id,
                     tile: self.tile,

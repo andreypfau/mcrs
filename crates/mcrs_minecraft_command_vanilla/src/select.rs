@@ -243,14 +243,11 @@ impl Candidate for EntityCandidate<'_> {
     fn bounding_box(&self) -> EntityBounds {
         let (position, width, height) = match self {
             Self::Player(player) => (player.transform.translation, PLAYER_WIDTH, PLAYER_HEIGHT),
-            Self::Mob { view, .. } => {
-                let [width, height] = view.mob.kind.size();
-                (
-                    view.state.body.position,
-                    f64::from(width),
-                    f64::from(height),
-                )
-            }
+            Self::Mob { view, .. } => (
+                view.state.body.position,
+                f64::from(view.mob.kind.width),
+                f64::from(view.mob.kind.height),
+            ),
         };
         let half = DVec3::new(width / 2.0, 0.0, width / 2.0);
         EntityBounds {

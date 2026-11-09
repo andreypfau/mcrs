@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use bevy::prelude::*;
 use bevy::render::renderer::RenderDevice;
-use mcrs_minecraft_client_entity::KindTraits;
+use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::variant::PigModel;
 use mcrs_minecraft_entity_render::{
@@ -260,10 +260,11 @@ fn add_kinds(pack: &EntityPack, assets: &mut EntityAssets) {
             continue;
         };
         assets.kinds.insert(kind, index);
-        let traits = KindTraits::of(kind);
-        let half = traits.width / 2.0 + 0.5;
+        let (width, height) = EntityTypeData::of(kind)
+            .map_or((0.0, 0.0), |type_data| (type_data.width, type_data.height));
+        let half = width / 2.0 + 0.5;
         let corner = |x: f32, y: f32, z: f32| (x * x + y * y + z * z).sqrt();
-        let box_radius = corner(half, (traits.height + 0.5).max(0.5), half);
+        let box_radius = corner(half, (height + 0.5).max(0.5), half);
         let bounds = entity
             .geometries
             .iter()

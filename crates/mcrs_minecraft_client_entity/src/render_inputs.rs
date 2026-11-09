@@ -132,7 +132,7 @@ impl RenderInputs<'_> {
     /// The values at `partial_tick`, in `[0, 1]`.
     #[must_use]
     pub fn frame(&self, partial_tick: f32) -> FrameValues {
-        let traits = self.entity.traits();
+        let type_data = self.entity.type_data();
         let motion = self.motion;
         let data = self.data;
         let position = motion.frame_position(partial_tick);
@@ -171,8 +171,11 @@ impl RenderInputs<'_> {
                 (yaw, yaw, WalkFrame::default(), 0.0, 0)
             }
         };
-        let size = if data.baby { traits.baby_scale } else { 1.0 };
-        let eye_height = f64::from(traits.eye_height * size) * data.scale;
+        let (baby_scale, eye_height) = type_data.map_or((1.0, 0.0), |type_data| {
+            (type_data.baby_scale, type_data.eye_height)
+        });
+        let size = if data.baby { baby_scale } else { 1.0 };
+        let eye_height = f64::from(eye_height * size) * data.scale;
         let movement = motion.movement();
         let upside_down_sign = if data.upside_down { -1.0 } else { 1.0 };
         FrameValues {
@@ -200,7 +203,7 @@ impl RenderInputs<'_> {
             model_scale: data.scale,
             saddled: self.equipment.is_some_and(Equipment::is_saddled),
             pose: data.pose,
-            on_fire: data.is_on_fire(&traits),
+            on_fire: data.is_on_fire(type_data),
             sneaking: data.is_sneaking(),
             sprinting: data.is_sprinting(),
             swimming: data.is_swimming(),

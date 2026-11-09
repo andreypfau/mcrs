@@ -17,6 +17,11 @@ use mcrs_minecraft_mob_control::PathEnd;
 use mcrs_minecraft_mob_control::Rotations;
 use mcrs_minecraft_mob_control::wrap;
 
+const PIG_LOOK: LookDefaults = LookDefaults {
+    turn_speed: 10.0,
+    pitch_limit: 40.0,
+};
+
 const PIG: BodyData = BodyData {
     width: 0.9,
     eye_height: 0.765,
@@ -33,7 +38,7 @@ struct Walker {
 impl Walker {
     fn new(position: Point) -> Self {
         Self {
-            control: MobControl::new(LookDefaults::ANIMAL),
+            control: MobControl::new(PIG_LOOK),
             input: ControlInput {
                 tick: 0,
                 position,

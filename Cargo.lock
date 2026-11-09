@@ -3861,6 +3861,7 @@ dependencies = [
  "mcrs_minecraft_resource",
  "serde",
  "serde_json",
+ "tracing",
  "uuid",
 ]
 
@@ -4171,7 +4172,6 @@ dependencies = [
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_heightmap",
  "mcrs_minecraft_keys",
- "mcrs_minecraft_mob",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_physics",
@@ -4376,10 +4376,10 @@ dependencies = [
  "mcrs_minecraft_engine",
  "mcrs_minecraft_engine_physics",
  "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_entity",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_goals",
  "mcrs_minecraft_item",
- "mcrs_minecraft_mob",
  "mcrs_minecraft_mob_control",
  "mcrs_minecraft_physics",
  "mcrs_minecraft_registries",
@@ -4411,7 +4411,6 @@ dependencies = [
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_game_rule",
  "mcrs_minecraft_item",
- "mcrs_minecraft_mob",
  "mcrs_minecraft_physics",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_replication",
@@ -4522,6 +4521,7 @@ version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_biome",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_fixtures",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
@@ -4529,6 +4529,7 @@ dependencies = [
  "mcrs_minecraft_value_provider",
  "mcrs_minecraft_wire",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -4699,6 +4700,7 @@ dependencies = [
  "criterion",
  "libm",
  "mcrs_minecraft_brain",
+ "mcrs_minecraft_entity",
  "mcrs_minecraft_goals",
  "rayon",
 ]
@@ -4847,13 +4849,6 @@ dependencies = [
  "mcrs_voxel",
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "mcrs_minecraft_mob"
-version = "0.5.8"
-dependencies = [
- "mcrs_minecraft_entity",
 ]
 
 [[package]]
@@ -5189,7 +5184,6 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_game_mode",
- "mcrs_minecraft_mob",
  "mcrs_minecraft_profile",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",

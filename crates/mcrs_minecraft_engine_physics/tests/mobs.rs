@@ -11,7 +11,7 @@ use mcrs_minecraft_engine_physics::TestScene;
 use mcrs_minecraft_engine_physics::mob_body;
 use mcrs_minecraft_engine_physics::mob_row;
 use mcrs_minecraft_engine_physics::tile_at;
-use mcrs_minecraft_mob::MobType;
+use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_physics::Birth;
 use mcrs_minecraft_physics::BirthKey;
 use mcrs_minecraft_physics::MoveInput;
@@ -19,11 +19,11 @@ use mcrs_minecraft_physics::SourceKind;
 use mcrs_minecraft_physics::Steering;
 
 fn pig(scene: &mut TestScene, id: u64, position: DVec3) {
-    let row = mob_row(MobType::Pig);
+    let row = mob_row(&EntityTypeData::PIG);
     let key = Birth::from(BirthKey::new(0, SourceKind::Command, 0, id as u32));
     scene.rows.spawn(
         EntityId(id),
-        mob_body(MobType::Pig, &row, key, position),
+        mob_body(&EntityTypeData::PIG, &row, key, position),
         row,
     );
 }

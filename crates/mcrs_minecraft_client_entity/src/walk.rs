@@ -1,3 +1,7 @@
+use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_protocol_game::entity::Pose;
+
 /// The part of the gap to the target speed that the walk speed closes in each tick.
 pub const WALK_SMOOTHING: f32 = 0.4;
 /// The walk speed that a damage event sets.
@@ -67,6 +71,15 @@ impl Walk {
 /// The target walk speed for a tick with the horizontal distance `distance` and the walk target
 /// factor `factor` of the type.
 #[must_use]
+/// The walk target factor of an entity of `data` in `pose`. A frog in a long jump does not walk.
+pub(crate) fn target_factor(data: &EntityTypeData, pose: Pose) -> f32 {
+    if data.entity_type == EntityType::Frog && pose == Pose::LongJumping {
+        0.0
+    } else {
+        data.walk_target_factor
+    }
+}
+
 pub fn target_speed(distance: f32, factor: f32) -> f32 {
     (factor * distance).min(1.0)
 }

@@ -13,9 +13,9 @@ use mcrs_minecraft_command_engine::{
 use mcrs_minecraft_engine::coordinator::birth_clock::BirthClock;
 use mcrs_minecraft_engine::teleport::{MAX_XZ, MAX_Y};
 use mcrs_minecraft_engine_physics::{MobExtras, MobSpawnRequest, SpawnSetup};
+use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::registry_keys::ENTITY_TYPE;
-use mcrs_minecraft_mob::MobType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_physics::{BirthKey, BirthSource, birth_uuid};
@@ -103,7 +103,7 @@ pub(crate) fn run(
         ));
     }
     let failed = || CommandFailure::translate("commands.summon.failed", vec![]);
-    let Some(kind) = MobType::of(entity_type) else {
+    let Some(kind) = EntityTypeData::server_mob(entity_type) else {
         return Err(failed());
     };
     let (setup, Summoned { extras, uuid }) = match context.opt(&call.invocation, command.nbt)? {

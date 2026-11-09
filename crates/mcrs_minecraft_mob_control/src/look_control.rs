@@ -11,14 +11,6 @@ pub struct LookDefaults {
     pub pitch_limit: f32,
 }
 
-impl LookDefaults {
-    /// The defaults of the animals (GOAL-ANI-006).
-    pub const ANIMAL: Self = Self {
-        turn_speed: 10.0,
-        pitch_limit: 40.0,
-    };
-}
-
 /// The look control (GOAL-CTL-004) with the look target, and the goal tick of the look around,
 /// which sets a look target at the eye height in its direction in each tick (GOAL-LKR-002).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]

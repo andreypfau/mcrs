@@ -13,6 +13,7 @@ workspace = true
 [dependencies]
 libm.workspace = true
 mcrs_minecraft_brain.workspace = true
+mcrs_minecraft_entity = { workspace = true, optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.7", default-features = false }
@@ -21,7 +22,7 @@ rayon.workspace = true
 
 [features]
 # A flat pen of pigs with a host that applies the decisions, for tests and benches of the stage.
-testing = []
+testing = ["dep:mcrs_minecraft_entity"]
 
 [[bench]]
 name = "pig_stage"

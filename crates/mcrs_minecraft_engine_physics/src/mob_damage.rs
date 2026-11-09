@@ -147,7 +147,7 @@ mod tests {
     fn hit_002_a_hit_that_the_cooldown_rejects_still_strikes_the_mob() {
         use glam::DVec3;
         use mcrs_engine_muxer::EntityId;
-        use mcrs_minecraft_mob::MobType;
+        use mcrs_minecraft_entity::EntityTypeData;
         use mcrs_minecraft_physics::Birth;
         use mcrs_minecraft_physics::BirthKey;
         use mcrs_minecraft_physics::SourceKind;
@@ -159,15 +159,15 @@ mod tests {
 
         let id = EntityId(1);
         let position = DVec3::new(0.5, 0.0, 0.5);
-        let row = mob_row(MobType::Pig);
+        let row = mob_row(&EntityTypeData::PIG);
         let key = Birth::from(BirthKey::new(0, SourceKind::Command, 0, 0));
         let mut rows = EntityRows::default();
-        rows.spawn(id, mob_body(MobType::Pig, &row, key, position), row);
+        rows.spawn(id, mob_body(&EntityTypeData::PIG, &row, key, position), row);
         let mut mobs = Mobs::default();
         mobs.0.insert(
             id,
             Mob {
-                kind: MobType::Pig,
+                kind: &EntityTypeData::PIG,
                 uuid: 1,
                 looks: Default::default(),
                 tile: tile_at(position),

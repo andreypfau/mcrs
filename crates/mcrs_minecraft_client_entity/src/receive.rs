@@ -68,7 +68,6 @@ fn on_add_entity(
         uuid: packet.uuid,
         kind: packet.kind,
     };
-    let traits = client.traits();
     let position = DVec3::new(
         packet.pos.x.clamp(-WORLD_LIMIT, WORLD_LIMIT),
         packet.pos.y,
@@ -85,8 +84,15 @@ fn on_add_entity(
         Age::default(),
         SyncedData::default(),
     ));
-    if traits.is_living() {
-        spawned.insert((Living::new(degrees(packet.head_yaw)), Equipment::default()));
+    match client.type_data() {
+        Some(data) if data.is_living() => {
+            spawned.insert((Living::new(degrees(packet.head_yaw)), Equipment::default()));
+        }
+        Some(_) => {}
+        None => tracing::debug!(
+            kind = client.kind.as_static_str(),
+            "the entity type has no type data; the entity does not tick as a living entity"
+        ),
     }
     let spawned = spawned.id();
     if let Some(replaced) = entities.insert(client.network_id, spawned) {
@@ -150,7 +156,7 @@ fn relative_move(
     if let Some(end) = path.as_ref().and_then(PacketPath::end) {
         motion.delta_base = end;
     }
-    motion.start(path, rotation, client.traits().update_interval);
+    motion.start(path, rotation, client.update_interval());
     motion.on_ground = on_ground;
 }
 
@@ -242,7 +248,7 @@ fn on_position_sync(
     if !ticking_area || motion.current.position.distance(end) > SNAP_DISTANCE {
         motion.snap(Placement::new(end, rotation.yaw, rotation.pitch));
     } else {
-        motion.start(Some(path), Some(rotation), client.traits().update_interval);
+        motion.start(Some(path), Some(rotation), client.update_interval());
     }
     motion.on_ground = packet.on_ground;
 }
@@ -292,7 +298,7 @@ fn on_teleport_entity(
         motion.start(
             Some(PacketPath::Linear(position)),
             Some(rotation),
-            client.traits().update_interval,
+            client.update_interval(),
         );
     }
     motion.on_ground = packet.on_ground;
@@ -320,7 +326,7 @@ fn on_set_entity_data(
         && let Some(entity) = entities.get(packet.entity_id.0)
         && let Ok((client, mut data)) = query.get_mut(entity)
     {
-        data.apply(&client.traits(), &packet.metadata.0);
+        data.apply(client.type_data(), &packet.metadata.0);
     }
 }
 

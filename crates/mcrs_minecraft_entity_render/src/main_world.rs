@@ -231,12 +231,10 @@ pub(crate) fn write_ticks(
         }
         state.scale = f16_up(scale);
         if moved {
-            let eye = client.traits().eye_height
-                * if data.baby {
-                    client.traits().baby_scale
-                } else {
-                    1.0
-                };
+            let type_data = client.type_data();
+            let eye = type_data.map_or(0.0, |type_data| {
+                type_data.eye_height * if data.baby { type_data.baby_scale } else { 1.0 }
+            });
             let eye = (position + glam::DVec3::Y * f64::from(eye) * data.scale)
                 .floor()
                 .as_ivec3();
@@ -246,7 +244,7 @@ pub(crate) fn write_ticks(
                 .unwrap_or(0x0f);
             state.sky_light = light & 0x0f;
             state.block_light = light >> 4;
-            if data.is_on_fire(&client.traits()) {
+            if data.is_on_fire(client.type_data()) {
                 state.block_light = 15;
             }
         }

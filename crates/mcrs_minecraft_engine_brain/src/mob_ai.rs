@@ -232,7 +232,9 @@ impl MobAi {
                 }
                 None => {
                     let key = order_key(&arrival.key);
-                    let host = HostMob::new(arrival.id, key, arrival.kind, tick);
+                    let Some(host) = HostMob::new(arrival.id, key, arrival.kind, tick) else {
+                        continue;
+                    };
                     self.stage.spawn(
                         tile_id(arrival.tile),
                         host.mob(),

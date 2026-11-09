@@ -21,6 +21,7 @@ mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_resource.workspace = true
+tracing.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]

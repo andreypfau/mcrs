@@ -15,7 +15,6 @@ mcrs_engine_muxer.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_game_mode.workspace = true
-mcrs_minecraft_mob.workspace = true
 mcrs_minecraft_profile.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_protocol_game.workspace = true

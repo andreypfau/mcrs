@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use bytemuck::{Pod, Zeroable};
 use glam::Vec3;
-use mcrs_minecraft_client_entity::KindTraits;
+use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_animation::Rig;
 use mcrs_minecraft_entity_model::{
@@ -374,7 +374,7 @@ impl EntityLibrary {
 /// The box height and the baby scale of the entity type `identifier`. A type with no box takes
 /// the height of the rest pose of its models.
 fn box_size(identifier: &str, rest_points: &[Vec3]) -> (f32, f32) {
-    let traits = EntityType::read(identifier).map(KindTraits::of);
+    let traits = EntityType::read(identifier).and_then(EntityTypeData::of);
     let (low, high) = rest_points
         .iter()
         .fold((f32::INFINITY, f32::NEG_INFINITY), |(low, high), point| {

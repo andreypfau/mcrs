@@ -1,12 +1,12 @@
 use bevy_ecs::prelude::*;
 use glam::{DVec2, DVec3};
 use mcrs_minecraft_client_world::columns::ColumnStore;
+use mcrs_minecraft_entity::Life;
 use mcrs_minecraft_protocol_game::ColumnPos;
 
 use crate::angle;
 use crate::body_turn;
 use crate::client_entity::ClientEntity;
-use crate::kind::Life;
 use crate::living::Living;
 use crate::motion::{Age, Motion};
 use crate::server_ticking::ServerTicking;
@@ -47,7 +47,9 @@ pub fn tick_entity(
 }
 
 fn tick_living(entity: &ClientEntity, motion: &Motion, living: &mut Living, data: &SyncedData) {
-    let traits = entity.traits();
+    let Some(type_data) = entity.type_data() else {
+        return;
+    };
     living.hurt_time = living.hurt_time.saturating_sub(1);
     if data.is_dying() {
         living.death_time = living.death_time.saturating_add(1);
@@ -61,20 +63,20 @@ fn tick_living(entity: &ClientEntity, motion: &Motion, living: &mut Living, data
     if data.is_dying() {
         living.walk.stop();
     } else {
-        let factor = traits.walk_target_factor_in(entity.kind, data.pose);
+        let factor = walk::target_factor(type_data, data.pose);
         let target = walk::target_speed(horizontal.length() as f32, factor);
         let scale = if data.baby { BABY_WALK_SCALE } else { 1.0 };
         living.walk.advance(target, scale);
     }
 
-    match traits.life {
+    match type_data.life {
         Life::Mob(mob) => {
             let turn = living.body_turn.follow(
                 motion.current.yaw,
                 living.head_yaw,
                 living.body_yaw,
                 horizontal,
-                mob.head_limit,
+                mob.head_yaw_limit,
             );
             living.body_yaw = turn.body_yaw;
             living.head_yaw = turn.head_yaw;
@@ -83,7 +85,7 @@ fn tick_living(entity: &ClientEntity, motion: &Motion, living: &mut Living, data
             living.body_yaw =
                 body_turn::follow_movement(motion.current.yaw, living.body_yaw, horizontal);
         }
-        Life::Inanimate => {}
+        _ => {}
     }
 
     living.previous_head_yaw = angle::unwrap_towards(living.previous_head_yaw, living.head_yaw);

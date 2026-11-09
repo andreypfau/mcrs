@@ -40,7 +40,6 @@ mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_engine_physics.workspace = true
 mcrs_minecraft_entity.workspace = true
-mcrs_minecraft_mob.workspace = true
 mcrs_minecraft_physics.workspace = true
 mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_heightmap = { workspace = true, features = ["bevy"] }

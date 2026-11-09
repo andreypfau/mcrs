@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use bytes::{Bytes, BytesMut};
 use mcrs_engine_muxer::{EntityId, ViewerId};
-use mcrs_minecraft_mob::MobType;
+use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBundleDelimiter;
 use mcrs_minecraft_protocol::{Result, VarInt};
 use mcrs_minecraft_protocol_game::clientbound::{ClientboundDamageEvent, ClientboundEntityEvent};
@@ -50,7 +50,7 @@ pub(crate) struct MobTrackers {
 
 #[derive(Debug)]
 struct Mob {
-    kind: MobType,
+    kind: &'static EntityTypeData,
     uuid: Uuid,
     looks: MobLooks,
     tracker: MobTracker,
@@ -70,7 +70,7 @@ impl MobTrackers {
                 kind: spawn.kind,
                 uuid: spawn.uuid,
                 looks: spawn.looks,
-                tracker: MobTracker::new(spawn.state, spawn.kind.update_interval(), tick),
+                tracker: MobTracker::new(spawn.state, spawn.kind.update_interval, tick),
                 holders: Vec::new(),
             },
         );
@@ -157,7 +157,7 @@ impl MobTrackers {
     /// it (TRK-DEV-004).
     pub(crate) fn tracking_range(&self, subject: EntityId) -> Option<u32> {
         let mob = self.mobs.get(&subject)?;
-        Some(mob.kind.tracking_range().saturating_mul(BLOCKS_PER_COLUMN))
+        Some(mob.kind.tracking_range.saturating_mul(BLOCKS_PER_COLUMN))
     }
 
     pub(crate) fn position(&self, subject: EntityId) -> Option<[f64; 3]> {
@@ -188,7 +188,7 @@ impl MobTrackers {
             mob.tracker.restart();
         }
         let id = wire_id(subject);
-        let add = record(&mob.tracker.add_entity(id, mob.uuid, mob.kind.entity_type()))?;
+        let add = record(&mob.tracker.add_entity(id, mob.uuid, mob.kind.entity_type))?;
         let (health, dying) = mob.tracker.sent_data();
         let extras = spawn_extras(id, mob.kind, &mob.looks, health, dying)?;
         chunks.extend([delimiter.clone(), add, extras, delimiter]);
@@ -347,7 +347,7 @@ mod tests {
     fn a_viewer_that_is_behind_misses_the_moves_and_then_gets_the_state_the_others_hold() {
         let mut mobs = MobTrackers::default();
         let spawn = MobSpawn {
-            kind: MobType::Pig,
+            kind: &EntityTypeData::PIG,
             uuid: Uuid::nil(),
             state: at(0.5),
             looks: MobLooks::default(),

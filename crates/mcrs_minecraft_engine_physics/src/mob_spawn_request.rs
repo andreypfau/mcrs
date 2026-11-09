@@ -1,13 +1,13 @@
 use bevy_ecs::message::Message;
 use glam::DVec3;
-use mcrs_minecraft_mob::MobType;
+use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_physics::BirthKey;
 
 /// A request of a system to add a mob to the world (TRK-LIFE-002). The life cycle applies the
 /// requests of a tick in the order of their birth keys.
 #[derive(Message, Clone, Debug, PartialEq)]
 pub struct MobSpawnRequest {
-    pub kind: MobType,
+    pub kind: &'static EntityTypeData,
     pub position: DVec3,
     pub key: BirthKey,
     pub uuid: u128,

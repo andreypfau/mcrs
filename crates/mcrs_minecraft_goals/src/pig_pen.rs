@@ -35,6 +35,7 @@ use mcrs_minecraft_brain::Ticket;
 use mcrs_minecraft_brain::TileId;
 use mcrs_minecraft_brain::TileWork;
 use mcrs_minecraft_brain::WorldSeed;
+use mcrs_minecraft_entity::EntityTypeData;
 
 use crate::FlatGround;
 use crate::PigBrain;
@@ -119,7 +120,6 @@ const HURT: Part = Part(0xF000);
 const PLACE: Part = Part(0xF001);
 const PIG_SPEED: f64 = 0.25;
 const GRASS_WALK: f64 = 2.2026;
-const PIG_EYE: f32 = 0.765;
 const NEAR_PLAYER: f64 = 32.0;
 const FAR_IDLE: u32 = 1000;
 
@@ -506,7 +506,7 @@ fn view(index: usize, pig: &HostPig) -> MobView {
         mob: mob(index),
         key: pig.key,
         position: pig.position,
-        eye_height: PIG_EYE,
+        eye_height: EntityTypeData::PIG.eye_height,
         flags,
         idle_time: pig.idle_time,
         damage: pig.damage,
