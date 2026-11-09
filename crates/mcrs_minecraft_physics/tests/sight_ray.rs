@@ -150,3 +150,18 @@ fn the_sight_ray_answers_as_before_through_a_block_wall() {
     let blocks = TestBlocks::new();
     assert_answers(&block_wall(&blocks), &blocks, &WALL_CLEAR);
 }
+
+#[test]
+fn the_sight_ray_passes_through_powder_snow() {
+    let blocks = TestBlocks::new();
+    let mut world = TestWorld::new();
+    fill(&mut world, [2, 0, -1], [2, 2, 1], blocks.powder_snow);
+    let from = DVec3::new(0.5, 1.5, 0.5);
+    let to = DVec3::new(4.5, 1.5, 0.5);
+    assert!(sight_clear(&world, &blocks.table, from, to));
+    world.set(BlockPos::new(3, 1, 0), blocks.stone);
+    assert!(
+        !sight_clear(&world, &blocks.table, from, to),
+        "the stone behind the powder snow stops the same ray"
+    );
+}

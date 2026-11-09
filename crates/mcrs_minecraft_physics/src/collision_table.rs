@@ -37,9 +37,12 @@ pub struct StateCollision {
     pub inside: InsideEffect,
     pub inside_shape: InsideShape,
     pub motion: BlockMotion,
-    /// The state path type of PATH-TYP-002.
+    /// How a mob path treats the block from the state alone, before the blocks below and around
+    /// it count: open, blocked, a fence, a door, water and so on (PATH-TYP-002).
     pub path: PathType,
 }
+
+const _: () = assert!(size_of::<StateCollision>() == 44);
 
 impl StateCollision {
     pub const AIR: StateCollision = StateCollision {
