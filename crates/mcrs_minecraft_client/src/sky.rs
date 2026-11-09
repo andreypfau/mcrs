@@ -69,6 +69,12 @@ pub enum Clouds {
     On,
 }
 
+impl From<bool> for Clouds {
+    fn from(on: bool) -> Self {
+        if on { Self::On } else { Self::Off }
+    }
+}
+
 impl Plugin for SkyPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<SkyFrame>()

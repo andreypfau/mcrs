@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::time::{Duration, Instant};
 
-use crate::options::Knob;
+use mcrs_minecraft_client::options::ClientOptions;
 
 const FRAME_TIMEOUT: Duration = Duration::from_secs(180);
 
@@ -23,10 +23,16 @@ impl McrsClient {
         port: u16,
         dir: &Path,
         size: [u32; 2],
-        knobs: &[Knob],
+        options: &ClientOptions,
         record: Option<&Path>,
     ) -> Self {
         let log = File::create(dir.join("client.log")).expect("the client log can be created");
+        let options_file = dir.join("options.json");
+        std::fs::write(
+            &options_file,
+            serde_json::to_string(options).expect("the client options serialize"),
+        )
+        .expect("the client options can be written");
         let mut command = Command::new(client_binary());
         for (name, _) in std::env::vars_os() {
             if name.to_string_lossy().starts_with("MCRS_") {
@@ -37,15 +43,13 @@ impl McrsClient {
             .current_dir(workspace_root())
             .env("MCRS_SERVER", format!("127.0.0.1:{port}"))
             .env("MCRS_USERNAME", "Capture")
+            .env("MCRS_OPTIONS", &options_file)
             .env("MCRS_SCENE_DIR", dir)
             .env("MCRS_RESOLUTION", format!("{}x{}", size[0], size[1]))
             .stdout(log.try_clone().expect("the client log can be shared"))
             .stderr(log);
         if let Some(record) = record {
             command.env("MCRS_SCENE_RECORD", record);
-        }
-        for knob in knobs {
-            command.env(format!("MCRS_{}", knob.name), &knob.value);
         }
         let process = command.spawn().expect("the mcrs client starts");
         Self {

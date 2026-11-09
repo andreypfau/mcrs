@@ -68,8 +68,8 @@ pub fn capture(scene: &str, paths: &Paths, entities: Entities) -> Entities {
         .iter()
         .any(|step| matches!(step, Action::Pose { .. }));
     let entities = if has_pose { Entities::Record } else { entities };
-    let knobs =
-        options::knobs(&scene.options).unwrap_or_else(|error| panic!("{}: {error}", scene.name));
+    let options = options::client_options(&scene.options)
+        .unwrap_or_else(|error| panic!("{}: {error}", scene.name));
     let out = paths.frames.join(&scene.name);
     if out.exists() {
         std::fs::remove_dir_all(&out).expect("the frames of the last run can be removed");
@@ -88,7 +88,7 @@ pub fn capture(scene: &str, paths: &Paths, entities: Entities) -> Entities {
         server.port,
         &out,
         scene.resolution,
-        &knobs,
+        &options,
         record.as_deref(),
     );
     let deadline = Instant::now() + JOIN_TIMEOUT;

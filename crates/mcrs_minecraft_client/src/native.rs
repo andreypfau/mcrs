@@ -31,6 +31,7 @@ use mcrs_minecraft_save::{self as save, SaveError};
 
 use mcrs_minecraft_assets::packs::PackRoots;
 use mcrs_minecraft_client::config::{Knobs, TerrainLimits};
+#[cfg(feature = "scene")]
 use mcrs_minecraft_client::scene_capture::SceneCapturePlugin;
 use mcrs_minecraft_client::screenshot;
 use mcrs_minecraft_client::{ClientPlugins, ClientTerrainPlugin, config, sky, vanilla};
@@ -87,7 +88,18 @@ fn frame_mark() {
 }
 
 /// The size of the vanilla client's window when it opens.
+#[cfg(feature = "scene")]
 const SCENE_SIZE: UVec2 = UVec2::new(854, 480);
+
+#[cfg(feature = "scene")]
+fn scene_dir(knobs: &Knobs) -> Option<PathBuf> {
+    knobs.scene_dir()
+}
+
+#[cfg(not(feature = "scene"))]
+fn scene_dir(_: &Knobs) -> Option<PathBuf> {
+    None
+}
 
 #[expect(
     clippy::too_many_lines,
@@ -101,7 +113,7 @@ pub fn run() -> AppExit {
     let save_data = world.as_deref().map(load_save).unwrap_or_default();
     let frozen_at = knobs.frozen_time();
     let resolution = knobs.resolution();
-    let scene = knobs.scene_dir();
+    let scene = scene_dir(&knobs);
     let view_distance = knobs.view_distance();
     let assets = AssetPlugin::default().file_path;
     // The client cannot run without the jar, so the first start fetches it before the window
@@ -254,6 +266,7 @@ pub fn run() -> AppExit {
         ),
     );
 
+    #[cfg(feature = "scene")]
     if let Some(dir) = scene {
         app.add_plugins(SceneCapturePlugin {
             dir,
@@ -298,7 +311,6 @@ pub fn run() -> AppExit {
     app.init_resource::<mcrs_minecraft_client_world::screen::Screen>();
     app.add_plugins(mcrs_minecraft_client_world::game_mode::GameModePlugin);
     app.add_plugins(mcrs_minecraft_client_entity::ClientEntityPlugin);
-    app.add_plugins(mcrs_minecraft_client::frozen_clocks::FrozenClocksPlugin);
     app.add_plugins(game_mode_switcher::GameModeSwitcherPlugin);
     app.add_plugins(mcrs_minecraft_client_world::chat::ClientChatPlugin {
         command_history: knobs.command_history().or_else(|| {

@@ -1,18 +1,16 @@
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use std::net::{Ipv4Addr, SocketAddr};
 
-use crate::camera::FovOptions;
 use crate::cave::CaveCull;
-use crate::sky::Clouds;
-use crate::stream::LightOptions;
+use crate::options::{ClientOptions, VIEW_DISTANCE_RANGE};
 use bevy::app::App;
 use bevy::ecs::resource::Resource;
 use mcrs_minecraft_client_gui::scene::{GuiConfig, GuiPlugin};
 use mcrs_minecraft_client_world::screen::Screen;
-use mcrs_minecraft_mesh::smooth_light::SmoothLight;
 use mcrs_minecraft_render::{Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, Uploads};
 
 #[cfg(not(target_family = "wasm"))]
@@ -71,6 +69,7 @@ pub const MAX_VIEW_DISTANCE: u8 = 96;
 #[derive(Resource, Clone, Debug, Default)]
 pub struct Knobs {
     values: Arc<HashMap<String, String>>,
+    options: ClientOptions,
     overlay_times_encoders: bool,
 }
 
@@ -84,8 +83,16 @@ impl Knobs {
         for (name, value) in values {
             map.entry(name).or_insert(value);
         }
+        let options = map
+            .get("OPTIONS")
+            .and_then(|path| match ClientOptions::read(Path::new(path)) {
+                Ok(options) => Some(options),
+                Err(error) => reject("OPTIONS", path, error),
+            })
+            .unwrap_or_default();
         Self {
             values: Arc::new(map),
+            options,
             overlay_times_encoders,
         }
     }
@@ -105,9 +112,10 @@ impl Knobs {
     pub fn view_distance(&self) -> u8 {
         self.parsed(
             "VIEW",
-            |columns| (2..=MAX_VIEW_DISTANCE).contains(columns),
+            |columns| VIEW_DISTANCE_RANGE.contains(columns),
             format_args!("expected a render distance from 2 to {MAX_VIEW_DISTANCE} columns"),
         )
+        .or(self.options.view_distance)
         .unwrap_or(VIEW_DISTANCE)
     }
 
@@ -319,67 +327,9 @@ impl Knobs {
         self.knob("SCREENSHOT_DIR").map(std::path::PathBuf::from)
     }
 
-    /// `SCENE_DIR=<dir>` runs with no window: the world camera draws into an image of
-    /// `RESOLUTION`, and each frame that `<dir>/request` names is written to `<dir>/<name>.png`.
-    pub fn scene_dir(&self) -> Option<std::path::PathBuf> {
-        self.knob("SCENE_DIR").map(std::path::PathBuf::from)
-    }
-
-    /// `SCENE_RECORD=<record>` takes the entities of each scene frame from the frame of the same
-    /// name in the record of the vanilla client, the render mode of a comparison.
-    pub fn scene_record(&self) -> Option<std::path::PathBuf> {
-        self.knob("SCENE_RECORD").map(std::path::PathBuf::from)
-    }
-
-    /// `FOV=<degrees>` and `FOV_EFFECT=<scale>` are vanilla's "FOV" and "FOV Effects" sliders.
-    pub fn fov_options(&self) -> FovOptions {
-        let default = FovOptions::default();
-        FovOptions {
-            fov: self
-                .parsed(
-                    "FOV",
-                    |fov| (30..=110).contains(fov),
-                    "a field of view from 30 to 110 degrees",
-                )
-                .unwrap_or(default.fov),
-            effect_scale: self
-                .parsed(
-                    "FOV_EFFECT",
-                    |scale: &f32| (0.0..=1.0).contains(scale),
-                    "an effect scale from 0 to 1",
-                )
-                .unwrap_or(default.effect_scale),
-        }
-    }
-
-    /// `SMOOTH_LIGHT=0` is vanilla's "Smooth Lighting" off.
-    pub fn light_options(&self) -> LightOptions {
-        LightOptions {
-            smooth_light: if self.flag("SMOOTH_LIGHT", true) {
-                SmoothLight::On
-            } else {
-                SmoothLight::Off
-            },
-        }
-    }
-
-    /// `CLOUDS=0` is vanilla's "Clouds" off.
-    pub fn clouds(&self) -> Clouds {
-        if self.flag("CLOUDS", true) {
-            Clouds::On
-        } else {
-            Clouds::Off
-        }
-    }
-
-    /// Vanilla's "Brightness" slider, from 0 (Moody) through 0.5 (the default) to 1 (Bright).
-    pub fn brightness(&self) -> f32 {
-        self.parsed(
-            "BRIGHTNESS",
-            |value: &f32| (0.0..=1.0).contains(value),
-            "a brightness from 0 to 1",
-        )
-        .unwrap_or(0.5)
+    /// The video options that `MCRS_OPTIONS=<file>` names.
+    pub fn options(&self) -> ClientOptions {
+        self.options
     }
 
     /// `OCCLUSION=0` draws every group the frustum and the cave graph keep, without the depth

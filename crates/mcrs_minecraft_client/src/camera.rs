@@ -303,6 +303,11 @@ mod tests {
             let fov = f32::from(options.fov) * filters.zoom.current;
             assert!((fov - expected).abs() < 1e-4, "{fov} != {expected}");
         }
+        let between = field_of_view(options, filters.zoom, 0.25);
+        assert!(
+            (between - 87.918_36).abs() < 1e-3,
+            "a quarter of the way from 87.828125 to 88.18906 is {between}"
+        );
     }
 
     #[test]
@@ -323,15 +328,5 @@ mod tests {
                 "({yaw}, {pitch}): {view:?} != {facing:?}"
             );
         }
-    }
-
-    #[test]
-    fn a_frame_between_two_ticks_interpolates_the_zoom() {
-        let zoom = Smoothed {
-            current: 1.1825,
-            previous: 1.1,
-        };
-        let fov = field_of_view(FovOptions::default(), zoom, 0.25);
-        assert!((fov - 78.44375).abs() < 1e-4, "{fov}");
     }
 }

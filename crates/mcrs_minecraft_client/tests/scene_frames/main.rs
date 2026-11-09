@@ -6,7 +6,7 @@
 //!
 //! ```sh
 //! tools/vanilla-server/run.sh fetch
-//! MINECRAFT_EULA=true cargo test -p mcrs_minecraft_client --test scene_frames -- \
+//! MINECRAFT_EULA=true cargo test -p mcrs_minecraft_client --features scene --test scene_frames -- \
 //!     --ignored --test-threads=1
 //! ```
 //!
@@ -60,38 +60,29 @@ fn capture_and_judge(scene: &str) {
 
 #[test]
 #[ignore = "needs java, the vanilla server jar, the EULA acceptance and a GPU"]
-fn pig_idle() {
-    capture_and_judge("pig_idle");
+fn scenes() {
+    for scene in SCENES {
+        capture_and_judge(scene);
+    }
 }
 
 #[test]
-#[ignore = "needs java, the vanilla server jar, the EULA acceptance and a GPU"]
-fn pig_walk() {
-    capture_and_judge("pig_walk");
-}
-
-#[test]
-#[ignore = "needs java, the vanilla server jar, the EULA acceptance and a GPU"]
-fn pig_lineup() {
-    capture_and_judge("pig_lineup");
-}
-
-#[test]
-#[ignore = "needs java, the vanilla server jar, the EULA acceptance and a GPU"]
-fn pig_hurt_death() {
-    capture_and_judge("pig_hurt_death");
-}
-
-#[test]
-#[ignore = "needs java, the vanilla server jar, the EULA acceptance and a GPU"]
-fn frog_states() {
-    capture_and_judge("frog_states");
-}
-
-#[test]
-#[ignore = "needs java, the vanilla server jar, the EULA acceptance and a GPU"]
-fn pig_grid() {
-    capture_and_judge("pig_grid");
+fn every_scene_file_is_a_scene_the_harness_runs() {
+    let paths = Paths::new();
+    let files = std::fs::read_dir(&paths.scenes)
+        .expect("the scene directory can be read")
+        .filter(|entry| {
+            entry
+                .as_ref()
+                .is_ok_and(|entry| entry.path().extension().is_some_and(|ext| ext == "json"))
+        })
+        .count();
+    assert_eq!(files, SCENES.len(), "every scene file is listed in SCENES");
+    for name in SCENES {
+        let scene = scene::Scene::read(&paths.scenes.join(format!("{name}.json")));
+        assert_eq!(scene.name, name);
+        options::client_options(&scene.options).unwrap_or_else(|error| panic!("{name}: {error}"));
+    }
 }
 
 /// Judges the frames that the scene tests left, without a server.

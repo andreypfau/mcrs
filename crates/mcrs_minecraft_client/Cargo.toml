@@ -38,7 +38,7 @@ mcrs_minecraft_entity_render.workspace = true
 mcrs_minecraft_entity_animation.workspace = true
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol_game.workspace = true
-uuid.workspace = true
+uuid = { workspace = true, optional = true }
 mcrs_minecraft_client_gui.workspace = true
 bevy = { version = "0.19.1", default-features = false, features = [
     "std",
@@ -100,6 +100,9 @@ web-sys = { version = "0.3", features = ["Window", "Location", "UrlSearchParams"
 default = ["singleplayer", "dev"]
 singleplayer = ["dep:mcrs_minecraft_server", "dep:mcrs_minecraft_engine_server", "dep:mcrs_minecraft_engine", "dep:mcrs_minecraft_vanilla_light", "dep:mcrs_minecraft_vanilla_worldgen"]
 dev = []
+# The frame-capture harness: an off-screen client that writes the frames a test requests and
+# replays the entities of a vanilla record. The shipped client leaves it out.
+scene = ["dep:uuid"]
 # Bevy links as a shared library instead of being statically relinked into every
 # client rebuild. Dev loop only; it is not a shape we ship.
 dynamic_linking = ["bevy/dynamic_linking"]
@@ -129,3 +132,8 @@ objc2-foundation = { version = "0.3", default-features = false, features = ["std
 [[example]]
 name = "block_viewer"
 path = "examples/block_viewer/main.rs"
+
+[[test]]
+name = "scene_frames"
+path = "tests/scene_frames/main.rs"
+required-features = ["scene"]

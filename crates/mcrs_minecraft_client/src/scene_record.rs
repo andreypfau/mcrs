@@ -2,7 +2,8 @@
 //! client takes the entities of a frame from the record of the vanilla client, not from a
 //! server, so a comparison tests only the rendering.
 
-use std::path::PathBuf;
+use std::collections::HashMap;
+use std::path::Path;
 
 use bevy::prelude::*;
 use mcrs_minecraft_client_entity::{
@@ -10,7 +11,7 @@ use mcrs_minecraft_client_entity::{
 };
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::variant::{FrogVariant, PigVariant};
-use mcrs_minecraft_entity_animation::pose_name;
+use mcrs_minecraft_entity_animation::pose_from_name;
 use mcrs_minecraft_entity_render::{RecordedClip, RecordedClips};
 use mcrs_minecraft_game_registries::variant::{FrogVariantFile, PigVariantFile};
 use mcrs_minecraft_item::ProtoStack;
@@ -21,33 +22,42 @@ use mcrs_minecraft_registries::{CurrentRegistries, Wire, WireId};
 use mcrs_minecraft_resource::{Id, ResourceLocation};
 use serde::Deserialize;
 
-/// The poses that a record can name.
-const POSES: [Pose; 18] = [
-    Pose::Standing,
-    Pose::FallFlying,
-    Pose::Sleeping,
-    Pose::Swimming,
-    Pose::SpinAttack,
-    Pose::Crouching,
-    Pose::LongJumping,
-    Pose::Dying,
-    Pose::Croaking,
-    Pose::UsingTongue,
-    Pose::Sitting,
-    Pose::Roaring,
-    Pose::Sniffing,
-    Pose::Emerging,
-    Pose::Digging,
-    Pose::Sliding,
-    Pose::Shooting,
-    Pose::Inhaling,
-];
-
-/// The record of the vanilla client that the frames take their entities from.
-#[derive(Resource, Clone, Debug)]
+/// The entities of every frame of the record of the vanilla client, by frame image name.
+#[derive(Resource, Debug)]
 pub struct SceneRecord {
-    pub path: PathBuf,
+    scene: String,
+    frames: HashMap<String, Vec<RecordEntity>>,
 }
+
+impl SceneRecord {
+    pub fn read(path: &Path) -> Result<Self, String> {
+        let text = std::fs::read_to_string(path).map_err(|error| error.to_string())?;
+        Self::parse(&text)
+    }
+
+    fn parse(text: &str) -> Result<Self, String> {
+        let record: Record = serde_json::from_str(text).map_err(|error| error.to_string())?;
+        let frames = record
+            .frames
+            .into_iter()
+            .map(|frame| (frame.image, frame.entities))
+            .collect();
+        Ok(Self {
+            scene: record.scene,
+            frames,
+        })
+    }
+
+    fn entities(&self, frame: &str) -> Option<&[RecordEntity]> {
+        self.frames
+            .get(&format!("{}.{frame}.png", self.scene))
+            .map(Vec::as_slice)
+    }
+}
+
+/// Asks to replace the recorded entities with those of the named frame.
+#[derive(Message)]
+pub struct PlaceFrame(pub String);
 
 /// An entity that the client placed from a record.
 #[derive(Component)]
@@ -65,7 +75,7 @@ struct RecordFrame {
     entities: Vec<RecordEntity>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct RecordEntity {
     id: uuid::Uuid,
     #[serde(rename = "type")]
@@ -96,7 +106,7 @@ struct RecordEntity {
     tongue: Option<ClipState>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct ClipState {
     started: bool,
     elapsed_ticks: f32,
@@ -105,36 +115,26 @@ struct ClipState {
 /// Replaces the recorded entities with the entities of the record frame `<scene>.<frame>.png`.
 /// The world must be frozen, so that the entities keep the state of the record.
 pub fn place_recorded_entities(
-    frame: &str,
-    record: &SceneRecord,
-    commands: &mut Commands,
-    placed: &Query<Entity, With<RecordedEntity>>,
-    registries: Option<&CurrentRegistries>,
-    items: Option<&Items>,
+    mut requests: MessageReader<PlaceFrame>,
+    record: Res<SceneRecord>,
+    mut commands: Commands,
+    placed: Query<Entity, With<RecordedEntity>>,
+    registries: Option<Res<CurrentRegistries>>,
+    items: Option<Res<Items>>,
 ) {
-    for entity in placed {
-        commands.entity(entity).despawn();
-    }
-    let record: Record = match std::fs::read_to_string(&record.path)
-        .map_err(|error| error.to_string())
-        .and_then(|text| serde_json::from_str(&text).map_err(|error| error.to_string()))
-    {
-        Ok(record) => record,
-        Err(error) => {
-            error!(path = %record.path.display(), %error, "cannot read the scene record");
-            return;
-        }
-    };
-    let image = format!("{}.{frame}.png", record.scene);
-    let Some(frame) = record
-        .frames
-        .iter()
-        .find(|recorded| recorded.image == image)
-    else {
-        warn!(image, "the scene record has no such frame");
+    let Some(PlaceFrame(frame)) = requests.read().last() else {
         return;
     };
-    for (index, row) in frame.entities.iter().enumerate() {
+    for entity in &placed {
+        commands.entity(entity).despawn();
+    }
+    let Some(entities) = record.entities(frame) else {
+        warn!(frame, "the scene record has no such frame");
+        return;
+    };
+    let registries = registries.as_deref();
+    let items = items.as_deref();
+    for (index, row) in entities.iter().enumerate() {
         let Some(kind) = EntityType::read(&row.kind) else {
             continue;
         };
@@ -150,10 +150,10 @@ pub fn place_recorded_entities(
         living.death_time = row.death_time;
         let mut data = SyncedData {
             baby: row.baby,
-            pose: POSES
-                .into_iter()
-                .find(|pose| pose_name(*pose) == row.pose)
-                .unwrap_or(Pose::Standing),
+            pose: pose_from_name(&row.pose).unwrap_or_else(|| {
+                warn!(pose = row.pose, "the scene record names an unknown pose");
+                Pose::Standing
+            }),
             variant: row
                 .variant
                 .as_deref()
@@ -228,5 +228,70 @@ fn variant(
             )?))
         }
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const RECORD: &str = r#"{
+        "scene": "pig_walk",
+        "frames": [{
+            "image": "pig_walk.walk.png",
+            "entities": [{
+                "id": "00000000-0000-0000-0000-000000000001",
+                "type": "minecraft:pig",
+                "position": [1.5, 64.0, -2.5],
+                "age": 7,
+                "pose": "sleeping",
+                "head_pitch": 12.0,
+                "body_yaw": 90.0,
+                "head_yaw": 95.0,
+                "walk_position": 3.0,
+                "walk_speed": 0.5,
+                "hurt_time": 4,
+                "death_time": 2,
+                "baby": true
+            }]
+        }]
+    }"#;
+
+    fn place(frame: &str) -> App {
+        let mut app = App::new();
+        app.add_message::<PlaceFrame>()
+            .insert_resource(SceneRecord::parse(RECORD).unwrap())
+            .add_systems(Update, place_recorded_entities);
+        app.world_mut().write_message(PlaceFrame(frame.to_owned()));
+        app.update();
+        app
+    }
+
+    #[test]
+    fn a_record_row_becomes_a_client_entity_with_its_recorded_state() {
+        let mut app = place("walk");
+        let mut rows = app
+            .world_mut()
+            .query::<(&ClientEntity, &Age, &Living, &SyncedData)>();
+        let (entity, age, living, data) = rows.single(app.world()).unwrap();
+        assert_eq!(entity.kind, EntityType::Pig);
+        assert_eq!(age.0, 7);
+        assert_eq!(living.body_yaw, 90.0);
+        assert_eq!(living.walk.position, 3.0);
+        assert_eq!(living.walk.speed, 0.5);
+        assert_eq!((living.hurt_time, living.death_time), (4, 2));
+        assert_eq!(data.pose, Pose::Sleeping);
+        assert!(data.baby);
+        assert_eq!(data.health, 0.0);
+    }
+
+    #[test]
+    fn a_frame_the_record_lacks_places_nothing_and_clears_the_last_frame() {
+        let mut app = place("walk");
+        app.world_mut()
+            .write_message(PlaceFrame("missing".to_owned()));
+        app.update();
+        let mut rows = app.world_mut().query::<&RecordedEntity>();
+        assert_eq!(rows.iter(app.world()).count(), 0);
     }
 }

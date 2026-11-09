@@ -8,10 +8,10 @@ use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured};
 
 use crate::Unsettled;
 use crate::camera::PlayerCamera;
-use crate::scene_record::{RecordedEntity, SceneRecord, place_recorded_entities};
+use crate::config::Knobs;
+use crate::scene_record::{PlaceFrame, SceneRecord, place_recorded_entities};
+use crate::settle::Settle;
 use crate::stream::Streaming;
-use mcrs_minecraft_item::definition::Items;
-use mcrs_minecraft_registries::CurrentRegistries;
 
 const REQUEST: &str = "request";
 
@@ -25,9 +25,9 @@ const SETTLE_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Draws the world camera into an image of `size` pixels, with no window and so no HUD. A frame
 /// whose name a test writes into `<dir>/request` goes to `<dir>/<name>.png` as 8-bit sRGB with no
-/// alpha; the request file is gone before the image appears. The frame is written once the
-/// terrain has stayed settled for forty ticks and two shots forty ticks apart are the same, since
-/// the light of the terrain keeps changing after its meshes are done.
+/// alpha; the request file is gone before the image appears, and also when the frame fails. The
+/// frame is written once the terrain has stayed settled for forty ticks and two shots forty ticks
+/// apart are the same, since the light of the terrain keeps changing after its meshes are done.
 pub struct SceneCapturePlugin {
     pub dir: PathBuf,
     pub size: UVec2,
@@ -36,25 +36,51 @@ pub struct SceneCapturePlugin {
     pub record: Option<PathBuf>,
 }
 
+impl Knobs {
+    /// `SCENE_DIR=<dir>` runs with no window: the world camera draws into an image of
+    /// `RESOLUTION`, and each frame that `<dir>/request` names is written to `<dir>/<name>.png`.
+    pub fn scene_dir(&self) -> Option<PathBuf> {
+        self.knob("SCENE_DIR").map(PathBuf::from)
+    }
+
+    /// `SCENE_RECORD=<record>` takes the entities of each scene frame from the frame of the same
+    /// name in the record of the vanilla client, the render mode of a comparison.
+    pub fn scene_record(&self) -> Option<PathBuf> {
+        self.knob("SCENE_RECORD").map(PathBuf::from)
+    }
+}
+
 impl Plugin for SceneCapturePlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(SceneCapture {
+        app.insert_resource(FrameTarget {
             dir: self.dir.clone(),
             size: self.size,
             target: None,
         })
         .init_resource::<Pending>()
-        .add_message::<Unsettled>()
+        .add_message::<PlaceFrame>()
         .add_systems(PostStartup, aim_at_image)
         .add_systems(Update, (read_request, shoot_settled).chain());
         if let Some(path) = &self.record {
-            app.insert_resource(SceneRecord { path: path.clone() });
+            match SceneRecord::read(path) {
+                Ok(record) => {
+                    app.insert_resource(record).add_systems(
+                        Update,
+                        place_recorded_entities
+                            .after(read_request)
+                            .before(shoot_settled),
+                    );
+                }
+                Err(error) => {
+                    error!(path = %path.display(), %error, "cannot read the scene record");
+                }
+            }
         }
     }
 }
 
 #[derive(Resource)]
-struct SceneCapture {
+struct FrameTarget {
     dir: PathBuf,
     size: UVec2,
     target: Option<Handle<Image>>,
@@ -63,8 +89,7 @@ struct SceneCapture {
 #[derive(Resource, Default)]
 struct Pending {
     frame: Option<String>,
-    quiet_since: Option<Duration>,
-    last_counts: [usize; 3],
+    settle: Settle,
     shooting: bool,
     last_shot: Option<Vec<u8>>,
     polled_at: Duration,
@@ -73,7 +98,7 @@ struct Pending {
 }
 
 fn aim_at_image(
-    mut capture: ResMut<SceneCapture>,
+    mut capture: ResMut<FrameTarget>,
     mut camera: Single<&mut RenderTarget, With<PlayerCamera>>,
     mut images: ResMut<Assets<Image>>,
 ) {
@@ -94,18 +119,10 @@ fn aim_at_image(
     info!(dir = %capture.dir.display(), size = ?capture.size, "drawing scene frames off screen");
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a request also places the entities of a record frame"
-)]
 fn read_request(
-    mut commands: Commands,
-    capture: Res<SceneCapture>,
+    capture: Res<FrameTarget>,
     time: Res<Time<Real>>,
-    record: Option<Res<SceneRecord>>,
-    placed: Query<Entity, With<RecordedEntity>>,
-    registries: Option<Res<CurrentRegistries>>,
-    items: Option<Res<Items>>,
+    mut places: MessageWriter<PlaceFrame>,
     mut pending: ResMut<Pending>,
 ) {
     let now = time.elapsed();
@@ -117,20 +134,11 @@ fn read_request(
         return;
     };
     let name = text.trim();
-    if name.is_empty() || Path::new(name).file_name() != Some(name.as_ref()) {
+    if !is_frame_name(name) {
         return;
     }
     info!(frame = name, "scene frame requested");
-    if let Some(record) = record.as_deref() {
-        place_recorded_entities(
-            name,
-            record,
-            &mut commands,
-            &placed,
-            registries.as_deref(),
-            items.as_deref(),
-        );
-    }
+    places.write(PlaceFrame(name.to_owned()));
     *pending = Pending {
         frame: Some(name.to_owned()),
         polled_at: now,
@@ -138,28 +146,29 @@ fn read_request(
     };
 }
 
+/// A plain file name that does not collide with the files the capture writes next to the frame.
+fn is_frame_name(name: &str) -> bool {
+    !name.is_empty()
+        && Path::new(name).file_name() == Some(name.as_ref())
+        && !name.ends_with(".partial")
+        && !name.ends_with(".unsettled")
+}
+
 fn shoot_settled(
     mut commands: Commands,
-    capture: Res<SceneCapture>,
+    capture: Res<FrameTarget>,
     streaming: Streaming,
     time: Res<Time<Real>>,
     mut unsettled: MessageReader<Unsettled>,
     mut pending: ResMut<Pending>,
 ) {
-    let settled = unsettled.read().count() == 0;
     if pending.frame.is_none() || pending.shooting {
+        unsettled.clear();
         return;
     }
-    let status = streaming.status();
-    let counts = [status.columns, status.sections, status.sections_total];
-    let quiet = settled && streaming.done() && status.columns > 0 && counts == pending.last_counts;
-    pending.last_counts = counts;
     let now = time.elapsed();
-    if !quiet {
-        pending.quiet_since = None;
-        return;
-    }
-    if now < *pending.quiet_since.get_or_insert(now) + SETTLE {
+    let quiet = pending.settle.observe(now, &streaming, &mut unsettled);
+    if quiet.is_none_or(|quiet| quiet < SETTLE) {
         return;
     }
     let (Some(frame), Some(target)) = (pending.frame.clone(), capture.target.clone()) else {
@@ -177,12 +186,16 @@ fn shoot_settled(
                 if time.elapsed().saturating_sub(started) > SETTLE_TIMEOUT {
                     error!(frame, "the frame did not settle in {SETTLE_TIMEOUT:?}");
                     let _ = std::fs::write(dir.join(format!("{frame}.unsettled")), "");
-                    *pending = Pending::default();
+                    remove_request(&dir);
+                    *pending = Pending {
+                        polled_at: pending.polled_at,
+                        ..Pending::default()
+                    };
                     return;
                 }
                 pending.last_shot.clone_from(&captured.image.data);
                 pending.shooting = false;
-                pending.quiet_since = None;
+                pending.settle.restart();
                 return;
             }
             write_frame(&dir, &frame, &captured.image);
@@ -192,6 +205,12 @@ fn shoot_settled(
             };
         },
     );
+}
+
+fn remove_request(dir: &Path) {
+    if let Err(error) = std::fs::remove_file(dir.join(REQUEST)) {
+        error!(%error, "cannot clear the scene frame request");
+    }
 }
 
 fn write_frame(dir: &Path, frame: &str, image: &Image) {
@@ -208,9 +227,7 @@ fn write_frame(dir: &Path, frame: &str, image: &Image) {
         error!(path = %partial.display(), %error, "cannot write the scene frame");
         return;
     }
-    if let Err(error) = std::fs::remove_file(dir.join(REQUEST)) {
-        error!(%error, "cannot clear the scene frame request");
-    }
+    remove_request(dir);
     match std::fs::rename(&partial, &done) {
         Ok(()) => info!(path = %done.display(), "scene frame written"),
         Err(error) => error!(path = %done.display(), %error, "cannot move the scene frame"),
