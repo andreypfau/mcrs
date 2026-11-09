@@ -88,10 +88,15 @@ impl Encode for VarInt {
 }
 
 impl Decode<'_> for VarInt {
+    /// Decodes a variable-length integer, failing if it exceeds five bytes or contains
+    /// out-of-range bits in the fifth byte.
     fn decode(r: &mut &[u8]) -> Result<Self> {
         let mut val = 0;
         for i in 0..Self::MAX_SIZE {
             let [byte] = take(r)?;
+            if i == Self::MAX_SIZE - 1 && (byte & 0b0111_0000 != 0) {
+                return Err(ErrorKind::VarIntTooLong.into());
+            }
             val |= (byte as i32 & 0b01111111) << (i * 7);
             if byte & 0b10000000 == 0 {
                 return Ok(VarInt(val));
@@ -132,6 +137,16 @@ mod tests {
     #[test]
     fn varint_round_trips_in_its_written_size() {
         check(10_000);
+    }
+
+    #[test]
+    fn varint_rejects_out_of_range_bits_in_fifth_byte() {
+        let invalid = [0x80, 0x80, 0x80, 0x80, 0x70];
+        let mut slice = &invalid[..];
+        assert!(matches!(
+            VarInt::decode(&mut slice),
+            Err(e) if matches!(e.kind(), ErrorKind::VarIntTooLong)
+        ));
     }
 
     mod exhaustive {
