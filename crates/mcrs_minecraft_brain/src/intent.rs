@@ -14,6 +14,14 @@ impl Ticket {
 
 /// The guidance changes of one decision. Each channel holds the last write of the goals in the
 /// evaluation; an empty channel keeps the guidance as it is.
+///
+/// A channel comes with the first goal that writes it, so that a decision stays small. The wolf
+/// adds the attack target (CGOAL-NEAR-001), which the hot tick revalidates at the application
+/// (AIT-LAG-005), and the start and the stop of the melee and the ranged attack reflexes
+/// (AIT-RFX-003). With them, the view gains the owner and the anger state (CGOAL-OWNER,
+/// CGOAL-RESET-ANGER-001), and the damage record gains the attacker (CGOAL-HURT-001). A decision
+/// writes only the state of its own mob (AIT-DEC-007), so a pair action (AIT-CPL-001) adds a
+/// proposal channel that the merge point grants; it comes with the first pair action.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Intents {
     pub path: Option<PathIntent>,
@@ -30,6 +38,11 @@ impl Intents {
 
 /// A change of the path of the mob. The host reports the ticket of the last path intent that it
 /// applied, and a dropped intent as applied and ended.
+///
+/// A path search is a decision and the follower is a reflex (PATH-DET-002), so a walk of a
+/// searched path carries the nodes of the path to the host. The straight route has one node, its
+/// end, which `target` holds; the node list comes with the search, beside the decision, so that
+/// the intents stay small and `Copy`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PathIntent {
     /// Walk to `target` at `speed_modifier` times the movement speed. The route is a straight line
