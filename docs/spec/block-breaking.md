@@ -346,7 +346,7 @@ rules now. Without an inventory, the main-hand item is empty.
 | BRK-SRV-001 to BRK-SRV-013, BRK-PRG-001, BRK-PRG-002 for an empty hand | nothing more |
 | The item speed and the correct tool in BRK-PRG-002 and BRK-PRG-003, BRK-ITM-002, BRK-DMG-001 to BRK-DMG-003 | the player inventory, issue #521 |
 | The effects and the attributes in BRK-PRG-002 | the effects and the attributes of a player |
-| BRK-LOOT-001, BRK-LOOT-003 | the item entities, issue #522, the loot tables, issue #72, and the block drops, issue #77 |
+| BRK-LOOT-001, BRK-LOOT-003, BRK-LOOT-004 | the item entities, issue #522, the loot tables, issue #72, and the block drops, issue #77 |
 | BRK-LOOT-002 | the food of a player |
 
 ### 7.2 The dig
@@ -535,6 +535,28 @@ breaker gets `level_event` with type 2001 for that block, then `add_entity` for 
 the items of the broken block, then `section_blocks_update` with both changes. A block that falls
 does so one tick later, as in BRK-DRP-006. See result R45.
 
+**BRK-LOOT-004** (`black_box_confirmed`, semantic). A survival break with a harvest and without Silk
+Touch drops the experience of this table. A range is a random integer from the first value to the
+second value, both included. Other blocks drop no experience, for example iron ore, copper ore, gold
+ore and ancient debris. A break with Silk Touch or without a harvest drops no experience. See result
+R46.
+
+| Block | Experience |
+|-------|------------|
+| coal ore, deepslate coal ore | 0 to 2 |
+| nether gold ore | 0 to 1 |
+| diamond ore, deepslate diamond ore, emerald ore | 3 to 7 |
+| lapis ore, nether quartz ore | 2 to 5 |
+| redstone ore, lit or not lit | 1 to 5 |
+| spawner | 15 to 43 |
+| sculk | 1 |
+| sculk sensor, calibrated sculk sensor, sculk shrieker, sculk catalyst | 5 |
+
+The deepslate forms of the other ores in the table were not tested. The server divides the
+experience into orbs. Each orb takes the largest value of 37, 17, 7, 3 and 1 that is not more than
+the remainder. For example, 5 gives the orbs 3, 1 and 1. The vanilla client gets the value of an orb
+in `set_entity_data`, and the reference sends that packet two times for each orb.
+
 ## 8. Intentional deviations
 
 **D1.**
@@ -605,8 +627,6 @@ does so one tick later, as in BRK-DRP-006. See result R45.
 - **U11**: two breaks in one tick in different sections.
 - **U13**: other blocks that act differently in a creative break. For example, a piston head also
   removes its piston, and a beehive with bees or honey drops itself.
-- **U20**: the amount of experience of each block. One observation, coal ore, shows one experience
-  orb. The block drops of issue #77 must state the amounts.
 - **U22**: the packet order of a delayed break (BRK-SRV-009). D1 prevents an experiment on the
   reference. In result R45, a shulker box broke by D1, and the breaker got the acknowledgement one
   tick before the `block_update`.
@@ -676,6 +696,7 @@ and the experience orbs. Count the tick count from the acknowledgement of the st
 | E52 | Do E35 for each case of R43. | R43 |
 | E53 | Break stone 40 times at once with a netherite pickaxe with Efficiency V and Unbreaking III, with Haste amplifier 1. Do it 10 times without Unbreaking. Read the damage. Break stone with a wooden pickaxe with the damage 58, and read all the packets. | R44 |
 | E54 | Break a chest with contents, a shulker box with contents, and stone with a torch, sand or the lower part of an oak door on it. | R45 |
+| E55 | With Haste amplifier 50, break each block of R46 60 times with a netherite pickaxe with Efficiency V, or a netherite hoe with Efficiency V for the sculk blocks. Break diamond ore and sculk 10 times with Silk Touch, and diamond ore 10 times with a wooden pickaxe. Sum the values of the experience orbs, one value for each entity id. | R46 |
 
 Experiments E28 to E33, E45, E46 and E47 have no captured result. Nobody has run them yet.
 
@@ -1258,3 +1279,28 @@ red shulker box: the finish came at a progress less than 0.7, and the box broke 
   breaker:  add_entity; container_set_slot; block_changed_ack; one tick later: block_update state 0
   observer: block_destruction progress 79; level_event type 2001; add_entity; block_update
 ```
+
+**R46.** Each count is the number of breaks out of 60 that gave that experience.
+
+| Block | Experience: number of breaks |
+|-------|------------------------------|
+| coal ore | 0: 20, 1: 24, 2: 16 |
+| deepslate coal ore | 0: 23, 1: 20, 2: 17 |
+| nether gold ore | 0: 30, 1: 30 |
+| diamond ore | 3: 7, 4: 13, 5: 13, 6: 15, 7: 12 |
+| deepslate diamond ore | 3: 13, 4: 11, 5: 10, 6: 14, 7: 12 |
+| emerald ore | 3: 11, 4: 12, 5: 13, 6: 13, 7: 11 |
+| lapis ore | 2: 15, 3: 13, 4: 17, 5: 15 |
+| nether quartz ore | 2: 21, 3: 14, 4: 11, 5: 14 |
+| redstone ore | 1: 11, 2: 10, 3: 12, 4: 14, 5: 13 |
+| lit redstone ore | 1: 14, 2: 17, 3: 6, 4: 13, 5: 10 |
+| spawner | from 15 to 43, mean 29.5; 15 and 43 each came one time |
+| sculk | 1: 60 |
+| sculk sensor, calibrated sculk sensor | 5: 59, 4: 1 |
+| sculk shrieker, sculk catalyst | 5: 60 |
+| iron ore, copper ore, gold ore, ancient debris | 0: 60 |
+| diamond ore with Silk Touch, sculk with Silk Touch, diamond ore with a wooden pickaxe (10 breaks each) | 0 |
+
+The orbs of one break had the values 1, 1 and 3 for 5, 3 and 3 for 6, 7 for 7, and 1, 1, 37 for 39.
+The one result of 4 for a sculk sensor had the orbs 1 and 3. A probable cause is that an orb of 1
+merged with an older orb before the client got its value.
