@@ -13,7 +13,7 @@ const HEIGHT: i32 = 8;
 
 /// The sections around one tile, looked up once for the task of the tile; a section out of the
 /// window comes from the base world. The rows of a tile read the same few sections many times.
-pub struct TileWorld<'a, W: CollisionWorld + 'a> {
+pub(crate) struct TileWorld<'a, W: CollisionWorld + 'a> {
     base: &'a W,
     min: SectionPos,
     size: [i32; 3],

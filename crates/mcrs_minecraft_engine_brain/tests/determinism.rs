@@ -23,16 +23,15 @@ use mcrs_minecraft_engine_physics::FLOOR;
 use mcrs_minecraft_engine_physics::Mob;
 use mcrs_minecraft_engine_physics::MobChanges;
 use mcrs_minecraft_engine_physics::Mobs;
-use mcrs_minecraft_engine_physics::Placed;
 use mcrs_minecraft_engine_physics::TestScene;
 use mcrs_minecraft_engine_physics::hurt_mob;
 use mcrs_minecraft_engine_physics::mob_body;
 use mcrs_minecraft_engine_physics::mob_row;
-use mcrs_minecraft_engine_physics::tile_at;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_rows::Placed;
 use mcrs_minecraft_goals::PigBrain;
 use mcrs_minecraft_replication::MobLooks;
 
@@ -84,7 +83,6 @@ impl Run {
                     kind: &EntityTypeData::PIG,
                     uuid: u128::from(index),
                     looks: MobLooks::default(),
-                    tile: tile_at(position),
                     custom_name: None,
                     tags: Vec::new(),
                 },
@@ -110,11 +108,6 @@ impl Run {
     }
 
     fn tick(&mut self, tick: u64) -> u64 {
-        for (at, _) in self.scene.rows.living_rows() {
-            if let Some(mob) = self.mobs.0.get_mut(&at.id) {
-                mob.tile = at.tile;
-            }
-        }
         if tick == 50 {
             let struck: Vec<Placed> = self
                 .scene
@@ -145,7 +138,7 @@ impl Run {
             .prepare(&hot, players, &mut self.scene.rows, &self.pool);
         let world = BlockGoalWorld::new(&self.scene.blocks, &self.scene.tables.collision);
         self.ai.run_stage(&self.pool, &world);
-        let tiles = self.scene.rows.tiles_mut().count();
+        let tiles = self.scene.rows.tile_count();
         let per_task = tiles.div_ceil(self.pool.thread_num() * 4).max(1);
         self.scene
             .step(&self.pool, per_task, &mut EntityWrites::default());

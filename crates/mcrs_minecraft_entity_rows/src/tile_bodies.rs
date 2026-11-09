@@ -1,4 +1,4 @@
-use crate::GridRow;
+use mcrs_minecraft_physics::GridRow;
 
 /// The bodies of one tile of the grid, grouped by the cells that the writer of the grid picks:
 /// the rows of cell `c` are `rows[starts[c]..starts[c + 1]]`.

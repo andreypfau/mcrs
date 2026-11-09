@@ -17,20 +17,17 @@ use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::TickContext;
 use mcrs_minecraft_brain::TileWork;
 use mcrs_minecraft_engine_physics::EntityRows;
+use mcrs_minecraft_engine_physics::MobColumn;
 use mcrs_minecraft_engine_physics::Mobs;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::TileKey;
+use mcrs_minecraft_entity_rows::Placed;
 use mcrs_minecraft_goals::GoalWorld;
-use mcrs_minecraft_physics::TileRows;
 use mcrs_minecraft_volume::BlockVolume;
-use rustc_hash::FxHashMap;
 
 use crate::AiStats;
 use crate::HotTick;
-use crate::host_mob::HostMob;
-use crate::life_task::LifeOut;
-use crate::life_task::LifeTask;
 use crate::tile_task::TileOut;
 use crate::tile_task::TileTask;
 
@@ -38,14 +35,12 @@ use crate::tile_task::TileTask;
 /// [`MobAi::prepare`] publishes the snapshot of the tick, applies the due decisions and steers the
 /// rows before the entity pass; [`MobAi::run_stage`] runs the stage of the tick beside the pass.
 /// Both work in parallel over the tiles, and their result does not depend on the thread count.
+/// The hot state of each mob with a brain is the [`MobColumn`] of its row.
 #[derive(Resource, Debug)]
 pub struct MobAi<B: Send + Sync + 'static> {
     driver: AiDriver<B>,
     /// The brain of a mob that came into the world, from its type; `None` for a type without AI.
     brain_for: fn(&'static EntityTypeData) -> Option<B>,
-    /// The mobs of each tile, by entity id.
-    tiles: BTreeMap<TileKey, Vec<HostMob>>,
-    index: FxHashMap<EntityId, TileKey>,
     /// The mobs whose path ended in the last tick.
     ended: Vec<EntityId>,
     stats: AiStats,
@@ -59,8 +54,6 @@ impl<B: Send + Sync + 'static> MobAi<B> {
         Self {
             driver: AiDriver::new(config),
             brain_for,
-            tiles: BTreeMap::new(),
-            index: FxHashMap::default(),
             ended: Vec::new(),
             stats: AiStats::default(),
         }
@@ -96,20 +89,13 @@ impl<B: Send + Sync + 'static> MobAi<B> {
     ) {
         let started = Instant::now();
         let tick = self.driver.begin_tick();
-        self.follow_life_cycle(tick, hot.mobs, rows, pool);
+        self.follow_life_cycle(tick, hot.mobs, rows);
         let followed = Instant::now();
         let mut due = self.due();
-        let mut tasks: Vec<TileTask<'_>> = Vec::with_capacity(self.tiles.len());
-        let mut held = self.tiles.iter_mut().peekable();
-        for (tile, tile_rows) in rows.tiles_mut() {
-            while held.next_if(|(key, _)| **key < tile).is_some() {}
-            let Some((_, mobs)) = held.next_if(|(key, _)| **key == tile) else {
-                continue;
-            };
-            let tile_rows: &TileRows = tile_rows;
+        let mut tasks: Vec<TileTask<'_>> = Vec::new();
+        for (tile, mobs) in rows.mob_tiles_mut() {
             tasks.push(TileTask {
                 tile,
-                rows: tile_rows,
                 mobs,
                 due: due.get(&tile).map_or(&[], Vec::as_slice),
                 players: &players,
@@ -117,7 +103,7 @@ impl<B: Send + Sync + 'static> MobAi<B> {
             });
         }
         let per_task = tiles_per_task(pool, tasks.len());
-        let dealt = deal(tasks, per_task, |task| task.rows.ids().len());
+        let dealt = deal(tasks, per_task, |task| task.mobs.len());
         let outs: Vec<Vec<(usize, TileOut)>> = pool.scope(|scope| {
             for chunk in dealt {
                 scope.spawn(async move {
@@ -157,97 +143,47 @@ impl<B: Send + Sync + 'static> MobAi<B> {
         self.stats.stage = started.elapsed();
     }
 
-    /// Registers each mob with AI that came into the world, moves the brain of each mob that
-    /// changed tile, and drops each mob that left the world. The tiles find their changes in
-    /// parallel; only the changes run on one thread.
-    fn follow_life_cycle(
-        &mut self,
-        tick: u64,
-        mobs: &Mobs,
-        rows: &mut EntityRows,
-        pool: &TaskPool,
-    ) {
-        let mut departed = Vec::new();
-        let brain_for = self.brain_for;
-        let mut tasks: Vec<LifeTask<'_, B>> = Vec::with_capacity(self.tiles.len());
-        let mut held = self.tiles.iter_mut().peekable();
-        for (tile, tile_rows) in rows.tiles_mut() {
-            while let Some((_, hosts)) = held.next_if(|(key, _)| **key < tile) {
-                departed.append(hosts);
-            }
-            let tile_rows: &TileRows = tile_rows;
-            tasks.push(LifeTask {
-                tile,
-                rows: tile_rows,
-                mobs: held
-                    .next_if(|(key, _)| **key == tile)
-                    .map(|(_, hosts)| hosts),
-                index: &self.index,
-                brain_for,
-            });
+    /// Follows the life cycle of the rows since the last tick: drops the brain of each mob that
+    /// left the world, moves the brain of each mob that changed tile, and gives each new mob with
+    /// AI a brain and a mob column. The column moves with its row, so only the changes run.
+    fn follow_life_cycle(&mut self, tick: u64, mobs: &Mobs, rows: &mut EntityRows) {
+        let changes = rows.changes();
+        for removed in changes.removed() {
+            self.driver.despawn(removed.id);
         }
-        for (_, hosts) in held {
-            departed.append(hosts);
-        }
-        let per_task = tiles_per_task(pool, tasks.len());
-        let dealt = deal(tasks, per_task, |task| task.rows.ids().len());
-        let outs: Vec<Vec<(usize, LifeOut<B>)>> = pool.scope(|scope| {
-            for chunk in dealt {
-                scope.spawn(async move {
-                    chunk
-                        .into_iter()
-                        .map(|(index, mut task)| (index, task.run(tick, mobs)))
-                        .collect()
-                });
-            }
-        });
-        let mut arrivals = Vec::new();
-        for out in in_order(outs) {
-            arrivals.extend(out.arrivals);
-            departed.extend(out.departed);
-        }
-        let mut moving: FxHashMap<EntityId, HostMob> =
-            departed.into_iter().map(|host| (host.id, host)).collect();
-        let mut relocated: Vec<(EntityId, TileKey)> = Vec::new();
-        let mut entering: BTreeMap<TileKey, Vec<HostMob>> = BTreeMap::new();
-        for arrival in arrivals {
-            let host = match moving.remove(&arrival.id) {
-                Some(mut host) => {
-                    relocated.push((host.id, arrival.tile));
-                    host.seen = tick;
-                    host
-                }
-                None => {
-                    let Some(brain) = arrival.brain else {
-                        continue;
-                    };
-                    let key = arrival.key;
-                    let Some(host) = HostMob::new(arrival.id, key, arrival.kind, tick) else {
-                        continue;
-                    };
-                    self.driver.spawn(
-                        arrival.tile,
-                        host.id,
-                        key,
-                        Cadence::new(tick, arrival.phase),
-                        brain,
-                    );
-                    host
-                }
+        self.driver.relocate_all(
+            changes
+                .crossed()
+                .iter()
+                .map(|crossing| (crossing.id, crossing.to)),
+        );
+        let spawned: Vec<Placed> = changes
+            .spawned()
+            .iter()
+            .filter(|at| self.driver.stage().tile_of(at.id).is_none())
+            .copied()
+            .collect();
+        for at in spawned {
+            let Some(mob) = mobs.0.get(&at.id) else {
+                continue;
             };
-            entering.entry(arrival.tile).or_default().push(host);
-            self.index.insert(arrival.id, arrival.tile);
+            if mob.looks.no_ai {
+                continue;
+            }
+            let Some(brain) = (self.brain_for)(mob.kind) else {
+                continue;
+            };
+            let Some(column) = MobColumn::new(mob.kind) else {
+                continue;
+            };
+            let Some(state) = rows.state_of(at) else {
+                continue;
+            };
+            let cadence = Cadence::new(tick, state.phase);
+            self.driver.spawn(at.tile, at.id, state.key, cadence, brain);
+            rows.set_mob(at, column);
         }
-        self.driver.relocate_all(relocated);
-        for (tile, hosts) in entering {
-            merge(self.tiles.entry(tile).or_default(), hosts);
-        }
-        for id in moving.into_keys() {
-            self.index.remove(&id);
-            self.driver.despawn(id);
-        }
-        self.tiles.retain(|_, hosts| !hosts.is_empty());
-        self.stats.mobs = self.index.len();
+        self.stats.mobs = self.driver.stage().len();
     }
 
     /// The decisions due in this tick, by the tile of their mob now, each tile in the order of the
@@ -258,7 +194,7 @@ impl<B: Send + Sync + 'static> MobAi<B> {
         self.stats.waits = self.driver.waits();
         for decisions in issued {
             for decision in decisions.tiles.into_values().flatten() {
-                if let Some(&tile) = self.index.get(&decision.mob) {
+                if let Some(tile) = self.driver.stage().tile_of(decision.mob) {
                     by_tile.entry(tile).or_default().push(decision);
                 }
             }
@@ -272,7 +208,7 @@ impl<B: Send + Sync + 'static> MobAi<B> {
     fn publish(&mut self, outs: Vec<TileOut>, players: PlayerTable, rows: &mut EntityRows) {
         let mut facts: BTreeMap<TileKey, Vec<Fact>> = BTreeMap::new();
         for mob in mem::take(&mut self.ended) {
-            if let Some(&tile) = self.index.get(&mob) {
+            if let Some(tile) = self.driver.stage().tile_of(mob) {
                 facts.entry(tile).or_default().push(Fact {
                     mob,
                     kind: FactKind::PathEnded,
@@ -342,24 +278,4 @@ fn in_order<T>(groups: Vec<Vec<(usize, T)>>) -> Vec<T> {
     let mut outs: Vec<(usize, T)> = groups.into_iter().flatten().collect();
     outs.sort_unstable_by_key(|(index, _)| *index);
     outs.into_iter().map(|(_, out)| out).collect()
-}
-
-/// Adds `entering` to `hosts`, which is sorted by id, in one merge.
-fn merge(hosts: &mut Vec<HostMob>, mut entering: Vec<HostMob>) {
-    entering.sort_by_key(|host| host.id);
-    let held = mem::take(hosts);
-    hosts.reserve(held.len().saturating_add(entering.len()));
-    let mut held = held.into_iter().peekable();
-    let mut entering = entering.into_iter().peekable();
-    loop {
-        let next = match (held.peek(), entering.peek()) {
-            (Some(old), Some(new)) if new.id < old.id => entering.next(),
-            (Some(_), _) => held.next(),
-            (None, _) => entering.next(),
-        };
-        let Some(host) = next else {
-            break;
-        };
-        hosts.push(host);
-    }
 }

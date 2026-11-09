@@ -9,11 +9,11 @@ use mcrs_minecraft_engine_physics::EntityRows;
 use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::TestScene;
 use mcrs_minecraft_entity_key::EntityKey;
-use mcrs_minecraft_physics::BodyGrid;
-use mcrs_minecraft_physics::EffectBuffer;
-use mcrs_minecraft_physics::Keyed;
+use mcrs_minecraft_entity_rows::BodyGrid;
+use mcrs_minecraft_entity_rows::EffectBuffer;
+use mcrs_minecraft_entity_rows::Keyed;
+use mcrs_minecraft_entity_rows::WriterKey;
 use mcrs_minecraft_physics::Rest;
-use mcrs_minecraft_physics::WriterKey;
 
 const TICKS: u64 = 60;
 
@@ -99,7 +99,7 @@ fn the_grid_that_the_pass_writes_and_the_freeze_patches_equals_a_rebuild() {
     // The sparse scene has tiles in which every body walks, and tiles with no body that moves.
     for start in [dense_scene(), TestScene::new(2, 12, 0, 3)] {
         let (_, mut scene) = run(start, 4, 2, false);
-        scene.rows.apply_writes(&mut EntityWrites::default());
+        scene.rows.apply_writes(&mut EntityWrites::default().0);
         scene.rows.freeze(&pool(1), &mut scene.grid);
 
         let mut rebuilt = EntityRows::default();
@@ -157,7 +157,7 @@ fn cmp_015_a_write_adds_its_impulse_to_the_velocity_of_its_target_and_wakes_it()
     );
     let mut writes = EntityWrites::default();
     writes.0.gather(&mut buffer);
-    scene.rows.apply_writes(&mut writes);
+    scene.rows.apply_writes(&mut writes.0);
     let after: Vec<_> = scene
         .rows
         .tiles_mut()

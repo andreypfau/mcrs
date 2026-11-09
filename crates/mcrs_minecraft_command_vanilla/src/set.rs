@@ -10,8 +10,9 @@ use mcrs_minecraft_command_engine::{CommandContext, CommandSet, CommandTargets};
 use mcrs_minecraft_command_registry::RegistryLookup;
 use mcrs_minecraft_engine::banlist::BanList;
 use mcrs_minecraft_engine::command_handoff::SourceMob;
-use mcrs_minecraft_engine_physics::{EntityRows, MobUuids, Mobs, Placed};
+use mcrs_minecraft_engine_physics::{EntityRows, MobUuids, Mobs};
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeId;
+use mcrs_minecraft_entity_rows::Placed;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::ResourceLocation;
 
@@ -85,10 +86,14 @@ impl VanillaWorld<'_, '_> {
     pub(crate) fn mob_by_uuid(&self, uuid: u128) -> Option<MobView<'_>> {
         let id = *self.uuids.as_deref()?.0.get(&uuid)?;
         let mob = self.mobs.as_deref()?.0.get(&id)?;
-        let at = Placed { tile: mob.tile, id };
+        let rows = self.rows.as_deref()?;
+        let at = Placed {
+            tile: rows.tile_of(id)?,
+            id,
+        };
         Some(MobView {
             at,
-            state: self.rows.as_deref()?.state_of(at)?,
+            state: rows.state_of(at)?,
             mob,
         })
     }

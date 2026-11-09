@@ -1,18 +1,18 @@
-//! Pig rows in the entity pass: two pigs summoned into one point push each other apart, and an
-//! intent steers a pig.
+//! Pig and walker rows in the entity pass: two pigs summoned into one point push each other
+//! apart, and an intent steers a pig, wakes a resting walker and publishes a turn of the head.
 
 use bevy_tasks::TaskPoolBuilder;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
 use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::FLOOR;
-use mcrs_minecraft_engine_physics::MobIntent;
 use mcrs_minecraft_engine_physics::TestScene;
 use mcrs_minecraft_engine_physics::mob_body;
 use mcrs_minecraft_engine_physics::mob_row;
 use mcrs_minecraft_engine_physics::tile_at;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_rows::MobIntent;
 use mcrs_minecraft_physics::MoveInput;
 use mcrs_minecraft_physics::Steering;
 
@@ -95,5 +95,80 @@ fn an_intent_steers_a_pig_before_its_step() {
     assert!(
         end.z - start.z > 1.0 && (end.x - start.x).abs() < 1e-9,
         "the yaw 0 walks to +z: {start} to {end}"
+    );
+}
+
+#[test]
+fn an_intent_that_steers_a_resting_walker_wakes_it() {
+    let pool = TaskPoolBuilder::new().num_threads(2).build();
+    let mut scene = TestScene::new(1, 2, 0, 7);
+    let standing = EntityId(1);
+    for _ in 0..60 {
+        scene.step(&pool, 1, &mut EntityWrites::default());
+    }
+    let (tile, start) = scene
+        .rows
+        .living_rows()
+        .find(|(at, _)| at.id == standing)
+        .map(|(at, state)| (at.tile, state.body.position))
+        .expect("the standing walker has a row");
+    scene.rows.steer(
+        tile,
+        MobIntent {
+            steering: Some(Steering {
+                input: MoveInput {
+                    forward: 1.0,
+                    ..MoveInput::default()
+                },
+                jump: false,
+                speed: 0.1,
+            }),
+            ..MobIntent::new(standing)
+        },
+    );
+    for _ in 0..5 {
+        scene.step(&pool, 1, &mut EntityWrites::default());
+    }
+    let end = scene
+        .rows
+        .living_rows()
+        .find(|(at, _)| at.id == standing)
+        .map(|(_, state)| state.body.position)
+        .expect("the walker keeps its row");
+    assert!(
+        start.distance(end) > 0.1,
+        "the walker walks from {start} to {end}"
+    );
+}
+
+#[test]
+fn an_intent_that_only_turns_the_head_publishes_a_move() {
+    let pool = TaskPoolBuilder::new().num_threads(2).build();
+    let mut scene = TestScene::new(1, 2, 0, 7);
+    let standing = EntityId(1);
+    for _ in 0..60 {
+        scene.step(&pool, 1, &mut EntityWrites::default());
+    }
+    assert!(
+        scene.rows.moved().iter().all(|moved| moved.id != standing),
+        "the standing walker settled on the floor"
+    );
+    let tile = scene
+        .rows
+        .living_rows()
+        .find(|(at, _)| at.id == standing)
+        .map(|(at, _)| at.tile)
+        .expect("the standing walker has a row");
+    scene.rows.steer(
+        tile,
+        MobIntent {
+            head_yaw: Some(45.0),
+            ..MobIntent::new(standing)
+        },
+    );
+    scene.step(&pool, 1, &mut EntityWrites::default());
+    assert!(
+        scene.rows.moved().iter().any(|moved| moved.id == standing),
+        "the turn of the head reaches the viewers"
     );
 }

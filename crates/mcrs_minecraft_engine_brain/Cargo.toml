@@ -22,6 +22,7 @@ mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_engine_physics.workspace = true
 mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_entity_rows.workspace = true
 mcrs_minecraft_game_mode.workspace = true
 mcrs_minecraft_goals.workspace = true
 mcrs_minecraft_item.workspace = true
@@ -30,7 +31,6 @@ mcrs_minecraft_physics.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_volume.workspace = true
 mcrs_voxel.workspace = true
-rustc-hash.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]

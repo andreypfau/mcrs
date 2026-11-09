@@ -1,10 +1,10 @@
 use mcrs_minecraft_damage::Hit;
 use mcrs_minecraft_damage::HitOutcome;
+use mcrs_minecraft_entity_rows::Placed;
 use mcrs_minecraft_replication::MobSignal;
 
-use crate::entity_rows::EntityRows;
+use crate::EntityRows;
 use crate::mob_life::MobChanges;
-use crate::mob_life::Placed;
 use crate::mob_life::Signaled;
 
 /// Hurts the mob row `at` and queues what its viewers see; `None` when `at` is not a living row.

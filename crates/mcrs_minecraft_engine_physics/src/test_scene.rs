@@ -2,8 +2,9 @@ use bevy_tasks::TaskPool;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
 use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_rows::BodyGrid;
+use mcrs_minecraft_entity_rows::Pass;
 use mcrs_minecraft_physics::Body;
-use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MotionRow;
@@ -23,7 +24,6 @@ use mcrs_voxel::SectionPos;
 use crate::EntityRows;
 use crate::EntityWrites;
 use crate::block_world::BlockWorld;
-use crate::entity_pass::Pass;
 
 /// The top of the stone floor of a scene: inside a section, so the floor section has two states.
 pub const FLOOR: i32 = 4;
@@ -118,7 +118,7 @@ impl TestScene {
 
     /// One tick: the merge point, the freeze, the pass and the tile moves.
     pub fn step(&mut self, pool: &TaskPool, tiles_per_task: usize, writes: &mut EntityWrites) {
-        self.rows.apply_writes(writes);
+        self.rows.apply_writes(&mut writes.0);
         self.rows.freeze(pool, &mut self.grid);
         let pass = Pass {
             world: &BlockWorld {

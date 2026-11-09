@@ -1,16 +1,13 @@
 use std::mem;
 
-use bevy_tasks::TaskPool;
 use glam::DVec3;
-use mcrs_engine_muxer::EntityId;
-use mcrs_engine_muxer::TileKey;
+use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_entity_key::TILE_WIDTH;
-use mcrs_minecraft_physics::BodyGrid;
+use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::BodyView;
 use mcrs_minecraft_physics::Category;
 use mcrs_minecraft_physics::CollisionWorld;
-use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MoveInput;
 use mcrs_minecraft_physics::PushRules;
@@ -19,26 +16,27 @@ use mcrs_minecraft_physics::Scratch;
 use mcrs_minecraft_physics::SectionLookup;
 use mcrs_minecraft_physics::Side;
 use mcrs_minecraft_physics::Tables;
-use mcrs_minecraft_physics::TileRows;
 use mcrs_minecraft_physics::View;
 use mcrs_minecraft_physics::block_at;
 use mcrs_minecraft_physics::push_entity;
 use mcrs_minecraft_physics::same_bits;
 use mcrs_minecraft_physics::tick_entity;
-use mcrs_minecraft_replication::MobState;
 use mcrs_voxel::SectionPos;
 
-use crate::entity_rows::EntityRows;
-use crate::entity_rows::Leaving;
-use crate::entity_rows::Tile;
-use crate::entity_rows::deal;
-use crate::entity_rows::wakes;
+use crate::BodyGrid;
+use crate::Executor;
+use crate::MobIntent;
+use crate::Moved;
+use crate::Placed;
+use crate::RowStore;
+use crate::TileRows;
+use crate::VisibleState;
 use crate::front_grid::FrontGrid;
 use crate::front_grid::grid_row;
-use crate::mob_intent::MobIntent;
-use crate::mob_life::Placed;
-use crate::mob_moved::MobMoved;
-use crate::tile_at::tile_at;
+use crate::row_store::Leaving;
+use crate::row_store::Tile;
+use crate::row_store::deal;
+use crate::row_store::wakes;
 use crate::tile_world::TileWorld;
 
 /// The age at which an item or an experience orb despawns (AIT-VAN-018, AIT-VAN-019).
@@ -51,13 +49,15 @@ const SERVER: Side = Side::Server { authority: true };
 const STILL_INPUT: f64 = 1.0e-7;
 
 /// The frozen inputs of one entity pass.
-pub(crate) struct Pass<'a, W> {
-    pub(crate) world: &'a W,
-    pub(crate) tables: &'a Tables,
+#[derive(Debug)]
+pub struct Pass<'a, W> {
+    pub world: &'a W,
+    pub tables: &'a Tables,
     /// The tick of the keyed random streams.
-    pub(crate) tick: u64,
-    pub(crate) push: PushRules,
-    pub(crate) tiles_per_task: usize,
+    pub tick: u64,
+    pub push: PushRules,
+    /// The tiles in one task, from [`tiles_per_task`](crate::tiles_per_task) or a fixed split.
+    pub tiles_per_task: usize,
 }
 
 /// What the task of one tile hands back.
@@ -69,49 +69,47 @@ struct TileStep {
     expired: Vec<EntityId>,
     /// The rows whose position is in another tile now.
     left: Vec<EntityId>,
-    moved: Vec<MobMoved>,
+    moved: Vec<Moved>,
     /// The living rows of `expired`.
     died: Vec<EntityId>,
 }
 
-impl EntityRows {
+impl<M: Send> RowStore<M> {
     /// Ticks every row once, in parallel over tiles: each row reads only its own state, the
     /// blocks of `pass` and the front grid, so the result does not depend on the task split or
     /// the thread count. Writes the grid of each tile whose bodies changed into its back buffer,
     /// and keeps the rows that left their tile for [`Self::move_rows`].
     /// Gives the items and the orbs that reached their lifetime, which left their rows.
-    pub(crate) fn tick<W: CollisionWorld + Sync>(
+    pub fn tick<W: CollisionWorld + Sync>(
         &mut self,
         pass: &Pass<'_, W>,
-        pool: &TaskPool,
+        executor: &impl Executor,
         grid: &BodyGrid,
     ) -> Vec<EntityId> {
         self.moved.clear();
-        self.removed.clear();
+        self.changes.spawned.clear();
+        self.changes.removed.clear();
         let bodies = FrontGrid {
             grid,
             reach: self.reach,
         };
         let woken = &self.woken;
-        let tiles: Vec<(TileKey, &mut Tile)> = self
+        let tiles: Vec<(TileKey, &mut Tile<M>)> = self
             .tiles
             .iter_mut()
             .map(|(&tile, entry)| (tile, entry))
             .collect();
-        let tasks: Vec<Vec<TileStep>> = pool.scope(|scope| {
-            for mut chunk in deal(tiles, pass.tiles_per_task) {
-                scope.spawn(async move {
-                    let mut scratch = Scratch::new();
-                    chunk
-                        .iter_mut()
-                        .map(|(tile, entry)| {
-                            let wake = wakes(woken, *tile);
-                            tick_tile(pass, &bodies, *tile, entry, wake, &mut scratch)
-                        })
-                        .collect()
-                });
-            }
-        });
+        let tasks: Vec<Vec<TileStep>> =
+            executor.run(deal(tiles, pass.tiles_per_task), &|mut chunk| {
+                let mut scratch = Scratch::new();
+                chunk
+                    .iter_mut()
+                    .map(|(tile, entry)| {
+                        let wake = wakes(woken, *tile);
+                        tick_tile(pass, &bodies, *tile, entry, wake, &mut scratch)
+                    })
+                    .collect()
+            });
         let mut steps: Vec<TileStep> = tasks.into_iter().flatten().collect();
         steps.sort_unstable_by_key(|step| step.tile);
         let mut expired = Vec::new();
@@ -120,10 +118,15 @@ impl EntityRows {
                 self.written.insert(step.tile);
                 self.reach = self.reach.max(reach);
             }
-            self.removed.extend(step.died.into_iter().map(|id| Placed {
-                tile: step.tile,
-                id,
-            }));
+            for &id in &step.died {
+                self.living.remove(&id);
+            }
+            self.changes
+                .removed
+                .extend(step.died.into_iter().map(|id| Placed {
+                    tile: step.tile,
+                    id,
+                }));
             expired.extend(step.expired);
             self.moved.extend(step.moved);
             self.leaving.extend(step.left.into_iter().map(|id| Leaving {
@@ -135,11 +138,11 @@ impl EntityRows {
     }
 }
 
-fn tick_tile<W: CollisionWorld, B: BodyView>(
+fn tick_tile<W: CollisionWorld, B: BodyView, M>(
     pass: &Pass<'_, W>,
     bodies_view: &B,
     tile: TileKey,
-    entry: &mut Tile,
+    entry: &mut Tile<M>,
     wake: bool,
     scratch: &mut Scratch,
 ) -> TileStep {
@@ -207,9 +210,9 @@ fn tick_tile<W: CollisionWorld, B: BodyView>(
             if let Some(looked) = looked
                 && (!same_bits(&before, &state.body) || state.living.map(rotations) != Some(looked))
             {
-                moved.push(MobMoved {
+                moved.push(Moved {
                     id: row.id,
-                    state: mob_state(state),
+                    state: VisibleState::from(&*state),
                 });
             }
             state.age = state.age.wrapping_add(1);
@@ -228,7 +231,7 @@ fn tick_tile<W: CollisionWorld, B: BodyView>(
                     died.push(row.id);
                 }
                 expired.push(row.id);
-            } else if tile_at(state.body.position) != tile {
+            } else if TileKey::at(state.body.position) != tile {
                 left.push(row.id);
             }
         }
@@ -281,27 +284,12 @@ fn apply_intent(intent: &MobIntent, living: &mut Living) {
     }
 }
 
-/// The state of a living row that its viewers see.
-pub(crate) fn mob_state(state: &EntityState) -> MobState {
-    let living = state.living.unwrap_or_default();
-    MobState {
-        position: state.body.position,
-        velocity: state.body.velocity,
-        yaw: living.yaw,
-        pitch: living.pitch,
-        head_yaw: living.head_yaw,
-        on_ground: state.body.flags.on_ground,
-        health: living.health,
-        dying: !living.is_alive(),
-    }
-}
-
 /// The sections of the tile and one section around it, from below the lowest row to above the
 /// highest one.
-fn tile_world<'a, W: CollisionWorld>(
+fn tile_world<'a, W: CollisionWorld, M>(
     world: &'a W,
     tile: TileKey,
-    rows: &mut TileRows,
+    rows: &mut TileRows<M>,
 ) -> TileWorld<'a, W> {
     let mut low = f64::INFINITY;
     let mut high = f64::NEG_INFINITY;
@@ -330,90 +318,4 @@ fn loaded<W: CollisionWorld>(world: &W, position: DVec3) -> bool {
         world.section(SectionPos::from(block_at(position))),
         SectionLookup::Unloaded
     )
-}
-
-#[cfg(test)]
-mod tests {
-    use bevy_tasks::TaskPoolBuilder;
-
-    use mcrs_minecraft_physics::Steering;
-
-    use super::*;
-    use crate::EntityWrites;
-    use crate::TestScene;
-
-    #[test]
-    fn an_intent_that_steers_a_resting_walker_wakes_it() {
-        let pool = TaskPoolBuilder::new().num_threads(2).build();
-        let mut scene = TestScene::new(1, 2, 0, 7);
-        let standing = EntityId(1);
-        for _ in 0..60 {
-            scene.step(&pool, 1, &mut EntityWrites::default());
-        }
-        let (tile, start) = scene
-            .rows
-            .living_rows()
-            .find(|(at, _)| at.id == standing)
-            .map(|(at, state)| (at.tile, state.body.position))
-            .expect("the standing walker has a row");
-        scene.rows.steer(
-            tile,
-            MobIntent {
-                steering: Some(Steering {
-                    input: MoveInput {
-                        forward: 1.0,
-                        ..MoveInput::default()
-                    },
-                    jump: false,
-                    speed: 0.1,
-                }),
-                ..MobIntent::new(standing)
-            },
-        );
-        for _ in 0..5 {
-            scene.step(&pool, 1, &mut EntityWrites::default());
-        }
-        let end = scene
-            .rows
-            .living_rows()
-            .find(|(at, _)| at.id == standing)
-            .map(|(_, state)| state.body.position)
-            .expect("the walker keeps its row");
-        assert!(
-            start.distance(end) > 0.1,
-            "the walker walks from {start} to {end}"
-        );
-    }
-
-    #[test]
-    fn an_intent_that_only_turns_the_head_publishes_a_move() {
-        let pool = TaskPoolBuilder::new().num_threads(2).build();
-        let mut scene = TestScene::new(1, 2, 0, 7);
-        let standing = EntityId(1);
-        for _ in 0..60 {
-            scene.step(&pool, 1, &mut EntityWrites::default());
-        }
-        assert!(
-            scene.rows.moved.iter().all(|moved| moved.id != standing),
-            "the standing walker settled on the floor"
-        );
-        let tile = scene
-            .rows
-            .living_rows()
-            .find(|(at, _)| at.id == standing)
-            .map(|(at, _)| at.tile)
-            .expect("the standing walker has a row");
-        scene.rows.steer(
-            tile,
-            MobIntent {
-                head_yaw: Some(45.0),
-                ..MobIntent::new(standing)
-            },
-        );
-        scene.step(&pool, 1, &mut EntityWrites::default());
-        assert!(
-            scene.rows.moved.iter().any(|moved| moved.id == standing),
-            "the turn of the head reaches the viewers"
-        );
-    }
 }

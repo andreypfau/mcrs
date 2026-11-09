@@ -8,6 +8,8 @@ use mcrs_engine_muxer::EntityId;
 use mcrs_engine_muxer::SubjectEvent;
 use mcrs_engine_muxer::TileKey;
 use mcrs_minecraft_engine::tile_events::TileEvents;
+use mcrs_minecraft_entity_rows::Moved;
+use mcrs_minecraft_entity_rows::VisibleState;
 use mcrs_minecraft_replication::MobReport;
 use mcrs_minecraft_replication::MobSignal;
 use mcrs_minecraft_replication::MobSpawn;
@@ -16,10 +18,9 @@ use mcrs_minecraft_replication::ReplicationData;
 use rustc_hash::FxHashSet;
 use uuid::Uuid;
 
-use crate::entity_pass::mob_state;
-use crate::entity_rows::EntityRows;
+use crate::EntityRows;
 use crate::mob_life::MobChanges;
-use crate::mob_moved::MobMoved;
+use crate::mob_life::mob_state;
 use crate::mobs::MobUuids;
 use crate::mobs::Mobs;
 use crate::tile_at::tile_at;
@@ -40,12 +41,8 @@ pub(crate) fn publish_mobs(
         .iter()
         .map(|spawned| (spawned.id, spawned.state))
         .collect();
-    for crossing in &rows.crossed {
-        let Some(mob) = mobs.0.get_mut(&crossing.id) else {
-            continue;
-        };
-        mob.tile = crossing.to;
-        if fresh.contains_key(&crossing.id) {
+    for crossing in rows.changes().crossed() {
+        if !mobs.0.contains_key(&crossing.id) || fresh.contains_key(&crossing.id) {
             continue;
         }
         events.push(
@@ -91,14 +88,14 @@ pub(crate) fn publish_mobs(
         let touched: FxHashSet<EntityId> = changes.touched.iter().map(|at| at.id).collect();
         let pool = ComputeTaskPool::get();
         let per_task = rows
-            .moved
+            .moved()
             .len()
             .div_ceil(pool.thread_num().saturating_mul(4).max(1))
             .max(MOVES_PER_TASK);
         let mobs = &*mobs;
         let touched = &touched;
         let batches: Vec<MoveBatches> = pool.scope(|scope| {
-            for chunk in rows.moved.chunks(per_task) {
+            for chunk in rows.moved().chunks(per_task) {
                 scope.spawn(async move { move_batches(chunk, mobs, touched) });
             }
         });
@@ -109,15 +106,16 @@ pub(crate) fn publish_mobs(
             published.extend(batch.touched);
         }
     } else {
-        for moved in &rows.moved {
+        for moved in rows.moved() {
+            let state = mob_state(&moved.state);
             if let Some(start) = fresh.remove(&moved.id) {
-                spawn(&mut events, moved.id, start, moved.state);
+                spawn(&mut events, moved.id, start, state);
             }
             if mobs.0.contains_key(&moved.id) {
                 events.push(
-                    tile_at(moved.state.position),
+                    tile_at(state.position),
                     moved.id,
-                    EntityEvent::Move(MobReport::Move(moved.state).into()),
+                    EntityEvent::Move(MobReport::Move(state).into()),
                 );
                 published.push(moved.id);
             }
@@ -131,7 +129,10 @@ pub(crate) fn publish_mobs(
         if published.binary_search(&touched.id).is_ok() {
             continue;
         }
-        if let Some(state) = rows.state_of(*touched).map(mob_state) {
+        if let Some(state) = rows
+            .state_of(*touched)
+            .map(|state| mob_state(&VisibleState::from(state)))
+        {
             events.push(
                 tile_at(state.position),
                 touched.id,
@@ -139,7 +140,7 @@ pub(crate) fn publish_mobs(
             );
         }
     }
-    for removed in &rows.removed {
+    for removed in rows.changes().removed() {
         let Some(mob) = mobs.0.remove(&removed.id) else {
             continue;
         };
@@ -166,7 +167,7 @@ struct MoveBatches {
     touched: Vec<EntityId>,
 }
 
-fn move_batches(moved: &[MobMoved], mobs: &Mobs, touched: &FxHashSet<EntityId>) -> MoveBatches {
+fn move_batches(moved: &[Moved], mobs: &Mobs, touched: &FxHashSet<EntityId>) -> MoveBatches {
     let mut out = MoveBatches {
         tiles: Vec::new(),
         touched: Vec::new(),
@@ -175,10 +176,11 @@ fn move_batches(moved: &[MobMoved], mobs: &Mobs, touched: &FxHashSet<EntityId>) 
         if !mobs.0.contains_key(&moved.id) {
             continue;
         }
-        let tile = tile_at(moved.state.position);
+        let state = mob_state(&moved.state);
+        let tile = tile_at(state.position);
         let event = SubjectEvent {
             subject: moved.id,
-            event: EntityEvent::Move(MobReport::Move(moved.state).into()),
+            event: EntityEvent::Move(MobReport::Move(state).into()),
         };
         match out.tiles.last_mut() {
             Some((last, moves)) if *last == tile => moves.push(event),

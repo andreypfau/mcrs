@@ -12,7 +12,7 @@ use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::TestScene;
 use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_key::TILE_WIDTH;
-use mcrs_minecraft_physics::BodyGrid;
+use mcrs_minecraft_entity_rows::BodyGrid;
 use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_volume::BlockVolumeMut;

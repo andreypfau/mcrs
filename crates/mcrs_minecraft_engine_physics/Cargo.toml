@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_engine_physics"
-description = "The entity pass of a dimension world: the rows of the server entities by tile, the body grid, the tick of the rows over tiles with the physics kernel, the row-only items, and the mob rows with their life cycle and tile events"
+description = "The entity pass of a dimension world in Bevy: the row store as a resource with the mob column, the merge point, the freeze and the pass as systems, the row-only items, and the mob rows with their life cycle and tile events"
 version.workspace = true
 edition.workspace = true
 
@@ -10,7 +10,7 @@ doctest = false
 [lints]
 workspace = true
 
-# std: the rows and the grid live in Vec and BTreeMap
+# std: the side tables live in hash maps and BTreeMap
 [dependencies]
 mcrs_minecraft_entity_key.workspace = true
 bevy_app.workspace = true
@@ -19,13 +19,16 @@ bevy_tasks.workspace = true
 glam.workspace = true
 mcrs_engine_muxer.workspace = true
 mcrs_minecraft_block.workspace = true
+mcrs_minecraft_brain.workspace = true
 mcrs_minecraft_collision_table.workspace = true
 mcrs_minecraft_damage.workspace = true
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_rows = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_game_rule.workspace = true
 mcrs_minecraft_item.workspace = true
+mcrs_minecraft_mob_control.workspace = true
 mcrs_minecraft_physics.workspace = true
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }

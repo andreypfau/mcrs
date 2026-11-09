@@ -3,7 +3,8 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_command_engine::Worlds;
 use mcrs_minecraft_damage::Hit;
 use mcrs_minecraft_engine::coordinator::birth_clock::BirthClock;
-use mcrs_minecraft_engine_physics::{EntityRows, MobChanges, Placed, hurt_mob};
+use mcrs_minecraft_engine_physics::{EntityRows, MobChanges, hurt_mob};
+use mcrs_minecraft_entity_rows::Placed;
 
 /// The command effect that hits the mob row `at` of this world.
 #[derive(Clone, Copy, Debug, PartialEq)]

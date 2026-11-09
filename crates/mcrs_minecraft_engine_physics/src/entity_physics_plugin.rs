@@ -16,6 +16,7 @@ use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
 use bevy_ecs::system::Single;
 use bevy_tasks::ComputeTaskPool;
+use bevy_tasks::TaskPool;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
 use mcrs_minecraft_block::block_keys::Block;
@@ -33,10 +34,12 @@ use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
 use mcrs_minecraft_entity_key::BirthSource;
 use mcrs_minecraft_entity_key::KeyedStream;
+use mcrs_minecraft_entity_rows::BodyGrid;
+use mcrs_minecraft_entity_rows::Pass;
+use mcrs_minecraft_entity_rows::tiles_per_task;
 use mcrs_minecraft_game_rule::GameRule;
 use mcrs_minecraft_item::ItemStack;
 use mcrs_minecraft_physics::Body;
-use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::CollisionTable;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::MotionRow;
@@ -45,11 +48,9 @@ use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_voxel::BlockPos;
 
+use crate::EntityRows;
+use crate::EntityWrites;
 use crate::block_world::BlockWorld;
-use crate::entity_pass::Pass;
-use crate::entity_rows::EntityRows;
-use crate::entity_rows::tiles_per_task;
-use crate::entity_write::EntityWrites;
 use crate::mob_life::MobChanges;
 use crate::mob_life::PendingSpawns;
 use crate::mob_life::spawn_mobs;
@@ -138,7 +139,7 @@ fn build_tables(mut commands: Commands, blocks: Res<Blocks>, registries: Res<Cur
 }
 
 fn apply_writes(mut rows: ResMut<EntityRows>, mut writes: ResMut<EntityWrites>) {
-    rows.apply_writes(&mut writes);
+    rows.apply_writes(&mut writes.0);
 }
 
 /// Each item that a block left becomes a row at the centre of the block, with the block as the
@@ -195,7 +196,8 @@ fn stir_changed_blocks(mut placed: MessageReader<BlockPlaced>, mut rows: ResMut<
 }
 
 fn freeze(mut rows: ResMut<EntityRows>, mut bodies: ResMut<Bodies>) {
-    rows.freeze(ComputeTaskPool::get(), &mut bodies.0);
+    let pool: &TaskPool = ComputeTaskPool::get();
+    rows.freeze(pool, &mut bodies.0);
 }
 
 fn entity_tick(
@@ -211,7 +213,7 @@ fn entity_tick(
     let Some(blocks) = world.get(*dimension) else {
         return;
     };
-    let pool = ComputeTaskPool::get();
+    let pool: &TaskPool = ComputeTaskPool::get();
     let pass = Pass {
         world: &BlockWorld {
             blocks: &blocks,
@@ -225,7 +227,7 @@ fn entity_tick(
             }),
             ..PushRules::default()
         },
-        tiles_per_task: tiles_per_task(pool, rows.tiles.len()),
+        tiles_per_task: tiles_per_task(pool, rows.tile_count()),
     };
     for id in rows.tick(&pass, pool, &bodies.0) {
         stacks.0.remove(&id);

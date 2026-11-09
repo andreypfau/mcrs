@@ -1,8 +1,9 @@
 use bevy_math::DVec3;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_engine::command_handoff::SourceMob;
-use mcrs_minecraft_engine_physics::{Mob, Placed};
+use mcrs_minecraft_engine_physics::Mob;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity_rows::Placed;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_resource::ResourceLocationBuf;

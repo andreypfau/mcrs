@@ -6,7 +6,6 @@ use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
-use mcrs_engine_muxer::TileKey;
 use mcrs_minecraft_engine::coordinator::birth_clock::BirthClock;
 use mcrs_minecraft_engine::entity_ids::CellEntityIds;
 use mcrs_minecraft_entity::EntityTypeData;
@@ -15,6 +14,8 @@ use mcrs_minecraft_entity::pig_sound_variant_keys;
 use mcrs_minecraft_entity::registry_keys::PIG_SOUND_VARIANT;
 use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_key::KeyedStream;
+use mcrs_minecraft_entity_rows::Placed;
+use mcrs_minecraft_entity_rows::VisibleState;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::Category;
 use mcrs_minecraft_physics::Dimensions;
@@ -31,14 +32,12 @@ use mcrs_minecraft_replication::MobState;
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_resource::ResourceLocation;
 
-use crate::entity_pass::mob_state;
-use crate::entity_rows::EntityRows;
+use crate::EntityRows;
 use crate::mob_spawn_request::MobSpawnRequest;
 use crate::mob_spawn_request::SpawnSetup;
 use crate::mobs::Mob;
 use crate::mobs::MobUuids;
 use crate::mobs::Mobs;
-use crate::tile_at::tile_at;
 
 /// The chance of a left hand in the first spawn setup (ANIM-SPAWN-001).
 const LEFT_HANDED: f64 = 0.05;
@@ -69,13 +68,6 @@ pub(crate) struct Signaled {
 pub(crate) struct Spawned {
     pub(crate) id: EntityId,
     pub(crate) state: MobState,
-}
-
-/// A row and its tile.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Placed {
-    pub tile: TileKey,
-    pub id: EntityId,
 }
 
 /// The motion row of a mob of `kind`: a walker with the adult box of the type.
@@ -157,7 +149,7 @@ pub(crate) fn spawn_mobs(
         looks.no_ai = request.extras.no_ai;
         changes.spawned.push(Spawned {
             id,
-            state: mob_state(&state),
+            state: mob_state(&VisibleState::from(&state)),
         });
         rows.spawn(id, state, row);
         uuids.0.insert(request.uuid, id);
@@ -167,11 +159,24 @@ pub(crate) fn spawn_mobs(
                 kind: request.kind,
                 uuid: request.uuid,
                 looks,
-                tile: tile_at(request.position),
                 custom_name: request.extras.custom_name,
                 tags: request.extras.tags,
             },
         );
+    }
+}
+
+/// The state of a living row that its viewers see, as the replication sends it.
+pub(crate) fn mob_state(state: &VisibleState) -> MobState {
+    MobState {
+        position: state.position,
+        velocity: state.velocity,
+        yaw: state.yaw,
+        pitch: state.pitch,
+        head_yaw: state.head_yaw,
+        on_ground: state.on_ground,
+        health: state.health,
+        dying: state.dying,
     }
 }
 

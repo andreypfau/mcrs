@@ -1,4 +1,4 @@
-use mcrs_engine_muxer::EntityId;
+use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_physics::Steering;
 
 /// What the AI sets for one mob before its next hot step: the steering of the travel and the
