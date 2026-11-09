@@ -11,8 +11,8 @@ use mcrs_minecraft_physics::{
 use mcrs_minecraft_protocol::{VarInt, WritePacket};
 use mcrs_minecraft_protocol_game::MoveFlags;
 use mcrs_minecraft_protocol_game::serverbound::{
-    ServerboundAcceptTeleportation, ServerboundMovePlayerPos, ServerboundMovePlayerPosRot,
-    ServerboundMovePlayerRot,
+    ServerboundAcceptTeleportation, ServerboundClientTickEnd, ServerboundMovePlayerPos,
+    ServerboundMovePlayerPosRot, ServerboundMovePlayerRot,
 };
 
 use crate::movement_input::MovementInput;
@@ -189,21 +189,22 @@ fn send_movement(
     // Flying never touches the ground and never collides, so both flags stay
     // clear until the client grows a collision step.
     let flags = MoveFlags::new();
-    let Some(packet) = last_sent.tick(transform.translation, transform.rotation) else {
-        return;
-    };
-
-    let position = transform.translation.into();
-    let look = transform.rotation.into();
-    match packet {
-        MovePacket::PosRot => connection.write_packet(&ServerboundMovePlayerPosRot {
-            position,
-            look,
-            flags,
-        }),
-        MovePacket::Pos => connection.write_packet(&ServerboundMovePlayerPos { position, flags }),
-        MovePacket::Rot => connection.write_packet(&ServerboundMovePlayerRot { look, flags }),
+    if let Some(packet) = last_sent.tick(transform.translation, transform.rotation) {
+        let position = transform.translation.into();
+        let look = transform.rotation.into();
+        match packet {
+            MovePacket::PosRot => connection.write_packet(&ServerboundMovePlayerPosRot {
+                position,
+                look,
+                flags,
+            }),
+            MovePacket::Pos => {
+                connection.write_packet(&ServerboundMovePlayerPos { position, flags })
+            }
+            MovePacket::Rot => connection.write_packet(&ServerboundMovePlayerRot { look, flags }),
+        }
     }
+    connection.write_packet(&ServerboundClientTickEnd);
 }
 
 fn capture_old_transform(player: Single<(&PhysicsTransform, &mut OldTransform), With<Player>>) {
