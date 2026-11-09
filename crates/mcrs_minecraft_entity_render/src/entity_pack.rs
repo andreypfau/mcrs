@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use mcrs_minecraft_entity_animation::{ClientEntityDefinition, ClipLibrary, Rig};
-use mcrs_minecraft_entity_model::{BakedGeometry, GeometryFile, resolve_parents};
+use mcrs_minecraft_entity_model::{
+    BakedGeometry, Diagnostic, Geometry, GeometryFile, resolve_parents,
+};
 use mcrs_minecraft_render_controller::{
     ClientEntityResources, RenderControllerLibrary, RenderControllers,
 };
@@ -39,7 +41,8 @@ impl EntityPack {
         let mut pack = Self::default();
         let mut clips = ClipLibrary::new();
         let mut controllers = RenderControllerLibrary::new();
-        let mut geometries: HashMap<String, BakedGeometry> = HashMap::new();
+        let mut read: Vec<Geometry> = Vec::new();
+        let mut geometry_paths: HashMap<String, &str> = HashMap::new();
         let mut entities: Vec<(&str, &str)> = Vec::new();
         for (path, text) in files {
             if path.starts_with("animations/") {
@@ -51,11 +54,18 @@ impl EntityPack {
                     pack.diagnostics.push(format!("{path}: {error}"));
                 }
             } else if path.starts_with("geometry/") && !path.starts_with("geometry/block/") {
-                bake_file(path, text, &mut geometries, &mut pack.diagnostics);
+                read_geometry_file(
+                    path,
+                    text,
+                    &mut read,
+                    &mut geometry_paths,
+                    &mut pack.diagnostics,
+                );
             } else if path.starts_with("entity/") {
                 entities.push((path, text));
             }
         }
+        let geometries = bake_geometries(read, &geometry_paths, &mut pack.diagnostics);
         for (path, text) in entities {
             let (definition, resources) = match (
                 ClientEntityDefinition::parse(text),
@@ -133,11 +143,13 @@ impl EntityPack {
     }
 }
 
-/// Bakes each geometry of a geometry file into `geometries`, by identifier.
-fn bake_file(
-    path: &str,
+/// Reads the geometries of a geometry file into `geometries`. `paths` takes the path of each
+/// geometry identifier.
+fn read_geometry_file<'a>(
+    path: &'a str,
     text: &str,
-    geometries: &mut HashMap<String, BakedGeometry>,
+    geometries: &mut Vec<Geometry>,
+    paths: &mut HashMap<String, &'a str>,
     diagnostics: &mut Vec<String>,
 ) {
     let file = match text.parse::<GeometryFile>() {
@@ -147,19 +159,84 @@ fn bake_file(
             return;
         }
     };
-    let mut found = file.diagnostics;
-    let resolved = resolve_parents(file.geometries, &mut found);
+    diagnostics.extend(
+        file.diagnostics
+            .iter()
+            .map(|diagnostic| format!("{path}: {diagnostic}")),
+    );
+    for geometry in file.geometries {
+        paths.insert(geometry.identifier.clone(), path);
+        geometries.push(geometry);
+    }
+}
+
+/// Resolves the legacy parents across all geometry files, then bakes each geometry, by
+/// identifier. A legacy geometry can name a parent of another file.
+fn bake_geometries(
+    read: Vec<Geometry>,
+    paths: &HashMap<String, &str>,
+    diagnostics: &mut Vec<String>,
+) -> HashMap<String, BakedGeometry> {
+    let path_of = |identifier: &str| paths.get(identifier).copied().unwrap_or("geometry");
+    let mut rejected = Vec::new();
+    let resolved = resolve_parents(read, &mut rejected);
+    for diagnostic in &rejected {
+        let path = match diagnostic {
+            Diagnostic::RejectedGeometry {
+                identifier: Some(identifier),
+                ..
+            } => path_of(identifier),
+            _ => "geometry",
+        };
+        diagnostics.push(format!("{path}: {diagnostic}"));
+    }
+    let mut geometries = HashMap::new();
     for geometry in resolved {
+        let path = path_of(&geometry.identifier);
+        let mut found = Vec::new();
         match geometry.bake(&mut found) {
             Ok(baked) => {
                 geometries.insert(baked.identifier.clone(), baked);
             }
             Err(error) => diagnostics.push(format!("{path}: {error}")),
         }
+        diagnostics.extend(
+            found
+                .iter()
+                .map(|diagnostic| format!("{path}: {diagnostic}")),
+        );
     }
-    diagnostics.extend(
-        found
-            .iter()
-            .map(|diagnostic| format!("{path}: {diagnostic}")),
-    );
+    geometries
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const PARENT: &str = r#"{"format_version": "1.8.0", "geometry.parent": {
+        "texturewidth": 16, "textureheight": 16,
+        "bones": [{"name": "body", "pivot": [0, 0, 0], "cubes": [{"origin": [0, 0, 0], "size": [1, 1, 1], "uv": [0, 0]}]}]}}"#;
+    const CHILD: &str = r#"{"format_version": "1.8.0", "geometry.child:geometry.parent": {
+        "bones": [{"name": "head", "parent": "body", "pivot": [0, 1, 0], "cubes": [{"origin": [0, 1, 0], "size": [1, 1, 1], "uv": [0, 0]}]}]}}"#;
+
+    #[test]
+    fn a_legacy_geometry_resolves_a_parent_of_another_file() {
+        let pack = EntityPack::load([
+            ("geometry/child.geo.json", CHILD),
+            ("geometry/parent.geo.json", PARENT),
+        ]);
+        assert!(pack.diagnostics.is_empty(), "{:?}", pack.diagnostics);
+        let mut geometries = Vec::new();
+        let mut paths = HashMap::new();
+        let mut diagnostics = Vec::new();
+        for (path, text) in [("child", CHILD), ("parent", PARENT)] {
+            read_geometry_file(path, text, &mut geometries, &mut paths, &mut diagnostics);
+        }
+        let baked = bake_geometries(geometries, &paths, &mut diagnostics);
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let child = &baked["geometry.child"];
+        let names: Vec<&str> = child.bones.iter().map(|bone| bone.name.as_str()).collect();
+        assert_eq!(names, ["body", "head"]);
+        assert_eq!(child.bones[1].parent, Some(0));
+    }
 }
