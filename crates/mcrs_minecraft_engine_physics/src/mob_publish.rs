@@ -9,6 +9,7 @@ use mcrs_engine_muxer::SubjectEvent;
 use mcrs_engine_muxer::TileKey;
 use mcrs_minecraft_engine::tile_events::TileEvents;
 use mcrs_minecraft_entity_rows::Moved;
+use mcrs_minecraft_entity_rows::RowStore;
 use mcrs_minecraft_entity_rows::VisibleState;
 use mcrs_minecraft_replication::MobReport;
 use mcrs_minecraft_replication::MobSignal;
@@ -18,7 +19,6 @@ use mcrs_minecraft_replication::ReplicationData;
 use rustc_hash::FxHashSet;
 use uuid::Uuid;
 
-use crate::EntityRows;
 use crate::mob_life::MobChanges;
 use crate::mob_life::mob_state;
 use crate::mobs::MobUuids;
@@ -29,8 +29,8 @@ use crate::tile_at::tile_at;
 /// tracker, the signals, a move for each row whose visible state changed, a change of tile, and
 /// the removal at the end of a death. A mob that spawned in this tick spawns in the tile it ends
 /// the tick in.
-pub(crate) fn publish_mobs(
-    rows: Res<EntityRows>,
+pub(crate) fn publish_mobs<M: Send + Sync + 'static>(
+    rows: Res<RowStore<M>>,
     mut mobs: ResMut<Mobs>,
     mut changes: ResMut<MobChanges>,
     mut events: ResMut<TileEvents>,

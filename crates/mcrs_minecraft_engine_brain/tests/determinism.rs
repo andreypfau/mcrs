@@ -17,6 +17,7 @@ use mcrs_minecraft_damage::Hit;
 use mcrs_minecraft_engine_brain::BlockGoalWorld;
 use mcrs_minecraft_engine_brain::HotTick;
 use mcrs_minecraft_engine_brain::MobAi;
+use mcrs_minecraft_engine_brain::MobColumn;
 use mcrs_minecraft_engine_brain::PanicCauses;
 use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::FLOOR;
@@ -45,7 +46,7 @@ fn pig_brain(kind: &'static EntityTypeData) -> Option<PigBrain> {
 }
 
 struct Run {
-    scene: TestScene,
+    scene: TestScene<MobColumn>,
     mobs: Mobs,
     ai: MobAi<PigBrain>,
     causes: PanicCauses,

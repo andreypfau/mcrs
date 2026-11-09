@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::marker::PhantomData;
 
 use bevy_app::App;
 use bevy_app::FixedUpdate;
@@ -36,6 +37,7 @@ use mcrs_minecraft_entity_key::BirthSource;
 use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_entity_rows::BodyGrid;
 use mcrs_minecraft_entity_rows::Pass;
+use mcrs_minecraft_entity_rows::RowStore;
 use mcrs_minecraft_entity_rows::tiles_per_task;
 use mcrs_minecraft_game_rule::GameRule;
 use mcrs_minecraft_item::ItemStack;
@@ -48,7 +50,6 @@ use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_voxel::BlockPos;
 
-use crate::EntityRows;
 use crate::EntityWrites;
 use crate::block_world::BlockWorld;
 use crate::mob_life::MobChanges;
@@ -62,9 +63,28 @@ use crate::tile_at::tile_at;
 
 /// The entity pass of a dimension world: the merge point, the life cycle and the freeze in
 /// `DomainInput`, the pass in `Simulate`, the tile moves and then the tile events of the mobs in
-/// `Project`.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct EntityPhysicsPlugin;
+/// `Project`. The rows are a [`RowStore<M>`] resource with the mob column `M`, which the pass
+/// moves with its row and never reads.
+#[derive(Debug)]
+pub struct EntityPhysicsPlugin<M> {
+    column: PhantomData<fn() -> M>,
+}
+
+impl<M> Clone for EntityPhysicsPlugin<M> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<M> Copy for EntityPhysicsPlugin<M> {}
+
+impl<M> Default for EntityPhysicsPlugin<M> {
+    fn default() -> Self {
+        Self {
+            column: PhantomData,
+        }
+    }
+}
 
 /// The tables of the kernel, from the block definitions and tags of the world.
 #[derive(Resource, Debug)]
@@ -86,9 +106,9 @@ pub(crate) struct Bodies(pub(crate) BodyGrid);
 #[derive(Resource, Debug, Default)]
 pub struct ItemStacks(pub BTreeMap<EntityId, ItemStack>);
 
-impl Plugin for EntityPhysicsPlugin {
+impl<M: Send + Sync + 'static> Plugin for EntityPhysicsPlugin<M> {
     fn build(&self, app: &mut App) {
-        app.init_resource::<EntityRows>();
+        app.init_resource::<RowStore<M>>();
         app.init_resource::<Bodies>();
         app.init_resource::<EntityWrites>();
         app.init_resource::<ItemStacks>();
@@ -108,24 +128,26 @@ impl Plugin for EntityPhysicsPlugin {
                     resource_exists::<Blocks>
                         .and_then(resource_exists_and_changed::<CurrentRegistries>),
                 ),
-                apply_writes,
-                spawn_dropped_items,
-                spawn_mobs,
-                stir_changed_blocks,
-                freeze,
+                apply_writes::<M>,
+                spawn_dropped_items::<M>,
+                spawn_mobs::<M>,
+                stir_changed_blocks::<M>,
+                freeze::<M>,
             )
                 .chain()
                 .in_set(TickSet::DomainInput),
         );
         app.add_systems(
             FixedUpdate,
-            entity_tick
+            entity_tick::<M>
                 .run_if(resource_exists::<PhysicsTables>)
                 .in_set(TickSet::Simulate),
         );
         app.add_systems(
             FixedUpdate,
-            (move_rows, publish_mobs).chain().in_set(TickSet::Project),
+            (move_rows::<M>, publish_mobs::<M>)
+                .chain()
+                .in_set(TickSet::Project),
         );
     }
 }
@@ -138,17 +160,20 @@ fn build_tables(mut commands: Commands, blocks: Res<Blocks>, registries: Res<Cur
     commands.insert_resource(PhysicsTables(Tables::new(collision_table(&blocks, &tags))));
 }
 
-fn apply_writes(mut rows: ResMut<EntityRows>, mut writes: ResMut<EntityWrites>) {
+fn apply_writes<M: Send + Sync + 'static>(
+    mut rows: ResMut<RowStore<M>>,
+    mut writes: ResMut<EntityWrites>,
+) {
     rows.apply_writes(&mut writes.0);
 }
 
 /// Each item that a block left becomes a row at the centre of the block, with the block as the
 /// source of its new UUID.
-fn spawn_dropped_items(
+fn spawn_dropped_items<M: Send + Sync + 'static>(
     mut dropped: MessageReader<ItemDropped>,
     births: EntityBirths,
     mut ids: ResMut<CellEntityIds>,
-    mut rows: ResMut<EntityRows>,
+    mut rows: ResMut<RowStore<M>>,
     mut stacks: ResMut<ItemStacks>,
 ) {
     let mut sequences: BTreeMap<[i32; 3], u32> = BTreeMap::new();
@@ -189,23 +214,26 @@ fn dropped_item(at: BlockPos, stream: &KeyedStream, row: &MotionRow) -> Body {
     }
 }
 
-fn stir_changed_blocks(mut placed: MessageReader<BlockPlaced>, mut rows: ResMut<EntityRows>) {
+fn stir_changed_blocks<M: Send + Sync + 'static>(
+    mut placed: MessageReader<BlockPlaced>,
+    mut rows: ResMut<RowStore<M>>,
+) {
     for block in placed.read() {
         rows.stir(tile_at(block.block_pos.as_dvec3()));
     }
 }
 
-fn freeze(mut rows: ResMut<EntityRows>, mut bodies: ResMut<Bodies>) {
+fn freeze<M: Send + Sync + 'static>(mut rows: ResMut<RowStore<M>>, mut bodies: ResMut<Bodies>) {
     let pool: &TaskPool = ComputeTaskPool::get();
     rows.freeze(pool, &mut bodies.0);
 }
 
-fn entity_tick(
+fn entity_tick<M: Send + Sync + 'static>(
     dimension: Single<Entity, With<Dimension>>,
     world: WorldView,
     tables: Res<PhysicsTables>,
     clock: Res<BirthClock>,
-    mut rows: ResMut<EntityRows>,
+    mut rows: ResMut<RowStore<M>>,
     bodies: Res<Bodies>,
     mut stacks: ResMut<ItemStacks>,
     rules: Option<Res<GameRules>>,
@@ -234,7 +262,7 @@ fn entity_tick(
     }
 }
 
-fn move_rows(mut rows: ResMut<EntityRows>) {
+fn move_rows<M: Send + Sync + 'static>(mut rows: ResMut<RowStore<M>>) {
     rows.move_rows();
 }
 

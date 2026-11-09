@@ -3,7 +3,6 @@ use mcrs_minecraft_brain::Fact;
 use mcrs_minecraft_brain::FactKind;
 use mcrs_minecraft_brain::MobView;
 use mcrs_minecraft_brain::PlayerTable;
-use mcrs_minecraft_engine_physics::MobColumn;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_entity_rows::MobIntent;
@@ -12,6 +11,7 @@ use mcrs_minecraft_volume::BlockVolume;
 
 use crate::BlockGoalWorld;
 use crate::HotTick;
+use crate::MobColumn;
 use crate::mob_column_ext::MobColumnExt;
 
 /// The hot side of one tile in one AI tick: the snapshot of its mobs, the application of the

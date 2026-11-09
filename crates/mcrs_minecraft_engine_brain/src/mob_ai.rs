@@ -16,18 +16,19 @@ use mcrs_minecraft_brain::Stage;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::TickContext;
 use mcrs_minecraft_brain::TileWork;
-use mcrs_minecraft_engine_physics::EntityRows;
-use mcrs_minecraft_engine_physics::MobColumn;
 use mcrs_minecraft_engine_physics::Mobs;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_entity_rows::Placed;
+use mcrs_minecraft_entity_rows::tiles_per_task;
 use mcrs_minecraft_goals::GoalWorld;
 use mcrs_minecraft_volume::BlockVolume;
 
 use crate::AiStats;
+use crate::EntityRows;
 use crate::HotTick;
+use crate::MobColumn;
 use crate::tile_task::TileOut;
 use crate::tile_task::TileTask;
 
@@ -249,13 +250,6 @@ where
             });
         }
     });
-}
-
-/// The tiles in one task of a parallel pass: four tasks per thread.
-fn tiles_per_task(pool: &TaskPool, tiles: usize) -> usize {
-    tiles
-        .div_ceil(pool.thread_num().saturating_mul(4).max(1))
-        .max(1)
 }
 
 /// Deals `tasks` into groups of about `per_task`, each with its index: the heaviest tasks go

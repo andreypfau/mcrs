@@ -6,6 +6,7 @@ use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_command_world::WorldCommandsPlugin;
 use mcrs_minecraft_engine_brain::MobBrainPlugin;
+use mcrs_minecraft_engine_brain::MobColumn;
 use mcrs_minecraft_engine_physics::EntityPhysicsPlugin;
 use mcrs_minecraft_engine_server::{DimensionWorldsPlugin, ServerCorePlugin, ServerNetworkPlugin};
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
@@ -77,7 +78,7 @@ pub struct VanillaEntityPhysicsPlugin;
 
 impl Plugin for VanillaEntityPhysicsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_dimension_plugin(EntityPhysicsPlugin);
+        app.add_dimension_plugin(EntityPhysicsPlugin::<MobColumn>::default());
     }
 }
 

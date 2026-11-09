@@ -7,12 +7,12 @@ use bevy_tasks::TaskPool;
 use bevy_tasks::TaskPoolBuilder;
 use mcrs_engine_muxer::EntityId;
 use mcrs_engine_muxer::TileGrid;
-use mcrs_minecraft_engine_physics::EntityRows;
 use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::TestScene;
 use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_key::TILE_WIDTH;
 use mcrs_minecraft_entity_rows::BodyGrid;
+use mcrs_minecraft_entity_rows::RowStore;
 use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_volume::BlockVolumeMut;
@@ -43,7 +43,7 @@ fn scene_of(fixture: &Fixture) -> TestScene {
     let mut scene = TestScene {
         blocks: SparseVolume::unbounded(),
         tables: Tables::new(common::table().clone()),
-        rows: EntityRows::default(),
+        rows: RowStore::default(),
         grid: BodyGrid::default(),
         tick: 1,
         push: PushRules::default(),
@@ -108,8 +108,8 @@ fn replay(fixture: &Fixture, pool: &TaskPool, phase: u8) -> Vec<Failure> {
             };
             let body = scene
                 .rows
-                .tiles_mut()
-                .flat_map(|(_, rows)| rows.rows_mut())
+                .tiles()
+                .flat_map(|(_, rows)| rows.rows())
                 .find(|row| row.id == id)
                 .map(|row| row.state.body);
             *failure = match body {

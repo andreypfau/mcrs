@@ -1,15 +1,15 @@
 use mcrs_minecraft_damage::Hit;
 use mcrs_minecraft_damage::HitOutcome;
 use mcrs_minecraft_entity_rows::Placed;
+use mcrs_minecraft_entity_rows::RowStore;
 use mcrs_minecraft_replication::MobSignal;
 
-use crate::EntityRows;
 use crate::mob_life::MobChanges;
 use crate::mob_life::Signaled;
 
 /// Hurts the mob row `at` and queues what its viewers see; `None` when `at` is not a living row.
-pub fn hurt_mob(
-    rows: &mut EntityRows,
+pub fn hurt_mob<M>(
+    rows: &mut RowStore<M>,
     changes: &mut MobChanges,
     at: Placed,
     hit: Hit,

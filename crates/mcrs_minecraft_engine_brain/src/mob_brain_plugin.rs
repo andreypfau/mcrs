@@ -27,7 +27,6 @@ use mcrs_minecraft_brain::WorldSeed as StageSeed;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine::world_seed::WorldSeed;
-use mcrs_minecraft_engine_physics::EntityRows;
 use mcrs_minecraft_engine_physics::Mobs;
 use mcrs_minecraft_engine_physics::PhysicsTables;
 use mcrs_minecraft_engine_world::entity::EntityUuid;
@@ -49,6 +48,7 @@ use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::AiStats;
 use crate::BlockGoalWorld;
+use crate::EntityRows;
 use crate::HotTick;
 use crate::MobAi;
 use crate::PanicCauses;

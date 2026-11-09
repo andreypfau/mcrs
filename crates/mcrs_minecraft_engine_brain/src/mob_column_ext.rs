@@ -6,7 +6,6 @@ use mcrs_minecraft_brain::MobFlags;
 use mcrs_minecraft_brain::MobView;
 use mcrs_minecraft_brain::Panic;
 use mcrs_minecraft_brain::PlayerTable;
-use mcrs_minecraft_engine_physics::MobColumn;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_rows::MobIntent;
 use mcrs_minecraft_goals::STROLL_IDLE_LIMIT;
@@ -24,6 +23,7 @@ use mcrs_voxel::BlockPos;
 
 use crate::BlockGoalWorld;
 use crate::HotTick;
+use crate::MobColumn;
 
 /// A player nearer than this resets the idle time of a mob (AIT-VAN-020).
 const NEAR_PLAYER: f64 = 32.0;
@@ -87,16 +87,17 @@ impl MobColumnExt for MobColumn {
         self.last_hit = hit;
         let struck_now = strikes != self.strikes;
         self.strikes = strikes;
-        if hurt && let Some(hit) = hit {
-            self.damage = Some(DamageRecord {
-                tick: tick.saturating_sub(1),
-                cause: if hot.panic_causes.contains(u32::from(hit.damage_type)) {
-                    DamageCause::Panic
-                } else {
-                    DamageCause::Other
-                },
-            });
+        if hurt {
+            self.hit_tick = Some(tick.saturating_sub(1));
         }
+        let damage = self.hit_tick.zip(hit).map(|(tick, hit)| DamageRecord {
+            tick,
+            cause: if hot.panic_causes.contains(u32::from(hit.damage_type)) {
+                DamageCause::Panic
+            } else {
+                DamageCause::Other
+            },
+        });
         let near = players.rows().iter().any(|player| {
             player.is_qualified()
                 && player.position.distance_squared(position) < NEAR_PLAYER * NEAR_PLAYER
@@ -131,7 +132,7 @@ impl MobColumnExt for MobColumn {
                 eye_height: self.kind.eye_height,
                 flags,
                 idle_time: self.idle_time,
-                damage: self.damage,
+                damage,
                 // Only a mob passenger or a boat disables a flag (GOAL-FRM-008), and only the
                 // float, which needs the fluid model, holds one by a reflex.
                 disabled: ControlFlags::NONE,
@@ -158,6 +159,7 @@ impl MobColumnExt for MobColumn {
         state: &EntityState,
     ) -> Option<(MobIntent, Option<PathEnd>)> {
         let living = state.living.filter(Living::is_alive)?;
+        let head_yaw_limit = self.kind.mob()?.head_yaw_limit;
         let position = state.body.position;
         let turned = self.turned.take();
         let on_ground = state.body.flags.on_ground;
@@ -169,7 +171,7 @@ impl MobColumnExt for MobColumn {
                 width: self.kind.width,
                 eye_height: self.kind.eye_height,
                 step_height: living.attributes.step_height as f32,
-                head_yaw_limit: self.head_yaw_limit,
+                head_yaw_limit,
             },
             flags: if on_ground {
                 BodyFlags::ON_GROUND

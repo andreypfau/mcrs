@@ -38,12 +38,20 @@ pub struct Row<M> {
     pub mob: Option<M>,
 }
 
-/// One row in its tile, with its state open to the writer of the phase.
-#[derive(Debug, PartialEq)]
-pub struct RowMut<'a> {
-    pub state: &'a mut EntityState,
+/// One row in its tile.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RowRef<'a> {
+    pub state: &'a EntityState,
     pub motion: &'a MotionRow,
     pub id: EntityId,
+}
+
+/// One row in its tile, with its state open to the writer of the phase.
+#[derive(Debug, PartialEq)]
+pub(crate) struct RowMut<'a> {
+    pub(crate) state: &'a mut EntityState,
+    pub(crate) motion: &'a MotionRow,
+    pub(crate) id: EntityId,
 }
 
 impl<M> Default for TileRows<M> {
@@ -63,13 +71,27 @@ impl<M> Default for TileRows<M> {
 
 impl<M> TileRows<M> {
     /// Gives the tile ids from the range of its cell, for the spawns of later ticks.
-    pub fn reserve_ids(&mut self, ids: impl IntoIterator<Item = EntityId>) {
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "the rows that a tile task spawns take reserved ids"
+        )
+    )]
+    pub(crate) fn reserve_ids(&mut self, ids: impl IntoIterator<Item = EntityId>) {
         self.free_ids.extend(ids);
     }
 
     /// Adds a row with one of the reserved ids and no mob column; `None` when the tile has no
     /// reserved id left.
-    pub fn spawn_row(&mut self, state: EntityState, motion: MotionRow) -> Option<EntityId> {
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "the rows that a tile task spawns take reserved ids"
+        )
+    )]
+    pub(crate) fn spawn_row(&mut self, state: EntityState, motion: MotionRow) -> Option<EntityId> {
         let id = self.free_ids.pop()?;
         self.insert_row(Row {
             state,
@@ -81,7 +103,7 @@ impl<M> TileRows<M> {
     }
 
     /// Adds a row that keeps its id, such as a row that comes from another tile.
-    pub fn insert_row(&mut self, row: Row<M>) {
+    pub(crate) fn insert_row(&mut self, row: Row<M>) {
         let at = self.id.len();
         self.rows.insert(row.id, at);
         self.state.push(row.state);
@@ -95,7 +117,7 @@ impl<M> TileRows<M> {
 
     /// Removes the row of `id` and gives it, with its mob column; `None` when the tile has no
     /// such row.
-    pub fn despawn_row(&mut self, id: EntityId) -> Option<Row<M>> {
+    pub(crate) fn despawn_row(&mut self, id: EntityId) -> Option<Row<M>> {
         let row = self.row_of(id)?;
         self.rows.remove(&id);
         let mob = self.detach(row);
@@ -119,7 +141,7 @@ impl<M> TileRows<M> {
 
     /// Gives the row of `id` the mob column `mob`, in place of the one it had. The tile drops
     /// `mob` when it has no such row.
-    pub fn set_mob(&mut self, id: EntityId, mob: M) {
+    pub(crate) fn set_mob(&mut self, id: EntityId, mob: M) {
         let Some(row) = self.row_of(id) else {
             return;
         };
@@ -176,8 +198,17 @@ impl<M> TileRows<M> {
         }
     }
 
+    /// Each row, in the order of [`Self::ids`].
+    pub fn rows(&self) -> impl Iterator<Item = RowRef<'_>> {
+        iter::zip(
+            iter::zip(&self.state, &self.motion),
+            self.id.iter().copied(),
+        )
+        .map(|((state, motion), id)| RowRef { state, motion, id })
+    }
+
     /// The row of `id`, open to its writer; `None` when the tile has no such row.
-    pub fn row_mut(&mut self, id: EntityId) -> Option<RowMut<'_>> {
+    pub(crate) fn row_mut(&mut self, id: EntityId) -> Option<RowMut<'_>> {
         let row = self.row_of(id)?;
         Some(RowMut {
             state: self.state.get_mut(row)?,
@@ -186,7 +217,7 @@ impl<M> TileRows<M> {
         })
     }
 
-    pub fn rows_mut(&mut self) -> impl Iterator<Item = RowMut<'_>> {
+    pub(crate) fn rows_mut(&mut self) -> impl Iterator<Item = RowMut<'_>> {
         iter::zip(
             iter::zip(&mut self.state, &self.motion),
             self.id.iter().copied(),
@@ -240,10 +271,52 @@ impl<M> TileRows<M> {
 
 #[cfg(test)]
 mod tests {
+    use glam::DVec3;
     use mcrs_minecraft_entity_key::EntityKey;
     use mcrs_minecraft_physics::Body;
 
     use super::*;
+
+    fn state(x: f64) -> EntityState {
+        EntityState::new(
+            EntityKey(0),
+            Body {
+                position: DVec3::new(x, 0.0, 0.0),
+                ..Body::default()
+            },
+            None,
+        )
+    }
+
+    #[test]
+    fn rows_spawn_with_reserved_ids_and_despawn_by_id() {
+        let mut rows: TileRows<()> = TileRows::default();
+        assert_eq!(
+            rows.spawn_row(state(0.0), MotionRow::item()),
+            None,
+            "no id reserved"
+        );
+        rows.reserve_ids([EntityId(10), EntityId(12)]);
+        let first = rows
+            .spawn_row(state(1.0), MotionRow::item())
+            .expect("a reserved id");
+        let second = rows
+            .spawn_row(state(2.0), MotionRow::item())
+            .expect("a reserved id");
+        assert_ne!(first, second);
+        assert_eq!(
+            rows.spawn_row(state(3.0), MotionRow::item()),
+            None,
+            "both ids are used"
+        );
+
+        assert_eq!(
+            rows.despawn_row(first).map(|row| row.state),
+            Some(state(1.0))
+        );
+        assert_eq!(rows.despawn_row(first), None, "the row is gone");
+        assert_eq!(rows.ids(), &[second]);
+    }
 
     #[test]
     fn each_row_keeps_its_id_and_its_mob_column_after_despawns_from_the_middle_and_the_end() {

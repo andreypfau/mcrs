@@ -41,6 +41,7 @@ mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_damage.workspace = true
 mcrs_minecraft_numeric.workspace = true
 mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_brain.workspace = true
 mcrs_minecraft_engine_physics.workspace = true
 mcrs_minecraft_entity_rows.workspace = true
 mcrs_minecraft_entity.workspace = true

@@ -138,7 +138,10 @@ impl<M> RowStore<M> {
     /// Removes the row `id` from `tile` and gives it; `None` when the tile has no such row.
     pub fn despawn(&mut self, tile: TileKey, id: EntityId) -> Option<Row<M>> {
         let row = self.tiles.get_mut(&tile)?.rows.despawn_row(id)?;
-        self.living.remove(&id);
+        if row.state.living.is_some() {
+            self.living.remove(&id);
+            self.changes.removed.push(Placed { tile, id });
+        }
         self.dirty.insert(tile);
         Some(row)
     }
@@ -186,13 +189,6 @@ impl<M> RowStore<M> {
     /// The rows of each tile, in tile order.
     pub fn tiles(&self) -> impl Iterator<Item = (TileKey, &TileRows<M>)> {
         self.tiles.iter().map(|(&tile, entry)| (tile, &entry.rows))
-    }
-
-    /// The rows of each tile, in tile order.
-    pub fn tiles_mut(&mut self) -> impl Iterator<Item = (TileKey, &mut TileRows<M>)> {
-        self.tiles
-            .iter_mut()
-            .map(|(&tile, entry)| (tile, &mut entry.rows))
     }
 
     /// The mob columns of each tile that holds one, in tile order. They change no row, so no

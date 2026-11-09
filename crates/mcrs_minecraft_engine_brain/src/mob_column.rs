@@ -1,4 +1,3 @@
-use mcrs_minecraft_brain::DamageRecord;
 use mcrs_minecraft_brain::Panic;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_mob_control::ControlInput;
@@ -9,11 +8,10 @@ use mcrs_minecraft_physics::LastHit;
 
 /// The hot state of a mob with AI, in the mob column of its row: what the controls before and
 /// after the travel and the view of the snapshot read and write between two ticks. The row
-/// itself holds the position, the rotations and the hits.
+/// itself holds the position, the rotations and the hits; the type data holds the look limits.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MobColumn {
     pub kind: &'static EntityTypeData,
-    pub head_yaw_limit: f32,
     pub control: MobControl,
     /// The input of the last step before the travel: the body rotation of that step runs at the
     /// start of the next tick, since the pass has no step after the travel.
@@ -26,7 +24,9 @@ pub struct MobColumn {
     pub last_hit: Option<LastHit>,
     /// The strike count of the row that the view saw (GOAL-STR-004).
     pub strikes: u16,
-    pub damage: Option<DamageRecord>,
+    /// The AI tick before the first view that saw the last accepted hit. The hit record of the
+    /// row counts ticks on the clock of the world, not on the clock of the AI.
+    pub hit_tick: Option<u64>,
     pub panic: Panic,
     /// The age of the row that the view saw. The pass adds 1 in each tick in which the row
     /// ticks, so an equal age at the next view means a tick with no step.
@@ -42,7 +42,6 @@ impl MobColumn {
         let mob = kind.mob()?;
         Some(Self {
             kind,
-            head_yaw_limit: mob.head_yaw_limit,
             control: MobControl::new(LookDefaults {
                 turn_speed: mob.head_turn_speed,
                 pitch_limit: mob.pitch_limit,
@@ -52,7 +51,7 @@ impl MobColumn {
             idle_time: 0,
             last_hit: None,
             strikes: 0,
-            damage: None,
+            hit_tick: None,
             panic: Panic::Calm,
             age: None,
             stalled: false,

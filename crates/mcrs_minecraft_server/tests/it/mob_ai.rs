@@ -5,8 +5,8 @@ use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
 use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
+use mcrs_minecraft_engine_brain::EntityRows;
 use mcrs_minecraft_engine_brain::MobAi;
-use mcrs_minecraft_engine_physics::EntityRows;
 use mcrs_minecraft_goals::PigBrain;
 use mcrs_minecraft_protocol::Bounded;
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -44,7 +44,7 @@ fn run(server: &mut PlayServer, operator: Entity, line: &str) {
 fn pig_positions(server: &mut PlayServer) -> Vec<DVec3> {
     server
         .world()
-        .resource_mut::<EntityRows>()
+        .resource::<EntityRows>()
         .living_rows()
         .map(|(_, state)| state.body.position)
         .collect()
@@ -149,7 +149,7 @@ fn a_drown_hit_each_80_ticks_keeps_a_pig_strolling_without_a_panic() {
     let velocity = |server: &mut PlayServer| {
         server
             .world()
-            .resource_mut::<EntityRows>()
+            .resource::<EntityRows>()
             .living_rows()
             .map(|(_, state)| state.body.velocity)
             .collect::<Vec<DVec3>>()

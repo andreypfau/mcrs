@@ -15,6 +15,7 @@ use mcrs_minecraft_entity::registry_keys::PIG_SOUND_VARIANT;
 use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_entity_rows::Placed;
+use mcrs_minecraft_entity_rows::RowStore;
 use mcrs_minecraft_entity_rows::VisibleState;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::Category;
@@ -32,7 +33,6 @@ use mcrs_minecraft_replication::MobState;
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_resource::ResourceLocation;
 
-use crate::EntityRows;
 use crate::mob_spawn_request::MobSpawnRequest;
 use crate::mob_spawn_request::SpawnSetup;
 use crate::mobs::Mob;
@@ -105,12 +105,12 @@ pub fn mob_body(
 /// The life cycle of the mobs: each spawn request of the tick becomes a row, in the order of the
 /// UUIDs (TRK-LIFE-002). A request with the UUID of a mob that exists, or of an earlier
 /// request, spawns nothing.
-pub(crate) fn spawn_mobs(
+pub(crate) fn spawn_mobs<M: Send + Sync + 'static>(
     mut requests: MessageReader<MobSpawnRequest>,
     clock: Res<BirthClock>,
     registries: Option<Res<CurrentRegistries>>,
     mut ids: ResMut<CellEntityIds>,
-    mut rows: ResMut<EntityRows>,
+    mut rows: ResMut<RowStore<M>>,
     mut mobs: ResMut<Mobs>,
     mut changes: ResMut<MobChanges>,
     mut pending: ResMut<PendingSpawns>,

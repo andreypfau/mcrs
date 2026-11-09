@@ -8,7 +8,8 @@ use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_engine::bus::{PacketPayload, to};
 use mcrs_minecraft_engine::muxer::bridge::dispatch_encode;
 use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
-use mcrs_minecraft_engine_physics::{EntityRows, Mobs};
+use mcrs_minecraft_engine_brain::EntityRows;
+use mcrs_minecraft_engine_physics::Mobs;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
@@ -245,10 +246,10 @@ fn start() -> PlayServer {
 fn pig_rows(server: &mut PlayServer) -> Vec<DVec3> {
     server
         .world()
-        .resource_mut::<EntityRows>()
-        .tiles_mut()
+        .resource::<EntityRows>()
+        .tiles()
         .flat_map(|(_, rows)| {
-            rows.rows_mut()
+            rows.rows()
                 .map(|row| row.state.body.position)
                 .collect::<Vec<_>>()
         })

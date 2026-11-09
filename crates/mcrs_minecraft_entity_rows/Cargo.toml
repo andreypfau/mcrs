@@ -20,6 +20,9 @@ mcrs_minecraft_physics.workspace = true
 mcrs_voxel.workspace = true
 rustc-hash.workspace = true
 
+[dev-dependencies]
+mcrs_minecraft_physics = { workspace = true, features = ["testing"] }
+
 [features]
 default = []
 # The row store as a Bevy resource, and the compute pool of Bevy as the executor of the pass.

@@ -3,7 +3,8 @@ use crate::Placed;
 
 /// The living rows that came into the world, changed tile or left it. Each list keeps the
 /// changes of its last phase: `spawned` the spawns since the start of the last pass, `crossed`
-/// the last tile moves, and `removed` the deaths of the last pass.
+/// the last tile moves, and `removed` the deaths of the last pass and the despawns since its
+/// start.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Changes {
     pub(crate) spawned: Vec<Placed>,
@@ -24,7 +25,8 @@ impl Changes {
         &self.crossed
     }
 
-    /// The living rows that left the world in the last pass at the end of their death.
+    /// The living rows that left the world at the end of their death in the last pass, or by a
+    /// despawn since its start.
     #[must_use]
     pub fn removed(&self) -> &[Placed] {
         &self.removed

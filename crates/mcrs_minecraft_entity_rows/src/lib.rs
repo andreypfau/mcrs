@@ -42,7 +42,7 @@ pub use row_store::tiles_per_task;
 pub use tile_bodies::TileBodies;
 pub use tile_queues::TileQueues;
 pub use tile_rows::Row;
-pub use tile_rows::RowMut;
+pub use tile_rows::RowRef;
 pub use tile_rows::TileRows;
 pub use visible_state::VisibleState;
 pub use writer_key::WriterKey;

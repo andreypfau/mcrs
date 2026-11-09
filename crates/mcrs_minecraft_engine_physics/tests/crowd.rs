@@ -29,7 +29,7 @@ const TICKS: u32 = 400;
 
 /// Idle pigs at random places in a walled pen, with `max_entity_cramming` 0.
 fn pen() -> TestScene {
-    let mut scene = TestScene::new(1, 0, 0, 3);
+    let mut scene = TestScene::<()>::new(1, 0, 0, 3);
     scene.push = PushRules {
         max_entity_cramming: 0,
         ..PushRules::default()

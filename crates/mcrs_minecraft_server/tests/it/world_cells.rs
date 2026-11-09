@@ -31,7 +31,8 @@ use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
 use mcrs_minecraft_engine::coordinator::ops::DefaultOpLevel;
 use mcrs_minecraft_engine::muxer::muxer_link::MuxerLink;
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
-use mcrs_minecraft_engine_physics::{EntityRows, ItemStacks};
+use mcrs_minecraft_engine_brain::EntityRows;
+use mcrs_minecraft_engine_physics::ItemStacks;
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::tick::TickSet;
@@ -1324,8 +1325,8 @@ fn a_block_that_a_shape_update_destroys_drops_the_items_of_the_rules() {
         .next()
         .expect("a cell");
     let mut items = Vec::new();
-    for (_, rows) in world.resource_mut::<EntityRows>().tiles_mut() {
-        items.extend(rows.rows_mut().map(|row| (row.id, row.state.body.position)));
+    for (_, rows) in world.resource::<EntityRows>().tiles() {
+        items.extend(rows.rows().map(|row| (row.id, row.state.body.position)));
     }
     let [(id, position)] = items[..] else {
         panic!("one item row: {items:?}");
@@ -1349,10 +1350,10 @@ fn a_block_that_a_shape_update_destroys_drops_the_items_of_the_rules() {
         .next()
         .expect("a cell");
     let later = world
-        .resource_mut::<EntityRows>()
-        .tiles_mut()
+        .resource::<EntityRows>()
+        .tiles()
         .flat_map(|(_, rows)| {
-            rows.rows_mut()
+            rows.rows()
                 .map(|row| row.state.body.position.y)
                 .collect::<Vec<_>>()
         })
