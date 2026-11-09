@@ -125,16 +125,13 @@ impl Viewer {
                 let (mut frame, tail) = rest.split_at(length);
                 rest = tail;
                 let id = VarInt::decode(&mut frame).unwrap().0;
-                match game_clientbound::decode(id, &mut frame).unwrap() {
-                    Decoded::Packet(packet) => {
-                        assert!(
-                            frame.is_empty(),
-                            "packet {id} has {} trailing bytes",
-                            frame.len()
-                        );
-                        self.apply(packet);
-                    }
-                    _ => {}
+                if let Decoded::Packet(packet) = game_clientbound::decode(id, &mut frame).unwrap() {
+                    assert!(
+                        frame.is_empty(),
+                        "packet {id} has {} trailing bytes",
+                        frame.len()
+                    );
+                    self.apply(packet);
                 }
             }
         }
@@ -477,6 +474,12 @@ fn cmd_kill_summoned_pigs_are_found_hurt_killed_and_removed_after_their_death_ti
     let mobs = server.world().resource::<Mobs>().0.len();
     assert_eq!(mobs, 0, "the pigs left the world");
     assert!(pig_rows(&mut server).is_empty(), "and their rows");
+    assert_each_death_in_order(&viewer);
+}
+
+/// The first pig was hurt; each pig sent its death event, dying pose, smoke and removal in
+/// that order, and the client holds none.
+fn assert_each_death_in_order(viewer: &Viewer) {
     let ids: Vec<i32> = viewer
         .seen
         .iter()

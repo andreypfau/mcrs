@@ -146,7 +146,7 @@ impl DimensionTypeFile {
             monster_spawn_block_light_limit: self.monster_spawn_block_light_limit,
             monster_spawn_light_level: self.monster_spawn_light_level.clone(),
             skybox: self.skybox,
-            cardinal_light: self.cardinal_light.clone(),
+            cardinal_light: self.cardinal_light,
             has_fixed_time: self.has_fixed_time,
         };
         let environment = DimensionTypeEnvironment {
@@ -173,7 +173,7 @@ impl DimensionTypeFile {
             monster_spawn_block_light_limit: dimension_type.monster_spawn_block_light_limit,
             monster_spawn_light_level: dimension_type.monster_spawn_light_level.clone(),
             skybox: dimension_type.skybox,
-            cardinal_light: dimension_type.cardinal_light.clone(),
+            cardinal_light: dimension_type.cardinal_light,
             has_fixed_time: dimension_type.has_fixed_time,
             attributes: environment.attributes.clone(),
             timelines: environment.timelines.clone(),

@@ -3,7 +3,6 @@
 #![expect(
     clippy::panic,
     clippy::unwrap_used,
-    clippy::indexing_slicing,
     reason = "a developer tool and a test report a failure by panicking"
 )]
 

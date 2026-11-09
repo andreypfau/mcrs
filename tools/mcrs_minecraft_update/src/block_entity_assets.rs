@@ -1,6 +1,12 @@
 //! Writes the geometry files and the data files of the static block entities from the oracle
 //! artefacts and the shape tables.
 
+#![expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "the generator reads the game's own files; a malformed one stops the update"
+)]
+
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};

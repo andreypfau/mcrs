@@ -1,6 +1,8 @@
 //! Pig and walker rows in the entity pass: two pigs summoned into one point push each other
 //! apart, and an intent steers a pig, wakes a resting walker and publishes a turn of the head.
 
+#![expect(clippy::expect_used, reason = "a test reports a failure by panicking")]
+
 use bevy_tasks::TaskPoolBuilder;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;

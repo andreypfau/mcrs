@@ -1,6 +1,8 @@
 //! A crowd that has room to spread settles: the push moves the bodies apart until no box
 //! overlaps another, and then they rest (PHY-PSH-006, PHY-CMP-012, PHY-SKIP-006).
 
+#![expect(clippy::expect_used, reason = "a test reports a failure by panicking")]
+
 use bevy_tasks::TaskPoolBuilder;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;

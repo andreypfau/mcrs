@@ -185,15 +185,7 @@ impl FillContext {
             }
         });
         let structures = structures.map(|tables| {
-            let biome_lookup = match (&multi_noise, &biome) {
-                (Some(table), _) => BiomeLookup::MultiNoise(Arc::clone(table)),
-                (None, Some(source)) => match source.as_ref() {
-                    BiomeSource::Fixed { biome } => BiomeLookup::Fixed(biome.number()),
-                    BiomeSource::TheEnd => BiomeLookup::TheEnd(fill_ids.end),
-                    _ => BiomeLookup::None,
-                },
-                (None, None) => BiomeLookup::None,
-            };
+            let biome_lookup = structure_biomes(multi_noise.as_ref(), biome.as_deref(), fill_ids);
             let (min_y, height) = match y_sections.first() {
                 Some(&first) => (
                     first << SectionPos::BITS,
@@ -1169,6 +1161,19 @@ pub fn dimension_y_sections(router: &NoiseRouter, min_y: i32, section_count: u32
     let top = (config_bottom + section_count as i32)
         .max(noise_bottom + (router.noise.height as i32 >> SectionPos::BITS));
     (bottom..top).collect()
+}
+
+fn structure_biomes(
+    multi_noise: Option<&Arc<crate::multi_noise_biomes::MultiNoiseBiomeTable>>,
+    biome: Option<&BiomeSource>,
+    fill_ids: &FillIds,
+) -> BiomeLookup {
+    match (multi_noise, biome) {
+        (Some(table), _) => BiomeLookup::MultiNoise(Arc::clone(table)),
+        (None, Some(BiomeSource::Fixed { biome })) => BiomeLookup::Fixed(biome.number()),
+        (None, Some(BiomeSource::TheEnd)) => BiomeLookup::TheEnd(fill_ids.end),
+        (None, _) => BiomeLookup::None,
+    }
 }
 
 #[cfg(test)]

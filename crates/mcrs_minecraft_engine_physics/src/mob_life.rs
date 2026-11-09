@@ -129,6 +129,10 @@ pub fn mob_body(
 /// The life cycle of the mobs: each spawn request of the tick becomes a row, in the order of the
 /// UUIDs (TRK-LIFE-002). A request with the UUID of a mob that exists, or of an earlier
 /// request, spawns nothing.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 pub(crate) fn spawn_mobs<M: Send + Sync + 'static>(
     mut requests: MessageReader<MobSpawnRequest>,
     clock: Res<BirthClock>,

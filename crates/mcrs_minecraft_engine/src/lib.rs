@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 use bevy_app::{App, Plugin};
 
 use crate::coordinator::coordinator_plugin::CoordinatorPlugin;

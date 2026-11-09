@@ -43,23 +43,7 @@ pub(crate) fn publish_mobs<M: Send + Sync + 'static>(
         .iter()
         .map(|spawned| (spawned.id, mob_state(&spawned.start)))
         .collect();
-    for crossing in rows.changes().crossed() {
-        if !mobs.0.contains_key(&crossing.id) || fresh.contains_key(&crossing.id) {
-            continue;
-        }
-        events.push(
-            crossing.from,
-            crossing.id,
-            EntityEvent::Leave { to: crossing.to },
-        );
-        events.push(
-            crossing.to,
-            crossing.id,
-            EntityEvent::Enter {
-                from: crossing.from,
-            },
-        );
-    }
+    publish_crossings(&rows, &mobs, &fresh, &mut events);
     let spawn = |events: &mut TileEvents, id: EntityId, start: MobState, now: MobState| {
         let Some(mob) = mobs.0.get(&id) else {
             return;
@@ -78,23 +62,7 @@ pub(crate) fn publish_mobs<M: Send + Sync + 'static>(
             ),
         );
     };
-    for struck in changes.strikes() {
-        let mut signal = |signal: MobSignal| {
-            events.push(
-                struck.at.tile,
-                struck.at.id,
-                EntityEvent::Data(MobReport::Signal(signal).into()),
-            );
-        };
-        if struck.outcome == HitOutcome::Full {
-            signal(MobSignal::Hurt {
-                damage_type: struck.damage_type,
-            });
-        }
-        if struck.died {
-            signal(MobSignal::Died);
-        }
-    }
+    publish_strikes(&changes, &mut events);
     let mut published: Vec<EntityId> = Vec::new();
     if fresh.is_empty() {
         let touched: FxHashSet<EntityId> = changes.touched().iter().map(|at| at.id).collect();
@@ -153,6 +121,55 @@ pub(crate) fn publish_mobs<M: Send + Sync + 'static>(
             );
         }
     }
+    publish_removals(&rows, &mobs, &mut events);
+}
+
+fn publish_crossings<M>(
+    rows: &RowStore<M>,
+    mobs: &Mobs,
+    fresh: &BTreeMap<EntityId, MobState>,
+    events: &mut TileEvents,
+) {
+    for crossing in rows.changes().crossed() {
+        if !mobs.0.contains_key(&crossing.id) || fresh.contains_key(&crossing.id) {
+            continue;
+        }
+        events.push(
+            crossing.from,
+            crossing.id,
+            EntityEvent::Leave { to: crossing.to },
+        );
+        events.push(
+            crossing.to,
+            crossing.id,
+            EntityEvent::Enter {
+                from: crossing.from,
+            },
+        );
+    }
+}
+
+fn publish_strikes(changes: &MobChanges, events: &mut TileEvents) {
+    for struck in changes.strikes() {
+        let mut signal = |signal: MobSignal| {
+            events.push(
+                struck.at.tile,
+                struck.at.id,
+                EntityEvent::Data(MobReport::Signal(signal).into()),
+            );
+        };
+        if struck.outcome == HitOutcome::Full {
+            signal(MobSignal::Hurt {
+                damage_type: struck.damage_type,
+            });
+        }
+        if struck.died {
+            signal(MobSignal::Died);
+        }
+    }
+}
+
+fn publish_removals<M>(rows: &RowStore<M>, mobs: &Mobs, events: &mut TileEvents) {
     for removed in rows.changes().removed() {
         if !mobs.0.contains_key(&removed.id) {
             continue;

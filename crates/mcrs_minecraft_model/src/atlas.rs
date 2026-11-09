@@ -168,6 +168,32 @@ impl SpriteRegistry {
             .collect()
     }
 
+    fn array_with_room(
+        &mut self,
+        id: &str,
+        side: u32,
+        layers: usize,
+    ) -> Result<usize, SpriteError> {
+        let fits =
+            |array: &SpriteArray| array.size == side && array.layers.len() + layers <= ARRAY_LAYERS;
+        if let Some(index) = self.arrays.iter().position(fits) {
+            return Ok(index);
+        }
+        if self.arrays.len() >= MAX_SPRITE_ARRAYS {
+            return Err(SpriteError::TooManyArrays {
+                id: id.to_owned(),
+                needed: self.arrays.len() + 1,
+                limit: MAX_SPRITE_ARRAYS,
+            });
+        }
+        self.arrays.push(SpriteArray {
+            size: side,
+            layers: Vec::new(),
+            pixels: Vec::new(),
+        });
+        Ok(self.arrays.len() - 1)
+    }
+
     pub fn intern(&mut self, pack: &ResourceSet, id: &str) -> Result<u16, SpriteError> {
         if let Some(&sprite) = self.index.get(id) {
             return Ok(sprite);
@@ -222,27 +248,7 @@ impl SpriteRegistry {
         }
         let opacity = opacity_of(&pixels);
 
-        let fits = |array: &SpriteArray| {
-            array.size == side && array.layers.len() + frames.len() <= ARRAY_LAYERS
-        };
-        let index = match self.arrays.iter().position(fits) {
-            Some(index) => index,
-            None => {
-                if self.arrays.len() >= MAX_SPRITE_ARRAYS {
-                    return Err(SpriteError::TooManyArrays {
-                        id: id.to_owned(),
-                        needed: self.arrays.len() + 1,
-                        limit: MAX_SPRITE_ARRAYS,
-                    });
-                }
-                self.arrays.push(SpriteArray {
-                    size: side,
-                    layers: Vec::new(),
-                    pixels: Vec::new(),
-                });
-                self.arrays.len() - 1
-            }
-        };
+        let index = self.array_with_room(id, side, frames.len())?;
         let array = self
             .arrays
             .get_mut(index)

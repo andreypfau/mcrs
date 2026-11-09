@@ -86,6 +86,19 @@ events
     assert_eq!(attributes.movement_speed, 0.1 * (1.0 + 0.5));
 }
 
+fn held_keys(keys: &mcrs_minecraft_client_ticks::Keys) -> mcrs_minecraft_physics::Keys {
+    mcrs_minecraft_physics::Keys {
+        forward: keys.forward,
+        back: keys.backward,
+        left: keys.left,
+        right: keys.right,
+        jump: keys.jump,
+        shift: keys.shift,
+        sprint: keys.sprint,
+        ..Default::default()
+    }
+}
+
 /// Runs the kernel over the client ticks and compares each move packet bit for bit.
 fn replay(name: &str, recording: &Recording) -> Result<(), String> {
     let blocks = TestBlocks::new();
@@ -140,15 +153,7 @@ fn replay(name: &str, recording: &Recording) -> Result<(), String> {
                 Event::ChunkForgotten([x, z]) => world.unload_chunk(*x, *z),
                 Event::UseItem => state.item_use.using = true,
                 Event::ReleaseUseItem => state.item_use.using = false,
-                Event::Input(keys) => {
-                    input.keys.forward = keys.forward;
-                    input.keys.back = keys.backward;
-                    input.keys.left = keys.left;
-                    input.keys.right = keys.right;
-                    input.keys.jump = keys.jump;
-                    input.keys.shift = keys.shift;
-                    input.keys.sprint = keys.sprint;
-                }
+                Event::Input(keys) => input.keys = held_keys(keys),
                 Event::Move(step) => {
                     if let Some(rotation) = step.rotation {
                         input.rotation = Orientation::facing(rotation.yaw, rotation.pitch);

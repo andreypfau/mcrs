@@ -119,7 +119,10 @@ const _: () = assert!(size_of::<ScatterEntry>() == 40);
 /// largest finite `f16`. `value` is a size, so it is never negative; a negative value gives 0.
 #[must_use]
 pub fn f16_up(value: f32) -> u16 {
-    debug_assert!(!(value < 0.0), "a size is never negative, and {value} is");
+    debug_assert!(
+        value.is_nan() || value >= 0.0,
+        "a size is never negative, and {value} is"
+    );
     if value.is_nan() || value <= 0.0 {
         return 0;
     }

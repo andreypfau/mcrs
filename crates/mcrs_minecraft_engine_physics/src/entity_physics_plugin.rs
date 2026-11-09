@@ -240,6 +240,10 @@ fn freeze<M: Send + Sync + 'static>(mut rows: ResMut<RowStore<M>>, mut bodies: R
     rows.freeze(pool, &mut bodies.0);
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 fn entity_tick<M: Send + Sync + 'static>(
     dimension: Single<Entity, With<Dimension>>,
     world: WorldView,

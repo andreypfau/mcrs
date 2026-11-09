@@ -21,6 +21,7 @@
 //! overworld.
 //! The tick report covers the ticks after the first third of the run; the column report covers
 //! each bot over the whole run, by the dimension the bot ends up in.
+#![recursion_limit = "256"]
 
 use std::num::NonZeroU32;
 use std::str::FromStr;

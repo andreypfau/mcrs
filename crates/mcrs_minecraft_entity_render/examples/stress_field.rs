@@ -442,6 +442,10 @@ fn median(values: &mut [f64]) -> f64 {
     values.get(values.len() / 2).copied().unwrap_or(0.0)
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "one benchmark run reads top to bottom: set up, warm up, measure, report"
+)]
 fn main() {
     let gpu = support::Gpu::new().expect("an adapter");
     println!("adapter: {}", gpu.name);

@@ -208,23 +208,7 @@ impl EntityLibrary {
                     .unwrap_or(0)
             })
             .collect();
-        let rest: Vec<Vec3> = palette
-            .iter()
-            .map(|name| {
-                source
-                    .geometries
-                    .iter()
-                    .flatten()
-                    .find_map(|geometry| {
-                        geometry
-                            .bones
-                            .iter()
-                            .find(|bone| bone.name.eq_ignore_ascii_case(name))
-                            .map(|bone| bone.file_rotation)
-                    })
-                    .unwrap_or(Vec3::ZERO)
-            })
-            .collect();
+        let rest = rest_rotations(source.geometries, &palette);
         let first_model = self.models.len() as u32;
         let mut models = Vec::with_capacity(source.geometries.len());
         let mut cuboid_counts = Vec::new();
@@ -401,6 +385,26 @@ fn box_size(identifier: &str, rest_points: &[Vec3]) -> (f32, f32) {
 }
 
 /// The corners of the faces of `geometry` at rest, in entity space at the body yaw 0.
+/// The file rotation of each palette bone in the first geometry that has it.
+fn rest_rotations(geometries: &[Option<BakedGeometry>], palette: &[String]) -> Vec<Vec3> {
+    palette
+        .iter()
+        .map(|name| {
+            geometries
+                .iter()
+                .flatten()
+                .find_map(|geometry| {
+                    geometry
+                        .bones
+                        .iter()
+                        .find(|bone| bone.name.eq_ignore_ascii_case(name))
+                        .map(|bone| bone.file_rotation)
+                })
+                .unwrap_or(Vec3::ZERO)
+        })
+        .collect()
+}
+
 fn rest_corners(geometry: &BakedGeometry) -> impl Iterator<Item = Vec3> + '_ {
     let transforms = geometry.model_transforms(&[]);
     geometry.cubes.iter().flat_map(move |cube| {

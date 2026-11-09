@@ -1,9 +1,5 @@
 //! Block model files, block state files and the face bake of a resource pack, with no Bevy, so
 //! a tool bakes block faces without the asset server, the image decoder or the task pools.
-#![cfg_attr(
-    test,
-    expect(clippy::disallowed_types, reason = "test input is written as JSON")
-)]
 
 pub mod block_state_file;
 pub mod block_state_file_error;

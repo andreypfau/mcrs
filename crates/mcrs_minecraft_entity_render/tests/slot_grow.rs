@@ -3,10 +3,7 @@
 //! ```sh
 //! cargo test -p mcrs_minecraft_entity_render --test slot_grow -- --ignored
 //! ```
-#![expect(
-    clippy::indexing_slicing,
-    reason = "a test reports a failure by panicking"
-)]
+#![expect(clippy::unwrap_used, reason = "a test reports a failure by panicking")]
 
 #[expect(dead_code, reason = "the test uses a part of the test support")]
 mod support;
