@@ -35,7 +35,6 @@ mcrs_minecraft_client_jar.workspace = true
 mcrs_minecraft_client_world.workspace = true
 mcrs_minecraft_client_entity.workspace = true
 mcrs_minecraft_entity_render.workspace = true
-mcrs_minecraft_entity_animation.workspace = true
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol_game.workspace = true
 uuid = { workspace = true, optional = true }

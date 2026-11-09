@@ -11,8 +11,7 @@ use mcrs_minecraft_client_entity::{
 };
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::variant::{FrogVariant, PigVariant};
-use mcrs_minecraft_entity_animation::pose_from_name;
-use mcrs_minecraft_entity_render::{RecordedClip, RecordedClips};
+use mcrs_minecraft_entity_render::{RecordedClip, RecordedClips, pose_from_name};
 use mcrs_minecraft_game_registries::variant::{FrogVariantFile, PigVariantFile};
 use mcrs_minecraft_item::ProtoStack;
 use mcrs_minecraft_item::component::equippable::EquipmentSlot;

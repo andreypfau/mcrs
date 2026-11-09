@@ -4,9 +4,7 @@ use mcrs_minecraft_client_entity::{
     RenderInputsQuery, ServerTicking, SyncedData,
 };
 use mcrs_minecraft_client_world::columns::ColumnStore;
-use mcrs_minecraft_entity_animation::{
-    EntityAnimation, EntityQuery, FrameQueries, VariantEntry, pose_name,
-};
+use mcrs_minecraft_entity_animation::{EntityAnimation, EntityQuery};
 use mcrs_minecraft_item::component::equippable::{EquipmentSlot, Equippable};
 use mcrs_minecraft_item::definition::Items;
 use mcrs_minecraft_render_controller::{RenderQuery, TextureChoice};
@@ -17,6 +15,7 @@ use mcrs_voxel::BlockPos;
 
 use crate::cpu_inputs::input_record;
 use crate::entity_assets::{EntityAssets, VariantInfo, VariantKey, texture_identifier};
+use crate::frame_queries::{FrameQueries, VariantEntry, pose_name};
 use crate::records::{
     CULL_FULL_RIG_ONLY, CULL_VALID, CullRecord, MAX_LAYERS, STATE_BABY, STATE_DYING,
     STATE_HIDDEN_SHIFT, TickRecord, f16_up,

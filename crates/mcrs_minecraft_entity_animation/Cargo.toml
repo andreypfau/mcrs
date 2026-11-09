@@ -13,9 +13,7 @@ workspace = true
 
 [dependencies]
 glam.workspace = true
-mcrs_minecraft_client_entity.workspace = true
 mcrs_minecraft_entity_model.workspace = true
-mcrs_minecraft_protocol_game.workspace = true
 mcrs_molang.workspace = true
 
 [dev-dependencies]

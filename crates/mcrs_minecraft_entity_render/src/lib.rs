@@ -12,6 +12,7 @@ mod entity_assets;
 mod entity_gpu;
 mod entity_library;
 mod entity_pack;
+mod frame_queries;
 mod frame_uniform;
 mod gpu_buffers;
 mod gpu_layouts;
@@ -37,6 +38,7 @@ pub use entity_library::{
     TextureArray, TextureImage, VariantRecord,
 };
 pub use entity_pack::{DEATH_FLIP, EntityPack, PackEntity};
+pub use frame_queries::{FrameQueries, VariantEntry, pose_from_name, pose_name};
 pub use frame_uniform::{FRAME_NETHER_LIGHT, FULL_RIG_HEIGHT, FrameUniform, FrameView};
 pub use height_threshold::HeightThreshold;
 pub use impostor_frame::{

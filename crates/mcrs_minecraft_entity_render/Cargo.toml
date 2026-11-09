@@ -26,6 +26,7 @@ mcrs_minecraft_client_world.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_entity_animation.workspace = true
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_render.workspace = true
 mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_volume.workspace = true

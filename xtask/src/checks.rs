@@ -37,7 +37,7 @@ const NO_STD_PACKAGES: [&str; 6] = [
     "mcrs_molang_wgsl",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 89] = [
+const NO_BEVY_PACKAGES: [&str; 92] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -75,6 +75,7 @@ const NO_BEVY_PACKAGES: [&str; 89] = [
     "mcrs_minecraft_dimension_environment",
     "mcrs_minecraft_enchantment",
     "mcrs_minecraft_entity",
+    "mcrs_minecraft_entity_animation",
     "mcrs_minecraft_entity_model",
     "mcrs_minecraft_environment",
     "mcrs_minecraft_fixtures",
@@ -92,6 +93,7 @@ const NO_BEVY_PACKAGES: [&str; 89] = [
     "mcrs_minecraft_nbt",
     "mcrs_minecraft_network",
     "mcrs_minecraft_noise",
+    "mcrs_minecraft_pack_file",
     "mcrs_minecraft_particle",
     "mcrs_minecraft_physics",
     "mcrs_minecraft_predicate",
@@ -101,6 +103,7 @@ const NO_BEVY_PACKAGES: [&str; 89] = [
     "mcrs_minecraft_random",
     "mcrs_minecraft_registries",
     "mcrs_minecraft_registry_catalog",
+    "mcrs_minecraft_render_controller",
     "mcrs_minecraft_replication",
     "mcrs_minecraft_resource",
     "mcrs_minecraft_simulation",

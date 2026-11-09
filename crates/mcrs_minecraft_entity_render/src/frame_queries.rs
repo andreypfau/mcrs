@@ -1,9 +1,7 @@
 use mcrs_minecraft_client_entity::{FrameValues, TICKS_PER_SECOND};
+use mcrs_minecraft_entity_animation::{EntityQuery, QuerySource};
 use mcrs_minecraft_protocol_game::entity::Pose;
 use mcrs_molang::{Value, string_hash};
-
-use crate::entity_query::EntityQuery;
-use crate::query_source::QuerySource;
 
 /// The variant of an entity, resolved by the host from its entity data, the default variant of
 /// its type and the synced registry. An id that the registry does not hold has the hash of `''`
