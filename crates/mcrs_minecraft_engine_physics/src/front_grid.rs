@@ -1,7 +1,7 @@
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
 use mcrs_engine_muxer::TileKey;
-use mcrs_minecraft_entity_key::BirthKey;
+use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_key::TILE_WIDTH;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_physics::BodyGrid;
@@ -32,7 +32,7 @@ pub struct FrontGrid<'a> {
 }
 
 impl BodyView for FrontGrid<'_> {
-    fn colliders(&self, _query: Aabb, _mover: BirthKey, _out: &mut Vec<EntityCollider>) {}
+    fn colliders(&self, _query: Aabb, _mover: EntityKey, _out: &mut Vec<EntityCollider>) {}
 
     fn neighbours(&self, of: &GridRow, out: &mut Vec<GridRow>) {
         let reach = f64::from(of.half_width) + f64::from(self.reach);
@@ -78,9 +78,9 @@ pub fn grid_row(state: &EntityState, motion: &MotionRow, id: EntityId) -> Option
 }
 
 /// Writes `bodies` into `out` in the order of the front buffer of `tile`: by bucket, then by
-/// birth key.
+/// UUID.
 pub fn sort_bodies(tile: TileKey, bodies: &[GridRow], out: &mut TileBodies) {
-    let mut order: Vec<(usize, BirthKey, usize)> = bodies
+    let mut order: Vec<(usize, EntityKey, usize)> = bodies
         .iter()
         .enumerate()
         .map(|(index, row)| (bucket(tile, row.position), row.key, index))

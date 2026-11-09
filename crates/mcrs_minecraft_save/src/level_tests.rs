@@ -575,22 +575,13 @@ fn a_player_save_without_a_dimension_reads_as_the_overworld() {
 }
 
 #[test]
-fn cmp_013_016_a_saved_birth_loads_back_unchanged() {
-    use mcrs_minecraft_entity_key::{Birth, BirthKey, SourceKind};
-
-    let birth = Birth {
-        key: BirthKey::new(u64::MAX - 7, SourceKind::Entity, u128::MAX - 3, u32::MAX),
-        phase: 3,
-    };
-    let dat = player::PlayerDat {
-        birth: Some(birth),
-        ..player::PlayerDat::default()
-    };
+fn a_birth_key_of_an_older_save_is_dropped_at_the_read() {
+    let mut dat = player::PlayerDat::default();
+    dat.rest.put("mcrs:birth", NbtTag::Long(7));
     let written = mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec(&dat).unwrap();
     let read = player::parse_player_dat(&written, path()).unwrap();
-    assert_eq!(read.birth, Some(birth));
     assert!(
         read.rest.child_tags.is_empty(),
-        "the birth is not left in the rest"
+        "the order key is the UUID, so the old key is not kept"
     );
 }

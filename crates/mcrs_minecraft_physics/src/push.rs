@@ -112,7 +112,7 @@ fn takes_push(row: &GridRow) -> bool {
 }
 
 /// The push of the neighbours on `of`, from the start of the tick, added to `velocity` in the
-/// order of the birth keys of the neighbours: for each neighbour, the push of the neighbour
+/// order of the UUIDs of the neighbours: for each neighbour, the push of the neighbour
 /// first, then the push of the entity on it. The crowd draw comes from `stream`, so the result
 /// does not depend on the order of the rows or on the task split.
 pub fn push_entity<B: BodyView>(
@@ -179,7 +179,7 @@ pub fn push_entity<B: BodyView>(
 }
 
 /// True when each of the two entities is among the `cap` nearest neighbours of the other, by
-/// the larger horizontal axis distance and then by the birth key.
+/// the larger horizontal axis distance and then by the UUID.
 fn mutual_nearest<B: BodyView>(
     bodies: &B,
     of: &GridRow,

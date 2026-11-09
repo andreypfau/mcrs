@@ -1,6 +1,5 @@
 use glam::DVec3;
-use mcrs_minecraft_entity_key::BirthKey;
-use mcrs_minecraft_entity_key::SourceKind;
+use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_numeric as numeric;
 
 use crate::Aabb;
@@ -92,7 +91,7 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
         shift: keys.shift,
         keeps_to_edges: !flight,
         intent: (side == Side::OwnClient).then(|| intent(move_input, yaw)),
-        ..player_mover(BirthKey::new(0, SourceKind::Player, 0, 0), side, out)
+        ..player_mover(EntityKey(0), side, out)
     };
     let start_position = body.position;
     let air_speed = air_speed(flight, sprint, out.flight_speed);
@@ -176,7 +175,7 @@ fn flight_steps<W: CollisionWorld, B: BodyView>(
 }
 
 /// The mover of a player in its pose and with its attributes.
-pub(crate) fn player_mover(key: BirthKey, side: Side, state: &PlayerState) -> Mover {
+pub(crate) fn player_mover(key: EntityKey, side: Side, state: &PlayerState) -> Mover {
     let attributes = &state.attributes;
     Mover {
         step_height: attributes.step_height as f32,

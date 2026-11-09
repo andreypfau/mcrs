@@ -117,7 +117,6 @@ fn play_login_targets_host_anchor() {
                         client_info: Some(crate::support::client_info_with_view_distance(12)),
                     },
                     dimensions: Vec::new().into(),
-                    birth: crate::support::login_birth(0),
                 }),
             );
         assert!(sent, "the dimension takes input");

@@ -152,7 +152,7 @@ fn a_pig_looks_at_a_player_within_six_blocks_and_never_at_one_farther() {
     }
     pen.set_players(vec![PlayerRow {
         player: PlayerId(1),
-        key: OrderKey::new(1, 1),
+        key: OrderKey::new(1 << 64 | 1),
         position: centre,
         eye_height: 1.62,
         flags: PlayerFlags::ALIVE,

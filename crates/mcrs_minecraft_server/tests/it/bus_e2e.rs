@@ -228,7 +228,6 @@ fn messages_sent_before_a_dimension_boots_arrive_in_order_on_its_first_tick() {
                     client_info: Some(crate::support::client_info_with_view_distance(12)),
                 },
                 dimensions: Vec::new().into(),
-                birth: crate::support::login_birth(0),
             }),
         );
 

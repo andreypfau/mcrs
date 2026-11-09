@@ -1,5 +1,5 @@
-use mcrs_minecraft_entity_key::BirthKey;
 use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_entity_key::EntityKey;
 
 use crate::Aabb;
 use crate::GridRow;
@@ -10,7 +10,7 @@ pub trait BodyView {
     /// Appends the entities whose box intersects `query` and that the entity `mover` can collide
     /// with: not itself, not a spectator, a type that other entities collide with, and not on
     /// the same root vehicle.
-    fn colliders(&self, query: Aabb, mover: BirthKey, out: &mut Vec<EntityCollider>);
+    fn colliders(&self, query: Aabb, mover: EntityKey, out: &mut Vec<EntityCollider>);
 
     /// Appends the bodies whose box intersects the box of `of`, from the start of the tick. The
     /// list can hold `of` itself and bodies that only touch it; the push removes them.
@@ -29,7 +29,7 @@ pub struct EntityCollider {
 pub struct NoBodies;
 
 impl BodyView for NoBodies {
-    fn colliders(&self, _query: Aabb, _mover: BirthKey, _out: &mut Vec<EntityCollider>) {}
+    fn colliders(&self, _query: Aabb, _mover: EntityKey, _out: &mut Vec<EntityCollider>) {}
 
     fn neighbours(&self, _of: &GridRow, _out: &mut Vec<GridRow>) {}
 }
@@ -44,7 +44,7 @@ pub struct ListedBodies {
 
 #[cfg(feature = "testing")]
 impl BodyView for ListedBodies {
-    fn colliders(&self, query: Aabb, _mover: BirthKey, out: &mut Vec<EntityCollider>) {
+    fn colliders(&self, query: Aabb, _mover: EntityKey, out: &mut Vec<EntityCollider>) {
         out.extend(
             self.colliders
                 .iter()

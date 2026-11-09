@@ -1,7 +1,6 @@
 use glam::DVec3;
-use mcrs_minecraft_entity_key::BirthKey;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_key::SourceKind;
+use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_physics::BlockOverlay;
@@ -36,8 +35,8 @@ use rustc_hash::FxHashMap;
 
 const TILE: TileKey = TileKey::new(0, 0, 0);
 
-fn key(tick: u64) -> BirthKey {
-    BirthKey::new(tick, SourceKind::Spawn, 0, 0)
+fn key(tick: u64) -> EntityKey {
+    EntityKey(u128::from(tick))
 }
 
 fn write(target: u64, writer: WriterKey, sequence: u32) -> Keyed<u32> {
@@ -54,7 +53,7 @@ fn applied(queues: &mut TileQueues<Keyed<u32>>) -> Vec<(u64, WriterKey, u32)> {
     queues
         .take_in_order(TILE)
         .into_iter()
-        .map(|entry| (entry.target.tick(), entry.writer, entry.sequence))
+        .map(|entry| (entry.target.0 as u64, entry.writer, entry.sequence))
         .collect()
 }
 

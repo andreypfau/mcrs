@@ -184,7 +184,7 @@ fn prepare(
         let position = transform.translation;
         PlayerRow {
             player: PlayerId(entity.to_bits()),
-            key: OrderKey::new(0, u128::from(entity.to_bits())),
+            key: OrderKey::new(u128::from(entity.to_bits())),
             position: Point::new(position.x, position.y, position.z),
             eye_height: EntityTypeData::PLAYER.eye_height,
             flags: if spectator {

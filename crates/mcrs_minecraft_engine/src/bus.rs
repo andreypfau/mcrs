@@ -1,5 +1,3 @@
-use mcrs_minecraft_entity_key::Birth;
-
 use crate::client_info::ClientInfo;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
@@ -54,8 +52,6 @@ pub struct InboundPlayerSpawn {
     /// The keys of the host's `DimensionList`, which no dimension world holds, for
     /// `ClientboundLogin.dimensions`.
     pub dimensions: Arc<[ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>]>,
-    /// The birth of the player: the saved one, or a new one of the tick of the placement.
-    pub birth: Birth,
 }
 
 #[derive(Message, Clone, Debug)]

@@ -8,8 +8,7 @@ use glam::DVec3;
 use mcrs_minecraft_engine_physics::EntityRows;
 use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::TestScene;
-use mcrs_minecraft_entity_key::BirthKey;
-use mcrs_minecraft_entity_key::SourceKind;
+use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::EffectBuffer;
 use mcrs_minecraft_physics::Keyed;
@@ -33,7 +32,7 @@ fn writes(rows: &mut EntityRows, tick: u64, reversed: bool) -> EntityWrites {
     for (tile, tile_rows) in rows.tiles_mut() {
         for (index, row) in tile_rows.rows_mut().take(3).enumerate() {
             for (task, buffer) in tasks.iter_mut().enumerate() {
-                let writer = BirthKey::new(tick, SourceKind::Entity, task as u128, 0);
+                let writer = EntityKey(u128::from(tick) << 64 | task as u128);
                 buffer.push(
                     tile,
                     Keyed {
@@ -151,9 +150,7 @@ fn cmp_015_a_write_adds_its_impulse_to_the_velocity_of_its_target_and_wakes_it()
         Keyed {
             target: key,
             target_id: target,
-            writer: WriterKey::Entity {
-                key: BirthKey::new(0, SourceKind::Entity, 0, 0),
-            },
+            writer: WriterKey::Entity { key: EntityKey(0) },
             sequence: 0,
             effect,
         },

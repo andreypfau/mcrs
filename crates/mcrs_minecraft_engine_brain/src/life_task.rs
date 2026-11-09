@@ -3,7 +3,7 @@ use mcrs_engine_muxer::TileKey;
 use mcrs_minecraft_engine_physics::Mobs;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
-use mcrs_minecraft_entity_key::BirthKey;
+use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_physics::TileRows;
 
 use crate::host_mob::HostMob;
@@ -22,7 +22,7 @@ pub(crate) struct LifeTask<'a> {
 pub(crate) struct Arrival {
     pub(crate) id: EntityId,
     pub(crate) tile: TileKey,
-    pub(crate) key: BirthKey,
+    pub(crate) key: EntityKey,
     pub(crate) phase: u8,
     pub(crate) kind: &'static EntityTypeData,
 }

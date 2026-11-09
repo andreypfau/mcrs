@@ -1,6 +1,6 @@
 /// The ticks of the full evaluations of one mob. The tick count of the mob is 1 in its first AI
 /// step; a tick is a full evaluation when the tick count is 1 or less, or when the tick count plus
-/// the phase offset of the birth key is even.
+/// the phase offset of the UUID is even.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Cadence {
     origin: u64,

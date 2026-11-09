@@ -1,11 +1,11 @@
 use glam::DVec3;
-use mcrs_minecraft_entity_key::BirthKey;
+use mcrs_minecraft_entity_key::EntityKey;
 
 /// The entity for which a query finds colliders: the values that a context shape, the world
 /// border and the entity colliders read.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct QueryEntity {
-    pub key: BirthKey,
+    pub key: EntityKey,
     pub position: DVec3,
     pub fall_distance: f64,
     pub shift: bool,

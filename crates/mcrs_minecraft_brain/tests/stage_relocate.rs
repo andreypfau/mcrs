@@ -35,7 +35,7 @@ fn relocating_brains_at_once_equals_relocating_them_one_by_one() {
     let mut stage = Stage::new(StageConfig::new(WorldSeed(1)));
     for mob in 0..600_u64 {
         let tile = TileId::new(next(4) as i32, next(4) as i32);
-        let key = OrderKey::new(0, u128::from(next(1 << 40)) << 20 | u128::from(mob));
+        let key = OrderKey::new(u128::from(next(1 << 40)) << 20 | u128::from(mob));
         stage.spawn(
             tile,
             MobId(mob),

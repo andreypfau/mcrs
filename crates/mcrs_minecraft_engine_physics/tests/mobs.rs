@@ -12,15 +12,13 @@ use mcrs_minecraft_engine_physics::mob_body;
 use mcrs_minecraft_engine_physics::mob_row;
 use mcrs_minecraft_engine_physics::tile_at;
 use mcrs_minecraft_entity::EntityTypeData;
-use mcrs_minecraft_entity_key::Birth;
-use mcrs_minecraft_entity_key::BirthKey;
-use mcrs_minecraft_entity_key::SourceKind;
+use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_physics::MoveInput;
 use mcrs_minecraft_physics::Steering;
 
 fn pig(scene: &mut TestScene, id: u64, position: DVec3) {
     let row = mob_row(&EntityTypeData::PIG);
-    let key = Birth::from(BirthKey::new(0, SourceKind::Command, 0, id as u32));
+    let key = EntityKey(u128::from(id));
     scene.rows.spawn(
         EntityId(id),
         mob_body(&EntityTypeData::PIG, &row, key, position),

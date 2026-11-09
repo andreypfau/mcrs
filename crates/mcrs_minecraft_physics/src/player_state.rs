@@ -1,6 +1,5 @@
 use glam::DVec3;
-use mcrs_minecraft_entity_key::BirthKey;
-use mcrs_minecraft_entity_key::SourceKind;
+use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_voxel::BlockPos;
 
 use crate::Body;
@@ -93,7 +92,7 @@ impl PlayerState {
     /// The player as the entity of a query of colliders.
     pub(crate) fn query_entity(&self) -> QueryEntity {
         QueryEntity {
-            key: BirthKey::new(0, SourceKind::Player, 0, 0),
+            key: EntityKey(0),
             position: self.position,
             fall_distance: self.fall_distance,
             shift: self.shift0,

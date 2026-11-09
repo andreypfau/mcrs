@@ -1,7 +1,6 @@
 use glam::DVec3;
-use mcrs_minecraft_entity_key::BirthKey;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_key::SourceKind;
+use mcrs_minecraft_entity_key::EntityKey;
 
 use crate::BlockAction;
 use crate::GridFlags;
@@ -49,7 +48,7 @@ impl TestFixture {
     #[must_use]
     pub fn query_entity(position: DVec3) -> QueryEntity {
         QueryEntity {
-            key: BirthKey::new(0, SourceKind::Command, 0, 0),
+            key: EntityKey(0),
             position,
             fall_distance: 0.0,
             shift: false,
@@ -67,7 +66,7 @@ impl TestFixture {
             position: DVec3::new(x, 0.0, z),
             half_width: 0.3,
             height: 1.95,
-            key: BirthKey::new(0, SourceKind::Spawn, 0, index),
+            key: EntityKey(u128::from(index)),
             id,
             root_vehicle: id,
             team: TeamSlot::default(),

@@ -1,5 +1,5 @@
 use glam::DVec3;
-use mcrs_minecraft_entity_key::BirthKey;
+use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_numeric as numeric;
 
 use crate::Aabb;
@@ -216,7 +216,7 @@ fn tick_living<W: CollisionWorld, B: BodyView>(
 
 /// The mover of a living entity that is not a player, with no gravity.
 fn living_mover(
-    key: BirthKey,
+    key: EntityKey,
     side: Side,
     row: &MotionRow,
     living: &Living,

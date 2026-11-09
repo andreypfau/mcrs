@@ -26,13 +26,13 @@ use mcrs_minecraft_engine::coordinator::birth_clock::BirthClock;
 use mcrs_minecraft_engine::entity_ids::CellEntityIds;
 use mcrs_minecraft_engine::game_rules::GameRules;
 use mcrs_minecraft_engine::tile_events::TileEvents;
+use mcrs_minecraft_engine::world_seed::WorldSeed;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::BlockPlaced;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
-use mcrs_minecraft_entity_key::Birth;
-use mcrs_minecraft_entity_key::BirthKey;
 use mcrs_minecraft_entity_key::BirthSource;
+use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_game_rule::GameRule;
 use mcrs_minecraft_item::ItemStack;
@@ -134,35 +134,39 @@ fn apply_writes(mut rows: ResMut<EntityRows>, mut writes: ResMut<EntityWrites>) 
 }
 
 /// Each item that a block left becomes a row at the centre of the block, with the block as the
-/// source of its birth key.
+/// source of its new UUID.
 fn spawn_dropped_items(
     mut dropped: MessageReader<ItemDropped>,
     clock: Res<BirthClock>,
+    seed: Option<Res<WorldSeed>>,
     mut ids: ResMut<CellEntityIds>,
     mut rows: ResMut<EntityRows>,
     mut stacks: ResMut<ItemStacks>,
 ) {
-    let mut sequences: BTreeMap<_, u32> = BTreeMap::new();
+    let seed = seed.map_or(0, |seed| seed.0);
+    let mut sequences: BTreeMap<[i32; 3], u32> = BTreeMap::new();
     for drop in dropped.read() {
         let Some(id) = ids.allocate() else {
             tracing::warn!(at = ?drop.at, "the cell has no entity id left; the item is lost");
             continue;
         };
         let source = BirthSource::Block(drop.at);
-        let sequence = sequences.entry(source.packed()).or_default();
-        let key = BirthKey::born(clock.0, &source, *sequence);
+        let sequence = sequences
+            .entry([drop.at.x, drop.at.y, drop.at.z])
+            .or_default();
+        let key = EntityKey::born(seed, clock.0, &source, *sequence);
         *sequence = sequence.wrapping_add(1);
         let row = MotionRow::item();
         let body = dropped_item(drop.at, &KeyedStream::new(&key, clock.0), &row);
         let mut state = EntityState::new(key, body, None);
-        state.phase = Birth::from(key).phase;
+        state.phase = key.phase_offset();
         rows.spawn(id, state, row);
         stacks.0.insert(id, drop.stack);
     }
 }
 
 /// The start of an item that the block at `at` drops (PHY-CMP-025): a random offset from the
-/// centre of the block and a random horizontal velocity, from the stream of its birth key.
+/// centre of the block and a random horizontal velocity, from the stream of its UUID.
 fn dropped_item(at: BlockPos, stream: &KeyedStream, row: &MotionRow) -> Body {
     let uniform = |draw: u64, low: f64, high: f64| low + stream.unit(draw) * (high - low);
     let half_height = f64::from(row.dimensions.height) / 2.0;
@@ -228,8 +232,8 @@ fn move_rows(mut rows: ResMut<EntityRows>) {
 
 #[cfg(test)]
 mod tests {
-    use mcrs_minecraft_entity_key::BirthKey;
     use mcrs_minecraft_entity_key::BirthSource;
+    use mcrs_minecraft_entity_key::EntityKey;
 
     use super::*;
 
@@ -243,7 +247,7 @@ mod tests {
         let source = BirthSource::Block(at);
         let bodies: Vec<Body> = (0..1000)
             .map(|tick| {
-                let key = BirthKey::born(tick, &source, 0);
+                let key = EntityKey::born(0, tick, &source, 0);
                 dropped_item(at, &KeyedStream::new(&key, tick), &row)
             })
             .collect();

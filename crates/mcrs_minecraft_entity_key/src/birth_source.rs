@@ -1,54 +1,41 @@
 use mcrs_voxel::BlockPos;
 
-use crate::BirthKey;
-use crate::SourceKind;
+use crate::EntityKey;
 
-/// What brings an entity into existence: the source of its birth key.
+/// What brings an entity into existence: an input of [`EntityKey::born`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum BirthSource {
-    /// A player that joins or respawns, in the order of the logins and respawns of the tick.
-    Player {
-        order: u32,
-    },
     /// A command effect, by its index in the command effect buffer of the world in the tick.
     Command {
         order: u32,
     },
     Block(BlockPos),
-    /// Another entity, by its birth key.
-    Entity(BirthKey),
+    /// Another entity, by its UUID.
+    Entity(EntityKey),
 }
 
 impl BirthSource {
-    #[must_use]
-    pub fn kind(&self) -> SourceKind {
+    /// The number of the kind of the source: 2 for a command, 4 for a block and 5 for an entity.
+    pub(crate) const fn kind(&self) -> u64 {
         match self {
-            Self::Player { .. } => SourceKind::Player,
-            Self::Command { .. } => SourceKind::Command,
-            Self::Block(_) => SourceKind::Block,
-            Self::Entity(_) => SourceKind::Entity,
+            Self::Command { .. } => 2,
+            Self::Block(_) => 4,
+            Self::Entity(_) => 5,
         }
     }
 
-    /// The source value of the key, packed so that it compares as an unsigned integer in the
-    /// order of the source: a block by `y`, then `z`, then `x`. The parent of an entity gives its
-    /// digest.
-    #[must_use]
-    pub fn packed(&self) -> u128 {
+    /// The source key: the order of a command, a block position by `y`, then `z`, then `x`, or the
+    /// UUID of the parent.
+    pub(crate) fn packed(&self) -> u128 {
         match *self {
-            Self::Player { order } | Self::Command { order } => u128::from(order),
+            Self::Command { order } => u128::from(order),
             Self::Block(pos) => {
-                u128::from(ordered(pos.y)) << 64
-                    | u128::from(ordered(pos.z)) << 32
-                    | u128::from(ordered(pos.x))
+                u128::from(pos.y.cast_unsigned()) << 64
+                    | u128::from(pos.z.cast_unsigned()) << 32
+                    | u128::from(pos.x.cast_unsigned())
             }
-            Self::Entity(parent) => parent.digest(),
+            Self::Entity(parent) => parent.0,
         }
     }
-}
-
-/// Maps a signed value to an unsigned one in the same order.
-fn ordered(value: i32) -> u32 {
-    value.cast_unsigned() ^ 0x8000_0000
 }

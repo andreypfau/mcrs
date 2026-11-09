@@ -212,7 +212,6 @@ pub fn join(
                 client_info: Some(crate::support::client_info_with_view_distance(12)),
             },
             dimensions,
-            birth: crate::support::login_birth(session.0),
         }),
     );
     assert!(sent, "the dimension takes input");
@@ -460,7 +459,6 @@ pub fn admit(app: &mut App, dim: Entity, arrival: &Arrival<'_>) -> Entity {
                 )),
             },
             dimensions: Vec::new().into(),
-            birth: crate::support::login_birth(session.0),
         }),
     );
     anchor

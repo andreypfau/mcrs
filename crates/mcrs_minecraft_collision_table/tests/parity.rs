@@ -4,9 +4,8 @@
 
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
-use mcrs_minecraft_entity_key::BirthKey;
+use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_key::KeyedStream;
-use mcrs_minecraft_entity_key::SourceKind;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_physics::EntityCollider;
 use mcrs_minecraft_physics::EntityState;
@@ -116,7 +115,7 @@ fn grid_row(entity: &Simulated<'_>, index: usize) -> Option<GridRow> {
             position: entity.state.body.position,
             half_width: width / 2.0,
             height: entity.row.dimensions.height,
-            key: BirthKey::new(0, SourceKind::Command, 0, index as u32),
+            key: EntityKey(u128::from(index as u32)),
             id,
             root_vehicle: id,
             team: TeamSlot::default(),
@@ -168,7 +167,7 @@ fn server_entities_follow_the_vanilla_fixtures() {
                 let mut entities: Vec<Simulated<'_>> = fixture::simulated(&fixture)
                     .filter_map(|(recorded, row)| {
                         let first = recorded.ticks.first().copied().flatten()?;
-                        let key = BirthKey::new(0, SourceKind::Command, 0, 0);
+                        let key = EntityKey(0);
                         Some(Simulated {
                             recorded,
                             row,

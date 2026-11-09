@@ -1,4 +1,4 @@
-use mcrs_minecraft_entity_key::BirthKey;
+use mcrs_minecraft_entity_key::EntityKey;
 
 use crate::Body;
 use crate::HitRecord;
@@ -9,7 +9,7 @@ use crate::Rest;
 /// The motion state of a server-simulated entity that is not a player.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EntityState {
-    pub key: BirthKey,
+    pub key: EntityKey,
     pub body: Body,
     /// The state of a living entity; `None` for every other category.
     pub living: Option<Living>,
@@ -18,7 +18,7 @@ pub struct EntityState {
     pub no_gravity: bool,
     /// The number of ticks the entity has existed, before the increment of this tick.
     pub age: u32,
-    /// The phase offset from the birth key, from 0 to 3.
+    /// The phase offset of the UUID, from 0 to 3.
     pub phase: u8,
     pub rest: Rest,
     /// The path of the last tick that moved the entity. A resting item applies the blocks inside
@@ -28,7 +28,7 @@ pub struct EntityState {
 
 impl EntityState {
     #[must_use]
-    pub fn new(key: BirthKey, body: Body, living: Option<Living>) -> Self {
+    pub fn new(key: EntityKey, body: Body, living: Option<Living>) -> Self {
         Self {
             key,
             body,

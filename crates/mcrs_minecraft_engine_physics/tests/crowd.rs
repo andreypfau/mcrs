@@ -7,8 +7,7 @@ use mcrs_engine_muxer::EntityId;
 use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::FLOOR;
 use mcrs_minecraft_engine_physics::TestScene;
-use mcrs_minecraft_entity_key::BirthKey;
-use mcrs_minecraft_entity_key::SourceKind;
+use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::Category;
 use mcrs_minecraft_physics::Dimensions;
@@ -66,7 +65,7 @@ fn pen() -> TestScene {
             position,
             ..Body::default()
         };
-        let key = BirthKey::new(0, SourceKind::Command, 0, index);
+        let key = EntityKey(u128::from(index));
         let state = EntityState::new(key, body, Some(Living::of(&motion)));
         scene.rows.spawn(EntityId(u64::from(index)), state, motion);
     }

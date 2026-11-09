@@ -182,7 +182,7 @@ pub fn read_game_rules(world: &Path) -> Result<GameRules, SaveError> {
     parse_game_rules(&read_bytes(&path)?, &path)
 }
 
-/// The birth clock of the world: the birth tick of the entity keys. It is data of mcrs, so it
+/// The birth clock of the world: the birth tick of the new entity UUIDs. It is data of mcrs, so it
 /// has its own file next to the saved data of the game.
 #[derive(Serialize, Deserialize)]
 struct BirthClockData {

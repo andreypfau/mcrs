@@ -10,9 +10,8 @@ use criterion::Criterion;
 use criterion::criterion_group;
 use criterion::criterion_main;
 use glam::DVec3;
-use mcrs_minecraft_entity_key::BirthKey;
+use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_key::KeyedStream;
-use mcrs_minecraft_entity_key::SourceKind;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::CollisionSection;
@@ -183,7 +182,7 @@ fn bench_entities(c: &mut Criterion) {
     let view = View::new(&world, &NoBodies, &tables);
     let mut scratch = Scratch::new();
     let mut actions = Vec::new();
-    let key = BirthKey::new(0, SourceKind::Command, 0, 0);
+    let key = EntityKey(0);
     let walker_row = MotionRow::zombie();
     let mut walker = EntityState::new(
         key,

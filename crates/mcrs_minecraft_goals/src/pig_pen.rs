@@ -131,7 +131,7 @@ impl PigPen {
         let mut stage = Stage::new(stage_config);
         let pigs: Vec<HostPig> = (0..config.pigs)
             .map(|index| {
-                let key = OrderKey::new(u128::from(index), 0);
+                let key = OrderKey::new(u128::from(index) << 64);
                 let mut random = KeyedRandom::new(seed, &key, 0, PLACE);
                 let position = Point::new(random.unit() * side, 0.0, random.unit() * side);
                 let offset = u8::try_from(random.below(4)).unwrap_or(0);
@@ -163,7 +163,7 @@ impl PigPen {
         }
         let players = (0..config.players)
             .map(|index| {
-                let key = OrderKey::new(u128::from(index), 1);
+                let key = OrderKey::new(u128::from(index) << 64 | 1);
                 let mut random = KeyedRandom::new(seed, &key, 0, PLACE);
                 PlayerRow {
                     player: PlayerId(u64::from(index)),

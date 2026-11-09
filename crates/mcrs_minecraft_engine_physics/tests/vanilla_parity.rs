@@ -10,8 +10,7 @@ use mcrs_engine_muxer::TileGrid;
 use mcrs_minecraft_engine_physics::EntityRows;
 use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::TestScene;
-use mcrs_minecraft_entity_key::BirthKey;
-use mcrs_minecraft_entity_key::SourceKind;
+use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_key::TILE_WIDTH;
 use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::PushRules;
@@ -92,7 +91,7 @@ fn replay(fixture: &Fixture, pool: &TaskPool, phase: u8) -> Vec<Failure> {
     let ids: Vec<EntityId> = (1..=recorded.len() as u64).map(EntityId).collect();
     for ((index, (entity, row)), &id) in recorded.iter().enumerate().zip(&ids) {
         let first = entity.ticks.first().copied().flatten().unwrap();
-        let key = BirthKey::new(0, SourceKind::Command, 0, index as u32);
+        let key = EntityKey(u128::from(index as u32));
         let state = start_state(entity, row, key, &first, phase);
         scene.rows.spawn(id, state, *row);
     }

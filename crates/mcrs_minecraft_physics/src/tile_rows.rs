@@ -112,8 +112,7 @@ impl TileRows {
 
 #[cfg(test)]
 mod tests {
-    use mcrs_minecraft_entity_key::BirthKey;
-    use mcrs_minecraft_entity_key::SourceKind;
+    use mcrs_minecraft_entity_key::EntityKey;
 
     use super::*;
     use crate::Body;
@@ -121,8 +120,8 @@ mod tests {
     #[test]
     fn each_row_is_found_by_its_id_after_despawns_from_the_middle_and_the_end() {
         let mut rows = TileRows::default();
-        for index in 0..6 {
-            let key = BirthKey::new(0, SourceKind::Spawn, 0, index);
+        for index in 0_u32..6 {
+            let key = EntityKey(u128::from(index));
             rows.insert_row(Row {
                 state: EntityState::new(key, Body::default(), None),
                 motion: MotionRow::item(),

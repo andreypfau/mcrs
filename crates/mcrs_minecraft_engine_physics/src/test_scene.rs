@@ -1,8 +1,7 @@
 use bevy_tasks::TaskPool;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
-use mcrs_minecraft_entity_key::BirthKey;
-use mcrs_minecraft_entity_key::SourceKind;
+use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::EntityState;
@@ -66,7 +65,7 @@ impl TestScene {
         let mut rows = EntityRows::default();
         let range = f64::from(edge) - 1.0;
         for index in 0..walkers.saturating_add(items) {
-            let key = BirthKey::new(0, SourceKind::Spawn, 0, index);
+            let key = EntityKey(u128::from(index));
             let x = rng.range(-range, range);
             let z = rng.range(-range, range);
             let walker = index < walkers;

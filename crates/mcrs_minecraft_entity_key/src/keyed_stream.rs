@@ -1,7 +1,7 @@
-use crate::BirthKey;
-use crate::birth_key::mix;
+use crate::EntityKey;
+use crate::entity_key::mix;
 
-/// A random stream that is a function of a birth key and a tick: one value for each entity and
+/// A random stream that is a function of the UUID of an entity and a tick: one value for each entity and
 /// tick, independent of the order of the entities and of other uses of a random source.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct KeyedStream {
@@ -11,9 +11,9 @@ pub struct KeyedStream {
 impl KeyedStream {
     #[inline]
     #[must_use]
-    pub fn new(key: &BirthKey, tick: u64) -> Self {
+    pub fn new(uuid: &EntityKey, tick: u64) -> Self {
         let mut seed = mix(tick ^ 0x6A09_E667_F3BC_C908);
-        for word in key.words() {
+        for word in uuid.words() {
             seed = mix(seed ^ word);
         }
         Self { seed }

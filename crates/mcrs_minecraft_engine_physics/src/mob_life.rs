@@ -13,7 +13,7 @@ use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::pig_sound_variant_keys;
 use mcrs_minecraft_entity::registry_keys::PIG_SOUND_VARIANT;
-use mcrs_minecraft_entity_key::Birth;
+use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::Category;
@@ -92,7 +92,7 @@ pub fn mob_row(kind: &EntityTypeData) -> MotionRow {
 pub fn mob_body(
     kind: &EntityTypeData,
     row: &MotionRow,
-    key: Birth,
+    key: EntityKey,
     position: DVec3,
 ) -> EntityState {
     let mut living = Living::of(row);
@@ -104,13 +104,13 @@ pub fn mob_body(
         position,
         ..Body::default()
     };
-    let mut state = EntityState::new(key.key, body, Some(living));
-    state.phase = key.phase;
+    let mut state = EntityState::new(key, body, Some(living));
+    state.phase = key.phase_offset();
     state
 }
 
 /// The life cycle of the mobs: each spawn request of the tick becomes a row, in the order of the
-/// birth keys (TRK-LIFE-002). A request with the UUID of a mob that exists, or of an earlier
+/// UUIDs (TRK-LIFE-002). A request with the UUID of a mob that exists, or of an earlier
 /// request, spawns nothing.
 pub(crate) fn spawn_mobs(
     mut requests: MessageReader<MobSpawnRequest>,
@@ -126,7 +126,7 @@ pub(crate) fn spawn_mobs(
     let start = pending.0.len();
     pending.0.extend(requests.read().cloned());
     if let Some(new) = pending.0.make_contiguous().get_mut(start..) {
-        new.sort_by_key(|request| request.key);
+        new.sort_by_key(|request| request.uuid);
     }
     let registries = registries.as_deref().map(|registries| &**registries);
     while let Some(front) = pending.0.front() {
@@ -145,18 +145,12 @@ pub(crate) fn spawn_mobs(
             break;
         };
         let row = mob_row(request.kind);
-        let state = mob_body(
-            request.kind,
-            &row,
-            Birth::from(request.key),
-            request.position,
-        );
+        let key = EntityKey(request.uuid);
+        let state = mob_body(request.kind, &row, key, request.position);
         let mut looks = match request.setup {
-            SpawnSetup::First => first_looks(
-                request.kind,
-                &KeyedStream::new(&request.key, clock.0),
-                registries,
-            ),
+            SpawnSetup::First => {
+                first_looks(request.kind, &KeyedStream::new(&key, clock.0), registries)
+            }
             SpawnSetup::None => MobLooks::default(),
         };
         looks.no_ai = request.extras.no_ai;

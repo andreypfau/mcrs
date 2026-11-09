@@ -97,7 +97,7 @@ fn walk_and_hit(pen: &mut PigPen, tick: u64) {
     let mut players: Vec<PlayerRow> = (0..2)
         .map(|index| PlayerRow {
             player: PlayerId(100 + index),
-            key: OrderKey::new(u128::from(100 + index), 1),
+            key: OrderKey::new(u128::from(100 + index) << 64 | 1),
             position: Point::new(f64::from(index as u32) * 200.0 + 20.0, 0.0, 30.0),
             eye_height: 1.62,
             flags: PlayerFlags::ALIVE,
@@ -107,7 +107,7 @@ fn walk_and_hit(pen: &mut PigPen, tick: u64) {
         .collect();
     players.push(PlayerRow {
         player: PlayerId(7),
-        key: OrderKey::new(7, 1),
+        key: OrderKey::new(7 << 64 | 1),
         position: Point::new(tick as f64 * 0.4, 0.0, 128.0),
         eye_height: 1.62,
         flags: PlayerFlags::ALIVE,

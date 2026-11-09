@@ -12,17 +12,17 @@ use mcrs_minecraft_command_engine::{
 };
 use mcrs_minecraft_engine::coordinator::birth_clock::BirthClock;
 use mcrs_minecraft_engine::teleport::{MAX_XZ, MAX_Y};
+use mcrs_minecraft_engine::world_seed::WorldSeed;
 use mcrs_minecraft_engine_physics::{MobExtras, MobSpawnRequest, SpawnSetup};
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::registry_keys::ENTITY_TYPE;
+use mcrs_minecraft_entity_key::{BirthSource, EntityKey};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_text::Text;
 use std::collections::HashSet;
 use uuid::Uuid;
-
-use mcrs_minecraft_entity_key::{BirthKey, BirthSource, birth_uuid};
 
 #[derive(Clone, Copy)]
 pub(crate) struct SummonCommand {
@@ -74,11 +74,13 @@ fn spawnable(position: DVec3) -> bool {
 }
 
 /// TRK-SUM-002: one mob of the type at the position, or at the source, with the first spawn setup
-/// of its type. The birth key and the UUID come from the birth clock and the command sequence.
+/// of its type. A summon without a UUID gives the mob a new one from the world seed, the birth
+/// clock and the command sequence.
 pub(crate) fn run(
     In(call): In<Call<(), SummonCommand>>,
     context: VanillaContext,
     clock: Res<BirthClock>,
+    seed: Option<Res<WorldSeed>>,
     mut output: CommandOutput,
     mut spawns: ResMut<EffectQueue<MobSpawnRequest>>,
     mut order: Local<SummonOrder>,
@@ -128,9 +130,10 @@ pub(crate) fn run(
             vec![],
         ));
     }
-    let key = BirthKey::born(clock.0, &BirthSource::Command { order: order.next }, 0);
+    let source = BirthSource::Command { order: order.next };
     order.next = order.next.wrapping_add(1);
-    let uuid = uuid.unwrap_or_else(|| birth_uuid(&key, None));
+    let uuid = uuid
+        .unwrap_or_else(|| EntityKey::born(seed.map_or(0, |seed| seed.0), clock.0, &source, 0).0);
     order.uuids.insert(uuid);
     let name = display_name(
         entity_type,
@@ -142,7 +145,6 @@ pub(crate) fn run(
         MobSpawnRequest {
             kind,
             position,
-            key,
             uuid,
             setup,
             extras,

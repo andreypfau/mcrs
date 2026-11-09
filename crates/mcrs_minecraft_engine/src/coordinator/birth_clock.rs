@@ -1,6 +1,6 @@
-//! The birth clock of the world: the birth tick of every entity key. It rises by one at the
-//! start of every server tick, nothing else changes it, and the save keeps it, so a key never
-//! repeats in one world.
+//! The birth clock of the world: the birth tick that every new entity UUID hashes. It rises by
+//! one at the start of every server tick, nothing else changes it, and the save keeps it, so the
+//! inputs of a new UUID never repeat in one world.
 
 use bevy_app::{App, FixedFirst, Plugin, Startup};
 use bevy_ecs::prelude::*;
