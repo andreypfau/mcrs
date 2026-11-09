@@ -218,9 +218,9 @@ fn tick_tile<W: CollisionWorld, B: BodyView>(
                 Category::Item | Category::ExperienceOrb
             );
             let dead = state.living.as_mut().is_some_and(count_down);
-            if state.living.is_some_and(|living| {
-                living.hurt_time > 0 || living.damage_cooldown > 0 || !living.is_alive()
-            }) {
+            // The hurt time and the damage cooldown do not enter the physics step, so a hit row
+            // that rests stays at its fixed point; a knockback is a write, which wakes it.
+            if state.living.is_some_and(|living| !living.is_alive()) {
                 state.rest = Rest::Awake;
             }
             if dead || (expires && state.age >= LIFETIME) {
