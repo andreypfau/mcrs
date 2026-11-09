@@ -37,7 +37,7 @@ const NO_STD_PACKAGES: [&str; 6] = [
     "mcrs_molang_wgsl",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 95] = [
+const NO_BEVY_PACKAGES: [&str; 96] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -76,6 +76,7 @@ const NO_BEVY_PACKAGES: [&str; 95] = [
     "mcrs_minecraft_enchantment",
     "mcrs_minecraft_entity",
     "mcrs_minecraft_entity_animation",
+    "mcrs_minecraft_entity_key",
     "mcrs_minecraft_entity_model",
     "mcrs_minecraft_environment",
     "mcrs_minecraft_fixtures",

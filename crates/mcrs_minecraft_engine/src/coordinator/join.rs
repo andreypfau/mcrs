@@ -6,7 +6,7 @@ use bevy_ecs::query::With;
 use bevy_ecs::system::{Local, Query, Res};
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
-use mcrs_minecraft_physics::{Birth, BirthKey, BirthSource};
+use mcrs_minecraft_entity_key::{Birth, BirthKey, BirthSource};
 use mcrs_minecraft_resource::ResourceKeyBuf;
 
 use crate::bus::InboundPlayerSpawn;

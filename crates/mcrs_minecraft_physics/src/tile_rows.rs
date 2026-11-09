@@ -1,6 +1,6 @@
 use core::iter;
 
-use mcrs_engine_muxer::EntityId;
+use mcrs_minecraft_entity_key::EntityId;
 use rustc_hash::FxHashMap;
 
 use crate::EntityState;
@@ -112,10 +112,11 @@ impl TileRows {
 
 #[cfg(test)]
 mod tests {
+    use mcrs_minecraft_entity_key::BirthKey;
+    use mcrs_minecraft_entity_key::SourceKind;
+
     use super::*;
-    use crate::BirthKey;
     use crate::Body;
-    use crate::SourceKind;
 
     #[test]
     fn each_row_is_found_by_its_id_after_despawns_from_the_middle_and_the_end() {

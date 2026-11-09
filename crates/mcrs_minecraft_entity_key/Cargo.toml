@@ -1,0 +1,15 @@
+[package]
+name = "mcrs_minecraft_entity_key"
+description = "The keys of an entity without the physics kernel: its id, its birth key and birth, its UUID at birth, its keyed random stream and the tile that holds it"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+glam.workspace = true
+mcrs_voxel.workspace = true

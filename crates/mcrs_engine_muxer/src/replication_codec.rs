@@ -1,10 +1,11 @@
 use bytes::Bytes;
 
-use crate::entity_id::{EntityId, ViewerId};
+use crate::entity_id::ViewerId;
 use crate::tier::Tier;
 use crate::tile_blob::TileBlob;
 use crate::tile_delta::TileDelta;
 use crate::viewer_bytes::ViewerBytes;
+use mcrs_minecraft_entity_key::EntityId;
 
 /// The encoding of entity events into the bytes of the game's protocol.
 ///

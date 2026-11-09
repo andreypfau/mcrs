@@ -1,8 +1,9 @@
 use std::mem;
 
 use glam::DVec3;
+use mcrs_minecraft_entity_key::BirthKey;
+use mcrs_minecraft_entity_key::SourceKind;
 use mcrs_minecraft_physics::Aabb;
-use mcrs_minecraft_physics::BirthKey;
 use mcrs_minecraft_physics::BlockAction;
 use mcrs_minecraft_physics::BlockOverlay;
 use mcrs_minecraft_physics::BodyView;
@@ -14,7 +15,6 @@ use mcrs_minecraft_physics::QueryEntity;
 use mcrs_minecraft_physics::QueryVariant;
 use mcrs_minecraft_physics::Scratch;
 use mcrs_minecraft_physics::Side;
-use mcrs_minecraft_physics::SourceKind;
 use mcrs_minecraft_physics::SourcedCollider;
 use mcrs_minecraft_physics::View;
 use mcrs_minecraft_physics::dimensions_of;

@@ -1,9 +1,9 @@
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
 use mcrs_engine_muxer::TileKey;
-use mcrs_minecraft_engine::player_tiles::TILE_WIDTH;
+use mcrs_minecraft_entity_key::BirthKey;
+use mcrs_minecraft_entity_key::TILE_WIDTH;
 use mcrs_minecraft_physics::Aabb;
-use mcrs_minecraft_physics::BirthKey;
 use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::BodyView;
 use mcrs_minecraft_physics::EntityCollider;

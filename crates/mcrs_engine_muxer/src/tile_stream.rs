@@ -1,9 +1,10 @@
 use std::collections::BTreeSet;
 use std::ops::RangeInclusive;
 
-use crate::entity_id::{EntityId, ViewerId};
+use crate::entity_id::ViewerId;
 use crate::subscription::layer_ranks;
 use crate::tier::Tier;
+use mcrs_minecraft_entity_key::EntityId;
 
 /// The subjects of one tile and the viewers that receive some of them.
 #[derive(Debug, Default)]

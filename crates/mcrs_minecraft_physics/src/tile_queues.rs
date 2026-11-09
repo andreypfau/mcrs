@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 
-use mcrs_engine_muxer::TileKey;
+use mcrs_minecraft_entity_key::TileKey;
 
 use crate::EffectBuffer;
 use crate::Keyed;

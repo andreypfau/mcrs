@@ -2,15 +2,15 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use bytes::Bytes;
 
-use crate::entity_id::EntityId;
 use crate::planner::{Measured, Point};
 use crate::subscription::Subscription;
 use crate::tier::Tier;
 use crate::tile_blob::TileBlob;
-use crate::tile_key::TileKey;
 use crate::tile_reach::TileReach;
 use crate::tile_stream::TileStream;
 use crate::view::View;
+use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_entity_key::TileKey;
 
 /// What the muxer keeps of one viewer.
 #[derive(Debug)]

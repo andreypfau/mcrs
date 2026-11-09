@@ -96,6 +96,7 @@ mcrs_minecraft_engine_world = { path = "crates/mcrs_minecraft_engine_world" }
 mcrs_minecraft_engine = { path = "crates/mcrs_minecraft_engine" }
 mcrs_minecraft_engine_server = { path = "crates/mcrs_minecraft_engine_server", default-features = false }
 mcrs_voxel = { path = "crates/mcrs_voxel" }
+mcrs_minecraft_entity_key = { path = "crates/mcrs_minecraft_entity_key" }
 mcrs_minecraft_physics = { path = "crates/mcrs_minecraft_physics" }
 mcrs_minecraft_collision_table = { path = "crates/mcrs_minecraft_collision_table" }
 mcrs_minecraft_engine_physics = { path = "crates/mcrs_minecraft_engine_physics" }

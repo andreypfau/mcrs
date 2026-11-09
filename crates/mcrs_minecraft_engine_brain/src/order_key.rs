@@ -1,5 +1,5 @@
 use mcrs_minecraft_brain::OrderKey;
-use mcrs_minecraft_physics::BirthKey;
+use mcrs_minecraft_entity_key::BirthKey;
 
 /// The birth key packed into 256 bits in the order of its comparison: the tick (64 bits), the
 /// source kind (8), the source value (128) and the sequence (32), so the order of the order keys
@@ -17,7 +17,7 @@ pub fn order_key(key: &BirthKey) -> OrderKey {
 
 #[cfg(test)]
 mod tests {
-    use mcrs_minecraft_physics::SourceKind;
+    use mcrs_minecraft_entity_key::SourceKind;
 
     use super::*;
 

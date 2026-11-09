@@ -3,12 +3,7 @@ use std::num::NonZeroU32;
 use bevy_math::DVec3;
 use mcrs_engine_muxer::{TileGrid, TileKey, TileRadius};
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
-
-/// The width of a tile in blocks on X and Z: two columns, as the vanilla tracking cells.
-pub const TILE_WIDTH: NonZeroU32 = match NonZeroU32::new(32) {
-    Some(width) => width,
-    None => NonZeroU32::MIN,
-};
+use mcrs_minecraft_entity_key::TILE_WIDTH;
 
 /// The tiles around its own tile in which a player sees the other players: 4 tiles are about 128
 /// blocks, on X and Z only, since one tile spans the height of the world. A mob has its own

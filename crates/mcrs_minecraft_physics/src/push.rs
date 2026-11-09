@@ -1,10 +1,10 @@
 use glam::DVec3;
+use mcrs_minecraft_entity_key::KeyedStream;
 
 use crate::BodyView;
 use crate::CollisionRule;
 use crate::GridFlags;
 use crate::GridRow;
-use crate::KeyedStream;
 use crate::PushTargets;
 use crate::Scratch;
 

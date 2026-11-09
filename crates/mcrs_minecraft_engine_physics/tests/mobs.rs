@@ -12,10 +12,10 @@ use mcrs_minecraft_engine_physics::mob_body;
 use mcrs_minecraft_engine_physics::mob_row;
 use mcrs_minecraft_engine_physics::tile_at;
 use mcrs_minecraft_entity::EntityTypeData;
-use mcrs_minecraft_physics::Birth;
-use mcrs_minecraft_physics::BirthKey;
+use mcrs_minecraft_entity_key::Birth;
+use mcrs_minecraft_entity_key::BirthKey;
+use mcrs_minecraft_entity_key::SourceKind;
 use mcrs_minecraft_physics::MoveInput;
-use mcrs_minecraft_physics::SourceKind;
 use mcrs_minecraft_physics::Steering;
 
 fn pig(scene: &mut TestScene, id: u64, position: DVec3) {

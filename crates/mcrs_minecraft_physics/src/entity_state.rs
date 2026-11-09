@@ -1,4 +1,5 @@
-use crate::BirthKey;
+use mcrs_minecraft_entity_key::BirthKey;
+
 use crate::Body;
 use crate::HitRecord;
 use crate::Living;

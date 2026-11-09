@@ -18,10 +18,11 @@ use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::registry_keys::ENTITY_TYPE;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_physics::{BirthKey, BirthSource, birth_uuid};
 use mcrs_minecraft_text::Text;
 use std::collections::HashSet;
 use uuid::Uuid;
+
+use mcrs_minecraft_entity_key::{BirthKey, BirthSource, birth_uuid};
 
 #[derive(Clone, Copy)]
 pub(crate) struct SummonCommand {

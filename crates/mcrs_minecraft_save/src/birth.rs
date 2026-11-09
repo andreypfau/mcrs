@@ -1,6 +1,6 @@
-use mcrs_minecraft_physics::Birth;
-use mcrs_minecraft_physics::BirthKey;
-use mcrs_minecraft_physics::SourceKind;
+use mcrs_minecraft_entity_key::Birth;
+use mcrs_minecraft_entity_key::BirthKey;
+use mcrs_minecraft_entity_key::SourceKind;
 use serde::{Deserialize, Serialize, de};
 
 /// The compound key of the birth of an entity. It is data of mcrs: the vanilla server ignores it.

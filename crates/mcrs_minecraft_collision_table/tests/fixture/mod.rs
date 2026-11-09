@@ -10,8 +10,8 @@ use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use glam::DVec3;
+use mcrs_minecraft_entity_key::BirthKey;
 use mcrs_minecraft_fixtures::FixtureFile;
-use mcrs_minecraft_physics::BirthKey;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::Living;

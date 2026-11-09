@@ -1,7 +1,7 @@
-use mcrs_engine_muxer::EntityId;
+use mcrs_minecraft_entity_key::BirthKey;
+use mcrs_minecraft_entity_key::EntityId;
 
 use crate::Aabb;
-use crate::BirthKey;
 use crate::GridRow;
 
 /// The other entities that a step reads. The driver picks the front grid with the end boxes of

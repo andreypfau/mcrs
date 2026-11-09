@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use crate::planner::Point;
-use crate::tile_key::TileKey;
 use crate::view::View;
+use mcrs_minecraft_entity_key::TileKey;
 
 /// The largest tracking range that the muxer honours, in the units of the game. A larger range
 /// from the codec counts as this one, so a bad value cannot make a region of millions of tiles.

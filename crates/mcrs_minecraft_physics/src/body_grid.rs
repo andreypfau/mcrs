@@ -1,6 +1,6 @@
 use std::mem;
 
-use mcrs_engine_muxer::TileKey;
+use mcrs_minecraft_entity_key::TileKey;
 use rustc_hash::FxHashMap;
 
 use crate::TileBodies;

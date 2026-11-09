@@ -10,6 +10,7 @@ use mcrs_engine_muxer::{
     EntityEvent, EntityId, MuxerInput, SubjectEvent, TileDeltas, TileKey, View, ViewerId, WorldId,
 };
 use mcrs_minecraft_engine_world::session::{PlayerSession, SessionAnchors};
+use mcrs_minecraft_entity_key::TILE_WIDTH;
 use mcrs_minecraft_replication::{Backlog, PlayerCodec, PlayerData, PlayerInput};
 
 use crate::muxer::latency::Latency;
@@ -18,7 +19,7 @@ use crate::muxer::muxer_stage::{MuxerCall, MuxerStage};
 use crate::muxer::session::SessionConnection;
 #[cfg(feature = "world-access")]
 use crate::muxer::tile_delta_log::{LoggedDeltas, TileDeltaLog};
-use crate::player_tiles::{TILE_WIDTH, VIEW_RADIUS};
+use crate::player_tiles::VIEW_RADIUS;
 
 /// The subscription of each player to the entity muxer of its world.
 #[derive(Default)]

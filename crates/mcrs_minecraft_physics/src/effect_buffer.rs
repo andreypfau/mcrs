@@ -1,4 +1,4 @@
-use mcrs_engine_muxer::TileKey;
+use mcrs_minecraft_entity_key::TileKey;
 
 use crate::Keyed;
 

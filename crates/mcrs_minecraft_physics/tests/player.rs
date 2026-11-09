@@ -1,9 +1,9 @@
 //! Kernel tests of the tick of a player, its server copy, the observed velocity and the teleport.
 
 use glam::DVec3;
+use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_physics::GridFlags;
 use mcrs_minecraft_physics::GridRow;
-use mcrs_minecraft_physics::KeyedStream;
 use mcrs_minecraft_physics::Keys;
 use mcrs_minecraft_physics::MoveFlags;
 use mcrs_minecraft_physics::NoBodies;

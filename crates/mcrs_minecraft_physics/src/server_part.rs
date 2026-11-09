@@ -1,10 +1,10 @@
 use glam::DVec3;
+use mcrs_minecraft_entity_key::KeyedStream;
 
 use crate::BlockAction;
 use crate::BodyView;
 use crate::CollisionWorld;
 use crate::GridRow;
-use crate::KeyedStream;
 use crate::MovePath;
 use crate::Mover;
 use crate::PlayerState;

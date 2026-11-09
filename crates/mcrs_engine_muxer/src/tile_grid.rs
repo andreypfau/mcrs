@@ -1,6 +1,6 @@
 use std::num::NonZeroU32;
 
-use crate::tile_key::TileKey;
+use mcrs_minecraft_entity_key::TileKey;
 
 /// The size of a tile on each axis, in the units of the game. A game that wants one tile for the
 /// full height of its world sets `y` to that height and passes `y` from the bottom of the world.

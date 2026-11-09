@@ -3,7 +3,7 @@ use std::mem;
 use std::num::NonZeroU32;
 
 use crate::entity_event::{EntityEvent, SubjectEvent};
-use crate::entity_id::{EntityId, ViewerId};
+use crate::entity_id::ViewerId;
 use crate::planner;
 use crate::planner::{BUDGET, Point, SubscriptionChange, TileHeader};
 use crate::replication_codec::{BlobKind, Hold, ReplicationCodec};
@@ -11,13 +11,14 @@ use crate::subscription::{LAYERS, Subscription, layer_ranks};
 use crate::tier::Tier;
 use crate::tile_blob::TileBlob;
 use crate::tile_delta::{TileDelta, TileDeltas};
-use crate::tile_key::TileKey;
 use crate::tile_reach;
 use crate::tile_reach::{MAX_RANGE, TileReach};
 use crate::tile_stream::TileStream;
 use crate::view::View;
 use crate::viewer::{Gain, Viewer};
 use crate::viewer_bytes::ViewerBytes;
+use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_entity_key::TileKey;
 
 /// Decides which entity bytes each viewer receives. It starts no thread and reads no clock, so
 /// a game can call it from its own loop.

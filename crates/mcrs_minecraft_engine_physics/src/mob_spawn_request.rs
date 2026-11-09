@@ -1,7 +1,7 @@
 use bevy_ecs::message::Message;
 use glam::DVec3;
 use mcrs_minecraft_entity::EntityTypeData;
-use mcrs_minecraft_physics::BirthKey;
+use mcrs_minecraft_entity_key::BirthKey;
 
 /// A request of a system to add a mob to the world (TRK-LIFE-002). The life cycle applies the
 /// requests of a tick in the order of their birth keys.

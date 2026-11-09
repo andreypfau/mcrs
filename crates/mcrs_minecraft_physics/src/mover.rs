@@ -1,6 +1,6 @@
 use glam::DVec3;
+use mcrs_minecraft_entity_key::BirthKey;
 
-use crate::BirthKey;
 use crate::Body;
 use crate::Dimensions;
 use crate::QueryEntity;

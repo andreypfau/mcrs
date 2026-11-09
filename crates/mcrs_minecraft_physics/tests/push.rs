@@ -1,9 +1,9 @@
 //! Kernel and property tests of the push between entities.
 
 use glam::DVec3;
+use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_physics::GridFlags;
 use mcrs_minecraft_physics::GridRow;
-use mcrs_minecraft_physics::KeyedStream;
 use mcrs_minecraft_physics::ListedBodies;
 use mcrs_minecraft_physics::PushOutcome;
 use mcrs_minecraft_physics::PushRules;

@@ -1,7 +1,8 @@
 use bevy_tasks::TaskPool;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
-use mcrs_minecraft_physics::BirthKey;
+use mcrs_minecraft_entity_key::BirthKey;
+use mcrs_minecraft_entity_key::SourceKind;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::EntityState;
@@ -9,7 +10,6 @@ use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_physics::MoveInput;
 use mcrs_minecraft_physics::PushRules;
-use mcrs_minecraft_physics::SourceKind;
 use mcrs_minecraft_physics::Steering;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_physics::TestBlocks;

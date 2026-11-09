@@ -1,6 +1,6 @@
-use mcrs_engine_muxer::EntityId;
+use mcrs_minecraft_entity_key::BirthKey;
+use mcrs_minecraft_entity_key::EntityId;
 
-use crate::BirthKey;
 use crate::WriterKey;
 
 /// A write or a claim on one entity, with the keys that order it.

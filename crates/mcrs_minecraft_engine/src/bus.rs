@@ -1,3 +1,5 @@
+use mcrs_minecraft_entity_key::Birth;
+
 use crate::client_info::ClientInfo;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
@@ -7,7 +9,6 @@ use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::event::Trigger;
 use mcrs_minecraft_network::metrics::PacketKind;
-use mcrs_minecraft_physics::Birth;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundBlockChangedAck, ClientboundBlockDestruction, ClientboundBlockEvent,

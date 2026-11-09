@@ -30,15 +30,15 @@ use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::BlockPlaced;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
+use mcrs_minecraft_entity_key::Birth;
+use mcrs_minecraft_entity_key::BirthKey;
+use mcrs_minecraft_entity_key::BirthSource;
+use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_game_rule::GameRule;
 use mcrs_minecraft_item::ItemStack;
-use mcrs_minecraft_physics::Birth;
-use mcrs_minecraft_physics::BirthKey;
-use mcrs_minecraft_physics::BirthSource;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::EntityState;
-use mcrs_minecraft_physics::KeyedStream;
 use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::Tables;
@@ -228,8 +228,8 @@ fn move_rows(mut rows: ResMut<EntityRows>) {
 
 #[cfg(test)]
 mod tests {
-    use mcrs_minecraft_physics::BirthKey;
-    use mcrs_minecraft_physics::BirthSource;
+    use mcrs_minecraft_entity_key::BirthKey;
+    use mcrs_minecraft_entity_key::BirthSource;
 
     use super::*;
 

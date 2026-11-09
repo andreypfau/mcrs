@@ -8,12 +8,12 @@ use glam::DVec3;
 use mcrs_minecraft_engine_physics::EntityRows;
 use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::TestScene;
-use mcrs_minecraft_physics::BirthKey;
+use mcrs_minecraft_entity_key::BirthKey;
+use mcrs_minecraft_entity_key::SourceKind;
 use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::EffectBuffer;
 use mcrs_minecraft_physics::Keyed;
 use mcrs_minecraft_physics::Rest;
-use mcrs_minecraft_physics::SourceKind;
 use mcrs_minecraft_physics::WriterKey;
 
 const TICKS: u64 = 60;

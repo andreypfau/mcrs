@@ -576,7 +576,7 @@ fn a_player_save_without_a_dimension_reads_as_the_overworld() {
 
 #[test]
 fn cmp_013_016_a_saved_birth_loads_back_unchanged() {
-    use mcrs_minecraft_physics::{Birth, BirthKey, SourceKind};
+    use mcrs_minecraft_entity_key::{Birth, BirthKey, SourceKind};
 
     let birth = Birth {
         key: BirthKey::new(u64::MAX - 7, SourceKind::Entity, u128::MAX - 3, u32::MAX),

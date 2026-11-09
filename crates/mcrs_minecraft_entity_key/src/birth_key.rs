@@ -1,4 +1,5 @@
 use crate::BirthSource;
+use crate::SourceKind;
 
 /// The order key of an entity: its birth tick, its source and its sequence among the entities of
 /// that source and tick. It does not depend on the layout, the thread count or the network id.
@@ -8,17 +9,6 @@ pub struct BirthKey {
     kind: SourceKind,
     source: u128,
     sequence: u32,
-}
-
-/// The kind of the source of a birth, in the order of the comparison.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum SourceKind {
-    Load,
-    Player,
-    Command,
-    Spawn,
-    Block,
-    Entity,
 }
 
 impl BirthKey {
@@ -79,6 +69,7 @@ impl BirthKey {
         (self.digest() & 3) as u8
     }
 
+    #[inline]
     pub(crate) fn words(&self) -> [u64; 5] {
         [
             self.tick,
@@ -91,6 +82,7 @@ impl BirthKey {
 }
 
 /// The finaliser of SplitMix64.
+#[inline]
 pub(crate) fn mix(value: u64) -> u64 {
     let mut z = value.wrapping_add(0x9E37_79B9_7F4A_7C15);
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);

@@ -1,8 +1,8 @@
 use glam::DVec3;
-use mcrs_engine_muxer::EntityId;
+use mcrs_minecraft_entity_key::BirthKey;
+use mcrs_minecraft_entity_key::EntityId;
 
 use crate::Aabb;
-use crate::BirthKey;
 use crate::GridFlags;
 use crate::PushTargets;
 use crate::TeamSlot;

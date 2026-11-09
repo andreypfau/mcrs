@@ -12,6 +12,7 @@ workspace = true
 
 # std: the rows and the grid live in Vec and BTreeMap
 [dependencies]
+mcrs_minecraft_entity_key.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_tasks.workspace = true

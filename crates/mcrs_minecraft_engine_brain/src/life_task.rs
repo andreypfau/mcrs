@@ -3,7 +3,7 @@ use mcrs_engine_muxer::TileKey;
 use mcrs_minecraft_engine_physics::Mobs;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
-use mcrs_minecraft_physics::BirthKey;
+use mcrs_minecraft_entity_key::BirthKey;
 use mcrs_minecraft_physics::TileRows;
 
 use crate::host_mob::HostMob;

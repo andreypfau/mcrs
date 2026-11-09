@@ -12,6 +12,7 @@ workspace = true
 
 # std: the host keeps its tiles in BTreeMap and its index in a hash map
 [dependencies]
+mcrs_minecraft_entity_key.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_tasks.workspace = true

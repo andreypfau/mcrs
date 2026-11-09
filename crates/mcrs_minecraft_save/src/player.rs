@@ -5,9 +5,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use mcrs_minecraft_core::VERSION;
+use mcrs_minecraft_entity_key::Birth;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_physics::Birth;
 use mcrs_minecraft_protocol_game::item::{ItemStackValue, ItemStackWithSlot};
 use mcrs_minecraft_registries::Named;
 use serde::de::{Error as _, MapAccess, Visitor};

@@ -4,10 +4,6 @@
 
 mod aabb;
 mod axis;
-mod birth;
-mod birth_key;
-mod birth_source;
-mod birth_uuid;
 mod block_action;
 mod block_effects;
 mod block_flags;
@@ -36,7 +32,6 @@ mod hit_record;
 mod inside_effect;
 mod inside_shape;
 mod keyed;
-mod keyed_stream;
 mod keys;
 mod living;
 mod motion_attributes;
@@ -93,11 +88,6 @@ mod yzx_pos;
 
 pub use aabb::Aabb;
 pub use axis::Axis;
-pub use birth::Birth;
-pub use birth_key::BirthKey;
-pub use birth_key::SourceKind;
-pub use birth_source::BirthSource;
-pub use birth_uuid::birth_uuid;
 pub use block_action::BlockAction;
 pub use block_flags::BlockFlags;
 pub use block_motion::BlockMotion;
@@ -140,7 +130,6 @@ pub use inside_shape::BoxRange;
 pub use inside_shape::InsideBoxes;
 pub use inside_shape::InsideShape;
 pub use keyed::Keyed;
-pub use keyed_stream::KeyedStream;
 pub use keys::Keys;
 pub use living::Living;
 pub use living::MoveInput;

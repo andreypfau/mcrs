@@ -1,6 +1,5 @@
 use glam::DVec3;
-
-use crate::BirthKey;
+use mcrs_minecraft_entity_key::BirthKey;
 
 /// The entity for which a query finds colliders: the values that a context shape, the world
 /// border and the entity colliders read.

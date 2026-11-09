@@ -1,8 +1,8 @@
-use mcrs_minecraft_physics::Birth;
-use mcrs_minecraft_physics::BirthKey;
-use mcrs_minecraft_physics::BirthSource;
-use mcrs_minecraft_physics::KeyedStream;
-use mcrs_minecraft_physics::birth_uuid;
+use mcrs_minecraft_entity_key::Birth;
+use mcrs_minecraft_entity_key::BirthKey;
+use mcrs_minecraft_entity_key::BirthSource;
+use mcrs_minecraft_entity_key::KeyedStream;
+use mcrs_minecraft_entity_key::birth_uuid;
 use mcrs_voxel::BlockPos;
 
 fn from_block(x: i32, y: i32, z: i32) -> BirthKey {

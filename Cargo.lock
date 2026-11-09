@@ -3571,6 +3571,7 @@ name = "mcrs_engine_muxer"
 version = "0.5.8"
 dependencies = [
  "bytes",
+ "mcrs_minecraft_entity_key",
 ]
 
 [[package]]
@@ -3995,6 +3996,7 @@ dependencies = [
  "glam",
  "mcrs_engine_muxer",
  "mcrs_minecraft_block",
+ "mcrs_minecraft_entity_key",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_physics",
@@ -4173,6 +4175,7 @@ dependencies = [
  "mcrs_minecraft_engine_physics",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_key",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_heightmap",
@@ -4340,6 +4343,7 @@ dependencies = [
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_entity_key",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_game_registries",
@@ -4386,6 +4390,7 @@ dependencies = [
  "mcrs_minecraft_engine_physics",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_key",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_goals",
  "mcrs_minecraft_item",
@@ -4417,6 +4422,7 @@ dependencies = [
  "mcrs_minecraft_engine_physics",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_key",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_game_rule",
@@ -4554,6 +4560,14 @@ dependencies = [
  "mcrs_molang",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_entity_key"
+version = "0.5.8"
+dependencies = [
+ "glam",
+ "mcrs_voxel",
 ]
 
 [[package]]
@@ -4919,6 +4933,7 @@ dependencies = [
  "criterion",
  "glam",
  "mcrs_minecraft_client_ticks",
+ "mcrs_minecraft_entity_key",
  "mcrs_minecraft_move_validate",
  "mcrs_minecraft_physics",
  "mcrs_voxel",
@@ -5032,9 +5047,9 @@ dependencies = [
  "bitflags 2.10.0",
  "criterion",
  "glam",
- "mcrs_engine_muxer",
  "mcrs_minecraft_client_ticks",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_entity_key",
  "mcrs_minecraft_numeric",
  "mcrs_minecraft_physics",
  "mcrs_voxel",
@@ -5258,12 +5273,12 @@ version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
+ "mcrs_minecraft_entity_key",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_item",
  "mcrs_minecraft_nbt",
- "mcrs_minecraft_physics",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
@@ -5314,6 +5329,7 @@ dependencies = [
  "mcrs_minecraft_engine_server",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_key",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_mode",

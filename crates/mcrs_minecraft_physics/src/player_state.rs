@@ -1,14 +1,14 @@
 use glam::DVec3;
+use mcrs_minecraft_entity_key::BirthKey;
+use mcrs_minecraft_entity_key::SourceKind;
 use mcrs_voxel::BlockPos;
 
-use crate::BirthKey;
 use crate::Body;
 use crate::MotionAttributes;
 use crate::MotionEffects;
 use crate::MoveFlags;
 use crate::Pose;
 use crate::QueryEntity;
-use crate::SourceKind;
 
 /// The state of a player at the start of a tick: the values that one tick reads and writes.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]

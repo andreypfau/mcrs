@@ -4,7 +4,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::session::PlayerSession;
-use mcrs_minecraft_physics::Birth;
+use mcrs_minecraft_entity_key::Birth;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 
 use mcrs_minecraft_protocol::Packet;

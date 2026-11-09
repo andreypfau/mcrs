@@ -1,8 +1,8 @@
 use glam::DVec3;
+use mcrs_minecraft_entity_key::BirthKey;
 use mcrs_minecraft_numeric as numeric;
 
 use crate::Aabb;
-use crate::BirthKey;
 use crate::BlockAction;
 use crate::Body;
 use crate::BodyView;

@@ -1,8 +1,9 @@
 use glam::DVec3;
+use mcrs_minecraft_entity_key::BirthKey;
+use mcrs_minecraft_entity_key::SourceKind;
 use mcrs_minecraft_numeric as numeric;
 
 use crate::Aabb;
-use crate::BirthKey;
 use crate::BlockAction;
 use crate::BodyView;
 use crate::CollisionWorld;
@@ -19,7 +20,6 @@ use crate::PlayerState;
 use crate::Pose;
 use crate::Scratch;
 use crate::Side;
-use crate::SourceKind;
 use crate::StuckIgnore;
 use crate::View;
 use crate::block_effects;
