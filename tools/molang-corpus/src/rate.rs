@@ -1,100 +1,78 @@
 use std::collections::BTreeMap;
 
-/// The rate classes of `docs/molang.md`, section 6.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum RateClass {
-    Constant,
-    Load,
-    Frame,
-    EntityTick,
-    EntityFrame,
-    AnimationFrame,
+use mcrs_molang::Rate;
+
+pub const RATES: [Rate; 6] = [
+    Rate::Constant,
+    Rate::Load,
+    Rate::Frame,
+    Rate::EntityTick,
+    Rate::EntityFrame,
+    Rate::AnimationFrame,
+];
+
+fn from_spec(name: &str) -> Option<Rate> {
+    Some(match name {
+        "load" => Rate::Load,
+        "frame" => Rate::Frame,
+        "entity_tick" => Rate::EntityTick,
+        "entity_frame" => Rate::EntityFrame,
+        "animation_frame" => Rate::AnimationFrame,
+        _ => return None,
+    })
 }
 
-impl RateClass {
-    pub const ALL: [RateClass; 6] = [
-        RateClass::Constant,
-        RateClass::Load,
-        RateClass::Frame,
-        RateClass::EntityTick,
-        RateClass::EntityFrame,
-        RateClass::AnimationFrame,
-    ];
-
-    pub fn name(self) -> &'static str {
-        match self {
-            RateClass::Constant => "Constant",
-            RateClass::Load => "Load",
-            RateClass::Frame => "Frame",
-            RateClass::EntityTick => "EntityTick",
-            RateClass::EntityFrame => "EntityFrame",
-            RateClass::AnimationFrame => "AnimationFrame",
-        }
-    }
-
-    fn from_spec(name: &str) -> Option<RateClass> {
-        Some(match name {
-            "load" => RateClass::Load,
-            "frame" => RateClass::Frame,
-            "entity_tick" => RateClass::EntityTick,
-            "entity_frame" => RateClass::EntityFrame,
-            "animation_frame" => RateClass::AnimationFrame,
-            _ => return None,
-        })
-    }
-}
-
-/// A join of rate classes: the set of axes along which a value can change.
+/// A join of rates: the set of axes along which a value can change.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Rate(u8);
+pub struct Axes(u8);
 
-impl Rate {
+impl Axes {
     const LOAD: u8 = 1;
     const FRAME: u8 = 2;
     const ENTITY: u8 = 4;
     const ANIMATION: u8 = 8;
 
-    pub const CONSTANT: Rate = Rate(0);
+    pub const CONSTANT: Axes = Axes(0);
 
-    pub fn of(class: RateClass) -> Rate {
-        Rate(match class {
-            RateClass::Constant => 0,
-            RateClass::Load => Self::LOAD,
-            RateClass::Frame => Self::FRAME,
-            RateClass::EntityTick => Self::ENTITY,
-            RateClass::EntityFrame => Self::ENTITY | Self::FRAME,
-            RateClass::AnimationFrame => Self::ENTITY | Self::FRAME | Self::ANIMATION,
+    pub fn of(class: Rate) -> Axes {
+        Axes(match class {
+            Rate::Constant => 0,
+            Rate::Load => Self::LOAD,
+            Rate::Frame => Self::FRAME,
+            Rate::EntityTick => Self::ENTITY,
+            Rate::EntityFrame => Self::ENTITY | Self::FRAME,
+            Rate::AnimationFrame => Self::ENTITY | Self::FRAME | Self::ANIMATION,
         })
     }
 
     #[must_use]
-    pub fn join(self, other: Rate) -> Rate {
-        Rate(self.0 | other.0)
+    pub fn join(self, other: Axes) -> Axes {
+        Axes(self.0 | other.0)
     }
 
-    pub fn class(self) -> RateClass {
+    pub fn class(self) -> Rate {
         if self.0 & Self::ANIMATION != 0 {
-            RateClass::AnimationFrame
+            Rate::AnimationFrame
         } else if self.0 & (Self::ENTITY | Self::FRAME) == Self::ENTITY | Self::FRAME {
-            RateClass::EntityFrame
+            Rate::EntityFrame
         } else if self.0 & Self::FRAME != 0 {
-            RateClass::Frame
+            Rate::Frame
         } else if self.0 & Self::ENTITY != 0 {
-            RateClass::EntityTick
+            Rate::EntityTick
         } else if self.0 & Self::LOAD != 0 {
-            RateClass::Load
+            Rate::Load
         } else {
-            RateClass::Constant
+            Rate::Constant
         }
     }
 
     /// A value that a run stores once per subject, for example in `initialize`.
     #[must_use]
-    pub fn frozen(self) -> Rate {
-        if self == Rate::CONSTANT || self == Rate(Self::LOAD) {
+    pub fn frozen(self) -> Axes {
+        if self == Axes::CONSTANT || self == Axes(Self::LOAD) {
             self
         } else {
-            Rate(Self::ENTITY)
+            Axes(Self::ENTITY)
         }
     }
 }
@@ -102,17 +80,17 @@ impl Rate {
 /// The rate of a query: from the MOLQ tables, or a guess from its name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum QueryRate {
-    Spec(Rate),
+    Spec(Axes),
     /// A function of its arguments only.
     Pure,
-    Guess(Rate),
+    Guess(Axes),
 }
 
 impl QueryRate {
-    pub fn rate(self) -> Rate {
+    pub fn rate(self) -> Axes {
         match self {
             QueryRate::Spec(rate) | QueryRate::Guess(rate) => rate,
-            QueryRate::Pure => Rate::CONSTANT,
+            QueryRate::Pure => Axes::CONSTANT,
         }
     }
 }
@@ -145,9 +123,9 @@ impl SpecQueries {
                 (Some("name"), Some(name)) => pending_name = Some(unquote(name).to_owned()),
                 (Some("rate class"), Some(rate)) => {
                     if let (Some(name), Some(class)) =
-                        (pending_name.take(), RateClass::from_spec(unquote(rate)))
+                        (pending_name.take(), from_spec(unquote(rate)))
                     {
-                        rates.insert(name, QueryRate::Spec(Rate::of(class)));
+                        rates.insert(name, QueryRate::Spec(Axes::of(class)));
                     }
                 }
                 _ => {}
@@ -162,8 +140,8 @@ impl SpecQueries {
             if name.is_empty() || name.starts_with('-') {
                 continue;
             }
-            let rate = match RateClass::from_spec(unquote(rate)) {
-                Some(class) => QueryRate::Spec(Rate::of(class)),
+            let rate = match from_spec(unquote(rate)) {
+                Some(class) => QueryRate::Spec(Axes::of(class)),
                 None if rate.contains("arguments") => QueryRate::Pure,
                 None => continue,
             };
@@ -204,7 +182,7 @@ fn unquote(cell: &str) -> &str {
 
 /// A guess for a query that the MOLQ tables do not define. The words of the name select the
 /// class; each other query is per-entity tick state.
-fn guess(name: &str) -> Rate {
+fn guess(name: &str) -> Axes {
     const ANIMATION: [&str; 3] = ["anim_time", "key_frame", "animation"];
     const FRAME: [&str; 6] = [
         "time_of_day",
@@ -233,12 +211,12 @@ fn guess(name: &str) -> Rate {
     ];
     let has = |words: &[&str]| words.iter().any(|word| name.contains(word));
     if has(&ANIMATION) {
-        Rate::of(RateClass::AnimationFrame)
+        Axes::of(Rate::AnimationFrame)
     } else if has(&FRAME) {
-        Rate::of(RateClass::Frame)
+        Axes::of(Rate::Frame)
     } else if has(&ENTITY_FRAME) {
-        Rate::of(RateClass::EntityFrame)
+        Axes::of(Rate::EntityFrame)
     } else {
-        Rate::of(RateClass::EntityTick)
+        Axes::of(Rate::EntityTick)
     }
 }

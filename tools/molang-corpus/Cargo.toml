@@ -3,6 +3,7 @@ name = "mcrs_molang_corpus"
 description = "Extracts the Molang expressions of Bedrock packs and reports aggregate statistics"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 publish = false
 
 [lints]
@@ -14,5 +15,6 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow.workspace = true
+mcrs_molang.workspace = true
 serde.workspace = true
 serde_json.workspace = true

@@ -1,7 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::ast::{Branch, CallSpace, Expr, PathSpace, Program, ResourceSpace, Stmt};
-use crate::lexer::Punct;
+use mcrs_molang::{
+    BinaryOp, Body, Expr, ExprKind, ResourceKind, Stmt, StmtKind, Syntax, UnaryOp, VariableSpace,
+};
 
 /// A value that an expression reads from outside the run.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -49,13 +50,19 @@ pub struct Facts {
 }
 
 #[must_use]
-pub fn analyse(program: &Program) -> Facts {
+pub fn analyse(syntax: &Syntax) -> Facts {
     let mut walker = Walker {
         facts: Facts::default(),
         temps: BTreeMap::new(),
         arrow_depth: 0,
     };
-    walker.statements(&program.statements, &BTreeSet::new());
+    let control = BTreeSet::new();
+    match &syntax.body {
+        Body::Simple(expr) => {
+            walker.expr(expr, &control);
+        }
+        Body::Complex(statements) => walker.statements(statements, &control),
+    }
     walker.facts
 }
 
@@ -82,38 +89,38 @@ impl Walker {
     }
 
     fn statement(&mut self, statement: &Stmt, control: &BTreeSet<Read>) {
+        if statement.kind == StmtKind::Empty {
+            return;
+        }
         self.facts.nodes += 1;
         self.facts.statements += 1;
-        match statement {
-            Stmt::Return(value) => {
+        match &statement.kind {
+            StmtKind::Empty => {}
+            StmtKind::Return(value) => {
                 self.feature("return");
                 self.expr(value, control);
             }
-            Stmt::Break => self.feature("break"),
-            Stmt::Continue => self.feature("continue"),
-            Stmt::Assign { target, value } => self.assign(target, value, control),
-            Stmt::Loop { count, body } => {
+            StmtKind::Break => self.feature("break"),
+            StmtKind::Continue => self.feature("continue"),
+            StmtKind::Assign(target, value) => self.assign(target, value, control),
+            StmtKind::Loop(count, body) => {
                 self.feature("loop");
                 let mut inner = control.clone();
                 inner.extend(self.expr(count, control));
                 self.statements(body, &inner);
             }
-            Stmt::ForEach {
-                variable,
-                collection,
-                body,
-            } => {
+            StmtKind::ForEach(variable, collection, body) => {
                 self.feature("for_each");
                 let mut inner = control.clone();
                 inner.extend(self.expr(collection, control));
                 self.write_target(variable, inner.clone());
                 self.statements(body, &inner);
             }
-            Stmt::Block(body) => {
+            StmtKind::Block(body) => {
                 self.feature("block statement");
                 self.statements(body, control);
             }
-            Stmt::Expr(expr) => {
+            StmtKind::Expr(expr) => {
                 self.expr(expr, control);
             }
         }
@@ -122,23 +129,23 @@ impl Walker {
     fn assign(&mut self, target: &Expr, value: &Expr, control: &BTreeSet<Read>) {
         let mut deps = self.expr(value, control);
         deps.extend(control.iter().cloned());
-        match target {
-            Expr::Path { space, names } => {
+        match &target.kind {
+            ExprKind::Variable { space, path } => {
                 let name = match space {
-                    PathSpace::Variable => {
-                        if names.len() > 1 {
+                    VariableSpace::Variable => {
+                        if path.len() > 1 {
                             self.feature("struct write `v.a.b = `");
                         }
                         "assign `v.`"
                     }
-                    PathSpace::Temp => "assign `t.`",
-                    PathSpace::Context => "assign `c.` (read-only)",
+                    VariableSpace::Temp => "assign `t.`",
+                    VariableSpace::Context => "assign `c.` (read-only)",
                 };
                 self.feature(name);
             }
-            Expr::Arrow { target, .. } => {
+            ExprKind::Arrow(arrow_target, _) => {
                 self.feature("assign through `->`");
-                deps.extend(self.expr(target, control));
+                deps.extend(self.expr(arrow_target, control));
             }
             _ => {}
         }
@@ -146,74 +153,74 @@ impl Walker {
     }
 
     fn write_target(&mut self, target: &Expr, deps: BTreeSet<Read>) {
-        let Expr::Path { space, names } = target else {
+        let ExprKind::Variable { space, path } = &target.kind else {
             return;
         };
         self.facts.nodes += 1;
-        let joined = names.join(".");
+        let joined = path.join(".");
         match space {
-            PathSpace::Variable => {
+            VariableSpace::Variable => {
                 self.facts.variable_names.insert(joined.clone());
                 self.facts.writes.push(VariableWrite { name: joined, deps });
             }
-            PathSpace::Temp => {
-                self.facts.temp_struct |= names.len() > 1;
+            VariableSpace::Temp => {
+                self.facts.temp_struct |= path.len() > 1;
                 self.temps.entry(joined).or_default().extend(deps);
             }
-            PathSpace::Context => {}
-        }
-    }
-
-    fn branch(&mut self, branch: &Branch, control: &BTreeSet<Read>) -> BTreeSet<Read> {
-        match branch {
-            Branch::Expr(expr) => self.expr(expr, control),
-            Branch::Block(body) => {
-                self.facts.nodes += 1;
-                self.feature("block branch `? {}`");
-                self.statements(body, control);
-                BTreeSet::new()
-            }
+            VariableSpace::Context => {}
         }
     }
 
     fn expr(&mut self, expr: &Expr, control: &BTreeSet<Read>) -> BTreeSet<Read> {
         self.facts.nodes += 1;
-        match expr {
-            Expr::Number(_) => BTreeSet::new(),
-            Expr::Str(_) => {
+        match &expr.kind {
+            ExprKind::Number(_) | ExprKind::Bool(_) => BTreeSet::new(),
+            ExprKind::String(_) => {
                 self.feature("string literal");
                 BTreeSet::new()
             }
-            Expr::This => {
+            ExprKind::This => {
                 self.feature("`this`");
                 self.read(Read::This)
             }
-            Expr::Call { space, name, args } => self.call(*space, name, args.as_deref(), control),
-            Expr::Path { space, names } => self.path(*space, names),
-            Expr::Resource { space, .. } => {
-                self.feature(match space {
-                    ResourceSpace::Geometry => "`geometry.` reference",
-                    ResourceSpace::Material => "`material.` reference",
-                    ResourceSpace::Texture => "`texture.` reference",
-                    ResourceSpace::Array => "`array.` reference",
+            ExprKind::Query {
+                name, arguments, ..
+            } => self.query(name, arguments.as_deref(), control),
+            ExprKind::Math { name, arguments } => self.math(name, arguments.as_deref(), control),
+            ExprKind::Variable { space, path } => self.path(*space, path),
+            ExprKind::Resource { kind, .. } => {
+                self.feature(match kind {
+                    ResourceKind::Geometry => "`geometry.` reference",
+                    ResourceKind::Material => "`material.` reference",
+                    ResourceKind::Texture => "`texture.` reference",
                 });
                 self.read(Read::Resource)
             }
-            Expr::Unary { op, operand } => {
-                self.feature(if *op == Punct::Bang {
-                    "unary `!`"
-                } else {
-                    "unary `-`"
+            ExprKind::Array(_) => {
+                self.feature("`array.` reference");
+                self.read(Read::Resource)
+            }
+            ExprKind::Unary(op, operand) => {
+                self.feature(match op {
+                    UnaryOp::Not => "unary `!`",
+                    UnaryOp::Negate => "unary `-`",
                 });
                 self.expr(operand, control)
             }
-            Expr::Binary { op, lhs, rhs } => self.binary(*op, lhs, rhs, control),
-            Expr::Conditional {
+            ExprKind::Binary(op, lhs, rhs) => self.binary(*op, lhs, rhs, control),
+            ExprKind::Coalesce(lhs, rhs) => {
+                self.feature("`??`");
+                self.string_operand(lhs, rhs, "string operand of another operator");
+                let mut reads = self.expr(lhs, control);
+                reads.extend(self.expr(rhs, control));
+                reads
+            }
+            ExprKind::Conditional {
                 condition,
-                then_branch,
-                else_branch,
+                then,
+                otherwise,
             } => {
-                self.feature(if else_branch.is_some() {
+                self.feature(if otherwise.is_some() {
                     "`? :`"
                 } else {
                     "binary `?`"
@@ -221,19 +228,29 @@ impl Walker {
                 let mut reads = self.expr(condition, control);
                 let mut inner = control.clone();
                 inner.extend(reads.iter().cloned());
-                reads.extend(self.branch(then_branch, &inner));
-                if let Some(else_branch) = else_branch {
-                    reads.extend(self.branch(else_branch, &inner));
+                reads.extend(self.expr(then, &inner));
+                if let Some(otherwise) = otherwise {
+                    reads.extend(self.expr(otherwise, &inner));
                 }
                 reads
             }
-            Expr::Index { target, index } => {
+            ExprKind::Block(body) => {
+                self.feature("block branch `? {}`");
+                self.statements(body, control);
+                BTreeSet::new()
+            }
+            ExprKind::AssignGroup(target, value) => {
+                self.feature("assignment group `(a = b)`");
+                self.assign(target, value, control);
+                BTreeSet::new()
+            }
+            ExprKind::Index(target, index) => {
                 self.feature("index `[]`");
                 let mut reads = self.expr(target, control);
                 reads.extend(self.expr(index, control));
                 reads
             }
-            Expr::Arrow { target, reference } => {
+            ExprKind::Arrow(target, reference) => {
                 self.feature("`->`");
                 let mut reads = self.expr(target, control);
                 self.arrow_depth += 1;
@@ -244,72 +261,90 @@ impl Walker {
         }
     }
 
+    fn string_operand(&mut self, lhs: &Expr, rhs: &Expr, feature: &'static str) {
+        let is_string = |expr: &Expr| matches!(expr.kind, ExprKind::String(_));
+        if is_string(lhs) || is_string(rhs) {
+            self.feature(feature);
+        }
+    }
+
     fn binary(
         &mut self,
-        op: Punct,
+        op: BinaryOp,
         lhs: &Expr,
         rhs: &Expr,
         control: &BTreeSet<Read>,
     ) -> BTreeSet<Read> {
         self.feature(binary_feature(op));
-        let is_string = |expr: &Expr| matches!(expr, Expr::Str(_));
-        if is_string(lhs) || is_string(rhs) {
-            self.feature(match op {
-                Punct::EqEq | Punct::NotEq => "string compare `==`/`!=`",
-                _ => "string operand of another operator",
-            });
-        }
+        let feature = match op {
+            BinaryOp::Equal | BinaryOp::NotEqual => "string compare `==`/`!=`",
+            _ => "string operand of another operator",
+        };
+        self.string_operand(lhs, rhs, feature);
         let mut reads = self.expr(lhs, control);
         reads.extend(self.expr(rhs, control));
         reads
     }
 
-    fn call(
+    fn arguments(
         &mut self,
-        space: CallSpace,
-        name: &str,
-        args: Option<&[Expr]>,
+        arguments: Option<&[Expr]>,
         control: &BTreeSet<Read>,
     ) -> BTreeSet<Read> {
         let mut reads = BTreeSet::new();
-        for arg in args.unwrap_or_default() {
-            reads.extend(self.expr(arg, control));
-        }
-        let arity = args.map(<[Expr]>::len);
-        match space {
-            CallSpace::Query => {
-                self.feature("query");
-                let literal_args = args
-                    .unwrap_or_default()
-                    .iter()
-                    .all(|arg| matches!(arg, Expr::Number(_) | Expr::Str(_)));
-                self.facts.queries.push(QueryUse {
-                    name: name.to_owned(),
-                    arity,
-                    literal_args,
-                    via_arrow: self.arrow_depth > 0,
-                });
-                reads.extend(self.read(Read::Query(name.to_owned())));
-            }
-            CallSpace::Math => {
-                self.feature("math");
-                self.facts.math.push(MathUse {
-                    name: name.to_owned(),
-                    arity,
-                });
-                if is_random(name) {
-                    reads.extend(self.read(Read::Random));
-                }
-            }
+        for argument in arguments.unwrap_or_default() {
+            reads.extend(self.expr(argument, control));
         }
         reads
     }
 
-    fn path(&mut self, space: PathSpace, names: &[String]) -> BTreeSet<Read> {
-        let joined = names.join(".");
+    fn query(
+        &mut self,
+        name: &str,
+        arguments: Option<&[Expr]>,
+        control: &BTreeSet<Read>,
+    ) -> BTreeSet<Read> {
+        let mut reads = self.arguments(arguments, control);
+        self.feature("query");
+        let literal_args = arguments.unwrap_or_default().iter().all(|argument| {
+            matches!(
+                argument.kind,
+                ExprKind::Number(_) | ExprKind::Bool(_) | ExprKind::String(_)
+            )
+        });
+        self.facts.queries.push(QueryUse {
+            name: name.to_owned(),
+            arity: arguments.map(<[Expr]>::len),
+            literal_args,
+            via_arrow: self.arrow_depth > 0,
+        });
+        reads.extend(self.read(Read::Query(name.to_owned())));
+        reads
+    }
+
+    fn math(
+        &mut self,
+        name: &str,
+        arguments: Option<&[Expr]>,
+        control: &BTreeSet<Read>,
+    ) -> BTreeSet<Read> {
+        let mut reads = self.arguments(arguments, control);
+        self.feature("math");
+        self.facts.math.push(MathUse {
+            name: name.to_owned(),
+            arity: arguments.map(<[Expr]>::len),
+        });
+        if is_random(name) {
+            reads.extend(self.read(Read::Random));
+        }
+        reads
+    }
+
+    fn path(&mut self, space: VariableSpace, path: &[Box<str>]) -> BTreeSet<Read> {
+        let joined = path.join(".");
         match space {
-            PathSpace::Variable => {
-                self.feature(if names.len() > 1 {
+            VariableSpace::Variable => {
+                self.feature(if path.len() > 1 {
                     "read `v.a.b` (struct path)"
                 } else {
                     "read `v.`"
@@ -317,14 +352,14 @@ impl Walker {
                 self.facts.variable_names.insert(joined.clone());
                 self.read(Read::Variable(joined))
             }
-            PathSpace::Temp => {
+            VariableSpace::Temp => {
                 self.feature("read `t.`");
-                self.facts.temp_struct |= names.len() > 1;
+                self.facts.temp_struct |= path.len() > 1;
                 let deps = self.temps.get(&joined).cloned().unwrap_or_default();
                 self.facts.reads.extend(deps.iter().cloned());
                 deps
             }
-            PathSpace::Context => {
+            VariableSpace::Context => {
                 self.feature("read `c.`");
                 self.read(Read::Context(joined))
             }
@@ -339,22 +374,19 @@ pub fn is_random(name: &str) -> bool {
     )
 }
 
-fn binary_feature(op: Punct) -> &'static str {
-    use Punct::*;
+fn binary_feature(op: BinaryOp) -> &'static str {
     match op {
-        Plus => "`+`",
-        Minus => "`-`",
-        Star => "`*`",
-        Slash => "`/`",
-        Less => "`<`",
-        LessEq => "`<=`",
-        Greater => "`>`",
-        GreaterEq => "`>=`",
-        EqEq => "`==`",
-        NotEq => "`!=`",
-        AndAnd => "`&&`",
-        OrOr => "`||`",
-        Coalesce => "`??`",
-        _ => "other operator",
+        BinaryOp::Add => "`+`",
+        BinaryOp::Subtract => "`-`",
+        BinaryOp::Multiply => "`*`",
+        BinaryOp::Divide => "`/`",
+        BinaryOp::Less => "`<`",
+        BinaryOp::LessEqual => "`<=`",
+        BinaryOp::Greater => "`>`",
+        BinaryOp::GreaterEqual => "`>=`",
+        BinaryOp::Equal => "`==`",
+        BinaryOp::NotEqual => "`!=`",
+        BinaryOp::And => "`&&`",
+        BinaryOp::Or => "`||`",
     }
 }

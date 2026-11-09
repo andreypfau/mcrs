@@ -31,8 +31,8 @@ the specification.
 ### 1.2 Terms
 
 - **Occurrence**: one Molang value of one JSON field in one pack file.
-- **Distinct expression**: a token sequence after the fold of names to lower case. Two
-  occurrences with the same tokens are one distinct expression.
+- **Distinct expression**: the text without blanks, after the fold of names to lower case. Two
+  occurrences with the same text are one distinct expression.
 - **Text expression**: an occurrence that is a JSON string, a script array or a versioned
   object. A JSON number or a JSON Boolean is not a text expression.
 - **Context**: the file kind and the field of an occurrence, for example

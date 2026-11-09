@@ -1,17 +1,19 @@
 //! Finds every Molang expression in Bedrock packs and reports aggregate statistics.
 //!
-//! The tool embeds no pack content. It reads the packs from the path that the caller gives,
+//! The parse is `mcrs_molang::parse`, so that the tool and the kernel cannot disagree on the
+//! grammar. The tool embeds no pack content. It reads the packs from the path that the caller gives,
 //! prints statistics as Markdown, and writes the expressions to a JSON Lines file only on
 //! request, for a parse coverage gate outside the repository.
 
+#![expect(
+    clippy::disallowed_types,
+    reason = "a pack file has no fixed shape, so the extractor walks a JSON value"
+)]
+
 mod analysis;
-mod ast;
 mod corpus;
 mod extract;
 mod json;
-mod lexer;
-mod math;
-mod parser;
 mod rate;
 mod report;
 
@@ -98,7 +100,10 @@ fn write_jsonl(path: &PathBuf, entries: &[Entry]) -> anyhow::Result<()> {
         let occurrence = &entry.occurrence;
         let parse = match &entry.outcome {
             Ok(_) => "ok".to_owned(),
-            Err(error) => format!("error at {}: {}", error.offset, error.kind),
+            Err(error) => format!(
+                "error at {}: {}: {}",
+                error.offset, error.kind, error.message
+            ),
         };
         let line = Line {
             expr: &occurrence.text,

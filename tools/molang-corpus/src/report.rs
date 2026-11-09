@@ -2,11 +2,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
 use crate::analysis::Read;
-use crate::ast::Form;
+use mcrs_molang::{Body, Rate};
+
 use crate::corpus::{Corpus, Domain, Entry};
 use crate::extract::{Extraction, ValueForm};
-use crate::math;
-use crate::rate::{QueryRate, RateClass, SpecQueries};
+use crate::rate::{QueryRate, RATES, SpecQueries};
 
 /// Writes the aggregate statistics of the corpus as Markdown. The text has names of queries,
 /// functions and fields, and no expression text.
@@ -211,9 +211,9 @@ fn queries(out: &mut String, corpus: &Corpus, spec: &SpecQueries) {
     );
     for (name, tally) in &ranked {
         let (defined, rate) = match spec.rate(name) {
-            QueryRate::Spec(rate) => ("yes", rate.class().name()),
-            QueryRate::Pure => ("yes", "of arguments"),
-            QueryRate::Guess(rate) => ("no", rate.class().name()),
+            QueryRate::Spec(rate) => ("yes", rate.class().to_string()),
+            QueryRate::Pure => ("yes", "of arguments".to_owned()),
+            QueryRate::Guess(rate) => ("no", rate.class().to_string()),
         };
         let rate = if defined == "no" {
             format!("{rate} (guess)")
@@ -277,7 +277,7 @@ fn math_functions(out: &mut String, corpus: &Corpus) {
             .iter()
             .map(|arity| arity.map_or_else(|| "no list".to_owned(), |arity| arity.to_string()))
             .collect();
-        let spec = math::spec_arity(name)
+        let spec = mcrs_molang::math_arity(name)
             .map_or_else(|| "not listed".to_owned(), |arity| arity.to_string());
         let _ = writeln!(out, "| `{name}` | {uses} | {} | {spec} |", found.join(","));
     }
@@ -375,13 +375,13 @@ fn variables(out: &mut String, corpus: &Corpus) {
         struct_paths.len()
     );
     let _ = writeln!(out, "- `context.` names: {contexts:?}");
-    let mut by_rate: BTreeMap<(Domain, RateClass), usize> = BTreeMap::new();
+    let mut by_rate: BTreeMap<(Domain, Rate), usize> = BTreeMap::new();
     for (key, rate) in &corpus.variables {
         *by_rate.entry((key.domain, rate.class())).or_default() += 1;
     }
     let list: Vec<String> = by_rate
         .iter()
-        .map(|((domain, class), count)| format!("{domain:?} {} {count}", class.name()))
+        .map(|((domain, class), count)| format!("{domain:?} {} {count}", class))
         .collect();
     let _ = writeln!(
         out,
@@ -433,14 +433,12 @@ fn sizes(out: &mut String, corpus: &Corpus) {
         "\n## Sizes\n\n| Measure | Set | Count | p50 | p90 | p99 | max |\n|---|---|---|---|---|---|---|"
     );
     for (set_name, set) in [("occurrences", &all), ("distinct", &unique)] {
-        let tokens = set.iter().map(|parse| parse.parsed.tokens.len()).collect();
         let nodes = set.iter().map(|parse| parse.facts.nodes).collect();
         let complex: Vec<&&crate::corpus::Parse> = set
             .iter()
-            .filter(|parse| parse.parsed.program.form == Form::Complex)
+            .filter(|parse| matches!(parse.syntax.body, Body::Complex(_)))
             .collect();
         let statements = complex.iter().map(|parse| parse.facts.statements).collect();
-        let _ = writeln!(out, "| tokens | {set_name} | {} |", percentiles(tokens));
         let _ = writeln!(out, "| AST nodes | {set_name} | {} |", percentiles(nodes));
         let _ = writeln!(
             out,
@@ -450,7 +448,7 @@ fn sizes(out: &mut String, corpus: &Corpus) {
     }
     let simple = all
         .iter()
-        .filter(|parse| parse.parsed.program.form == Form::Simple)
+        .filter(|parse| matches!(parse.syntax.body, Body::Simple(_)))
         .count();
     let _ = writeln!(
         out,
@@ -481,7 +479,7 @@ enum RateSet {
 }
 
 fn rate_table(out: &mut String, corpus: &Corpus, title: &str, set: RateSet) {
-    let mut table: BTreeMap<&str, BTreeMap<RateClass, usize>> = BTreeMap::new();
+    let mut table: BTreeMap<&str, BTreeMap<Rate, usize>> = BTreeMap::new();
     let mut random: BTreeMap<&str, usize> = BTreeMap::new();
     for (entry, _) in parsed(corpus) {
         let is_text = !matches!(entry.occurrence.form, ValueForm::Number | ValueForm::Bool);
@@ -504,7 +502,7 @@ fn rate_table(out: &mut String, corpus: &Corpus, title: &str, set: RateSet) {
             *random.entry("all").or_default() += 1;
         }
     }
-    let header: Vec<&str> = RateClass::ALL.iter().map(|class| class.name()).collect();
+    let header: Vec<String> = RATES.iter().map(Rate::to_string).collect();
     let _ = writeln!(
         out,
         "\n## {title}\n\n| Group | Total | {} | random |\n|---|---|{}---|",
@@ -513,7 +511,7 @@ fn rate_table(out: &mut String, corpus: &Corpus, title: &str, set: RateSet) {
     );
     for (group, counts) in &table {
         let total: usize = counts.values().sum();
-        let cells: Vec<String> = RateClass::ALL
+        let cells: Vec<String> = RATES
             .iter()
             .map(|class| {
                 let count = counts.get(class).copied().unwrap_or_default();
