@@ -2,6 +2,7 @@ use crate::base_attributes::BaseAttributes;
 use crate::entity_type_keys::EntityType;
 use crate::life::Life;
 use crate::mob_data::MobData;
+use crate::variant_indices::VariantIndices;
 
 /// The type data of an entity type (`entity-tracking.md`, TRK-TYPE-001), with the look and body
 /// values of a mob type and the values that a client reads to tick and draw the type.
@@ -27,6 +28,8 @@ pub struct EntityTypeData {
     pub life: Life,
     /// `None` for a type that the server does not make.
     pub base_attributes: Option<BaseAttributes>,
+    /// Where the variant entries of the type are in its entity data.
+    pub variant_indices: VariantIndices,
 }
 
 const MOB_DEFAULTS: EntityTypeData = EntityTypeData {
@@ -42,6 +45,7 @@ const MOB_DEFAULTS: EntityTypeData = EntityTypeData {
     walk_target_factor: 4.0,
     life: Life::Mob(MobData::DEFAULT),
     base_attributes: None,
+    variant_indices: VariantIndices::NONE,
 };
 
 const ANIMAL: Life = Life::Mob(MobData {
@@ -65,6 +69,7 @@ impl EntityTypeData {
             max_health: 10.0,
             movement_speed: 0.25,
         }),
+        variant_indices: VariantIndices::PIG,
         ..MOB_DEFAULTS
     };
 
@@ -80,6 +85,7 @@ impl EntityTypeData {
             max_health: 10.0,
             movement_speed: 0.2_f32 as f64,
         }),
+        variant_indices: VariantIndices::COW,
         ..MOB_DEFAULTS
     };
 
@@ -108,6 +114,7 @@ impl EntityTypeData {
             max_health: 4.0,
             movement_speed: 0.25,
         }),
+        variant_indices: VariantIndices::CHICKEN,
         ..MOB_DEFAULTS
     };
 

@@ -3,6 +3,7 @@ mod base_attributes;
 mod entity_type_data;
 mod life;
 mod mob_data;
+mod variant_indices;
 #[rustfmt::skip]
 pub mod attribute_keys;
 #[rustfmt::skip]
@@ -56,6 +57,7 @@ pub use base_attributes::BaseAttributes;
 pub use entity_type_data::EntityTypeData;
 pub use life::Life;
 pub use mob_data::MobData;
+pub use variant_indices::VariantIndices;
 
 pub const PLAYER_WIDTH: f64 = 0.6;
 pub const PLAYER_HEIGHT: f64 = 1.8;
