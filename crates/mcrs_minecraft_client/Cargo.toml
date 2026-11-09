@@ -78,7 +78,7 @@ bevy = { version = "0.19.1", default-features = false, features = ["file_watcher
 mcrs_minecraft_server = { workspace = true, optional = true }
 mcrs_minecraft_engine_server = { workspace = true, optional = true }
 mcrs_minecraft_engine = { workspace = true, optional = true }
-mcrs_minecraft_vanilla_light = { workspace = true, optional = true }
+mcrs_minecraft_server_settings = { workspace = true, optional = true }
 mcrs_minecraft_vanilla_worldgen = { workspace = true, optional = true }
 tracing-tracy = { version = "0.12", optional = true }
 
@@ -97,7 +97,7 @@ web-sys = { version = "0.3", features = ["Window", "Location", "UrlSearchParams"
 
 [features]
 default = ["singleplayer", "dev"]
-singleplayer = ["dep:mcrs_minecraft_server", "dep:mcrs_minecraft_engine_server", "dep:mcrs_minecraft_engine", "dep:mcrs_minecraft_vanilla_light", "dep:mcrs_minecraft_vanilla_worldgen"]
+singleplayer = ["dep:mcrs_minecraft_server", "dep:mcrs_minecraft_engine_server", "dep:mcrs_minecraft_engine", "dep:mcrs_minecraft_server_settings", "dep:mcrs_minecraft_vanilla_worldgen"]
 dev = []
 # The frame-capture harness: an off-screen client that writes the frames a test requests and
 # replays the entities of a vanilla record. The shipped client leaves it out.

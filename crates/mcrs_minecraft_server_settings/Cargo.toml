@@ -1,0 +1,15 @@
+[package]
+name = "mcrs_minecraft_server_settings"
+description = "The settings of a server run that the MCRS_ environment variables set, read in one place"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_game_mode.workspace = true

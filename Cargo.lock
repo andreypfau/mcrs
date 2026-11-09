@@ -3533,6 +3533,7 @@ dependencies = [
  "mcrs_minecraft_resource",
  "mcrs_minecraft_save",
  "mcrs_minecraft_server",
+ "mcrs_minecraft_server_settings",
  "mcrs_minecraft_vanilla_light",
  "mcrs_minecraft_vanilla_worldgen",
  "mcrs_minecraft_worldgen_generator",
@@ -3827,7 +3828,7 @@ dependencies = [
  "mcrs_minecraft_resource",
  "mcrs_minecraft_save",
  "mcrs_minecraft_server",
- "mcrs_minecraft_vanilla_light",
+ "mcrs_minecraft_server_settings",
  "mcrs_minecraft_vanilla_worldgen",
  "mcrs_minecraft_volume",
  "mcrs_voxel",
@@ -5361,6 +5362,13 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "mcrs_minecraft_server_settings"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_game_mode",
 ]
 
 [[package]]

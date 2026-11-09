@@ -184,57 +184,14 @@ impl Knobs {
         self.flag("OPEN_TO_LAN", false)
     }
 
-    /// `WORLD_SEED` is written signed, as the Java long it is, or unsigned; the router hashes the
-    /// same bits either way.
+    /// The settings of the integrated server that the knobs set: `WORLD_SEED`, `WORLD_PRESET`,
+    /// `DEFAULT_GAMEMODE` and the others the server binary reads.
     #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
-    pub fn world_seed(&self) -> u64 {
-        let Some(raw) = self.knob("WORLD_SEED") else {
-            return 0;
-        };
-        let raw = raw.trim();
-        raw.parse::<i64>()
-            .map(|seed| seed as u64)
-            .or_else(|_| raw.parse::<u64>())
-            .unwrap_or_else(|error| {
-                eprintln!(
-                    "MCRS_WORLD_SEED={raw} is not a number ({error}); generating with seed 0"
-                );
-                0
-            })
-    }
-
-    /// `WORLD_PRESET` takes a short name (`normal`) or a namespaced one (`minecraft:normal`).
-    #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
-    pub fn world_preset(&self) -> String {
-        self.knob("WORLD_PRESET")
-            .map(|name| name.trim().to_lowercase())
-            .filter(|name| !name.is_empty())
-            .unwrap_or_else(|| "normal".to_owned())
-    }
-
-    /// `NO_LIGHTING=1` turns light propagation off.
-    #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
-    pub fn propagates_light(&self) -> bool {
-        !self.flag("NO_LIGHTING", false)
-    }
-
-    /// `DEFAULT_GAMEMODE` is `survival`, `creative`, `adventure` or `spectator`, in any case; unset
-    /// or anything else is creative.
-    #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
-    pub fn default_game_mode(&self) -> mcrs_minecraft_engine_server::GameMode {
-        use mcrs_minecraft_engine_server::GameMode;
-        let Some(mode) = self.knob("DEFAULT_GAMEMODE") else {
-            return GameMode::Creative;
-        };
-        mode.trim()
-            .to_ascii_lowercase()
-            .parse()
-            .unwrap_or_else(|_| {
-                eprintln!(
-                    "MCRS_DEFAULT_GAMEMODE={mode} is not a game mode; defaulting to creative"
-                );
-                GameMode::Creative
-            })
+    pub fn server_settings(&self) -> mcrs_minecraft_server_settings::ServerSettings {
+        mcrs_minecraft_server_settings::ServerSettings::read(
+            |name| self.knob(name).map(str::to_owned),
+            |error| eprintln!("{error}"),
+        )
     }
 
     /// `GPU_HOT=<workgroups>` burns that many workgroups of arithmetic after the frame's own passes.

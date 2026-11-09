@@ -37,7 +37,7 @@ const NO_STD_PACKAGES: [&str; 6] = [
     "mcrs_molang_wgsl",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 94] = [
+const NO_BEVY_PACKAGES: [&str; 95] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -108,6 +108,7 @@ const NO_BEVY_PACKAGES: [&str; 94] = [
     "mcrs_minecraft_render_controller",
     "mcrs_minecraft_replication",
     "mcrs_minecraft_resource",
+    "mcrs_minecraft_server_settings",
     "mcrs_minecraft_simulation",
     "mcrs_minecraft_snbt",
     "mcrs_minecraft_sound",

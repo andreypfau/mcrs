@@ -148,6 +148,7 @@ mcrs_minecraft_biome_file = { path = "crates/mcrs_minecraft_biome_file" }
 mcrs_minecraft_profile = { path = "crates/mcrs_minecraft_profile" }
 mcrs_minecraft_text = { path = "crates/mcrs_minecraft_text" }
 mcrs_minecraft_lang = { path = "crates/mcrs_minecraft_lang" }
+mcrs_minecraft_server_settings = { path = "crates/mcrs_minecraft_server_settings" }
 mcrs_minecraft_entity = { path = "crates/mcrs_minecraft_entity" }
 mcrs_minecraft_entity_model = { path = "crates/mcrs_minecraft_entity_model" }
 mcrs_minecraft_pack_file = { path = "crates/mcrs_minecraft_pack_file" }
@@ -236,15 +237,16 @@ mcrs_minecraft_server.workspace = true
 mcrs_minecraft_client_jar.workspace = true
 mcrs_minecraft_console.workspace = true
 mcrs_minecraft_lang.workspace = true
+mcrs_minecraft_server_settings.workspace = true
 mcrs_minecraft_engine_server.workspace = true
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_engine_world.workspace = true
-mcrs_minecraft_vanilla_light.workspace = true
 mcrs_minecraft_vanilla_worldgen.workspace = true
 bevy_diagnostic = { version = "0.19.0-rc.3", optional = true }
 
 [dev-dependencies]
 mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_vanilla_light.workspace = true
 mcrs_minecraft_save.workspace = true
 mcrs_minecraft_worldgen_generator = { workspace = true, features = ["test-support"] }
 bevy_state.workspace = true

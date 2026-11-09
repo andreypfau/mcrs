@@ -59,8 +59,6 @@ use mcrs_minecraft_network::client::{ClientNetworkPlugin, ExitOnDisconnect};
 #[cfg(feature = "singleplayer")]
 use mcrs_minecraft_server::MinecraftServerPlugins;
 #[cfg(feature = "singleplayer")]
-use mcrs_minecraft_vanilla_light::LightingPlugin;
-#[cfg(feature = "singleplayer")]
 use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;
 
 #[cfg(feature = "telemetry-tracy")]
@@ -410,8 +408,9 @@ fn host_integrated_server(
     host: SingleplayerProfile,
 ) -> SocketAddr {
     let open_to_lan = knobs.open_to_lan();
+    let settings = knobs.server_settings();
     let mut server = App::new();
-    let mut plugins = MinecraftServerPlugins {
+    let plugins = MinecraftServerPlugins {
         core: ServerCorePlugin {
             owns_task_pools: false,
             asset_path: Some(assets.to_owned()),
@@ -437,9 +436,9 @@ fn host_integrated_server(
                     },
                 )),
             ),
-            seed: knobs.world_seed(),
-            preset: knobs.world_preset(),
-            default_game_mode: knobs.default_game_mode(),
+            seed: settings.world_seed,
+            preset: settings.world_preset,
+            default_game_mode: settings.default_game_mode,
             ..Default::default()
         },
         world_gen: WorldGenPlugin,
@@ -456,9 +455,6 @@ fn host_integrated_server(
         },
     }
     .build();
-    if !knobs.propagates_light() {
-        plugins = plugins.disable::<LightingPlugin>();
-    }
     server.add_plugins(plugins);
     let address = server.world().resource::<BoundAddress>().0;
     let spawned = mcrs_minecraft_engine_server::spawn_server_thread(server, |app| {
