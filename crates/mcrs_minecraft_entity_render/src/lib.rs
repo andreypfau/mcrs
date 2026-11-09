@@ -27,7 +27,7 @@ mod records;
 mod render_world;
 mod slot_upload;
 
-pub use counts_readback::FrameCounts;
+pub use counts_readback::EntityFrameCounts;
 pub use cpu_inputs::input_record;
 pub use entity_assets::{
     EntityAssets, MISSING_TEXTURE, VariantInfo, VariantKey, texture_identifier,
@@ -39,7 +39,7 @@ pub use entity_library::{
 };
 pub use entity_pack::{DEATH_FLIP, EntityPack, PackEntity};
 pub use frame_queries::{FrameQueries, VariantEntry, pose_from_name, pose_name};
-pub use frame_uniform::{FRAME_NETHER_LIGHT, FULL_RIG_HEIGHT, FrameUniform, FrameView};
+pub use frame_uniform::{FULL_RIG_HEIGHT, FrameUniform};
 pub use height_threshold::HeightThreshold;
 pub use impostor_frame::{
     IMPOSTOR_ELEVATIONS, IMPOSTOR_TILE, IMPOSTOR_VIEWS, IMPOSTOR_YAWS, ImpostorFrames, ImpostorView,

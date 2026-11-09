@@ -4,7 +4,7 @@ use wgpu::{
     RenderPass, TextureFormat,
 };
 
-use crate::counts_readback::{CountsReadback, FrameCounts};
+use crate::counts_readback::{CountsReadback, EntityFrameCounts};
 use crate::entity_library::{EntityLibrary, MAX_ARRAYS, MAX_DEFINITIONS};
 use crate::frame_uniform::FrameUniform;
 use crate::gpu_buffers::{
@@ -355,7 +355,7 @@ impl EntityGpu {
 
     /// The counts of the latest earlier frame whose readback completed. Call it once a frame,
     /// before [`Self::encode_compute`].
-    pub fn take_counts(&mut self) -> Option<FrameCounts> {
+    pub fn take_counts(&mut self) -> Option<EntityFrameCounts> {
         self.readback.take()
     }
 

@@ -23,13 +23,15 @@
 #[expect(dead_code, reason = "the test uses a part of the test support")]
 mod support;
 
-use glam::{Mat4, Vec3};
+use glam::{Mat4, Vec2, Vec3};
+use mcrs_minecraft_core::CardinalLight;
 use mcrs_minecraft_entity_animation::EntityQuery;
 use mcrs_minecraft_entity_render::{
-    CULL_VALID, Capacities, CullRecord, EntityGpu, EntityLibrary, EntityPack, FrameCounts,
-    FrameUniform, FrameView, STATE_BABY, STATE_HIDDEN_SHIFT, SlotArena, StateRecord, TextureImage,
-    TickRecord, f16_up,
+    CULL_VALID, Capacities, CullRecord, EntityFrameCounts, EntityGpu, EntityLibrary, EntityPack,
+    FrameUniform, STATE_BABY, STATE_HIDDEN_SHIFT, SlotArena, StateRecord, TextureImage, TickRecord,
+    f16_up,
 };
+use mcrs_minecraft_render::{CameraOrigin, FrameView};
 use mcrs_minecraft_render_controller::RenderQuery;
 use mcrs_molang::{ScalarVm, Value, string_hash};
 
@@ -308,13 +310,15 @@ fn camera(height: f32, distance: f32, elevation: f32, phase: [f32; 2]) -> FrameV
     let origin = section.as_vec3() * 16.0;
     let projection = Mat4::perspective_infinite_reverse_rh(field_of_view(), 1.0, 0.05);
     let view = Mat4::look_at_rh(eye - origin, target - origin, Vec3::Y);
-    FrameView {
-        clip_from_relative: projection * view,
-        camera_section: section,
-        camera_offset: eye - origin,
-        viewport: [SIZE as f32; 2],
-        focal_y: projection.y_axis.y,
-    }
+    FrameView::new(
+        projection,
+        view,
+        CameraOrigin {
+            section,
+            offset: eye - origin,
+        },
+        Vec2::splat(SIZE as f32),
+    )
 }
 
 /// The slot of the entity and the targets of its frame.
@@ -426,7 +430,7 @@ fn render(
     entity_gpu.upload(&gpu.device, &gpu.queue, &mut encoder, &upload);
     let uniform = FrameUniform {
         height_threshold: threshold,
-        ..FrameUniform::new(view, TICK, 0.0, false)
+        ..FrameUniform::new(view, TICK, 0.0, CardinalLight::Default)
     };
     entity_gpu.write_frame(&gpu.queue, &uniform, upload.slot_count.max(1));
     entity_gpu.encode_compute(&mut encoder, None);
@@ -608,8 +612,9 @@ fn an_impostor_looks_like_the_full_rig_below_twelve_pixels() {
                     };
                     let rig = draw(0.0);
                     let impostor = draw(f32::MAX);
-                    let counts =
-                        FrameCounts::of(bytemuck::cast_slice(&gpu.read(entity_gpu.counters())));
+                    let counts = EntityFrameCounts::of(bytemuck::cast_slice(
+                        &gpu.read(entity_gpu.counters()),
+                    ));
                     assert_eq!(
                         counts.impostors, 1,
                         "{}: the slot is an impostor",

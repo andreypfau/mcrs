@@ -63,9 +63,6 @@ pub struct StateRecord {
 
 pub const MAX_LAYERS: usize = 4;
 pub const STATE_BABY: u32 = 1;
-pub const STATE_INVISIBLE: u32 = 2;
-pub const STATE_UPSIDE_DOWN: u32 = 4;
-pub const STATE_CLOCK_STOPPED: u32 = 8;
 pub const STATE_DYING: u32 = 16;
 pub const STATE_HIDDEN_SHIFT: u32 = 16;
 /// The palette entries whose bones a render controller can hide.

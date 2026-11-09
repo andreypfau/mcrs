@@ -23,9 +23,11 @@ bytemuck = { version = "1", features = ["derive"] }
 glam.workspace = true
 mcrs_minecraft_client_entity.workspace = true
 mcrs_minecraft_client_world.workspace = true
+mcrs_minecraft_core.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_entity_animation.workspace = true
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_mesh.workspace = true
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_render.workspace = true
 mcrs_minecraft_resource.workspace = true
@@ -39,6 +41,7 @@ mcrs_molang_wgsl.workspace = true
 wgpu = { version = "29", default-features = false, features = ["wgsl"] }
 
 [dev-dependencies]
+naga = { workspace = true, features = ["wgsl-in"] }
 criterion = { version = "0.7", features = ["html_reports"] }
 mcrs_minecraft_fixtures.workspace = true
 futures-lite = "2"

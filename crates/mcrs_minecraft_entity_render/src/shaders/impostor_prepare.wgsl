@@ -75,10 +75,7 @@ fn prepare(@builtin(global_invocation_id) id: vec3<u32>) {
             bounds = vec4<f32>(min(bounds.x, rect.x), max(bounds.y, rect.y), min(bounds.z, rect.z), max(bounds.w, rect.w));
         }
     }
-    var whole_age = i32(frame.tick) - state.clock_offset;
-    if ((state.flags & STATE_CLOCK_STOPPED) != 0u) {
-        whole_age = state.clock_offset;
-    }
+    let whole_age = i32(frame.tick) - state.clock_offset;
     let overlay = entity_overlay(state, whole_age, false);
     let light = entity_light(state);
     draw.origin_yaw = vec4<f32>(position, body_yaw);

@@ -35,12 +35,14 @@ mod support;
 
 use std::time::Instant;
 
-use glam::{Mat4, Vec3};
+use glam::{Mat4, Vec2, Vec3};
+use mcrs_minecraft_core::CardinalLight;
 use mcrs_minecraft_entity_render::{
-    CULL_VALID, Capacities, ComputePass, CullRecord, EntityGpu, EntityLibrary, EntityPack,
-    FULL_RIG_CAP, FrameCounts, FrameUniform, FrameView, HeightThreshold, PassQueries, SlotArena,
-    StateRecord, TextureImage, TickRecord, f16_up,
+    CULL_VALID, Capacities, ComputePass, CullRecord, EntityFrameCounts, EntityGpu, EntityLibrary,
+    EntityPack, FULL_RIG_CAP, FrameUniform, HeightThreshold, PassQueries, SlotArena, StateRecord,
+    TextureImage, TickRecord, f16_up,
 };
+use mcrs_minecraft_render::{CameraOrigin, FrameView};
 
 const SIDE: i32 = 316;
 const WIDTH: u32 = 2560;
@@ -222,13 +224,12 @@ fn camera() -> FrameView {
         0.05,
     );
     let view = Mat4::look_to_rh(offset, Vec3::new(1.0, -0.05, 1.0).normalize(), Vec3::Y);
-    FrameView {
-        clip_from_relative: projection * view,
-        camera_section: section,
-        camera_offset: offset,
-        viewport: [WIDTH as f32, HEIGHT as f32],
-        focal_y: projection.y_axis.y,
-    }
+    FrameView::new(
+        projection,
+        view,
+        CameraOrigin { section, offset },
+        Vec2::new(WIDTH as f32, HEIGHT as f32),
+    )
 }
 
 /// Which entity draws a frame makes, each in its own labelled render pass so that a Metal
@@ -508,7 +509,7 @@ fn main() {
         }
         let uniform = FrameUniform {
             height_threshold: threshold.pixels(),
-            ..FrameUniform::new(&frame_view, tick, partial, false)
+            ..FrameUniform::new(&frame_view, tick, partial, CardinalLight::Default)
         };
         entity_gpu.write_frame(&gpu.queue, &uniform, upload.slot_count);
         entity_gpu.encode_compute(
@@ -548,7 +549,7 @@ fn main() {
             }
         }
     }
-    let counts = FrameCounts::of(bytemuck::cast_slice(&gpu.read(entity_gpu.counters())));
+    let counts = EntityFrameCounts::of(bytemuck::cast_slice(&gpu.read(entity_gpu.counters())));
     println!(
         "slots {} full rigs {} impostors {} faces {} dropped {}; height threshold {:.1} px; {} impostor image sets",
         pigs.len(),

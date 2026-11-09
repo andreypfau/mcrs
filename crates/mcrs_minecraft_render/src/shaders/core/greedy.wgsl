@@ -150,13 +150,13 @@ fn greedy_light(in: GreedyOut) -> vec3<f32> {
     return corners[0] + (corners[3] - corners[0]) * f.x + (corners[2] - corners[3]) * f.y;
 }
 
-fn greedy_gbuffer(in: GreedyOut, albedo: vec3<f32>) -> mcrs_minecraft_client::deferred::GBuffer {
+fn greedy_gbuffer(in: GreedyOut, albedo: vec3<f32>) -> mcrs_minecraft_client::gbuffer_encode::GBuffer {
     let light = greedy_light(in);
     return mcrs_minecraft_client::deferred::gbuffer(albedo, light.x, face_normal(in.face), light.y, light.z);
 }
 
 @fragment
-fn fragment_greedy_solid(in: GreedyOut) -> mcrs_minecraft_client::deferred::GBuffer {
+fn fragment_greedy_solid(in: GreedyOut) -> mcrs_minecraft_client::gbuffer_encode::GBuffer {
     let wireframe_discards = mcrs_minecraft_client::finish::wireframe_discards(in.quad_uv);
     let color = shade_surface(greedy_surface(in));
     if (wireframe_discards) {
@@ -166,7 +166,7 @@ fn fragment_greedy_solid(in: GreedyOut) -> mcrs_minecraft_client::deferred::GBuf
 }
 
 @fragment
-fn fragment_greedy_cutout(in: GreedyOut) -> mcrs_minecraft_client::deferred::GBuffer {
+fn fragment_greedy_cutout(in: GreedyOut) -> mcrs_minecraft_client::gbuffer_encode::GBuffer {
     // Taken before the test: behind a short-circuit the derivative inside would sit in
     // non-uniform control flow, which WebGPU rejects for the whole module.
     let wireframe_discards = mcrs_minecraft_client::finish::wireframe_discards(in.quad_uv);

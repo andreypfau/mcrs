@@ -6,16 +6,16 @@ use wgpu::{Buffer, BufferUsages, CommandEncoder, Device};
 use crate::entity_library::{MAX_ARRAYS, MAX_DEFINITIONS};
 use crate::gpu_buffers::COUNTERS;
 
-const COUNTER_VISIBLE: usize = 1;
-const COUNTER_FACES: usize = 17;
-const COUNTER_DROPPED: usize = 25;
-const COUNTER_IMPOSTORS: usize = 26;
+pub(crate) const COUNTER_VISIBLE: usize = 1;
+pub(crate) const COUNTER_FACES: usize = 17;
+pub(crate) const COUNTER_DROPPED: usize = 25;
+pub(crate) const COUNTER_IMPOSTORS: usize = 26;
 /// Frames that a count can wait for its map.
 const RING: usize = 4;
 
 /// The counts of the entity passes of one frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct FrameCounts {
+pub struct EntityFrameCounts {
     pub full_rigs: u32,
     pub impostors: u32,
     /// The face records of all texture arrays.
@@ -24,7 +24,7 @@ pub struct FrameCounts {
     pub dropped: u32,
 }
 
-impl FrameCounts {
+impl EntityFrameCounts {
     /// The counts of the counter buffer `counters`.
     #[must_use]
     pub fn of(counters: &[u32]) -> Self {
@@ -91,7 +91,7 @@ impl CountsReadback {
 
     /// Starts the map of each copy of an earlier submission, and returns the counts of the
     /// latest copy whose map completed. Call it before the frame encodes its passes.
-    pub(crate) fn take(&mut self) -> Option<FrameCounts> {
+    pub(crate) fn take(&mut self) -> Option<EntityFrameCounts> {
         let mut latest = None;
         for (buffer, stage) in &mut self.slots {
             match stage {
@@ -113,7 +113,7 @@ impl CountsReadback {
                         let counters: Vec<u32> =
                             bytemuck::cast_slice(&buffer.slice(..).get_mapped_range()).to_vec();
                         buffer.unmap();
-                        latest = Some(FrameCounts::of(&counters));
+                        latest = Some(EntityFrameCounts::of(&counters));
                         *stage = Stage::Free;
                     }
                     _ => *stage = Stage::Free,

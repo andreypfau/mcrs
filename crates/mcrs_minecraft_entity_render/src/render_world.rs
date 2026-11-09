@@ -1,19 +1,21 @@
 use std::collections::HashMap;
 
+use bevy::core_pipeline::core_3d::CORE_3D_DEPTH_FORMAT;
 use bevy::prelude::*;
 use bevy::render::MainWorld;
 use bevy::render::render_resource::{PipelineCache, TextureViewId};
 use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
-use bevy::render::view::{ExtractedView, ViewDepthTexture};
+use bevy::render::view::ViewDepthTexture;
+use mcrs_minecraft_core::CardinalLight;
 use mcrs_minecraft_render::{
-    CameraOrigin, DEPTH_COMPARE, DeferredFrame, GBUFFER_FORMATS, Occlusion, PassSlot,
-    PassTimestamps, Terrain, TerrainShade, clip_from_relative,
+    DEPTH_COMPARE, DeferredFrame, FrameView, GBUFFER_FORMATS, Occlusion, PassSlot, PassTimestamps,
+    Terrain, TerrainShade,
 };
 
 use crate::entity_assets::EntityAssets;
 use crate::entity_gpu::{Capacities, DrawTargets, EntityGpu, PassQueries};
 use crate::entity_library::EntityLibrary;
-use crate::frame_uniform::{FrameUniform, FrameView};
+use crate::frame_uniform::FrameUniform;
 use crate::height_threshold::HeightThreshold;
 use crate::main_world::EntityClock;
 use crate::slot_upload::{SCATTER_FRESH, SlotArena, SlotUpload};
@@ -112,7 +114,7 @@ pub(crate) fn prepare_entities(
             (**pyramid).clone(),
             DrawTargets {
                 colors: GBUFFER_FORMATS,
-                depth: bevy::render::render_resource::TextureFormat::Depth32Float,
+                depth: CORE_3D_DEPTH_FORMAT,
                 depth_compare: DEPTH_COMPARE,
             },
             &queue,
@@ -141,7 +143,7 @@ pub(crate) fn prepare_entities(
 pub(crate) struct EntityFrameParams<'w> {
     frame: Option<Res<'w, DeferredFrame>>,
     terrain: Option<Res<'w, Terrain>>,
-    origin: Option<Res<'w, CameraOrigin>>,
+    view: Option<Res<'w, FrameView>>,
     shade: Option<Res<'w, TerrainShade>>,
     occlusion: Res<'w, Occlusion>,
     cache: Res<'w, PipelineCache>,
@@ -153,19 +155,19 @@ pub(crate) struct EntityFrameParams<'w> {
 /// The entity passes of a frame: the upload of the slots, the cull, the pose and the expand,
 /// then the draw of the face records into the gbuffer.
 pub(crate) fn draw_entities(
-    view: ViewQuery<(&ExtractedView, &ViewDepthTexture)>,
+    depth: ViewQuery<&ViewDepthTexture>,
     mut state: ResMut<EntityRenderState>,
     params: EntityFrameParams,
     mut ctx: RenderContext,
 ) {
-    let (Some(frame), Some(terrain), Some(origin)) = (
+    let (Some(frame), Some(terrain), Some(view)) = (
         params.frame.as_deref(),
         params.terrain.as_deref(),
-        params.origin.as_deref(),
+        params.view.as_deref(),
     ) else {
         return;
     };
-    let (extracted, depth) = view.into_inner();
+    let depth = depth.into_inner();
     let pending = std::mem::take(&mut state.pending);
     let clock = state.clock;
     let mut threshold = state.threshold;
@@ -183,20 +185,10 @@ pub(crate) fn draw_entities(
         encoder,
         &pending,
     );
-    let clip_from_view = extracted.clip_from_view;
-    let view = FrameView {
-        clip_from_relative: clip_from_relative(
-            clip_from_view,
-            extracted.world_from_view.rotation(),
-            origin.offset,
-        ),
-        camera_section: origin.section,
-        camera_offset: origin.offset,
-        viewport: extracted.viewport.zw().as_vec2().to_array(),
-        focal_y: clip_from_view.y_axis.y,
-    };
-    let nether = params.shade.is_some_and(|shade| shade.is_nether());
-    let mut uniform = FrameUniform::new(&view, clock.tick, clock.partial_tick, nether);
+    let light = params
+        .shade
+        .map_or_else(CardinalLight::default, |shade| shade.0);
+    let mut uniform = FrameUniform::new(view, clock.tick, clock.partial_tick, light);
     uniform.hiz_levels = terrain.depth_pyramid_levels(&params.occlusion, &params.cache);
     uniform.height_threshold = threshold.pixels();
     gpu.write_frame(&params.queue, &uniform, pending.slot_count);

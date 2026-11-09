@@ -103,12 +103,12 @@ fn model_surface(in: ModelOut) -> Surface {
     return s;
 }
 
-fn model_gbuffer(in: ModelOut, albedo: vec3<f32>) -> mcrs_minecraft_client::deferred::GBuffer {
+fn model_gbuffer(in: ModelOut, albedo: vec3<f32>) -> mcrs_minecraft_client::gbuffer_encode::GBuffer {
     return mcrs_minecraft_client::deferred::gbuffer(albedo, in.shade, in.normal, in.block_light, in.sky_light);
 }
 
 @fragment
-fn fragment_model_solid(in: ModelOut) -> mcrs_minecraft_client::deferred::GBuffer {
+fn fragment_model_solid(in: ModelOut) -> mcrs_minecraft_client::gbuffer_encode::GBuffer {
     let wireframe_discards = mcrs_minecraft_client::finish::wireframe_discards(in.quad_uv);
     let color = shade_surface(model_surface(in));
     if (wireframe_discards) {
@@ -118,7 +118,7 @@ fn fragment_model_solid(in: ModelOut) -> mcrs_minecraft_client::deferred::GBuffe
 }
 
 @fragment
-fn fragment_model_cutout(in: ModelOut) -> mcrs_minecraft_client::deferred::GBuffer {
+fn fragment_model_cutout(in: ModelOut) -> mcrs_minecraft_client::gbuffer_encode::GBuffer {
     let wireframe_discards = mcrs_minecraft_client::finish::wireframe_discards(in.quad_uv);
     let color = shade_surface(model_surface(in));
     if (color.a < 0.5 || wireframe_discards) {

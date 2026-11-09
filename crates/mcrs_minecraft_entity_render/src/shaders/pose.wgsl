@@ -121,12 +121,8 @@ fn pose(@builtin(global_invocation_id) id: vec3<u32>) {
     }
     let pt = frame.partial_tick;
 
-    var age = f32(i32(frame.tick) - state.clock_offset);
-    var whole_age = i32(frame.tick) - state.clock_offset;
-    if ((state.flags & STATE_CLOCK_STOPPED) != 0u) {
-        age = f32(state.clock_offset);
-        whole_age = state.clock_offset;
-    }
+    let age = f32(i32(frame.tick) - state.clock_offset);
+    let whole_age = i32(frame.tick) - state.clock_offset;
     let clock = age + pt;
     var death_time = 0.0;
     if ((state.flags & STATE_DYING) != 0u) {

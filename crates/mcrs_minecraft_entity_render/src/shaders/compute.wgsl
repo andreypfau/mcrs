@@ -104,76 +104,27 @@ fn impostor_ready(state: StateRecord) -> bool {
 
 fn sphere_in_frustum(centre: vec3<f32>, radius: f32) -> bool {
     for (var i = 0u; i < 5u; i = i + 1u) {
-        let plane = frame.frustum[i];
-        if (dot(plane.xyz, centre) + plane.w <= -radius) {
+        if (sphere_outside(frame.frustum[i], centre, radius)) {
             return false;
         }
     }
     return true;
 }
 
-struct Footprint {
-    lo: vec2<f32>,
-    hi: vec2<f32>,
-    nearest: f32,
-    in_front: bool,
-}
-
-fn cover(footprint: ptr<function, Footprint>, corner: vec3<f32>) {
-    let clip = frame.clip_from_relative * vec4<f32>(corner, 1.0);
-    if (clip.w <= 0.0) {
-        (*footprint).in_front = false;
-        return;
-    }
-    let ndc = clip.xyz / clip.w;
-    (*footprint).lo = min((*footprint).lo, ndc.xy);
-    (*footprint).hi = max((*footprint).hi, ndc.xy);
-    (*footprint).nearest = max((*footprint).nearest, ndc.z);
-}
-
-/// The pyramid halves each level and gives an odd last row or column to its last texel, as the
-/// terrain cull reads it.
-fn farthest_under(lo: vec2<f32>, hi: vec2<f32>) -> f32 {
-    let uv_lo = vec2<f32>(lo.x, -hi.y) * 0.5 + 0.5;
-    let uv_hi = vec2<f32>(hi.x, -lo.y) * 0.5 + 0.5;
-    let pixels = vec2<u32>(frame.viewport);
-    let base = textureDimensions(hiz, 0);
-    let b_lo = min(min(vec2<u32>(uv_lo * frame.viewport), pixels - 1u) >> vec2<u32>(1u), base - 1u);
-    let b_hi = min(min(vec2<u32>(uv_hi * frame.viewport), pixels - 1u) >> vec2<u32>(1u), base - 1u);
-    let extent = b_hi - b_lo + 1u;
-    let level = min(u32(ceil(log2(f32(max(extent.x, extent.y))))), frame.hiz_levels - 1u);
-    let last = textureDimensions(hiz, level) - vec2<u32>(1u);
-    let t_lo = min(b_lo >> vec2<u32>(level), last);
-    let t_hi = min(b_hi >> vec2<u32>(level), last);
-    var farthest = 1.0;
-    for (var y = t_lo.y; y <= t_hi.y; y = y + 1u) {
-        for (var x = t_lo.x; x <= t_hi.x; x = x + 1u) {
-            farthest = min(farthest, textureLoad(hiz, vec2<u32>(x, y), level).r);
-        }
-    }
-    return farthest;
-}
-
 fn sphere_hidden(centre: vec3<f32>, radius: f32) -> bool {
     if (frame.hiz_levels == 0u) {
         return false;
     }
-    var footprint = Footprint(vec2<f32>(1e30), vec2<f32>(-1e30), 0.0, true);
+    var footprint = empty_footprint();
     for (var corner = 0u; corner < 8u; corner = corner + 1u) {
         let offset = vec3<f32>(
             select(-radius, radius, (corner & 1u) != 0u),
             select(-radius, radius, (corner & 2u) != 0u),
             select(-radius, radius, (corner & 4u) != 0u),
         );
-        cover(&footprint, centre + offset);
+        cover(&footprint, frame.clip_from_relative, centre + offset);
     }
-    if (!footprint.in_front) {
-        return false;
-    }
-    if (any(footprint.lo < vec2<f32>(-1.0)) || any(footprint.hi > vec2<f32>(1.0))) {
-        return false;
-    }
-    return footprint.nearest < farthest_under(footprint.lo, footprint.hi);
+    return occluded(hiz, frame.viewport, frame.hiz_levels, footprint);
 }
 
 /// One lane for each slot. A visible slot under the height threshold goes to the impostor list.

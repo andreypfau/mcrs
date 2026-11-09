@@ -1,5 +1,6 @@
-// The records of the entity passes. `records.rs` and `tables.rs` lay out the same bytes; change
-// both together. Each record uses scalar fields, so no WGSL alignment rule moves a field.
+// The records of the entity passes. The Rust records lay out the same bytes, and a test of
+// `gpu_pipelines.rs` compares their sizes and the shared constants. Each record uses scalar
+// fields, so no WGSL alignment rule moves a field.
 
 struct Frame {
     clip_from_relative: mat4x4<f32>,
@@ -14,14 +15,14 @@ struct Frame {
     opaque_zero: u32,
     slot_count: u32,
     hiz_levels: u32,
-    flags: u32,
+    shade_table: u32,
     scatter_count: u32,
     bone_capacity: u32,
     visible_capacity: u32,
     face_capacity: u32,
 }
 
-const FRAME_NETHER_LIGHT: u32 = 1u;
+const SHADE_TABLE_NETHER: u32 = 1u;
 
 struct TickRecord {
     bx: i32,
@@ -60,9 +61,6 @@ struct StateRecord {
 }
 
 const STATE_BABY: u32 = 1u;
-const STATE_INVISIBLE: u32 = 2u;
-const STATE_UPSIDE_DOWN: u32 = 4u;
-const STATE_CLOCK_STOPPED: u32 = 8u;
 const STATE_DYING: u32 = 16u;
 const STATE_HIDDEN_SHIFT: u32 = 16u;
 

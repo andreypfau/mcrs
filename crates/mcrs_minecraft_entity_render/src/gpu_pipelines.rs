@@ -1,3 +1,4 @@
+use mcrs_minecraft_render::{gbuffer_encode_wgsl, visibility_wgsl};
 use wgpu::util::DeviceExt;
 use wgpu::{
     BindGroupEntry, BindGroupLayout, BindingResource, ComputePipeline, Device, RenderPipeline,
@@ -176,6 +177,7 @@ fn compute_header(library: &EntityLibrary) -> String {
         .collect();
     let variants_count = library.variants.len().max(1);
     COMMON.to_owned()
+        + visibility_wgsl()
         + &COMPUTE
             .replace("#{DEFINITIONS}", &definitions_count.to_string())
             .replace("#{ARRAYS}", &arrays_count.to_string())
@@ -232,7 +234,10 @@ fn render_pipelines(
             source: wgpu::ShaderSource::Wgsl(source.into()),
         })
     };
-    let draw_module = module("entity draw", &(COMMON.to_owned() + SHADING + DRAW));
+    let draw_module = module(
+        "entity draw",
+        &(COMMON.to_owned() + gbuffer_encode_wgsl() + SHADING + DRAW),
+    );
     let draw_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("entity draw"),
         bind_group_layouts: &[Some(&layouts.draw), Some(&layouts.texture)],
@@ -279,7 +284,8 @@ fn render_pipelines(
         ],
         depth_state(BAKE_DEPTH_FORMAT, wgpu::CompareFunction::GreaterEqual),
     );
-    let impostor_source = COMMON.to_owned() + SHADING + &impostor_constants(IMPOSTOR);
+    let impostor_source =
+        COMMON.to_owned() + gbuffer_encode_wgsl() + SHADING + &impostor_constants(IMPOSTOR);
     let impostor_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("entity impostor"),
         bind_group_layouts: &[Some(&layouts.impostor), Some(&layouts.impostor_textures)],
@@ -430,4 +436,89 @@ pub(crate) fn texture_arrays(
             })
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use mcrs_minecraft_client_entity::HURT_TICKS;
+    use mcrs_minecraft_core::CardinalLight;
+    use mcrs_minecraft_entity_model::{BONE_NEVER_RENDER, BoneRecord, ModelRecord, NO_PARENT};
+    use mcrs_minecraft_mesh::face_shade;
+    use naga::{Literal, Module, TypeInner};
+
+    use super::*;
+    use crate::counts_readback::{
+        COUNTER_DROPPED, COUNTER_FACES, COUNTER_IMPOSTORS, COUNTER_VISIBLE,
+    };
+    use crate::entity_library::{NO_PALETTE, VariantRecord};
+    use crate::frame_uniform::FrameUniform;
+    use crate::records::{
+        CULL_FULL_RIG_ONLY, CULL_VALID, CullRecord, InputRecord, STATE_BABY, STATE_DYING,
+        STATE_HIDDEN_SHIFT, ScatterEntry, StateRecord, TickRecord,
+    };
+    use crate::slot_upload::SCATTER_FRESH;
+
+    fn struct_size(module: &Module, name: &str) -> Option<usize> {
+        module.types.iter().find_map(|(_, ty)| match &ty.inner {
+            TypeInner::Struct { span, .. } if ty.name.as_deref() == Some(name) => {
+                Some(*span as usize)
+            }
+            _ => None,
+        })
+    }
+
+    fn constant(module: &Module, name: &str) -> Option<i64> {
+        let (_, constant) = module
+            .constants
+            .iter()
+            .find(|(_, constant)| constant.name.as_deref() == Some(name))?;
+        match module.global_expressions[constant.init] {
+            naga::Expression::Literal(Literal::U32(value)) => Some(i64::from(value)),
+            naga::Expression::Literal(Literal::I32(value)) => Some(i64::from(value)),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn the_wgsl_records_and_constants_match_the_rust_ones() {
+        let source = compute_header(&EntityLibrary::default());
+        let module = naga::front::wgsl::parse_str(&source).unwrap();
+        let sizes = [
+            ("Frame", size_of::<FrameUniform>()),
+            ("TickRecord", size_of::<TickRecord>()),
+            ("CullRecord", size_of::<CullRecord>()),
+            ("StateRecord", size_of::<StateRecord>()),
+            ("InputRecord", size_of::<InputRecord>()),
+            ("ScatterEntry", size_of::<ScatterEntry>()),
+            ("ModelRecord", size_of::<ModelRecord>()),
+            ("BoneRecord", size_of::<BoneRecord>()),
+            ("Variant", size_of::<VariantRecord>()),
+        ];
+        for (name, size) in sizes {
+            assert_eq!(struct_size(&module, name), Some(size), "the size of {name}");
+        }
+        let constants = [
+            ("CULL_VALID", i64::from(CULL_VALID)),
+            ("CULL_FULL_RIG_ONLY", i64::from(CULL_FULL_RIG_ONLY)),
+            ("STATE_BABY", i64::from(STATE_BABY)),
+            ("STATE_DYING", i64::from(STATE_DYING)),
+            ("STATE_HIDDEN_SHIFT", i64::from(STATE_HIDDEN_SHIFT)),
+            ("SCATTER_FRESH", i64::from(SCATTER_FRESH)),
+            ("NO_PALETTE", i64::from(NO_PALETTE)),
+            ("NO_PARENT", i64::from(NO_PARENT)),
+            ("BONE_NEVER_RENDER", i64::from(BONE_NEVER_RENDER)),
+            ("HURT_TICKS", i64::from(HURT_TICKS)),
+            (
+                "SHADE_TABLE_NETHER",
+                i64::from(face_shade::shader_index(CardinalLight::Nether)),
+            ),
+            ("COUNTER_VISIBLE", COUNTER_VISIBLE as i64),
+            ("COUNTER_FACES", COUNTER_FACES as i64),
+            ("COUNTER_DROPPED", COUNTER_DROPPED as i64),
+            ("COUNTER_IMPOSTORS", COUNTER_IMPOSTORS as i64),
+        ];
+        for (name, value) in constants {
+            assert_eq!(constant(&module, name), Some(value), "the value of {name}");
+        }
+    }
 }
