@@ -262,13 +262,18 @@ impl Bench<'_> {
             .is_some()
     }
 
-    /// Sends one line and returns the first log line that follows it within a second.
+    /// Sends one line and returns the first log line that follows it within a second, other than
+    /// the mcrs tick trace.
     fn answered(&mut self, line: &str) -> Answered {
         let sent = Instant::now();
         let _ = self.server.send(line);
         let answer = self
             .server
-            .wait_for(sent, Duration::from_secs(1), |text| Some(text.to_owned()));
+            .wait_for(sent, Duration::from_secs(1), |text| {
+                probe::mcrs_tick_millis(text)
+                    .is_none()
+                    .then(|| text.to_owned())
+            });
         Answered {
             line: line.to_owned(),
             answer,
@@ -648,7 +653,12 @@ impl Bench<'_> {
             }
         }
         self.probe_sent = Some(Instant::now());
-        for sample in 0..self.args.samples {
+        let samples = if self.pigs_in.is_some() {
+            self.args.samples
+        } else {
+            0
+        };
+        for sample in 0..samples {
             let line =
                 scene::sample_query(self.generation, self.args.pigs, self.args.samples, sample);
             let _ = self.server.send(&line);
