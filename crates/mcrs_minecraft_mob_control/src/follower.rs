@@ -1,10 +1,10 @@
+use glam::DVec3;
 use mcrs_minecraft_brain::Applied;
 use mcrs_minecraft_brain::BlockPos;
 use mcrs_minecraft_brain::PathIntent;
-use mcrs_minecraft_brain::Point;
 use mcrs_minecraft_brain::Progress;
 
-use crate::ControlFlags;
+use crate::BodyFlags;
 use crate::ControlInput;
 use crate::PathEnd;
 
@@ -29,7 +29,7 @@ struct Route {
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 struct StuckCheck {
     tick: u64,
-    position: Point,
+    position: DVec3,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -50,7 +50,7 @@ pub struct FollowerStep {
 /// The wanted position of the move control and the speed modifier of the path.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Wanted {
-    pub position: Point,
+    pub position: DVec3,
     pub speed_modifier: f32,
 }
 
@@ -70,7 +70,7 @@ impl Follower {
     }
 
     /// Applies a path intent of a decision; a new path resets the stuck check and the timeout.
-    pub fn apply(&mut self, intent: &PathIntent, position: Point) {
+    pub fn apply(&mut self, intent: &PathIntent, position: DVec3) {
         match *intent {
             PathIntent::Walk {
                 ticket,
@@ -78,7 +78,7 @@ impl Follower {
                 speed_modifier,
             } => {
                 self.route = Some(Route {
-                    node: target.block(),
+                    node: BlockPos::containing(target),
                     floor: target.y,
                     speed_modifier,
                 });
@@ -133,7 +133,7 @@ impl Follower {
         let offset = f64::from(side) * 0.5;
         FollowerStep {
             wanted: Some(Wanted {
-                position: Point::new(
+                position: DVec3::new(
                     f64::from(route.node.x) + offset,
                     route.floor,
                     f64::from(route.node.z) + offset,
@@ -147,11 +147,11 @@ impl Follower {
     fn reached(&self, input: &ControlInput, node: BlockPos) -> bool {
         let flags = input.flags;
         let position = input.position;
-        let can_update = flags.contains(ControlFlags::ON_GROUND)
-            || flags.contains(ControlFlags::IN_LIQUID)
-            || flags.contains(ControlFlags::PASSENGER);
+        let can_update = flags.contains(BodyFlags::ON_GROUND)
+            || flags.contains(BodyFlags::IN_LIQUID)
+            || flags.contains(BodyFlags::PASSENGER);
         if !can_update {
-            let block = position.block();
+            let block = BlockPos::containing(position);
             return position.y > f64::from(node.y) && block.x == node.x && block.z == node.z;
         }
         let width = input.body.width;

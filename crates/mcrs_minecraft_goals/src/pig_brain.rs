@@ -1,10 +1,10 @@
+use glam::DVec3;
 use mcrs_minecraft_brain::ControlFlags;
 use mcrs_minecraft_brain::GoalSpec;
 use mcrs_minecraft_brain::Goals;
 use mcrs_minecraft_brain::Intents;
 use mcrs_minecraft_brain::MobBrain;
 use mcrs_minecraft_brain::Panic;
-use mcrs_minecraft_brain::Point;
 use mcrs_minecraft_brain::Selector;
 use mcrs_minecraft_brain::Turn;
 
@@ -156,7 +156,7 @@ struct PigTurn<'s, 't, 'a, W: ?Sized> {
     turn: &'t Turn<'a, W>,
     goals: &'s mut PigGoals,
     intents: &'s mut Intents,
-    destination: Option<Point>,
+    destination: Option<DVec3>,
     /// The goals with a gate that were eligible in this evaluation, one bit for each goal.
     eligible: u8,
     changed: Changed,

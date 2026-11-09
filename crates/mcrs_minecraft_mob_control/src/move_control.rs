@@ -1,7 +1,7 @@
-use mcrs_minecraft_brain::Point;
+use glam::DVec3;
 use mcrs_minecraft_numeric as numeric;
 
-use crate::ControlFlags;
+use crate::BodyFlags;
 use crate::ControlInput;
 use crate::Wanted;
 use crate::angles;
@@ -58,9 +58,7 @@ impl MoveControl {
             Operation::Jump { speed_modifier } => {
                 let speed = mob_speed(speed_modifier, input.movement_speed);
                 let flags = input.flags;
-                if flags.contains(ControlFlags::ON_GROUND)
-                    || flags.contains(ControlFlags::IN_LIQUID)
-                {
+                if flags.contains(BodyFlags::ON_GROUND) || flags.contains(BodyFlags::IN_LIQUID) {
                     self.operation = Operation::Wait;
                 }
                 MoveStep {
@@ -77,7 +75,7 @@ impl MoveControl {
     }
 
     fn move_to(&mut self, input: &ControlInput, wanted: Wanted) -> Option<MoveStep> {
-        let position: Point = input.position;
+        let position: DVec3 = input.position;
         let dx = wanted.position.x - position.x;
         let dy = wanted.position.y - position.y;
         let dz = wanted.position.z - position.z;

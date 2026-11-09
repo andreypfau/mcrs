@@ -1,16 +1,16 @@
 //! The controls against GOAL-CTL and PATH-MOV, on a walker that moves along its yaw at the steady
 //! speed on grass of its input.
 
+use glam::DVec3;
 use mcrs_minecraft_brain::Intents;
 use mcrs_minecraft_brain::LookIntent;
 use mcrs_minecraft_brain::PathIntent;
-use mcrs_minecraft_brain::Point;
 use mcrs_minecraft_brain::Progress;
 use mcrs_minecraft_brain::Ticket;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::MobData;
 use mcrs_minecraft_mob_control::BodyData;
-use mcrs_minecraft_mob_control::ControlFlags;
+use mcrs_minecraft_mob_control::BodyFlags;
 use mcrs_minecraft_mob_control::ControlInput;
 use mcrs_minecraft_mob_control::ControlOutput;
 use mcrs_minecraft_mob_control::LookDefaults;
@@ -38,7 +38,7 @@ struct Walker {
 }
 
 impl Walker {
-    fn new(position: Point) -> Self {
+    fn new(position: DVec3) -> Self {
         Self {
             control: MobControl::new(PIG_LOOK),
             input: ControlInput {
@@ -46,7 +46,7 @@ impl Walker {
                 position,
                 rotations: Rotations::default(),
                 body: PIG,
-                flags: ControlFlags::ON_GROUND,
+                flags: BodyFlags::ON_GROUND,
                 sideways: 0.0,
                 speed: 0.0,
                 movement_speed: 0.25,
@@ -79,7 +79,7 @@ impl Walker {
             0.0
         };
         let radians = f64::from(rotations.yaw).to_radians();
-        let end = Point::new(
+        let end = DVec3::new(
             input.position.x - radians.sin() * step,
             input.position.y,
             input.position.z + radians.cos() * step,
@@ -91,7 +91,7 @@ impl Walker {
     }
 }
 
-fn walk_to(target: Point) -> Intents {
+fn walk_to(target: DVec3) -> Intents {
     Intents {
         path: Some(PathIntent::Walk {
             ticket: Ticket(1),
@@ -104,8 +104,8 @@ fn walk_to(target: Point) -> Intents {
 
 #[test]
 fn a_walker_reaches_its_target_and_stops() {
-    let mut walker = Walker::new(Point::new(0.5, 0.0, 0.5));
-    walker.apply(walk_to(Point::new(8.5, 0.0, 3.5)));
+    let mut walker = Walker::new(DVec3::new(0.5, 0.0, 0.5));
+    walker.apply(walk_to(DVec3::new(8.5, 0.0, 3.5)));
     assert_eq!(walker.control.applied().progress, Progress::Running);
     let distance = (8.0_f64 * 8.0 + 3.0 * 3.0).sqrt();
     let steady = 0.25 * 0.25 * 2.2026;
@@ -134,9 +134,9 @@ fn a_walker_reaches_its_target_and_stops() {
 
 #[test]
 fn the_move_control_turns_the_yaw_by_at_most_ninety_degrees_in_a_tick() {
-    let mut walker = Walker::new(Point::new(0.5, 0.0, 0.5));
+    let mut walker = Walker::new(DVec3::new(0.5, 0.0, 0.5));
     walker.moves = false;
-    walker.apply(walk_to(Point::new(0.5, 0.0, -9.5)));
+    walker.apply(walk_to(DVec3::new(0.5, 0.0, -9.5)));
     let first = walker.tick().yaw.unwrap();
     assert_eq!(
         wrap_degrees(first - 0.0).abs(),
@@ -152,11 +152,11 @@ fn the_move_control_turns_the_yaw_by_at_most_ninety_degrees_in_a_tick() {
 
 #[test]
 fn the_head_follows_a_look_target_within_its_speed_and_limits() {
-    let mut walker = Walker::new(Point::new(0.5, 0.0, 0.5));
+    let mut walker = Walker::new(DVec3::new(0.5, 0.0, 0.5));
     walker.moves = false;
     walker.apply(Intents {
         look: Some(LookIntent::At {
-            point: Point::new(-20.5, 30.0, 0.5),
+            point: DVec3::new(-20.5, 30.0, 0.5),
             turn_speed: 10.0,
             pitch_limit: 40.0,
             hold: 12,
@@ -196,12 +196,12 @@ fn the_head_follows_a_look_target_within_its_speed_and_limits() {
 
 #[test]
 fn a_standing_body_follows_a_still_head_after_ten_ticks() {
-    let mut walker = Walker::new(Point::new(0.5, 0.0, 0.5));
+    let mut walker = Walker::new(DVec3::new(0.5, 0.0, 0.5));
     walker.moves = false;
     walker.input.rotations.head_yaw = 60.0;
     walker.apply(Intents {
         look: Some(LookIntent::At {
-            point: Point::new(
+            point: DVec3::new(
                 -9.5,
                 0.765,
                 0.5 + 10.0 * (-30.0_f64).to_radians().tan().abs(),
@@ -228,9 +228,9 @@ fn a_standing_body_follows_a_still_head_after_ten_ticks() {
 
 #[test]
 fn a_walker_that_does_not_move_drops_its_path_after_the_stuck_check() {
-    let mut walker = Walker::new(Point::new(0.5, 0.0, 0.5));
+    let mut walker = Walker::new(DVec3::new(0.5, 0.0, 0.5));
     walker.moves = false;
-    walker.apply(walk_to(Point::new(10.5, 0.0, 0.5)));
+    walker.apply(walk_to(DVec3::new(10.5, 0.0, 0.5)));
     let ended = (1..=200).find_map(|tick| walker.tick().path_ended.map(|end| (tick, end)));
     assert_eq!(
         ended,
@@ -241,10 +241,10 @@ fn a_walker_that_does_not_move_drops_its_path_after_the_stuck_check() {
 
 #[test]
 fn a_walking_head_stays_within_the_head_yaw_limit_of_the_body() {
-    let mut walker = Walker::new(Point::new(0.5, 0.0, 0.5));
-    let mut intents = walk_to(Point::new(0.5, 0.0, 20.5));
+    let mut walker = Walker::new(DVec3::new(0.5, 0.0, 0.5));
+    let mut intents = walk_to(DVec3::new(0.5, 0.0, 20.5));
     intents.look = Some(LookIntent::At {
-        point: Point::new(0.5, 0.765, -30.5),
+        point: DVec3::new(0.5, 0.765, -30.5),
         turn_speed: 10.0,
         pitch_limit: 40.0,
         hold: 100,

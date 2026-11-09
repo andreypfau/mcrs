@@ -1,5 +1,5 @@
+use glam::DVec3;
 use mcrs_minecraft_brain::MobFlags;
-use mcrs_minecraft_brain::Point;
 use mcrs_minecraft_brain::Turn;
 
 use crate::Gate;
@@ -37,7 +37,7 @@ impl StrollGoal {
     pub fn start_destination<W: GoalWorld + ?Sized>(
         &mut self,
         turn: &Turn<'_, W>,
-    ) -> Option<Point> {
+    ) -> Option<DVec3> {
         if !Self::is_eligible(turn, 0) {
             self.gate.end();
             return None;
@@ -65,7 +65,7 @@ impl StrollGoal {
 
 /// GOAL-STR-002: `L(15, 7)` and then `D(10, 7)` in water; else `L(10, 7)` with the chance 0.999 and
 /// `D(10, 7)` with the chance 0.001.
-fn stroll_destination<W: GoalWorld + ?Sized>(turn: &Turn<'_, W>) -> Option<Point> {
+fn stroll_destination<W: GoalWorld + ?Sized>(turn: &Turn<'_, W>) -> Option<DVec3> {
     let mut random = turn.random(STROLL_SEARCH);
     let world = turn.world;
     let feet = turn.view.position;

@@ -1,8 +1,8 @@
+use glam::DVec3;
 use mcrs_minecraft_brain::BlockPos;
 use mcrs_minecraft_brain::DamageCause;
 use mcrs_minecraft_brain::MobFlags;
 use mcrs_minecraft_brain::MobView;
-use mcrs_minecraft_brain::Point;
 use mcrs_minecraft_brain::Turn;
 
 use crate::CellFlags;
@@ -28,9 +28,9 @@ pub fn panic_record_fresh(view: &MobView, tick: u64) -> bool {
 
 /// The destination of a panic: the nearest water of `Q-WATER` for a mob on fire in a block with no
 /// collision shape, else the default search `D(5, 4)`.
-pub fn panic_destination<W: GoalWorld + ?Sized>(turn: &Turn<'_, W>) -> Option<Point> {
+pub fn panic_destination<W: GoalWorld + ?Sized>(turn: &Turn<'_, W>) -> Option<DVec3> {
     let view = turn.view;
-    let block = view.position.block();
+    let block = BlockPos::containing(view.position);
     if view.flags.contains(MobFlags::ON_FIRE)
         && turn
             .world
@@ -39,7 +39,7 @@ pub fn panic_destination<W: GoalWorld + ?Sized>(turn: &Turn<'_, W>) -> Option<Po
             .contains(CellFlags::NO_COLLISION)
         && let Some(water) = nearest_water(turn.world, block)
     {
-        return Some(Point::new(
+        return Some(DVec3::new(
             f64::from(water.x),
             f64::from(water.y),
             f64::from(water.z),

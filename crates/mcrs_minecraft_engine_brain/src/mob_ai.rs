@@ -13,6 +13,7 @@ use mcrs_minecraft_brain::DecisionPipeline;
 use mcrs_minecraft_brain::Fact;
 use mcrs_minecraft_brain::FactKind;
 use mcrs_minecraft_brain::MobId;
+use mcrs_minecraft_brain::OrderKey;
 use mcrs_minecraft_brain::PlayerTable;
 use mcrs_minecraft_brain::Replica;
 use mcrs_minecraft_brain::Stage;
@@ -32,7 +33,6 @@ use crate::HotTick;
 use crate::host_mob::HostMob;
 use crate::life_task::LifeOut;
 use crate::life_task::LifeTask;
-use crate::order_key::order_key;
 use crate::tile_task::TileOut;
 use crate::tile_task::TileTask;
 
@@ -231,7 +231,7 @@ impl MobAi {
                     host
                 }
                 None => {
-                    let key = order_key(&arrival.key);
+                    let key = OrderKey::new(arrival.key.0);
                     let Some(host) = HostMob::new(arrival.id, key, arrival.kind, tick) else {
                         continue;
                     };

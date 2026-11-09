@@ -11,7 +11,6 @@ use crate::MobId;
 use crate::MobView;
 use crate::OrderKey;
 use crate::PlayerRow;
-use crate::Point;
 use crate::Replica;
 use crate::StageConfig;
 use crate::TileBrains;
@@ -19,6 +18,7 @@ use crate::TileId;
 use crate::Turn;
 use crate::WakeMode;
 use crate::tile_brains::Removed;
+use glam::DVec3;
 
 /// The brains of the mobs of one world, by tile. A tick of the stage is a parallel map over its
 /// tiles ([`Stage::work`] and [`TileWork::run`]) and a gather ([`Stage::collect`]); the result does
@@ -315,8 +315,8 @@ fn load_players<W: ?Sized>(
     if table.is_empty() {
         return;
     }
-    let mut min = Point::new(f64::INFINITY, 0.0, f64::INFINITY);
-    let mut max = Point::new(f64::NEG_INFINITY, 0.0, f64::NEG_INFINITY);
+    let mut min = DVec3::new(f64::INFINITY, 0.0, f64::INFINITY);
+    let mut max = DVec3::new(f64::NEG_INFINITY, 0.0, f64::NEG_INFINITY);
     for view in views {
         min.x = min.x.min(view.position.x);
         min.z = min.z.min(view.position.z);
@@ -328,8 +328,8 @@ fn load_players<W: ?Sized>(
     }
     let margin = range + 1.0;
     table.collect_in(
-        Point::new(min.x - margin, 0.0, min.z - margin),
-        Point::new(max.x + margin, 0.0, max.z + margin),
+        DVec3::new(min.x - margin, 0.0, min.z - margin),
+        DVec3::new(max.x + margin, 0.0, max.z + margin),
         out,
     );
 }

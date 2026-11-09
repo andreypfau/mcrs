@@ -1,5 +1,6 @@
 //! The goals of the pig in a pen, against the timings and the chances of `mob-goals.md`.
 
+use glam::DVec3;
 use mcrs_minecraft_brain::AiDelay;
 use mcrs_minecraft_brain::ConfigError;
 use mcrs_minecraft_brain::DamageCause;
@@ -8,7 +9,6 @@ use mcrs_minecraft_brain::Panic;
 use mcrs_minecraft_brain::PlayerFlags;
 use mcrs_minecraft_brain::PlayerId;
 use mcrs_minecraft_brain::PlayerRow;
-use mcrs_minecraft_brain::Point;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::WorldSeed;
 use mcrs_minecraft_goals::IdleRule;
@@ -139,11 +139,11 @@ fn the_stroll_starts_after_a_geometric_count_of_evaluations_with_the_chance_one_
 fn a_pig_looks_at_a_player_within_six_blocks_and_never_at_one_farther() {
     let pigs = 24;
     let mut pen = pen(pigs, 128, IdleRule::AlwaysFar).unwrap();
-    let centre = Point::new(64.0, 0.0, 64.0);
+    let centre = DVec3::new(64.0, 0.0, 64.0);
     for index in 0..pigs as usize {
         let angle = index as f64 * 0.7;
         let distance = if index % 2 == 0 { 5.9 } else { 6.1 };
-        let position = Point::new(
+        let position = DVec3::new(
             centre.x + distance * angle.cos(),
             0.0,
             centre.z + distance * angle.sin(),

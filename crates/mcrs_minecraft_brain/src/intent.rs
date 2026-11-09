@@ -1,4 +1,4 @@
-use crate::Point;
+use glam::DVec3;
 
 /// The number of a path intent of one mob. The host reports the ticket of the last intent that it
 /// applied, so the brain can tell a pending intent from an applied one.
@@ -36,7 +36,7 @@ pub enum PathIntent {
     /// on walkable ground until a path search fills it.
     Walk {
         ticket: Ticket,
-        target: Point,
+        target: DVec3,
         speed_modifier: f32,
     },
     /// The mob has no path: the request found none, or a goal cleared it.
@@ -57,7 +57,7 @@ impl PathIntent {
 pub enum LookIntent {
     /// Turn the head to `point` for `hold` ticks after the application.
     At {
-        point: Point,
+        point: DVec3,
         turn_speed: f32,
         pitch_limit: f32,
         hold: u8,

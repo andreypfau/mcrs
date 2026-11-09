@@ -1,9 +1,9 @@
+use glam::DVec3;
 use mcrs_minecraft_brain::Intents;
 use mcrs_minecraft_brain::LookIntent;
 use mcrs_minecraft_brain::PlayerFlags;
 use mcrs_minecraft_brain::PlayerId;
 use mcrs_minecraft_brain::PlayerRow;
-use mcrs_minecraft_brain::Point;
 use mcrs_minecraft_brain::Turn;
 
 use crate::Gate;
@@ -112,7 +112,7 @@ pub fn nearest_player<'a, W: GoalWorld + ?Sized>(
     range: f64,
 ) -> Option<&'a PlayerRow> {
     let view = turn.view;
-    let eye = Point::new(
+    let eye = DVec3::new(
         view.position.x,
         view.position.y + f64::from(view.eye_height),
         view.position.z,

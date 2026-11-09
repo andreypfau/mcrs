@@ -3,6 +3,7 @@ use alloc::vec::Vec;
 use core::hash::Hash;
 use core::hash::Hasher;
 
+use glam::DVec3;
 use mcrs_minecraft_brain::Applied;
 use mcrs_minecraft_brain::Cadence;
 use mcrs_minecraft_brain::ControlFlags;
@@ -25,7 +26,6 @@ use mcrs_minecraft_brain::PlayerFlags;
 use mcrs_minecraft_brain::PlayerId;
 use mcrs_minecraft_brain::PlayerRow;
 use mcrs_minecraft_brain::PlayerTable;
-use mcrs_minecraft_brain::Point;
 use mcrs_minecraft_brain::Progress;
 use mcrs_minecraft_brain::Replica;
 use mcrs_minecraft_brain::Stage;
@@ -85,7 +85,7 @@ pub struct PigPen {
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct HostPig {
     key: OrderKey,
-    position: Point,
+    position: DVec3,
     tile: TileId,
     cadence: Cadence,
     walk: Option<Walk>,
@@ -98,7 +98,7 @@ struct HostPig {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Walk {
-    target: Point,
+    target: DVec3,
     per_tick: f64,
 }
 
@@ -133,7 +133,7 @@ impl PigPen {
             .map(|index| {
                 let key = OrderKey::new(u128::from(index) << 64);
                 let mut random = KeyedRandom::new(seed, &key, 0, PLACE);
-                let position = Point::new(random.unit() * side, 0.0, random.unit() * side);
+                let position = DVec3::new(random.unit() * side, 0.0, random.unit() * side);
                 let offset = u8::try_from(random.below(4)).unwrap_or(0);
                 HostPig {
                     key,
@@ -168,7 +168,7 @@ impl PigPen {
                 PlayerRow {
                     player: PlayerId(u64::from(index)),
                     key,
-                    position: Point::new(random.unit() * side, 0.0, random.unit() * side),
+                    position: DVec3::new(random.unit() * side, 0.0, random.unit() * side),
                     eye_height: 1.62,
                     flags: PlayerFlags::ALIVE,
                     visibility: 1.0,
@@ -311,7 +311,7 @@ impl PigPen {
     }
 
     /// Puts pig `index` at `position`.
-    pub fn place_pig(&mut self, index: usize, position: Point) {
+    pub fn place_pig(&mut self, index: usize, position: DVec3) {
         if let Some(pig) = self.pigs.get_mut(index) {
             pig.position = position;
             pig.tile = TileId::at(position);
@@ -448,7 +448,7 @@ impl PigPen {
 /// One pig of a pen, as a test reads it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PenPig {
-    pub position: Point,
+    pub position: DVec3,
     /// The blocks that the pig walks in each tick, while it walks.
     pub walk_speed: Option<f64>,
     pub look: PenLook,

@@ -1,13 +1,13 @@
 //! The stage gives the same pigs and brains in each tick for any thread count and task split
 //! (AIT-INV-001, AIT-INV-002), and the sleeping stage gives the decisions of the polling one.
 
+use glam::DVec3;
 use mcrs_minecraft_brain::AiDelay;
 use mcrs_minecraft_brain::DamageCause;
 use mcrs_minecraft_brain::OrderKey;
 use mcrs_minecraft_brain::PlayerFlags;
 use mcrs_minecraft_brain::PlayerId;
 use mcrs_minecraft_brain::PlayerRow;
-use mcrs_minecraft_brain::Point;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::TickContext;
 use mcrs_minecraft_brain::TileWork;
@@ -98,7 +98,7 @@ fn walk_and_hit(pen: &mut PigPen, tick: u64) {
         .map(|index| PlayerRow {
             player: PlayerId(100 + index),
             key: OrderKey::new(u128::from(100 + index) << 64 | 1),
-            position: Point::new(f64::from(index as u32) * 200.0 + 20.0, 0.0, 30.0),
+            position: DVec3::new(f64::from(index as u32) * 200.0 + 20.0, 0.0, 30.0),
             eye_height: 1.62,
             flags: PlayerFlags::ALIVE,
             visibility: 1.0,
@@ -108,7 +108,7 @@ fn walk_and_hit(pen: &mut PigPen, tick: u64) {
     players.push(PlayerRow {
         player: PlayerId(7),
         key: OrderKey::new(7 << 64 | 1),
-        position: Point::new(tick as f64 * 0.4, 0.0, 128.0),
+        position: DVec3::new(tick as f64 * 0.4, 0.0, 128.0),
         eye_height: 1.62,
         flags: PlayerFlags::ALIVE,
         visibility: 0.8,

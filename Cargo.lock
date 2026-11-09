@@ -3731,6 +3731,7 @@ dependencies = [
 name = "mcrs_minecraft_brain"
 version = "0.5.8"
 dependencies = [
+ "glam",
  "libm",
 ]
 
@@ -4738,6 +4739,7 @@ name = "mcrs_minecraft_goals"
 version = "0.5.8"
 dependencies = [
  "criterion",
+ "glam",
  "libm",
  "mcrs_minecraft_brain",
  "mcrs_minecraft_entity",
@@ -4906,6 +4908,7 @@ name = "mcrs_minecraft_mob_control"
 version = "0.5.8"
 dependencies = [
  "criterion",
+ "glam",
  "mcrs_minecraft_brain",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_numeric",

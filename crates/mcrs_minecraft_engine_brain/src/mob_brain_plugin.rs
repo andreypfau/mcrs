@@ -25,7 +25,6 @@ use mcrs_minecraft_brain::OrderKey;
 use mcrs_minecraft_brain::PlayerFlags;
 use mcrs_minecraft_brain::PlayerId;
 use mcrs_minecraft_brain::PlayerRow;
-use mcrs_minecraft_brain::Point;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::WorldSeed as StageSeed;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
@@ -165,11 +164,10 @@ fn prepare(
     table.clear();
     table.extend(players.iter().map(|(entity, uuid, transform, mode)| {
         let spectator = mode.is_some_and(|mode| mode.0 == GameMode::Spectator);
-        let position = transform.translation;
         PlayerRow {
             player: PlayerId(entity.to_bits()),
             key: OrderKey::new(uuid.0.as_u128()),
-            position: Point::new(position.x, position.y, position.z),
+            position: transform.translation,
             eye_height: EntityTypeData::PLAYER.eye_height,
             flags: if spectator {
                 PlayerFlags::ALIVE.union(PlayerFlags::SPECTATOR)

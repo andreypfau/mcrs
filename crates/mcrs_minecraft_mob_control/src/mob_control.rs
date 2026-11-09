@@ -1,9 +1,9 @@
+use glam::DVec3;
 use mcrs_minecraft_brain::Applied;
 use mcrs_minecraft_brain::Intents;
-use mcrs_minecraft_brain::Point;
 
+use crate::BodyFlags;
 use crate::BodyRotation;
-use crate::ControlFlags;
 use crate::ControlInput;
 use crate::ControlOutput;
 use crate::ControlSteering;
@@ -54,7 +54,7 @@ impl MobControl {
 
     /// Applies the intents of one decision, at the start of the tile task, before
     /// [`MobControl::before_travel`]. `position` is the position of the mob then.
-    pub fn apply(&mut self, intents: &Intents, position: Point) {
+    pub fn apply(&mut self, intents: &Intents, position: DVec3) {
         if let Some(path) = &intents.path {
             self.follower.apply(path, position);
         }
@@ -101,10 +101,10 @@ impl MobControl {
     pub fn after_travel(
         &mut self,
         input: &ControlInput,
-        end: Point,
+        end: DVec3,
         mut rotations: Rotations,
     ) -> Rotations {
-        let passenger = if input.flags.contains(ControlFlags::MOB_PASSENGER) {
+        let passenger = if input.flags.contains(BodyFlags::MOB_PASSENGER) {
             MobPassenger::Yes
         } else {
             MobPassenger::No

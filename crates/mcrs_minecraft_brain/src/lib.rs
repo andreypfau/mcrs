@@ -9,6 +9,7 @@
 extern crate alloc;
 
 mod ai_delay;
+mod block_pos;
 mod brain;
 mod cadence;
 mod control_flags;
@@ -23,7 +24,6 @@ mod mob_view;
 mod order_key;
 mod player_row;
 mod player_table;
-mod point;
 mod replica;
 mod selector;
 mod stage;
@@ -32,6 +32,7 @@ mod tile_brains;
 mod tile_id;
 
 pub use ai_delay::*;
+pub use block_pos::*;
 pub use brain::*;
 pub use cadence::*;
 pub use control_flags::*;
@@ -46,7 +47,6 @@ pub use mob_view::*;
 pub use order_key::*;
 pub use player_row::*;
 pub use player_table::*;
-pub use point::*;
 pub use replica::*;
 pub use selector::*;
 pub use stage::*;

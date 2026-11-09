@@ -13,7 +13,6 @@ use mcrs_minecraft_brain::OrderKey;
 use mcrs_minecraft_brain::PlayerFlags;
 use mcrs_minecraft_brain::PlayerId;
 use mcrs_minecraft_brain::PlayerRow;
-use mcrs_minecraft_brain::Point;
 use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::WorldSeed;
 use mcrs_minecraft_damage::Hit;
@@ -89,7 +88,7 @@ impl Run {
         let players = vec![PlayerRow {
             player: PlayerId(1),
             key: OrderKey::new(u128::MAX),
-            position: Point::new(0.5, f64::from(FLOOR), 0.5),
+            position: DVec3::new(0.5, f64::from(FLOOR), 0.5),
             eye_height: 1.62,
             flags: PlayerFlags::ALIVE,
             visibility: 1.0,

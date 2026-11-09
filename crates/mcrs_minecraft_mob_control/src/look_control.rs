@@ -1,5 +1,5 @@
+use glam::DVec3;
 use mcrs_minecraft_brain::LookIntent;
-use mcrs_minecraft_brain::Point;
 use mcrs_minecraft_numeric as numeric;
 
 use crate::ControlInput;
@@ -22,7 +22,7 @@ pub struct LookControl {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct LookAt {
-    point: Point,
+    point: DVec3,
     turn_speed: f32,
     pitch_limit: f32,
     hold: u8,
@@ -80,7 +80,7 @@ impl LookControl {
         let eye = position.y + f64::from(input.body.eye_height);
         if let Some(direction) = self.around {
             self.target = Some(LookAt {
-                point: Point::new(
+                point: DVec3::new(
                     position.x + f64::from(direction.cos),
                     eye,
                     position.z + f64::from(direction.sin),

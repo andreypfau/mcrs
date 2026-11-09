@@ -1,5 +1,5 @@
+use glam::DVec3;
 use mcrs_minecraft_brain::BlockPos;
-use mcrs_minecraft_brain::Point;
 
 use crate::BuildHeight;
 use crate::CellFlags;
@@ -46,7 +46,7 @@ impl GoalWorld for FlatGround {
         }
     }
 
-    fn line_of_sight(&self, _from: Point, _to: Point) -> bool {
+    fn line_of_sight(&self, _from: DVec3, _to: DVec3) -> bool {
         true
     }
 }

@@ -1,13 +1,13 @@
-use mcrs_minecraft_brain::Point;
+use glam::DVec3;
 
 /// The state of the walker row that the controls read at the start of a tick, before its step.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ControlInput {
     pub tick: u64,
-    pub position: Point,
+    pub position: DVec3,
     pub rotations: Rotations,
     pub body: BodyData,
-    pub flags: ControlFlags,
+    pub flags: BodyFlags,
     /// The sideways input of the row before the decay of this tick.
     pub sideways: f32,
     /// The mob speed of the row (`Living::speed`).
@@ -39,9 +39,9 @@ pub struct BodyData {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub struct ControlFlags(u8);
+pub struct BodyFlags(u8);
 
-impl ControlFlags {
+impl BodyFlags {
     pub const NONE: Self = Self(0);
     pub const ON_GROUND: Self = Self(1);
     /// In a liquid that affects the mob.

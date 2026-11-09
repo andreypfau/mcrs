@@ -1,8 +1,8 @@
 use crate::ControlFlags;
 use crate::MobId;
 use crate::OrderKey;
-use crate::Point;
 use crate::Ticket;
+use glam::DVec3;
 
 /// The state of one mob that the decisions of one issue tick read: the row and the guidance state
 /// at the start of that tick.
@@ -10,7 +10,7 @@ use crate::Ticket;
 pub struct MobView {
     pub mob: MobId,
     pub key: OrderKey,
-    pub position: Point,
+    pub position: DVec3,
     pub eye_height: f32,
     pub flags: MobFlags,
     /// The idle time: it increases by 1 in each AI step and is 0 after a hit or while a player is

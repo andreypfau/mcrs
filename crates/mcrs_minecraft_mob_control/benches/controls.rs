@@ -10,15 +10,15 @@ use std::time::Instant;
 use criterion::Criterion;
 use criterion::criterion_group;
 use criterion::criterion_main;
+use glam::DVec3;
 use mcrs_minecraft_brain::Intents;
 use mcrs_minecraft_brain::LookIntent;
 use mcrs_minecraft_brain::PathIntent;
-use mcrs_minecraft_brain::Point;
 use mcrs_minecraft_brain::Ticket;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::MobData;
 use mcrs_minecraft_mob_control::BodyData;
-use mcrs_minecraft_mob_control::ControlFlags;
+use mcrs_minecraft_mob_control::BodyFlags;
 use mcrs_minecraft_mob_control::ControlInput;
 use mcrs_minecraft_mob_control::ControlOutput;
 use mcrs_minecraft_mob_control::LookDefaults;
@@ -39,7 +39,7 @@ struct Mob {
 fn mobs() -> Vec<Mob> {
     (0..MOBS)
         .map(|index| {
-            let position = Point::new(
+            let position = DVec3::new(
                 f64::from(index % 250) * 4.0 + 0.5,
                 0.0,
                 f64::from(index / 250) * 4.0 + 0.5,
@@ -49,7 +49,7 @@ fn mobs() -> Vec<Mob> {
                 0 => Intents {
                     path: Some(PathIntent::Walk {
                         ticket: Ticket(1),
-                        target: Point::new(position.x + 8.0, 0.0, position.z + 3.0),
+                        target: DVec3::new(position.x + 8.0, 0.0, position.z + 3.0),
                         speed_modifier: 1.0,
                     }),
                     ..Intents::default()
@@ -60,7 +60,7 @@ fn mobs() -> Vec<Mob> {
                 },
                 _ => Intents {
                     look: Some(LookIntent::At {
-                        point: Point::new(position.x - 3.0, 1.6, position.z + 2.0),
+                        point: DVec3::new(position.x - 3.0, 1.6, position.z + 2.0),
                         turn_speed: 10.0,
                         pitch_limit: 40.0,
                         hold: u8::MAX,
@@ -79,7 +79,7 @@ fn mobs() -> Vec<Mob> {
                     step_height: 0.6,
                     head_yaw_limit: MobData::DEFAULT.head_yaw_limit,
                 },
-                flags: ControlFlags::ON_GROUND,
+                flags: BodyFlags::ON_GROUND,
                 sideways: 0.0,
                 speed: 0.0,
                 movement_speed: 0.25,
@@ -92,7 +92,7 @@ fn mobs() -> Vec<Mob> {
 
 /// One tick: the controls of every mob before the travel, the travel, and the body rotation of
 /// every mob after it; only the two passes of the controls are timed.
-fn tick(mobs: &mut [Mob], outputs: &mut Vec<ControlOutput>, ends: &mut Vec<Point>) -> Duration {
+fn tick(mobs: &mut [Mob], outputs: &mut Vec<ControlOutput>, ends: &mut Vec<DVec3>) -> Duration {
     let start = Instant::now();
     outputs.clear();
     outputs.extend(
@@ -113,7 +113,7 @@ fn tick(mobs: &mut [Mob], outputs: &mut Vec<ControlOutput>, ends: &mut Vec<Point
         input.speed = speed;
         let step = f64::from(forward * speed) * 2.2026;
         let radians = f64::from(rotations.yaw).to_radians();
-        ends.push(Point::new(
+        ends.push(DVec3::new(
             input.position.x - radians.sin() * step,
             input.position.y,
             input.position.z + radians.cos() * step,

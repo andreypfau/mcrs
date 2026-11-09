@@ -1,5 +1,5 @@
+use glam::DVec3;
 use mcrs_minecraft_brain::BlockPos;
-use mcrs_minecraft_brain::Point;
 
 use crate::GoalWorld;
 
@@ -11,9 +11,9 @@ const LONGEST: f64 = 64.0;
 /// end is the bottom centre of the target column at the level that the line reaches.
 pub fn straight_route<W: GoalWorld + ?Sized>(
     world: &W,
-    from: Point,
+    from: DVec3,
     target: BlockPos,
-) -> Option<Point> {
+) -> Option<DVec3> {
     let end = target.bottom_centre();
     let dx = end.x - from.x;
     let dz = end.z - from.z;
@@ -22,10 +22,11 @@ pub fn straight_route<W: GoalWorld + ?Sized>(
         return None;
     }
     let steps = libm::ceil(length / STEP) as u32;
-    let mut level = from.block().y;
+    let mut level = BlockPos::containing(from).y;
     for step in 1..=steps {
         let share = f64::from(step) / f64::from(steps);
-        let sample = Point::new(from.x + dx * share, 0.0, from.z + dz * share).block();
+        let sample =
+            BlockPos::containing(DVec3::new(from.x + dx * share, 0.0, from.z + dz * share));
         level = [0, 1, -1].into_iter().map(|rise| level + rise).find(|y| {
             world
                 .cell(BlockPos::new(sample.x, *y, sample.z))

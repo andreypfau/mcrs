@@ -1,4 +1,6 @@
-use crate::Point;
+use glam::DVec3;
+
+use crate::BlockPos;
 
 /// A tile of the world: 2 × 2 chunk columns of the full height. The stage keeps the brains of
 /// the mobs of one tile together, so a tile is its unit of parallel work.
@@ -19,8 +21,8 @@ impl TileId {
 
     /// The tile that holds the column of `point`.
     #[must_use]
-    pub fn at(point: Point) -> Self {
-        let block = point.block();
+    pub fn at(point: DVec3) -> Self {
+        let block = BlockPos::containing(point);
         Self {
             x: block.x.div_euclid(Self::SIDE),
             z: block.z.div_euclid(Self::SIDE),

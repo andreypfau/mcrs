@@ -1,6 +1,7 @@
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
-use mcrs_minecraft_brain::ControlFlags as DisabledFlags;
+use mcrs_minecraft_brain::BlockPos;
+use mcrs_minecraft_brain::ControlFlags;
 use mcrs_minecraft_brain::DamageCause;
 use mcrs_minecraft_brain::DamageRecord;
 use mcrs_minecraft_brain::Intents;
@@ -9,12 +10,11 @@ use mcrs_minecraft_brain::MobId;
 use mcrs_minecraft_brain::MobView;
 use mcrs_minecraft_brain::OrderKey;
 use mcrs_minecraft_brain::Panic;
-use mcrs_minecraft_brain::Point;
 use mcrs_minecraft_engine_physics::MobIntent;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_goals::STROLL_IDLE_LIMIT;
 use mcrs_minecraft_mob_control::BodyData;
-use mcrs_minecraft_mob_control::ControlFlags;
+use mcrs_minecraft_mob_control::BodyFlags;
 use mcrs_minecraft_mob_control::ControlInput;
 use mcrs_minecraft_mob_control::LookDefaults;
 use mcrs_minecraft_mob_control::MobControl;
@@ -47,7 +47,7 @@ pub(crate) struct HostMob {
     travelled: Option<ControlInput>,
     /// The head yaw and the body yaw of that body rotation, which the next intent writes.
     turned: Option<Rotations>,
-    position: Point,
+    position: DVec3,
     rotations: Rotations,
     idle_time: u32,
     last_hit: Option<LastHit>,
@@ -100,7 +100,7 @@ impl HostMob {
             }),
             travelled: None,
             turned: None,
-            position: Point::default(),
+            position: DVec3::ZERO,
             rotations: Rotations::default(),
             idle_time: 0,
             last_hit: None,
@@ -135,7 +135,7 @@ impl HostMob {
                 movement_speed: living.attributes.movement_speed,
                 step_height: living.attributes.step_height as f32,
             });
-        self.position = point(state.body.position);
+        self.position = state.body.position;
         self.rotations = Rotations {
             yaw: living.yaw,
             pitch: living.pitch,
@@ -194,7 +194,7 @@ impl HostMob {
                 flags,
                 idle_time: self.idle_time,
                 damage: self.damage,
-                disabled: DisabledFlags::NONE,
+                disabled: ControlFlags::NONE,
                 path: self.control.applied(),
             },
             struck: struck_now,
@@ -219,7 +219,7 @@ impl HostMob {
         tick: u64,
     ) -> Option<(MobIntent, Option<PathEnd>)> {
         let row = self.row.take()?;
-        let feet = self.position.block();
+        let feet = BlockPos::containing(self.position);
         let input = ControlInput {
             tick,
             position: self.position,
@@ -231,9 +231,9 @@ impl HostMob {
                 head_yaw_limit: self.head_yaw_limit,
             },
             flags: if row.on_ground {
-                ControlFlags::ON_GROUND
+                BodyFlags::ON_GROUND
             } else {
-                ControlFlags::NONE
+                BodyFlags::NONE
             },
             sideways: row.sideways,
             speed: row.speed,
@@ -261,8 +261,4 @@ impl HostMob {
         };
         Some((intent, out.path_ended))
     }
-}
-
-fn point(position: DVec3) -> Point {
-    Point::new(position.x, position.y, position.z)
 }

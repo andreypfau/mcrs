@@ -1,6 +1,5 @@
 use glam::DVec3;
 use mcrs_minecraft_brain::BlockPos;
-use mcrs_minecraft_brain::Point;
 use mcrs_minecraft_goals::BuildHeight;
 use mcrs_minecraft_goals::CellFlags;
 use mcrs_minecraft_goals::GoalWorld;
@@ -146,7 +145,7 @@ impl<V: BlockVolume> GoalWorld for BlockGoalWorld<'_, V> {
         }
     }
 
-    fn line_of_sight(&self, from: Point, to: Point) -> bool {
+    fn line_of_sight(&self, from: DVec3, to: DVec3) -> bool {
         let start = DVec3::new(from.x, from.y, from.z);
         let end = DVec3::new(to.x, to.y, to.z);
         if (end - start).length_squared() > SIGHT_RANGE * SIGHT_RANGE {
