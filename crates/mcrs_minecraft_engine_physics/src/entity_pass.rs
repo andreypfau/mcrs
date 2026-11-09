@@ -31,6 +31,7 @@ use mcrs_voxel::SectionPos;
 use crate::entity_rows::EntityRows;
 use crate::entity_rows::Leaving;
 use crate::entity_rows::Tile;
+use crate::entity_rows::deal;
 use crate::entity_rows::wakes;
 use crate::front_grid::FrontGrid;
 use crate::front_grid::grid_row;
@@ -92,13 +93,13 @@ impl EntityRows {
             reach: self.reach,
         };
         let woken = &self.woken;
-        let mut tiles: Vec<(TileKey, &mut Tile)> = self
+        let tiles: Vec<(TileKey, &mut Tile)> = self
             .tiles
             .iter_mut()
             .map(|(&tile, entry)| (tile, entry))
             .collect();
-        let steps: Vec<Vec<TileStep>> = pool.scope(|scope| {
-            for chunk in tiles.chunks_mut(pass.tiles_per_task.max(1)) {
+        let tasks: Vec<Vec<TileStep>> = pool.scope(|scope| {
+            for mut chunk in deal(tiles, pass.tiles_per_task) {
                 scope.spawn(async move {
                     let mut scratch = Scratch::new();
                     chunk
@@ -111,8 +112,10 @@ impl EntityRows {
                 });
             }
         });
+        let mut steps: Vec<TileStep> = tasks.into_iter().flatten().collect();
+        steps.sort_unstable_by_key(|step| step.tile);
         let mut expired = Vec::new();
-        for step in steps.into_iter().flatten() {
+        for step in steps {
             if let Some(reach) = step.reach {
                 self.written.insert(step.tile);
                 self.reach = self.reach.max(reach);

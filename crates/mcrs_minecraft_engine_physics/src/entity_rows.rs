@@ -1,3 +1,4 @@
+use std::cmp::Reverse;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::mem;
@@ -160,7 +161,7 @@ impl EntityRows {
     /// next pass.
     pub fn freeze(&mut self, pool: &TaskPool, grid: &mut BodyGrid) {
         let dirty = mem::take(&mut self.dirty);
-        let mut tiles: Vec<(TileKey, &mut Tile)> = self
+        let tiles: Vec<(TileKey, &mut Tile)> = self
             .tiles
             .iter_mut()
             .filter(|(tile, _)| dirty.contains(tile))
@@ -168,7 +169,7 @@ impl EntityRows {
             .collect();
         let per_task = tiles_per_task(pool, tiles.len());
         let reaches: Vec<f32> = pool.scope(|scope| {
-            for chunk in tiles.chunks_mut(per_task) {
+            for chunk in deal(tiles, per_task) {
                 scope.spawn(async move {
                     let mut reach = 0.0_f32;
                     for (tile, entry) in chunk {
@@ -177,7 +178,7 @@ impl EntityRows {
                             .rows_mut()
                             .filter_map(|row| grid_row(row.state, row.motion, row.id))
                             .collect();
-                        reach = reach.max(entry.write(*tile, &bodies));
+                        reach = reach.max(entry.write(tile, &bodies));
                     }
                     reach
                 });
@@ -211,6 +212,24 @@ pub(crate) fn tiles_per_task(pool: &TaskPool, tiles: usize) -> usize {
     tiles
         .div_ceil(pool.thread_num().saturating_mul(4).max(1))
         .max(1)
+}
+
+/// Deals `tiles` into tasks of about `per_task` tiles: the tiles with the most rows go first, one
+/// to each task in turn, so the tasks carry about the same count of rows, and the task with the
+/// largest tiles starts first.
+pub(crate) fn deal<'a>(
+    mut tiles: Vec<(TileKey, &'a mut Tile)>,
+    per_task: usize,
+) -> Vec<Vec<(TileKey, &'a mut Tile)>> {
+    tiles.sort_by_key(|(_, entry)| Reverse(entry.rows.ids().len()));
+    let count = tiles.len().div_ceil(per_task.max(1)).max(1);
+    let mut tasks: Vec<Vec<(TileKey, &'a mut Tile)>> = (0..count).map(|_| Vec::new()).collect();
+    for (index, tile) in tiles.into_iter().enumerate() {
+        if let Some(task) = tasks.get_mut(index % count) {
+            task.push(tile);
+        }
+    }
+    tasks
 }
 
 /// True when a resting row of `tile` runs a full tick: something changed in the tile or in a tile

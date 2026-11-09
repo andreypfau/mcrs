@@ -1,3 +1,4 @@
+use std::cmp::Reverse;
 use std::collections::BTreeMap;
 use std::mem;
 use std::time::Instant;
@@ -118,12 +119,18 @@ impl MobAi {
             });
         }
         let per_task = tiles_per_task(pool, tasks.len());
-        let outs: Vec<Vec<TileOut>> = pool.scope(|scope| {
-            for chunk in tasks.chunks_mut(per_task) {
-                scope.spawn(async move { chunk.iter_mut().map(|task| task.run(hot)).collect() });
+        let dealt = deal(tasks, per_task, |task| task.rows.ids().len());
+        let outs: Vec<Vec<(usize, TileOut)>> = pool.scope(|scope| {
+            for chunk in dealt {
+                scope.spawn(async move {
+                    chunk
+                        .into_iter()
+                        .map(|(index, mut task)| (index, task.run(hot)))
+                        .collect()
+                });
             }
         });
-        drop(tasks);
+        let outs = in_order(outs);
         due.clear();
         let ran = Instant::now();
         self.publish(tick, outs, hot, rows);
@@ -196,16 +203,19 @@ impl MobAi {
             departed.append(hosts);
         }
         let per_task = tiles_per_task(pool, tasks.len());
-        let outs: Vec<Vec<LifeOut>> = pool.scope(|scope| {
-            for chunk in tasks.chunks_mut(per_task) {
-                scope.spawn(
-                    async move { chunk.iter_mut().map(|task| task.run(tick, mobs)).collect() },
-                );
+        let dealt = deal(tasks, per_task, |task| task.rows.ids().len());
+        let outs: Vec<Vec<(usize, LifeOut)>> = pool.scope(|scope| {
+            for chunk in dealt {
+                scope.spawn(async move {
+                    chunk
+                        .into_iter()
+                        .map(|(index, mut task)| (index, task.run(tick, mobs)))
+                        .collect()
+                });
             }
         });
-        drop(tasks);
         let mut arrivals = Vec::new();
-        for out in outs.into_iter().flatten() {
+        for out in in_order(outs) {
             arrivals.extend(out.arrivals);
             departed.extend(out.departed);
         }
@@ -269,7 +279,7 @@ impl MobAi {
     fn publish<V>(
         &mut self,
         tick: u64,
-        outs: Vec<Vec<TileOut>>,
+        outs: Vec<TileOut>,
         hot: &HotTick<'_, V>,
         rows: &mut EntityRows,
     ) {
@@ -283,7 +293,7 @@ impl MobAi {
             }
         }
         let mut applied: usize = 0;
-        for out in outs.into_iter().flatten() {
+        for out in outs {
             applied = applied.saturating_add(out.applied);
             self.replica
                 .publish_tile(tick, tile_id(out.tile), out.views);
@@ -308,6 +318,28 @@ fn tiles_per_task(pool: &TaskPool, tiles: usize) -> usize {
     tiles
         .div_ceil(pool.thread_num().saturating_mul(4).max(1))
         .max(1)
+}
+
+/// Deals `tasks` into groups of about `per_task`, each with its index: the heaviest tasks go
+/// first, one to each group in turn, so the groups carry about the same weight.
+fn deal<T>(tasks: Vec<T>, per_task: usize, weight: impl Fn(&T) -> usize) -> Vec<Vec<(usize, T)>> {
+    let count = tasks.len().div_ceil(per_task.max(1)).max(1);
+    let mut indexed: Vec<(usize, T)> = tasks.into_iter().enumerate().collect();
+    indexed.sort_by_key(|(_, task)| Reverse(weight(task)));
+    let mut groups: Vec<Vec<(usize, T)>> = (0..count).map(|_| Vec::new()).collect();
+    for (at, task) in indexed.into_iter().enumerate() {
+        if let Some(group) = groups.get_mut(at % count) {
+            group.push(task);
+        }
+    }
+    groups
+}
+
+/// The outputs of the groups of [`deal`] in the order of the tasks.
+fn in_order<T>(groups: Vec<Vec<(usize, T)>>) -> Vec<T> {
+    let mut outs: Vec<(usize, T)> = groups.into_iter().flatten().collect();
+    outs.sort_unstable_by_key(|(index, _)| *index);
+    outs.into_iter().map(|(_, out)| out).collect()
 }
 
 fn tile_id(tile: TileKey) -> TileId {
