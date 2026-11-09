@@ -50,10 +50,15 @@ impl Encode for VarLong {
 }
 
 impl Decode<'_> for VarLong {
+    /// Decodes a variable-length long integer, failing if it exceeds ten bytes or contains
+    /// out-of-range bits in the tenth byte.
     fn decode(r: &mut &[u8]) -> Result<Self> {
         let mut val = 0;
         for i in 0..Self::MAX_SIZE {
             let [byte] = take(r)?;
+            if i == Self::MAX_SIZE - 1 && (byte & 0b0111_1110 != 0) {
+                return Err(ErrorKind::VarIntTooLong.into());
+            }
             val |= (byte as i64 & 0b01111111) << (i * 7);
             if byte & 0b10000000 == 0 {
                 return Ok(VarLong(val));
@@ -92,6 +97,16 @@ mod tests {
     #[test]
     fn encode_decode() {
         check_encode_decode(10_000);
+    }
+
+    #[test]
+    fn varlong_rejects_out_of_range_bits_in_tenth_byte() {
+        let invalid = [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x7E];
+        let mut slice = &invalid[..];
+        assert!(matches!(
+            VarLong::decode(&mut slice),
+            Err(e) if matches!(e.kind(), ErrorKind::VarIntTooLong)
+        ));
     }
 
     mod exhaustive {
