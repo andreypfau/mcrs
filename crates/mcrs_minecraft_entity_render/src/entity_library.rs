@@ -8,7 +8,7 @@ use mcrs_minecraft_entity_animation::Rig;
 use mcrs_minecraft_entity_model::{
     BakedCube, BakedGeometry, BoneRecord, CuboidRecords, ModelRecord,
 };
-use mcrs_minecraft_render_controller::matches_bone;
+use mcrs_minecraft_render_controller::{LayerChoice, RenderControllers, matches_bone};
 
 use crate::impostor_frame::{ImpostorFrames, entity_point};
 use crate::pose_program::{PoseProgram, PoseProgramError};
@@ -27,8 +27,8 @@ pub struct DefinitionSource<'a> {
     /// The geometries in the order of the geometry map of the client entity; `None` for a
     /// short name with no baked geometry.
     pub geometries: &'a [Option<BakedGeometry>],
-    /// The bone patterns that a render controller of the definition can hide.
-    pub hideable: &'a [String],
+    /// The render controllers whose `part_visibility` patterns can hide bones.
+    pub controllers: &'a RenderControllers,
     /// The flip angle of the death tilt, in degrees.
     pub death_flip: f32,
 }
@@ -70,6 +70,9 @@ pub struct DefinitionTables {
     /// For each geometry short name, its global model, or `None` when it has no geometry.
     pub models: Vec<Option<u16>>,
     pub palette: Vec<String>,
+    /// For each layer of the render controllers, the palette entries below
+    /// [`HIDEABLE_ENTRIES`] that each `part_visibility` pattern matches, as a hidden mask.
+    pub part_masks: Vec<Vec<u16>>,
     /// The lanes of one mob in the expand pass: the cuboids of its largest layers.
     pub expand_lanes: u32,
     /// The bones of one mob with its largest layers.
@@ -91,22 +94,22 @@ impl DefinitionTables {
             .position(|entry| entry.eq_ignore_ascii_case(name))
     }
 
-    /// The hidden mask of the state record for the bones that the patterns hide.
+    /// The hidden mask of the state record for the bones that the patterns of `choice` hide.
+    /// A later pattern overrides an earlier one for the bones that both match.
     #[must_use]
-    pub fn hidden_mask(&self, part_visibility: &[(String, bool)]) -> u16 {
-        let mut mask = 0u16;
-        for (index, name) in self.palette.iter().enumerate().take(HIDEABLE_ENTRIES) {
-            let mut visible = true;
-            for (pattern, shown) in part_visibility {
-                if matches_bone(pattern, name) {
-                    visible = *shown;
-                }
-            }
-            if !visible {
-                mask |= 1 << index;
+    pub fn hidden_mask(&self, choice: &LayerChoice) -> u16 {
+        let Some(masks) = self.part_masks.get(choice.entry) else {
+            return 0;
+        };
+        let mut hidden = 0u16;
+        for (index, mask) in masks.iter().enumerate() {
+            if choice.shows_part(index) {
+                hidden &= !mask;
+            } else {
+                hidden |= mask;
             }
         }
-        mask
+        hidden
     }
 }
 
@@ -166,9 +169,7 @@ impl EntityLibrary {
         let mut palette: Vec<String> = Vec::new();
         for geometry in source.geometries.iter().flatten() {
             for bone in &geometry.bones {
-                let hideable = source
-                    .hideable
-                    .iter()
+                let hideable = part_patterns(source.controllers)
                     .any(|pattern| pattern != "*" && matches_bone(pattern, &bone.name));
                 if hideable
                     && !palette
@@ -266,6 +267,7 @@ impl EntityLibrary {
             identifier: rig.identifier.clone(),
             first_model,
             models,
+            part_masks: part_masks(source.controllers, &palette),
             palette,
             expand_lanes: largest(cuboid_counts),
             max_bones: largest(bone_counts),
@@ -449,4 +451,81 @@ fn has_cutout(image: &TextureImage, uvs: [glam::Vec2; 4]) -> bool {
         }
     }
     false
+}
+
+fn part_patterns(controllers: &RenderControllers) -> impl Iterator<Item = &str> {
+    controllers
+        .layers
+        .iter()
+        .flat_map(|layer| &layer.part_visibility)
+        .map(|(pattern, _)| pattern.as_str())
+}
+
+/// The hidden mask of the palette entries that each `part_visibility` pattern of each layer
+/// matches.
+fn part_masks(controllers: &RenderControllers, palette: &[String]) -> Vec<Vec<u16>> {
+    let pattern_mask = |pattern: &str| {
+        let mut mask = 0u16;
+        for (index, name) in palette.iter().enumerate().take(HIDEABLE_ENTRIES) {
+            if matches_bone(pattern, name) {
+                mask |= 1 << index;
+            }
+        }
+        mask
+    };
+    controllers
+        .layers
+        .iter()
+        .map(|layer| {
+            layer
+                .part_visibility
+                .iter()
+                .map(|(pattern, _)| pattern_mask(pattern))
+                .collect()
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use mcrs_minecraft_entity_animation::EntityQuery;
+    use mcrs_minecraft_render_controller::RenderQuery;
+    use mcrs_molang::{ScalarVm, Value};
+
+    use super::*;
+    use crate::entity_pack::EntityPack;
+
+    const ENTITY: &str = r#"{"minecraft:client_entity": {"description": {"identifier": "test:mob",
+        "geometry": {"default": "geometry.mob"}, "textures": {"default": "mob"},
+        "render_controllers": ["controller.render.mob"]}}}"#;
+    const GEOMETRY: &str = r#"{"format_version": "1.12.0", "minecraft:geometry": [{
+        "description": {"identifier": "geometry.mob", "texture_width": 16, "texture_height": 16},
+        "bones": [{"name": "body", "pivot": [0, 0, 0]}, {"name": "head", "parent": "body", "pivot": [0, 1, 0]}]}]}"#;
+    const CONTROLLERS: &str = r#"{"render_controllers": {"controller.render.mob": {
+        "geometry": "Geometry.default", "textures": ["Texture.default"],
+        "part_visibility": [{"head": false}, {"h*": "q.is_baby"}]}}}"#;
+
+    #[test]
+    fn a_later_part_visibility_pattern_overrides_an_earlier_one() {
+        let pack = EntityPack::load([
+            ("entity/mob.entity.json", ENTITY),
+            ("geometry/mob.json", GEOMETRY),
+            ("render_controllers/mob.json", CONTROLLERS),
+        ]);
+        assert!(pack.diagnostics.is_empty(), "{:?}", pack.diagnostics);
+        let library = EntityLibrary::build(&pack.sources(), &[], 1);
+        let (definition, entity) = pack.entity("test:mob").unwrap();
+        let tables = &library.definitions[definition];
+        let head = 1 << tables.palette_entry("head").unwrap();
+        let mut vm = ScalarVm::new();
+        for (baby, hidden) in [(false, head), (true, 0)] {
+            let choices = entity.controllers.evaluate(&mut vm, |query| {
+                Some(Value::Number(match query {
+                    RenderQuery::Entity(EntityQuery::IsBaby) if baby => 1.0,
+                    _ => 0.0,
+                }))
+            });
+            assert_eq!(tables.hidden_mask(&choices[0]), hidden, "baby {baby}");
+        }
+    }
 }

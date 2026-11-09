@@ -407,7 +407,7 @@ pub(crate) fn write_layers(
                 *target = [*model, texture];
             }
             state.layer_mask |= 1 << layer;
-            hidden |= tables.hidden_mask(&choice.part_visibility);
+            hidden |= tables.hidden_mask(choice);
         }
         state.flags = (state.flags & 0xffff & !STATE_BABY)
             | if data.baby { STATE_BABY } else { 0 }

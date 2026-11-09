@@ -6,7 +6,7 @@ use mcrs_molang::{
     VariableLayout, Variables, string_hash,
 };
 
-use crate::layer_choice::{LayerChoice, TextureChoice};
+use crate::layer_choice::{LayerChoice, MAX_PART_PATTERNS, TextureChoice};
 use crate::render_controller_file::RenderControllerLibrary;
 use crate::render_query::RenderQuery;
 
@@ -17,6 +17,7 @@ pub struct CompiledLayer {
     pub condition: Expression,
     pub geometry: Expression,
     pub texture: Expression,
+    /// At most [`MAX_PART_PATTERNS`] bone patterns in file order, each with its value.
     pub part_visibility: Vec<(String, Expression)>,
 }
 
@@ -86,9 +87,17 @@ impl RenderControllers {
             let (Some(condition), Some(texture)) = (condition, texture) else {
                 continue;
             };
+            if source.part_visibility.len() > MAX_PART_PATTERNS {
+                compiler.report(
+                    DiagnosticKind::Unsupported,
+                    &context,
+                    format!("only the first {MAX_PART_PATTERNS} `part_visibility` patterns apply"),
+                );
+            }
             let part_visibility = source
                 .part_visibility
                 .iter()
+                .take(MAX_PART_PATTERNS)
                 .filter_map(|(pattern, json)| {
                     let context = format!("{context}/part_visibility/{pattern}");
                     Some((pattern.clone(), compiler.try_compile(json, &context, None)?))
@@ -176,16 +185,17 @@ impl RenderControllers {
                 Value::String(hash) if hash != string_hash("") => TextureChoice::Identifier(hash),
                 _ => continue,
             };
-            let part_visibility = layer
-                .part_visibility
-                .iter()
-                .map(|(pattern, expression)| (pattern.clone(), run(expression).as_number() != 0.0))
-                .collect();
+            let mut shown_parts = 0u64;
+            for (bit, (_, expression)) in layer.part_visibility.iter().enumerate() {
+                if run(expression).as_number() != 0.0 {
+                    shown_parts |= 1 << bit;
+                }
+            }
             choices.push(LayerChoice {
                 entry,
                 geometry: geometry.id as usize,
                 texture,
-                part_visibility,
+                shown_parts,
             });
         }
         choices

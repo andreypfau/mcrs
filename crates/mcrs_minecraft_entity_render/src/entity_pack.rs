@@ -20,8 +20,6 @@ pub struct PackEntity {
     pub controllers: RenderControllers,
     /// The geometries in the order of the geometry map of the client entity.
     pub geometries: Vec<Option<BakedGeometry>>,
-    /// The bone patterns of the `part_visibility` of its render controllers.
-    pub hideable: Vec<String>,
 }
 
 /// The client entities of an entity pack with their animations, geometries and render
@@ -94,22 +92,11 @@ impl EntityPack {
                     found
                 })
                 .collect();
-            let hideable = compiled
-                .layers
-                .iter()
-                .flat_map(|layer| {
-                    layer
-                        .part_visibility
-                        .iter()
-                        .map(|(pattern, _)| pattern.clone())
-                })
-                .collect();
             pack.entities.push(PackEntity {
                 resources,
                 rig,
                 controllers: compiled,
                 geometries,
-                hideable,
             });
         }
         pack
@@ -132,7 +119,7 @@ impl EntityPack {
             .map(|entity| DefinitionSource {
                 rig: &entity.rig,
                 geometries: &entity.geometries,
-                hideable: &entity.hideable,
+                controllers: &entity.controllers,
                 death_flip: DEATH_FLIP,
             })
             .collect()

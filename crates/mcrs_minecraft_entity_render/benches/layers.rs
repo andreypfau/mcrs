@@ -59,7 +59,7 @@ fn bench_frog_layers(c: &mut Criterion) {
                     _ => None,
                 });
                 for choice in &choices {
-                    hidden ^= tables.hidden_mask(&choice.part_visibility);
+                    hidden ^= tables.hidden_mask(choice);
                 }
             }
             black_box(hidden);

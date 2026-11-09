@@ -259,7 +259,7 @@ fn place(case: &Case, pack: &EntityPack, library: &EntityLibrary) -> Placed {
         });
     let hidden = choices
         .first()
-        .map_or(0, |choice| tables.hidden_mask(&choice.part_visibility));
+        .map_or(0, |choice| tables.hidden_mask(choice));
     let baby = if case.baby { tables.baby_scale } else { 1.0 };
     Placed {
         state: StateRecord {
