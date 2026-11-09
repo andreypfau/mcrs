@@ -14,7 +14,7 @@ use mcrs_minecraft_physics::LastHit;
 pub struct MobColumn {
     pub kind: &'static EntityTypeData,
     /// The rules of the brain of the mob.
-    pub rules: BrainRules,
+    pub rules: &'static BrainRules,
     pub control: MobControl,
     /// The input of the last step before the travel: the body rotation of that step runs at the
     /// start of the next tick, since the pass has no step after the travel.
@@ -42,7 +42,7 @@ impl MobColumn {
     /// The column of a new mob of `kind` with a brain of `rules`; `None` when `kind` is not a mob
     /// type.
     #[must_use]
-    pub fn new(kind: &'static EntityTypeData, rules: BrainRules) -> Option<Self> {
+    pub fn new(kind: &'static EntityTypeData, rules: &'static BrainRules) -> Option<Self> {
         let mob = kind.mob()?;
         Some(Self {
             kind,

@@ -38,6 +38,12 @@ const STROLL_SPEED: f32 = 1.0;
 /// The range of the look at a player (GOAL-LKP-001).
 const LOOK_RANGE: f64 = 6.0;
 
+static PIG_RULES: BrainRules = BrainRules {
+    player_range: LOOK_RANGE,
+    idle_limit: STROLL_IDLE_LIMIT,
+    idle_reset_range: IDLE_RESET_RANGE,
+};
+
 /// The brain state of one pig.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct PigBrain {
@@ -107,12 +113,8 @@ impl PigBrain {
 }
 
 impl<W: GoalWorld + ?Sized> MobBrain<W> for PigBrain {
-    fn rules(&self) -> BrainRules {
-        BrainRules {
-            player_range: LOOK_RANGE,
-            idle_limit: STROLL_IDLE_LIMIT,
-            idle_reset_range: IDLE_RESET_RANGE,
-        }
+    fn rules(&self) -> &'static BrainRules {
+        &PIG_RULES
     }
 
     fn evaluate(&mut self, turn: &Turn<'_, W>, intents: &mut Intents) -> u64 {

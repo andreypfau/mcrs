@@ -13,7 +13,7 @@ pub enum VanillaBrain {
 }
 
 impl<W: GoalWorld + ?Sized> MobBrain<W> for VanillaBrain {
-    fn rules(&self) -> BrainRules {
+    fn rules(&self) -> &'static BrainRules {
         match self {
             Self::Pig(brain) => MobBrain::<W>::rules(brain),
         }
