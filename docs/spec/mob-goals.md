@@ -852,6 +852,28 @@ The draw of the chance of `0.999` is independent of the draws of the searches.
 decision. Its random gate, its idle time test and its search read the snapshot of the issue tick.
 The envelope is the allowed delay of AIT-DEC-003 for a random position.
 
+**GOAL-STR-004** (`source_suggested_black_box_confirmed`, semantic, confidence: high, fidelity:
+exact). The idle time of an animal of section 5 obeys these rules:
+
+- A new mob has the idle time 0. The save of a mob does not hold the idle time. Thus a mob that
+  loads from a save also has the idle time 0.
+- Each AI step adds 1 to the idle time before the goal selection of that step. Thus the stroll goal
+  is eligible in the AI steps 1 to 99 after the last reset.
+- A mob with `NoAI:1b` does no AI step, so its idle time does not change.
+- Only two events set the idle time to 0. The first is the despawn check of AIT-VAN-020, step 5,
+  when the nearest non-spectator player of the dimension is less than 32 blocks away. The second is
+  a hit after the tests of DMG-HIT-001 (DMG-HIT-002, step 1).
+
+These states do not change the idle time and do not stop its increase:
+
+- the flag `PersistenceRequired`, a custom name, a leash and a vehicle;
+- the age, the age lock and the love state;
+- a player in the game mode `spectator` at each distance, and a player in another dimension;
+- each game rule.
+
+A persistent mob only skips the removal steps 3 and 4 of AIT-VAN-020. Thus no key of the `summon`
+compound keeps the stroll eligible (`entity-tracking.md`, TRK-SUM-007). E-G13 shows this.
+
 ### 4.7 Look at a player
 
 **GOAL-LKP-001** (`source_suggested`, semantic, confidence: medium, fidelity: exact). The look goal
@@ -1223,6 +1245,44 @@ pig runs its full evaluations only in these cases:
 
 Each other full evaluation is quiet.
 
+**GOAL-WAKE-019** (`source_suggested_black_box_confirmed`, semantic, confidence: high, fidelity:
+distribution for the gates and the destinations, exact for each other part). Take adult pigs of
+`summon minecraft:pig <x> <y> <z> {}` on a dry superflat world. The only player of the dimension is
+in the game mode `spectator`. The pigs then move in two phases:
+
+1. AI steps 1 to 99: the stroll goal is eligible, with `p = 1/60` in each full evaluation
+   (GOAL-WAKE-012). The look around goal can start with `p = 0.02`. A stroll that starts in this phase
+   continues to the end of its path, also after AI step 99.
+2. After the last path ends: the position of each pig stays constant. Only the look around goal
+   starts. It turns the head, and the body follows the head (GOAL-LKR-001, GOAL-CTL-006).
+
+In both phases, no pig panics, is tempted, breeds, follows an adult or looks at a player. The
+spectator does not reset the idle time (GOAL-QRY-005). Thus wake event 5 never occurs, and no pig
+leaves phase 2. The compound `{}` skips the first spawn setup, so no pig is a baby (TRK-SUM-003).
+The key `PersistenceRequired:1b` does not change these phases (GOAL-STR-004).
+
+**GOAL-WAKE-020** (`source_suggested_black_box_confirmed`, semantic, confidence: high, fidelity:
+exact). A benchmark that needs strolls after AI step 99 must reset the idle time with a hit
+(GOAL-STR-004). The vanilla command with the fewest side effects is this command:
+
+```
+execute as @e[type=minecraft:pig] run damage @s 0 minecraft:drown
+```
+
+The interval of the runs must be at most 99 ticks. A hit of 0 points of `minecraft:drown` has
+these effects on each pig:
+
+- The idle time becomes 0. The hit is wake event 1.
+- The health does not change. The type is not in `panic_causes`, so the pig does not panic.
+- The type has the tags `no_impact` and `no_knockback`. Thus the hit marks no velocity and gives no
+  knockback.
+- A full hit sets the hurt time and the cooldown, and records the damage source. It sends the
+  damage event and plays the hurt sound (DMG-HIT-005).
+- Each run sends one success message (CMD-DMG-004). From the console, the message goes to the
+  server log.
+
+With an interval of 80 ticks, each pig stays in phase 1 of GOAL-WAKE-019. E-G13 shows this.
+
 ## 5. The animals
 
 **GOAL-ANI-001** (`source_suggested`, semantic, confidence: high, fidelity: exact). The goal list of
@@ -1513,6 +1573,7 @@ Start a vanilla server of the version in the table at the top. Use a flat world,
 | E-G10 | Record the head of a pig with no player near, for 2000 ticks. | Each look around lasts 22 to 40 ticks, at the height of the eye. | GOAL-LKR-001 |
 | E-G11 | Turn the head of a pig that stands with a look at a player, then let the look end. Record `rotate_head` and the body of the client view. | The body follows the head 10 to 20 ticks after the head stops. | GOAL-CTL-006 |
 | E-G12 | Set a pig on fire 3 blocks from water on stone. Record its path. | The pig walks into the nearest water block of GOAL-PNC-003. | GOAL-PNC-002, GOAL-PNC-003 |
+| E-G13 | With no player in the dimension, summon pigs 6 blocks apart with `PersistenceRequired:1b`, with `CustomName`, and with no key. Step 300 ticks and record the positions. Step 600 ticks and record them again. Then run the command of GOAL-WAKE-020 each 80 ticks, and record the positions. | No pig of a group moves in the 600 ticks. After the first run of the command, the pigs stroll again. | GOAL-STR-004, GOAL-WAKE-019, GOAL-WAKE-020 |
 
 ### 10.2 Tests for this server
 
@@ -1554,3 +1615,15 @@ the first AI step gave no path, and the next request came 5 evaluation units lat
 speed fell to 0.137 (a stroll with `m = 1.0` that replaced the path). From step 30 the speed rose to
 0.1666 again (the next request of the follow goal). The baby passed within 3 blocks of the adult at
 step 47 and walked on to step 59. It stopped at `(1.822, -60, 0.783)`, 1.35 blocks from the adult.
+
+### E-G13
+
+No player was in the dimension. Each group had 16 pigs on a grid with 6 blocks between pigs:
+`{PersistenceRequired:1b}`, `{CustomName:"a"}` and a compound with only a tag. In the first 300
+ticks, 31 of the 48 pigs moved more than 0.5 blocks. From tick 300 to tick 900, no pig of a group
+moved: each position stayed equal, bit for bit.
+
+A second run summoned 48 pigs with `{}` and stepped 300 ticks. Then the command of GOAL-WAKE-020
+ran each 80 ticks. In the next 400 ticks, 43 of the 48 pigs moved more than 0.5 blocks. In the
+320 ticks after that, all 48 pigs moved. Each pig stayed at `y = -60`. No run of the command
+failed.
