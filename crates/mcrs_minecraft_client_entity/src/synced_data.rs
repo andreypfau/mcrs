@@ -31,6 +31,17 @@ pub enum VariantId {
     Frog(Id<FrogVariant>),
 }
 
+impl VariantId {
+    /// The position of the entry in the synced registry of its variant type.
+    #[must_use]
+    pub fn number(self) -> u16 {
+        match self {
+            Self::Pig(id) => id.number(),
+            Self::Frog(id) => id.number(),
+        }
+    }
+}
+
 /// The entity data that the client keeps for an entity, and its scale attribute.
 #[derive(Component, Clone, Debug, PartialEq)]
 pub struct SyncedData {
