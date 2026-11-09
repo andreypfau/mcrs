@@ -51,6 +51,10 @@ impl OutboundBatch {
     }
 }
 
+/// The most deferred bytes in one batch. The writer's channel holds a few batches, and a column
+/// written later waits behind them, so deferred batches stay small.
+const DEFERRED_BATCH_BYTES: usize = 64 * 1024;
+
 /// What a connection has written and its writer has not taken yet.
 ///
 /// The server thread only serializes packets here; framing and compression wait for the
@@ -154,9 +158,7 @@ impl WriterQueue {
         }
         let mut batch = OutboundBatch::default();
         while let Some(part) = self.deferred.pop_front() {
-            if batch.bytes > 0
-                && batch.bytes.saturating_add(part.len()) > MAX_QUEUED_BYTES_PER_SOCKET
-            {
+            if batch.bytes > 0 && batch.bytes.saturating_add(part.len()) > DEFERRED_BATCH_BYTES {
                 self.deferred.push_front(part);
                 break;
             }
@@ -336,6 +338,20 @@ mod tests {
         assert_eq!(contents(&queue.pop().unwrap()), vec![ordered_record(-1)]);
         assert_eq!(contents(&queue.pop().unwrap()), vec![entities]);
         assert!(queue.pop().is_none());
+    }
+
+    #[test]
+    fn deferred_bytes_reach_the_writer_in_small_batches() {
+        let mut queue = WriterQueue::default();
+        let records = entity_records(0, 2000);
+        for _ in 0..64 {
+            queue.append_deferred(records.clone());
+        }
+        let first = queue.pop().unwrap();
+        assert!(
+            first.bytes() <= DEFERRED_BATCH_BYTES.max(records.len()),
+            "a column written next waits behind at most one small batch"
+        );
     }
 
     #[test]
