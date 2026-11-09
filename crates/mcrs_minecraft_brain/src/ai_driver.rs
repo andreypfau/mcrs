@@ -68,11 +68,6 @@ impl<B> AiDriver<B> {
         &self.stage
     }
 
-    #[must_use]
-    pub const fn config(&self) -> &StageConfig {
-        self.stage.config()
-    }
-
     /// The ticks in which a due decision was not ready.
     #[must_use]
     pub const fn waits(&self) -> u64 {

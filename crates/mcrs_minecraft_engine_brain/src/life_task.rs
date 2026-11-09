@@ -4,6 +4,7 @@ use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::TileRows;
+use rustc_hash::FxHashMap;
 
 use crate::host_mob::HostMob;
 use crate::row_hosts::row_hosts;
@@ -14,10 +15,12 @@ pub(crate) struct LifeTask<'a, B> {
     pub(crate) tile: TileKey,
     pub(crate) rows: &'a TileRows,
     pub(crate) mobs: Option<&'a mut Vec<HostMob>>,
+    /// The tile of each mob that the stage keeps.
+    pub(crate) index: &'a FxHashMap<EntityId, TileKey>,
     pub(crate) brain_for: fn(&'static EntityTypeData) -> Option<B>,
 }
 
-/// A row of a mob with AI that the stage does not keep in its tile, with the brain of a new mob.
+/// A row of a mob with AI that the stage does not keep in its tile.
 #[derive(Clone, Debug)]
 pub(crate) struct Arrival<B> {
     pub(crate) id: EntityId,
@@ -25,7 +28,8 @@ pub(crate) struct Arrival<B> {
     pub(crate) key: EntityKey,
     pub(crate) phase: u8,
     pub(crate) kind: &'static EntityTypeData,
-    pub(crate) brain: B,
+    /// The brain of a mob that the stage does not keep yet; `None` for a mob that changed tile.
+    pub(crate) brain: Option<B>,
 }
 
 pub(crate) struct LifeOut<B> {
@@ -64,16 +68,22 @@ impl<B> LifeTask<'_, B> {
             if mob.looks.no_ai {
                 continue;
             }
-            if let Some(brain) = (self.brain_for)(mob.kind) {
-                out.arrivals.push(Arrival {
-                    id: *id,
-                    tile: self.tile,
-                    key: state.key,
-                    phase: state.phase,
-                    kind: mob.kind,
-                    brain,
-                });
-            }
+            let brain = if self.index.contains_key(id) {
+                None
+            } else {
+                let Some(brain) = (self.brain_for)(mob.kind) else {
+                    continue;
+                };
+                Some(brain)
+            };
+            out.arrivals.push(Arrival {
+                id: *id,
+                tile: self.tile,
+                key: state.key,
+                phase: state.phase,
+                kind: mob.kind,
+                brain,
+            });
         }
         if let Some(held) = self.mobs.as_deref_mut() {
             held.retain(|host| {

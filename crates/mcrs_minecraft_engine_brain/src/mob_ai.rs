@@ -182,6 +182,7 @@ impl<B: Send + Sync + 'static> MobAi<B> {
                 mobs: held
                     .next_if(|(key, _)| **key == tile)
                     .map(|(_, hosts)| hosts),
+                index: &self.index,
                 brain_for,
             });
         }
@@ -217,6 +218,9 @@ impl<B: Send + Sync + 'static> MobAi<B> {
                     host
                 }
                 None => {
+                    let Some(brain) = arrival.brain else {
+                        continue;
+                    };
                     let key = arrival.key;
                     let Some(host) = HostMob::new(arrival.id, key, arrival.kind, tick) else {
                         continue;
@@ -226,7 +230,7 @@ impl<B: Send + Sync + 'static> MobAi<B> {
                         host.id,
                         key,
                         Cadence::new(tick, arrival.phase),
-                        arrival.brain,
+                        brain,
                     );
                     host
                 }
