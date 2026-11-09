@@ -39,6 +39,7 @@ mcrs_molang_wgsl.workspace = true
 wgpu = { version = "29", default-features = false, features = ["wgsl"] }
 
 [dev-dependencies]
+criterion = { version = "0.7", features = ["html_reports"] }
 mcrs_minecraft_fixtures.workspace = true
 futures-lite = "2"
 image = { version = "0.25", default-features = false, features = ["png"] }
@@ -47,3 +48,7 @@ nv-flip = "0.1.2"
 serde.workspace = true
 serde_json.workspace = true
 wgpu = { version = "29", features = ["metal", "wgsl"] }
+
+[[bench]]
+name = "layers"
+harness = false
