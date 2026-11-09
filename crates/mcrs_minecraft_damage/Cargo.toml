@@ -10,6 +10,5 @@ doctest = false
 [lints]
 workspace = true
 
-# std: mcrs_minecraft_physics needs it
 [dependencies]
 mcrs_minecraft_physics.workspace = true

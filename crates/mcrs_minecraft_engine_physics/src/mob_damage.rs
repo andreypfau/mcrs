@@ -7,8 +7,7 @@ use crate::mob_life::MobChanges;
 use crate::mob_life::Placed;
 use crate::mob_life::Signaled;
 
-/// Does `hit` on the mob row `at` in tick `tick` with [`mcrs_minecraft_damage::hurt`], and
-/// records what its viewers see. Gives `None` when `at` is not a living row.
+/// Hurts the mob row `at` and queues what its viewers see; `None` when `at` is not a living row.
 pub fn hurt_mob(
     rows: &mut EntityRows,
     changes: &mut MobChanges,

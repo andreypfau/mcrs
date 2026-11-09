@@ -1,5 +1,4 @@
 use mcrs_minecraft_physics::HitRecord;
-use mcrs_minecraft_physics::LastHit;
 use mcrs_minecraft_physics::Living;
 
 use crate::Hit;
@@ -18,7 +17,7 @@ pub fn hurt(living: &mut Living, record: &mut HitRecord, hit: Hit, tick: u64) ->
     if !living.is_alive() {
         return HitOutcome::Rejected;
     }
-    record.strikes = record.strikes.wrapping_add(1);
+    record.strike();
     let outcome = apply(living, hit.amount);
     if outcome == HitOutcome::Rejected {
         return outcome;
@@ -26,10 +25,7 @@ pub fn hurt(living: &mut Living, record: &mut HitRecord, hit: Hit, tick: u64) ->
     if living.health <= 0.0 {
         living.death_time = Some(0);
     }
-    record.last = Some(LastHit {
-        tick,
-        damage_type: hit.damage_type,
-    });
+    record.accept(tick, hit.damage_type);
     outcome
 }
 
@@ -112,9 +108,9 @@ mod tests {
             HitOutcome::Rejected,
             "the cooldown runs"
         );
-        assert_eq!(record.strikes, 2, "the rejected hit strikes the pig");
+        assert_eq!(record.strikes(), 2, "the rejected hit strikes the pig");
         assert_eq!(
-            record.last.map(|hit| hit.tick),
+            record.last().map(|hit| hit.tick),
             Some(10),
             "the damage record keeps the accepted hit"
         );
@@ -124,7 +120,7 @@ mod tests {
             hurt(&mut living, &mut record, drown, 40),
             HitOutcome::Rejected
         );
-        assert_eq!(record.strikes, 2, "a hit on a dying pig strikes nothing");
+        assert_eq!(record.strikes(), 2, "a hit on a dying pig strikes nothing");
     }
 
     #[test]

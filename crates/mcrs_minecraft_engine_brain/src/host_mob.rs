@@ -52,7 +52,7 @@ pub(crate) struct HostMob {
     idle_time: u32,
     last_hit: Option<LastHit>,
     /// The strike count of the mob at the last observe (GOAL-STR-004).
-    strikes: u32,
+    strikes: u16,
     damage: Option<DamageRecord>,
     panic: Panic,
     /// The tick in which the life cycle last found the mob.
@@ -149,8 +149,8 @@ impl HostMob {
         if let Some(turned) = self.turned {
             self.rotations = turned;
         }
-        let hit = state.hits.last;
-        let strikes = state.hits.strikes;
+        let hit = state.hits.last();
+        let strikes = state.hits.strikes();
         let hurt = hit.is_some() && hit != self.last_hit;
         self.last_hit = hit;
         let struck_now = strikes != self.strikes;
@@ -158,7 +158,7 @@ impl HostMob {
         if hurt && let Some(hit) = hit {
             self.damage = Some(DamageRecord {
                 tick: tick.saturating_sub(1),
-                cause: if hot.panic_causes.contains(hit.damage_type) {
+                cause: if hot.panic_causes.contains(u32::from(hit.damage_type)) {
                     DamageCause::Panic
                 } else {
                     DamageCause::Other
