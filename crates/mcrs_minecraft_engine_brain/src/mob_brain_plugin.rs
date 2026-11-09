@@ -20,8 +20,6 @@ use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
 use bevy_ecs::system::Single;
 use bevy_tasks::ComputeTaskPool;
-use mcrs_minecraft_block::block_keys::Block;
-use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_brain::AiDelay;
 use mcrs_minecraft_brain::OrderKey;
 use mcrs_minecraft_brain::PlayerFlags;
@@ -34,6 +32,7 @@ use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::world_seed::WorldSeed;
 use mcrs_minecraft_engine_physics::EntityRows;
 use mcrs_minecraft_engine_physics::Mobs;
+use mcrs_minecraft_engine_physics::PhysicsTables;
 use mcrs_minecraft_engine_world::entity::EntityUuid;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
@@ -48,7 +47,6 @@ use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::AiStats;
 use crate::BlockGoalWorld;
-use crate::CellTable;
 use crate::HotTick;
 use crate::MobAi;
 use crate::PanicCauses;
@@ -83,14 +81,6 @@ pub enum MobBrainSet {
     Stage,
 }
 
-/// The block cells and the damage types that the AI reads, from the block definitions and the
-/// tags of the world.
-#[derive(Resource, Debug)]
-pub struct GoalCells {
-    pub cells: CellTable,
-    pub panic_causes: PanicCauses,
-}
-
 /// The configuration of the stage until the first tick inserts [`MobAi`].
 #[derive(Resource, Clone, Copy, Debug)]
 struct StageSettings(MobBrainPlugin);
@@ -107,14 +97,13 @@ impl Plugin for MobBrainPlugin {
                 MobBrainSet::Stage.in_set(TickSet::Simulate),
             ),
         );
-        let ready = resource_exists::<GoalCells>.and_then(resource_exists::<MobAi>);
+        let ready = resource_exists::<PanicCauses>
+            .and_then(resource_exists::<PhysicsTables>)
+            .and_then(resource_exists::<MobAi>);
         app.add_systems(
             FixedUpdate,
             (
-                build_cells.run_if(
-                    resource_exists::<Blocks>
-                        .and_then(resource_exists_and_changed::<CurrentRegistries>),
-                ),
+                build_panic_causes.run_if(resource_exists_and_changed::<CurrentRegistries>),
                 start.run_if(not(resource_exists::<MobAi>)),
                 prepare.run_if(ready.clone()),
             )
@@ -128,11 +117,7 @@ impl Plugin for MobBrainPlugin {
     }
 }
 
-fn build_cells(mut commands: Commands, blocks: Res<Blocks>, registries: Res<CurrentRegistries>) {
-    let Some(tags) = registries.tags::<Block>() else {
-        tracing::error!("the registries declare no block tags; the mobs keep their cells");
-        return;
-    };
+fn build_panic_causes(mut commands: Commands, registries: Res<CurrentRegistries>) {
     let panic_causes = registries
         .tags::<DamageType>()
         .and_then(|tags| {
@@ -143,10 +128,7 @@ fn build_cells(mut commands: Commands, blocks: Res<Blocks>, registries: Res<Curr
             ))
         })
         .unwrap_or_default();
-    commands.insert_resource(GoalCells {
-        cells: CellTable::from_definitions(&blocks, &tags),
-        panic_causes,
-    });
+    commands.insert_resource(panic_causes);
 }
 
 fn start(mut commands: Commands, settings: Res<StageSettings>, seed: Option<Res<WorldSeed>>) {
@@ -169,7 +151,8 @@ fn start(mut commands: Commands, settings: Res<StageSettings>, seed: Option<Res<
 fn prepare(
     dimension: Single<Entity, With<Dimension>>,
     world: WorldView,
-    cells: Res<GoalCells>,
+    tables: Res<PhysicsTables>,
+    panic_causes: Res<PanicCauses>,
     mobs: Res<Mobs>,
     players: Query<(Entity, &EntityUuid, &Transform, Option<&PlayerGameMode>), With<Player>>,
     mut rows: ResMut<EntityRows>,
@@ -199,9 +182,9 @@ fn prepare(
     }));
     let hot = HotTick {
         blocks: &blocks,
-        cells: &cells.cells,
+        collision: tables.collision(),
         mobs: &mobs,
-        panic_causes: &cells.panic_causes,
+        panic_causes: &panic_causes,
         players: &table,
     };
     ai.prepare(&hot, &mut rows, ComputeTaskPool::get());
@@ -210,14 +193,14 @@ fn prepare(
 fn run_stage(
     dimension: Single<Entity, With<Dimension>>,
     world: WorldView,
-    cells: Res<GoalCells>,
+    tables: Res<PhysicsTables>,
     mut ai: ResMut<MobAi>,
     mut window: Local<AiWindow>,
 ) {
     let Some(blocks) = world.get(*dimension) else {
         return;
     };
-    let goal_world = BlockGoalWorld::new(&blocks, &cells.cells);
+    let goal_world = BlockGoalWorld::new(&blocks, tables.collision());
     ai.run_stage(ComputeTaskPool::get(), &goal_world);
     window.add(ai.stats());
     if ai.tick().is_multiple_of(LOG_PERIOD) {

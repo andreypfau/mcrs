@@ -37,7 +37,7 @@ pub(crate) struct TileOut {
 
 impl TileTask<'_> {
     pub(crate) fn run<V: BlockVolume>(&mut self, hot: &HotTick<'_, V>) -> TileOut {
-        let world = BlockGoalWorld::new(hot.blocks, hot.cells);
+        let world = BlockGoalWorld::new(hot.blocks, hot.collision);
         let mut out = TileOut {
             tile: self.tile,
             views: Vec::with_capacity(self.mobs.len()),

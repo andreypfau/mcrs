@@ -1,5 +1,7 @@
+use bevy_ecs::resource::Resource;
+
 /// The network ids of the damage types in the tag `panic_causes`, sorted.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Resource, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct PanicCauses(Vec<u32>);
 
 impl PanicCauses {

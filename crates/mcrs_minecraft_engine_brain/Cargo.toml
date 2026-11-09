@@ -18,7 +18,6 @@ bevy_ecs.workspace = true
 bevy_tasks.workspace = true
 glam.workspace = true
 mcrs_engine_muxer.workspace = true
-mcrs_minecraft_block.workspace = true
 mcrs_minecraft_brain.workspace = true
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_entity.workspace = true
@@ -30,7 +29,6 @@ mcrs_minecraft_item.workspace = true
 mcrs_minecraft_mob_control.workspace = true
 mcrs_minecraft_physics.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
-mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_volume.workspace = true
 mcrs_voxel.workspace = true
 rustc-hash.workspace = true

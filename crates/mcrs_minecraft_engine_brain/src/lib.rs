@@ -4,7 +4,6 @@
 
 mod ai_stats;
 mod block_goal_world;
-mod cell_table;
 mod host_mob;
 mod hot_tick;
 mod life_task;
@@ -13,19 +12,13 @@ mod mob_brain_plugin;
 mod order_key;
 mod panic_causes;
 mod row_hosts;
+mod sight_blocks;
 mod tile_task;
 
 pub use ai_stats::AiStats;
 pub use block_goal_world::BlockGoalWorld;
-pub use cell_table::CellBox;
-pub use cell_table::CellTable;
-pub use cell_table::Collision;
-pub use cell_table::StateCell;
-pub use cell_table::StateFlags;
 pub use hot_tick::HotTick;
-pub use mcrs_minecraft_physics::PathType;
 pub use mob_ai::MobAi;
-pub use mob_brain_plugin::GoalCells;
 pub use mob_brain_plugin::MobBrainPlugin;
 pub use mob_brain_plugin::MobBrainSet;
 pub use order_key::order_key;

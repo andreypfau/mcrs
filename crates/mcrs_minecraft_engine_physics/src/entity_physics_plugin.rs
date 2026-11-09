@@ -37,6 +37,7 @@ use mcrs_minecraft_game_rule::GameRule;
 use mcrs_minecraft_item::ItemStack;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::BodyGrid;
+use mcrs_minecraft_physics::CollisionTable;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_physics::PushRules;
@@ -66,7 +67,15 @@ pub struct EntityPhysicsPlugin;
 
 /// The tables of the kernel, from the block definitions and tags of the world.
 #[derive(Resource, Debug)]
-pub(crate) struct PhysicsTables(pub(crate) Tables);
+pub struct PhysicsTables(pub(crate) Tables);
+
+impl PhysicsTables {
+    /// The block shapes, flags and path types that the entity pass and the mob AI read.
+    #[must_use]
+    pub fn collision(&self) -> &CollisionTable {
+        &self.0.collision
+    }
+}
 
 /// The body grid of the world.
 #[derive(Resource, Debug, Default)]

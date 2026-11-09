@@ -24,6 +24,7 @@ mod tile_world;
 
 pub use entity_physics_plugin::EntityPhysicsPlugin;
 pub use entity_physics_plugin::ItemStacks;
+pub use entity_physics_plugin::PhysicsTables;
 pub use entity_rows::EntityRows;
 pub use entity_write::EntityWrites;
 pub use mob_damage::hurt_mob;

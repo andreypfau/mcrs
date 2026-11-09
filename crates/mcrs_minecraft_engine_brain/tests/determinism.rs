@@ -18,14 +18,9 @@ use mcrs_minecraft_brain::StageConfig;
 use mcrs_minecraft_brain::WorldSeed;
 use mcrs_minecraft_damage::Hit;
 use mcrs_minecraft_engine_brain::BlockGoalWorld;
-use mcrs_minecraft_engine_brain::CellTable;
-use mcrs_minecraft_engine_brain::Collision;
 use mcrs_minecraft_engine_brain::HotTick;
 use mcrs_minecraft_engine_brain::MobAi;
 use mcrs_minecraft_engine_brain::PanicCauses;
-use mcrs_minecraft_engine_brain::PathType;
-use mcrs_minecraft_engine_brain::StateCell;
-use mcrs_minecraft_engine_brain::StateFlags;
 use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::FLOOR;
 use mcrs_minecraft_engine_physics::Mob;
@@ -39,7 +34,6 @@ use mcrs_minecraft_engine_physics::mob_row;
 use mcrs_minecraft_engine_physics::tile_at;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity_key::EntityKey;
-use mcrs_minecraft_physics::TestBlocks;
 use mcrs_minecraft_replication::MobLooks;
 
 const PIGS: u32 = 2000;
@@ -51,7 +45,6 @@ struct Run {
     scene: TestScene,
     mobs: Mobs,
     ai: MobAi,
-    cells: CellTable,
     causes: PanicCauses,
     players: Vec<PlayerRow>,
     pool: TaskPool,
@@ -93,15 +86,6 @@ impl Run {
                 },
             );
         }
-        let blocks = TestBlocks::new();
-        let mut states = vec![StateCell::AIR; blocks.stone.index() + 1];
-        if let Some(stone) = states.get_mut(blocks.stone.index()) {
-            *stone = StateCell {
-                flags: StateFlags::SOLID_RENDER.union(StateFlags::LEGACY_SOLID),
-                path: PathType::Blocked,
-                collision: Collision::FullCube,
-            };
-        }
         let players = vec![PlayerRow {
             player: PlayerId(1),
             key: OrderKey::new(u128::MAX),
@@ -115,7 +99,6 @@ impl Run {
             scene,
             mobs,
             ai: MobAi::new(StageConfig::new(WorldSeed(42))),
-            cells: CellTable::new(states, Vec::new()),
             causes: PanicCauses::new([CACTUS]),
             players,
             pool: TaskPoolBuilder::new().num_threads(threads).build(),
@@ -149,13 +132,13 @@ impl Run {
         }
         let hot = HotTick {
             blocks: &self.scene.blocks,
-            cells: &self.cells,
+            collision: &self.scene.tables.collision,
             mobs: &self.mobs,
             panic_causes: &self.causes,
             players: &self.players,
         };
         self.ai.prepare(&hot, &mut self.scene.rows, &self.pool);
-        let world = BlockGoalWorld::new(&self.scene.blocks, &self.cells);
+        let world = BlockGoalWorld::new(&self.scene.blocks, &self.scene.tables.collision);
         self.ai.run_stage(&self.pool, &world);
         let tiles = self.scene.rows.tiles_mut().count();
         let per_task = tiles.div_ceil(self.pool.thread_num() * 4).max(1);
