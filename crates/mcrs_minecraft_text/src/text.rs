@@ -248,12 +248,141 @@ impl<I: TextTypes> Text<I> {
 
             *mods = mods.add(&new_mods);
 
-            if let TextContent::Text { text, .. } = &this.0.content {
-                result.push_str(text);
+            match &this.0.content {
+                TextContent::Text { text, .. } => {
+                    result.push_str(text);
+                }
+                TextContent::Translate {
+                    translate,
+                    fallback,
+                    with,
+                } => {
+                    let template = fallback.as_deref().unwrap_or(translate);
+                    format_translate(template, with, result, mods);
+                }
+                TextContent::Keybind { keybind } => {
+                    result.push_str(keybind);
+                }
+                TextContent::ScoreboardValue { score } => {
+                    result.push_str(&score.name);
+                }
+                TextContent::EntityNames { selector, .. } => {
+                    result.push_str(selector);
+                }
+                TextContent::Nbt { nbt, .. } => {
+                    result.push_str(nbt);
+                }
+                TextContent::Object { fallback, .. } => {
+                    if let Some(fallback) = fallback {
+                        to_legacy_inner(fallback, result, mods);
+                    }
+                }
             }
 
             for child in &this.0.extra {
                 to_legacy_inner(child, result, mods);
+            }
+        }
+
+        fn render_arg<I: TextTypes>(
+            arg: &TranslateArg<I>,
+            result: &mut String,
+            mods: &mut Modifiers,
+        ) {
+            match arg {
+                TranslateArg::Text(text) => to_legacy_inner(text, result, mods),
+                TranslateArg::Bool(b) => result.push_str(if *b { "true" } else { "false" }),
+                TranslateArg::Number(tag) => match tag {
+                    mcrs_minecraft_nbt::tag::NbtTag::Byte(v) => result.push_str(&v.to_string()),
+                    mcrs_minecraft_nbt::tag::NbtTag::Short(v) => result.push_str(&v.to_string()),
+                    mcrs_minecraft_nbt::tag::NbtTag::Int(v) => result.push_str(&v.to_string()),
+                    mcrs_minecraft_nbt::tag::NbtTag::Long(v) => result.push_str(&v.to_string()),
+                    mcrs_minecraft_nbt::tag::NbtTag::Float(v) => result.push_str(&v.to_string()),
+                    mcrs_minecraft_nbt::tag::NbtTag::Double(v) => result.push_str(&v.to_string()),
+                    _ => result.push_str(&format!("{tag:?}")),
+                },
+            }
+        }
+
+        fn format_translate<I: TextTypes>(
+            template: &str,
+            with: &[TranslateArg<I>],
+            result: &mut String,
+            mods: &mut Modifiers,
+        ) {
+            if with.is_empty() {
+                result.push_str(template);
+                return;
+            }
+
+            if !template.contains('%') {
+                result.push_str(template);
+                for (i, arg) in with.iter().enumerate() {
+                    if i == 0 {
+                        result.push_str(": ");
+                    } else {
+                        result.push_str(", ");
+                    }
+                    render_arg(arg, result, mods);
+                }
+                return;
+            }
+
+            let mut chars = template.chars().peekable();
+            let mut auto_idx = 0;
+            while let Some(c) = chars.next() {
+                if c != '%' {
+                    result.push(c);
+                    continue;
+                }
+
+                match chars.peek() {
+                    Some('%') => {
+                        chars.next();
+                        result.push('%');
+                    }
+                    Some('0'..='9') => {
+                        let mut num_chars = Vec::new();
+                        let mut is_positional = false;
+                        while let Some(&d) = chars.peek() {
+                            if d.is_ascii_digit() {
+                                num_chars.push(d);
+                                chars.next();
+                            } else if d == '$' {
+                                chars.next();
+                                is_positional = true;
+                                break;
+                            } else {
+                                break;
+                            }
+                        }
+                        if is_positional {
+                            let num_str: String = num_chars.into_iter().collect();
+                            if let Ok(idx) = num_str.parse::<usize>() {
+                                if let Some(_spec) = chars.next() {
+                                    if idx >= 1 && idx <= with.len() {
+                                        render_arg(&with[idx - 1], result, mods);
+                                    }
+                                }
+                            }
+                        } else {
+                            result.push('%');
+                            for ch in num_chars {
+                                result.push(ch);
+                            }
+                        }
+                    }
+                    Some('s') | Some('d') | Some('f') => {
+                        chars.next();
+                        if auto_idx < with.len() {
+                            render_arg(&with[auto_idx], result, mods);
+                            auto_idx += 1;
+                        }
+                    }
+                    _ => {
+                        result.push('%');
+                    }
+                }
             }
         }
 
@@ -413,5 +542,91 @@ impl<'de, I: TextSerde> Deserialize<'de> for Text<I> {
         }
 
         deserializer.deserialize_any(TextVisitor(PhantomData))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Color;
+
+    #[test]
+    fn to_legacy_lossy_plain_text() {
+        let text: Text = Text::text("Hello world");
+        assert_eq!(text.to_legacy_lossy(), "Hello world");
+    }
+
+    #[test]
+    fn to_legacy_lossy_translate_without_args() {
+        let text: Text = Text::translate("multiplayer.disconnect.invalid_player_movement", Vec::new());
+        assert_eq!(
+            text.to_legacy_lossy(),
+            "multiplayer.disconnect.invalid_player_movement"
+        );
+    }
+
+    #[test]
+    fn to_legacy_lossy_translate_with_fallback_and_placeholders() {
+        let text: Text = Text(Box::new(TextInner {
+            content: TextContent::Translate {
+                translate: "chat.type.text".into(),
+                fallback: Some("<%s> %s".into()),
+                with: vec![
+                    TranslateArg::Text(Text::text("Steve")),
+                    TranslateArg::Text(Text::text("Hello!")),
+                ],
+            },
+            ..Default::default()
+        }));
+        assert_eq!(text.to_legacy_lossy(), "<Steve> Hello!");
+    }
+
+    #[test]
+    fn to_legacy_lossy_translate_with_positional_placeholders() {
+        let text: Text = Text(Box::new(TextInner {
+            content: TextContent::Translate {
+                translate: "custom.ordered".into(),
+                fallback: Some("%2$s before %1$s".into()),
+                with: vec![
+                    TranslateArg::Text(Text::text("first")),
+                    TranslateArg::Text(Text::text("second")),
+                ],
+            },
+            ..Default::default()
+        }));
+        assert_eq!(text.to_legacy_lossy(), "second before first");
+    }
+
+    #[test]
+    fn to_legacy_lossy_translate_with_args_no_specifiers() {
+        let text: Text = Text::translate_args(
+            "multiplayer.disconnect.banned.reason",
+            vec![TranslateArg::Text(Text::text("Griefing"))],
+        );
+        assert_eq!(
+            text.to_legacy_lossy(),
+            "multiplayer.disconnect.banned.reason: Griefing"
+        );
+    }
+
+    #[test]
+    fn to_legacy_lossy_keybind() {
+        let text: Text = Text::keybind("key.jump");
+        assert_eq!(text.to_legacy_lossy(), "key.jump");
+    }
+
+    #[test]
+    fn to_legacy_lossy_formatted_args() {
+        let mut child: Text = Text::text("Player").color(Color::RED);
+        child.0.style.bold = Some(true);
+        let text: Text = Text(Box::new(TextInner {
+            content: TextContent::Translate {
+                translate: "multiplayer.player.joined".into(),
+                fallback: Some("%s joined the game".into()),
+                with: vec![TranslateArg::Text(child)],
+            },
+            ..Default::default()
+        }));
+        assert_eq!(text.to_legacy_lossy(), "§c§lPlayer joined the game");
     }
 }
