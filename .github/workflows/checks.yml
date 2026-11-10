@@ -5,6 +5,7 @@ on:
     branches: [main]
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -18,8 +19,38 @@ env:
   CARGO_INCREMENTAL: 0
   CARGO_PROFILE_DEV_DEBUG: 0
 
+# A pull request from this repository runs on the self-hosted runner, whose build directory is
+# always warm. A pull request from a fork never runs there: it runs on hosted runners from the
+# build caches that each push to main saves. A push to main runs both.
 jobs:
+  # The same rule as the change scope of xtask: docs/, root Markdown and licences build nothing.
+  changes:
+    runs-on: ubuntu-24.04
+    permissions:
+      pull-requests: read
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.files.outputs.code }}
+    steps:
+      - name: decide whether the change touches anything but documentation
+        id: files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          code=true
+          if [ -n "${PR}" ]; then
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR}/files" \
+              --jq '.[] | .filename, (.previous_filename // empty)' > "${RUNNER_TEMP}/files"
+            if [ -s "${RUNNER_TEMP}/files" ] && ! grep -qvE '^docs/|^[^/]+\.md$|^LICENSE-[^/]*$' "${RUNNER_TEMP}/files"; then
+              code=false
+            fi
+          fi
+          echo "code=${code}" >> "${GITHUB_OUTPUT}"
+
   lint:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -30,21 +61,55 @@ jobs:
           fetch-depth: 0
           filter: blob:none
 
-      - name: install the pinned toolchain
-        run: rustup toolchain install --profile minimal
-
-      - name: restore the build cache
-        if: runner.environment == 'github-hosted'
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          cache-on-failure: true
+      - uses: ./.github/actions/rust
 
       - name: run the checks
         run: scripts/hooks/run-checks lint
 
+  self-hosted:
+    needs: changes
+    if: needs.changes.outputs.code == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: [self-hosted, mcrs]
+    timeout-minutes: 45
+    steps:
+      - name: check out the commit under test with its history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          filter: blob:none
+
+      - uses: ./.github/actions/rust
+        with:
+          test-tools: true
+
+      # The three triggers only read the worktree, and one build directory serves them all.
+      - name: run clippy, the tests and the portability builds at once
+        run: |
+          cargo build --locked --quiet -p xtask --target-dir "${CARGO_TARGET_DIR:-target}/xtask"
+          for trigger in clippy test portability; do
+            "${CARGO_TARGET_DIR:-target}/xtask/debug/xtask" "${trigger}" > "${RUNNER_TEMP}/${trigger}.log" 2>&1 &
+            echo "$!" > "${RUNNER_TEMP}/${trigger}.pid"
+          done
+          failed=
+          for trigger in clippy test portability; do
+            if wait "$(cat "${RUNNER_TEMP}/${trigger}.pid")"; then
+              echo "::group::${trigger}: passed"
+              cat "${RUNNER_TEMP}/${trigger}.log"
+              echo "::endgroup::"
+            else
+              echo "::error::${trigger} failed"
+              cat "${RUNNER_TEMP}/${trigger}.log"
+              failed=1
+            fi
+          done
+          test -z "${failed}"
+
   clippy:
+    needs: changes
+    if: needs.changes.outputs.code == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository)
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - name: check out the commit under test
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -52,21 +117,16 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           filter: blob:none
 
-      - name: install the pinned toolchain
-        run: rustup toolchain install --profile minimal
-
-      - name: restore the build cache
-        if: runner.environment == 'github-hosted'
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          cache-on-failure: true
+      - uses: ./.github/actions/rust
 
       - name: run clippy
         run: scripts/hooks/run-checks clippy
 
   test:
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted", "mcrs"]') || 'ubuntu-24.04' }}
-    timeout-minutes: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 90 || 45 }}
+    needs: changes
+    if: needs.changes.outputs.code == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
     steps:
       - name: check out the commit under test with its history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -75,39 +135,13 @@ jobs:
           fetch-depth: 0
           filter: blob:none
 
-      - name: install the pinned toolchain
-        run: rustup toolchain install --profile minimal
-
-      - name: restore the build cache
-        if: runner.environment == 'github-hosted'
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: ./.github/actions/rust
         with:
-          cache-on-failure: true
+          test-tools: true
 
-      - name: read the test runner version
-        id: nextest
-        run: echo "version=$(sed -n 's/^nextest-version = "\(.*\)"/\1/p' .config/nextest.toml)" >> "$GITHUB_OUTPUT"
-
-      - name: install the test runner
-        uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
-        with:
-          tool: nextest@${{ steps.nextest.outputs.version }}
-
-      - name: locate the client jar
-        id: jar
-        run: echo "dir=$HOME/.minecraft/versions/$(jq -r .id crates/mcrs_minecraft_client_jar/src/release.json)" >> "$GITHUB_OUTPUT"
-
-      - name: restore the client jar
-        id: jar-cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ steps.jar.outputs.dir }}
-          key: client-jar-${{ hashFiles('crates/mcrs_minecraft_client_jar/src/release.json') }}
-
-      # The cold build needs more than the 16 GB of a hosted runner, and a runner that runs out
-      # of memory is shut down with no message of its own: add swap, and log memory each minute.
-      - name: add swap on a hosted runner
-        if: runner.environment == 'github-hosted'
+      # A runner that runs out of memory is shut down with no message of its own: add swap, and
+      # log memory each minute.
+      - name: add swap
         run: |
           sudo fallocate -l 16G /swapfile-ci
           sudo chmod 600 /swapfile-ci
@@ -117,21 +151,22 @@ jobs:
 
       - name: run the tests
         run: |
-          if [ "$RUNNER_ENVIRONMENT" = github-hosted ]; then
-            (while sleep 60; do free -m | awk 'NR > 1'; done) &
-          fi
+          (while sleep 60; do free -m | awk 'NR > 1'; done) &
           scripts/hooks/run-checks test
 
+      # Tests download the jar when the restore misses; a save of a key that exists is a no-op.
       - name: save the client jar
-        if: github.ref == 'refs/heads/main' && steps.jar-cache.outputs.cache-hit != 'true'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ${{ steps.jar.outputs.dir }}
-          key: client-jar-${{ hashFiles('crates/mcrs_minecraft_client_jar/src/release.json') }}
+          path: ~/.minecraft/versions
+          key: client-jars-${{ hashFiles('crates/mcrs_minecraft_client_jar/src/release.json') }}
 
   portability:
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted", "mcrs"]') || 'ubuntu-24.04' }}
-    timeout-minutes: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && 90 || 45 }}
+    needs: changes
+    if: needs.changes.outputs.code == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
     steps:
       - name: check out the commit under test
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -139,27 +174,29 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           filter: blob:none
 
-      - name: install the pinned toolchain
-        run: rustup toolchain install --profile minimal
-
-      - name: restore the build cache
-        if: runner.environment == 'github-hosted'
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          cache-on-failure: true
+      - uses: ./.github/actions/rust
 
       - name: build without Bevy, for wasm32 and without std
         run: scripts/hooks/run-checks portability
 
   checks:
     name: checks
-    needs: [lint, clippy, test, portability]
+    needs: [changes, lint, self-hosted, clippy, test, portability]
     if: always()
     runs-on: ubuntu-24.04
     steps:
-      - name: fail unless every check job passed
+      - name: fail unless every check job that applies passed
         env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
+          CODE: ${{ needs.changes.outputs.code }}
+          OWN: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          FORK: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository }}
+          LINT: ${{ needs.lint.result }}
+          SELF_HOSTED: ${{ needs.self-hosted.result }}
+          HOSTED: ${{ needs.clippy.result }} ${{ needs.test.result }} ${{ needs.portability.result }}
         run: |
-          echo "${RESULTS}"
-          for result in ${RESULTS}; do test "${result}" = success; done
+          if [ "${CODE}" = false ]; then exit 0; fi
+          echo "lint ${LINT}; self-hosted ${SELF_HOSTED}; clippy, test, portability ${HOSTED}"
+          test "${CODE}" = true
+          test "${LINT}" = success
+          if [ "${OWN}" = true ]; then test "${SELF_HOSTED}" = success; fi
+          if [ "${FORK}" = true ]; then test "${HOSTED}" = "success success success"; fi
