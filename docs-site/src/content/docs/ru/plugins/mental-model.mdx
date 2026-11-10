@@ -27,14 +27,33 @@ for (Player p : world.getPlayers()) {
 В mcrs объекта игрока нет. Игрок - это `Entity`, а `Entity` - всего лишь id. Все, что сервер знает об игроке, лежит в компонентах, привязанных к этому id: в `GameProfile` хранятся имя и UUID, в `PlayerGameMode` - режим игры. С компонентами работает обычная функция, ее называют системой. Тот же цикл в виде системы выглядит так (это набросок, чтобы показать форму; в туториалах код взят из репозитория):
 
 ```rust
-fn log_creative_players(players: Query<(&GameProfile, &PlayerGameMode), With<Player>>) {
+// Система - обычная функция, Bevy вызывает ее сам и передает результат запроса.
+fn log_creative_players(
+    // Сущности с GameProfile и PlayerGameMode; With<Player> оставляет только игроков.
+    players: Query<(&GameProfile, &PlayerGameMode), With<Player>>,
+) {
+    // profile и mode - произвольные имена переменных, а не части GameProfile или PlayerGameMode.
     for (profile, mode) in &players {
+        // mode.0 - первое поле PlayerGameMode, примерно как PlayerGameMode[0].
         if mode.0 == GameMode::Creative {
             info!("{}", profile.username);
         }
     }
 }
 ```
+
+`Player` - пустая структура без полей (`pub struct Player;`), метка "эта сущность - игрок". `mode` - ссылка на отдельный компонент `PlayerGameMode`, который лежит на той же сущности. Для каждой сущности, где есть все три компонента, запрос отдает ссылки на `GameProfile` и `PlayerGameMode`. `Player` запрос только проверяет и в выдачу не кладет.
+
+```text
+Сущность #42
+  ├─ Player            (метка, данных нет)
+  ├─ GameProfile       { username, uuid, ... }
+  └─ PlayerGameMode    (GameMode::Creative)
+```
+
+`mode` - произвольное имя переменной, его придумал автор функции. Это не поле и не часть `PlayerGameMode`. Цикл раскладывает пару из запроса по порядку, как в `Query<(&GameProfile, &PlayerGameMode), ...>`: первый элемент получает имя `profile`, второй - `mode`. Если написать `for (p, gm) in &players`, в теле будут `p.username` и `gm.0`, и код будет работать так же.
+
+А `.0` уже не произвольное. `PlayerGameMode` объявлен как `PlayerGameMode(pub GameMode)`: у структуры одно поле без имени, и Rust обращается к нему по номеру. `mode.0` можно читать как `PlayerGameMode[0]`, то есть первое поле `PlayerGameMode`, в котором лежит `GameMode`. Скобки здесь только для наглядности, в Rust пишут `.0`.
 
 Проще всего представить базу данных. Сущность - строка, компонент - колонка, а система - запрос по всем строкам, где есть нужные ей колонки. `Query` из примера читается почти как `SELECT profile, mode FROM entities WHERE has(Player)`.
 
@@ -45,7 +64,8 @@ fn log_creative_players(players: Query<(&GameProfile, &PlayerGameMode), With<Pla
 | `class Player extends LivingEntity` | id `Entity` с компонентами `Player`, `GameProfile`, `PlayerGameMode` и другими |
 | Поле `player.gameMode` | Компонент `PlayerGameMode` на этой сущности |
 | Метод `player.fly()` | Система, которая читает и пишет `PlayerFlying` |
-| `for (Player p : world.getPlayers())` | `Query<(&GameProfile, &PlayerGameMode), With<Player>>` |
+| `for (Player p : world.getPlayers())` | `Query<Entity, With<Player>>`: id всех сущностей с меткой `Player` |
+| `p.getName()` и `p.getGameMode()` внутри цикла | Компоненты, перечисленные в запросе: `Query<(&GameProfile, &PlayerGameMode), With<Player>>` |
 | Ссылка на игрока в поле класса | id `Entity` в компоненте или ресурсе |
 | `Bukkit.getServer()` | Параметры системы: `Res<T>`, `Query<..>`, `Commands` |
 | Метод `Listener` | Наблюдатель (observer), функция вида `fn(e: On<Event>)`, или система |
