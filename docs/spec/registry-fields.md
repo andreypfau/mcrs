@@ -607,6 +607,10 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
   - The network form is the same as the file form.
   - The write writes `sound_event` as a key for a reference and as an object for an inline value.
   - `description` is a text component (REG-FLD-429).
+  - `length_in_seconds` is a float. It is larger than 0 and at most `3.4028235e38`. The values 0, NaN and infinity fail.
+  - `comparator_output` is an integer in the range 0 to 15.
+  - A value out of its range is an error of the entry.
+  - The binary form of an inline entry inside a packet does not check these ranges.
 - **Nested types:** sound event (REG-FLD-302), text component (REG-FLD-429).
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
@@ -630,6 +634,11 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
   - The network form is the same as the file form.
   - The write writes `sound_event` as a key for a reference and as an object for an inline value.
   - `description` is a text component (REG-FLD-429).
+  - `use_duration` is a float. It is 0 or more and at most `3.4028235e38`. The values `-0.0`, NaN and infinity fail.
+  - `range` is a float. It is larger than 0 and at most `3.4028235e38`. The values 0, NaN and infinity fail.
+  - `durability_damage` is an integer in the range 0 to 2147483647.
+  - A value out of its range is an error of the entry.
+  - The binary form of an inline entry inside a packet does not check these ranges.
 - **Nested types:** sound event (REG-FLD-302), text component (REG-FLD-429).
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
