@@ -38,6 +38,8 @@ fn the_engine_server_links_no_world_generation_anvil_or_light_crate() {
             "tree",
             "--offline",
             "--locked",
+            "--config",
+            "resolver.feature-unification=\"selected\"",
             "--package",
             env!("CARGO_PKG_NAME"),
             "--edges",

@@ -1,5 +1,5 @@
 {
-  "meta.title": "mc.rs — софт для Minecraft на Bevy ECS",
+  "meta.title": "mc.rs — сервер и клиент Minecraft на Rust и Bevy ECS",
   "meta.description": "Сервер Minecraft, клиент и крейты на Rust, из которых они собраны. Мир просчитывается на всех ядрах, а затем и на нескольких машинах.",
 
   "nav.aria": "Основная",
