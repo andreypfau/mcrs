@@ -129,6 +129,8 @@ If you change code that a page relies on, you update the page in the same PR. Th
 
 A workflow named `docs` runs on PRs that touch `docs-site/`, `crates/`, `docs/`, `tools/`, `PERF.md`, `README.md` or the version file. Its script `docs-site/scripts/check-sources.mjs` compares the changed files with the `sources` of every page and writes a warning for each page that your PR touches. The warning never fails the build. When you see one, open the page, check it, and update the text and the `verified` block, or write in the PR why no change is needed. Run it locally with `npm run check-sources` in `docs-site/`.
 
+The same workflow also runs every Monday at 06:00 UTC and on manual dispatch. That run executes `node docs-site/scripts/check-sources.mjs --stale` and writes a report to the job summary with three sections: English pages with commits to their `sources` since `verified.commit`, Russian pages that lag behind English, and `sources` paths that do not exist. A Russian page lags when English has a commit since `translated_from` that the Russian file does not have. A commit that edits both languages is not a lag, so you do not move `translated_from` after a joint edit. A commit missing from the history is listed as `unknown commit`. The report never fails the build. A `sources` path that does not exist fails `npm test`.
+
 The check reads file names, not meaning. It does not know that an issue changed. A state change of an issue after the `verified` date is not detected, so a monthly pass over [Status](/docs/en/start/status/) is the owner's job.
 
 ## English and Russian
@@ -203,5 +205,5 @@ The same rules as in code apply. Do not write names of classes, methods or field
 5. The page has no long dashes, no letter with two dots in Russian text, and no names from the game's code.
 
 <Aside type="caution" title="WIP">
-A report of Russian pages that lag behind English, and an automatic check of issue states, are not built. There is no issue for them yet. The only automation today is the `check-sources` warning.
+An automatic check of issue states is not built. There is no issue for it yet. The automation today is the `check-sources` warning and the weekly `--stale` report.
 </Aside>

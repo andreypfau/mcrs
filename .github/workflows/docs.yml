@@ -1,6 +1,9 @@
 name: docs
 
 on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
   pull_request:
     branches: [main]
     paths:
@@ -17,11 +20,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: docs-${{ github.event.pull_request.number }}
+  group: docs-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -47,3 +51,24 @@ jobs:
         run: node docs-site/scripts/check-sources.mjs
         env:
           CHECK_SOURCES_BASE: origin/${{ github.base_ref }}
+
+  stale:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: check out the full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: set up node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: docs-site/package-lock.json
+      - name: install the site dependencies
+        working-directory: docs-site
+        run: npm ci
+      - name: report stale pages and lagging translations
+        run: node docs-site/scripts/check-sources.mjs --stale >> "$GITHUB_STEP_SUMMARY"
