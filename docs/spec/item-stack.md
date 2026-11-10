@@ -1054,8 +1054,8 @@ A writer must write an id of the list. The item definitions show the names `add_
 See experiment E30.
 
 **STK-SHP-004** (`source_suggested_black_box_confirmed`, wire). A text is a text component of the
-game. Its saved form is a string, a map or a list. This repository has no specification of the
-text component yet (open question Q8). The rules of this section put no limit on the length of a
+game. Its saved form is a string, a map or a list. `text-component.md` states
+the text component, its canonical form, its equality and its hash. The rules of this section put no limit on the length of a
 text. The writer writes a plain text without style as one string. The wire form is one network
 NBT. Its reader gives a decode error for an NBT that is deeper than 512 levels. It also gives a
 decode error for an NBT that is larger than a quota of 2097152 bytes. The exact measure of the
@@ -1317,8 +1317,8 @@ For the owner:
   confirms them.
 - **Q7**: STK-TYP-003. The wire form of each `own` component type needs a specification. Which
   document owns each group of types? Section 8.1 states the first 15 types.
-- **Q8**: STK-SHP-004. The text component has no specification. Which document owns its saved
-  form, its canonical form and its equality?
+- **Q8**: answered. `text-component.md` owns the text component. Its sections 3, 6 and 7 state the
+  saved form with the canonical form, the equality and the hash.
 - **Q9**: STK-SHP-002. The four integer component types are signed 32-bit integers in the game.
   Does this project keep 32 bits, or use a smaller type with a deviation as D3?
 
@@ -1330,15 +1330,16 @@ Not decided by an experiment yet:
 - **U4**: STK-TPL-004. A negative count in the wire form of an item template. Experiment E21.
 - **U5**: STK-SAV-001. If the reader of `count` accepts a Byte tag or a Short tag in NBT.
   Experiment E9.
-- **U6**: STK-SHP-002. If the reader of an int field or a float field accepts a number of a
-  different tag kind, and how it converts the number. Experiment E29.
+- **U6**: answered for an int field. TXT-SAV-010 and TXT-JSN-004 of `text-component.md` state the
+  conversion, and their results show it for `count` and for `minecraft:max_stack_size`. The float
+  field is not decided. Experiment E29.
 - **U7**: STK-SHP-015. The result of a saved map with the keys `sharpness` and
   `minecraft:sharpness`, and of a wire form with one enchantment two times. Experiments E29 and
   E30.
 - **U8**: STK-SHP-009. If the reader accepts a map with keys for `minecraft:unbreakable`.
   Experiment E29.
-- **U9**: STK-SHP-004. If the string `"x"` and the map `{text:"x"}` decode to equal texts.
-  Experiment E32.
+- **U9**: answered. TXT-EQ-002 and TXT-EQ-007 of `text-component.md`: the two forms decode to equal
+  texts, with one saved form, one wire form and one hash.
 
 ## 11. Experiments
 
