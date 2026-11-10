@@ -81,7 +81,7 @@ import { Aside, Tabs, TabItem, Card, CardGrid, LinkCard } from '@astrojs/starlig
 | `<Status issue={78} />` | бейдж состояния со ссылкой. Состояние issue берется из `docs-site/src/data/issues.yml` (`works`, `partial`, `wip`, `undecided` или `declined`), поэтому `state` рядом с `issue` ломает сборку, как и issue, которой нет в реестре. Каждая issue и каждый PR на сайте идут через этот бейдж: без `#78` текстом и без состояния словами рядом. У PR состояние свое, потому что относится к одному утверждению: влитый PR - `<Status pr={636} state="works" />`. Есть еще `doc="docs/spec/login.md"` |
 | `<StatusRows areas="network,persistence" />` | строки из `docs-site/src/data/status.yml` для перечисленных id |
 | `<Example file="path" from="fn run" to="..." title="..." />` | фрагмент файла репозитория, вырезается на сборке по текстовым якорям. Якорь, которого нет в файле или который найден дважды, ломает сборку |
-| `<Demo src="/docs/demos/cows.html" title="..." height={900} />` | интерактивная страница в iframe |
+| `<Demo src="/docs/demos/cows.html" title="..." />` | интерактивная страница в iframe |
 | `Tabs` с `syncKey="jvm"` | Paper и mcrs рядом |
 
 Код из репозитория в MDX руками не вставляйте: берите `Example`, тогда он не устареет. Код, которого в репозитории нет (например, сниппет Paper), идет в обычный блок с меткой `java`.

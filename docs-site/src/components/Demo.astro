@@ -1,11 +1,11 @@
 ---
-interface Props { src: string; title: string; height?: number; footnote?: string }
-const { src, title, height = 600, footnote } = Astro.props;
+interface Props { src: string; title: string; footnote?: string }
+const { src, title, footnote } = Astro.props;
 const open = Astro.locals.t("mcrs.demo.open");
 ---
 <figure>
   <div><a href={src} target="_blank" rel="noopener">{open}</a></div>
-  <iframe src={src} title={title} height={height} style="width:100%;border:1px solid var(--sl-color-hairline)" loading="lazy"></iframe>
+  <iframe src={src} title={title} style="width:100%;height:80vh;height:80dvh;border:1px solid var(--sl-color-hairline)" loading="lazy"></iframe>
   <figcaption>
     {title} - <a href={src} target="_blank" rel="noopener">{open}</a>
     {footnote && <div>{footnote}</div>}

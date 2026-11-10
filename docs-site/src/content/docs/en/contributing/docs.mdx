@@ -93,7 +93,7 @@ import { Aside, Tabs, TabItem, Card, CardGrid, LinkCard } from '@astrojs/starlig
 | `<Status issue={78} />` | a state badge with a link. The state of an issue comes from `docs-site/src/data/issues.yml` (`works`, `partial`, `wip`, `undecided` or `declined`), so `state` next to `issue` fails the build, and so does an issue missing from the registry. Every issue and pull request on the site goes through this badge: no `#78` as text and no state in words next to it. A pull request carries its own state, because it belongs to one statement: a merged pull request is `<Status pr={636} state="works" />`. Also `doc="docs/spec/login.md"` |
 | `<StatusRows areas="network,persistence" />` | rows from `docs-site/src/data/status.yml` for the listed IDs |
 | `<Example file="path" from="fn run" to="..." title="..." />` | a fragment of a repository file, cut at build time by text anchors. An anchor that is missing or found twice breaks the build |
-| `<Demo src="/docs/demos/cows.html" title="..." height={900} />` | an interactive page in an iframe |
+| `<Demo src="/docs/demos/cows.html" title="..." />` | an interactive page in an iframe |
 | `Tabs` with `syncKey="jvm"` | Paper and mcrs side by side |
 
 Never paste repository code into MDX by hand: use `Example`, so it cannot rot. Code that is not in the repository, such as a Paper snippet, goes in an ordinary fenced block marked `java`.
