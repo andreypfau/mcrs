@@ -1,0 +1,22 @@
+[package]
+name = "mcrs_minecraft_engine_item"
+description = "Item stacks as entities: spawn, read and write their components"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_item_table = { workspace = true, features = ["bevy"] }
+rustc-hash.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_text.workspace = true
+mcrs_test_alloc.workspace = true
