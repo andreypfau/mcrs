@@ -155,11 +155,18 @@ impl ServerProcess {
             Stop::Console => {
                 let _ = self.send("stop");
             }
+            #[cfg(unix)]
             Stop::Interrupt => {
                 let _ = Command::new("kill")
                     .arg("-INT")
                     .arg(self.pid().to_string())
                     .status();
+            }
+            // chisle: Windows has no SIGINT for a child, so the server is killed at once and
+            // saves nothing; a console `stop` command in mcrs lifts this.
+            #[cfg(not(unix))]
+            Stop::Interrupt => {
+                let _ = self.child.kill();
             }
         }
         let deadline = Instant::now() + grace;
