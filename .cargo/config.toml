@@ -42,6 +42,14 @@ embed-metadata = false
 fine-grain-locking = true
 checksum-freshness = true
 mtime-on-use = true
+feature-unification = true
+
+# Each `-p` selection otherwise resolves its own feature set, and every set
+# rebuilds Bevy and the members under new hashes into the same build directory.
+# A check that needs one package's own features passes
+# `--config resolver.feature-unification="selected"`.
+[resolver]
+feature-unification = "workspace"
 
 [alias]
 xtask = "run --quiet --locked -p xtask --target-dir target/xtask --"

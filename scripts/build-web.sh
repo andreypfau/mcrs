@@ -9,6 +9,7 @@ profile=${PROFILE:-web}
 work=$root/target/bundle/bindgen
 
 cargo build --manifest-path "$root/Cargo.toml" \
+    --config 'resolver.feature-unification="selected"' \
     -p mcrs_minecraft_client --bin mcrs_minecraft_client \
     --target wasm32-unknown-unknown --profile "$profile"
 
