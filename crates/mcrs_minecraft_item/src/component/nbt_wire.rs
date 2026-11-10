@@ -10,9 +10,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::component::common::compound_or_snbt;
 use crate::harness::Sample;
-use crate::map_decoration_type_keys::MapDecorationType;
 use crate::recipe::Recipe;
 use mcrs_minecraft_loot::loot::LootTable;
+use mcrs_minecraft_map_decoration::map_decoration_type_keys::MapDecorationType;
 use mcrs_minecraft_wire::{Decode, Encode, Result};
 use std::io::Write;
 
@@ -117,7 +117,7 @@ impl Sample for MapDecorations {
                 "m1".to_string(),
                 MapDecoration {
                     kind: ResourceKeyBuf::from_location(
-                        crate::map_decoration_type_keys::MapDecorationType::Player
+                        mcrs_minecraft_map_decoration::map_decoration_type_keys::MapDecorationType::Player
                             .location()
                             .to_buf(),
                     ),

@@ -454,7 +454,7 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:map_decoration_type",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_map_decoration",
         value: ValueType::Enum("MapDecorationType"),
     },
     Owner {

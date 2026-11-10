@@ -26,6 +26,7 @@ mcrs_minecraft_item.workspace = true
 mcrs_minecraft_item_key.workspace = true
 mcrs_minecraft_keys.workspace = true
 mcrs_minecraft_loot.workspace = true
+mcrs_minecraft_map_decoration.workspace = true
 mcrs_minecraft_menu.workspace = true
 mcrs_minecraft_particle.workspace = true
 mcrs_minecraft_potion.workspace = true

@@ -142,6 +142,7 @@ mcrs_minecraft_console = { path = "crates/mcrs_minecraft_console" }
 mcrs_minecraft_loot = { path = "crates/mcrs_minecraft_loot" }
 mcrs_minecraft_item_key = { path = "crates/mcrs_minecraft_item_key" }
 mcrs_minecraft_potion = { path = "crates/mcrs_minecraft_potion" }
+mcrs_minecraft_map_decoration = { path = "crates/mcrs_minecraft_map_decoration" }
 mcrs_minecraft_menu = { path = "crates/mcrs_minecraft_menu" }
 mcrs_minecraft_instrument = { path = "crates/mcrs_minecraft_instrument" }
 mcrs_minecraft_jukebox_song = { path = "crates/mcrs_minecraft_jukebox_song" }

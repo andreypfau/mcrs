@@ -86,12 +86,6 @@ impl Registered for crate::JukeboxSong {
     const REGISTRY: RegistryKey<Self> = JUKEBOX_SONG;
 }
 
-pub const MAP_DECORATION_TYPE: RegistryKey<crate::map_decoration_type_keys::MapDecorationType> =
-    RegistryKey::new(rl!("minecraft:map_decoration_type"));
-impl Registered for crate::map_decoration_type_keys::MapDecorationType {
-    const REGISTRY: RegistryKey<Self> = MAP_DECORATION_TYPE;
-}
-
 pub const PAINTING_VARIANT: RegistryKey<crate::PaintingVariantValue> =
     RegistryKey::new(rl!("minecraft:painting_variant"));
 impl Registered for crate::PaintingVariantValue {
