@@ -96,7 +96,7 @@ fn a_nan_keeps_its_stored_bits() {
     assert_eq!(saturation.to_bits(), NEGATIVE_NAN_WITH_PAYLOAD);
 }
 
-fn level(enchantment: u32, level: u8) -> EnchantmentLevel {
+fn level(enchantment: u16, level: u8) -> EnchantmentLevel {
     EnchantmentLevel {
         enchantment: EnchantmentId(enchantment),
         level: NonZeroU8::new(level).expect("the test levels are not zero"),
@@ -135,7 +135,7 @@ fn enchantments_ignore_the_order_and_reject_a_repeated_enchantment() {
     );
 }
 
-const fn level_of(enchantment: u32, level: u8) -> EnchantmentLevel {
+const fn level_of(enchantment: u16, level: u8) -> EnchantmentLevel {
     EnchantmentLevel {
         enchantment: EnchantmentId(enchantment),
         level: NonZeroU8::new(level).expect("the test levels are not zero"),
@@ -144,7 +144,11 @@ const fn level_of(enchantment: u32, level: u8) -> EnchantmentLevel {
 
 #[test]
 fn tooltip_display_compares_its_hidden_components_as_a_set() {
-    let hidden = |types: &[u32]| TooltipDisplay::hiding(types.iter().copied().map(ComponentType));
+    let hidden = |types: &[u16]| TooltipDisplay::hiding(types.iter().copied().map(ComponentType));
+    assert_eq!(
+        hidden(&[11, 13, 3, 13, 11]).hidden_components(),
+        [ComponentType(11), ComponentType(13), ComponentType(3)]
+    );
     assert_eq!(hidden(&[13, 3, 11]), hidden(&[11, 13, 3, 13]));
     assert_eq!(
         hash_of(&hidden(&[13, 3, 11])),
