@@ -194,14 +194,55 @@ The same rules as in code apply. Do not write names of classes, methods or field
 
 ## Style
 
-- Write plain English for a reader who is not a native speaker. Short sentences, active voice, one idea per sentence.
+Write for a person who reads the page once, top to bottom, and has never seen the repository. The lists of patterns to avoid come from [Wikipedia: Signs of AI writing](https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing) and its [Russian counterpart](https://ru.wikipedia.org/wiki/Википедия:Признаки_сгенерированности_текста). Those patterns make a reader stop trusting the text, whoever wrote it.
+
+### Explain, do not list assertions
+
+- Open the page with what the reader gets from it and who it is for. Two or three sentences.
+- Show an example before the rule it illustrates: a snippet, a command with its output, or a concrete case.
+- Give the reason with the rule. Join sentences with "because", "so", "but" and "when". A run of short unconnected statements makes the reader rebuild the logic alone.
+- Explain a term the first time the page uses it, in a few words, or link the [glossary](/docs/en/reference/glossary/). Do not assume the reader knows Bevy.
+- Write full sentences. A paragraph has one topic and usually 2 to 5 sentences. Let sentence length vary.
+- Address the reader as "you". Use active voice and present tense.
+- A heading says what the section tells or what the reader does: "A player is a row in a table", "Run the server". Avoid "Overview" and "Introduction". Use sentence case.
+- Use a numbered list for steps the reader performs, a table for values the reader looks up, and a bullet list for short parallel items. Everything else is prose.
+- An aside is for a warning or for something the reader can skip. A page with more than two or three asides has no asides.
+- Put the file path or the issue at the end of the sentence, or in a sentence of its own. Do not interrupt a thought with brackets.
+
+### Patterns to remove
+
+| Pattern | Example | Write instead |
+|---|---|---|
+| Contrast with a thing nobody claimed | "It is a change in how you think, not a new syntax." | Say what it is. Keep "not" only for a mistake a reader would really make. |
+| Colon as a drum roll | "The rule is short: do not rely on order." | "Do not rely on order." |
+| Three items by habit | "fast, safe and simple" | Name the items that exist, whether that is one, two or five. |
+| A sentence that says the next one matters | "It is important to note that..." | Delete it and say the thing. |
+| Closing summary | "What this means", "In short", a bullet recap of the page | End when the content ends. One "Next" link is enough. |
+| Inflated or promotional words | "crucial", "robust", "seamless", "powerful", "showcases", "leverages" | The plain word, or the number. |
+| A trailing "-ing" comment | "..., ensuring a consistent result" | A new sentence that says what happens and why. |
+| A different word for the same thing | "dimension", then "world", then "realm" | One term per thing on the whole site. |
+| Bold-header bullets | "- **Speed:** it is fast" | A table or plain sentences. |
+| Vague claims | "many developers", "widely used" | A source, a number, or nothing. |
+| Words in bold all over a paragraph | | Bold only the one warning a reader must not miss. |
+
+### Mechanics
+
+- Plain English for a reader who is not a native speaker.
 - Be specific. A claim has a link or a number.
 - Use the ASCII hyphen-minus only. No em dash and no en dash. Use straight quotes.
-- Avoid inflated words ("groundbreaking", "vibrant", "showcases") and filler like "Of course!" or "I hope this helps".
-- Do not make bold-header bullet lists ("- **Title:** text"). Use a table or plain sentences.
 - No hard wrap: one paragraph is one line.
 - A page is 1 to 4 screens. If it grows, split it or link to the canon.
-- Russian text is written the way a Russian-speaking developer explains it to a colleague: meaning over sentence structure, verbs over noun chains, active voice, no bureaucratic words ("является", "осуществлять", "данный"), no "вы" where the sentence works without it, lowercase after a colon, short noun-phrase headings. The letter with two dots is never used: always write "е".
+
+### Russian
+
+- Write the Russian page the way a Russian-speaking developer explains the topic to a colleague. Translate the meaning of a paragraph, never the structure of its sentences.
+- Prefer verbs to chains of nouns, and active voice.
+- No bureaucratic words ("является", "осуществлять", "данный", "в рамках", "представляет собой").
+- No stock phrases: "стоит отметить", "важно понимать", "играет ключевую роль", "таким образом", "в заключение".
+- No dangling participle phrases ("используя этот метод, результаты улучшаются").
+- The patterns in the table above apply too: "не X, а Y" where nobody claimed X, a colon before the point, three items by habit.
+- Lowercase after a colon. Headings in sentence case.
+- The letter with two dots is never used: always write "е".
 
 ## Before you open the PR
 
