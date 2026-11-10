@@ -486,6 +486,16 @@
     ]
   },
   {
+    "name": "font",
+    "task": "dumpFont",
+    "outputs": [
+      {
+        "file": "font.json",
+        "to": "crates/mcrs_minecraft_client_gui/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
     "name": "block_smooth_light",
     "task": "dumpBlockSmoothLight",
     "outputs": [
