@@ -3,6 +3,7 @@
 mod allocations;
 mod ambiguity;
 mod effective_state;
+mod equipped;
 mod fixture;
 mod placement;
 mod request;
