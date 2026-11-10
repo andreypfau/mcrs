@@ -13,6 +13,7 @@ use mcrs_minecraft_engine_physics::Mobs;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_lang::Language;
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
 use mcrs_minecraft_network::{OutboundReceiver, ServerSideConnection};
 use mcrs_minecraft_protocol::packets::table::Decoded;
@@ -339,7 +340,9 @@ fn translated(message: &Text) -> (String, Vec<String>) {
     let args = with
         .iter()
         .map(|arg| match arg {
-            TranslateArg::Text(text) => text.to_legacy_lossy(),
+            TranslateArg::Text(text) => {
+                mcrs_minecraft_text_flatten::plain_text(&Language::default(), text)
+            }
             TranslateArg::Number(number) => format!("{number:?}"),
             TranslateArg::Bool(value) => value.to_string(),
         })
