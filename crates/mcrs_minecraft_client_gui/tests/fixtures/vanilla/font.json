@@ -869,8 +869,8 @@
         {"style":"bold","text":"00C9 00E9","sum":14.0,"width":14},
         {"style":"bold","text":"0061 65E5","sum":16.5,"width":17},
         {"style":"bold","text":"2603","sum":9.0,"width":9},
-        {"style":"mixed","text":"0061 0062 007C 65E5 007C 672C","sum":30.5,"width":31},
-        {"style":"mixed","text":"65E5 007C 65E5 007C 65E5","sum":28.5,"width":29}
+        {"style":"mixed","text":"0061 0062 65E5 672C","sum":30.5,"width":31,"runs":[{"text":"0061 0062","bold":false},{"text":"65E5","bold":true},{"text":"672C","bold":false}]},
+        {"style":"mixed","text":"65E5 65E5 65E5","sum":28.5,"width":29,"runs":[{"text":"65E5","bold":true},{"text":"65E5","bold":true},{"text":"65E5","bold":true}]}
       ]
     },
     {

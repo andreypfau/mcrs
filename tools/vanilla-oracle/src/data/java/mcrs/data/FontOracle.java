@@ -27,9 +27,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HexFormat;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -122,15 +124,16 @@ public final class FontOracle {
         String index = fetchAssets(cache, release);
         try (MultiPackResourceManager manager = resourceManager(cache.resolve("assets"), index)) {
             Map<Identifier, List<GlyphProvider.Conditional>> prepared = prepare(manager);
+            Map<String, IntSet> archives = archives(manager);
             JsonObject root = new JsonObject();
             root.addProperty("game_version", SharedConstants.getCurrentVersion().id());
             root.addProperty("asset_index", index);
             root.add("special_glyphs", specialGlyphs());
             JsonArray configs = new JsonArray();
-            configs.add(config(manager, prepared, "minecraft:default", EnumSet.noneOf(FontOption.class), true));
-            configs.add(config(manager, prepared, "minecraft:default", EnumSet.of(FontOption.UNIFORM), false));
-            configs.add(config(manager, prepared, "minecraft:default", EnumSet.of(FontOption.JAPANESE_VARIANTS), false));
-            configs.add(config(manager, prepared, "minecraft:uniform", EnumSet.noneOf(FontOption.class), false));
+            configs.add(config(archives, prepared, "minecraft:default", EnumSet.noneOf(FontOption.class), true));
+            configs.add(config(archives, prepared, "minecraft:default", EnumSet.of(FontOption.UNIFORM), false));
+            configs.add(config(archives, prepared, "minecraft:default", EnumSet.of(FontOption.JAPANESE_VARIANTS), false));
+            configs.add(config(archives, prepared, "minecraft:uniform", EnumSet.noneOf(FontOption.class), false));
             root.add("configs", configs);
             StringBuilder text = new StringBuilder();
             write(text, root, 0, 2);
@@ -143,33 +146,39 @@ public final class FontOracle {
     private static String fetchAssets(final Path cache, final Path release) throws Exception {
         JsonObject pin = JsonParser.parseString(Files.readString(release)).getAsJsonObject();
         JsonObject json = pin.getAsJsonObject("json");
-        byte[] version = fetch(cache.resolve("version.json"), json.get("url").getAsString(), json.get("sha1").getAsString());
+        try (HttpClient http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build()) {
+            return fetchAssets(http, cache, json);
+        }
+    }
+
+    private static String fetchAssets(final HttpClient http, final Path cache, final JsonObject json) throws Exception {
+        byte[] version = fetch(http, cache.resolve("version.json"), json.get("url").getAsString(), json.get("sha1").getAsString());
         JsonObject assetIndex = JsonParser.parseString(new String(version, StandardCharsets.UTF_8))
             .getAsJsonObject()
             .getAsJsonObject("assetIndex");
         String id = assetIndex.get("id").getAsString();
         byte[] indexBytes = fetch(
-            cache.resolve("assets/indexes/" + id + ".json"), assetIndex.get("url").getAsString(), assetIndex.get("sha1").getAsString()
+            http, cache.resolve("assets/indexes/" + id + ".json"), assetIndex.get("url").getAsString(), assetIndex.get("sha1").getAsString()
         );
         JsonObject objects = JsonParser.parseString(new String(indexBytes, StandardCharsets.UTF_8)).getAsJsonObject().getAsJsonObject("objects");
         for (Map.Entry<String, JsonElement> entry : objects.entrySet()) {
             if (entry.getKey().startsWith("minecraft/font/")) {
                 String hash = entry.getValue().getAsJsonObject().get("hash").getAsString();
-                fetch(cache.resolve("assets/objects/" + hash.substring(0, 2) + "/" + hash), "https://resources.download.minecraft.net/" + hash.substring(0, 2) + "/" + hash, hash);
+                fetch(http, cache.resolve("assets/objects/" + hash.substring(0, 2) + "/" + hash), "https://resources.download.minecraft.net/" + hash.substring(0, 2) + "/" + hash, hash);
             }
         }
         return id;
     }
 
-    private static byte[] fetch(final Path file, final String url, final String sha1) throws Exception {
-        if (Files.isRegularFile(file) && sha1(Files.readAllBytes(file)).equals(sha1)) {
-            return Files.readAllBytes(file);
+    private static byte[] fetch(final HttpClient http, final Path file, final String url, final String sha1) throws Exception {
+        if (Files.isRegularFile(file)) {
+            byte[] cached = Files.readAllBytes(file);
+            if (sha1(cached).equals(sha1)) {
+                return cached;
+            }
         }
         Files.createDirectories(file.getParent());
-        HttpResponse<byte[]> response = HttpClient.newBuilder()
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .build()
-            .send(HttpRequest.newBuilder(URI.create(url)).build(), HttpResponse.BodyHandlers.ofByteArray());
+        HttpResponse<byte[]> response = http.send(HttpRequest.newBuilder(URI.create(url)).build(), HttpResponse.BodyHandlers.ofByteArray());
         if (response.statusCode() != 200 || !sha1(response.body()).equals(sha1)) {
             throw new IllegalStateException(url + ": status " + response.statusCode() + " or a wrong SHA-1");
         }
@@ -220,7 +229,7 @@ public final class FontOracle {
     // ----- the dump -----
 
     private static JsonObject config(
-        final ResourceManager manager,
+        final Map<String, IntSet> archives,
         final Map<Identifier, List<GlyphProvider.Conditional>> prepared,
         final String font,
         final Set<FontOption> options,
@@ -233,12 +242,9 @@ public final class FontOracle {
         options.forEach(option -> names.add(option.getSerializedName()));
         config.add("options", names);
 
-        Map<GlyphProvider, JsonObject> described = new IdentityHashMap<>();
         JsonArray providers = new JsonArray();
         for (int i = 0; i < loaded.providers.size(); i++) {
-            JsonObject entry = describe(manager, loaded.providers.get(i), i);
-            described.put(loaded.providers.get(i), entry);
-            providers.add(entry);
+            providers.add(describe(archives, loaded.providers.get(i), i));
         }
         config.add("providers", providers);
         config.add("fallback_index", intNode(loaded.providers.size()));
@@ -251,8 +257,6 @@ public final class FontOracle {
         config.add("ranges", ranges(loaded));
         if (full) {
             config.add("winners", winners(loaded));
-        }
-        if (full) {
             config.add("bitmap_advances", bitmapAdvances(loaded));
             config.add("unihex_widths", unihexWidths(loaded));
             config.add("strings", strings(loaded));
@@ -264,7 +268,19 @@ public final class FontOracle {
         return COMPACT.toJsonTree(value);
     }
 
-    private static JsonObject describe(final ResourceManager manager, final GlyphProvider provider, final int index) throws Exception {
+    /** The code points each Unifont archive supports, loaded once. */
+    private static Map<String, IntSet> archives(final ResourceManager manager) throws Exception {
+        Map<String, IntSet> result = new LinkedHashMap<>();
+        for (String archive : HEX_ARCHIVES) {
+            JsonObject definition = new JsonObject();
+            definition.addProperty("hex_file", "minecraft:font/" + archive + ".zip");
+            UnihexProvider.Definition parsed = UnihexProvider.Definition.CODEC.codec().parse(JsonOps.INSTANCE, definition).getOrThrow();
+            result.put("minecraft:font/" + archive + ".zip", parsed.unpack().left().orElseThrow().load(manager).getSupportedGlyphs());
+        }
+        return result;
+    }
+
+    private static JsonObject describe(final Map<String, IntSet> archives, final GlyphProvider provider, final int index) throws Exception {
         JsonObject entry = new JsonObject();
         entry.addProperty("index", index);
         IntSet supported = provider.getSupportedGlyphs();
@@ -280,15 +296,11 @@ public final class FontOracle {
             entry.addProperty("file", identifier.get(holder).toString());
         } else if (provider.getClass().getSimpleName().equals("UnihexProvider")) {
             entry.addProperty("kind", "unihex");
-            for (String archive : HEX_ARCHIVES) {
-                JsonObject definition = new JsonObject();
-                definition.addProperty("hex_file", "minecraft:font/" + archive + ".zip");
-                UnihexProvider.Definition parsed = UnihexProvider.Definition.CODEC.codec().parse(JsonOps.INSTANCE, definition).getOrThrow();
-                GlyphProvider reference = parsed.unpack().left().orElseThrow().load(manager);
-                if (reference.getSupportedGlyphs().equals(supported)) {
-                    entry.addProperty("file", "minecraft:font/" + archive + ".zip");
-                }
+            List<String> matches = archives.entrySet().stream().filter(a -> a.getValue().equals(supported)).map(Map.Entry::getKey).toList();
+            if (matches.size() != 1) {
+                throw new IllegalStateException("unihex provider " + index + " matches the archives " + matches);
             }
+            entry.addProperty("file", matches.get(0));
         } else {
             entry.addProperty("kind", "missing");
         }
@@ -301,14 +313,7 @@ public final class FontOracle {
         entry.addProperty("cp", String.format("U+%04X", cp));
         GlyphSource source = loaded.set.source(false);
         BakedGlyph baked = source.getGlyph(cp);
-        int winner = loaded.providers.size();
-        for (int i = 0; i < loaded.providers.size(); i++) {
-            if (loaded.providers.get(i).getGlyph(cp) != null) {
-                winner = i;
-                break;
-            }
-        }
-        entry.addProperty("provider", winner);
+        entry.addProperty("provider", winner(loaded, cp));
         GlyphInfo info = baked.info();
         entry.addProperty("advance", info.getAdvance(false));
         entry.addProperty("advance_bold", info.getAdvance(true));
@@ -334,8 +339,6 @@ public final class FontOracle {
     /** For each provider, the range of the code points it supports and the extremes of its advances. */
     private static JsonArray ranges(final Loaded loaded) {
         JsonArray result = new JsonArray();
-        float lowest = Float.MAX_VALUE;
-        float highest = -Float.MAX_VALUE;
         for (int i = 0; i < loaded.providers.size(); i++) {
             GlyphProvider provider = loaded.providers.get(i);
             int min = Integer.MAX_VALUE;
@@ -353,6 +356,11 @@ public final class FontOracle {
             }
             JsonObject entry = new JsonObject();
             entry.addProperty("provider", i);
+            if (max < 0) {
+                entry.addProperty("empty", true);
+                result.add(entry);
+                continue;
+            }
             entry.addProperty("first", String.format("U+%04X", min));
             entry.addProperty("last", String.format("U+%04X", max));
             entry.addProperty("lowest_advance", low);
@@ -425,19 +433,15 @@ public final class FontOracle {
                 continue;
             }
             TreeMap<Integer, int[]> widths = new TreeMap<>();
-            RecordingStitcher recorder = new RecordingStitcher();
-            IntIterator it = provider.getSupportedGlyphs().iterator();
-            TreeMap<Integer, Integer> sorted = new TreeMap<>();
-            while (it.hasNext()) {
-                int cp = it.nextInt();
-                sorted.put(cp, cp);
-            }
-            for (int cp : sorted.keySet()) {
-                UnbakedGlyph glyph = provider.getGlyph(cp);
-                BakedGlyph baked = glyph.bake(new UnbakedGlyph.Stitcher() {
+            int[] sorted = provider.getSupportedGlyphs().toIntArray();
+            Arrays.sort(sorted);
+            for (int cp : sorted) {
+                int[] width = new int[1];
+                provider.getGlyph(cp).bake(new UnbakedGlyph.Stitcher() {
                     @Override
                     public BakedGlyph stitch(final GlyphInfo info, final GlyphBitmap bitmap) {
-                        return recorder.stitch(info, bitmap);
+                        width[0] = bitmap.getPixelWidth();
+                        return null;
                     }
 
                     @Override
@@ -445,8 +449,7 @@ public final class FontOracle {
                         throw new IllegalStateException();
                     }
                 });
-                int width = recorder.stitched.get(baked).pixelWidth;
-                int[] slot = widths.computeIfAbsent(width, w -> new int[] {cp, 0});
+                int[] slot = widths.computeIfAbsent(width[0], w -> new int[] {cp, 0});
                 slot[1]++;
             }
             JsonArray rows = new JsonArray();
@@ -491,19 +494,25 @@ public final class FontOracle {
         for (String text : boldSamples) {
             result.add(measured(font, "bold", text, FormattedText.of(text, bold), null));
         }
-        result.add(
-            measured(
-                font, "mixed", "ab|日|本",
-                FormattedText.composite(FormattedText.of("ab"), FormattedText.of("日", bold), FormattedText.of("本")), null
-            )
-        );
-        result.add(
-            measured(
-                font, "mixed", "日|日|日",
-                FormattedText.composite(FormattedText.of("日", bold), FormattedText.of("日", bold), FormattedText.of("日", bold)), null
-            )
-        );
+        result.add(mixed(font, bold, new String[] {"ab", "日", "本"}, new boolean[] {false, true, false}));
+        result.add(mixed(font, bold, new String[] {"日", "日", "日"}, new boolean[] {true, true, true}));
         return result;
+    }
+
+    /** A text of consecutive runs: `text` is the measured text, `runs` the code points and the style of each run. */
+    private static JsonObject mixed(final Font font, final Style bold, final String[] texts, final boolean[] bolds) {
+        FormattedText[] parts = new FormattedText[texts.length];
+        JsonArray runs = new JsonArray();
+        for (int i = 0; i < texts.length; i++) {
+            parts[i] = bolds[i] ? FormattedText.of(texts[i], bold) : FormattedText.of(texts[i]);
+            JsonObject run = new JsonObject();
+            run.addProperty("text", codes(texts[i]));
+            run.addProperty("bold", bolds[i]);
+            runs.add(run);
+        }
+        JsonObject entry = measured(font, "mixed", String.join("", texts), FormattedText.composite(parts), null);
+        entry.add("runs", runs);
+        return entry;
     }
 
     private static JsonObject measured(final Font font, final String style, final String text, final FormattedText formatted, final String plain) {
