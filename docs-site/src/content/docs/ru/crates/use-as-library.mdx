@@ -5,6 +5,7 @@ sidebar:
   order: 3
 translated_from: 3540f457b
 ---
+import { fact } from '~/lib/facts.mjs';
 
 import { Aside } from '@astrojs/starlight/components';
 import Status from '~/components/Status.astro';
@@ -30,7 +31,7 @@ Cargo находит крейт по имени внутри репозитор�
 
 ## 3. Оставьте Bevy снаружи
 
-Ниже слоя 4 Bevy - необязательная feature, поэтому `default-features = false` не пускает его в сборку. CI проверяет 100 имен пакетов через `cargo check --no-default-features`. Список лежит в `NO_BEVY_PACKAGES` в [`xtask/src/checks.rs`](https://github.com/andreypfau/mcrs/blob/main/xtask/src/checks.rs), а в [карте крейтов](/docs/ru/crates/overview/) отмечен каждый из этих пакетов.
+Ниже слоя 4 Bevy - необязательная feature, поэтому `default-features = false` не пускает его в сборку. CI проверяет {fact('crates_no_bevy')} имен пакетов через `cargo check --no-default-features`. Список лежит в `NO_BEVY_PACKAGES` в [`xtask/src/checks.rs`](https://github.com/andreypfau/mcrs/blob/main/xtask/src/checks.rs), а в [карте крейтов](/docs/ru/crates/overview/) отмечен каждый из этих пакетов.
 
 Слою 4 и выше нужен Bevy. Среди нижних слоев известное исключение - `mcrs_minecraft_assets`: по README ему нужен Bevy, даже если default features отключены.
 

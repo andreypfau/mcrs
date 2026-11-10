@@ -21,6 +21,7 @@ verified:
   commit: 51d45c26a
   date: 2026-11-09
 ---
+import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
@@ -66,7 +67,7 @@ Specifications do not yet mark which rules belong to which game edition. This is
 
 ## Fixtures and the oracle
 
-A fixture is a file the game produced. The table `tools/fixtures.json` is the single place that states a fixture's name, the Gradle task that makes it and the folder it goes to. It has 49 entries, and about 14 of them concern world generation. `tools/captures.json` records at which game version each fixture was captured. A test fails by name for every fixture whose version is not the one in `assets/minecraft/version.json`. After a snapshot update that test is the to-do list. See [Move to a new snapshot](/docs/en/contributing/new-snapshot/).
+A fixture is a file the game produced. The table `tools/fixtures.json` is the single place that states a fixture's name, the Gradle task that makes it and the folder it goes to. It has {fact('fixtures')} entries, and about 14 of them concern world generation. `tools/captures.json` records at which game version each fixture was captured. A test fails by name for every fixture whose version is not the one in `assets/minecraft/version.json`. After a snapshot update that test is the to-do list. See [Move to a new snapshot](/docs/en/contributing/new-snapshot/).
 
 The tool that takes the captures is `tools/vanilla-oracle`. It runs no game client and no server: it loads the game's own libraries and dumps values. One command recaptures a fixture:
 

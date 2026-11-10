@@ -20,6 +20,7 @@ verified:
   commit: 51d45c26a
   date: 2026-11-09
 ---
+import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
@@ -53,7 +54,7 @@ A specification in `docs/spec/` states behaviour as rules, and each rule has a k
 ## How a claim is checked
 
 1. **Oracle dumps.** `tools/vanilla-oracle` is a standalone Gradle project. It runs no server and no client. It loads the game's own registries and samples its world generation, then writes binary dumps. The Rust tests compare element by element. Re-running it gives byte-identical files. Seeds 1, 2 and 42 and a handful of chunk positions are dumped, so this is a check on reference seeds, not on every seed.
-2. **Fixtures.** `tools/fixtures.json` lists 49 captured fixtures; about 14 of them cover world generation, the rest cover other areas (commands, protocol, physics and so on). A fixture is captured from the game and checked in. After a snapshot update, `recapture` regenerates them ([One game version at a time](/docs/en/concepts/one-version/)).
+2. **Fixtures.** `tools/fixtures.json` lists {fact('fixtures')} captured fixtures; about 14 of them cover world generation, the rest cover other areas (commands, protocol, physics and so on). A fixture is captured from the game and checked in. After a snapshot update, `recapture` regenerates them ([One game version at a time](/docs/en/concepts/one-version/)).
 3. **Provenance labels.** Each rule carries a label of where it came from, for example `source_suggested` (the author read the reference and the rule states only behaviour). An experiment that the game confirms changes the label to a confirmed one. The label tells you how much to trust a rule. The details are in the registry of the spec folder.
 
 World generation is the only place where the project says "matches vanilla in parity tests" today. Read it as: the density, surface, biome and structure outputs equal the oracle on the dumped seeds and chunks. The claim is not "bit for bit on any seed". Everything else in [Status](/docs/en/start/status/) has its own wording.

@@ -18,6 +18,7 @@ verified:
   commit: 3540f457b
   date: 2026-11-10
 ---
+import { fact } from '~/lib/facts.mjs';
 
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
@@ -36,7 +37,7 @@ The project has no tracking epics in the usual sense. Four open issues with the 
 
 A proxy, a bot, a lobby, a minigame, a world map and a full server need different prefixes of the same layers, and none of them should pay for a layer it does not use. The issue defines seven layers, each depending only on those below: data and wire, network, game data, engine, vanilla, rendering, applications. Every `pub` item in layers 1 to 4 is a commitment to users.
 
-What exists today: 122 crates, 100 of them build without Bevy and 9 without `std` in CI, and 11 build for `wasm32` (`xtask/src/checks.rs`). What does not: crates are not published (<Status issue={321} />), and the examples of the library (milestone "Library examples") are open.
+What exists today: {fact('crates')} crates, {fact('crates_no_bevy')} of them build without Bevy and {fact('crates_no_std')} without `std` in CI, and {fact('crates_wasm32')} build for `wasm32` (`xtask/src/checks.rs`). What does not: crates are not published (<Status issue={321} />), and the examples of the library (milestone "Library examples") are open.
 
 There is no facade or API crate and none is planned. The decision <Status issue={437} /> says the public surface is the vocabulary crates, the plugins with their system sets, and the components, resources and messages that those plugins own. A loader for plugins that are not compiled into the server (jar, wasm, scripts) has no decision yet.
 

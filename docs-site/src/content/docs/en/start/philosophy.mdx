@@ -19,6 +19,7 @@ verified:
   commit: 3540f457b
   date: 2026-11-10
 ---
+import { fact } from '~/lib/facts.mjs';
 
 import Status from '~/components/Status.astro';
 
@@ -76,6 +77,6 @@ Deeper: [Worlds and saves](/docs/en/server/worlds/).
 
 ## Tracks the newest snapshot
 
-One version at a time, currently `26.4-snapshot-7`. Data and reports are regenerated from the game jar by a single command, so moving to the next snapshot is mostly a data update.
+One version at a time, currently <code dir="auto">{fact('snapshot')}</code>. Data and reports are regenerated from the game jar by a single command, so moving to the next snapshot is mostly a data update.
 
 Deeper: [One game version at a time](/docs/en/concepts/one-version/).

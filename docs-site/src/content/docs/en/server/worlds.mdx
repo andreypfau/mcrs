@@ -28,6 +28,7 @@ verified:
   commit: 51d45c26a
   date: 2026-11-09
 ---
+import { fact } from '~/lib/facts.mjs';
 
 import { Aside } from '@astrojs/starlight/components';
 import Status from '~/components/Status.astro';
@@ -48,7 +49,7 @@ cargo run --release -- "<path to a world folder>"
 
 The folder must exist, or the server prints "not a world folder" and exits. With a folder, the server takes the seed and the list of dimensions from the world generation settings of the save. A seed in `MCRS_WORLD_SEED` or a preset in `MCRS_WORLD_PRESET` does not override them. The chunks come from the Anvil region files of the save.
 
-Each chunk and each player file must carry the same `DataVersion` as the game version of this build. That version is `26.4-snapshot-7`, world version 5127 (see [`version.json`](https://github.com/andreypfau/mcrs/blob/main/assets/minecraft/version.json)). A file from any other version is refused with an error that names the version found and the version expected. A chunk without a `DataVersion` is refused too.
+Each chunk and each player file must carry the same `DataVersion` as the game version of this build. That version is <code dir="auto">{fact('snapshot')}</code>, world version 5127 (see [`version.json`](https://github.com/andreypfau/mcrs/blob/main/assets/minecraft/version.json)). A file from any other version is refused with an error that names the version found and the version expected. A chunk without a `DataVersion` is refused too.
 
 ## No datafixers
 

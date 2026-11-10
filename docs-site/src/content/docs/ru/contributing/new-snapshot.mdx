@@ -5,6 +5,7 @@ sidebar:
   order: 6
 translated_from: 51d45c26a
 ---
+import { fact } from '~/lib/facts.mjs';
 import { Aside } from '@astrojs/starlight/components';
 
 mcrs следует за последним снапшотом Minecraft. Одна команда обновляет репозиторий, а остальное показывают упавшие тесты. Полная процедура описана в [tools/mcrs_minecraft_update/README.md](https://github.com/andreypfau/mcrs/blob/main/tools/mcrs_minecraft_update/README.md). Здесь дана общая картина.
@@ -13,7 +14,7 @@ mcrs следует за последним снапшотом Minecraft. Одн
 cargo run -p mcrs_minecraft_update -- <version id>
 ```
 
-Единственный аргумент - id версии, например `26.4-snapshot-7`. Требования: JDK 25 для Gradle и доступ в сеть к Mojang и к Maven-репозиторию Fabric. Запускайте не больше одного экземпляра сразу. Инструмент не портирует никакой код.
+Единственный аргумент - id версии, например <code dir="auto">{fact('snapshot')}</code>. Требования: JDK 25 для Gradle и доступ в сеть к Mojang и к Maven-репозиторию Fabric. Запускайте не больше одного экземпляра сразу. Инструмент не портирует никакой код.
 
 ## Что меняет команда
 

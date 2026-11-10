@@ -18,6 +18,7 @@ verified:
   commit: 51d45c26a
   date: 2026-11-09
 ---
+import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 
 import { Aside } from '@astrojs/starlight/components';
@@ -59,7 +60,7 @@ What these numbers hide:
 | What | Reading | Scenario |
 |---|---|---|
 | Start to `Playing` | 0.769 s median of three runs (1.007, 0.769, 0.769 s) | Release `mcrs`, no world folder, default port, M4 Max. The machine was busy (load average 48 on 16 cores), so read it as an upper bound. The first run read the data pack cold. |
-| Registry load | 29.1 ms median, 147 registries, 9,079 entries | Same three runs. |
+| Registry load | 29.1 ms median, {fact('registries')} registries, {fact('registry_entries').toLocaleString('en-US')} entries | Same three runs. |
 
 Source: `PERF.md`, Server start. This is a baseline. A later start time on the same scenario counts as a regression.
 

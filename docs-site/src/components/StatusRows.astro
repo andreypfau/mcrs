@@ -1,6 +1,7 @@
 ---
 import { getCollection } from "astro:content";
 import Status from "./Status.astro";
+import { interpolate } from "~/lib/facts.mjs";
 interface Props { areas: string }
 const ids = Astro.props.areas.split(",").map((s) => s.trim()).filter(Boolean);
 const all = await getCollection("status");
@@ -19,8 +20,8 @@ const head = l === "ru" ? ["Область", "Состояние", "Работа
       <tr>
         <td>{r.data.title[l]}</td>
         <td><Status state={r.data.state} /></td>
-        <td>{r.data.works[l]}</td>
-        <td>{r.data.missing[l]} {r.data.issues.map((n) => <Status issue={n} />)}</td>
+        <td>{interpolate(r.data.works[l])}</td>
+        <td>{interpolate(r.data.missing[l])} {r.data.issues.map((n) => <Status issue={n} />)}</td>
       </tr>
     ))}
   </tbody>

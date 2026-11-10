@@ -5,6 +5,7 @@ sidebar:
   order: 4
 translated_from: 3540f457b
 ---
+import { fact } from '~/lib/facts.mjs';
 
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
@@ -21,13 +22,13 @@ import { Aside } from '@astrojs/starlight/components';
 - Для запуска mcrs Java не нужна. Часть инструментов (`tools/vanilla-oracle`, mob bench) требует Java 21 или новее.
 - Операционная система: автор мерил и запускал все на macOS (Apple M4 Max, Metal). CI гоняет lint, clippy, проверки переносимости и тесты на Ubuntu 24.04, без крейтов, которым нужен GPU. Для Windows в коде есть путь к jar, но его никто не проверял.
 
-Сколько длится первая сборка и сколько нужно места на диске, пока не измерено. В workspace 122 крейта, так что первая сборка будет долгой.
+Сколько длится первая сборка и сколько нужно места на диске, пока не измерено. В workspace {fact('crates')} крейта, так что первая сборка будет долгой.
 
 ## Cargo для тех, кто знает Gradle
 
 | Gradle | Cargo |
 |---|---|
-| `settings.gradle` с подпроектами | Корневой `Cargo.toml` с `[workspace]`. 122 участника лежат в `crates/` |
+| `settings.gradle` с подпроектами | Корневой `Cargo.toml` с `[workspace]`. {fact('crates')} участника лежат в `crates/` |
 | `build.gradle` проекта | `Cargo.toml` крейта |
 | `./gradlew run` | `cargo run`. Для mcrs добавляйте `--release`: отладочная сборка слишком медленная |
 | `./gradlew build` | `cargo build` |

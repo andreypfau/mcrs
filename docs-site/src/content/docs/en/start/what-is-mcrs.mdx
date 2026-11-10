@@ -19,15 +19,16 @@ verified:
   commit: 3540f457b
   date: 2026-11-10
 ---
+import { fact } from '~/lib/facts.mjs';
 
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
 ## What it is
 
-mcrs is a set of 122 Rust crates for Minecraft Java Edition. A server and a client are built from them on Bevy ECS. In ECS (entity component system) the world is data in tables and the behaviour is functions called systems, which the Bevy scheduler runs in parallel when they touch different data.
+mcrs is a set of {fact('crates')} Rust crates for Minecraft Java Edition. A server and a client are built from them on Bevy ECS. In ECS (entity component system) the world is data in tables and the behaviour is functions called systems, which the Bevy scheduler runs in parallel when they touch different data.
 
-The project follows one game snapshot at a time. Today that is 26.4-snapshot-7 (`assets/minecraft/version.json`). It does not keep compatibility with older versions (<Status issue={412} />).
+The project follows one game snapshot at a time. Today that is {fact('snapshot')} (`assets/minecraft/version.json`). It does not keep compatibility with older versions (<Status issue={412} />).
 
 It is an early work in progress. The repository is open since 2025-12-10.
 

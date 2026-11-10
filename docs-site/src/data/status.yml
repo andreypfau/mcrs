@@ -2,8 +2,8 @@
 - id: worldgen
   title: { en: World generation, ru: Генерация мира }
   works:
-    en: "Noise, surface, aquifers, carvers, features and structures. The output is compared element by element with dumps of the real game (about 14 of the 49 entries in tools/fixtures.json belong to world generation). Presets normal and flat."
-    ru: "Шум, поверхность, аквиферы, карверы, фичи и структуры. Результат сравнивается поэлементно с дампами настоящей игры (около 14 из 49 записей tools/fixtures.json относятся к генерации мира). Пресеты normal и flat."
+    en: "Noise, surface, aquifers, carvers, features and structures. The output is compared element by element with dumps of the real game (about 14 of the {fixtures} entries in tools/fixtures.json belong to world generation). Presets normal and flat."
+    ru: "Шум, поверхность, аквиферы, карверы, фичи и структуры. Результат сравнивается поэлементно с дампами настоящей игры (около 14 из {fixtures} записей tools/fixtures.json относятся к генерации мира). Пресеты normal и flat."
   missing:
     en: "Parity is checked on reference seeds and chunks, not on every seed. Entities from generated structures are not done."
     ru: "Совпадение проверено на эталонных сидах и чанках, а не на любом сиде. Сущности из сгенерированных структур не сделаны."
@@ -93,8 +93,8 @@
 - id: commands
   title: { en: Commands, ru: Команды }
   works:
-    en: "Command parser and tree, the commands packet and tab hints. 20 vanilla commands, among them execute, gamemode, tp, summon, kill, data, time, fill, whitelist and ban."
-    ru: "Парсер и дерево команд, пакет commands и подсказки по Tab. 20 команд ванили, среди них execute, gamemode, tp, summon, kill, data, time, fill, whitelist и ban."
+    en: "Command parser and tree, the commands packet and tab hints. {root_commands} vanilla commands, among them execute, gamemode, tp, summon, kill, data, time, fill, whitelist and ban."
+    ru: "Парсер и дерево команд, пакет commands и подсказки по Tab. {root_commands} команд ванили, среди них execute, gamemode, tp, summon, kill, data, time, fill, whitelist и ban."
   missing:
     en: "A command tree with permission levels is still open."
     ru: "Дерево команд с уровнями прав пока открыто."
@@ -132,8 +132,8 @@
 - id: datapacks
   title: { en: Data packs and registries, ru: Датапаки и реестры }
   works:
-    en: "147 registries with 9079 entries load from a data pack at start. Biomes and dimensions come from the pack without a rebuild."
-    ru: "147 реестров и 9079 записей загружаются из датапака при старте. Биомы и измерения берутся из пака без пересборки."
+    en: "{registries} registries with {registry_entries} entries load from a data pack at start. Biomes and dimensions come from the pack without a rebuild."
+    ru: "{registries} реестров и {registry_entries} записей загружаются из датапака при старте. Биомы и измерения берутся из пака без пересборки."
   missing:
     en: "Reloading a data pack while the server runs."
     ru: "Перезагрузка датапака на ходу."
@@ -171,8 +171,8 @@
 - id: library
   title: { en: Crates as a library, ru: Крейты как библиотека }
   works:
-    en: "122 crates. CI checks that 100 packages build without Bevy, 9 without std and 11 for wasm32."
-    ru: "122 крейта. CI проверяет, что 100 пакетов собираются без Bevy, 9 без std и 11 под wasm32."
+    en: "{crates} crates. CI checks that {crates_no_bevy} packages build without Bevy, {crates_no_std} without std and {crates_wasm32} for wasm32."
+    ru: "{crates} крейта. CI проверяет, что {crates_no_bevy} пакетов собираются без Bevy, {crates_no_std} без std и {crates_wasm32} под wasm32."
   missing:
     en: "Nothing is published on crates.io, there are no library examples, and the API is not stable."
     ru: "На crates.io ничего не опубликовано, примеров библиотеки нет, API не стабилен."

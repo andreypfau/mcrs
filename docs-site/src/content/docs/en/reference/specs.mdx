@@ -15,6 +15,7 @@ verified:
   commit: 3540f457b
   date: 2026-11-10
 ---
+import { fact } from '~/lib/facts.mjs';
 
 import { Aside } from '@astrojs/starlight/components';
 
@@ -22,7 +23,7 @@ import { Aside } from '@astrojs/starlight/components';
 The files in `docs/spec/` are written for AI agents and for the people who write specifications. They follow the rules of ASD-STE100 Simplified Technical English, as `docs/spec/README.md` says. They are exact and dry on purpose. This page is the map. Use it to find the file, then read the file.
 </Aside>
 
-Each file in [docs/spec](https://github.com/andreypfau/mcrs/tree/main/docs/spec) states the behavior of one domain: inputs, outputs, order, timing and constants as data. A spec never describes the shape of game code. Specs are the only source of game behavior that an implementer may read for a rule ([Clean-room](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md)). Some spec headers still name `26.4-snapshot-4` as the game version. The project follows `26.4-snapshot-7` (`assets/minecraft/version.json`).
+Each file in [docs/spec](https://github.com/andreypfau/mcrs/tree/main/docs/spec) states the behavior of one domain: inputs, outputs, order, timing and constants as data. A spec never describes the shape of game code. Specs are the only source of game behavior that an implementer may read for a rule ([Clean-room](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md)). Some spec headers still name `26.4-snapshot-4` as the game version. The project follows <code dir="auto">{fact('snapshot')}</code> (`assets/minecraft/version.json`).
 
 ## Files by domain
 

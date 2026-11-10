@@ -21,6 +21,7 @@ verified:
   commit: 3540f457b
   date: 2026-11-10
 ---
+import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
@@ -34,7 +35,7 @@ The detailed build guide is not written yet. It will appear before the alpha for
 
 | Path | What is there |
 |---|---|
-| `crates/` | the Rust crates, 122 of them |
+| `crates/` | the Rust crates, {fact('crates')} of them |
 | `tools/` | the snapshot update tool, fixtures, the vanilla oracle, benchmarks |
 | `xtask/` | the check runner that CI and the local hooks use |
 | `assets/` | the version file, reports from the game, local data packs |

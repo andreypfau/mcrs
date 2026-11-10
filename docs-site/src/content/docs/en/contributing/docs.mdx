@@ -17,6 +17,7 @@ verified:
   commit: 3540f457b
   date: 2026-11-10
 ---
+import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
@@ -35,6 +36,7 @@ Rules that follow from this table:
 - The canon is not edited for the sake of this site. This site explains and links to it.
 - A precise rule is a link, not a copy. A new idea for a beginner is retold in 1 or 2 screens.
 - The reason for a decision is not retold. Link the issue with the label `decision` and give one line in your own words.
+- A count that two pages repeat, and the game snapshot id, live in `src/data/facts.yml` and are written as `{fact('crates')}` after `import { fact } from '~/lib/facts.mjs';`. Inside `status.yml` they are `{crates}`. The id `snapshot` is read from `assets/minecraft/version.json`. Every entry has a `how` field that says how to measure it. A number that only one page states stays in the text. The Russian word forms after a number ("122 крейта", "122 крейтов") are edited by hand when the number changes: `grep -rn "fact('crates')" src/content/docs/ru`.
 - Every fact has one source of truth: the game version in `assets/minecraft/version.json`, performance numbers in `PERF.md`, behavior in `docs/spec/`, decisions in issues. Do not type a number from memory.
 - Nothing from the world generation design notes (`docs/worldgen.md`, `structures.md`, `surface.md`, `scattering.md`, `heightmap.md`, `aquifer.md`) is copied here. They name the game's code.
 
@@ -175,7 +177,7 @@ Go through it before every PR that adds or changes a page.
 4. Every "no" links to an issue or a decision.
 5. No numbers that are not measured on a quiet machine, and no comparison with vanilla, Paper or Horizon in numbers.
 6. A claim about another project has a source, or it is not written. For production we name only Paper, Folia, Minestom and Velocity. Rust projects get one neutral line, no ratings.
-7. The game version is `26.4-snapshot-7`, from `assets/minecraft/version.json`, not from memory. The same applies to counts: 122 crates, not a guess.
+7. The game version and the counts come from `fact(...)`, not from memory and not typed by hand: `{fact('snapshot')}` reads `assets/minecraft/version.json`, and `{fact('crates')}` reads `facts.yml`.
 8. A page with changing content has the date and the commit of the last check.
 9. "We" is not used for a bigger group than it is. No "community" claims.
 10. A safety warning stands next to every run command: the server has no authentication, so do not open its port.

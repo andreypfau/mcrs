@@ -5,10 +5,11 @@ sidebar:
   order: 4
 translated_from: 51d45c26a
 ---
+import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-mcrs следует за самым новым снапшотом Minecraft и поддерживает только его. Сейчас это **26.4-snapshot-7**. Решение принято в <Status issue={412} />. На этой странице описано, чего это стоит и что дает.
+mcrs следует за самым новым снапшотом Minecraft и поддерживает только его. Сейчас это **{fact('snapshot')}**. Решение принято в <Status issue={412} />. На этой странице описано, чего это стоит и что дает.
 
 ## Версия хранится в одном файле
 

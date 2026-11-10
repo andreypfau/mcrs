@@ -20,6 +20,7 @@ verified:
   commit: 3540f457b
   date: 2026-11-10
 ---
+import { fact } from '~/lib/facts.mjs';
 
 import { Aside } from '@astrojs/starlight/components';
 import Status from '~/components/Status.astro';
@@ -45,7 +46,7 @@ The repository pins `nightly-2026-09-02` in [`rust-toolchain.toml`](https://gith
 
 ## 3. Leave Bevy out
 
-Below layer 4, Bevy is an optional feature, so `default-features = false` keeps it out. CI checks 100 package names with `cargo check --no-default-features`; the list is `NO_BEVY_PACKAGES` in [`xtask/src/checks.rs`](https://github.com/andreypfau/mcrs/blob/main/xtask/src/checks.rs). The [crate map](/docs/en/crates/overview/) marks each of them.
+Below layer 4, Bevy is an optional feature, so `default-features = false` keeps it out. CI checks {fact('crates_no_bevy')} package names with `cargo check --no-default-features`; the list is `NO_BEVY_PACKAGES` in [`xtask/src/checks.rs`](https://github.com/andreypfau/mcrs/blob/main/xtask/src/checks.rs). The [crate map](/docs/en/crates/overview/) marks each of them.
 
 Layer 4 and above need Bevy. `mcrs_minecraft_assets` is the known exception in the lower layers: the README says it still needs Bevy even with default features off.
 

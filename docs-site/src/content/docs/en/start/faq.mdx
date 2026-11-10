@@ -19,13 +19,14 @@ verified:
   commit: 3540f457b
   date: 2026-11-10
 ---
+import { fact } from '~/lib/facts.mjs';
 
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
 ## Can I use it yet?
 
-As a base for developers and for watching: yes. As a server for players: no. A vanilla client of the same snapshot can join in offline mode, chat, run 20 commands and break blocks in creative. The world is not saved after you leave, except players (<Status issue={78} />). See [Run a server](/docs/en/start/run-server/) and [Status](/docs/en/start/status/).
+As a base for developers and for watching: yes. As a server for players: no. A vanilla client of the same snapshot can join in offline mode, chat, run {fact('root_commands')} commands and break blocks in creative. The world is not saved after you leave, except players (<Status issue={78} />). See [Run a server](/docs/en/start/run-server/) and [Status](/docs/en/start/status/).
 
 ## Will my plugins work?
 
@@ -45,7 +46,7 @@ The author measured and ran everything on macOS (Apple M4 Max, Metal). CI runs l
 
 ## Which game version?
 
-One: 26.4-snapshot-7 (`assets/minecraft/version.json`). Old clients and worlds of other data versions do not work, and there are no datafixers (<Status issue={388} />, <Status issue={412} />). Translating older client versions at the network edge is a plan: <Status issue={537} />.
+One: {fact('snapshot')} (`assets/minecraft/version.json`). Old clients and worlds of other data versions do not work, and there are no datafixers (<Status issue={388} />, <Status issue={412} />). Translating older client versions at the network edge is a plan: <Status issue={537} />.
 
 ## Is it legal?
 

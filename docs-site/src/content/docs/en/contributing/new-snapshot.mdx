@@ -15,6 +15,7 @@ verified:
   commit: 51d45c26a
   date: 2026-11-09
 ---
+import { fact } from '~/lib/facts.mjs';
 import { Aside } from '@astrojs/starlight/components';
 
 mcrs follows the latest Minecraft snapshot. One command updates the repository, and the tests that break show the rest. The full procedure is [tools/mcrs_minecraft_update/README.md](https://github.com/andreypfau/mcrs/blob/main/tools/mcrs_minecraft_update/README.md). This page tells you the shape of it.
@@ -23,7 +24,7 @@ mcrs follows the latest Minecraft snapshot. One command updates the repository, 
 cargo run -p mcrs_minecraft_update -- <version id>
 ```
 
-The version id is the only argument, for example `26.4-snapshot-7`. Requirements: JDK 25 for Gradle, and network access to Mojang and to the Fabric Maven repository. Run it once at a time. The tool does not port any code.
+The version id is the only argument, for example <code dir="auto">{fact('snapshot')}</code>. Requirements: JDK 25 for Gradle, and network access to Mojang and to the Fabric Maven repository. Run it once at a time. The tool does not port any code.
 
 ## What the command changes
 

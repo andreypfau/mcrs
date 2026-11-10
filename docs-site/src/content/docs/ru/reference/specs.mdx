@@ -5,6 +5,7 @@ sidebar:
   order: 4
 translated_from: 3540f457b
 ---
+import { fact } from '~/lib/facts.mjs';
 
 import { Aside } from '@astrojs/starlight/components';
 
@@ -12,7 +13,7 @@ import { Aside } from '@astrojs/starlight/components';
 Файлы в `docs/spec/` написаны для ИИ-агентов и для людей, которые пишут спецификации. Они следуют правилам ASD-STE100 Simplified Technical English, как сказано в `docs/spec/README.md`. Они намеренно точные и сухие. Эта страница - карта. Найдите по ней файл и читайте уже его.
 </Aside>
 
-Каждый файл в [docs/spec](https://github.com/andreypfau/mcrs/tree/main/docs/spec) описывает поведение одного домена: входы, выходы, порядок, тайминги и константы в виде данных. Спецификация никогда не описывает устройство игрового кода. Спецификации - единственный источник игрового поведения, который реализатор вправе читать, чтобы узнать правило ([Clean-room](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md)). В заголовках некоторых спецификаций версией игры все еще названа `26.4-snapshot-4`. Проект следует `26.4-snapshot-7` (`assets/minecraft/version.json`).
+Каждый файл в [docs/spec](https://github.com/andreypfau/mcrs/tree/main/docs/spec) описывает поведение одного домена: входы, выходы, порядок, тайминги и константы в виде данных. Спецификация никогда не описывает устройство игрового кода. Спецификации - единственный источник игрового поведения, который реализатор вправе читать, чтобы узнать правило ([Clean-room](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md)). В заголовках некоторых спецификаций версией игры все еще названа `26.4-snapshot-4`. Проект следует <code dir="auto">{fact('snapshot')}</code> (`assets/minecraft/version.json`).
 
 ## Файлы по доменам
 

@@ -18,6 +18,7 @@ verified:
   commit: 51d45c26a
   date: 2026-11-09
 ---
+import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 
 import { Aside } from '@astrojs/starlight/components';
@@ -86,14 +87,14 @@ Some words in the scaling terms (shard, cell, tile) are design words from `docs/
 |---|---|---|
 | Clean-room | A spec author who may see the game code writes behavior down. An implementer who reads only specs and game artifacts writes the code. Names from the game code do not go in the repository ([`clean-room.md`](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md)). | - |
 | Spec issue, plugin issue | A pair of issues. The spec comes first in `docs/spec/`. The implementation follows and cites rule ids. | - |
-| Snapshot | A test version of the game. mcrs follows the newest, now `26.4-snapshot-7`. | - |
+| Snapshot | A test version of the game. mcrs follows the newest, now <code dir="auto">{fact('snapshot')}</code>. | - |
 | DataVersion | The data format version of a save. A mismatch means the world does not load, because there are no data fixers (<Status issue={388} />). | Same idea as in Paper. |
 
 ## Game data and rendering
 
 | Term | Meaning | Closest in Paper or Minestom |
 |---|---|---|
-| Registry, data pack | Registries (blocks, biomes, dimensions) load from a data pack. The server loads 147 registries (PERF.md, Server start). | Bukkit `Registry`, Minestom `DynamicRegistry`. |
+| Registry, data pack | Registries (blocks, biomes, dimensions) load from a data pack. The server loads {fact('registries')} registries (PERF.md, Server start). | Bukkit `Registry`, Minestom `DynamicRegistry`. |
 | Resource location, key | A name like `minecraft:stone`. It lives at the edges (data pack, wire, commands). Inside the code, numeric ids are used ([`resource-location.md`](https://github.com/andreypfau/mcrs/blob/main/docs/resource-location.md)). | `NamespacedKey`, Minestom `Key`. |
 | Molang | An expression language of Bedrock for animations and conditions. The `mcrs_molang` compiler has a batch backend and a WGSL backend. | - |
 | Impostor | A far mob drawn as a baked sprite. | - |

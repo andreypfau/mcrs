@@ -5,6 +5,7 @@ sidebar:
   order: 3
 translated_from: 51d45c26a
 ---
+import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 
 import { Aside } from '@astrojs/starlight/components';
@@ -73,14 +74,14 @@ import { Aside } from '@astrojs/starlight/components';
 |---|---|---|
 | Clean-room | Автор спецификации, которому разрешено видеть игровой код, записывает поведение. Реализатор, который читает только спецификации и игровые артефакты, пишет код. Названия из игрового кода в репозиторий не попадают ([`clean-room.md`](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md)). | - |
 | Spec issue, plugin issue | Пара issue. Сначала идет спецификация в `docs/spec/`. Реализация следует за ней и ссылается на id правил. | - |
-| Снапшот (snapshot) | Тестовая версия игры. mcrs следует за самой новой, сейчас это `26.4-snapshot-7`. | - |
+| Снапшот (snapshot) | Тестовая версия игры. mcrs следует за самой новой, сейчас это <code dir="auto">{fact('snapshot')}</code>. | - |
 | DataVersion | Версия формата данных сохранения. Если она не совпадает, мир не загрузится, потому что data fixers нет (<Status issue={388} />). | Та же идея, что в Paper. |
 
 ## Игровые данные и рендеринг
 
 | Термин | Значение | Ближайшее в Paper или Minestom |
 |---|---|---|
-| Реестр, датапак (registry, data pack) | Реестры (блоки, биомы, измерения) загружаются из датапака. Сервер загружает 147 реестров (PERF.md, Server start). | `Registry` в Bukkit, `DynamicRegistry` в Minestom. |
+| Реестр, датапак (registry, data pack) | Реестры (блоки, биомы, измерения) загружаются из датапака. Сервер загружает {fact('registries')} реестров (PERF.md, Server start). | `Registry` в Bukkit, `DynamicRegistry` в Minestom. |
 | Resource location, key | Имя вроде `minecraft:stone`. Живет на границах (датапак, протокол, команды). Внутри кода используются числовые id ([`resource-location.md`](https://github.com/andreypfau/mcrs/blob/main/docs/resource-location.md)). | `NamespacedKey`, `Key` в Minestom. |
 | Molang | Язык выражений Bedrock для анимаций и условий. У компилятора `mcrs_molang` есть пакетный бэкенд и бэкенд WGSL. | - |
 | Impostor | Далекий моб, нарисованный запеченным спрайтом. | - |

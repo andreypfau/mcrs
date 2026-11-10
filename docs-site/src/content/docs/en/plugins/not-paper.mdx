@@ -23,6 +23,7 @@ verified:
   commit: 51d45c26a
   date: 2026-11-09
 ---
+import { fact } from '~/lib/facts.mjs';
 
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
@@ -34,7 +35,7 @@ Your Paper plugin will not run on mcrs. There is no Bukkit-like API and no facad
 What you do today: write a Bevy plugin in Rust, put it next to the server plugins in your own `main`, and build one binary. The model is closer to [Minestom](https://minestom.net/) (the server is a library, you write the `main`) than to Paper (a ready server plus jars in `plugins/`). The direction is described in <Status issue={180} />.
 
 <Aside type="caution" title="Early WIP">
-The public library API is not stable. One game version is targeted at a time (`26.4-snapshot-7`), with no backward compatibility, see <Status issue={412} />.
+The public library API is not stable. One game version is targeted at a time (<code dir="auto">{fact('snapshot')}</code>), with no backward compatibility, see <Status issue={412} />.
 </Aside>
 
 ## What works today

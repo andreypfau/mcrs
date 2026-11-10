@@ -17,11 +17,12 @@ verified:
   commit: 3540f457b
   date: 2026-11-10
 ---
+import { fact } from '~/lib/facts.mjs';
 
 import { Aside } from '@astrojs/starlight/components';
 import Status from '~/components/Status.astro';
 
-mcrs is 122 crates under `crates/`, and you can take them one at a time. This page lists all of them, grouped by layer. Use it to find the crate you need and to see what it drags in.
+mcrs is {fact('crates')} crates under `crates/`, and you can take them one at a time. This page lists all of them, grouped by layer. Use it to find the crate you need and to see what it drags in.
 
 <Aside type="caution" title="WIP">
 This table was made by a script from `cargo metadata` and the three lists in [`xtask/src/checks.rs`](https://github.com/andreypfau/mcrs/blob/main/xtask/src/checks.rs), then pasted here. A generator that rebuilds it on every docs build is planned. Until it exists, the table can be out of date: check the verified date at the bottom.
@@ -40,7 +41,7 @@ The layer of a crate is not stored anywhere in the code. It was assigned by hand
 | no_std | `NO_STD_PACKAGES`, built without `std` in CI |
 | wasm32 | `WASM32_PACKAGES`, built for the `wasm32` target in CI |
 
-The no-Bevy list has 100 names. Six of them are tools under `tools/`, so among the 122 crates of `crates/` the count is 94. The no_std list has 9 crates and the wasm32 list has 11. A dash means "not on the CI list", which is not the same as "does not work".
+The no-Bevy list has {fact('crates_no_bevy')} names. Six of them are tools under `tools/`, so among the {fact('crates')} crates of `crates/` the count is 94. The no_std list has {fact('crates_no_std')} crates and the wasm32 list has {fact('crates_wasm32')}. A dash means "not on the CI list", which is not the same as "does not work".
 
 ## What to take for
 

@@ -18,10 +18,11 @@ verified:
   commit: 51d45c26a
   date: 2026-11-09
 ---
+import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-mcrs follows the newest Minecraft snapshot and supports exactly that one. Today it is **26.4-snapshot-7**. The decision is <Status issue={412} />. This page lists what it costs you and what it buys.
+mcrs follows the newest Minecraft snapshot and supports exactly that one. Today it is **{fact('snapshot')}**. The decision is <Status issue={412} />. This page lists what it costs you and what it buys.
 
 ## The version lives in one file
 

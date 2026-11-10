@@ -19,10 +19,11 @@ verified:
   commit: 3540f457b
   date: 2026-11-10
 ---
+import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-mcrs is a repository of 122 crates. They sit in seven layers, and each layer is meant to depend only on the layers below it. The goal is simple: you take the layers you need and pay for nothing above them. A proxy needs the bottom two layers. A full server needs the first five. The idea is the direction in <Status issue={180} />.
+mcrs is a repository of {fact('crates')} crates. They sit in seven layers, and each layer is meant to depend only on the layers below it. The goal is simple: you take the layers you need and pay for nothing above them. A proxy needs the bottom two layers. A full server needs the first five. The idea is the direction in <Status issue={180} />.
 
 ## The seven layers
 

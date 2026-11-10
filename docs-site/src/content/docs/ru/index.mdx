@@ -5,11 +5,12 @@ sidebar:
   order: 1
 translated_from: 3540f457b
 ---
+import { fact } from '~/lib/facts.mjs';
 
 import Status from '~/components/Status.astro';
 import { Aside, Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-mcrs - это Minecraft Java Edition на Rust поверх Bevy ECS: сервер, клиент и 122 крейта, из которых они собираются.
+mcrs - это Minecraft Java Edition на Rust поверх Bevy ECS: сервер, клиент и {fact('crates')} крейта, из которых они собираются.
 
 <Aside type="caution" title="Ранний WIP">
 Проект в активной разработке, поэтому многого пока нет: сохранения мира, online mode, большей части геймплея. Мир и клиент уже запускаются.
@@ -24,12 +25,12 @@ mcrs - не Java-сервер, переписанный на Rust. Проект 
 <CardGrid>
   <LinkCard title="Пишу плагины на Java или Kotlin" description="Bukkit-подобного API и загрузчика плагинов нет. Что можно сделать уже сегодня." href="/docs/ru/plugins/not-paper/" />
   <LinkCard title="Хочу внести вклад" description="Сборка, тесты, правила clean-room и первые задачи." href="/docs/ru/contributing/" />
-  <LinkCard title="Хочу брать крейты" description="122 крейта по слоям. На crates.io пока ничего нет." href="/docs/ru/crates/overview/" />
+  <LinkCard title="Хочу брать крейты" description={`${fact('crates')} крейта по слоям. На crates.io пока ничего нет.`} href="/docs/ru/crates/overview/" />
   <LinkCard title="Играю или держу серверы" description="Что такое mcrs, чего он не делает и кому лучше поискать другое решение." href="/docs/ru/start/what-is-mcrs/" />
 </CardGrid>
 
 ## Статус одной строкой
 
-Проверено 2026-11-10 на коммите `3540f457b`, снапшот игры 26.4-snapshot-7: генерация мира совпадает с настоящей игрой на эталонных дампах, клиент ее рисует, но чанки не сохраняются (<Status issue={78} />) и online mode нет (<Status issue={82} />). Полная таблица - на странице [Статус](/docs/ru/start/status/).
+Проверено 2026-11-10 на коммите `3540f457b`, снапшот игры {fact('snapshot')}: генерация мира совпадает с настоящей игрой на эталонных дампах, клиент ее рисует, но чанки не сохраняются (<Status issue={78} />) и online mode нет (<Status issue={82} />). Полная таблица - на странице [Статус](/docs/ru/start/status/).
 
 Вопросы и отчеты о ходе работы: [Discord](https://discord.gg/ged3nMRzwG).

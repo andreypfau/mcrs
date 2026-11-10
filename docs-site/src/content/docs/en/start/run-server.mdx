@@ -19,6 +19,7 @@ verified:
   commit: 3540f457b
   date: 2026-11-10
 ---
+import { fact } from '~/lib/facts.mjs';
 
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
@@ -38,13 +39,13 @@ cargo run --release
 cargo run --release -- "<path to a world folder>"
 ```
 
-The first command starts a server on a new world. The second one opens an existing Java Edition save, which must have the same data version as the game snapshot (26.4-snapshot-7). Saves of other versions do not load and there are no datafixers (<Status issue={388} />).
+The first command starts a server on a new world. The second one opens an existing Java Edition save, which must have the same data version as the game snapshot ({fact('snapshot')}). Saves of other versions do not load and there are no datafixers (<Status issue={388} />).
 
 On the reference machine, a release build with no world folder reaches the Playing state in 0.77 s, median of three runs (Apple M4 Max, macOS, [PERF.md](https://github.com/andreypfau/mcrs/blob/main/PERF.md#server-start)). That is the start of an already built binary, not the build time.
 
 ## Join
 
-Use a vanilla client of the same snapshot, 26.4-snapshot-7. The server announces itself in the LAN worlds list. You can also join by address `localhost:25565`. It runs in offline mode.
+Use a vanilla client of the same snapshot, {fact('snapshot')}. The server announces itself in the LAN worlds list. You can also join by address `localhost:25565`. It runs in offline mode.
 
 ## What you can do
 

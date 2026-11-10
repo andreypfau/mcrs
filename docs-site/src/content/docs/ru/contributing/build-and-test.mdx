@@ -5,6 +5,7 @@ sidebar:
   order: 2
 translated_from: 3540f457b
 ---
+import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
@@ -18,7 +19,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 | Путь | Что там |
 |---|---|
-| `crates/` | крейты на Rust, их 122 |
+| `crates/` | крейты на Rust, их {fact('crates')} |
 | `tools/` | инструмент обновления снапшота, фикстуры, ванильный оракул, бенчмарки |
 | `xtask/` | раннер проверок, который используют CI и локальные хуки |
 | `assets/` | файл версии, отчеты из игры, локальные датапаки |

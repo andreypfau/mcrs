@@ -17,6 +17,7 @@ verified:
   commit: 3540f457b
   date: 2026-11-10
 ---
+import { fact } from '~/lib/facts.mjs';
 
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
@@ -33,13 +34,13 @@ A detailed install guide will come before the alpha. Today only developers use t
 - Java is not needed to run mcrs. Some tools (`tools/vanilla-oracle`, the mob bench) need Java 21 or newer.
 - An operating system: the author measured and ran everything on macOS (Apple M4 Max, Metal). CI runs lint, clippy, portability checks and tests on Ubuntu 24.04, without the crates that need a GPU. Windows has a jar path in the code and nobody has checked it.
 
-How long the first build takes and how much disk it needs: not measured yet. The workspace has 122 crates, so expect a long first build.
+How long the first build takes and how much disk it needs: not measured yet. The workspace has {fact('crates')} crates, so expect a long first build.
 
 ## Cargo for people who know Gradle
 
 | Gradle | Cargo |
 |---|---|
-| `settings.gradle` with subprojects | Root `Cargo.toml` with `[workspace]`. The 122 members are in `crates/` |
+| `settings.gradle` with subprojects | Root `Cargo.toml` with `[workspace]`. The {fact('crates')} members are in `crates/` |
 | `build.gradle` of a project | `Cargo.toml` of a crate |
 | `./gradlew run` | `cargo run`. For mcrs add `--release`, a debug build is too slow |
 | `./gradlew build` | `cargo build` |
