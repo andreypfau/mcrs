@@ -175,7 +175,9 @@ A component patch is in normal form when it has no such patch entry. See experim
 **STK-PAT-005** (`source_suggested`, semantic). The component patch of each stack is in normal
 form. A reader of a stack in each format of section 6 must drop each patch entry without effect.
 A writer of a stack thus writes no such patch entry. This rule does not apply to the patch of an
-item template (STK-TPL-007). See experiment E3.
+item template (STK-TPL-007). It does not apply to the reader of a hashed stack: a hashed stack
+carries a hash in place of each value, and the reader keeps each entry for STK-HSH-003. See
+experiment E3.
 
 **STK-PAT-006** (`source_suggested`, semantic). A change of one component of a stack keeps the
 normal form:
