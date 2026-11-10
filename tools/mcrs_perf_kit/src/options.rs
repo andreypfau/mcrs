@@ -5,6 +5,7 @@ use serde::Serialize;
 
 use crate::profile::Profile;
 use crate::section::Section;
+use crate::shown_path;
 
 pub const USAGE: &str = "usage: perf-kit run|mob|client|server|worldgen --out <dir> [--profile quick|full] \
 [--only mob,client,server,worldgen] [--repo <root>] [--window WxH] [--heap 8g] [--java <path>] [--accept-eula]";
@@ -12,11 +13,14 @@ pub const USAGE: &str = "usage: perf-kit run|mob|client|server|worldgen --out <d
 #[derive(Clone, Debug, Serialize)]
 pub struct Options {
     pub sections: Vec<Section>,
+    #[serde(serialize_with = "shown_path::serialize_without_home")]
     pub out: PathBuf,
     pub profile: Profile,
+    #[serde(serialize_with = "shown_path::serialize_without_home")]
     pub repo: PathBuf,
     pub window: Window,
     pub heap: String,
+    #[serde(serialize_with = "shown_path::serialize_without_home")]
     pub java: String,
     pub accept_eula: bool,
     /// One run and short windows, to check the kit itself.

@@ -14,6 +14,7 @@ use crate::progress::Progress;
 use crate::repo;
 use crate::scratch_dir::ScratchDir;
 use crate::section::Section;
+use crate::shown_path;
 use crate::stats_line::StatsLine;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -79,7 +80,7 @@ pub fn run(options: &Options, errors: &mut Vec<String>) -> anyhow::Result<Client
         "mcrs_minecraft_client",
     )?;
     // The client quits when its connection fails, so the floor needs a server that holds it.
-    // shortcut: the silent server lives until the kit exits, one thread for the whole section.
+    // chisle: the silent server lives until the kit exits, one thread for the whole section.
     let silent = TcpListener::bind("127.0.0.1:0")?;
     let floor_server = silent.local_addr()?.to_string();
     std::thread::spawn(move || {
@@ -175,7 +176,7 @@ impl Launch<'_> {
             settled: None,
             settle_seconds: None,
             medians: None,
-            raw_log: raw_log.clone(),
+            raw_log: shown_path::under_out(&raw_log, &self.options.out),
             error: None,
         };
         match self.measure(&raw_log) {

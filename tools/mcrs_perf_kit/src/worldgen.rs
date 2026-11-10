@@ -9,6 +9,7 @@ use crate::options::Options;
 use crate::profile::Profile;
 use crate::progress::Progress;
 use crate::section::Section;
+use crate::shown_path;
 
 const PACKAGE: &str = "mcrs_minecraft_worldgen_generator";
 
@@ -51,7 +52,7 @@ pub fn run(options: &Options, errors: &mut Vec<String>) -> Vec<WorldgenBench> {
             throughput_chunks_per_second: None,
             per_chunk_mean_ms: None,
             stdout: String::new(),
-            raw_log: raw_log.clone(),
+            raw_log: shown_path::under_out(&raw_log, &options.out),
             error: None,
         };
         match run_bench(options, bench, args, &raw_log) {
@@ -106,4 +107,28 @@ fn number_after(text: &str, marker: &str) -> Option<f64> {
         .take_while(|character| character.is_ascii_digit() || *character == '.')
         .collect();
     number.parse().ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn number_after_reads_the_number_past_the_marker() {
+        let cases = [
+            ("done wall=812.5ms", "wall=", Some(812.5)),
+            ("per column: 3.25 ms", "per column: ", Some(3.25)),
+            ("throughput    1200 chunks/s", "throughput ", Some(1200.0)),
+            ("per chunk   mean 4.0 ms", "per chunk   mean ", Some(4.0)),
+            ("throughput n/a", "throughput ", None),
+            ("per column: 3.25 ms", "wall=", None),
+        ];
+        for (text, marker, expected) in cases {
+            assert_eq!(
+                number_after(text, marker),
+                expected,
+                "{text} after {marker:?}"
+            );
+        }
+    }
 }

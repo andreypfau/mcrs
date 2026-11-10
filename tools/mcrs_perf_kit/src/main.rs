@@ -17,6 +17,7 @@ mod scratch_dir;
 mod section;
 mod server_start;
 mod settle;
+mod shown_path;
 mod stats_line;
 mod vanilla_jar;
 mod worldgen;

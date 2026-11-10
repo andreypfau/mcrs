@@ -141,3 +141,30 @@ fn elapsed_ms(text: &str) -> Option<f64> {
     };
     Some(number * scale)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn elapsed_ms_reads_each_duration_unit() {
+        let cases = [
+            ("loaded registries elapsed=1.5s count=3", Some(1500.0)),
+            ("loaded registries elapsed=250ms", Some(250.0)),
+            ("loaded registries elapsed=12µs", Some(0.012)),
+            ("loaded registries elapsed=12us", Some(0.012)),
+            ("loaded registries elapsed=500ns", Some(0.0005)),
+            ("loaded registries elapsed=3min", None),
+            ("loaded registries", None),
+        ];
+        for (text, expected) in cases {
+            let got = elapsed_ms(text);
+            let close = match (got, expected) {
+                (Some(got), Some(expected)) => (got - expected).abs() < 1e-9,
+                (None, None) => true,
+                _ => false,
+            };
+            assert!(close, "{text}: got {got:?}, expected {expected:?}");
+        }
+    }
+}

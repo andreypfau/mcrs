@@ -14,6 +14,7 @@ use crate::progress::Progress;
 use crate::repo;
 use crate::scratch_dir::ScratchDir;
 use crate::section::Section;
+use crate::shown_path;
 
 const JAVA_MAJOR: u32 = 25;
 const QUICK_PHASES: &str = "idle,crowd-still,crowd-stir";
@@ -31,6 +32,28 @@ pub struct MobRun {
 struct Target {
     server: &'static str,
     binary: PathBuf,
+}
+
+#[derive(Clone, Copy)]
+enum ClientMode {
+    Off,
+    Watcher,
+}
+
+impl ClientMode {
+    /// The `--client` value mob-bench takes.
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Off => "none",
+            Self::Watcher => "watcher",
+        }
+    }
+}
+
+struct PhaseSeconds {
+    idle_warmup: &'static str,
+    warmup: &'static str,
+    measure: &'static str,
 }
 
 pub fn run(options: &Options, errors: &mut Vec<String>) -> anyhow::Result<Vec<MobRun>> {
@@ -57,9 +80,9 @@ pub fn run(options: &Options, errors: &mut Vec<String>) -> anyhow::Result<Vec<Mo
             binary: crate::vanilla_jar::server_jar(&options.repo)?,
         },
     ];
-    let clients: &[&str] = match options.profile {
-        Profile::Quick => &["none"],
-        Profile::Full => &["watcher", "none"],
+    let clients: &[ClientMode] = match options.profile {
+        Profile::Quick => &[ClientMode::Off],
+        Profile::Full => &[ClientMode::Watcher, ClientMode::Off],
     };
     let mut progress = Progress::new(
         Section::Mob,
@@ -68,13 +91,14 @@ pub fn run(options: &Options, errors: &mut Vec<String>) -> anyhow::Result<Vec<Mo
     );
     let mut runs = Vec::new();
     for target in &targets {
-        for client in clients {
-            let name = format!("{}-{client}", target.server);
-            progress.step(&format!("{} with client {client}", target.server));
+        for &client in clients {
+            let client_name = client.as_str();
+            let name = format!("{}-{client_name}", target.server);
+            progress.step(&format!("{} with client {client_name}", target.server));
             let report = options.out.join("mob").join(format!("{name}.json"));
             let mut run = MobRun {
                 name,
-                report: report.clone(),
+                report: shown_path::under_out(&report, &options.out),
                 phases: Vec::new(),
                 error: None,
             };
@@ -95,7 +119,7 @@ fn run_one(
     options: &Options,
     bench: &Path,
     target: &Target,
-    client: &str,
+    client: ClientMode,
     name: &str,
 ) -> anyhow::Result<Vec<MobPhase>> {
     let dir = ScratchDir::new(&format!("mob-{name}"))?;
@@ -130,7 +154,7 @@ fn run_one(
 fn arguments(
     options: &Options,
     target: &Target,
-    client: &str,
+    client: ClientMode,
     dir: &Path,
     report: &Path,
 ) -> anyhow::Result<Vec<String>> {
@@ -139,15 +163,23 @@ fn arguments(
         (false, Profile::Quick) => QUICK_PHASES,
         (false, Profile::Full) => FULL_PHASES,
     };
-    let (idle_warmup, warmup, measure) = if options.smoke {
-        ("2", "2", "5")
+    let seconds = if options.smoke {
+        PhaseSeconds {
+            idle_warmup: "2",
+            warmup: "2",
+            measure: "5",
+        }
     } else {
-        ("10", "30", "60")
+        PhaseSeconds {
+            idle_warmup: "10",
+            warmup: "30",
+            measure: "60",
+        }
     };
     let path = |path: &Path| path.to_string_lossy().into_owned();
     let pairs = [
         ("--server", target.server.to_owned()),
-        ("--client", client.to_owned()),
+        ("--client", client.as_str().to_owned()),
         ("--repo", path(&options.repo)),
         ("--dir", path(dir)),
         ("--out", path(report)),
@@ -155,9 +187,9 @@ fn arguments(
         ("--phases", phases.to_owned()),
         ("--pigs", "50000".to_owned()),
         ("--samples", "32".to_owned()),
-        ("--idle-warmup", idle_warmup.to_owned()),
-        ("--warmup", warmup.to_owned()),
-        ("--measure", measure.to_owned()),
+        ("--idle-warmup", seconds.idle_warmup.to_owned()),
+        ("--warmup", seconds.warmup.to_owned()),
+        ("--measure", seconds.measure.to_owned()),
         ("--probe-interval", "5".to_owned()),
         ("--summon-rate", "5000".to_owned()),
         ("--sprint-ticks", "100".to_owned()),
