@@ -541,12 +541,11 @@ component. The reader does this:
 | the length is negative | a decode error |
 | the length is larger than the number of bytes that remain in the packet | a decode error |
 | the wire form of the component needs more bytes than the length | a decode error |
-| the wire form of the component uses fewer bytes than the length | The reference reader accepts the component and ignores the bytes that remain inside the length. |
+| the wire form of the component uses fewer bytes than the length | a decode error |
 
 After the component, the reader continues at the first byte after the length. The length has no
-maximum of its own. A writer must write the exact length. A reader of this project can give a
-decode error in the last case of the table. Reason: the vanilla client writes the exact length.
-Open question Q5 asks for the decision. See experiment E20.
+maximum of its own. A writer must write the exact length. The last case of the table is stricter
+than the reference. Deviation D4 records the reference behaviour. See experiment E20.
 
 ### 6.5 Where a nested format applies
 
@@ -1239,18 +1238,18 @@ from an enchantment to a level:
 |-------|------------|-------|--------|-----------|
 | `(value)` | a map | no limit on the number of keys | necessary | the number of entries, then the entries |
 | each key | entry of the registry `minecraft:enchantment` | each entry | | VarInt: the numeric id |
-| each value | int | `1..255` | | VarInt, `0..255` |
+| each value | int | `1..255` | | VarInt, `1..255` |
 
 `minecraft:enchantment` is a data-pack registry. The numeric id is the id that the server sent
 for this connection (`registry.md`). The saved form does not accept an enchantment that is
 written in place as a map. Limits: none on the number of entries. The reader of the wire form
-gives a decode error for a level out of `0..255`. A server must not send the level 0, because
+gives a decode error for a level out of `1..255`. A writer must not write the level 0, because
 that component has no saved form. A writer must not write one enchantment two times. The order of
 the entries in the wire form is the choice of the writer.
 
-The reference reader of the wire form accepts the level 0. It also accepts one enchantment two
-times, and the level of the last entry wins. In the saved form, two keys that name one
-enchantment are an error. For example, a map with `sharpness` and `minecraft:sharpness` is not a
+The reference reader of the wire form accepts the level 0. Deviation D5 records that behaviour.
+The reference reader also accepts one enchantment two times, and the level of the last entry
+wins. In the saved form, two keys that name one enchantment are an error. For example, a map with `sharpness` and `minecraft:sharpness` is not a
 valid saved form. These statements have the provenance `source_suggested`. Equality: the two maps have the same
 enchantments with the same levels. The order has no effect. Prototypes: each prototype has this
 component with the empty map `{}`. See experiments E29 and E30.
@@ -1383,6 +1382,26 @@ E29 and E32.
   than 99.
 - **Test**: a differential test must not make a stack with a count larger than 255.
 
+**D4.**
+
+- **Rule**: STK-NET-010.
+- **Reference**: the reference reader accepts a component that uses fewer bytes than its length.
+  It ignores the bytes that remain inside the length.
+- **mcrs**: the reader of the wire stack with length prefix gives a decode error for such a
+  component. Reason: a strict reader refuses input that no conforming writer produces.
+- **Visible to the client**: no. The vanilla client writes the exact length.
+- **Test**: a differential test must not write a length that is larger than the component.
+
+**D5.**
+
+- **Rule**: STK-SHP-015.
+- **Reference**: the reference reader of the wire form of `minecraft:enchantments` accepts the
+  level 0. In the wire stack with length prefix, the check of STK-NET-009 then rejects the stack.
+- **mcrs**: the reader of the wire form gives a decode error for the level 0 in each format that
+  carries the component. Reason: a strict reader refuses input that no conforming writer produces.
+- **Visible to the client**: no. The vanilla client and the vanilla server write no level 0.
+- **Test**: a differential test must not write an enchantment with the level 0.
+
 ## 10. Open questions
 
 For the owner:
@@ -1397,9 +1416,8 @@ For the owner:
   `argument-item.md` with the item predicate form?
 - **Q4**: STK-HSH-008. A stack with `minecraft:map_post_processing` can be in a result slot when
   the client clicks. Which hash does the client send, or does the client fail? Experiment E27.
-- **Q5**: STK-NET-010. Does the server reject a `set_creative_mode_slot` packet in which a
-  component uses fewer bytes than its length? The reference accepts the packet and ignores the
-  bytes that remain. The owner decides if this project is stricter.
+- **Q5**: answered. STK-NET-010 states that the reader gives a decode error. Deviation D4 records
+  the reference behaviour.
 - **Q6**: answered. STK-EQ-005, STK-EQ-006 and STK-HSH-009 state the rules. Experiment E28
   confirms them.
 - **Q7**: STK-TYP-003. The wire form of each `own` component type needs a specification. Which
