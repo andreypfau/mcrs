@@ -46,6 +46,8 @@ pub fn decorations(origin: IVec2, stack: &Decorated, font: &Font, out: &mut Vec<
 mod tests {
     use super::*;
     use crate::font::corpus_font;
+    use crate::font_glyph::Weight;
+    use bevy::math::Vec2;
 
     #[test]
     fn bar_width_and_hue_follow_the_damage() {
@@ -112,24 +114,28 @@ mod tests {
             out,
             vec![
                 GuiQuad::Glyph {
-                    origin: IVec2::new(6, 10),
+                    pen: Vec2::new(6.0, 10.0),
                     glyph: '6',
-                    color: 0xFF3F_3F3F
+                    color: 0xFF3F_3F3F,
+                    weight: Weight::Regular,
                 },
                 GuiQuad::Glyph {
-                    origin: IVec2::new(5, 9),
+                    pen: Vec2::new(5.0, 9.0),
                     glyph: '6',
-                    color: WHITE
+                    color: WHITE,
+                    weight: Weight::Regular,
                 },
                 GuiQuad::Glyph {
-                    origin: IVec2::new(12, 10),
+                    pen: Vec2::new(12.0, 10.0),
                     glyph: '4',
-                    color: 0xFF3F_3F3F
+                    color: 0xFF3F_3F3F,
+                    weight: Weight::Regular,
                 },
                 GuiQuad::Glyph {
-                    origin: IVec2::new(11, 9),
+                    pen: Vec2::new(11.0, 9.0),
                     glyph: '4',
-                    color: WHITE
+                    color: WHITE,
+                    weight: Weight::Regular,
                 },
             ]
         );
@@ -141,7 +147,7 @@ mod tests {
         decorations(IVec2::ZERO, &seven, corpus_font(), &mut out);
         assert_eq!(out.len(), 2);
         assert!(
-            matches!(out[1], GuiQuad::Glyph { origin, glyph: '7', .. } if origin == IVec2::new(11, 9))
+            matches!(out[1], GuiQuad::Glyph { pen, glyph: '7', .. } if pen == Vec2::new(11.0, 9.0))
         );
     }
 }

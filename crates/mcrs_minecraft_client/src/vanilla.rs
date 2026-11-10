@@ -9,9 +9,10 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use mcrs_minecraft_client_jar::{self as client_jar, Files, Progress};
 
-use mcrs_minecraft_client_gui::font::{ASCII_TEXTURE, Font, Span, draw_centered_text};
+use mcrs_minecraft_client_gui::font::{Font, Span, draw_centered_text};
+use mcrs_minecraft_client_gui::font_definition::FontOptions;
+use mcrs_minecraft_client_gui::font_glyph::ImageSource;
 use mcrs_minecraft_client_gui::scene::GuiQuad;
-use mcrs_minecraft_model::atlas::decode_png;
 use mcrs_minecraft_model::resource_set::{ResourceSet, is_resource};
 use mcrs_minecraft_model::vanilla_source::{fill, register_source};
 
@@ -85,6 +86,11 @@ fn spawn(
                 }
             };
             fill(&root, files);
+            // The asset index layer lies above the jar, so its files are laid second.
+            match client_jar::font_assets(&progress) {
+                Ok(layer) => fill(&root, layer),
+                Err(error) => warn!("the text keeps to the jar's glyphs: {error}"),
+            }
             unpacked.store(true, Ordering::Release);
             if let Some(rest) = rest {
                 rest.finish();
@@ -106,6 +112,10 @@ fn spawn_web(
         })
         .await;
         fill(&root, files);
+        match client_jar::font_assets().await {
+            Ok(layer) => fill(&root, layer),
+            Err(error) => warn!("the text keeps to the jar's glyphs: {error}"),
+        }
         unpacked.store(true, Ordering::Release);
     });
 }
@@ -145,44 +155,49 @@ fn finish_fetch(mut fetch: ResMut<Fetch>, mut next: ResMut<NextState<VanillaAsse
 #[derive(Resource)]
 struct LoadingFont {
     font: Font,
-    page: Handle<Image>,
+    /// The image of each bitmap provider's texture, by the provider's index.
+    pages: Vec<(usize, Handle<Image>)>,
 }
 
 fn load_font(fetch: Res<Fetch>, mut images: ResMut<Assets<Image>>, mut commands: Commands) {
     let Some(files) = fetch.fonts.lock().unwrap().take() else {
         return;
     };
-    match font_page(files) {
-        Ok((font, page)) => commands.insert_resource(LoadingFont {
+    match font_pages(files) {
+        Ok((font, pages)) => commands.insert_resource(LoadingFont {
             font,
-            page: images.add(page),
+            pages: pages
+                .into_iter()
+                .map(|(source, page)| (source, images.add(page)))
+                .collect(),
         }),
         Err(error) => warn!("the loading screen stays without text: {error}"),
     }
 }
 
-fn font_page(files: Files) -> Result<(Font, Image), String> {
+fn font_pages(files: Files) -> Result<(Font, Vec<(usize, Image)>), String> {
     let pack: ResourceSet = files.into_iter().collect();
-    let (pixels, width, height) = decode_png(
-        pack.read(ASCII_TEXTURE)
-            .map_err(|error| error.to_string())?,
-        ASCII_TEXTURE,
-    )
-    .map_err(|error| error.to_string())?;
-    let font = Font::load(&pack, &pixels, width, height)?;
-    let mut page = Image::new(
-        Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-        TextureDimension::D2,
-        pixels,
-        TextureFormat::Rgba8UnormSrgb,
-        RenderAssetUsages::default(),
-    );
-    page.sampler = ImageSampler::nearest();
-    Ok((font, page))
+    let font = Font::load(&pack, FontOptions::default())?;
+    let pages = font
+        .bitmap_pages()
+        .map(|(source, page)| {
+            let (width, height) = page.size();
+            let mut image = Image::new(
+                Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+                TextureDimension::D2,
+                page.pixels().to_vec(),
+                TextureFormat::Rgba8UnormSrgb,
+                RenderAssetUsages::default(),
+            );
+            image.sampler = ImageSampler::nearest();
+            (source, image)
+        })
+        .collect();
+    Ok((font, pages))
 }
 
 #[derive(Component)]
@@ -347,30 +362,37 @@ fn draw_progress(
     }
 }
 
+/// The node of a glyph the loading screen can draw: one from a bitmap page, which is all the jar
+/// alone gives.
 fn glyph_node(font: &LoadingFont, quad: GuiQuad) -> Option<(Node, ImageNode)> {
     let GuiQuad::Glyph {
-        origin,
+        pen,
         glyph,
         color,
+        weight,
     } = quad
     else {
         return None;
     };
-    let cell = font.font.glyph(glyph)?.cell.as_vec2();
-    let size = font.font.cell_size.as_vec2();
+    let image = font.font.glyph(glyph).image?;
+    let ImageSource::Bitmap { source, texels } = image.source else {
+        return None;
+    };
+    let (_, page) = font.pages.iter().find(|(page, _)| *page == source)?;
+    let rect = image.strike(pen, weight);
     let [a, r, g, b] = color.to_be_bytes();
     Some((
         Node {
             position_type: PositionType::Absolute,
-            left: Val::Px(origin.x as f32 * TEXT_SCALE),
-            top: Val::Px(origin.y as f32 * TEXT_SCALE),
-            width: Val::Px(size.x * TEXT_SCALE),
-            height: Val::Px(size.y * TEXT_SCALE),
+            left: Val::Px(rect.min.x * TEXT_SCALE),
+            top: Val::Px(rect.min.y * TEXT_SCALE),
+            width: Val::Px(rect.width() * TEXT_SCALE),
+            height: Val::Px(rect.height() * TEXT_SCALE),
             ..default()
         },
         ImageNode {
-            image: font.page.clone(),
-            rect: Some(Rect::from_corners(cell, cell + size)),
+            image: page.clone(),
+            rect: Some(texels),
             color: Color::srgba_u8(r, g, b, a),
             ..default()
         },
@@ -394,11 +416,12 @@ mod tests {
             )
             .unwrap();
 
-            let (font, page) = font_page(delivered.expect("fonts are delivered")).unwrap();
+            let (font, pages) = font_pages(delivered.expect("fonts are delivered")).unwrap();
 
-            assert_eq!(page.width(), 128);
+            assert_eq!(pages.len(), 3);
+            assert!(pages.iter().any(|(_, page)| page.width() == 128));
             for ch in "0123456789./ MB%".chars() {
-                assert!(font.advance(ch, false) > 0, "{ch:?} has no advance");
+                assert!(font.advance(ch, false) > 0.0, "{ch:?} has no advance");
             }
         }
     }

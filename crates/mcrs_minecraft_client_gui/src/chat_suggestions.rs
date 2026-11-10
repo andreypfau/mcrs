@@ -151,7 +151,7 @@ pub(super) fn hint_lines(
             Hint::Usage(range) => {
                 font::draw_str(
                     font,
-                    at,
+                    at.as_vec2(),
                     commands.usage_text(range.clone()),
                     GRAY,
                     false,
@@ -159,7 +159,7 @@ pub(super) fn hint_lines(
                 );
             }
             Hint::Restriction(key) => {
-                font::draw_str(font, at, language.get(key), RED, false, out);
+                font::draw_str(font, at.as_vec2(), language.get(key), RED, false, out);
             }
         }
     }
