@@ -34,7 +34,7 @@ pub fn run(options: &Options, errors: &mut Vec<String>) -> Vec<WorldgenBench> {
         benches.push(("beta_chunks", &["32", "1", "12345"]));
         benches.push(("overworld_pipeline", &["64", "845", "0"]));
     }
-    let mut progress = Progress::new(Section::Worldgen, benches.len(), Duration::from_secs(120));
+    let mut progress = Progress::new(Section::Worldgen, benches.len(), Duration::from_secs(30));
     let mut reports = Vec::new();
     for (index, (bench, args)) in benches.into_iter().enumerate() {
         progress.step(&format!("{bench} {}", args.join(" ")));

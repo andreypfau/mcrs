@@ -6,13 +6,13 @@ This guide is for testers who run the mcrs benchmarks on their own Mac or Window
 
 The kit in `tools/perf-kit/` runs four sections: the mob simulation benchmark (`mob`), the client rendering a fixed scene (`client`), the server tick (`server`) and world generation (`worldgen`).
 
-Results from different machines are comparable because every run uses the same inputs: the world seed is fixed at 12345, the client window has a fixed size chosen from a short list (1920x1080, 1600x900, 1280x720), and the run follows one of two fixed profiles. The `quick` profile is the default and takes about 45-90 minutes. The `full` profile measures for longer and takes about 3-5 hours.
+Results from different machines are comparable because every run uses the same inputs: the world seed is fixed at 12345, the client window has a fixed size chosen from a short list (1920x1080, 1600x900, 1280x720), and the run follows one of two fixed profiles. The `quick` profile is the default and takes about 30-60 minutes. The `full` profile measures for longer and takes about 1.5-3 hours.
 
 Next to the numbers, the kit records what the numbers depend on: the CPU, GPU, memory and displays (`system.json`), and the state of the machine before and after the run (`hygiene.json`, `hygiene-after.json`): which apps were open, whether the machine ran on battery, how busy the CPU was. A result from a noisy machine is still useful when we know it was noisy.
 
 ## Before you start
 
-- Plan the time: 45-90 minutes for `quick`, 3-5 hours for `full`, plus 30-60 minutes for the first setup and build.
+- Plan the time: 30-60 minutes for `quick`, 1.5-3 hours for `full`, plus 30-60 minutes for the first setup and build.
 - Plug in the charger. A laptop on battery runs slower and the results do not compare.
 - Use a display that stays on for the whole run. The client must render into a visible window: a covered, minimised or switched-off window produces no frames.
 - Sit at the machine itself. Do not run the kit over Remote Desktop: on Windows an RDP session changes how the GPU presents frames.
@@ -132,5 +132,7 @@ When the run ends the script prints the path of a zip file in `tools/perf-kit/re
 - `report.json`: the benchmark results.
 - `raw/`: the raw measurements behind the report.
 - `run.log`: the console output of the benchmark runner.
+
+`engine` in the client numbers is the sum of the stage times and can exceed the wall frame when rendering is pipelined, so compare machines by fps and the wall frame. The GPU lines cover the compute passes only (cull, hiz, entity), not the terrain or sky draw passes.
 
 Send the zip file to the person who asked you to run the benchmarks, with a sentence about anything unusual during the run.

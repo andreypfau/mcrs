@@ -84,10 +84,14 @@ pub fn run(options: &Options, errors: &mut Vec<String>) -> anyhow::Result<Vec<Mo
         Profile::Quick => &[ClientMode::Off],
         Profile::Full => &[ClientMode::Watcher, ClientMode::Off],
     };
+    let seed_seconds = match options.profile {
+        Profile::Quick => 900,
+        Profile::Full => 990,
+    };
     let mut progress = Progress::new(
         Section::Mob,
         targets.len() * clients.len(),
-        Duration::from_secs(600),
+        Duration::from_secs(seed_seconds),
     );
     let mut runs = Vec::new();
     for target in &targets {

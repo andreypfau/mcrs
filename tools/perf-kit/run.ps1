@@ -61,9 +61,9 @@ if ((Test-Path $PowerRestoreFile) -and ($Yes -or (Confirm-Choice (T 'An earlier 
 
 Write-Host (T "mcrs benchmark kit, profile: $benchProfile" "Бенчмарки mcrs, профиль: $benchProfile")
 if ($Full) {
-    Write-Host (T 'Expected time: about 3-5 hours, depending on the machine.' 'Займет примерно 3-5 часов, смотря какая машина.')
+    Write-Host (T 'Expected time: about 1.5-3 hours, depending on the machine.' 'Займет примерно 1,5-3 часа, смотря какая машина.')
 } else {
-    Write-Host (T 'Expected time: about 45-90 minutes, depending on the machine.' 'Займет примерно 45-90 минут, смотря какая машина.')
+    Write-Host (T 'Expected time: about 30-60 minutes, depending on the machine.' 'Займет примерно 30-60 минут, смотря какая машина.')
 }
 Write-Host (T 'While it runs, do not touch the computer. The game window must stay visible, on top and not minimised.' 'Пока идут замеры, не трогайте компьютер. Окно игры должно быть видно, поверх остальных окон и не свернуто.')
 Write-Host ''

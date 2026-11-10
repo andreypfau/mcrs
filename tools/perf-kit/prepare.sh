@@ -221,6 +221,14 @@ check_time_machine() {
     if [ "$running" = 1 ]; then record "time machine" running false "$action"; else record "time machine" idle true "$action"; fi
 }
 
+check_screen_sharing() {
+    if pgrep -x screensharingd >/dev/null 2>&1; then
+        record "screen sharing" active false "$(msg "client numbers taken through Screen Sharing do not compare" "числа клиента, снятые через Screen Sharing, нельзя сравнивать")"
+    else
+        record "screen sharing" none true ""
+    fi
+}
+
 check_memory() {
     local total free_gb
     total="$(sysctl -n hw.memsize)"
@@ -247,6 +255,7 @@ check_power
 check_idle
 check_time_machine
 check_memory
+check_screen_sharing
 if interactive; then
     msg "Please confirm (answers are recorded, nothing is enforced):" "Подтвердите (ответы попадут в отчет, скрипт их не проверяет):"
     manual "focus" "Is Do Not Disturb or a Focus mode on, so no notification covers the window?" \

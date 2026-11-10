@@ -65,9 +65,9 @@ repo="$(repo_of_kit)"
 
 msg "mcrs benchmark kit, profile: $profile" "Бенчмарки mcrs, профиль: $profile"
 if [ "$profile" = full ]; then
-    msg "Expected time: about 3-5 hours, depending on the machine." "Займет примерно 3-5 часов, смотря какая машина."
+    msg "Expected time: about 1.5-3 hours, depending on the machine." "Займет примерно 1,5-3 часа, смотря какая машина."
 else
-    msg "Expected time: about 45-90 minutes, depending on the machine." "Займет примерно 45-90 минут, смотря какая машина."
+    msg "Expected time: about 30-60 minutes, depending on the machine." "Займет примерно 30-60 минут, смотря какая машина."
 fi
 msg "While it runs, do not touch the computer. The game window must stay visible, on top and not minimised." "Пока идут замеры, не трогайте компьютер. Окно игры должно быть видно, поверх остальных окон и не свернуто."
 say ""

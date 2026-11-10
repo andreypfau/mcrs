@@ -126,7 +126,7 @@ pub fn run(options: &Options, errors: &mut Vec<String>) -> anyhow::Result<Client
     let mut progress = Progress::new(
         Section::Client,
         launches.len() * runs,
-        Duration::from_secs(80),
+        Duration::from_secs(51),
     );
     let mut report = ClientReport {
         adapter: None,
