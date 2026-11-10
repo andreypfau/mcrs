@@ -34,7 +34,7 @@ export default defineConfig({
       editLink: { baseUrl: `${REPO}/edit/main/docs-site/` },
       lastUpdated: true,
       sidebar: [
-        { label: "Docs home", translations: { ru: "Главная доков" }, link: "/en/" },
+        { label: "Docs home", translations: { ru: "Главная доков" }, link: "/" },
         { label: "Start", translations: { ru: "Начало" }, items: [{ autogenerate: { directory: "start" } }] },
         { label: "Plugin developers", translations: { ru: "Разработчикам плагинов" }, items: [{ autogenerate: { directory: "plugins" } }] },
         { label: "How it works", translations: { ru: "Как устроено" }, items: [{ autogenerate: { directory: "concepts" } }] },
