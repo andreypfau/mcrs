@@ -2,13 +2,17 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
+| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
+| Protocol version | `1073742169` |
+
+Source of these values: `assets/minecraft/version.json`. The captured results of section 13 come from
+`26.4-snapshot-4`.
 
 This document states how a player places a block in creative mode, and what the server sends for it. It
 states only what a client, the server console and the server files show. It does not prescribe an
-architecture. All rules come from a vanilla server in offline mode, with scripted clients. Section 12
-gives the experiments, and section 13 gives the captured results.
+architecture. Most rules come from a vanilla server in offline mode, with scripted clients. A rule with a
+`source_suggested` label comes from the reference implementation. Section 12 gives
+the experiments, and section 13 gives the captured results.
 
 Scope: creative mode, and the refusals that other game modes cause. This document does not state the
 inventory (`inventory.md`, not yet written), a full table of block states or the use of an item that is
@@ -40,14 +44,16 @@ not a block item.
 - **Placement**: the server changes the block at the target position.
 - **Refusal**: the server does not change a block.
 - **Replaceable block**: a block that a placement can overwrite (PLC-TGT-002).
+- **Operator**: a player in the operator list of the server. Its permission level is 4 by default.
 
 ### 0.2 Provenance
 
 - `black_box_confirmed`: shown by a captured result in section 13.
+- `source_suggested_black_box_confirmed`: taken from the reference implementation, and consistent with a
+  captured result in section 13.
+- `source_suggested`: taken from the reference implementation, with no captured result. Section 12
+  attaches an experiment.
 - `unresolved`: not decided. Section 11 collects these items, with an experiment for each item.
-
-This document has no rule with a `source_suggested` label. The author did not read the reference
-implementation for it. A behaviour with no captured result is in section 11, and not in a rule.
 
 All the results come from one vanilla server and scripted clients on one machine. A rule that rests on
 one observation states this.
@@ -79,6 +85,10 @@ loaded. There is no acknowledgement, no block state and no placement. The client
 sends `player_loaded`, or about 60 ticks after the player joins. See result R5. This agrees with
 BRK-REQ-005.
 
+**PLC-REQ-006** (`source_suggested`, semantic). The server ignores a request when the held item is not
+enabled by the enabled features of the world. The placer gets one acknowledgement and nothing else.
+Experiment E49.
+
 ## 2. A placement
 
 **PLC-PLA-001** (`black_box_confirmed`, semantic). The placer gets, in this order:
@@ -102,20 +112,26 @@ result R1.
 **PLC-PLA-004** (`black_box_confirmed`, semantic). The placer does not get `sound` or `swing_animation`
 for a placement. See result R1.
 
-**PLC-PLA-005** (`black_box_confirmed`, wire). The `sound` packet has the place sound of the placed
-block, the category value 4, and the centre of the target position as its position. See results R1 and
-R6. A block with two parts uses the target position, and not the other part. Most tested blocks have a
-volume of 1.0 and a pitch of 0.8. Section 11 (U1) states what remains unknown.
+**PLC-PLA-005** (`source_suggested_black_box_confirmed`, wire). The `sound` packet has the place sound
+of the placed block, the category value 4, and the centre of the target position as its position. See
+results R1 and R6. A block with two parts uses the target position, and not the other part. The sound set
+of the placed state gives the sound. The block definition names the sound set
+(`mcrs:block_sound_set`), and the `block_sound_set` registry of the data pack holds it. The volume is
+`(v + 1) / 2` and the pitch is `p * 0.8`, where `v` and `p` are the volume and the pitch of the sound set.
+Each has the default 1.0. A sound set with no place sound sends no `sound`.
 
-**PLC-PLA-006** (`black_box_confirmed`, semantic). An observer gets the `sound` when the distance from
-its position to the sound position is less than 16. A distance of 15.9 gets it and 16.1 does not. See
-result R7. An observer gets the new block state while its client holds the chunk.
+**PLC-PLA-006** (`source_suggested_black_box_confirmed`, semantic). An observer gets the `sound` when
+the distance from its position to the sound position is less than the range of the sound. The range is
+16, or 16 times the volume when the volume is above 1. A sound event with a fixed range uses that range.
+A distance of 15.9 gets it and 16.1 does not. See result R7. An observer gets the new block state while
+its client holds the chunk.
 
-**PLC-PLA-007** (`black_box_confirmed`, wire). The `swing_animation` packet names the entity of the
-placer and the hand: 0 for the main hand, and 1 for the off hand. The next two values are 1 and 6. See
-results R1 and R8. The reference implementation sends the packet two times. A parity test must not count
-these packets (kind: unspecified). An observer that does not track the placer does not get it. See result
-R7.
+**PLC-PLA-007** (`source_suggested_black_box_confirmed`, wire). The `swing_animation` packet names the
+entity of the placer, the hand (0 for the main hand, and 1 for the off hand), and the swing animation of
+the held item. The swing animation is the type and the duration of the `minecraft:swing_animation`
+component. The default is the type 1 (`whack`) and the duration 6. See results R1 and R8. The reference
+implementation sends the packet two times. A parity test must not count these packets (kind:
+unspecified). An observer that does not track the placer does not get it. See result R7.
 
 **PLC-PLA-008** (`black_box_confirmed`, semantic). In creative mode, the held item does not change. The
 placer gets no slot packet, and an observer gets no `set_equipment`. See result R9.
@@ -147,15 +163,17 @@ The clicked position does not need support: a request on air places the block at
 result R13. A later rule can refuse the placement. The vanilla client does not send this request in
 normal use.
 
-**PLC-TGT-002** (`black_box_confirmed`, semantic). The replaceable blocks are the members of the block
-tag `minecraft:replaceable`, with these conditions. See result R13.
+**PLC-TGT-002** (`source_suggested_black_box_confirmed`, semantic). A block is replaceable when its
+block definition has the `minecraft:replaceable` component, with these conditions. See result R13. The
+block tag `minecraft:replaceable` has the same members in this version, but the server does not read the
+tag. A data pack that changes the tag does not change this set. Experiment E50.
 
 - Snow is replaceable only with `layers=1`.
 - Water and lava are replaceable at each tested level: 0 and 4 for water, 0 and 2 for lava.
 - Light is replaceable only as the adjacent position (PLC-INT-003).
 
 Result R13 tests these members: air, cave air, short grass, fern, dead bush, bush, short dry grass,
-water, lava, fire, vine, glow lichen, light, structure void, seagrass, crimson roots, tall grass, leaf
+water, lava, fire, vine, light, structure void, seagrass, crimson roots, tall grass, leaf
 litter with one segment and bubble column. These blocks are not replaceable in result R13: snow with more
 than one layer, dandelion, torch, oak sapling, barrier, kelp, nether portal, cobweb, bedrock and stone.
 
@@ -188,6 +206,15 @@ state of the other part, before the other packets. See result R17.
 **PLC-TGT-005** (`black_box_confirmed`, semantic). A placement on a fluid removes the fluid, unless the
 placed state holds water (PLC-STA-005). See result R12.
 
+**PLC-TGT-006** (`source_suggested`, semantic). A block of PLC-TGT-002 is not replaceable when the held
+item is the item of that block. A fern in hand on a fern places the fern at the adjacent position. The
+blocks of PLC-TGT-003 and of PLC-TGT-007 have their own rule. Experiment E51.
+
+**PLC-TGT-007** (`source_suggested_black_box_confirmed`, semantic). A glow lichen and a sculk vein are
+replaceable when the held item is another item. A sculk vein has no `minecraft:replaceable` component,
+but this rule applies to it too. With their own item in hand, they are replaceable only while a face can
+still take a surface. See result R13. Experiment E51.
+
 ## 4. Refusals
 
 ### 4.1 Refusals that send only an acknowledgement
@@ -200,8 +227,12 @@ target position further than 6.0 can receive a block.
 
 **PLC-CUR-001** (`black_box_confirmed`, semantic). A request is refused when a cursor value is below -0.5
 or above 1.5. A value that is not a number also refuses it. The placer gets one acknowledgement and no
-block state. An observer gets nothing. See result R20. The limits are about 0.00001 exact: -0.5 and 1.5
-pass, and -0.50001 and 1.50001 do not.
+block state. An observer gets nothing. See result R20. The limits hold to 0.00001: -0.5 and 1.5 pass, and
+-0.50001 and 1.50001 do not.
+
+**PLC-CUR-002** (`source_suggested`, semantic). In the refusal of PLC-CUR-001, the server console gets
+one warning line. The line names the player, the cursor location and the clicked position. Experiment
+E52.
 
 ### 4.2 The height limits
 
@@ -210,11 +241,21 @@ placer gets `system_chat` in the overlay position, and then one acknowledgement.
 translation key `build.tooHigh` in red, with the argument 319. See result R21. A clicked position below
 the height limit does the same with the key `build.tooLow` and the argument -64.
 
-**PLC-HGT-002** (`black_box_confirmed`, wire). A clicked position in the world with an adjacent position
-outside the height limits is refused when the block at the clicked position is not replaceable. The
-placer gets the message of PLC-HGT-001, a refresh and one acknowledgement. The state of the adjacent
-position in the refresh is `void_air`. See result R21. Section 10 (DEV-2) states a difference of the
-reference.
+**PLC-HGT-002** (`source_suggested_black_box_confirmed`, wire). A clicked position in the world with an
+adjacent position outside the height limits is refused when the block at the clicked position is not
+replaceable. The placer gets a refresh and one acknowledgement. The state of the adjacent position in the
+refresh is `void_air`. See result R21.
+
+**PLC-HGT-004** (`source_suggested_black_box_confirmed`, wire). The placer also gets the message of
+PLC-HGT-001 before the refresh when all these conditions are true. See result R21. Experiment E53.
+
+- The face is up and the clicked `y` is at the upper height limit or above it.
+- Or the face is down and the clicked `y` is at the lower height limit or below it.
+- The request places no block and the clicked block does not act.
+- The held item is a block item or a bucket that holds a fluid, and the item has no cooldown.
+
+The reason of the refusal has no effect. A side face sends no message. Section 10 (DEV-2) states a
+difference of the reference.
 
 **PLC-HGT-003** (`black_box_confirmed`, semantic). A block with two parts that would pass the height
 limit is refused with a refresh and one acknowledgement, and with no message. See result R21. This rule
@@ -239,15 +280,14 @@ nothing. See result R22.
 **PLC-BRD-001** (`black_box_confirmed`, semantic). A request is refused when the block corner of the
 clicked position is outside the world border. The block corner is outside when `x` or `z` is below the
 lower limit of the border, or is at or above the upper limit. The placer gets a refresh and one
-acknowledgement. An observer gets nothing. See result R23. Section 10 (DEV-1) states a difference of the
-reference.
+acknowledgement. An observer gets nothing. See result R23. An operator is also subject to this rule.
+Section 10 (DEV-1) states a difference of the reference.
 
 **PLC-BRD-002** (`black_box_confirmed`, semantic). The target position can be outside the border when the
 clicked position is inside it. The block is placed. See result R23.
 
 **PLC-BRD-003** (`black_box_confirmed`, semantic). A bed with its head outside the border is refused with
-a refresh and one acknowledgement. See result R23. This rule rests on one observation. An operator is
-also subject to PLC-BRD-001.
+a refresh and one acknowledgement. See result R23. This rule rests on one observation.
 
 **PLC-TEL-001** (`black_box_confirmed`, semantic). A request is refused while an open teleport exists
 (`teleport-confirmation.md`). The placer gets a refresh and one acknowledgement. An observer gets
@@ -265,29 +305,36 @@ and then one acknowledgement. An observer gets nothing.
 | The player is in spectator mode | R26 |
 | The player is in adventure mode, and PLC-INV-003 does not allow the placement | R26 |
 | The block needs support, and the position does not give it (PLC-SUP-001) | R27 |
-| The placed block would overlap an entity (PLC-ENT-001) | R28 |
-| The block is one of PLC-REF-002, and the player is not an operator | R10 |
+| The placed block would overlap an entity (PLC-ENT-001) | R28, for a pig and a player |
+| The block is one of PLC-REF-002, and the player is not in creative mode with permission level 2 or more | R10 |
 | The other part of the block cannot go in its position (section 8) | R14 |
 
-**PLC-REF-002** (`black_box_confirmed`, semantic). A player that is not an operator cannot place a
-command block, a chain command block, a repeating command block, a structure block, a jigsaw block, a
-test block or a test instance block. An operator with the default level places the tested ones. See
-result R10. A barrier, a light, a structure void, a spawner and bedrock have no such limit. Section 11
-(U5) states what remains unknown.
+**PLC-REF-002** (`source_suggested_black_box_confirmed`, semantic). A command block, a chain command
+block, a repeating command block, a structure block, a jigsaw block, a test block and a test instance
+block need a player in creative mode with the permission level 2 or more. Any other player cannot place
+them. See result R10. A barrier, a light, a structure void, a spawner and bedrock have no such limit.
+Experiment E44.
 
 **PLC-SUP-001** (`black_box_confirmed`, semantic). Some blocks need support from a neighbour. Result R27
 lists the tested pairs. The rule of each block is block data, and section 11 (U2) states what remains
 unknown.
 
-**PLC-ENT-001** (`black_box_confirmed`, semantic). A placement is refused when the collision shape of the
-placed state overlaps the bounding box of a blocker. Contact alone is not an overlap. See results R28 and
-R29. These entities are blockers: a player that is not a spectator, a pig, a villager, a zombie, a
-shulker and primed TNT. These entities are not blockers in result R28: a spectator, an armor stand, every
-minecart, every boat, an item, an arrow, an experience orb, an end crystal, a snowball, a falling block,
-an item frame, an interaction, a marker, a block display, a leash knot and an area effect cloud.
+**PLC-ENT-001** (`source_suggested`, semantic). A placement is refused when the collision shape of the
+placed state overlaps the bounding box of a blocker. Contact alone is not an overlap. A spectator is never
+a blocker. These entities are blockers:
+
+- each living entity, for example a player, a pig, a villager, a zombie, a shulker and an armor stand
+  that is not a marker;
+- primed TNT, an end crystal and a falling block;
+- each minecart and each boat.
+
+The other entities are not blockers. Examples are an armor stand that is a marker, an item, an arrow, an
+experience orb, a snowball, an item frame, an interaction, a marker, a block display, a leash knot and an
+area effect cloud. Results R28 and R29 agree, except for the armor stand, the minecarts, the boats,
+the end crystal and the falling block. Section 11 (U13) states this conflict. Experiment E57.
 
 **PLC-ENT-002** (`black_box_confirmed`, semantic). The placer is also a blocker. See result R29. The box
-of a standing player is 0.6 wide and 1.8 high, with the position at the centre of its bottom.
+of a player that stands is 0.6 wide and 1.8 high, with the position at the centre of its bottom.
 
 **PLC-ENT-003** (`black_box_confirmed`, semantic). A block with no collision shape has no such refusal. A
 torch, a sapling, a rail and a tall plant do not hit a blocker. See results R28 and R29. A bottom slab
@@ -302,20 +349,31 @@ removes it. See result R30. This rule rests on one observation.
 
 ### 4.6 The order of the checks
 
-**PLC-ORD-001** (`black_box_confirmed`, semantic). The server applies the checks in this order. The first
-check that refuses the request sets the result.
+**PLC-ORD-001** (`source_suggested_black_box_confirmed`, semantic). The server applies the checks in this
+order. The first check that refuses the request sets the result.
 
-1. Reach (PLC-RCH-001).
-2. The cursor (PLC-CUR-001).
-3. The height limits of the clicked position (PLC-HGT-001).
-4. Spawn protection (PLC-SPN-001).
-5. The open teleport (PLC-TEL-001) and the world border (PLC-BRD-001).
-6. The use of the clicked block (section 5).
-7. The held item, and then the checks of the placement in section 3 and PLC-REF-001.
+1. The enabled features of the held item (PLC-REQ-006).
+2. Reach (PLC-RCH-001).
+3. The cursor (PLC-CUR-001).
+4. The height limits of the clicked position (PLC-HGT-001).
+5. Spawn protection (PLC-SPN-001).
+6. The open teleport (PLC-TEL-001) and the world border (PLC-BRD-001).
+7. The use of the clicked block (section 5). A clicked block that the enabled features do not enable
+   refuses the request here.
+8. The held item: an empty hand, or an item with a cooldown, refuses the request.
+9. An item that is not a block item, or a block that the enabled features do not enable.
+10. The target position (PLC-TGT-001).
+11. The operator blocks (PLC-REF-002).
+12. The state for the placement, which includes the other part (section 8) and the face (section 7).
+13. Support (PLC-SUP-001).
+14. Entities in the way (PLC-ENT-001).
+15. The height limits of the target position (PLC-HGT-002).
 
-See results R20, R21, R22, R23, R24 and R31. Steps 1 and 2 send the same packets, so a client cannot see
-their order. The same is true of the two checks in step 5, except for the message of DEV-1. Section 11
-(U6) states what remains unknown.
+PLC-HGT-004 is not a check. Its message comes after all the steps.
+
+See results R20, R21, R22, R23, R24 and R31. Steps 2 and 3 send the same packets, so a client cannot see
+their order. The same is true of the two checks in step 6, except for the message of DEV-1, and of steps
+8 to 14. Experiment E45.
 
 ## 5. The use of the clicked block
 
@@ -324,9 +382,10 @@ A chest, a barrel, a furnace, a crafting table, a lever, a button, a door, a tra
 sign and a cake act on the request with a block item in hand, and no block is placed. See result R31.
 This document does not state what each block does.
 
-**PLC-INT-002** (`black_box_confirmed`, semantic). When the placer sneaks and holds an item, the clicked
-block does not act, and the placement goes on. With sneak and an empty hand, the clicked block acts. See
-result R31.
+**PLC-INT-002** (`source_suggested_black_box_confirmed`, semantic). When the placer sneaks and either hand
+holds an item, the clicked block does not act, and the placement goes on. The hand of the request has no
+effect: with sneak, an empty main hand and an item in the off hand, the clicked block does not act. With
+sneak and two empty hands, the clicked block acts. See result R31. Experiment E54.
 
 **PLC-INT-003** (`black_box_confirmed`, semantic). A light at the clicked position acts for an operator,
 and its level changes. For another player, the result is a refresh and one acknowledgement. See result
@@ -336,8 +395,14 @@ R32.
 and one acknowledgement. Other packets of the block can come before or after the refresh. An observer
 gets `swing_animation`. See result R31.
 
-**PLC-INT-005** (`black_box_confirmed`, semantic). In spectator mode, a chest opens and no block changes.
-See result R26. This rule rests on one observation.
+**PLC-INT-005** (`source_suggested_black_box_confirmed`, semantic). In spectator mode, a block with a
+screen opens it and no block changes. A chest is the tested case. See result R26. On a portal block, the
+spectator goes to the destination of the portal, or gets `spectator.cannot_teleport` in red in the overlay
+position when the portal has no destination. Experiment E55.
+
+**PLC-INT-006** (`source_suggested`, semantic). A block that acts without the held item acts only for the
+hand value 0. With the hand value 1, a chest does not open, and the placement goes on. A block that acts
+on the held item, such as a cake with a candle, acts for each hand. Experiment E54.
 
 ## 6. The held item
 
@@ -372,14 +437,26 @@ this rule.
 **PLC-INV-007** (`black_box_confirmed`, semantic). The block of an item can have another name. `redstone`
 places `redstone_wire`, and `string` places `tripwire`. See results R27 and R35.
 
+**PLC-INV-008** (`source_suggested`, semantic). The `minecraft:block_entity_data` component goes to the
+block entity of the placed block when its `id` is the type of that block entity. For a command block, a
+lectern, a sign, a hanging sign, a spawner and a trial spawner, the player must also be in creative mode
+with the permission level 2 or more. After this, the other components of the item go to the block entity,
+so the default `minecraft:container` component of a chest replaces `Items`. See result R34. Experiment
+E44.
+
+**PLC-INV-009** (`source_suggested`, semantic). When a placement is refused and the held block item has
+the `minecraft:consumable` component, the server starts the use of the item, as the use of the item in
+the air does. Experiment E56.
+
 An item such as a flint and steel, an armor stand, a spawn egg or a painting also acts through this
 packet. It is not a block item, and this document does not state it. See result R35.
 
 ## 7. The state of the placed block
 
 This section gives only the tested families. Section 11 (U3) states what remains unknown. The direction
-words are the direction in which the placer looks. All rules of this section are `black_box_confirmed`,
-kind semantic, from result R36.
+words are the direction in which the placer looks. The rules and the rows that result R36 shows are
+`black_box_confirmed`, kind semantic. The other rows of PLC-STA-004, and the pane and the redstone wire of
+PLC-STA-006, are `unresolved`. Section 11 (U3) holds them.
 
 **PLC-STA-001**. Direction from the yaw of the placer.
 
@@ -482,9 +559,10 @@ acknowledgement, with the highest sequence. See result R39. This rule rests on o
 **PLC-SEQ-005** (`black_box_confirmed`, wire). The sequences 0, 1, 2147483646 and 2147483647 are valid.
 See result R39.
 
-**PLC-SEQ-006** (`black_box_confirmed`, semantic). A negative sequence closes the connection with the
-translation key `disconnect.packetError`. The block is not placed. See result R4. This rule rests on one
-observation. BRK-SEQ-005 states a different result for a break, and section 11 (U8) keeps this open.
+**PLC-SEQ-006** (`source_suggested_black_box_confirmed`, semantic). A negative sequence closes the
+connection with the translation key `disconnect.packetError`. The block is not placed, because the server
+checks the sequence before it handles the request. See result R4. A break handles the request before it
+checks the sequence, so BRK-SEQ-005 breaks the block. Experiment E46.
 
 ## 10. Intentional deviations
 
@@ -498,36 +576,31 @@ observation. BRK-SEQ-005 states a different result for a break, and section 11 (
 
 **DEV-2.**
 
-- **Rule**: PLC-HGT-002.
-- **Reference**: above the height limit, the placer gets the message two times. Below the height limit,
-  the placer gets it one time.
+- **Rule**: PLC-HGT-004.
+- **Reference**: at the upper height limit with the face up, the placer gets the message two times. In
+  each other case of PLC-HGT-004, the placer gets it one time.
 - **Visible to the client**: no. The second message replaces the first in the overlay position.
 - **Test**: a differential test counts one message.
 
 ## 11. Unresolved
 
-Each item names the experiment that decides it.
+Each item names the experiment that decides it. A closed item keeps its number, and the number is not
+used again. The same applies to experiments.
 
-- **U1**: the place sound, the volume and the pitch of each block. The game's reports do not list them.
-  Result R6 gives a sample. Experiment E40.
 - **U2**: the support rule of each block. Experiment E41.
 - **U3**: the state of each block family, the hinge of a door with another `facing`, and the block
-  families that this document does not test. Experiment E42.
-- **U4**: `pale_hanging_moss` and `sculk_vein`. Result R13 replaced them, but they are not in the tag,
-  and they had no support in the experiment. Experiment E43.
-- **U5**: the operator level that PLC-REF-002 needs, the level for a test instance block, and the rule
-  for the `minecraft:block_entity_data` component. In result R34 the data of a chest, a sign and a
-  spawner did not reach the block entity. Experiment E44.
-- **U6**: the order of the height limits and spawn protection, and the order inside step 7 of
-  PLC-ORD-001. Experiment E45.
-- **U7**: the player inventory (issue 521). The main branch decodes `use_item_on`,
-  `set_creative_mode_slot` and `set_carried_item`, but no code acts on them, and no store of stacks
-  exists. Each placement needs the held item, and so do sections 3, 5, 6, 7 and 8. Without it, a server
+  families that this document does not test. This includes the rows of PLC-STA-004 that result R36 does
+  not show. A block that attaches to a neighbour, such as a lantern or a torch, can try other directions
+  in the order of the look when the clicked face does not hold it. So a refusal in PLC-STA-004 can
+  depend on the neighbours. Experiment E42.
+- **U4**: `pale_hanging_moss`. Result R13 replaced it, but the block definition has no
+  `minecraft:replaceable` component, and the reference does not replace it. The moss had no support in the
+  experiment, and it possibly broke before the request. Experiment E43.
+- **U7**: the player inventory (issue 521). Each placement needs the held item, and so do sections 3, 5,
+  6, 7 and 8. Without it, a server
   can state only the refusals of sections 4.1 to 4.4, the refresh and the acknowledgement of section 9.
   `inventory.md` must state what `set_creative_mode_slot` accepts. This document tests only the slots 36
   and 45, and a stack with no components.
-- **U8**: a negative sequence. BRK-SEQ-005 breaks the block, and PLC-SEQ-006 does not place the block.
-  Each rests on one observation. Experiment E46.
 - **U9**: the box of a player that sneaks, swims or has another pose. All experiments used a player that
   stands. Experiment E47.
 - **U10**: can_place_on when the clicked block is replaceable. Result R26 tests only stone. Experiment
@@ -535,6 +608,8 @@ Each item names the experiment that decides it.
 - **U11**: a request at a position in reach in a chunk that is not loaded.
 - **U12**: a `moving_piston` at the clicked position changes to air in the one tested case. This looks
   like an accident, and this document does not state it.
+- **U13**: result R28 places a block on an armor stand, a minecart, a boat, an end crystal and a falling
+  block. The reference refuses these placements (PLC-ENT-001). Experiment E57.
 
 ## 12. Experiments
 
@@ -590,19 +665,27 @@ A mob that `kill` removes stays a blocker for about one second. Use a new positi
 | E38 | Place a chest with each condition of R38. | R38 |
 | E39 | Send the bursts of R39. | R39 |
 
-Nobody has run experiments E40 to E48 yet.
+Nobody has run experiments E41 to E57 yet.
 
 | Experiment | Steps | Item |
 |------------|-------|------|
-| E40 | Place each block item. Read the `sound` of the observer. Compare with a list of all block items. | U1 |
 | E41 | Place each block item on stone, dirt, sand, glass and a bottom slab, on each face. | U2 |
 | E42 | Place each block item at each yaw and pitch of E36, on each face, with each cursor half. Place a door with each `facing`. | U3 |
-| E43 | Attach `sculk_vein` to stone and `pale_hanging_moss` under leaves. Send requests on them. | U4 |
-| E44 | Set an operator level of 1, 2 and 4 in `ops.json`. Place the blocks of PLC-REF-002. Place a chest with the component `minecraft:block_entity_data` in the format of a saved block entity. | U5 |
-| E45 | Send a request above the height limit in the area of spawn protection. Hold a stick on a position with an entity. Place a block with no support on a block that is not replaceable. | U6 |
-| E46 | Send the sequence -1 for a break and for a placement, three times each, with a clean area each time. Read the block. | U8 |
+| E43 | Attach `pale_hanging_moss` under leaves. Send a request on it with dirt. | U4 |
+| E44 | Set an operator level of 1, 2 and 4 in `ops.json`. Place the blocks of PLC-REF-002 in creative and survival mode. Place a chest with `minecraft:block_entity_data` and an empty `minecraft:container`, and a sign with `minecraft:block_entity_data`, at each level. | PLC-REF-002, PLC-INV-008 |
+| E45 | Send a request above the height limit in the area of spawn protection. Hold a stick on a position with an entity. Place a block with no support on a block that is not replaceable. | PLC-ORD-001 |
+| E46 | Send the sequence -1 for a break and for a placement, three times each, with a clean area each time. Read the block. | PLC-SEQ-006 |
 | E47 | Set each pose. Do the steps of E29. | U9 |
 | E48 | In adventure mode, hold an item with `can_place_on` for dirt. Send a request on short grass over dirt, and on stone next to dirt. | U10 |
+| E49 | Start a world without the experimental features. Hold an item of such a feature with `item replace`. Send a request. | PLC-REQ-006 |
+| E50 | Load a data pack that removes `short_grass` from the tag `minecraft:replaceable` and adds `dandelion`. Send the requests of E13 on both. | PLC-TGT-002 |
+| E51 | Hold a fern on a fern, short grass on short grass, glow lichen on glow lichen with one face, and stone on sculk vein. | PLC-TGT-006, PLC-TGT-007 |
+| E52 | Send a cursor value of 9. Read the server console. | PLC-CUR-002 |
+| E53 | At `y=319`, send a request with face up and a pig at the target. Send it with face north. Send it with a stick. | PLC-HGT-004 |
+| E54 | Sneak with an empty main hand and dirt in the off hand. Send hand 0 on a chest. Without sneak, send hand 1 with dirt on a chest. | PLC-INT-002, PLC-INT-006 |
+| E55 | In spectator mode, send a request on a nether portal and on an end portal. | PLC-INT-005 |
+| E56 | Hold glow berries. Send a request on stone with no space above. | PLC-INV-009 |
+| E57 | Do E28 again with each entity at the centre of the target position. Read the entity position with `data get entity` before the request. | U13, PLC-ENT-001 |
 
 ## 13. Captured results
 
@@ -747,9 +830,9 @@ places the dirt at `(3,-59,0)`. Each `no` of `adjacent` gives a refresh and an a
 | air, cave_air, short_grass, fern, dead_bush, bush, short_dry_grass | yes | yes |
 | snow, layers 1 | yes | yes |
 | water, levels 0 and 4; lava, levels 0 and 2 | yes | yes |
-| fire, vine, glow_lichen, structure_void, seagrass, crimson_roots | yes | yes |
+| fire, vine, structure_void, seagrass, crimson_roots | yes | yes |
 | tall_grass, one part alone, leaf_litter with 1 segment, bubble_column | yes | yes |
-| sculk_vein, pale_hanging_moss (U4) | yes | yes |
+| glow_lichen, sculk_vein (PLC-TGT-007); pale_hanging_moss (U4) | yes | yes |
 | light | no: refresh only (R32) | yes |
 | snow, layers 2 and 8 | no | no |
 | dandelion, torch, oak_sapling, barrier, kelp, nether_portal, cobweb | no | no |
