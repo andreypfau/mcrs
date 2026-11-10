@@ -18,16 +18,6 @@ pub mod block_transformer_keys;
 #[rustfmt::skip]
 pub mod consume_effect_type_keys;
 #[rustfmt::skip]
-pub mod context_float_provider_keys;
-#[rustfmt::skip]
-pub mod context_float_provider_type_keys;
-#[rustfmt::skip]
-pub mod context_int_provider_keys;
-#[rustfmt::skip]
-pub mod context_int_provider_type_keys;
-#[rustfmt::skip]
-pub mod context_key_set_keys;
-#[rustfmt::skip]
 pub mod damage_type_keys;
 #[rustfmt::skip]
 pub mod damage_type_tag_keys;
@@ -63,8 +53,6 @@ pub mod item_keys;
 pub mod item_tag_keys;
 #[rustfmt::skip]
 pub mod jukebox_song_keys;
-#[rustfmt::skip]
-pub mod loot_table_keys;
 #[rustfmt::skip]
 pub mod map_decoration_type_keys;
 #[rustfmt::skip]
@@ -109,7 +97,6 @@ mod item_hover_map;
 #[cfg(feature = "bevy")]
 pub mod item_stack;
 pub mod kind;
-pub mod loot;
 pub mod patch;
 pub mod recipe;
 pub mod stack;

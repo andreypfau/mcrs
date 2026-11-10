@@ -468,7 +468,7 @@ fn room_crossing<W: WorldGenVolume, R: Random>(
                 3,
                 4,
                 8,
-                mcrs_minecraft_item::loot_table_keys::CHESTS_STRONGHOLD_CROSSING,
+                mcrs_minecraft_loot::loot_table_keys::CHESTS_STRONGHOLD_CROSSING,
             );
         }
         _ => {}
@@ -567,7 +567,7 @@ fn chest_corridor<W: WorldGenVolume, R: Random>(
         3,
         2,
         3,
-        mcrs_minecraft_item::loot_table_keys::CHESTS_STRONGHOLD_CORRIDOR,
+        mcrs_minecraft_loot::loot_table_keys::CHESTS_STRONGHOLD_CORRIDOR,
     );
 }
 
@@ -670,7 +670,7 @@ fn library<W: WorldGenVolume, R: Random>(
         3,
         3,
         5,
-        mcrs_minecraft_item::loot_table_keys::CHESTS_STRONGHOLD_LIBRARY,
+        mcrs_minecraft_loot::loot_table_keys::CHESTS_STRONGHOLD_LIBRARY,
     );
     if tall {
         c.place(&b.cave_air, 12, 9, 1);
@@ -680,7 +680,7 @@ fn library<W: WorldGenVolume, R: Random>(
             12,
             8,
             1,
-            mcrs_minecraft_item::loot_table_keys::CHESTS_STRONGHOLD_LIBRARY,
+            mcrs_minecraft_loot::loot_table_keys::CHESTS_STRONGHOLD_LIBRARY,
         );
     }
 }

@@ -16,6 +16,7 @@ mcrs_voxel.workspace = true
 mcrs_minecraft_block_entity.workspace = true
 mcrs_minecraft_value_provider.workspace = true
 mcrs_minecraft_item.workspace = true
+mcrs_minecraft_loot.workspace = true
 mcrs_minecraft_block.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_block_predicate.workspace = true

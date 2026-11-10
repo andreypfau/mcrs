@@ -252,7 +252,7 @@ pub fn paint_jungle_temple<W: WorldGenVolume, R: Random>(
         3,
         -2,
         1,
-        mcrs_minecraft_item::loot_table_keys::CHESTS_JUNGLE_TEMPLE_DISPENSER,
+        mcrs_minecraft_loot::loot_table_keys::CHESTS_JUNGLE_TEMPLE_DISPENSER,
     );
 
     c.place(&b.vine_south, 3, -2, 2);
@@ -273,7 +273,7 @@ pub fn paint_jungle_temple<W: WorldGenVolume, R: Random>(
         9,
         -2,
         3,
-        mcrs_minecraft_item::loot_table_keys::CHESTS_JUNGLE_TEMPLE_DISPENSER,
+        mcrs_minecraft_loot::loot_table_keys::CHESTS_JUNGLE_TEMPLE_DISPENSER,
     );
 
     c.place(&b.vine_east, 8, -1, 3);
@@ -284,7 +284,7 @@ pub fn paint_jungle_temple<W: WorldGenVolume, R: Random>(
         8,
         -3,
         3,
-        mcrs_minecraft_item::loot_table_keys::CHESTS_JUNGLE_TEMPLE,
+        mcrs_minecraft_loot::loot_table_keys::CHESTS_JUNGLE_TEMPLE,
     );
 
     c.place(mossy, 9, -3, 2);
@@ -320,6 +320,6 @@ pub fn paint_jungle_temple<W: WorldGenVolume, R: Random>(
         9,
         -3,
         10,
-        mcrs_minecraft_item::loot_table_keys::CHESTS_JUNGLE_TEMPLE,
+        mcrs_minecraft_loot::loot_table_keys::CHESTS_JUNGLE_TEMPLE,
     );
 }

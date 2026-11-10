@@ -491,7 +491,7 @@ fn create_minecart<W: WorldGenVolume>(
     c.place(rail, x, y, z);
     c.spawns.push(chest_minecart(
         pos,
-        mcrs_minecraft_item::loot_table_keys::CHESTS_ABANDONED_MINESHAFT.to_string(),
+        mcrs_minecraft_loot::loot_table_keys::CHESTS_ABANDONED_MINESHAFT.to_string(),
         rng,
     ));
 }

@@ -382,7 +382,7 @@ pub fn paint_desert_pyramid<W: WorldGenVolume, R: Random>(
             10 + step_x * 2,
             -11,
             10 + step_z * 2,
-            mcrs_minecraft_item::loot_table_keys::CHESTS_DESERT_PYRAMID,
+            mcrs_minecraft_loot::loot_table_keys::CHESTS_DESERT_PYRAMID,
         );
     }
 

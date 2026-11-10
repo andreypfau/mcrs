@@ -31,7 +31,7 @@ pub fn ignore_structure_and_air(
 pub fn seed_container_loot<W: WorldGenVolume>(
     volume: &mut W,
     pos: BlockPos,
-    loot_table: ResourceKey<'static, mcrs_minecraft_item::loot::LootTable>,
+    loot_table: ResourceKey<'static, mcrs_minecraft_loot::loot::LootTable>,
     rng: &mut WorldgenRandom,
 ) {
     let container = volume
@@ -54,11 +54,11 @@ pub fn seed_container_loot<W: WorldGenVolume>(
 /// `ShipwreckPieces.MARKERS_TO_LOOT`.
 fn shipwreck_loot(
     marker: &str,
-) -> Option<ResourceKey<'static, mcrs_minecraft_item::loot::LootTable>> {
+) -> Option<ResourceKey<'static, mcrs_minecraft_loot::loot::LootTable>> {
     Some(match marker {
-        "map_chest" => mcrs_minecraft_item::loot_table_keys::CHESTS_SHIPWRECK_MAP,
-        "treasure_chest" => mcrs_minecraft_item::loot_table_keys::CHESTS_SHIPWRECK_TREASURE,
-        "supply_chest" => mcrs_minecraft_item::loot_table_keys::CHESTS_SHIPWRECK_SUPPLY,
+        "map_chest" => mcrs_minecraft_loot::loot_table_keys::CHESTS_SHIPWRECK_MAP,
+        "treasure_chest" => mcrs_minecraft_loot::loot_table_keys::CHESTS_SHIPWRECK_TREASURE,
+        "supply_chest" => mcrs_minecraft_loot::loot_table_keys::CHESTS_SHIPWRECK_SUPPLY,
         _ => return None,
     })
 }
@@ -190,7 +190,7 @@ pub fn paint_igloo<W: WorldGenVolume>(
                 seed_container_loot(
                     region,
                     (pos - IVec3::Y).into(),
-                    mcrs_minecraft_item::loot_table_keys::CHESTS_IGLOO_CHEST,
+                    mcrs_minecraft_loot::loot_table_keys::CHESTS_IGLOO_CHEST,
                     rng,
                 );
             }

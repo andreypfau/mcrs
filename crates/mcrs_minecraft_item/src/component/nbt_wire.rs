@@ -10,9 +10,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::component::common::compound_or_snbt;
 use crate::harness::Sample;
-use crate::loot::LootTable;
 use crate::map_decoration_type_keys::MapDecorationType;
 use crate::recipe::Recipe;
+use mcrs_minecraft_loot::loot::LootTable;
 use mcrs_minecraft_wire::{Decode, Encode, Result};
 use std::io::Write;
 
@@ -200,7 +200,7 @@ impl Sample for ContainerLoot {
 
     fn samples() -> Vec<Self> {
         let loot_table: ResourceKeyBuf<LootTable> =
-            crate::loot_table_keys::CHESTS_SIMPLE_DUNGEON.into();
+            mcrs_minecraft_loot::loot_table_keys::CHESTS_SIMPLE_DUNGEON.into();
         vec![
             ContainerLoot {
                 loot_table: loot_table.clone(),

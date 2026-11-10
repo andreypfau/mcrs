@@ -20,38 +20,6 @@ impl Registered for crate::consume_effect_type_keys::ConsumeEffectType {
     const REGISTRY: RegistryKey<Self> = CONSUME_EFFECT_TYPE;
 }
 
-pub const CONTEXT_FLOAT_PROVIDER: RegistryKey<crate::loot::ContextFloatProvider> =
-    RegistryKey::new(rl!("minecraft:context_float_provider"));
-impl Registered for crate::loot::ContextFloatProvider {
-    const REGISTRY: RegistryKey<Self> = CONTEXT_FLOAT_PROVIDER;
-}
-
-pub const CONTEXT_FLOAT_PROVIDER_TYPE: RegistryKey<
-    crate::context_float_provider_type_keys::ContextFloatProviderType,
-> = RegistryKey::new(rl!("minecraft:context_float_provider_type"));
-impl Registered for crate::context_float_provider_type_keys::ContextFloatProviderType {
-    const REGISTRY: RegistryKey<Self> = CONTEXT_FLOAT_PROVIDER_TYPE;
-}
-
-pub const CONTEXT_INT_PROVIDER: RegistryKey<crate::loot::ContextIntProvider> =
-    RegistryKey::new(rl!("minecraft:context_int_provider"));
-impl Registered for crate::loot::ContextIntProvider {
-    const REGISTRY: RegistryKey<Self> = CONTEXT_INT_PROVIDER;
-}
-
-pub const CONTEXT_INT_PROVIDER_TYPE: RegistryKey<
-    crate::context_int_provider_type_keys::ContextIntProviderType,
-> = RegistryKey::new(rl!("minecraft:context_int_provider_type"));
-impl Registered for crate::context_int_provider_type_keys::ContextIntProviderType {
-    const REGISTRY: RegistryKey<Self> = CONTEXT_INT_PROVIDER_TYPE;
-}
-
-pub const CONTEXT_KEY_SET: RegistryKey<crate::context_key_set_keys::ContextKeySet> =
-    RegistryKey::new(rl!("minecraft:context_key_set"));
-impl Registered for crate::context_key_set_keys::ContextKeySet {
-    const REGISTRY: RegistryKey<Self> = CONTEXT_KEY_SET;
-}
-
 pub const DAMAGE_TYPE: RegistryKey<crate::damage_type::DamageType> =
     RegistryKey::new(rl!("minecraft:damage_type"));
 impl Registered for crate::damage_type::DamageType {
@@ -127,12 +95,6 @@ pub const JUKEBOX_SONG: RegistryKey<crate::JukeboxSong> =
     RegistryKey::new(rl!("minecraft:jukebox_song"));
 impl Registered for crate::JukeboxSong {
     const REGISTRY: RegistryKey<Self> = JUKEBOX_SONG;
-}
-
-pub const LOOT_TABLE: RegistryKey<crate::loot::LootTable> =
-    RegistryKey::new(rl!("minecraft:loot_table"));
-impl Registered for crate::loot::LootTable {
-    const REGISTRY: RegistryKey<Self> = LOOT_TABLE;
 }
 
 pub const MAP_DECORATION_TYPE: RegistryKey<crate::map_decoration_type_keys::MapDecorationType> =

@@ -7,7 +7,7 @@ const VAULT_ACTIVATION_RANGE: f64 = 4.0;
 const VAULT_DEACTIVATION_RANGE: f64 = 4.5;
 
 fn is_vault_loot(value: &str) -> bool {
-    mcrs_minecraft_item::loot_table_keys::CHESTS_TRIAL_CHAMBERS_REWARD.location() == value
+    mcrs_minecraft_loot::loot_table_keys::CHESTS_TRIAL_CHAMBERS_REWARD.location() == value
 }
 
 fn is_vault_activation_range(value: &f64) -> bool {
@@ -35,7 +35,7 @@ pub struct VaultConfig {
 impl Default for VaultConfig {
     fn default() -> Self {
         VaultConfig {
-            loot_table: mcrs_minecraft_item::loot_table_keys::CHESTS_TRIAL_CHAMBERS_REWARD
+            loot_table: mcrs_minecraft_loot::loot_table_keys::CHESTS_TRIAL_CHAMBERS_REWARD
                 .to_string(),
             activation_range: VAULT_ACTIVATION_RANGE,
             deactivation_range: VAULT_DEACTIVATION_RANGE,

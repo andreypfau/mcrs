@@ -30,7 +30,7 @@ pub fn desert_pyramid<W: WorldGenVolume>(
             y: pos.y,
             z: pos.z,
             loot_table: Some(
-                mcrs_minecraft_item::loot_table_keys::ARCHAEOLOGY_DESERT_PYRAMID.to_string(),
+                mcrs_minecraft_loot::loot_table_keys::ARCHAEOLOGY_DESERT_PYRAMID.to_string(),
             ),
             loot_table_seed: block_pos_as_long(pos),
             item: None,

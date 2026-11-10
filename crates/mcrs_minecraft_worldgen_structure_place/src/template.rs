@@ -48,12 +48,12 @@ impl OceanRuinBlocks {
             OceanTemperature::Warm => (
                 Block::Sand,
                 Block::SuspiciousSand,
-                mcrs_minecraft_item::loot_table_keys::ARCHAEOLOGY_OCEAN_RUIN_WARM,
+                mcrs_minecraft_loot::loot_table_keys::ARCHAEOLOGY_OCEAN_RUIN_WARM,
             ),
             OceanTemperature::Cold => (
                 Block::Gravel,
                 Block::SuspiciousGravel,
-                mcrs_minecraft_item::loot_table_keys::ARCHAEOLOGY_OCEAN_RUIN_COLD,
+                mcrs_minecraft_loot::loot_table_keys::ARCHAEOLOGY_OCEAN_RUIN_COLD,
             ),
         };
         let chains = INTEGRITIES
@@ -172,9 +172,9 @@ pub fn place_ocean_ruin<W: WorldGenVolume>(
                     },
                 );
                 let loot = if piece.large {
-                    mcrs_minecraft_item::loot_table_keys::CHESTS_UNDERWATER_RUIN_BIG
+                    mcrs_minecraft_loot::loot_table_keys::CHESTS_UNDERWATER_RUIN_BIG
                 } else {
-                    mcrs_minecraft_item::loot_table_keys::CHESTS_UNDERWATER_RUIN_SMALL
+                    mcrs_minecraft_loot::loot_table_keys::CHESTS_UNDERWATER_RUIN_SMALL
                 };
                 region.add_block_entity(GeneratedBlockEntity::chest(
                     pos,

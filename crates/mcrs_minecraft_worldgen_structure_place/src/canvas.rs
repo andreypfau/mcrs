@@ -281,7 +281,7 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         x: i32,
         y: i32,
         z: i32,
-        loot_table: ResourceKey<'static, mcrs_minecraft_item::loot::LootTable>,
+        loot_table: ResourceKey<'static, mcrs_minecraft_loot::loot::LootTable>,
     ) -> bool {
         let pos = self.world_pos(x, y, z);
         if !self.clip.is_inside(pos) || self.volume.holds(&chest.states, pos) {
@@ -310,7 +310,7 @@ impl<W: WorldGenVolume> PieceCanvas<'_, W> {
         x: i32,
         y: i32,
         z: i32,
-        loot_table: ResourceKey<'static, mcrs_minecraft_item::loot::LootTable>,
+        loot_table: ResourceKey<'static, mcrs_minecraft_loot::loot::LootTable>,
     ) -> bool {
         let pos = self.world_pos(x, y, z);
         if !self.clip.is_inside(pos) || self.volume.holds(dispenser_states, pos) {

@@ -32,8 +32,8 @@ pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'s
     (mcrs_minecraft_loot::registry_keys::LOOT_POOL_ENTRY_TYPE.location(), mcrs_minecraft_loot::loot_pool_entry_type_keys::LootPoolEntryType::ENTRIES),
     (mcrs_minecraft_loot::registry_keys::LOOT_FUNCTION_TYPE.location(), mcrs_minecraft_loot::loot_function_type_keys::LootFunctionType::ENTRIES),
     (mcrs_minecraft_loot::registry_keys::LOOT_CONDITION_TYPE.location(), mcrs_minecraft_loot::loot_condition_type_keys::LootConditionType::ENTRIES),
-    (mcrs_minecraft_item::registry_keys::CONTEXT_FLOAT_PROVIDER_TYPE.location(), mcrs_minecraft_item::context_float_provider_type_keys::ContextFloatProviderType::ENTRIES),
-    (mcrs_minecraft_item::registry_keys::CONTEXT_INT_PROVIDER_TYPE.location(), mcrs_minecraft_item::context_int_provider_type_keys::ContextIntProviderType::ENTRIES),
+    (mcrs_minecraft_loot::registry_keys::CONTEXT_FLOAT_PROVIDER_TYPE.location(), mcrs_minecraft_loot::context_float_provider_type_keys::ContextFloatProviderType::ENTRIES),
+    (mcrs_minecraft_loot::registry_keys::CONTEXT_INT_PROVIDER_TYPE.location(), mcrs_minecraft_loot::context_int_provider_type_keys::ContextIntProviderType::ENTRIES),
     (mcrs_minecraft_loot::registry_keys::LOOT_NBT_PROVIDER_TYPE.location(), mcrs_minecraft_loot::loot_nbt_provider_type_keys::LootNbtProviderType::ENTRIES),
     (mcrs_minecraft_loot::registry_keys::LOOT_SCORE_PROVIDER_TYPE.location(), mcrs_minecraft_loot::loot_score_provider_type_keys::LootScoreProviderType::ENTRIES),
     (mcrs_minecraft_value_provider::registry_keys::FLOAT_PROVIDER_TYPE.location(), mcrs_minecraft_value_provider::float_provider_type_keys::FloatProviderType::ENTRIES),
@@ -74,6 +74,6 @@ pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'s
     (mcrs_minecraft_environment::registry_keys::ENVIRONMENT_ATTRIBUTE.location(), mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute::ENTRIES),
     (mcrs_minecraft_keys::ATTRIBUTE_TYPE, mcrs_minecraft_keys::attribute_type::ENTRIES),
     (mcrs_minecraft_loot::registry_keys::SLOT_SOURCE_TYPE.location(), mcrs_minecraft_loot::slot_source_type_keys::SlotSourceType::ENTRIES),
-    (mcrs_minecraft_item::registry_keys::CONTEXT_KEY_SET.location(), mcrs_minecraft_item::context_key_set_keys::ContextKeySet::ENTRIES),
+    (mcrs_minecraft_loot::registry_keys::CONTEXT_KEY_SET.location(), mcrs_minecraft_loot::context_key_set_keys::ContextKeySet::ENTRIES),
     (mcrs_minecraft_keys::TEST_FUNCTION, mcrs_minecraft_keys::test_function::ENTRIES),
 ];
