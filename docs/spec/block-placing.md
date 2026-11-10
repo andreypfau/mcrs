@@ -105,9 +105,10 @@ packet (kind: unspecified).
 a section. It sends `section_blocks_update` when more than one block in a section changes together. See
 results R1, R14 and R18.
 
-**PLC-PLA-003** (`black_box_confirmed`, semantic). An observer gets, in this order: `sound`,
-`swing_animation`, the new block state. An observer does not get an acknowledgement or a refresh. See
-result R1.
+**PLC-PLA-003** (`black_box_confirmed`, semantic). For one placement, an observer gets, in this order:
+`sound`, `swing_animation`, the new block state. An observer does not get an acknowledgement or a
+refresh. See result R1. For several placements in one tick, the observer gets each `sound`, then the
+block states, then each `swing_animation`. See result R39. This order rests on one observation.
 
 **PLC-PLA-004** (`black_box_confirmed`, semantic). The placer does not get `sound` or `swing_animation`
 for a placement. See result R1.
@@ -168,7 +169,10 @@ block definition has the `minecraft:replaceable` component, with these condition
 block tag `minecraft:replaceable` has the same members in this version, but the server does not read the
 tag. A data pack that changes the tag does not change this set. Experiment E50.
 
-- Snow is replaceable only with `layers=1`.
+- Snow is replaceable only with `layers=1` when the held item is not snow.
+- With snow in hand, snow with fewer than 8 layers is replaceable at the adjacent position. At the
+  clicked position, it is replaceable only with the face up. PLC-TGT-003 states the merge. This item is
+  `source_suggested_black_box_confirmed`, from result R16.
 - Water and lava are replaceable at each tested level: 0 and 4 for water, 0 and 2 for lava.
 - Light is replaceable only as the adjacent position (PLC-INT-003).
 
@@ -236,10 +240,11 @@ E52.
 
 ### 4.2 The height limits
 
-**PLC-HGT-001** (`black_box_confirmed`, wire). A clicked position above the height limit is refused. The
-placer gets `system_chat` in the overlay position, and then one acknowledgement. The message is the
-translation key `build.tooHigh` in red, with the argument 319. See result R21. A clicked position below
-the height limit does the same with the key `build.tooLow` and the argument -64.
+**PLC-HGT-001** (`source_suggested_black_box_confirmed`, wire). A clicked position above the height
+limit of the dimension is refused. The placer gets `system_chat` in the overlay position, and then one
+acknowledgement. The message is the translation key `build.tooHigh` in red, with the highest block `y` of
+the dimension as the argument. A clicked position below the height limit does the same with the key
+`build.tooLow` and the lowest block `y`. In the overworld, the arguments are 319 and -64. See result R21.
 
 **PLC-HGT-002** (`source_suggested_black_box_confirmed`, wire). A clicked position in the world with an
 adjacent position outside the height limits is refused when the block at the clicked position is not
@@ -300,7 +305,7 @@ and then one acknowledgement. An observer gets nothing.
 
 | Case | Result |
 |------|--------|
-| The held item is not a block item, or the hand is empty | R25 |
+| The hand is empty, or the held item is not a block item and does not act on the clicked block (section 6, result R35) | R25 |
 | The target position does not hold a replaceable block (PLC-TGT-001) | R15 |
 | The player is in spectator mode | R26 |
 | The player is in adventure mode, and PLC-INV-003 does not allow the placement | R26 |
@@ -467,7 +472,8 @@ PLC-STA-006, are `unresolved`. Section 11 (U3) holds them.
 | `facing` is the direction after one quarter turn clockwise (south gives west) | anvil |
 
 **PLC-STA-002**. Direction from the pitch of the placer. A pitch below -45 is up and a pitch above 45 is
-down. Otherwise the direction is the horizontal direction of the look.
+down. Otherwise the direction is the horizontal direction of the look. Result R36 tests these limits only
+at yaw -90.
 
 | Result | Tested blocks |
 |--------|---------------|
