@@ -71,6 +71,7 @@ translated_from: 51d45c26a   # only in ru files
 - `sources` lists every repository file the page relies on. A page without sources does not pass review. Take paths from files, not from old issue text, because crates get renamed.
 - `verified` is the snapshot, the commit and the date when you last checked the page against the code. Do not copy it from another page.
 - The stability banner on top and the "Sources and verification" block at the bottom are drawn from the frontmatter. Do not write them by hand.
+- A Russian file carries only `title`, `description`, `sidebar` and `translated_from`. `kind`, `audience`, `stability`, `tracking`, `sources` and `verified` come from the English page, and a Russian file that sets one of them fails the build.
 
 ### Components
 
@@ -134,6 +135,7 @@ The check reads file names, not meaning. It does not know that an issue changed.
 
 - The Russian file has the same path, the same structure and the same order as the English one. It adds no content that English does not have.
 - The Russian file carries `translated_from: <commit>`, the commit of the English page you translated from. When the English page moves on, the Russian page is behind, and the difference is visible in `git log` between the two commits.
+- The Russian file holds only `title`, `description`, `sidebar` and `translated_from`. Everything else comes from the English page.
 - A page without a Russian file shows in English with a note that the page is not translated yet.
 - Established English terms (tick, chunk, crate, plugin, snapshot) stay, and the first mention has the English term in brackets.
 - Issue titles stay in English.

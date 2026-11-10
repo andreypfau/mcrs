@@ -11,16 +11,16 @@ export const collections = {
     loader: docsLoader(),
     schema: docsSchema({
       extend: z.object({
-        kind: z.enum(["tutorial", "how-to", "reference", "explanation", "landing"]),
-        audience: z.array(z.enum(["jvm", "contributor", "rust", "admin", "player", "observer"])),
-        stability: z.enum(["stable", "changing", "wip"]),
-        tracking: z.array(z.number()).default([]),
-        sources: z.array(z.string()).default([]),
+        kind: z.enum(["tutorial", "how-to", "reference", "explanation", "landing"]).optional(),
+        audience: z.array(z.enum(["jvm", "contributor", "rust", "admin", "player", "observer"])).optional(),
+        stability: z.enum(["stable", "changing", "wip"]).optional(),
+        tracking: z.array(z.number()).optional(),
+        sources: z.array(z.string()).optional(),
         verified: z.object({
           snapshot: z.string(),
           commit: z.string(),
           date: z.coerce.date(),
-        }),
+        }).optional(),
         translated_from: z.string().optional(),
       }),
     }),

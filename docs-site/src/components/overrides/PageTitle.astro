@@ -1,12 +1,10 @@
 ---
 import Default from "@astrojs/starlight/components/PageTitle.astro";
-const { entry } = Astro.locals.starlightRoute;
-// The synthetic 404 entry has no custom fields.
-const { stability = "stable", tracking = [] } = entry.data as { stability?: string; tracking?: number[] };
+import { pageMeta } from "../../lib/meta";
+const meta = await pageMeta(Astro.locals.starlightRoute.entry);
+const stability = meta?.stability ?? "stable";
+const tracking = meta?.tracking ?? [];
 const ru = Astro.currentLocale === "ru";
-if (stability !== "stable" && tracking.length === 0) {
-  throw new Error(`${entry.id}: stability "${stability}" requires non-empty tracking`);
-}
 const links = tracking.map((n) => ({ n, href: `https://github.com/andreypfau/mcrs/issues/${n}` }));
 const text = stability === "changing"
   ? (ru ? "Меняется. Следите:" : "Changing. Follow:")
