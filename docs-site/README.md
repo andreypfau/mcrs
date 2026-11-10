@@ -1,6 +1,6 @@
 # mcrs docs site
 
-Documentation for people, built with Astro 6 and Starlight. Published at `/docs/` next to the landing page in `site/`.
+Documentation for people, built with Astro and Starlight. Published at `/docs/` next to the landing page in `site/`.
 
 ## Run locally
 
@@ -36,5 +36,5 @@ A change that alters behavior described on a page updates that page in the same 
 
 ## CI
 
-- `.github/workflows/docs.yml` - build and source check on pull requests.
+- `.github/workflows/docs.yml` - type check, build and source check on every pull request.
 - `.github/workflows/pages.yml` - on main, builds `site/` and `docs-site/` and deploys one artifact (`site/` at the root, the docs under `docs/`).
