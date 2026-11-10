@@ -42,14 +42,33 @@ for (Player p : world.getPlayers()) {
 mcrs has no player object. A player is an `Entity`, and an `Entity` is only an id. Everything the server knows about that player sits in components attached to the id: `GameProfile` holds the name and the UUID, `PlayerGameMode` holds the game mode. The code that works with components is an ordinary function, called a system. Here is the same loop as a system (a sketch to show the shape; the tutorials use code from the repository):
 
 ```rust
-fn log_creative_players(players: Query<(&GameProfile, &PlayerGameMode), With<Player>>) {
+// A system is an ordinary function; Bevy calls it and passes in the query result.
+fn log_creative_players(
+    // Entities with GameProfile and PlayerGameMode; With<Player> keeps only players.
+    players: Query<(&GameProfile, &PlayerGameMode), With<Player>>,
+) {
+    // profile and mode are arbitrary variable names, not parts of GameProfile or PlayerGameMode.
     for (profile, mode) in &players {
+        // mode.0 is the first field of PlayerGameMode, roughly PlayerGameMode[0].
         if mode.0 == GameMode::Creative {
             info!("{}", profile.username);
         }
     }
 }
 ```
+
+`Player` is an empty struct with no fields (`pub struct Player;`), a tag that says "this entity is a player". `mode` is a reference to a separate `PlayerGameMode` component on the same entity. For every entity that has all three components, the query hands out references to its `GameProfile` and `PlayerGameMode`. The query checks `Player` but leaves it out of the result.
+
+```text
+Entity #42
+  ├─ Player            (tag, no data)
+  ├─ GameProfile       { username, uuid, ... }
+  └─ PlayerGameMode    (GameMode::Creative)
+```
+
+`mode` is an arbitrary variable name that the author of the function picked. It is not a field or any other part of `PlayerGameMode`. The loop unpacks the pair from the query by position, matching `Query<(&GameProfile, &PlayerGameMode), ...>`: the first item gets the name `profile`, the second `mode`. Write `for (p, gm) in &players` and the body uses `p.username` and `gm.0`; the code works the same.
+
+`.0` is not arbitrary. `PlayerGameMode` is declared as `PlayerGameMode(pub GameMode)`: the struct has one field with no name, and Rust reaches it by number. Read `mode.0` as `PlayerGameMode[0]`, the first field of `PlayerGameMode`, which holds the `GameMode`. The brackets are only a mental picture; Rust writes `.0`.
 
 It helps to picture a database. An entity is a row, a component is a column, and a system is a query over every row that has the columns it asks for. The `Query` above reads like `SELECT profile, mode FROM entities WHERE has(Player)`.
 
@@ -60,7 +79,8 @@ The table below maps what you would reach for in Java to its closest relative he
 | `class Player extends LivingEntity` | An `Entity` id with components such as `Player`, `GameProfile`, `PlayerGameMode` |
 | A field `player.gameMode` | The component `PlayerGameMode` on that entity |
 | A method `player.fly()` | A system that reads and writes `PlayerFlying` |
-| `for (Player p : world.getPlayers())` | `Query<(&GameProfile, &PlayerGameMode), With<Player>>` |
+| `for (Player p : world.getPlayers())` | `Query<Entity, With<Player>>`: the ids of every entity tagged `Player` |
+| `p.getName()` and `p.getGameMode()` inside the loop | Components listed in the query: `Query<(&GameProfile, &PlayerGameMode), With<Player>>` |
 | A reference to a player kept in a field | The `Entity` id kept in a component or a resource |
 | `Bukkit.getServer()` | System parameters: `Res<T>`, `Query<..>`, `Commands` |
 | A `Listener` method | An observer function `fn(e: On<Event>)`, or a system |
