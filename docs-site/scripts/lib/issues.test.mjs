@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { suspicious } from './issues.mjs';
+import { walk } from './pages.mjs';
 
 test('a closed issue still marked wip is suspicious', () => {
   assert.deepEqual(suspicious({ 78: { state: 'wip' } }, { 78: 'CLOSED' }), [{ issue: 78, state: 'wip', github: 'CLOSED' }]);
@@ -19,15 +19,8 @@ test('an issue unknown to GitHub is reported as missing', () => {
 });
 
 const docs = fileURLToPath(new URL('../../src/content/docs', import.meta.url));
-function* mdx(dir) {
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    const p = join(dir, e.name);
-    if (e.isDirectory()) yield* mdx(p);
-    else if (e.name.endsWith('.mdx')) yield p;
-  }
-}
 const prose = (p) => readFileSync(p, 'utf8').replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
-const offenders = (re) => [...mdx(docs)].filter((p) => re.test(prose(p)));
+const offenders = (re) => [...walk(docs)].filter((p) => re.test(prose(p)));
 
 test('no issue carries a state in the content', () => {
   assert.deepEqual(offenders(/issue=\{\d+\}\s+state=/), []);

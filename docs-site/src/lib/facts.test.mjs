@@ -1,8 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { fact, interpolate } from './facts.mjs';
+import { walk } from '../../scripts/lib/pages.mjs';
+import { body as stripFrontmatter } from '../../scripts/lib/frontmatter.mjs';
 
 const root = new URL('../', import.meta.url);
 const snapshotId = JSON.parse(readFileSync(new URL('../../../assets/minecraft/version.json', import.meta.url), 'utf8')).id;
@@ -21,20 +24,13 @@ test('every fact says how it is measured', () => {
   }
 });
 
-function* walk(dir) {
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    const p = new URL(e.name + (e.isDirectory() ? '/' : ''), dir);
-    if (e.isDirectory()) yield* walk(p);
-    else if (/\.mdx$/.test(e.name)) yield p;
-  }
-}
 
 test('the snapshot id is not typed by hand', () => {
   const bad = [];
-  for (const p of walk(new URL('content/docs/', root))) {
-    if (p.pathname.endsWith('/news.mdx')) continue;
-    const body = readFileSync(p, 'utf8').replace(/^---\n[\s\S]*?\n---\n/, '').replace(/```[\s\S]*?```/g, '');
-    if (body.includes(snapshotId)) bad.push(p.pathname);
+  for (const p of walk(fileURLToPath(new URL('content/docs/', root)))) {
+    if (p.endsWith('/news.mdx')) continue;
+    const body = stripFrontmatter(readFileSync(p, 'utf8')).replace(/```[\s\S]*?```/g, '');
+    if (body.includes(snapshotId)) bad.push(p);
   }
   if (readFileSync(new URL('data/status.yml', root), 'utf8').includes(snapshotId)) bad.push('status.yml');
   assert.deepEqual(bad, []);
