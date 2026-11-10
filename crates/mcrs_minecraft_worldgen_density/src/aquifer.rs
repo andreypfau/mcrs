@@ -1,5 +1,6 @@
 use crate::program::{Program, Workspace};
 use crate::router::NoiseRouter;
+use crate::surface_levels::SurfaceLevels;
 use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
@@ -168,6 +169,7 @@ fn agree<T: PartialEq>(left: Option<T>, right: Option<T>) -> Option<T> {
 /// task that generates it. Everything here is a pure function of the seed, so
 /// the region may be any size and two regions agree wherever they overlap.
 pub struct FluidField<'a> {
+    router: &'a NoiseRouter,
     program: &'a Program,
     config: Option<&'a AquiferConfig>,
     global: GlobalFluid,
@@ -178,16 +180,25 @@ pub struct FluidField<'a> {
     grid_size: IVec3,
     centres: Box<[IVec3]>,
     status: Box<[Option<FluidStatus>]>,
-    surface: Box<[i32]>,
+    /// The surface level of each quart column the statuses may read, sampled
+    /// when one first does: a status reads at most thirteen of them.
+    surface: Box<[Option<i32>]>,
     surface_min_quart: (i32, i32),
     surface_quarts_x: i32,
     volumes: Box<[Option<Window>]>,
 }
 
 impl<'a> FluidField<'a> {
-    /// The field over every block in `[min, max]`, both inclusive.
-    pub fn new(router: &'a NoiseRouter, min: IVec3, max: IVec3) -> Self {
+    /// The field over every block in `[min, max]`, both inclusive. It starts
+    /// with the surface levels that `levels` holds for the region.
+    pub fn new(
+        router: &'a NoiseRouter,
+        levels: &mut SurfaceLevels,
+        min: IVec3,
+        max: IVec3,
+    ) -> Self {
         let mut field = Self {
+            router,
             program: &router.program,
             config: router.aquifer.as_ref(),
             global: router.global_fluid,
@@ -245,19 +256,14 @@ impl<'a> FluidField<'a> {
             1,
             quart_max.1 - quart_min.1 + 1,
         );
-        let volume = SampleGrid::new(
-            quarts,
-            IVec3::new(quart_min.0 << 2, 0, quart_min.1 << 2),
-            IVec3::new(4, 1, 4),
-        );
-        let mut sampled = vec![0.0f32; volume.len()];
-        field
-            .program
-            .fill(&mut field.ws, &volume, config.surface_level, &mut sampled);
-        field.surface = sampled
-            .iter()
-            .map(|&v| f64::from(v).floor() as i32)
-            .collect();
+        levels.retarget(router);
+        let mut surface = Vec::with_capacity((quarts.x * quarts.z) as usize);
+        for quart_z in quart_min.1..=quart_max.1 {
+            for quart_x in quart_min.0..=quart_max.0 {
+                surface.push(levels.get(quart_x, quart_z));
+            }
+        }
+        field.surface = surface.into_boxed_slice();
         field.surface_min_quart = quart_min;
         field.surface_quarts_x = quarts.x;
 
@@ -266,22 +272,51 @@ impl<'a> FluidField<'a> {
         field
     }
 
+    /// Hands every surface level the field holds to `levels`, for the fields
+    /// of the columns around this one.
+    pub fn keep_surface_levels(&self, levels: &mut SurfaceLevels) {
+        if !levels.serves(self.router) {
+            return;
+        }
+        let (min_x, min_z) = self.surface_min_quart;
+        let rows = self.surface.chunks(self.surface_quarts_x.max(1) as usize);
+        for (row, quart_z) in rows.zip(min_z..) {
+            for (known, quart_x) in row.iter().zip(min_x..) {
+                if let Some(level) = known {
+                    levels.put(quart_x, quart_z, *level);
+                }
+            }
+        }
+    }
+
     #[inline]
     fn cell_index(&self, grid: IVec3) -> usize {
         flat(grid - self.min_grid, self.grid_size)
     }
 
-    #[inline]
-    fn surface_level(&self, x: i32, z: i32) -> i32 {
+    fn surface_level(&mut self, x: i32, z: i32) -> i32 {
+        let (quart_x, quart_z) = (x >> 2, z >> 2);
         let (qx, qz) = (
-            (x >> 2) - self.surface_min_quart.0,
-            (z >> 2) - self.surface_min_quart.1,
+            quart_x - self.surface_min_quart.0,
+            quart_z - self.surface_min_quart.1,
         );
         debug_assert!(qx >= 0 && qx < self.surface_quarts_x && qz >= 0);
-        self.surface
-            .get((qz * self.surface_quarts_x + qx) as usize)
-            .copied()
-            .unwrap_or_default()
+        let index = (qz * self.surface_quarts_x + qx) as usize;
+        let (Some(config), Some(&known)) = (self.config, self.surface.get(index)) else {
+            return 0;
+        };
+        if let Some(level) = known {
+            return level;
+        }
+        let sampled = self.sample(
+            config.surface_level,
+            IVec3::new(quart_x << 2, 0, quart_z << 2),
+        );
+        let level = f64::from(sampled).floor() as i32;
+        if let Some(slot) = self.surface.get_mut(index) {
+            *slot = Some(level);
+        }
+        level
     }
 
     #[inline]
