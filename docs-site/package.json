@@ -1,0 +1,23 @@
+{
+  "name": "mcrs-docs",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "check": "astro check",
+    "check-sources": "node scripts/check-sources.mjs",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/check": "^0.9.12",
+    "@astrojs/mdx": "^8.1.3",
+    "@astrojs/starlight": "^0.42.10",
+    "astro": "^7.4.8",
+    "sharp": "^0.35.5",
+    "starlight-links-validator": "^0.27.0",
+    "typescript": "^6.0.3"
+  }
+}

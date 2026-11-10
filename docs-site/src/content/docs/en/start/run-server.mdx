@@ -1,0 +1,64 @@
+---
+title: Run a server and join it
+description: The two commands to start a server, what you can do in it, and why you must not open its port to the internet.
+sidebar:
+  order: 5
+kind: tutorial
+audience: [jvm, admin, contributor, player]
+stability: wip
+tracking: [78, 82]
+sources:
+  - README.md
+  - crates/mcrs_minecraft_server_settings/src/server_settings.rs
+  - crates/mcrs_minecraft_engine_server/src/server_network_plugin.rs
+  - PERF.md
+  - issue:78
+  - issue:82
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+
+import Status from '~/components/Status.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="caution" title="WIP">
+A detailed guide will come before the alpha. This page copies the commands of the [README Quick start](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start) and we have not run them again for the docs. If the README and this page differ, trust the README. You need the tools from [Install](/docs/en/start/install/) first.
+</Aside>
+
+<Aside type="danger" title="Do not open the port to the internet">
+The server has no authentication: anyone who reaches it can join under any name, including the name of an operator. It listens on all network interfaces (`0.0.0.0:25565`). Run it on your own machine or a trusted local network only.
+</Aside>
+
+## Start
+
+```bash
+cargo run --release
+cargo run --release -- "<path to a world folder>"
+```
+
+The first command starts a server on a new world. The second one opens an existing Java Edition save, which must have the same data version as the game snapshot (26.4-snapshot-7). Saves of other versions do not load and there are no datafixers ([#388](https://github.com/andreypfau/mcrs/issues/388)).
+
+On the reference machine, a release build with no world folder reaches the Playing state in 0.77 s, median of three runs (Apple M4 Max, macOS, [PERF.md](https://github.com/andreypfau/mcrs/blob/main/PERF.md#server-start)). That is the start of an already built binary, not the build time.
+
+## Join
+
+Use a vanilla client of the same snapshot, 26.4-snapshot-7. The server announces itself in the LAN worlds list. You can also join by address `localhost:25565`. It runs in offline mode.
+
+## What you can do
+
+- Write in chat.
+- Run commands from the client or from the server console, which reads standard input: `/gamemode`, `/tp`, `/summon pig`, `/time`, `/fill`.
+- Break blocks in creative mode. The default game mode is creative.
+- Fly around the generated world and spawn mobs with `/summon`: pigs, cows, sheep, chickens and zombified piglins.
+
+Settings come from environment variables, for example `MCRS_PORT`, `MCRS_WORLD_SEED`, `MCRS_WORLD_PRESET` (`normal` or `flat`) and `MCRS_DEFAULT_GAMEMODE`. The full list is in [`server_settings.rs`](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server_settings/src/server_settings.rs).
+
+## What is not saved
+
+<Aside type="caution" title="WIP">
+Changed chunks are not written to disk, so every block you break is lost when the server stops: <Status issue={78} state="wip" />. Players are saved on a clean shutdown (<Status pr={624} state="works" />), and a clean shutdown that also saves the world is <Status issue={169} state="wip" />.
+</Aside>
+
+Expected console output and a first-run checklist are not written yet. For the details, read the README.

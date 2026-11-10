@@ -1,0 +1,91 @@
+---
+title: Specs and parity tests
+description: How a specification in docs/spec is built, how it pairs with an implementation issue, and how fixtures from the game back a parity test.
+sidebar:
+  order: 4
+kind: how-to
+audience: [contributor]
+stability: changing
+tracking: [507, 656]
+sources:
+  - docs/spec/README.md
+  - docs/spec/registry.md
+  - docs/spec/whitelist.md
+  - docs/clean-room.md
+  - tools/fixtures.json
+  - tools/captures.json
+  - tools/vanilla-oracle/README.md
+  - xtask/src/parity/rules.rs
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+import Status from '~/components/Status.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+A specification says what the game does. A parity test checks that our output equals output the game produced. This page shows how both are built and how they fit one pair of issues.
+
+The exact rules for writing a spec are in [docs/spec/README.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/README.md). This page is the map, not a copy.
+
+## Anatomy of a spec
+
+Take [docs/spec/whitelist.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/whitelist.md) as the model. Section 0 of [docs/spec/registry.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/registry.md) defines the conventions for all specs.
+
+| Part | What it holds |
+|---|---|
+| Field/Value table | the game version and the protocol version the spec was written for |
+| Terms (0.1) | each term of the domain, defined once. The text uses the same word every time |
+| Provenance (0.2) | the labels `black_box_confirmed`, `source_suggested`, `documentation`, `design`, `unresolved` |
+| ID prefixes (0.3) | a short prefix per subject, for example `WL-JOIN` for the whitelist check at login |
+| Rules | one heading per rule, with an ID like `WL-JOIN-002`, the behavior, a provenance line, its kind and its confidence |
+| Intentional deviations | where we choose not to copy an accident of the game, with the reason |
+| Unresolved | what is not decided yet |
+| Experiments and captured results | how each `source_suggested` rule can be confirmed, and the results already captured |
+
+The six kinds of rule are wire, client agreement, semantic, layout, deviation and unspecified. A parity test must not compare an unspecified rule.
+
+### ASD-STE100 applies only inside docs/spec
+
+Specifications use Simplified Technical English (ASD-STE100): one word for one concept, short sentences, simple tenses, active voice, "must" for a requirement. This site does not use that style. Write this site in plain English, and write `docs/spec` in ASD-STE100.
+
+## A pair of issues
+
+A new behavior takes two issues, as [Clean-room in practice](/docs/en/contributing/clean-room/) describes. Block breaking is an example: <Status issue={474} /> asks for the specification and the implementation as two steps, with a second agent implementing from `docs/spec/` only. <Status issue={623} /> asks for a specification of teleport confirmation, and then for engine tests per rule.
+
+A good pair:
+
+1. Issue A, label `clean-room`: "Specify X". Done when `docs/spec/x.md` is merged and states which inputs, outputs and order matter.
+2. Issue B: "Implement X". Done when each rule has a test that names its rule ID.
+
+A spec PR is a docs PR. It does not touch code. An implementation PR cites rule IDs and does not change the spec. If the spec is wrong or silent, go back to issue A.
+
+<Aside type="caution" title="Edition-specific rules, WIP">
+Specifications do not yet mark which rules belong to which game edition. This is planned: <Status issue={656} state="wip" />.
+</Aside>
+
+## Fixtures and the oracle
+
+A fixture is a file the game produced. The table `tools/fixtures.json` is the single place that states a fixture's name, the Gradle task that makes it and the folder it goes to. It has 49 entries, and about 14 of them concern world generation. `tools/captures.json` records at which game version each fixture was captured. A test fails by name for every fixture whose version is not the one in `assets/minecraft/version.json`. After a snapshot update that test is the to-do list. See [Move to a new snapshot](/docs/en/contributing/new-snapshot/).
+
+The tool that takes the captures is `tools/vanilla-oracle`. It runs no game client and no server: it loads the game's own libraries and dumps values. One command recaptures a fixture:
+
+```bash
+cargo run -p mcrs_minecraft_update -- recapture <fixture name>
+```
+
+<Aside type="danger" title="The oracle knows the game's code">
+The sources of `tools/vanilla-oracle` call the game's code directly. An implementer must not read them. Read the fixture and the capture procedure next to it (`*_capture_procedure.md`), which describe what is captured and not how the game computes it. A specification author may read the oracle.
+</Aside>
+
+## Parity tests
+
+A parity test lives in a file named `parity.rs` or `*_parity.rs`. Its expected values come from a fixture loaded through `mcrs_minecraft_fixtures`, not from a literal in the test. The `parity` check of xtask warns when such a test loads no fixture or compares against a literal. Run it with `scripts/hooks/run-checks commit`.
+
+To add one: capture the fixture with the oracle (see its README), load it in a `*_parity.rs` test, and name the rule ID in the test name.
+
+The parity of world generation is a special case. The reference dumps cover chosen seeds and chunks, so "matches vanilla" there means "matches on these dumps". See [Parity](/docs/en/concepts/parity/).
+
+## Specs in numbers
+
+`docs/spec/` holds 67 files, the README included, on 2026-11-09. A report of the rules that no test names is planned: <Status issue={507} state="wip" />.

@@ -1,0 +1,46 @@
+---
+title: Лицензия и юридические вопросы
+description: Какие лицензии покрывают mcrs, чем проект не занимается, откуда берется материал Mojang и правило clean-room в двух строках.
+sidebar:
+  order: 3
+kind: reference
+audience: [observer, contributor, jvm, admin, rust]
+stability: stable
+sources:
+  - README.md
+  - LICENSE-MIT
+  - LICENSE-APACHE
+  - LICENSE-VALENCE-MIT
+  - docs/clean-room.md
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+translated_from: 51d45c26a
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Лицензия кода
+
+mcrs распространяется под лицензией [Apache License 2.0](https://github.com/andreypfau/mcrs/blob/main/LICENSE-APACHE) или [MIT](https://github.com/andreypfau/mcrs/blob/main/LICENSE-MIT), на выбор пользователя. В `Cargo.toml` workspace указано `license = "MIT OR Apache-2.0"`.
+
+Код, адаптированный из [valence](https://github.com/valence-rs/valence), сохраняет собственное уведомление, [лицензию MIT авторов Valence](https://github.com/andreypfau/mcrs/blob/main/LICENSE-VALENCE-MIT).
+
+## Нет связи с Mojang
+
+mcrs не связан с Mojang или Microsoft. Minecraft - торговая марка Mojang Synergies AB.
+
+## Материал Mojang
+
+README сообщает, что в репозитории нет графики Mojang. Клиент читает текстуры и модели из официального JAR игры, который есть у игрока. Таблицы данных и отчеты в `assets/` заново генерируются из JAR игры одной командой, поэтому переход на новый снапшот в основном сводится к обновлению данных.
+
+<Aside type="note" title="Это не юридическая консультация">
+Страница повторяет то, что репозиторий говорит о себе. Юридического заключения она не дает. Если оно нужно, например для форка или хостинга сервера, обратитесь к юристу.
+</Aside>
+
+## Clean-room
+
+Поведение берется из спецификаций, а не из кода игры. Автор спецификации может читать игру и записывает только поведение. Реализатор читает только спецификации и артефакты, которые выдает игра, и никогда не читает декомпилированный или деобфусцированный код игры. Имена из кода игры в репозиторий не попадают, кроме шести терминов сообщества, которые перечислены в файле правил: `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos` и `PalettedContainer`.
+
+Полное правило лежит в [docs/clean-room.md](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md). Если вы читали код игры, чтобы разобраться в каком-то поведении, реализовать его вы не можете. Подробности: [Как внести вклад](/docs/ru/contributing/).

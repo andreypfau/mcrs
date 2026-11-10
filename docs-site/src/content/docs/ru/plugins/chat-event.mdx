@@ -1,0 +1,85 @@
+---
+title: "Перехват чата: отмена и перезапись"
+description: Наблюдайте PlayerChatEvent в мире измерения, отменяйте строку чата или заменяйте ее текст.
+sidebar:
+  order: 6
+kind: tutorial
+audience: [jvm, rust]
+stability: changing
+tracking: [283, 636]
+sources:
+  - crates/mcrs_minecraft_chat_server/src/chat_plugin.rs
+  - crates/mcrs_minecraft_server/tests/it/chat.rs
+  - pr:636
+  - issue:283
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+translated_from: 51d45c26a
+---
+
+import Status from '~/components/Status.astro';
+import Example from '~/components/Example.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+Чат - первое и пока единственное публичное событие игрока в mcrs. Оно входит в ту часть <Status issue={283} state="partial" />, которую влил PR <Status pr={636} />. Событий входа, выхода, движения и блоков пока нет. Примеры взяты из тестов репозитория, вне этих тестов мы их не запускали.
+
+## Событие
+
+Перед рассылкой строки чата сервер вызывает событие `PlayerChatEvent`. У него три поля.
+
+<Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" lines="19-24" title="PlayerChatEvent" />
+
+| Поле | Значение |
+|---|---|
+| `player` | сущность отправителя в мире его измерения |
+| `text` | строка в виде `Text`, а не `String`; чтобы переписать строку, измените это поле |
+| `cancelled` | если выставить `true`, строка не разойдется |
+
+`Text` - тип стилизованного текста из протокола, так что в строке могут быть цвета и компоненты. Получить `Text` из строки можно через `into_text()`, как в тестах.
+
+## Когда событие срабатывает
+
+Событие приходит после проверок сервера и до рассылки.
+
+- Строка с недопустимым символом события не вызывает: сервер пишет в лог, что отбросил ее.
+- Строка от игрока, который скрыл чат, тоже не вызывает событие, а игрок получает сообщение "чат отключен".
+- Любая другая строка вызывает событие в мире измерения отправителя. Когда наблюдатели (observer) отработают, сервер читает `cancelled` и `text` и рассылает строку.
+
+<Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" lines="64-93" title="Вызвать событие, затем разослать" />
+
+Рассылка идет сразу после выхода из `handle_chat`, а не внутри нее: триггер выполняется в отложенной команде.
+
+## Отмена строки
+
+В Paper для этого вызывают `setCancelled(true)` у `AsyncChatEvent`. Здесь пишут наблюдателя, то есть функцию с параметром `On<PlayerChatEvent>`, и выставляют поле.
+
+<Example file="crates/mcrs_minecraft_server/tests/it/chat.rs" lines="123-142" title="Тест: наблюдатель отменяет строку" />
+
+## Замена текста
+
+Запишите в `event.text` новый `Text`, и рассылка возьмет его. Тест еще читает `event.player`, чтобы показать, кто говорил.
+
+<Example file="crates/mcrs_minecraft_server/tests/it/chat.rs" lines="144-181" title="Тест: наблюдатель переписывает строку в ***" />
+
+## Где живет наблюдатель
+
+Чат работает внутри каждого мира измерения, значит, и наблюдатель должен быть в мире измерения. Тест добавляет его прямо в мир (`server.world().add_observer(...)`). На настоящем сервере положите `app.add_observer(...)` в метод `build` плагина с `Clone` и зарегистрируйте плагин через `add_dimension_plugin`. Так же `ChatPlugin` добавляет собственного наблюдателя:
+
+<Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" lines="26-33" title="ChatPlugin добавляет своего наблюдателя в build" />
+
+Почему здесь не подходит `add_plugins`, см. в разделе [Первый плагин](/docs/ru/plugins/first-plugin/).
+
+<Aside type="caution" title="WIP: открытые вопросы из PR 636">
+В тексте PR открыты три вопроса. Первый: где должно жить событие. Сейчас оно в `mcrs_minecraft_chat_server`, а в issue сказано "поднимает движок". Второй: порядок наблюдателей. В Bevy у наблюдателей нет приоритета, поэтому если два плагина переписывают одну строку, результат зависит от порядка. Третий: длина замененного текста. Лимит в 256 символов стоит на пакете, а плагин может записать текст длиннее. Следите за ними в <Status issue={283} /> и <Status pr={636} />.
+</Aside>
+
+## Проверка
+
+Тесты репозитория запускаются командой `cargo test -p mcrs_minecraft_server --test it chat::` (из текста PR #636). О том, как написать свой тест, см. раздел [Тест плагина без клиента](/docs/ru/plugins/testing/).
+
+## Что дальше
+
+- [Добавить команду](/docs/ru/plugins/commands/): у команд есть свое событие, `CommandEvent`, с тем же полем `cancelled`.
+- [Paper в mcrs](/docs/ru/plugins/paper-to-mcrs/): таблица других событий Paper и того, что для них есть в mcrs.

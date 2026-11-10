@@ -1,0 +1,27 @@
+---
+import { getCollection } from "astro:content";
+import Status from "./Status.astro";
+interface Props { areas: string }
+const ids = Astro.props.areas.split(",").map((s) => s.trim()).filter(Boolean);
+const all = await getCollection("status");
+const rows = ids.map((id) => {
+  const r = all.find((e) => e.id === id);
+  if (!r) throw new Error(`StatusRows: unknown area "${id}" in status.yml`);
+  return r;
+});
+const l = Astro.currentLocale === "ru" ? "ru" : "en";
+const head = l === "ru" ? ["Область", "Состояние", "Работает", "Не готово"] : ["Area", "State", "Works", "Missing"];
+---
+<table>
+  <thead><tr>{head.map((h) => <th>{h}</th>)}</tr></thead>
+  <tbody>
+    {rows.map((r) => (
+      <tr>
+        <td>{r.data.title[l]}</td>
+        <td><Status state={r.data.state} /></td>
+        <td>{r.data.works[l]}</td>
+        <td>{r.data.missing[l]} {r.data.issues.map((n) => <Status issue={n} />)}</td>
+      </tr>
+    ))}
+  </tbody>
+</table>

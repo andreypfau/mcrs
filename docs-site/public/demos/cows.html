@@ -1,0 +1,309 @@
+<title>Две коровы: толчок</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Onest:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: two side-by-side lanes (vanilla | mc.rs) on one shared clock, a block grid seen from above, a thread strip under each. */
+:root {
+  --bg: #eceee9;
+  --panel: #f8f9f6;
+  --fg: #1c2320;
+  --muted: #5d6862;
+  --line: #cfd5cf;
+  --grid: #dde2dc;
+  --vanilla: #b8741a;
+  --mcrs: #1d7a70;
+  --p1: #c2410c;
+  --p2: #6d4fc2;
+  --cow: #fbfaf5;
+  --spot: #2b2b28;
+  --f-display: "Unbounded", "Arial Black", system-ui, sans-serif;
+  --f-body: "Onest", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141917; --panel: #1b211f; --fg: #e6ebe7; --muted: #9aa69f; --line: #2f3833; --grid: #262e2a;
+    --vanilla: #e0a34a; --mcrs: #4cc0b2; --p1: #f07a45; --p2: #a68cf0; --cow: #e9e6dc; --spot: #2b2b28;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141917; --panel: #1b211f; --fg: #e6ebe7; --muted: #9aa69f; --line: #2f3833; --grid: #262e2a;
+  --vanilla: #e0a34a; --mcrs: #4cc0b2; --p1: #f07a45; --p2: #a68cf0; --cow: #e9e6dc; --spot: #2b2b28;
+  color-scheme: dark;
+}
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 15px; line-height: 1.5; }
+.wrap { padding-block: 16px 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 20px; }
+h1 { font-family: var(--f-display); font-weight: 700; font-size: clamp(22px, 3.4vw, 34px); line-height: 1.15; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+.lead { margin: 0; color: var(--muted); max-width: 68ch; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button { font: 600 14px var(--f-body); color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 7px 14px; cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button:focus-visible { outline: 2px solid var(--mcrs); outline-offset: 2px; }
+.clock { font: 600 13px var(--f-mono); color: var(--muted); margin-left: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--muted); }
+.legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; border-radius: 2px; }
+.standalone { justify-self: end; font: 13px var(--f-body); color: var(--muted); }
+.standalone:hover { color: var(--fg); }
+.panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 16px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; align-content: start; min-width: 0; container-type: inline-size; }
+.head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.name { font-family: var(--f-display); font-weight: 500; font-size: 18px; }
+.vanilla .name { color: var(--vanilla); }
+.mcrs .name { color: var(--mcrs); }
+.tag { font: 12px var(--f-mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+svg { width: 100%; height: auto; max-height: 300px; display: block; }
+.gridline { stroke: var(--grid); stroke-width: 1; }
+.cow rect.body { fill: var(--cow); stroke: var(--fg); stroke-width: 1.5; }
+.cow .spot { fill: var(--spot); }
+.cow text { font: 700 18px var(--f-mono); fill: var(--fg); }
+.cow, .ghost { transition: transform 0.7s cubic-bezier(.3,.7,.2,1), opacity 0.4s; }
+.ghost rect { fill: none; stroke: var(--mcrs); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.ghost text { font: 11px var(--f-mono); fill: var(--mcrs); }
+.vel { font: 600 14px var(--f-mono); fill: var(--muted); }
+.arrow { transition: opacity 0.35s; }
+.arrow.p1 line { stroke: var(--p1); } .arrow.p2 line { stroke: var(--p2); }
+.arrow line { stroke-width: 3; }
+.arrow text { font: 600 11px var(--f-mono); }
+.arrow.p1 text { fill: var(--p1); } .arrow.p2 text { fill: var(--p2); }
+.mk1 { fill: var(--p1); } .mk2 { fill: var(--p2); }
+.wait { font: 600 12px var(--f-mono); fill: var(--vanilla); transition: opacity 0.3s; }
+.cap { min-height: 3.2em; margin: 0; }
+.cap b { font-family: var(--f-mono); font-size: 13px; color: var(--muted); font-weight: 600; margin-right: 6px; }
+.lanes { display: grid; gap: 6px; }
+.lane { display: grid; grid-template-columns: 64px 1fr; gap: 8px; align-items: center; }
+.lane > span { font: 12px var(--f-mono); color: var(--muted); }
+@container (max-width: 400px) { .lane { grid-template-columns: 1fr; gap: 2px; } }
+.track { display: flex; gap: 3px; min-width: 0; }
+.cell { font: 11px/1.25 var(--f-mono); display: flex; align-items: center; justify-content: center; text-align: center; padding: 5px 2px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); transition: background 0.3s, color 0.3s; }
+.cell.sep { margin-left: 8px; }
+.cell.done { color: var(--fg); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.cell.on { color: var(--panel); background: var(--accent); border-color: var(--accent); }
+.vanilla { --accent: var(--vanilla); }
+.mcrs { --accent: var(--mcrs); }
+.u1 { flex: 0 1 calc((100% - 15px) / 6); }
+.u04 { flex: 0 1 calc((100% - 15px) / 6 * 0.45); }
+.lanenote { font-size: 13px; color: var(--muted); margin: 0; }
+.cmp { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+@media (max-width: 560px) { table { font-size: 13px; } th, td { padding: 8px 6px; } }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 12px var(--f-mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+td:first-child { color: var(--muted); }
+td.v { color: var(--vanilla); font-weight: 600; } td.m { color: var(--mcrs); font-weight: 600; }
+.foot { font-size: 13px; color: var(--muted); margin: 0; max-width: 80ch; }
+@media (prefers-reduced-motion: reduce) { .cow, .ghost, .arrow, .cell, .wait { transition: none; } }
+</style>
+
+<div class="wrap">
+  <a class="standalone" id="standalone" target="_blank" rel="noopener" hidden>открыть отдельно</a>
+  <h1>Две коровы толкают друг друга</h1>
+  <p class="lead">Коровы стоят вплотную, их box перекрываются. Твердого столкновения между мобами нет: каждый толчок только добавляет скорость. Слева порядок ванили, справа mc.rs. Время у обеих сторон общее.</p>
+
+  <div class="controls">
+    <button id="play" type="button">Пауза</button>
+    <button id="step" type="button">Шаг →</button>
+    <button id="reset" type="button">Сначала</button>
+    <span class="clock" id="clock"></span>
+  </div>
+  <div class="legend">
+    <span><i style="background:var(--p1)"></i>толчок 1 (A толкает B)</span>
+    <span><i style="background:var(--p2)"></i>толчок 2 (B толкает A)</span>
+    <span>v: скорость от толчков, 1 = один толчок</span>
+  </div>
+
+  <div class="panels">
+    <section class="panel vanilla" id="pv">
+      <div class="head"><span class="name">Ваниль</span><span class="tag">по очереди</span></div>
+      <svg viewBox="0 0 384 170" aria-label="Ваниль: две коровы, вид сверху"></svg>
+      <p class="cap"></p>
+      <div class="lanes">
+        <div class="lane"><span>1 поток</span><div class="track">
+          <div class="cell u1" data-c="v0">A ход</div><div class="cell u1" data-c="v1">A→B</div><div class="cell u1" data-c="v2">B ход</div><div class="cell u1" data-c="v3">B→A</div>
+          <div class="cell u1 sep" data-c="v4">A ход</div><div class="cell u1" data-c="v5">B ход</div>
+        </div></div>
+      </div>
+      <p class="lanenote">B не может начать, пока A не закончила. Сто коров дают цепочку из ста шагов.</p>
+    </section>
+
+    <section class="panel mcrs" id="pm">
+      <div class="head"><span class="name">mc.rs</span><span class="tag">параллельно</span></div>
+      <svg viewBox="0 0 384 170" aria-label="mc.rs: две коровы, вид сверху"></svg>
+      <p class="cap"></p>
+      <div class="lanes">
+        <div class="lane"><span>ядро 1</span><div class="track">
+          <div class="cell u04" data-c="s0">сн.</div><div class="cell u1" data-c="m1a">A ход</div><div class="cell u1" data-c="m2a">A толчки</div>
+          <div class="cell u04 sep" data-c="s1">сн.</div><div class="cell u1" data-c="m5a">A ход</div>
+        </div></div>
+        <div class="lane"><span>ядро 2</span><div class="track">
+          <div class="cell u04" data-c="s0">сн.</div><div class="cell u1" data-c="m1b">B ход</div><div class="cell u1" data-c="m2b">B толчки</div>
+          <div class="cell u04 sep" data-c="s1">сн.</div><div class="cell u1" data-c="m5b">B ход</div>
+        </div></div>
+      </div>
+      <p class="lanenote">«Сн.»: снимок позиций в начале тика. Коровы читают только его и пишут только в себя, поэтому никто не ждет соседа.</p>
+    </section>
+  </div>
+
+  <div class="cmp">
+    <table>
+      <thead><tr><th></th><th>Ваниль</th><th>mc.rs</th></tr></thead>
+      <tbody>
+        <tr><td>Толчков на корову за тик</td><td class="v">2</td><td class="m">2</td></tr>
+        <tr><td>От каких позиций считается толчок</td><td>толчок 1 от старых, толчок 2 от позиции B после хода</td><td>оба от снимка начала тика</td></tr>
+        <tr><td>Когда толчок идет в ход</td><td>B в этом же тике, A в следующем</td><td>обе в следующем тике</td></tr>
+        <tr><td>Кто кого ждет</td><td>B ждет A, каждый моб ждет предыдущего</td><td>никто: каждая корова на своем ядре</td></tr>
+        <tr><td>Кто пишет в чужую скорость</td><td>A пишет в B, B пишет в A</td><td>никто: каждая считает свою половину пары</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="foot">Это упрощение: нет трения, за один ход корова тратит всю скорость, толчок по модулю всегда один и тот же. В этом примере итог одинаковый: A сдвинулась на 2 влево, B на 2 вправо. В реальной игре второй толчок ванили считается от сдвинутой позиции B, поэтому разница по скорости на пару за тик бывает, но не больше 0,1. При этом в ванили сам порядок «кто первый» зависит от того, как загрузились чанки.</p>
+</div>
+
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const Y = 86, W = 60, U = 10;
+
+  const V = [
+    { t: "Тик N", c: "A делает ход. Ее скорость 0, она стоит.", a: 165, b: 205, va: 0, vb: 0, cells: ["v0"], wait: true },
+    { t: "Тик N", c: "A толкает B. Обе получают толчок 1. A пишет прямо в скорость B.", a: 165, b: 205, va: -1, vb: 1, ar: [["a", 1], ["b", 1]], cells: ["v1"], wait: true },
+    { t: "Тик N", c: "B делает ход уже с толчком 1 и сдвигается. Это возможно только после A.", a: 165, b: 215, va: -1, vb: 0, cells: ["v2"] },
+    { t: "Тик N", c: "B толкает A от новой позиции. Обе получают толчок 2. A уже сходила, он ей достанется в следующем тике.", a: 165, b: 215, va: -2, vb: 1, ar: [["a", 2], ["b", 2]], cells: ["v3"] },
+    { t: "Тик N+1", c: "A делает ход с двумя толчками. Коровы расходятся, толкания больше нет.", a: 145, b: 215, va: 0, vb: 1, cells: ["v4"] },
+    { t: "Тик N+1", c: "B делает ход со вторым толчком.", a: 145, b: 225, va: 0, vb: 0, cells: ["v5"] },
+    { t: "Итог", c: "Каждая получила 2 толчка. B начала двигаться на тик раньше A.", a: 145, b: 225, va: 0, vb: 0, cells: [] },
+  ];
+  const M = [
+    { t: "Тик N", c: "Снимок: позиции обеих коров зафиксированы на начало тика.", a: 165, b: 205, va: 0, vb: 0, g: [165, 205], cells: ["s0"] },
+    { t: "Тик N", c: "Ядро 1 и ядро 2 одновременно делают ходы. Скорость 0, обе стоят.", a: 165, b: 205, va: 0, vb: 0, g: [165, 205], cells: ["m1a", "m1b"] },
+    { t: "Тик N", c: "Одновременно: каждая корова сама считает по снимку оба толчка пары и пишет только в себя.", a: 165, b: 205, va: -2, vb: 2, g: [165, 205], ar: [["a", 1], ["a", 2], ["b", 1], ["b", 2]], cells: ["m2a", "m2b"] },
+    { t: "Тик N", c: "Тик N готов. Никто не ждал соседа и не писал в чужую корову.", a: 165, b: 205, va: -2, vb: 2, g: [165, 205], cells: [] },
+    { t: "Тик N+1", c: "Новый снимок.", a: 165, b: 205, va: -2, vb: 2, g: [165, 205], cells: ["s1"] },
+    { t: "Тик N+1", c: "Одновременно: ходы. Обе сдвигаются на 2, симметрично.", a: 145, b: 225, va: 0, vb: 0, g: [165, 205], cells: ["m5a", "m5b"] },
+    { t: "Итог", c: "Каждая получила 2 толчка, как в ванили. Обе начали двигаться в одном тике.", a: 145, b: 225, va: 0, vb: 0, cells: [] },
+  ];
+
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  function build(panel, snapshot) {
+    const svg = panel.querySelector("svg");
+    const defs = el("defs", {}, svg);
+    for (const n of [1, 2]) {
+      const m = el("marker", { id: panel.id + "mk" + n, viewBox: "0 0 10 10", refX: "8", refY: "5", markerWidth: "4", markerHeight: "4", orient: "auto-start-reverse" }, defs);
+      el("path", { d: "M0,0 L10,5 L0,10 z", class: "mk" + n }, m);
+    }
+    for (let x = 0; x <= 384; x += 64) el("line", { x1: x, y1: 20, x2: x, y2: 152, class: "gridline" }, svg);
+    for (let y = 24; y <= 152; y += 64) el("line", { x1: 0, y1: y, x2: 384, y2: y, class: "gridline" }, svg);
+
+    let ghost = null;
+    if (snapshot) {
+      ghost = el("g", { class: "ghost" }, svg);
+      ghost.gA = el("rect", { x: -W / 2, y: Y - W / 2, width: W, height: W, rx: 6 }, ghost);
+      ghost.gB = el("rect", { x: -W / 2, y: Y - W / 2, width: W, height: W, rx: 6 }, ghost);
+      ghost.lbl = el("text", { x: 0, y: Y - W / 2 - 8 }, ghost);
+      ghost.lbl.textContent = "снимок";
+    }
+
+    const cows = {};
+    for (const id of ["a", "b"]) {
+      const g = el("g", { class: "cow" }, svg);
+      el("rect", { class: "body", x: -W / 2, y: Y - W / 2, width: W, height: W, rx: 6, "fill-opacity": id === "b" ? 0.82 : 0.92 }, g);
+      // Boxes overlap by design, so spots and labels stay on the outer side of each cow.
+      const out = id === "a" ? -1 : 1;
+      el("rect", { class: "spot", x: out < 0 ? -25 : 11, y: Y - 23, width: 14, height: 10, rx: 3 }, g);
+      el("rect", { class: "spot", x: out < 0 ? -23 : 11, y: Y + 11, width: 12, height: 12, rx: 3 }, g);
+      const t = el("text", { x: 0, y: Y + 6, "text-anchor": "middle" }, g);
+      t.textContent = id.toUpperCase();
+      const v = el("text", { class: "vel", x: -out * 8, y: Y + W / 2 + 22, "text-anchor": out < 0 ? "end" : "start" }, g);
+      cows[id] = { g, v };
+    }
+
+    const arrows = {};
+    for (const id of ["a", "b"]) for (const n of [1, 2]) {
+      const g = el("g", { class: "arrow p" + n, opacity: 0 }, svg);
+      const dir = id === "a" ? -1 : 1;
+      const dy = n === 1 ? -12 : 12;
+      el("line", { x1: 0, y1: Y + dy, x2: dir * 30, y2: Y + dy, "marker-end": `url(#${panel.id}mk${n})` }, g);
+      const lt = el("text", { x: dir * 34, y: Y + dy + 4, "text-anchor": dir < 0 ? "end" : "start" }, g);
+      lt.textContent = String(n);
+      arrows[id + n] = g;
+    }
+
+    const wait = el("text", { class: "wait", x: 300, y: 44, "text-anchor": "middle", opacity: 0 }, svg);
+    wait.textContent = "B ждет A";
+
+    return { panel, cows, arrows, ghost, wait, cap: panel.querySelector(".cap"), cells: panel.querySelectorAll(".cell") };
+  }
+
+  const vel = (n) => n === 0 ? "v = 0" : n < 0 ? `v = ←${-n}` : `v = ${n}→`;
+
+  function render(view, frames, i) {
+    const f = frames[i];
+    const done = new Set(frames.slice(0, i).flatMap((x) => x.cells));
+    const pos = { a: f.a, b: f.b };
+    for (const id of ["a", "b"]) {
+      view.cows[id].g.style.transform = `translateX(${pos[id]}px)`;
+      view.cows[id].v.textContent = vel(id === "a" ? f.va : f.vb);
+      for (const n of [1, 2]) {
+        const g = view.arrows[id + n];
+        const on = (f.ar || []).some(([c, p]) => c === id && p === n);
+        g.setAttribute("opacity", on ? 1 : 0);
+        g.style.transform = `translateX(${pos[id] + (id === "a" ? -W / 2 : W / 2)}px)`;
+      }
+    }
+    if (view.ghost) {
+      const on = !!f.g;
+      view.ghost.style.opacity = on ? 1 : 0;
+      if (on) {
+        view.ghost.gA.setAttribute("x", f.g[0] - W / 2);
+        view.ghost.gB.setAttribute("x", f.g[1] - W / 2);
+        view.ghost.lbl.setAttribute("x", (f.g[0] + f.g[1]) / 2);
+        view.ghost.lbl.setAttribute("text-anchor", "middle");
+      }
+    }
+    view.wait.setAttribute("opacity", f.wait ? 1 : 0);
+    view.cap.innerHTML = `<b>${f.t}</b>${f.c}`;
+    const active = new Set(f.cells);
+    view.cells.forEach((cell) => {
+      const c = cell.dataset.c;
+      cell.classList.toggle("on", active.has(c));
+      cell.classList.toggle("done", !active.has(c) && done.has(c));
+    });
+  }
+
+  if (window.self !== window.top) {
+    const link = document.getElementById("standalone");
+    link.href = location.href;
+    link.hidden = false;
+  }
+
+  const pv = build(document.getElementById("pv"), false);
+  const pm = build(document.getElementById("pm"), true);
+  const playBtn = document.getElementById("play");
+  const clock = document.getElementById("clock");
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  let i = 0, timer = null;
+  function show() {
+    render(pv, V, i);
+    render(pm, M, i);
+    clock.textContent = `шаг ${i + 1} / ${V.length}`;
+  }
+  function next() { i = (i + 1) % V.length; show(); }
+  function play() { stop(); timer = setInterval(next, 2600); playBtn.textContent = "Пауза"; }
+  function stop() { clearInterval(timer); timer = null; playBtn.textContent = "Пуск"; }
+
+  playBtn.addEventListener("click", () => (timer ? stop() : play()));
+  document.getElementById("step").addEventListener("click", () => { stop(); next(); });
+  document.getElementById("reset").addEventListener("click", () => { i = 0; show(); });
+
+  show();
+  if (reduced) stop(); else play();
+})();
+</script>

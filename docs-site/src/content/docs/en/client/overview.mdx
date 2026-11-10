@@ -1,0 +1,83 @@
+---
+title: The client today
+description: What the mcrs client does and does not do, which platforms were tried, what a 96-column view costs, and how to start it.
+sidebar:
+  order: 1
+kind: reference
+audience: [player, observer, rust]
+stability: changing
+tracking: [136, 137, 341, 344, 521, 337]
+sources:
+  - README.md
+  - PERF.md
+  - crates/mcrs_minecraft_client/src/config.rs
+  - crates/mcrs_minecraft_client_jar/src/native.rs
+  - issue:136
+  - issue:341
+  - issue:521
+  - issue:344
+  - issue:337
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import Status from '~/components/Status.astro';
+import StatusRows from '~/components/StatusRows.astro';
+
+mcrs has its own client, written in Rust on Bevy and wgpu. You can fly around a world with it and look at the terrain, the sky and the mobs. You cannot play survival with it yet. This page lists what works, what is missing, and what it costs.
+
+<StatusRows areas="client" />
+
+## What the client does
+
+| Feature | State |
+|---|---|
+| Terrain with the block models and light of the game | Works. Coloured block light is part of it |
+| Sky, clouds, and the fog of the environment | Works |
+| Mobs | Works for the five mob types the server has. Far mobs draw as flat images (see [Rendering](/docs/en/client/rendering/)) |
+| F3 overlay with frame and stage times | Works |
+| Chat with command suggestions | Works |
+| Breaking blocks, in creative mode, and the block you aim at | Works |
+| Joining the mcrs server, or an embedded one | Works. A vanilla client of the same snapshot can also join the mcrs server in offline mode |
+
+## What is missing
+
+| Feature | State |
+|---|---|
+| Sound | <Status issue={136} state="wip" />. The client is silent |
+| Particles | <Status issue={137} state="wip" /> |
+| Weather: rain, snow, lightning | <Status issue={341} state="wip" />. Rain only dims the sun and the moon today |
+| Inventory and container screens | <Status issue={521} state="wip" /> for the player inventory, with the screens in #129, #130 and #131. The client draws an inventory screen only when started with `MCRS_SCREEN=inventory`, and it is not playable |
+| A web build | <Status issue={344} state="wip" />. The build draws the sky in Chrome, but start-up blocks the page for 87 s and it never reaches a steady frame |
+| Binary downloads | None yet. Releases are planned, and there is no tracking issue for them at this date |
+
+## Platforms
+
+PERF.md was measured on one machine: Apple M4 Max with macOS and Metal. That is the only platform the author has checked. Linux and Windows are not confirmed. CI does not run the crates that need wgpu on Ubuntu, so a green CI says nothing about them there.
+
+## Render distance: 96 columns and its price
+
+The default view is 96 columns, three times the maximum of vanilla (32). One number is not enough, so here are three, taken in the same scenario: M4 Max, macOS, a 2560x1440 window, save `two-relight` (38,025 columns and 295,511 sections resident), static view, with `MCRS_HOT=1` to hold the CPU cores at speed.
+
+| What | Value | Where |
+|---|---|---|
+| Engine CPU frame | 1.12 ms median, 1.33 ms worst second | [PERF.md, Hardening](https://github.com/andreypfau/mcrs/blob/main/PERF.md#hardening) |
+| GPU frame | 3.7 ms with the occlusion test on, 6.0 ms with it off (`MCRS_OCCLUSION=0`). The note in PERF.md calls 3.7 ms over its ceiling | PERF.md, Hardening |
+| Memory of the process | 12 GB | [PERF.md, Render distance](https://github.com/andreypfau/mcrs/blob/main/PERF.md#render-distance) |
+
+The 12 GB figure comes from the Render distance section, which was written before the occlusion work, so a newer build may differ. Bounding the memory at 96 columns is <Status issue={337} state="wip" />. At 96 columns the frame is limited by the GPU, not by the CPU. Flying at the top speed is worse than standing: 1.56 ms median and 5.0 ms for the worst second of the engine frame, in the same scenario.
+
+You can lower `MCRS_VIEW` (the number of columns the client asks for) if your GPU or RAM is smaller than this. In the Render distance table of PERF.md, 12 columns reads 0.71 ms of engine time (an older build). There are no numbers for other machines.
+
+## Run it
+
+There is no binary download, so you build from source. The steps are short and live in the repository, not here. See the [README Quick start](https://github.com/andreypfau/mcrs#quick-start). The client takes a world folder and starts its own server for it. It reads textures and models from the official game jar, because the repository ships no Mojang art.
+
+<Aside type="caution" title="WIP">
+A detailed guide for players will come before the alpha. Until then, this page gives no steps that were not run on a clean machine.
+</Aside>
+
+The server and its world rules are on [Worlds and saves](/docs/en/server/worlds/). For all numbers and their method, see [PERF.md](https://github.com/andreypfau/mcrs/blob/main/PERF.md).

@@ -1,0 +1,67 @@
+---
+title: "Статус: что работает сегодня"
+description: Единственная полная таблица того, что mcrs умеет и не умеет, со ссылкой на issue для каждого пробела.
+sidebar:
+  order: 3
+kind: reference
+audience: [observer, admin, jvm, contributor, rust, player]
+stability: changing
+tracking: [180, 181, 182]
+sources:
+  - docs-site/src/data/status.yml
+  - README.md
+  - issue:180
+  - issue:412
+  - issue:388
+  - issue:437
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+translated_from: 51d45c26a
+---
+
+import Status from '~/components/Status.astro';
+import StatusRows from '~/components/StatusRows.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+Это единственная полная таблица статуса в документации, на других страницах показан ее срез. У каждой строки есть дата и проверка, которую можно запустить, или раздел PERF.md.
+
+## Легенда
+
+| Состояние | Значение |
+|---|---|
+| <Status state="works" /> | Это подтверждает тест, который можно запустить, или замер в PERF.md |
+| <Status state="partial" /> | Часть работает, остальное в issue или PR |
+| <Status state="wip" /> | Нет в коде или не закончено, есть issue |
+| <Status state="undecided" /> | Решения пока нет. Сюда относится загрузчик плагинов в виде jar, wasm или скриптов |
+| <Status state="declined" /> | Закрытое решение отвечает "нет" |
+
+<Aside type="note" title="Направление, не обязательство">
+Слово "запланировано" в issue задает направление. Срока у него нет, и это не обещание. Закрытая issue не всегда значит "сделано", а открытая - "кода нет": часть возможностей уже есть в коде, хотя их issue еще открыты.
+</Aside>
+
+## Области
+
+<StatusRows areas="worldgen,lighting,client,protocol,network,persistence,gameplay,commands,entities,physics,datapacks,molang,tools,library" />
+
+Цифры производительности собраны в [PERF.md](https://github.com/andreypfau/mcrs/blob/main/PERF.md), всегда с машиной и сценарием. Их снимали только на Apple M4 Max с macOS. Сравнений с ванилью, Paper и другими серверами мы не публикуем.
+
+## Не планируется
+
+- Поддержка старых версий игры: одна версия за раз ([#412](https://github.com/andreypfau/mcrs/issues/412)).
+- Датафиксеры (datafixers). Сохранение читается строго в целевой версии данных, а неизвестное поле вызывает явную ошибку ([#388](https://github.com/andreypfau/mcrs/issues/388)).
+- Фасад или крейт с Bukkit-подобным API ([#437](https://github.com/andreypfau/mcrs/issues/437)). Это решение только про фасад. По загрузчику плагинов в виде jar, wasm или скриптов решения пока нет.
+
+## Как следить за ходом работы
+
+Следить за проектом можно, не читая код.
+
+- [Репозиторий на GitHub](https://github.com/andreypfau/mcrs): весь ход работы виден там.
+- Issue: откройте нужную из таблицы и нажмите Watch справа (нужен аккаунт GitHub), при каждом изменении придет письмо.
+- [Последние изменения в коде](https://github.com/andreypfau/mcrs/commits/main) и [релизы](https://github.com/andreypfau/mcrs/releases).
+- [Discord](https://discord.gg/ged3nMRzwG): вопросы и отчеты о ходе работы.
+- Issue-направления: [#180](https://github.com/andreypfau/mcrs/issues/180) (библиотека), [#181](https://github.com/andreypfau/mcrs/issues/181) (много нод), [#182](https://github.com/andreypfau/mcrs/issues/182) (геймплей).
+- Решения с причинами: issue с меткой [`decision`](https://github.com/andreypfau/mcrs/issues?q=label%3Adecision).
+
+Эту страницу мы вручную проверяем раз в месяц и при каждом новом теге.

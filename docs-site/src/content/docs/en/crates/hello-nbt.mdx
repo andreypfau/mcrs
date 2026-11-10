@@ -1,0 +1,81 @@
+---
+title: Parse SNBT in your own project
+description: A git dependency on mcrs_minecraft_snbt and about fifteen lines that parse a string of stringified NBT and write it back.
+sidebar:
+  order: 2
+kind: tutorial
+audience: [rust]
+stability: wip
+tracking: [321]
+sources:
+  - crates/mcrs_minecraft_snbt/src/lib.rs
+  - crates/mcrs_minecraft_snbt/src/parse.rs
+  - crates/mcrs_minecraft_snbt/src/tests.rs
+  - crates/mcrs_minecraft_nbt/src/compound.rs
+  - rust-toolchain.toml
+  - issue:321
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import Status from '~/components/Status.astro';
+
+This is the smallest use of an mcrs crate from outside the repository: read a string of SNBT (the text form of NBT, like `{Health:20.0f}` in a command), look at the tags, and write it back.
+
+<Aside type="caution" title="WIP">
+The code below is not compiled outside the workspace. The crates are not published and `cargo package` does not work for them (<Status issue={321} state="undecided" />), so the only route is a git dependency, and nobody has built this exact project yet. Inside the workspace, the same functions are exercised by [`tests.rs`](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_snbt/src/tests.rs) of the crate. If a step fails for you, please open an issue.
+</Aside>
+
+## 1. Add the dependency
+
+The repository pins a nightly compiler in [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml) (`nightly-2026-09-02`). That file applies only inside the mcrs checkout, so in your project pick a nightly yourself. Whether `mcrs_minecraft_snbt` also builds on stable is not checked; making that true is part of #321.
+
+```toml
+[dependencies]
+mcrs_minecraft_snbt = { git = "https://github.com/andreypfau/mcrs", rev = "51d45c26ae772bd71fb1e02caae8cab2e5ad4495" }
+mcrs_minecraft_nbt = { git = "https://github.com/andreypfau/mcrs", rev = "51d45c26ae772bd71fb1e02caae8cab2e5ad4495" }
+```
+
+Always give a `rev`. There are no releases on crates.io, and `main` moves with each game snapshot. Both crates must use the same `rev`, because the tag types come from `mcrs_minecraft_nbt`.
+
+The two crates are on the no-Bevy list of CI, so this pulls no Bevy. Check it with `cargo tree` (see [Use the crates in your project](/docs/en/crates/use-as-library/)).
+
+## 2. Parse and write
+
+```rust
+use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_snbt::{parse_compound, write};
+
+fn main() {
+    let compound = parse_compound("{Health:20.0f, Name:\"Alex\", Pos:[1.5d, 64.0d, -3.0d]}")
+        .expect("valid SNBT");
+
+    println!("{:?}", compound.get_string("Name"));  // Some("Alex")
+    println!("{:?}", compound.get("Health"));       // Some(Float(20.0))
+
+    // Bad input gives an error with a key and a position, not a panic.
+    let error = parse_compound("{Health:}").unwrap_err();
+    println!("{error}");
+
+    // Writing gives the text the game would write.
+    println!("{}", write(&NbtTag::Compound(compound)));
+}
+```
+
+The pieces:
+
+- `parse_compound` reads a text that holds one compound and nothing else. `parse_tag` does the same for any single tag. `read_tag` and `read_compound` start at a position in a longer text and tell you where they stopped, which is what a command parser needs.
+- `NbtCompound` has `get_*` and `put_*` methods by type: `get_string`, `get_int`, `get_compound` and so on.
+- `SnbtError` has a `kind` and a byte `position`.
+- `write` prints a tag as the game does, so `1.` becomes `1.0d` and a list prints in compact form.
+
+The crate follows the number and string rules of the game (suffixes, `0x` and `0b` literals, `_` separators, escapes). The test file of the crate checks this against recorded fixtures of the game.
+
+## What to do next
+
+- Read the NBT side in [`mcrs_minecraft_nbt`](https://github.com/andreypfau/mcrs/tree/main/crates/mcrs_minecraft_nbt): binary read and write, compression, and serde.
+- Look for the next crate in the [crate map](/docs/en/crates/overview/).
+- For the limits of the git route, see [Use the crates in your project](/docs/en/crates/use-as-library/).

@@ -230,4 +230,9 @@
   show(1);
   render();
   document.addEventListener('i18n:change', render);
+
+  // Docs links keep their path in data-docs; the language folder follows the page language.
+  const docLinks = [...document.querySelectorAll('[data-docs]')];
+  const pointDocs = () => docLinks.forEach((a) => { a.href = `/docs/${document.documentElement.lang === 'ru' ? 'ru' : 'en'}/${a.dataset.docs ? `${a.dataset.docs}/` : ''}`; });
+  document.addEventListener('i18n:change', pointDocs);
 })();

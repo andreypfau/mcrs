@@ -1,0 +1,91 @@
+---
+title: News
+description: What was merged, what changed for plugin authors and what is still missing, for each of the last three tags and for the work since the latest tag.
+sidebar:
+  order: 4
+kind: reference
+audience: [jvm, contributor, admin, observer]
+stability: stable
+sources:
+  - issue:636
+  - pr:636
+  - pr:646
+  - pr:548
+  - pr:551
+  - pr:552
+  - pr:592
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Each entry answers three questions: what was merged, what changed for people who write plugins (marked "Breaking" when old code stops compiling), and what is not there yet. Newest first. The tags come from `git tag --sort=-creatordate`, the commits from `git log` between them, and the pull requests from `gh pr list`, all read on 2026-11-09.
+
+The last tag is 26 days old, and 143 pull requests were merged after it. So the first entry covers work that has no tag yet.
+
+## Since v0.5.8 (no tag yet)
+
+From 2026-10-14 to 2026-11-09: 850 commits and 143 merged pull requests from 6 authors. 117 of the pull requests are from the project owner, and 26 from five other people.
+
+What was merged, in a few lines:
+
+- Worlds tick as parallel cells behind a muxer thread and a shared data layer ([#646](https://github.com/andreypfau/mcrs/pull/646)).
+- Server mobs with a parallel AI stage, mob rendering in the client, and the 50,000-pig benchmark ([#651](https://github.com/andreypfau/mcrs/pull/651)).
+- Entity physics, movement checks and block simulation ([#648](https://github.com/andreypfau/mcrs/pull/648)); block tick and block event queues ([#477](https://github.com/andreypfau/mcrs/pull/477)).
+- Player bans and the whitelist from their specifications ([#637](https://github.com/andreypfau/mcrs/pull/637), [#635](https://github.com/andreypfau/mcrs/pull/635)); disconnect and save every player before shutdown ([#624](https://github.com/andreypfau/mcrs/pull/624)); breaking blocks in creative mode ([#643](https://github.com/andreypfau/mcrs/pull/643)).
+- The mc.rs landing page with a language switcher ([#629](https://github.com/andreypfau/mcrs/pull/629), [#633](https://github.com/andreypfau/mcrs/pull/633)), and a client compile check for `wasm32` in CI ([#622](https://github.com/andreypfau/mcrs/pull/622)).
+- A fix to the VarInt and VarLong reader so it rejects out-of-range bits ([#653](https://github.com/andreypfau/mcrs/pull/653)).
+
+Breaking for plugin authors (Rust, compiled into the server):
+
+- `MinecraftServerPlugin` became the plugin group `MinecraftServerPlugins`, with members such as `ServerCorePlugin`, `DimensionWorldsPlugin`, `WorldGenPlugin` and `ServerNetworkPlugin`. Any member can be disabled or replaced ([#551](https://github.com/andreypfau/mcrs/pull/551)). The engine members then moved to the new crate `mcrs_minecraft_engine_server`, and `mcrs_minecraft_server` keeps the vanilla group ([#592](https://github.com/andreypfau/mcrs/pull/592)).
+- No library crate reads the environment or the working directory for settings now. Operators are an `ops` field of the plugin, and the client knobs are a `Knobs` resource ([#548](https://github.com/andreypfau/mcrs/pull/548)). See [Environment variables](/docs/en/reference/env-vars/).
+
+New for plugin authors:
+
+- A plugin can add plugins to every dimension world or to one: `add_dimension_plugin` and `add_dimension_plugin_to` ([#552](https://github.com/andreypfau/mcrs/pull/552)).
+- A cancellable chat event: an observer can stop a line or replace its text before the broadcast ([#636](https://github.com/andreypfau/mcrs/pull/636), part of #283). Join, leave, movement and block events are not done.
+
+Not there yet:
+
+- Saving changed chunks to region files ([#78](https://github.com/andreypfau/mcrs/issues/78)) and online mode ([#82](https://github.com/andreypfau/mcrs/issues/82)).
+- A loader for plugins outside the server build. There is no decision on it.
+- Any speed claim against another server. The benchmark runs are provisional, see [Performance](/docs/en/project/performance/).
+
+## v0.5.8, 2026-10-14
+
+Commit `bf147fb2c`. Two commits since v0.5.7.
+
+- Merged: the workspace version is now 0.5.8, and CI runs mutation testing only on demand.
+- Breaking for plugin authors: nothing.
+- Not there yet: the crates are still not published ([#321](https://github.com/andreypfau/mcrs/issues/321)).
+
+## v0.5.7, 2026-10-13
+
+Commit `4fe86dc75`. Two commits since v0.5.6.
+
+- Merged: the `xtask` check now refuses a literal that names any fixture destination directory, and the version bump.
+- Breaking for plugin authors: nothing. This tag changes only the test tooling.
+- Not there yet: the same as v0.5.8.
+
+## v0.5.6, 2026-10-13
+
+Commit `e57c49ebe`. Seven commits since v0.5.5.
+
+- Merged: parity tests and fixtures now load oracle dumps, protocol goldens and data goldens through one fixture loader that resolves them by name and checks their version. Two new `xtask` checks warn about vanilla claims that are tested against literals outside parity files, and check that parity tests compare against fixtures loaded by name.
+- Breaking for plugin authors: nothing.
+- Not there yet: the same as v0.5.8.
+
+## How to follow
+
+- Watch tags: the repository has 11 of them, and the latest is v0.5.8.
+- Watch the pull request list: [merged pull requests](https://github.com/andreypfau/mcrs/pulls?q=is%3Apr+is%3Amerged).
+- Watch the four direction issues in the [Roadmap](/docs/en/project/roadmap/).
+- An RSS feed of this page is planned.
+
+<Aside type="caution" title="WIP">
+Entries are written by hand from `git log` and `gh pr list`. The "Breaking" lines come from reading the pull request text, not from a tool. Generating them from conventional commits is planned.
+</Aside>

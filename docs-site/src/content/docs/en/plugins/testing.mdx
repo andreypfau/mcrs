@@ -1,0 +1,75 @@
+---
+title: Test a plugin without a client
+description: Run the server in a test, join a fake player, step ticks and check the packets that were sent.
+sidebar:
+  order: 11
+kind: how-to
+audience: [jvm, contributor]
+stability: changing
+tracking: [266, 323]
+sources:
+  - crates/mcrs_minecraft_server/tests/it/host_app/mod.rs
+  - crates/mcrs_minecraft_server/tests/it/chat.rs
+  - crates/mcrs_minecraft_server/tests/it/schedule_ambiguity.rs
+  - issue:266
+  - issue:323
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+
+import Status from '~/components/Status.astro';
+import Example from '~/components/Example.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+MockBukkit gives Paper plugin authors a fake server and fake players. mcrs has a similar harness, but it lives inside the integration tests of the server crate. It is not a published crate, so you use it from a clone of the repository (see [Your first plugin](/docs/en/plugins/first-plugin/)). Examples come from repository files, and we did not run them outside the repository tests.
+
+## Where tests live
+
+All integration tests of the server crate are modules of one test binary, `tests/it/main.rs`. A new file becomes a module there. Run one module with a filter, as PR [#636](https://github.com/andreypfau/mcrs/pull/636) does for chat:
+
+```bash
+cargo test -p mcrs_minecraft_server --test it chat::
+```
+
+The harness is `tests/it/host_app/mod.rs`. `make_host_app()` builds a host app with the message sets and registries that a dimension tick needs.
+
+<Example file="crates/mcrs_minecraft_server/tests/it/host_app/mod.rs" lines="76-108" title="make_host_app" />
+
+## A fake player and ticks
+
+`PlayServer` wraps the app. `PlayServer::start(app, ops, default_level)` finishes the app and brings it to the playing state with one overworld. `join(uuid, name)` places a fake player and runs three updates. `queue(anchor, &packet)` sends a serverbound packet as if it came from a socket. `ticks_all(n)` runs `n` updates and returns every packet the server sent.
+
+Here is the first half of the chat test. It adds a plugin to the dimensions, joins a player, queues a chat line and runs two ticks.
+
+<Example file="crates/mcrs_minecraft_server/tests/it/chat.rs" lines="79-97" title="Test: join, send a chat line, collect the packets" />
+
+The test then compares what was heard with the text it expected:
+
+<Example file="crates/mcrs_minecraft_server/tests/it/chat.rs" lines="98-109" title="Test: check the packets" />
+
+To look inside a world, use `server.world()` for the first dimension, or `server.world_in(dim)`. The test of the chat observers adds an observer there and reads a resource back.
+
+<Example file="crates/mcrs_minecraft_server/tests/it/chat.rs" lines="144-181" title="Test: an observer in the world, a resource read back" />
+
+Ticks are counted exactly. One host tick is one `update()` plus the hand-over between the host and the dimensions, which `ticks_all(1)` runs. Nothing waits for the wall clock.
+
+## Catch an unordered pair of systems
+
+<Status issue={323} state="works" /> Two systems that write the same data with no order between them can run in either order, so the same inputs can give different ticks. One test builds the main app and a dimension world with the full server plugin and turns every ambiguity in the simulation schedules into an error. It fails and names both systems when one appears.
+
+<Example file="crates/mcrs_minecraft_server/tests/it/schedule_ambiguity.rs" lines="84-113" title="Test: no unordered conflicting pair" />
+
+The test builds `MinecraftServerPlugins::embedded()`. If your plugin is not part of that app, add it to the test, or the test does not see your systems. It resolves ambiguities by ordering the systems or by splitting the data, not by a blanket ignore. The Bevy rule for a conflict is checked by the scheduler when it builds the schedule, not by the compiler.
+
+## Limits
+
+<Aside type="caution" title="WIP: a headless dimension">
+Today a dimension world needs a player to tick, because chunks are loaded and simulated only around players. <Status issue={266} state="wip" /> plans a harness crate that does not depend on the server crate and runs one dimension with a fixed seed: the flat generator, no network, no session and no player. A ticket that belongs to no player would hold a box of sections at the entity-ticking level until released. A step would run exactly N ticks of the main app and the dimension in production order. The issue's test: boot, raise the ticket, step until the box ticks, step 100 ticks, and see the tick counter advance by exactly 100; two runs with the same seed hold the same blocks. This is a direction, not a promise. The harness above is the only one now, and it is not a stable API.
+</Aside>
+
+## What next
+
+- [Intercept chat](/docs/en/plugins/chat-event/): a test with a real event.
+- [Contributing](/docs/en/contributing/): build and test commands of the repository.

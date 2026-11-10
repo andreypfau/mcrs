@@ -1,0 +1,30 @@
+---
+import Default from "@astrojs/starlight/components/Footer.astro";
+const { entry } = Astro.locals.starlightRoute;
+const d = entry.data as { verified?: { snapshot: string; commit: string; date: Date }; sources: string[]; tracking: number[] };
+const ru = Astro.currentLocale === "ru";
+const repo = "https://github.com/andreypfau/mcrs";
+const src = (s: string) => {
+  const m = /^(issue|pr):(\d+)$/.exec(s);
+  if (m) return { text: `${m[1] === "pr" ? "PR" : "issue"} #${m[2]}`, href: `${repo}/${m[1] === "pr" ? "pull" : "issues"}/${m[2]}` };
+  return { text: s, href: `${repo}/blob/main/${s}` };
+};
+const sources = (d.sources ?? []).map(src);
+const tracking = d.tracking ?? [];
+const show = d.verified || sources.length || tracking.length;
+---
+{show && (
+  <section class="mcrs-verify">
+    <h2>{ru ? "Источники и проверка" : "Sources and verification"}</h2>
+    {d.verified && (
+      <p>
+        {ru ? "Проверено" : "Verified"}: {d.verified.snapshot}, <code>{d.verified.commit}</code>, {d.verified.date.toISOString().slice(0, 10)}
+      </p>
+    )}
+    {sources.length > 0 && <ul>{sources.map((s) => <li><a href={s.href}>{s.text}</a></li>)}</ul>}
+    {tracking.length > 0 && (
+      <p>{ru ? "Следить" : "Tracking"}: {tracking.map((n, i) => <>{i > 0 && ", "}<a href={`${repo}/issues/${n}`}>#{n}</a></>)}</p>
+    )}
+  </section>
+)}
+<Default><slot /></Default>

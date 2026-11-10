@@ -1,0 +1,101 @@
+---
+title: Worlds and saves
+description: What the server does with a Java world folder, how a new world is made, what is saved today (players) and what is not (chunks), and how data packs fit in.
+sidebar:
+  order: 1
+kind: explanation
+audience: [admin, jvm]
+stability: changing
+tracking: [78, 169, 316, 388]
+sources:
+  - src/main.rs
+  - crates/mcrs_minecraft_engine_server/src/world_options.rs
+  - crates/mcrs_minecraft_server_settings/src/server_settings.rs
+  - crates/mcrs_minecraft_anvil/src/lib.rs
+  - crates/mcrs_minecraft_save/src/player.rs
+  - crates/mcrs_minecraft_engine/src/persistence.rs
+  - crates/mcrs_minecraft_datapack/src/root.rs
+  - crates/mcrs_minecraft_game_registries/examples/check_pack.rs
+  - tests/it/shutdown.rs
+  - assets/minecraft/version.json
+  - issue:78
+  - issue:169
+  - issue:316
+  - issue:388
+  - pr:624
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import Status from '~/components/Status.astro';
+import StatusRows from '~/components/StatusRows.astro';
+import Example from '~/components/Example.astro';
+
+Short version: the server can read a Java Edition world of the same game version, and it saves players. It does not save chunks yet, so every block edit is lost when the server stops.
+
+<StatusRows areas="persistence" />
+
+## Open a Java world
+
+Give the server a folder as the first argument. For how to build and start it, see the [README Quick start](https://github.com/andreypfau/mcrs#quick-start).
+
+```bash
+cargo run --release -- "<path to a world folder>"
+```
+
+The folder must exist, or the server prints "not a world folder" and exits. With a folder, the server takes the seed and the list of dimensions from the world generation settings of the save. A seed in `MCRS_WORLD_SEED` or a preset in `MCRS_WORLD_PRESET` does not override them. The chunks come from the Anvil region files of the save.
+
+Each chunk and each player file must carry the same `DataVersion` as the game version of this build. That version is `26.4-snapshot-7`, world version 5127 (see [`version.json`](https://github.com/andreypfau/mcrs/blob/main/assets/minecraft/version.json)). A file from any other version is refused with an error that names the version found and the version expected. A chunk without a `DataVersion` is refused too.
+
+## No datafixers
+
+There is no converter from older worlds, and there will not be one. This is a closed decision, <Status issue={388} state="declined" />: mcrs follows one snapshot at a time and keeps no compatibility chain. If you have an older world, open it once in a vanilla client of the right snapshot so that the game rewrites it, then give the folder to mcrs. The same decision says that a field no type claims fails the load and is not kept as raw bytes.
+
+## Start a new world
+
+Without an argument, the server generates a world from a preset. Nothing of it reaches the disk, and a world without a folder has no player files, because the player path is built from the world folder. Three settings shape it, all read once at start (the full list is in [`server_settings.rs`](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server_settings/src/server_settings.rs)).
+
+| Variable | Meaning | Default |
+|---|---|---|
+| `MCRS_WORLD_SEED` | The seed, as a signed or unsigned 64-bit number | `0` |
+| `MCRS_WORLD_PRESET` | `normal` or `minecraft:normal`, `flat` | `normal` |
+| `MCRS_DEFAULT_GAMEMODE` | Game mode of a new player | `creative` |
+
+World generation matches vanilla in parity tests on the reference seeds. See [Parity](/docs/en/concepts/parity/) for what that covers.
+
+## What is saved today
+
+| Data | State |
+|---|---|
+| Player files | Saved. Each player is written to `players/data/<uuid>.dat` in the world folder on disconnect, and by an autosave every 6000 ticks, which is vanilla's own interval |
+| A clean stop with players | Works since PR #624. On the first SIGINT or SIGTERM the server disconnects every player with the vanilla shutdown reason, saves them, and exits. A second signal exits at once |
+| Chunks and block edits | Not saved. The server reads chunks but never writes them: <Status issue={78} state="wip" /> |
+| Clean shutdown with chunks | Not done. Waiting for chunk writes is <Status issue={169} state="wip" /> |
+| `level.dat`, world clocks, weather, game rules | Read, not written yet. Issue #78 lists writing them |
+
+A player file that cannot be parsed is not overwritten: the player joins empty and is never saved over the old file. If a player has an inventory in the file, it is kept as opaque data and written back unchanged, because the inventory code was removed and is being rewritten from a specification (<Status issue={521} state="wip" />).
+
+The test that checks the clean stop is short:
+
+<Example file="tests/it/shutdown.rs" lines="74-83" title="A shutdown request writes the player file" />
+
+<Aside type="caution" title="WIP">
+Chunk saving is a plan, not code. Issue #78 describes it: changed chunks are written in the Anvil format off the main thread, on unload and at intervals, with one writer per region file. Until it lands, treat a running mcrs server as a place to look at a world and to try things, not to keep one.
+</Aside>
+
+## Data packs
+
+The server loads the vanilla data pack and local packs into the registries at start. A pack lives in a directory under `mcrs/datapacks/` in the assets root of the build, and the vanilla pack comes from the game jar. You can check a pack without starting a server with the `check_pack` example of the `mcrs_minecraft_game_registries` crate. It loads your pack over the vanilla one, prints every diagnostic, and exits with an error if there is one.
+
+```bash
+cargo run -p mcrs_minecraft_game_registries --example check_pack -- "<data pack directory>"
+```
+
+The directory must hold `pack.mcmeta` and `data/`. The usage line of the tool says the same.
+
+There is no reload while the server runs. Changing a pack needs a restart. `/reload` and live enabling of packs are planned: <Status issue={316} state="wip" />. The plan is that a reload replaces the data at a tick boundary, and refuses changes that the saved world depends on, such as the height of a dimension type.
+
+There is no source yet for how the server treats a `datapacks` folder inside a world folder, so this page makes no claim about it.

@@ -1,0 +1,45 @@
+---
+title: Начните здесь
+description: mcrs - это Minecraft Java Edition на Rust поверх Bevy ECS в виде набора крейтов. Проект пока на раннем этапе.
+sidebar:
+  order: 1
+kind: landing
+audience: [jvm, contributor, rust, admin, player, observer]
+stability: stable
+sources:
+  - README.md
+  - issue:437
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+translated_from: 51d45c26a
+---
+
+import Status from '~/components/Status.astro';
+import { Aside, Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+mcrs - это Minecraft Java Edition на Rust поверх Bevy ECS: сервер, клиент и 121 крейт, из которых они собираются.
+
+<Aside type="caution" title="Ранний WIP">
+Проект в активной разработке, поэтому многого пока нет: сохранения мира, online mode, большей части геймплея. Мир и клиент уже запускаются.
+</Aside>
+
+## Почему mcrs
+
+mcrs - не Java-сервер, переписанный на Rust. Проект заново решает, как должна быть устроена игра, и начинает с движка. Подробнее: [Почему mcrs: новое устройство, а не переписка](/docs/ru/start/philosophy/).
+
+## С чего начать
+
+<CardGrid>
+  <LinkCard title="Пишу плагины на Java или Kotlin" description="Bukkit-подобного API и загрузчика плагинов нет. Что можно сделать уже сегодня." href="/docs/ru/plugins/not-paper/" />
+  <LinkCard title="Хочу внести вклад" description="Сборка, тесты, правила clean-room и первые задачи." href="/docs/ru/contributing/" />
+  <LinkCard title="Хочу брать крейты" description="121 крейт по слоям. На crates.io пока ничего нет." href="/docs/ru/crates/overview/" />
+  <LinkCard title="Играю или держу серверы" description="Что такое mcrs, чего он не делает и кому лучше поискать другое решение." href="/docs/ru/start/what-is-mcrs/" />
+</CardGrid>
+
+## Статус одной строкой
+
+Проверено 2026-11-09 на коммите `51d45c26a`, снапшот игры 26.4-snapshot-7: генерация мира совпадает с настоящей игрой на эталонных дампах, клиент ее рисует, но чанки не сохраняются (<Status issue={78} state="wip" />) и online mode нет (<Status issue={82} state="wip" />). Полная таблица - на странице [Статус](/docs/ru/start/status/).
+
+Вопросы и отчеты о ходе работы: [Discord](https://discord.gg/ged3nMRzwG).

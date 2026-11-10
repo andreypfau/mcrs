@@ -1,0 +1,82 @@
+---
+title: Разбор SNBT в своем проекте
+description: Git-зависимость на mcrs_minecraft_snbt и около пятнадцати строк, которые разбирают строку stringified NBT и пишут ее обратно.
+sidebar:
+  order: 2
+kind: tutorial
+audience: [rust]
+stability: wip
+tracking: [321]
+sources:
+  - crates/mcrs_minecraft_snbt/src/lib.rs
+  - crates/mcrs_minecraft_snbt/src/parse.rs
+  - crates/mcrs_minecraft_snbt/src/tests.rs
+  - crates/mcrs_minecraft_nbt/src/compound.rs
+  - rust-toolchain.toml
+  - issue:321
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+translated_from: 51d45c26a
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import Status from '~/components/Status.astro';
+
+Это самый маленький пример использования крейта mcrs снаружи репозитория: прочитать строку SNBT (текстовая форма NBT, например `{Health:20.0f}` в команде), посмотреть теги и записать их обратно.
+
+<Aside type="caution" title="WIP">
+Код ниже не компилировали вне workspace. Крейты не опубликованы, а `cargo package` для них не работает (<Status issue={321} state="undecided" />), поэтому остается только git-зависимость, и именно этот проект пока никто не собирал. Внутри workspace те же функции проверяет [`tests.rs`](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_snbt/src/tests.rs) самого крейта. Если какой-то шаг не работает, заведите issue.
+</Aside>
+
+## 1. Добавьте зависимость
+
+Репозиторий закрепляет nightly-компилятор в [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml) (`nightly-2026-09-02`). Этот файл действует только внутри чекаута mcrs, поэтому в своем проекте nightly нужно выбрать самому. Собирается ли `mcrs_minecraft_snbt` еще и на stable, не проверено: чтобы это стало правдой, нужно сделать #321.
+
+```toml
+[dependencies]
+mcrs_minecraft_snbt = { git = "https://github.com/andreypfau/mcrs", rev = "51d45c26ae772bd71fb1e02caae8cab2e5ad4495" }
+mcrs_minecraft_nbt = { git = "https://github.com/andreypfau/mcrs", rev = "51d45c26ae772bd71fb1e02caae8cab2e5ad4495" }
+```
+
+Всегда указывайте `rev`. Релизов на crates.io нет, а `main` двигается с каждым снапшотом игры. У обоих крейтов `rev` должен быть один и тот же, потому что типы тегов приходят из `mcrs_minecraft_nbt`.
+
+Оба крейта входят в список CI "без Bevy", так что Bevy не подтянется. Проверить это можно через `cargo tree` (см. [Использование крейтов в своем проекте](/docs/ru/crates/use-as-library/)).
+
+## 2. Разберите и запишите
+
+```rust
+use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_snbt::{parse_compound, write};
+
+fn main() {
+    let compound = parse_compound("{Health:20.0f, Name:\"Alex\", Pos:[1.5d, 64.0d, -3.0d]}")
+        .expect("valid SNBT");
+
+    println!("{:?}", compound.get_string("Name"));  // Some("Alex")
+    println!("{:?}", compound.get("Health"));       // Some(Float(20.0))
+
+    // Bad input gives an error with a key and a position, not a panic.
+    let error = parse_compound("{Health:}").unwrap_err();
+    println!("{error}");
+
+    // Writing gives the text the game would write.
+    println!("{}", write(&NbtTag::Compound(compound)));
+}
+```
+
+Что здесь есть:
+
+- `parse_compound` читает текст, в котором один compound и больше ничего. `parse_tag` делает то же для любого одного тега. `read_tag` и `read_compound` начинают с позиции в более длинном тексте и сообщают, где остановились: это нужно парсеру команд.
+- У `NbtCompound` есть методы `get_*` и `put_*` для каждого типа: `get_string`, `get_int`, `get_compound` и так далее.
+- У `SnbtError` есть `kind` и байтовая `position`.
+- `write` печатает тег так же, как игра, поэтому `1.` превращается в `1.0d`, а список печатается в компактной форме.
+
+Крейт следует правилам игры для чисел и строк: суффиксы, литералы `0x` и `0b`, разделители `_`, экранирование. Тестовый файл крейта сверяет это с записанными фикстурами игры.
+
+## Что дальше
+
+- Сторону NBT смотрите в [`mcrs_minecraft_nbt`](https://github.com/andreypfau/mcrs/tree/main/crates/mcrs_minecraft_nbt): бинарное чтение и запись, сжатие и serde.
+- Следующий крейт ищите в [карте крейтов](/docs/ru/crates/overview/).
+- Об ограничениях пути через git читайте в [Использование крейтов в своем проекте](/docs/ru/crates/use-as-library/).

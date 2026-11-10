@@ -1,0 +1,119 @@
+---
+title: Paper and Minestom in mcrs terms
+description: A lookup table from Paper, Velocity and Minestom ideas to mcrs and Bevy, with the state of every row.
+sidebar:
+  order: 4
+kind: reference
+audience: [jvm]
+stability: changing
+tracking: [283, 285, 281, 546, 78, 82, 296, 321, 537, 266, 159, 154]
+sources:
+  - src/main.rs
+  - crates/mcrs_minecraft_server/src/lib.rs
+  - crates/mcrs_minecraft_engine_world/src/world/sub_app.rs
+  - crates/mcrs_minecraft_engine_server/src/shutdown.rs
+  - crates/mcrs_minecraft_engine_server/src/runner.rs
+  - crates/mcrs_minecraft_engine/src/bus.rs
+  - crates/mcrs_minecraft_engine/src/ability.rs
+  - crates/mcrs_minecraft_command_engine/src/app_commands.rs
+  - crates/mcrs_minecraft_command/src/permission.rs
+  - crates/mcrs_minecraft_chat_server/src/chat_plugin.rs
+  - crates/mcrs_minecraft_server/tests/it/host_app/mod.rs
+  - issue:437
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+
+import Status from '~/components/Status.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+Use this page as a lookup: find the Paper, Velocity or Minestom word you know and see what is nearest in mcrs. If "entity" and "system" are new words, read [From objects to data](/docs/en/plugins/mental-model/).
+
+<Aside type="caution" title="Analog, not replacement">
+Every row is an analogy. mcrs has no Bukkit-like API, see [This is not the Paper API](/docs/en/plugins/not-paper/). A row marked wip describes a planned feature that is described in an issue and is not in the code yet. A row marked undecided has no issue and no decision.
+</Aside>
+
+## Life cycle
+
+| JVM | mcrs | State | Notes |
+|---|---|---|---|
+| `JavaPlugin`, `onEnable` | `impl Plugin for X` with `fn build(&self, app: &mut App)` | <Status issue={279} state="works" /> | Like Minestom: you write your own `main` ([src/main.rs](https://github.com/andreypfau/mcrs/blob/main/src/main.rs)). No `plugin.yml`, no separate jar |
+| `onDisable` | No hook. Shutdown goes through a `ShutdownRequest` message | <Status state="partial" doc="crates/mcrs_minecraft_engine_server/src/shutdown.rs" /> | The embedder writes the request, no signal handler is installed |
+| `depend:` and `softdepend:` | A plugin group: a member that needs another fails in `build` and names the missing one | <Status issue={279} state="works" /> | See `MinecraftServerPlugins` in [lib.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server/src/lib.rs) |
+| Disabling a bundled feature | `server.disable::<SomePlugin>()` on the plugin group | <Status issue={282} state="works" /> | Used in [`main.rs`](https://github.com/andreypfau/mcrs/blob/main/src/main.rs) to switch the mob brain off |
+| `/reload`, PlugMan | None. Code is not reloaded | <Status issue={316} state="wip" /> | Only data pack reload is planned |
+| NMS, CraftBukkit | Any public crate of the library layers | <Status issue={437} state="declined" /> | No facade between you and the engine. It is NMS and API at once |
+| Static `Bukkit.getServer()` | None. Take `Res<T>`, `Query<..>`, `Commands` as system parameters | <Status issue={437} state="declined" /> | The static accessor was rejected |
+| Dependency on `paper-api` | A git dependency on mcrs crates | <Status issue={321} state="undecided" /> | One game version at a time, no backward compatibility ([#412](https://github.com/andreypfau/mcrs/issues/412)) |
+
+## Events
+
+| JVM | mcrs | State | Notes |
+|---|---|---|---|
+| `Listener`, `@EventHandler` | An observer `app.add_observer(f)` with `f: fn(On<Event>)`, or `MessageReader<M>` for a message buffer | <Status issue={283} state="partial" /> | Public events exist only for chat (#283). Packet observers exist as `Received<P>` |
+| `setCancelled(true)` | The `cancelled` field of the event, set in an observer that takes `mut` | <Status pr={636} state="partial" /> | Only `PlayerChatEvent`. A general mechanism with rollback of client prediction is [#283](https://github.com/andreypfau/mcrs/issues/283) |
+| `AsyncChatEvent` | `PlayerChatEvent { player, text, cancelled }` | <Status pr={636} state="works" /> | `text` is a `Text` component, not a `String`. It fires before the broadcast |
+| `EventPriority` | System order: `.before()`, `.after()`, `SystemSet` such as `TickSet` | <Status issue={323} /> | Observers have no priority. An unordered conflict fails a test ([#323](https://github.com/andreypfau/mcrs/issues/323)) |
+| `PlayerJoinEvent`, `PlayerQuitEvent` | Internal bus messages `InboundPlayerSpawn` and `InboundPlayerDespawn` | <Status issue={283} state="wip" /> | Not a public event yet, #283 plans join and leave |
+| `BlockBreakEvent`, `BlockPlaceEvent` | The message `BlockActionRequest`, internal | <Status issue={283} state="wip" /> | Public cancellable events are planned in #283 |
+| `ProtocolLib`, packet listeners | `On<Received<P>>` over the typed game packets | <Status state="partial" /> | About half of the packets are typed, see the README. One typed receive path is closed ([#57](https://github.com/andreypfau/mcrs/issues/57)) |
+| Minestom `EventNode` tree | No event tree, only Bevy observers and schedules | <Status state="undecided" /> | No issue, do not copy the pattern |
+
+## Scheduler
+
+| JVM | mcrs | State | Notes |
+|---|---|---|---|
+| `runTaskTimer` | A system in `FixedUpdate`, 20 ticks per second by default (`DEFAULT_TPS`) | <Status state="works" doc="crates/mcrs_minecraft_engine_server/src/runner.rs" /> | State in a resource or `Local<T>`. Scheduling is Bevy's, mcrs has no scheduler of its own |
+| `runTaskLater` | A counter or timer in a resource or component, or `Res<Time<Fixed>>` | <Status state="works" /> | By hand, no helpers |
+| `runTask` to return to the main thread | Not needed. There is no main thread in the Bukkit sense | <Status issue={357} state="works" /> | See [From objects to data](/docs/en/plugins/mental-model/) |
+| `runTaskAsynchronously` | Bevy task pools exist, but there is no documented pattern for plugins | <Status state="partial" /> | No issue. Parallelism comes from the scheduler |
+
+## Players and worlds
+
+| JVM | mcrs | State | Notes |
+|---|---|---|---|
+| `Player`, `Entity` as objects | An `Entity` id plus components `Player`, `GameProfile`, `PlayerGameMode`, `Transform` | <Status state="works" doc="crates/mcrs_minecraft_engine/src/ability.rs" /> | There are three ids: the Bevy `Entity`, `PlayerSession` (lives across dimensions), the network id ([#158](https://github.com/andreypfau/mcrs/issues/158)) |
+| `player.sendMessage(Component)` | An `OutboundPlayerPacket` message, built with `bus::to` and the `system_chat` helper | <Status state="partial" /> | Low level, no `player.send()`. |
+| `Bukkit.getOnlinePlayers()` | `Query<&GameProfile, With<Player>>` inside a dimension | <Status state="partial" /> | Players live in dimension worlds, there is no global collection (see [#154](https://github.com/andreypfau/mcrs/issues/154)) |
+| `world.getBlockAt(..).setType(..)` | The `BlockSetRequest` message and the `WorldView` volume API | <Status state="partial" /> | Works inside one dimension. "One world-access API" is closed ([#486](https://github.com/andreypfau/mcrs/issues/486)) |
+| `World` and `createWorld` for mini games | Dimension worlds are fixed at start | <Status issue={546} state="wip" /> | Create and remove at run time is planned |
+| Minestom `Instance` | A dimension world (a sub-app) | <Status issue={280} state="works" /> | Add plugins with `add_dimension_plugin`, not `add_plugins` |
+| `ChunkGenerator` | A replaceable chunk source | <Status issue={281} state="wip" /> | Today the generator is the vanilla one |
+| Saving the world, `world.save()` | None. Reading Anvil works, writing does not | <Status issue={78} state="wip" /> | The server does not save chunks |
+| Boss bar | None | <Status issue={247} state="wip" /> | |
+| Scoreboard | None. Only the planned owner of global state names scoreboards | <Status issue={154} state="undecided" /> | No scoreboard issue, no code found |
+
+## Commands and permissions
+
+| JVM | mcrs | State | Notes |
+|---|---|---|---|
+| Brigadier, `registerCommand` | `add_command`, a typed command tree, literal and argument nodes | <Status pr={579} state="works" /> | The vanilla commands are the reference |
+| Tab completion and the commands packet with levels | The command tree with permission levels and the commands packet | <Status issue={285} state="wip" /> | Open |
+| `hasPermission("x.y")` | `PermissionCheck::Require(CommandLevel::..)`, operator level 0-4 in `PlayerOpLevel` | <Status issue={285} state="partial" /> | No string permission nodes, no LuckPerms-like plugin |
+| Whitelist, ban list | A ban list resource and the `/ban` and `/whitelist` commands | <Status state="works" doc="crates/mcrs_minecraft_server/tests/it/ban.rs" /> | Covered by tests in `ban.rs` and `whitelist.rs` |
+| A custom argument type | Added only at compile time, as part of the command set | <Status issue={285} state="partial" /> | |
+
+## Data and config
+
+| JVM | mcrs | State | Notes |
+|---|---|---|---|
+| `config.yml`, `saveDefaultConfig()` | Fields on the plugin struct. The binary reads `MCRS_*` environment variables | <Status state="partial" /> | Config only through the plugin is closed ([#278](https://github.com/andreypfau/mcrs/issues/278)). The settings are in [server_settings.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server_settings/src/server_settings.rs). No per-plugin config file format yet |
+| `PersistentDataContainer` | Your own component plus a registry of persisted components | <Status issue={159} state="wip" /> | Needs saving, [#78](https://github.com/andreypfau/mcrs/issues/78) |
+
+## Network and proxy
+
+| JVM | mcrs | State | Notes |
+|---|---|---|---|
+| Velocity `ProxyServer`, `@Subscribe` | A proxy library without Bevy: routing, online mode, modern forwarding, backend switch | <Status issue={296} state="wip" /> | Not in the code yet |
+| Online mode, Mojang authentication | None. The server is offline only | <Status issue={82} state="wip" /> | Do not expose the port |
+| ViaVersion | Protocol translation at the network edge, down to 1.21.6 | <Status issue={537} state="wip" /> | Decision is open |
+
+## Tests
+
+| JVM | mcrs | State | Notes |
+|---|---|---|---|
+| MockBukkit | Integration tests with `PlayServer` and `host_app` in `crates/mcrs_minecraft_server/tests/it/` | <Status issue={266} state="partial" /> | About 45 test files. No test harness as a separate crate |
+
+See also [Status](/docs/en/start/status/) for the state of each area.

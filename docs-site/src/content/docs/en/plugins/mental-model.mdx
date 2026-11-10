@@ -1,0 +1,96 @@
+---
+title: From objects to data
+description: The three shifts a Java developer needs before writing an mcrs plugin - data instead of objects, no global server, parallel by data access.
+sidebar:
+  order: 2
+kind: explanation
+audience: [jvm, observer, rust]
+stability: changing
+tracking: [367, 357, 323]
+sources:
+  - crates/mcrs_minecraft_engine/src/ability.rs
+  - crates/mcrs_minecraft_server/tests/it/tick_determinism.rs
+  - crates/mcrs_minecraft_server/tests/it/schedule_ambiguity.rs
+  - docs/physics-architecture.md
+  - issue:367
+  - issue:357
+  - issue:323
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+
+import Status from '~/components/Status.astro';
+import Demo from '~/components/Demo.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+mcrs is built on Bevy ECS (entity component system). If you come from Paper or Minestom, three things work differently. Each one is a change in how you think, not a new syntax.
+
+## 1. Data instead of objects
+
+There is no `Player` object with methods. There is an `Entity`, which is only an id. Data is attached to it as components, and behavior lives in systems, which are plain functions.
+
+Think of a database. An entity is a row, a component is a column, a system is a query over all rows that have the needed columns.
+
+| Java | ECS in mcrs |
+|---|---|
+| `class Player extends LivingEntity` | An `Entity` id plus components such as `Player`, `GameProfile`, `PlayerGameMode` |
+| A field `player.gameMode` | A component `PlayerGameMode` on that entity |
+| A method `player.fly()` | A system that reads and writes `PlayerFlying` |
+| `for (Player p : world.getPlayers())` | `Query<(&GameProfile, &PlayerGameMode), With<Player>>` |
+| A reference to a player in a field | Store the `Entity` id, not a reference |
+| `Bukkit.getServer()` | System parameters: `Res<T>`, `Query<..>`, `Commands` |
+| A `Listener` method | An observer function `fn(e: On<Event>)` or a system |
+| `runTaskTimer` | A system in `FixedUpdate`, 20 ticks per second |
+
+The query in the table reads as `SELECT profile, mode FROM entities WHERE has(Player)`. The three ability components are in [ability.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_engine/src/ability.rs).
+
+<Aside type="note">
+These rows are analogies, not replacements. A full lookup table is on [Paper and Minestom in mcrs terms](/docs/en/plugins/paper-to-mcrs/).
+</Aside>
+
+## 2. No global server
+
+There is no static entry point. A system declares what it needs in its parameters and the Bevy scheduler supplies it. It is dependency injection, where the constructor is the function signature and the container is the scheduler. By the signature you see what a system reads and what it writes.
+
+## 3. No main thread, parallel by data access
+
+Two systems that do not touch the same data run at the same time, with no code from you. Systems that conflict must be ordered by you with `.before()` or `.after()`. Bevy checks the access conflicts when the scheduler builds the graph, not the compiler.
+
+So you do not need `Bukkit.getScheduler().runTask(...)` to go back to "the main thread": there is none in the Bukkit sense. This is not Folia either: there are no regions, the work is split by the data it touches, not by place (README, "Parallel by what the work touches").
+
+Dimensions tick in parallel as separate worlds. Shared data (time, weather, rules) has one writer, the others read snapshots, see <Status issue={357} />. Dimensions talk by messages.
+
+<Aside type="caution" title="Dimension trap">
+A dimension is a separate world with its own sub-app. Add a plugin that must see players and blocks with `add_dimension_plugin`, not with `app.add_plugins`. The plugin must be `Clone`. More in [Rust for Java developers](/docs/en/plugins/rust-for-java/) and the first plugin tutorial.
+</Aside>
+
+## Demo: why parallel is safe
+
+The demo shows the same cows with and without parallel ticking.
+
+<Demo src="/docs/demos/cows.html" title="Cows: the same tick, vanilla order and mcrs order" height={1200} footnote="The demo is Russian only for now. It simplifies the model: it shows the idea, not the real scheduler." />
+
+## Determinism
+
+One input gives one result, no matter how many threads run. A conflict between two entities is decided by a stable key, such as arrival order or entity id. The decision <Status issue={367} state="works" /> sets three tiers:
+
+| Tier | What | Examples |
+|---|---|---|
+| Exact | Same as the reference | World generation, order of block updates, player movement arithmetic |
+| Independent of the scheduler | Same inputs, same tick, any thread order | Most other things |
+| Free | Entities and systems that share no written data | Order does not matter |
+
+For a plugin author the rule is short: do not rely on the order of systems without `.before()` or `.after()`. CI runs simulation schedules with ambiguity detection set to error, so an unordered conflict breaks a test ([#323](https://github.com/andreypfau/mcrs/issues/323)). See [tick_determinism.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server/tests/it/tick_determinism.rs) and [schedule_ambiguity.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server/tests/it/schedule_ambiguity.rs).
+
+Random sequences of the reference are not matched outside the exact tier, only their distributions.
+
+## What this means for your plugin
+
+- Keep data in components and resources, not in fields of a big object.
+- Store `Entity` ids, never references to player data.
+- Order conflicting systems yourself.
+- A panic in a system is logged and does not stop the server, because the server sets a fallback error handler ([src/main.rs](https://github.com/andreypfau/mcrs/blob/main/src/main.rs)). Treat it like an exception in a handler that does not kill the server.
+
+Next: [Rust for Java developers](/docs/en/plugins/rust-for-java/).

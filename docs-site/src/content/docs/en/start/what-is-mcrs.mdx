@@ -1,0 +1,57 @@
+---
+title: What mcrs is, and what it is not
+description: "An honest frame for a new reader: what exists, what does not, and where to go if you need something else."
+sidebar:
+  order: 1
+kind: explanation
+audience: [observer, admin, jvm, player]
+stability: changing
+tracking: [180, 78, 82, 437]
+sources:
+  - README.md
+  - docs/clean-room.md
+  - assets/minecraft/version.json
+  - issue:437
+  - issue:78
+  - issue:82
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+
+import Status from '~/components/Status.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+## What it is
+
+mcrs is a set of 121 Rust crates for Minecraft Java Edition. A server and a client are built from them on Bevy ECS. In ECS (entity component system) the world is data in tables and the behaviour is functions called systems, which the Bevy scheduler runs in parallel when they touch different data.
+
+The project follows one game snapshot at a time. Today that is 26.4-snapshot-7 (`assets/minecraft/version.json`). It does not keep compatibility with older versions ([#412](https://github.com/andreypfau/mcrs/issues/412)).
+
+It is an early work in progress. The repository is open since 2025-12-10.
+
+## What works today
+
+- World generation matches the real game on reference dumps, element by element. This is checked on reference seeds and chunks, not on every seed.
+- The client draws terrain, sky, clouds, light and mobs. All measurements are on one machine, an Apple M4 Max with macOS ([PERF.md](https://github.com/andreypfau/mcrs/blob/main/PERF.md)).
+- A vanilla client of the same snapshot can join the server in offline mode, chat, change game mode and break blocks in creative.
+
+The full table with a link to every missing piece is on the [Status](/docs/en/start/status/) page.
+
+## What it is not
+
+- Not Paper. There is no Bukkit-like API and no facade: the decision [#437](https://github.com/andreypfau/mcrs/issues/437) rejects them, and the public surface is the crates and plugins themselves. A loader for plugins as jar files, wasm or scripts does not exist, and there is no decision about one yet. Your code today is a Rust Bevy plugin built together with the server, which is closer to Minestom than to Paper. See [Not Paper](/docs/en/plugins/not-paper/).
+- Not ready for production. The server does not save chunks ([#78](https://github.com/andreypfau/mcrs/issues/78)), has no online mode ([#82](https://github.com/andreypfau/mcrs/issues/82)) and listens on all network interfaces without authentication.
+- Not a launcher and not a mod. The client is a separate Rust application. It reads textures and models from the official game jar, and the repository ships no Mojang art.
+
+<Aside type="caution" title="WIP">
+Gameplay such as crafting, combat, redstone and fluids is planned, tracked in <Status issue={182} state="wip" />. Planned is a direction, not a promise.
+</Aside>
+
+## Where next
+
+- Developer from Java: [Not Paper](/docs/en/plugins/not-paper/).
+- Want to help: [Contributing](/docs/en/contributing/).
+- Want to try it: [Install](/docs/en/start/install/) and [Run a server](/docs/en/start/run-server/).
+- Questions: [FAQ](/docs/en/start/faq/).

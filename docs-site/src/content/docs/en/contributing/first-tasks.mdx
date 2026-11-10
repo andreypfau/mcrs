@@ -1,0 +1,56 @@
+---
+title: First tasks
+description: Seven open issues that fit a first pull request, with the role each one needs.
+sidebar:
+  order: 5
+kind: reference
+audience: [contributor]
+stability: changing
+tracking: [623, 308, 295, 290, 293, 289, 507]
+sources:
+  - issue:623
+  - issue:308
+  - issue:295
+  - issue:290
+  - issue:293
+  - issue:289
+  - issue:507
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+import Status from '~/components/Status.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+The repository has no `good first issue` label yet, so this list is hand-picked. It follows the areas where outside pull requests already landed: the network layer, whitelist and bans, text, and specifications. Of 26 merged outside PRs on 2026-11-09, 6 are network features such as status and transfer, and 6 are specifications from a vanilla server.
+
+Issue states change. Open the issue before you start, and check that nobody works on it.
+
+## The list
+
+| Issue | Role | Size | What you do |
+|---|---|---|---|
+| <Status issue={623} /> | spec author, then implementer | medium | State which accept confirms a teleport and what happens to an unconfirmed one. A second person then writes the engine part and tests. |
+| <Status issue={308} /> | implementer | medium | Fix a bug: past 256 packets in the outbound queue, normal and low priority packets are dropped, so a client can keep a wrong block. Write the rule for what may be dropped, merged or delayed, and a slow-client test. |
+| <Status issue={295} /> | implementer | small | Typed packets with codecs for cookies, transfer and player chat. Each round-trips through a fixture captured from the game. |
+| <Status issue={290} /> | implementer | small | An example that pings a server and prints version, description, player counts and latency, with only the protocol and network crates. |
+| <Status issue={293} /> | implementer | medium | An echo chat bot over the network layer, with no Bevy in its tree. It reconnects after a drop. |
+| <Status issue={289} /> | implementer | medium | A packet inspector that decodes a recorded session without unknown packets. |
+| <Status issue={507} /> | tooling | medium | A report in xtask that lists spec rule IDs no test names. It fails nothing. |
+
+The texts in the third column are short summaries of the issues. The issue is the source of truth.
+
+<Aside type="caution" title="Clean-room check before you take #623">
+It is a specification issue first. If you have read the game's code about teleport confirmation, take the spec part and leave the implementation to someone else. See [If you have read the game's code](/docs/en/contributing/#if-you-have-read-the-games-code).
+</Aside>
+
+## How to take a task
+
+1. Read the issue and the files it names. Paths in older issues can be stale, so check them against the repository.
+2. Comment on the issue that you take it. State your role: author or implementer.
+3. Build and test as on [Build and test](/docs/en/contributing/build-and-test/).
+4. Open a PR that links the issue. Update docs in the same PR if a page of this site describes the changed behavior.
+5. Ask in [Discord](https://discord.gg/ged3nMRzwG) if you are stuck for more than a day.
+
+Not on the list, but welcome: documentation and translation of this site, see [Write these docs](/docs/en/contributing/docs/). To find more issues, filter by area, for example [`area:network`](https://github.com/andreypfau/mcrs/labels/area%3Anetwork) and [`clean-room`](https://github.com/andreypfau/mcrs/labels/clean-room).

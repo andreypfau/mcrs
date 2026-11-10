@@ -1,0 +1,165 @@
+---
+title: "Rust для Java-разработчика: минимум"
+description: Та часть Rust, которая нужна для плагинов mcrs, в сравнении с Java, и где читать дальше.
+sidebar:
+  order: 3
+kind: explanation
+audience: [jvm]
+stability: changing
+tracking: [321]
+sources:
+  - crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs
+  - crates/mcrs_minecraft_engine_world/src/world/sub_app.rs
+  - rust-toolchain.toml
+  - issue:321
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+translated_from: 51d45c26a
+---
+
+import Status from '~/components/Status.astro';
+import Example from '~/components/Example.astro';
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Чтобы написать плагин, весь Rust учить не нужно. Здесь перечислено то, что используют туториалы. Java-сниппеты на этой странице только иллюстрируют идею, в mcrs их нет. Rust-сниппеты тоже короткие наброски, CI их не компилирует.
+
+## Что нужно
+
+| Rust | Идея из Java |
+|---|---|
+| `struct`, `enum` | `class` с полями, `enum`, который может нести данные |
+| Блок `impl` | Методы класса |
+| `trait` | `interface` |
+| `Option<T>` | Значение, которое может быть `null` |
+| `Result<T, E>` и `?` | Проверяемые исключения (checked exceptions) |
+| `match` | `switch`, обязанный покрыть все случаи |
+| Замыкание (closure) `\|x\| ...` | Лямбда |
+| `Vec`, `HashMap`, `String` и `&str` | `List`, `Map`, `String` |
+| `#[derive(Clone)]` | Сгенерированный код копирования и equals |
+| `&T` и `&mut T` | Много читателей или один писатель, проверяется при компиляции |
+| Модули, `use`, `Cargo.toml` | Пакеты, импорты, `build.gradle` |
+
+## Парные сниппеты
+
+<Tabs syncKey="jvm">
+<TabItem label="Java">
+```java
+// класс с данными и методом
+class Counter {
+    private int ticks;
+    void tick() { ticks++; }
+}
+```
+</TabItem>
+<TabItem label="Rust">
+```rust
+// структура с данными и блок impl с методом
+struct Counter {
+    ticks: u32,
+}
+
+impl Counter {
+    fn tick(&mut self) {
+        self.ticks += 1;
+    }
+}
+```
+</TabItem>
+</Tabs>
+
+<Tabs syncKey="jvm">
+<TabItem label="Java">
+```java
+// плагин - реализация интерфейса
+public class MyPlugin extends JavaPlugin {
+    @Override
+    public void onEnable() { /* регистрируем */ }
+}
+```
+</TabItem>
+<TabItem label="Rust">
+```rust
+// плагин - реализация трейта; для измерений он должен быть Clone
+#[derive(Clone)]
+struct MyPlugin;
+
+impl Plugin for MyPlugin {
+    fn build(&self, app: &mut App) {
+        // регистрируем системы, ресурсы, наблюдатели
+    }
+}
+```
+</TabItem>
+</Tabs>
+
+<Tabs syncKey="jvm">
+<TabItem label="Java">
+```java
+// null значит "нет значения", ошибки - исключения
+Player p = lookup(name);
+if (p == null) return;
+int n = Integer.parseInt(text); // может бросить исключение
+```
+</TabItem>
+<TabItem label="Rust">
+```rust
+// Option и Result делают оба случая видимыми в типе
+let Some(p) = lookup(name) else { return };
+let n: i32 = text.parse()?; // отдает ошибку вызывающему
+```
+</TabItem>
+</Tabs>
+
+<Tabs syncKey="jvm">
+<TabItem label="Java">
+```java
+// лямбда как обработчик
+events.on(ChatEvent.class, e -> e.setCancelled(true));
+```
+</TabItem>
+<TabItem label="Rust">
+```rust
+// замыкание как обработчик (наблюдатель)
+app.add_observer(|mut e: On<PlayerChatEvent>| {
+    e.cancelled = true;
+});
+```
+</TabItem>
+</Tabs>
+
+Настоящий плагин из репозитория, с ресурсом и системой в `FixedUpdate`:
+
+<Example file="crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs" lines="10-40" title="CountTicks: плагин с ресурсом и системой" />
+
+## Владение коротко
+
+У значения один владелец. Его можно одолжить как `&T` (много читателей) или как `&mut T` (один писатель), но не обоими способами сразу. В системах Bevy это видно по параметрам: `Query<&T>` читает, `Query<&mut T>` пишет. Времена жизни (lifetime) приходится писать редко. Привыкнуть нужно к двум вещам: хранить id `Entity` вместо ссылки на игрока и вызывать `.clone()` вместо того, чтобы делиться значением. Не копируйте паттерны Rust-серверов на `Arc<Mutex<..>>`: проект избегает их в библиотечных слоях, см. [#566](https://github.com/andreypfau/mcrs/issues/566). Подробнее о владении: [глава Rust Book](https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html).
+
+## Три ошибки, которые встретятся
+
+1. Использование перемещенного значения. Значение передали по значению и использовали снова. Передайте `&value` или вызовите `.clone()`.
+2. Функция не принимается как система. У одного из параметров тип, который Bevy не умеет подставлять. Каждый параметр должен быть `Res`, `ResMut`, `Query`, `Commands`, читателем или писателем сообщений либо `Local`.
+3. Два параметра одной системы требуют одни и те же данные, и один из них как `&mut`. Планировщик сообщает об этом при построении графа, то есть на старте, а не при компиляции. Объедините запросы или разделите систему.
+
+## Что пока не нужно
+
+Времена жизни (кроме чтения чужих сигнатур), `unsafe`, процедурные макросы и `async`.
+
+## Куда читать
+
+- [The Rust Programming Language](https://doc.rust-lang.org/book/): стоит прочитать главы про владение, enum и `match`, обработку ошибок и трейты.
+- [Rust by Example](https://doc.rust-lang.org/rust-by-example/): короткие запускаемые примеры.
+- [Rustlings](https://github.com/rust-lang/rustlings): небольшие упражнения.
+- [Руководство Cargo](https://doc.rust-lang.org/cargo/guide/): `Cargo.toml` и зависимости.
+- [Bevy learn](https://bevy.org/learn/) и [примеры ECS](https://github.com/bevyengine/bevy/tree/main/examples/ecs).
+- [Unofficial Bevy Cheat Book](https://bevy-cheatbook.github.io/): может отставать. В mcrs используется Bevy 0.19, где типы называются `Message`, `MessageReader` и `On<E>`, а в старых текстах названия могут быть другими.
+- [bevy_ecs на docs.rs](https://docs.rs/bevy_ecs/0.19.1/bevy_ecs/): точные сигнатуры.
+
+<Aside type="caution" title="WIP">
+Тулчейн зафиксирован в `rust-toolchain.toml` (nightly). Можно ли собрать проект вне репозитория на stable, пока неясно, см. <Status issue={321} state="undecided" />. Подробное руководство по установке появится к альфе.
+
+</Aside>
+
+Дальше: [первый плагин](/docs/ru/plugins/first-plugin/), затем [Paper и Minestom в терминах mcrs](/docs/ru/plugins/paper-to-mcrs/).

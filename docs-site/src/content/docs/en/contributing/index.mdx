@@ -1,0 +1,95 @@
+---
+title: How to contribute
+description: Pick a role, learn the clean-room rule, build the project, and send a first pull request.
+sidebar:
+  order: 1
+kind: how-to
+audience: [contributor, jvm, rust]
+stability: stable
+sources:
+  - docs/clean-room.md
+  - README.md
+  - CONTRIBUTING.md
+  - .github/pull_request_template.md
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+import Status from '~/components/Status.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+mcrs takes pull requests from outside. This page tells you which role fits you, what the clean-room rule asks of you, and how a change travels from an issue to a merge.
+
+## Pick a role
+
+| Role | What you do | Read first |
+|---|---|---|
+| Specification author | Write the behavior of the game as rules in `docs/spec/`. You may read any source, the game's code included. | [Specs and parity](/docs/en/contributing/specs-and-parity/) |
+| Implementer | Write Rust code and tests from a specification. You never read the game's code. | [Clean-room](/docs/en/contributing/clean-room/) |
+| Parity tester | Compare our output with output the game produced, and report or fix a difference. | [Specs and parity](/docs/en/contributing/specs-and-parity/) |
+| Docs and translation | Write or translate pages of this site. | [Write these docs](/docs/en/contributing/docs/) |
+
+You can take a different role for each piece of work. You cannot take two roles for the same behavior.
+
+## Clean-room in five lines
+
+1. mcrs implements game behavior from specifications, not from the game's code.
+2. A specification author can read any source. A specification states behavior only: inputs, outputs, order, timing, constants.
+3. An implementer reads only `docs/spec/`, public player-facing documentation, artifacts the game produced, and the code of this repository.
+4. The repository has no names of classes, methods or fields of the game's code, except the community terms `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos` and `PalettedContainer`.
+5. One person does not take both roles for the same behavior.
+
+The full rules are in [docs/clean-room.md](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md). A retelling is on [Clean-room in practice](/docs/en/contributing/clean-room/).
+
+### If you have read the game's code
+
+Many Paper and Fabric developers read decompiled game code every day. That is fine, and it is useful: you can be a specification author for the behavior you know. It also has a cost. If you read the game's code for some behavior, you cannot implement that behavior in this repository. Someone else must write the code from your specification.
+
+Before you start a task, ask yourself: have I read the game's code about this? If yes, take the specification issue, not the implementation issue. If you are not sure, say so in the issue. Nobody will mind.
+
+## The path of a pull request
+
+1. Find or open an issue. A new game behavior needs two: one that asks for the specification, and one that asks for the implementation and cites the rule IDs of the specification (`docs/clean-room.md`, section "A new behaviour").
+2. Write the specification, or implement an existing one. A test names the rule ID it checks.
+3. Run the three commands below.
+4. Open a PR. The [pull request template](https://github.com/andreypfau/mcrs/blob/main/.github/pull_request_template.md) asks what and why, how you checked it, and whether the docs are updated.
+5. CI runs `lint`, `clippy`, `test` and `portability`. See [Build and test](/docs/en/contributing/build-and-test/).
+
+```bash
+cargo nextest run -p <crate>        # one crate
+cargo nextest run --workspace       # everything, before a commit
+cargo nextest run --profile full    # plus the exhaustive sweeps
+```
+
+These are the commands of the [README Development section](https://github.com/andreypfau/mcrs/blob/main/README.md#development). The first run downloads the game's client jar for the data pack. You need the `cargo-nextest` runner installed.
+
+<Aside type="caution" title="WIP">
+The detailed setup guide is not written yet. It will appear before the alpha for players. Until then use the [README Quick start](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start) and the technical notes linked from this section.
+</Aside>
+
+## Docs go in the same PR
+
+If your change alters behavior that a page of this site describes, update the page in the same PR. A warning on the PR lists the pages whose `sources` files you touched. It does not block the merge. How to write a page is on [Write these docs](/docs/en/contributing/docs/).
+
+## Tasks for a first PR
+
+A short hand-picked list is on [First tasks](/docs/en/contributing/first-tasks/). Short version:
+
+- <Status issue={623} /> a specification for the confirmation of a teleport
+- <Status issue={308} /> a bug: the outbound queue drops state packets
+- <Status issue={295} /> typed packets for cookies, transfer and chat
+- <Status issue={290} /> a status ping example
+- <Status issue={293} /> an echo chat bot over the network layer
+- <Status issue={289} /> a packet inspector example
+- <Status issue={507} /> a report of spec rules that no test names
+
+## How fast is review
+
+On 2026-11-09, 26 pull requests from 5 authors other than the owner were merged. The median time from opening to merge was about 12 hours. The fastest took about 40 minutes, the slowest about 5 days. The sample is small, and most of the work is reviewed by one person, so treat the numbers as a hint and not as a promise.
+
+To repeat the count: `gh pr list -R andreypfau/mcrs --state merged --limit 300 --json number,author,createdAt,mergedAt`, then drop the PRs of `andreypfau`.
+
+## Where to ask
+
+Questions go to [Discord](https://discord.gg/ged3nMRzwG) or to the issue you work on. Decisions are recorded in issues with the label [decision](https://github.com/andreypfau/mcrs/issues?q=is%3Aissue+label%3Adecision).

@@ -1,0 +1,63 @@
+---
+title: Parity with vanilla
+description: What "matches vanilla" means in mcrs, the three levels of it, and how each claim is checked.
+sidebar:
+  order: 3
+kind: explanation
+audience: [contributor, jvm, rust]
+stability: changing
+tracking: [367, 272]
+sources:
+  - docs/spec/README.md
+  - docs/minecraft-bevy-sharding-architecture.md
+  - docs/clean-room.md
+  - tools/vanilla-oracle/README.md
+  - tools/fixtures.json
+  - issue:367
+  - issue:272
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+import Status from '~/components/Status.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+"Matches vanilla" is too vague to test. mcrs makes every subsystem declare one of three policies, and each policy says what must match and what may differ. The claim on a page or in the README is only as strong as its policy and its test.
+
+## Three levels
+
+| Level | Meaning | Examples in mcrs |
+|---|---|---|
+| exact | observable behaviour matches very closely | the network protocol, NBT and Anvil bytes, world generation for a seed, the arithmetic of player movement |
+| semantic | the gameplay result matches, the order of work inside a tick may not | lighting, fluids, redstone, neighbour updates, random behaviour (distributions, not vanilla's random sequence) |
+| intentional deviation | vanilla is accidental or pathological, so mcrs differs on purpose and writes it down | each one has an entry in the spec, with the rule, the reference behaviour, what the client sees and what a differential test does |
+
+The full table per subsystem is in [the sharding design note](https://github.com/andreypfau/mcrs/blob/main/docs/minecraft-bevy-sharding-architecture.md), section 2. The reasoning for three tiers of determinism is the decision [#367](https://github.com/andreypfau/mcrs/issues/367). The short version: matching the reference everywhere would mean copying the order in which Java iterates hash maps. Matching it nowhere makes parity untestable.
+
+<Aside type="note" title="Semantic now, exact later">
+Redstone, fluids and block updates are semantic for now. Their queues keep the fields vanilla orders by (due tick, priority, insertion sequence), and the order is one replaceable policy per domain. Moving to vanilla's tick-for-tick order is a change of that policy, tested against recorded fixtures ([#272](https://github.com/andreypfau/mcrs/issues/272)). Redstone itself does not exist yet: <Status issue={190} state="wip" />.
+</Aside>
+
+## Kinds of rules
+
+A specification in `docs/spec/` states behaviour as rules, and each rule has a kind. The kinds are in [`docs/spec/README.md`](https://github.com/andreypfau/mcrs/blob/main/docs/spec/README.md):
+
+- Wire: bytes, ids and codecs that the vanilla client decodes. Exact.
+- Client agreement: the server must compute what the client computes, for example the parse of a command line.
+- Semantic: the meaning, not the order of internal operations.
+- Layout: a position, size or colour of the client GUI, tested by a screenshot at a known scale.
+- Deviation: a defect of the reference, with the correct behaviour stated.
+- Unspecified: an implementation picks. A parity test must not compare it.
+
+## How a claim is checked
+
+1. **Oracle dumps.** `tools/vanilla-oracle` is a standalone Gradle project. It runs no server and no client. It loads the game's own registries and samples its world generation, then writes binary dumps. The Rust tests compare element by element. Re-running it gives byte-identical files. Seeds 1, 2 and 42 and a handful of chunk positions are dumped, so this is a check on reference seeds, not on every seed.
+2. **Fixtures.** `tools/fixtures.json` lists 49 captured fixtures; about 14 of them cover world generation, the rest cover other areas (commands, protocol, physics and so on). A fixture is captured from the game and checked in. After a snapshot update, `recapture` regenerates them ([One game version at a time](/docs/en/concepts/one-version/)).
+3. **Provenance labels.** Each rule carries a label of where it came from, for example `source_suggested` (the author read the reference and the rule states only behaviour). An experiment that the game confirms changes the label to a confirmed one. The label tells you how much to trust a rule. The details are in the registry of the spec folder.
+
+World generation is the only place where the project says "matches vanilla in parity tests" today. Read it as: the density, surface, biome and structure outputs equal the oracle on the dumped seeds and chunks. The claim is not "bit for bit on any seed". Everything else in [Status](/docs/en/start/status/) has its own wording.
+
+## Where this meets clean-room
+
+Parity must never come from reading the game's code. Specification authors may read it, implementers may not, and one person does not hold both roles for one behaviour. See [Clean-room](/docs/en/contributing/clean-room/). The artefacts the game produces (data pack, reports, oracle dumps, captured packets) are allowed evidence. How to add a rule or a parity test is on [Specs and parity](/docs/en/contributing/specs-and-parity/).

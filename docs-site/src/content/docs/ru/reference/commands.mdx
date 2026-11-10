@@ -1,0 +1,78 @@
+---
+title: Команды сервера
+description: Команды, которые сервер регистрирует сегодня, нужный каждой уровень прав и спецификация, где описано ее поведение.
+sidebar:
+  order: 2
+kind: reference
+audience: [admin, jvm, contributor]
+stability: changing
+tracking: [285, 667]
+sources:
+  - crates/mcrs_minecraft_command_vanilla/src/plugin.rs
+  - crates/mcrs_minecraft_command_world/src/plugin.rs
+  - crates/mcrs_minecraft_command/src/permission.rs
+  - docs/spec/command-permissions.md
+  - issue:285
+  - issue:667
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+translated_from: 51d45c26a
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Сервер регистрирует 20 корневых команд (21 имя с алиасом `tp`). Они приходят из двух плагинов: `VanillaCommandsPlugin` в `crates/mcrs_minecraft_command_vanilla` и `WorldCommandsPlugin` в `crates/mcrs_minecraft_command_world`. Список проверен по обоим файлам `plugin.rs` и по вызовам проверки прав у каждой команды на коммите `51d45c26a`. Команд, которые есть в ванили, но нет в этом списке, здесь пока нет. Например, `setblock`, `give`, `say` и `stop` не зарегистрированы.
+
+<Aside type="caution" title="WIP">
+Таблица написана вручную. Ее будут генерировать из двух файлов `plugin.rs`. Дерево команд с уровнями прав отслеживается в [#285](https://github.com/andreypfau/mcrs/issues/285), диалект команд Bedrock - в [#667](https://github.com/andreypfau/mcrs/issues/667).
+</Aside>
+
+## Уровни прав
+
+Уровней пять, они упорядочены, как в ванили ([спецификация command-permissions](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-permissions.md), PERM-LEVEL-001).
+
+| Id | Название |
+|---|---|
+| 0 | `all` |
+| 1 | `moderators` |
+| 2 | `gamemasters` |
+| 3 | `admins` |
+| 4 | `owners` |
+
+Игрок, который не оператор, имеет уровень `all`. У оператора уровень тот, что указан в `ops.json`, от 0 до 4. Команда `op` выдает уровень по умолчанию, то есть `owners`. Игрок, который заходит с той же машины, становится оператором на время сессии. Каждой команде ниже нужен уровень 2 или 3, поэтому запускать их могут только операторы.
+
+## Команды
+
+В колонке со спецификацией стоит ссылка на файл в `docs/spec/`. Где файл не назван, спецификации для этой команды пока нет.
+
+| Команда | Уровень | Плагин | Спецификация |
+|---|---|---|---|
+| `execute` | gamemasters (2) | vanilla | [command-execute.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-execute.md) |
+| `gamemode` | gamemasters (2) | vanilla | [command-gamemode.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-gamemode.md) |
+| `teleport`, алиас `tp` | gamemasters (2) | vanilla | [command-teleport.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-teleport.md) |
+| `locate` | gamemasters (2) | vanilla, cargo feature `locate`, включена по умолчанию | [command-locate.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-locate.md) |
+| `summon` | gamemasters (2) | vanilla | нет |
+| `kill` | gamemasters (2) | vanilla | [command-kill.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-kill.md) |
+| `damage` | gamemasters (2) | vanilla | [command-damage.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-damage.md) |
+| `data` | gamemasters (2) | vanilla | нет |
+| `time` | gamemasters (2) | vanilla | [command-time.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-time.md) |
+| `ban`, `pardon`, `banlist` | admins (3) | vanilla | [bans.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/bans.md) |
+| `op`, `deop` | admins (3) | vanilla | нет (см. PERM-LEVEL-002 в command-permissions.md) |
+| `whitelist` (`list`, `on`, `off`, `reload`, `add`, `remove`) | admins (3) | vanilla | [whitelist.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/whitelist.md) |
+| `fill` | gamemasters (2) | world | [command-fill.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-fill.md) |
+| `forceload` | gamemasters (2) | world | [command-forceload.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-forceload.md) |
+| `gamerule` | gamemasters (2) | world | [command-gamerule.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-gamerule.md) |
+| `weather` | gamemasters (2) | world | [command-weather.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-weather.md) |
+| `tick` (включая `tick sprint stop`) | admins (3) | world | [command-tick.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-tick.md) |
+
+Разбор, типы аргументов и дерево команд, которое уходит клиенту, описаны в [command-parser.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-parser.md), файлах `argument-*.md` и [commands-packet.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/commands-packet.md). Как команда находит игроков во всех измерениях, написано в [docs/command-dimensions.md](https://github.com/andreypfau/mcrs/blob/main/docs/command-dimensions.md).
+
+## Ввод команд
+
+Игрок вводит команды в чате. Сервер также читает свой стандартный ввод: каждая строка выполняется как команда источника "сервер" в верхнем мире (overworld) (`ConsolePlugin` в `crates/mcrs_minecraft_console`). Пачка строк выполняется за несколько тиков, не больше 2000 строк за тик. Ответы идут в лог сервера.
+
+## Для авторов плагинов
+
+Команды - это код Bevy-плагинов: плагин вызывает `add_command` с функцией сборки и функцией выполнения (паттерн смотрите в обоих файлах `plugin.rs`), а команда может записывать эффекты, которые применяют другие системы. Команды также порождают отменяемое событие `CommandEvent`. Загрузчика для плагинов, которые не скомпилированы в сервер, нет, и решения о нем пока тоже нет. Подробности на странице [Команды для плагинов](/docs/ru/plugins/commands/).

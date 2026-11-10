@@ -1,0 +1,70 @@
+---
+title: Использование крейтов в своем проекте
+description: Сегодня честный путь - git-зависимость с закрепленным rev на nightly-компиляторе. Публикация на crates.io пока не работает.
+sidebar:
+  order: 3
+kind: how-to
+audience: [rust, jvm]
+stability: wip
+tracking: [321, 287, 288]
+sources:
+  - rust-toolchain.toml
+  - xtask/src/checks.rs
+  - crates/mcrs_minecraft_core/src/version.rs
+  - crates/mcrs_minecraft_game_rule/src/lib.rs
+  - issue:321
+  - issue:287
+  - issue:288
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+translated_from: 51d45c26a
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import Status from '~/components/Status.astro';
+
+Крейт mcrs можно подключить к своему Rust-проекту уже сегодня, через git-зависимость. С crates.io его не взять, а этот путь вне репозитория на чистой машине пока никто не проверял. Поэтому читайте страницу как план и список известных ограничений, а не как проверенное руководство.
+
+<Aside type="caution" title="WIP">
+Публикация крейтов протокола, сети и игровых данных - открытое issue, которое ждет решения: <Status issue={321} state="undecided" />. Там спрашивают, нужны ли публикация и stable Rust вообще, пока проект идет за одним снапшотом игры за раз. Примеры библиотеки с тестом дерева зависимостей на каждый пример: <Status issue={287} state="wip" /> и <Status issue={288} state="wip" />.
+</Aside>
+
+## 1. Git-зависимость с rev
+
+```toml
+[dependencies]
+mcrs_minecraft_protocol = { git = "https://github.com/andreypfau/mcrs", rev = "51d45c26ae772bd71fb1e02caae8cab2e5ad4495", default-features = false }
+```
+
+Cargo находит крейт по имени внутри репозитория. Для всех крейтов mcrs в дереве зависимостей используйте один `rev`. `branch = "main"` не подходит: `main` переходит на следующий снапшот игры, и крейты меняются вместе с ним. В репозитории 11 тегов, а точно закрепить версию можно хешем коммита.
+
+## 2. Nightly Rust
+
+Репозиторий закрепляет `nightly-2026-09-02` в [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml). Cargo читает этот файл только в каталоге, где его запустили, поэтому за git-зависимостью он не следует. Поставьте nightly сами и закрепите его в своем проекте, лучше ту же дату. Собираются ли нижние слои еще и на stable, не проверено. Заявленная цель #321 - чтобы крейты протокола, сети и игровых данных собирались на stable. Значит, сегодня собираются не все.
+
+## 3. Оставьте Bevy снаружи
+
+Ниже слоя 4 Bevy - необязательная feature, поэтому `default-features = false` не пускает его в сборку. CI проверяет 99 имен пакетов через `cargo check --no-default-features`. Список лежит в `NO_BEVY_PACKAGES` в [`xtask/src/checks.rs`](https://github.com/andreypfau/mcrs/blob/main/xtask/src/checks.rs), а в [карте крейтов](/docs/ru/crates/overview/) отмечен каждый из этих пакетов.
+
+Слою 4 и выше нужен Bevy. Среди нижних слоев известное исключение - `mcrs_minecraft_assets`: по README ему нужен Bevy, даже если default features отключены.
+
+## 4. Проверьте, что подтянулось
+
+```bash
+cargo tree -e normal --prefix none | grep -i -E "bevy|tokio" || echo "no bevy, no tokio"
+```
+
+Если Bevy появился в крейте из списка "без Bevy", это баг в mcrs: заведите issue. Ниже слоя 2 tokio тоже необязательная feature, и та же проверка его покажет.
+
+## Что не работает
+
+- `cargo package` падает для крейтов, которые при сборке читают файлы вне своей папки. Известны два случая: `crates/mcrs_minecraft_core/src/version.rs` читает `assets/minecraft/version.json`, а `crates/mcrs_minecraft_game_rule/src/lib.rs` - файл из `assets/mcrs/`. Git-зависимость работает, потому что клонируется весь репозиторий. Из-за этого публикация заблокирована (<Status issue={321} />).
+- Публичный API крейтов протокола и сети в нескольких местах возвращает ошибки `anyhow`, поэтому вызывающий код не отличит неполный фрейм от сломанного, не сопоставляя текст. То же issue называет это вторым блокером.
+- Примера проекта, который можно скопировать, нет. Первый маленький пример - [разбор SNBT](/docs/ru/crates/hello-nbt/), и он сам не проверен вне workspace.
+- Типы меняются с каждым снапшотом игры, обещаний стабильного API нет. Закрепите rev и читайте изменения, прежде чем его сдвигать.
+
+## Если вы пришли с JVM
+
+Артефакта mcrs на Maven Central нет, и jar-плагина, который можно бросить в папку, тоже. Решения о загрузчике плагинов (jar, wasm или скрипты) пока нет: <Status issue={437} state="declined" /> отклоняет только фасад и Bukkit-подобный API, а о загрузчике ничего не говорит. Собственный код сегодня - это Rust-плагин для Bevy, который компилируется вместе с сервером. См. [Это не Paper API](/docs/ru/plugins/not-paper/).

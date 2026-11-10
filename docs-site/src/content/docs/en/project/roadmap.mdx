@@ -1,0 +1,93 @@
+---
+title: Roadmap
+description: Where mcrs is heading, in four directions, with a dated snapshot of the milestones. A direction, not a commitment.
+sidebar:
+  order: 1
+kind: reference
+audience: [observer, contributor, jvm, admin]
+stability: changing
+tracking: [180, 181, 182, 566]
+sources:
+  - issue:180
+  - issue:181
+  - issue:182
+  - issue:566
+  - issue:437
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+
+import Status from '~/components/Status.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="caution" title="A direction, not a commitment">
+This page says where the project wants to go. It has no dates. Everything marked WIP below is a goal written in an issue. It is not in the code yet unless the text says so. For what runs today, read [Status](/docs/en/start/status/).
+</Aside>
+
+## Four directions
+
+The project has no tracking epics in the usual sense. Four open issues with the title "Direction:" play that role. Each carries a `direction:*` label and links to the work under it.
+
+### mcrs as a library, from a proxy to a full server
+
+<Status issue={180} state="wip" />
+
+A proxy, a bot, a lobby, a minigame, a world map and a full server need different prefixes of the same layers, and none of them should pay for a layer it does not use. The issue defines seven layers, each depending only on those below: data and wire, network, game data, engine, vanilla, rendering, applications. Every `pub` item in layers 1 to 4 is a commitment to users.
+
+What exists today: 121 crates, 99 of them build without Bevy and 9 without `std` in CI, and 11 build for `wasm32` (`xtask/src/checks.rs`). What does not: crates are not published ([#321](https://github.com/andreypfau/mcrs/issues/321) is an open decision), and the examples of the library (milestone "Library examples") are open.
+
+There is no facade or API crate and none is planned. That is a closed decision: [#437](https://github.com/andreypfau/mcrs/issues/437) says the public surface is the vocabulary crates, the plugins with their system sets, and the components, resources and messages that those plugins own. A loader for plugins that are not compiled into the server (jar, wasm, scripts) has no decision yet.
+
+### One dimension on many nodes for thousands of players
+
+<Status issue={181} state="wip" />
+
+The target is ten thousand players in one dimension with the unmodified vanilla client, with a bounded number visible to each client. The shape in the issue: clients talk only to an edge that holds each connection for the whole session. Simulation is split into shards that own related work. Nodes own chunks and their shards. A coordinator owns the map of chunks to nodes and the global state. Results must not depend on thread count or shard layout.
+
+What exists today: worlds that tick as parallel cells behind a muxer thread with a shared data layer on one machine ([PR #646](https://github.com/andreypfau/mcrs/pull/646)). What does not: a setup across more than one machine, and a measured player count. Redstone is not built.
+
+### Vanilla gameplay and behavior tests on that architecture
+
+<Status issue={182} state="wip" />
+
+Vanilla behavior is the largest body of work. The issue builds it as removable plugins over the engine, and wants each mechanic proved by a behavior test whose expected result comes from a vanilla test server, not from our reading of code. Exact behavior (protocol, saves, player movement, world generation) is compared tick for tick. Semantic behavior (redstone, fluids, neighbor updates) is compared on the outcome.
+
+What exists today is in [Status](/docs/en/start/status/). The gameplay milestones from "Redstone" to "Advancements and statistics" (17 of them) have no closed issue.
+
+### Library code without shared ownership, locks, trait objects or hot-path allocation
+
+<Status issue={566} state="wip" />
+
+The library crates should run in a proxy, a bot, a web client and a test without an engine. The issue sets a target for layers 1 to 4: no `Arc` or `Rc`, no `Mutex`, `RwLock`, `RefCell` or `Cell` in data types, no `dyn` or `Any`, and no allocation on hot paths. When the issue was written, `Arc` appeared in 119 source files. The README line "no Arc, no Mutex" is this goal, not the current state.
+
+## Milestones, snapshot of 2026-11-09
+
+Source: `gh api repos/andreypfau/mcrs/milestones` on that day. There are 54 milestones with 284 open and 172 closed issues in total. A closed issue is not always "done", and an open issue is not always "no code", so read this as a rough map.
+
+| Milestone | Closed | Open |
+|---|---|---|
+| [Registry core](https://github.com/andreypfau/mcrs/milestone/5) | 20 | 0 |
+| [World registries](https://github.com/andreypfau/mcrs/milestone/6) | 19 | 0 |
+| [Project infrastructure](https://github.com/andreypfau/mcrs/milestone/48) | 16 | 3 |
+| [Scaling one dimension](https://github.com/andreypfau/mcrs/milestone/23) | 15 | 11 |
+| [Renderer restructure](https://github.com/andreypfau/mcrs/milestone/1) | 13 | 12 |
+| [Engine conformance](https://github.com/andreypfau/mcrs/milestone/49) | 10 | 1 |
+| [Login and status](https://github.com/andreypfau/mcrs/milestone/14) | 8 | 1 |
+| [Crate layering](https://github.com/andreypfau/mcrs/milestone/54) | 7 | 1 |
+| [Server as plugins](https://github.com/andreypfau/mcrs/milestone/25) | 7 | 6 |
+| [Worldgen performance](https://github.com/andreypfau/mcrs/milestone/24) | 6 | 5 |
+| [Gametest harness](https://github.com/andreypfau/mcrs/milestone/26) | 5 | 14 |
+| [Library examples](https://github.com/andreypfau/mcrs/milestone/45) | 1 | 12 |
+| [Redstone](https://github.com/andreypfau/mcrs/milestone/28) | 0 | 6 |
+| [Health and combat](https://github.com/andreypfau/mcrs/milestone/17) | 0 | 17 |
+
+The full list is on the [milestones page](https://github.com/andreypfau/mcrs/milestones). Milestones such as Fluids, Growth, Villagers, Bosses and Vehicles are all at 0 closed.
+
+## How to follow
+
+- Watch the four direction issues above.
+- Read the [News](/docs/en/project/news/) page after each tag.
+- Filter issues by label: `decision` for decisions, `needs-decision` for open ones.
+- This page is refreshed by hand when a tag is cut. The milestone table will be generated later (WIP).

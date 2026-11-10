@@ -1,0 +1,100 @@
+---
+title: Glossary
+description: Terms that the mcrs code, specs and docs use, with the closest idea in Paper or Minestom where one exists.
+sidebar:
+  order: 3
+kind: reference
+audience: [jvm, contributor, rust, observer]
+stability: stable
+sources:
+  - docs/cells.md
+  - docs/replication.md
+  - docs/spec/README.md
+  - docs/clean-room.md
+  - docs/resource-location.md
+  - PERF.md
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The last column is a hint for people who know Paper or Minestom. The match is rarely exact, so read the first column of each row as the real definition. A dash means there is no close idea.
+
+<Aside type="note" title="Terms inside the Rust code">
+Some words in the scaling terms (shard, cell, tile) are design words from `docs/cells.md` and `docs/replication.md`. Parts of that design are not built yet. The Status page shows what runs: [Status](/docs/en/start/status/).
+</Aside>
+
+## Rust and Bevy
+
+| Term | Meaning | Closest in Paper or Minestom |
+|---|---|---|
+| ECS, entity, component, system | In Bevy an entity is an id, a component is data stored on it, and a system is a function that runs over every entity that has the needed data. There are no objects with methods. | Nothing close. Minestom `Entity` is an object; here the same thing is split into data and functions. |
+| Bevy plugin | A unit that adds systems and data to the app. The server is a group of plugins, `MinecraftServerPlugins`, and parts can be switched off with `disable`. | A Paper plugin, but it adds functions to the app instead of listening for events. Minestom extensions are nearer. |
+| Crate | A Rust package. Crates here are named `mcrs_minecraft_<name>`. | A Maven or Gradle module. |
+| Layer 1 to 7 | Protocol and data, network, game data, engine, vanilla, rendering, applications. A layer should depend only on layers below it (README, Layers). | - |
+| Kernel | Pure Rust logic for one domain (blocks, physics, AI, light) with no Bevy and no tokio. The host gives it a view of the world. | - |
+| Driver | Code that owns the shards of a domain, steps them and delivers messages between them in a stable order. | - |
+
+## World and scaling design
+
+| Term | Meaning | Closest in Paper or Minestom |
+|---|---|---|
+| Domain | An area of simulation: block updates, redstone, fluids, entities. | - |
+| Shard | A logical unit of causality and ownership inside a domain. Not a thread and not a square of space. | - |
+| Cell | The owner of a 3D box of hot space and the unit of placement. Only the owner changes chunks in its box. | Folia region, loosely. |
+| Cell tree | An octree over the chunk keys of one world. The leaves are cells. | - |
+| World (engine) | One 3D space with its own cell tree. A Minecraft dimension is one world. | Bukkit `World`, Minestom `Instance`. |
+| Hot space, cold space | Hot space ticks and is kept by a ticket. Cold space is data in the data layer with no owner. | Loaded and unloaded chunks, loosely. |
+| Ticket | A request to keep an area hot: a player simulation zone, spawn, a chunk loader, an ender pearl. | Bukkit chunk ticket (`addPluginChunkTicket`). |
+| Data layer, store | Versioned chunks of cold space and their storage on disk (`mcrs_engine_store`). | Minestom `ChunkLoader`, loosely. |
+| Link, placement | A link connects two parts with messages. Placement says where the far end runs: inline, on another thread, or on another machine. | - |
+| Muxer, edge | The gateway for clients. It holds connections, decides what each client receives, and encodes bytes once for all subscribers. An edge is one muxer process. | A proxy such as Velocity, only for the part that holds connections. |
+| Coordinator | Owner of global state and of the cell tree. | - |
+| Stage, ladder | A step that turns chunk data into the next level outside the tick, such as generation and light. A ladder is the chain of stages of one column (`Filled`, `Run`, `Merged`). | - |
+| Tile | A square of columns. It is the unit of entity interest and of entity work. One cell owns each tile. | - |
+| Tile delta, tile stream | The entity events of one tile in a tick, and a snapshot plus deltas in tick order. | Entity tracker updates, loosely. |
+| Tier | Update speed: near subjects update in a fast tier, far subjects in a slow tier. | Paper entity activation range, loosely. |
+| Cap, budget | The most subjects visible to one client, and the most bytes per second spent on entities. | - |
+| Subject, viewer | The entity that is seen, and the client that sees it ([`replication.md`](https://github.com/andreypfau/mcrs/blob/main/docs/replication.md)). | - |
+| Section, column | A section is 16x16x16 blocks. A column is a stack of sections. | Minestom `Chunk`, which holds `Section`s. |
+| Row | The server record of an entity in a dense per-tile column. Mobs and items are rows, not Bevy entities. | - |
+| Entity key, order key | The key of an entity: id, UUID (also the order key), source of new UUIDs, its random stream, tile. | - |
+| Brain, goals, wait | Mob AI stage. The kernel wakes only mobs that a timer or a fact names. Goals are picked by tile, and waits replace per-tick checks. | Paper mob goals (`Mob`, `Goal`), loosely. |
+| Volume | One API for blocks, heights and biomes, used by worldgen, the client and the kernels. | Minestom `Block.Getter`, loosely. |
+| Collision table | A table of shapes and state flags of blocks for the physics kernel. | - |
+
+## Parity and tests
+
+| Term | Meaning | Closest in Paper or Minestom |
+|---|---|---|
+| Exact parity | Observable behavior matches vanilla very closely: protocol, saves, player movement, generation. | - |
+| Semantic parity | Meaning and result match. The order inside a tick can differ: redstone, fluids, block updates. | - |
+| Intentional deviation | A recorded, deliberate difference from vanilla ([`spec/README.md`](https://github.com/andreypfau/mcrs/blob/main/docs/spec/README.md)). | - |
+| Spec rule id | The id of a rule in a spec, like `CMD-TP-013`. Tests and issues cite it. | - |
+| Provenance label | The origin of a spec rule, such as `source_suggested`. See [Specs](/docs/en/reference/specs/). | - |
+| Oracle, oracle dump | A dump of output from a real vanilla run (`tools/vanilla-oracle`). Rust tests compare their output to it element by element. | - |
+| Fixture, capture, recapture | A reference file for tests, the command that takes it, and taking it again. `MCRS_BLESS=1` rewrites the expected file of some tests. | - |
+| Corpus | The game data version that the fixtures are tied to ([`captures.json`](https://github.com/andreypfau/mcrs/blob/main/tools/captures.json)), and the Molang test corpus. | - |
+
+## Process
+
+| Term | Meaning | Closest in Paper or Minestom |
+|---|---|---|
+| Clean-room | A spec author who may see the game code writes behavior down. An implementer who reads only specs and game artifacts writes the code. Names from the game code do not go in the repository ([`clean-room.md`](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md)). | - |
+| Spec issue, plugin issue | A pair of issues. The spec comes first in `docs/spec/`. The implementation follows and cites rule ids. | - |
+| Snapshot | A test version of the game. mcrs follows the newest, now `26.4-snapshot-7`. | - |
+| DataVersion | The data format version of a save. A mismatch means the world does not load, because there are no data fixers (#388). | Same idea as in Paper. |
+
+## Game data and rendering
+
+| Term | Meaning | Closest in Paper or Minestom |
+|---|---|---|
+| Registry, data pack | Registries (blocks, biomes, dimensions) load from a data pack. The server loads 147 registries (PERF.md, Server start). | Bukkit `Registry`, Minestom `DynamicRegistry`. |
+| Resource location, key | A name like `minecraft:stone`. It lives at the edges (data pack, wire, commands). Inside the code, numeric ids are used ([`resource-location.md`](https://github.com/andreypfau/mcrs/blob/main/docs/resource-location.md)). | `NamespacedKey`, Minestom `Key`. |
+| Molang | An expression language of Bedrock for animations and conditions. The `mcrs_molang` compiler has a batch backend and a WGSL backend. | - |
+| Impostor | A far mob drawn as a baked sprite. | - |
+| Arena, group table, GPU cull, depth pyramid | Renderer terms: memory arenas for quads, models and faces; a table of section groups; culling on the GPU; a depth pyramid for two-pass occlusion (PERF.md, DECISIONS.md). | - |
+| Hot | A client measurement knob that keeps fast CPU cores awake (`MCRS_HOT`). Not the same as hot space. | - |

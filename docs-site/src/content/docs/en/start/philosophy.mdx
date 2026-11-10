@@ -1,0 +1,80 @@
+---
+title: "Why mcrs: a new design, not a rewrite"
+description: "mcrs is not the Java server rewritten in Rust. It decides how the game should be built once the Java is gone."
+sidebar:
+  order: 2
+kind: explanation
+audience: [observer, jvm, admin, rust, contributor]
+stability: stable
+sources:
+  - README.md
+  - docs/clean-room.md
+  - PERF.md
+  - issue:566
+  - issue:324
+  - issue:190
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+
+import Status from '~/components/Status.astro';
+
+A new Minecraft server in Rust is announced about twice a year; there is a [counter](https://dayssincelastrustmcserver.com/) for it, and a [tracker](https://areweminecraftyet.com/) that still answers "not yet" for all of them. Most follow the same recipe: take the Java server's classes, rewrite them as Rust structs behind `Arc<Mutex<…>>`, keep the single game-tick thread, and put async tasks around it. That is Java's object graph with a borrow checker. It inherits the design that makes the vanilla server slow, and adds locks and deadlocks of its own.
+
+A new language does not fix that, and neither does a prompt that says "rewrite Minecraft in Rust, make no mistakes". The hard part is deciding how the game should be built once the Java is gone, and that is most of the work in this repository. mcrs starts with the engine.
+
+## The ECS is the engine
+
+World state is components and resources; behaviour is systems, each one transformation over every entity that has the data it names. Bevy's scheduler runs systems in parallel when their data access does not overlap, and a system can split its entities across threads. Nobody writes a lock for that.
+
+The goal is mcrs code with no `Arc`, no `Mutex` and no trait object on the hot path. This is work in progress: <Status issue={566} state="wip" />
+
+Deeper: [From objects to data](/docs/en/plugins/mental-model/).
+
+## Parallel by what the work touches
+
+Java server forks move one job at a time off the main thread and sell it as a feature: async pathfinding, async entity tracking, parallel world ticking, sometimes as a paid jar. Folia goes further and cuts the world into regions, but a crowded spot still ends up on one thread.
+
+mcrs looks at what each piece of work reads and writes. A mob farm and the redstone that drives it sit in the same chunks, yet mob AI and redstone run in parallel, and so do two farms at opposite ends of a base. Work that really interacts stays together and runs in order, and the result is the same on any number of threads.
+
+Redstone itself is not implemented yet, so the farm example is the design target: <Status issue={190} state="wip" />
+
+Deeper: [How a tick runs in parallel](/docs/en/concepts/parallel-tick/).
+
+## Work is proportional to change
+
+A resting entity and an untouched section cost nothing. Idle cost and frame times are measured in [`PERF.md`](https://github.com/andreypfau/mcrs/blob/main/PERF.md), and every exception to these rules cites a number there. Memory per section is not measured yet: <Status issue={324} state="wip" />
+
+Deeper: [Performance and how we measure](/docs/en/project/performance/).
+
+## Specified before it is built
+
+Each domain is written from a specification in [`docs/spec/`](https://github.com/andreypfau/mcrs/tree/main/docs/spec) under [clean-room rules](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md). Vanilla is the authority on data and observable behaviour; the shape of the code is ours.
+
+Deeper: [Clean-room in practice](/docs/en/contributing/clean-room/).
+
+## Parity is declared and tested
+
+Every subsystem is `exact` (protocol, saves, player movement, world generation), `semantic` (redstone, fluids, block updates) or an intentional deviation that is written down. Exact parts are compared with output of the game; world generation already matches in parity tests.
+
+Deeper: [Parity with vanilla](/docs/en/concepts/parity/).
+
+## A toolkit, not a monolith
+
+Most Minecraft crates do one job: read NBT, open region files, parse a schematic, draw a map. There are many NBT crates alone, each with its own types, and gluing two of them together means converting between those types. mcrs crates can be taken one at a time in the same way, and they share their types: a block state read from a save is the same value the renderer meshes and the world generator places. Nothing below the engine needs Bevy, and only the network layer needs tokio.
+
+Deeper: [Layers and crates](/docs/en/concepts/layers/), [Crate map](/docs/en/crates/overview/).
+
+## Data-driven at run time
+
+Registries, biomes, dimensions, world generation and environment attributes are read from the vanilla data pack. A data pack that adds a biome or a dimension is picked up without a rebuild. Serde types read the data pack JSON, write the NBT of a save and cross the network, the way vanilla's `Codec` does.
+
+Deeper: [Worlds and saves](/docs/en/server/worlds/).
+
+## Tracks the newest snapshot
+
+One version at a time, currently `26.4-snapshot-7`. Data and reports are regenerated from the game jar by a single command, so moving to the next snapshot is mostly a data update.
+
+Deeper: [One game version at a time](/docs/en/concepts/one-version/).

@@ -1,0 +1,74 @@
+---
+title: Add a command
+description: Register a command with add_command, set a permission level and run it as a Bevy system.
+sidebar:
+  order: 9
+kind: how-to
+audience: [jvm, rust]
+stability: changing
+tracking: [285, 579]
+sources:
+  - crates/mcrs_minecraft_command_engine/src/app_commands.rs
+  - crates/mcrs_minecraft_command_engine/src/registrar.rs
+  - crates/mcrs_minecraft_command/src/permission.rs
+  - crates/mcrs_minecraft_server/tests/it/commands.rs
+  - crates/mcrs_minecraft_command_vanilla/src/kill.rs
+  - docs/command-dimensions.md
+  - pr:579
+  - issue:285
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+
+import Status from '~/components/Status.astro';
+import Example from '~/components/Example.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+PR <Status pr={579} /> added a typed command tree. Plugins register nodes into it, the server sends each player the part of the tree that the player's level allows, and the handler of a command is a Bevy system. In Paper terms it is the Commands API with its node tree, not `plugin.yml` and `onCommand`. Examples come from the repository test `commands.rs`, and we did not run them outside the repository tests.
+
+## Register a command
+
+Commands are added to the app, after `CommandPlugin` and before the app finishes. `MinecraftServerPlugins` already adds the plugin for the vanilla set. `add_command` takes two things: a builder that adds the nodes, and the handler.
+
+<Example file="crates/mcrs_minecraft_command_engine/src/app_commands.rs" lines="40-53" title="The signature of add_command" />
+
+The builder gets a `CommandRegistrar`. It adds a literal node (`literal`) or an argument node (`arg`) under a parent, starting from `NodeId::ROOT`. A node that ends a command line calls `runs(...)`. The builder returns the handles of the arguments, which the handler reads later.
+
+<Example file="crates/mcrs_minecraft_server/tests/it/commands.rs" lines="50-76" title="Test: the nodes of an echo command with one integer argument" />
+
+The call is `app.add_command(echo_at("echo"), run_echo).unwrap();` (line 113 of the same file). It returns a `Result`. A node that clashes with the tree gives an error and nothing of the command is added, as the test at the end of the file shows.
+
+## Permission levels
+
+A node can require a level with `requires(PermissionCheck::Require(level))`. There are five ordered levels, and a source at the level or above passes.
+
+<Example file="crates/mcrs_minecraft_command/src/permission.rs" lines="4-13" title="CommandLevel" />
+
+A player who is below the level of a node neither sees the node in the tree nor can run it. The level of a player comes from the operator list or the default level of the server. There are no string permission nodes like `myplugin.use`. A permission system with groups is not part of mcrs today, and <Status issue={285} /> does not describe one.
+
+## The handler
+
+The handler is a system with `In<Call<...>>` as its first parameter. Everything else is a normal system parameter. It returns a `CommandResult`, which is the number the command reports on success or a failure. It sends text through `CommandOutput`, and `Feedback` says who hears it: only the source, or the source and all operators.
+
+<Example file="crates/mcrs_minecraft_server/tests/it/commands.rs" lines="78-91" title="Test: the handler of the echo command" />
+
+A handler does not change a player directly. It writes an effect through `CommandOutput::effect`, and the world applies the effects after the call, in the order of writing. Register the effect type with `add_command_effect`. This is how `teleport` and `gamemode` change players in other dimensions. The reasons are in [docs/command-dimensions.md](https://github.com/andreypfau/mcrs/blob/main/docs/command-dimensions.md) and on [Dimensions](/docs/en/plugins/dimensions/).
+
+Before a command line runs, the server raises `CommandEvent` in the world of the source dimension. An observer can set `cancelled`, and then the command does not run. This is the command side of <Status issue={283} state="partial" />.
+
+## Limits
+
+<Aside type="caution" title="WIP">
+<Status issue={285} state="partial" /> is still open. Known limits today:
+
+- The vanilla commands are not building blocks for you. For example, `build` and `run` of `kill` are `pub(crate)`, so a plugin cannot reuse them or wrap them.
+- The argument types of a node come from the argument set of the command set (`VanillaCommands`). A type outside that set needs a set of your own.
+- The issue asks for a vanilla client to see and complete a command that a test plugin registered, and for a player below the level to neither see nor run it. The merged PR covers the tree and the level filter. Check the issue for what is left before you rely on more.
+</Aside>
+
+## What next
+
+- [Intercept chat](/docs/en/plugins/chat-event/): the chat event.
+- [Read player data](/docs/en/plugins/players/): what a handler can read about the source player.

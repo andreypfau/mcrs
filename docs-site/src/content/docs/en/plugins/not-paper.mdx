@@ -1,0 +1,77 @@
+---
+title: This is not the Paper API
+description: mcrs has no Bukkit-like API and no plugin loader; you write Rust code and build your own server binary, like with Minestom.
+sidebar:
+  order: 1
+kind: explanation
+audience: [jvm]
+stability: changing
+tracking: [283, 281, 546, 321, 437]
+sources:
+  - src/main.rs
+  - crates/mcrs_minecraft_server/src/lib.rs
+  - crates/mcrs_minecraft_chat_server/src/chat_plugin.rs
+  - issue:437
+  - issue:180
+  - issue:279
+  - issue:280
+  - issue:282
+  - pr:636
+  - pr:579
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+
+import Status from '~/components/Status.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+## Short answer
+
+Your Paper plugin will not run on mcrs. There is no Bukkit-like API and no facade crate: this is a closed decision, <Status issue={437} state="declined" />. There is also no plugin loader today (no jar, no wasm, no scripts). The loader question has no issue and no decision yet, so we do not say "never". JVM code cannot be loaded into the server, neither Java nor Kotlin.
+
+What you do today: write a Bevy plugin in Rust, put it next to the server plugins in your own `main`, and build one binary. The model is closer to [Minestom](https://minestom.net/) (the server is a library, you write the `main`) than to Paper (a ready server plus jars in `plugins/`). The direction is described in <Status issue={180} />.
+
+<Aside type="caution" title="Early WIP">
+The public library API is not stable. One game version is targeted at a time (`26.4-snapshot-7`), with no backward compatibility, see <Status issue={412} />.
+</Aside>
+
+## What works today
+
+| Need | State | Where |
+|---|---|---|
+| Remove or replace a part of the server | The server is a group of plugins; you can disable members | <Status issue={279} state="works" /> |
+| Add your code to every dimension or to one | `add_dimension_plugin` and `add_dimension_plugin_to` | <Status issue={280} state="works" /> |
+| Vanilla gameplay as removable plugins | Done | <Status issue={282} state="works" /> |
+| Intercept and cancel a chat line | `PlayerChatEvent`, the only public cancellable event | <Status pr={636} state="works" /> |
+| Register your own command | `add_command`, typed command tree | <Status pr={579} state="works" /> |
+
+The entry point is `src/main.rs`: it creates the app and adds `MinecraftServerPlugins`. See [src/main.rs](https://github.com/andreypfau/mcrs/blob/main/src/main.rs) and [the plugin group](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server/src/lib.rs).
+
+## What is not there yet
+
+| Need | State |
+|---|---|
+| Public cancellable events for join, leave, block break, block place and movement | <Status issue={283} state="wip" /> |
+| Replace the chunk source (a flat or empty world, your own generator) | <Status issue={281} state="wip" /> |
+| Create and remove dimensions while the server runs | <Status issue={546} state="wip" /> |
+| Depend on published crates (today only a git dependency) | <Status issue={321} state="undecided" /> |
+| Plugin loader: jar, wasm, scripts | <Status state="undecided" /> no issue, no decision |
+| Save the world to disk | <Status issue={78} state="wip" /> |
+
+## Is there an X?
+
+| Paper habit | In mcrs |
+|---|---|
+| `plugin.yml`, jar in `plugins/` | No. Your code is compiled into the server binary |
+| Static `Bukkit.getServer()` | No, rejected in [#437](https://github.com/andreypfau/mcrs/issues/437). Data comes as system parameters |
+| A stable API with versions | No. Public crates and plugins are the surface, versions are not stable |
+| `/reload` and hot reload of code | No. Data pack reload is planned, <Status issue={316} state="wip" /> |
+| Scripting (Lua, JS) | No issue, no decision |
+
+The full lookup table is on [Paper and Minestom in mcrs terms](/docs/en/plugins/paper-to-mcrs/). The current state of every area is on [Status](/docs/en/start/status/).
+
+## Next
+
+[From objects to data](/docs/en/plugins/mental-model/) explains the three ideas you need before the code. Then [Rust for Java developers](/docs/en/plugins/rust-for-java/).

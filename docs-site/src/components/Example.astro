@@ -1,0 +1,24 @@
+---
+import { readFileSync, existsSync } from "node:fs";
+import path from "node:path";
+import { Code } from "@astrojs/starlight/components";
+interface Props { file: string; lines?: string; title?: string }
+const { file, lines, title } = Astro.props;
+// docs-site lives one level below the repository root; the build runs from docs-site.
+const full = path.resolve(process.cwd(), "..", file);
+if (!existsSync(full)) throw new Error(`Example: file not found in repository: ${file}`);
+const all = readFileSync(full, "utf8").replace(/\n$/, "").split("\n");
+let from = 1, to = all.length;
+if (lines) {
+  const m = /^(\d+)-(\d+)$/.exec(lines);
+  if (!m) throw new Error(`Example: bad lines "${lines}" for ${file}, expected "A-B"`);
+  from = +m[1]; to = +m[2];
+  if (from < 1 || to < from || to > all.length) throw new Error(`Example: lines ${lines} out of range for ${file} (${all.length} lines)`);
+}
+const code = all.slice(from - 1, to).join("\n");
+const ext = path.extname(file).slice(1);
+const lang = ({ rs: "rust", yml: "yaml", md: "md" } as Record<string, string>)[ext] ?? ext;
+const url = `https://github.com/andreypfau/mcrs/blob/main/${file}` + (lines ? `#L${from}-L${to}` : "");
+---
+<Code code={code} lang={lang} title={title ?? file} />
+<p><a href={url}>{file}{lines ? `:${from}-${to}` : ""}</a></p>

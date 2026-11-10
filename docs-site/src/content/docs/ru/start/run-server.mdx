@@ -1,0 +1,65 @@
+---
+title: Запустить сервер и зайти на него
+description: Две команды запуска сервера, что в нем можно делать и почему нельзя открывать его порт в интернет.
+sidebar:
+  order: 5
+kind: tutorial
+audience: [jvm, admin, contributor, player]
+stability: wip
+tracking: [78, 82]
+sources:
+  - README.md
+  - crates/mcrs_minecraft_server_settings/src/server_settings.rs
+  - crates/mcrs_minecraft_engine_server/src/server_network_plugin.rs
+  - PERF.md
+  - issue:78
+  - issue:82
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+translated_from: 51d45c26a
+---
+
+import Status from '~/components/Status.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="caution" title="WIP">
+Подробный гайд появится к альфе. Эта страница повторяет команды из [README Quick start](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start), и мы не прогоняли их заново для документации. Если README и эта страница расходятся, верьте README. Сначала установите инструменты из раздела [Установка инструментов](/docs/ru/start/install/).
+</Aside>
+
+<Aside type="danger" title="Не открывайте порт в интернет">
+У сервера нет аутентификации: любой, кто до него доберется, зайдет под любым ником, в том числе под ником оператора. Он слушает все сетевые интерфейсы (`0.0.0.0:25565`). Запускайте его только на своей машине или в доверенной локальной сети.
+</Aside>
+
+## Запуск
+
+```bash
+cargo run --release
+cargo run --release -- "<path to a world folder>"
+```
+
+Первая команда запускает сервер с новым миром. Вторая открывает готовое сохранение Java Edition, у которого версия данных совпадает со снапшотом игры 26.4-snapshot-7. Сохранения других версий не загружаются, датафиксеров нет ([#388](https://github.com/andreypfau/mcrs/issues/388)).
+
+На эталонной машине релизная сборка без папки мира доходит до состояния Playing за 0.77 с (медиана трех прогонов, Apple M4 Max, macOS, [PERF.md](https://github.com/andreypfau/mcrs/blob/main/PERF.md#server-start)). Это время запуска уже собранного бинарника, а не время сборки.
+
+## Подключение
+
+Нужен ванильный клиент того же снапшота, 26.4-snapshot-7. Сервер появляется в списке LAN-миров, а еще можно зайти по адресу `localhost:25565`. Сервер работает в offline-режиме.
+
+## Что можно делать
+
+- Писать в чат.
+- Выполнять команды с клиента или из консоли сервера, которая читает стандартный ввод: `/gamemode`, `/tp`, `/summon pig`, `/time`, `/fill`.
+- Ломать блоки в креативе. Режим игры по умолчанию креатив.
+- Летать по сгенерированному миру и создавать мобов через `/summon`: свиней, коров, овец, куриц и зомби-свинолюдов.
+
+Настройки читаются из переменных окружения, например `MCRS_PORT`, `MCRS_WORLD_SEED`, `MCRS_WORLD_PRESET` (`normal` или `flat`) и `MCRS_DEFAULT_GAMEMODE`. Полный список - в [`server_settings.rs`](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server_settings/src/server_settings.rs).
+
+## Что не сохраняется
+
+<Aside type="caution" title="WIP">
+Измененные чанки на диск не пишутся, поэтому каждый сломанный блок пропадает при остановке сервера: <Status issue={78} state="wip" />. Игроки сохраняются при штатном выключении (<Status pr={624} state="works" />), а штатное выключение, которое сохраняет еще и мир, - это <Status issue={169} state="wip" />.
+</Aside>
+
+Ожидаемый вывод консоли и чек-лист первого запуска пока не написаны. Подробности смотрите в README.

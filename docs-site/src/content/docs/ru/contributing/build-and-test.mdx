@@ -1,0 +1,112 @@
+---
+title: Сборка и тесты
+description: Как запустить тесты mcrs локально, что проверяет CI и как перезаписать устаревший blessed-файл.
+sidebar:
+  order: 2
+kind: how-to
+audience: [contributor]
+stability: changing
+tracking: [507]
+sources:
+  - README.md
+  - .config/nextest.toml
+  - xtask/src/checks.rs
+  - xtask/src/trigger.rs
+  - .github/workflows/checks.yml
+  - scripts/hooks/run-checks
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+translated_from: 51d45c26a
+---
+import Status from '~/components/Status.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+Здесь описано, как добиться зеленых тестов на своей машине и что CI запускает на pull request. Установку Rust и драйвера GPU страница не покрывает.
+
+<Aside type="caution" title="WIP">
+Подробный гайд по сборке еще не написан, он появится до альфы для игроков. Пока используйте [Quick start в README](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start). Автор страницы ничего из описанного не запускал: команды взяты из файлов репозитория, перечисленных в sources.
+</Aside>
+
+## Репозиторий на одном экране
+
+| Путь | Что там |
+|---|---|
+| `crates/` | крейты на Rust, их 121 |
+| `tools/` | инструмент обновления снапшота, фикстуры, ванильный оракул, бенчмарки |
+| `xtask/` | раннер проверок, который используют CI и локальные хуки |
+| `assets/` | файл версии, отчеты из игры, локальные датапаки |
+| `docs/` | спецификации и заметки по дизайну. См. [индекс docs](https://github.com/andreypfau/mcrs/blob/main/docs/README.md) |
+| `docs-site/` | этот сайт |
+
+## Запуск тестов
+
+```bash
+cargo nextest run -p <crate>        # один крейт
+cargo nextest run --workspace       # все, перед коммитом
+cargo nextest run --profile full    # плюс исчерпывающие прогоны
+```
+
+Раннер - [cargo-nextest](https://nexte.st). Версию тулчейна Rust репозиторий закрепляет в `rust-toolchain.toml`, а минимальную версию раннера - в `.config/nextest.toml`.
+
+Каждый профиль сначала запускает setup-скрипт: он ставит клиентский JAR игры и распаковывает его датапак в каталог кеша. Скачивать вручную ничего не нужно. Первому запуску нужен доступ к сети Mojang.
+
+В имени теста есть префикс уровня, и профили фильтруют тесты по нему:
+
+| Профиль | Что запускает |
+|---|---|
+| `default` | все, кроме тестов `exhaustive::`, `gpu::`, `online::` и `vanilla_server::` |
+| `ci` | тот же фильтр, что у `default`, и он не останавливается на первой ошибке |
+| `full` | уровень `default` плюс `exhaustive::` и `online::`. Его использует плановая задача CI |
+| `gpu` | только тесты `gpu::`. Нужна машина с GPU Metal |
+| `vanilla-server` | только тесты `vanilla_server::`. Они идут через [`vanilla-server/run.sh`](https://github.com/andreypfau/mcrs/blob/main/tools/vanilla-server/run.sh) |
+
+Прогон теста не должен длиться дольше пяти минут. Более медленный тест относится к уровню `exhaustive::`.
+
+## Проверки xtask
+
+CI и локальные хуки вызывают один раннер: `scripts/hooks/run-checks <trigger>`. Он собирает `xtask` и запускает проверки этого триггера. Запустите его сами перед push:
+
+```bash
+scripts/hooks/run-checks commit
+```
+
+| Триггер | Проверки |
+|---|---|
+| `commit`, `push` | `parity`, `fmt` |
+| `lint` | `parity`, `fmt`, `keys` |
+| `clippy` | `clippy` |
+| `test` | тесты измененных крейтов и тех, что от них зависят |
+| `portability` | `no-bevy`, `layers`, `wasm32`, `no-std` |
+
+Что значат проверки:
+
+- `parity`: тест, который заявляет ванильное поведение, должен загружать фикстуру, созданную игрой. Сравнение с литералом дает предупреждение. См. [Спецификации и parity-тесты](/docs/ru/contributing/specs-and-parity/).
+- `keys`: сгенерированные исходники ключей реестров должны совпадать с тем, что генератор пишет из сохраненных отчетов. Сгенерированные файлы вручную не правьте никогда.
+- `no-bevy`: 99 пакетов должны собираться без Bevy. `no-std`: 9 пакетов должны собираться под цель без std. `wasm32`: 11 пакетов должны собираться под wasm32. Списки лежат в `xtask/src/checks.rs`.
+- `layers`: крейты протокола и сети не должны линковать игровые данные, чтобы прокси или бот могли использовать только их.
+
+Запустите `scripts/hooks/run-checks` без аргумента, чтобы увидеть все триггеры.
+
+## MCRS_BLESS
+
+Некоторые тесты сравнивают сгенерированный файл с закоммиченной копией, например запеченные ассеты сущностей и таблицу полей шейдера. Когда копия устарела, тест падает и сообщает об этом. Перезапишите копию с помощью переменной окружения, которую называет сообщение:
+
+```bash
+MCRS_BLESS=1 cargo nextest run -p <crate>
+```
+
+Прочитайте дифф до коммита. Blessed-файл, изменившийся без причины, - ошибка в изменении, а не в тесте. Тесты, которые читают эту переменную, лежат в `crates/mcrs_minecraft_mesh/src/pack.rs` и `crates/mcrs_minecraft_entity_model/tests/it/mob_assets.rs`.
+
+## CI
+
+Workflow `.github/workflows/checks.yml` на каждом pull request в `main` запускает четыре задачи: `lint`, `clippy`, `test` и `portability`. Финальная задача `checks` падает, если не прошли все четыре.
+
+- Задача `test` для pull request из форка идет на машине `ubuntu-24.04` в GitHub. Она пропускает каждый крейт, который зависит от wgpu, и все, что выше по зависимостям. Эти тесты идут только локально, поэтому при правках клиента или рендерера запускайте их сами.
+- Pull request из того же репозитория идет на собственном раннере проекта.
+- Второй workflow, `docs`, предупреждает о страницах этого сайта, у которых изменились sources. См. [Как писать эту документацию](/docs/ru/contributing/docs/).
+
+<Aside type="note" title="Отчет о покрытии спецификаций">
+Отчет о правилах спецификаций, которые не называет ни один тест, запланирован: <Status issue={507} state="wip" />. Он покажет пробелы и ничего не уронит.
+</Aside>

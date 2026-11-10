@@ -1,0 +1,224 @@
+---
+title: Crate map
+description: The 121 crates of mcrs by layer, with the ones that build without Bevy, without std or for wasm32, and which to take for a proxy, a bot, a map or a tool.
+sidebar:
+  order: 1
+kind: reference
+audience: [rust, contributor]
+stability: changing
+tracking: [287, 296, 297, 302, 321]
+sources:
+  - Cargo.toml
+  - xtask/src/checks.rs
+  - README.md
+  - issue:321
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import Status from '~/components/Status.astro';
+
+mcrs is 121 crates under `crates/`, and you can take them one at a time. This page lists all of them, grouped by layer. Use it to find the crate you need and to see what it drags in.
+
+<Aside type="caution" title="WIP">
+This table was made by a script from `cargo metadata` and the three lists in [`xtask/src/checks.rs`](https://github.com/andreypfau/mcrs/blob/main/xtask/src/checks.rs), then pasted here. A generator that rebuilds it on every docs build is planned. Until it exists, the table can be out of date: check the verified date at the bottom.
+</Aside>
+
+## How to read the table
+
+The layers come from the [README](https://github.com/andreypfau/mcrs/blob/main/README.md#layers). Each layer should depend only on layers below it, so you can take a prefix and pay for nothing above it. A few crates do not follow this yet: the protocol and network crates still reach into game data. CI checks only one part of this rule (the wire and network crates must not link game data).
+
+The layer of a crate is not stored anywhere in the code. It was assigned by hand from the README table and the crate description. Treat it as a guide, not as a checked fact.
+
+| Column | Where it comes from |
+|---|---|
+| Description | `description` in the `Cargo.toml` of the crate. Five crates had none or only their own name, so the description is written from their source files |
+| No Bevy | `NO_BEVY_PACKAGES` in [`checks.rs`](https://github.com/andreypfau/mcrs/blob/main/xtask/src/checks.rs). CI runs `cargo check --no-default-features` on these crates and fails if one requires Bevy |
+| no_std | `NO_STD_PACKAGES`, built without `std` in CI |
+| wasm32 | `WASM32_PACKAGES`, built for the `wasm32` target in CI |
+
+The no-Bevy list has 99 names. Six of them are tools under `tools/`, so among the 121 crates of `crates/` the count is 93. The no_std list has 9 crates and the wasm32 list has 11. A dash means "not on the CI list", which is not the same as "does not work".
+
+## What to take for
+
+Nothing here is published to crates.io, so every route below uses a git dependency (see [Use the crates in your project](/docs/en/crates/use-as-library/)). There are no library examples yet: the examples issue is <Status issue={287} state="wip" />, and the first working use is [parsing SNBT](/docs/en/crates/hello-nbt/).
+
+| You build | Start with | State |
+|---|---|---|
+| A proxy | `mcrs_minecraft_protocol` and `mcrs_minecraft_network`. Both are on the no-Bevy list, and `xtask` checks that they do not link game data | The crates exist. The proxy library itself, with routing and forwarding, is <Status issue={296} state="wip" />. Online mode is <Status issue={82} state="wip" /> |
+| A bot | The same two crates, plus `mcrs_minecraft_client_world`, which keeps the world state of a client without a window or a renderer. It is not on the no-Bevy list | The split of the client state from rendering is done (<Status issue={301} />). The walker bot is <Status issue={302} state="wip" /> |
+| A map or a world viewer | `mcrs_minecraft_anvil` for regions (also on the wasm32 list), `mcrs_minecraft_chunk` and `mcrs_minecraft_block` for the data, `mcrs_minecraft_mesh` for meshes | The crates exist. Top-down tiles without a window are <Status issue={297} state="wip" />, and a model viewer is <Status issue={298} state="wip" /> |
+| A tool for NBT, commands or data packs | `mcrs_minecraft_nbt`, `mcrs_minecraft_snbt`, `mcrs_command`, `mcrs_minecraft_datapack` | The crates exist. `mcrs_command` and `mcrs_minecraft_snbt` read and write what the game reads and writes |
+| A world generator preview | `mcrs_minecraft_worldgen_generator` and the `mcrs_minecraft_worldgen_*` crates | A preview by seed through the public API is <Status issue={299} state="wip" />. The generator itself matches vanilla in parity tests on reference seeds |
+
+"The crates exist" means they build in this repository. It does not mean they have a stable API or a README: only six crates have a README.
+
+## All crates
+
+### Layer 1: Protocol
+
+| Crate | Description | No Bevy | no_std | wasm32 |
+|---|---|---|---|---|
+| `mcrs_command` | A command tree, a parser and suggestions that agree with Brigadier, without allocation on the parse | yes | yes | - |
+| `mcrs_minecraft_chat` | The chat rules that the client and the server share: the characters a message may hold, its length limit and its normal form | yes | yes | - |
+| `mcrs_minecraft_core` | Directions, numeric operations, shapes, codecs and the version | yes | - | - |
+| `mcrs_minecraft_game_mode` | The game modes of a player, their names and their wire forms | yes | - | - |
+| `mcrs_minecraft_keys` | Names of the vanilla registries no crate keys by a type, with their entries and tags | yes | - | yes |
+| `mcrs_minecraft_nbt` | NBT tags and compounds, the binary read and write, and the serde codecs | yes | - | - |
+| `mcrs_minecraft_numeric` | Bit-exact numeric operations: integer division, comparisons, interpolation, angle wrap, sine tables and the arctangent | yes | - | - |
+| `mcrs_minecraft_profile` | Game profiles, their properties and the resolvable profile of a player head | yes | - | - |
+| `mcrs_minecraft_protocol` | Protocol library for Minecraft: Java Edition: framing, compression, and the handshake, status, login and configuration packets | yes | - | yes |
+| `mcrs_minecraft_random` | The random number generators of the game: legacy, xoroshiro and the worldgen forks | yes | - | - |
+| `mcrs_minecraft_resource` | Resource locations, resource keys, tag keys, registry keys and registry ids | yes | - | - |
+| `mcrs_minecraft_snbt` | The read and the write of stringified NBT as the game reads and writes it | yes | - | - |
+| `mcrs_minecraft_text` | Text components: content, style, click and hover events, JSON and NBT codecs | yes | - | - |
+| `mcrs_minecraft_wire` | Encode and decode traits, variable-length integers and primitive codecs for the Minecraft: Java Edition protocol | yes | - | yes |
+| `mcrs_minecraft_wire_macros` | Derive macros for the codec traits of mcrs_minecraft_wire | yes | - | - |
+| `mcrs_molang` | Molang compiler, scalar and batch evaluator, independent of any game host | yes | yes | - |
+| `mcrs_voxel` | Block, section, column and local positions and the block state id of a voxel world | yes | yes | - |
+
+### Layer 2: Network
+
+| Crate | Description | No Bevy | no_std | wasm32 |
+|---|---|---|---|---|
+| `mcrs_minecraft_network` | Protocol library for Minecraft: Java Edition | yes | - | - |
+
+### Layer 3: Game data and rules
+
+| Crate | Description | No Bevy | no_std | wasm32 |
+|---|---|---|---|---|
+| `mcrs_minecraft_anvil` | Anvil region files: reading and writing chunks, palettes, retrogen | yes | - | yes |
+| `mcrs_minecraft_assets` | Data pack loading: JSON loaders, the registry access and the load state | - | - | - |
+| `mcrs_minecraft_biome` | Biomes, climate parameters and biome sources | yes | - | - |
+| `mcrs_minecraft_biome_file` | The biome file as data packs write it, its built-in draft, and the columns it is stored as | yes | - | yes |
+| `mcrs_minecraft_block` | Block and fluid definitions, block tags and map colours | yes | - | - |
+| `mcrs_minecraft_block_entity` | Block entities in the typed shape the save, the chunk packet and the anvil reader share | yes | - | - |
+| `mcrs_minecraft_block_predicate` | Block states, block predicates and block state providers as data packs write them | yes | - | - |
+| `mcrs_minecraft_brain` | The AI stage of mobs without Bevy: the snapshot replica, the issue and the late application of decisions, keyed random values, the wake schedule and the goal selector | yes | yes | - |
+| `mcrs_minecraft_chunk` | Chunk sections, palettes, light storage and column heights | yes | - | - |
+| `mcrs_minecraft_client_jar` | Locates, downloads and unpacks the vanilla client jar | yes | - | - |
+| `mcrs_minecraft_collision_table` | Builds the collision table of the physics kernel from the block definitions and the block tags | yes | - | - |
+| `mcrs_minecraft_command` | The command source, permissions, identifiers, and the error text the vanilla argument families share, and the command packets of a player | yes | - | - |
+| `mcrs_minecraft_command_argument` | The resource, keyword, coordinate, rotation, swizzle and time arguments | yes | - | - |
+| `mcrs_minecraft_command_argument_block` | The block predicate argument and its test of a block state | yes | - | - |
+| `mcrs_minecraft_command_argument_entity` | The entity selector argument and the search for the entities that a selector names | yes | - | - |
+| `mcrs_minecraft_command_argument_vanilla` | The vanilla argument set, its errors, its parsers on the wire and the client command tree | yes | - | - |
+| `mcrs_minecraft_command_registry` | The registries and the block table that a host lends to the command arguments | yes | - | - |
+| `mcrs_minecraft_command_tree` | The nodes of the command tree that the commands packet carries | yes | - | - |
+| `mcrs_minecraft_damage` | The hit procedure of a living entity without Bevy: the damage cooldown, the health change, the start of the death and the hit record | yes | - | - |
+| `mcrs_minecraft_datapack` | The data pack stack: pack selection, pack.mcmeta, overlays, filters and the files each pack contributes | - | - | - |
+| `mcrs_minecraft_dimension` | The dimension and dimension type registry values | yes | - | - |
+| `mcrs_minecraft_enchantment` | The enchantment file and the keys of the enchantment registries | yes | - | yes |
+| `mcrs_minecraft_entity` | Plain identity types of the entity domain registries and the type data table of the entity types | yes | - | - |
+| `mcrs_minecraft_entity_key` | The keys of an entity without the physics kernel: its id, its UUID as its order key, the sources of a new UUID, its keyed random stream and the tile that holds it | yes | yes | - |
+| `mcrs_minecraft_entity_rows` | The rows of the server entities by tile, with a column for the hot state of the mobs: the body grid, the merge point, the rest and wake of tiles and the entity pass over the physics kernel | yes | - | - |
+| `mcrs_minecraft_environment` | Environment attributes, timelines and world clocks | yes | - | - |
+| `mcrs_minecraft_game_registries` | Vanilla Minecraft block/item type vocabulary and static registries | yes | - | - |
+| `mcrs_minecraft_game_rule` | Game rules, their categories, value types, defaults and bounds | yes | - | yes |
+| `mcrs_minecraft_goal_world` | The read-only block world of the goals of mobs: the ground cell of a block position, the build height, the line of sight and the straight route on walkable ground | yes | yes | - |
+| `mcrs_minecraft_goals` | The goals of passive mobs for the AI stage: float, panic, random stroll, look at a player and look around, the random position searches, the goal list of the pig and the brain of each mob type with goals | yes | yes | - |
+| `mcrs_minecraft_heightmap` | The four column heightmaps, the block state predicates they test, and the descent that builds them | yes | - | - |
+| `mcrs_minecraft_item` | Items, item data components, the component patch, the persistent item stack, enchantments and armour trims | yes | - | - |
+| `mcrs_minecraft_lang` | A language file of the game: translation patterns by key, and the filler of their placeholders | yes | - | - |
+| `mcrs_minecraft_light_color` | Light colours of block states and the light a held item emits | yes | - | - |
+| `mcrs_minecraft_light_engine` | Block and sky light propagation over sections, without Bevy | yes | - | - |
+| `mcrs_minecraft_loot` | The keys of the loot registries | yes | - | yes |
+| `mcrs_minecraft_mob_control` | The per-tick controls of a mob without Bevy: the path follower of a straight route, the move control, the jump control, the look control and the body rotation | yes | - | - |
+| `mcrs_minecraft_move_predict` | The movement checks with a world: the prediction of each client tick of a player from the physics model | yes | - | - |
+| `mcrs_minecraft_move_validate` | The movement checks without a world: one serverbound packet, and the stream of one connection | yes | - | - |
+| `mcrs_minecraft_noise` | Perlin, simplex, normal and blended noise and the interval and grid types they sample over | yes | - | - |
+| `mcrs_minecraft_particle` | Particle types and their options as data packs and attributes write them | yes | - | - |
+| `mcrs_minecraft_physics` | The entity physics kernel: boxes, block shapes, the collision algorithm, step-up and the move procedure | yes | - | - |
+| `mcrs_minecraft_predicate` | The keys of the entity predicate and statistic registries | yes | - | yes |
+| `mcrs_minecraft_protocol_game` | The play-state packets of Minecraft: Java Edition that carry game data: chunks, entities, items, recipes and chat | yes | - | yes |
+| `mcrs_minecraft_registries` | Registry tables, tags and the registry loader | yes | - | - |
+| `mcrs_minecraft_registries_derive` | The registry_value attribute and the Resolve derive of mcrs_minecraft_registries | - | - | - |
+| `mcrs_minecraft_registry_catalog` | The entries of every static registry | yes | - | yes |
+| `mcrs_minecraft_save` | The files of a world save other than its regions: the level, its world generation settings and each player's file | - | - | - |
+| `mcrs_minecraft_simulation` | Block simulation kernels: the step and update chain over a volume, their queues and ordering policies | yes | - | - |
+| `mcrs_minecraft_sound` | Sound events | yes | - | - |
+| `mcrs_minecraft_value_provider` | Int, float and height providers and their codecs | yes | - | - |
+| `mcrs_minecraft_volume` | One block access API over every store of world data: bounds, per-section access, section handles and cursors | yes | - | - |
+| `mcrs_minecraft_worldgen` | The world generator: the worldgen registries, their loaders and the beardifier | yes | - | - |
+| `mcrs_minecraft_worldgen_builtin` | The worldgen registry entries the game and the beta preset define, built by code | yes | - | - |
+| `mcrs_minecraft_worldgen_carver` | Cave and canyon carvers | yes | - | - |
+| `mcrs_minecraft_worldgen_density` | Density functions, their compiler and evaluator, the noise router and the aquifer | yes | - | - |
+| `mcrs_minecraft_worldgen_feature` | Configured and placed features, placement modifiers, structure templates and the feature generators | yes | - | - |
+| `mcrs_minecraft_worldgen_feature_place` | The feature generators: trees, ores, geodes, templates and the rest of what a placed feature writes | yes | - | - |
+| `mcrs_minecraft_worldgen_generator` | The column pipeline of the noise chunk generator: fill, surface, carvers, features, structures and the read out of the save | yes | - | - |
+| `mcrs_minecraft_worldgen_structure` | Structures, structure sets, template pools, jigsaw assembly and structure placement | yes | - | - |
+| `mcrs_minecraft_worldgen_structure_place` | What the hardcoded structure pieces write: the piece canvas, the per-family painters and the after-place hooks | yes | - | - |
+| `mcrs_minecraft_worldgen_surface` | Surface rules: the material rule compiler and evaluator | yes | - | - |
+| `mcrs_minecraft_worldgen_testing` | The shipped asset corpus and the oracle dumps, read for tests | yes | - | - |
+
+### Layer 4: Engine
+
+| Crate | Description | No Bevy | no_std | wasm32 |
+|---|---|---|---|---|
+| `mcrs_engine_cell` | Worlds that tick in lockstep: owned input in, owned output out, each world placed inline or on a thread of its own | yes | - | - |
+| `mcrs_engine_link` | The link between two parts of the engine: owned messages in, owned messages out, with the far end placed inline or on a thread of its own | yes | - | - |
+| `mcrs_engine_muxer` | Fans the changes of a world out to its viewers: tiles and tile streams for entities, version streams for chunks, and bytes encoded once and shared | yes | - | - |
+| `mcrs_engine_store` | The data layer: versioned chunks by key in an in-memory cache over a disk store that the game supplies, reached as a stage on a link | yes | - | - |
+| `mcrs_minecraft_chat_server` | The chat handling of the server as a plugin that a user can replace | - | - | - |
+| `mcrs_minecraft_command_engine` | The command tree, the registration of commands and the run of the command lines of the players inside the tick of each dimension world | - | - | - |
+| `mcrs_minecraft_dimension_environment` | Dimension types and the environment attribute layers of a dimension | yes | - | - |
+| `mcrs_minecraft_engine` | The packet bus, the bridge between the network and the dimension worlds, sessions, the host side of the dimension channels, the player state that the host and the dimensions share, the world clocks of the host, and heightmap upkeep | - | - | - |
+| `mcrs_minecraft_engine_brain` | The AI stage of the mobs of a dimension world: the host that publishes the snapshot of the mob rows, runs the stage per tile beside the entity pass, applies the decisions through the mob controls and steers the rows | - | - | - |
+| `mcrs_minecraft_engine_mob_replication` | The replication projection of the mobs of a dimension world in Bevy: reads the row store and the mob changes of the tick and writes the tile events of the mobs for the muxer | - | - | - |
+| `mcrs_minecraft_engine_physics` | The entity pass of a dimension world in Bevy: the row store as a resource generic over the mob column, the merge point, the freeze and the pass as systems, the row-only items, and the mob rows with their life cycle and tile events | - | - | - |
+| `mcrs_minecraft_engine_registries` | Loads the registries, blocks and items of an app from its pack files, walks it to playing, and hands the snapshot to each dimension world | - | - | - |
+| `mcrs_minecraft_engine_server` | The server plugins of the engine without vanilla behaviour: the core, the dimension worlds, the listener with login, configuration, keep-alive and status, and the server loop | - | - | - |
+| `mcrs_minecraft_engine_world` | Chunk and column entities, dimensions, tickets, area of interest, sessions, the server loop, block updates and drops, game rules, and the world seed, birth clock and entity ids that new entities take | - | - | - |
+| `mcrs_minecraft_replication` | The Minecraft side of entity replication: the muxer codec for players and mobs, mob trackers, delta bases for moves, spawn bundles, profile entries and the player list policy, as encoded packets | yes | - | - |
+
+### Layer 5: Vanilla
+
+| Crate | Description | No Bevy | no_std | wasm32 |
+|---|---|---|---|---|
+| `mcrs_minecraft_command_vanilla` | The vanilla commands execute, gamemode, teleport, locate, summon and time, and the command effects they write | - | - | - |
+| `mcrs_minecraft_command_world` | The commands that change the world and the server: fill, forceload, gamerule, weather clear, and tick query and sprint | - | - | - |
+| `mcrs_minecraft_vanilla_light` | Vanilla light wired into the dimension worlds: the block light table, the light engine driver of each dimension and the light updates sent to the players | - | - | - |
+| `mcrs_minecraft_vanilla_worldgen` | World generation wired into the dimension worlds: the routers, carvers, features and structures of each dimension, and the column scheduler that generates or reads its columns | - | - | - |
+
+### Layer 6: Rendering
+
+| Crate | Description | No Bevy | no_std | wasm32 |
+|---|---|---|---|---|
+| `mcrs_minecraft_entity_animation` | Entity animation on the CPU: clips, keyframes, the play list of a client entity, its scripts and the bone pose of a frame | yes | - | - |
+| `mcrs_minecraft_entity_model` | Entity geometry files of the Bedrock format: reading, baking to a static model and the GPU model records | yes | - | - |
+| `mcrs_minecraft_entity_render` | GPU-driven entity rendering: persistent slots, the entity cull, the pose and expand passes and the gbuffer draw of the face records | - | - | - |
+| `mcrs_minecraft_light_render` | Coloured block light for the lighting pass: a paged light volume propagated on the GPU | - | - | - |
+| `mcrs_minecraft_mesh` | Section meshing: greedy cube faces, fluids, block models, the packed quad layout and the buffer arena | yes | - | - |
+| `mcrs_minecraft_model` | Block and item models baked from a Minecraft resource pack: the pack, model files, sprite atlas, block catalog and item model trees | - | - | - |
+| `mcrs_minecraft_model_file` | Block model files, block state files and the face bake of a resource pack, with no Bevy | yes | - | - |
+| `mcrs_minecraft_pack_file` | Files of an entity pack: lenient JSON, the client entity file, load diagnostics and the compile of Molang fields | yes | - | - |
+| `mcrs_minecraft_render` | Deferred terrain and sky renderer: a G-buffer, one fullscreen lighting pass and forward translucents, drawn in ordered world pass stages | - | - | - |
+| `mcrs_minecraft_render_controller` | Render controllers of a client entity: the layers, their geometry, texture and visible bones in a frame | yes | - | - |
+| `mcrs_minecraft_render_probe` | GPU pass timings, CPU stage timings, draw counters and GPU warm-up for the terrain renderer | - | - | - |
+| `mcrs_molang_wgsl` | Lowering of pure Molang channels to WGSL and the WGSL math library | yes | yes | - |
+
+### Layer 7: Applications
+
+| Crate | Description | No Bevy | no_std | wasm32 |
+|---|---|---|---|---|
+| `mcrs_minecraft_chat_client` | The client chat screen without rendering: the input box, the history, client-side command suggestions, hint lines and the chat log | yes | - | - |
+| `mcrs_minecraft_client` | Minecraft client: window, asset corpus, environment registries and the voxel renderer | - | - | - |
+| `mcrs_minecraft_client_entity` | The client state of the entities that the server adds: movement, interpolation, head and body yaw, walk, hurt and death, and the values a renderer reads | - | - | - |
+| `mcrs_minecraft_client_gui` | The GUI of a Minecraft client: hotbar, inventory and chat screens, game mode switcher, slot item models and the F3 debug screen | - | - | - |
+| `mcrs_minecraft_client_world` | The world state of a Minecraft client without a window or a renderer: session registries, columns, the local player, game mode and chat | - | - | - |
+| `mcrs_minecraft_console` | The server console: command lines from the standard input, run as the server, and their answers in the log in English | - | - | - |
+| `mcrs_minecraft_server` | The server app: the plugin group that puts vanilla behaviour on the engine server | - | - | - |
+| `mcrs_minecraft_server_settings` | The settings of a server run that the MCRS_ environment variables set, read in one place | yes | - | - |
+
+### Support
+
+| Crate | Description | No Bevy | no_std | wasm32 |
+|---|---|---|---|---|
+| `mcrs_test_alloc` | A global allocator that counts the allocations of the calling thread, for tests | yes | - | - |
+
+## Why some crates need Bevy
+
+Below layer 4, Bevy is an optional feature, and below layer 2 so is tokio. From layer 4 up, Bevy is required, because the engine, the vanilla plugins, the client and the server are Bevy plugins. If you only want data types and codecs, stay in layers 1 to 3 and build with `--no-default-features`. Layers 4 and 5 are covered in [Layers](/docs/en/concepts/layers/).
