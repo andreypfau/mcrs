@@ -27,7 +27,9 @@ architecture.
   direction of the sign (SIGN-PLACE-001).
 - **Side text**: the data of one side of the block entity: four messages, an optional list of
   four filtered messages, a dye colour and a glowing flag. The data is in the fields
-  `front_text` and `back_text` of the block entity (`crates/mcrs_minecraft_block_entity/src/sign_text.rs`).
+  `front_text` and `back_text` of the block entity. The block entity declares the two fields in
+  `crates/mcrs_minecraft_block_entity/src/generated_block_entity.rs`, and their type is in
+  `crates/mcrs_minecraft_block_entity/src/sign_text.rs`.
   A side text with no colour has the dye colour `black`. A side text with no glowing flag is not
   glowing.
 - **Message**: one text component of a side text.
@@ -303,7 +305,7 @@ and 8. Milestone: 1. Experiment: SIGN-EXP-005.
   - the camera entity exists, and the squared distance from the camera entity to the centre of
     the block is less than 256.
 - **Postconditions:** a glowing sign at 16 blocks or more shows no outline, if its dye is not
-  `black`.
+  `black`, unless the local player looks through a spyglass in the first person view.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1. Experiment:
 SIGN-EXP-006.
