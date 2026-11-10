@@ -11,6 +11,7 @@ use crate::summary_input::{
 pub const USAGE: &str = "usage: perf-kit summary <run dir> [--lang en|ru] [--zip <path>]";
 
 const HEADLINE_PHASE: &str = "crowd-stir";
+const IDLE_PHASE: &str = "idle";
 const NOT_ASKED: &str = "not asked";
 const MESSAGE_WIDTH: usize = 110;
 
@@ -98,7 +99,7 @@ fn render(lang: Lang, inputs: &Inputs) -> Vec<String> {
         format!(
             "{}: {}",
             lang.pick("Machine", "Машина"),
-            machine(inputs.system)
+            machine(lang, inputs.system)
         ),
         format!(
             "{}: {}; {}: {}",
@@ -129,16 +130,25 @@ fn render(lang: Lang, inputs: &Inputs) -> Vec<String> {
     lines
 }
 
-fn machine(system: &SystemIn) -> String {
+fn machine(lang: Lang, system: &SystemIn) -> String {
     let cpu = system.cpu.as_ref().and_then(|cpu| cpu.brand.as_deref());
-    let memory = system
-        .memory_bytes
-        .map(|bytes| format!("{} GB", bytes.saturating_add(1 << 29) >> 30));
-    let gpu = system
-        .gpus
-        .iter()
-        .flatten()
-        .find_map(|gpu| gpu.model.as_deref());
+    let memory = system.memory_bytes.map(|bytes| {
+        format!(
+            "{} {}",
+            bytes.saturating_add(1 << 29) >> 30,
+            lang.pick("GB", "ГБ")
+        )
+    });
+    let gpu = system.gpus.iter().flatten().next().and_then(|gpu| {
+        let model = gpu.model.as_deref();
+        match (gpu.cores, model == cpu) {
+            (Some(cores), true) => Some(match lang {
+                Lang::En => format!("{cores}-core GPU"),
+                Lang::Ru => format!("GPU {cores} {}", core_word(cores)),
+            }),
+            _ => model.map(str::to_owned),
+        }
+    });
     let os = system.os.as_ref().map(|os| {
         format!(
             "{} {}",
@@ -148,16 +158,25 @@ fn machine(system: &SystemIn) -> String {
         .trim_end()
         .to_owned()
     });
-    [cpu.map(str::to_owned), memory, gpu.map(str::to_owned), os]
+    [cpu.map(str::to_owned), memory, gpu, os]
         .map(|part| part.unwrap_or_else(|| "-".to_owned()))
         .join(", ")
+}
+
+fn core_word(cores: u32) -> &'static str {
+    match (cores % 10, cores % 100) {
+        (_, 11..=14) => "ядер",
+        (1, _) => "ядро",
+        (2..=4, _) => "ядра",
+        _ => "ядер",
+    }
 }
 
 fn mob_lines(lang: Lang, mob: &[MobRunIn], pigs: Option<u64>) -> Vec<String> {
     let mut lines = vec![
         lang.pick(
-            "Mob, no client: TPS and how many times mcrs is faster by full tick time",
-            "Мобы, без клиента: TPS и во сколько раз mcrs быстрее по полному тику",
+            "Mobs without a client: TPS and how many times faster mcrs is per full tick",
+            "Мобы без клиента: TPS и во сколько раз mcrs быстрее по полному тику",
         )
         .to_owned(),
     ];
@@ -234,10 +253,10 @@ fn headline_sentence(lang: Lang, pigs: Option<u64>, ours: &PhaseIn, theirs: &Pha
     );
     match lang {
         Lang::En => format!(
-            "With {pigs} pigs crowding ({HEADLINE_PHASE}), mcrs runs at {mcrs_tps} TPS and vanilla at {vanilla_tps} TPS; a full mcrs tick takes {mcrs_ms} ms against {vanilla_ms} ms."
+            "In {HEADLINE_PHASE} with {pigs} pigs, mcrs runs at {mcrs_tps} TPS and vanilla at {vanilla_tps} TPS; a full mcrs tick takes {mcrs_ms} ms against {vanilla_ms} ms."
         ),
         Lang::Ru => format!(
-            "С {pigs} свиней в загоне ({HEADLINE_PHASE}) mcrs держит {mcrs_tps} TPS, vanilla {vanilla_tps} TPS; полный тик mcrs занимает {mcrs_ms} мс против {vanilla_ms} мс."
+            "В {HEADLINE_PHASE} с {pigs} свиней mcrs держит {mcrs_tps} TPS, vanilla {vanilla_tps} TPS; полный тик mcrs занимает {mcrs_ms} мс против {vanilla_ms} мс."
         ),
     }
 }
@@ -248,15 +267,16 @@ fn watcher_line(lang: Lang, mob: &[MobRunIn]) -> Option<String> {
         let values: Vec<f64> = run
             .phases
             .iter()
-            .filter(|phase| phase.skipped.is_none())
+            .filter(|phase| phase.skipped.is_none() && phase.phase != IDLE_PHASE)
             .filter_map(|phase| phase.console_tps)
             .collect();
         let low = values.iter().copied().reduce(f64::min)?;
         let high = values.iter().copied().reduce(f64::max)?;
+        let (low, high) = (format!("{low:.1}"), format!("{high:.1}"));
         Some(if low == high {
-            format!("{low:.1}")
+            low
         } else {
-            format!("{low:.1}-{high:.1}")
+            format!("{low}-{high}")
         })
     };
     let (mcrs, vanilla) = (range("mcrs-watcher"), range("vanilla-watcher"));
@@ -480,18 +500,36 @@ mod tests {
     }
 
     #[test]
+    fn watcher_range_skips_idle_and_collapses_equal_values() {
+        let report = report();
+        let mob = report.mob.as_deref().unwrap_or_default();
+        let line = watcher_line(Lang::En, mob);
+        assert_eq!(line, None, "no watcher run in the fixture");
+        let text = format!(
+            "[{}, {}]",
+            run_json("mcrs-watcher", 19.99, 1.0),
+            run_json("vanilla-watcher", 1.46, 1.0)
+        );
+        let watchers: Vec<MobRunIn> = serde_json::from_str(&text).expect("hand-built runs");
+        assert_eq!(
+            watcher_line(Lang::En, &watchers).as_deref(),
+            Some("With a watcher client: mcrs 20.0 TPS, vanilla 1.5 TPS")
+        );
+    }
+
+    #[test]
     fn headline_sentence_and_skipped_phase_in_both_languages() {
         let report = report();
         let cases = [
             (
                 Lang::En,
-                "With 50,000 pigs crowding (crowd-stir), mcrs runs at 20.0 TPS and vanilla at 2.1 TPS; a full mcrs tick takes 13.4 ms against 479 ms.",
+                "In crowd-stir with 50,000 pigs, mcrs runs at 20.0 TPS and vanilla at 2.1 TPS; a full mcrs tick takes 13.4 ms against 479 ms.",
                 "skipped: no pigs",
                 "Problems: none",
             ),
             (
                 Lang::Ru,
-                "С 50 000 свиней в загоне (crowd-stir) mcrs держит 20.0 TPS, vanilla 2.1 TPS; полный тик mcrs занимает 13.4 мс против 479 мс.",
+                "В crowd-stir с 50 000 свиней mcrs держит 20.0 TPS, vanilla 2.1 TPS; полный тик mcrs занимает 13.4 мс против 479 мс.",
                 "пропущено: no pigs",
                 "Проблемы: нет",
             ),

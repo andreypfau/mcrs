@@ -42,8 +42,8 @@ done
 
 if [ "$yes" = 0 ] && [ ! -t 0 ]; then
     PERF_KIT_LANG="${lang:-$(system_lang)}"
-    msg "Standard input is not a terminal, so run.sh cannot ask questions. Add --yes (with --label and, for the mob section, --accept-eula) to run unattended." \
-        "Стандартный ввод не терминал, поэтому run.sh не может задавать вопросы. Добавьте --yes (вместе с --label и, для секции мобов, --accept-eula), чтобы запуск шел без вопросов."
+    msg "Standard input is not a terminal, so run.sh cannot ask questions. To run without questions, add --yes with --label (and --accept-eula if the mob section is needed)." \
+        "Стандартный ввод не терминал, run.sh не может задавать вопросы. Для запуска без вопросов добавьте --yes вместе с --label (и --accept-eula, если нужна секция мобов)."
     exit 2
 fi
 
@@ -65,16 +65,16 @@ repo="$(repo_of_kit)"
 
 msg "mcrs benchmark kit, profile: $profile" "Бенчмарки mcrs, профиль: $profile"
 if [ "$profile" = full ]; then
-    msg "Expected time: about 1.5-3 hours, depending on the machine." "Займет примерно 1,5-3 часа, смотря какая машина."
+    msg "Expected time: about 1.5-3 hours, depending on the machine." "Займет 1,5-3 часа, в зависимости от машины."
 else
-    msg "Expected time: about 30-60 minutes, depending on the machine." "Займет примерно 30-60 минут, смотря какая машина."
+    msg "Expected time: about 30-60 minutes, depending on the machine." "Займет 30-60 минут, в зависимости от машины."
 fi
-msg "While it runs, do not touch the computer. The game window must stay visible, on top and not minimised." "Пока идут замеры, не трогайте компьютер. Окно игры должно быть видно, поверх остальных окон и не свернуто."
+msg "Do not touch the computer while it runs. Keep the game window visible, on top and not minimised." "Пока идут замеры, не трогайте компьютер. Окно игры не сворачивайте и не закрывайте другими окнами."
 say ""
 
 label="$(clean_label "$label")"
 if [ "$yes" = 1 ] && [ -z "$label" ]; then
-    msg "--yes needs --label NAME, since the run cannot ask for it." "С --yes нужен --label NAME, так как запуск не может его спросить."
+    msg "--yes needs --label NAME: an unattended run cannot ask for one." "С --yes обязателен --label NAME: запуск без вопросов не может спросить метку."
     exit 2
 fi
 while [ -z "$label" ]; do
@@ -86,8 +86,8 @@ done
 sections=()
 case ",$only," in
     *,mob,*)
-        msg "The mob benchmark runs the Minecraft server, which needs the Minecraft EULA: https://aka.ms/MinecraftEULA" \
-            "Бенчмарк мобов запускает сервер Minecraft, а для него нужно принять Minecraft EULA: https://aka.ms/MinecraftEULA"
+        msg "The mob benchmark runs the Minecraft server, so you must accept the Minecraft EULA: https://aka.ms/MinecraftEULA" \
+            "Бенчмарк мобов запускает сервер Minecraft, для этого нужно принять Minecraft EULA: https://aka.ms/MinecraftEULA"
         if [ "$accept_eula" = 1 ] || { [ "$yes" = 0 ] && ask "$(msg "Do you accept the Minecraft EULA?" "Принять Minecraft EULA?")"; }; then
             sections=(--accept-eula)
         else
@@ -145,11 +145,11 @@ find "$dir" -type f -exec env LC_ALL=C sed -i '' "s|$HOME|~|g" {} +
 
 "$KIT_DIR/prepare.sh" --check-only --out "$dir/hygiene-after.json"
 
-(cd "$results" && ditto -c -k --keepParent "$name" "$name.zip") || { msg "Could not create the zip; send the folder $dir instead." "Не получилось создать zip; отправьте вместо него папку $dir."; exit 1; }
+(cd "$results" && ditto -c -k --keepParent "$name" "$name.zip") || { msg "Could not create the zip; send the folder $dir instead." "Zip не создался; отправьте папку $dir."; exit 1; }
 say ""
 "$repo/target/release/perf-kit" summary "$dir" --zip "$results/$name.zip"
 say ""
-if [ "$status" -ne 0 ]; then msg "Some sections failed (exit $status); the zip still holds everything that was measured." "Часть секций упала (код $status); в zip все равно есть все, что успели замерить."; fi
+if [ "$status" -ne 0 ]; then msg "Some sections failed (exit $status); the zip still holds everything that was measured." "Часть секций завершилась с ошибкой (код $status); в zip все, что успели замерить."; fi
 msg "Done. Send this file: $results/$name.zip" "Готово. Отправьте этот файл: $results/$name.zip"
-msg "It holds system.json, hygiene.json, hygiene-after.json, report.json, raw/ and run.log." "В нем system.json, hygiene.json, hygiene-after.json, report.json, raw/ и run.log."
+msg "Inside: system.json, hygiene.json, hygiene-after.json, report.json, raw/ and run.log." "Внутри: system.json, hygiene.json, hygiene-after.json, report.json, raw/ и run.log."
 exit "$status"

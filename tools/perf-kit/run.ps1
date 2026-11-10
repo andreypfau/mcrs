@@ -9,7 +9,7 @@ param([switch]$Full, [string]$Label = '', [ValidateSet('en', 'ru')][string]$Lang
 if ((-not $Yes) -and [Console]::IsInputRedirected) {
     $env:PERF_KIT_LANG = $Lang
     if (-not $Lang -and (Get-UICulture).TwoLetterISOLanguageName -eq 'ru') { $env:PERF_KIT_LANG = 'ru' }
-    Write-Host (T 'Standard input is redirected, so run.ps1 cannot ask questions. Add -Yes (with -Label and, for the mob section, -AcceptEula) to run unattended.' 'Стандартный ввод перенаправлен, поэтому run.ps1 не может задавать вопросы. Добавьте -Yes (вместе с -Label и, для секции мобов, -AcceptEula), чтобы запуск шел без вопросов.')
+    Write-Host (T 'Standard input is redirected, so run.ps1 cannot ask questions. To run without questions, add -Yes with -Label (and -AcceptEula if the mob section is needed).' 'Стандартный ввод перенаправлен, run.ps1 не может задавать вопросы. Для запуска без вопросов добавьте -Yes вместе с -Label (и -AcceptEula, если нужна секция мобов).')
     exit 2
 }
 
@@ -55,22 +55,22 @@ function Restore-PowerPlan {
 $repo = Get-KitRepo
 if (-not $repo) { Write-Host (T 'run.ps1 must stay inside the mcrs checkout; run bootstrap.ps1 first.' 'run.ps1 должен лежать внутри клона mcrs; сначала запустите bootstrap.ps1.'); exit 1 }
 
-if ((Test-Path $PowerRestoreFile) -and ($Yes -or (Confirm-Choice (T 'An earlier run stopped before it switched the power plan back. Restore the previous plan now? Otherwise this run restores it when it ends.' 'Прошлый запуск прервался и не вернул схему питания. Вернуть прежнюю схему сейчас? Иначе ее вернет этот запуск, когда закончится.')))) {
+if ((Test-Path $PowerRestoreFile) -and ($Yes -or (Confirm-Choice (T 'An earlier run stopped before it switched the power plan back. Restore the previous plan now? If not, this run restores it when it ends.' 'Прошлый запуск прервался и не вернул схему питания. Вернуть ее сейчас? Если нет, ее вернет этот запуск в конце.')))) {
     Restore-PowerPlan
 }
 
 Write-Host (T "mcrs benchmark kit, profile: $benchProfile" "Бенчмарки mcrs, профиль: $benchProfile")
 if ($Full) {
-    Write-Host (T 'Expected time: about 1.5-3 hours, depending on the machine.' 'Займет примерно 1,5-3 часа, смотря какая машина.')
+    Write-Host (T 'Expected time: about 1.5-3 hours, depending on the machine.' 'Займет 1,5-3 часа, в зависимости от машины.')
 } else {
-    Write-Host (T 'Expected time: about 30-60 minutes, depending on the machine.' 'Займет примерно 30-60 минут, смотря какая машина.')
+    Write-Host (T 'Expected time: about 30-60 minutes, depending on the machine.' 'Займет 30-60 минут, в зависимости от машины.')
 }
-Write-Host (T 'While it runs, do not touch the computer. The game window must stay visible, on top and not minimised.' 'Пока идут замеры, не трогайте компьютер. Окно игры должно быть видно, поверх остальных окон и не свернуто.')
+Write-Host (T 'Do not touch the computer while it runs. Keep the game window visible, on top and not minimised.' 'Пока идут замеры, не трогайте компьютер. Окно игры не сворачивайте и не закрывайте другими окнами.')
 Write-Host ''
 
 $Label = ($Label -replace '[^A-Za-z0-9_-]+', '-').Trim('-')
 if ($Yes -and -not $Label) {
-    Write-Host (T '-Yes needs -Label NAME, since the run cannot ask for it.' 'С -Yes нужен -Label NAME, так как запуск не может его спросить.')
+    Write-Host (T '-Yes needs -Label NAME: an unattended run cannot ask for one.' 'С -Yes обязателен -Label NAME: запуск без вопросов не может спросить метку.')
     exit 2
 }
 while (-not $Label) {
@@ -85,7 +85,7 @@ foreach ($section in $Only) {
 if ($Only.Count -eq 0) { Write-Host '-Only takes a comma list of mob, client, server, worldgen'; exit 2 }
 $sections = @()
 if ($Only -contains 'mob') {
-    Write-Host (T 'The mob benchmark runs the Minecraft server, which needs the Minecraft EULA: https://aka.ms/MinecraftEULA' 'Бенчмарк мобов запускает сервер Minecraft, а для него нужно принять Minecraft EULA: https://aka.ms/MinecraftEULA')
+    Write-Host (T 'The mob benchmark runs the Minecraft server, so you must accept the Minecraft EULA: https://aka.ms/MinecraftEULA' 'Бенчмарк мобов запускает сервер Minecraft, для этого нужно принять Minecraft EULA: https://aka.ms/MinecraftEULA')
     if ($AcceptEula -or ((-not $Yes) -and (Confirm-Choice (T 'Do you accept the Minecraft EULA?' 'Принять Minecraft EULA?')))) {
         $sections = @('--accept-eula')
     } else {
@@ -165,15 +165,15 @@ try {
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         [IO.Compression.ZipFile]::CreateFromDirectory($dir, $zip, [IO.Compression.CompressionLevel]::Optimal, $true)
     } catch {
-        Write-Host (T "Could not create the zip; send the folder $dir instead." "Не получилось создать zip; отправьте вместо него папку $dir.")
+        Write-Host (T "Could not create the zip; send the folder $dir instead." "Zip не создался; отправьте папку $dir.")
         exit 1
     }
     Write-Host ''
     & (Join-Path $repo 'target\release\perf-kit.exe') summary $dir --zip $zip
     Write-Host ''
-    if ($status -ne 0) { Write-Host (T "Some sections failed (exit $status); the zip still holds everything that was measured." "Часть секций упала (код $status); в zip все равно есть все, что успели замерить.") }
+    if ($status -ne 0) { Write-Host (T "Some sections failed (exit $status); the zip still holds everything that was measured." "Часть секций завершилась с ошибкой (код $status); в zip все, что успели замерить.") }
     Write-Host (T "Done. Send this file: $zip" "Готово. Отправьте этот файл: $zip")
-    Write-Host (T 'It holds system.json, hygiene.json, hygiene-after.json, report.json, raw\ and run.log.' 'В нем system.json, hygiene.json, hygiene-after.json, report.json, raw\ и run.log.')
+    Write-Host (T 'Inside: system.json, hygiene.json, hygiene-after.json, report.json, raw\ and run.log.' 'Внутри: system.json, hygiene.json, hygiene-after.json, report.json, raw\ и run.log.')
 } finally {
     [void][PerfKitAwake]::SetThreadExecutionState($EsContinuous)
     if (Test-Path $PowerRestoreFile) { Restore-PowerPlan }

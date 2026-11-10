@@ -114,6 +114,7 @@ pub struct CpuIn {
 #[derive(Deserialize)]
 pub struct GpuIn {
     pub model: Option<String>,
+    pub cores: Option<u32>,
 }
 
 #[derive(Deserialize)]

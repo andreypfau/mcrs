@@ -56,11 +56,11 @@ kit_repo() {
 
 build() {
     local repo="$1"
-    msg "Building the release binaries in $repo (the first build takes 10-40 minutes)" "Сборка release-бинарников в $repo (первая сборка занимает 10-40 минут)"
+    msg "Building the release binaries in $repo (the first build takes 10-40 minutes)" "Собираем release-бинарники в $repo (первая сборка занимает 10-40 минут)"
     if (cd "$repo" && cargo build --release -p mcrs -p mcrs_minecraft_client -p mcrs_mob_bench -p mcrs_perf_kit); then
         step build OK
     else
-        step build FAILED "$(msg "see the cargo output above; rerun bootstrap.sh to check the toolchain" "смотрите вывод cargo выше; запустите bootstrap.sh еще раз, чтобы проверить тулчейн")"
+        step build FAILED "$(msg "see the cargo output above; rerun bootstrap.sh to check the toolchain" "причина в выводе cargo выше; чтобы проверить тулчейн, запустите bootstrap.sh еще раз")"
     fi
 }
 

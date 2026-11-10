@@ -8,7 +8,7 @@ The kit in `tools/perf-kit/` runs four sections: the mob simulation benchmark (`
 
 Results from different machines are comparable because every run uses the same inputs: the world seed is fixed at 12345, the client window has a fixed size chosen from a short list (1920x1080, 1600x900, 1280x720), and the run follows one of two fixed profiles. The `quick` profile is the default and takes about 30-60 minutes. The `full` profile measures for longer and takes about 1.5-3 hours.
 
-Next to the numbers, the kit records what the numbers depend on: the CPU, GPU, memory and displays (`system.json`), and the state of the machine before and after the run (`hygiene.json`, `hygiene-after.json`): which apps were open, whether the machine ran on battery, how busy the CPU was. A result from a noisy machine is still useful when we know it was noisy.
+The kit also records what the numbers depend on: the CPU, GPU, memory and displays (`system.json`), and the state of the machine before and after the run (`hygiene.json`, `hygiene-after.json`): which apps were open, whether the machine ran on battery, how busy the CPU was. A result from a noisy machine is still useful when we know it was noisy.
 
 ## Before you start
 
@@ -47,7 +47,7 @@ Do this once before `run`, in this order. `run` checks most of it again and asks
 7. Let the machine cool down if it was busy: a laptop that just compiled or played a game runs at a lower clock for a few minutes.
 8. Start `run` (see the steps below) and do not touch the computer until it prints `Done`.
 
-What `prepare` checks by itself, before and after the run: the apps from the list in step 3 (it shows their CPU and memory and closes each one only after you answer `y`; it never closes the terminal or system processes), the CPU being idle (under 10% for 10 seconds, it waits up to 5 minutes), system background work (Spotlight, Time Machine, Windows Defender, Windows Search, Windows Update; it waits for them), AC power, the power plan or Low Power Mode, the thermal state and free memory. It then asks you to confirm steps 4 to 6, because a script cannot read them; your answers go into `hygiene.json`.
+What `prepare` checks on its own, before and after the run: the apps from the list in step 3 (it shows their CPU and memory and closes each one only after you answer `y`; it never closes the terminal or system processes), the CPU being idle (under 10% for 10 seconds, it waits up to 5 minutes), system background work (Spotlight, Time Machine, Windows Defender, Windows Search, Windows Update; it waits for them), AC power, the power plan or Low Power Mode, the thermal state and free memory. It then asks about steps 4 to 6, because a script cannot read them; the answers go into `hygiene.json`.
 
 ## macOS
 
@@ -67,7 +67,7 @@ What `prepare` checks by itself, before and after the run: the apps from the lis
    ~/mcrs-perf/mcrs/tools/perf-kit/run.sh
    ```
 
-   Add `--full` for the full profile. The script first asks for the language of its messages, English or Russian, with the system language as the default; `--lang en` or `--lang ru` skips the question, and the progress lines of `perf-kit` itself stay in English. It then asks for a machine label (for example `m2-air`) and whether you accept the Minecraft EULA, then walks you through closing apps and checks the machine.
+   Add `--full` for the full profile. The script first asks for the language of its messages, English or Russian, with the system language as the default; `--lang en` or `--lang ru` skips the question, and the progress lines of `perf-kit` itself stay in English. It then asks for a machine label (for example `m2-air`) and whether you accept the Minecraft EULA, then asks which apps to close and checks the machine.
 
    `--only mob,server,worldgen` runs a subset of the sections `mob`, `client`, `server` and `worldgen`. Only `client` needs a display: on a Mac mini with no monitor, a Screen Sharing session changes how frames reach the screen and costs CPU, and with no session there is no display to draw on. Run the other sections with Screen Sharing disconnected, and the client with a monitor or an HDMI dummy plug attached.
 

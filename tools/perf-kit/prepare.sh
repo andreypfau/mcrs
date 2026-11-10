@@ -193,12 +193,12 @@ cpu_busy() {
 check_idle() {
     local busy started now
     started="$(date +%s)"
-    msg "  measuring CPU load over 10 s" "  замеряем нагрузку на CPU за 10 с"
+    msg "  measuring CPU load over 10 s" "  измеряем нагрузку на CPU 10 с"
     busy="$(cpu_busy)"
     while interactive && awk -v b="$busy" -v l="$BUSY_LIMIT" 'BEGIN { exit !(b >= l) }'; do
         now="$(date +%s)"
         [ $((now - started)) -ge $GATE_SECONDS ] && break
-        msg "  CPU is ${busy}% busy (limit ${BUSY_LIMIT}%). Busiest processes:" "  CPU загружен на ${busy}% (предел ${BUSY_LIMIT}%). Самые прожорливые процессы:"
+        msg "  CPU is ${busy}% busy (limit ${BUSY_LIMIT}%). Busiest processes:" "  CPU загружен на ${busy}% (предел ${BUSY_LIMIT}%). Больше всего грузят:"
         ps -Arco pcpu=,comm= | head -5 | sed 's/^/    /'
         busy="$(cpu_busy)"
     done
@@ -266,7 +266,7 @@ check_memory
 check_screen_sharing
 check_screen_lock
 if interactive; then
-    msg "Please confirm (answers are recorded, nothing is enforced):" "Подтвердите (ответы попадут в отчет, скрипт их не проверяет):"
+    msg "Answer these questions (answers are recorded, nothing is enforced):" "Ответьте на вопросы (ответы попадут в отчет, скрипт их не проверяет):"
     manual "focus" "Is Do Not Disturb or a Focus mode on, so no notification covers the window?" \
         "Включен режим Не беспокоить или другой режим фокусирования, чтобы уведомления не перекрывали окно?"
     manual "display stays on" "Is the lid open and the display set to stay on (no screen saver, no dimming)?" \

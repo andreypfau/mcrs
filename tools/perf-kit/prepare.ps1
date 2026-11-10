@@ -171,10 +171,10 @@ function Get-CpuBusy {
 
 function Test-Idle {
     $started = Get-Date
-    Write-Host (T '  measuring CPU load over 10 s' '  замеряем нагрузку на CPU за 10 с')
+    Write-Host (T '  measuring CPU load over 10 s' '  измеряем нагрузку на CPU 10 с')
     $busy = Get-CpuBusy
     while ($Interactive -and $busy -ge $BusyLimit -and ((Get-Date) - $started).TotalSeconds -lt $GateSeconds) {
-        Write-Host (T "  CPU is $busy% busy (limit $BusyLimit%). Busiest processes:" "  CPU загружен на $busy% (предел $BusyLimit%). Самые прожорливые процессы:")
+        Write-Host (T "  CPU is $busy% busy (limit $BusyLimit%). Busiest processes:" "  CPU загружен на $busy% (предел $BusyLimit%). Больше всего грузят:")
         Get-CimInstance Win32_PerfFormattedData_PerfProc_Process |
             Where-Object { $_.Name -ne '_Total' -and $_.Name -ne 'Idle' } |
             Sort-Object PercentProcessorTime -Descending | Select-Object -First 5 |
@@ -216,7 +216,7 @@ Test-Idle
 Test-Memory
 Test-Session
 if ($Interactive) {
-    Write-Host (T 'Please confirm (answers are recorded, nothing is enforced):' 'Подтвердите (ответы попадут в отчет, скрипт их не проверяет):')
+    Write-Host (T 'Answer these questions (answers are recorded, nothing is enforced):' 'Ответьте на вопросы (ответы попадут в отчет, скрипт их не проверяет):')
     Add-Manual 'focus' 'Is Do not disturb (Focus assist) on, so no notification covers the window?' `
         'Включен режим Не беспокоить (Помощник по фокусировке), чтобы уведомления не перекрывали окно?'
     Add-Manual 'vsync override' 'In the NVIDIA, AMD or Intel control panel, is Vertical sync left to the application (no override)? Note G-Sync or FreeSync if on.' `

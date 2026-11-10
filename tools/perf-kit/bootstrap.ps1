@@ -95,7 +95,7 @@ function Test-Toolchain([string]$Channel) {
 }
 
 function Invoke-Build([string]$Repo) {
-    Write-Host (T "Building the release binaries in $Repo (the first build takes 10-40 minutes)" "Сборка release-бинарников в $Repo (первая сборка занимает 10-40 минут)")
+    Write-Host (T "Building the release binaries in $Repo (the first build takes 10-40 minutes)" "Собираем release-бинарники в $Repo (первая сборка занимает 10-40 минут)")
     $log = Join-Path $env:TEMP 'mcrs-perf-build.log'
     Push-Location $Repo
     $code = 1
@@ -105,7 +105,7 @@ function Invoke-Build([string]$Repo) {
         if ($code -eq 0) { break }
         $denied = Select-String -Path $log -Pattern 'os error 5', 'Access is denied' -SimpleMatch -Quiet
         if ($attempt -eq 1 -and $denied) {
-            Write-Host (T 'The build hit "Access is denied" (os error 5), usually an antivirus scan holding a file. Retrying once in 15 s.' 'Сборка получила "Access is denied" (os error 5): обычно файл держит антивирус. Повтор через 15 с, один раз.')
+            Write-Host (T 'The build failed with "Access is denied" (os error 5), usually an antivirus scan holding a file. Retrying once in 15 s.' 'Сборка упала с "Access is denied" (os error 5): обычно файл держит антивирус. Повторим один раз через 15 с.')
             Start-Sleep -Seconds 15
             continue
         }
@@ -117,7 +117,7 @@ function Invoke-Build([string]$Repo) {
     } elseif ($denied) {
         Add-Step 'build' 'FAILED' (T 'os error 5 twice: add the Defender exclusion (rerun bootstrap.ps1 and answer y) and retry' 'os error 5 дважды: добавьте исключение в Defender (запустите bootstrap.ps1 еще раз и ответьте y) и повторите')
     } else {
-        Add-Step 'build' 'FAILED' (T 'see the cargo output above; rerun bootstrap.ps1 to check the toolchain' 'смотрите вывод cargo выше; запустите bootstrap.ps1 еще раз, чтобы проверить тулчейн')
+        Add-Step 'build' 'FAILED' (T 'see the cargo output above; rerun bootstrap.ps1 to check the toolchain' 'причина в выводе cargo выше; чтобы проверить тулчейн, запустите bootstrap.ps1 еще раз')
     }
 }
 
