@@ -1,6 +1,6 @@
-use crate::item_keys::Item;
 use mcrs_minecraft_core::codec::Validate;
 use mcrs_minecraft_core::validated;
+use mcrs_minecraft_item::item_keys::Item;
 use mcrs_minecraft_registries::{
     IdSet, KeySet, Named, Refs, Resolved, Wire, WireId, WireSet, registry_value,
 };
@@ -9,7 +9,7 @@ use mcrs_minecraft_wire::{Decode, Encode, Error, Result};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 
-use crate::stack::ItemRef;
+use mcrs_minecraft_item::stack::ItemRef;
 
 validated!(Ingredient<Named>);
 

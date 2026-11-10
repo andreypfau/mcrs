@@ -12,7 +12,7 @@ use mcrs_minecraft_engine_mob_replication::MobReplicationPlugin;
 use mcrs_minecraft_engine_physics::EntityPhysicsPlugin;
 use mcrs_minecraft_engine_server::{DimensionWorldsPlugin, ServerCorePlugin, ServerNetworkPlugin};
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
-use mcrs_minecraft_item::damage_type_tag_keys::PANIC_CAUSES;
+use mcrs_minecraft_entity::damage_type_tag_keys::PANIC_CAUSES;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 use mcrs_minecraft_vanilla_worldgen::{WorldGenPlugin, WorldgenRegistriesPlugin};
 

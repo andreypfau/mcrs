@@ -64,7 +64,7 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:damage_type",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_entity",
         value: ValueType::Defined("crate::damage_type::DamageType"),
     },
     Owner {
@@ -464,7 +464,7 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:mob_effect",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_entity",
         value: ValueType::Enum("MobEffect"),
     },
     Owner {
@@ -519,12 +519,12 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:recipe_display",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_recipe",
         value: ValueType::Enum("RecipeDisplayType"),
     },
     Owner {
         registry: "minecraft:slot_display",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_recipe",
         value: ValueType::Enum("SlotDisplayType"),
     },
     Owner {
@@ -549,7 +549,7 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:menu",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_menu",
         value: ValueType::Enum("MenuType"),
     },
     Owner {
@@ -594,12 +594,12 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:recipe_serializer",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_recipe",
         value: ValueType::Enum("RecipeSerializer"),
     },
     Owner {
         registry: "minecraft:recipe_book_category",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_recipe",
         value: ValueType::Enum("RecipeBookCategory"),
     },
     Owner {
@@ -619,22 +619,22 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:loot_table",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_loot",
         value: ValueType::Defined("crate::loot::LootTable"),
     },
     Owner {
         registry: "minecraft:context_key_set",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_loot",
         value: ValueType::Enum("ContextKeySet"),
     },
     Owner {
         registry: "minecraft:context_int_provider",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_loot",
         value: ValueType::Defined("crate::loot::ContextIntProvider"),
     },
     Owner {
         registry: "minecraft:context_float_provider",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_loot",
         value: ValueType::Defined("crate::loot::ContextFloatProvider"),
     },
     Owner {
@@ -654,12 +654,12 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:context_int_provider_type",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_loot",
         value: ValueType::Enum("ContextIntProviderType"),
     },
     Owner {
         registry: "minecraft:context_float_provider_type",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_loot",
         value: ValueType::Enum("ContextFloatProviderType"),
     },
     Owner {

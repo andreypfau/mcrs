@@ -1,5 +1,6 @@
 pub mod attribute;
 mod base_attributes;
+pub mod damage_type;
 mod entity_type_data;
 mod life;
 mod mob_data;
@@ -19,11 +20,17 @@ pub mod cow_sound_variant_keys;
 #[rustfmt::skip]
 pub mod cow_variant_keys;
 #[rustfmt::skip]
+pub mod damage_type_keys;
+#[rustfmt::skip]
+pub mod damage_type_tag_keys;
+#[rustfmt::skip]
 pub mod entity_type_keys;
 #[rustfmt::skip]
 pub mod entity_type_tag_keys;
 #[rustfmt::skip]
 pub mod frog_variant_keys;
+#[rustfmt::skip]
+pub mod mob_effect_keys;
 #[rustfmt::skip]
 pub mod pig_sound_variant_keys;
 #[rustfmt::skip]
@@ -62,3 +69,5 @@ pub use variant_indices::VariantIndices;
 pub const PLAYER_WIDTH: f64 = 0.6;
 pub const PLAYER_HEIGHT: f64 = 1.8;
 pub const PLAYER_EYE_HEIGHT: f64 = 1.62;
+
+mcrs_minecraft_registries::resolve_as_is!(crate::damage_type::DamageType);

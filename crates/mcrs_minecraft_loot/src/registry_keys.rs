@@ -2,6 +2,38 @@
 
 use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
+pub const CONTEXT_FLOAT_PROVIDER: RegistryKey<crate::loot::ContextFloatProvider> =
+    RegistryKey::new(rl!("minecraft:context_float_provider"));
+impl Registered for crate::loot::ContextFloatProvider {
+    const REGISTRY: RegistryKey<Self> = CONTEXT_FLOAT_PROVIDER;
+}
+
+pub const CONTEXT_FLOAT_PROVIDER_TYPE: RegistryKey<
+    crate::context_float_provider_type_keys::ContextFloatProviderType,
+> = RegistryKey::new(rl!("minecraft:context_float_provider_type"));
+impl Registered for crate::context_float_provider_type_keys::ContextFloatProviderType {
+    const REGISTRY: RegistryKey<Self> = CONTEXT_FLOAT_PROVIDER_TYPE;
+}
+
+pub const CONTEXT_INT_PROVIDER: RegistryKey<crate::loot::ContextIntProvider> =
+    RegistryKey::new(rl!("minecraft:context_int_provider"));
+impl Registered for crate::loot::ContextIntProvider {
+    const REGISTRY: RegistryKey<Self> = CONTEXT_INT_PROVIDER;
+}
+
+pub const CONTEXT_INT_PROVIDER_TYPE: RegistryKey<
+    crate::context_int_provider_type_keys::ContextIntProviderType,
+> = RegistryKey::new(rl!("minecraft:context_int_provider_type"));
+impl Registered for crate::context_int_provider_type_keys::ContextIntProviderType {
+    const REGISTRY: RegistryKey<Self> = CONTEXT_INT_PROVIDER_TYPE;
+}
+
+pub const CONTEXT_KEY_SET: RegistryKey<crate::context_key_set_keys::ContextKeySet> =
+    RegistryKey::new(rl!("minecraft:context_key_set"));
+impl Registered for crate::context_key_set_keys::ContextKeySet {
+    const REGISTRY: RegistryKey<Self> = CONTEXT_KEY_SET;
+}
+
 pub const ITEM_MODIFIER: RegistryKey<crate::function::LootItemFunction> =
     RegistryKey::new(rl!("minecraft:item_modifier"));
 impl Registered for crate::function::LootItemFunction {
@@ -38,6 +70,12 @@ pub const LOOT_SCORE_PROVIDER_TYPE: RegistryKey<
 > = RegistryKey::new(rl!("minecraft:loot_score_provider_type"));
 impl Registered for crate::loot_score_provider_type_keys::LootScoreProviderType {
     const REGISTRY: RegistryKey<Self> = LOOT_SCORE_PROVIDER_TYPE;
+}
+
+pub const LOOT_TABLE: RegistryKey<crate::loot::LootTable> =
+    RegistryKey::new(rl!("minecraft:loot_table"));
+impl Registered for crate::loot::LootTable {
+    const REGISTRY: RegistryKey<Self> = LOOT_TABLE;
 }
 
 pub const PREDICATE: RegistryKey<crate::condition::LootCondition> =

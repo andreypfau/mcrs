@@ -1,9 +1,9 @@
-use mcrs_minecraft_item::recipe::Ingredient;
-use mcrs_minecraft_item::{
+use mcrs_minecraft_protocol::Result;
+use mcrs_minecraft_recipe::Ingredient;
+use mcrs_minecraft_recipe::{
     recipe_book_category_keys::RecipeBookCategory, recipe_display_keys::RecipeDisplayType,
     slot_display_keys::SlotDisplayType,
 };
-use mcrs_minecraft_protocol::Result;
 use std::io::Write;
 
 use mcrs_minecraft_core::codec::Validate;

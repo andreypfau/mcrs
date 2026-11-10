@@ -20,44 +20,6 @@ impl Registered for crate::consume_effect_type_keys::ConsumeEffectType {
     const REGISTRY: RegistryKey<Self> = CONSUME_EFFECT_TYPE;
 }
 
-pub const CONTEXT_FLOAT_PROVIDER: RegistryKey<crate::loot::ContextFloatProvider> =
-    RegistryKey::new(rl!("minecraft:context_float_provider"));
-impl Registered for crate::loot::ContextFloatProvider {
-    const REGISTRY: RegistryKey<Self> = CONTEXT_FLOAT_PROVIDER;
-}
-
-pub const CONTEXT_FLOAT_PROVIDER_TYPE: RegistryKey<
-    crate::context_float_provider_type_keys::ContextFloatProviderType,
-> = RegistryKey::new(rl!("minecraft:context_float_provider_type"));
-impl Registered for crate::context_float_provider_type_keys::ContextFloatProviderType {
-    const REGISTRY: RegistryKey<Self> = CONTEXT_FLOAT_PROVIDER_TYPE;
-}
-
-pub const CONTEXT_INT_PROVIDER: RegistryKey<crate::loot::ContextIntProvider> =
-    RegistryKey::new(rl!("minecraft:context_int_provider"));
-impl Registered for crate::loot::ContextIntProvider {
-    const REGISTRY: RegistryKey<Self> = CONTEXT_INT_PROVIDER;
-}
-
-pub const CONTEXT_INT_PROVIDER_TYPE: RegistryKey<
-    crate::context_int_provider_type_keys::ContextIntProviderType,
-> = RegistryKey::new(rl!("minecraft:context_int_provider_type"));
-impl Registered for crate::context_int_provider_type_keys::ContextIntProviderType {
-    const REGISTRY: RegistryKey<Self> = CONTEXT_INT_PROVIDER_TYPE;
-}
-
-pub const CONTEXT_KEY_SET: RegistryKey<crate::context_key_set_keys::ContextKeySet> =
-    RegistryKey::new(rl!("minecraft:context_key_set"));
-impl Registered for crate::context_key_set_keys::ContextKeySet {
-    const REGISTRY: RegistryKey<Self> = CONTEXT_KEY_SET;
-}
-
-pub const DAMAGE_TYPE: RegistryKey<crate::damage_type::DamageType> =
-    RegistryKey::new(rl!("minecraft:damage_type"));
-impl Registered for crate::damage_type::DamageType {
-    const REGISTRY: RegistryKey<Self> = DAMAGE_TYPE;
-}
-
 pub const DATA_COMPONENT_PREDICATE_TYPE: RegistryKey<
     crate::data_component_predicate_type_keys::DataComponentPredicateType,
 > = RegistryKey::new(rl!("minecraft:data_component_predicate_type"));
@@ -129,27 +91,10 @@ impl Registered for crate::JukeboxSong {
     const REGISTRY: RegistryKey<Self> = JUKEBOX_SONG;
 }
 
-pub const LOOT_TABLE: RegistryKey<crate::loot::LootTable> =
-    RegistryKey::new(rl!("minecraft:loot_table"));
-impl Registered for crate::loot::LootTable {
-    const REGISTRY: RegistryKey<Self> = LOOT_TABLE;
-}
-
 pub const MAP_DECORATION_TYPE: RegistryKey<crate::map_decoration_type_keys::MapDecorationType> =
     RegistryKey::new(rl!("minecraft:map_decoration_type"));
 impl Registered for crate::map_decoration_type_keys::MapDecorationType {
     const REGISTRY: RegistryKey<Self> = MAP_DECORATION_TYPE;
-}
-
-pub const MENU: RegistryKey<crate::menu_keys::MenuType> = RegistryKey::new(rl!("minecraft:menu"));
-impl Registered for crate::menu_keys::MenuType {
-    const REGISTRY: RegistryKey<Self> = MENU;
-}
-
-pub const MOB_EFFECT: RegistryKey<crate::mob_effect_keys::MobEffect> =
-    RegistryKey::new(rl!("minecraft:mob_effect"));
-impl Registered for crate::mob_effect_keys::MobEffect {
-    const REGISTRY: RegistryKey<Self> = MOB_EFFECT;
 }
 
 pub const PAINTING_VARIANT: RegistryKey<crate::PaintingVariantValue> =
@@ -167,30 +112,6 @@ impl Registered for crate::potion_keys::Potion {
 pub const RECIPE: RegistryKey<crate::recipe::Recipe> = RegistryKey::new(rl!("minecraft:recipe"));
 impl Registered for crate::recipe::Recipe {
     const REGISTRY: RegistryKey<Self> = RECIPE;
-}
-
-pub const RECIPE_BOOK_CATEGORY: RegistryKey<crate::recipe_book_category_keys::RecipeBookCategory> =
-    RegistryKey::new(rl!("minecraft:recipe_book_category"));
-impl Registered for crate::recipe_book_category_keys::RecipeBookCategory {
-    const REGISTRY: RegistryKey<Self> = RECIPE_BOOK_CATEGORY;
-}
-
-pub const RECIPE_DISPLAY: RegistryKey<crate::recipe_display_keys::RecipeDisplayType> =
-    RegistryKey::new(rl!("minecraft:recipe_display"));
-impl Registered for crate::recipe_display_keys::RecipeDisplayType {
-    const REGISTRY: RegistryKey<Self> = RECIPE_DISPLAY;
-}
-
-pub const RECIPE_SERIALIZER: RegistryKey<crate::recipe_serializer_keys::RecipeSerializer> =
-    RegistryKey::new(rl!("minecraft:recipe_serializer"));
-impl Registered for crate::recipe_serializer_keys::RecipeSerializer {
-    const REGISTRY: RegistryKey<Self> = RECIPE_SERIALIZER;
-}
-
-pub const SLOT_DISPLAY: RegistryKey<crate::slot_display_keys::SlotDisplayType> =
-    RegistryKey::new(rl!("minecraft:slot_display"));
-impl Registered for crate::slot_display_keys::SlotDisplayType {
-    const REGISTRY: RegistryKey<Self> = SLOT_DISPLAY;
 }
 
 pub const TRIM_MATERIAL: RegistryKey<crate::TrimMaterial> =

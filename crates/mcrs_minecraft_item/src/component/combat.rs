@@ -1,5 +1,5 @@
-use crate::damage_type::DamageType;
 use mcrs_minecraft_core::codec::{self, NonNegativeInt, default_true, is_default};
+use mcrs_minecraft_entity::damage_type::DamageType;
 use std::sync::Arc;
 
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, registry_value};

@@ -86,7 +86,7 @@ pub fn paint_buried_treasure<W: WorldGenVolume, R: Random>(
                 pos.x,
                 pos.y,
                 pos.z,
-                mcrs_minecraft_item::loot_table_keys::CHESTS_BURIED_TREASURE,
+                mcrs_minecraft_loot::loot_table_keys::CHESTS_BURIED_TREASURE,
             );
             return;
         }

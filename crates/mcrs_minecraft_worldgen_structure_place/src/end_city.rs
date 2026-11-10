@@ -91,7 +91,7 @@ pub fn place_end_city_piece<W: WorldGenVolume>(
                 seed_container_loot(
                     volume,
                     chest,
-                    mcrs_minecraft_item::loot_table_keys::CHESTS_END_CITY_TREASURE,
+                    mcrs_minecraft_loot::loot_table_keys::CHESTS_END_CITY_TREASURE,
                     rng,
                 );
             }

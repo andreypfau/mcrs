@@ -99,7 +99,7 @@ pub fn place_woodland_mansion_piece<W: WorldGenVolume>(
             volume.set(pos, chest);
             volume.add_block_entity(GeneratedBlockEntity::chest(
                 pos,
-                mcrs_minecraft_item::loot_table_keys::CHESTS_WOODLAND_MANSION.to_string(),
+                mcrs_minecraft_loot::loot_table_keys::CHESTS_WOODLAND_MANSION.to_string(),
                 rng.next_java_long(),
             ));
             continue;

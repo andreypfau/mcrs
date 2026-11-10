@@ -3692,6 +3692,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_loot",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
@@ -3947,7 +3948,7 @@ dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_client_ticks",
  "mcrs_minecraft_core",
- "mcrs_minecraft_item",
+ "mcrs_minecraft_entity",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
  "mcrs_voxel",
@@ -4412,7 +4413,6 @@ dependencies = [
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_goal_world",
  "mcrs_minecraft_goals",
- "mcrs_minecraft_item",
  "mcrs_minecraft_mob_control",
  "mcrs_minecraft_physics",
  "mcrs_minecraft_protocol_game",
@@ -4847,6 +4847,7 @@ dependencies = [
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_loot",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_profile",
  "mcrs_minecraft_registries",
@@ -4944,6 +4945,14 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_loot"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+]
+
+[[package]]
+name = "mcrs_minecraft_menu"
 version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_registries",
@@ -5216,10 +5225,12 @@ dependencies = [
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_menu",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_particle",
  "mcrs_minecraft_profile",
  "mcrs_minecraft_protocol",
+ "mcrs_minecraft_recipe",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_registry_catalog",
  "mcrs_minecraft_resource",
@@ -5242,6 +5253,18 @@ dependencies = [
  "glam",
  "md-5",
  "rand_xoshiro",
+]
+
+[[package]]
+name = "mcrs_minecraft_recipe"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_item",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+ "mcrs_minecraft_wire",
+ "serde",
 ]
 
 [[package]]
@@ -5289,8 +5312,10 @@ dependencies = [
  "mcrs_minecraft_item",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_loot",
+ "mcrs_minecraft_menu",
  "mcrs_minecraft_particle",
  "mcrs_minecraft_predicate",
+ "mcrs_minecraft_recipe",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_sound",
  "mcrs_minecraft_value_provider",
@@ -5634,7 +5659,6 @@ dependencies = [
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_heightmap",
- "mcrs_minecraft_item",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
@@ -5839,6 +5863,7 @@ dependencies = [
  "mcrs_minecraft_entity",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_loot",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_noise",
  "mcrs_minecraft_numeric",
@@ -5955,7 +5980,7 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_entity",
- "mcrs_minecraft_item",
+ "mcrs_minecraft_loot",
  "mcrs_minecraft_random",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",

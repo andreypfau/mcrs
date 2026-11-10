@@ -1,6 +1,5 @@
 pub mod block_transformer;
 pub mod component;
-pub mod damage_type;
 pub mod decorated_pot_pattern;
 pub mod definition;
 pub mod dialog;
@@ -17,20 +16,6 @@ pub mod banner_pattern_tag_keys;
 pub mod block_transformer_keys;
 #[rustfmt::skip]
 pub mod consume_effect_type_keys;
-#[rustfmt::skip]
-pub mod context_float_provider_keys;
-#[rustfmt::skip]
-pub mod context_float_provider_type_keys;
-#[rustfmt::skip]
-pub mod context_int_provider_keys;
-#[rustfmt::skip]
-pub mod context_int_provider_type_keys;
-#[rustfmt::skip]
-pub mod context_key_set_keys;
-#[rustfmt::skip]
-pub mod damage_type_keys;
-#[rustfmt::skip]
-pub mod damage_type_tag_keys;
 #[rustfmt::skip]
 pub mod data_component_predicate_type_keys;
 #[rustfmt::skip]
@@ -64,13 +49,7 @@ pub mod item_tag_keys;
 #[rustfmt::skip]
 pub mod jukebox_song_keys;
 #[rustfmt::skip]
-pub mod loot_table_keys;
-#[rustfmt::skip]
 pub mod map_decoration_type_keys;
-#[rustfmt::skip]
-pub mod menu_keys;
-#[rustfmt::skip]
-pub mod mob_effect_keys;
 #[rustfmt::skip]
 pub mod painting_variant_keys;
 #[rustfmt::skip]
@@ -80,15 +59,7 @@ pub mod potion_keys;
 #[rustfmt::skip]
 pub mod potion_tag_keys;
 #[rustfmt::skip]
-pub mod recipe_book_category_keys;
-#[rustfmt::skip]
-pub mod recipe_display_keys;
-#[rustfmt::skip]
-pub mod recipe_serializer_keys;
-#[rustfmt::skip]
 pub mod registry_keys;
-#[rustfmt::skip]
-pub mod slot_display_keys;
 #[rustfmt::skip]
 pub mod trim_material_keys;
 #[rustfmt::skip]
@@ -109,7 +80,6 @@ mod item_hover_map;
 #[cfg(feature = "bevy")]
 pub mod item_stack;
 pub mod kind;
-pub mod loot;
 pub mod patch;
 pub mod recipe;
 pub mod stack;
@@ -166,7 +136,4 @@ mod bevy {
     crate::for_each_data_component!(impl_component);
 }
 
-mcrs_minecraft_registries::resolve_as_is!(
-    crate::damage_type::DamageType,
-    crate::decorated_pot_pattern::DecoratedPotPattern
-);
+mcrs_minecraft_registries::resolve_as_is!(crate::decorated_pot_pattern::DecoratedPotPattern);

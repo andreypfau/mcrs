@@ -384,7 +384,7 @@ fn small_corridor_left_turn<W: WorldGenVolume, R: Random>(
             3,
             2,
             3,
-            mcrs_minecraft_item::loot_table_keys::CHESTS_NETHER_BRIDGE,
+            mcrs_minecraft_loot::loot_table_keys::CHESTS_NETHER_BRIDGE,
         );
     }
     small_corridor_roof(b, c);
@@ -426,7 +426,7 @@ fn small_corridor_right_turn<W: WorldGenVolume, R: Random>(
             1,
             2,
             3,
-            mcrs_minecraft_item::loot_table_keys::CHESTS_NETHER_BRIDGE,
+            mcrs_minecraft_loot::loot_table_keys::CHESTS_NETHER_BRIDGE,
         );
     }
     small_corridor_roof(b, c);

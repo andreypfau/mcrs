@@ -6,12 +6,12 @@ use crate::TrimPattern;
 use crate::data_component_predicate_type_keys::DataComponentPredicateType;
 use crate::enchantment::Enchantment;
 use crate::item_keys::Item;
-use crate::mob_effect_keys::MobEffect;
 use crate::potion_keys::Potion;
 use mcrs_minecraft_block::block_keys::Block;
 pub use mcrs_minecraft_block_predicate::state_properties::StatePropertiesPredicate;
 use mcrs_minecraft_core::codec::unique_entries;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
+use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 use mcrs_minecraft_entity::villager_type_keys::VillagerType;
 use mcrs_minecraft_registries::{
     Named, Namer, Refs, Resolve, ResolveError, Resolved, Resolver, registry_value,
