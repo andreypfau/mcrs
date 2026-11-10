@@ -13,6 +13,9 @@ const ui = z.object({
   "mcrs.table.area": z.string(), "mcrs.table.state": z.string(),
   "mcrs.table.works": z.string(), "mcrs.table.missing": z.string(),
   "mcrs.demo.open": z.string(), "mcrs.sidebar.toggle": z.string(),
+  "mcrs.freshness.title": z.string(), "mcrs.freshness.text": z.string(), "mcrs.freshness.dateLocale": z.string(),
+  "mcrs.freshness.current": z.string(), "mcrs.freshness.behind.one": z.string(), "mcrs.freshness.behind.few": z.string(),
+  "mcrs.freshness.behind.many": z.string(), "mcrs.freshness.behind.other": z.string(),
 });
 
 const loc = z.object({ en: z.string(), ru: z.string() });

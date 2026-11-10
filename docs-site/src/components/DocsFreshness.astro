@@ -1,0 +1,34 @@
+---
+import { Aside } from "@astrojs/starlight/components";
+import { REPO } from "~/config.mjs";
+import { fact } from "~/lib/facts.mjs";
+
+const t = Astro.locals.t;
+const commit = String(fact("docs_commit"));
+const date = new Intl.DateTimeFormat(t("mcrs.freshness.dateLocale"), { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "UTC" })
+  .format(new Date(String(fact("docs_commit_date"))));
+const [before, after] = t("mcrs.freshness.text").split("{commit}");
+const plural = { one: t("mcrs.freshness.behind.one"), few: t("mcrs.freshness.behind.few"), many: t("mcrs.freshness.behind.many"), other: t("mcrs.freshness.behind.other") };
+---
+<Aside type="note" title={t("mcrs.freshness.title")}>
+  {before}<a href={`${REPO}/commit/${commit}`}><code>{commit}</code></a>{after.replace("{date}", date)}
+  <span class="mcrs-freshness" hidden data-commit={commit} data-repo={REPO.replace("https://github.com/", "")} data-current={t("mcrs.freshness.current")} data-plural={JSON.stringify(plural)}>
+    <a></a>
+  </span>
+</Aside>
+<script>
+  // Counts the commits of main after the docs commit on every visit; the line stays hidden if GitHub does not answer.
+  for (const el of document.querySelectorAll<HTMLElement>(".mcrs-freshness")) {
+    const { commit, repo, current, plural } = el.dataset;
+    fetch(`https://api.github.com/repos/${repo}/compare/${commit}...main`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then(({ ahead_by: n }) => {
+        const forms = JSON.parse(plural!);
+        const link = el.querySelector("a")!;
+        link.href = `https://github.com/${repo}/compare/${commit}...main`;
+        link.textContent = n === 0 ? current! : (forms[new Intl.PluralRules(document.documentElement.lang).select(n)] ?? forms.other).replace("{n}", String(n));
+        el.hidden = false;
+      })
+      .catch(() => {});
+  }
+</script>

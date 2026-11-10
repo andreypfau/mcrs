@@ -7,3 +7,5 @@ registries: { value: 147, how: "PERF.md#server-start" }
 registry_entries: { value: 9079, how: "PERF.md#server-start" }
 fixtures: { value: 49, how: "jq 'length' tools/fixtures.json" }
 root_commands: { value: 20, how: "count literal(NodeId::ROOT, ...) in crates/mcrs_minecraft_command_vanilla and crates/mcrs_minecraft_command_world, minus the alias tp (21 names)" }
+docs_commit: { value: "f50e2fdf6", how: "the origin/main commit that the last docs update checked against; move it with every update" }
+docs_commit_date: { value: "2026-11-10", how: "git show -s --format=%cs <docs_commit>" }

@@ -15,5 +15,13 @@
   "mcrs.table.works": "Works",
   "mcrs.table.missing": "Missing",
   "mcrs.demo.open": "open separately",
-  "mcrs.sidebar.toggle": "Collapse or expand the panel"
+  "mcrs.sidebar.toggle": "Collapse or expand the panel",
+  "mcrs.freshness.title": "Docs date",
+  "mcrs.freshness.text": "These docs were checked against commit {commit} of {date}. They are updated in batches, so main can have changes that are not described here yet.",
+  "mcrs.freshness.dateLocale": "en-CA",
+  "mcrs.freshness.current": "No commits in main since then.",
+  "mcrs.freshness.behind.one": "main has {n} commit since then.",
+  "mcrs.freshness.behind.few": "main has {n} commits since then.",
+  "mcrs.freshness.behind.many": "main has {n} commits since then.",
+  "mcrs.freshness.behind.other": "main has {n} commits since then."
 }

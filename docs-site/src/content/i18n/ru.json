@@ -15,5 +15,13 @@
   "mcrs.table.works": "Работает",
   "mcrs.table.missing": "Не готово",
   "mcrs.demo.open": "открыть отдельно",
-  "mcrs.sidebar.toggle": "Свернуть или развернуть панель"
+  "mcrs.sidebar.toggle": "Свернуть или развернуть панель",
+  "mcrs.freshness.title": "Дата документации",
+  "mcrs.freshness.text": "Документация сверена с коммитом {commit} от {date}. Ее обновляют пачками, поэтому в main могут быть изменения, которые здесь еще не описаны.",
+  "mcrs.freshness.dateLocale": "ru-RU",
+  "mcrs.freshness.current": "С тех пор в main новых коммитов нет.",
+  "mcrs.freshness.behind.one": "С тех пор в main {n} новый коммит.",
+  "mcrs.freshness.behind.few": "С тех пор в main {n} новых коммита.",
+  "mcrs.freshness.behind.many": "С тех пор в main {n} новых коммитов.",
+  "mcrs.freshness.behind.other": "С тех пор в main {n} новых коммитов."
 }

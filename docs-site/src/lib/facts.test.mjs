@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { fact, interpolate } from './facts.mjs';
@@ -34,4 +35,9 @@ test('the snapshot id is not typed by hand', () => {
   }
   if (readFileSync(new URL('data/status.yml', root), 'utf8').includes(snapshotId)) bad.push('status.yml');
   assert.deepEqual(bad, []);
+});
+
+test('docs_commit is in the history and docs_commit_date is its commit date', () => {
+  const date = execFileSync('git', ['show', '-s', '--format=%cs', fact('docs_commit')], { encoding: 'utf8' }).trim();
+  assert.equal(date, fact('docs_commit_date'));
 });

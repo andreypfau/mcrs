@@ -18,7 +18,7 @@ Open http://localhost:4321/docs/. `npm run build` writes the static site to `doc
 - `src/content/docs/ru/` - Russian pages at the same paths.
 - `src/components/` - Status, StatusRows, Example (cuts code by text anchors with `src/lib/anchor.mjs`), Demo.
 - `src/data/status.yml` - data for the StatusRows component.
-- `src/data/facts.yml` and `src/lib/facts.mjs` - counts and the snapshot id that several pages repeat, read with `fact('id')` in MDX and `{id}` in status.yml.
+- `src/data/facts.yml` and `src/lib/facts.mjs` - counts and the snapshot id that several pages repeat, read with `fact('id')` in MDX and `{id}` in status.yml. `docs_commit` and `docs_commit_date` there feed the docs date banner on the home page (`src/components/DocsFreshness.astro`), which also counts the commits of main after it through the GitHub API.
 - `src/content.config.ts` - frontmatter schema. A wrong field breaks the build.
 - `src/lib/meta.ts` - `pageMeta`: the page metadata for the banner and the footer. A Russian page takes it from its English pair and fails the build if it sets one of the inherited fields.
 - `scripts/check-sources.mjs` - warns about pages whose `sources` changed in a PR. It never fails the build. Run `npm run check-sources` locally. With `--stale` it prints a Markdown report of English pages whose `sources` changed since `verified.commit`, Russian pages that lag behind English, and missing `sources` paths. The `docs` workflow runs it every Monday.
