@@ -480,7 +480,7 @@ fn on_disconnect(event: On<Received<ClientboundDisconnect>>, mut commands: Comma
         event.entity,
         format!(
             "the server disconnected you: {}",
-            disconnect.reason.to_legacy_lossy()
+            crate::disconnect_reason::disconnect_reason(&disconnect.reason)
         ),
     );
 }

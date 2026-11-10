@@ -1,5 +1,6 @@
 use crate::compound::NbtCompound;
 use crate::deserializer::{NbtReadHelper, READ_STEP, cautious_capacity};
+use crate::encoding::NbtEncoding;
 use crate::serializer::{self, WriteAdaptor};
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Seek, Write};
@@ -54,49 +55,40 @@ impl NbtTag {
         unsafe { *(self as *const Self as *const u8) }
     }
 
-    pub fn serialize<W: Write>(&self, w: &mut WriteAdaptor<W>) -> serializer::Result<()> {
-        w.write_u8_be(self.get_type_id())?;
+    pub fn serialize<W: Write, E: NbtEncoding>(
+        &self,
+        w: &mut WriteAdaptor<W, E>,
+    ) -> serializer::Result<()> {
+        w.write_u8(self.get_type_id())?;
         self.serialize_data(w)?;
         Ok(())
     }
 
-    pub fn serialize_data<W: Write>(&self, w: &mut WriteAdaptor<W>) -> serializer::Result<()> {
+    pub fn serialize_data<W: Write, E: NbtEncoding>(
+        &self,
+        w: &mut WriteAdaptor<W, E>,
+    ) -> serializer::Result<()> {
         match self {
             NbtTag::End => {}
-            NbtTag::Byte(byte) => w.write_i8_be(*byte)?,
-            NbtTag::Short(short) => w.write_i16_be(*short)?,
-            NbtTag::Int(int) => w.write_i32_be(*int)?,
-            NbtTag::Long(long) => w.write_i64_be(*long)?,
-            NbtTag::Float(float) => w.write_f32_be(*float)?,
-            NbtTag::Double(double) => w.write_f64_be(*double)?,
+            NbtTag::Byte(byte) => w.write_i8(*byte)?,
+            NbtTag::Short(short) => w.write_i16(*short)?,
+            NbtTag::Int(int) => w.write_i32(*int)?,
+            NbtTag::Long(long) => w.write_i64(*long)?,
+            NbtTag::Float(float) => w.write_f32(*float)?,
+            NbtTag::Double(double) => w.write_f64(*double)?,
             NbtTag::ByteArray(byte_array) => {
                 let len = byte_array.len();
-                if len > i32::MAX as usize {
-                    return Err(Error::LargeLength(len));
-                }
-
-                w.write_i32_be(len as i32)?;
+                E::write_collection_length(w, len)?;
                 w.write_slice(byte_array)?;
             }
             NbtTag::String(string) => {
-                let java_string = cesu8::to_java_cesu8(string);
-                let len = java_string.len();
-                if len > u16::MAX as usize {
-                    return Err(Error::LargeLength(len));
-                }
-
-                w.write_u16_be(len as u16)?;
-                w.write_slice(&java_string)?;
+                E::write_string(w, string)?;
             }
             NbtTag::List(list) => {
                 let len = list.len();
-                if len > i32::MAX as usize {
-                    return Err(Error::LargeLength(len));
-                }
-
                 let element_type = list_element_type(list)?;
-                w.write_u8_be(element_type)?;
-                w.write_i32_be(len as i32)?;
+                w.write_u8(element_type)?;
+                E::write_collection_length(w, len)?;
                 for nbt_tag in list {
                     match nbt_tag {
                         NbtTag::Compound(compound)
@@ -105,10 +97,10 @@ impl NbtTag {
                             compound.serialize_content(w)?
                         }
                         _ if element_type == COMPOUND_ID => {
-                            w.write_u8_be(nbt_tag.get_type_id())?;
-                            w.write_u16_be(0)?;
+                            w.write_u8(nbt_tag.get_type_id())?;
+                            E::write_string(w, "")?;
                             nbt_tag.serialize_data(w)?;
-                            w.write_u8_be(END_ID)?;
+                            w.write_u8(END_ID)?;
                         }
                         _ => nbt_tag.serialize_data(w)?,
                     }
@@ -119,59 +111,57 @@ impl NbtTag {
             }
             NbtTag::IntArray(int_array) => {
                 let len = int_array.len();
-                if len > i32::MAX as usize {
-                    return Err(Error::LargeLength(len));
-                }
-
-                w.write_i32_be(len as i32)?;
+                E::write_collection_length(w, len)?;
                 for int in int_array {
-                    w.write_i32_be(*int)?;
+                    w.write_i32(*int)?;
                 }
             }
             NbtTag::LongArray(long_array) => {
                 let len = long_array.len();
-                if len > i32::MAX as usize {
-                    return Err(Error::LargeLength(len));
-                }
-
-                w.write_i32_be(len as i32)?;
-
+                E::write_collection_length(w, len)?;
                 for long in long_array {
-                    w.write_i64_be(*long)?;
+                    w.write_i64(*long)?;
                 }
             }
         };
         Ok(())
     }
 
-    pub fn deserialize<R: Read + Seek>(reader: &mut NbtReadHelper<R>) -> Result<NbtTag, Error> {
-        let tag_id = reader.get_u8_be()?;
+    pub fn deserialize<R: Read + Seek, E: NbtEncoding>(
+        reader: &mut NbtReadHelper<R, E>,
+    ) -> Result<NbtTag, Error> {
+        let tag_id = reader.get_u8()?;
         Self::deserialize_data(reader, tag_id)
     }
 
-    pub fn skip_data<R: Read + Seek>(
-        reader: &mut NbtReadHelper<R>,
+    pub fn skip_data<R: Read + Seek, E: NbtEncoding>(
+        reader: &mut NbtReadHelper<R, E>,
         tag_id: u8,
     ) -> Result<(), Error> {
-        if let Some(size) = fixed_size(tag_id) {
+        if let Some(size) = E::fixed_size(tag_id) {
             return reader.skip_bytes(size);
         }
         match tag_id {
             END_ID => Ok(()),
             BYTE_ARRAY_ID => {
-                let len = reader.get_i32_be()?;
-                if len < 0 {
-                    return Err(Error::NegativeLength(len));
-                }
+                let len = E::read_collection_length(&mut reader.reader)?;
                 reader.skip_bytes(len as i64)
             }
             STRING_ID => {
-                let len = reader.get_u16_be()?;
+                let len = E::read_string_length(&mut reader.reader)?;
                 reader.skip_bytes(len as i64)
+            }
+            INT_ID => {
+                E::read_i32(&mut reader.reader)?;
+                Ok(())
+            }
+            LONG_ID => {
+                E::read_i64(&mut reader.reader)?;
+                Ok(())
             }
             LIST_ID => {
                 let (tag_type_id, len) = read_list_header(reader)?;
-                if let Some(size) = fixed_size(tag_type_id) {
+                if let Some(size) = E::fixed_size(tag_type_id) {
                     return reader.skip_bytes(len as i64 * size);
                 }
 
@@ -190,62 +180,64 @@ impl NbtTag {
                 Ok(())
             }
             INT_ARRAY_ID => {
-                let len = reader.get_i32_be()?;
-                if len < 0 {
-                    return Err(Error::NegativeLength(len));
+                let len = E::read_collection_length(&mut reader.reader)?;
+                if let Some(size) = E::fixed_size(INT_ID) {
+                    reader.skip_bytes(len as i64 * size)
+                } else {
+                    for _ in 0..len {
+                        E::read_i32(&mut reader.reader)?;
+                    }
+                    Ok(())
                 }
-
-                reader.skip_bytes(len as i64 * 4)
             }
             LONG_ARRAY_ID => {
-                let len = reader.get_i32_be()?;
-                if len < 0 {
-                    return Err(Error::NegativeLength(len));
+                let len = E::read_collection_length(&mut reader.reader)?;
+                if let Some(size) = E::fixed_size(LONG_ID) {
+                    reader.skip_bytes(len as i64 * size)
+                } else {
+                    for _ in 0..len {
+                        E::read_i64(&mut reader.reader)?;
+                    }
+                    Ok(())
                 }
-
-                reader.skip_bytes(len as i64 * 8)
             }
             _ => Err(Error::UnknownTagId(tag_id)),
         }
     }
 
-    pub fn deserialize_data<R: Read + Seek>(
-        reader: &mut NbtReadHelper<R>,
+    pub fn deserialize_data<R: Read + Seek, E: NbtEncoding>(
+        reader: &mut NbtReadHelper<R, E>,
         tag_id: u8,
     ) -> Result<NbtTag, Error> {
         match tag_id {
             END_ID => Ok(NbtTag::End),
             BYTE_ID => {
-                let byte = reader.get_i8_be()?;
+                let byte = reader.get_i8()?;
                 Ok(NbtTag::Byte(byte))
             }
             SHORT_ID => {
-                let short = reader.get_i16_be()?;
+                let short = reader.get_i16()?;
                 Ok(NbtTag::Short(short))
             }
             INT_ID => {
-                let int = reader.get_i32_be()?;
+                let int = reader.get_i32()?;
                 Ok(NbtTag::Int(int))
             }
             LONG_ID => {
-                let long = reader.get_i64_be()?;
+                let long = reader.get_i64()?;
                 Ok(NbtTag::Long(long))
             }
             FLOAT_ID => {
-                let float = reader.get_f32_be()?;
+                let float = reader.get_f32()?;
                 Ok(NbtTag::Float(float))
             }
             DOUBLE_ID => {
-                let double = reader.get_f64_be()?;
+                let double = reader.get_f64()?;
                 Ok(NbtTag::Double(double))
             }
             BYTE_ARRAY_ID => {
-                let len = reader.get_i32_be()?;
-                if len < 0 {
-                    return Err(Error::NegativeLength(len));
-                }
-
-                let byte_array = reader.read_boxed_slice(len as usize)?;
+                let len = E::read_collection_length(&mut reader.reader)?;
+                let byte_array = reader.read_boxed_slice(len)?;
                 Ok(NbtTag::ByteArray(byte_array))
             }
             STRING_ID => Ok(NbtTag::String(get_nbt_string(reader)?)),
@@ -275,29 +267,19 @@ impl NbtTag {
                 Ok(NbtTag::Compound(compound))
             }
             INT_ARRAY_ID => {
-                let len = reader.get_i32_be()?;
-                if len < 0 {
-                    return Err(Error::NegativeLength(len));
-                }
-
-                let len = len as usize;
+                let len = E::read_collection_length(&mut reader.reader)?;
                 let mut int_array = Vec::with_capacity(cautious_capacity::<i32>(len, READ_STEP));
                 for _ in 0..len {
-                    let int = reader.get_i32_be()?;
+                    let int = reader.get_i32()?;
                     int_array.push(int);
                 }
                 Ok(NbtTag::IntArray(int_array))
             }
             LONG_ARRAY_ID => {
-                let len = reader.get_i32_be()?;
-                if len < 0 {
-                    return Err(Error::NegativeLength(len));
-                }
-
-                let len = len as usize;
+                let len = E::read_collection_length(&mut reader.reader)?;
                 let mut long_array = Vec::with_capacity(cautious_capacity::<i64>(len, READ_STEP));
                 for _ in 0..len {
-                    let long = reader.get_i64_be()?;
+                    let long = reader.get_i64()?;
                     long_array.push(long);
                 }
                 Ok(NbtTag::LongArray(long_array))
@@ -384,31 +366,18 @@ impl NbtTag {
     }
 }
 
-fn fixed_size(tag_id: u8) -> Option<i64> {
-    match tag_id {
-        BYTE_ID => Some(1),
-        SHORT_ID => Some(2),
-        INT_ID | FLOAT_ID => Some(4),
-        LONG_ID | DOUBLE_ID => Some(8),
-        _ => None,
-    }
-}
-
 /// A list's element type and count.
-pub(crate) fn read_list_header<R: Read + Seek>(
-    reader: &mut NbtReadHelper<R>,
+pub(crate) fn read_list_header<R: Read + Seek, E: NbtEncoding>(
+    reader: &mut NbtReadHelper<R, E>,
 ) -> Result<(u8, usize), Error> {
-    let element_type = reader.get_u8_be()?;
-    let len = reader.get_i32_be()?;
-    if len < 0 {
-        return Err(Error::NegativeLength(len));
-    }
+    let element_type = reader.get_u8()?;
+    let len = E::read_collection_length(&mut reader.reader)?;
     // Every other element type takes input to read or to skip, so only this
-    // one could run a list to its declared count from a five-byte header.
+    // one could run a list to its declared count from a header.
     if element_type == END_ID && len > 0 {
         return Err(Error::SerdeError("a list cannot hold TAG_End".to_string()));
     }
-    Ok((element_type, len as usize))
+    Ok((element_type, len))
 }
 
 /// A mixed list is written as compounds with every non-compound element

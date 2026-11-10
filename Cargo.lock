@@ -4250,6 +4250,7 @@ dependencies = [
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_lang",
  "mcrs_minecraft_text",
+ "mcrs_minecraft_text_flatten",
  "tracing",
 ]
 
@@ -5065,11 +5066,13 @@ dependencies = [
  "bytes",
  "js-sys",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_lang",
  "mcrs_minecraft_move_validate",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_text",
+ "mcrs_minecraft_text_flatten",
  "md-5",
  "rand 0.10.0",
  "serde",
@@ -5427,6 +5430,7 @@ dependencies = [
  "mcrs_minecraft_goals",
  "mcrs_minecraft_heightmap",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_lang",
  "mcrs_minecraft_light_engine",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
@@ -5440,6 +5444,7 @@ dependencies = [
  "mcrs_minecraft_save",
  "mcrs_minecraft_simulation",
  "mcrs_minecraft_text",
+ "mcrs_minecraft_text_flatten",
  "mcrs_minecraft_vanilla_light",
  "mcrs_minecraft_vanilla_worldgen",
  "mcrs_minecraft_volume",
@@ -5526,6 +5531,14 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "uuid",
+]
+
+[[package]]
+name = "mcrs_minecraft_text_flatten"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_lang",
+ "mcrs_minecraft_text",
 ]
 
 [[package]]

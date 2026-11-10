@@ -16,6 +16,10 @@ pub enum Error {
     UnknownTagId(u8),
     #[error("Failed to Cesu 8 Decode")]
     Cesu8DecodingError,
+    #[error("A string is not valid UTF-8")]
+    InvalidUtf8,
+    #[error("A varint does not fit its type")]
+    MalformedVarInt,
     #[error("Serde error: {0}")]
     SerdeError(String),
     #[error("NBT doesn't support this type: {0}")]

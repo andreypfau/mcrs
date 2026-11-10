@@ -40,7 +40,7 @@ const NO_STD_PACKAGES: [&str; 9] = [
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 99] = [
+const NO_BEVY_PACKAGES: [&str; 100] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -120,6 +120,7 @@ const NO_BEVY_PACKAGES: [&str; 99] = [
     "mcrs_minecraft_snbt",
     "mcrs_minecraft_sound",
     "mcrs_minecraft_text",
+    "mcrs_minecraft_text_flatten",
     "mcrs_minecraft_value_provider",
     "mcrs_minecraft_volume",
     "mcrs_minecraft_wire",
@@ -296,6 +297,8 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
     }
 }
 
+const OWN_FEATURES: [&str; 2] = ["--config", "resolver.feature-unification=\"selected\""];
+
 const WASM32_CLIENT_FEATURES: [&[&str]; 2] = [&[], &["--no-default-features"]];
 
 fn wasm32(ctx: &Context) -> Outcome {
@@ -310,6 +313,8 @@ fn wasm32(ctx: &Context) -> Outcome {
         let mut args = vec![
             "build",
             "--locked",
+            OWN_FEATURES[0],
+            OWN_FEATURES[1],
             "--target",
             "wasm32-unknown-unknown",
             "-p",
@@ -334,7 +339,9 @@ fn build_for(
     condition: &str,
     fix: &str,
 ) -> Outcome {
-    let mut args = vec!["build", "--locked", "--target", target];
+    let mut args = vec!["build", "--locked"];
+    args.extend(OWN_FEATURES);
+    args.extend(["--target", target]);
     for package in packages {
         args.extend(["-p", package]);
     }
@@ -363,6 +370,7 @@ fn no_bevy(ctx: &Context) -> Outcome {
         ));
     }
     let mut args = vec!["check", "--locked", "--no-default-features"];
+    args.extend(OWN_FEATURES);
     for package in NO_BEVY_PACKAGES {
         args.extend(["-p", package]);
     }
@@ -382,6 +390,8 @@ fn linked_forbidden(
     let args = [
         "tree",
         "--locked",
+        OWN_FEATURES[0],
+        OWN_FEATURES[1],
         "--all-features",
         "--edges",
         "normal",
@@ -557,7 +567,9 @@ fn test(ctx: &Context) -> Outcome {
                 );
                 return Ok(String::new());
             }
-            ("ci", selection)
+            let hosted =
+                std::env::var_os("RUNNER_ENVIRONMENT").is_some_and(|v| v == "github-hosted");
+            (if hosted { "ci-hosted" } else { "ci" }, selection)
         }
     };
     let local_only = if std::env::var_os("CI").is_some() && ctx.trigger != Trigger::Gpu {

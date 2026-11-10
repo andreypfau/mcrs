@@ -8,8 +8,8 @@ use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::{
-    Color, DataSource, IntoText, ItemHover, ScoreboardValueContent, TextContent, TextInner,
-    TextMap, TextSerde, TextTypes, TranslateArg,
+    DataSource, IntoText, ItemHover, ScoreboardValueContent, TextContent, TextInner, TextMap,
+    TextSerde, TextTypes, TranslateArg,
 };
 
 /// Represents formatted text in Minecraft's JSON text format.
@@ -154,114 +154,6 @@ impl<I: TextTypes> Text<I> {
             },
             ..Default::default()
         }))
-    }
-
-    /// Converts the [`Text`] object to a plain string with the [legacy formatting (`§` and format codes)](https://wiki.vg/Chat#Old_system)
-    ///
-    /// Removes everything that can't be represented with a `§` and a modifier.
-    /// Any colors not on the [the legacy color list](https://wiki.vg/Chat#Colors) will be replaced with their closest equivalent.
-    pub fn to_legacy_lossy(&self) -> String {
-        // For keeping track of the currently active modifiers
-        #[derive(Default, Clone)]
-        struct Modifiers {
-            obfuscated: Option<bool>,
-            bold: Option<bool>,
-            strikethrough: Option<bool>,
-            underlined: Option<bool>,
-            italic: Option<bool>,
-            color: Option<Color>,
-        }
-
-        impl Modifiers {
-            // Writes all active modifiers to a String as `§<mod>`
-            fn write(&self, output: &mut String) {
-                if let Some(color) = self.color {
-                    let code = match color {
-                        Color::Rgb(rgb) => rgb.to_named_lossy().hex_digit(),
-                        Color::Named(normal) => normal.hex_digit(),
-                    };
-
-                    output.push('§');
-                    output.push(code);
-                }
-                if let Some(true) = self.obfuscated {
-                    output.push_str("§k");
-                }
-                if let Some(true) = self.bold {
-                    output.push_str("§l");
-                }
-                if let Some(true) = self.strikethrough {
-                    output.push_str("§m");
-                }
-                if let Some(true) = self.underlined {
-                    output.push_str("§n");
-                }
-                if let Some(true) = self.italic {
-                    output.push_str("§o");
-                }
-            }
-            // Merges 2 Modifiers. The result is what you would get if you applied them both
-            // sequentially.
-            fn add(&self, other: &Self) -> Self {
-                Self {
-                    obfuscated: other.obfuscated.or(self.obfuscated),
-                    bold: other.bold.or(self.bold),
-                    strikethrough: other.strikethrough.or(self.strikethrough),
-                    underlined: other.underlined.or(self.underlined),
-                    italic: other.italic.or(self.italic),
-                    color: other.color.or(self.color),
-                }
-            }
-        }
-
-        fn to_legacy_inner<I: TextTypes>(
-            this: &Text<I>,
-            result: &mut String,
-            mods: &mut Modifiers,
-        ) {
-            let new_mods = Modifiers {
-                obfuscated: this.0.style.obfuscated,
-                bold: this.0.style.bold,
-                strikethrough: this.0.style.strikethrough,
-                underlined: this.0.style.underlined,
-                italic: this.0.style.italic,
-                color: this.0.style.color,
-            };
-
-            // If any modifiers were removed
-            if [
-                this.0.style.obfuscated,
-                this.0.style.bold,
-                this.0.style.strikethrough,
-                this.0.style.underlined,
-                this.0.style.italic,
-            ]
-            .contains(&Some(false))
-            {
-                // Reset and print sum of old and new modifiers
-                result.push_str("§r");
-                mods.add(&new_mods).write(result);
-            } else {
-                // Print only new modifiers
-                new_mods.write(result);
-            }
-
-            *mods = mods.add(&new_mods);
-
-            if let TextContent::Text { text, .. } = &this.0.content {
-                result.push_str(text);
-            }
-
-            for child in &this.0.extra {
-                to_legacy_inner(child, result, mods);
-            }
-        }
-
-        let mut result = String::new();
-        let mut mods = Modifiers::default();
-        to_legacy_inner(self, &mut result, &mut mods);
-
-        result
     }
 }
 

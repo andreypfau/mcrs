@@ -1,0 +1,50 @@
+name: rust
+description: Install the pinned toolchain and, on a hosted runner, restore the build cache of main.
+
+inputs:
+  test-tools:
+    description: Also install the test runner and restore the client jar.
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    # A hosted runner has 16 GB of memory. Features unified over the whole workspace pull the
+    # renderer, the windowing and the UI crates into every build, which no CI test runs, and
+    # compiling them at once exhausts that memory.
+    - name: resolve features for the selected packages only
+      if: runner.environment == 'github-hosted'
+      shell: bash
+      run: echo 'CARGO_RESOLVER_FEATURE_UNIFICATION=selected' >> "$GITHUB_ENV"
+
+    - name: install the pinned toolchain
+      shell: bash
+      run: rustup toolchain install --profile minimal
+
+    # Only main saves: a cache saved by a pull request is visible to that pull request alone,
+    # and such caches would evict the ones of main from the repository quota.
+    - name: restore the build cache
+      if: runner.environment == 'github-hosted'
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      with:
+        cache-on-failure: true
+        save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+
+    - name: read the test runner version
+      if: inputs.test-tools == 'true'
+      id: nextest
+      shell: bash
+      run: echo "version=$(sed -n 's/^nextest-version = "\(.*\)"/\1/p' .config/nextest.toml)" >> "$GITHUB_OUTPUT"
+
+    - name: install the test runner
+      if: inputs.test-tools == 'true'
+      uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
+      with:
+        tool: nextest@${{ steps.nextest.outputs.version }}
+
+    - name: restore the client jar
+      if: inputs.test-tools == 'true'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.minecraft/versions
+        key: client-jars-${{ hashFiles('crates/mcrs_minecraft_client_jar/src/release.json') }}
