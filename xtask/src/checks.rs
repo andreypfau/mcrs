@@ -41,7 +41,7 @@ const NO_STD_PACKAGES: [&str; 10] = [
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 109] = [
+const NO_BEVY_PACKAGES: [&str; 110] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
