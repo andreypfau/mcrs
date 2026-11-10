@@ -4,8 +4,6 @@ use std::thread::JoinHandle;
 use mcrs_minecraft_lang::Language;
 use mcrs_minecraft_text::RawText;
 
-use crate::render::render;
-
 /// Renders the answers to the console in English and writes them to the log, in their order, on
 /// its own thread, so that a tick with many answers does not wait for the log.
 pub(crate) struct AnswerLog {
@@ -50,7 +48,10 @@ impl Drop for AnswerLog {
 
 fn write(language: &Language, answer: &RawText<'static>) {
     match answer.to_text() {
-        Ok(text) => tracing::info!(target: "mcrs_console", "{}", render(language, &text)),
+        Ok(text) => {
+            let line = mcrs_minecraft_text_flatten::plain_text(language, &text);
+            tracing::info!(target: "mcrs_console", "{line}");
+        }
         Err(error) => tracing::error!(%error, "a console answer does not decode"),
     }
 }

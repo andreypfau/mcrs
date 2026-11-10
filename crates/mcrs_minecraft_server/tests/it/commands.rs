@@ -21,6 +21,7 @@ use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item::ItemHoverMap;
+use mcrs_minecraft_lang::Language;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, VarInt};
 use mcrs_minecraft_protocol_game::serverbound::{
@@ -296,7 +297,10 @@ fn replies(packets: &[PacketPayload]) -> Vec<(i32, Vec<String>)> {
 }
 
 fn plain(messages: &[Text]) -> Vec<String> {
-    messages.iter().map(Text::to_legacy_lossy).collect()
+    messages
+        .iter()
+        .map(|message| mcrs_minecraft_text_flatten::plain_text(&Language::default(), message))
+        .collect()
 }
 
 #[test]
