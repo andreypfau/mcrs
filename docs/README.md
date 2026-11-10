@@ -9,7 +9,7 @@ How to read the status column: it comes from the header of the file. Only `cells
 | File | About | Status | Read if you |
 |---|---|---|---|
 | `clean-room.md` | who may read what, and what the repository may contain | authority | send any PR |
-| `spec/` (67 files) | behavior of the game as rules with IDs. Start with `spec/README.md` | authority for behavior | write or implement a specification |
+| `spec/` (68 files) | behavior of the game as rules with IDs. Start with `spec/README.md` | authority for behavior | write or implement a specification |
 | `minecraft-bevy-sharding-architecture.md` | architectural decisions for the Bevy server | authority (decisions 22 to 26 supersede parts of `cells.md`) | change the engine design |
 | `physics-architecture.md` | per-tick simulation of entities, block domain, movement checks | authority (supersedes parts of `cells.md`) | touch physics or entity ticking |
 | `cells.md` | cells, the Muxer and the data layer | working note | read it with its status block in hand |
@@ -20,6 +20,7 @@ How to read the status column: it comes from the header of the file. Only `cells
 | `entity-render.md`, `entity-render-budget.md` | GPU entity rendering and its workload model | design note (no status in header) | work on the renderer |
 | `registry-graph.md` | which registries a value refers to | design note (no status in header) | add or move a registry |
 | `resource-location.md` | borrowed and owned resource location types | design note (no status in header) | touch keys |
+| `item-design.md` | public API and crate map of the item and inventory rework: a stack as one entity, the read and write tools, the steps | design note (no status in header). Not implemented yet | touch items, inventories or containers |
 | `text-item-hover.md` | text with an item hover at the wire layer | design note (no status in header) | touch text or item components |
 | `command-dimensions.md` | commands across dimensions | design note (no status in header) | touch commands |
 | `bevy-asset-cycles.md` | cyclic asset dependencies in `bevy_asset` 0.19.1 | design note (no status in header) | load assets with cycles |

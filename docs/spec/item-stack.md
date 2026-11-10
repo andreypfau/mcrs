@@ -206,7 +206,9 @@ one of these conditions is true:
 - the item is air;
 - the count is 0 or less.
 
-Only one empty stack exists. A reader that gets such a value must give the empty stack.
+Only one empty stack exists. A reader of a format that has an empty stack must give the empty stack
+for such a value. The saved stack has no empty stack: its reader gives an error (STK-SAV-002,
+STK-CNT-003).
 See results R2 and R4.
 
 **STK-EMP-002** (`source_suggested`, semantic). The empty stack has the item air, the count 0 and
@@ -234,7 +236,8 @@ See results R2, R4 and R5.
 ## 4. The count
 
 **STK-CNT-001** (`source_suggested`, semantic). The count of a stack that is not empty is 1 or
-more. The largest count that each format can carry without error is 99. See experiment E4.
+more. The largest count that every format carries without error is 99.
+A format can accept a larger count (STK-CNT-003). See experiment E4.
 
 **STK-CNT-002** (`source_suggested`, semantic). The maximum stack size of a stack is an effective
 component (STK-CMP-001). A patch can change it for one stack. A stack can have a count larger than
@@ -897,6 +900,17 @@ entity that it makes.
 - **Visible to the client**: yes, when a server sends such a stack. The client shows the count,
   and its next `set_creative_mode_slot` packet for that stack fails at the server.
 - **Test**: a differential test must not make a stack with a count larger than 99.
+
+**D3.**
+
+- **Rule**: STK-CNT-003.
+- **Reference**: the reference reader of the wire stack and of the hashed stack accepts each
+  positive VarInt as the count.
+- **mcrs**: the count has 8 bits. The reader of the wire stack gives a decode error for a count
+  larger than 255. A hashed stack with a count larger than 255 is equal to no stack.
+- **Visible to the client**: no. The vanilla client and the vanilla server send no count larger
+  than 99.
+- **Test**: a differential test must not make a stack with a count larger than 255.
 
 ## 10. Open questions
 

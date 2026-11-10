@@ -103,8 +103,8 @@ Each item below is `pub`. All other items are `pub(crate)`.
 pub struct Kind(pub u16);                  // the item id (spec section 0.1)
 pub struct Count(/* private, non-zero */);
 impl Count {
-    pub fn new(count: u32) -> Option<Self>;
-    pub fn get(self) -> u32;
+    pub fn new(count: u8) -> Option<Self>;
+    pub fn get(self) -> u8;
 }
 pub struct ItemStack { pub kind: Kind, pub count: Count, /* private patch */ }
 impl ItemStack {
@@ -168,13 +168,13 @@ conversion to and from the value form. It has no `dyn`.
 
 ```rust
 pub enum Op<I> {
-    Split { from: I, to: I, count: u32 },
+    Split { from: I, to: I, count: u8 },
     Merge { from: I, to: I },
     Swap { left: I, right: I },
 }
 pub enum Reason { NoSuchSlot, EmptySource, Occupied, NotEqual, NoRoom, TooManyOps }
 pub struct Rejected { pub op: usize, pub reason: Reason }
-pub struct Planned<T> { pub stack: T, pub kind: u16, pub count: u32, pub max: u32 }
+pub struct Planned<T> { pub stack: T, pub kind: u16, pub count: u8, pub max: u8 }
 pub struct Entry<I, T> { pub slot: I, pub before: Option<Planned<T>>, pub after: Option<Planned<T>> }
 pub fn plan<I: Copy + PartialEq, T: Copy + PartialEq>(
     ops: impl IntoIterator<Item = Op<I>>,
@@ -256,7 +256,7 @@ pub trait StackCommandsExt {                       // for `EntityCommands` of a 
     fn set<T: ItemComponent>(&mut self, value: T) -> &mut Self;
     fn unset<T: ItemComponent>(&mut self) -> &mut Self;
     fn reset<T: ItemComponent>(&mut self) -> &mut Self;
-    fn consume(&mut self, count: u32) -> &mut Self;
+    fn consume(&mut self, count: u8) -> &mut Self;
     fn put_in(&mut self, holder: Entity) -> &mut Self;
     fn put_at(&mut self, holder: Entity, index: u16) -> &mut Self;
     fn swap_with(&mut self, other: Entity) -> &mut Self;
@@ -276,7 +276,7 @@ pub struct RequestId(pub u32);
 pub struct Request { /* private */ }
 impl Request {
     pub fn new(id: RequestId) -> Self;
-    pub fn split(self, from: SlotRef, to: SlotRef, count: u32) -> Self;
+    pub fn split(self, from: SlotRef, to: SlotRef, count: u8) -> Self;
     pub fn merge(self, from: SlotRef, to: SlotRef) -> Self;
     pub fn swap(self, left: SlotRef, right: SlotRef) -> Self;
 }
@@ -508,7 +508,7 @@ The design keeps the cost of the rare case out of the regular case: no stack wit
 | 8 | `Damage(0)` against an absent `Damage` in the merge check. | Treat `Damage` as a type with the neutral value 0 only if the game data confirms it (STK-DMG-*, STK-EQ-003). No answer yet. |
 | 9 | Does each vanilla prototype carry all types that have a neutral value? | Check it in the bake against the pinned data pack. The answer fixes the list of section 6. |
 | 10 | A custom component has a codec that the user writes by hand. | Accept it for the first version. A derive is a later convenience. |
-| 11 | The width of the count. The measured code used 8 bits; STK-CNT-003 lets a wire reader accept a larger count. | `Count` holds 32 bits **(proposal)**. The budgets of section 8 used 8 bits. |
+| 11 | The width of the count. STK-CNT-003 lets a wire reader accept a count above 255. | Decided: `Count` holds 8 bits. A decoder rejects a larger count with an error. `spec/item-stack.md` records this as a deviation. |
 | 12 | The old crate also holds data that is not an item: key tables of other registries, recipes, dialogs. | Move each of these modules, without change, to a crate of its domain before the old crate goes. The owner names the crates. |
 | 13 | A write to an item component and `mergeable` in one system need `ParamSet`. | Accept it. A later `get_mut` on the param removes the limit without a break of the API. |
 | 14 | A request holds a fixed number of operations inline. | Keep it, with a `// chisle:` comment. The transaction specification gives the real maximum. |
