@@ -218,9 +218,9 @@ macro_rules! sample_registries_table {
 sample_registries_table! {
     crate::registry_keys::ITEM => "item" numbered crate::item_keys::Item::ENTRIES ["air", "stone", "diamond_sword", "apple", "bundle", "diamond"]
         [("planks" => ["stone"]), ("swords" => ["diamond_sword"])];
-    crate::registry_keys::MOB_EFFECT => "mob_effect" numbered crate::mob_effect_keys::MobEffect::ENTRIES ["speed", "slowness", "haste"] [];
+    mcrs_minecraft_entity::registry_keys::MOB_EFFECT => "mob_effect" numbered mcrs_minecraft_entity::mob_effect_keys::MobEffect::ENTRIES ["speed", "slowness", "haste"] [];
     crate::registry_keys::ENCHANTMENT => "enchantment" ["sharpness", "unbreaking"] [];
-    crate::registry_keys::DAMAGE_TYPE => "damage_type" ["in_fire", "lava"]
+    mcrs_minecraft_entity::registry_keys::DAMAGE_TYPE => "damage_type" ["in_fire", "lava"]
         [("is_fire" => ["in_fire", "lava"]), ("bypasses_shield" => ["lava"])];
     mcrs_minecraft_block::registry_keys::BLOCK => "block" ["stone", "dirt"]
         [("mineable/pickaxe" => ["stone"]), ("logs" => ["dirt"])];

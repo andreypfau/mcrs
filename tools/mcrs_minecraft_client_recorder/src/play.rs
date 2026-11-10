@@ -10,7 +10,7 @@ use mcrs_minecraft_client_ticks::Move;
 use mcrs_minecraft_client_ticks::Rotation;
 use mcrs_minecraft_client_ticks::Teleport;
 use mcrs_minecraft_core::Look;
-use mcrs_minecraft_item::mob_effect_keys::MobEffect;
+use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 use mcrs_minecraft_protocol::Decode;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::packets::table::game_clientbound;

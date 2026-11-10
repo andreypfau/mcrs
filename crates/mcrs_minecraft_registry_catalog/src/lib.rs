@@ -6,7 +6,7 @@ pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'s
     (mcrs_minecraft_keys::GAME_EVENT, mcrs_minecraft_keys::game_event::ENTRIES),
     (mcrs_minecraft_sound::registry_keys::SOUND_EVENT.location(), mcrs_minecraft_sound::sound_event_keys::SoundEvent::ENTRIES),
     (mcrs_minecraft_block::registry_keys::FLUID.location(), mcrs_minecraft_block::fluid_keys::Fluid::ENTRIES),
-    (mcrs_minecraft_item::registry_keys::MOB_EFFECT.location(), mcrs_minecraft_item::mob_effect_keys::MobEffect::ENTRIES),
+    (mcrs_minecraft_entity::registry_keys::MOB_EFFECT.location(), mcrs_minecraft_entity::mob_effect_keys::MobEffect::ENTRIES),
     (mcrs_minecraft_block::registry_keys::BLOCK.location(), mcrs_minecraft_block::block_keys::Block::ENTRIES),
     (mcrs_minecraft_keys::DEBUG_SUBSCRIPTION, mcrs_minecraft_keys::debug_subscription::ENTRIES),
     (mcrs_minecraft_entity::registry_keys::ENTITY_TYPE.location(), mcrs_minecraft_entity::entity_type_keys::EntityType::ENTRIES),

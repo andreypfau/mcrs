@@ -64,7 +64,7 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:damage_type",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_entity",
         value: ValueType::Defined("crate::damage_type::DamageType"),
     },
     Owner {
@@ -464,7 +464,7 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:mob_effect",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_entity",
         value: ValueType::Enum("MobEffect"),
     },
     Owner {

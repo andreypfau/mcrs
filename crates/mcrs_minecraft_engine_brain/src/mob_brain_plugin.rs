@@ -39,10 +39,10 @@ use mcrs_minecraft_engine_world::world::storage::view::DimensionView;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
 use mcrs_minecraft_engine_world::world_seed::WorldSeed;
 use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_entity::damage_type::DamageType;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_game_mode::GameMode;
-use mcrs_minecraft_item::damage_type::DamageType;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::TagKey;
 

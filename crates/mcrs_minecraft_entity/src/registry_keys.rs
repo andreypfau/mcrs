@@ -44,6 +44,12 @@ impl Registered for crate::variant::CowVariant {
     const REGISTRY: RegistryKey<Self> = COW_VARIANT;
 }
 
+pub const DAMAGE_TYPE: RegistryKey<crate::damage_type::DamageType> =
+    RegistryKey::new(rl!("minecraft:damage_type"));
+impl Registered for crate::damage_type::DamageType {
+    const REGISTRY: RegistryKey<Self> = DAMAGE_TYPE;
+}
+
 pub const ENTITY_TYPE: RegistryKey<crate::entity_type_keys::EntityType> =
     RegistryKey::new(rl!("minecraft:entity_type"));
 impl Registered for crate::entity_type_keys::EntityType {
@@ -54,6 +60,12 @@ pub const FROG_VARIANT: RegistryKey<crate::variant::FrogVariant> =
     RegistryKey::new(rl!("minecraft:frog_variant"));
 impl Registered for crate::variant::FrogVariant {
     const REGISTRY: RegistryKey<Self> = FROG_VARIANT;
+}
+
+pub const MOB_EFFECT: RegistryKey<crate::mob_effect_keys::MobEffect> =
+    RegistryKey::new(rl!("minecraft:mob_effect"));
+impl Registered for crate::mob_effect_keys::MobEffect {
+    const REGISTRY: RegistryKey<Self> = MOB_EFFECT;
 }
 
 pub const PIG_SOUND_VARIANT: RegistryKey<crate::variant::PigSoundVariant> =

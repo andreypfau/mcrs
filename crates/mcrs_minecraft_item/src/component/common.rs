@@ -17,7 +17,7 @@ use serde::de::{DeserializeOwned, Error as _, IgnoredAny, MapAccess, SeqAccess, 
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::mob_effect_keys::MobEffect;
+use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 use mcrs_minecraft_loot::loot::ContextFloatProvider;
 use mcrs_minecraft_loot::loot::ContextIntProvider;
 

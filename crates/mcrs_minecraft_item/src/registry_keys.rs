@@ -20,12 +20,6 @@ impl Registered for crate::consume_effect_type_keys::ConsumeEffectType {
     const REGISTRY: RegistryKey<Self> = CONSUME_EFFECT_TYPE;
 }
 
-pub const DAMAGE_TYPE: RegistryKey<crate::damage_type::DamageType> =
-    RegistryKey::new(rl!("minecraft:damage_type"));
-impl Registered for crate::damage_type::DamageType {
-    const REGISTRY: RegistryKey<Self> = DAMAGE_TYPE;
-}
-
 pub const DATA_COMPONENT_PREDICATE_TYPE: RegistryKey<
     crate::data_component_predicate_type_keys::DataComponentPredicateType,
 > = RegistryKey::new(rl!("minecraft:data_component_predicate_type"));
@@ -106,12 +100,6 @@ impl Registered for crate::map_decoration_type_keys::MapDecorationType {
 pub const MENU: RegistryKey<crate::menu_keys::MenuType> = RegistryKey::new(rl!("minecraft:menu"));
 impl Registered for crate::menu_keys::MenuType {
     const REGISTRY: RegistryKey<Self> = MENU;
-}
-
-pub const MOB_EFFECT: RegistryKey<crate::mob_effect_keys::MobEffect> =
-    RegistryKey::new(rl!("minecraft:mob_effect"));
-impl Registered for crate::mob_effect_keys::MobEffect {
-    const REGISTRY: RegistryKey<Self> = MOB_EFFECT;
 }
 
 pub const PAINTING_VARIANT: RegistryKey<crate::PaintingVariantValue> =
