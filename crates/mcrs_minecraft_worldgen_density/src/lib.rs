@@ -14,6 +14,7 @@ pub mod node;
 pub mod program;
 pub mod proto;
 pub mod router;
+pub mod surface_levels;
 
 /// Whether the density and climate samplers were built with the fast precision
 /// profile, which downstream parity tests hold to a measured budget instead of

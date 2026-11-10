@@ -41,6 +41,7 @@ use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{
     CONTINENTS, DEPTH, EROSION, FINAL_DENSITY, NoiseRouter, RIDGES, TEMPERATURE, VEGETATION,
 };
+use mcrs_minecraft_worldgen_density::surface_levels::SurfaceLevels;
 use mcrs_voxel::BlockStateId;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -108,6 +109,9 @@ impl LatticePlanes {
 
 thread_local! {
     static LATTICE_PLANES: RefCell<LatticePlanes> = RefCell::new(LatticePlanes::default());
+    // A worker's scratch like the planes above: the fluid field outlives the
+    // fill that makes it, so the field cannot hold a borrow of this.
+    static SURFACE_LEVELS: RefCell<SurfaceLevels> = RefCell::new(SurfaceLevels::default());
 }
 
 /// The key one node column answers to. Node coordinates are block coordinates,
@@ -646,11 +650,12 @@ pub fn base_column(
     router
         .program
         .fill(ws, &volume, FINAL_DENSITY, &mut density);
-    let mut fluid = FluidField::new(
-        router,
+    let (min, max) = (
         IVec3::new(x, min_y, z),
         IVec3::new(x, min_y + height - 1, z),
     );
+    let mut fluid =
+        SURFACE_LEVELS.with_borrow_mut(|levels| FluidField::new(router, levels, min, max));
     let mut barrier_buffer = Vec::new();
     let mut barrier_at = volume_barrier(router, ws, &volume, &mut barrier_buffer);
     let mut column = vec![VoxelId(0); height as usize];
@@ -665,6 +670,7 @@ pub fn base_column(
             &mut barrier_at,
         );
     }
+    SURFACE_LEVELS.with_borrow_mut(|levels| fluid.keep_surface_levels(levels));
     (min_y, column)
 }
 
@@ -962,6 +968,7 @@ pub fn fill_column_dense_any<'a>(
     ) {
         return None;
     }
+    SURFACE_LEVELS.with_borrow_mut(|levels| fluid.keep_surface_levels(levels));
     Some(FilledColumn {
         biomes,
         tops,
@@ -977,15 +984,13 @@ pub fn column_fluid_field(
     block_z: i32,
 ) -> FluidField<'_> {
     let min_y = noise_router.noise.min_y;
-    FluidField::new(
-        noise_router,
-        IVec3::new(block_x, min_y, block_z),
-        IVec3::new(
-            block_x + 15,
-            min_y + noise_router.noise.height as i32 - 1,
-            block_z + 15,
-        ),
-    )
+    let min = IVec3::new(block_x, min_y, block_z);
+    let max = IVec3::new(
+        block_x + 15,
+        min_y + noise_router.noise.height as i32 - 1,
+        block_z + 15,
+    );
+    SURFACE_LEVELS.with_borrow_mut(|levels| FluidField::new(noise_router, levels, min, max))
 }
 
 /// Apply the Beta surface pass to a generated chunk column.

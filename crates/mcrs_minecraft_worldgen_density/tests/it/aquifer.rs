@@ -8,6 +8,7 @@ use mcrs_minecraft_worldgen_density::program::Workspace;
 use mcrs_minecraft_worldgen_density::router::{
     FINAL_DENSITY, NoiseGeneratorSettings, NoiseRouter, RouterBlocks,
 };
+use mcrs_minecraft_worldgen_density::surface_levels::SurfaceLevels;
 use mcrs_minecraft_worldgen_testing as corpus;
 
 const BLOCKS: RouterBlocks = RouterBlocks {
@@ -62,6 +63,82 @@ mod exhaustive {
     }
 }
 
+/// A surface level is a function of its quart column, not of the volume it
+/// is sampled as part of. The field samples each level alone and a worker
+/// keeps it for other fields, and neither holds unless this does bit for bit.
+#[test]
+fn a_surface_level_does_not_depend_on_the_volume_around_it() {
+    let router = overworld(42, |_| {});
+    let root = router.aquifer.as_ref().unwrap().surface_level;
+    let mut ws = Workspace::new();
+    let mut compared = 0usize;
+    for (chunk_x, chunk_z) in COLUMNS {
+        let grid = SampleGrid::new(
+            IVec3::new(27, 1, 19),
+            IVec3::new(chunk_x * 16 - 48, 0, chunk_z * 16 - 16),
+            IVec3::new(4, 1, 4),
+        );
+        let mut together = vec![0.0f32; grid.len()];
+        router.program.fill(&mut ws, &grid, root, &mut together);
+        for z in 0..grid.size().z {
+            for x in 0..grid.size().x {
+                let at = IVec3::new(grid.block_x(x), 0, grid.block_z(z));
+                let mut alone = [0.0f32];
+                router
+                    .program
+                    .fill(&mut ws, &SampleGrid::point(at), root, &mut alone);
+                assert_eq!(
+                    alone[0].to_bits(),
+                    together[grid.index_unchecked(x, 0, z)].to_bits(),
+                    "quart column at {at}"
+                );
+                compared += 1;
+            }
+        }
+    }
+    assert_eq!(compared, COLUMNS.len() * 27 * 19);
+}
+
+/// A field that starts from the levels a worker kept answers what a field that
+/// samples every level itself answers: beside the column that left them, a
+/// table's width away where the same slots are taken, and under another seed.
+#[test]
+fn kept_surface_levels_do_not_change_a_field() {
+    let first = overworld(42, |_| {});
+    let second = overworld(2, |_| {});
+    let mut kept = SurfaceLevels::default();
+    let mut checked = 0usize;
+    for (router, (chunk_x, chunk_z)) in [
+        (&first, (0, 0)),
+        (&first, (1, 0)),
+        (&first, (32, 0)),
+        (&first, (1, 0)),
+        (&second, (1, 0)),
+        (&first, (0, 0)),
+    ] {
+        let volume = column_volume(router, chunk_x, chunk_z);
+        let (min, max) = (volume.min_block(), volume.max_block());
+        let mut warm = FluidField::new(router, &mut kept, min, max);
+        let mut cold = FluidField::new(router, &mut SurfaceLevels::default(), min, max);
+        let mut warm_ws = Workspace::new();
+        let mut cold_ws = Workspace::new();
+        for z in (min.z..=max.z).step_by(3) {
+            for x in (min.x..=max.x).step_by(3) {
+                for y in min.y..=max.y {
+                    let got =
+                        warm.substance(x, y, z, 0.0, &mut point_barrier(router, &mut warm_ws));
+                    let want =
+                        cold.substance(x, y, z, 0.0, &mut point_barrier(router, &mut cold_ws));
+                    assert_eq!(got, want, "block {x},{y},{z} of column {chunk_x},{chunk_z}");
+                    checked += 1;
+                }
+            }
+        }
+        warm.keep_surface_levels(&mut kept);
+    }
+    assert_eq!(checked, 6 * 6 * 6 * first.noise.height as usize);
+}
+
 /// A barrier twice as loud widens the shell and must still leave the lemmas
 /// exact: the margins come from the interval, not from a constant.
 #[test]
@@ -99,8 +176,18 @@ fn check_parity(router: &NoiseRouter) {
         router
             .program
             .fill(&mut ws, &volume, FINAL_DENSITY, &mut density);
-        let mut oracle = FluidField::new(router, volume.min_block(), volume.max_block());
-        let mut fast = FluidField::new(router, volume.min_block(), volume.max_block());
+        let mut oracle = FluidField::new(
+            router,
+            &mut SurfaceLevels::default(),
+            volume.min_block(),
+            volume.max_block(),
+        );
+        let mut fast = FluidField::new(
+            router,
+            &mut SurfaceLevels::default(),
+            volume.min_block(),
+            volume.max_block(),
+        );
         let mut oracle_ws = Workspace::new();
         let mut fast_ws = Workspace::new();
 

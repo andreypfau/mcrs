@@ -803,6 +803,52 @@ sources (+9% and +8%, about 0.007 ms). No production table takes that path at th
 the cost is accepted for the configuration a test builds with `with_region(1, 0)`, and a return
 to width 1 in production would pay it.
 
+## Surface levels of the fluid field
+
+The fluid field of a column sampled the surface level of every quart column a status could read
+before it answered one: 27 x 19 = 513 samples for a chunk column, at about 13 microseconds each.
+The statuses of one column read 171 to 241 of them (three regions of 256 columns, seed 845), and
+neighbouring columns read mostly the same ones: over a 16 x 16 region each column adds about 14
+quart columns that no column before it read.
+
+The field now samples a level when a status first reads it, and a worker keeps the levels it
+sampled in a table of 128 x 128 quart columns (256 KB per worker) that the next field starts
+from. A level sampled alone has the same bits as a level sampled as part of the grid: 0 of 513
+differ in each of the three regions.
+
+Machine: AMD Ryzen AI 9 HX 370, 24 logical CPUs, 30 GiB, Fedora 44 (Linux 7.2.15). The firmware
+held every core at 2.0 GHz during the runs, so the absolute figures are about four times those
+of the reference machine; both columns of the table were taken in that state. Build: the
+`bench` profile, nightly `rustc 1.100.0-nightly (5db7f4be8 2026-09-01)`. Before is commit
+`2c0e20175`. Three runs of each command, mean and range.
+
+```
+cargo bench -p mcrs_minecraft_worldgen_generator --bench overworld_pipeline -- 64 <seed> 0
+```
+
+| figure | before | after | change |
+|---|---|---|---|
+| seed 845, `fill` | 13.160 ms (13.124 to 13.213) | 6.854 ms (6.853 to 6.855) | -47.9% |
+| seed 845, whole column | 21.869 ms (21.831 to 21.921) | 15.897 ms (15.873 to 15.910) | -27.3% |
+| seed 777, `fill` | 13.569 ms (13.509 to 13.614) | 6.968 ms (6.954 to 6.982) | -48.6% |
+| seed 777, whole column | 21.832 ms (21.770 to 21.874) | 15.476 ms (15.470 to 15.481) | -29.1% |
+
+The bench fills its columns in row order on one thread, which is the best case for the table. A
+client with its integrated server at a view distance of 32 columns, 24 workers, read over the
+first 11 000 fields (the fields of the structure height probes included), samples per field:
+
+| what the field starts from | samples per field |
+|---|---|
+| nothing, every level sampled on first read | 173 |
+| a table of 128 x 128 quart columns per worker | 82 |
+| a table of 256 x 256 quart columns per worker (1 MB) | 69 |
+| every level the worker ever sampled (unbounded, counted and not built) | about 55 |
+
+The larger table saves 13 samples per field, about 0.2 ms of a column on this machine, for four
+times the memory; the 128 x 128 table is the one kept. What the table misses on a server is
+what another worker sampled, which is the question of how columns are given to workers and not
+of this table.
+
 ## Server start
 
 Scenario: the release `mcrs` binary on the reference machine, started with no world folder (the
