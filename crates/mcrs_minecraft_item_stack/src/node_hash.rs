@@ -2,7 +2,7 @@
     not(test),
     expect(
         dead_code,
-        reason = "the codec of the hashed stack is the first caller"
+        reason = "no component type of this crate has a node of each kind yet"
     )
 )]
 
@@ -59,10 +59,19 @@ impl NodeHash {
 
     #[must_use]
     pub(crate) fn string(value: &str) -> Self {
-        let units = u32::try_from(value.encode_utf16().count()).unwrap_or(u32::MAX);
+        Self::string_of_parts(&[value])
+    }
+
+    /// The hash of the string node that is the concatenation of `parts`.
+    #[must_use]
+    pub(crate) fn string_of_parts(parts: &[&str]) -> Self {
+        let units: usize = parts.iter().map(|part| part.encode_utf16().count()).sum();
+        let units = u32::try_from(units).unwrap_or(u32::MAX);
         let mut checksum = Checksum::tagged(0x0C).push(&units.to_le_bytes());
-        for unit in value.encode_utf16() {
-            checksum = checksum.push(&unit.to_le_bytes());
+        for part in parts {
+            for unit in part.encode_utf16() {
+                checksum = checksum.push(&unit.to_le_bytes());
+            }
         }
         checksum.finish()
     }
@@ -102,11 +111,11 @@ impl NodeHash {
     /// The hash of a list node from the hashes of its elements in order.
     #[must_use]
     pub(crate) fn list(elements: impl IntoIterator<Item = Self>) -> Self {
-        let mut checksum = Checksum::tagged(0x04);
+        let mut list = ListHash::new();
         for element in elements {
-            checksum = checksum.push(&element.0.to_le_bytes());
+            list = list.push(element);
         }
-        checksum.push(&[0x05]).finish()
+        list.finish()
     }
 
     /// The hash of a map node. Sorts `entries` in place; the input order has no effect.
@@ -126,6 +135,27 @@ impl NodeHash {
     #[must_use]
     pub(crate) fn as_i32(self) -> i32 {
         self.0.cast_signed()
+    }
+}
+
+/// A list node whose elements come one at a time, for elements whose hash can fail.
+#[derive(Clone, Copy)]
+pub(crate) struct ListHash(Checksum);
+
+impl ListHash {
+    #[must_use]
+    pub(crate) fn new() -> Self {
+        Self(Checksum::tagged(0x04))
+    }
+
+    #[must_use]
+    pub(crate) fn push(self, element: NodeHash) -> Self {
+        Self(self.0.push(&element.0.to_le_bytes()))
+    }
+
+    #[must_use]
+    pub(crate) fn finish(self) -> NodeHash {
+        self.0.push(&[0x05]).finish()
     }
 }
 

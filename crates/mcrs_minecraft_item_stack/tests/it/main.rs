@@ -2,6 +2,7 @@
 
 mod components;
 mod count;
+mod hashed_stack;
 mod item_stack;
 mod saved;
 mod wire;

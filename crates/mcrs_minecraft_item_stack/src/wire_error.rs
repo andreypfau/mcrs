@@ -35,6 +35,8 @@ pub enum WireError {
     BadLength(ComponentType),
     /// A component or a list is longer than a VarInt can state.
     TooLong,
+    /// A list of entries of a hashed stack has more than 256 entries.
+    TooManyEntries,
     /// The value of this component type holds an id out of its list, a negative number of
     /// elements, a boolean byte that is not `00` or `01`, a string that is not an identifier, or
     /// one enchantment two times.
@@ -102,6 +104,9 @@ impl fmt::Display for WireError {
                 component_type.0
             ),
             Self::TooLong => formatter.write_str("a component or a list is too long for a VarInt"),
+            Self::TooManyEntries => {
+                formatter.write_str("a list of the hashed stack has more than 256 entries")
+            }
             Self::BadValue(component) => write!(
                 formatter,
                 "the value of {} is not a valid wire form",
