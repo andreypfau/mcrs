@@ -8,11 +8,9 @@ use crate::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority};
 
 /// The outbound packets of one connection, in the order the server wrote them.
 ///
-/// The queue never reorders: the client applies the packets in wire order, and the movement
-/// checks compare that order with the answers of the probes around the changes that the client
-/// predicts with. The priority only decides what a deep queue may shed: a Normal packet that no
-/// prediction depends on. How many Critical or High packets the server produced in a tick says
-/// nothing about the client, which paces its own columns by acknowledging each batch.
+/// The queue never reorders and never drops: the client applies the packets in wire order, and
+/// the movement checks compare that order with the answers of the probes around the changes that
+/// the client predicts with. A client that cannot take the packets is disconnected instead.
 #[derive(Component, Default)]
 pub struct OutboundQueue {
     packets: VecDeque<Queued>,
@@ -23,14 +21,6 @@ pub struct OutboundQueue {
 pub struct Queued {
     pub priority: PacketPriority,
     pub packet: QueuedPacket,
-}
-
-impl Queued {
-    /// Whether a deep queue may drop the packet: a Normal packet that the client may miss.
-    #[must_use]
-    pub fn may_shed(&self) -> bool {
-        self.priority == PacketPriority::Normal && !self.packet.must_arrive()
-    }
 }
 
 impl OutboundQueue {
@@ -54,22 +44,6 @@ impl OutboundQueue {
     pub fn drain(&mut self) -> impl Iterator<Item = Queued> + '_ {
         self.packets.drain(..)
     }
-
-    /// Drops the oldest packets that [`Queued::may_shed`] allows until `target` packets remain
-    /// or none of the rest may be shed. Answers how many it dropped.
-    pub fn shed_to(&mut self, target: usize) -> usize {
-        let mut excess = self.packets.len().saturating_sub(target);
-        let before = self.packets.len();
-        self.packets.retain(|queued| {
-            if excess > 0 && queued.may_shed() {
-                excess -= 1;
-                false
-            } else {
-                true
-            }
-        });
-        before.saturating_sub(self.packets.len())
-    }
 }
 
 /// A packet that waits in an [`OutboundQueue`].
@@ -92,16 +66,13 @@ pub struct EncodedPacket {
     pub packet: Bytes,
 }
 
-/// What the client needs a packet for, which decides whether a deep queue may shed it.
+/// What the client needs a packet for, which decides whether the probes bracket it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Need {
     /// A change that the client predicts its own moves with.
     PredictedChange,
-    /// A packet that the client must get for another reason: a teleport it confirms, or a mark
-    /// of a column batch, whose pair the client times to set its column rate.
-    MustArrive,
-    /// A packet that the client may miss.
-    MayMiss,
+    /// A packet that the client does not predict with.
+    Other,
 }
 
 impl Need {
@@ -116,12 +87,7 @@ impl Need {
             | PacketPayload::ChunkUnload(_)
             | PacketPayload::PlayerAbilities(_)
             | PacketPayload::OwnEntityState(_) => Self::PredictedChange,
-            PacketPayload::PlayerPosition(_)
-            | PacketPayload::Respawn(_)
-            | PacketPayload::PlayerLogin(_)
-            | PacketPayload::ChunkBatchStart(_)
-            | PacketPayload::ChunkBatchFinished(_) => Self::MustArrive,
-            _ => Self::MayMiss,
+            _ => Self::Other,
         }
     }
 }
@@ -133,7 +99,7 @@ impl QueuedPacket {
         match self {
             Self::Payload(payload) => Need::of(payload),
             Self::Encoded(encoded) => encoded.need,
-            Self::Records(_) => Need::MayMiss,
+            Self::Records(_) => Need::Other,
         }
     }
 
@@ -141,13 +107,6 @@ impl QueuedPacket {
     #[must_use]
     pub fn changes_prediction(&self) -> bool {
         self.need() == Need::PredictedChange
-    }
-
-    /// Whether the client must get the packet: a change it predicts with, or a teleport, which
-    /// it confirms.
-    #[must_use]
-    pub fn must_arrive(&self) -> bool {
-        self.need() != Need::MayMiss
     }
 
     pub fn kind(&self) -> PacketKind {

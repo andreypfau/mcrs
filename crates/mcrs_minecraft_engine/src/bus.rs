@@ -160,8 +160,7 @@ pub enum PacketPayload {
     PlayerLookAt(ClientboundPlayerLookAt),
     PlayerAbilities(ClientboundPlayerAbilities),
     /// A `set_entity_motion`, `set_entity_data` or `update_attributes` packet with its id, about
-    /// the entity of the one player it goes to. The client of that player predicts with it, so
-    /// the muxer never sheds it.
+    /// the entity of the one player it goes to. The client of that player predicts with it.
     OwnEntityState(Bytes),
     SystemChat(ClientboundSystemChatPacket<'static>),
     GameEvent(ClientboundGameEvent),

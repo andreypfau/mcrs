@@ -274,11 +274,6 @@ enum Flush {
     BetweenTicks,
 }
 
-/// The queued packets past which a connection sheds its Normal packets.
-pub const DEPTH_LIMIT: usize = 256;
-/// The queued packets that the shedding leaves.
-pub const DEPTH_DRAIN_TARGET: usize = 192;
-
 /// Sixteen batches at the socket's cap.
 const STALLED_WRITER_BYTES: usize = 16 * mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_SOCKET;
 
@@ -291,8 +286,8 @@ const STALLED_WRITER_TIME: Duration = Duration::from_secs(30);
 /// that one client holds on the server.
 const MAX_UNSENT_BYTES: usize = 256 * 1024 * 1024;
 
-/// Hands queued outbound packets to every active connection's writer, enforces the
-/// shedding policy, and kicks connections whose writer is dead or has stalled.
+/// Hands queued outbound packets to every active connection's writer, and kicks connections
+/// whose writer is dead or has stalled.
 ///
 /// Execution order: runs in `OutboundFlush`, after `bridge_outbound` filled
 /// queues; in FixedPostUpdate that flush runs before `bridge_inbound` reads.
@@ -378,12 +373,12 @@ fn dispatch_listed(
     flush: Flush,
 ) {
     // A shared packet is framed once only when more than one connection sends it, so the count
-    // comes after the kicks and the shedding.
+    // comes after the kicks.
     listed.retain(|&entity| {
-        let Ok((entity, mut queue, mut conn, ..)) = players.get_mut(entity) else {
+        let Ok((entity, queue, mut conn, ..)) = players.get_mut(entity) else {
             return false;
         };
-        let writable = ready_to_write(entity, &mut queue, &mut conn, commands, telemetry, wakes);
+        let writable = ready_to_write(entity, &mut conn, commands, telemetry, wakes);
         if writable {
             count_recipients(&queue, frames);
         }
@@ -438,11 +433,10 @@ fn count_recipients(queue: &OutboundQueue, frames: &mut SharedFrames) {
     }
 }
 
-/// Kicks a connection whose writer is dead or has stalled, and sheds the oldest packets of a
-/// queue that is too deep. Answers whether the connection is still to be written.
+/// Kicks a connection whose writer is dead or has stalled. Answers whether the connection is
+/// still to be written.
 fn ready_to_write(
     entity: Entity,
-    queue: &mut OutboundQueue,
     conn: &mut ServerSideConnection,
     commands: &mut Commands,
     telemetry: &mut BridgeTelemetry,
@@ -477,13 +471,6 @@ fn ready_to_write(
         commands.entity(entity).remove::<ServerSideConnection>();
         telemetry.kick_overflow_total += 1;
         return false;
-    }
-
-    // Past DEPTH_LIMIT, drain down to DEPTH_DRAIN_TARGET so the queue stays below the limit
-    // for a few ticks before it refills. Only the packets that the client may miss go.
-    if queue.total_len() > DEPTH_LIMIT {
-        let dropped = queue.shed_to(DEPTH_DRAIN_TARGET);
-        telemetry.drop_normal_total = telemetry.drop_normal_total.saturating_add(dropped as u64);
     }
     true
 }

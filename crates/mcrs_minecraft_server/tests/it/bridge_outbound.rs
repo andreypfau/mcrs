@@ -160,18 +160,15 @@ fn the_queue_drains_in_the_order_of_the_writes() {
 }
 
 /// MVC-LAT-001, MVC-TICK-002: a packet that the bridge serializes once for many players has the
-/// need it has for one player, so a deep queue sheds it exactly as it sheds the packet of one.
-/// A block update stays a predicted change, and the marks of a column batch always arrive.
+/// need it has for one player, so the probes bracket it exactly as they bracket the packet of one.
 #[test]
 fn a_shared_packet_keeps_the_need_it_has_for_one_player() {
     use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload};
     use mcrs_minecraft_engine::muxer::bridge_queue::Need;
     use mcrs_minecraft_protocol::VarInt;
     use mcrs_minecraft_protocol_game::block::BlockStateNumber;
-    use mcrs_minecraft_protocol_game::chunk::LightData;
     use mcrs_minecraft_protocol_game::clientbound::{
-        ClientboundBlockEvent, ClientboundBlockUpdate, ClientboundChunkBatchFinished,
-        ClientboundChunkBatchStart, ClientboundLightUpdate,
+        ClientboundBlockEvent, ClientboundBlockUpdate,
     };
     use mcrs_voxel::BlockPos;
 
@@ -191,25 +188,7 @@ fn a_shared_packet_keeps_the_need_it_has_for_one_player() {
                 param: 0,
                 block: VarInt(1),
             }),
-            Need::MayMiss,
-        ),
-        (
-            PacketPayload::LightUpdate(ClientboundLightUpdate {
-                x: VarInt(0),
-                z: VarInt(0),
-                light_data: LightData::default(),
-            }),
-            Need::MayMiss,
-        ),
-        (
-            PacketPayload::ChunkBatchStart(ClientboundChunkBatchStart),
-            Need::MustArrive,
-        ),
-        (
-            PacketPayload::ChunkBatchFinished(ClientboundChunkBatchFinished {
-                batch_size: VarInt(1),
-            }),
-            Need::MustArrive,
+            Need::Other,
         ),
     ] {
         let mut world = build_bridge_world();

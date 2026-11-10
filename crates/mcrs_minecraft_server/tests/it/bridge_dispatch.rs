@@ -1,4 +1,4 @@
-//! Integration tests for `dispatch_encode`: drop policy, kick thresholds,
+//! Integration tests for `dispatch_encode`: wire order, kick thresholds,
 //! single-blob coalescing and shared framing.
 //!
 //! All tests use a mock RawConnection backed by an `mpsc::channel` so no real
@@ -17,7 +17,7 @@ use bytes::{Bytes, BytesMut};
 use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
 };
-use mcrs_minecraft_engine::muxer::bridge::{DEPTH_DRAIN_TARGET, DEPTH_LIMIT, dispatch_encode};
+use mcrs_minecraft_engine::muxer::bridge::dispatch_encode;
 use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_network::OutboundReceiver;
@@ -102,47 +102,6 @@ fn run_dispatch(world: &mut World) {
     sys.initialize(world);
     let _ = sys.run((), world);
     sys.apply_deferred(world);
-}
-
-// ---------------------------------------------------------------------------
-// drop_oldest_on_overflow
-// ---------------------------------------------------------------------------
-
-/// When total queue depth exceeds `DEPTH_LIMIT`, oldest Normal packets are
-/// dropped until depth <= DEPTH_DRAIN_TARGET.
-#[test]
-fn drop_oldest_on_overflow() {
-    let mut world = build_dispatch_world();
-    let (socket, _rx) = spawn_mock_connection(&mut world);
-
-    enqueue(&mut world, socket, PacketPriority::Critical, 2);
-    enqueue(&mut world, socket, PacketPriority::Normal, DEPTH_LIMIT - 1);
-
-    run_dispatch(&mut world);
-
-    assert_eq!(
-        world.resource::<BridgeTelemetry>().drop_normal_total,
-        ((DEPTH_LIMIT + 1) - DEPTH_DRAIN_TARGET) as u64
-    );
-}
-
-/// Once Normal is empty, the shedding stops: Critical is never dropped.
-#[test]
-fn shedding_stops_when_normal_is_empty() {
-    let mut world = build_dispatch_world();
-    let (socket, _rx) = spawn_mock_connection(&mut world);
-
-    enqueue(&mut world, socket, PacketPriority::Normal, 2);
-    enqueue(
-        &mut world,
-        socket,
-        PacketPriority::Critical,
-        DEPTH_LIMIT + 8,
-    );
-
-    run_dispatch(&mut world);
-
-    assert_eq!(world.resource::<BridgeTelemetry>().drop_normal_total, 2);
 }
 
 // ---------------------------------------------------------------------------
@@ -361,42 +320,8 @@ fn a_shared_column_is_framed_once_for_each_threshold() {
     }
 }
 
-#[test]
-fn a_shared_packet_that_one_connection_sheds_is_not_framed_for_the_other() {
-    let mut world = build_dispatch_world();
-    let (sending, mut rx) = spawn_mock_connection(&mut world);
-    let (shedding, _shedding_rx) = spawn_mock_connection(&mut world);
-    let PacketPayload::ChunkLoad { packet, .. } = chunk_load(&[0x80u8; 2000]) else {
-        unreachable!("a column")
-    };
-    // A column is never shed; the command tree is, as a shared packet that no prediction needs.
-    let shared = OutboundPlayerPacket {
-        target: PacketTarget::AllPlayers,
-        priority: PacketPriority::Normal,
-        data: PacketPayload::Commands(packet),
-        session: PlayerSession(0),
-        epoch: 0,
-    };
-    for socket in [sending, shedding] {
-        world
-            .get_mut::<OutboundQueue>(socket)
-            .unwrap()
-            .push(shared.clone());
-    }
-    enqueue(&mut world, shedding, PacketPriority::Normal, DEPTH_LIMIT);
-
-    run_dispatch(&mut world);
-
-    assert_eq!(
-        world.resource::<BridgeTelemetry>().shared_frames_total,
-        0,
-        "the one connection that sends the packet leaves the framing to its writer"
-    );
-    assert!(rx.try_recv().is_ok());
-}
-
 // ---------------------------------------------------------------------------
-// wire order with shedding
+// wire order of a burst
 // ---------------------------------------------------------------------------
 
 /// What one packet on the wire is, for an order test.
@@ -497,12 +422,11 @@ fn wire_of(blob: &[u8]) -> Vec<Wire> {
     wire
 }
 
-/// MVC-LAT-001, MVC-TICK-002, MVC-PKT-031: a queue past its depth sheds only packets that the
-/// client may miss. Every block update, the teleport and the state of the own entity keep their
-/// place in the order of the writes, the probes bracket the predicted changes of the flush on the
-/// wire, and MVC-LAT-002: the flush of the tick ends with a probe.
+/// MVC-LAT-001, MVC-TICK-002, MVC-PKT-031: every packet of a burst of one tick reaches the wire
+/// in the order of the writes, the probes bracket the predicted changes of the flush, and
+/// MVC-LAT-002: the flush of the tick ends with a probe.
 #[test]
-fn a_shedding_queue_keeps_the_wire_order_of_the_predicted_changes_between_probes() {
+fn a_burst_reaches_the_wire_whole_with_the_predicted_changes_between_probes() {
     use mcrs_minecraft_engine::muxer::probes::Probes;
 
     let mut world = build_dispatch_world();
@@ -535,17 +459,7 @@ fn a_shedding_queue_keeps_the_wire_order_of_the_predicted_changes_between_probes
 
     run_dispatch(&mut world);
 
-    let shed = written.len() - DEPTH_DRAIN_TARGET;
-    let mut events_to_shed = shed;
-    let mut expected: Vec<Wire> = written
-        .iter()
-        .filter(|wire| {
-            let drop = matches!(wire, Wire::Event(_)) && events_to_shed > 0;
-            events_to_shed -= usize::from(drop);
-            !drop
-        })
-        .cloned()
-        .collect();
+    let mut expected: Vec<Wire> = written.clone();
     let first = expected
         .iter()
         .position(|wire| matches!(wire, Wire::Update(_) | Wire::Own(_)))
@@ -559,9 +473,5 @@ fn a_shedding_queue_keeps_the_wire_order_of_the_predicted_changes_between_probes
     expected.insert(first, Wire::Probe(0));
 
     let wire = wire_of(&rx.try_recv().unwrap());
-    assert_eq!(
-        world.resource::<BridgeTelemetry>().drop_normal_total,
-        shed as u64
-    );
     assert_eq!(wire, expected);
 }

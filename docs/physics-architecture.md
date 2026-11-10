@@ -981,14 +981,11 @@ client can show, and the size of its box.
 
 ### 8.5 Probes and the write queue
 
-`write_queue` reorders packets by priority and drops normal packets above a depth (today:
-`muxer/bridge.rs`), and block updates are normal packets. Both break the brackets of the probes.
+A packet that is reordered or dropped on its way to the wire breaks the brackets of the probes.
 
 - L1 inserts its probes at write time, after the order on the wire is final, on the network thread
   of the connection.
-- A packet that changes the prediction (block updates, chunk loads and forgets, motion, explosions,
-  abilities, effects, attributes, `block_changed_ack`, teleports) is never dropped. Shedding applies
-  only to the other packets.
+- No packet is dropped. A client that cannot take the packets is disconnected, as vanilla does.
 
 ### 8.6 The server copy of a player
 
@@ -1486,7 +1483,7 @@ working. Steps in one track run in sequence; tracks marked ∥ run in parallel w
 | E5 | `mcrs_minecraft_engine` | broadcast cut after random ticks; at most one block packet per section per broadcast; block events to players within 64 blocks | SIM-MODEL-107(a), SIM-TICK-002, SIM-SET-005, SIM-BEV-004 | packet order and count tests | tests pass |
 | E6 | `mcrs_minecraft_block` | default friction 0.6F | PHY-GRV-017 | definition test | test passes |
 | E7 | `mcrs_minecraft_simulation` | precipitation picks with the group draw | SIM-RND-004 | distribution test (binomial tolerance) | test passes |
-| E8 | `mcrs_minecraft_engine` | probes at write time; prediction changes never dropped; block updates not shed | MVC-LAT-001, MVC-TICK-002 | wire-order test with shedding forced | test passes |
+| E8 | `mcrs_minecraft_engine` | probes at write time; no packet dropped | MVC-LAT-001, MVC-TICK-002 | wire-order test of a burst | test passes |
 
 ### Track B — store, keys and the pass (B1 ∥ with K; B2 after K3)
 
@@ -1620,8 +1617,7 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
 32. Resolved: SIM-SET-005, SIM DEV-07. Dropping the marks is allowed when the complete column goes
     to the client later.
 33. Resolved: MVC-PKT-031. Of the entity packets, only `set_entity_motion`, `set_entity_data` and
-    `update_attributes` go to the viewer about itself; they must never be shed and count as
-    predicted changes.
+    `update_attributes` go to the viewer about itself; they count as predicted changes.
 34. Decided: the player spawn info of `login` and `respawn` has one world flag in
     `26.4-snapshot-7`, not two. We keep the flat world flag and remove the debug world flag.
     Evidence: snapshot 7 makes debug worlds ordinary editable worlds, and the level of the game
