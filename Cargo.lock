@@ -4967,6 +4967,7 @@ dependencies = [
 name = "mcrs_minecraft_jukebox_song"
 version = "0.5.8"
 dependencies = [
+ "mcrs_minecraft_core",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_sound",

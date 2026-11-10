@@ -1,3 +1,5 @@
+use mcrs_minecraft_core::codec::Bounded;
+use mcrs_minecraft_core::codec::PositiveFloat;
 use mcrs_minecraft_registries::{Refs, Resolved};
 use mcrs_minecraft_sound::Sound;
 use mcrs_minecraft_text::{Text, TextSerde, TextTypes};
@@ -12,6 +14,6 @@ use serde::{Deserialize, Serialize};
 pub struct JukeboxSong<I: TextTypes, M: Refs = Resolved> {
     pub sound_event: Sound<M>,
     pub description: Text<I>,
-    pub length_in_seconds: f32,
-    pub comparator_output: i32,
+    pub length_in_seconds: PositiveFloat,
+    pub comparator_output: Bounded<0, 15>,
 }
