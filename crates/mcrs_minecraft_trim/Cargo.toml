@@ -1,0 +1,20 @@
+[package]
+name = "mcrs_minecraft_trim"
+description = "The values of the trim material and trim pattern registries"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_text.workspace = true
+serde = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+mcrs_minecraft_fixtures.workspace = true
+serde_json.workspace = true

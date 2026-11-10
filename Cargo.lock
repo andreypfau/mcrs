@@ -5649,6 +5649,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_trim"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_resource",
+ "mcrs_minecraft_text",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mcrs_minecraft_update"
 version = "0.5.8"
 dependencies = [
