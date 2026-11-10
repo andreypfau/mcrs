@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use std::process::Command;
 use std::time::Duration;
 
 use anyhow::{Context, bail};
@@ -80,7 +79,7 @@ fn run_bench(
     args: &[&str],
     raw_log: &std::path::Path,
 ) -> anyhow::Result<String> {
-    let output = Command::new("cargo")
+    let output = crate::process::clean_command("cargo")
         .args(["bench", "-p", PACKAGE, "--bench", bench, "--"])
         .args(args)
         .current_dir(&options.repo)

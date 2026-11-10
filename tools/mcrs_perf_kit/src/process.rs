@@ -9,19 +9,20 @@ use std::time::Instant;
 use anyhow::Context;
 
 /// A command for a measured binary that drops the tester's own `MCRS_*` variables, so only the
-/// knobs the kit sets shape a run.
+/// knobs the kit sets shape a run, and every variable that is not UTF-8, on which build scripts
+/// that read the whole environment panic (zsh exports `_` metafied under a non-ASCII path).
 #[expect(
     clippy::disallowed_methods,
     reason = "the kit reads the tester's environment only to keep it out of the measured binaries"
 )]
 pub fn clean_command(program: impl AsRef<OsStr>) -> Command {
     let mut command = Command::new(program);
-    for (key, _) in std::env::vars_os() {
-        if key
-            .to_string_lossy()
-            .to_ascii_uppercase()
-            .starts_with("MCRS_")
-        {
+    for (key, value) in std::env::vars_os() {
+        let kept = match (key.to_str(), value.to_str()) {
+            (Some(name), Some(_)) => !name.to_ascii_uppercase().starts_with("MCRS_"),
+            _ => false,
+        };
+        if !kept {
             command.env_remove(key);
         }
     }
