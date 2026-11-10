@@ -40,7 +40,7 @@ use crate::common::{
     tag_members, write_named,
 };
 use mcrs_minecraft_dimension::DimensionType;
-use mcrs_minecraft_item::item_keys::Item;
+use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_noise::proto::NoiseParam;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;

@@ -17,6 +17,7 @@ glam.workspace = true
 mcrs_minecraft_client_world.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_item.workspace = true
+mcrs_minecraft_item_key.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_numeric.workspace = true
 mcrs_minecraft_protocol_game.workspace = true

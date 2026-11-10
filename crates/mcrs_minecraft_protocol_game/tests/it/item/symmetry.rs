@@ -20,7 +20,7 @@ use crate::item::harness::{
     decode, entry, from_json, from_nbt, json_of, lookup, named, persistent_json, read_json,
     resolved, wire,
 };
-use mcrs_minecraft_item::item_keys::Item;
+use mcrs_minecraft_item_key::item_keys::Item;
 
 const ITERATIONS: usize = 256;
 const ITEMS: [&str; 4] = ["stone", "diamond_sword", "apple", "bundle"];

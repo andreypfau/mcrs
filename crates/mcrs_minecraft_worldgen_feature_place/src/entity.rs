@@ -116,7 +116,7 @@ pub enum GeneratedKind {
     },
 }
 
-use mcrs_minecraft_item::item_keys::Item;
+use mcrs_minecraft_item_key::item_keys::Item;
 
 /// `ItemStack.CODEC`, whose `count` is optional to read and always written.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

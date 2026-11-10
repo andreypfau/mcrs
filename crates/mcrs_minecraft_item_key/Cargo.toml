@@ -1,0 +1,15 @@
+[package]
+name = "mcrs_minecraft_item_key"
+description = "The keys of the item registry and of its tags"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_registries.workspace = true

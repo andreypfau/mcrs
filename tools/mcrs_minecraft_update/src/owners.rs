@@ -569,7 +569,7 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:item",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_item_key",
         value: ValueType::Enum("Item"),
     },
     Owner {

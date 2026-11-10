@@ -10,7 +10,7 @@ pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'s
     (mcrs_minecraft_block::registry_keys::BLOCK.location(), mcrs_minecraft_block::block_keys::Block::ENTRIES),
     (mcrs_minecraft_keys::DEBUG_SUBSCRIPTION, mcrs_minecraft_keys::debug_subscription::ENTRIES),
     (mcrs_minecraft_entity::registry_keys::ENTITY_TYPE.location(), mcrs_minecraft_entity::entity_type_keys::EntityType::ENTRIES),
-    (mcrs_minecraft_item::registry_keys::ITEM.location(), mcrs_minecraft_item::item_keys::Item::ENTRIES),
+    (mcrs_minecraft_item_key::registry_keys::ITEM.location(), mcrs_minecraft_item_key::item_keys::Item::ENTRIES),
     (mcrs_minecraft_item::registry_keys::POTION.location(), mcrs_minecraft_item::potion_keys::Potion::ENTRIES),
     (mcrs_minecraft_particle::registry_keys::PARTICLE_TYPE.location(), mcrs_minecraft_particle::particle_type_keys::ParticleType::ENTRIES),
     (mcrs_minecraft_block::registry_keys::BLOCK_ENTITY_TYPE.location(), mcrs_minecraft_block::block_entity_type_keys::BlockEntityType::ENTRIES),

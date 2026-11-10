@@ -1,4 +1,4 @@
-use mcrs_minecraft_item::item_keys::Item;
+use mcrs_minecraft_item_key::item_keys::Item;
 use serde::{Deserialize, Serialize};
 
 use crate::SavedItem;

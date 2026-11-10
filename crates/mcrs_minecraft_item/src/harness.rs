@@ -216,7 +216,7 @@ macro_rules! sample_registries_table {
 }
 
 sample_registries_table! {
-    crate::registry_keys::ITEM => "item" numbered crate::item_keys::Item::ENTRIES ["air", "stone", "diamond_sword", "apple", "bundle", "diamond"]
+    mcrs_minecraft_item_key::registry_keys::ITEM => "item" numbered mcrs_minecraft_item_key::item_keys::Item::ENTRIES ["air", "stone", "diamond_sword", "apple", "bundle", "diamond"]
         [("planks" => ["stone"]), ("swords" => ["diamond_sword"])];
     mcrs_minecraft_entity::registry_keys::MOB_EFFECT => "mob_effect" numbered mcrs_minecraft_entity::mob_effect_keys::MobEffect::ENTRIES ["speed", "slowness", "haste"] [];
     crate::registry_keys::ENCHANTMENT => "enchantment" ["sharpness", "unbreaking"] [];

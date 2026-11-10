@@ -1,5 +1,5 @@
 use crate::item::harness::WireCodec;
-use mcrs_minecraft_item::item_keys::Item;
+use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_protocol::{Decode, Encode};
 use mcrs_minecraft_protocol_game::advancement::{
     Advancement, AdvancementProgress, AdvancementType, CriterionProgress, DisplayInfo,

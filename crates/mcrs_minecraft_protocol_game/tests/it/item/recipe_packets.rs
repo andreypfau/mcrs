@@ -7,7 +7,7 @@ use std::sync::{Arc, LazyLock};
 
 use mcrs_minecraft_core::codec::{Bounded, Validate};
 use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
-use mcrs_minecraft_item::item_keys::Item;
+use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_protocol::wire::MAX_NESTING;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::clientbound::{

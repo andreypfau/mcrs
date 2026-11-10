@@ -80,11 +80,6 @@ impl Registered for crate::InstrumentValue {
     const REGISTRY: RegistryKey<Self> = INSTRUMENT;
 }
 
-pub const ITEM: RegistryKey<crate::item_keys::Item> = RegistryKey::new(rl!("minecraft:item"));
-impl Registered for crate::item_keys::Item {
-    const REGISTRY: RegistryKey<Self> = ITEM;
-}
-
 pub const JUKEBOX_SONG: RegistryKey<crate::JukeboxSong> =
     RegistryKey::new(rl!("minecraft:jukebox_song"));
 impl Registered for crate::JukeboxSong {

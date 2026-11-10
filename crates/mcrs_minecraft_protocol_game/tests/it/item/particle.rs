@@ -163,7 +163,7 @@ fn golden_values_decode_to_the_expected_fields() {
         check("item_stack"),
         ParticleOptions::Item(ItemParticle {
             item: Template::new(
-                mcrs_minecraft_item::item_keys::Item::DiamondSword.id(),
+                mcrs_minecraft_item_key::item_keys::Item::DiamondSword.id(),
                 3,
                 read_json::<ComponentPatch>(r#"{"max_stack_size":16}"#).unwrap(),
             )
@@ -320,9 +320,9 @@ fn a_wire_value_that_names_no_known_entry_is_rejected_by_the_check() {
     use mcrs_minecraft_core::BlockStateNumber;
     use mcrs_minecraft_item::component::CompactList;
     use mcrs_minecraft_item::component::{AdventureModePredicate, BlockPredicate, CanPlaceOn};
-    use mcrs_minecraft_item::item_keys::Item;
     use mcrs_minecraft_item::kind::ItemComponentValue;
     use mcrs_minecraft_item::stack::ItemStackValue;
+    use mcrs_minecraft_item_key::item_keys::Item;
     use mcrs_minecraft_registries::{WireId, WireSet};
 
     let item = |id: u16, components: ComponentPatch<Wire>| {

@@ -43,10 +43,6 @@ pub mod instrument_keys;
 #[rustfmt::skip]
 pub mod instrument_tag_keys;
 #[rustfmt::skip]
-pub mod item_keys;
-#[rustfmt::skip]
-pub mod item_tag_keys;
-#[rustfmt::skip]
 pub mod jukebox_song_keys;
 #[rustfmt::skip]
 pub mod map_decoration_type_keys;

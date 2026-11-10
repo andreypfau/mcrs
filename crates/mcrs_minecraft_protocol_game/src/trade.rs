@@ -1,7 +1,7 @@
 use std::io::Write;
 
 use mcrs_minecraft_item::ProtoStack;
-use mcrs_minecraft_item::item_keys::Item;
+use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_protocol::wire::ensure;
 use mcrs_minecraft_registries::{FromWire, Refs, Resolved, Wire};
 

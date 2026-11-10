@@ -324,7 +324,7 @@ mod tests {
 
     fn value(path: &str, count: i32, components: ComponentPatch) -> ItemStackValue {
         ItemStackValue {
-            item: mcrs_minecraft_item::item_keys::Item::read(&format!("minecraft:{path}"))
+            item: mcrs_minecraft_item_key::item_keys::Item::read(&format!("minecraft:{path}"))
                 .unwrap()
                 .id(),
             count: Bounded(count),
