@@ -4957,7 +4957,9 @@ dependencies = [
  "bevy_ecs",
  "mcrs_minecraft_item_key",
  "mcrs_minecraft_item_stack",
+ "mcrs_minecraft_resource",
  "mcrs_minecraft_text",
+ "rustc-hash 2.1.1",
 ]
 
 [[package]]
