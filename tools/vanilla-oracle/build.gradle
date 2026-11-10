@@ -231,6 +231,14 @@ tasks.register('dumpBlockEntityPoses', JavaExec) {
 	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/entity-out".toString(), 'block_entities']
 }
 
+tasks.register('dumpSignText', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.EntityModelOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/entity-out".toString(), 'sign_text']
+}
+
 tasks.register('dumpEntityTypes', JavaExec) {
 	group = 'oracle'
 	classpath = sourceSets.data.runtimeClasspath
