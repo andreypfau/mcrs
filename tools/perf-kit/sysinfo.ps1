@@ -161,7 +161,7 @@ if ($repo) { $repoInfo = [ordered]@{ commit = $commit; dirty = $dirty } }
 $doc = [ordered]@{
     schema = 1
     label = $Label
-    collected_at = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+    collected_at = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ', [Globalization.CultureInfo]::InvariantCulture)
     os = [ordered]@{ name = 'Windows'; caption = $os.Caption; version = $os.Version; build = $os.BuildNumber; arch = $os.OSArchitecture }
     machine = [ordered]@{ manufacturer = $computer.Manufacturer; model = $computer.Model; laptop = ($computer.PCSystemType -eq 2) }
     cpu = [ordered]@{

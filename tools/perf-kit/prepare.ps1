@@ -96,6 +96,9 @@ function Test-Apps {
 # Busy % of the named processes, from the performance classes; their names are not localised.
 function Get-DaemonCpu {
     $logical = [Environment]::ProcessorCount
+    # Formatted rate counters read 0 on the first query, so the second sample counts.
+    Get-CimInstance Win32_PerfFormattedData_PerfProc_Process -ErrorAction SilentlyContinue | Out-Null
+    Start-Sleep -Seconds 1
     $total = 0.0
     Get-CimInstance Win32_PerfFormattedData_PerfProc_Process -ErrorAction SilentlyContinue | ForEach-Object {
         if ($Daemons -contains ($_.Name -replace '#\d+$', '')) { $total += $_.PercentProcessorTime }
@@ -146,6 +149,7 @@ function Test-Power {
             }
             $action = "switched from $guid"
             $fast = $true
+            Write-Host '  The power plan stays on High performance until run.ps1 finishes; if the run stops early, the next run.ps1 offers to switch it back.'
         } else {
             $action = 'High performance plan not available; set Settings > System > Power > Power mode to Best performance'
         }
@@ -222,7 +226,7 @@ if ($Interactive) {
 
 $doc = [ordered]@{
     mode = $mode
-    collected_at = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+    collected_at = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ', [Globalization.CultureInfo]::InvariantCulture)
     os = 'windows'
     checks = @($checks)
 }

@@ -20,8 +20,19 @@ $EsDisplayRequired = [uint32]2
 $benchProfile = 'quick'
 if ($Full) { $benchProfile = 'full' }
 
+function Restore-PowerPlan {
+    $previous = ([IO.File]::ReadAllText($PowerRestoreFile)).Trim()
+    Get-NativeOutput 'powercfg' @('/setactive', $previous) | Out-Null
+    Remove-Item $PowerRestoreFile
+    Write-Host "Power plan restored to $previous"
+}
+
 $repo = Get-KitRepo
 if (-not $repo) { Write-Host 'run.ps1 must stay inside the mcrs checkout; run bootstrap.ps1 first.'; exit 1 }
+
+if ((Test-Path $PowerRestoreFile) -and (Confirm-Choice 'An earlier run stopped before it switched the power plan back. Restore the previous plan now? Otherwise this run restores it when it ends.')) {
+    Restore-PowerPlan
+}
 
 Write-Host "mcrs benchmark kit, profile: $benchProfile"
 if ($Full) { Write-Host 'Expected time: about 3-5 hours, depending on the machine.' } else { Write-Host 'Expected time: about 45-90 minutes, depending on the machine.' }
@@ -41,7 +52,7 @@ if (Confirm-Choice 'Do you accept the Minecraft EULA?') {
     $sections = @('--only', 'client,server,worldgen')
 }
 
-$name = "$Label-windows-$((Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ'))"
+$name = "$Label-windows-$((Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ', [Globalization.CultureInfo]::InvariantCulture))"
 $results = Join-Path $KitDir 'results'
 $dir = Join-Path $results $name
 New-Item -ItemType Directory -Force -Path $dir | Out-Null
@@ -50,8 +61,12 @@ $status = 1
 try {
     [void][PerfKitAwake]::SetThreadExecutionState($EsContinuous -bor $EsSystemRequired -bor $EsDisplayRequired)
 
-    & (Join-Path $KitDir 'sysinfo.ps1') -Label $Label -Out (Join-Path $dir 'system.json')
-    & (Join-Path $KitDir 'prepare.ps1') -Out (Join-Path $dir 'hygiene.json')
+    $systemFile = Join-Path $dir 'system.json'
+    & (Join-Path $KitDir 'sysinfo.ps1') -Label $Label -Out $systemFile
+    if (-not (Test-Path $systemFile)) { Write-Host 'Recording the system failed; see the error above.'; exit 1 }
+    $hygieneFile = Join-Path $dir 'hygiene.json'
+    & (Join-Path $KitDir 'prepare.ps1') -Out $hygieneFile
+    if (-not (Test-Path $hygieneFile)) { Write-Host 'Preparing the machine failed; see the error above.'; exit 1 }
     & (Join-Path $KitDir 'bootstrap.ps1') -BuildOnly
     if ($LASTEXITCODE -ne 0) { Write-Host "The build failed; run $KitDir\bootstrap.ps1 and try again."; exit 1 }
 
@@ -60,7 +75,7 @@ try {
 
     # The client sizes a window in physical pixels (scale factor 1), so it is compared with the
     # primary display's pixels, minus the taskbar and the title bar.
-    $system = Get-Content -Raw -Path (Join-Path $dir 'system.json') | ConvertFrom-Json
+    $system = Get-Content -Raw -Encoding UTF8 -Path $systemFile | ConvertFrom-Json
     $window = '960x540'
     if ($system.primary_display) {
         $pixels = $system.primary_display.pixels
@@ -69,7 +84,7 @@ try {
             if ([int]$size[0] -le $pixels.width - 40 -and [int]$size[1] -le $pixels.height - 160) { $window = $candidate; break }
         }
     }
-    $heap = [math]::Min(16, [math]::Floor($system.memory_bytes / 1GB / 2))
+    $heap = [math]::Max(1, [math]::Min(16, [math]::Floor($system.memory_bytes / 1GB / 2)))
     Write-Host "Window $window, Java heap $heap GB, results in $dir"
 
     $log = New-Object IO.StreamWriter((Join-Path $dir 'run.log'), $false, (New-Object Text.UTF8Encoding $false))
@@ -88,22 +103,29 @@ try {
     } finally {
         $log.Close()
     }
+    $profilePattern = [regex]::Escape($userProfile) + '|' + [regex]::Escape($userProfile.Replace('\', '\\'))
+    Get-ChildItem -Path $dir -Recurse -File | ForEach-Object {
+        $text = [IO.File]::ReadAllText($_.FullName)
+        [IO.File]::WriteAllText($_.FullName, ($text -replace $profilePattern, '~'), (New-Object Text.UTF8Encoding $false))
+    }
 
     & (Join-Path $KitDir 'prepare.ps1') -CheckOnly -Out (Join-Path $dir 'hygiene-after.json')
 
     $zip = Join-Path $results "$name.zip"
-    Compress-Archive -Path $dir -DestinationPath $zip -Force
+    try {
+        if (Test-Path $zip) { Remove-Item $zip }
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [IO.Compression.ZipFile]::CreateFromDirectory($dir, $zip, [IO.Compression.CompressionLevel]::Optimal, $true)
+    } catch {
+        Write-Host "Could not create the zip; send the folder $dir instead."
+        exit 1
+    }
     Write-Host ''
     if ($status -ne 0) { Write-Host "Some sections failed (exit $status); the zip still holds everything that was measured." }
     Write-Host "Done. Send this file: $zip"
     Write-Host 'It holds system.json, hygiene.json, hygiene-after.json, report.json, raw\ and run.log.'
 } finally {
     [void][PerfKitAwake]::SetThreadExecutionState($EsContinuous)
-    if (Test-Path $PowerRestoreFile) {
-        $previous = ([IO.File]::ReadAllText($PowerRestoreFile)).Trim()
-        Get-NativeOutput 'powercfg' @('/setactive', $previous) | Out-Null
-        Remove-Item $PowerRestoreFile
-        Write-Host "Power plan restored to $previous"
-    }
+    if (Test-Path $PowerRestoreFile) { Restore-PowerPlan }
 }
 exit $status

@@ -31,8 +31,11 @@ if (-not (Test-Path (Join-Path $PSScriptRoot 'common.ps1'))) {
             winget install --id Git.Git @WingetFlags
             $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
         }
-        git config --global core.longpaths true
-        git clone $RepoUrl $CloneDir
+        Write-Host 'The mcrs checkout has paths longer than the 260 characters Windows allows by default; Git handles them with core.longpaths. Without y it is set for this checkout only.'
+        if ((Read-Host 'Set core.longpaths for every Git repository of this account (git config --global)? [y/N]') -match '^(y|yes)$') {
+            git config --global core.longpaths true
+        }
+        git clone -c core.longpaths=true $RepoUrl $CloneDir
         if ($LASTEXITCODE -ne 0) { Write-Host "git clone failed; $ProxyHint"; exit 1 }
     }
     & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $CloneDir 'tools\perf-kit\bootstrap.ps1')
@@ -170,8 +173,13 @@ if (Get-Command git -ErrorAction SilentlyContinue) {
 } else {
     Add-Step 'git' 'FAILED' 'install winget first'
 }
-if ((-not $Check) -and (Get-Command git -ErrorAction SilentlyContinue)) {
-    git config --global core.longpaths true
+if ((-not $Check) -and (Get-Command git -ErrorAction SilentlyContinue) -and ((git -C (Get-KitRepo) config --get core.longpaths) -ne 'true')) {
+    Write-Host 'The mcrs checkout has paths longer than the 260 characters Windows allows by default; Git handles them with core.longpaths. Without y it is set for this checkout only.'
+    if (Confirm-Choice 'Set core.longpaths for every Git repository of this account (git config --global)?') {
+        git config --global core.longpaths true
+    } else {
+        git -C (Get-KitRepo) config core.longpaths true
+    }
 }
 
 # Visual Studio Build Tools (link.exe and the Windows SDK)
@@ -197,9 +205,16 @@ if (Get-Command rustup -ErrorAction SilentlyContinue) {
     Add-Step 'rustup' 'MISSING' 'run bootstrap.ps1 without -Check'
 } else {
     if ((Test-NeedsShortPaths) -and -not $env:CARGO_HOME) {
-        [Environment]::SetEnvironmentVariable('RUSTUP_HOME', 'C:\rust\rustup', 'User')
-        [Environment]::SetEnvironmentVariable('CARGO_HOME', 'C:\rust\cargo', 'User')
-        Update-SessionPath
+        Write-Host "Your profile path ($env:USERPROFILE) has spaces or non-ASCII characters, which break parts of the Rust build, so Rust goes to C:\rust. Saving RUSTUP_HOME and CARGO_HOME in your user environment lets every new terminal find it; without y the kit scripts set them for their own window only."
+        if (Confirm-Choice 'Save RUSTUP_HOME and CARGO_HOME in your user environment?') {
+            [Environment]::SetEnvironmentVariable('RUSTUP_HOME', 'C:\rust\rustup', 'User')
+            [Environment]::SetEnvironmentVariable('CARGO_HOME', 'C:\rust\cargo', 'User')
+            Update-SessionPath
+        } else {
+            $env:RUSTUP_HOME = 'C:\rust\rustup'
+            $env:CARGO_HOME = 'C:\rust\cargo'
+            $env:Path = 'C:\rust\cargo\bin;' + $env:Path
+        }
         Add-Step 'short paths' 'FIXED' 'RUSTUP_HOME=C:\rust\rustup, CARGO_HOME=C:\rust\cargo'
     }
     $rustArch = 'x86_64'

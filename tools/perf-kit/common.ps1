@@ -19,9 +19,15 @@ $PowerRestoreFile = Join-Path $KitHome 'power-scheme-restore.txt'
 function Update-SessionPath {
     $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
     $cargoHome = [Environment]::GetEnvironmentVariable('CARGO_HOME', 'User')
+    $rustupHome = [Environment]::GetEnvironmentVariable('RUSTUP_HOME', 'User')
+    if ((-not $cargoHome) -and (Test-NeedsShortPaths) -and (Test-Path 'C:\rust\cargo')) {
+        # bootstrap.ps1 put Rust here without saving the variables in the user environment.
+        $cargoHome = 'C:\rust\cargo'
+        $rustupHome = 'C:\rust\rustup'
+    }
     if ($cargoHome) {
         $env:CARGO_HOME = $cargoHome
-        $env:RUSTUP_HOME = [Environment]::GetEnvironmentVariable('RUSTUP_HOME', 'User')
+        $env:RUSTUP_HOME = $rustupHome
         $env:Path = (Join-Path $cargoHome 'bin') + ';' + $env:Path
     } else {
         $env:Path = (Join-Path $env:USERPROFILE '.cargo\bin') + ';' + $env:Path

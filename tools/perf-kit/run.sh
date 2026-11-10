@@ -5,6 +5,8 @@ set -u
 # shellcheck source=SCRIPTDIR/common.sh
 . "$(dirname "$0")/common.sh"
 
+clean_label() { printf '%s' "$1" | tr -cs 'A-Za-z0-9_-' '-' | sed 's/^-*//; s/-*$//'; }
+
 profile=quick
 label=""
 while [ $# -gt 0 ]; do
@@ -23,10 +25,11 @@ if [ "$profile" = full ]; then say "Expected time: about 3-5 hours, depending on
 say "While it runs, do not touch the computer. The game window must stay visible, on top and not minimised."
 say ""
 
+label="$(clean_label "$label")"
 while [ -z "$label" ]; do
     printf 'Machine label (for example m2-air or ryzen-3060): ' >&2
     read -r label || exit 1
-    label="$(printf '%s' "$label" | tr -cs 'A-Za-z0-9_-' '-' | sed 's/^-*//; s/-*$//')"
+    label="$(clean_label "$label")"
 done
 
 say "The mob benchmark runs the Minecraft server, which needs the Minecraft EULA: https://aka.ms/MinecraftEULA"
@@ -74,7 +77,7 @@ say "Window $window, Java heap ${heap} GB, results in $dir"
 "$repo/target/release/perf-kit" run --out "$dir" --profile "$profile" --repo "$repo" \
     --window "$window" --heap "${heap}g" --java "$java" "${sections[@]}" 2>&1 | tee "$dir/run.log"
 status=${PIPESTATUS[0]}
-sed -i '' "s|$HOME|~|g" "$dir/run.log"
+find "$dir" -type f -exec env LC_ALL=C sed -i '' "s|$HOME|~|g" {} +
 
 "$KIT_DIR/prepare.sh" --check-only --out "$dir/hygiene-after.json"
 

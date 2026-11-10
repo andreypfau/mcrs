@@ -5,6 +5,12 @@ KIT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KIT_HOME="${MCRS_PERF_HOME:-$HOME/.mcrs-perf}"
 JAVA_MIN=25
 
+# A terminal opened before bootstrap.sh installed rustup has no cargo on PATH yet.
+if [ -f "${CARGO_HOME:-$HOME/.cargo}/env" ]; then
+    # shellcheck source=/dev/null
+    . "${CARGO_HOME:-$HOME/.cargo}/env"
+fi
+
 say() { printf '%s\n' "$*"; }
 
 # ask "question" -> 0 on y/yes, 1 otherwise (default No).

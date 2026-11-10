@@ -61,14 +61,15 @@ Next to the numbers, the kit records what the numbers depend on: the CPU, GPU, m
 | Installs Xcode Command Line Tools, rustup, the Rust toolchain (macOS) | bootstrap, if missing | No; remove with `rustup self uninstall` |
 | Installs Git, Visual Studio Build Tools, rustup, the Rust toolchain (Windows) | bootstrap, if missing | No; remove them in Settings > Apps |
 | Puts Java 25 into `~/.mcrs-perf/jdk` or `%USERPROFILE%\.mcrs-perf\jdk` | bootstrap, if no Java 25 is found | No; delete the folder |
-| Sets `git config --global core.longpaths true` (Windows) | bootstrap | No |
-| Sets `RUSTUP_HOME=C:\rust\rustup` and `CARGO_HOME=C:\rust\cargo` for your user (Windows) | bootstrap, if your profile path has spaces or non-ASCII characters | No |
+| Sets `git config --global core.longpaths true` (Windows) | bootstrap, only if you answer y; otherwise only the checkout gets it | No |
+| Sets `RUSTUP_HOME=C:\rust\rustup` and `CARGO_HOME=C:\rust\cargo` for your user (Windows) | bootstrap, if your profile path has spaces or non-ASCII characters and you answer y; otherwise the scripts set them for their own window | No |
 | Adds a Defender exclusion for the repository folder (Windows) | bootstrap, only if you answer y | No; remove with `Remove-MpPreference -ExclusionPath <folder>` as administrator |
 | Closes the apps you agree to close | prepare, asked per app | No; start them again after the run |
-| Switches the power plan to High performance (Windows) | prepare, only if you answer y | Yes, at the end of run, also after Ctrl+C |
+| Switches the power plan to High performance (Windows) | prepare, only if you answer y | Yes, at the end of run, also after Ctrl+C; if a run stops before that, the next run offers to restore it |
 | Keeps the machine and the display awake | run | Yes, when run ends |
+| Stops a running Time Machine backup with `tmutil stopbackup` (macOS) | prepare, only if you answer y | No; Time Machine resumes at the next scheduled backup |
 
-The scripts never close the terminal that runs them, nor system processes such as Defender, Windows Update, Spotlight or Time Machine; for those they wait until they calm down and record what they saw.
+The scripts never close the terminal that runs them, nor system processes such as Defender, Windows Update or Spotlight; for those they wait until they calm down and record what they saw. The one exception is a running Time Machine backup, which prepare offers to stop.
 
 ## Troubleshooting
 
