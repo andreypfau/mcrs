@@ -4951,6 +4951,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_item_table"
+version = "0.5.8"
+dependencies = [
+ "bevy_ecs",
+ "mcrs_minecraft_item_key",
+ "mcrs_minecraft_item_stack",
+ "mcrs_minecraft_text",
+]
+
+[[package]]
 name = "mcrs_minecraft_jukebox_song"
 version = "0.5.8"
 dependencies = [

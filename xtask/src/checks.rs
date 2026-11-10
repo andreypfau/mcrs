@@ -41,7 +41,7 @@ const NO_STD_PACKAGES: [&str; 10] = [
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 115] = [
+const NO_BEVY_PACKAGES: [&str; 116] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -97,6 +97,7 @@ const NO_BEVY_PACKAGES: [&str; 115] = [
     "mcrs_minecraft_item",
     "mcrs_minecraft_item_key",
     "mcrs_minecraft_item_stack",
+    "mcrs_minecraft_item_table",
     "mcrs_minecraft_jukebox_song",
     "mcrs_minecraft_keys",
     "mcrs_minecraft_lang",
