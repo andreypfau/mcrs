@@ -147,6 +147,8 @@ find "$dir" -type f -exec env LC_ALL=C sed -i '' "s|$HOME|~|g" {} +
 
 (cd "$results" && ditto -c -k --keepParent "$name" "$name.zip") || { msg "Could not create the zip; send the folder $dir instead." "Не получилось создать zip; отправьте вместо него папку $dir."; exit 1; }
 say ""
+"$repo/target/release/perf-kit" summary "$dir" --zip "$results/$name.zip"
+say ""
 if [ "$status" -ne 0 ]; then msg "Some sections failed (exit $status); the zip still holds everything that was measured." "Часть секций упала (код $status); в zip все равно есть все, что успели замерить."; fi
 msg "Done. Send this file: $results/$name.zip" "Готово. Отправьте этот файл: $results/$name.zip"
 msg "It holds system.json, hygiene.json, hygiene-after.json, report.json, raw/ and run.log." "В нем system.json, hygiene.json, hygiene-after.json, report.json, raw/ и run.log."

@@ -169,6 +169,8 @@ try {
         exit 1
     }
     Write-Host ''
+    & (Join-Path $repo 'target\release\perf-kit.exe') summary $dir --zip $zip
+    Write-Host ''
     if ($status -ne 0) { Write-Host (T "Some sections failed (exit $status); the zip still holds everything that was measured." "Часть секций упала (код $status); в zip все равно есть все, что успели замерить.") }
     Write-Host (T "Done. Send this file: $zip" "Готово. Отправьте этот файл: $zip")
     Write-Host (T 'It holds system.json, hygiene.json, hygiene-after.json, report.json, raw\ and run.log.' 'В нем system.json, hygiene.json, hygiene-after.json, report.json, raw\ и run.log.')

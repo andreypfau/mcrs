@@ -4,6 +4,7 @@ mod client;
 mod client_run;
 mod clock;
 mod java;
+mod lang;
 mod median;
 mod mob;
 mod mob_summary;
@@ -19,6 +20,8 @@ mod server_start;
 mod settle;
 mod shown_path;
 mod stats_line;
+mod summary;
+mod summary_input;
 mod vanilla_jar;
 mod worldgen;
 
@@ -29,6 +32,11 @@ use crate::report::Report;
 
 fn main() -> ExitCode {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
+    if let Some((command, rest)) = arguments.split_first()
+        && command == "summary"
+    {
+        return summary::run(rest);
+    }
     let options = match Options::parse(&arguments) {
         Ok(options) => options,
         Err(error) => {
