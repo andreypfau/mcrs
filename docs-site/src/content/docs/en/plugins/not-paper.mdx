@@ -30,12 +30,12 @@ import { Aside } from '@astrojs/starlight/components';
 
 A plugin written for Paper does not run on mcrs. This page is for developers who come from Paper or Bukkit. It tells you what you do in place of writing against a plugin API, what already works and what is still missing.
 
-mcrs has no Bukkit-like API and no facade crate, and that was decided in <Status issue={437} />. It also has no plugin loader today, so the server cannot load a jar, a wasm module or a script, and JVM code in Java or Kotlin cannot run inside it. Nobody has opened an issue about a loader or made a decision on one, so this page does not say "never".
+mcrs has no Bukkit-like API and no facade crate, and that is a decision of the project.[^437] It also has no plugin loader today, so the server cannot load a jar, a wasm module or a script, and JVM code in Java or Kotlin cannot run inside it. Nobody has opened an issue about a loader or made a decision on one, so this page does not say "never".
 
-What you do today is write a Bevy plugin in Rust, add it next to the server plugins in your own `main`, and build one binary. This is closer to [Minestom](https://minestom.net/), where the server is a library and you write the `main`, than to Paper, where you get a ready server and put jars into `plugins/`. The direction is described in <Status issue={180} />.
+What you do today is write a Bevy plugin in Rust, add it next to the server plugins in your own `main`, and build one binary. This is closer to [Minestom](https://minestom.net/), where the server is a library and you write the `main`, than to Paper, where you get a ready server and put jars into `plugins/`. The direction of the project is mcrs as a library, from a proxy to a full server.[^180]
 
 <Aside type="caution" title="Early WIP">
-The public library API is not stable. mcrs targets one game version at a time (<code dir="auto">{fact('snapshot')}</code>) and keeps no backward compatibility, see <Status issue={412} />.
+The public library API is not stable. mcrs targets one game version at a time (<code dir="auto">{fact('snapshot')}</code>) and keeps no backward compatibility.[^412]
 </Aside>
 
 ## What works today
@@ -78,3 +78,7 @@ Each row below has an issue, except the plugin loader.
 [Paper and Minestom in mcrs terms](/docs/en/plugins/paper-to-mcrs/) has the full lookup table, and [Status](/docs/en/start/status/) shows the current state of every area.
 
 Next: [From objects to data](/docs/en/plugins/mental-model/) explains the three habits to change before you write code, and [Rust for Java developers](/docs/en/plugins/rust-for-java/) follows it.
+
+[^437]: <Status issue={437} /> The decision that there is no facade or API crate.
+[^180]: <Status issue={180} /> The direction of mcrs as a library, from a proxy to a full server.
+[^412]: <Status issue={412} /> The decision to target one version at a time, with no backward compatibility.

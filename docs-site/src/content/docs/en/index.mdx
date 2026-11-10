@@ -43,6 +43,9 @@ mcrs is not the Java server rewritten in Rust. It decides from scratch how the g
 
 ## Where the project stands
 
-World generation matches the real game on reference dumps, and the client renders that world. Chunks are not saved (<Status issue={78} />) and there is no online mode (<Status issue={82} />). We checked this on 2026-11-10 at commit `3540f457b`, against game snapshot {fact('snapshot')}. The [Status](/docs/en/start/status/) page has the full table.
+World generation matches the real game on reference dumps, and the client renders that world. Chunks are not saved and there is no online mode.[^78][^82] We checked this on 2026-11-10 at commit `3540f457b`, against game snapshot {fact('snapshot')}. The [Status](/docs/en/start/status/) page has the full table.
 
 You can ask questions and read progress reports on [Discord](https://discord.gg/ged3nMRzwG).
+
+[^78]: <Status issue={78} /> Tracks saving changed chunks back to region files.
+[^82]: <Status issue={82} /> Tracks online mode: encryption and session authentication.

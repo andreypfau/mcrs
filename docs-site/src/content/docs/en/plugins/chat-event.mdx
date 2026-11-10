@@ -22,7 +22,7 @@ import Status from '~/components/Status.astro';
 import Example from '~/components/Example.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-This tutorial shows how a plugin cancels a chat line or replaces its text. Chat is the first public player event of mcrs and, for now, the only one. It is the part of <Status issue={283} /> that <Status pr={636} state="works" /> merged, and events for join, leave, movement and blocks do not exist yet. The examples come from test files of the repository, and we did not run them outside those tests.
+This tutorial shows how a plugin cancels a chat line or replaces its text. Chat is the first public player event of mcrs and, for now, the only one. It is the first merged part of the planned public, cancellable player events, and events for join, leave, movement and blocks do not exist yet.[^283][^pr636] The examples come from test files of the repository, and we did not run them outside those tests.
 
 ## The event has three fields
 
@@ -73,11 +73,14 @@ Chat runs inside each dimension world, so the observer has to be in the dimensio
 [Your first plugin](/docs/en/plugins/first-plugin/) explains why `add_plugins` does not work here.
 
 <Aside type="caution" title="WIP: open questions from PR 636">
-The PR text leaves three points open. The first is where the event should live, because it is in `mcrs_minecraft_chat_server` while the issue says "raised by the engine". The second is observer order. Bevy has no priority for observers, so two plugins that rewrite one line give a result that depends on the order. The third is the length of replaced text, because the 256-character limit is on the packet and a plugin can set a longer text. Track them in <Status issue={283} /> and <Status pr={636} state="works" />.
+The pull request that added the event leaves three points open.[^pr636] The first is where the event should live, because it is in `mcrs_minecraft_chat_server` while the plan for player events says "raised by the engine".[^283] The second is observer order. Bevy has no priority for observers, so two plugins that rewrite one line give a result that depends on the order. The third is the length of replaced text, because the 256-character limit is on the packet and a plugin can set a longer text.
 </Aside>
 
 ## Run the tests
 
-The text of <Status pr={636} state="works" /> gives the command that runs the repository tests, `cargo test -p mcrs_minecraft_server --test it chat::`. To write your own test, see [Test a plugin without a client](/docs/en/plugins/testing/).
+The command that runs the repository tests is `cargo test -p mcrs_minecraft_server --test it chat::`.[^pr636] To write your own test, see [Test a plugin without a client](/docs/en/plugins/testing/).
 
 Next: [Add a command](/docs/en/plugins/commands/) covers `CommandEvent`, the event of commands with the same `cancelled` field. [Paper to mcrs](/docs/en/plugins/paper-to-mcrs/) has the table of other Paper events and what mcrs has for them.
+
+[^283]: <Status issue={283} /> Tracks public player events that a plugin can cancel.
+[^pr636]: <Status pr={636} state="works" /> Raises a cancellable event for a chat line before its broadcast.

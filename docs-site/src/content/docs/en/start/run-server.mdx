@@ -41,7 +41,7 @@ cargo run --release
 cargo run --release -- "<path to a world folder>"
 ```
 
-The first command starts a server on a new world. The second one opens an existing Java Edition save, which must have the same data version as the game snapshot ({fact('snapshot')}). Saves of other versions do not load, and there are no datafixers (<Status issue={388} />).
+The first command starts a server on a new world. The second one opens an existing Java Edition save, which must have the same data version as the game snapshot ({fact('snapshot')}). Saves of other versions do not load, and there are no datafixers.[^388]
 
 On the reference machine, an Apple M4 Max with macOS, a release build with no world folder reaches the Playing state in 0.77 s, the median of three runs. This is the start time of a binary that is already built, so it does not include the build. The measurement is in [PERF.md](https://github.com/andreypfau/mcrs/blob/main/PERF.md#server-start).
 
@@ -60,6 +60,11 @@ The server reads its settings from environment variables, for example `MCRS_PORT
 
 ## Blocks you change are not saved
 
-The server does not write changed chunks to disk, so every block you break is lost when the server stops (<Status issue={78} />). Players are saved on a clean shutdown (<Status pr={624} state="works" />). A clean shutdown that also saves the world is tracked in <Status issue={169} />.
+The server does not write changed chunks to disk, so every block you break is lost when the server stops.[^78] Players are saved on a clean shutdown.[^pr624] A clean shutdown does not save the world yet.[^169]
 
 The expected console output and a first-run checklist are not written yet. For those details, read the README.
+
+[^388]: <Status issue={388} /> The decision that saves are read at exactly the targeted data version, with no datafixers.
+[^78]: <Status issue={78} /> Tracks saving changed chunks back to region files.
+[^pr624]: <Status pr={624} state="works" /> The server disconnects and saves every player before a shutdown exits.
+[^169]: <Status issue={169} /> Tracks a clean shutdown that saves players and the world.

@@ -48,9 +48,9 @@ Performance numbers are in [PERF.md](https://github.com/andreypfau/mcrs/blob/mai
 
 ## What is not planned
 
-- Support for older game versions. mcrs targets one version at a time (<Status issue={412} />).
-- Datafixers. A save is read at exactly the targeted data version, and an unknown field is a loud error (<Status issue={388} />).
-- A facade or a Bukkit-like API crate (<Status issue={437} />). This decision covers only the facade. A plugin loader for jar, wasm or scripts has no decision yet.
+- Support for older game versions. mcrs targets one version at a time.[^412]
+- Datafixers. A save is read at exactly the targeted data version, and an unknown field is a loud error.[^388]
+- A facade or a Bukkit-like API crate.[^437] This decision covers only the facade. A plugin loader for jar, wasm or scripts has no decision yet.
 
 ## How to follow progress
 
@@ -60,7 +60,14 @@ You do not need to read code to follow the project.
 - To follow one issue, open it from the table and press Watch on the right. You need a GitHub account, and you get a mail when the issue changes.
 - The [latest code changes](https://github.com/andreypfau/mcrs/commits/main) and the [releases](https://github.com/andreypfau/mcrs/releases) are on GitHub too.
 - Questions and progress reports are on [Discord](https://discord.gg/ged3nMRzwG).
-- Three issues hold the direction: <Status issue={180} /> for the library, <Status issue={181} /> for many nodes and <Status issue={182} /> for gameplay.
+- Three issues hold the direction: one for the library, one for many nodes and one for gameplay.[^180][^181][^182]
 - Decisions and their reasons are the issues with the label [`decision`](https://github.com/andreypfau/mcrs/issues?q=label%3Adecision).
 
 We check this page by hand once a month and on every new tag.
+
+[^412]: <Status issue={412} /> The decision to target one version at a time, with no backward compatibility.
+[^388]: <Status issue={388} /> The decision that saves are read at exactly the targeted data version, with no datafixers.
+[^437]: <Status issue={437} /> The decision that there is no facade or API crate, and the crates and plugins are the public surface.
+[^180]: <Status issue={180} /> The direction for mcrs as a library, from a proxy to a full server.
+[^181]: <Status issue={181} /> The direction for one dimension on many nodes for thousands of players.
+[^182]: <Status issue={182} /> The direction for vanilla gameplay and behavior tests on the scaling architecture.

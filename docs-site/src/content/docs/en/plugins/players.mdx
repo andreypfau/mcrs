@@ -65,7 +65,7 @@ You cannot use one of these ids in place of another.
 Use the session to address a player across worlds and to send packets. Use the UUID for anything that must survive a reconnect.
 
 <Aside type="caution" title="WIP: the id on the wire">
-The entity id that the client receives is today the index of the Bevy `Entity` in the world of the dimension. <Status issue={158} /> names two faults in that. Bevy can hand a freed index to a new entity while a client still tracks the old one, and vanilla never reuses an id while the server runs. Two dimension worlds also allocate indices on their own, so their ids collide as soon as one connection sees entities of more than one owner. The issue plans a `NetId` component for every networked entity, with ids that are leased to each world, never reused, and kept when an entity is handed to another node. Until that issue is done, do not store the wire id of an entity and do not assume it stays the same.
+The entity id that the client receives is today the index of the Bevy `Entity` in the world of the dimension. That has two faults.[^158] Bevy can hand a freed index to a new entity while a client still tracks the old one, and vanilla never reuses an id while the server runs. Two dimension worlds also allocate indices on their own, so their ids collide as soon as one connection sees entities of more than one owner. The plan is a `NetId` component for every networked entity, with ids that are leased to each world, never reused, and kept when an entity is handed to another node.[^158] Until that plan is done, do not store the wire id of an entity and do not assume it stays the same.
 </Aside>
 
 ## Change a player inside its own world
@@ -80,6 +80,9 @@ mcrs has no `player.sendMessage()`. The low-level way is to write a packet for a
 
 A friendlier layer for this does not exist yet. We know of no issue for it, so we promise nothing.
 
-Saving player data is not done either, see <Status issue={78} /> and [Status](/docs/en/start/status/).
+Saving player data is not done either.[^78] The [Status](/docs/en/start/status/) page shows the state of saving.
 
 Next: [Test a plugin without a client](/docs/en/plugins/testing/), where a test joins a fake player and reads these components.
+
+[^158]: <Status issue={158} /> Plans wire entity ids that do not depend on the owning world.
+[^78]: <Status issue={78} /> Tracks saving changed chunks back to region files.

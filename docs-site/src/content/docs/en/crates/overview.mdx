@@ -47,7 +47,7 @@ The no-Bevy list has {fact('crates_no_bevy')} names. Six of them are tools under
 
 ## Which crates to start with
 
-The table below names the crates to start with for five kinds of project. None of them is published to crates.io, so every row needs a git dependency, which [Use the crates in your project](/docs/en/crates/use-as-library/) describes. There are no library examples yet (<Status issue={287} />), and the first working use is [parsing SNBT](/docs/en/crates/hello-nbt/).
+The table below names the crates to start with for five kinds of project. None of them is published to crates.io, so every row needs a git dependency, which [Use the crates in your project](/docs/en/crates/use-as-library/) describes. There are no library examples yet, and the first working use is [parsing SNBT](/docs/en/crates/hello-nbt/).[^287]
 
 | You build | Start with | State |
 |---|---|---|
@@ -226,3 +226,5 @@ The table below names the crates to start with for five kinds of project. None o
 ## Why some crates need Bevy
 
 Below layer 4, Bevy is an optional feature, and below layer 2 so is tokio. From layer 4 up, Bevy is required, because the engine, the vanilla plugins, the client and the server are Bevy plugins. If you only want data types and codecs, stay in layers 1 to 3 and build with `--no-default-features`. [Layers](/docs/en/concepts/layers/) covers layers 4 and 5.
+
+[^287]: <Status issue={287} /> Plans the minimal server, lobby and arena examples.

@@ -22,7 +22,7 @@ import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-mcrs follows the newest Minecraft snapshot and supports exactly that one. Today it is {fact('snapshot')}, and the decision behind this is <Status issue={412} />.
+mcrs follows the newest Minecraft snapshot and supports exactly that one.[^412] Today it is {fact('snapshot')}.
 
 ## The version lives in one file
 
@@ -38,7 +38,7 @@ The command replaces the version file, the client jar descriptor, the generated 
 
 ## What you give up
 
-There are no datafixers, so mcrs does not upgrade old saves. A chunk or player file must carry the targeted `DataVersion`. When the value is missing or different, you get an error that names both numbers, because there is no migration chain (<Status issue={388} />). An unknown field in a file the game wrote is also a loud error, and mcrs does not keep such a field as raw bytes. Worlds written between an update and the ports that follow it are not worth keeping.
+There are no datafixers, so mcrs does not upgrade old saves. A chunk or player file must carry the targeted `DataVersion`. When the value is missing or different, you get an error that names both numbers, because there is no migration chain.[^388] An unknown field in a file the game wrote is also a loud error, and mcrs does not keep such a field as raw bytes. Worlds written between an update and the ports that follow it are not worth keeping.
 
 The client must be the same snapshot as the server. A vanilla client of that snapshot can join in offline mode. A client of another version cannot, for now.
 
@@ -48,10 +48,14 @@ If you run a server for players, read [What mcrs is, and what it is not](/docs/e
 
 ## Support for older clients is planned
 
-Most players stay on releases, so a lobby or a proxy needs to accept their clients. <Status issue={537} /> proposes a translator at the network edge. It is a chain of steps that converts frames between the client protocol and the targeted protocol, from the targeted version down to 1.21.6, which is protocol 771. The engine would still see only one version. Each step would list what it degrades, and a new snapshot would change only the newest step.
+Most players stay on releases, so a lobby or a proxy needs to accept their clients. A proposal in review adds a translator at the network edge.[^537] It is a chain of steps that converts frames between the client protocol and the targeted protocol, from the targeted version down to 1.21.6, which is protocol 771. The engine would still see only one version. Each step would list what it degrades, and a new snapshot would change only the newest step.
 
 <Aside type="caution" title="WIP">
-The translator is a decision in review and has no code: <Status issue={537} />. Saves and data packs of older versions stay refused under <Status issue={412} />.
+The translator is a decision in review and has no code.[^537] Saves and data packs of older versions stay refused.[^412]
 </Aside>
 
 [Status](/docs/en/start/status/) lists what works today for this snapshot.
+
+[^412]: <Status issue={412} /> The decision to target one version at a time, with no backward compatibility.
+[^388]: <Status issue={388} /> The decision that saves are read at exactly the targeted data version, with no datafixers.
+[^537]: <Status issue={537} /> The proposed decision that the network edge translates client protocols down to 1.21.6.

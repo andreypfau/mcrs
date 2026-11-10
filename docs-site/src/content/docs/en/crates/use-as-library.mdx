@@ -28,7 +28,7 @@ import Status from '~/components/Status.astro';
 You can use an mcrs crate in your own Rust project today through a git dependency with a pinned commit and a nightly compiler. The crates are not on crates.io. Nobody has checked this route outside the repository on a clean machine yet, so read this page as the plan and its known limits.
 
 <Aside type="caution" title="WIP">
-Publishing the protocol, network and game data crates waits for a decision in <Status issue={321} />. The question there is whether publishing and stable Rust are goals at all while the project follows one game snapshot at a time. Library examples, each with a test of its dependency tree, are <Status issue={287} /> and <Status issue={288} />.
+Publishing the protocol, network and game data crates waits for a decision.[^321] The question is whether publishing and stable Rust are goals at all while the project follows one game snapshot at a time. Library examples, each with a test of its dependency tree, are planned.[^287][^288]
 </Aside>
 
 ## 1. Add a git dependency with a pinned rev
@@ -46,7 +46,7 @@ Do not write `branch = "main"`. The `main` branch moves to the next game snapsho
 
 The repository pins `nightly-2026-09-02` in [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml). Cargo reads that file only in the directory where you run it, so the pin does not follow a git dependency. Install a nightly yourself and pin it in your project, ideally the same date.
 
-Nobody has checked whether the lower layers also build on stable. The stated goal of <Status issue={321} /> is that the protocol, network and game data crates build on stable, which means that today they do not all do it.
+Nobody has checked whether the lower layers also build on stable. The stated goal is that the protocol, network and game data crates build on stable, which means that today they do not all do it.[^321]
 
 ## 3. Leave Bevy out
 
@@ -68,7 +68,7 @@ If Bevy shows up for a crate from the no-Bevy list, that is a bug in mcrs, so pl
 
 ## What does not work yet
 
-You cannot publish or package the crates. `cargo package` fails for a crate that reads files outside its own folder at build time. Two known cases are `crates/mcrs_minecraft_core/src/version.rs`, which reads `assets/minecraft/version.json`, and `crates/mcrs_minecraft_game_rule/src/lib.rs`, which reads a file from `assets/mcrs/`. A git dependency works because Cargo checks out the whole repository. This blocks publishing (<Status issue={321} />).
+You cannot publish or package the crates. `cargo package` fails for a crate that reads files outside its own folder at build time. Two known cases are `crates/mcrs_minecraft_core/src/version.rs`, which reads `assets/minecraft/version.json`, and `crates/mcrs_minecraft_game_rule/src/lib.rs`, which reads a file from `assets/mcrs/`. A git dependency works because Cargo checks out the whole repository. This blocks publishing.[^321]
 
 The same issue lists error types as the second blocker. The public API of the protocol and network crates returns `anyhow` errors in several places, so a caller cannot tell an incomplete frame from a broken one without matching on the text.
 
@@ -78,4 +78,9 @@ The API is not stable. Types change with every game snapshot, so pin a rev and r
 
 ## If you come from the JVM
 
-mcrs has no artifact on Maven Central and no plugin jar that you drop into a folder. There is also no decision yet on a plugin loader, whether for jars, wasm or scripts. <Status issue={437} /> rejects only a facade and a Bukkit-like API and says nothing about a loader. Today your own code is a Rust plugin for Bevy that you compile together with the server, as [Not Paper](/docs/en/plugins/not-paper/) explains.
+mcrs has no artifact on Maven Central and no plugin jar that you drop into a folder. There is also no decision yet on a plugin loader, whether for jars, wasm or scripts. The project rejected only a facade and a Bukkit-like API, and that decision says nothing about a loader.[^437] Today your own code is a Rust plugin for Bevy that you compile together with the server, as [Not Paper](/docs/en/plugins/not-paper/) explains.
+
+[^321]: <Status issue={321} /> Tracks the work that lets the protocol, network and game data crates be published.
+[^287]: <Status issue={287} /> Plans the minimal server, lobby and arena examples.
+[^288]: <Status issue={288} /> Plans the examples as workspace members, each with a dependency-tree test.
+[^437]: <Status issue={437} /> The decision against a facade or an API crate: the public surface is the crates and plugins.

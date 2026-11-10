@@ -29,7 +29,7 @@ import Status from '~/components/Status.astro';
 In this tutorial you add one mcrs crate to a Rust project of your own and use it to read a string of SNBT, look at its tags and write it back. SNBT is the text form of NBT, the one you type in a command, such as `{Health:20.0f}`. The program is about fifteen lines, and it is the smallest use of an mcrs crate from outside the repository.
 
 <Aside type="caution" title="WIP">
-Nobody has compiled the code below outside the workspace yet. The crates are not published and `cargo package` does not work for them (<Status issue={321} />), so a git dependency is the only route. Inside the workspace, [`tests.rs`](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_snbt/src/tests.rs) of the crate exercises the same functions. If a step fails for you, please open an issue.
+Nobody has compiled the code below outside the workspace yet. The crates are not published and `cargo package` does not work for them, so a git dependency is the only route.[^321] Inside the workspace, [`tests.rs`](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_snbt/src/tests.rs) of the crate exercises the same functions. If a step fails for you, please open an issue.
 </Aside>
 
 ## 1. Add the dependency
@@ -44,7 +44,7 @@ mcrs_minecraft_nbt = { git = "https://github.com/andreypfau/mcrs", rev = "51d45c
 
 Always give a `rev`, because there are no releases on crates.io and `main` moves with each game snapshot. The two crates need the same `rev` because the tag types that `mcrs_minecraft_snbt` returns come from `mcrs_minecraft_nbt`.
 
-You also need a nightly compiler. The repository pins `nightly-2026-09-02` in [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml), but that file applies only inside the mcrs checkout, so you pick a nightly for your project yourself. Nobody has checked whether `mcrs_minecraft_snbt` also builds on stable. Making that true is part of <Status issue={321} />.
+You also need a nightly compiler. The repository pins `nightly-2026-09-02` in [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml), but that file applies only inside the mcrs checkout, so you pick a nightly for your project yourself. Nobody has checked whether `mcrs_minecraft_snbt` also builds on stable. A build on stable is part of the work that makes the crates publishable.[^321]
 
 Both crates are on the list of crates that CI builds without Bevy, so this dependency does not pull Bevy in. You can confirm it with the `cargo tree` command from [Use the crates in your project](/docs/en/crates/use-as-library/).
 
@@ -89,6 +89,9 @@ The crate follows the rules of the game for numbers and strings. That covers typ
 
 SNBT is only the text side. Binary read and write, compression and serde support are in [`mcrs_minecraft_nbt`](https://github.com/andreypfau/mcrs/tree/main/crates/mcrs_minecraft_nbt), the crate you already depend on for the tag types.
 
-The binary codec has three encodings (<Status issue={661} />). `BigEndian` is for Java Edition, `LittleEndian` is for Bedrock world storage and `NetworkLittleEndian` is for Bedrock packets. Each entry point such as `from_bytes` has a `_with::<E>` form that takes the encoding, and the functions without that suffix use `BigEndian`.
+The binary codec has three encodings.[^661] `BigEndian` is for Java Edition, `LittleEndian` is for Bedrock world storage and `NetworkLittleEndian` is for Bedrock packets. Each entry point such as `from_bytes` has a `_with::<E>` form that takes the encoding, and the functions without that suffix use `BigEndian`.
 
 Next: [Use the crates in your project](/docs/en/crates/use-as-library/), which covers the limits of the git route. To find another crate, look in the [crate map](/docs/en/crates/overview/).
+
+[^321]: <Status issue={321} /> Tracks the work that lets the protocol, network and game data crates be published.
+[^661]: <Status issue={661} /> Little-endian and network varint NBT in `mcrs_minecraft_nbt`.

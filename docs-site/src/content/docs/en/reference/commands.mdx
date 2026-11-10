@@ -27,7 +27,7 @@ import { Aside } from '@astrojs/starlight/components';
 This page lists the commands that the server registers today, the permission level each one needs and the specification that states its behavior. The server registers {fact('root_commands')} root commands, or 21 names when you count the alias `tp`. `VanillaCommandsPlugin` in `crates/mcrs_minecraft_command_vanilla` registers most of them, and `WorldCommandsPlugin` in `crates/mcrs_minecraft_command_world` registers the rest. The list was checked against both `plugin.rs` files and the permission calls of each command on commit `51d45c26a`. A vanilla command that is missing from the list does not exist here yet. For example, `setblock`, `give`, `say` and `stop` are not registered.
 
 <Aside type="caution" title="WIP">
-The table is written by hand for now, and it will be generated from the two `plugin.rs` files. The command tree with permission levels is tracked in <Status issue={285} />, and a Bedrock command dialect in <Status issue={667} />.
+The table is written by hand for now, and it will be generated from the two `plugin.rs` files. The command tree with permission levels is planned, and so is a Bedrock command dialect.[^285][^667]
 </Aside>
 
 ## Permission levels
@@ -77,3 +77,6 @@ A player types commands in chat. The server also reads its standard input, and e
 ## For plugin authors
 
 A command is ordinary Bevy plugin code. A plugin calls `add_command` with a build function and a run function, and both `plugin.rs` files show the pattern. A command can write effects that other systems apply, and commands also raise a `CommandEvent` that can be cancelled. A plugin must be compiled into the server, because there is no loader for other plugins and no decision about one yet. [Commands for plugins](/docs/en/plugins/commands/) has the details.
+
+[^285]: <Status issue={285} /> Tracks the command tree with permission levels and the commands packet.
+[^667]: <Status issue={667} /> Tracks command dialects and the Bedrock commands packet.

@@ -44,7 +44,7 @@ Space ticks only when a ticket covers it. A ticket comes from a player's simulat
 
 ## Volumes become the one API for reading the world
 
-Today several code paths read blocks, and each uses a view of its own: the chunk crate, the world generator, the light engine, the mesher and the client. Each answers "section not loaded" in its own way. <Status issue={486} /> replaces them, in steps, with one layer-3 crate called `mcrs_minecraft_volume`.
+Today several code paths read blocks, and each uses a view of its own: the chunk crate, the world generator, the light engine, the mesher and the client. Each answers "section not loaded" in its own way. One layer-3 crate called `mcrs_minecraft_volume` replaces them, in steps.[^486]
 
 A volume has bounds. For each section it says whether the section may be written, is read-only, belongs to another owner, is not loaded, or is outside. Nothing loads on access, and errors are types you can match.
 
@@ -53,7 +53,7 @@ Capabilities are separate traits for blocks, biomes, heights, light and block en
 The crate exists and exports these types. The callers move to it in seven steps listed in the issue, such as the engine dimension view, heights and biomes, snapshots and light, and meshing and the client store. Until the steps are done, some code still uses the old views.
 
 <Aside type="caution" title="WIP">
-Treat the volume API as the direction. The migration is in progress and the traits may still change: <Status issue={486} />.
+Treat the volume API as the direction. The migration is in progress and the traits may still change.[^486]
 </Aside>
 
 ## Mobs are rows in a store by tile
@@ -62,6 +62,9 @@ A Bevy entity per mob would be flexible and expensive. So for the entities that 
 
 The cold state of a mob stays in the ECS, as components that you may want to read from a normal system. The design note calls this split "hybrid", with hot state in rows and cold state in components. The core of the store has no Bevy, and a `bevy` feature turns the store into a resource.
 
-The exact shape of the API for reading and changing these rows from your own plugin is not settled. There is no decision on it yet, so no stable page can describe it. The memory cost per section and per entity component is not measured either (<Status issue={324} />).
+The exact shape of the API for reading and changing these rows from your own plugin is not settled. There is no decision on it yet, so no stable page can describe it. The memory cost per section and per entity component is not measured either.[^324]
 
 Next: [Cells and the road to many nodes](/docs/en/concepts/scaling/).
+
+[^486]: <Status issue={486} /> One world-access API for every consumer, built on volumes.
+[^324]: <Status issue={324} /> Tracks fixed component sizes and a count of section memory.

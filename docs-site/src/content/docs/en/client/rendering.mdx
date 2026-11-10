@@ -29,7 +29,7 @@ import Status from '~/components/Status.astro';
 This page is a map for a contributor who wants to read the renderer. It gives the idea of each part in a few lines and sends you to the notes that hold the rules and the numbers, so it does not repeat them.
 
 <Aside type="caution" title="WIP">
-The renderer is being restructured, and its notes are working notes that can change. They are not a stable contract yet. The issues that track the restart run from <Status issue={16} /> to <Status issue={37} />, and the check against the baseline from before the restructure is <Status issue={330} />. Expect this page to change with them.
+The renderer is being restructured, and its notes are working notes that can change. They are not a stable contract yet. The restart is a series of tasks, from layouts shared by Rust and WGSL to tinted overlays folded into one sprite.[^16][^37] The result will be measured against the baseline from before the restructure.[^330] Expect this page to change with that work.
 </Aside>
 
 Two crates do the drawing. `mcrs_minecraft_render` draws the terrain and the sky, and `mcrs_minecraft_entity_render` draws the mobs. The renderer is layer 6 in the [crate map](/docs/en/crates/overview/), so it works on the data of the layers below and has no network, client or server code.
@@ -66,7 +66,7 @@ The note defines three execution paths, and the renderer picks one at start from
 | Compatibility | WebGPU compatibility mode |
 | Minimal | No compute, for WebGL2 |
 
-The web build itself does not reach a steady frame, which is tracked in <Status issue={344} />.
+The web build itself does not reach a steady frame.[^344]
 
 ## Far mobs are flat images
 
@@ -82,4 +82,11 @@ A mob that is far away does not need its full rig, the set of bones that poses t
 | Workload model and budget of entities | [`docs/entity-render-budget.md`](https://github.com/andreypfau/mcrs/blob/main/docs/entity-render-budget.md) |
 | What the client can do today | [The client today](/docs/en/client/overview/) |
 
-Memory at 96 columns is <Status issue={337} />, and rendering inside a host application that owns the window and the camera is <Status issue={506} />.
+Two more pieces of work are planned: a bound on memory at 96 columns, and rendering inside a host application that owns the window and the camera.[^337][^506]
+
+[^16]: <Status issue={16} /> The first task of the renderer restart: layouts declared once for Rust and WGSL.
+[^37]: <Status issue={37} /> The last task of the renderer restart: tinted overlays folded into one sprite.
+[^330]: <Status issue={330} /> Tracks the measurement of the deferred renderer against the pre-restructure baseline.
+[^344]: <Status issue={344} /> Tracks a web client that reaches a steady frame.
+[^337]: <Status issue={337} /> Tracks a bound on the client's memory at 96 columns.
+[^506]: <Status issue={506} /> Tracks rendering that embeds in a host app, which owns the window and the camera.

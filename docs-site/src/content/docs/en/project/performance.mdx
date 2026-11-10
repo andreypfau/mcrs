@@ -68,8 +68,8 @@ The source is `PERF.md`, Server start. These two readings are a baseline, so a l
 
 ## What is not measured yet
 
-- Memory per loaded section and per entity component. The README used to promise it, and `PERF.md` has no such table. <Status issue={324} /> says the number goes into `PERF.md` when a test counts it.
-- The cost of an idle server tick, and a count of overrun ticks (<Status issue={320} />). Today the server loop starts the next tick at once after an overrun, with no count and no warning.
+- Memory per loaded section and per entity component. The README used to promise it, and `PERF.md` has no such table. The number goes into `PERF.md` when a test counts it.[^324]
+- The cost of an idle server tick, and a count of overrun ticks.[^320] Today the server loop starts the next tick at once after an overrun, with no count and no warning.
 - Server tick time under load by players. A bot load exists in `crates/mcrs_minecraft_server/examples/tick_load.rs`, but its machine and conditions are not recorded, so we do not quote it.
 - Anything on Linux or Windows.
 
@@ -99,3 +99,6 @@ This command writes the F3 line to the log every five seconds with the overlay h
 <Aside type="caution" title="WIP">
 A graph of these numbers, generated from `PERF.md`, is planned. Until then this page is updated by hand when `PERF.md` changes.
 </Aside>
+
+[^324]: <Status issue={324} /> Tracks pinning the size of components and counting section memory.
+[^320]: <Status issue={320} /> Tracks measuring the idle server tick and reporting overruns.

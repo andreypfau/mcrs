@@ -53,7 +53,7 @@ Every chunk and every player file carries a `DataVersion`, the number of the gam
 
 ## Older worlds are not converted
 
-mcrs has no converter for saves of older versions and will not get one, because it follows one snapshot at a time and keeps no compatibility chain. This is decided in <Status issue={388} />. If you have an older world, open it once in a vanilla client of the right snapshot so that the game rewrites it, and then give the folder to mcrs. The same decision says that a field no type claims fails the load, so the server does not keep such a field as raw bytes.
+mcrs has no converter for saves of older versions and will not get one, because it follows one snapshot at a time and keeps no compatibility chain.[^388] If you have an older world, open it once in a vanilla client of the right snapshot so that the game rewrites it, and then give the folder to mcrs. A field that no type claims also fails the load, so the server does not keep such a field as raw bytes.[^388]
 
 ## Without a folder, the server generates a world
 
@@ -77,14 +77,14 @@ World generation matches vanilla in parity tests on the reference seeds. [Parity
 | Clean shutdown with chunks | Not done. Waiting for chunk writes is <Status issue={169} /> |
 | `level.dat`, world clocks, weather, game rules | Read but not written yet. <Status issue={78} /> lists writing them |
 
-The server protects a player file that it cannot parse. The player joins empty, and the server never saves that player over the old file. An inventory in a player file survives too. The server keeps it as opaque data and writes it back unchanged, because the inventory code was removed and is being rewritten from a specification (<Status issue={521} />).
+The server protects a player file that it cannot parse. The player joins empty, and the server never saves that player over the old file. An inventory in a player file survives too. The server keeps it as opaque data and writes it back unchanged, because the inventory code was removed and is being rewritten from a specification.[^521]
 
 A short test checks the clean stop.
 
 <Example file="tests/it/shutdown.rs" from="let player_file = player_dat_path(" to="assert!(player_file.exists()" title="A shutdown request writes the player file" />
 
 <Aside type="caution" title="WIP">
-Chunk saving is a plan, and no code exists for it yet. <Status issue={78} /> describes the plan, in which the server writes changed chunks in the Anvil format off the main thread, on unload and at intervals, with one writer per region file. Until it lands, use a running mcrs server to look at a world and to try things. Do not use it to keep a world.
+Chunk saving is a plan, and no code exists for it yet. In the plan, the server writes changed chunks in the Anvil format off the main thread, on unload and at intervals, with one writer per region file.[^78] Until it lands, use a running mcrs server to look at a world and to try things. Do not use it to keep a world.
 </Aside>
 
 ## Data packs load once, at start
@@ -99,6 +99,11 @@ cargo run -p mcrs_minecraft_game_registries --example check_pack -- "<data pack 
 
 The directory must hold `pack.mcmeta` and `data/`, and the usage line of the tool says the same.
 
-The server cannot reload a pack while it runs, so you restart it after you change one. `/reload` and live enabling of packs are planned in <Status issue={316} />. The plan is that a reload replaces the data at a tick boundary and refuses changes that the saved world depends on, such as the height of a dimension type.
+The server cannot reload a pack while it runs, so you restart it after you change one. `/reload` and live enabling of packs are planned.[^316] The plan is that a reload replaces the data at a tick boundary and refuses changes that the saved world depends on, such as the height of a dimension type.
 
 There is no source yet for how the server treats a `datapacks` folder inside a world folder, so this page makes no claim about it.
+
+[^388]: <Status issue={388} /> The decision that saves are read at exactly the targeted data version, with no datafixers.
+[^521]: <Status issue={521} /> Tracks the specification and the plugin of the player inventory.
+[^78]: <Status issue={78} /> Tracks saving changed chunks back to region files.
+[^316]: <Status issue={316} /> Plans the reload of data packs while the server runs.

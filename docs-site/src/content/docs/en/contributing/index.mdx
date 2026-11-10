@@ -98,12 +98,12 @@ If your change alters behavior that a page of this site describes, update the pa
 
 These six issues fit a first pull request. [First tasks](/docs/en/contributing/first-tasks/) says what each one asks for and which role it needs.
 
-- <Status issue={308} /> a bug: the outbound queue drops state packets
-- <Status issue={295} /> typed packets for cookies, transfer and chat
-- <Status issue={290} /> a status ping example
-- <Status issue={293} /> an echo chat bot over the network layer
-- <Status issue={289} /> a packet inspector example
-- <Status issue={507} /> a report of spec rules that no test names
+- A bug: the outbound queue drops state packets.[^308]
+- Typed packets for cookies, transfer and chat.[^295]
+- A status ping example.[^290]
+- An echo chat bot over the network layer.[^293]
+- A packet inspector example.[^289]
+- A report of spec rules that no test names.[^507]
 
 ## How fast is review
 
@@ -114,3 +114,10 @@ You can repeat the count with `gh pr list -R andreypfau/mcrs --state merged --li
 ## Where to ask
 
 Questions go to [Discord](https://discord.gg/ged3nMRzwG) or to the issue you work on. Decisions are recorded in issues with the label [decision](https://github.com/andreypfau/mcrs/issues?q=is%3Aissue+label%3Adecision).
+
+[^308]: <Status issue={308} /> The outbound queue drops normal and low packets past 256 entries.
+[^295]: <Status issue={295} /> Typed packets for cookies, transfer, custom query and player chat.
+[^290]: <Status issue={290} /> A status ping example against the embedded server.
+[^293]: <Status issue={293} /> An echo chat bot that uses the network layer only.
+[^289]: <Status issue={289} /> A packet inspector that decodes a recorded session without unknown packets.
+[^507]: <Status issue={507} /> Plans a report of the specification rules that no test checks.

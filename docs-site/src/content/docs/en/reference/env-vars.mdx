@@ -25,7 +25,7 @@ import { Aside } from '@astrojs/starlight/components';
 This page lists every `MCRS_*` environment variable that the server, the client and the test tools read, with its default. The list comes from `grep -rn 'MCRS_' crates src` on commit `51d45c26a`. The server reads 11 of the variables. The client reads many more, and most of those are knobs for performance measurements.
 
 <Aside type="caution" title="WIP">
-The tables on this page are written by hand for now. They will be generated from `ServerSettings` and `config.rs` so that they cannot drift from the code. Some names here may change, because the client knobs move into plugin fields under the decision <Status issue={278} />. The old `MCRS_OP_LOCAL` variable no longer exists. The server now gives operator rights to a player who joins from the same machine, and `ops.json` names all other operators.
+The tables on this page are written by hand for now. They will be generated from `ServerSettings` and `config.rs` so that they cannot drift from the code. Some names here may change, because the client knobs move into plugin fields.[^278] The old `MCRS_OP_LOCAL` variable no longer exists. The server now gives operator rights to a player who joins from the same machine, and `ops.json` names all other operators.
 </Aside>
 
 ## Server
@@ -49,7 +49,7 @@ A variable that is on or off accepts `on`, `1`, `true` or `yes` for on, and `off
 | `MCRS_HIDE_ONLINE_PLAYERS` | off | Whether the status leaves out the names of online players. The counts stay. |
 
 <Aside type="caution" title="No authentication">
-The server has no online mode yet (<Status issue={82} />). It listens on `0.0.0.0:25565`, and anyone who connects can use any player name. Do not open the port to the internet.
+The server has no online mode yet.[^82] It listens on `0.0.0.0:25565`, and anyone who connects can use any player name. Do not open the port to the internet.
 </Aside>
 
 The server also reads `ops.json`, `whitelist` and ban files from the working directory. Those are files, so this table does not list them.
@@ -123,3 +123,6 @@ The client reads all of these in `crates/mcrs_minecraft_client/src/config.rs`, `
 | `MCRS_VANILLA_SERVER` | [`vanilla-server/run.sh`](https://github.com/andreypfau/mcrs/blob/main/tools/vanilla-server/run.sh) | Address of a vanilla server that the script gives to the `mcrs` join test. |
 | `MCRS_DRAW_ONLY`, `MCRS_GPU_HOT`, `MCRS_SPLIT_DRAW` | `stress_field` example of entity render | Draw only `full_rigs` or `impostors`, GPU hold workgroups (default 16384), and split the draw in two passes. |
 | `MCRS_COMMIT_HASH` | build time of the network crate | Commit hash that the server reports. The crate reads it with `option_env!` when it is built, so the value at run time does not matter. |
+
+[^278]: <Status issue={278} /> The decision to configure the server only through its plugin.
+[^82]: <Status issue={82} /> Tracks online mode: encryption and session authentication.

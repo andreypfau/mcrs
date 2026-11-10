@@ -23,7 +23,7 @@ import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-mcrs is a repository of {fact('crates')} crates, sorted into seven layers. Each layer is meant to depend only on the layers below it, so you take the layers you need and pay for nothing above them. A proxy needs the bottom two layers, and a full server needs the first five. This is the direction set in <Status issue={180} />.
+mcrs is a repository of {fact('crates')} crates, sorted into seven layers. Each layer is meant to depend only on the layers below it, so you take the layers you need and pay for nothing above them. A proxy needs the bottom two layers, and a full server needs the first five.[^180]
 
 ## The seven layers
 
@@ -39,7 +39,7 @@ mcrs is a repository of {fact('crates')} crates, sorted into seven layers. Each 
 
 Every crate is named `mcrs_minecraft_<name>` and lives under [`crates/`](https://github.com/andreypfau/mcrs/tree/main/crates). The engine core crates have their own prefix and are called `mcrs_engine_cell`, `mcrs_engine_link`, `mcrs_engine_muxer` and `mcrs_engine_store`. The [crate map](/docs/en/crates/overview/) lists every crate with its layer.
 
-Bevy is an optional feature below layer 4, and tokio is optional below layer 2, because only the network layer talks to tokio. A few crates break the direction of the layers today. The README says that the protocol and network crates still reach into game data, and fixing that is part of <Status issue={180} />.
+Bevy is an optional feature below layer 4, and tokio is optional below layer 2, because only the network layer talks to tokio. A few crates break the direction of the layers today. The README says that the protocol and network crates still reach into game data, and the project intends to fix that.[^180]
 
 ## Kernels hold the rules, drivers run them
 
@@ -57,14 +57,18 @@ The project promises "Minecraft as a set of crates". This is how far that goes o
 
 100 packages build without Bevy, and a check in `xtask/src/checks.rs` fails when a crate below layer 4 requires Bevy. 9 packages also build without std, for the target `wasm32v1-none`, and 11 build for a browser, for the target `wasm32-unknown-unknown`.
 
-The crates are not published on crates.io. Two things block that: some crates embed files from outside their folder, and the protocol and network APIs return `anyhow` errors (<Status issue={321} />). A git dependency works, and [Use the crates in your project](/docs/en/crates/use-as-library/) covers that route.
+The crates are not published on crates.io. Two things block that: some crates embed files from outside their folder, and the protocol and network APIs return `anyhow` errors.[^321] A git dependency works, and [Use the crates in your project](/docs/en/crates/use-as-library/) covers that route.
 
-There are no library examples yet, so you will not find a proxy, a bot, a lobby or a map renderer to copy. The first three planned examples are `hello_server`, `lobby` and `arena`, tracked in <Status issue={287} />.
+There are no library examples yet, so you will not find a proxy, a bot, a lobby or a map renderer to copy. The first three planned examples are `hello_server`, `lobby` and `arena`.[^287]
 
 The public API of layers 1 to 4 is not stable. Every `pub` item there will become a commitment to users, so it is being reviewed first.
 
 <Aside type="caution" title="WIP">
-The layer table describes the design, and the code does not fully follow it yet. Treat "take only layers 1 and 2" as the direction in <Status issue={180} />. The status of each area is on [Status](/docs/en/start/status/).
+The layer table describes the design, and the code does not fully follow it yet. Treat "take only layers 1 and 2" as a direction.[^180] The status of each area is on [Status](/docs/en/start/status/).
 </Aside>
 
 Next: [How a tick runs in parallel](/docs/en/concepts/parallel-tick/).
+
+[^180]: <Status issue={180} /> The direction: mcrs as a library, from a proxy to a full server.
+[^321]: <Status issue={321} /> Tracks the work that lets the protocol, network and game data crates be published.
+[^287]: <Status issue={287} /> Plans the minimal server, lobby and arena examples.

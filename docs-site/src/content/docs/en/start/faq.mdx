@@ -26,11 +26,11 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## Can I use it yet?
 
-Yes, if you are a developer who wants a base to build on, or if you want to watch the project. No, if you need a server for players. A vanilla client of the same snapshot can join in offline mode, chat, run {fact('root_commands')} commands and break blocks in creative. The world is not saved after you leave, only players are (<Status issue={78} />). See [Run a server](/docs/en/start/run-server/) and [Status](/docs/en/start/status/).
+Yes, if you are a developer who wants a base to build on, or if you want to watch the project. No, if you need a server for players. A vanilla client of the same snapshot can join in offline mode, chat, run {fact('root_commands')} commands and break blocks in creative. The world is not saved after you leave, only players are.[^78] See [Run a server](/docs/en/start/run-server/) and [Status](/docs/en/start/status/).
 
 ## Will my plugins work?
 
-No. Bukkit and Paper plugins do not load, and there is no facade API, because the decision in <Status issue={437} /> rejects it. A loader for plugins as jar files, wasm or scripts does not exist either, and there is no decision about one yet. Today your code is a Rust Bevy plugin that you build together with the server, as in Minestom, where you write `main` yourself. You have to rewrite a plugin for mcrs, because it cannot be ported. See [Not Paper](/docs/en/plugins/not-paper/) and [Paper to mcrs](/docs/en/plugins/paper-to-mcrs/).
+No. Bukkit and Paper plugins do not load, and there is no facade API, because the project decided against one.[^437] A loader for plugins as jar files, wasm or scripts does not exist either, and there is no decision about one yet. Today your code is a Rust Bevy plugin that you build together with the server, as in Minestom, where you write `main` yourself. You have to rewrite a plugin for mcrs, because it cannot be ported. See [Not Paper](/docs/en/plugins/not-paper/) and [Paper to mcrs](/docs/en/plugins/paper-to-mcrs/).
 
 ## Why Rust?
 
@@ -46,7 +46,7 @@ The author measured and ran everything on macOS, on an Apple M4 Max with Metal. 
 
 ## Which game version?
 
-One version, {fact('snapshot')}, which is set in `assets/minecraft/version.json`. Old clients and worlds of other data versions do not work, and there are no datafixers (<Status issue={388} />, <Status issue={412} />). Translating older client versions at the network edge is a plan in <Status issue={537} />.
+One version, {fact('snapshot')}, which is set in `assets/minecraft/version.json`. Old clients and worlds of other data versions do not work, and there are no datafixers.[^388][^412] The plan is to translate older client versions at the network edge.[^537]
 
 ## Is it legal?
 
@@ -62,8 +62,16 @@ Not yet. They will exist, but there is no issue for them. Until then you build f
 
 ## Can I publish my own plugin as a crate, or use mcrs crates?
 
-Crates are not on crates.io (<Status issue={321} />), but you can depend on a git commit. There are no library examples yet (<Status issue={287} />). See [Crates overview](/docs/en/crates/overview/).
+Crates are not on crates.io, but you can depend on a git commit.[^321] There are no library examples yet.[^287] See [Crates overview](/docs/en/crates/overview/).
 
 ## How do I follow progress?
 
 Watch issues on GitHub, follow the tags feed or join [Discord](https://discord.gg/ged3nMRzwG). The [Status](/docs/en/start/status/#how-to-follow-progress) page lists every way.
+
+[^78]: <Status issue={78} /> Tracks saving changed chunks back to region files.
+[^437]: <Status issue={437} /> The decision that there is no facade or API crate, and the crates and plugins are the public surface.
+[^388]: <Status issue={388} /> The decision that saves are read at exactly the targeted data version, with no datafixers.
+[^412]: <Status issue={412} /> The decision to target one version at a time, with no backward compatibility.
+[^537]: <Status issue={537} /> The decision that the network edge translates client protocols down to 1.21.6.
+[^321]: <Status issue={321} /> Tracks making the protocol, network and game data crates ready to publish.
+[^287]: <Status issue={287} /> Tracks the minimal server, lobby and arena examples.

@@ -31,7 +31,7 @@ The vanilla server runs one game tick on one thread and walks the world and ever
 
 mcrs is built on Bevy ECS, short for entity component system. In an ECS, behaviour is a set of functions called systems, and each system is one transformation over every entity that has the data it names. Bevy runs two systems at the same time when their data access does not overlap, so you write no lock for this. The Bevy scheduler finds the conflicts when it builds the schedule graph. The compiler does not check them.
 
-System sets, which are named groups of systems, fix the order between the groups. The project also checks the schedule for ambiguity, as section 13 of [the sharding design note](https://github.com/andreypfau/mcrs/blob/main/docs/minecraft-bevy-sharding-architecture.md) describes. The tick is split into a few phases with few sync points (<Status issue={364} />).
+System sets, which are named groups of systems, fix the order between the groups. The project also checks the schedule for ambiguity, as section 13 of [the sharding design note](https://github.com/andreypfau/mcrs/blob/main/docs/minecraft-bevy-sharding-architecture.md) describes. The tick is split into a few phases with few sync points.[^364]
 
 ## Entities read a frozen snapshot and write their own row
 
@@ -47,7 +47,7 @@ No entity reads the new state of another entity in the same pass, so the tasks d
 
 The collected effects are merged by a stable key, so the result does not depend on the machine. The key is the persisted UUID of the entity and never a network id, and it also breaks ties between entities.
 
-The rule is written in <Status issue={367} />, which sorts determinism into three tiers:
+The project sorts determinism into three tiers:[^367]
 
 | Tier | Guarantee | Where it applies |
 |---|---|---|
@@ -85,13 +85,20 @@ The example checks the design and makes no claim about speed. It needs a nightly
 | One dimension on many machines | goal: <Status issue={181} /> |
 
 <Aside type="caution" title="WIP">
-Redstone and the many-node layout are directions and do not exist yet. <Status issue={190} /> states that redstone will be semantic first, which means the results and delays match vanilla and the order inside a tick may differ. The exact order would come later as a change of one ordering policy. Do not plan a farm around it yet. Today the project has no redstone at all.
+Redstone and the many-node layout are directions and do not exist yet. Redstone will be semantic first, which means the results and delays match vanilla and the order inside a tick may differ.[^190] The exact order would come later as a change of one ordering policy. Do not plan a farm around it yet. Today the project has no redstone at all.
 </Aside>
 
 ## A thing that does not change costs nothing
 
-Parallelism is one of two ideas behind the tick. The other is that work is proportional to change. A resting entity waits for an event and is not checked every tick, and a cell that has nothing to tick is skipped. This is the decision in <Status issue={365} />: sparse changes over a large population go through an explicit work queue. Mob AI uses waits in place of per-tick checks.
+Parallelism is one of two ideas behind the tick. The other is that work is proportional to change. A resting entity waits for an event and is not checked every tick, and a cell that has nothing to tick is skipped. Sparse changes over a large population go through an explicit work queue.[^365] Mob AI uses waits in place of per-tick checks.
 
-Two costs are not measured yet: an idle server tick (<Status issue={320} />) and the memory per section (<Status issue={324} />). The project publishes no mob benchmark numbers on this page. [Performance and how we measure](/docs/en/project/performance/) shows what PERF.md holds, with the machine and the scenario next to each number.
+Two costs are not measured yet: an idle server tick and the memory per section.[^320][^324] The project publishes no mob benchmark numbers on this page. [Performance and how we measure](/docs/en/project/performance/) shows what PERF.md holds, with the machine and the scenario next to each number.
 
 Next: [Cells and the road to many nodes](/docs/en/concepts/scaling/).
+
+[^364]: <Status issue={364} /> The decision that the tick runs in phases with few sync points.
+[^367]: <Status issue={367} /> The decision that defines the three tiers of determinism.
+[^190]: <Status issue={190} /> Tracks redstone circuits that behave as in vanilla.
+[^365]: <Status issue={365} /> The decision that work is proportional to change.
+[^320]: <Status issue={320} /> Tracks the measurement of the idle server tick.
+[^324]: <Status issue={324} /> Tracks fixed component sizes and a count of section memory.

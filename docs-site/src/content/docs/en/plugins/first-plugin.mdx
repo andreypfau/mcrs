@@ -27,7 +27,7 @@ import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 In this tutorial you add a plugin that counts server ticks. mcrs has no plugin loader and no jar files, as [This is not the Paper API](/docs/en/plugins/not-paper/) explains, so "installing a plugin" means adding Rust code to the program that starts the server. Your plugin lives in your own copy of the mcrs repository, next to the server binary.
 
 <Aside type="caution" title="WIP">
-Building a plugin in its own project, with mcrs as a git dependency, is not checked. The crates are not published (<Status issue={321} />) and the examples workspace does not exist yet (<Status issue={288} />), so this page edits `src/main.rs` inside the clone. The code comes from test files of the repository, and we did not run these steps outside the repository tests.
+Building a plugin in its own project, with mcrs as a git dependency, is not checked. The crates are not published and the examples workspace does not exist yet, so this page edits `src/main.rs` inside the clone.[^321][^288] The code comes from test files of the repository, and we did not run these steps outside the repository tests.
 </Aside>
 
 ## Eight terms this page uses
@@ -72,7 +72,7 @@ The function `serve()` in `src/main.rs` already registers one plugin the right w
 <Example file="src/main.rs" from="fn serve() -> AppExit" to="app.add_dimension_plugin(LogInsteadOfPanicPlugin);" title="Where serve() registers a dimension plugin" />
 
 <Aside type="caution" title="add_plugins does not reach a dimension">
-Each dimension runs as a separate Bevy `SubApp` with its own `World`. A plugin that you add with `app.add_plugins(...)` goes to the main app and never reaches the simulation of a dimension (<Status issue={280} />). Your system would build without an error and never see a block, a mob or a player entity. Use `add_dimension_plugin(plugin)` to add a plugin to every dimension, or `add_dimension_plugin_to(key, plugin)` to add it to one. Call either of them before the server starts, because the plugin goes in before the dimensions spawn. [Dimensions](/docs/en/plugins/dimensions/) has more.
+Each dimension runs as a separate Bevy `SubApp` with its own `World`. A plugin that you add with `app.add_plugins(...)` goes to the main app and never reaches the simulation of a dimension.[^280] Your system would build without an error and never see a block, a mob or a player entity. Use `add_dimension_plugin(plugin)` to add a plugin to every dimension, or `add_dimension_plugin_to(key, plugin)` to add it to one. Call either of them before the server starts, because the plugin goes in before the dimensions spawn. [Dimensions](/docs/en/plugins/dimensions/) has more.
 </Aside>
 
 The test shows both calls and what the server builds from them:
@@ -81,7 +81,7 @@ The test shows both calls and what the server builds from them:
 
 ## Step 4: run the test that checks the count
 
-The test plugin prints nothing. The test asserts that the counter is above zero in both worlds, with `ticks::<true>(...)` in the same file. The command below runs this test, and the chat test uses the same pattern (<Status pr={636} state="works" />).
+The test plugin prints nothing. The test asserts that the counter is above zero in both worlds, with `ticks::<true>(...)` in the same file. The command below runs this test, and the chat test uses the same pattern.[^pr636]
 
 ```bash
 cargo test -p mcrs_minecraft_server --test it dimension_plugins::
@@ -113,6 +113,15 @@ The idea is the same, and three things differ. The mcrs plugin is compiled into 
 
 ## What plugins cannot do yet
 
-Four things a plugin may need are still tracked in issues. They are public events (<Status issue={283} />), chunk sources (<Status issue={281} />), saving (<Status issue={78} />) and dimensions at run time (<Status issue={546} />). [Status](/docs/en/start/status/) shows what else is missing for plugins, and [Dimensions](/docs/en/plugins/dimensions/) explains why `add_plugins` does not reach a dimension.
+Four things a plugin may need are not ready yet. They are public events, chunk sources, saving and dimensions at run time.[^283][^281][^78][^546] [Status](/docs/en/start/status/) shows what else is missing for plugins, and [Dimensions](/docs/en/plugins/dimensions/) explains why `add_plugins` does not reach a dimension.
 
 Next: [Intercept chat](/docs/en/plugins/chat-event/) uses the first public event to cancel and rewrite a chat line.
+
+[^321]: <Status issue={321} /> Tracks making the protocol, network and game data crates publishable.
+[^288]: <Status issue={288} /> Plans workspace members under `examples/` with a dependency-tree test per example.
+[^280]: <Status issue={280} /> Lets user plugins run inside every dimension world.
+[^pr636]: <Status pr={636} state="works" /> Raises a cancellable event for a chat line before its broadcast.
+[^283]: <Status issue={283} /> Tracks public player events that a plugin can cancel.
+[^281]: <Status issue={281} /> Plans the chunk source as a replaceable plugin point, with empty and flat sources.
+[^78]: <Status issue={78} /> Tracks saving changed chunks back to region files.
+[^546]: <Status issue={546} /> Plans to create and remove dimension worlds at run time and move players between them.

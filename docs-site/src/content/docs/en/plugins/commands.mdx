@@ -28,7 +28,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 A plugin adds a command by registering its nodes and writing a handler, which is a Bevy system. A node can also require a permission level.
 
-Commands live in a typed command tree, which <Status pr={579} state="works" /> added. Plugins register nodes into the tree, and the server sends each player the part of the tree that the player's level allows. If you know Paper, the nearest thing is its Commands API with a node tree. Nothing here corresponds to `plugin.yml` and `onCommand`. The examples come from the repository test `commands.rs`, and we did not run them outside the repository tests.
+Commands live in a typed command tree.[^pr579] Plugins register nodes into the tree, and the server sends each player the part of the tree that the player's level allows. If you know Paper, the nearest thing is its Commands API with a node tree. Nothing here corresponds to `plugin.yml` and `onCommand`. The examples come from the repository test `commands.rs`, and we did not run them outside the repository tests.
 
 ## Register a command with add_command
 
@@ -54,7 +54,7 @@ A node asks for a level with `requires(PermissionCheck::Require(level))`. There 
 
 A player below the level of a node does not see the node in the tree and cannot run it. The level of a player comes from the operator list or from the default level of the server.
 
-mcrs has no string permission nodes like `myplugin.use`. A permission system with groups is not part of mcrs today, and <Status issue={285} /> does not describe one.
+mcrs has no string permission nodes like `myplugin.use`. A permission system with groups is not part of mcrs today, and the plan for the command tree does not describe one.[^285]
 
 ## The handler is a system
 
@@ -66,16 +66,20 @@ The first parameter of a handler is `In<Call<...>>`, and every other parameter i
 
 A handler does not change a player directly, because the player can be in another dimension, which the handler cannot reach. The handler writes an effect through `CommandOutput::effect`, and the world applies the effects after the call, in the order they were written. Register the effect type with `add_command_effect`. This is how `teleport` and `gamemode` change players in other dimensions. The reasons are in [docs/command-dimensions.md](https://github.com/andreypfau/mcrs/blob/main/docs/command-dimensions.md) and on the page [Dimensions](/docs/en/plugins/dimensions/).
 
-You can also stop a command before it runs. The server raises `CommandEvent` in the world of the source dimension before it runs a command line. An observer, which is a function that Bevy calls when the event fires, can set `cancelled`, and then the command does not run. This is the command side of <Status issue={283} />.
+You can also stop a command before it runs. The server raises `CommandEvent` in the world of the source dimension before it runs a command line. An observer, which is a function that Bevy calls when the event fires, can set `cancelled`, and then the command does not run. This is the command side of the planned public, cancellable player events.[^283]
 
 ## What does not work yet
 
 <Aside type="caution" title="WIP">
-<Status issue={285} /> has these known limits today:
+The command tree has these known limits today:[^285]
 
 - You cannot build on the vanilla commands. For example, `build` and `run` of `kill` are `pub(crate)`, so a plugin can neither reuse them nor wrap them.
 - The argument types of a node come from the argument set of the command set, which is `VanillaCommands`. A type outside that set needs a command set of your own.
-- The issue asks that a vanilla client sees and completes a command registered by a test plugin, and that a player below the level neither sees nor runs it. The merged PR covers the tree and the level filter. Check the issue for what is left before you rely on more.
+- The plan asks that a vanilla client sees and completes a command registered by a test plugin, and that a player below the level neither sees nor runs it. The merged PR covers the tree and the level filter. Check what is left before you rely on more.[^285]
 </Aside>
 
 Next: [Intercept chat](/docs/en/plugins/chat-event/).
+
+[^pr579]: <Status pr={579} state="works" /> Adds the typed command tree, the vanilla commands and the client chat screen.
+[^285]: <Status issue={285} /> Tracks the command tree with permission levels and the commands packet.
+[^283]: <Status issue={283} /> Tracks public player events that a plugin can cancel.

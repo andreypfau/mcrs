@@ -29,7 +29,7 @@ If you write Paper plugins, you may know MockBukkit, which gives you a fake serv
 
 ## Tests are modules of one test binary
 
-All integration tests of the server crate are modules of one test binary, `tests/it/main.rs`, and a new file becomes a module there. To run one module, pass a filter. This is the command that <Status pr={636} state="works" /> uses for chat:
+All integration tests of the server crate are modules of one test binary, `tests/it/main.rs`, and a new file becomes a module there. To run one module, pass a filter. This is the command that runs the chat tests:[^pr636]
 
 ```bash
 cargo test -p mcrs_minecraft_server --test it chat::
@@ -68,7 +68,7 @@ A test can also look inside a world. `server.world()` gives the world of the fir
 
 Two systems that write the same data with no order between them can run in either order, so the same inputs can give different ticks. Bevy calls such a pair an ambiguity. The scheduler finds it when it builds the schedule, and the compiler does not check this rule.
 
-One repository test builds the main app and a dimension world with the full server plugin and turns every ambiguity in the simulation schedules into an error (<Status issue={323} />). When an ambiguity appears, the test fails and names both systems.
+One repository test builds the main app and a dimension world with the full server plugin and turns every ambiguity in the simulation schedules into an error.[^323] When an ambiguity appears, the test fails and names both systems.
 
 <Example file="crates/mcrs_minecraft_server/tests/it/schedule_ambiguity.rs" from={"#[test]\nfn no_simulation_schedule_has_an_unordered_conflicting_pair"} title="Test: no unordered conflicting pair" />
 
@@ -79,9 +79,13 @@ The test builds `MinecraftServerPlugins::embedded()`. If your plugin is not part
 <Aside type="caution" title="WIP: a headless dimension">
 Today a dimension world needs a player to tick, because chunks are loaded and simulated only around players. The harness above is the only one now, and it is not a stable API.
 
-<Status issue={266} /> plans a harness crate that does not depend on the server crate. It would run one dimension with a fixed seed and the flat generator, and with no network, no session and no player. A ticket that belongs to no player would hold a box of sections at the entity-ticking level until it is released. A step would run exactly N ticks of the main app and the dimension in production order.
+A planned harness crate does not depend on the server crate.[^266] It would run one dimension with a fixed seed and the flat generator, and with no network, no session and no player. A ticket that belongs to no player would hold a box of sections at the entity-ticking level until it is released. A step would run exactly N ticks of the main app and the dimension in production order.
 
-The issue also gives the test. It boots, raises the ticket, steps until the box ticks, and then steps 100 ticks. The tick counter must advance by exactly 100, and two runs with the same seed must hold the same blocks. The issue describes a direction and promises nothing.
+The plan also names a test. It boots, raises the ticket, steps until the box ticks, and then steps 100 ticks. The tick counter must advance by exactly 100, and two runs with the same seed must hold the same blocks. The issue describes a direction and promises nothing.
 </Aside>
 
 Next: [Intercept chat](/docs/en/plugins/chat-event/), which goes through a test with a real event. [Contributing](/docs/en/contributing/) has the build and test commands of the repository.
+
+[^pr636]: <Status pr={636} state="works" /> Raises a cancellable event for a chat line before its broadcast.
+[^323]: <Status issue={323} /> Simulation schedules fail on an ambiguous system order.
+[^266]: <Status issue={266} /> Plans to run one dimension headless with a fixed seed, no player and an area kept ticking.

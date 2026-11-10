@@ -36,13 +36,13 @@ In Paper you start from a finished server and add plugins. In mcrs you start fro
 
 <Example file="crates/mcrs_minecraft_server/src/lib.rs" from="pub struct MinecraftServerPlugins {" title="The fields of the group" />
 
-`build()` adds the rest of the vanilla server. The members, in the order `build()` adds them, are the server core, world generation registries, the vanilla command set, vanilla commands, world commands, dimension worlds, chat, entity physics, mob brains, world generation, lighting and the network (<Status issue={279} />).
+`build()` adds the rest of the vanilla server. The members, in the order `build()` adds them, are the server core, world generation registries, the vanilla command set, vanilla commands, world commands, dimension worlds, chat, entity physics, mob brains, world generation, lighting and the network.[^279]
 
 <Example file="crates/mcrs_minecraft_server/src/lib.rs" from="impl PluginGroup for MinecraftServerPlugins" title="The members of the group" />
 
 You can disable or replace each member without editing the server crate. A member that needs another one panics when the group builds and names the missing plugin. You get the error at start, so you do not have to trace a missing resource at the first tick.
 
-The vanilla gameplay lives in plugins above the engine. Each of them is removable on its own, and they reach every dimension world through `add_dimension_plugin` (<Status issue={282} />).
+The vanilla gameplay lives in plugins above the engine. Each of them is removable on its own, and they reach every dimension world through `add_dimension_plugin`.[^282]
 
 ## Disable a member with disable
 
@@ -64,7 +64,7 @@ The binary reads its settings from the environment and turns them into plugin fi
 
 <Example file="src/main.rs" from="let settings = ServerSettings::read(" to=".build();" title="src/main.rs: from settings to plugin fields" />
 
-Only the binary does this. A library crate does not read an environment variable or a file for its settings, and every setting is a field of the plugin that uses it (<Status issue={278} />).
+Only the binary does this. A library crate does not read an environment variable or a file for its settings, and every setting is a field of the plugin that uses it.[^278]
 
 The environment variables of the binary are the fields of `ServerSettings`. Each variable has the name of its field with the prefix `MCRS_`. The full list is in the [source file](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server_settings/src/server_settings.rs).
 
@@ -73,15 +73,21 @@ In your own program, skip `ServerSettings` and fill the plugin fields yourself. 
 ## You cannot supply your own chunks yet
 
 <Aside type="caution" title="WIP">
-A chunk source of your own does not exist yet. <Status issue={281} /> describes the plan, and it sets a direction without a promise.
+A chunk source of your own does not exist yet. It is planned as a replaceable plugin point, and the plan sets a direction without a promise.[^281]
 
 Today the chunks of a dimension come from a fixed setup inside the server, which is the noise generator of the dimension plus the saved columns of the world folder. A lobby, an arena or a test cannot hand the server its own chunks.
 
-The issue proposes a chunk source per dimension. Given a column position, the source yields a column or says there is none, and it does so off the tick, on the task pool. The server would ship three sources: the generator with the save in front, an empty source, and a flat source built from a list of layers. A source of your own would be a type that implements the same trait. A dimension on the empty source would not pull in the world generation crates.
+The plan proposes a chunk source per dimension. Given a column position, the source yields a column or says there is none, and it does so off the tick, on the task pool. The server would ship three sources: the generator with the save in front, an empty source, and a flat source built from a list of layers. A source of your own would be a type that implements the same trait. A dimension on the empty source would not pull in the world generation crates.
 
-The issue also gives the test. One dimension runs on the empty source and another on the flat source, a client joins each, and the dependency tree has no world generation crates.
+The plan also names a test. One dimension runs on the empty source and another on the flat source, a client joins each, and the dependency tree has no world generation crates.
 
-Saving chunks to disk is a separate topic, <Status issue={78} />.
+Saving chunks to disk is a separate topic.[^78]
 </Aside>
 
 Next: [Add a command](/docs/en/plugins/commands/).
+
+[^279]: <Status issue={279} /> Splits the server plugin into a group of removable plugins.
+[^282]: <Status issue={282} /> Moves vanilla gameplay out of the server crate into removable plugins.
+[^278]: <Status issue={278} /> The server is configured only through its plugin.
+[^281]: <Status issue={281} /> Plans the chunk source as a replaceable plugin point, with empty and flat sources.
+[^78]: <Status issue={78} /> Tracks saving changed chunks back to region files.

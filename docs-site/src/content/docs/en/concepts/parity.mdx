@@ -34,10 +34,10 @@ A bare "matches vanilla" is too vague to test, so mcrs makes every subsystem dec
 | semantic | the gameplay result matches, the order of work inside a tick may not | lighting, fluids, redstone, neighbour updates, random behaviour (distributions, not vanilla's random sequence) |
 | intentional deviation | vanilla is accidental or pathological, so mcrs differs on purpose and writes it down | each one has an entry in the spec, with the rule, the reference behaviour, what the client sees and what a differential test does |
 
-The decision <Status issue={367} /> gives the reasoning for its three tiers of determinism. Matching the reference everywhere would mean copying the order in which Java iterates hash maps, while matching it nowhere would make parity untestable. The full table per subsystem is in section 2 of [the sharding design note](https://github.com/andreypfau/mcrs/blob/main/docs/minecraft-bevy-sharding-architecture.md).
+The project has three tiers of determinism because neither extreme works.[^367] Matching the reference everywhere would mean copying the order in which Java iterates hash maps, while matching it nowhere would make parity untestable. The full table per subsystem is in section 2 of [the sharding design note](https://github.com/andreypfau/mcrs/blob/main/docs/minecraft-bevy-sharding-architecture.md).
 
 <Aside type="note" title="Semantic now, exact later">
-Redstone, fluids and block updates are semantic for now. Their queues keep the fields vanilla orders by, which are the due tick, the priority and the insertion sequence, and the order is one replaceable policy per domain. Moving to vanilla's tick-for-tick order is a change of that policy, tested against recorded fixtures (<Status issue={272} />). Redstone itself does not exist yet: <Status issue={190} />.
+Redstone, fluids and block updates are semantic for now. Their queues keep the fields vanilla orders by, which are the due tick, the priority and the insertion sequence, and the order is one replaceable policy per domain. Moving to vanilla's tick-for-tick order is a change of that policy, tested against recorded fixtures.[^272] Redstone itself does not exist yet.[^190]
 </Aside>
 
 ## Each rule in a specification has a kind
@@ -66,3 +66,7 @@ The third is the provenance labels. Each rule carries a label that says where it
 ## Parity never comes from reading the game's code
 
 Specification authors may read the game's code and implementers may not, and one person does not hold both roles for one behaviour. [Clean-room in practice](/docs/en/contributing/clean-room/) has the full rule. The artefacts the game produces are allowed evidence: the data pack, the reports, the oracle dumps and captured packets. [Specs and parity tests](/docs/en/contributing/specs-and-parity/) shows how to add a rule or a parity test.
+
+[^367]: <Status issue={367} /> The decision that defines the three tiers of determinism.
+[^272]: <Status issue={272} /> Tracks recording vanilla outcomes as fixtures.
+[^190]: <Status issue={190} /> Tracks redstone circuits that behave as in vanilla.

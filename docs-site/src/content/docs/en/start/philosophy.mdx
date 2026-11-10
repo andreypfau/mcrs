@@ -31,7 +31,7 @@ A new language does not fix that, and neither does a prompt that says "rewrite M
 
 ECS stands for entity component system. The state of the world is components and resources, and the behaviour is systems. A system is one transformation over every entity that has the data it names. The Bevy scheduler runs systems in parallel when their data access does not overlap, and a system can also split its entities across threads. Nobody writes a lock for that.
 
-The goal is mcrs code with no `Arc`, no `Mutex` and no trait object on the hot path. This is work in progress in <Status issue={566} />. The model is explained in [From objects to data](/docs/en/plugins/mental-model/).
+The goal is mcrs code with no `Arc`, no `Mutex` and no trait object on the hot path. This is work in progress.[^566] The model is explained in [From objects to data](/docs/en/plugins/mental-model/).
 
 ## Work runs in parallel when it touches different data
 
@@ -39,11 +39,11 @@ A common way to use more cores is to move single jobs off the main thread, such 
 
 Take a mob farm and the redstone that drives it. They sit in the same chunks, yet mob AI and redstone run in parallel, and so do two farms at opposite ends of a base. Work that really interacts stays together and runs in order, and the result is the same on any number of threads.
 
-Redstone itself is not implemented yet (<Status issue={190} />), so the farm example is the design target. The details are in [How a tick runs in parallel](/docs/en/concepts/parallel-tick/).
+Redstone itself is not implemented yet, so the farm example is the design target.[^190] The details are in [How a tick runs in parallel](/docs/en/concepts/parallel-tick/).
 
 ## Work is proportional to change
 
-The goal is that a resting entity and an untouched section add no work to a tick (<Status issue={365} />). Idle cost and frame times are measured in [`PERF.md`](https://github.com/andreypfau/mcrs/blob/main/PERF.md), and every exception to these rules cites a number there. Memory per section is not measured yet (<Status issue={324} />). See [Performance and how we measure](/docs/en/project/performance/).
+The goal is that a resting entity and an untouched section add no work to a tick.[^365] Idle cost and frame times are measured in [`PERF.md`](https://github.com/andreypfau/mcrs/blob/main/PERF.md), and every exception to these rules cites a number there. Memory per section is not measured yet.[^324] See [Performance and how we measure](/docs/en/project/performance/).
 
 ## A specification comes before the code
 
@@ -68,3 +68,8 @@ Registries, biomes, dimensions, world generation and environment attributes are 
 ## mcrs tracks the newest snapshot
 
 mcrs targets one game version at a time, currently <code dir="auto">{fact('snapshot')}</code>. A single command regenerates the data and the reports from the game jar, so moving to the next snapshot is mostly a data update. See [One game version at a time](/docs/en/concepts/one-version/).
+
+[^566]: <Status issue={566} /> The direction for library code without shared ownership, locks, trait objects or hot-path allocation.
+[^190]: <Status issue={190} /> Tracks redstone circuits that behave as in vanilla.
+[^365]: <Status issue={365} /> The decision that work is proportional to change, not to population.
+[^324]: <Status issue={324} /> Tracks pinning the size of components and counting section memory.

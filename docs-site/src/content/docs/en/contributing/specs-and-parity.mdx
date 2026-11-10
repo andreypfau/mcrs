@@ -52,7 +52,7 @@ Specifications use Simplified Technical English (ASD-STE100): one word for one c
 
 ## A new behavior takes a pair of issues
 
-A new behavior takes two issues, as [Clean-room in practice](/docs/en/contributing/clean-room/) describes. Block breaking is an example. <Status issue={474} /> asks for the specification and the implementation as two steps, with a second agent that implements from `docs/spec/` only. <Status issue={623} /> asks for a specification of teleport confirmation, and then for engine tests per rule. [How to contribute](/docs/en/contributing/#work-with-a-coding-agent) describes the agent roles for such a pair.
+A new behavior takes two issues, as [Clean-room in practice](/docs/en/contributing/clean-room/) describes. Block breaking is an example. Its task asks for the specification and the implementation as two steps, with a second agent that implements from `docs/spec/` only.[^474] The task for teleport confirmation asks for a specification first, and then for engine tests per rule.[^623] [How to contribute](/docs/en/contributing/#work-with-a-coding-agent) describes the agent roles for such a pair.
 
 A good pair looks like this:
 
@@ -62,7 +62,7 @@ A good pair looks like this:
 A spec PR is a docs PR and does not touch code. An implementation PR cites rule IDs and does not change the spec. If the spec is wrong or silent, go back to issue A.
 
 <Aside type="caution" title="Edition-specific rules, WIP">
-Specifications do not yet mark which rules belong to which game edition. This is planned: <Status issue={656} />.
+Specifications do not yet mark which rules belong to which game edition. This is planned.[^656]
 </Aside>
 
 ## Fixtures come from the game through the oracle
@@ -87,6 +87,11 @@ A parity test lives in a file named `parity.rs` or `*_parity.rs`. It loads its e
 
 To add a parity test, capture the fixture with the oracle as its README describes, load the fixture in a `*_parity.rs` test, and name the rule ID in the test name.
 
-A report of the rules that no test names is planned: <Status issue={507} />.
+A report of the rules that no test names is planned.[^507]
 
 The parity of world generation is a special case. The reference dumps cover chosen seeds and chunks, so "matches vanilla" there means "matches on these dumps". [Parity](/docs/en/concepts/parity/) explains this.
+
+[^474]: <Status issue={474} /> Asks for the specification and the plugin of block breaking.
+[^623]: <Status issue={623} /> Asks to specify which accept confirms a teleport, and the resend of an unconfirmed one.
+[^656]: <Status issue={656} /> Plans that specifications mark edition-specific rules.
+[^507]: <Status issue={507} /> Plans a report of the specification rules that no test checks.

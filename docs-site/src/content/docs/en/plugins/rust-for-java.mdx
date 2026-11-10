@@ -146,7 +146,7 @@ The next example is a real plugin from the repository. It has a resource and a s
 
 A value in Rust has one owner. The owner can lend it as `&T` to many readers or as `&mut T` to one writer, but never both at once. In a Bevy system you write this in the parameters, where `Query<&T>` reads and `Query<&mut T>` writes. You rarely write lifetimes.
 
-Two habits change because of this. Keep an `Entity` id where you would keep a reference to a player, and call `.clone()` where you would share a value. Do not copy patterns from Rust servers built on `Arc<Mutex<..>>`, because the project avoids them in its library layers (<Status issue={566} />). The [ownership chapter of the Rust Book](https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html) explains the rules in full.
+Two habits change because of this. Keep an `Entity` id where you would keep a reference to a player, and call `.clone()` where you would share a value. Do not copy patterns from Rust servers built on `Arc<Mutex<..>>`, because the project avoids them in its library layers.[^566] The [ownership chapter of the Rust Book](https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html) explains the rules in full.
 
 ## Three errors you will meet
 
@@ -167,7 +167,10 @@ Two habits change because of this. Keep an `Entity` id where you would keep a re
 - [bevy_ecs on docs.rs](https://docs.rs/bevy_ecs/0.19.1/bevy_ecs/) has the exact signatures.
 
 <Aside type="caution" title="WIP">
-The toolchain is pinned to nightly in `rust-toolchain.toml`. For a project outside the repository on stable Rust, see <Status issue={321} />. A detailed setup guide will appear by the alpha.
+The toolchain is pinned to nightly in `rust-toolchain.toml`. Building a project outside the repository on stable Rust is part of the work to make the crates publishable.[^321] A detailed setup guide will appear by the alpha.
 </Aside>
 
 Next: [your first plugin](/docs/en/plugins/first-plugin/), then [Paper and Minestom in mcrs terms](/docs/en/plugins/paper-to-mcrs/).
+
+[^566]: <Status issue={566} /> The direction of library code without shared ownership, locks, trait objects or hot-path allocation.
+[^321]: <Status issue={321} /> Tracks making the protocol, network and game data crates publishable.

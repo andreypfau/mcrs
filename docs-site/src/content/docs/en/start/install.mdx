@@ -25,7 +25,7 @@ import { Aside } from '@astrojs/starlight/components';
 This page lists what you need on your machine to build mcrs. If you come from Java, the second half maps the parts of Gradle you know to Cargo, the build tool of Rust.
 
 <Aside type="caution" title="WIP">
-A detailed install guide will come before the alpha. Today only developers use the project, so this page is short and we have not run its steps again for the docs. When in doubt, follow the [README Quick start](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start). Binary releases are planned and do not exist yet, and no issue tracks them. <Status issue={321} /> is about publishing crates, which is a different thing.
+A detailed install guide will come before the alpha. Today only developers use the project, so this page is short and we have not run its steps again for the docs. When in doubt, follow the [README Quick start](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start). Binary releases are planned and do not exist yet, and no issue tracks them. Publishing the crates is a different piece of work.[^321]
 </Aside>
 
 ## What you need
@@ -57,6 +57,8 @@ Nobody has measured yet how long the first build takes or how much disk it needs
 | Lock file of dependencies | `Cargo.lock`, committed |
 | `implementation` and `api` scopes | `[dependencies]`. There is no `api` scope, and all `pub` items are visible |
 
-Crates are not published on crates.io (<Status issue={321} />), so today your own code lives in a clone of the repository or depends on a git commit.
+Crates are not published on crates.io, so today your own code lives in a clone of the repository or depends on a git commit.[^321]
 
 Next: [Run a server](/docs/en/start/run-server/).
+
+[^321]: <Status issue={321} /> Tracks making the protocol, network and game data crates ready to publish.
