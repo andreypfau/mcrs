@@ -36,6 +36,18 @@ pub trait ItemComponent: Clone + PartialEq + Hash {
 
     #[doc(hidden)]
     fn removal() -> Option<PatchEntry>;
+
+    #[doc(hidden)]
+    fn builtin_key() -> Option<BuiltinKey>;
+
+    #[doc(hidden)]
+    fn from_builtin(value: &Builtin) -> Option<&Self>;
+
+    /// True when `entry` is an entry of this type, also when it holds the type as undecoded bytes.
+    #[doc(hidden)]
+    fn is_entry_of(entry: &PatchEntry) -> bool {
+        entry.key() == Self::patch_key()
+    }
 }
 
 // A prototype has no custom component, so the removal of one leaves no entry in the patch.
@@ -56,6 +68,14 @@ impl<C: CustomComponent> ItemComponent for C {
     fn removal() -> Option<PatchEntry> {
         None
     }
+
+    fn builtin_key() -> Option<BuiltinKey> {
+        None
+    }
+
+    fn from_builtin(_: &Builtin) -> Option<&Self> {
+        None
+    }
 }
 
 macro_rules! builtin_item_component {
@@ -72,6 +92,17 @@ macro_rules! builtin_item_component {
 
                 fn removal() -> Option<PatchEntry> {
                     Some(PatchEntry::Removal(BuiltinKey::$name))
+                }
+
+                fn builtin_key() -> Option<BuiltinKey> {
+                    Some(BuiltinKey::$name)
+                }
+
+                fn from_builtin(value: &Builtin) -> Option<&Self> {
+                    match value {
+                        Builtin::$name(value) => Some(value),
+                        _ => None,
+                    }
                 }
             }
         )*
