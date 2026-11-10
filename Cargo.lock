@@ -4839,6 +4839,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_instrument"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_sound",
+ "mcrs_minecraft_text",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mcrs_minecraft_inventory_plan"
 version = "0.5.8"
 

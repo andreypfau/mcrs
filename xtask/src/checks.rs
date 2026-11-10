@@ -89,6 +89,7 @@ const NO_BEVY_PACKAGES: [&str; 106] = [
     "mcrs_minecraft_game_mode",
     "mcrs_minecraft_game_rule",
     "mcrs_minecraft_heightmap",
+    "mcrs_minecraft_instrument",
     "mcrs_minecraft_inventory_plan",
     "mcrs_minecraft_item",
     "mcrs_minecraft_item_key",
