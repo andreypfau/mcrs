@@ -269,11 +269,15 @@ packets, if INV-SET-004 does not prevent it:
 - When a menu is open, and the open menu shows the slot: `container_set_slot` with the window id
   and the menu index of the open menu. The open menu of a chest with 27 slots shows the main slots
   9 to 35 at the menu indices 27 to 53, and the hotbar slots at 54 to 62.
-- When a menu is open, and the open menu does not show the slot: nothing while the menu stays open.
-  After the menu closes, the owner gets `container_set_slot` with the window id 0 for each such
-  slot that changed.
+- When a menu is open, and the open menu does not show the slot: nothing at once. The owner gets
+  `container_set_slot` with the window id 0 for each such slot that changed, at the first of these
+  events: the menu closes, or the owner sends `set_creative_mode_slot`. In result R15, a
+  `set_creative_mode_slot` request with the chest open sends the window id 0 packets for the slots
+  1, 5, 9, 36 and 45, which earlier writes changed. These include the slots 9 and 36, which the
+  chest shows and which already got their packets of the chest window. The results test no other
+  event.
 
-See results R2, R10 and R13.
+See results R2, R10, R13 and R15.
 
 **INV-SET-003** (`black_box_confirmed`, semantic). A write to a slot of the craft grid also
 calculates the craft result again. The owner gets `container_set_slot` for the menu index 0 before
@@ -307,8 +311,11 @@ of the craft grid. Part 4 states which main slot gets a stack. The owner gets th
 
 The main slots take as many items of a stack as they have room for. The server drops the remainder
 of each stack as an item entity from the owner, as for a drop of the main-hand item, which part 4
-states. A stack that the main slots do not take at all sends no `set_player_inventory`. See results
-R23 and R25.
+states. A stack that the main slots do not take at all sends no `set_player_inventory`.
+
+The move of the craft grid on the close is not a write in the sense of INV-SET-003. The owner gets
+no `container_set_slot` for the menu index 0, and the state id grows only for the packets of the
+list above. See results R23 and R25.
 
 ## 5. The creative slot request
 
@@ -363,16 +370,22 @@ these fields, in this order: position (long), include data (boolean). The server
 
 **INV-PCK-002** (`black_box_confirmed`, semantic). The server ignores `pick_item_from_block`, and
 sends nothing, when the distance from the eye position to the nearest point of the block cube is
-more than a limit. The limit is the same as in BRK-RCH-001: 5.5 in survival mode and 6.0 in
-creative mode. Result R20 found the limit between 5.4 and 5.6 in survival mode, and between 5.9 and
-6.1 in creative mode.
+equal to or more than a limit. The limit is the same as in BRK-RCH-001: the value of the
+`minecraft:block_interaction_range` attribute plus 1.0. By default, this is 5.5 in survival mode
+and 6.0 in creative mode. With the base value of the attribute set to 8, it is 9.0 in survival mode
+and 9.5 in creative mode. At a distance equal to the limit, the server ignores the request. See
+results R20 and R33.
 
 The server ignores `pick_item_from_entity` in the same way when the distance from the eye position
-to the nearest point of the bounding box of the entity is more than 6.0 in survival mode, or more
-than 8.0 in creative mode. Result R26 found the limit between 5.9 and 6.1 in survival mode, and
-between 7.9 and 8.1 in creative mode, both straight and on the diagonal. On the diagonal, the
-distance to the centre of the entity is more than the limit, so the limit applies to the bounding
-box.
+to the nearest point of the bounding box of the entity is more than a limit. The limit is the value
+of the `minecraft:entity_interaction_range` attribute plus 3.0. The attribute is 3.0 by default, and
+creative mode adds 2.0 to it. By default, the limit is 6.0 in survival mode and 8.0 in creative
+mode. With the base value of the attribute set to 5, it is 8.0 in survival mode and 10.0 in
+creative mode. Result R26 shows the default limits straight and on the diagonal. On the diagonal,
+the distance to the centre of the entity is more than the limit, so the limit applies to the
+bounding box. At a distance of 6.0 and 8.0, result R33 shows no reply, but the box of that test is
+at 0.45 from the centre of the entity, which a binary number does not hold exactly. So a distance
+equal to the limit is unspecified for an entity. See results R26 and R33.
 
 **INV-PCK-003** (`black_box_confirmed`, semantic). The picked stack is a stack with the count 1:
 
@@ -661,7 +674,9 @@ uses.
 **D2.**
 
 - **Rule**: INV-CRE-002 and INV-CRE-004. When the server refuses a request with a slot field from 1
-  to 45, mcrs must send the owner the stack of that slot, as INV-SET-002 states. Reason: issue 521
+  to 45, mcrs must send the owner the stack of that slot, as INV-SET-002 states. When an open menu
+  does not show the slot, mcrs sends `container_set_slot` with the window id 0 for the slot at
+  once, and does not wait for the events of INV-SET-002. Reason: issue 521
   decides that a refused request has one outcome in all editions: refused, and the current state
   follows. Part 2 states this outcome in full.
 - **Reference**: the server sends nothing. The client keeps the stack that it predicted, and the
@@ -732,6 +747,7 @@ blocks apart. Read the packets that arrive after each step, and read the player 
 | E30 | In survival mode, unless the case states another mode, prepare the slots with `item replace` and send each `container_click` of R30, with the current state id, no claims and the empty carried stack. Read the packets after each click, the `Inventory` field and the item entities. | R30 |
 | E31 | Do E30 for each case of R31, with the state id and the claims that the case states. Do the cases that can disconnect at the end, each with a new client. | R31 |
 | E32 | Do E30 for each case of R32. | R32 |
+| E33 | Do E20 at the distances of R33, with the default attribute and with `attribute invp minecraft:block_interaction_range base set 8`. Do E26 at the gaps of R33, with the default attribute and with `attribute invp minecraft:entity_interaction_range base set 5`. | R33 |
 
 ## 14. Captured results
 
@@ -1465,4 +1481,17 @@ X7 shift partial room:
 X4 128 changed:
   slot -999 button 0 mode 0 [128 empty claims] -> nothing
   after: Inventory empty
+```
+
+**R33.** Pick reach at the limit and with a changed attribute. For a block, the distance is from the
+eye position to the face of the block. For an entity, the gap is as in R26.
+
+```text
+block, default attribute:      survival 5.4 reply; 5.5, 5.6 nothing
+                               creative 5.9 reply; 6.0, 6.1 nothing
+block, attribute base 8:       survival 8.9 reply; 9.0, 9.1 nothing
+                               creative 9.4 reply; 9.5, 9.6 nothing
+entity, attribute base 5:      survival 7.9 reply; 8.1 nothing
+                               creative 9.9 reply; 10.1 nothing
+entity, default attribute:     survival 6.0 nothing; creative 8.0 nothing
 ```
