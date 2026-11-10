@@ -23,9 +23,7 @@ import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-mcrs is a repository of {fact('crates')} crates, sorted into seven layers. This page shows what each layer holds, which layers need Bevy, and how much of the promise "take only the crates you need" holds today.
-
-Each layer is meant to depend only on the layers below it, so you take the layers you need and pay for nothing above them. A proxy needs the bottom two layers, and a full server needs the first five. This is the direction set in <Status issue={180} />.
+mcrs is a repository of {fact('crates')} crates, sorted into seven layers. Each layer is meant to depend only on the layers below it, so you take the layers you need and pay for nothing above them. A proxy needs the bottom two layers, and a full server needs the first five. This is the direction set in <Status issue={180} />.
 
 ## The seven layers
 
@@ -55,7 +53,7 @@ If you come from Paper, think of a kernel as the logic of a vanilla system with 
 
 ## What "a set of parts" means today
 
-The project promises "Minecraft as a set of crates". The paragraphs below say how far that goes on 2026-11-10.
+The project promises "Minecraft as a set of crates". This is how far that goes on 2026-11-10.
 
 100 packages build without Bevy, and a check in `xtask/src/checks.rs` fails when a crate below layer 4 requires Bevy. 9 packages also build without std, for the target `wasm32v1-none`, and 11 build for a browser, for the target `wasm32-unknown-unknown`.
 

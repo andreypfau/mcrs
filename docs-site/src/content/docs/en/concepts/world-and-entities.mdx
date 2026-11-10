@@ -36,7 +36,7 @@ mcrs says "section" and "column" and avoids a bare "chunk", because "chunk" does
 
 In the engine, each of the three levels is an ECS entity with a marker component that tags what the entity is. The markers are `Section`, `Column` and `Dimension` in `mcrs_minecraft_engine_world`. The position types `BlockPos`, `SectionPos` and `ColumnPos` are plain coordinate math in `mcrs_minecraft_core` and carry no ECS state. Block data inside a section is a `PalettedContainer`-style palette, as in the game.
 
-A dimension that is a separate Bevy world also gets its own tick. [Cells and the road to many nodes](/docs/en/concepts/scaling/) builds on this, and so do the dimension plugins you write in [Dimensions are separate worlds](/docs/en/plugins/dimensions/).
+Each dimension is a separate Bevy world and has its own tick. [Cells and the road to many nodes](/docs/en/concepts/scaling/) builds on this, and so do the dimension plugins you write in [Dimensions are separate worlds](/docs/en/plugins/dimensions/).
 
 ## Tickets decide what is hot
 

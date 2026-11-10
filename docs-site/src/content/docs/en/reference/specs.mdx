@@ -25,7 +25,7 @@ import { Aside } from '@astrojs/starlight/components';
 The files in `docs/spec/` are written for AI agents and for the people who write specifications. They follow the rules of ASD-STE100 Simplified Technical English, as `docs/spec/README.md` says. That is why they are exact and dry. Use this page to find the right file, then read the file itself.
 </Aside>
 
-This page tells you which file in [docs/spec](https://github.com/andreypfau/mcrs/tree/main/docs/spec) specifies each domain of game behavior, and how to read a rule in such a file. Each file states the behavior of one domain as data, which means its inputs, outputs, order, timing and constants. A spec never describes the shape of game code. Specs are also the only source of game behavior that an implementer may read for a rule, as the [clean-room rule](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md) requires.
+Each file in [docs/spec](https://github.com/andreypfau/mcrs/tree/main/docs/spec) states the behavior of one domain as data, which means its inputs, outputs, order, timing and constants. A spec never describes the shape of game code. Specs are also the only source of game behavior that an implementer may read for a rule, as the [clean-room rule](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md) requires.
 
 Some spec headers still name `26.4-snapshot-4` as the game version. The project follows <code dir="auto">{fact('snapshot')}</code>, which is set in `assets/minecraft/version.json`.
 

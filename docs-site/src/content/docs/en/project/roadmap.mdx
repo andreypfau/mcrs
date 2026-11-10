@@ -1,6 +1,6 @@
 ---
 title: Roadmap
-description: The four directions mcrs is heading in, what exists of each today and what is missing. The page has no dates.
+description: The four directions mcrs is heading in, what exists of each today and what is missing. A direction, not a commitment.
 sidebar:
   order: 1
 kind: reference
@@ -25,7 +25,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 This page describes the four long-term directions of mcrs and, for each one, what already exists and what is still missing. It is for anyone who wants to know where the project is going before they depend on it or contribute to it.
 
-<Aside type="caution" title="A direction is a goal without a date">
+<Aside type="caution" title="A direction, not a commitment">
 This page says where the project wants to go. It has no dates. Everything marked WIP below is a goal written in an issue. It is not in the code yet unless the text says so. For what runs today, read [Status](/docs/en/start/status/).
 </Aside>
 
@@ -49,7 +49,7 @@ There is no facade or API crate and none is planned. The decision <Status issue=
 
 The target is ten thousand players in one dimension with the unmodified vanilla client, with a bounded number visible to each client. The issue describes the shape of such a system. Clients talk only to an edge that holds each connection for the whole session. Simulation is split into shards that own related work. Nodes own chunks and their shards, and a coordinator owns the map of chunks to nodes and the global state. Results must not depend on thread count or shard layout.
 
-Today this works on one machine. Worlds tick as parallel cells behind a muxer thread with a shared data layer (<Status pr={646} state="works" />). A setup across more than one machine does not exist, and no player count has been measured. Redstone is not built.
+Today worlds tick as parallel cells behind a muxer thread with a shared data layer, on one machine (<Status pr={646} state="works" />). A setup across more than one machine does not exist, and no player count has been measured. Redstone is not built.
 
 ### Vanilla gameplay and behavior tests on that architecture
 

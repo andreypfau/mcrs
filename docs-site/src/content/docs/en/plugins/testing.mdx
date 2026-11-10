@@ -81,7 +81,7 @@ Today a dimension world needs a player to tick, because chunks are loaded and si
 
 <Status issue={266} /> plans a harness crate that does not depend on the server crate. It would run one dimension with a fixed seed and the flat generator, and with no network, no session and no player. A ticket that belongs to no player would hold a box of sections at the entity-ticking level until it is released. A step would run exactly N ticks of the main app and the dimension in production order.
 
-The issue also gives the test. It boots, raises the ticket, steps until the box ticks, and then steps 100 ticks. The tick counter must advance by exactly 100, and two runs with the same seed must hold the same blocks. The issue sets a direction without a promise.
+The issue also gives the test. It boots, raises the ticket, steps until the box ticks, and then steps 100 ticks. The tick counter must advance by exactly 100, and two runs with the same seed must hold the same blocks. The issue describes a direction and promises nothing.
 </Aside>
 
-Next: [Intercept chat](/docs/en/plugins/chat-event/), which goes through a test with a real event.
+Next: [Intercept chat](/docs/en/plugins/chat-event/), which goes through a test with a real event. [Contributing](/docs/en/contributing/) has the build and test commands of the repository.

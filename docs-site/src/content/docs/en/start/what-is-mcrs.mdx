@@ -24,11 +24,11 @@ import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-This page tells you what mcrs is, what already works and what it does not do. Read it first if you play, run servers or write plugins and want to know whether the project is useful to you today.
+Read this page first if you play, run servers or write plugins and want to know whether the project is useful to you today.
 
 ## A set of crates, with a server and a client built from them
 
-mcrs is a set of {fact('crates')} Rust crates for Minecraft Java Edition. A server and a client are built from them on Bevy ECS. ECS stands for entity component system. In it the world is data in tables and the behaviour is functions called systems, and the Bevy scheduler runs systems in parallel when they touch different data.
+mcrs is a set of {fact('crates')} Rust crates for Minecraft Java Edition. A server and a client are built from them on Bevy ECS. ECS stands for entity component system. In an ECS the world is data in tables and the behaviour is functions called systems. The Bevy scheduler runs systems in parallel when they touch different data.
 
 The project follows one game snapshot at a time. Today that is {fact('snapshot')}, and the value is kept in `assets/minecraft/version.json`. mcrs does not keep compatibility with older versions (<Status issue={412} />).
 

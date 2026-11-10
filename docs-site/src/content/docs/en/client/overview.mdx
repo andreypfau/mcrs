@@ -68,7 +68,7 @@ The client asks for 96 columns of view by default, where a column is a stack of 
 | GPU frame | 3.7 ms with the occlusion test on, 6.0 ms with it off (`MCRS_OCCLUSION=0`). The note in PERF.md calls 3.7 ms over its ceiling | PERF.md, Hardening |
 | Memory of the process | 12 GB | [PERF.md, Render distance](https://github.com/andreypfau/mcrs/blob/main/PERF.md#render-distance) |
 
-At 96 columns the GPU limits the frame and the CPU does not. Flying at top speed costs more than standing still, because the engine frame in the same scenario rises to a 1.56 ms median and 5.0 ms for the worst second. The 12 GB figure comes from the Render distance section, which was written before the occlusion work, so a newer build may differ. Work to bound the memory at 96 columns is <Status issue={337} />.
+At 96 columns the GPU limits the frame and the CPU does not. Flying at top speed costs more than standing still. In the same scenario the engine frame then takes a 1.56 ms median and 5.0 ms for the worst second. The 12 GB figure comes from the Render distance section, which was written before the occlusion work, so a newer build may differ. Work to bound the memory at 96 columns is <Status issue={337} />.
 
 If your GPU or RAM is smaller than this machine's, lower `MCRS_VIEW`, the number of columns the client asks for. The Render distance table of PERF.md reads 0.71 ms of engine time at 12 columns, on an older build. There are no numbers for other machines.
 

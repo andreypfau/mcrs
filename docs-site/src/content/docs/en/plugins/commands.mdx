@@ -26,9 +26,9 @@ import Status from '~/components/Status.astro';
 import Example from '~/components/Example.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-This page shows how a plugin adds a command to the server. You register the nodes of the command, you can require a permission level for them, and you write the handler as a Bevy system.
+A plugin adds a command by registering its nodes and writing a handler, which is a Bevy system. A node can also require a permission level.
 
-Commands live in a typed command tree, which <Status pr={579} state="works" /> added. Plugins register nodes into the tree, and the server sends each player the part of the tree that the player's level allows. If you know Paper, the nearest thing is its Commands API with a node tree, and you will find no counterpart of `plugin.yml` and `onCommand`. The examples come from the repository test `commands.rs`, and we did not run them outside the repository tests.
+Commands live in a typed command tree, which <Status pr={579} state="works" /> added. Plugins register nodes into the tree, and the server sends each player the part of the tree that the player's level allows. If you know Paper, the nearest thing is its Commands API with a node tree. Nothing here corresponds to `plugin.yml` and `onCommand`. The examples come from the repository test `commands.rs`, and we did not run them outside the repository tests.
 
 ## Register a command with add_command
 

@@ -23,8 +23,6 @@ import { fact } from '~/lib/facts.mjs';
 
 import Status from '~/components/Status.astro';
 
-This page explains the design choices behind mcrs, one per section, and links to the page that goes deeper into each. Read it if you wonder why the project does not translate the Java server into Rust.
-
 Suppose you copy the classes of the Java server into Rust structs. Shared objects end up behind `Arc<Mutex<...>>`, and one thread runs the game tick with async tasks around it. The result is the same object graph with a borrow checker, plus locks.
 
 A new language does not fix that, and neither does a prompt that says "rewrite Minecraft in Rust, make no mistakes". The hard part is to decide how the game should be built once the Java is gone, and that is most of the work in this repository. mcrs starts with the engine.

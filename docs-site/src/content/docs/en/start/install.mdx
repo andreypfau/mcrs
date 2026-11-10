@@ -38,13 +38,11 @@ mcrs needs the official client jar of the snapshot, but you do not download it b
 
 You do not need Java to run mcrs. Some tools, such as `tools/vanilla-oracle` and the mob bench, need Java 21 or newer.
 
-The operating system that has been tried is macOS. The author measured and ran everything on an Apple M4 Max with Metal. CI runs lint, clippy, portability checks and tests on Ubuntu 24.04, without the crates that need a GPU. For Windows the code has a jar path, and nobody has checked it.
+The author measured and ran everything on macOS, on an Apple M4 Max with Metal. CI runs lint, clippy, portability checks and tests on Ubuntu 24.04, without the crates that need a GPU. For Windows the code has a jar path, and nobody has checked it.
 
 Nobody has measured yet how long the first build takes or how much disk it needs. The workspace has {fact('crates')} crates, so expect a long first build.
 
 ## Cargo for people who know Gradle
-
-Each row of the table gives the Cargo counterpart of something you use in Gradle.
 
 | Gradle | Cargo |
 |---|---|

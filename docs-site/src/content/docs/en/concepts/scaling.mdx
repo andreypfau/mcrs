@@ -21,8 +21,6 @@ verified:
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-This page explains how mcrs splits a world into cells, which parts of that run today, and what is still a design for running one dimension on several machines.
-
 <Aside type="caution" title="WIP">
 This page describes a direction. One process with cells exists in code, and several nodes do not: <Status issue={181} />. The source note [`docs/cells.md`](https://github.com/andreypfau/mcrs/blob/main/docs/cells.md) is a working note and has no authority. Its status block lists the parts that the entity design in `docs/physics-architecture.md` replaced. Where this page and a note disagree, the code and the newer note win.
 </Aside>
@@ -62,13 +60,9 @@ This list follows section 11 of `docs/cells.md`, "Where the code is today", chec
 
 ## What is still design
 
-Three parts exist only as a design.
-
-The first is the split and merge of cells by cost. The design is a k-d division on X and Z, with moves at a tick boundary and a hysteresis of about 8 blocks.
-
-The second is `Placement::Remote`, which means a cell in another process, together with an edge as its own process that holds every connection. <Status issue={181} /> lists the child issues, for example <Status issue={160} /> and <Status issue={162} /> to <Status issue={167} />.
-
-The third is the set of replication tiers for entities in `docs/replication.md`, which is also a design note.
+- Split and merge of cells by cost. The design is a k-d division on X and Z, with moves at a tick boundary and a hysteresis of about 8 blocks.
+- `Placement::Remote`, which means a cell in another process, together with an edge as its own process that holds every connection. <Status issue={181} /> lists the child issues, for example <Status issue={160} /> and <Status issue={162} /> to <Status issue={167} />.
+- The replication tiers for entities in `docs/replication.md`, which is also a design note.
 
 ## The simplest server stays simple
 

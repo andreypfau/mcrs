@@ -25,8 +25,6 @@ Anyone can add or fix a page of this site. This page tells you what a page is fo
 
 ## Three kinds of docs
 
-The project has three kinds of documentation, and each answers a different question for a different reader.
-
 | | Canon: `docs/`, `PERF.md`, `DECISIONS.md` | This site | README and landing page |
 |---|---|---|---|
 | For | AI agents, spec authors | plugin developers from the JVM, contributors, Rust developers, admins | observers, players, curious developers |
@@ -207,7 +205,7 @@ An explainer follows four rules of honesty. A mechanism is not a measurement. Sh
 
 Go through this list before every PR that adds or changes a page.
 
-1. Every measured number comes from `PERF.md` only, and has the machine (M4 Max, macOS), the scenario and a link to `PERF.md` or an issue beside it.
+1. Every number has the machine, the scenario and a link to `PERF.md` or an issue beside it. Numbers come from `PERF.md` only, with the machine (M4 Max, macOS) and the scenario.
 2. "Works" appears only when a test, a commit or a `PERF.md` entry shows it. Otherwise write "partial" or "wip".
 3. State and goal differ visibly: a badge, a label or an Aside.
 4. Every "no" links to an issue or a decision.
@@ -248,12 +246,13 @@ The rules below are a general summary, written on 2026-11-10. They will go out o
 
 | Pattern | Example | Write instead |
 |---|---|---|
-| Contrast with a thing nobody claimed | "It is a change in how you think, not a new syntax." | Say what it is. Keep "not" only for a mistake a reader would really make. |
+| Contrast with a thing nobody claimed, in either order | "It is a change in how you think, not a new syntax." "It is a table rather than an object." | Say what it is. Keep "not" and "rather than" only for a mistake a reader would really make. |
 | Colon as a drum roll | "The rule is short: do not rely on order." | "Do not rely on order." |
 | Three items by habit | "fast, safe and simple" | Name the items that exist, whether that is one, two or five. |
 | A sentence that says the next one matters | "It is important to note that..." | Delete it and say the thing. |
 | Closing summary | "What this means", "In short", a bullet recap of the page | End when the content ends. One "Next" link is enough. |
-| Inflated or promotional words | "crucial", "robust", "seamless", "powerful", "showcases", "leverages" | The plain word, or the number. |
+| Inflated or promotional words | "crucial", "robust", "seamless", "powerful", "showcases", "leverages", "underscores", "fosters", "enhances" | The plain word, or the number. |
+| A verb that avoids "is" or "has" | "serves as", "stands as", "features", "offers", "boasts" | "is", "has". |
 | A trailing "-ing" comment | "..., ensuring a consistent result" | A new sentence that says what happens and why. |
 | A different word for the same thing | "dimension", then "world", then "realm" | One term per thing on the whole site. |
 | Bold-header bullets | "- **Speed:** it is fast" | A table or plain sentences. |
@@ -276,6 +275,7 @@ The rules below are a general summary, written on 2026-11-10. They will go out o
 - No stock phrases: "стоит отметить", "важно понимать", "играет ключевую роль", "таким образом", "в заключение".
 - No dangling participle phrases ("используя этот метод, результаты улучшаются").
 - The patterns in the table above apply too: "не X, а Y" where nobody claimed X, a colon before the point, three items by habit.
+- No range "от X до Y" when the two ends are not on one scale. List the items.
 - Lowercase after a colon. Headings in sentence case.
 - The letter with two dots is never used: always write "е".
 

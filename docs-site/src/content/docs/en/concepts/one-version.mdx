@@ -22,13 +22,11 @@ import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-mcrs follows the newest Minecraft snapshot and supports exactly that one. Today it is {fact('snapshot')}, and the decision behind this is <Status issue={412} />. This page explains where the version is set, how the project moves to the next snapshot, and what you give up because of it.
+mcrs follows the newest Minecraft snapshot and supports exactly that one. Today it is {fact('snapshot')}, and the decision behind this is <Status issue={412} />.
 
 ## The version lives in one file
 
-The file `assets/minecraft/version.json` is the only place that states the version. It is the file of the same name from the client jar, copied byte for byte, and the core crate embeds it.
-
-Everything else reads the version from there. A test fails when a Rust, TOML or Gradle source file repeats one of its values, and the oracle tool reads the same file. The world plugin refuses to start on a data pack whose `version.json` differs from the embedded one.
+The file `assets/minecraft/version.json` is the only place that states the version. It is the file of the same name from the client jar, copied byte for byte, and the core crate embeds it. A test fails when a Rust, TOML or Gradle source file repeats one of its values, and the oracle tool reads the version from the same file. The world plugin refuses to start on a data pack whose `version.json` differs from the embedded one.
 
 ## One command moves the project to the next snapshot
 

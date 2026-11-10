@@ -84,7 +84,7 @@ A short test checks the clean stop.
 <Example file="tests/it/shutdown.rs" from="let player_file = player_dat_path(" to="assert!(player_file.exists()" title="A shutdown request writes the player file" />
 
 <Aside type="caution" title="WIP">
-Chunk saving is a plan, and no code exists for it yet. <Status issue={78} /> describes the plan. The server writes changed chunks in the Anvil format off the main thread, on unload and at intervals, with one writer per region file. Until it lands, use a running mcrs server to look at a world and to try things. Do not use it to keep a world.
+Chunk saving is a plan, and no code exists for it yet. <Status issue={78} /> describes the plan, in which the server writes changed chunks in the Anvil format off the main thread, on unload and at intervals, with one writer per region file. Until it lands, use a running mcrs server to look at a world and to try things. Do not use it to keep a world.
 </Aside>
 
 ## Data packs load once, at start

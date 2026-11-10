@@ -25,7 +25,7 @@ import Status from '~/components/Status.astro';
 import Example from '~/components/Example.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-This page explains how mcrs runs dimensions and what that means for a plugin. It tells you where your code has to run to see players and blocks, who is allowed to write state that all dimensions share, and how a player gets from one dimension to another.
+This page explains where your code has to run to see players and blocks, who is allowed to write state that all dimensions share, and how a player gets from one dimension to another.
 
 In Paper, a `World` is an object that your plugin can reach from anywhere. In mcrs, a dimension is a separate simulation, and code in the main app cannot touch it directly. The examples come from repository files, and we did not run them outside the repository tests.
 
@@ -33,9 +33,9 @@ In Paper, a `World` is an object that your plugin can reach from anywhere. In mc
 
 The server has one main Bevy `App`. Each dimension runs as a `SubApp`, which is a Bevy app nested in the main one, and it has its own `World` with its own entities and resources (<Status issue={362} />). The issue gives the reason. In one shared world, every system would visit the entities of all dimensions and filter them by a dimension component. The dimensions also could not tick in parallel or move to another machine later.
 
-You will meet three consequences in your code. A system of a dimension world sees only the entities of that dimension. Immutable registries are shared with the dimensions as `Arc` values, and mutable state is not shared.
+This has consequences for your code. A system of a dimension world sees only the entities of that dimension. Immutable registries are shared with the dimensions as `Arc` values, and mutable state is not shared.
 
-The third consequence is about time. A dimension world has no `Time` resource and does not run the stock `Main` schedule. It runs `First`, `PreUpdate`, the `Fixed*` schedules, `Update`, `PostUpdate` and `Last` once per host tick. A dimension therefore counts ticks and cannot depend on the wall clock, as the doc comment in `sub_app.rs` says.
+A dimension world also has no `Time` resource and does not run the stock `Main` schedule. It runs `First`, `PreUpdate`, the `Fixed*` schedules, `Update`, `PostUpdate` and `Last` once per host tick. A dimension therefore counts ticks and cannot depend on the wall clock, as the doc comment in `sub_app.rs` says.
 
 ## A plugin gets into a dimension through add_dimension_plugin
 
@@ -64,7 +64,7 @@ For a plugin this means that you do not keep your own copy of the game clock ins
 
 ## A player moves between dimensions as a message
 
-A system of one dimension cannot reach another world, so the server cannot move the entity of a player from one world to the other. Instead, a portal, or any other move decided inside a tick, writes a request (<Status issue={362} />):
+A system of one dimension cannot reach another world, so the server cannot move the entity of a player from one world to the other. A portal, or any other move decided inside a tick, writes a request (<Status issue={362} />):
 
 <Example file="crates/mcrs_minecraft_engine_world/src/entity/player/mod.rs" from={"#[derive(Message, Clone, Debug)]\npub struct ChangeDimensionRequest"} title="ChangeDimensionRequest" />
 

@@ -55,7 +55,7 @@ This entry covers 2026-10-14 to 2026-11-10. In that time 6 authors made 874 comm
 - The new crate `mcrs_minecraft_text_flatten` fills translations in flattened text. A translated disconnect reason used to show an empty line, and now it shows its fallback or its key (<Status pr={680} state="works" />).
 - Survival block breaking has a specification, taken from a vanilla server (<Status pr={686} state="works" />). Block placing in creative mode has one too, also from a vanilla server (<Status pr={645} state="works" />, <Status pr={692} state="works" />).
 - Teleport confirmation follows its specification. The server resends a pending teleport while the client moves, and tests check it through a scripted client (<Status pr={683} state="works" />, part of <Status issue={623} />).
-- CI runs our own pull requests in one self-hosted job and fork pull requests on hosted runners, and a change to `docs/` alone builds nothing (<Status pr={691} state="works" />). Cargo resolves features once for the whole workspace (<Status pr={685} state="works" />).
+- CI runs the project's own pull requests in one self-hosted job and fork pull requests on hosted runners, and a change to `docs/` alone builds nothing (<Status pr={691} state="works" />). Cargo resolves features once for the whole workspace (<Status pr={685} state="works" />).
 - Coding agents get `AGENTS.md`, agent skills and path rules (<Status pr={687} state="works" />). [How to contribute](/docs/en/contributing/#work-with-a-coding-agent) explains how to use them.
 - The landing page has search engine metadata, `robots.txt` and a sitemap (<Status pr={684} state="works" />).
 
@@ -77,7 +77,7 @@ A plugin here is Rust code that is compiled into the server.
 
 - Changed chunks are not saved to region files (<Status issue={78} />), and there is no online mode (<Status issue={82} />).
 - There is no loader for plugins outside the server build, and no decision on it.
-- We make no speed claim against another server. The benchmark runs are provisional, as [Performance](/docs/en/project/performance/) explains.
+- There is no speed claim against another server. The benchmark runs are provisional, as [Performance](/docs/en/project/performance/) explains.
 
 ## v0.5.8, 2026-10-14
 

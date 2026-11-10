@@ -19,7 +19,7 @@ mcrs builds the behavior of the game from descriptions of that behavior and neve
 
 ## Two people do the two jobs
 
-Suppose the project needs the whitelist check at login. One person, the specification author, finds out what the game does and writes it down as rules. A second person, the implementer, writes the Rust code from those rules and never looks at the game's code. Because the two jobs belong to two people, our code cannot grow out of the game's code.
+Suppose the project needs the whitelist check at login. One person, the specification author, finds out what the game does and writes it down as rules. A second person, the implementer, writes the Rust code from those rules and never looks at the game's code. Because the two jobs belong to two people, the code cannot grow out of the game's code.
 
 | | Specification author | Implementer |
 |---|---|---|
@@ -31,13 +31,26 @@ Suppose the project needs the whitelist check at login. One person, the specific
 
 A specification states behavior, which is inputs, outputs, order, timing and constants as data. It leaves out class, method, field and variable names, and it leaves out the structure of a function.
 
-One person does not take both roles for the same behavior. You can still be an author for one behavior and an implementer for another.
+One person does not take both roles for the same behavior. You can still be an author for one behavior and an implementer for another. The next section describes the one exception, where an AI agent writes the code.
 
 ## If you have read the game's code
 
-<Aside type="caution" title="Paper and Fabric developers">
-If you read the game's code about some behavior, you cannot implement that behavior here. Write the specification instead, or pick another behavior. Say it in the issue when you are unsure. A second person then writes the code from your spec.
+Many Paper and Fabric developers read decompiled game code every day. If you read the game's code about some behavior, you do not write the code for that behavior here by hand. You have two ways to contribute to it anyway.
+
+The first way is to write the specification and let a second person write the code from it.
+
+The second way is to give the implementer role to an AI agent. This is the only exception to the rule that one person does not take both roles, and it has two conditions:
+
+1. You read the specification and make sure that it is correct.
+2. You make sure that the agent has no access to the game's code or to pieces of it. Check its files, its prompt and its tools. The agent works from the same sources as any implementer.
+
+mcrs does not restrict contributions that an AI agent writes. We welcome them, provided that you know how the game is structured, because someone has to judge whether the specification and the result are right.
+
+<Aside type="note" title="Why these precautions exist">
+All of these rules have one purpose. They make sure that nobody copies code or algorithms from the original game, or from modifications of it, by accident.
 </Aside>
+
+If you are not sure whether you have read the code about a behavior, say so in the issue.
 
 ## What the repository does not contain
 

@@ -49,9 +49,11 @@ The full rules are in [docs/clean-room.md](https://github.com/andreypfau/mcrs/bl
 
 ### If you have read the game's code
 
-Many Paper and Fabric developers read decompiled game code every day. That knowledge is useful here, because you can be the specification author for the behavior you know. It also has a cost. If you read the game's code for some behavior, you cannot implement that behavior in this repository, and someone else must write the code from your specification.
+Many Paper and Fabric developers read decompiled game code every day. That knowledge is useful here, because you can be the specification author for the behavior you know. If you read the game's code for some behavior, you do not write its code here by hand.
 
-Before you start a task, ask yourself whether you have read the game's code about it. If you have, take the specification issue and leave the implementation issue to someone else. If you are not sure, say so in the issue. Nobody will mind.
+You can still deliver the implementation by giving it to an AI agent. You read the specification and make sure that it is correct, and you make sure that the agent has no access to the game's code or to pieces of it. mcrs does not restrict AI contributions. We welcome them, provided that you know how the game is structured. [Clean-room in practice](/docs/en/contributing/clean-room/#if-you-have-read-the-games-code) has the conditions.
+
+These precautions make sure that nobody copies code or algorithms from the original game, or from modifications of it, by accident. If you are not sure whether you have read the code about a task, say so in the issue. Nobody will mind.
 
 ## The path of a pull request
 
@@ -105,7 +107,7 @@ These six issues fit a first pull request. [First tasks](/docs/en/contributing/f
 
 ## How fast is review
 
-By 2026-11-09, 26 pull requests from 5 authors other than the owner had been merged. The median time from opening to merge was about 12 hours. The fastest took about 40 minutes and the slowest about 5 days. The sample is small and one person reviews most of the work, so read these numbers as a hint about what to expect.
+By 2026-11-09, 26 pull requests from 5 authors other than the owner had been merged. The median time from opening to merge was about 12 hours. The fastest took about 40 minutes and the slowest about 5 days. The sample is small and one person reviews most of the work, so treat the numbers as a hint and not as a promise.
 
 You can repeat the count with `gh pr list -R andreypfau/mcrs --state merged --limit 300 --json number,author,createdAt,mergedAt` and then drop the PRs of `andreypfau`.
 

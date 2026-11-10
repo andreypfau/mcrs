@@ -25,7 +25,7 @@ import { fact } from '~/lib/facts.mjs';
 import { Aside } from '@astrojs/starlight/components';
 import Status from '~/components/Status.astro';
 
-This page shows how to depend on an mcrs crate from your own Rust project today. The crates are not on crates.io, so you use a git dependency, a pinned commit and a nightly compiler. Nobody has checked this route outside the repository on a clean machine yet, so the page describes the plan and its known limits, and a step may fail for you.
+You can use an mcrs crate in your own Rust project today through a git dependency with a pinned commit and a nightly compiler. The crates are not on crates.io. Nobody has checked this route outside the repository on a clean machine yet, so read this page as the plan and its known limits.
 
 <Aside type="caution" title="WIP">
 Publishing the protocol, network and game data crates waits for a decision in <Status issue={321} />. The question there is whether publishing and stable Rust are goals at all while the project follows one game snapshot at a time. Library examples, each with a test of its dependency tree, are <Status issue={287} /> and <Status issue={288} />.
