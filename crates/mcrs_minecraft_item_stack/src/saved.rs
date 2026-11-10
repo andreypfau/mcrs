@@ -271,7 +271,7 @@ fn decode(bytes: &[u8]) -> Result<NbtTag, SavedError> {
     Ok(tag)
 }
 
-fn read_value<L: NameLookup>(
+pub(crate) fn read_value<L: NameLookup>(
     component: BuiltinKey,
     tag: &NbtTag,
     names: &L,
