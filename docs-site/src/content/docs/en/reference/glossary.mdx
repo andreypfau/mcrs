@@ -1,0 +1,102 @@
+---
+title: Glossary
+description: Terms that the mcrs code, specs and docs use, with the closest idea in Paper or Minestom where one exists.
+sidebar:
+  order: 3
+kind: reference
+audience: [jvm, contributor, rust, observer]
+stability: stable
+sources:
+  - docs/cells.md
+  - docs/replication.md
+  - docs/spec/README.md
+  - docs/clean-room.md
+  - docs/resource-location.md
+  - PERF.md
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+import { fact } from '~/lib/facts.mjs';
+import Status from '~/components/Status.astro';
+
+import { Aside } from '@astrojs/starlight/components';
+
+This glossary explains the terms that the mcrs code, specs and docs use. If you know Paper or Minestom, the last column of each table names the closest idea there. The match is rarely exact, so take the "Meaning" column as the definition. A dash in the last column means that there is no close idea.
+
+<Aside type="note" title="Some terms describe a design that is not built yet">
+Some of the scaling terms, such as shard, cell and tile, come from the design in `docs/cells.md` and `docs/replication.md`. Parts of that design are not built yet. [Status](/docs/en/start/status/) shows what runs today.
+</Aside>
+
+## Rust and Bevy
+
+| Term | Meaning | Closest in Paper or Minestom |
+|---|---|---|
+| ECS, entity, component, system | ECS is short for entity component system. In Bevy an entity is an id, a component is data stored on that id, and a system is a function that runs over every entity that has the data it needs. | Nothing close. A Minestom `Entity` is an object with methods, and here the same thing is split into data and functions. |
+| Bevy plugin | A plugin is a unit that adds systems and data to the app. The server is a group of plugins named `MinecraftServerPlugins`, and you can switch parts of it off with `disable`. | A Paper plugin, except that it adds functions to the app where a Paper plugin listens for events. Minestom extensions are nearer. |
+| Crate | A crate is a Rust package. The crates of this project are named `mcrs_minecraft_<name>`. | A Maven or Gradle module. |
+| Layer 1 to 7 | The project has seven layers: protocol and data, network, game data, engine, vanilla, rendering and applications. A layer should depend only on the layers below it, as the "Layers" section of the README says. | - |
+| Kernel | A kernel is the pure Rust logic of one domain, such as blocks, physics, AI or light, and it uses neither Bevy nor tokio. The host gives it a view of the world. | - |
+| Driver | A driver is the code that owns the shards of a domain. It steps them and delivers the messages between them in a stable order. | - |
+
+## World and scaling design
+
+| Term | Meaning | Closest in Paper or Minestom |
+|---|---|---|
+| Domain | A domain is one area of simulation. Block updates, redstone, fluids and entities are domains. | - |
+| Shard | A shard is a logical unit of causality and ownership inside a domain. It is neither a thread nor a square of space. | - |
+| Cell | A cell owns a 3D box of hot space and is the unit of placement. Only the owner changes the chunks in its box. | Folia region, loosely. |
+| Cell tree | A cell tree is an octree over the chunk keys of one world, and its leaves are the cells. | - |
+| World (engine) | In the engine a world is one 3D space with its own cell tree. A Minecraft dimension is one world. | Bukkit `World`, Minestom `Instance`. |
+| Hot space, cold space | Hot space is the space that ticks, and a ticket keeps it hot. Cold space is data in the data layer that has no owner. | Loaded and unloaded chunks, loosely. |
+| Ticket | A ticket is a request to keep an area hot. It comes from a player simulation zone, the spawn, a chunk loader or an ender pearl. | Bukkit chunk ticket (`addPluginChunkTicket`). |
+| Data layer, store | The data layer is the versioned chunks of cold space, and the store is their storage on disk. The code is in `mcrs_engine_store`. | Minestom `ChunkLoader`, loosely. |
+| Link, placement | A link connects two parts with messages. Placement says where the far end of a link runs, which can be inline, on another thread or on another machine. | - |
+| Muxer, edge | The muxer is the gateway for clients. It holds the connections, decides what each client receives and encodes the bytes once for all subscribers, and an edge is one muxer process. | A proxy such as Velocity, only for the part that holds connections. |
+| Coordinator | The coordinator owns the global state and the cell tree. | - |
+| Stage, ladder | A stage is a step that turns chunk data into the next level outside the tick, for example generation or light. A ladder is the chain of stages of one column (`Filled`, `Run`, `Merged`). | - |
+| Tile | A tile is a square of columns, and it is the unit of entity interest and of entity work. One cell owns each tile. | - |
+| Tile delta, tile stream | A tile delta is the entity events of one tile in one tick. A tile stream is a snapshot followed by deltas in tick order. | Entity tracker updates, loosely. |
+| Tier | A tier is an update speed. Near subjects update in a fast tier and far subjects in a slow tier. | Paper entity activation range, loosely. |
+| Cap, budget | The cap is the largest number of subjects that one client can see. The budget is the largest number of bytes per second spent on entities. | - |
+| Subject, viewer | A subject is an entity that is seen, and a viewer is a client that sees it. Both terms come from [`replication.md`](https://github.com/andreypfau/mcrs/blob/main/docs/replication.md). | - |
+| Section, column | A section is 16x16x16 blocks, and a column is a stack of sections. | Minestom `Chunk`, which holds `Section`s. |
+| Row | A row is the server record of an entity in a dense per-tile column. Mobs and items are rows, not Bevy entities. | - |
+| Entity key, order key | The entity key holds the id of an entity, its UUID, its source of new UUIDs, its random stream and its tile. The UUID is also the order key. | - |
+| Brain, goals, wait | The brain is the mob AI stage, and its kernel wakes only the mobs that a timer or a fact names. Goals are picked by tile, and waits replace per-tick checks. | Paper mob goals (`Mob`, `Goal`), loosely. |
+| Volume | A volume is one API for blocks, heights and biomes. Worldgen, the client and the kernels all use it. | Minestom `Block.Getter`, loosely. |
+| Collision table | The collision table holds the shapes and state flags of blocks for the physics kernel. | - |
+
+## Parity and tests
+
+| Term | Meaning | Closest in Paper or Minestom |
+|---|---|---|
+| Exact parity | Exact parity means that observable behavior matches vanilla very closely. It applies to the protocol, saves, player movement and generation. | - |
+| Semantic parity | Semantic parity means that the meaning and the result match, while the order inside a tick can differ. It applies to redstone, fluids and block updates. | - |
+| Intentional deviation | An intentional deviation is a deliberate difference from vanilla that is recorded, as [`spec/README.md`](https://github.com/andreypfau/mcrs/blob/main/docs/spec/README.md) describes. | - |
+| Spec rule id | A spec rule id, such as `CMD-TP-013`, is the id of one rule in a spec. Tests and issues cite it. | - |
+| Provenance label | A provenance label, such as `source_suggested`, states the origin of a spec rule. [Specs](/docs/en/reference/specs/) lists the labels. | - |
+| Oracle, oracle dump | An oracle dump is the output of a real vanilla run, taken with `tools/vanilla-oracle`. Rust tests compare their own output to it element by element. | - |
+| Fixture, capture, recapture | A fixture is a reference file for tests, a capture is the command that takes it, and a recapture takes it again. `MCRS_BLESS=1` rewrites the expected file of some tests. | - |
+| Corpus | The corpus is the game data version that the fixtures are tied to, recorded in [`captures.json`](https://github.com/andreypfau/mcrs/blob/main/tools/captures.json). The word also names the Molang test corpus. | - |
+
+## Process
+
+| Term | Meaning | Closest in Paper or Minestom |
+|---|---|---|
+| Clean-room | In the clean-room process a spec author, who may see the game code, writes the behavior down, and an implementer, who reads only specs and game artifacts, writes the code. Names from the game code do not go in the repository, as [`clean-room.md`](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md) explains. | - |
+| Spec issue, plugin issue | A spec issue and a plugin issue form a pair. The spec comes first, in `docs/spec/`, and the implementation follows and cites rule ids. | - |
+| Snapshot | A snapshot is a test version of the game. mcrs follows the newest one, which is now <code dir="auto">{fact('snapshot')}</code>. | - |
+| DataVersion | DataVersion is the data format version of a save. When it does not match, the world does not load, because there are no data fixers (<Status issue={388} />). | Same idea as in Paper. |
+
+## Game data and rendering
+
+| Term | Meaning | Closest in Paper or Minestom |
+|---|---|---|
+| Registry, data pack | Registries, such as blocks, biomes and dimensions, load from a data pack. The server loads {fact('registries')} registries, as the "Server start" section of PERF.md reports. | Bukkit `Registry`, Minestom `DynamicRegistry`. |
+| Resource location, key | A resource location, or key, is a name like `minecraft:stone`. It lives at the edges, which are the data pack, the wire and commands, and the code inside uses numeric ids, as [`resource-location.md`](https://github.com/andreypfau/mcrs/blob/main/docs/resource-location.md) explains. | `NamespacedKey`, Minestom `Key`. |
+| Molang | Molang is an expression language of Bedrock for animations and conditions. The `mcrs_molang` compiler has a batch backend and a WGSL backend. | - |
+| Impostor | An impostor is a far mob that is drawn as a baked sprite. | - |
+| Arena, group table, GPU cull, depth pyramid | These renderer terms come from PERF.md and DECISIONS.md. Arenas are memory arenas for quads, models and faces, the group table is a table of section groups, GPU cull is culling on the GPU, and the depth pyramid serves two-pass occlusion. | - |
+| Hot | Hot is a client measurement knob, `MCRS_HOT`, that keeps the fast CPU cores awake. It is not the same as hot space. | - |

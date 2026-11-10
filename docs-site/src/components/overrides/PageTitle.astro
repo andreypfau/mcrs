@@ -1,0 +1,16 @@
+---
+import Default from "@astrojs/starlight/components/PageTitle.astro";
+import { REPO } from "../../config.mjs";
+import { pageMeta } from "../../lib/meta";
+const meta = await pageMeta(Astro.locals.starlightRoute.entry);
+const stability = meta?.stability ?? "stable";
+const tracking = meta?.tracking ?? [];
+const links = tracking.map((n) => ({ n, href: `${REPO}/issues/${n}` }));
+const text = Astro.locals.t(stability === "changing" ? "mcrs.banner.changing" : "mcrs.banner.wip");
+---
+<Default><slot /></Default>
+{stability !== "stable" && (
+  <div class={`mcrs-banner ${stability}`}>
+    {text} {links.map((l, i) => <>{i > 0 && ", "}<a href={l.href}>#{l.n}</a></>)}
+  </div>
+)}

@@ -1,0 +1,93 @@
+---
+title: Remove and replace vanilla parts
+description: Build your own server from the MinecraftServerPlugins group, disable members, pass settings as plugin fields.
+sidebar:
+  order: 8
+kind: how-to
+audience: [jvm, rust]
+stability: changing
+tracking: [278, 279, 281, 282]
+sources:
+  - crates/mcrs_minecraft_server/src/lib.rs
+  - src/main.rs
+  - crates/mcrs_minecraft_server/tests/it/client_join.rs
+  - crates/mcrs_minecraft_server_settings/src/server_settings.rs
+  - issue:278
+  - issue:279
+  - issue:281
+  - issue:282
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+
+import Status from '~/components/Status.astro';
+import Example from '~/components/Example.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+This page shows how to build your own server from the same plugins as the stock one, how to leave a plugin out, and how to pass settings to the plugins.
+
+In Paper you start from a finished server and add plugins. In mcrs you start from a group of plugins and take parts out, so a lobby can run without world generation and a test can run without lighting. The examples come from repository files, and we did not run them outside the repository tests.
+
+## The server is a group of plugins
+
+`MinecraftServerPlugins` is a Bevy `PluginGroup`, which is a set of plugins that you add to the app as one value. Its four fields are the parts that take settings:
+
+<Example file="crates/mcrs_minecraft_server/src/lib.rs" from="pub struct MinecraftServerPlugins {" title="The fields of the group" />
+
+`build()` adds the rest of the vanilla server. The members, in the order `build()` adds them, are the server core, world generation registries, the vanilla command set, vanilla commands, world commands, dimension worlds, chat, entity physics, mob brains, world generation, lighting and the network.[^279]
+
+<Example file="crates/mcrs_minecraft_server/src/lib.rs" from="impl PluginGroup for MinecraftServerPlugins" title="The members of the group" />
+
+You can disable or replace each member without editing the server crate. A member that needs another one panics when the group builds and names the missing plugin. You get the error at start, so you do not have to trace a missing resource at the first tick.
+
+The vanilla gameplay lives in plugins above the engine. Each of them is removable on its own, and they reach every dimension world through `add_dimension_plugin`.[^282]
+
+## Disable a member with disable
+
+The binary switches mob AI off like this:
+
+<Example file="src/main.rs" from="if !settings.mob_ai {" title="src/main.rs: switch off mob AI" />
+
+`disable::<T>()` is a method of the Bevy plugin group builder, and `T` is the plugin you leave out. A repository test uses the same method to start a server without world generation and lighting:
+
+<Example file="crates/mcrs_minecraft_server/tests/it/client_join.rs" from="fn a_client_without_an_app_joins_the_embedded_server_offline" to="StopOnDrop(Arc::new(AtomicBool::new(false)))" title="Test: a server without world generation and lighting" />
+
+That test also calls `MinecraftServerPlugins::embedded()`. It gives a server that runs inside another process. Such a server listens on loopback only, takes a port that the OS assigns, and leaves the task pools to the host app.
+
+<Example file="crates/mcrs_minecraft_server/src/lib.rs" from="impl MinecraftServerPlugins {" title="embedded()" />
+
+## Settings are plugin fields
+
+The binary reads its settings from the environment and turns them into plugin fields in `src/main.rs`:
+
+<Example file="src/main.rs" from="let settings = ServerSettings::read(" to=".build();" title="src/main.rs: from settings to plugin fields" />
+
+Only the binary does this. A library crate does not read an environment variable or a file for its settings, and every setting is a field of the plugin that uses it.[^278]
+
+The environment variables of the binary are the fields of `ServerSettings`. Each variable has the name of its field with the prefix `MCRS_`. The full list is in the [source file](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server_settings/src/server_settings.rs).
+
+In your own program, skip `ServerSettings` and fill the plugin fields yourself. An embedded server in a test then starts with explicit settings, whatever the shell exported.
+
+## You cannot supply your own chunks yet
+
+<Aside type="caution" title="WIP">
+A chunk source of your own does not exist yet. It is planned as a replaceable plugin point, and the plan sets a direction without a promise.[^281]
+
+Today the chunks of a dimension come from a fixed setup inside the server, which is the noise generator of the dimension plus the saved columns of the world folder. A lobby, an arena or a test cannot hand the server its own chunks.
+
+The plan proposes a chunk source per dimension. Given a column position, the source yields a column or says there is none, and it does so off the tick, on the task pool. The server would ship three sources: the generator with the save in front, an empty source, and a flat source built from a list of layers. A source of your own would be a type that implements the same trait. A dimension on the empty source would not pull in the world generation crates.
+
+The plan also names a test. One dimension runs on the empty source and another on the flat source, a client joins each, and the dependency tree has no world generation crates.
+
+Saving chunks to disk is a separate topic.[^78]
+</Aside>
+
+Next: [Add a command](/docs/en/plugins/commands/).
+
+[^279]: <Status issue={279} /> Splits the server plugin into a group of removable plugins.
+[^282]: <Status issue={282} /> Moves vanilla gameplay out of the server crate into removable plugins.
+[^278]: <Status issue={278} /> The server is configured only through its plugin.
+[^281]: <Status issue={281} /> Plans the chunk source as a replaceable plugin point, with empty and flat sources.
+[^78]: <Status issue={78} /> Tracks saving changed chunks back to region files.

@@ -1,0 +1,37 @@
+---
+import Default from "@astrojs/starlight/components/Footer.astro";
+import { REPO } from "../../config.mjs";
+import { pageMeta } from "../../lib/meta";
+const d = await pageMeta(Astro.locals.starlightRoute.entry);
+const t = Astro.locals.t;
+const src = (s: string) => {
+  const m = /^(issue|pr):(\d+)$/.exec(s);
+  if (m) return { text: `${m[1] === "pr" ? "PR" : "issue"} #${m[2]}`, href: `${REPO}/${m[1] === "pr" ? "pull" : "issues"}/${m[2]}` };
+  return { text: s, href: `${REPO}/blob/main/${s}` };
+};
+const sources = (d?.sources ?? []).map(src);
+const tracking = d?.tracking ?? [];
+const show = d?.verified || sources.length || tracking.length;
+---
+{show && (
+  <section class="mcrs-verify">
+    <h2>{t("mcrs.verify.heading")}</h2>
+    {d?.verified && (
+      <p>
+        {t("mcrs.verify.verified")}: {d.verified.snapshot}, <code>{d.verified.commit}</code>, {d.verified.date.toISOString().slice(0, 10)}
+      </p>
+    )}
+    {d?.translatedFrom && <p>{t("mcrs.verify.translatedFrom")} <code>{d.translatedFrom}</code></p>}
+    {sources.length > 0 && <ul>{sources.map((s) => <li><a href={s.href}>{s.text}</a></li>)}</ul>}
+    {tracking.length > 0 && (
+      <p>{t("mcrs.verify.tracking")}: {tracking.map((n, i) => <>{i > 0 && ", "}<a href={`${REPO}/issues/${n}`}>#{n}</a></>)}</p>
+    )}
+  </section>
+)}
+<Default><slot /></Default>
+<script>
+  for (const a of document.querySelectorAll<HTMLAnchorElement>("sup a[data-footnote-ref]")) {
+    const note = document.getElementById(decodeURIComponent(a.hash.slice(1)));
+    if (note) a.title = (note.textContent ?? "").replace("↩", "").replace(/\s+/g, " ").trim();
+  }
+</script>

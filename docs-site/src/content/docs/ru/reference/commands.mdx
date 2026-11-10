@@ -1,0 +1,68 @@
+---
+title: Команды сервера
+description: Команды, которые сервер регистрирует сегодня, нужный каждой уровень прав и спецификация, где описано ее поведение.
+sidebar:
+  order: 2
+translated_from: 51d45c26a
+---
+import { fact } from '~/lib/facts.mjs';
+import Status from '~/components/Status.astro';
+
+import { Aside } from '@astrojs/starlight/components';
+
+На этой странице перечислены команды, которые сервер регистрирует сегодня, уровень прав для каждой и спецификация, где описано ее поведение. Корневых команд у сервера {fact('root_commands')}, а вместе с алиасом `tp` получается 21 имя. Большую часть регистрирует `VanillaCommandsPlugin` из `crates/mcrs_minecraft_command_vanilla`, остальные - `WorldCommandsPlugin` из `crates/mcrs_minecraft_command_world`. Список проверен по обоим файлам `plugin.rs` и по вызовам проверки прав у каждой команды на коммите `51d45c26a`. Если команда есть в ванили, но ее нет в списке, значит, здесь ее пока нет. Например, `setblock`, `give`, `say` и `stop` не зарегистрированы.
+
+<Aside type="caution" title="WIP">
+Пока таблица написана вручную, позже ее будут генерировать из двух файлов `plugin.rs`. Дерево команд с уровнями прав запланировано, как и диалект команд Bedrock.[^285][^667]
+</Aside>
+
+## Уровни прав
+
+Каждой команде нужен уровень прав. Уровней пять, и они упорядочены так же, как в ванили. Их задает правило PERM-LEVEL-001 [спецификации command-permissions](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-permissions.md).
+
+| Id | Название |
+|---|---|
+| 0 | `all` |
+| 1 | `moderators` |
+| 2 | `gamemasters` |
+| 3 | `admins` |
+| 4 | `owners` |
+
+У игрока без прав оператора уровень `all`. У оператора тот уровень, который указан в `ops.json`, от 0 до 4, а команда `op` выдает уровень по умолчанию, то есть `owners`. Игрок, который заходит с той же машины, где работает сервер, становится оператором на время сессии. Каждой команде из следующей таблицы нужен уровень 2 или 3, поэтому запускать их могут только операторы.
+
+## Команды
+
+В колонке "Плагин" `vanilla` означает `VanillaCommandsPlugin`, а `world` - `WorldCommandsPlugin`. В последней колонке стоит ссылка на спецификацию команды в `docs/spec/`. Если там написано "нет", спецификации для этой команды пока нет.
+
+| Команда | Уровень | Плагин | Спецификация |
+|---|---|---|---|
+| `execute` | gamemasters (2) | vanilla | [command-execute.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-execute.md) |
+| `gamemode` | gamemasters (2) | vanilla | [command-gamemode.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-gamemode.md) |
+| `teleport`, алиас `tp` | gamemasters (2) | vanilla | [command-teleport.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-teleport.md) |
+| `locate` | gamemasters (2) | vanilla, cargo feature `locate`, включена по умолчанию | [command-locate.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-locate.md) |
+| `summon` | gamemasters (2) | vanilla | нет |
+| `kill` | gamemasters (2) | vanilla | [command-kill.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-kill.md) |
+| `damage` | gamemasters (2) | vanilla | [command-damage.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-damage.md) |
+| `data` | gamemasters (2) | vanilla | нет |
+| `time` | gamemasters (2) | vanilla | [command-time.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-time.md) |
+| `ban`, `pardon`, `banlist` | admins (3) | vanilla | [bans.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/bans.md) |
+| `op`, `deop` | admins (3) | vanilla | нет (см. PERM-LEVEL-002 в command-permissions.md) |
+| `whitelist` (`list`, `on`, `off`, `reload`, `add`, `remove`) | admins (3) | vanilla | [whitelist.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/whitelist.md) |
+| `fill` | gamemasters (2) | world | [command-fill.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-fill.md) |
+| `forceload` | gamemasters (2) | world | [command-forceload.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-forceload.md) |
+| `gamerule` | gamemasters (2) | world | [command-gamerule.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-gamerule.md) |
+| `weather` | gamemasters (2) | world | [command-weather.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-weather.md) |
+| `tick` (включая `tick sprint stop`) | admins (3) | world | [command-tick.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-tick.md) |
+
+Общее для всех команд описано еще в трех группах спецификаций. Разбор описан в [command-parser.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-parser.md), типы аргументов - в файлах `argument-*.md`, а дерево команд, которое сервер отправляет клиенту, - в [commands-packet.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/commands-packet.md). Как команда находит игроков во всех измерениях, объясняет заметка [docs/command-dimensions.md](https://github.com/andreypfau/mcrs/blob/main/docs/command-dimensions.md).
+
+## Ввод команд
+
+Игрок вводит команды в чате. Сервер также читает свой стандартный ввод, и каждая строка выполняется в верхнем мире (overworld) как команда, источник которой - сам сервер. Если строк пришло много сразу, сервер растягивает их на несколько тиков и выполняет не больше 2000 строк за тик. Ответы попадают в лог сервера. Код находится в `ConsolePlugin` из `crates/mcrs_minecraft_console`.
+
+## Для авторов плагинов
+
+Команда - это обычный код Bevy-плагина. Плагин вызывает `add_command` с функцией сборки и функцией выполнения, а образец есть в обоих файлах `plugin.rs`. Команда может записывать эффекты, которые применяют другие системы, и еще команды порождают событие `CommandEvent`, которое можно отменить. Плагин нужно скомпилировать в сервер, потому что загрузчика для других плагинов нет и решения о нем пока тоже нет. Подробности есть на странице [Команды для плагинов](/docs/ru/plugins/commands/).
+
+[^285]: <Status issue={285} /> Отслеживает дерево команд с уровнями прав и пакет команд.
+[^667]: <Status issue={667} /> Отслеживает диалекты команд и пакет команд Bedrock.

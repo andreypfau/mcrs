@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title data-i18n="meta.title">mc.rs — Minecraft server and client in Rust, built on Bevy ECS</title>
-<meta name="description" data-i18n-content="meta.description" content="A Minecraft server, a client and the Rust crates both are built from. The world ticks on every core, then on many machines.">
+<title data-i18n="meta.title">mc.rs - Minecraft, built as crates on Bevy ECS</title>
+<meta name="description" data-i18n-content="meta.description" content="A Minecraft server, a client and the Rust crates both are built from. The world ticks on every core; many machines are a goal, #181.">
 <link rel="canonical" href="https://mc.rs/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="mc.rs">
 <meta property="og:url" content="https://mc.rs/">
-<meta property="og:title" content="mc.rs — Minecraft server and client in Rust">
-<meta property="og:description" content="A Minecraft server, a client and the Rust crates both are built from. The world ticks on every core, then on many machines.">
+<meta property="og:title" content="mc.rs - Minecraft, built as crates on Bevy ECS">
+<meta property="og:description" content="A Minecraft server, a client and the Rust crates both are built from. The world ticks on every core; many machines are a goal, #181.">
 <meta property="og:image" content="https://mc.rs/img/taiga.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"mc.rs","alternateName":["mcrs","mc-rs"],"url":"https://mc.rs/"}</script>
@@ -30,6 +30,7 @@
     <nav class="nav" aria-label="Main" data-i18n-aria-label="nav.aria">
       <a class="wordmark" href="#top" id="top" aria-label="mc.rs">mc<span class="wordmark-dot">.</span>rs</a>
       <ul class="nav-links">
+        <li><a class="link" href="/docs/en/" data-docs="" data-i18n="nav.docs">Docs</a></li>
         <li><a class="link" href="#tick" data-i18n="nav.tick">The tick</a></li>
         <li><a class="link" href="#modules" data-i18n="nav.modules">Modules</a></li>
         <li><a class="link" href="#tests" data-i18n="nav.tests">Tests</a></li>
@@ -39,13 +40,20 @@
     </nav>
     <div class="hero-copy">
       <h1 class="lines">
-        <span class="line"><span data-line style="--i:0" data-i18n="hero.line1">Minecraft software,</span></span>
-        <span class="line"><span data-line style="--i:1" data-i18n="hero.line2">built on Bevy ECS</span></span>
+        <span class="line"><span data-line style="--i:0" data-i18n="hero.line1">Minecraft,</span></span>
+        <span class="line"><span data-line style="--i:1" data-i18n="hero.line2">built as crates</span></span>
       </h1>
-      <p class="hero-lede" data-rise style="--i:3" data-i18n="hero.lede">A Minecraft server, a client and the Rust crates both are built from. The world ticks on every core, then on many machines.</p>
+      <p class="hero-meta" data-rise style="--i:2" data-i18n="hero.badge">Early WIP. Open, measured, not ready yet.</p>
+      <p class="hero-lede" data-rise style="--i:3" data-i18n="hero.lede">A Minecraft server, a client and the Rust crates both are built from. The world ticks on every core; many machines are a goal, #181.</p>
       <div class="hero-actions" data-rise style="--i:3">
         <a class="button" href="https://github.com/andreypfau/mcrs" data-i18n="hero.github">Read the code on GitHub</a>
         <a class="link-plain" href="https://discord.gg/ged3nMRzwG">Discord</a>
+      </div>
+      <div class="hero-actions" data-rise style="--i:4">
+        <a class="button" href="/docs/en/plugins/not-paper/" data-docs="plugins/not-paper" data-i18n="door.plugins">I write plugins</a>
+        <a class="link-plain" href="/docs/en/contributing/" data-docs="contributing" data-i18n="door.contribute">I want to contribute</a>
+        <a class="link-plain" href="/docs/en/crates/overview/" data-docs="crates/overview" data-i18n="door.crates">I take crates</a>
+        <a class="link-plain" href="/docs/en/start/what-is-mcrs/" data-docs="start/what-is-mcrs" data-i18n="door.play">I play or run a server</a>
       </div>
       <p class="hero-meta" data-rise style="--i:4" data-i18n="hero.meta">Tracks the newest Minecraft snapshot. Open source under MIT or Apache-2.0.</p>
     </div>
@@ -187,7 +195,7 @@
       <h2 id="gameplay-title" class="head" data-reveal data-i18n="tests.title">Checked by vanilla’s own tests</h2>
       <div class="gameplay-body" data-reveal style="--i:1">
         <p data-i18n="tests.p1">Each mechanic lands as a vanilla module with a written specification, and a behaviour test in vanilla’s format decides whether it matches. Expected results come from vanilla’s test server. The same test must pass on one thread, on many, and with its chunks moved to another node partway through.</p>
-        <p data-i18n="tests.p2">Protocol, saves, movement and world generation match tick for tick. Block simulation gives vanilla’s result; the order inside a tick is one replaceable policy, and the vanilla policy gives the exact order. Specifications are written from the game’s data and behaviour; the code is written from the specifications.</p>
+        <p data-i18n="tests.p2">World generation matches vanilla in parity tests. Protocol, movement and saves are meant to match tick for tick; saving is WIP, see <a class="link" href="https://github.com/andreypfau/mcrs/issues/78">#78</a>. Block simulation gives vanilla’s result; the order inside a tick is one replaceable policy, and the vanilla policy gives the exact order. Specifications are written from the game’s data and behaviour; the code is written from the specifications.</p>
         <p class="legend"><span><i class="dot ok"></i><span data-i18n="legend.exact">exact</span></span><span><i class="dot part"></i><span data-i18n="legend.same">same result</span></span></p>
       </div>
     </div>
@@ -206,7 +214,7 @@
         <ul class="rows">
           <li><i class="dot ok"></i><span data-i18n="mech.worldgen">World generation</span><em data-i18n="mech.inPlace">in place</em></li>
           <li><i class="dot ok"></i><span data-i18n="mech.movement">Player movement</span><em data-i18n="mech.inPlace">in place</em></li>
-          <li><i class="dot ok"></i><a class="link" href="https://github.com/andreypfau/mcrs/issues/169" data-i18n="mech.saving">Saving the world</a><em class="nums">#169</em></li>
+          <li><i class="dot part"></i><a class="link" href="https://github.com/andreypfau/mcrs/issues/78" data-i18n="mech.saving">Saving the world</a><em class="nums">WIP #78</em></li>
           <li><i class="dot part"></i><a class="link" href="https://github.com/andreypfau/mcrs/issues/143" data-i18n="mech.portals">Nether and End portals</a><em class="nums">#143</em></li>
         </ul>
       </div>
@@ -265,7 +273,7 @@
   <div class="viewer-pics grid">
     <figure class="viewer-main" data-reveal>
       <img class="cover" src="img/vista.jpg" width="2400" height="1350" data-i18n-alt="viewer.main.alt" alt="A forested mountain with rivers and a coast running to the horizon, drawn by the mc.rs client.">
-      <figcaption class="small muted" data-i18n="viewer.main.caption">A render distance of 97 columns.</figcaption>
+      <figcaption class="small muted" data-i18n="viewer.main.caption">A render distance of 96 columns (M4 Max, macOS; see PERF.md).</figcaption>
     </figure>
     <figure class="viewer-side">
       <img class="cover" src="img/mountain.jpg" width="1600" height="900" data-i18n-alt="viewer.mountain.alt" alt="A badlands mountain above a forest and a river, drawn by the mc.rs client.">
@@ -301,8 +309,9 @@
   <ul class="foot-links">
     <li><a class="link" href="https://github.com/andreypfau/mcrs">GitHub</a></li>
     <li><a class="link" href="https://discord.gg/ged3nMRzwG">Discord</a></li>
-    <li><a class="link" href="https://github.com/andreypfau/mcrs/tree/main/docs/spec" data-i18n="foot.specs">Specifications</a></li>
-    <li><a class="link" href="https://github.com/andreypfau/mcrs/blob/main/docs/minecraft-bevy-sharding-architecture.md" data-i18n="foot.architecture">Architecture</a></li>
+    <li><a class="link" href="/docs/en/" data-docs="" data-i18n="nav.docs">Docs</a></li>
+    <li><a class="link" href="/docs/en/reference/specs/" data-docs="reference/specs" data-i18n="foot.specs">Specifications</a></li>
+    <li><a class="link" href="/docs/en/concepts/layers/" data-docs="concepts/layers" data-i18n="foot.architecture">Architecture</a></li>
   </ul>
   <p class="foot-legal" data-i18n="foot.legal">MIT or Apache-2.0</p>
   <p class="foot-mojang" data-i18n="foot.mojang">Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft.</p>

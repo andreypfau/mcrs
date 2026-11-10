@@ -1,0 +1,109 @@
+---
+title: Worlds and saves
+description: What the server does with a Java world folder, how a new world is made, what is saved today (players) and what is not (chunks), and how data packs fit in.
+sidebar:
+  order: 1
+kind: explanation
+audience: [admin, jvm]
+stability: changing
+tracking: [78, 169, 316, 388]
+sources:
+  - src/main.rs
+  - crates/mcrs_minecraft_engine_server/src/world_options.rs
+  - crates/mcrs_minecraft_server_settings/src/server_settings.rs
+  - crates/mcrs_minecraft_anvil/src/lib.rs
+  - crates/mcrs_minecraft_save/src/player.rs
+  - crates/mcrs_minecraft_engine/src/persistence.rs
+  - crates/mcrs_minecraft_datapack/src/root.rs
+  - crates/mcrs_minecraft_game_registries/examples/check_pack.rs
+  - tests/it/shutdown.rs
+  - assets/minecraft/version.json
+  - issue:78
+  - issue:169
+  - issue:316
+  - issue:388
+  - pr:624
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+import { fact } from '~/lib/facts.mjs';
+
+import { Aside } from '@astrojs/starlight/components';
+import Status from '~/components/Status.astro';
+import StatusRows from '~/components/StatusRows.astro';
+import Example from '~/components/Example.astro';
+
+This page is for an admin who wants to point the mcrs server at a world. The server reads a Java Edition world of the same game version, and it saves players. It does not save chunks yet, so every block edit is lost when the server stops.
+
+<StatusRows areas="persistence" />
+
+## Pass a world folder to open a Java world
+
+Give the server a folder as the first argument. The [README Quick start](https://github.com/andreypfau/mcrs#quick-start) shows how to build and start the server.
+
+```bash
+cargo run --release -- "<path to a world folder>"
+```
+
+The folder must exist, or the server prints "not a world folder" and exits. When you pass a folder, the server takes the seed and the list of dimensions from the world generation settings of the save, and a seed in `MCRS_WORLD_SEED` or a preset in `MCRS_WORLD_PRESET` does not override them. The chunks come from the region files of the save, which Java Edition stores in the Anvil format.
+
+Every chunk and every player file carries a `DataVersion`, the number of the game version that wrote it. The server accepts a file only when that number matches the game version of this build, which is <code dir="auto">{fact('snapshot')}</code> with world version 5127, as [`version.json`](https://github.com/andreypfau/mcrs/blob/main/assets/minecraft/version.json) states. The server refuses a file from any other version with an error that names the version it found and the version it expected. It also refuses a chunk that has no `DataVersion`.
+
+## Older worlds are not converted
+
+mcrs has no converter for saves of older versions and will not get one, because it follows one snapshot at a time and keeps no compatibility chain.[^388] If you have an older world, open it once in a vanilla client of the right snapshot so that the game rewrites it, and then give the folder to mcrs. A field that no type claims also fails the load, so the server does not keep such a field as raw bytes.[^388]
+
+## Without a folder, the server generates a world
+
+When you start the server with no argument, it generates a world from a preset. Nothing of that world reaches the disk. It has no player files either, because the server builds the path of a player file from the world folder. Three settings shape the world, and the server reads them once at start. The full list of settings is in [`server_settings.rs`](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server_settings/src/server_settings.rs).
+
+| Variable | Meaning | Default |
+|---|---|---|
+| `MCRS_WORLD_SEED` | The seed, as a signed or unsigned 64-bit number | `0` |
+| `MCRS_WORLD_PRESET` | `normal` or `minecraft:normal`, `flat` | `normal` |
+| `MCRS_DEFAULT_GAMEMODE` | Game mode of a new player | `creative` |
+
+World generation matches vanilla in parity tests on the reference seeds. [Parity](/docs/en/concepts/parity/) says what those tests cover.
+
+## Players are saved, chunks are not
+
+| Data | State |
+|---|---|
+| Player files | Saved. The server writes each player to `players/data/<uuid>.dat` in the world folder on disconnect, and an autosave writes them every 6000 ticks, which is vanilla's own interval |
+| A clean stop with players | <Status pr={624} state="works" />. On the first SIGINT or SIGTERM the server disconnects every player with the vanilla shutdown reason, saves them and exits. A second signal exits at once |
+| Chunks and block edits | Not saved. The server reads chunks but never writes them, see <Status issue={78} /> |
+| Clean shutdown with chunks | Not done. Waiting for chunk writes is <Status issue={169} /> |
+| `level.dat`, world clocks, weather, game rules | Read but not written yet. <Status issue={78} /> lists writing them |
+
+The server protects a player file that it cannot parse. The player joins empty, and the server never saves that player over the old file. An inventory in a player file survives too. The server keeps it as opaque data and writes it back unchanged, because the inventory code was removed and is being rewritten from a specification.[^521]
+
+A short test checks the clean stop.
+
+<Example file="tests/it/shutdown.rs" from="let player_file = player_dat_path(" to="assert!(player_file.exists()" title="A shutdown request writes the player file" />
+
+<Aside type="caution" title="WIP">
+Chunk saving is a plan, and no code exists for it yet. In the plan, the server writes changed chunks in the Anvil format off the main thread, on unload and at intervals, with one writer per region file.[^78] Until it lands, use a running mcrs server to look at a world and to try things. Do not use it to keep a world.
+</Aside>
+
+## Data packs load once, at start
+
+The server loads the vanilla data pack and your local packs into the registries at start. The vanilla pack comes from the game jar, and a local pack is a directory under `mcrs/datapacks/` in the assets root of the build.
+
+You can check a pack without starting a server. The `check_pack` example of the `mcrs_minecraft_game_registries` crate loads your pack over the vanilla one, prints every diagnostic, and exits with an error if there is one.
+
+```bash
+cargo run -p mcrs_minecraft_game_registries --example check_pack -- "<data pack directory>"
+```
+
+The directory must hold `pack.mcmeta` and `data/`, and the usage line of the tool says the same.
+
+The server cannot reload a pack while it runs, so you restart it after you change one. `/reload` and live enabling of packs are planned.[^316] The plan is that a reload replaces the data at a tick boundary and refuses changes that the saved world depends on, such as the height of a dimension type.
+
+There is no source yet for how the server treats a `datapacks` folder inside a world folder, so this page makes no claim about it.
+
+[^388]: <Status issue={388} /> The decision that saves are read at exactly the targeted data version, with no datafixers.
+[^521]: <Status issue={521} /> Tracks the specification and the plugin of the player inventory.
+[^78]: <Status issue={78} /> Tracks saving changed chunks back to region files.
+[^316]: <Status issue={316} /> Plans the reload of data packs while the server runs.

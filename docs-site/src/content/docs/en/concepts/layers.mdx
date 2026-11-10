@@ -1,0 +1,74 @@
+---
+title: Layers and crates
+description: The seven layers of mcrs, which of them need Bevy, and what "a set of parts" means today.
+sidebar:
+  order: 1
+kind: explanation
+audience: [rust, jvm, contributor]
+stability: changing
+tracking: [180, 321, 287]
+sources:
+  - README.md
+  - xtask/src/checks.rs
+  - docs/minecraft-bevy-sharding-architecture.md
+  - issue:180
+  - issue:321
+  - issue:287
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 3540f457b
+  date: 2026-11-10
+---
+import { fact } from '~/lib/facts.mjs';
+import Status from '~/components/Status.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+mcrs is a repository of {fact('crates')} crates, sorted into seven layers. Each layer is meant to depend only on the layers below it, so you take the layers you need and pay for nothing above them. A proxy needs the bottom two layers, and a full server needs the first five.[^180]
+
+## The seven layers
+
+| # | Layer | What it holds |
+|---|---|---|
+| 1 | Protocol | ids, positions, NBT, text, keys; the codec traits; framing, compression, encryption; handshake, status, login and configuration packets |
+| 2 | Network | the connection state machine, login on both sides, authentication, proxy forwarding, frames encoded once per broadcast |
+| 3 | Game data and rules | registries baked from the data pack, blocks, items, entities, chunks, Anvil saves and their packets; kernels without Bevy for lighting, world generation and block simulation |
+| 4 | Engine | Bevy plugins for worlds, dimensions, chunk sources, players, events and commands, and the drivers of the kernels; no vanilla behaviour by default |
+| 5 | Vanilla | what blocks, items and mobs do, world generation and lighting, as removable plugins |
+| 6 | Rendering | meshing and pipelines over layer 3 data; no network, client or server |
+| 7 | Applications | the server binary, the client and the tools |
+
+Every crate is named `mcrs_minecraft_<name>` and lives under [`crates/`](https://github.com/andreypfau/mcrs/tree/main/crates). The engine core crates have their own prefix and are called `mcrs_engine_cell`, `mcrs_engine_link`, `mcrs_engine_muxer` and `mcrs_engine_store`. The [crate map](/docs/en/crates/overview/) lists every crate with its layer.
+
+Bevy is an optional feature below layer 4, and tokio is optional below layer 2, because only the network layer talks to tokio. A few crates break the direction of the layers today. The README says that the protocol and network crates still reach into game data, and the project intends to fix that.[^180]
+
+## Kernels hold the rules, drivers run them
+
+Layer 3 can stay free of Bevy because the rules of the game and the code that schedules them are separate pieces.
+
+A kernel is plain Rust that owns the rules of one domain, such as block updates, lighting, world generation or entity motion. It uses no Bevy and no tokio. One step of a kernel is a function call. State and a view of the world go in, and writes and messages come out into buffers that the caller owns. The same inputs give the same outputs.
+
+A driver runs a kernel. In layer 4 the driver is a Bevy plugin that reads the world, calls the kernel and writes the result back. Bevy stays the scheduler between systems, and mcrs adds no scheduler of its own between them. That decision is in section 13 of [the sharding design note](https://github.com/andreypfau/mcrs/blob/main/docs/minecraft-bevy-sharding-architecture.md). Without Bevy a driver is a loop, which is why a bot, a map tool or a test can use a kernel directly.
+
+If you come from Paper, think of a kernel as the logic of a vanilla system with the server object removed, so you can call it from any place. The driver is the part that knows about ticks.
+
+## What "a set of parts" means today
+
+The project promises "Minecraft as a set of crates". This is how far that goes on 2026-11-10.
+
+100 packages build without Bevy, and a check in `xtask/src/checks.rs` fails when a crate below layer 4 requires Bevy. 9 packages also build without std, for the target `wasm32v1-none`, and 11 build for a browser, for the target `wasm32-unknown-unknown`.
+
+The crates are not published on crates.io. Two things block that: some crates embed files from outside their folder, and the protocol and network APIs return `anyhow` errors.[^321] A git dependency works, and [Use the crates in your project](/docs/en/crates/use-as-library/) covers that route.
+
+There are no library examples yet, so you will not find a proxy, a bot, a lobby or a map renderer to copy. The first three planned examples are `hello_server`, `lobby` and `arena`.[^287]
+
+The public API of layers 1 to 4 is not stable. Every `pub` item there will become a commitment to users, so it is being reviewed first.
+
+<Aside type="caution" title="WIP">
+The layer table describes the design, and the code does not fully follow it yet. Treat "take only layers 1 and 2" as a direction.[^180] The status of each area is on [Status](/docs/en/start/status/).
+</Aside>
+
+Next: [How a tick runs in parallel](/docs/en/concepts/parallel-tick/).
+
+[^180]: <Status issue={180} /> The direction: mcrs as a library, from a proxy to a full server.
+[^321]: <Status issue={321} /> Tracks the work that lets the protocol, network and game data crates be published.
+[^287]: <Status issue={287} /> Plans the minimal server, lobby and arena examples.

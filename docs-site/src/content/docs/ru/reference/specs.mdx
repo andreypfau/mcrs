@@ -1,0 +1,80 @@
+---
+title: Индекс спецификаций
+description: Где в docs/spec описан каждый домен игрового поведения, какой префикс id правил он использует и как читать метки происхождения.
+sidebar:
+  order: 4
+translated_from: f50e2fdf6
+---
+import { fact } from '~/lib/facts.mjs';
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="note" title="Написано для ИИ-агентов и авторов спецификаций">
+Файлы в `docs/spec/` написаны для ИИ-агентов и для людей, которые пишут спецификации. Они следуют правилам ASD-STE100 Simplified Technical English, как сказано в `docs/spec/README.md`. Поэтому они точные и сухие. Найдите нужный файл по этой странице и дальше читайте уже его.
+</Aside>
+
+Каждый файл в [docs/spec](https://github.com/andreypfau/mcrs/tree/main/docs/spec) описывает поведение одного домена в виде данных, то есть его входы, выходы, порядок, тайминги и константы. Устройство игрового кода спецификация не описывает никогда. Кроме того, по [правилу clean-room](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md) исполнитель вправе узнавать игровое поведение для правила только из спецификаций.
+
+В заголовках некоторых спецификаций версией игры все еще названа `26.4-snapshot-4`. Проект следует за <code dir="auto">{fact('snapshot')}</code>, эта версия задана в `assets/minecraft/version.json`.
+
+## Файлы по доменам
+
+Id правила, например `CMD-TP-013`, состоит из префикса домена, темы и номера. По этим id на правила ссылаются тесты и issue. В таблице `*` заменяет часть с темой.
+
+| Домен | Файлы в `docs/spec/` | Префикс id |
+|---|---|---|
+| Вход, статус, сжатие | `login.md`, `status.md`, `compression.md` | `LOGIN`, `STATUS`, `FRAME` |
+| Whitelist и баны | `whitelist.md`, `bans.md` | `WL`, `BAN` |
+| Команды: парсер, дерево, права | `command-parser.md`, `commands-packet.md`, `command-permissions.md`, `argument-*.md` (block, coordinates, entity, keywords, resource) | `CMD`, `CMDP`, `PERM`, `ARG-*` |
+| Команды: каждая команда | `command-execute.md`, `-gamemode.md`, `-teleport.md`, `-locate.md`, `-kill.md`, `-damage.md`, `-time.md`, `-fill.md`, `-forceload.md`, `-gamerule.md`, `-weather.md`, `-tick.md` | `CMD-*` |
+| Реестры и датапаки | `registry.md`, `registry-fields.md`, `environment-attributes.md` | `REG-*`, `ENVA` |
+| Текстовые форматы и числа | `snbt.md`, `numeric.md` | `SNBT`, `NUM` |
+| Поддержка генерации мира | `heightmap.md` | `HM` |
+| Симуляция, ломание и установка блоков | `block-simulation.md`, `block-breaking.md`, `client-block-breaking.md`, `block-placing.md` | `SIM`, `BRK-*`, `PLC-*` |
+| Движение игрока | `movement-checks.md`, `teleport-confirmation.md`, `dimension-change.md` | `MVC-*`, `TP-CONFIRM-*`, `DIM` |
+| Сущности: физика, урон, трекинг, геометрия | `entity-physics.md`, `entity-damage.md`, `entity-tracking.md`, `entity-geometry.md`, `entity-animation.md`, `entity-ai-timing.md` | `PHY`, `DMG`, `TRK`, `EGEO`, `EANIM`, `AIT` |
+| Мобы: цели, поиск пути, виды | `mob-goals.md`, `mob-combat-goals.md`, `pathfinding.md`, `mob-animals.md`, `mob-pig.md`, `mob-wolf.md`, `mob-llama.md`, `mob-frog.md` | `GOAL`, `CGOAL`, `PATH`, `ANIM`, `MPIG`, `WOLF`, `LLAMA`, `MFROG` |
+| Molang | `molang.md`, `molang-queries.md` | `MOL`, `MOLQ` |
+| Клиент: мир и сущности | `client-camera.md`, `client-entities.md`, `client-entity-definition.md`, `client-entity-render.md`, `client-frame-capture.md` | `CCAM`, `CENTS`, `CENT`, `CEREN`, `CFC` |
+| Клиент: GUI, чат, команды | `client-chat.md`, `client-commands.md`, `client-gui-sprite.md`, `client-tooltip.md` | `CHAT`, `CCMD`, `GSPR`, `TIP` |
+| Модели блоков и свет | `block-model-resolution.md`, `block-face-bake.md`, `block-entity-models.md`, `block-smooth-light.md` | `BMR`, `BFB`, `BEM`, `BSL` |
+
+Большинство спецификаций перечисляют свои префиксы id в таблице ближе к началу. Если та таблица расходится с этой страницей, полным списком считайте таблицу в файле.
+
+В папке `docs` рядом со спецификациями лежат и заметки, например [docs/command-dimensions.md](https://github.com/andreypfau/mcrs/blob/main/docs/command-dimensions.md) и [docs/entity-render.md](https://github.com/andreypfau/mcrs/blob/main/docs/entity-render.md). Это рабочие заметки, а не спецификации.
+
+## Как читать правило
+
+У правила есть заголовок с id, раздел поведения и строка происхождения (provenance):
+
+```text
+Provenance: source_suggested. Kind: semantic. Confidence: medium. Experiment: ...
+```
+
+Происхождение говорит, откуда взято правило. Метки определены в разделе 0.3 файла `docs/spec/registry.md`.
+
+| Метка | Значение |
+|---|---|
+| `black_box_confirmed` | Подтверждено артефактом, который произвела игра, с указанием пути. |
+| `source_suggested_black_box_confirmed` | Взято из эталонного поведения и согласуется с указанным артефактом. |
+| `source_suggested` | Взято из эталонного поведения, артефакта пока нет. Уверенность не выше средней, приложен эксперимент. |
+| `documentation` | Публичное поведение, описанное в документации для игроков. |
+| `design` | Выбор mcrs. Правило объясняет почему. |
+| `unresolved` | Не решено. Собрано в разделе в конце файла. |
+
+Kind говорит, насколько точным должно быть правило.
+
+| Kind | Что фиксирует правило |
+|---|---|
+| `wire` | Байты и id, которые декодирует клиент ванили. |
+| `client agreement` | Сервер должен согласоваться с клиентом. |
+| `semantic` | Смысл и результат, но не внутренний порядок. |
+| `layout` | Позиции и размеры GUI. |
+| `deviation` | В эталоне есть дефект, и правило описывает корректное поведение. |
+| `unspecified` | Parity-тест не должен это сравнивать. |
+
+Еще в файле есть раздел "Intentional deviations", где записано, чем mcrs намеренно отличается от ванили. В каждой записи указаны id правила, эталонное поведение, видит ли отличие клиент и что с ним делает тест.
+
+В `registry.md` сказано, что ни один из его экспериментов не запускался. Поэтому относитесь к правилу `source_suggested` как к утверждению, за которым пока нет игрового артефакта.
+
+Дальше: на странице [Как внести вклад](/docs/ru/contributing/) рассказано, как контрибьютор пишет и читает спецификации, а на странице [Совпадение с ванилью](/docs/ru/concepts/parity/) - как на них опираются parity-тесты.

@@ -1,5 +1,7 @@
 # [mc.rs](https://mc.rs)
 
+[Documentation](https://mc.rs/docs/en/start/what-is-mcrs/)
+
 **Minecraft Java Edition in Rust: a set of crates, a server and a client, built on [Bevy](https://bevyengine.org) ECS.**
 
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
@@ -15,6 +17,15 @@ only the layers it needs and pay for nothing above them.
 > **Status: early development.** The world generator, the renderer and the
 > protocol are well along; the public library API is not stable yet. See
 > [Status](#status).
+
+## Documentation
+
+Four ways in, at [mc.rs/docs](https://mc.rs/docs/en/start/what-is-mcrs/):
+
+- Coming from Paper or another JVM server: [mcrs for plugin developers](https://mc.rs/docs/en/plugins/not-paper/).
+- Want to send a PR: [contributing](https://mc.rs/docs/en/contributing/).
+- Want to take crates: [crates overview](https://mc.rs/docs/en/crates/overview/).
+- Want to know what this is and what works today: [what is mcrs](https://mc.rs/docs/en/start/what-is-mcrs/).
 
 ## Why mcrs
 
@@ -36,8 +47,9 @@ this repository. mcrs starts with the engine.
   is systems, each one transformation over every entity that has the data it
   names. Bevy's scheduler runs systems in parallel when their data access does
   not overlap, and a system can split its entities across threads. Nobody
-  writes a lock for that: mcrs code holds no `Arc`, no `Mutex` and no trait
-  object on the hot path.
+  writes a lock for that. The goal is mcrs code with no `Arc`, no `Mutex` and no
+  trait object on the hot path; this is WIP, see
+  [#566](https://github.com/andreypfau/mcrs/issues/566).
 - **Parallel by what the work touches.** Java server forks move one job at a
   time off the main thread and sell it as a feature: async pathfinding, async
   entity tracking, parallel world ticking, sometimes as a paid jar. Folia goes
@@ -48,9 +60,10 @@ this repository. mcrs starts with the engine.
   Work that really interacts stays together and runs in order, and the result
   is the same on any number of threads.
 - **Work is proportional to change.** A resting entity and an untouched section
-  cost nothing. Idle cost, memory per section and frame times are measured in
+  cost nothing. Idle cost and frame times are measured in
   [`PERF.md`](PERF.md), and every exception to these rules cites a number
-  there.
+  there. Memory per section is not measured yet (WIP,
+  [#324](https://github.com/andreypfau/mcrs/issues/324)).
 - **Specified before it is built.** Each domain is written from a
   specification in [`docs/spec/`](docs/spec) under
   [clean-room rules](docs/clean-room.md).
@@ -103,12 +116,12 @@ Every crate is named `mcrs_minecraft_<name>` under [`crates/`](crates).
 | World generation (noise, surface, carvers, features, structures) | Matches vanilla in parity tests |
 | Lighting (sky, block and coloured light) | Working |
 | Client rendering (terrain, sky, clouds, light) | Working; numbers in [`PERF.md`](PERF.md) |
-| Anvil saves | Loading; the server does not save yet |
+| Anvil saves | Loading; the server does not save yet ([#78](https://github.com/andreypfau/mcrs/issues/78)) |
 | Protocol | Status, login, configuration and play; about half the packets typed |
 | Gameplay | Joining, chat, game modes and a plain flight stub; the rest returns from specifications |
-| Online mode, encryption, proxy forwarding | Not yet |
+| Online mode, encryption, proxy forwarding | Not yet ([#82](https://github.com/andreypfau/mcrs/issues/82), [#296](https://github.com/andreypfau/mcrs/issues/296)) |
 | Crates usable without Bevy | Layers 1 to 3 with default features off, except `assets` |
-| Library examples (proxy, bot, lobby server, map renderer) | Planned |
+| Library examples (proxy, bot, lobby server, map renderer) | Planned ([#287](https://github.com/andreypfau/mcrs/issues/287)) |
 
 ## Quick start
 

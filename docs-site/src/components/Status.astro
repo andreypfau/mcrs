@@ -1,0 +1,25 @@
+---
+import { getEntry } from "astro:content";
+import { REPO } from "~/config.mjs";
+interface Props { issue?: number; pr?: number; state?: "works" | "partial" | "wip" | "undecided" | "declined"; doc?: string }
+const { issue, pr, doc } = Astro.props;
+let state = Astro.props.state;
+if (issue !== undefined) {
+  if (state) throw new Error(`Status: the state of issue #${issue} comes from src/data/issues.yml, write <Status issue={${issue}} />`);
+  const entry = await getEntry("issues", String(issue));
+  if (!entry) throw new Error(`Status: issue #${issue} is not in src/data/issues.yml`);
+  state = entry.data.state;
+}
+const href = issue ? `${REPO}/issues/${issue}` : pr ? `${REPO}/pull/${pr}` : doc ? `${REPO}/blob/main/${doc}` : undefined;
+const text = issue ? `#${issue}` : pr ? `#${pr}` : doc?.split("/").pop() ?? "";
+---
+{state && <span class={`mcrs-status ${state}`}>{Astro.locals.t(`mcrs.state.${state}`)}</span>}
+{href && <a href={href} class="mcrs-status-link">{text}</a>}
+<style>
+  .mcrs-status { display: inline-block; margin-inline-end: 0.35em; padding: 0 0.5em; border-radius: 0.8em; font-size: 0.8em; font-weight: 600; border: 1px solid currentColor; }
+  .works { background: var(--mcrs-ok); color: #fff; border-color: var(--mcrs-ok); }
+  .partial { background: var(--mcrs-warn); color: #111; border-color: var(--mcrs-warn); }
+  .wip { background: var(--sl-color-gray-3); color: var(--sl-color-white); border-color: var(--sl-color-gray-3); }
+  .undecided, .declined { background: transparent; color: var(--sl-color-gray-2); }
+  .declined { border-style: dashed; }
+</style>

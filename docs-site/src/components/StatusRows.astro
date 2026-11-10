@@ -1,0 +1,28 @@
+---
+import { getCollection } from "astro:content";
+import Status from "./Status.astro";
+import { interpolate } from "~/lib/facts.mjs";
+interface Props { areas: string }
+const ids = Astro.props.areas.split(",").map((s) => s.trim()).filter(Boolean);
+const all = await getCollection("status");
+const rows = ids.map((id) => {
+  const r = all.find((e) => e.id === id);
+  if (!r) throw new Error(`StatusRows: unknown area "${id}" in status.yml`);
+  return r;
+});
+const l = Astro.currentLocale === "ru" ? "ru" : "en";
+const head = (["area", "state", "works", "missing"] as const).map((k) => Astro.locals.t(`mcrs.table.${k}`));
+---
+<table>
+  <thead><tr>{head.map((h) => <th>{h}</th>)}</tr></thead>
+  <tbody>
+    {rows.map((r) => (
+      <tr>
+        <td>{r.data.title[l]}</td>
+        <td><Status state={r.data.state} /></td>
+        <td>{interpolate(r.data.works[l])}</td>
+        <td>{interpolate(r.data.missing[l])} {r.data.issues.map((n) => <Status issue={n} />)}</td>
+      </tr>
+    ))}
+  </tbody>
+</table>

@@ -1,0 +1,42 @@
+---
+title: Начните здесь
+description: mcrs - это Minecraft Java Edition на Rust поверх Bevy ECS в виде набора крейтов. Проект пока на раннем этапе.
+sidebar:
+  order: 1
+translated_from: 3540f457b
+---
+import { fact } from '~/lib/facts.mjs';
+
+import Status from '~/components/Status.astro';
+import { Aside, Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import DocsFreshness from '~/components/DocsFreshness.astro';
+
+<DocsFreshness />
+
+mcrs - это Minecraft Java Edition на Rust поверх Bevy ECS. В проекте есть сервер, клиент и {fact('crates')} крейта, из которых они собираются.
+
+<Aside type="caution" title="Ранний WIP">
+Проект в активной разработке, и многого пока нет, в том числе сохранения мира, online mode и большей части геймплея. Мир и клиент уже запускаются.
+</Aside>
+
+## Почему mcrs
+
+mcrs - не Java-сервер, переписанный на Rust. Проект заново решает, как должна быть устроена игра, и начинает с движка. Каждое из этих решений объясняет страница [Почему mcrs: новое устройство, а не переписывание](/docs/ru/start/philosophy/).
+
+## С чего начать
+
+<CardGrid>
+  <LinkCard title="Пишу плагины на Java или Kotlin" description="Bukkit-подобного API и загрузчика плагинов нет. Что можно сделать уже сегодня." href="/docs/ru/plugins/not-paper/" />
+  <LinkCard title="Хочу внести вклад" description="Сборка, тесты, правила clean-room и первые задачи." href="/docs/ru/contributing/" />
+  <LinkCard title="Хочу брать крейты" description={`${fact('crates')} крейта по слоям. На crates.io пока ничего нет.`} href="/docs/ru/crates/overview/" />
+  <LinkCard title="Играю или держу серверы" description="Что такое mcrs, чего он не делает и кому лучше поискать другое решение." href="/docs/ru/start/what-is-mcrs/" />
+</CardGrid>
+
+## Что готово сейчас
+
+Генерация мира совпадает с настоящей игрой на эталонных дампах, и клиент этот мир рисует. Чанки не сохраняются, online mode нет.[^78][^82] Мы проверили это 2026-11-10 на коммите `3540f457b`, снапшот игры {fact('snapshot')}. Полная таблица есть на странице [Статус](/docs/ru/start/status/).
+
+Задать вопрос и почитать отчеты о ходе работы можно в [Discord](https://discord.gg/ged3nMRzwG).
+
+[^78]: <Status issue={78} /> Отслеживает запись измененных чанков обратно в файлы регионов.
+[^82]: <Status issue={82} /> Отслеживает online mode: шифрование и аутентификацию сессии.

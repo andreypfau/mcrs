@@ -21,6 +21,23 @@ An implementer writes code, tests and design notes. The implementer reads only t
 An implementer never reads decompiled, deobfuscated or mapped game code. One person does not
 take both roles for the same behaviour.
 
+### Exception: an AI agent writes the code
+
+A person who read the game's code for a behaviour can still deliver the implementation of that
+behaviour. This is the only exception to the rule above. The person gives the implementer role
+to an AI agent. These conditions apply:
+
+- The person reads the specification and makes sure that it is correct.
+- The person makes sure that the agent has no access to the game's code or to pieces of it.
+  This includes the files, the prompt and the tools of the agent.
+- The agent reads only the sources of an implementer.
+
+mcrs does not restrict contributions that an AI agent writes. Such contributions are welcome
+when the contributor knows how the game is structured.
+
+The rules on this page have one purpose. They make sure that nobody copies code or algorithms
+from the original game, or from modifications of the game, by accident.
+
 ## What the repository does not contain
 
 - Names of classes, methods or fields of the game's code, in code, comments, tests, design

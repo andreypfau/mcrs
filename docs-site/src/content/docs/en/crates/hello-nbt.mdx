@@ -1,0 +1,97 @@
+---
+title: Parse SNBT in your own project
+description: A git dependency on mcrs_minecraft_snbt and about fifteen lines that parse a string of stringified NBT and write it back.
+sidebar:
+  order: 2
+kind: tutorial
+audience: [rust]
+stability: wip
+tracking: [321]
+sources:
+  - crates/mcrs_minecraft_snbt/src/lib.rs
+  - crates/mcrs_minecraft_snbt/src/parse.rs
+  - crates/mcrs_minecraft_snbt/src/tests.rs
+  - crates/mcrs_minecraft_nbt/src/compound.rs
+  - crates/mcrs_minecraft_nbt/src/encoding.rs
+  - crates/mcrs_minecraft_nbt/tests/it/encodings.rs
+  - issue:661
+  - rust-toolchain.toml
+  - issue:321
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 3540f457b
+  date: 2026-11-10
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import Status from '~/components/Status.astro';
+
+In this tutorial you add one mcrs crate to a Rust project of your own and use it to read a string of SNBT, look at its tags and write it back. SNBT is the text form of NBT, the one you type in a command, such as `{Health:20.0f}`. The program is about fifteen lines, and it is the smallest use of an mcrs crate from outside the repository.
+
+<Aside type="caution" title="WIP">
+Nobody has compiled the code below outside the workspace yet. The crates are not published and `cargo package` does not work for them, so a git dependency is the only route.[^321] Inside the workspace, [`tests.rs`](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_snbt/src/tests.rs) of the crate exercises the same functions. If a step fails for you, please open an issue.
+</Aside>
+
+## 1. Add the dependency
+
+Add both crates to your `Cargo.toml` as git dependencies with the same `rev`:
+
+```toml
+[dependencies]
+mcrs_minecraft_snbt = { git = "https://github.com/andreypfau/mcrs", rev = "51d45c26ae772bd71fb1e02caae8cab2e5ad4495" }
+mcrs_minecraft_nbt = { git = "https://github.com/andreypfau/mcrs", rev = "51d45c26ae772bd71fb1e02caae8cab2e5ad4495" }
+```
+
+Always give a `rev`, because there are no releases on crates.io and `main` moves with each game snapshot. The two crates need the same `rev` because the tag types that `mcrs_minecraft_snbt` returns come from `mcrs_minecraft_nbt`.
+
+You also need a nightly compiler. The repository pins `nightly-2026-09-02` in [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml), but that file applies only inside the mcrs checkout, so you pick a nightly for your project yourself. Nobody has checked whether `mcrs_minecraft_snbt` also builds on stable. A build on stable is part of the work that makes the crates publishable.[^321]
+
+Both crates are on the list of crates that CI builds without Bevy, so this dependency does not pull Bevy in. You can confirm it with the `cargo tree` command from [Use the crates in your project](/docs/en/crates/use-as-library/).
+
+## 2. Parse and write
+
+Put this in `src/main.rs`:
+
+```rust
+use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_snbt::{parse_compound, write};
+
+fn main() {
+    let compound = parse_compound("{Health:20.0f, Name:\"Alex\", Pos:[1.5d, 64.0d, -3.0d]}")
+        .expect("valid SNBT");
+
+    println!("{:?}", compound.get_string("Name"));  // Some("Alex")
+    println!("{:?}", compound.get("Health"));       // Some(Float(20.0))
+
+    // Bad input gives an error with a key and a position, not a panic.
+    let error = parse_compound("{Health:}").unwrap_err();
+    println!("{error}");
+
+    // Writing gives the text the game would write.
+    println!("{}", write(&NbtTag::Compound(compound)));
+}
+```
+
+The program parses a compound, which is the NBT tag that holds named tags inside braces. It then reads two values by name, shows the error for a broken input and prints the compound back as text. The table lists what it uses and the related entry points of the two crates.
+
+| Name | What it does |
+|---|---|
+| `parse_compound` | Reads a text that holds one compound and nothing else |
+| `parse_tag` | Reads a text that holds any single tag and nothing else |
+| `read_tag`, `read_compound` | Start at a position in a longer text and tell you where they stopped. A command parser needs this |
+| `NbtCompound` | Has `get_*` and `put_*` methods by type, such as `get_string`, `get_int` and `get_compound` |
+| `SnbtError` | Has a `kind` and a byte `position` |
+| `write` | Prints a tag as the game does, so `1.` becomes `1.0d` and a list prints in compact form |
+
+The crate follows the rules of the game for numbers and strings. That covers type suffixes, `0x` and `0b` literals, `_` separators and escapes. The test file of the crate checks these rules against recorded fixtures of the game.
+
+## The binary format is in mcrs_minecraft_nbt
+
+SNBT is only the text side. Binary read and write, compression and serde support are in [`mcrs_minecraft_nbt`](https://github.com/andreypfau/mcrs/tree/main/crates/mcrs_minecraft_nbt), the crate you already depend on for the tag types.
+
+The binary codec has three encodings.[^661] `BigEndian` is for Java Edition, `LittleEndian` is for Bedrock world storage and `NetworkLittleEndian` is for Bedrock packets. Each entry point such as `from_bytes` has a `_with::<E>` form that takes the encoding, and the functions without that suffix use `BigEndian`.
+
+Next: [Use the crates in your project](/docs/en/crates/use-as-library/), which covers the limits of the git route. To find another crate, look in the [crate map](/docs/en/crates/overview/).
+
+[^321]: <Status issue={321} /> Tracks the work that lets the protocol, network and game data crates be published.
+[^661]: <Status issue={661} /> Little-endian and network varint NBT in `mcrs_minecraft_nbt`.

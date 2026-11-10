@@ -1,0 +1,85 @@
+---
+title: Add a command
+description: Register a command with add_command, set a permission level and run it as a Bevy system.
+sidebar:
+  order: 9
+kind: how-to
+audience: [jvm, rust]
+stability: changing
+tracking: [285, 579]
+sources:
+  - crates/mcrs_minecraft_command_engine/src/app_commands.rs
+  - crates/mcrs_minecraft_command_engine/src/registrar.rs
+  - crates/mcrs_minecraft_command/src/permission.rs
+  - crates/mcrs_minecraft_server/tests/it/commands.rs
+  - crates/mcrs_minecraft_command_vanilla/src/kill.rs
+  - docs/command-dimensions.md
+  - pr:579
+  - issue:285
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 3540f457b
+  date: 2026-11-10
+---
+
+import Status from '~/components/Status.astro';
+import Example from '~/components/Example.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+A plugin adds a command by registering its nodes and writing a handler, which is a Bevy system. A node can also require a permission level.
+
+Commands live in a typed command tree.[^pr579] Plugins register nodes into the tree, and the server sends each player the part of the tree that the player's level allows. If you know Paper, the nearest thing is its Commands API with a node tree. Nothing here corresponds to `plugin.yml` and `onCommand`. The examples come from the repository test `commands.rs`, and we did not run them outside the repository tests.
+
+## Register a command with add_command
+
+`add_command` is a method on the app. It takes a builder, which adds the nodes of the command, and the handler, which runs the command.
+
+<Example file="crates/mcrs_minecraft_command_engine/src/app_commands.rs" from="pub trait AppCommandsExt" to="M: 'static;" title="The signature of add_command" />
+
+Call it after `CommandPlugin` is in the app and before the app finishes. `MinecraftServerPlugins` already adds that plugin for the vanilla command set.
+
+The test below builds an `echo` command with one integer argument:
+
+<Example file="crates/mcrs_minecraft_server/tests/it/commands.rs" from={"#[derive(Clone, Copy)]\nstruct Echo {"} to={"        Ok(Echo { times })\n    }\n}"} title="Test: the nodes of an echo command with one integer argument" />
+
+The builder gets a `CommandRegistrar`. Starting from `NodeId::ROOT`, it adds a literal node with `literal` or an argument node with `arg` under a parent node. A node that ends a command line calls `runs(...)`. The builder returns the handles of the arguments, and the handler uses them later to read the values.
+
+The same file registers the command with `app.add_command(echo_at("echo"), run_echo).unwrap();`. The call returns a `Result`, because a node can clash with the tree. When that happens you get an error and nothing of the command is added, as the test at the end of the file shows.
+
+## A node can require a permission level
+
+A node asks for a level with `requires(PermissionCheck::Require(level))`. There are five ordered levels, and a source passes when it is at the required level or above.
+
+<Example file="crates/mcrs_minecraft_command/src/permission.rs" from={"#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]\npub enum CommandLevel"} title="CommandLevel" />
+
+A player below the level of a node does not see the node in the tree and cannot run it. The level of a player comes from the operator list or from the default level of the server.
+
+mcrs has no string permission nodes like `myplugin.use`. A permission system with groups is not part of mcrs today, and the plan for the command tree does not describe one.[^285]
+
+## The handler is a system
+
+The handler of the `echo` command looks like this:
+
+<Example file="crates/mcrs_minecraft_server/tests/it/commands.rs" from="fn run_echo(" to={"    Ok(times)\n}"} title="Test: the handler of the echo command" />
+
+The first parameter of a handler is `In<Call<...>>`, and every other parameter is a normal system parameter. The handler returns a `CommandResult`, which is either the number the command reports on success or a failure. It sends text through `CommandOutput`, and `Feedback` says who hears that text: only the source, or the source and all operators.
+
+A handler does not change a player directly, because the player can be in another dimension, which the handler cannot reach. The handler writes an effect through `CommandOutput::effect`, and the world applies the effects after the call, in the order they were written. Register the effect type with `add_command_effect`. This is how `teleport` and `gamemode` change players in other dimensions. The reasons are in [docs/command-dimensions.md](https://github.com/andreypfau/mcrs/blob/main/docs/command-dimensions.md) and on the page [Dimensions](/docs/en/plugins/dimensions/).
+
+You can also stop a command before it runs. The server raises `CommandEvent` in the world of the source dimension before it runs a command line. An observer, which is a function that Bevy calls when the event fires, can set `cancelled`, and then the command does not run. This is the command side of the planned public, cancellable player events.[^283]
+
+## What does not work yet
+
+<Aside type="caution" title="WIP">
+The command tree has these known limits today:[^285]
+
+- You cannot build on the vanilla commands. For example, `build` and `run` of `kill` are `pub(crate)`, so a plugin can neither reuse them nor wrap them.
+- The argument types of a node come from the argument set of the command set, which is `VanillaCommands`. A type outside that set needs a command set of your own.
+- The plan asks that a vanilla client sees and completes a command registered by a test plugin, and that a player below the level neither sees nor runs it. The merged PR covers the tree and the level filter. Check what is left before you rely on more.[^285]
+</Aside>
+
+Next: [Intercept chat](/docs/en/plugins/chat-event/).
+
+[^pr579]: <Status pr={579} state="works" /> Adds the typed command tree, the vanilla commands and the client chat screen.
+[^285]: <Status issue={285} /> Tracks the command tree with permission levels and the commands packet.
+[^283]: <Status issue={283} /> Tracks public player events that a plugin can cancel.

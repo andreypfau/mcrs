@@ -1,0 +1,110 @@
+---
+title: News
+description: What was merged, what changed for plugin authors and what is still missing, for each of the last three tags and for the work since the latest tag.
+sidebar:
+  order: 4
+kind: reference
+audience: [jvm, contributor, admin, observer]
+stability: stable
+sources:
+  - issue:636
+  - pr:636
+  - pr:646
+  - pr:548
+  - pr:551
+  - pr:552
+  - pr:592
+  - pr:679
+  - pr:680
+  - pr:684
+  - pr:685
+  - pr:686
+  - pr:687
+  - pr:691
+  - pr:645
+  - pr:692
+  - pr:683
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: f50e2fdf6
+  date: 2026-11-10
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import Status from '~/components/Status.astro';
+
+This page is the change log of mcrs. Each entry says what was merged, what changed for people who write plugins, and what is still missing. A change is marked "Breaking" when old plugin code stops compiling. The newest entry comes first.
+
+The last tag is 27 days old, and 152 pull requests were merged after it, so the first entry covers work that has no tag yet.
+
+## Since v0.5.8 (no tag yet)
+
+This entry covers 2026-10-14 to 2026-11-10. In that time 6 authors made 874 commits and merged 156 pull requests. 123 of the pull requests are from andreypfau, and 33 are from five other people.
+
+### Merged
+
+- Worlds tick as parallel cells behind a muxer thread and a shared data layer (<Status pr={646} state="works" />).
+- The server has mobs with a parallel AI stage, the client renders mobs, and there is a benchmark with 50,000 pigs (<Status pr={651} state="works" />).
+- Entity physics, movement checks and block simulation work (<Status pr={648} state="works" />), and so do the block tick and block event queues (<Status pr={477} state="works" />).
+- Player bans and the whitelist follow their specifications (<Status pr={637} state="works" />, <Status pr={635} state="works" />).
+- The server disconnects and saves every player before shutdown (<Status pr={624} state="works" />).
+- A player can break blocks in creative mode (<Status pr={643} state="works" />).
+- The mc.rs landing page was added, with a language switcher (<Status pr={629} state="works" />, <Status pr={633} state="works" />), and CI checks that the client compiles for `wasm32` (<Status pr={622} state="works" />).
+- The VarInt and VarLong reader now rejects out-of-range bits (<Status pr={653} state="works" />).
+- NBT reads and writes the two Bedrock encodings, little-endian for storage and varint for the network, next to the Java one (<Status pr={679} state="works" />).
+- The new crate `mcrs_minecraft_text_flatten` fills translations in flattened text. A translated disconnect reason used to show an empty line, and now it shows its fallback or its key (<Status pr={680} state="works" />).
+- Survival block breaking has a specification, taken from a vanilla server (<Status pr={686} state="works" />). Block placing in creative mode has one too, also from a vanilla server (<Status pr={645} state="works" />, <Status pr={692} state="works" />).
+- Teleport confirmation follows its specification. The server resends a pending teleport while the client moves, and tests check it through a scripted client (<Status pr={683} state="works" />, part of <Status issue={623} />).
+- CI runs the project's own pull requests in one self-hosted job and fork pull requests on hosted runners, and a change to `docs/` alone builds nothing (<Status pr={691} state="works" />). Cargo resolves features once for the whole workspace (<Status pr={685} state="works" />).
+- Coding agents get `AGENTS.md`, agent skills and path rules (<Status pr={687} state="works" />). [How to contribute](/docs/en/contributing/#work-with-a-coding-agent) explains how to use them.
+- The landing page has search engine metadata, `robots.txt` and a sitemap (<Status pr={684} state="works" />).
+
+### Breaking for plugin authors
+
+A plugin here is Rust code that is compiled into the server.
+
+- `MinecraftServerPlugin` became the plugin group `MinecraftServerPlugins`, with members such as `ServerCorePlugin`, `DimensionWorldsPlugin`, `WorldGenPlugin` and `ServerNetworkPlugin`. You can disable or replace any member (<Status pr={551} state="works" />). The engine members then moved to the new crate `mcrs_minecraft_engine_server`, and `mcrs_minecraft_server` keeps the vanilla group (<Status pr={592} state="works" />).
+- No library crate reads the environment or the working directory for settings now. Operators are an `ops` field of the plugin, and the client knobs are a `Knobs` resource (<Status pr={548} state="works" />). The details are in [Environment variables](/docs/en/reference/env-vars/).
+- `Text::to_legacy_lossy` is removed. Use `plain_text` or `legacy_text` from `mcrs_minecraft_text_flatten`, which also take a `Language` (<Status pr={680} state="works" />).
+- The reader and the writer of `mcrs_minecraft_nbt` lost the `_be` suffix of their methods, so `get_u8_be` is `get_u8` now (<Status pr={679} state="works" />).
+
+### New for plugin authors
+
+- A plugin can add plugins to every dimension world with `add_dimension_plugin`, or to one dimension world with `add_dimension_plugin_to` (<Status pr={552} state="works" />).
+- The chat event is cancellable. An observer can stop a line or replace its text before the broadcast (<Status pr={636} state="works" />, part of <Status issue={283} />). Join, leave, movement and block events are not done.
+
+### Not there yet
+
+- Changed chunks are not saved to region files (<Status issue={78} />), and there is no online mode (<Status issue={82} />).
+- There is no loader for plugins outside the server build, and no decision on it.
+- There is no speed claim against another server. The benchmark runs are provisional, as [Performance](/docs/en/project/performance/) explains.
+
+## v0.5.8, 2026-10-14
+
+Commit `bf147fb2c`, two commits after v0.5.7.
+
+The workspace version is now 0.5.8, and CI runs mutation testing only on demand. Nothing breaks for plugin authors. The crates are still not published (<Status issue={321} />).
+
+## v0.5.7, 2026-10-13
+
+Commit `4fe86dc75`, two commits after v0.5.6.
+
+The `xtask` check now refuses a literal that names any fixture destination directory. The other commit is the version bump. Nothing breaks for plugin authors, because this tag changes only the test tooling. What is missing is the same as in v0.5.8.
+
+## v0.5.6, 2026-10-13
+
+Commit `e57c49ebe`, seven commits after v0.5.5.
+
+Parity tests and fixtures now load oracle dumps, protocol goldens and data goldens through one fixture loader, which resolves them by name and checks their version. There are two new `xtask` checks. The first warns about vanilla claims that are tested against literals outside parity files. The second checks that parity tests compare against fixtures loaded by name. Nothing breaks for plugin authors. What is missing is the same as in v0.5.8.
+
+## How to follow the changes
+
+- Watch the tags. The repository has 11 of them, and the latest is v0.5.8.
+- Watch the list of [merged pull requests](https://github.com/andreypfau/mcrs/pulls?q=is%3Apr+is%3Amerged).
+- Watch the four direction issues in the [Roadmap](/docs/en/project/roadmap/).
+
+An RSS feed of this page is planned.
+
+<Aside type="caution" title="WIP">
+Entries are written by hand from `git log` and `gh pr list`. A person writes the "Breaking" lines after reading the pull request text, and no tool generates them. Generating them from conventional commits is planned.
+</Aside>

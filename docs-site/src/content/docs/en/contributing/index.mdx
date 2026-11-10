@@ -1,0 +1,123 @@
+---
+title: How to contribute
+description: Pick a role, learn the clean-room rule, build the project, and send a first pull request.
+sidebar:
+  order: 1
+kind: how-to
+audience: [contributor, jvm, rust]
+stability: stable
+sources:
+  - docs/clean-room.md
+  - README.md
+  - CONTRIBUTING.md
+  - .github/pull_request_template.md
+  - AGENTS.md
+  - .claude/agents/implementer.md
+  - .claude/agents/spec-author.md
+  - .claude/hooks/cargo-guard.sh
+  - pr:687
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: f50e2fdf6
+  date: 2026-11-10
+---
+import Status from '~/components/Status.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+mcrs takes pull requests from outside. This page helps you pick a role, explains what the clean-room rule asks of you, and follows a change from an issue to a merge.
+
+## Pick a role
+
+| Role | What you do | Read first |
+|---|---|---|
+| Specification author | Write the behavior of the game as rules in `docs/spec/`. You may read any source, the game's code included. | [Specs and parity](/docs/en/contributing/specs-and-parity/) |
+| Implementer | Write Rust code and tests from a specification. You never read the game's code. | [Clean-room](/docs/en/contributing/clean-room/) |
+| Parity tester | Compare our output with output the game produced, and report or fix a difference. | [Specs and parity](/docs/en/contributing/specs-and-parity/) |
+| Docs and translation | Write or translate pages of this site. | [Write these docs](/docs/en/contributing/docs/) |
+
+You can take a different role for each piece of work, but you cannot take two roles for the same behavior. The clean-room rule below is the reason.
+
+## What the clean-room rule asks
+
+mcrs implements the behavior of the game from specifications and never from the game's code. To keep it that way, two people do the two halves of the work.
+
+A specification author can read any source. The specification they write states behavior only, which means inputs, outputs, order, timing and constants. An implementer writes the code from that specification and reads only four things: `docs/spec/`, public player-facing documentation, artifacts the game produced, and the code of this repository. One person does not take both roles for the same behavior.
+
+The repository also holds no names of classes, methods or fields of the game's code. Six names are exempt because the community uses them as common terms: `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos` and `PalettedContainer`.
+
+The full rules are in [docs/clean-room.md](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md), and [Clean-room in practice](/docs/en/contributing/clean-room/) retells them.
+
+### If you have read the game's code
+
+Many Paper and Fabric developers read decompiled game code every day. That knowledge is useful here, because you can be the specification author for the behavior you know. If you read the game's code for some behavior, you do not write its code here by hand.
+
+You can still deliver the implementation by giving it to an AI agent. You read the specification and make sure that it is correct, and you make sure that the agent has no access to the game's code or to pieces of it. mcrs does not restrict AI contributions. We welcome them, provided that you know how the game is structured. [Clean-room in practice](/docs/en/contributing/clean-room/#if-you-have-read-the-games-code) has the conditions.
+
+These precautions make sure that nobody copies code or algorithms from the original game, or from modifications of it, by accident. If you are not sure whether you have read the code about a task, say so in the issue. Nobody will mind.
+
+## The path of a pull request
+
+1. Find or open an issue. A new game behavior needs two issues. The first asks for the specification, and the second asks for the implementation and cites the rule IDs of the specification. The section "A new behaviour" of `docs/clean-room.md` describes the pair.
+2. Write the specification, or implement an existing one. A test names the rule ID it checks.
+3. Run the tests with the commands below.
+4. Open a PR. The [pull request template](https://github.com/andreypfau/mcrs/blob/main/.github/pull_request_template.md) asks what you changed and why, how you checked it, and whether the docs are updated.
+5. Wait for CI, which runs `lint`, `clippy`, `test` and `portability`. [Build and test](/docs/en/contributing/build-and-test/) explains each of them.
+
+```bash
+cargo nextest run -p <crate>        # one crate
+cargo nextest run --workspace       # everything, before a commit
+cargo nextest run --profile full    # plus the exhaustive sweeps
+```
+
+These three commands come from the [README Development section](https://github.com/andreypfau/mcrs/blob/main/README.md#development). They need the `cargo-nextest` runner installed, and the first run downloads the game's client jar to get the data pack.
+
+<Aside type="caution" title="WIP">
+The detailed setup guide is not written yet. It will appear before the alpha for players. Until then use the [README Quick start](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start) and the technical notes linked from this section.
+</Aside>
+
+## Work with a coding agent
+
+The instructions for coding agents live in the repository. [AGENTS.md](https://github.com/andreypfau/mcrs/blob/main/AGENTS.md) is the instruction file for every agent, and `CLAUDE.md` is a link to it. It holds the rules that apply everywhere: layers, clean-room, style, tests and the path to `main`. The more specific material sits in four places.
+
+| Path | What is there |
+|---|---|
+| [.agents/skills](https://github.com/andreypfau/mcrs/tree/main/.agents/skills) | Skills that `AGENTS.md` names with "Load `<name>`", such as `rust-style`, `efficient-testing` and `ship`. `.claude/skills/` links to the same folders. |
+| [.agents/rules](https://github.com/andreypfau/mcrs/tree/main/.agents/rules) | One rule file per domain: `codec`, `memory`, `rendering` and `simulation`. The header of a rule lists the crate paths it covers. `.claude/rules/` links to them. |
+| [.claude/agents](https://github.com/andreypfau/mcrs/tree/main/.claude/agents) | The roles `implementer`, `spec-author` and `reviewer`. |
+| [.claude/hooks/cargo-guard.sh](https://github.com/andreypfau/mcrs/blob/main/.claude/hooks/cargo-guard.sh) | A Claude Code hook that rejects `cargo test`. [Build and test](/docs/en/contributing/build-and-test/) says why. |
+
+Claude Code loads the skills, the rules and the roles by itself. With another tool you do the same by hand. Where `AGENTS.md` says "Load `<name>`", read `.agents/skills/<name>/SKILL.md`. Before you edit a crate, read the rule of its domain. To give an agent a role, copy the text of that role from `.claude/agents/` into the brief of the agent.
+
+The agent roles keep the two clean-room roles apart. The `spec-author` writes behavior and no implementation code, and the `implementer` never reads decompiled, deobfuscated or mapped game code.
+
+## Docs go in the same PR
+
+If your change alters behavior that a page of this site describes, update the page in the same PR. A warning on the PR lists the pages whose `sources` files you touched, and it does not block the merge. [Write these docs](/docs/en/contributing/docs/) explains how to write a page.
+
+## Tasks for a first PR
+
+These six issues fit a first pull request. [First tasks](/docs/en/contributing/first-tasks/) says what each one asks for and which role it needs.
+
+- A bug: the outbound queue drops state packets.[^308]
+- Typed packets for cookies, transfer and chat.[^295]
+- A status ping example.[^290]
+- An echo chat bot over the network layer.[^293]
+- A packet inspector example.[^289]
+- A report of spec rules that no test names.[^507]
+
+## How fast is review
+
+By 2026-11-09, 26 pull requests from 5 authors other than the owner had been merged. The median time from opening to merge was about 12 hours. The fastest took about 40 minutes and the slowest about 5 days. The sample is small and one person reviews most of the work, so treat the numbers as a hint and not as a promise.
+
+You can repeat the count with `gh pr list -R andreypfau/mcrs --state merged --limit 300 --json number,author,createdAt,mergedAt` and then drop the PRs of `andreypfau`.
+
+## Where to ask
+
+Questions go to [Discord](https://discord.gg/ged3nMRzwG) or to the issue you work on. Decisions are recorded in issues with the label [decision](https://github.com/andreypfau/mcrs/issues?q=is%3Aissue+label%3Adecision).
+
+[^308]: <Status issue={308} /> The outbound queue drops normal and low packets past 256 entries.
+[^295]: <Status issue={295} /> Typed packets for cookies, transfer, custom query and player chat.
+[^290]: <Status issue={290} /> A status ping example against the embedded server.
+[^293]: <Status issue={293} /> An echo chat bot that uses the network layer only.
+[^289]: <Status issue={289} /> A packet inspector that decodes a recorded session without unknown packets.
+[^507]: <Status issue={507} /> Plans a report of the specification rules that no test checks.

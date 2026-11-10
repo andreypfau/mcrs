@@ -1,0 +1,73 @@
+---
+title: "Status: what works today"
+description: The one full table of what mcrs does and does not do, with a link to the issue for every gap.
+sidebar:
+  order: 3
+kind: reference
+audience: [observer, admin, jvm, contributor, rust, player]
+stability: changing
+tracking: [180, 181, 182]
+sources:
+  - docs-site/src/data/status.yml
+  - README.md
+  - issue:180
+  - issue:412
+  - issue:388
+  - issue:437
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 3540f457b
+  date: 2026-11-10
+---
+
+import Status from '~/components/Status.astro';
+import StatusRows from '~/components/StatusRows.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+This page is the only full status table in the docs, and other pages show a part of it. Each row has a date and either a check you can run or a section of PERF.md.
+
+## What the states mean
+
+| State | Meaning |
+|---|---|
+| <Status state="works" /> | A test you can run or a measurement in PERF.md shows it |
+| <Status state="partial" /> | Part works, and the rest is in an issue or a PR |
+| <Status state="wip" /> | It is not in the code or not finished, and an issue tracks it |
+| <Status state="undecided" /> | No decision yet. The plugin loader (jar, wasm, scripts) is in this state |
+| <Status state="declined" /> | A closed decision says no |
+
+<Aside type="note" title="Planned is a direction">
+An issue that says "planned" states a direction. It has no date and it is not a promise. The state of an issue also does not tell you the state of the code. A closed issue does not always mean done, and some features are partly in the code while their issue is still open.
+</Aside>
+
+## Status by area
+
+<StatusRows areas="worldgen,lighting,client,protocol,network,persistence,gameplay,commands,entities,physics,datapacks,molang,tools,library" />
+
+Performance numbers are in [PERF.md](https://github.com/andreypfau/mcrs/blob/main/PERF.md), each with the machine and the scenario. All of them were measured on one machine, an Apple M4 Max with macOS. We publish no comparison with vanilla, Paper or other servers.
+
+## What is not planned
+
+- Support for older game versions. mcrs targets one version at a time.[^412]
+- Datafixers. A save is read at exactly the targeted data version, and an unknown field is a loud error.[^388]
+- A facade or a Bukkit-like API crate.[^437] This decision covers only the facade. A plugin loader for jar, wasm or scripts has no decision yet.
+
+## How to follow progress
+
+You do not need to read code to follow the project.
+
+- All the work is visible in [the GitHub repository](https://github.com/andreypfau/mcrs).
+- To follow one issue, open it from the table and press Watch on the right. You need a GitHub account, and you get a mail when the issue changes.
+- The [latest code changes](https://github.com/andreypfau/mcrs/commits/main) and the [releases](https://github.com/andreypfau/mcrs/releases) are on GitHub too.
+- Questions and progress reports are on [Discord](https://discord.gg/ged3nMRzwG).
+- Three issues hold the direction: one for the library, one for many nodes and one for gameplay.[^180][^181][^182]
+- Decisions and their reasons are the issues with the label [`decision`](https://github.com/andreypfau/mcrs/issues?q=label%3Adecision).
+
+We check this page by hand once a month and on every new tag.
+
+[^412]: <Status issue={412} /> The decision to target one version at a time, with no backward compatibility.
+[^388]: <Status issue={388} /> The decision that saves are read at exactly the targeted data version, with no datafixers.
+[^437]: <Status issue={437} /> The decision that there is no facade or API crate, and the crates and plugins are the public surface.
+[^180]: <Status issue={180} /> The direction for mcrs as a library, from a proxy to a full server.
+[^181]: <Status issue={181} /> The direction for one dimension on many nodes for thousands of players.
+[^182]: <Status issue={182} /> The direction for vanilla gameplay and behavior tests on the scaling architecture.

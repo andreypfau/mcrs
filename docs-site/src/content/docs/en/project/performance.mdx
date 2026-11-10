@@ -1,0 +1,104 @@
+---
+title: Performance and how we measure
+description: The client and server numbers mcrs can show with their machine and scenario, how they were measured, and what is not measured yet.
+sidebar:
+  order: 2
+kind: explanation
+audience: [rust, jvm, admin, observer]
+stability: changing
+tracking: [324, 320]
+sources:
+  - PERF.md
+  - DECISIONS.md
+  - benchmarks/mob-bench/README.md
+  - issue:324
+  - issue:320
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+import { fact } from '~/lib/facts.mjs';
+import Status from '~/components/Status.astro';
+
+import { Aside } from '@astrojs/starlight/components';
+
+This page shows the client and server timings that mcrs can stand behind, explains how they were taken, and lists what nobody has measured yet. Every number comes from [PERF.md](https://github.com/andreypfau/mcrs/blob/main/PERF.md) and has its machine and scenario next to it. You will find no comparison with vanilla, Paper or any other server here. We do not publish one until the mob-bench benchmark described below runs on a quiet machine.
+
+## One machine produced every number
+
+All readings in `PERF.md` come from one machine: Apple M4 Max, 40 GPU cores, macOS, Metal. The main display is 3840x2160 at 60 Hz. The build is release, nightly Rust, Bevy 0.19.1, wgpu 29. Nothing was measured on Linux or Windows. A number from this page tells you what this machine did, and your machine will give other numbers.
+
+## How a reading is taken
+
+A figure is the median of the settled lines of a run. It is never one frame and never a mean, and the first ten seconds after launch are dropped. Two runs of the same scenario differ by about 0.1 ms on the wall frame and by 0.05 to 0.2 ms on a stage, so a change smaller than that is noise.
+
+We quote engine CPU time and not fps, and an empty scene shows why. On macOS the wall frame includes the swapchain acquire, the step that waits for the display. An empty scene reads 3.5 ms wall, and 2.8 ms of that is spent inside the acquire. The budget therefore binds on the engine figure, which is wall minus acquire, and on GPU pass timestamps. This is the first entry of `DECISIONS.md`.
+
+Engine time is read with `MCRS_HOT=1`. The knob keeps one core spinning, because the performance cores clock down while the frame sleeps. Without it the same empty frame reads 1.37 ms median and 4.0 ms p99, and with it 0.60 and 1.12. The knob is off by default, so a player at vsync pays the clock ramp. Both numbers are in `DECISIONS.md`, where each decision is one line with the numbers that justified it.
+
+The goal for engine CPU time is 1.0 ms (`PERF.md`, Budget). `PERF.md` marks a reading above its ceiling as "over the ceiling", and this page keeps those lines.
+
+## Client: the engine frame at 96 columns
+
+All three rows share one scenario: a 2560x1440 window, `MCRS_HOT=1`, the overlay hidden, the save `two-relight` and the default render distance of 96 columns. The source is `PERF.md`, section Hardening.
+
+| Scenario | Engine median / p99 / max | Note |
+|---|---|---|
+| Empty frame (no server, sky only) | 0.80 / 0.94 / 0.94 ms | The floor of the engine. |
+| 96 columns, standing | 1.12 / 1.33 / 1.33 ms | 38,025 columns and 295,511 sections resident. |
+| 96 columns, flight at maximum speed (`MCRS_FLY`), 120 s | 1.56 / 5.0 / 5.9 ms | The p99 tail is over the ceiling. Two known sources of the tail are not fixed. |
+
+The table leaves out three things you should know before you quote it.
+
+At 96 columns the GPU limits the frame, and the CPU does not. The GPU frame is 3.7 ms, above the 1.0 ms goal. The process holds about 12 GB, and the memory arenas sit at 50% of 4.3 GB. That reading is from `PERF.md`, Render distance, and it predates the occlusion pass, so the memory today can differ.
+
+The 96 column view takes about 80 s to settle with a 32 MB upload budget (`MCRS_UPLOAD=32`). With the 4 MB default it does not settle within four minutes.
+
+A settled view shows 0 KB of upload per frame. In flight the client uploads 300 to 450 KB per frame.
+
+## Server: start time and registry load
+
+| What | Reading | Scenario |
+|---|---|---|
+| Start to `Playing` | 0.769 s median of three runs (1.007, 0.769, 0.769 s) | Release `mcrs`, no world folder, default port, M4 Max. The machine was busy (load average 48 on 16 cores), so read it as an upper bound. The first run read the data pack cold. |
+| Registry load | 29.1 ms median, {fact('registries')} registries, {fact('registry_entries').toLocaleString('en-US')} entries | Same three runs. |
+
+The source is `PERF.md`, Server start. These two readings are a baseline, so a later start time on the same scenario counts as a regression.
+
+## What is not measured yet
+
+- Memory per loaded section and per entity component. The README used to promise it, and `PERF.md` has no such table. The number goes into `PERF.md` when a test counts it.[^324]
+- The cost of an idle server tick, and a count of overrun ticks.[^320] Today the server loop starts the next tick at once after an overrun, with no count and no warning.
+- Server tick time under load by players. A bot load exists in `crates/mcrs_minecraft_server/examples/tick_load.rs`, but its machine and conditions are not recorded, so we do not quote it.
+- Anything on Linux or Windows.
+
+## mob-bench has a method and no results yet
+
+`benchmarks/mob-bench` loads one server with 50,000 pigs and measures its tick, CPU use and the motion of the pigs. The harness is `tools/mob-bench`. It runs mcrs, a vanilla server of the same snapshot and one other Rust server through the same phases: idle, roaming, crowding, a stimulus (panic hits on some pigs) and the cost of the AI. Each phase runs with and without a connected client.
+
+This page shows no result of the benchmark, because the author marks the first session as provisional. Other builds ran on the machine at the same time, with a load average up to 84, so every window was contended. The README of the benchmark says official runs need a quiet machine.
+
+The full matrix takes about 2.5 hours on the M4 Max. To run it:
+
+```sh
+cargo build --release -p mcrs_mob_bench -p mcrs --bins
+MINECRAFT_EULA=true tools/mob-bench/run.sh
+```
+
+The other server needs its own checkout and files, described in the bench README.
+
+## Repeat a client reading
+
+```sh
+MCRS_STATS=5 ./target/release/mcrs_minecraft_client "<world folder>"
+```
+
+This command writes the F3 line to the log every five seconds with the overlay hidden. The knobs that shape a scenario (`MCRS_RESOLUTION`, `MCRS_SERVER`, `MCRS_FLY`, `MCRS_HOT`) are in [Environment variables](/docs/en/reference/env-vars/). They are not for normal play. Tracy captures need the `telemetry-tracy` feature.
+
+<Aside type="caution" title="WIP">
+A graph of these numbers, generated from `PERF.md`, is planned. Until then this page is updated by hand when `PERF.md` changes.
+</Aside>
+
+[^324]: <Status issue={324} /> Tracks pinning the size of components and counting section memory.
+[^320]: <Status issue={320} /> Tracks measuring the idle server tick and reporting overruns.

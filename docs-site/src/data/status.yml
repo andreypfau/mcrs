@@ -1,0 +1,182 @@
+# One row per area. state works needs an evidence command or a PERF.md section. Checked on commit 51d45c26a.
+- id: worldgen
+  title: { en: World generation, ru: Генерация мира }
+  works:
+    en: "Noise, surface, aquifers, carvers, features and structures. The output is compared element by element with dumps of the real game (about 14 of the {fixtures} entries in tools/fixtures.json belong to world generation). Presets normal and flat."
+    ru: "Шум, поверхность, аквиферы, карверы, фичи и структуры. Результат сравнивается поэлементно с дампами настоящей игры (около 14 из {fixtures} записей tools/fixtures.json относятся к генерации мира). Пресеты normal и flat."
+  missing:
+    en: "Parity is checked on reference seeds and chunks, not on every seed. Entities from generated structures are not done."
+    ru: "Совпадение проверено на эталонных сидах и чанках, а не на любом сиде. Сущности из сгенерированных структур не сделаны."
+  state: works
+  issues: [170, 523]
+  evidence: "cargo nextest run -p mcrs_minecraft_worldgen_generator -p mcrs_minecraft_worldgen_density (needs the client jar)"
+  verified: 2026-11-09
+
+- id: lighting
+  title: { en: Lighting, ru: Свет }
+  works:
+    en: "Sky light and block light from the light engine crates, with a bulk-load example."
+    ru: "Небесный и блочный свет в крейтах светового движка, есть пример массовой загрузки."
+  missing:
+    en: "Coloured block light exists but is not on by default."
+    ru: "Цветной блочный свет есть, но по умолчанию выключен."
+  state: partial
+  issues: [346]
+  evidence: "crates/mcrs_minecraft_vanilla_light/examples/bulk_load.rs"
+  verified: 2026-11-09
+
+- id: client
+  title: { en: Client and rendering, ru: Клиент и рендер }
+  works:
+    en: "Terrain, sky, clouds, light, mobs, the F3 overlay, chat and block breaking in creative. Render distance 96 columns by default."
+    ru: "Рельеф, небо, облака, свет, мобы, оверлей F3, чат и ломание блоков в креативе. Дальность по умолчанию 96 колонок."
+  missing:
+    en: "At 96 columns the GPU frame is 3.7 ms, above the 1.0 ms target, and the process holds 12 GB. Measured only on an Apple M4 Max with macOS. The web build hangs. No sound, particles or weather."
+    ru: "На 96 колонках GPU-кадр 3.7 мс при цели 1.0 мс, процесс держит 12 ГБ. Замеры только на Apple M4 Max и macOS. Веб-сборка зависает. Нет звука, частиц и погоды."
+  state: partial
+  issues: [337, 344, 129]
+  evidence: "PERF.md#render-distance"
+  verified: 2026-11-09
+
+- id: protocol
+  title: { en: Protocol, ru: Протокол }
+  works:
+    en: "Handshake, status, login, configuration and play. 71 of 144 clientbound and 52 of 69 serverbound play packets are typed."
+    ru: "Handshake, status, login, configuration и play. Типизировано 71 из 144 clientbound и 52 из 69 serverbound play-пакетов."
+  missing:
+    en: "The other play packets travel as raw bytes. Only one game version at a time; translation for older clients is planned."
+    ru: "Остальные play-пакеты идут сырыми байтами. Одна версия игры за раз, трансляция для старых клиентов только запланирована."
+  state: partial
+  issues: [295, 537]
+  evidence: "crates/mcrs_minecraft_protocol/src/packets/table.rs"
+  verified: 2026-11-09
+
+- id: network
+  title: { en: Network, ru: Сеть }
+  works:
+    en: "TCP with compression, status with MOTD and icon, transfer, LAN announce, whitelist and bans."
+    ru: "TCP со сжатием, status с MOTD и иконкой, transfer, LAN-анонс, whitelist и баны."
+  missing:
+    en: "No online mode and no encryption: anyone can join under any name. No proxy support (modern forwarding, BungeeCord, Velocity)."
+    ru: "Нет online mode и шифрования: любой входит под любым ником. Нет поддержки прокси (modern forwarding, BungeeCord, Velocity)."
+  state: partial
+  issues: [82, 296]
+  evidence: "crates/mcrs_minecraft_server/tests/it/login_handshake_e2e.rs"
+  verified: 2026-11-09
+
+- id: persistence
+  title: { en: Saving and Anvil, ru: Сохранения и Anvil }
+  works:
+    en: "Reads an existing Java Edition world. Players are saved when the server shuts down cleanly."
+    ru: "Читает существующий мир Java Edition. Игроки сохраняются при чистом выключении сервера."
+  missing:
+    en: "Changed chunks are not written back to disk. A world of another data version does not load, and there are no datafixers."
+    ru: "Измененные чанки на диск не пишутся. Мир другой версии данных не загружается, датафиксеров нет."
+  state: partial
+  issues: [78, 169]
+  evidence: "crates/mcrs_minecraft_server/tests/it/anvil_block_states.rs"
+  verified: 2026-11-09
+
+- id: gameplay
+  title: { en: Gameplay, ru: Геймплей }
+  works:
+    en: "Join, chat with a cancellable event before broadcast, game modes, block breaking in creative, random ticks, block events, block drops."
+    ru: "Вход, чат с отменяемым событием до рассылки, режимы игры, ломание блоков в креативе, случайные тики, блочные события, дропы блоков."
+  missing:
+    en: "Crafting, combat, redstone, fluids, plant growth, trading, bosses. No survival loop yet."
+    ru: "Крафт, бой, редстоун, жидкости, рост растений, торговля, боссы. Цикла выживания пока нет."
+  state: partial
+  issues: [182, 190]
+  evidence: "crates/mcrs_minecraft_server/tests/it/chat.rs"
+  verified: 2026-11-09
+
+- id: commands
+  title: { en: Commands, ru: Команды }
+  works:
+    en: "Command parser and tree, the commands packet and tab hints. {root_commands} vanilla commands, among them execute, gamemode, tp, summon, kill, data, time, fill, whitelist and ban."
+    ru: "Парсер и дерево команд, пакет commands и подсказки по Tab. {root_commands} команд ванили, среди них execute, gamemode, tp, summon, kill, data, time, fill, whitelist и ban."
+  missing:
+    en: "A command tree with permission levels is still open."
+    ru: "Дерево команд с уровнями прав пока открыто."
+  state: partial
+  issues: [285]
+  evidence: "crates/mcrs_minecraft_server/tests/it/commands.rs"
+  verified: 2026-11-09
+
+- id: entities
+  title: { en: Entities and mobs, ru: Сущности и мобы }
+  works:
+    en: "Entity rows by tile, 5 mob types with data (pig, cow, sheep, chicken, zombified piglin), pig AI, replication of mobs to clients."
+    ru: "Строки сущностей по тайлам, 5 типов мобов с данными (свинья, корова, овца, курица, зомби-свинолюд), ИИ свиней, репликация мобов клиентам."
+  missing:
+    en: "Most other mobs and their AI. The 50,000-pig benchmark is marked provisional by its author, so we publish no numbers from it."
+    ru: "Большинство остальных мобов и их ИИ. Бенчмарк на 50 000 свиней автор сам пометил как предварительный, поэтому его цифр мы не публикуем."
+  state: partial
+  issues: [102, 224]
+  evidence: "crates/mcrs_minecraft_server/tests/it/mob_ai.rs"
+  verified: 2026-11-09
+
+- id: physics
+  title: { en: Physics and movement, ru: Физика и движение }
+  works:
+    en: "Physics kernel with collisions and impulses, a movement check for players, comparison with recordings of the vanilla client. Results do not depend on the thread count. Teleport confirmation follows its specification, and scripted-client tests check it."
+    ru: "Ядро физики с коллизиями и импульсами, проверка движения игрока, сверка с записями ванильного клиента. Результат не зависит от числа потоков. Подтверждение телепорта работает по спецификации, его проверяют тесты со скриптовым клиентом."
+  missing:
+    en: "The shared player movement model is open. The teleport confirmation spec still has open questions, such as an accept of an older id when nothing is pending."
+    ru: "Общая модель движения игрока пока открыта. В спецификации подтверждения телепорта остались открытые вопросы, например accept старого id, когда ничего не ожидает подтверждения."
+  state: partial
+  issues: [85, 623]
+  evidence: "cargo nextest run -p mcrs_minecraft_engine_physics -p mcrs_minecraft_server tick_determinism"
+  verified: 2026-11-10
+
+- id: datapacks
+  title: { en: Data packs and registries, ru: Датапаки и реестры }
+  works:
+    en: "{registries} registries with {registry_entries} entries load from a data pack at start. Biomes and dimensions come from the pack without a rebuild."
+    ru: "{registries} реестров и {registry_entries} записей загружаются из датапака при старте. Биомы и измерения берутся из пака без пересборки."
+  missing:
+    en: "Reloading a data pack while the server runs."
+    ru: "Перезагрузка датапака на ходу."
+  state: works
+  issues: [316]
+  evidence: "PERF.md#server-start"
+  verified: 2026-11-09
+
+- id: molang
+  title: { en: Molang, ru: Molang }
+  works:
+    en: "Parser, compiler, scalar, batch and WGSL backends, and a corpus of Bedrock expressions for comparison."
+    ru: "Парсер, компилятор, скалярный, батч и WGSL бэкенды, корпус выражений Bedrock для сверки."
+  missing:
+    en: "New code, about a week old at the check date. No dedicated issue."
+    ru: "Новый код, на дату проверки ему около недели. Отдельной issue нет."
+  state: works
+  issues: [338]
+  evidence: "cargo nextest run -p mcrs_molang"
+  verified: 2026-11-09
+
+- id: tools
+  title: { en: Tools, ru: Инструменты }
+  works:
+    en: "One command moves the project to a new game snapshot. Also the vanilla oracle, mob bench, server bench, client recorder, Molang corpus and the xtask checks."
+    ru: "Одна команда переводит проект на новый снапшот игры. Еще oracle ванили, mob bench, server bench, client recorder, корпус Molang и проверки xtask."
+  missing:
+    en: "Some tools need Java 21 or newer, and the mob bench needs Java 25."
+    ru: "Часть инструментов требует Java 21 или новее, а mob bench требует Java 25."
+  state: works
+  issues: [507]
+  evidence: "tools/mcrs_minecraft_update/README.md"
+  verified: 2026-11-09
+
+- id: library
+  title: { en: Crates as a library, ru: Крейты как библиотека }
+  works:
+    en: "{crates} crates. CI checks that {crates_no_bevy} packages build without Bevy, {crates_no_std} without std and {crates_wasm32} for wasm32."
+    ru: "{crates} крейта. CI проверяет, что {crates_no_bevy} пакетов собираются без Bevy, {crates_no_std} без std и {crates_wasm32} под wasm32."
+  missing:
+    en: "Nothing is published on crates.io, there are no library examples, and the API is not stable."
+    ru: "На crates.io ничего не опубликовано, примеров библиотеки нет, API не стабилен."
+  state: partial
+  issues: [180, 287, 321]
+  evidence: "xtask/src/checks.rs (portability job in CI)"
+  verified: 2026-11-10

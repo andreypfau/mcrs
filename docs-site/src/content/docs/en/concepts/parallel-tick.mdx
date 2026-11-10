@@ -1,0 +1,104 @@
+---
+title: How a tick runs in parallel
+description: How mcrs runs work in parallel by the data it touches, with tiles, a frozen snapshot and one result on any thread count.
+sidebar:
+  order: 2
+kind: explanation
+audience: [jvm, contributor, rust]
+stability: changing
+tracking: [181, 190, 367, 364]
+sources:
+  - docs/physics-architecture.md
+  - docs/minecraft-bevy-sharding-architecture.md
+  - crates/mcrs_minecraft_server/tests/it/tick_determinism.rs
+  - crates/mcrs_minecraft_engine_physics/examples/state_hash.rs
+  - issue:367
+  - issue:364
+  - issue:181
+  - issue:190
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+import Status from '~/components/Status.astro';
+import Example from '~/components/Example.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+The vanilla server runs one game tick on one thread and walks the world and every entity in turn. Java forks move single jobs off that thread. mcrs asks of each piece of work what it reads and what it writes, and runs work that does not touch the same data at the same time. This page explains how that is built and which parts run in parallel today.
+
+## Systems that touch different data run together
+
+mcrs is built on Bevy ECS, short for entity component system. In an ECS, behaviour is a set of functions called systems, and each system is one transformation over every entity that has the data it names. Bevy runs two systems at the same time when their data access does not overlap, so you write no lock for this. The Bevy scheduler finds the conflicts when it builds the schedule graph. The compiler does not check them.
+
+System sets, which are named groups of systems, fix the order between the groups. The project also checks the schedule for ambiguity, as section 13 of [the sharding design note](https://github.com/andreypfau/mcrs/blob/main/docs/minecraft-bevy-sharding-architecture.md) describes. The tick is split into a few phases with few sync points.[^364]
+
+## Entities read a frozen snapshot and write their own row
+
+One system can still have a lot of entities to process, so the work inside it is split too. For entities mcrs uses the model from section 3 of [docs/physics-architecture.md](https://github.com/andreypfau/mcrs/blob/main/docs/physics-architecture.md):
+
+1. At the start of the tick, the engine freezes a snapshot of the state that other entities can see: the blocks as they were at the end of the previous tick, a grid of the bodies, and a table of positions.
+2. Space is cut into tiles of columns. Each tile is a task over the rows of the entities in it.
+3. Every entity reads only the snapshot and writes only its own row. Effects on other entities, such as a push or a pickup, are collected and applied later in a fixed order.
+
+No entity reads the new state of another entity in the same pass, so the tasks do not wait for each other and need no lock. The note calls this design Jacobi, because every row is computed from the old state. A task starts when the tasks it reads from are done. Small dependency counters track that, and the tasks run on the Bevy compute pool.
+
+## The result is the same on any thread count
+
+The collected effects are merged by a stable key, so the result does not depend on the machine. The key is the persisted UUID of the entity and never a network id, and it also breaks ties between entities.
+
+The project sorts determinism into three tiers:[^367]
+
+| Tier | Guarantee | Where it applies |
+|---|---|---|
+| Exact | The result equals the reference | World generation, the arithmetic of player movement, anything rolled from a seed stored in the save |
+| Independent of the scheduler | The same inputs give the same tick regardless of thread order | Everything else |
+| Free | Any order is allowed | Entities and systems that share no written data |
+
+Two checks hold this today. The first is the test `tick_determinism.rs`. It ticks a world of two cells for 60 ticks, once with every world inline on one thread and once with threads. It hashes the whole simulation state after every tick and fails at the first tick where the hashes differ.
+
+<Example file="crates/mcrs_minecraft_server/tests/it/tick_determinism.rs" from={"#[test]\nfn the_world_a_tick_produces_does_not_depend_on_the_threads"} title="The test: threads and inline must give the same world" />
+
+## Run the hash check yourself
+
+The second check is an example in the physics crate. It builds a benchmark scene of 50 000 walkers and 50 000 items on 32 x 32 tiles and prints a hash of the scene after N ticks:
+
+```sh
+cargo run --release -p mcrs_minecraft_engine_physics --example state_hash -- <threads> <ticks>
+```
+
+Run it with 1 thread and then with 8 threads, and the hash at the end of the line is the same. The example also prints the architecture, so you can compare two machines. The code is short:
+
+<Example file="crates/mcrs_minecraft_engine_physics/examples/state_hash.rs" from="fn main() {" to={"scene.step(&pool, tiles_per_task, &mut writes);\n    }"} title="state_hash: same scene, any number of threads" />
+
+The example checks the design and makes no claim about speed. It needs a nightly toolchain and is not part of the install guide, which is WIP.
+
+## What is parallel today and what is a goal
+
+| Area | State |
+|---|---|
+| Entity pass over tiles with a frozen snapshot, hash equal across thread counts | in the code, covered by the example and tests above |
+| Cells of one world ticking at the same time with halo exchange | in the code, covered by `tick_determinism.rs` |
+| Lighting and world generation on threads of their own, applied at a tick boundary | in the code |
+| Block simulation: scheduled ticks, block updates, shards | partly: kernels exist, shards that merge and split are <Status issue={160} /> |
+| Redstone | not started: <Status issue={190} /> |
+| One dimension on many machines | goal: <Status issue={181} /> |
+
+<Aside type="caution" title="WIP">
+Redstone and the many-node layout are directions and do not exist yet. Redstone will be semantic first, which means the results and delays match vanilla and the order inside a tick may differ.[^190] The exact order would come later as a change of one ordering policy. Do not plan a farm around it yet. Today the project has no redstone at all.
+</Aside>
+
+## A thing that does not change costs nothing
+
+Parallelism is one of two ideas behind the tick. The other is that work is proportional to change. A resting entity waits for an event and is not checked every tick, and a cell that has nothing to tick is skipped. Sparse changes over a large population go through an explicit work queue.[^365] Mob AI uses waits in place of per-tick checks.
+
+Two costs are not measured yet: an idle server tick and the memory per section.[^320][^324] The project publishes no mob benchmark numbers on this page. [Performance and how we measure](/docs/en/project/performance/) shows what PERF.md holds, with the machine and the scenario next to each number.
+
+Next: [Cells and the road to many nodes](/docs/en/concepts/scaling/).
+
+[^364]: <Status issue={364} /> The decision that the tick runs in phases with few sync points.
+[^367]: <Status issue={367} /> The decision that defines the three tiers of determinism.
+[^190]: <Status issue={190} /> Tracks redstone circuits that behave as in vanilla.
+[^365]: <Status issue={365} /> The decision that work is proportional to change.
+[^320]: <Status issue={320} /> Tracks the measurement of the idle server tick.
+[^324]: <Status issue={324} /> Tracks fixed component sizes and a count of section memory.

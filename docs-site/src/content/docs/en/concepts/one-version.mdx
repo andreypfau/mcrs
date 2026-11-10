@@ -1,0 +1,61 @@
+---
+title: One game version at a time
+description: Why mcrs targets a single Minecraft snapshot, how it moves to the next one, and what that means for old worlds and old clients.
+sidebar:
+  order: 4
+kind: explanation
+audience: [jvm, admin, contributor, rust]
+stability: changing
+tracking: [412, 388, 537]
+sources:
+  - assets/minecraft/version.json
+  - tools/mcrs_minecraft_update/README.md
+  - issue:412
+  - issue:388
+  - issue:537
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+import { fact } from '~/lib/facts.mjs';
+import Status from '~/components/Status.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+mcrs follows the newest Minecraft snapshot and supports exactly that one.[^412] Today it is {fact('snapshot')}.
+
+## The version lives in one file
+
+The file `assets/minecraft/version.json` is the only place that states the version. It is the file of the same name from the client jar, copied byte for byte, and the core crate embeds it. A test fails when a Rust, TOML or Gradle source file repeats one of its values, and the oracle tool reads the version from the same file. The world plugin refuses to start on a data pack whose `version.json` differs from the embedded one.
+
+## One command moves the project to the next snapshot
+
+```sh
+cargo run -p mcrs_minecraft_update -- <version id>
+```
+
+The command replaces the version file, the client jar descriptor, the generated reports and the block and item definitions, and it regenerates the captured fixtures that [Parity with vanilla](/docs/en/concepts/parity/) describes. It ports no code. Whatever the new snapshot changes in the Rust crates shows up as broken tests and printed diffs, and people fix those. So a move is mostly a data update, plus the port of the behaviour that really changed. The details are in [Move to a new snapshot](/docs/en/contributing/new-snapshot/) and in the [tool README](https://github.com/andreypfau/mcrs/blob/main/tools/mcrs_minecraft_update/README.md).
+
+## What you give up
+
+There are no datafixers, so mcrs does not upgrade old saves. A chunk or player file must carry the targeted `DataVersion`. When the value is missing or different, you get an error that names both numbers, because there is no migration chain.[^388] An unknown field in a file the game wrote is also a loud error, and mcrs does not keep such a field as raw bytes. Worlds written between an update and the ports that follow it are not worth keeping.
+
+The client must be the same snapshot as the server. A vanilla client of that snapshot can join in offline mode. A client of another version cannot, for now.
+
+The protocol crate holds the packets of one version and no older packet layouts, so the engine does no version negotiation.
+
+If you run a server for players, read [What mcrs is, and what it is not](/docs/en/start/what-is-mcrs/) first. For production the project points to Paper, Folia, Minestom and Velocity.
+
+## Support for older clients is planned
+
+Most players stay on releases, so a lobby or a proxy needs to accept their clients. A proposal in review adds a translator at the network edge.[^537] It is a chain of steps that converts frames between the client protocol and the targeted protocol, from the targeted version down to 1.21.6, which is protocol 771. The engine would still see only one version. Each step would list what it degrades, and a new snapshot would change only the newest step.
+
+<Aside type="caution" title="WIP">
+The translator is a decision in review and has no code.[^537] Saves and data packs of older versions stay refused.[^412]
+</Aside>
+
+[Status](/docs/en/start/status/) lists what works today for this snapshot.
+
+[^412]: <Status issue={412} /> The decision to target one version at a time, with no backward compatibility.
+[^388]: <Status issue={388} /> The decision that saves are read at exactly the targeted data version, with no datafixers.
+[^537]: <Status issue={537} /> The proposed decision that the network edge translates client protocols down to 1.21.6.

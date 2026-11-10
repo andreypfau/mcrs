@@ -1,0 +1,51 @@
+---
+title: Start here
+description: mcrs is Minecraft Java Edition written in Rust on Bevy ECS, as a set of crates. It is an early work in progress.
+sidebar:
+  order: 1
+kind: landing
+audience: [jvm, contributor, rust, admin, player, observer]
+stability: stable
+sources:
+  - README.md
+  - issue:437
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 3540f457b
+  date: 2026-11-10
+---
+import { fact } from '~/lib/facts.mjs';
+
+import Status from '~/components/Status.astro';
+import { Aside, Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import DocsFreshness from '~/components/DocsFreshness.astro';
+
+<DocsFreshness />
+
+mcrs is Minecraft Java Edition written in Rust on Bevy ECS. It is a server, a client and the {fact('crates')} crates they are built from.
+
+<Aside type="caution" title="Early WIP">
+The project is in active development and a lot is missing, including world saving, online mode and most of the gameplay. The world and the client already run.
+</Aside>
+
+## Why mcrs
+
+mcrs is not the Java server rewritten in Rust. It decides from scratch how the game should be built, and it starts with the engine. The page [Why mcrs: a new design, not a rewrite](/docs/en/start/philosophy/) explains each choice.
+
+## Pick where to start
+
+<CardGrid>
+  <LinkCard title="I write plugins in Java or Kotlin" description="There is no Bukkit-like API and no plugin loader. Read what you can do today." href="/docs/en/plugins/not-paper/" />
+  <LinkCard title="I want to contribute" description="Build, test, clean-room rules and first tasks." href="/docs/en/contributing/" />
+  <LinkCard title="I want to take crates" description={`${fact('crates')} crates by layer. Nothing is on crates.io yet.`} href="/docs/en/crates/overview/" />
+  <LinkCard title="I play or run servers" description="What mcrs is, what it is not, and who should look elsewhere." href="/docs/en/start/what-is-mcrs/" />
+</CardGrid>
+
+## Where the project stands
+
+World generation matches the real game on reference dumps, and the client renders that world. Chunks are not saved and there is no online mode.[^78][^82] We checked this on 2026-11-10 at commit `3540f457b`, against game snapshot {fact('snapshot')}. The [Status](/docs/en/start/status/) page has the full table.
+
+You can ask questions and read progress reports on [Discord](https://discord.gg/ged3nMRzwG).
+
+[^78]: <Status issue={78} /> Tracks saving changed chunks back to region files.
+[^82]: <Status issue={82} /> Tracks online mode: encryption and session authentication.

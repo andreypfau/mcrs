@@ -1,0 +1,92 @@
+---
+title: How the client renders
+description: How the client keeps geometry in GPU arenas, culls on the GPU against a depth pyramid, and draws mobs on the GPU with flat images for far ones.
+sidebar:
+  order: 2
+kind: explanation
+audience: [contributor, rust]
+stability: changing
+tracking: [16, 330, 337, 344, 506]
+sources:
+  - DECISIONS.md
+  - PERF.md
+  - docs/entity-render.md
+  - docs/entity-render-budget.md
+  - crates/mcrs_minecraft_render/src/arenas.rs
+  - crates/mcrs_minecraft_entity_render/src/lib.rs
+  - issue:330
+  - issue:337
+  - issue:344
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import Status from '~/components/Status.astro';
+
+This page is a map for a contributor who wants to read the renderer. It gives the idea of each part in a few lines and sends you to the notes that hold the rules and the numbers, so it does not repeat them.
+
+<Aside type="caution" title="WIP">
+The renderer is being restructured, and its notes are working notes that can change. They are not a stable contract yet. The restart is a series of tasks, from layouts shared by Rust and WGSL to tinted overlays folded into one sprite.[^16][^37] The result will be measured against the baseline from before the restructure.[^330] Expect this page to change with that work.
+</Aside>
+
+Two crates do the drawing. `mcrs_minecraft_render` draws the terrain and the sky, and `mcrs_minecraft_entity_render` draws the mobs. The renderer is layer 6 in the [crate map](/docs/en/crates/overview/), so it works on the data of the layers below and has no network, client or server code.
+
+## Terrain lives in a few large GPU buffers
+
+The renderer does not give each chunk its own buffer. It writes the meshes into a few large GPU buffers called arenas. There are three of them, and they hold quads, models and faces. An allocator packs blocks toward offset zero, and an arena grows in steps only as far as the highest byte in use. At 96 columns the arenas hold about 50% of 4.3 GB, which is 768 MB of quads, 2.5 GB of models and 1 GB of faces, and the whole terrain takes 7 draws. These numbers are from the Render distance section of PERF.md, measured on an M4 Max.
+
+One render system builds the whole frame. It does the uploads, resolves the timestamps, dispatches the cull, and runs a single render pass that holds the sky, the opaque terrain, the clouds and the blended terrain. DECISIONS.md records that this design took the frame from five encoders and six command buffers down to one encoder and two command buffers.
+
+## The GPU chooses what to draw
+
+Culling means leaving out geometry that the camera cannot see. In mcrs a compute pass on the GPU does this work, and the CPU does not. The pass tests each group of quads against the view and writes the draw arguments itself. At 96 columns the cull costs 0.46 to 0.49 ms on the GPU in the PERF.md scenarios, which run on an M4 Max with macOS at 2560x1440, with the GPU held at clock by `MCRS_GPU_HOT=16384`.
+
+## Occlusion is tested against the depth of the last frame
+
+A group can be inside the view and still hidden behind a hill. DECISIONS.md measured how often that happens: at 96 columns, 7.96 M of 15.3 M drawn triangles were behind the terrain of the last frame. The occlusion test removes those triangles. It works against a depth pyramid built from the last frame, and it runs in two passes.
+
+The first cull hides what the old pyramid hides, and it keeps the groups that only this test hides as candidates. The renderer then rebuilds the pyramid from the depth of the current frame, and a second cull brings back the candidates that are visible after all, in a second set of draws. Because of the second pass, nothing appears one frame late.
+
+The occlusion pass costs time even when there is nothing to draw, so it runs only when groups are resident. You can turn it off with `MCRS_OCCLUSION=0` to see what it buys. At 96 columns it takes the GPU frame from 6.0 ms down to 3.7 ms.
+
+## Mobs are posed and drawn on the GPU
+
+The design in `docs/entity-render.md` aims at 100,000 mobs in one world without a frame drop. That number is the goal of the note and is not a measured result. The note has a section for stress scenes and gates, and the numbers behind each size are in `docs/entity-render-budget.md`.
+
+The ECS holds the state of each mob, and the GPU holds a projection of that state in a persistent slot. The CPU writes a slot only when something changes, which means a packet, a tick or a script input. The GPU does the rest, and only for visible mobs: it culls, computes the poses, expands the faces and draws. The poses come from Molang, the expression language that the client entity definitions use, and `mcrs_molang_wgsl` lowers the Molang channels to WGSL shader code.
+
+The note defines three execution paths, and the renderer picks one at start from the capabilities of the graphics adapter.
+
+| Path | What it needs |
+|---|---|
+| Full | Compute shaders and vertex storage |
+| Compatibility | WebGPU compatibility mode |
+| Minimal | No compute, for WebGL2 |
+
+The web build itself does not reach a steady frame.[^344]
+
+## Far mobs are flat images
+
+A mob that is far away does not need its full rig, the set of bones that poses the model. For each pair of a model and a texture, the renderer bakes a small set of views. A set has 16 yaws and 9 elevations at 64 by 64 texels and takes about 4.7 MB. A far mob is then drawn as an impostor, which is one quad that shows the nearest view. The renderer bakes a set lazily, when a model and a texture first appear on an active mob. Full rigs have a cap, and impostors have none. The note records the cost of each step and the choices that did not help.
+
+## Where the rules and the numbers are
+
+| Topic | File |
+|---|---|
+| Why the renderer works as it does, with numbers | [`DECISIONS.md`](https://github.com/andreypfau/mcrs/blob/main/DECISIONS.md) |
+| Frame times, memory and the method | [`PERF.md`](https://github.com/andreypfau/mcrs/blob/main/PERF.md) |
+| Entity rendering design | [`docs/entity-render.md`](https://github.com/andreypfau/mcrs/blob/main/docs/entity-render.md) |
+| Workload model and budget of entities | [`docs/entity-render-budget.md`](https://github.com/andreypfau/mcrs/blob/main/docs/entity-render-budget.md) |
+| What the client can do today | [The client today](/docs/en/client/overview/) |
+
+Two more pieces of work are planned: a bound on memory at 96 columns, and rendering inside a host application that owns the window and the camera.[^337][^506]
+
+[^16]: <Status issue={16} /> The first task of the renderer restart: layouts declared once for Rust and WGSL.
+[^37]: <Status issue={37} /> The last task of the renderer restart: tinted overlays folded into one sprite.
+[^330]: <Status issue={330} /> Tracks the measurement of the deferred renderer against the pre-restructure baseline.
+[^344]: <Status issue={344} /> Tracks a web client that reaches a steady frame.
+[^337]: <Status issue={337} /> Tracks a bound on the client's memory at 96 columns.
+[^506]: <Status issue={506} /> Tracks rendering that embeds in a host app, which owns the window and the camera.

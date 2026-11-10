@@ -1,0 +1,92 @@
+---
+title: Specification index
+description: Where each domain of game behavior is specified in docs/spec, which rule id prefix it uses, and how to read the provenance labels.
+sidebar:
+  order: 4
+kind: reference
+audience: [contributor, rust]
+stability: stable
+sources:
+  - docs/spec/README.md
+  - docs/spec/registry.md
+  - docs/clean-room.md
+  - docs/spec/block-placing.md
+  - docs/spec/teleport-confirmation.md
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: f50e2fdf6
+  date: 2026-11-10
+---
+import { fact } from '~/lib/facts.mjs';
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside type="note" title="Written for AI agents and spec authors">
+The files in `docs/spec/` are written for AI agents and for the people who write specifications. They follow the rules of ASD-STE100 Simplified Technical English, as `docs/spec/README.md` says. That is why they are exact and dry. Use this page to find the right file, then read the file itself.
+</Aside>
+
+Each file in [docs/spec](https://github.com/andreypfau/mcrs/tree/main/docs/spec) states the behavior of one domain as data, which means its inputs, outputs, order, timing and constants. A spec never describes the shape of game code. Specs are also the only source of game behavior that an implementer may read for a rule, as the [clean-room rule](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md) requires.
+
+Some spec headers still name `26.4-snapshot-4` as the game version. The project follows <code dir="auto">{fact('snapshot')}</code>, which is set in `assets/minecraft/version.json`.
+
+## Files by domain
+
+A rule id such as `CMD-TP-013` has a domain prefix, a topic and a number. Tests and issues cite rules by these ids. In the table, `*` stands for the topic part.
+
+| Domain | Files in `docs/spec/` | Id prefix |
+|---|---|---|
+| Login, status, compression | `login.md`, `status.md`, `compression.md` | `LOGIN`, `STATUS`, `FRAME` |
+| Whitelist and bans | `whitelist.md`, `bans.md` | `WL`, `BAN` |
+| Commands: parser, tree, permissions | `command-parser.md`, `commands-packet.md`, `command-permissions.md`, `argument-*.md` (block, coordinates, entity, keywords, resource) | `CMD`, `CMDP`, `PERM`, `ARG-*` |
+| Commands: each command | `command-execute.md`, `-gamemode.md`, `-teleport.md`, `-locate.md`, `-kill.md`, `-damage.md`, `-time.md`, `-fill.md`, `-forceload.md`, `-gamerule.md`, `-weather.md`, `-tick.md` | `CMD-*` |
+| Registries and data packs | `registry.md`, `registry-fields.md`, `environment-attributes.md` | `REG-*`, `ENVA` |
+| Text formats and numbers | `snbt.md`, `numeric.md` | `SNBT`, `NUM` |
+| World generation support | `heightmap.md` | `HM` |
+| Block simulation, breaking and placing | `block-simulation.md`, `block-breaking.md`, `client-block-breaking.md`, `block-placing.md` | `SIM`, `BRK-*`, `PLC-*` |
+| Player movement | `movement-checks.md`, `teleport-confirmation.md`, `dimension-change.md` | `MVC-*`, `TP-CONFIRM-*`, `DIM` |
+| Entities: physics, damage, tracking, geometry | `entity-physics.md`, `entity-damage.md`, `entity-tracking.md`, `entity-geometry.md`, `entity-animation.md`, `entity-ai-timing.md` | `PHY`, `DMG`, `TRK`, `EGEO`, `EANIM`, `AIT` |
+| Mobs: goals, pathfinding, species | `mob-goals.md`, `mob-combat-goals.md`, `pathfinding.md`, `mob-animals.md`, `mob-pig.md`, `mob-wolf.md`, `mob-llama.md`, `mob-frog.md` | `GOAL`, `CGOAL`, `PATH`, `ANIM`, `MPIG`, `WOLF`, `LLAMA`, `MFROG` |
+| Molang | `molang.md`, `molang-queries.md` | `MOL`, `MOLQ` |
+| Client: world and entities | `client-camera.md`, `client-entities.md`, `client-entity-definition.md`, `client-entity-render.md`, `client-frame-capture.md` | `CCAM`, `CENTS`, `CENT`, `CEREN`, `CFC` |
+| Client: GUI, chat, commands | `client-chat.md`, `client-commands.md`, `client-gui-sprite.md`, `client-tooltip.md` | `CHAT`, `CCMD`, `GSPR`, `TIP` |
+| Block models and light | `block-model-resolution.md`, `block-face-bake.md`, `block-entity-models.md`, `block-smooth-light.md` | `BMR`, `BFB`, `BEM`, `BSL` |
+
+Most specs list their own id prefixes in a table near the top. When that table and this page differ, the table in the file is the full list.
+
+The `docs` folder also has notes next to the specs, for example [docs/command-dimensions.md](https://github.com/andreypfau/mcrs/blob/main/docs/command-dimensions.md) and [docs/entity-render.md](https://github.com/andreypfau/mcrs/blob/main/docs/entity-render.md). Those are working notes, not specs.
+
+## How to read a rule
+
+A rule has a heading with its id, a behavior section, and a provenance line:
+
+```text
+Provenance: source_suggested. Kind: semantic. Confidence: medium. Experiment: ...
+```
+
+Provenance says where the rule comes from. Section 0.3 of `docs/spec/registry.md` defines the labels.
+
+| Label | Meaning |
+|---|---|
+| `black_box_confirmed` | Shown by an artifact that the game produced, cited by path. |
+| `source_suggested_black_box_confirmed` | Taken from the reference behavior and consistent with a cited artifact. |
+| `source_suggested` | Taken from the reference behavior with no artifact yet. Confidence is at most medium and an experiment is attached. |
+| `documentation` | Public, player-facing documented behavior. |
+| `design` | An mcrs choice. The rule states why. |
+| `unresolved` | Not decided. Collected in a section at the end of the file. |
+
+Kind says how exact the rule must be.
+
+| Kind | What the rule fixes |
+|---|---|
+| `wire` | The bytes and ids that the vanilla client decodes. |
+| `client agreement` | The server must agree with the client. |
+| `semantic` | The meaning and the result, but not the internal order. |
+| `layout` | GUI positions and sizes. |
+| `deviation` | The reference has a defect, and the rule states the correct behavior. |
+| `unspecified` | A parity test must not compare it. |
+
+A file also has an "Intentional deviations" section, which records where mcrs differs from vanilla on purpose. Each entry gives the rule id, the reference behavior, whether the client sees the difference, and what a test does about it.
+
+`registry.md` says that none of its experiments has been run. So treat a `source_suggested` rule as a claim that has no game artifact behind it yet.
+
+Next: [How to contribute](/docs/en/contributing/) explains how a contributor writes and reads specs, and [Parity](/docs/en/concepts/parity/) explains how parity tests use them.

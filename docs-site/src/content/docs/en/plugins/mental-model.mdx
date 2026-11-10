@@ -1,0 +1,117 @@
+---
+title: From objects to data
+description: The three shifts a Java developer needs before writing an mcrs plugin - data instead of objects, no global server, parallel by data access.
+sidebar:
+  order: 2
+kind: explanation
+audience: [jvm, observer, rust]
+stability: changing
+tracking: [367, 357, 323]
+sources:
+  - crates/mcrs_minecraft_engine/src/ability.rs
+  - crates/mcrs_minecraft_server/tests/it/tick_determinism.rs
+  - crates/mcrs_minecraft_server/tests/it/schedule_ambiguity.rs
+  - docs/physics-architecture.md
+  - issue:367
+  - issue:357
+  - issue:323
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+
+import Status from '~/components/Status.astro';
+import Demo from '~/components/Demo.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+mcrs is built on Bevy ECS, short for entity component system. If you have written plugins for Paper or Minestom, most of what you know about Minecraft still applies. Three habits do not carry over, and this page goes through them one at a time.
+
+## A player is a row in a table
+
+In Paper a player is an object. You hold a `Player`, read its fields and call its methods:
+
+```java
+for (Player p : world.getPlayers()) {
+    if (p.getGameMode() == GameMode.CREATIVE) {
+        log.info(p.getName());
+    }
+}
+```
+
+mcrs has no player object. A player is an `Entity`, and an `Entity` is only an id. Everything the server knows about that player sits in components attached to the id: `GameProfile` holds the name and the UUID, `PlayerGameMode` holds the game mode. The code that works with components is an ordinary function, called a system. Here is the same loop as a system (a sketch to show the shape; the tutorials use code from the repository):
+
+```rust
+fn log_creative_players(players: Query<(&GameProfile, &PlayerGameMode), With<Player>>) {
+    for (profile, mode) in &players {
+        if mode.0 == GameMode::Creative {
+            info!("{}", profile.username);
+        }
+    }
+}
+```
+
+It helps to picture a database. An entity is a row, a component is a column, and a system is a query over every row that has the columns it asks for. The `Query` above reads like `SELECT profile, mode FROM entities WHERE has(Player)`.
+
+The table below maps what you would reach for in Java to its closest relative here. The rows are analogies to get you started. [Paper and Minestom in mcrs terms](/docs/en/plugins/paper-to-mcrs/) has the full lookup table.
+
+| Java | ECS in mcrs |
+|---|---|
+| `class Player extends LivingEntity` | An `Entity` id with components such as `Player`, `GameProfile`, `PlayerGameMode` |
+| A field `player.gameMode` | The component `PlayerGameMode` on that entity |
+| A method `player.fly()` | A system that reads and writes `PlayerFlying` |
+| `for (Player p : world.getPlayers())` | `Query<(&GameProfile, &PlayerGameMode), With<Player>>` |
+| A reference to a player kept in a field | The `Entity` id kept in a component or a resource |
+| `Bukkit.getServer()` | System parameters: `Res<T>`, `Query<..>`, `Commands` |
+| A `Listener` method | An observer function `fn(e: On<Event>)`, or a system |
+| `runTaskTimer` | A system in `FixedUpdate`, which runs 20 times per second |
+
+Your own plugin data follows the same rule. Put it in components and resources, and when you need to remember a player, keep the `Entity` id and look the player up again when you use it. The components for game mode, flying and operator level are in [ability.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_engine/src/ability.rs).
+
+## There is no `Bukkit.getServer()`
+
+mcrs has no static entry point. A system lists what it needs as parameters, and Bevy passes those values in each time it runs the system: `Res<T>` for a shared resource, `Query<..>` for entities, `Commands` to create or change them.
+
+If you have used dependency injection, you already know this pattern. The function signature plays the part of the constructor and the Bevy scheduler plays the part of the container. The signature also tells you, and Bevy, exactly what a system reads and what it writes. The next section depends on that.
+
+## There is no main thread
+
+Bevy compares the signatures of your systems. Two systems that touch different data run at the same time, and you write no code for it. Two systems that write the same data conflict, so you tell Bevy which one goes first with `.before()` or `.after()`. Bevy finds these conflicts when it builds the schedule at startup. The Rust compiler does not catch them.
+
+You never call `Bukkit.getScheduler().runTask(...)` to get back to the main thread, because there is no such thread. The model also differs from Folia. Folia splits the world into regions by position, while mcrs splits the work by the data each system touches.
+
+Each dimension is a separate world, and the dimensions tick in parallel. Time, weather and game rules are shared between them, so that data has one writer and every dimension reads a snapshot of it.[^357] When one dimension needs something from another, it sends a message.
+
+<Aside type="caution" title="Register dimension plugins with add_dimension_plugin">
+A plugin that needs to see players and blocks must run inside a dimension. Add it with `add_dimension_plugin`. If you add it with `app.add_plugins`, it goes to the main app, where there are no players and no blocks. The plugin type must also implement `Clone`, because every dimension gets its own copy. [Your first plugin](/docs/en/plugins/first-plugin/) shows the whole setup.
+</Aside>
+
+The demo below runs the same herd of cows twice, once in vanilla order and once in mcrs order.
+
+<Demo src="/docs/demos/cows.html" title="Cows: the same tick, vanilla order and mcrs order" footnote="The demo is in Russian only for now. It shows the idea with a simplified model and does not run the real scheduler." />
+
+## The same input gives the same result
+
+Parallel code usually raises one worry: will two runs give two different worlds? In mcrs the result of a tick does not depend on how many threads ran it. When two entities compete for the same thing, a stable key such as arrival order or entity id picks the winner, so thread timing never does.
+
+How strict the guarantee is depends on the part of the game. The project defines three tiers:[^367]
+
+| Tier | Guarantee | Examples |
+|---|---|---|
+| Exact | The result equals the reference game | World generation, the order of block updates, player movement arithmetic |
+| Independent of the scheduler | The same inputs give the same tick in any thread order | Most other things |
+| Free | Order has no effect, because nothing shares written data | Entities and systems that write only their own data |
+
+Outside the exact tier, mcrs matches the distributions of the reference game's random numbers and does not reproduce its exact sequences.
+
+For your plugin this comes down to one rule. If one of your systems must run before another, say so with `.before()` or `.after()`, and never rely on the order you happen to observe. CI runs the simulation schedules with ambiguity detection set to error, so an unordered conflict fails a test.[^323] The tests are [tick_determinism.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server/tests/it/tick_determinism.rs) and [schedule_ambiguity.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server/tests/it/schedule_ambiguity.rs).
+
+## A panic does not stop the server
+
+The server installs a fallback error handler in [src/main.rs](https://github.com/andreypfau/mcrs/blob/main/src/main.rs). When a system panics, the handler logs the panic and the server keeps running. This is close to an uncaught exception in a Bukkit event handler.
+
+Next: [Rust for Java developers](/docs/en/plugins/rust-for-java/).
+
+[^357]: <Status issue={357} /> The decision that global mutable state has one writer.
+[^367]: <Status issue={367} /> The decision that defines the three tiers of determinism.
+[^323]: <Status issue={323} /> Simulation schedules fail on an ambiguous system order.

@@ -1,0 +1,86 @@
+---
+title: "Intercept chat: cancel and rewrite"
+description: Observe PlayerChatEvent in a dimension world, cancel a chat line or replace its text.
+sidebar:
+  order: 6
+kind: tutorial
+audience: [jvm, rust]
+stability: changing
+tracking: [283, 636]
+sources:
+  - crates/mcrs_minecraft_chat_server/src/chat_plugin.rs
+  - crates/mcrs_minecraft_server/tests/it/chat.rs
+  - pr:636
+  - issue:283
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+
+import Status from '~/components/Status.astro';
+import Example from '~/components/Example.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+This tutorial shows how a plugin cancels a chat line or replaces its text. Chat is the first public player event of mcrs and, for now, the only one. It is the first merged part of the planned public, cancellable player events, and events for join, leave, movement and blocks do not exist yet.[^283][^pr636] The examples come from test files of the repository, and we did not run them outside those tests.
+
+## The event has three fields
+
+The server raises `PlayerChatEvent` for a chat line before it broadcasts the line.
+
+<Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" from={"#[derive(Event, Debug)]\npub struct PlayerChatEvent"} title="PlayerChatEvent" />
+
+| Field | Meaning |
+|---|---|
+| `player` | the entity of the sender, in the world of the sender's dimension |
+| `text` | the line as a `Text`, not a `String`; change it to rewrite the line |
+| `cancelled` | set it to `true` and the line is not broadcast |
+
+`Text` is the styled text type of the protocol, so a line can carry colors and components. To make a `Text` from a string, use `into_text()`, as the tests do.
+
+## Which lines raise the event
+
+The server checks a line first and raises the event only when the line passes, so the event comes after the checks and before the broadcast.
+
+| Line | What the server does |
+|---|---|
+| Has an illegal character | Raises no event and logs that it dropped the line |
+| Comes from a player who hides chat | Raises no event and sends the player the "chat disabled" message |
+| Any other line | Raises the event in the dimension world of the sender. After the observers ran, it reads `cancelled` and `text` and broadcasts |
+
+<Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" from="let text = msg.to_string().into_text();" to="    })" title="Raise the event, then broadcast" />
+
+The trigger runs in a queued command. Because of that, the broadcast happens right after `handle_chat` ends and not inside it.
+
+## Cancel a line
+
+In Paper you call `setCancelled(true)` on `AsyncChatEvent`. Here you write an observer, which is a function with the parameter `On<PlayerChatEvent>`, and set the field in it.
+
+<Example file="crates/mcrs_minecraft_server/tests/it/chat.rs" from={"#[test]\nfn an_observer_that_cancels_a_chat_line_stops_its_broadcast"} title="Test: an observer cancels a line" />
+
+## Replace the text
+
+Set `event.text` to a new `Text`, and the broadcast uses it. The test below also reads `event.player` to show who spoke.
+
+<Example file="crates/mcrs_minecraft_server/tests/it/chat.rs" from={"#[test]\nfn an_observer_that_replaces_a_chat_line_changes_its_broadcast"} title="Test: an observer rewrites a line to ***" />
+
+## Put the observer in a dimension plugin
+
+Chat runs inside each dimension world, so the observer has to be in the dimension world as well. The tests add it to the world directly with `server.world().add_observer(...)`. In a real server, put `app.add_observer(...)` into the `build` method of a `Clone` plugin and register the plugin with `add_dimension_plugin`. `ChatPlugin` itself does the same for its own observer:
+
+<Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" from="impl Plugin for ChatPlugin" title="ChatPlugin adds its observer in build" />
+
+[Your first plugin](/docs/en/plugins/first-plugin/) explains why `add_plugins` does not work here.
+
+<Aside type="caution" title="WIP: open questions from PR 636">
+The pull request that added the event leaves three points open.[^pr636] The first is where the event should live, because it is in `mcrs_minecraft_chat_server` while the plan for player events says "raised by the engine".[^283] The second is observer order. Bevy has no priority for observers, so two plugins that rewrite one line give a result that depends on the order. The third is the length of replaced text, because the 256-character limit is on the packet and a plugin can set a longer text.
+</Aside>
+
+## Run the tests
+
+The command that runs the repository tests is `cargo test -p mcrs_minecraft_server --test it chat::`.[^pr636] To write your own test, see [Test a plugin without a client](/docs/en/plugins/testing/).
+
+Next: [Add a command](/docs/en/plugins/commands/) covers `CommandEvent`, the event of commands with the same `cancelled` field. [Paper to mcrs](/docs/en/plugins/paper-to-mcrs/) has the table of other Paper events and what mcrs has for them.
+
+[^283]: <Status issue={283} /> Tracks public player events that a plugin can cancel.
+[^pr636]: <Status pr={636} state="works" /> Raises a cancellable event for a chat line before its broadcast.

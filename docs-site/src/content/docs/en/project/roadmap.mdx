@@ -1,0 +1,78 @@
+---
+title: Roadmap
+description: The four directions mcrs is heading in, what exists of each today and what is missing. A direction, not a commitment.
+sidebar:
+  order: 1
+kind: reference
+audience: [observer, contributor, jvm, admin]
+stability: changing
+tracking: [180, 181, 182, 566]
+sources:
+  - issue:180
+  - issue:181
+  - issue:182
+  - issue:566
+  - issue:437
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 3540f457b
+  date: 2026-11-10
+---
+import { fact } from '~/lib/facts.mjs';
+
+import Status from '~/components/Status.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+This page describes the four long-term directions of mcrs and, for each one, what already exists and what is still missing. It is for anyone who wants to know where the project is going before they depend on it or contribute to it.
+
+<Aside type="caution" title="A direction, not a commitment">
+This page says where the project wants to go. It has no dates. Everything marked WIP below is a goal written in an issue. It is not in the code yet unless the text says so. For what runs today, read [Status](/docs/en/start/status/).
+</Aside>
+
+## Four issues set the direction
+
+The project has no tracking epics in the usual sense. Four open issues with the title "Direction:" play that role. Each carries a `direction:*` label and links to the work under it.
+
+### mcrs as a library, from a proxy to a full server
+
+A proxy, a bot, a lobby, a minigame, a world map and a full server need different prefixes of the same layers, and none of them should pay for a layer it does not use.[^180] The issue defines seven layers, and each layer depends only on the layers below it. From the bottom they are data and wire, network, game data, engine, vanilla, rendering and applications. Every `pub` item in layers 1 to 4 is a commitment to users.
+
+Today the repository has {fact('crates')} crates. In CI, {fact('crates_no_bevy')} of them build without Bevy, {fact('crates_no_std')} build without `std` and {fact('crates_wasm32')} build for `wasm32`. The lists are in `xtask/src/checks.rs`. The crates are not published yet, and the examples of the library are still open in the milestone "Library examples".[^321]
+
+There is no facade or API crate and none is planned. The public surface is the vocabulary crates, the plugins with their system sets, and the components, resources and messages that those plugins own.[^437] A loader for plugins that are not compiled into the server, such as a jar, wasm or scripts, has no decision yet.
+
+### One dimension on many nodes for thousands of players
+
+The target is ten thousand players in one dimension with the unmodified vanilla client, with a bounded number visible to each client.[^181] The issue describes the shape of such a system. Clients talk only to an edge that holds each connection for the whole session. Simulation is split into shards that own related work. Nodes own chunks and their shards, and a coordinator owns the map of chunks to nodes and the global state. Results must not depend on thread count or shard layout.
+
+Today worlds tick as parallel cells behind a muxer thread with a shared data layer, on one machine.[^pr646] A setup across more than one machine does not exist, and no player count has been measured. Redstone is not built.
+
+### Vanilla gameplay and behavior tests on that architecture
+
+Vanilla behavior is the largest body of work.[^182] The issue builds it as removable plugins over the engine. It wants each mechanic proved by a behavior test, and the expected result of that test must come from a vanilla test server and not from our own reading of code. Exact behavior, which covers the protocol, saves, player movement and world generation, is compared tick for tick. Semantic behavior, which covers redstone, fluids and neighbor updates, is compared on the outcome.
+
+What exists today is in [Status](/docs/en/start/status/). The gameplay milestones from "Redstone" to "Advancements and statistics" (17 of them) have no closed issue.
+
+### Library code without shared ownership, locks, trait objects or hot-path allocation
+
+The library crates should run in a proxy, a bot, a web client and a test without an engine.[^566] The issue sets a target for layers 1 to 4. They should have no `Arc` or `Rc`, no `Mutex`, `RwLock`, `RefCell` or `Cell` in data types, no `dyn` or `Any`, and no allocation on hot paths. When the issue was written, `Arc` appeared in 119 source files. The README line "no Arc, no Mutex" states this goal, and the code does not meet it yet.
+
+## Milestones give a rough map
+
+The milestones live on the [GitHub milestones page](https://github.com/andreypfau/mcrs/milestones), with live counts of open and closed issues. A closed issue is not always "done", and an open issue is not always "no code", so read the counts as a rough map.
+
+## How to follow the work
+
+- Watch the four direction issues above.
+- Read the [News](/docs/en/project/news/) page after each tag.
+- Filter issues by label: `decision` for decisions, `needs-decision` for open ones.
+
+This page is refreshed by hand when a tag is cut.
+
+[^180]: <Status issue={180} /> The direction for mcrs as a library, from a proxy to a full server.
+[^321]: <Status issue={321} /> Tracks making the protocol, network and game data crates ready to publish.
+[^437]: <Status issue={437} /> The decision that there is no facade or API crate, and the crates and plugins are the public surface.
+[^181]: <Status issue={181} /> The direction for one dimension on many nodes for thousands of players.
+[^pr646]: <Status pr={646} state="works" /> Worlds tick as parallel cells behind a muxer and a shared data layer.
+[^182]: <Status issue={182} /> The direction for vanilla gameplay and behavior tests on the scaling architecture.
+[^566]: <Status issue={566} /> The direction for library code without shared ownership, locks, trait objects or hot-path allocation.

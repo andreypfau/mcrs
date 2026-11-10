@@ -1,0 +1,18 @@
+---
+import Default from "@astrojs/starlight/components/PageSidebar.astro";
+const label = Astro.locals.t("mcrs.sidebar.toggle");
+---
+<button type="button" class="mcrs-toc-toggle" aria-label={label} title={label}>
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5" /></svg>
+</button>
+<Default><slot /></Default>
+<script is:inline>
+  (function () {
+    var k = "mcrs-toc-collapsed", h = document.documentElement;
+    if (localStorage.getItem(k) === "1") h.setAttribute("data-toc-collapsed", "");
+    document.querySelector(".mcrs-toc-toggle").addEventListener("click", function () {
+      var c = h.toggleAttribute("data-toc-collapsed");
+      localStorage.setItem(k, c ? "1" : "0");
+    });
+  })();
+</script>

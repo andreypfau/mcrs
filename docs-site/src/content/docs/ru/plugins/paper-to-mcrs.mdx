@@ -1,0 +1,99 @@
+---
+title: Paper и Minestom в терминах mcrs
+description: Таблица соответствий от понятий Paper, Velocity и Minestom к mcrs и Bevy, с состоянием каждой строки.
+sidebar:
+  order: 4
+translated_from: 51d45c26a
+---
+
+import Status from '~/components/Status.astro';
+import { Aside } from '@astrojs/starlight/components';
+
+Эта страница - справочная таблица для тех, кто знает Paper, Velocity или Minestom. Найдите знакомое название, и строка покажет, что ближе всего к нему в mcrs и в каком это состоянии сегодня. Если слова "сущность" и "система" вам незнакомы, сначала прочтите [От объектов к данным](/docs/ru/plugins/mental-model/).
+
+<Aside type="caution" title="Каждая строка - аналогия">
+Ни одна строка не дает готовой замены, потому что Bukkit-подобного API в mcrs нет, как объясняет страница [Это не Paper API](/docs/ru/plugins/not-paper/). Строка со статусом wip - это запланированная возможность, на которую есть issue, но еще нет кода. У строки со статусом undecided нет ни issue, ни решения.
+</Aside>
+
+## Жизненный цикл
+
+| JVM | mcrs | Состояние | Заметки |
+|---|---|---|---|
+| `JavaPlugin`, `onEnable` | `impl Plugin for X` с `fn build(&self, app: &mut App)` | <Status issue={279} /> | Как и в Minestom, свой `main` пишете вы, см. [src/main.rs](https://github.com/andreypfau/mcrs/blob/main/src/main.rs). Ни `plugin.yml`, ни отдельного jar нет |
+| `onDisable` | Хука нет. Остановка идет через сообщение `ShutdownRequest` | <Status state="partial" doc="crates/mcrs_minecraft_engine_server/src/shutdown.rs" /> | Запрос отправляет код, который встраивает сервер. Обработчик сигналов не устанавливается |
+| `depend:` и `softdepend:` | Группа плагинов: если плагину нужен другой, он падает в `build` и называет недостающий | <Status issue={279} /> | См. `MinecraftServerPlugins` в [lib.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server/src/lib.rs) |
+| Отключить встроенную часть | `server.disable::<SomePlugin>()` на группе плагинов | <Status issue={282} /> | Используется в [`main.rs`](https://github.com/andreypfau/mcrs/blob/main/src/main.rs), чтобы выключить мозг мобов |
+| `/reload`, PlugMan | Нет. Код не перезагружается | <Status issue={316} /> | Планируется только перезагрузка датапаков |
+| NMS, CraftBukkit | Любой публичный крейт библиотечных слоев | <Status issue={437} /> | Фасада между вашим кодом и движком нет, поэтому эти крейты - одновременно NMS и API |
+| Статический `Bukkit.getServer()` | Нет. `Res<T>`, `Query<..>` и `Commands` берутся как параметры системы | <Status issue={437} /> | Статический доступ отклонили |
+| Зависимость от `paper-api` | Git-зависимость от крейтов mcrs | <Status issue={321} /> | Одна версия игры за раз, без обратной совместимости (<Status issue={412} />) |
+
+## События
+
+| JVM | mcrs | Состояние | Заметки |
+|---|---|---|---|
+| `Listener`, `@EventHandler` | Наблюдатель `app.add_observer(f)` с `f: fn(On<Event>)` или `MessageReader<M>` для буфера сообщений | <Status issue={283} /> | Публичные события есть только для чата. Наблюдатели пакетов есть как `Received<P>` |
+| `setCancelled(true)` | Поле `cancelled` события, которое меняет наблюдатель с параметром `mut` | <Status pr={636} state="partial" /> | Только `PlayerChatEvent`. Общий механизм с откатом предсказания клиента - это <Status issue={283} /> |
+| `AsyncChatEvent` | `PlayerChatEvent { player, text, cancelled }` | <Status pr={636} state="works" /> | `text` - компонент `Text`, а не `String`. Событие срабатывает до рассылки |
+| `EventPriority` | Порядок систем: `.before()`, `.after()`, `SystemSet`, например `TickSet` | <Status issue={323} /> | У наблюдателей приоритета нет. Неупорядоченный конфликт ломает тест |
+| `PlayerJoinEvent`, `PlayerQuitEvent` | Внутренние сообщения шины `InboundPlayerSpawn` и `InboundPlayerDespawn` | <Status issue={283} /> | Публичного события пока нет. Публичные события входа и выхода запланированы |
+| `BlockBreakEvent`, `BlockPlaceEvent` | Внутреннее сообщение `BlockActionRequest` | <Status issue={283} /> | Публичные отменяемые события запланированы |
+| `ProtocolLib`, слушатели пакетов | `On<Received<P>>` над типизированными игровыми пакетами | <Status state="partial" /> | Типизирована примерно половина пакетов, см. README. Единый путь типизированного приема: <Status issue={57} /> |
+| Дерево `EventNode` в Minestom | Дерева событий нет, есть только наблюдатели и расписания Bevy | <Status state="undecided" /> | Issue нет. Этот паттерн не копируйте |
+
+## Планировщик
+
+| JVM | mcrs | Состояние | Заметки |
+|---|---|---|---|
+| `runTaskTimer` | Система в `FixedUpdate`, по умолчанию 20 тиков в секунду (`DEFAULT_TPS`) | <Status state="works" doc="crates/mcrs_minecraft_engine_server/src/runner.rs" /> | Состояние храните в ресурсе или `Local<T>`. Планированием занимается Bevy, собственного планировщика в mcrs нет |
+| `runTaskLater` | Счетчик или таймер в ресурсе или компоненте, либо `Res<Time<Fixed>>` | <Status state="works" /> | Пишется вручную, готовых хелперов нет |
+| `runTask` для возврата в главный поток | Не нужен. Главного потока в смысле Bukkit нет | <Status issue={357} /> | См. [От объектов к данным](/docs/ru/plugins/mental-model/) |
+| `runTaskAsynchronously` | Пулы задач Bevy есть, но документированного паттерна для плагинов нет | <Status state="partial" /> | Issue нет. Параллельность обеспечивает планировщик |
+
+## Игроки и миры
+
+| JVM | mcrs | Состояние | Заметки |
+|---|---|---|---|
+| `Player`, `Entity` как объекты | Id `Entity` плюс компоненты `Player`, `GameProfile`, `PlayerGameMode`, `Transform` | <Status state="works" doc="crates/mcrs_minecraft_engine/src/ability.rs" /> | У игрока три идентификатора: `Entity` из Bevy, `PlayerSession`, который живет между измерениями, и сетевой id (<Status issue={158} />) |
+| `player.sendMessage(Component)` | Сообщение `OutboundPlayerPacket`, собранное через `bus::to` и хелпер `system_chat` | <Status state="partial" /> | Это низкий уровень, и `player.send()` нет |
+| `Bukkit.getOnlinePlayers()` | `Query<&GameProfile, With<Player>>` внутри измерения | <Status state="partial" /> | Игроки живут в мирах измерений, общей коллекции нет (<Status issue={154} />) |
+| `world.getBlockAt(..).setType(..)` | Сообщение `BlockSetRequest` и API томов `WorldView` | <Status state="partial" /> | Работает внутри одного измерения. Единый API доступа к миру - это <Status issue={486} /> |
+| `World` и `createWorld` для мини-игр | Миры измерений фиксируются на старте | <Status issue={546} /> | Создание и удаление мира во время работы запланировано |
+| `Instance` из Minestom | Мир измерения (sub-app) | <Status issue={280} /> | Плагины добавляйте через `add_dimension_plugin`, а не через `add_plugins` |
+| `ChunkGenerator` | Заменяемый источник чанков | <Status issue={281} /> | Сегодня генератор ванильный |
+| Сохранение мира, `world.save()` | Нет. Чтение Anvil работает, запись - нет | <Status issue={78} /> | Сервер не сохраняет чанки |
+| Boss bar | Нет | <Status issue={247} /> | |
+| Scoreboard | Нет. Scoreboard упоминает только запланированный владелец глобального состояния | <Status issue={154} /> | Issue про scoreboard нет, и кода мы не нашли |
+
+## Команды и права
+
+| JVM | mcrs | Состояние | Заметки |
+|---|---|---|---|
+| Brigadier, `registerCommand` | `add_command`, типизированное дерево команд, узлы литералов и аргументов | <Status pr={579} state="works" /> | Эталон - ванильные команды |
+| Tab-дополнение и пакет команд с уровнями | Дерево команд с уровнями прав и пакет команд | <Status issue={285} /> | Issue открыт |
+| `hasPermission("x.y")` | `PermissionCheck::Require(CommandLevel::..)`, уровень оператора 0-4 в `PlayerOpLevel` | <Status issue={285} /> | Строковых узлов прав нет, плагина вроде LuckPerms тоже нет |
+| Whitelist, бан-лист | Ресурс бан-листа и команды `/ban` и `/whitelist` | <Status state="works" doc="crates/mcrs_minecraft_server/tests/it/ban.rs" /> | Покрыто тестами `ban.rs` и `whitelist.rs` |
+| Свой тип аргумента | Добавляется только при компиляции, как часть набора команд | <Status issue={285} /> | |
+
+## Данные и конфиг
+
+| JVM | mcrs | Состояние | Заметки |
+|---|---|---|---|
+| `config.yml`, `saveDefaultConfig()` | Поля структуры плагина. Бинарник читает переменные окружения `MCRS_*` | <Status state="partial" /> | Настройка идет только через плагин (<Status issue={278} />). Настройки бинарника описаны в [server_settings.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server_settings/src/server_settings.rs). Формата конфигурационного файла для плагина пока нет |
+| `PersistentDataContainer` | Собственный компонент плюс реестр сохраняемых компонентов | <Status issue={159} /> | Нужно сохранение мира, <Status issue={78} /> |
+
+## Сеть и прокси
+
+| JVM | mcrs | Состояние | Заметки |
+|---|---|---|---|
+| `ProxyServer`, `@Subscribe` из Velocity | Библиотека прокси без Bevy: маршрутизация, online mode, modern forwarding, смена бэкенда | <Status issue={296} /> | В коде пока нет |
+| Online mode, аутентификация Mojang | Нет. Сервер работает только в offline-режиме | <Status issue={82} /> | Не открывайте порт наружу |
+| ViaVersion | Трансляция протокола на границе сети, вниз до 1.21.6 | <Status issue={537} /> | Решение еще не принято |
+
+## Тесты
+
+| JVM | mcrs | Состояние | Заметки |
+|---|---|---|---|
+| MockBukkit | Интеграционные тесты с `PlayServer` и `host_app` в `crates/mcrs_minecraft_server/tests/it/` | <Status issue={266} /> | Около 45 файлов тестов. Тестовое окружение не вынесено в отдельный крейт |
+
+Состояние каждой области показано на странице [Статус](/docs/ru/start/status/).

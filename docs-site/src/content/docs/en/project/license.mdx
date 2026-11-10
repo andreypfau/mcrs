@@ -1,0 +1,49 @@
+---
+title: License and legal
+description: Which licenses cover mcrs, how the project relates to Mojang, where Mojang material comes from, and the clean-room rule in short.
+sidebar:
+  order: 3
+kind: reference
+audience: [observer, contributor, jvm, admin, rust]
+stability: stable
+sources:
+  - README.md
+  - LICENSE-MIT
+  - LICENSE-APACHE
+  - LICENSE-VALENCE-MIT
+  - docs/clean-room.md
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 3540f457b
+  date: 2026-11-10
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+This page tells you under which licenses you can use mcrs, how the project relates to Mojang, and what rule keeps the game's code out of the repository. Read it before you fork the project, ship it in a product or send your first pull request.
+
+## You choose between Apache 2.0 and MIT
+
+mcrs is licensed under either of the [Apache License 2.0](https://github.com/andreypfau/mcrs/blob/main/LICENSE-APACHE) or the [MIT license](https://github.com/andreypfau/mcrs/blob/main/LICENSE-MIT), at your option. The workspace `Cargo.toml` says `license = "MIT OR Apache-2.0"`.
+
+Code adapted from [valence](https://github.com/valence-rs/valence) keeps its own notice, the [MIT license of The Valence Authors](https://github.com/andreypfau/mcrs/blob/main/LICENSE-VALENCE-MIT).
+
+## No affiliation with Mojang or Microsoft
+
+mcrs is not affiliated with Mojang or Microsoft. Minecraft is a trademark of Mojang Synergies AB.
+
+## Mojang material comes from the player's own game jar
+
+The README says the repository ships no Mojang art. The client reads textures and models from the official game jar of the player. Data tables and reports in `assets/` are regenerated from the game jar by one command, so moving to a new snapshot is mostly a data update.
+
+<Aside type="note" title="This is not legal advice">
+This page repeats what the repository says about itself. It does not give a legal opinion. If you need one, for a fork or for a hosted service, ask a lawyer.
+</Aside>
+
+## Behavior is written from specifications (clean-room)
+
+mcrs takes the behavior of the game from written specifications and never from the game's code. This way of working is called clean-room, and it splits the work between two people. A spec author may read the game and writes down only behavior. An implementer reads only specs and artifacts that the game produces, and never reads decompiled or mapped game code.
+
+Names from the game's code stay out of the repository. The rule file lists six community terms as the only exceptions: `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos` and `PalettedContainer`.
+
+The rule has one consequence for you as a contributor. If you have read the code of the game for some behavior, you cannot implement that behavior. The full rule is [docs/clean-room.md](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md), and [How to contribute](/docs/en/contributing/) explains what to do in that case.

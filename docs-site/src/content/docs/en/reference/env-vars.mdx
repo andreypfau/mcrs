@@ -1,0 +1,128 @@
+---
+title: Environment variables
+description: Every MCRS_* variable that the server, the client and the test tools read, with defaults and the file that reads it.
+sidebar:
+  order: 1
+kind: reference
+audience: [admin, jvm, contributor, rust]
+stability: changing
+tracking: [278]
+sources:
+  - crates/mcrs_minecraft_server_settings/src/server_settings.rs
+  - crates/mcrs_minecraft_client/src/config.rs
+  - crates/mcrs_minecraft_client/src/dev/knobs.rs
+  - src/main.rs
+  - issue:278
+verified:
+  snapshot: 26.4-snapshot-7
+  commit: 51d45c26a
+  date: 2026-11-09
+---
+import Status from '~/components/Status.astro';
+
+import { Aside } from '@astrojs/starlight/components';
+
+This page lists every `MCRS_*` environment variable that the server, the client and the test tools read, with its default. The list comes from `grep -rn 'MCRS_' crates src` on commit `51d45c26a`. The server reads 11 of the variables. The client reads many more, and most of those are knobs for performance measurements.
+
+<Aside type="caution" title="WIP">
+The tables on this page are written by hand for now. They will be generated from `ServerSettings` and `config.rs` so that they cannot drift from the code. Some names here may change, because the client knobs move into plugin fields.[^278] The old `MCRS_OP_LOCAL` variable no longer exists. The server now gives operator rights to a player who joins from the same machine, and `ops.json` names all other operators.
+</Aside>
+
+## Server
+
+The `mcrs` server binary reads the variables in the table below. When a variable is not set, the server uses the default. When a value does not parse, the server writes a warning to the log and also uses the default. The code is `ServerSettings::read` in `crates/mcrs_minecraft_server_settings/src/server_settings.rs`, which `src/main.rs` calls.
+
+A variable that is on or off accepts `on`, `1`, `true` or `yes` for on, and `off`, `0`, `false` or `no` for off, in upper or lower case. Whitespace around a value is removed before it is read.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `MCRS_PORT` | `25565` | Port to listen on. The server listens on all interfaces (`0.0.0.0`). Allowed: 1 to 65535. |
+| `MCRS_COMPUTE_THREADS` | plugin default | Size of the compute thread pool. A positive number. |
+| `MCRS_WORLD_SEED` | `0` | World seed, signed or unsigned 64-bit. A negative seed keeps its bits, like a Java long. |
+| `MCRS_WORLD_PRESET` | `normal` | World preset, short (`flat`) or namespaced (`minecraft:flat`), lower-cased. |
+| `MCRS_DEFAULT_GAMEMODE` | `creative` | Game mode of a new player: `survival`, `creative`, `adventure` or `spectator`. |
+| `MCRS_MOB_AI` | on | Whether mobs think. Off removes the mob brain plugin. |
+| `MCRS_LAN_ANNOUNCE` | on | Whether the server announces itself on the local network. A server that listens on loopback never announces. |
+| `MCRS_COMPRESSION_THRESHOLD` | `256` | Packet size in bytes from which packets are compressed. A negative number turns compression off. |
+| `MCRS_ACCEPT_TRANSFERS` | off | Whether the server accepts players that another server transfers. |
+| `MCRS_ENABLE_STATUS` | on | Whether the server answers status requests (the server list ping). |
+| `MCRS_HIDE_ONLINE_PLAYERS` | off | Whether the status leaves out the names of online players. The counts stay. |
+
+<Aside type="caution" title="No authentication">
+The server has no online mode yet.[^82] It listens on `0.0.0.0:25565`, and anyone who connects can use any player name. Do not open the port to the internet.
+</Aside>
+
+The server also reads `ops.json`, `whitelist` and ban files from the working directory. Those are files, so this table does not list them.
+
+## Client
+
+The client binary collects every `MCRS_*` variable of the process and removes the prefix. The code is in `crates/mcrs_minecraft_client/src/native.rs`. If a name appears twice, the first value counts. When a value is bad, the native client prints it to stderr and refuses to start. The browser build takes the same names from the query string in lower case, for example `?time=6000`.
+
+A client built with `singleplayer` has an integrated server, and that server also reads the server variables above, such as `WORLD_SEED` and `WORLD_PRESET`.
+
+| Variable | Default | What it does | File |
+|---|---|---|---|
+| `MCRS_SERVER` | none | `host:port` of a server to join. Without it, a singleplayer build hosts its own server. | `native.rs` |
+| `MCRS_USERNAME` | `Player` | Player name. | `config.rs` |
+| `MCRS_VIEW` | `96` | Render distance in columns, 2 to 96. Wins over the options file. | `config.rs` |
+| `MCRS_OPTIONS` | none | Path to a JSON file with `fov`, `fov_effect_scale`, `smooth_light`, `clouds`, `brightness`, `view_distance`. Unknown fields are an error. | `options.rs` |
+| `MCRS_FULLSCREEN` | off | Take over a whole display. | `config.rs` |
+| `MCRS_OPEN_TO_LAN` | off | The integrated server listens on every interface and announces itself. There is no authentication, so anyone on the network can join under any name. | `config.rs` |
+| `MCRS_GUI_SCALE` | `0` (auto) | Fixed GUI scale. | `config.rs` |
+| `MCRS_HISTORY` | none | File that keeps the command history. | `config.rs` |
+| `MCRS_VSYNC` | off | Vertical sync. Off by default so frame times stay readable. | `config.rs` |
+| `MCRS_OCCLUSION` | on | Depth pyramid occlusion test. `0` draws every group that passes the frustum and cave graph. | `config.rs` |
+| `MCRS_CAVE` | on | Cave graph culling. | `config.rs` |
+| `MCRS_CHUNK_MAP`, `MCRS_LIGHT_LEVELS` | off | Debug overlays. | `config.rs` |
+| `MCRS_ASYNC` | half the cores, at least 4 | Threads of the async compute pool (meshing, column decode, lighting). | `config.rs` |
+| `MCRS_MESH`, `MCRS_MESH_FLIGHT` | 2048, 2048 (web: 32, 128) | Sections the mesher admits per frame, and how many jobs may be in flight. | `config.rs` |
+| `MCRS_UPLOAD` | `4` | Upload budget per frame, in MB. | `config.rs` |
+| `MCRS_ARENA` | 192,640,512 (web: 32,208,80) | Arena sizes in MB for quads, models and faces, as `quads,models,faces`. | `config.rs` |
+| `MCRS_JAR_WORKERS` | crate default | Download workers in the online test of the client jar crate. | [`native.rs`](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_client_jar/src/native.rs) |
+| `MCRS_CERT` | none | Certificate hash for a web client joining a server. Web build only. | `config.rs` |
+
+## Measurement knobs
+
+The variables in this section exist so that a performance reading can be repeated. Do not set them for normal play, because some of them change on purpose what is measured. [Performance](/docs/en/project/performance/) and `PERF.md` describe the method.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `MCRS_HOT` | off | Keeps one CPU core spinning so the performance cores do not clock down. Engine time then reads two to three times shorter. It is not a setting for players. |
+| `MCRS_GPU_HOT` | none | Burns that many GPU workgroups after the frame so the GPU stays at speed. |
+| `MCRS_STATS` | none | Seconds between F3 lines written to the log with the overlay hidden. |
+| `MCRS_PROBE` | auto | `0` leaves GPU passes untimed, `1` times every frame. |
+| `MCRS_RESOLUTION` | none | Opens a window of exactly `<width>x<height>`. |
+| `MCRS_LATENCY` | none | Swapchain images the window may run ahead by. |
+| `MCRS_MONITOR` | fastest display | `primary` opens the window on the primary display. |
+| `MCRS_CENSUS` | none | Seconds between lines that count traced columns by stage. |
+| `MCRS_TRACY_PREVIEW` | off | Streams frame images to Tracy. Costs a readback per frame. |
+| `MCRS_CHUNK_GUARD`, `MCRS_LIGHT_GUARD` | off | `1` crashes the client when the player stands in a column the client does not hold, `warn` only logs. `MCRS_LIGHT_GUARD` reads the same way for light. |
+| `MCRS_GPUTRACE` | none | Path for a GPU trace capture. |
+| `MCRS_RASTER` | none | Fraction from 0 to 1 for the raster pass. |
+| `MCRS_DRAWS` | all | Comma list of draw numbers to keep. |
+| `MCRS_SKY` | all | Comma list of sky passes to draw: `disc,twilight,celestial,stars,clouds`. |
+| `MCRS_FLY`, `MCRS_TURN` | none | Scripted flight speed in blocks per tick, and seconds until one turn round. |
+| `MCRS_TIME` | none | Pins every clock to a tick count. |
+| `MCRS_POS`, `MCRS_LOOK`, `MCRS_SCREEN`, `MCRS_CURSOR` | none | Start position `x,y,z`, view `yaw,pitch`, a screen (`inventory`) and a cursor position, for scripted captures. |
+| `MCRS_CAPTURE` | none | Write one screenshot to a `.png` path and exit. |
+| `MCRS_SCREENSHOT_DIR` | none | Directory for screenshots. |
+| `MCRS_SCENE_DIR`, `MCRS_SCENE_RECORD` | none | Windowless scene capture directory, and a record of the vanilla client to take entities from. |
+
+The client reads all of these in `crates/mcrs_minecraft_client/src/config.rs`, `dev/knobs.rs` and `scene_capture.rs`.
+
+## Tests, benchmarks and build
+
+| Variable | Used by | What it does |
+|---|---|---|
+| `MCRS_BLESS` | tests of mesh, entity model and entity animation | When it is set, a test rewrites a stale expected file. Without it the test fails and says so. |
+| `MCRS_CLIENT_JAR` | entity render test | Path to the client jar. |
+| `MCRS_VANILLA_SERVER_JAR`, `MCRS_SCENE_CLIENT`, `MCRS_SCENE_ENTITIES` | `scene_frames` test of the client | Server jar, another client binary, and where scene entities come from: `summon`, `record` or `skip` (the default). |
+| `MCRS_MOLANG_CORPUS`, `MCRS_GPU_FUZZ_PROGRAMS` | Molang tests | Path to the corpus file, and the number of fuzz programs (default 10000). |
+| `MCRS_BENCH_WORLD`, `MCRS_BENCH_AREA` | `random_ticks_save` bench | A saved world directory, and `<dimension> <x> <z> <radius>` to load only that area. |
+| `MCRS_BIN` | [`mob-bench/run.sh`](https://github.com/andreypfau/mcrs/blob/main/tools/mob-bench/run.sh) | Path to the `mcrs` binary. The bench sets the server variables itself. |
+| `MCRS_VANILLA_SERVER` | [`vanilla-server/run.sh`](https://github.com/andreypfau/mcrs/blob/main/tools/vanilla-server/run.sh) | Address of a vanilla server that the script gives to the `mcrs` join test. |
+| `MCRS_DRAW_ONLY`, `MCRS_GPU_HOT`, `MCRS_SPLIT_DRAW` | `stress_field` example of entity render | Draw only `full_rigs` or `impostors`, GPU hold workgroups (default 16384), and split the draw in two passes. |
+| `MCRS_COMMIT_HASH` | build time of the network crate | Commit hash that the server reports. The crate reads it with `option_env!` when it is built, so the value at run time does not matter. |
+
+[^278]: <Status issue={278} /> The decision to configure the server only through its plugin.
+[^82]: <Status issue={82} /> Tracks online mode: encryption and session authentication.
