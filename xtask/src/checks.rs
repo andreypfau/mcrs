@@ -41,7 +41,7 @@ const NO_STD_PACKAGES: [&str; 10] = [
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 116] = [
+const NO_BEVY_PACKAGES: [&str; 119] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -49,6 +49,9 @@ const NO_BEVY_PACKAGES: [&str; 116] = [
     "mcrs_engine_store",
     "mcrs_minecraft_anvil",
     "mcrs_minecraft_banner_pattern",
+    "mcrs_minecraft_bedrock_protocol",
+    "mcrs_minecraft_bedrock_protocol_game",
+    "mcrs_minecraft_bedrock_wire",
     "mcrs_minecraft_bench_support",
     "mcrs_minecraft_biome",
     "mcrs_minecraft_biome_file",

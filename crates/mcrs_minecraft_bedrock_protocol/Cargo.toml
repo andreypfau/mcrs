@@ -1,0 +1,18 @@
+[package]
+name = "mcrs_minecraft_bedrock_protocol"
+description = "Bedrock Edition protocol crate: batch 0xfe, compression, login, and resource pack negotiation"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_bedrock_wire = { workspace = true }
+flate2 = { workspace = true }
+thiserror = { workspace = true }

@@ -4045,6 +4045,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_bedrock_protocol"
+version = "0.5.8"
+dependencies = [
+ "flate2",
+ "mcrs_minecraft_bedrock_wire",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "mcrs_minecraft_bedrock_protocol_game"
+version = "0.5.8"
+dependencies = [
+ "glam",
+ "mcrs_minecraft_bedrock_protocol",
+ "mcrs_minecraft_bedrock_wire",
+]
+
+[[package]]
+name = "mcrs_minecraft_bedrock_wire"
+version = "0.5.8"
+
+[[package]]
 name = "mcrs_minecraft_bench_support"
 version = "0.5.8"
 dependencies = [
