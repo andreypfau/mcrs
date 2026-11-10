@@ -14,11 +14,13 @@ use crate::recipe::{RecipeBookEntry, RecipeBookSettings, RecipePropertySet, Sele
 use crate::text::RawText;
 use crate::{ColumnPos, LpVec3, PositionFlags};
 use glam::DVec3;
+use mcrs_minecraft_block::block_entity_type_keys::BlockEntityType;
 use mcrs_minecraft_command_tree::CommandNode;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_entity::{attribute_keys::Attribute, entity_type_keys::EntityType};
 use mcrs_minecraft_menu::menu_keys::MenuType;
+use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_particle::ParticleOptions;
 use mcrs_minecraft_protocol::{Bounded, Result, VarInt, VarLong};
 use mcrs_minecraft_registries::Wire;
@@ -54,6 +56,14 @@ pub struct ClientboundBlockDestruction {
     pub id: VarInt,
     pub pos: BlockPos,
     pub progress: i8,
+}
+
+/// The data of one block entity, sent when it changes after its column arrived.
+#[derive(Clone, Debug, PartialEq, Encode, Decode)]
+pub struct ClientboundBlockEntityData {
+    pub pos: BlockPos,
+    pub kind: BlockEntityType,
+    pub data: NbtCompound,
 }
 
 /// A block event that a block took, for the clients that show its effect. The client gets only
