@@ -105,6 +105,9 @@ dir="$results/$name"
 mkdir -p "$dir"
 
 caffeinate -dims -w $$ &
+# -d keeps the display on but not the session unlocked; a short user-activity assertion every
+# 20 s keeps the screen saver and its lock away during an unattended run.
+(while kill -0 $$ 2>/dev/null; do caffeinate -u -t 5; sleep 20; done) &
 awake=$!
 # shellcheck disable=SC2329 # called by the EXIT trap
 cleanup() { kill "$awake" 2>/dev/null; }
