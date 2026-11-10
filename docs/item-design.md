@@ -516,7 +516,8 @@ The design keeps the cost of the rare case out of the regular case: no stack wit
 | 14 | A request holds a fixed number of operations inline. | Keep it, with a `// chisle:` comment. The transaction specification gives the real maximum. |
 | 15 | Questions Q1–Q7 and undecided points U1–U5 of `spec/item-stack.md` section 10. | Their answers belong to the specification. Q6 (float equality) changes point 1 and the merge check. |
 | 16 | 28 experiments of `spec/item-stack.md` section 11 are not run. | Run them before the codec step is complete. A codec rule without a captured result stays marked in its test. |
-| 17 | The item template and the dialog refer to each other. The text of a template names a dialog; a dialog holds texts and item templates. | No answer yet. Step 4 decides: the dialog moves into `mcrs_minecraft_item_stack`, or the template holds the dialog as a type parameter and a dialog crate sits above. |
+| 17 | The item template and the dialog refer to each other. The text of a template names a dialog; a dialog holds texts and item templates. | Decided: the template holds the dialog as a type parameter. The dialog lives in the crate `mcrs_minecraft_dialog`, above `mcrs_minecraft_item_stack`. |
+| 18 | The groups that section 10.1 keeps in `mcrs_minecraft_item_stack`: enchantment, patterns, instrument, jukebox song, painting variant, trim. | Decided as a rule: many small crates are better than one large crate. Step 4 gives each registry its own crate where a type parameter or an id breaks the cycle. A group stays only when no such cut exists; step 4 states the reason. |
 
 # 10. Steps
 
@@ -584,7 +585,7 @@ Each other group is part of the item stack. Thus the item components of
 | Item ids | `item_keys.rs`, `item_tag_keys.rs`, `data_component_type_keys.rs`, `data_component_predicate_type_keys.rs`, `consume_effect_type_keys.rs`, `map_decoration_type_keys.rs`, `potion_keys.rs`, `potion_tag_keys.rs` | `mcrs_minecraft_item_stack` | new | with steps 2 and 4 | 12 crates use `item_keys.rs` |
 | Values in `component/` | the keys and the tag keys of `banner_pattern`, `instrument`, `jukebox_song`, `painting_variant`, `trim_material`, `trim_pattern` | `mcrs_minecraft_item_stack` | new | with step 4 | `game_registries`, `client`, `model`, `protocol_game` |
 | Ids of a component | `enchantment.rs` and its two key files, `decorated_pot_pattern.rs`, `block_transformer.rs` and their key files, the type `Recipe` | `mcrs_minecraft_item_stack` | new | with step 4 | `enchantment`, `protocol_game`, `game_registries` |
-| Dialog | `dialog.rs`, `dialog_keys.rs`, `dialog_tag_keys.rs`, the three `dialog_*_type_keys.rs` files, `input_control_type_keys.rs`, `item_hover_map.rs` | open point 17 | | with step 4 | `game_registries`, `chat_client`, `client_gui`, `client_world`, `server` |
+| Dialog | `dialog.rs`, `dialog_keys.rs`, `dialog_tag_keys.rs`, the three `dialog_*_type_keys.rs` files, `input_control_type_keys.rs`, `item_hover_map.rs` | `mcrs_minecraft_dialog` | new, layer 3, no Bevy | with step 4 | `game_registries`, `chat_client`, `client_gui`, `client_world`, `server` |
 
 - The two new crates are layer 3 data crates. They have no Bevy and no `bevy` feature.
 - `mcrs_minecraft_menu` starts as `#![no_std]`. `mcrs_minecraft_recipe` states the dependency that
