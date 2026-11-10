@@ -552,7 +552,8 @@ The result then moves:
 
 - to the carried slot, when it is empty or holds an alike stack with room for the full result;
 - to an item entity, for a drop;
-- into the main slots, for a quick move (INV-CLK-004).
+- into the main slots, for a quick move. The part of the result that has no room drops as an item
+  entity (INV-CLK-004).
 
 Else, nothing changes. A take of part of the result is not possible: the button 1 takes the full
 result too. See result R30 (cases Q to Q8).
@@ -726,8 +727,12 @@ The results do not test a stack with the off hand as its equipment slot in the m
 35. For the craft result, the results show only the slot 44 as a target.
 
 For the craft result, the server crafts (INV-OP-009) and moves each result to the target slots,
-until the craft grid gives no result or the main slots have no room for the full result. Entry D4
-states the last case.
+until the craft grid gives no result. When the main slots have room for only a part of a result,
+the server puts that part into the target slots, drops the rest as an item entity from the owner,
+and crafts no more. The craft grid then keeps its other items. In result R34 (case S6), the second
+result of 4 `oak_planks` puts 2 into the slot 44, drops 2, and 1 `oak_log` stays in the craft grid.
+The results do not test a quick move of the craft result when the main slots have no room for any
+item of the first result.
 
 See results R30 (cases J to J8, Q3), R32 (cases X3, X7) and R34 (cases S1 to S13).
 
@@ -815,6 +820,7 @@ The server first finds the operations of the click with INV-CLK-002 to INV-CLK-0
 them all or none. The start step and the add steps of a drag are requests with no operations: the
 server keeps the drag, and the end step is the request that places. A quick move is one request
 with one place for each target slot that gets items; the items that have no room are not part of
+the request. For the craft result, each craft, its places and the drop of INV-CLK-004 are part of
 the request. Reason: issue 521 decides the transaction model of section 7.
 
 The later parts state: `container_close` of an open menu, the drop of the main-hand item, the swap
@@ -852,19 +858,6 @@ of the hands, the insertion of a stack into the inventory, and the full player f
   write to the slot.
 - **Visible to the client**: yes. The slots show the stacks of the server again.
 - **Test**: a differential test must not send a `container_click` packet that INV-REJ-002 ignores.
-
-**D4.**
-
-- **Rule**: INV-CLK-004. In a quick move of the craft result, mcrs crafts again only when the main
-  slots have room for the full result. When they do not, the request ends, and the craft grid keeps
-  its items. Reason: issue 521 decides that each operation is all or nothing, and INV-OP-009 does
-  not let a take of the craft result take part of the result.
-- **Reference**: the vanilla server crafts one more time, puts the part of the result that has room
-  into the main slots, and drops the rest as an item entity. See result R34 (case S6).
-- **Visible to the client**: yes. The craft grid keeps one more set of items, and no item entity
-  appears.
-- **Test**: a differential test must not quick move the craft result when the main slots have room
-  for less than the full result.
 
 ## 12. Unresolved
 
