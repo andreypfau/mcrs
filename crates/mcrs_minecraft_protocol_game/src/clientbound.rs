@@ -59,11 +59,37 @@ pub struct ClientboundBlockDestruction {
 }
 
 /// The data of one block entity, sent when it changes after its column arrived.
-#[derive(Clone, Debug, PartialEq, Encode, Decode)]
+///
+/// A frame whose type this build does not know, or whose NBT it cannot read, decodes with `data`
+/// `None` instead of failing: a malformed frame ends the connection, and a block entity this
+/// client never draws is not worth that.
+#[derive(Clone, Debug, PartialEq)]
 pub struct ClientboundBlockEntityData {
     pub pos: BlockPos,
-    pub kind: BlockEntityType,
-    pub data: NbtCompound,
+    pub data: Option<(BlockEntityType, NbtCompound)>,
+}
+
+impl Decode<'_> for ClientboundBlockEntityData {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        let pos = BlockPos::decode(r)?;
+        let mut body = std::mem::take(r);
+        let data = BlockEntityType::decode(&mut body).ok().and_then(|kind| {
+            let data = NbtCompound::decode(&mut body).ok()?;
+            body.is_empty().then_some((kind, data))
+        });
+        Ok(Self { pos, data })
+    }
+}
+
+impl Encode for ClientboundBlockEntityData {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        let (kind, data) = self.data.as_ref().ok_or_else(|| {
+            mcrs_minecraft_protocol::Error::invalid("a block entity update without its data")
+        })?;
+        self.pos.encode(&mut w)?;
+        kind.encode(&mut w)?;
+        data.encode(&mut w)
+    }
 }
 
 /// A block event that a block took, for the clients that show its effect. The client gets only

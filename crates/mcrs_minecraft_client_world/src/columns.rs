@@ -10,13 +10,13 @@ use bevy::ecs::prelude::{
     Commands, Entity, IntoScheduleConfigs, Local, On, Res, ResMut, Resource, Single,
 };
 use bevy::ecs::schedule::SystemSet;
-use bevy::log::error;
+use bevy::log::{error, warn};
 use bevy::math::IVec3;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_block::block_entity_type_keys::BlockEntityType;
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_block_entity::SignTexts;
+use mcrs_minecraft_block_entity::{SignTexts, SignUpdate};
 use mcrs_minecraft_chunk::section::Biomes;
 use mcrs_minecraft_chunk::{LightStorage, PalettedContainer, SectionKind};
 use mcrs_minecraft_core::BoundingBox;
@@ -138,6 +138,8 @@ pub enum ColumnChange {
     Filled(SectionPos),
     /// The block at the position now holds the state.
     Reblocked(BlockPos, BlockStateId),
+    /// The sign entity at the position was set or dropped.
+    Signed(BlockPos),
 }
 
 /// The columns the server has sent and not taken back, keyed by position, and the changes
@@ -305,14 +307,15 @@ impl ColumnStore {
         );
     }
 
-    /// Gives the sign at `at` the side texts `texts`, in a resident column. Answers `false` when
-    /// the column is not resident or the position is outside the extent.
+    /// Gives the sign at `at` the sides of `update`, in a resident column; a side the update leaves
+    /// out keeps its stored text. Answers `false` when the column is not resident or the position
+    /// is outside the extent.
     ///
     /// This is the path a block entity update takes from the network. An embedder that builds its
     /// columns without packets can call it after `insert`, or hand the signs over with
     /// [`Column::with_signs`] before it. Replacing a block with `set_block` leaves the sign in
     /// place: the caller drops it with [`ColumnStore::remove_sign`] when the new block is no sign.
-    pub fn set_sign(&mut self, at: BlockPos, texts: SignTexts) -> bool {
+    pub fn set_sign(&mut self, at: BlockPos, update: SignUpdate) -> bool {
         let Some(column) = self.columns.get_mut(&ColumnPos::from(at)) else {
             return false;
         };
@@ -322,9 +325,13 @@ impl ColumnStore {
         }
         let column = Arc::make_mut(column);
         match column.signs.iter_mut().find(|sign| sign.pos == at) {
-            Some(sign) => sign.texts = texts,
-            None => column.signs.push(SignEntity { pos: at, texts }),
+            Some(sign) => sign.texts = update.applied_to(std::mem::take(&mut sign.texts)),
+            None => column.signs.push(SignEntity {
+                pos: at,
+                texts: update.applied_to(SignTexts::default()),
+            }),
         }
+        self.changes.push(ColumnChange::Signed(at));
         true
     }
 
@@ -337,6 +344,7 @@ impl ColumnStore {
             return false;
         }
         Arc::make_mut(column).signs.retain(|sign| sign.pos != at);
+        self.changes.push(ColumnChange::Signed(at));
         true
     }
 
@@ -925,7 +933,7 @@ enum Arrival {
     Column(Task<Result<Option<(ColumnPos, Column)>>>),
     Light(ColumnPos, ColumnLight),
     Blocks(Vec<BlockChange>),
-    Sign(BlockPos, SignTexts),
+    Sign(BlockPos, SignUpdate),
     Acknowledge(i32),
     Forget(ColumnPos),
     BatchStart,
@@ -1123,13 +1131,17 @@ fn on_block_entity_data(
     let Some(update) = event.packet() else {
         return;
     };
-    if !matches!(
-        update.kind,
-        BlockEntityType::Sign | BlockEntityType::HangingSign
-    ) {
+    let Some((kind, data)) = &update.data else {
+        warn!(
+            "block entity update at {:?} that this client cannot read",
+            update.pos
+        );
+        return;
+    };
+    if !matches!(kind, BlockEntityType::Sign | BlockEntityType::HangingSign) {
         return;
     }
-    match SignTexts::from_compound(&update.data) {
+    match SignUpdate::from_compound(data) {
         Ok(texts) => arrivals.queue.push_back(Arrival::Sign(update.pos, texts)),
         Err(error) => error!("sign update at {:?}: {error}", update.pos),
     }
@@ -1806,6 +1818,7 @@ mod tests {
             ColumnChange::Relit(pos, rows) => ("relit", *pos, rows.clone()),
             ColumnChange::Filled(at) => ("filled", ColumnPos::from(*at), Vec::new()),
             ColumnChange::Reblocked(at, _) => ("reblocked", ColumnPos::from(*at), Vec::new()),
+            ColumnChange::Signed(at) => ("signed", ColumnPos::from(*at), Vec::new()),
         }
     }
 
@@ -1858,7 +1871,7 @@ mod tests {
         store.insert(ColumnPos::from(at), column);
         assert!(store.has_sign(at));
 
-        let texts = SignTexts::from_compound(&sign_compound("blue")).unwrap();
+        let texts = SignUpdate::from_compound(&sign_compound("blue")).unwrap();
         assert!(store.set_sign(at, texts.clone()));
         assert!(!store.set_sign(BlockPos::new(500, 3, 0), texts.clone()));
         assert!(!store.set_sign(BlockPos::new(17, 200, -2), texts));
