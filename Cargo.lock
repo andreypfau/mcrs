@@ -5221,6 +5221,7 @@ dependencies = [
  "mcrs_minecraft_particle",
  "mcrs_minecraft_profile",
  "mcrs_minecraft_protocol",
+ "mcrs_minecraft_recipe",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_registry_catalog",
  "mcrs_minecraft_resource",
@@ -5243,6 +5244,18 @@ dependencies = [
  "glam",
  "md-5",
  "rand_xoshiro",
+]
+
+[[package]]
+name = "mcrs_minecraft_recipe"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_item",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+ "mcrs_minecraft_wire",
+ "serde",
 ]
 
 [[package]]
@@ -5292,6 +5305,7 @@ dependencies = [
  "mcrs_minecraft_loot",
  "mcrs_minecraft_particle",
  "mcrs_minecraft_predicate",
+ "mcrs_minecraft_recipe",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_sound",
  "mcrs_minecraft_value_provider",

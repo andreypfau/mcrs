@@ -519,12 +519,12 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:recipe_display",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_recipe",
         value: ValueType::Enum("RecipeDisplayType"),
     },
     Owner {
         registry: "minecraft:slot_display",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_recipe",
         value: ValueType::Enum("SlotDisplayType"),
     },
     Owner {
@@ -594,12 +594,12 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:recipe_serializer",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_recipe",
         value: ValueType::Enum("RecipeSerializer"),
     },
     Owner {
         registry: "minecraft:recipe_book_category",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_recipe",
         value: ValueType::Enum("RecipeBookCategory"),
     },
     Owner {

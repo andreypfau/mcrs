@@ -61,15 +61,7 @@ pub mod potion_keys;
 #[rustfmt::skip]
 pub mod potion_tag_keys;
 #[rustfmt::skip]
-pub mod recipe_book_category_keys;
-#[rustfmt::skip]
-pub mod recipe_display_keys;
-#[rustfmt::skip]
-pub mod recipe_serializer_keys;
-#[rustfmt::skip]
 pub mod registry_keys;
-#[rustfmt::skip]
-pub mod slot_display_keys;
 #[rustfmt::skip]
 pub mod trim_material_keys;
 #[rustfmt::skip]

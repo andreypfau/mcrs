@@ -8,11 +8,6 @@ use std::sync::{Arc, LazyLock};
 use mcrs_minecraft_core::codec::{Bounded, Validate};
 use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 use mcrs_minecraft_item::item_keys::Item;
-use mcrs_minecraft_item::recipe::Ingredient;
-use mcrs_minecraft_item::recipe_book_category_keys::RecipeBookCategory;
-use mcrs_minecraft_item::{
-    recipe_display_keys::RecipeDisplayType, slot_display_keys::SlotDisplayType,
-};
 use mcrs_minecraft_protocol::wire::MAX_NESTING;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::clientbound::{
@@ -29,6 +24,11 @@ use mcrs_minecraft_protocol_game::recipe::{
 };
 use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundPlaceRecipe, ServerboundRecipeBookChangeSettings, ServerboundRecipeBookSeenRecipe,
+};
+use mcrs_minecraft_recipe::Ingredient;
+use mcrs_minecraft_recipe::recipe_book_category_keys::RecipeBookCategory;
+use mcrs_minecraft_recipe::{
+    recipe_display_keys::RecipeDisplayType, slot_display_keys::SlotDisplayType,
 };
 use mcrs_minecraft_registries::{FromWire, IdSet, Ref, Resolved, Wire};
 use mcrs_minecraft_resource::{Id, rl};
