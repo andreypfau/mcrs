@@ -46,3 +46,8 @@
 .sl-markdown-content sup a[data-footnote-ref] { text-decoration: none; padding: 0 0.15em; }
 .sl-markdown-content sup a[data-footnote-ref]::before { content: "["; }
 .sl-markdown-content sup a[data-footnote-ref]::after { content: "]"; }
+
+/* Starlight makes tables display: block for horizontal scroll, so rows shrink to their content; on wide screens stretch them to the text column. */
+@media (min-width: 50rem) {
+  .sl-markdown-content table:not(:where(.not-content *)) { display: table; width: 100%; }
+}
