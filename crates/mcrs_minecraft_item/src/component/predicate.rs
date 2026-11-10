@@ -5,7 +5,7 @@ use crate::TrimMaterial;
 use crate::TrimPattern;
 use crate::data_component_predicate_type_keys::DataComponentPredicateType;
 use crate::enchantment::Enchantment;
-use crate::potion_keys::Potion;
+use mcrs_minecraft_potion::potion_keys::Potion;
 use mcrs_minecraft_block::block_keys::Block;
 pub use mcrs_minecraft_block_predicate::state_properties::StatePropertiesPredicate;
 use mcrs_minecraft_core::codec::unique_entries;

@@ -4872,6 +4872,7 @@ dependencies = [
  "mcrs_minecraft_item_key",
  "mcrs_minecraft_loot",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_potion",
  "mcrs_minecraft_profile",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
@@ -5231,6 +5232,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_potion"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+]
+
+[[package]]
 name = "mcrs_minecraft_predicate"
 version = "0.5.8"
 dependencies = [
@@ -5388,6 +5397,7 @@ dependencies = [
  "mcrs_minecraft_loot",
  "mcrs_minecraft_menu",
  "mcrs_minecraft_particle",
+ "mcrs_minecraft_potion",
  "mcrs_minecraft_predicate",
  "mcrs_minecraft_recipe",
  "mcrs_minecraft_resource",

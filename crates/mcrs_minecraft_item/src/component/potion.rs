@@ -9,7 +9,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::component::common::{MobEffectDetails, MobEffectInstance};
 use crate::harness::{Sample, entry};
-use crate::potion_keys::Potion;
+use mcrs_minecraft_potion::potion_keys::Potion;
 use mcrs_minecraft_registries::Wire;
 use mcrs_minecraft_wire::{Decode, Encode, Result};
 use std::io::Write;

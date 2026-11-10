@@ -98,12 +98,6 @@ impl Registered for crate::PaintingVariantValue {
     const REGISTRY: RegistryKey<Self> = PAINTING_VARIANT;
 }
 
-pub const POTION: RegistryKey<crate::potion_keys::Potion> =
-    RegistryKey::new(rl!("minecraft:potion"));
-impl Registered for crate::potion_keys::Potion {
-    const REGISTRY: RegistryKey<Self> = POTION;
-}
-
 pub const RECIPE: RegistryKey<crate::recipe::Recipe> = RegistryKey::new(rl!("minecraft:recipe"));
 impl Registered for crate::recipe::Recipe {
     const REGISTRY: RegistryKey<Self> = RECIPE;
