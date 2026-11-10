@@ -83,6 +83,8 @@ All crate names are **(proposal)**. The layer numbers are those of `CLAUDE.md`.
 | `mcrs_minecraft_engine_item` | 4, engine | required | the entity form, hooks, commands, read tools, the request command, `Equipped` | the three crates above, `bevy_ecs`, `bevy_app`, `bevy_math` |
 | `mcrs_minecraft_item_behaviour` | 5, vanilla | none | what each item does (later specification) | layer 3 crates |
 | `mcrs_minecraft_vanilla_item` | 5, vanilla | required | the removable plugin that schedules the behaviour | `mcrs_minecraft_engine_item`, `mcrs_minecraft_item_behaviour` |
+| `mcrs_minecraft_recipe` | 3, data | none | `Ingredient`; the keys of the recipe serializers, the recipe book categories, the recipe displays and the slot displays | `mcrs_minecraft_item_stack` (the old crate until step 11), registries, wire |
+| `mcrs_minecraft_menu` | 3, data | none | `MenuType` and the keys of the menu registry; later the slot layout of each menu | resource |
 
 - The three layer 3 crates start as `#![no_std]` with `alloc`. If a codec dependency forbids it,
   the crate states which one.
@@ -509,11 +511,12 @@ The design keeps the cost of the rare case out of the regular case: no stack wit
 | 9 | Does each vanilla prototype carry all types that have a neutral value? | Check it in the bake against the pinned data pack. The answer fixes the list of section 6. |
 | 10 | A custom component has a codec that the user writes by hand. | Accept it for the first version. A derive is a later convenience. |
 | 11 | The width of the count. STK-CNT-003 lets a wire reader accept a count above 255. | Decided: `Count` holds 8 bits. A decoder rejects a larger count with an error. `spec/item-stack.md` records this as a deviation. |
-| 12 | The old crate also holds data that is not an item: key tables of other registries, recipes, dialogs. | Move each of these modules, without change, to a crate of its domain before the old crate goes. The owner names the crates. |
+| 12 | The old crate also holds data that is not an item: key tables of other registries, recipes, dialogs. | Decided: section 10.1 names the target crate of each group and the groups that stay with the item stack. |
 | 13 | A write to an item component and `mergeable` in one system need `ParamSet`. | Accept it. A later `get_mut` on the param removes the limit without a break of the API. |
 | 14 | A request holds a fixed number of operations inline. | Keep it, with a `// chisle:` comment. The transaction specification gives the real maximum. |
 | 15 | Questions Q1–Q7 and undecided points U1–U5 of `spec/item-stack.md` section 10. | Their answers belong to the specification. Q6 (float equality) changes point 1 and the merge check. |
 | 16 | 28 experiments of `spec/item-stack.md` section 11 are not run. | Run them before the codec step is complete. A codec rule without a captured result stays marked in its test. |
+| 17 | The item template and the dialog refer to each other. The text of a template names a dialog; a dialog holds texts and item templates. | No answer yet. Step 4 decides: the dialog moves into `mcrs_minecraft_item_stack`, or the template holds the dialog as a type parameter and a dialog crate sits above. |
 
 # 10. Steps
 
@@ -523,7 +526,8 @@ in parallel.
 1. **(a)** `mcrs_minecraft_inventory_plan`: the planner and its tests.
 2. **(a)** `mcrs_minecraft_item_stack`, types: `Kind`, `Count`, `ItemStack`, `PatchEntry`, the
    traits, the first batch of component types, the canonical order of the patch.
-3. **(a)** Move the data that is not an item out of `mcrs_minecraft_item` (open point 12).
+3. **(a)** Move the data that is not an item out of `mcrs_minecraft_item`: the sub-steps 3.1 to
+   3.5 of section 10.1.
 4. **(b)** `mcrs_minecraft_item_stack`, codecs: the saved form, the wire form, the item template,
    the hashed stack, each against the fixtures.
 5. **(b)** `mcrs_minecraft_item_table`: `Prototype`, `ItemTable`, `ItemRegistry`, the bake, the
@@ -556,8 +560,86 @@ crates/  block_entity  chat_client  client  client_entity  client_gui  client_wo
 tools/   mcrs_minecraft_client_recorder  mcrs_minecraft_update
 ```
 
-Each name in `crates/` has the prefix `mcrs_minecraft_`. Many of these crates use only the data of
-open point 12; step 3 removes them from the surface.
+Each name in `crates/` has the prefix `mcrs_minecraft_`. Step 3 removes four names from the
+surface: `worldgen_structure_place`, `engine_brain`, `vanilla_worldgen` and
+`mcrs_minecraft_client_recorder`. Each other crate uses the item ids or a stack type, and step 11
+moves it.
+
+## 10.1 Step 3: the data that is not an item
+
+A group moves out of the old crate when it obeys these two conditions:
+
+- No file of the group uses a stack type, an item component or the item template.
+- A referrer that is not an item component exists, or no item component names the registry.
+
+Each other group is part of the item stack. Thus the item components of
+`mcrs_minecraft_item_stack` name its ids with no dependency on a higher crate.
+
+| Group | Files | Target crate | Crate | Moves | Users outside the old crate |
+|-|-|-|-|-|-|
+| Loot | `loot.rs`, `loot_table_keys.rs`, `context_key_set_keys.rs`, `context_int_provider_keys.rs`, `context_float_provider_keys.rs` and the two `*_provider_type_keys.rs` | `mcrs_minecraft_loot` | existing | before | `block_entity`, `worldgen_feature_place`, `worldgen_structure_place`, `registry_catalog` |
+| Entity domain | `damage_type.rs`, `damage_type_keys.rs`, `damage_type_tag_keys.rs`, `mob_effect_keys.rs` | `mcrs_minecraft_entity` | existing | before | `engine_brain`, `server`, `game_registries`, `registry_catalog`, `mcrs_minecraft_client_recorder` |
+| Recipe | `recipe/ingredient.rs`, `recipe_serializer_keys.rs`, `recipe_book_category_keys.rs`, `recipe_display_keys.rs`, `slot_display_keys.rs` | `mcrs_minecraft_recipe` | new | before | `protocol_game`, `registry_catalog` |
+| Menu | `menu_keys.rs` | `mcrs_minecraft_menu` | new | before | `protocol_game`, `registry_catalog` |
+| Item ids | `item_keys.rs`, `item_tag_keys.rs`, `data_component_type_keys.rs`, `data_component_predicate_type_keys.rs`, `consume_effect_type_keys.rs`, `map_decoration_type_keys.rs`, `potion_keys.rs`, `potion_tag_keys.rs` | `mcrs_minecraft_item_stack` | new | with steps 2 and 4 | 12 crates use `item_keys.rs` |
+| Values in `component/` | the keys and the tag keys of `banner_pattern`, `instrument`, `jukebox_song`, `painting_variant`, `trim_material`, `trim_pattern` | `mcrs_minecraft_item_stack` | new | with step 4 | `game_registries`, `client`, `model`, `protocol_game` |
+| Ids of a component | `enchantment.rs` and its two key files, `decorated_pot_pattern.rs`, `block_transformer.rs` and their key files, the type `Recipe` | `mcrs_minecraft_item_stack` | new | with step 4 | `enchantment`, `protocol_game`, `game_registries` |
+| Dialog | `dialog.rs`, `dialog_keys.rs`, `dialog_tag_keys.rs`, the three `dialog_*_type_keys.rs` files, `input_control_type_keys.rs`, `item_hover_map.rs` | open point 17 | | with step 4 | `game_registries`, `chat_client`, `client_gui`, `client_world`, `server` |
+
+- The two new crates are layer 3 data crates. They have no Bevy and no `bevy` feature.
+- `mcrs_minecraft_menu` starts as `#![no_std]`. `mcrs_minecraft_recipe` states the dependency that
+  prevents `#![no_std]`, if one does.
+- Before step 11, `mcrs_minecraft_recipe` depends on the old crate for the item id and the item
+  reference trait. The old crate keeps the type `Recipe`, because the recipes component names it.
+- A value of the group "Values in `component/`" holds a text, and that text holds the item template.
+  An item component holds the value inline on the wire. Thus the value cannot be in a different crate.
+- `mcrs_minecraft_enchantment` depends on the item id and on an item component. Thus it is above
+  the item stack and cannot own the enchantment id that the enchantments component names.
+- `mcrs_minecraft_block_entity` depends on the stack. Thus it cannot own the decorated pot pattern.
+- `mcrs_minecraft_damage` depends on the physics crate. Thus it does not get the damage type.
+
+The sub-steps follow. Each sub-step is one pull request, and the workspace stays green after it.
+Each sub-step edits `OWNERS` in `tools/mcrs_minecraft_update/src/owners.rs`, then runs
+`cargo run -p mcrs_minecraft_update -- keys`. The tool writes each key file at its new path and
+writes the smaller `registry_keys.rs` of the old crate and the catalog again. No person edits a
+generated file. Each sub-step deletes the moved files and their `mod` lines from the old crate.
+
+- **3.1 Loot.** Target: `mcrs_minecraft_loot`. Move the three types of `loot.rs` and the six key
+  files. Add the dependency on `mcrs_minecraft_loot` to the old crate; `component/common.rs` and
+  `component/nbt_wire.rs` import from it. Edit the imports of `block_entity`,
+  `worldgen_feature_place` and `worldgen_structure_place`. Remove the old dependency from
+  `worldgen_structure_place`. Check: `cargo nextest run -p mcrs_minecraft_loot -p mcrs_minecraft_item
+  -p mcrs_minecraft_block_entity -p mcrs_minecraft_worldgen_feature_place
+  -p mcrs_minecraft_worldgen_structure_place -p mcrs_minecraft_registry_catalog
+  -p mcrs_minecraft_update`.
+- **3.2 Entity domain.** Target: `mcrs_minecraft_entity`. Move `damage_type.rs`, its `resolve_as_is!`
+  line and the three key files. Edit the imports of five files in `component/`, of `harness.rs`, and
+  of `engine_brain`, `server`, `game_registries` and the client recorder. Remove the old dependency
+  from `engine_brain` and from the client recorder. Check: `-p mcrs_minecraft_entity
+  -p mcrs_minecraft_item -p mcrs_minecraft_engine_brain -p mcrs_minecraft_server
+  -p mcrs_minecraft_game_registries -p mcrs_minecraft_registry_catalog
+  -p mcrs_minecraft_client_recorder -p mcrs_minecraft_update`.
+- **3.3 Recipe.** Target: the new crate `mcrs_minecraft_recipe`. Move `recipe/ingredient.rs` as
+  `ingredient.rs` and the four key files. The file `recipe/mod.rs` becomes `recipe.rs` and keeps only
+  the type `Recipe`. Add the crate to the workspace manifest, to `NO_BEVY_PACKAGES` and to the
+  dependencies of `registry_catalog` and `protocol_game`. Edit the imports of `protocol_game`. Check:
+  `-p mcrs_minecraft_recipe -p mcrs_minecraft_item -p mcrs_minecraft_protocol_game
+  -p mcrs_minecraft_registry_catalog -p mcrs_minecraft_update`.
+- **3.4 Menu.** Target: the new crate `mcrs_minecraft_menu`. Move `menu_keys.rs`. Add the crate to
+  the workspace manifest, to `NO_BEVY_PACKAGES` and to the dependencies of `registry_catalog` and
+  `protocol_game`. Edit one import of `protocol_game`. Check: `-p mcrs_minecraft_menu
+  -p mcrs_minecraft_protocol_game -p mcrs_minecraft_registry_catalog -p mcrs_minecraft_update`.
+- **3.5 Unused dependency.** `vanilla_worldgen` names the old crate in its manifest and uses it in
+  no source file. Remove the line. Check: `-p mcrs_minecraft_vanilla_worldgen`.
+
+Order: 3.1, 3.2, 3.3, 3.4 run one after the other. They share `owners.rs`, the `lib.rs` and the
+`registry_keys.rs` of the old crate and the generated file of the catalog. Sub-step 3.5 shares no
+file with them and runs in parallel. All sub-steps run in parallel with steps 1 and 2; only 3.3 and
+3.4 share the workspace manifest with step 2.
+
+After step 3 the old crate holds the item stack files and the four groups of the table that have no
+"before". Steps 2 and 4 name `mcrs_minecraft_item_stack` in `OWNERS` for the registries of these
+groups. Thus step 12 deletes a crate that holds only the item stack.
 
 # 11. Evidence
 
