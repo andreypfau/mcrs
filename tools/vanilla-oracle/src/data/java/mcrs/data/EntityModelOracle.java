@@ -77,7 +77,7 @@ import org.joml.Vector3fc;
  * Builds the entity model layers and keyframe clips of the client, and poses selected models,
  * then writes them as JSON. Nothing is drawn, so no graphics context is needed.
  *
- * <p>Arguments: the output directory, then one of {@code models}, {@code animations}, {@code poses}, {@code types} or {@code block_entities}.
+ * <p>Arguments: the output directory, then one of {@code models}, {@code animations}, {@code poses}, {@code types}, {@code block_entities} or {@code sign_text}.
  */
 public final class EntityModelOracle {
     private static final int FORMAT = 1;
@@ -98,6 +98,7 @@ public final class EntityModelOracle {
                 case "poses" -> write(out.resolve("entity_poses.json"), header("poses"), "cases", poses());
                 case "types" -> write(out.resolve("entity_types.json"), header("types"), "types", types());
                 case "block_entities" -> write(out.resolve("block_entity_poses.json"), header("block_entities"), "cases", blockEntities());
+                case "sign_text" -> write(out.resolve("sign_text.json"), header("sign_text"), "cases", SignTextOracle.rows());
                 default -> throw new IllegalArgumentException("unknown mode " + args[1]);
             }
             status = 0;
@@ -142,6 +143,16 @@ public final class EntityModelOracle {
                     "placement",
                     "4x4 matrix, rows of 4, that maps a point of the layer in model space, in blocks (pixels / 16), to block space (+Y up, the block from 0 to 1)"
                 );
+            }
+            case "sign_text" -> {
+                units.addProperty(
+                    "matrix",
+                    "4x4 matrix, rows of 4, applied to the text of one side: maps a point of the text plane, in text units "
+                        + "(+X right, +Y down, one unit is one pixel of the text), to block space (+Y up, the block from 0 to 1)"
+                );
+                units.addProperty("x_y", "position of the first glyph of a line in text units, before the matrix");
+                units.addProperty("colors", "ARGB integers, signed 32 bit");
+                units.addProperty("font", "stub: every code point has the advance stub_advance, lines are not wrapped; the file records placement, colour and light only");
             }
             default -> units.addProperty(
                 "pose",

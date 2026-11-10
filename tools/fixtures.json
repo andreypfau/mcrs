@@ -436,6 +436,16 @@
     ]
   },
   {
+    "name": "sign_text",
+    "task": "dumpSignText",
+    "outputs": [
+      {
+        "file": "sign_text.json",
+        "to": "crates/mcrs_minecraft_model/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
     "name": "numeric",
     "task": "dumpNumeric",
     "outputs": [

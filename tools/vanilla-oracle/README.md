@@ -775,6 +775,16 @@ The task fails without `-Pgolden` and `-PgoldenIn`. The new file is written to
 `<dir>` under the name of the current file. `recapture <name>` fills in all
 three properties and puts the file back in place.
 
+# Sign text
+
+`dumpSignText` (fixture `sign_text`) runs the sign text renderers of the client against a
+recording collector and writes what they submit: the map from block space to text space for each
+sign family, side and state, the position of each line, the colour, the outline colour and the
+light for each dye with and without glowing text, the choice between the filtered and the
+unfiltered messages, and the style of each code point. The font is a stub (every code point has
+the advance `stub_advance`, nothing wraps), so the file does not pin glyph metrics. The sign
+board is not in this file: in this version it is an ordinary block model (`block_models`).
+
 # Client frames
 
 The subproject `client-capture` is a client mod. It runs each scene of `tools/scenes/` in the
