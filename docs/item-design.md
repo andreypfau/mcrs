@@ -227,7 +227,11 @@ The caller owns `scratch` and uses it again for the next request.
 ## 4.4 `mcrs_minecraft_engine_item`
 
 ```rust
-pub struct ItemPlugin { pub table: ItemTable }
+pub struct ItemPlugin { pub table: ItemTable, /* private: the schedule */ }
+impl ItemPlugin {
+    pub fn new(table: ItemTable) -> Self;          // `ItemSet` in `FixedUpdate`
+    pub fn in_schedule(self, schedule: impl ScheduleLabel) -> Self;
+}
 pub struct ItemSet;                                // the set of the projection of `Equipped`
 pub trait ItemAppExt {                             // for `App`
     fn register_item_component<T: CustomComponent + Component>(&mut self)
@@ -408,7 +412,7 @@ impl CustomComponent for Soulbound {
     fn decode(bytes: &[u8]) -> Option<Self> { Some(Self(u64::from_le_bytes(bytes.try_into().ok()?))) }
 }
 
-app.add_plugins(ItemPlugin { table }).register_item_component::<Soulbound>()?;
+app.add_plugins(ItemPlugin::new(table)).register_item_component::<Soulbound>()?;
 
 let stack = ItemStack::new(kind, count).set(CustomName("Sting".into())).unset::<Lore>();
 let bytes = encode_wire(Some(&stack))?;            // the codec names come with the codec step

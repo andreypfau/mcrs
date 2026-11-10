@@ -100,7 +100,7 @@ pub fn count(count: u8) -> Count {
 
 pub fn app() -> App {
     let mut app = App::new();
-    app.add_plugins(ItemPlugin { table: *TABLE })
+    app.add_plugins(ItemPlugin::new(*TABLE))
         .register_item_component::<Soulbound>()
         .unwrap();
     app

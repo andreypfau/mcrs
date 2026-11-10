@@ -6,11 +6,13 @@ use bevy_ecs::lifecycle::Remove;
 use bevy_ecs::observer::On;
 use bevy_ecs::query::With;
 use bevy_ecs::resource::Resource;
+use bevy_ecs::schedule::ScheduleLabel;
 use bevy_ecs::system::ResMut;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_engine_item::Equipped;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
+use mcrs_minecraft_engine_item::ItemPlugin;
 use mcrs_minecraft_engine_item::Request;
 use mcrs_minecraft_engine_item::RequestId;
 use mcrs_minecraft_engine_item::Selected;
@@ -20,6 +22,7 @@ use mcrs_minecraft_engine_item::StackCommandsExt;
 use mcrs_minecraft_item_stack::ItemStack;
 
 use crate::fixture::PLAIN;
+use crate::fixture::TABLE;
 use crate::fixture::app;
 use crate::fixture::count;
 use crate::fixture::spawn;
@@ -195,4 +198,21 @@ fn a_tick_without_a_change_writes_no_equipped() {
     tick(&mut app);
 
     assert_eq!(app.world().resource::<Writes>().0, 0);
+}
+
+#[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash)]
+struct Custom;
+
+#[test]
+fn the_projection_runs_in_the_schedule_the_plugin_names() {
+    let mut app = App::new();
+    app.add_plugins(ItemPlugin::new(*TABLE).in_schedule(Custom));
+    let world = app.world_mut();
+    let holder = world.spawn((Slots::new(1), Selected(0))).id();
+    let stack = spawn(world, ItemStack::new(PLAIN, count(1)));
+    world.commands().entity(stack).put_at(holder, 0);
+    world.flush();
+
+    app.world_mut().run_schedule(Custom);
+    assert_eq!(equipped(app.world_mut()), [stack]);
 }

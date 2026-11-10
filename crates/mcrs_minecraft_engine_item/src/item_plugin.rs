@@ -10,7 +10,9 @@ use bevy_ecs::query::Has;
 use bevy_ecs::query::Or;
 use bevy_ecs::query::With;
 use bevy_ecs::query::Without;
+use bevy_ecs::schedule::InternedScheduleLabel;
 use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::schedule::ScheduleLabel;
 use bevy_ecs::schedule::SystemCondition;
 use bevy_ecs::schedule::common_conditions;
 use bevy_ecs::system::Commands;
@@ -30,9 +32,27 @@ use crate::request_scratch::RequestScratch;
 /// Stacks as entities over the prototypes of `table`.
 ///
 /// It keeps [`Equipped`] on the stack in the [`Selected`] slot of each holder, in [`ItemSet`] of
-/// `FixedUpdate`.
+/// the schedule that [`ItemPlugin::in_schedule`] names, `FixedUpdate` by default.
 pub struct ItemPlugin {
     pub table: ItemTable,
+    schedule: InternedScheduleLabel,
+}
+
+impl ItemPlugin {
+    #[must_use]
+    pub fn new(table: ItemTable) -> Self {
+        Self {
+            table,
+            schedule: FixedUpdate.intern(),
+        }
+    }
+
+    /// Runs [`ItemSet`] in `schedule`.
+    #[must_use]
+    pub fn in_schedule(mut self, schedule: impl ScheduleLabel) -> Self {
+        self.schedule = schedule.intern();
+        self
+    }
 }
 
 impl Plugin for ItemPlugin {
@@ -45,7 +65,7 @@ impl Plugin for ItemPlugin {
             .add_message::<Given>()
             .add_message::<RequestResult>()
             .add_systems(
-                FixedUpdate,
+                self.schedule,
                 project_equipped.in_set(ItemSet).run_if(changed),
             );
     }
