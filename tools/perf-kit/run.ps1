@@ -1,6 +1,6 @@
 ﻿# The one entry point: records the machine, prepares it, builds, runs the benchmarks and zips the results.
-# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File run.ps1 [-Full] [-Label NAME] [-Lang en|ru]
-param([switch]$Full, [string]$Label = '', [ValidateSet('en', 'ru')][string]$Lang = '')
+# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File run.ps1 [-Full] [-Label NAME] [-Lang en|ru] [-Only mob,client,server,worldgen]
+param([switch]$Full, [string]$Label = '', [ValidateSet('en', 'ru')][string]$Lang = '', [string]$Only = 'mob,client,server,worldgen')
 
 # Keeps Cyrillic in redirected output and in the text read from perf-kit.exe.
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
@@ -62,13 +62,24 @@ while (-not $Label) {
     $Label = ((Read-Host (T 'Machine label (for example ryzen-3060 or xps-15)' 'Метка машины (например, ryzen-3060 или xps-15)')) -replace '[^A-Za-z0-9_-]+', '-').Trim('-')
 }
 
-Write-Host (T 'The mob benchmark runs the Minecraft server, which needs the Minecraft EULA: https://aka.ms/MinecraftEULA' 'Бенчмарк мобов запускает сервер Minecraft, а для него нужно принять Minecraft EULA: https://aka.ms/MinecraftEULA')
-if (Confirm-Choice (T 'Do you accept the Minecraft EULA?' 'Принять Minecraft EULA?')) {
-    $sections = @('--accept-eula')
-} else {
-    Write-Host (T 'Running without the mob section.' 'Запуск без секции мобов.')
-    $sections = @('--only', 'client,server,worldgen')
+# A comma list, not [string[]]: with -File PowerShell passes `mob,server` as one string.
+$Only = @($Only.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+foreach ($section in $Only) {
+    if (@('mob', 'client', 'server', 'worldgen') -notcontains $section) { Write-Host '-Only takes a comma list of mob, client, server, worldgen'; exit 2 }
 }
+if ($Only.Count -eq 0) { Write-Host '-Only takes a comma list of mob, client, server, worldgen'; exit 2 }
+$sections = @()
+if ($Only -contains 'mob') {
+    Write-Host (T 'The mob benchmark runs the Minecraft server, which needs the Minecraft EULA: https://aka.ms/MinecraftEULA' 'Бенчмарк мобов запускает сервер Minecraft, а для него нужно принять Minecraft EULA: https://aka.ms/MinecraftEULA')
+    if (Confirm-Choice (T 'Do you accept the Minecraft EULA?' 'Принять Minecraft EULA?')) {
+        $sections = @('--accept-eula')
+    } else {
+        Write-Host (T 'Running without the mob section.' 'Запуск без секции мобов.')
+        $Only = @($Only | Where-Object { $_ -ne 'mob' })
+        if ($Only.Count -eq 0) { exit 0 }
+    }
+}
+$sections += @('--only', ($Only -join ','))
 
 $name = "$Label-windows-$((Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ', [Globalization.CultureInfo]::InvariantCulture))"
 $results = Join-Path $KitDir 'results'

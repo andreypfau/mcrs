@@ -1,6 +1,6 @@
 #!/bin/bash
 # The one entry point: records the machine, prepares it, builds, runs the benchmarks and zips the results.
-# Usage: run.sh [--full] [--label NAME] [--lang en|ru]
+# Usage: run.sh [--full] [--label NAME] [--lang en|ru] [--only mob,client,server,worldgen]
 set -u
 # shellcheck source=SCRIPTDIR/common.sh
 . "$(dirname "$0")/common.sh"
@@ -19,10 +19,17 @@ system_lang() {
 profile=quick
 label=""
 lang=""
+only="mob,client,server,worldgen"
 while [ $# -gt 0 ]; do
     case "$1" in
         --full) profile=full; shift ;;
         --label) label="$2"; shift 2 ;;
+        --only)
+            for section in $(printf '%s' "${2:-}" | tr ',' ' '); do
+                case "$section" in mob | client | server | worldgen) ;; *) say "--only takes a comma list of mob, client, server, worldgen"; exit 2 ;; esac
+            done
+            [ -n "${2:-}" ] || { say "--only takes a comma list of mob, client, server, worldgen"; exit 2; }
+            only="$2"; shift 2 ;;
         --lang)
             case "${2:-}" in en | ru) lang="$2"; shift 2 ;; *) say "--lang takes en or ru"; exit 2 ;; esac ;;
         *) say "unknown argument: $1"; exit 2 ;;
@@ -58,14 +65,21 @@ while [ -z "$label" ]; do
     label="$(clean_label "$label")"
 done
 
-msg "The mob benchmark runs the Minecraft server, which needs the Minecraft EULA: https://aka.ms/MinecraftEULA" \
-    "Бенчмарк мобов запускает сервер Minecraft, а для него нужно принять Minecraft EULA: https://aka.ms/MinecraftEULA"
-if ask "$(msg "Do you accept the Minecraft EULA?" "Принять Minecraft EULA?")"; then
-    sections=(--accept-eula)
-else
-    msg "Running without the mob section." "Запуск без секции мобов."
-    sections=(--only "client,server,worldgen")
-fi
+sections=()
+case ",$only," in
+    *,mob,*)
+        msg "The mob benchmark runs the Minecraft server, which needs the Minecraft EULA: https://aka.ms/MinecraftEULA" \
+            "Бенчмарк мобов запускает сервер Minecraft, а для него нужно принять Minecraft EULA: https://aka.ms/MinecraftEULA"
+        if ask "$(msg "Do you accept the Minecraft EULA?" "Принять Minecraft EULA?")"; then
+            sections=(--accept-eula)
+        else
+            msg "Running without the mob section." "Запуск без секции мобов."
+            only="$(printf '%s' ",$only," | sed 's/,mob,/,/; s/^,//; s/,$//')"
+            [ -n "$only" ] || exit 0
+        fi
+        ;;
+esac
+sections+=(--only "$only")
 
 name="$label-macos-$(date -u +%Y%m%dT%H%M%SZ)"
 results="$KIT_DIR/results"
