@@ -126,3 +126,32 @@ fn despawn_stacks(mut world: DeferredWorld, context: HookContext) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use bevy_ecs::world::World;
+
+    use super::*;
+
+    #[test]
+    fn the_occupancy_bit_of_each_slot_follows_its_content() {
+        let mut world = World::new();
+        let stack = world.spawn_empty().id();
+        let mut slots = Slots::new(130);
+        let writes = [
+            (0, true),
+            (63, true),
+            (64, true),
+            (129, true),
+            (63, false),
+            (0, false),
+        ];
+        for (index, occupied) in writes {
+            slots.replace(index, occupied.then_some(stack));
+            for index in 0..slots.len() {
+                let bit = (slots.occupied[index / WORD] >> (index % WORD)) & 1 == 1;
+                assert_eq!(bit, slots.get(index).is_some(), "slot {index}");
+            }
+        }
+    }
+}

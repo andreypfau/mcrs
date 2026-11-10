@@ -3,13 +3,10 @@ use bevy_ecs::system::In;
 use bevy_ecs::system::ParamSet;
 use bevy_ecs::system::Query;
 use mcrs_minecraft_item_stack::Count;
-use mcrs_minecraft_item_stack::MaxStackSize;
 
 use crate::Slots;
 use crate::Stacks;
-
-/// The slot limit of a slot whose holder gives none (ITX-LIM-001).
-pub(crate) const SLOT_LIMIT: u8 = 99;
+use crate::capacity::capacity;
 
 pub(crate) struct Offer {
     pub(crate) holder: Entity,
@@ -62,11 +59,4 @@ pub(crate) fn merge_into(
         first.get_or_insert(target);
     }
     Some(Merged { rest, first })
-}
-
-/// The smaller of the slot limit and the maximum stack size, which is 1 without the component
-/// (ITX-LIM-002, STK-CMP-001).
-pub(crate) fn capacity(stacks: &mut Stacks, stack: Entity) -> u8 {
-    let max = stacks.get::<MaxStackSize>(stack).map_or(1, |max| max.0);
-    u8::try_from(max.clamp(1, i32::from(SLOT_LIMIT))).unwrap_or(1)
 }

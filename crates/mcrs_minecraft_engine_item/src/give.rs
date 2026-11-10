@@ -27,18 +27,29 @@ pub(crate) fn give(world: &mut World, holder: Entity, gift: Gift, overflow: Over
     if world.get::<Slots>(holder).is_none() {
         return;
     }
-    let stack = match gift {
-        Gift::Stack(stack) => stack,
+    let (stack, origin) = match gift {
+        Gift::Stack(stack) => (stack, Origin::Existing),
         Gift::Value(value) => {
             let entity = world.spawn_empty();
             let stack = entity.id();
             spawn_stack(entity, value);
-            stack
+            (stack, Origin::Spawned)
         }
     };
-    if let Some(given) = put_in(world, holder, stack, overflow) {
-        world.write_message(given);
+    match (put_in(world, holder, stack, overflow), origin) {
+        (Some(given), _) => {
+            world.write_message(given);
+        }
+        (None, Origin::Spawned) => {
+            world.despawn(stack);
+        }
+        (None, Origin::Existing) => {}
     }
+}
+
+enum Origin {
+    Existing,
+    Spawned,
 }
 
 /// Merges `stack` into the stacks of `holder`, then moves the rest to the first free slot. A rest

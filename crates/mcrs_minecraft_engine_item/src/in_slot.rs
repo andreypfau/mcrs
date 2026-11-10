@@ -93,3 +93,23 @@ fn leave_world(world: &mut World, stack: Entity, slot: InSlot) {
         entity.remove::<Dropped>();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_in_slot_that_names_a_missing_slot_is_removed_again() {
+        let mut world = World::new();
+        let holder = world.spawn(Slots::new(2)).id();
+        let without_slots = world.spawn_empty().id();
+        for slot in [InSlot::new(without_slots, 0), InSlot::new(holder, 2)] {
+            let stack = world.spawn(slot).id();
+            world.flush();
+            assert!(!world.entity(stack).contains::<InSlot>(), "{slot:?}");
+        }
+        let slots: Option<Vec<Option<Entity>>> =
+            (world.get::<Slots>(holder)).map(|slots| slots.iter().collect());
+        assert_eq!(slots, Some(vec![None, None]));
+    }
+}

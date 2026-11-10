@@ -183,6 +183,19 @@ fn exactly_the_stack_in_the_selected_slot_of_each_holder_is_equipped() {
     }
 }
 
+#[test]
+fn a_removal_of_the_selection_in_frames_without_a_fixed_step_unequips() {
+    let mut app = app();
+    let at = inventories(&mut app);
+    app.world_mut().entity_mut(at.b).remove::<Selected>();
+    app.update();
+    app.update();
+
+    tick(&mut app);
+
+    assert_eq!(equipped(app.world_mut()), [at.stacks[0]]);
+}
+
 #[derive(Resource, Default)]
 struct Writes(usize);
 

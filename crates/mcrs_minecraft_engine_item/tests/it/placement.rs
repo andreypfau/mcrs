@@ -66,6 +66,8 @@ fn assert_consistent(world: &mut World) {
             assert_eq!((slot.holder(), usize::from(slot.index())), (holder, index));
         }
         assert_eq!(slots.occupied().count(), slots.iter().flatten().count());
+        let first_empty = slots.iter().position(|stack| stack.is_none());
+        assert_eq!(slots.first_free().map(usize::from), first_empty);
     }
     let mut stacks = world.query::<(Entity, &InSlot, Option<&Dropped>)>();
     for (stack, slot, dropped) in stacks.iter(world) {

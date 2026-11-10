@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_engine_item"
-description = "Item stacks as entities: spawn, read and write their components"
+description = "Item stacks as entities: their components, their placement in slots or in the world, inventory requests and the equipped marker"
 version.workspace = true
 edition.workspace = true
 

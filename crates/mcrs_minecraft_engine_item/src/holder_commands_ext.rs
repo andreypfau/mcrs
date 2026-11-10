@@ -13,6 +13,8 @@ use crate::give::give;
 use crate::load_inventory::load_inventory;
 
 /// The commands of a holder: an entity with [`Slots`](crate::Slots).
+///
+/// The commands need [`ItemPlugin`](crate::ItemPlugin) and do nothing without it.
 pub trait HolderCommandsExt {
     /// Merges the gift into the stacks of the holder, then puts the rest in the first free slot.
     /// The rest that finds no room keeps the placement that it had; a given value becomes a stack

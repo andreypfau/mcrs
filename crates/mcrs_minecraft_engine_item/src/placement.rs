@@ -39,11 +39,11 @@ impl Placement {
         match self {
             Self::Slot(slot) => {
                 if entity.get::<InSlot>() != Some(&slot) {
-                    entity.remove::<Dropped>().insert(slot);
+                    entity.insert(slot);
                 }
             }
             Self::World(dropped) => {
-                entity.remove::<InSlot>().insert(dropped);
+                entity.insert(dropped);
             }
             Self::Nowhere => {
                 entity.remove::<(InSlot, Dropped)>();

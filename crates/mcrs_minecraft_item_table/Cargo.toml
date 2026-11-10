@@ -15,13 +15,11 @@ bevy_ecs = { workspace = true, optional = true }
 mcrs_minecraft_item_stack.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_resource.workspace = true
-rustc-hash.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
 mcrs_minecraft_fixtures.workspace = true
-mcrs_minecraft_text.workspace = true
 
 [features]
 default = []

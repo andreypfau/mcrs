@@ -3,6 +3,7 @@
 
 extern crate alloc;
 
+mod capacity;
 mod cells;
 mod column;
 mod commit;
