@@ -1,0 +1,19 @@
+[package]
+name = "mcrs_minecraft_text_bedrock"
+description = "A text component as a Bedrock formatted string or rawtext: dynamic parts resolved on the server, and the features Bedrock lacks counted"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_lang.workspace = true
+mcrs_minecraft_text.workspace = true
+serde.workspace = true
+serde_json.workspace = true

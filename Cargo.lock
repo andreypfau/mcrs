@@ -5534,6 +5534,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_text_bedrock"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_lang",
+ "mcrs_minecraft_text",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mcrs_minecraft_text_flatten"
 version = "0.5.8"
 dependencies = [
