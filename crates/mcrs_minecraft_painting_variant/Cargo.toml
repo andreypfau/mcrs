@@ -1,0 +1,21 @@
+[package]
+name = "mcrs_minecraft_painting_variant"
+description = "The value of the painting variant registry"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_text.workspace = true
+serde = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+mcrs_minecraft_fixtures.workspace = true
+serde_json.workspace = true
