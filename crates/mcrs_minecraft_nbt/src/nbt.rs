@@ -7,7 +7,7 @@ use crate::serializer::WriteAdaptor;
 use crate::{COMPOUND_ID, Error};
 use bytes::Bytes;
 
-#[derive(Clone, Debug, Default, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Nbt {
     pub name: String,
     pub root_tag: NbtCompound,

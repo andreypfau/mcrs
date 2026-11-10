@@ -14,8 +14,9 @@ type of this game version. It does not prescribe an architecture.
 
 Scope: the stack itself. This document does not state inventories, the slots of a player, clicks,
 menus or item entities. It does not state enchantment effects, the use of an item, attributes,
-tooltips or the formats of Bedrock Edition. For a component type that section 7 does not state, this document gives only
-the row of section 8.
+tooltips or the formats of Bedrock Edition. Section 8.1 states the shape of 15 component types. For
+each other component type that section 7 does not state, this document gives only the row of
+section 8.
 
 ## 0. Conventions
 
@@ -96,6 +97,7 @@ come from the goldens that the game wrote for `26.4-snapshot-7`.
 | `STK-DMG` | damage of a stack |
 | `STK-VAL` | strict validation |
 | `STK-TYP` | the list of component types |
+| `STK-SHP` | the shapes of the component types of section 8.1 |
 
 ### 0.5 Notation
 
@@ -192,7 +194,12 @@ order of the elements of a list has an effect. For a component type that is not 
 components are equal when their wire forms are equal.
 
 Reason: a client can observe equality only
-through a format. Open question Q6 covers numbers in floating point and free NBT.
+through a format.
+
+The saved form of this rule is the form that the writer gives for the component. It is not the
+input text of a reader. Two inputs that decode to one component are thus equal. STK-EQ-005 states
+equality of two numbers in floating point. STK-EQ-006 states equality of two numbers in free NBT.
+STK-SHP-017 states one exception for `minecraft:tooltip_display`.
 
 **STK-PAT-008** (`source_suggested`, semantic). A component patch can have a value entry for a
 component type that the prototype does not have. A component patch can have a value entry for
@@ -295,6 +302,23 @@ See experiment E8.
 and components and the stack that receives can stack. The count of the result must not be larger
 than the maximum stack size. A document for inventories states how a merge moves the count.
 See experiment E8.
+
+**STK-EQ-005** (`source_suggested`, semantic). In equality of two components, two float values are
+equal when one of these conditions is true:
+
+- each of the two values is a NaN;
+- no value is a NaN, and the two values have the same bit pattern.
+
+The same rule applies to two double values. Equality does not use the numeric comparison of
+IEEE 754. Thus each NaN is equal to each other NaN, with each payload and each sign. Thus `0.0`
+and `-0.0` are not equal. This rule applies to STK-PAT-004, STK-PAT-006, STK-EQ-001 and STK-EQ-004.
+See experiment E28.
+
+**STK-EQ-006** (`source_suggested`, semantic). In free NBT (STK-TYP-004), two numbers of different
+tag kinds are not equal. For example, `{a:1}` and `{a:1b}` are not equal. Two float tags or two
+double tags are equal as STK-EQ-005 states. A field with a known number kind is different: its
+reader gives one number kind, and equality compares the values after the decode.
+See experiment E28.
 
 ## 6. Formats
 
@@ -615,6 +639,13 @@ boolean node. See result R8.
 **STK-HSH-008** (`unresolved`, client agreement). The hash of a component whose type is not a
 saved type is not decided. See open question Q4.
 
+**STK-HSH-009** (`source_suggested`, client agreement). The float node and the double node of
+STK-HSH-005 take the bit pattern of the value without a change. The hash does not make a NaN
+canonical. Thus two NaN values with different bit patterns have different hashes, and `0.0` and
+`-0.0` have different hashes. An implementation must keep the bit pattern of each float and each
+double from the reader to the writer and to the hash. Two components that are equal by STK-EQ-005
+can thus have different hashes. This occurs only for a NaN. See experiment E28.
+
 ## 7. Four component types
 
 ### 7.1 Forms and ranges
@@ -882,6 +913,284 @@ A component type from `villager/variant` to `cushion/color`, except `provides_po
 holds data of an entity or a block entity. The item copies the data to the entity or the block
 entity that it makes.
 
+### 8.1 Shapes of the first batch
+
+This section states the shape of 15 component types. The counts of prototypes come from the 1686
+files of `assets/mcrs/item_definition/`.
+
+**STK-SHP-001** (`source_suggested_black_box_confirmed`, wire). Each rule from STK-SHP-006 to
+STK-SHP-020 states one component type in a table. The columns are:
+
+- "Field": the key of the field in the saved form. `(value)` means that the component is one
+  value and not a map.
+- "Saved form": the form of the value (STK-SHP-002).
+- "Range": the values that the reader of the saved form accepts.
+- "Absent": `necessary`, or the default that the reader takes when the key is absent.
+- "Wire form": the bytes of the field. The wire form has the fields in the order of the rows.
+
+These statements apply to each table:
+
+- A value out of the range is not a valid saved form (STK-SAV-005). This is true also for an
+  optional field.
+- The reader of the saved form ignores a key that the table does not list.
+- The writer of the saved form always writes a necessary field.
+- The writer of the saved form omits an optional field whose value is equal to its default. An
+  extra key changes the hash (STK-HSH-004).
+- The wire form has each field, also a field whose value is equal to its default.
+- The reader of the wire form does not check the range, unless the rule states a check.
+- A number of elements in the wire form is a VarInt. A negative number is a decode error.
+- "No limit" means that only the size of the file or of the packet limits the length.
+
+The item definitions show the omitted defaults: 29 prototypes have `minecraft:tool` with only the
+key `rules`. See experiment E29.
+
+**STK-SHP-002** (`source_suggested_black_box_confirmed`, wire). The tables use these forms:
+
+| Form | Saved form in NBT | Saved form in JSON | Hash node | Wire form |
+|------|-------------------|--------------------|-----------|-----------|
+| int | Int tag | number | int | VarInt |
+| float | Float tag | number | float | 4 bytes, IEEE 754, big-endian |
+| double | Double tag | number | double | 8 bytes, IEEE 754, big-endian |
+| boolean | Byte tag, `0b` or `1b` | `false` or `true` | boolean | one byte, `00` or `01` |
+| identifier | String tag | string | string | String (32767) of `login.md`, section 0.2 |
+| text | STK-SHP-004 | STK-SHP-004 | as the saved form | one network NBT of the saved form |
+| entry of a registry | String tag: the identifier of the entry | string | string | VarInt: the numeric id of the entry in that registry |
+| name of a list | String tag | string | string | VarInt: the id of the name (STK-SHP-003) |
+
+An int is a signed 32-bit integer. The reader of an identifier accepts a string without a
+namespace and gives the namespace `minecraft`. The writer always writes the namespace. A string
+that is not an identifier is an error in each format. An identifier or a numeric id that names no
+entry of the registry is an error in each format. Experiment E29 decides if the reader of the
+saved form accepts a number of a different tag kind. See results R1, R6 and R8.
+
+**STK-SHP-003** (`source_suggested_black_box_confirmed`, wire). A name of a list is one of a fixed
+set of strings. The reader of the saved form compares the string exactly. Each other string is an
+error. The wire form is the id of the name. These lists occur in more than one rule:
+
+| List | Names and ids |
+|------|---------------|
+| operation | `add_value` 0, `add_multiplied_base` 1, `add_multiplied_total` 2 |
+| slot group | `any` 0, `mainhand` 1, `offhand` 2, `hand` 3, `feet` 4, `legs` 5, `chest` 6, `head` 7, `armor` 8, `body` 9, `saddle` 10 |
+| display type | `default` 0, `hidden` 1, `override` 2 |
+
+A writer must write an id of the list. The item definitions show the names `add_value`,
+`add_multiplied_total`, `mainhand`, `body`, `head`, `feet`, `chest`, `legs` and `hidden`.
+See experiment E30.
+
+**STK-SHP-004** (`source_suggested_black_box_confirmed`, wire). A text is a text component of the
+game. Its saved form is a string, a map or a list. This repository has no specification of the
+text component yet (open question Q8). The rules of this section put no limit on the length of a
+text. The writer writes a plain text without style as one string. The wire form is one network
+NBT. Its reader gives a decode error for an NBT that is deeper than 512 levels. It also gives a
+decode error for an NBT that is larger than a quota of 2097152 bytes. The exact measure of the
+size is not specified. Two texts are equal when their content, their style and their children are
+equal (STK-PAT-007). See results R1 and R6, and experiment E32.
+
+**STK-SHP-005** (`design`, unspecified). A server must not send a component of this section with
+a value out of the range of its saved form. Reason: the client cannot save or hash that component.
+For an id that is not in a list of names, the reference reader of the wire form gives the name
+with the id 0. A reader of this project can give a decode error instead. Reason: no vanilla writer
+writes such an id.
+
+**STK-SHP-006** (`source_suggested_black_box_confirmed`, wire). `minecraft:max_stack_size`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | int | `1..99` | necessary | VarInt |
+
+Limits: none. Equality: the two values are equal. Prototypes: each prototype has this component.
+The value is 64 for 1368 prototypes, 1 for 249 prototypes and 16 for 69 prototypes.
+See STK-CMP-001 and result R8.
+
+**STK-SHP-007** (`source_suggested_black_box_confirmed`, wire). `minecraft:max_damage`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | int | `1..2147483647` | necessary | VarInt |
+
+Limits: none. Equality: the two values are equal. Prototypes: 84 prototypes have this component,
+with 40 different values. The other 1602 prototypes do not have it. See STK-CMP-002 and result R8.
+
+**STK-SHP-008** (`source_suggested_black_box_confirmed`, wire). `minecraft:damage`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | int | `0..2147483647` | necessary | VarInt |
+
+Limits: none. Equality: the two values are equal. Prototypes: the 84 prototypes that have
+`minecraft:max_damage` have this component with the value 0 (STK-PRO-006). No other prototype has
+it. See results R1 and R8.
+
+**STK-SHP-009** (`source_suggested_black_box_confirmed`, wire). `minecraft:unbreakable` has no
+field. The saved form is the empty map `{}`. The wire form has no bytes. The reader of the saved
+form accepts a map with keys and ignores each key. A value that is not a map is an error.
+Equality: each two components of this type are equal. Prototypes: no prototype has this component.
+See results R1 and R6, and experiment E29.
+
+**STK-SHP-010** (`source_suggested_black_box_confirmed`, wire). `minecraft:custom_name`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | text | each text | necessary | one network NBT |
+
+Limits: those of STK-SHP-004 only. A menu that renames a stack has a limit of its own. A document
+for menus states it. Equality: as STK-SHP-004. Prototypes: no prototype has this component.
+See results R1 and R6.
+
+**STK-SHP-011** (`source_suggested_black_box_confirmed`, wire). `minecraft:item_name` has the
+shape of `minecraft:custom_name` (STK-SHP-010). Prototypes: each prototype has this component.
+Each value is a map with the one key `translate`. The string of that key is
+`item.minecraft.<path>` or `block.minecraft.<path>`, and it is different for each item. An
+implementation must read it from the file.
+
+**STK-SHP-012** (`source_suggested_black_box_confirmed`, wire). `minecraft:item_model`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | identifier | each identifier | necessary | String (32767) |
+
+The identifier names an item model of a resource pack. No registry holds it, and no reader checks
+that the item model exists. Limits: the wire string holds at most 32767 UTF-16 code units. A
+longer string is a decode error. Equality: the two identifiers are equal. Prototypes: each
+prototype has this component. For each of the 1686 items, the value is the identifier of the item.
+
+**STK-SHP-013** (`source_suggested_black_box_confirmed`, wire). `minecraft:lore`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | a list of text | 0 to 256 elements | necessary | the number of elements, then each text as one network NBT |
+
+Limits: 256 elements. A saved form with more elements is not a valid saved form. A wire form with
+a number larger than 256 is a decode error. No reader removes the elements past the limit.
+Equality: the two lists have equal elements in the same order. Prototypes: each prototype has
+this component with the empty list `[]`. See experiments E29 and E30.
+
+**STK-SHP-014** (`source_suggested_black_box_confirmed`, wire). `minecraft:rarity`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | name of a list | `common` 0, `uncommon` 1, `rare` 2, `epic` 3 | necessary | VarInt: the id |
+
+Limits: none. Equality: the two names are equal. Prototypes: each prototype has this component.
+The value is `common` for 1570 prototypes, `uncommon` for 79, `epic` for 19 and `rare` for 18. An
+implementation must read the value from the file. It must not assume `common`.
+
+**STK-SHP-015** (`source_suggested_black_box_confirmed`, wire). `minecraft:enchantments` is a map
+from an enchantment to a level:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | a map | no limit on the number of keys | necessary | the number of entries, then the entries |
+| each key | entry of the registry `minecraft:enchantment` | each entry | | VarInt: the numeric id |
+| each value | int | `1..255` | | VarInt, `0..255` |
+
+`minecraft:enchantment` is a data-pack registry. The numeric id is the id that the server sent
+for this connection (`registry.md`). The saved form does not accept an enchantment that is
+written in place as a map. Limits: none on the number of entries. The reader of the wire form
+gives a decode error for a level out of `0..255`. A server must not send the level 0, because
+that component has no saved form. A writer must not write one enchantment two times. The order of
+the entries in the wire form is the choice of the writer. Equality: the two maps have the same
+enchantments with the same levels. The order has no effect. Prototypes: each prototype has this
+component with the empty map `{}`. See experiments E29 and E30.
+
+**STK-SHP-016** (`source_suggested_black_box_confirmed`, wire). `minecraft:attribute_modifiers`
+is a list of entries. The saved form is a list of maps. The wire form is the number of entries,
+then each entry. Each entry has these fields:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `type` | entry of the registry `minecraft:attribute` | each entry | necessary | VarInt: the numeric id |
+| `id` | identifier | each identifier | necessary | String (32767) |
+| `amount` | double | each double | necessary | 8 bytes |
+| `operation` | name of the list "operation" | STK-SHP-003 | necessary | VarInt: the id |
+| `slot` | name of the list "slot group" | STK-SHP-003 | `any` | VarInt: the id |
+| `display` | a map (below) | below | `{type:"default"}` | below |
+
+The map `display` has these fields:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `type` | name of the list "display type" | STK-SHP-003 | necessary | VarInt: the id |
+| `value` | text | each text | necessary when `type` is `override`; not read for the other types | one network NBT, only when the id is 2 |
+
+`minecraft:attribute` is a static registry. `id` names the modifier and is not an entry of a
+registry. Limits: none on the number of entries. Equality: the two lists have equal entries in
+the same order. Two entries are equal when each field is equal. `amount` is equal as STK-EQ-005
+states. Prototypes: each prototype has this component. The value is the empty list `[]` for 1593
+prototypes. The other 93 prototypes have 1 to 3 entries. No prototype has `slot` `any` or a
+display of the type `override`. See experiment E31.
+
+**STK-SHP-017** (`source_suggested_black_box_confirmed`, wire). `minecraft:tooltip_display`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `hide_tooltip` | boolean | `false`, `true` | `false` | one byte |
+| `hidden_components` | a list of entries of the registry `minecraft:data_component_type` | each component type, also one that is not a saved type | the empty list | the number of elements, then each type id as a VarInt |
+
+`hidden_components` is a set that keeps the order of its elements. A reader of each format drops
+an element that occurred before in the list. The writers write the elements in the order of the
+set. The hash uses that order (STK-HSH-005). Limits: none on the number of elements. Equality:
+the two values of `hide_tooltip` are equal, and the two sets have the same elements. The order of
+the elements has no effect on equality. This is an exception to STK-PAT-007. Prototypes: each
+prototype has this component with the empty map `{}`. See experiments E30 and E31.
+
+**STK-SHP-018** (`source_suggested_black_box_confirmed`, wire). `minecraft:repair_cost`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `(value)` | int | `0..2147483647` | necessary | VarInt |
+
+Limits: none. Equality: the two values are equal. Prototypes: each prototype has this component
+with the value 0. See result R6.
+
+**STK-SHP-019** (`source_suggested_black_box_confirmed`, wire). `minecraft:food`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `nutrition` | int | `0..2147483647` | necessary | VarInt |
+| `saturation` | float | each float | necessary | 4 bytes |
+| `can_always_eat` | boolean | `false`, `true` | `false` | one byte |
+
+Limits: none. Equality: each field is equal. `saturation` is equal as STK-EQ-005 states.
+Prototypes: 44 prototypes have this component. The other 1642 prototypes do not have it. 5 of the
+44 have `can_always_eat`. The saved `saturation` is a float, for example `1.8000001`. An
+implementation must not read it through a double that it rounds again.
+
+**STK-SHP-020** (`source_suggested_black_box_confirmed`, wire). `minecraft:tool`:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `rules` | a list of maps (below) | no limit on the length | necessary | the number of rules, then each rule |
+| `default_mining_speed` | float | each float | `1.0` | 4 bytes |
+| `damage_per_block` | int | `0..2147483647` | `1` | VarInt |
+| `can_destroy_blocks_in_creative` | boolean | `false`, `true` | `true` | one byte |
+
+Each rule has these fields:
+
+| Field | Saved form | Range | Absent | Wire form |
+|-------|------------|-------|--------|-----------|
+| `blocks` | a block set (below) | below | necessary | below |
+| `speed` | float | larger than 0, at most `3.4028235e38` | no value | one boolean byte, then 4 bytes when the byte is `01` |
+| `correct_for_drops` | boolean | `false`, `true` | no value | one boolean byte, then one byte when the first byte is `01` |
+
+The range of `speed` excludes `0.0`, `-0.0`, each infinity and each NaN. A rule with no `speed`
+does not set a speed. That is different from each number. A block set is a tag or a list of
+entries of the registry `minecraft:block`:
+
+| Block set | Saved form | Wire form |
+|-----------|------------|-----------|
+| a tag | the string `#<identifier of the tag>` | VarInt 0, then the identifier of the tag as String (32767) |
+| a list of `n` blocks | a list of identifiers; one string when `n` is 1 | VarInt `n + 1`, then `n` numeric ids as VarInt |
+
+The reader of the saved form accepts a list of one identifier and one string for one block. The
+writer writes one string. A tag that does not exist is an error in each format. Limits: none on
+the number of rules or of blocks. Equality: each field is equal, and the two lists of rules have
+equal rules in the same order. The two float fields are equal as STK-EQ-005 states. Two block sets
+are equal when they are the same tag. They are also equal when they are lists with the same blocks
+in the same order. A tag is not equal to a list. Prototypes: 38 prototypes have this component.
+The other 1648 prototypes do not have it. 29 of the 38 have only the key `rules`. See experiments
+E29 and E32.
+
 ## 9. Intentional deviations
 
 **D1.**
@@ -928,10 +1237,14 @@ For the owner:
   the client clicks. Which hash does the client send, or does the client fail? Experiment E27.
 - **Q5**: STK-NET-010. Does the server reject a `set_creative_mode_slot` packet in which a
   component uses fewer bytes than its length?
-- **Q6**: STK-PAT-007. Equality of two components for a float that is not a number, for `-0.0`,
-  and for free NBT with numbers of different tag kinds. Experiment E28.
+- **Q6**: answered. STK-EQ-005, STK-EQ-006 and STK-HSH-009 state the rules. Experiment E28
+  confirms them.
 - **Q7**: STK-TYP-003. The wire form of each `own` component type needs a specification. Which
-  document owns each group of types?
+  document owns each group of types? Section 8.1 states the first 15 types.
+- **Q8**: STK-SHP-004. The text component has no specification. Which document owns its saved
+  form, its canonical form and its equality?
+- **Q9**: STK-SHP-002. The four integer component types are signed 32-bit integers in the game.
+  Does this project keep 32 bits, or use a smaller type with a deviation as D3?
 
 Not decided by an experiment yet:
 
@@ -941,6 +1254,15 @@ Not decided by an experiment yet:
 - **U4**: STK-TPL-004. A negative count in the wire form of an item template. Experiment E21.
 - **U5**: STK-SAV-001. If the reader of `count` accepts a Byte tag or a Short tag in NBT.
   Experiment E9.
+- **U6**: STK-SHP-002. If the reader of an int field or a float field accepts a number of a
+  different tag kind, and how it converts the number. Experiment E29.
+- **U7**: STK-SHP-015. The result of a saved map with the keys `sharpness` and
+  `minecraft:sharpness`, and of a wire form with one enchantment two times. Experiments E29 and
+  E30.
+- **U8**: STK-SHP-009. If the reader accepts a map with keys for `minecraft:unbreakable`.
+  Experiment E29.
+- **U9**: STK-SHP-004. If the string `"x"` and the map `{text:"x"}` decode to equal texts.
+  Experiment E32.
 
 ## 11. Experiments
 
@@ -980,7 +1302,11 @@ expected values. Where no golden has the case kind, the first step adds that kin
 | E25 | server | Give a sword with `damage` at the maximum damage minus 1. Break one block. Repeat with the item modifier `set_damage` with `add` -0.1 on a damaged sword. | The stack after each step; the packets of the break. |
 | E26 | golden | Encode a stack with each of `custom_data`, `intangible_projectile`, `map_decorations`, `debug_stick_state`, `recipes`, `lock` and `container_loot`. | The wire bytes of each component. |
 | E27 | server | Put a filled map and a glass pane in a cartography table. Click the result slot with a vanilla client. Capture the `container_click` packet. | The hashed stack of the result slot, or the failure of the client. |
-| E28 | golden | Decode a stack whose patch has `minimum_attack_charge` equal to the prototype as `-0.0f` and `0.0f`, and `custom_data` with `{a:1}` and `{a:1b}` over an equal prototype value. | If the result has the patch entry. |
+| E28 | golden | Decode a stack whose patch has `minimum_attack_charge` equal to the prototype as `-0.0f` and `0.0f`. Decode wire stacks of an apple with `food` whose `saturation` has the bits `7fc00000`, `7fc00001`, `ffc00000`, `00000000` and `80000000`. Compare each pair of the results. Compare `custom_data` `{a:1}` with `{a:1b}`. Encode each result and hash each component. | If the first result has the patch entry; which pairs have the same item and components; the wire bytes and the hash of each. |
+| E29 | golden | Decode saved components: `max_stack_size` as `64b`, `64L` and `64.5f`; `food` with `saturation` as `1.0d` and with no `saturation`; `food` with an unknown key; `unbreakable` as `{a:1}` and as `1b`; `rarity` as `"COMMON"`; `lore` with 257 lines; `enchantments` with the levels 0 and 256, and with the keys `sharpness` and `minecraft:sharpness`; `tool` with a rule `speed` of `0.0f`, `-0.0f` and `Infinityf`; `tooltip_display` with `hide_tooltip` `"x"`. Encode each result. | The error or the saved form of each case. |
+| E30 | golden | Decode wire components: `rarity` with the ids 4 and -1; a slot group with the id 11; `enchantments` with the levels 0 and 256, and with one enchantment two times; `lore` with the number 257; `tooltip_display` with one type id two times. Encode each result to the saved form and hash it. | The error or the component of each case; the saved form and the hash. |
+| E31 | server | Put two stacks in two slots: `tooltip_display` with `hidden_components` `[lore,enchantments]` and `[enchantments,lore]`. Repeat with two `attribute_modifiers` entries in the two orders. Move one stack on the other with a click. | If the stacks merge. |
+| E32 | golden | Decode saved components: `item_name` as `"x"`, `{text:"x"}` and `["x"]`; `tool` with `blocks` as `"minecraft:stone"`, `["minecraft:stone"]`, `[]` and `"#minecraft:nope"`. Compare the results. Encode each result and hash it. | Which results are equal; the saved form, the wire bytes and the hash of each. |
 
 ## 12. Captured results
 

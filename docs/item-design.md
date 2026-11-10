@@ -85,9 +85,23 @@ All crate names are **(proposal)**. The layer numbers are those of `CLAUDE.md`.
 | `mcrs_minecraft_vanilla_item` | 5, vanilla | required | the removable plugin that schedules the behaviour | `mcrs_minecraft_engine_item`, `mcrs_minecraft_item_behaviour` |
 | `mcrs_minecraft_recipe` | 3, data | none | `Ingredient`; the keys of the recipe serializers, the recipe book categories, the recipe displays and the slot displays | `mcrs_minecraft_item_stack` (the old crate until step 11), registries, wire |
 | `mcrs_minecraft_menu` | 3, data | none | `MenuType` and the keys of the menu registry; later the slot layout of each menu | resource |
+| `mcrs_minecraft_item_key` | 3, data | none | the enum `Item` and the item tag keys | registries, resource |
+| `mcrs_minecraft_potion` | 3, data | none | the enum `Potion` and the potion tag keys | registries, resource |
+| `mcrs_minecraft_map_decoration` | 3, data | none | the enum `MapDecorationType` | registries |
+| `mcrs_minecraft_banner_pattern` | 3, data | none | `BannerPattern`, its keys and its tag keys | resource |
+| `mcrs_minecraft_decorated_pot_pattern` | 3, data | none | `DecoratedPotPattern` and its keys | resource |
+| `mcrs_minecraft_block_transformer` | 3, data | none | `BlockTransformer` and its keys | block predicate, sound, registries, resource |
+| `mcrs_minecraft_instrument` | 3, data | none | `Instrument<I>`, its keys and its tag keys | sound, text, resource |
+| `mcrs_minecraft_jukebox_song` | 3, data | none | `JukeboxSong<I>` and its keys | sound, text, resource |
+| `mcrs_minecraft_painting_variant` | 3, data | none | `PaintingVariant<I>`, its keys and its tag keys | text, resource |
+| `mcrs_minecraft_trim` | 3, data | none | `TrimMaterial<I>`, `TrimPattern<I>` and their keys | text, resource |
+| `mcrs_minecraft_dialog` | 3, data | none | `Dialog`, the dialog reference, the keys of the five dialog registries, the map between the hover forms | `mcrs_minecraft_item_stack`, text, NBT, registries |
 
-- The three layer 3 crates start as `#![no_std]` with `alloc`. If a codec dependency forbids it,
-  the crate states which one.
+- Each layer 3 crate starts as `#![no_std]` with `alloc`. If a dependency forbids it, the crate
+  states which one.
+- `I` is the type parameter of the text (`TextTypes` of the text crate). `mcrs_minecraft_item_stack`
+  depends on the five crates from `mcrs_minecraft_banner_pattern` to `mcrs_minecraft_trim` and gives
+  its item template as `I`.
 - The protocol crates and the save crate depend on `mcrs_minecraft_item_stack` only.
 - A proxy or a tool takes `mcrs_minecraft_item_stack` alone. A bot adds the table and the engine
   crate.
@@ -536,13 +550,16 @@ The design keeps the cost of the rare case out of the regular case: no stack wit
 | 9 | Does each vanilla prototype carry all types that have a neutral value? | Check it in the bake against the pinned data pack. The answer fixes the list of section 6. |
 | 10 | A custom component has a codec that the user writes by hand. | Accept it for the first version. A derive is a later convenience. |
 | 11 | The width of the count. STK-CNT-003 lets a wire reader accept a count above 255. | Decided: `Count` holds 8 bits. A decoder rejects a larger count with an error. `spec/item-stack.md` records this as a deviation. |
-| 12 | The old crate also holds data that is not an item: key tables of other registries, recipes, dialogs. | Decided: section 10.1 names the target crate of each group and the groups that stay with the item stack. |
+| 12 | The old crate also holds data that is not an item: key tables of other registries, recipes, dialogs. | Decided: sections 10.1 and 10.2 name the target crate of each group. |
 | 13 | A write to an item component and `mergeable` in one system need `ParamSet`. | Accept it. A later `get_mut` on the param removes the limit without a break of the API. |
 | 14 | A request holds a fixed number of operations inline. | Keep it, with a `// chisle:` comment. The transaction specification gives the real maximum. |
 | 15 | Questions Q1–Q7 and undecided points U1–U5 of `spec/item-stack.md` section 10. | Their answers belong to the specification. Q6 (float equality) changes point 1 and the merge check. |
 | 16 | 28 experiments of `spec/item-stack.md` section 11 are not run. | Run them before the codec step is complete. A codec rule without a captured result stays marked in its test. |
 | 17 | The item template and the dialog refer to each other. The text of a template names a dialog; a dialog holds texts and item templates. | Decided: the template holds the dialog as a type parameter. The dialog lives in the crate `mcrs_minecraft_dialog`, above `mcrs_minecraft_item_stack`. |
-| 18 | The groups that section 10.1 keeps in `mcrs_minecraft_item_stack`: enchantment, patterns, instrument, jukebox song, painting variant, trim. | Decided as a rule: many small crates are better than one large crate. Step 4 gives each registry its own crate where a type parameter or an id breaks the cycle. A group stays only when no such cut exists; step 4 states the reason. |
+| 18 | The groups that section 10.1 keeps in `mcrs_minecraft_item_stack`: enchantment, patterns, instrument, jukebox song, painting variant, trim. | Decided as a rule: many small crates are better than one large crate. Section 10.2 gives each registry its own crate. An id or a type parameter breaks each cycle. Only the three discriminator tables stay, and section 10.2 states the reason. |
+| 19 | The order of the hidden types of `TooltipDisplay`. | Decided: the value keeps the input order, because the hashed stack hashes that order. The equality and the hash for the merge check ignore the order. Sub-step 4.12 changes the type. |
+| 20 | Public fields of the numeric components against range checks. | Decided: the fields stay public. Each codec checks the range at the edge and returns an error. |
+| 21 | The width of the registry id newtypes. | Decided: an id is `u16` where the registry cannot exceed 65,536 entries. Sub-step 4.12 narrows `EnchantmentId`, `AttributeId`, `BlockId`, `BlockTagId` and `ComponentType`. |
 
 # 10. Steps
 
@@ -554,10 +571,9 @@ in parallel.
    traits, the first batch of component types, the canonical order of the patch.
 3. **(a)** Move the data that is not an item out of `mcrs_minecraft_item`: the sub-steps 3.1 to
    3.5 of section 10.1.
-4. **(b)** `mcrs_minecraft_item_stack`, codecs: the saved form, the wire form, the item template,
-   the hashed stack, each against the fixtures.
-5. **(b)** `mcrs_minecraft_item_table`: `Prototype`, `ItemTable`, `ItemRegistry`, the bake, the
-   check of open point 9.
+4. **(b)** The registry groups that are still in the old crate, and the codecs of
+   `mcrs_minecraft_item_stack`: the sub-steps 4.1 to 4.19 of section 10.2.
+5. **(b)** `mcrs_minecraft_item_table`: the sub-steps 5.1 to 5.4 of section 10.2.
 6. `mcrs_minecraft_engine_item`, entity form: the plugin, the registration, the spawn commands,
    `Effective`, `StackRows`, `Stacks`, `set`, `unset`, `reset`, `consume`. Needs steps 2 and 5.
 7. `mcrs_minecraft_engine_item`, placement: `Slots`, `InSlot` and its hooks, `Dropped`, `put_in`,
@@ -567,7 +583,8 @@ in parallel.
 10. The Miri run and the test with a counting allocator for the hopper path.
 11. **(c)** Migrate the users of the old crate, one group for each pull request: the protocol and
     save crates; the engine and server crates; the client crates; the worldgen, registry, recipe and
-    tool crates.
+    tool crates. The key files of section 10.2 that have the mark "step 11" move in these pull
+    requests.
 12. Delete `mcrs_minecraft_item` and its entry in the workspace manifest, in the pull request that
     moves its last user.
 13. Measure the budgets of section 8 with the real data pack and write them to `PERF.md`.
@@ -598,8 +615,7 @@ A group moves out of the old crate when it obeys these two conditions:
 - No file of the group uses a stack type, an item component or the item template.
 - A referrer that is not an item component exists, or no item component names the registry.
 
-Each other group is part of the item stack. Thus the item components of
-`mcrs_minecraft_item_stack` name its ids with no dependency on a higher crate.
+Section 10.2 gives the target crate of each other group.
 
 | Group | Files | Target crate | Crate | Moves | Users outside the old crate |
 |-|-|-|-|-|-|
@@ -607,21 +623,11 @@ Each other group is part of the item stack. Thus the item components of
 | Entity domain | `damage_type.rs`, `damage_type_keys.rs`, `damage_type_tag_keys.rs`, `mob_effect_keys.rs` | `mcrs_minecraft_entity` | existing | before | `engine_brain`, `server`, `game_registries`, `registry_catalog`, `mcrs_minecraft_client_recorder` |
 | Recipe | `recipe/ingredient.rs`, `recipe_serializer_keys.rs`, `recipe_book_category_keys.rs`, `recipe_display_keys.rs`, `slot_display_keys.rs` | `mcrs_minecraft_recipe` | new | before | `protocol_game`, `registry_catalog` |
 | Menu | `menu_keys.rs` | `mcrs_minecraft_menu` | new | before | `protocol_game`, `registry_catalog` |
-| Item ids | `item_keys.rs`, `item_tag_keys.rs`, `data_component_type_keys.rs`, `data_component_predicate_type_keys.rs`, `consume_effect_type_keys.rs`, `map_decoration_type_keys.rs`, `potion_keys.rs`, `potion_tag_keys.rs` | `mcrs_minecraft_item_stack` | new | with steps 2 and 4 | 12 crates use `item_keys.rs` |
-| Values in `component/` | the keys and the tag keys of `banner_pattern`, `instrument`, `jukebox_song`, `painting_variant`, `trim_material`, `trim_pattern` | `mcrs_minecraft_item_stack` | new | with step 4 | `game_registries`, `client`, `model`, `protocol_game` |
-| Ids of a component | `enchantment.rs` and its two key files, `decorated_pot_pattern.rs`, `block_transformer.rs` and their key files, the type `Recipe` | `mcrs_minecraft_item_stack` | new | with step 4 | `enchantment`, `protocol_game`, `game_registries` |
-| Dialog | `dialog.rs`, `dialog_keys.rs`, `dialog_tag_keys.rs`, the three `dialog_*_type_keys.rs` files, `input_control_type_keys.rs`, `item_hover_map.rs` | `mcrs_minecraft_dialog` | new, layer 3, no Bevy | with step 4 | `game_registries`, `chat_client`, `client_gui`, `client_world`, `server` |
-
 - The two new crates are layer 3 data crates. They have no Bevy and no `bevy` feature.
 - `mcrs_minecraft_menu` starts as `#![no_std]`. `mcrs_minecraft_recipe` states the dependency that
   prevents `#![no_std]`, if one does.
 - Before step 11, `mcrs_minecraft_recipe` depends on the old crate for the item id and the item
-  reference trait. The old crate keeps the type `Recipe`, because the recipes component names it.
-- A value of the group "Values in `component/`" holds a text, and that text holds the item template.
-  An item component holds the value inline on the wire. Thus the value cannot be in a different crate.
-- `mcrs_minecraft_enchantment` depends on the item id and on an item component. Thus it is above
-  the item stack and cannot own the enchantment id that the enchantments component names.
-- `mcrs_minecraft_block_entity` depends on the stack. Thus it cannot own the decorated pot pattern.
+  reference trait. The old crate keeps the type `Recipe` until step 11.
 - `mcrs_minecraft_damage` depends on the physics crate. Thus it does not get the damage type.
 
 The sub-steps follow. Each sub-step is one pull request, and the workspace stays green after it.
@@ -663,9 +669,119 @@ Order: 3.1, 3.2, 3.3, 3.4 run one after the other. They share `owners.rs`, the `
 file with them and runs in parallel. All sub-steps run in parallel with steps 1 and 2; only 3.3 and
 3.4 share the workspace manifest with step 2.
 
-After step 3 the old crate holds the item stack files and the four groups of the table that have no
-"before". Steps 2 and 4 name `mcrs_minecraft_item_stack` in `OWNERS` for the registries of these
-groups. Thus step 12 deletes a crate that holds only the item stack.
+After step 3 the old crate holds the item stack files and the groups of section 10.2.
+
+## 10.2 Steps 4 and 5: the sub-steps
+
+`mcrs_minecraft_item_stack` names a registry entry by a numeric id newtype, and a codec gets the
+names through a lookup parameter. Thus no item component needs a key file, and each group below
+leaves the item stack. Each target crate is a layer 3 data crate without Bevy.
+
+| Group | Files of the old crate | Target crate | What breaks the cycle | Dependents |
+|-|-|-|-|-|
+| Item ids | `item_keys.rs`, `item_tag_keys.rs` | `mcrs_minecraft_item_key`, new | none needed: the stack holds `Kind` | 13 crates, the update tool |
+| Potion | `potion_keys.rs`, `potion_tag_keys.rs` | `mcrs_minecraft_potion`, new | numeric id | `registry_catalog` |
+| Map decoration | `map_decoration_type_keys.rs` | `mcrs_minecraft_map_decoration`, new | numeric id | `registry_catalog` |
+| Banner pattern | `BannerPattern` of `component/banner.rs`, two key files | `mcrs_minecraft_banner_pattern`, new | none needed: the value holds no text | `game_registries` |
+| Decorated pot pattern | `decorated_pot_pattern.rs`, its key file | `mcrs_minecraft_decorated_pot_pattern`, new | numeric id | `game_registries` |
+| Block transformer | `block_transformer.rs`, its key file, `tests/it/block_transformer.rs` | `mcrs_minecraft_block_transformer`, new | none needed: no file names an item | `game_registries` |
+| Discriminators | `data_component_type_keys.rs`, `data_component_predicate_type_keys.rs`, `consume_effect_type_keys.rs` | `mcrs_minecraft_item_stack` | none: the group stays | 7 crates |
+| Instrument | the registry value of `component/instrument.rs`, two key files | `mcrs_minecraft_instrument`, new | type parameter `I` for the text | `game_registries` |
+| Jukebox song | `JukeboxSong` of `component/instrument.rs`, one key file | `mcrs_minecraft_jukebox_song`, new | type parameter `I` | `client` |
+| Painting variant | the registry value of `component/painting.rs`, two key files | `mcrs_minecraft_painting_variant`, new | type parameter `I` | `game_registries`, `protocol_game` |
+| Trim | `TrimMaterial`, `TrimPattern` of `component/trim.rs`, two key files | `mcrs_minecraft_trim`, new | type parameter `I` | `model`, `protocol_game` |
+| Enchantment | `enchantment.rs`, two key files | `mcrs_minecraft_enchantment`, existing | numeric id `EnchantmentId` | `protocol_game` |
+| Recipe type | `recipe.rs` | `mcrs_minecraft_recipe`, existing | none needed: the recipes component holds names | none |
+| Dialog | `dialog.rs`, six key files, `item_hover_map.rs`, `tests/it/item_hover.rs` | `mcrs_minecraft_dialog`, new | type parameter of the item template | `game_registries`, `registry_catalog`, `chat_client`, `client_gui`, `client_world`, `server` |
+
+- The discriminators stay because each one selects a shape that the item stack crate owns. No
+  value refers to one of them as a registry entry. They add the dependency on
+  `mcrs_minecraft_registries` to the crate.
+- `mcrs_minecraft_item_key` does not depend on the stack: a user of the item ids does not pay for
+  the stack.
+  `mcrs_minecraft_item_table` gives the conversion from `Item` to `Kind`.
+- The trim materials and the trim patterns are one crate. One component reads the two registries
+  together, and neither has a different user.
+- A text-bearing value of the old crate takes its text from the old template. Thus the four crates
+  with `I` and the dialog crate get new types now, and their key files move in step 11.
+- The enchantment crate and the recipe crate depend on the old crate until step 11. Thus their
+  marker types and key files also move in step 11.
+
+Each sub-step is one pull request. The check command is `cargo nextest run` with the `-p` list of
+the sub-step. A sub-step with the mark **K** edits `OWNERS`, runs the key tool as in section 10.1,
+and adds `-p mcrs_minecraft_item -p mcrs_minecraft_registry_catalog -p mcrs_minecraft_update` to
+its check. A new crate goes into the workspace manifest and into `NO_BEVY_PACKAGES`.
+
+Registry moves. The old crate depends on each new crate and imports from it.
+
+- **4.1 Item ids (K).** Move the two files to `mcrs_minecraft_item_key`. Edit the imports of the 13
+  users. Needs: none. Check: `-p mcrs_minecraft_item_key` and the 13 users.
+- **4.2 Potion (K).** Move the two files to `mcrs_minecraft_potion`. Check: `-p mcrs_minecraft_potion`.
+- **4.3 Map decoration (K).** Move the file to `mcrs_minecraft_map_decoration`. Check:
+  `-p mcrs_minecraft_map_decoration`.
+- **4.4 Banner pattern (K).** Move `BannerPattern` and the two key files. Check:
+  `-p mcrs_minecraft_banner_pattern -p mcrs_minecraft_game_registries`.
+- **4.5 Decorated pot pattern (K).** Move the two files. Check:
+  `-p mcrs_minecraft_decorated_pot_pattern -p mcrs_minecraft_game_registries`.
+- **4.6 Block transformer (K).** Move the two files and the test. Check:
+  `-p mcrs_minecraft_block_transformer -p mcrs_minecraft_game_registries`.
+- **4.7 Discriminators (K).** Move the three files to `mcrs_minecraft_item_stack`. A test compares
+  `BuiltinKey` with the generated enum. Edit the imports of the 7 users. Check:
+  `-p mcrs_minecraft_item_stack` and the 7 users.
+- **4.8 to 4.11 Instrument, jukebox song, painting variant, trim.** One new crate for each
+  sub-step, with the value type over `I` and no key file. Needs: none for the types; 4.18 for a
+  codec of the description. Check: `-p` the new crate.
+
+Codecs of `mcrs_minecraft_item_stack`. Each format is one file; the per-type functions of a format
+are in that file.
+
+- **4.12 Corrections of the types.** Apply open points 19 and 21. Needs: none. Check:
+  `-p mcrs_minecraft_item_stack`.
+- **4.13 Hash operations.** Write the hash of a structured value (spec section 6.7) in a new file.
+  Add the crate as a second output of the fixture `hash_ops`. Needs: none. Check: as 4.12.
+- **4.14 Saved form.** Spec section 6.1: the frame, the error enum, the name lookup parameter, the
+  bytes of a type without a Rust type, and the 12 types without text. Needs: 4.12. Check: as 4.12.
+- **4.15 Wire form.** Spec sections 6.3 to 6.5 for the same 12 types. Needs: 4.14. Check: as 4.12.
+- **4.16 Item template.** Spec section 6.6, with the dialog as a type parameter. Needs: 4.14.
+  Check: as 4.12.
+- **4.17 Hashed stack.** Spec section 6.7 for the same 12 types. Needs: 4.13 and 4.15. Check: as
+  4.12.
+- **4.18 Text-bearing types.** `CustomName`, `ItemName` and `Lore` in the four formats. Needs: 4.14
+  to 4.17, and a specification of the text component (`spec/item-stack.md`, Q8). Check: as 4.12 and
+  `-p mcrs_minecraft_text`.
+- **4.19 Dialog.** New crate `mcrs_minecraft_dialog` with the dialog types over the new template
+  and the type that closes the recursion. No key file. Needs: 4.16 and the text specification.
+  Check: `-p mcrs_minecraft_dialog`.
+
+The item table.
+
+- **5.1 Table.** New crate with `Prototype`, `ItemTable` and the conversion from `Item`. Needs:
+  4.1. Check: `-p mcrs_minecraft_item_table`.
+- **5.2 Registry.** `ItemRegistry` and `RowHashing`: one row of `fn` pointers for each built-in
+  type. Needs: 5.1. Check: as 5.1.
+- **5.3 Bake.** Read `assets/mcrs/item_definition/` into typed shapes and build the table. A type
+  with no codec yet is counted and skipped. Needs: 5.1, 4.14. Check: as 5.1.
+- **5.4 Complete bake.** A skipped type becomes a load error. Run the check of open point 9 against
+  the pinned pack. Needs: 5.3, 4.18, because each vanilla prototype carries an item name. Check: as
+  5.1.
+
+Order and parallel work:
+
+- 4.1 to 4.7 run one after the other; they share `owners.rs` and the generated catalog.
+- 4.8 to 4.11 run in parallel with each other and with all other sub-steps.
+- 4.12 to 4.18 form one chain in one crate. 4.13 runs in parallel with 4.12 and 4.14. 4.15 and
+  4.16 run in parallel. 4.7 and the chain share `lib.rs`; merge 4.7 before 4.14.
+- 5.1 and 5.2 run in parallel with the codec chain. 4.19 and 5.3 run in parallel.
+
+Fixtures:
+
+- The goldens that the game wrote are data, and the new tests read them: `hash_ops`, `item_plain`,
+  `item_nested` and `inventory_packets` of `tools/fixtures.json`. A sub-step adds its crate as an
+  output of the fixture; no person copies a golden.
+- A rule with no golden gets a case from `spec/item-stack.md` section 12, or an experiment of
+  section 11 (open point 16).
+- `harness.rs` of the old crate holds sample values of the old types as Rust code. It is not data,
+  and the new crate does not reuse it. Step 12 deletes it.
 
 # 11. Evidence
 

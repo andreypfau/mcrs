@@ -3,7 +3,9 @@ use crate::deserializer::{NbtReadHelper, READ_STEP, cautious_capacity};
 use crate::encoding::NbtEncoding;
 use crate::serializer::{self, WriteAdaptor};
 use serde::{Deserialize, Serialize};
+use std::hash::{Hash, Hasher};
 use std::io::{Read, Seek, Write};
+use std::mem;
 
 use crate::{
     BYTE_ARRAY_ID, BYTE_ID, COMPOUND_ID, DOUBLE_ID, END_ID, Error, FLOAT_ID, INT_ARRAY_ID, INT_ID,
@@ -11,7 +13,8 @@ use crate::{
     NBT_LONG_ARRAY_TAG, SHORT_ID, STRING_ID, get_nbt_string,
 };
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+/// Equality compares a float and a double by bit pattern, with each NaN equal to each NaN.
+#[derive(Clone, Debug)]
 #[repr(u8)]
 pub enum NbtTag {
     End = END_ID,
@@ -27,6 +30,70 @@ pub enum NbtTag {
     Compound(NbtCompound) = COMPOUND_ID,
     IntArray(Vec<i32>) = INT_ARRAY_ID,
     LongArray(Vec<i64>) = LONG_ARRAY_ID,
+}
+
+fn float_identity(value: f32) -> u32 {
+    if value.is_nan() {
+        f32::NAN.to_bits()
+    } else {
+        value.to_bits()
+    }
+}
+
+fn double_identity(value: f64) -> u64 {
+    if value.is_nan() {
+        f64::NAN.to_bits()
+    } else {
+        value.to_bits()
+    }
+}
+
+impl PartialEq for NbtTag {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (NbtTag::End, NbtTag::End) => true,
+            (NbtTag::Byte(left), NbtTag::Byte(right)) => left == right,
+            (NbtTag::Short(left), NbtTag::Short(right)) => left == right,
+            (NbtTag::Int(left), NbtTag::Int(right)) => left == right,
+            (NbtTag::Long(left), NbtTag::Long(right)) => left == right,
+            (NbtTag::Float(left), NbtTag::Float(right)) => {
+                float_identity(*left) == float_identity(*right)
+            }
+            (NbtTag::Double(left), NbtTag::Double(right)) => {
+                double_identity(*left) == double_identity(*right)
+            }
+            (NbtTag::ByteArray(left), NbtTag::ByteArray(right)) => left == right,
+            (NbtTag::String(left), NbtTag::String(right)) => left == right,
+            (NbtTag::List(left), NbtTag::List(right)) => left == right,
+            (NbtTag::Compound(left), NbtTag::Compound(right)) => left == right,
+            (NbtTag::IntArray(left), NbtTag::IntArray(right)) => left == right,
+            (NbtTag::LongArray(left), NbtTag::LongArray(right)) => left == right,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for NbtTag {}
+
+impl Hash for NbtTag {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        mem::discriminant(self).hash(state);
+        match self {
+            NbtTag::End => {}
+            NbtTag::Byte(value) => value.hash(state),
+            NbtTag::Short(value) => value.hash(state),
+            NbtTag::Int(value) => value.hash(state),
+            NbtTag::Long(value) => value.hash(state),
+            NbtTag::Float(value) => float_identity(*value).hash(state),
+            NbtTag::Double(value) => double_identity(*value).hash(state),
+            NbtTag::ByteArray(value) => value.hash(state),
+            NbtTag::String(value) => value.hash(state),
+            NbtTag::List(value) => value.hash(state),
+            NbtTag::Compound(value) => value.hash(state),
+            NbtTag::IntArray(value) => value.hash(state),
+            NbtTag::LongArray(value) => value.hash(state),
+        }
+    }
 }
 
 impl NbtTag {

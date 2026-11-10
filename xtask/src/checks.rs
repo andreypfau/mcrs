@@ -28,19 +28,20 @@ const WASM32_PACKAGES: [&str; 11] = [
     "mcrs_minecraft_biome_file",
 ];
 
-const NO_STD_PACKAGES: [&str; 9] = [
+const NO_STD_PACKAGES: [&str; 10] = [
     "mcrs_command",
     "mcrs_minecraft_brain",
     "mcrs_minecraft_chat",
     "mcrs_minecraft_entity_key",
     "mcrs_minecraft_goal_world",
     "mcrs_minecraft_goals",
+    "mcrs_minecraft_inventory_plan",
     "mcrs_molang",
     "mcrs_molang_wgsl",
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 103] = [
+const NO_BEVY_PACKAGES: [&str; 105] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -88,7 +89,9 @@ const NO_BEVY_PACKAGES: [&str; 103] = [
     "mcrs_minecraft_game_mode",
     "mcrs_minecraft_game_rule",
     "mcrs_minecraft_heightmap",
+    "mcrs_minecraft_inventory_plan",
     "mcrs_minecraft_item",
+    "mcrs_minecraft_item_stack",
     "mcrs_minecraft_keys",
     "mcrs_minecraft_lang",
     "mcrs_minecraft_light_color",
