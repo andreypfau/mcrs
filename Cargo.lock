@@ -4952,6 +4952,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_menu"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+]
+
+[[package]]
 name = "mcrs_minecraft_mesh"
 version = "0.5.8"
 dependencies = [
@@ -5217,6 +5225,7 @@ dependencies = [
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_menu",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_particle",
  "mcrs_minecraft_profile",
@@ -5303,6 +5312,7 @@ dependencies = [
  "mcrs_minecraft_item",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_loot",
+ "mcrs_minecraft_menu",
  "mcrs_minecraft_particle",
  "mcrs_minecraft_predicate",
  "mcrs_minecraft_recipe",

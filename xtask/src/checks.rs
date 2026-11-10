@@ -40,7 +40,7 @@ const NO_STD_PACKAGES: [&str; 9] = [
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 102] = [
+const NO_BEVY_PACKAGES: [&str; 103] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -94,6 +94,7 @@ const NO_BEVY_PACKAGES: [&str; 102] = [
     "mcrs_minecraft_light_color",
     "mcrs_minecraft_light_engine",
     "mcrs_minecraft_loot",
+    "mcrs_minecraft_menu",
     "mcrs_minecraft_mesh",
     "mcrs_minecraft_model_file",
     "mcrs_minecraft_move_predict",

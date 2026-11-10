@@ -18,7 +18,7 @@ use mcrs_minecraft_command_tree::CommandNode;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_entity::{attribute_keys::Attribute, entity_type_keys::EntityType};
-use mcrs_minecraft_item::menu_keys::MenuType;
+use mcrs_minecraft_menu::menu_keys::MenuType;
 use mcrs_minecraft_particle::ParticleOptions;
 use mcrs_minecraft_protocol::{Bounded, Result, VarInt, VarLong};
 use mcrs_minecraft_registries::Wire;

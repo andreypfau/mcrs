@@ -16,7 +16,7 @@ pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'s
     (mcrs_minecraft_block::registry_keys::BLOCK_ENTITY_TYPE.location(), mcrs_minecraft_block::block_entity_type_keys::BlockEntityType::ENTRIES),
     (mcrs_minecraft_predicate::registry_keys::CUSTOM_STAT.location(), mcrs_minecraft_predicate::custom_stat_keys::CustomStat::ENTRIES),
     (mcrs_minecraft_chunk::registry_keys::CHUNK_STATUS.location(), mcrs_minecraft_chunk::chunk_status_keys::ChunkStatus::ENTRIES),
-    (mcrs_minecraft_item::registry_keys::MENU.location(), mcrs_minecraft_item::menu_keys::MenuType::ENTRIES),
+    (mcrs_minecraft_menu::registry_keys::MENU.location(), mcrs_minecraft_menu::menu_keys::MenuType::ENTRIES),
     (mcrs_minecraft_keys::RECIPE_TYPE, mcrs_minecraft_keys::recipe_type::ENTRIES),
     (mcrs_minecraft_recipe::registry_keys::RECIPE_SERIALIZER.location(), mcrs_minecraft_recipe::recipe_serializer_keys::RecipeSerializer::ENTRIES),
     (mcrs_minecraft_entity::registry_keys::ATTRIBUTE.location(), mcrs_minecraft_entity::attribute_keys::Attribute::ENTRIES),

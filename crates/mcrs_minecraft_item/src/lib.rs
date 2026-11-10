@@ -51,8 +51,6 @@ pub mod jukebox_song_keys;
 #[rustfmt::skip]
 pub mod map_decoration_type_keys;
 #[rustfmt::skip]
-pub mod menu_keys;
-#[rustfmt::skip]
 pub mod painting_variant_keys;
 #[rustfmt::skip]
 pub mod painting_variant_tag_keys;

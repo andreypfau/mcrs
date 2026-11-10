@@ -97,11 +97,6 @@ impl Registered for crate::map_decoration_type_keys::MapDecorationType {
     const REGISTRY: RegistryKey<Self> = MAP_DECORATION_TYPE;
 }
 
-pub const MENU: RegistryKey<crate::menu_keys::MenuType> = RegistryKey::new(rl!("minecraft:menu"));
-impl Registered for crate::menu_keys::MenuType {
-    const REGISTRY: RegistryKey<Self> = MENU;
-}
-
 pub const PAINTING_VARIANT: RegistryKey<crate::PaintingVariantValue> =
     RegistryKey::new(rl!("minecraft:painting_variant"));
 impl Registered for crate::PaintingVariantValue {
