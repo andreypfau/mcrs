@@ -63,7 +63,8 @@ Scope: creative mode first. Section 8 states survival mode at the level of packe
 
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
 section "Semantics, not accidents". Each rule states its label and its kind. All rules in this
-document have the label `source_suggested`. Nobody has run the experiments of section 12.
+document have the label `source_suggested`, except those of section 10.5, which have the label
+`design`. Nobody has run the experiments of section 12.
 
 ### 0.3 ID prefixes
 
@@ -730,6 +731,48 @@ marked is not a section of the player. A section that a local change and a light
 stays a section of the player. With the value `byPlayer`, a light change outside the sections of
 CBK-LGT-011 can thus show one or more frames after the block. With the default value, two sections
 can show their new meshes in different frames.
+
+### 10.5 Columns that arrive without light
+
+A program can embed the client as a viewer of saved worlds. It puts columns into the client world
+with no server in between, so nobody sends light. This section states an option for that case. The
+rules of this section are the choice of mcrs. The reference has no such option and always gets its
+light from the server.
+
+**CBK-LGT-013** (`design`, semantic). The option is off by default. With the option off, the client
+calculates only what CBK-LGT-001 to CBK-LGT-011 state, and a column that arrives without light stays
+dark until light arrives for it. Reason: a client that talks to a server must behave as the
+reference does.
+
+**CBK-LGT-014** (`design`, semantic). With the option on, a column that the client takes into its
+world can count as a column without light. CBK-LGT-015 states when. In the step of CBK-LGT-003, in
+the frame in which the column arrives, the client calculates the light of this column from its
+blocks, with the rules of CBK-LGT-004. A column that counts as having light is not calculated. The
+client does not calculate a column that another column replaces before the step, or that the server
+takes back before the step. A replacement column keeps the light that it came with. A light update
+of the server in the same frame wins, as CBK-LGT-009 states.
+
+**CBK-LGT-015** (`design`, semantic). The option has two forms. In the form for block light, the
+client calculates only block light, and it leaves sky light as the program set it. A column counts
+as without light when each of its block light values is 0, whatever its sky light is. In the form
+for sky light and block light, the client calculates both layers. A column counts as without light
+when it has light data of neither layer. A dimension with no sky light has no sky light in either
+form (CBK-LGT-002). Reason: a viewer often has its own sky light, for example full sky light
+everywhere, and a calculation of it would replace that light.
+
+**CBK-LGT-016** (`design`, semantic). The calculation of CBK-LGT-014 crosses the borders of columns
+(CBK-LGT-005). Light from the new column changes the light of a column that the client already
+holds. Light of a held column enters the new column in the same way. A
+section whose light does not change keeps its light and is not marked for a new mesh. A column that
+the client does not hold is not entered. When the new column replaces a column at the same place,
+the light that the old column gave to the columns around it goes away.
+
+**CBK-LGT-017** (`design`, semantic). The client calculates all columns without light that arrived
+in a frame together, in the step of that frame, and it calculates each column one time. This holds
+also when thousands of columns arrive in a few frames. A column that arrives later does not start
+the calculation of the columns before it. Its light enters those columns only as CBK-LGT-016
+states, and only the sections whose light changes get a new mesh. When no more columns arrive, the
+client changes no light, and the meshes of the world become complete.
 
 ## 11. Unresolved
 
