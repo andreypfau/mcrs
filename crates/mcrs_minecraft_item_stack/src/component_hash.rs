@@ -26,6 +26,9 @@ use crate::Tool;
 use crate::ToolRule;
 use crate::TooltipDisplay;
 use crate::Unbreakable;
+use crate::check_saved_form::NOT_NEGATIVE;
+use crate::check_saved_form::POSITIVE;
+use crate::check_saved_form::STACK_SIZE;
 use crate::field_map::FieldMap;
 use crate::lore::MAX_LINES;
 use crate::node_hash::ListHash;
@@ -33,7 +36,6 @@ use crate::node_hash::MapEntry;
 use crate::node_hash::NodeHash;
 use crate::node_serializer::hash_of;
 
-const NOT_NEGATIVE: RangeInclusive<i32> = 0..=i32::MAX;
 const DISPLAY_HIDDEN: &str = "hidden";
 const DISPLAY_OVERRIDE: &str = "override";
 const DEFAULT_MINING_SPEED: f32 = 1.0;
@@ -51,8 +53,8 @@ pub(crate) fn component_hash<L: NameLookup>(
         names,
     };
     match value {
-        Builtin::MaxStackSize(MaxStackSize(size)) => tree.int(*size, 1..=99),
-        Builtin::MaxDamage(MaxDamage(damage)) => tree.int(*damage, 1..=i32::MAX),
+        Builtin::MaxStackSize(MaxStackSize(size)) => tree.int(*size, STACK_SIZE),
+        Builtin::MaxDamage(MaxDamage(damage)) => tree.int(*damage, POSITIVE),
         Builtin::Damage(Damage(damage)) => tree.int(*damage, NOT_NEGATIVE),
         Builtin::RepairCost(RepairCost(cost)) => tree.int(*cost, NOT_NEGATIVE),
         Builtin::Unbreakable(Unbreakable) => Ok(FieldMap::new().finish()),

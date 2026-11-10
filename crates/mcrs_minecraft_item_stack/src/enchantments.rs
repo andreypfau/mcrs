@@ -21,22 +21,10 @@ impl Enchantments {
         is_strictly_ascending(&entries).then_some(Self(Cow::Owned(entries)))
     }
 
-    /// Gives `None` when the entries are not in the strict order of the enchantment ids.
-    #[must_use]
-    pub fn from_static(entries: &'static [EnchantmentLevel]) -> Option<Self> {
-        is_strictly_ascending(entries).then_some(Self(Cow::Borrowed(entries)))
-    }
-
     /// The entries in the order of the enchantment ids.
     #[must_use]
     pub fn entries(&self) -> &[EnchantmentLevel] {
         &self.0
-    }
-}
-
-impl Default for Enchantments {
-    fn default() -> Self {
-        Self(Cow::Borrowed(&[]))
     }
 }
 

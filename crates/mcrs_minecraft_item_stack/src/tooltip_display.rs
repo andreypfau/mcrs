@@ -76,15 +76,6 @@ fn mixed(component_type: ComponentType) -> u64 {
     bits ^ (bits >> 31)
 }
 
-impl Default for TooltipDisplay {
-    fn default() -> Self {
-        Self {
-            hide_tooltip: false,
-            hidden_components: Cow::Borrowed(&[]),
-        }
-    }
-}
-
 impl Neutral for TooltipDisplay {
     const NEUTRAL: &'static Self = &Self {
         hide_tooltip: false,

@@ -1,3 +1,4 @@
+use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::SystemState;
@@ -80,4 +81,17 @@ fn reset_gives_back_the_prototype_components() {
     world.flush();
 
     assert_eq!(value(world, entity), Some(ItemStack::new(SWORD, count(1))));
+}
+
+#[test]
+fn set_of_the_stored_value_leaves_it_unchanged() {
+    let mut app = app();
+    let world = app.world_mut();
+    let entity = spawn(world, ItemStack::new(SWORD, count(1)).set(MaxDamage(5)));
+    world.clear_trackers();
+    world.commands().entity(entity).set(MaxDamage(5));
+    world.flush();
+
+    let max_damage = world.entity(entity).get_ref::<MaxDamage>().unwrap();
+    assert!(!max_damage.is_changed());
 }

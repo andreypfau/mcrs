@@ -7,7 +7,9 @@ use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_item_stack::MaxDamage;
 use mcrs_minecraft_item_stack::MaxStackSize;
+use mcrs_minecraft_item_stack::Neutral;
 use mcrs_minecraft_item_stack::Rarity;
+use mcrs_minecraft_item_stack::RepairCost;
 use mcrs_minecraft_item_table::ItemTable;
 
 const STONE: Kind = Kind(0);
@@ -57,6 +59,11 @@ fn the_effective_value_is_the_patch_entry_or_else_the_prototype() {
             "{name}"
         );
     }
+    assert_eq!(
+        TABLE.effective::<RepairCost>(&stack(STICK)),
+        Some(&RepairCost(0)),
+        "a neutral type the prototype lacks"
+    );
 }
 
 #[test]
@@ -80,6 +87,10 @@ fn a_prototype_value_is_neutral_only_when_it_equals_the_neutral_value() {
     let cases: [(Kind, bool); 3] = [(STONE, true), (SWORD, false), (STICK, false)];
     for (kind, expected) in cases {
         let prototype = TABLE.prototype(kind).expect("the kind is in the table");
-        assert_eq!(prototype.is_neutral::<Rarity>(), expected, "{kind:?}");
+        assert_eq!(
+            prototype.get::<Rarity>() == Some(Rarity::NEUTRAL),
+            expected,
+            "{kind:?}"
+        );
     }
 }

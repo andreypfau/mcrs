@@ -12,9 +12,9 @@ use crate::Kind;
 use crate::NameLookup;
 use crate::NameTable;
 use crate::PatchEntry;
-use crate::builtin_key::NAMESPACE;
 use crate::component_hash::component_hash;
 use crate::saved::is_air;
+use crate::wire::present;
 
 /// The stack that a client states in a click: the item, the count, the hash of each value entry
 /// of the patch and the type of each removal entry. The order of the entries has no meaning.
@@ -34,7 +34,7 @@ pub fn hash_stack<L: NameLookup>(
     names: &L,
     scratch: &mut HashScratch,
 ) -> Result<Option<HashedStack>, HashError> {
-    let Some(stack) = present(stack, names)? else {
+    let Some(stack) = present(stack, names, HashError::UnknownItem)? else {
         return Ok(None);
     };
     let mut hashed = HashedStack {
@@ -58,14 +58,15 @@ pub fn hash_stack<L: NameLookup>(
 ///
 /// A present hashed stack of the item air with the count 0 and no entries matches the empty
 /// stack. A component that this crate cannot hash gives an error only when each other part
-/// matches: the result is then not decided.
+/// matches: the result is then not decided. A custom component is not compared, because it never
+/// reaches the client.
 pub fn matches_hashed<L: NameLookup>(
     hashed: Option<&HashedStack>,
     stack: Option<&ItemStack>,
     names: &L,
     scratch: &mut HashScratch,
 ) -> Result<bool, HashError> {
-    let (hashed, stack) = match (hashed, present(stack, names)?) {
+    let (hashed, stack) = match (hashed, present(stack, names, HashError::UnknownItem)?) {
         (None, None) => return Ok(true),
         (Some(hashed), None) => return Ok(is_empty(hashed, names)),
         (Some(hashed), Some(stack)) => (hashed, stack),
@@ -150,8 +151,7 @@ fn hashed_entry<L: NameLookup>(
 }
 
 fn builtin_type<L: NameLookup>(key: BuiltinKey, names: &L) -> Result<ComponentType, HashError> {
-    let name =
-        ResourceLocation::new(NAMESPACE, key.path()).map_err(|_| HashError::UnregisteredType)?;
+    let name = key.location().ok_or(HashError::UnregisteredType)?;
     type_of(name, names)
 }
 
@@ -163,17 +163,4 @@ fn type_of<L: NameLookup>(
         .id(NameTable::ComponentType, name)
         .map(ComponentType)
         .ok_or(HashError::UnregisteredType)
-}
-
-fn present<'stack, L: NameLookup>(
-    stack: Option<&'stack ItemStack>,
-    names: &L,
-) -> Result<Option<&'stack ItemStack>, HashError> {
-    let Some(stack) = stack else {
-        return Ok(None);
-    };
-    let item = names
-        .name(NameTable::Item, stack.kind.0)
-        .ok_or(HashError::UnknownItem)?;
-    Ok((!is_air(item)).then_some(stack))
 }

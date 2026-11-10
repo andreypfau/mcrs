@@ -153,7 +153,7 @@ unsafe impl SystemParam for ItemColumns<'_, '_> {
             (registry, &world.storages().tables)
         };
         if registry.rows().len() != state.rows.len() {
-            return Err(SystemParamValidationError::invalid::<Self>(
+            return Err(SystemParamValidationError::skipped::<Self>(
                 "an item component was registered after the system was built",
             ));
         }

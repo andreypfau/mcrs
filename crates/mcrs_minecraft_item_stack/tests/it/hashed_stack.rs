@@ -122,7 +122,7 @@ fn stack(kind: u16, count: u8) -> ItemStack {
 }
 
 fn hashed(stack: Option<&ItemStack>) -> Option<HashedStack> {
-    hash_stack(stack, &Names, &mut HashScratch::new()).expect("the test stack has a hash")
+    hash_stack(stack, &Names, &mut HashScratch::default()).expect("the test stack has a hash")
 }
 
 /// One component that the game saved and hashed.
@@ -254,7 +254,7 @@ fn stack_with(component: ComponentType, wire: &str) -> ItemStack {
 
 #[test]
 fn a_component_has_the_hash_that_the_game_recorded() {
-    let mut scratch = HashScratch::new();
+    let mut scratch = HashScratch::default();
     let mut compared: Vec<String> = Vec::new();
     let cases = plain_cases()
         .into_iter()
@@ -332,7 +332,7 @@ fn the_click_that_the_game_wrote_holds_the_hashes_of_the_stack() {
     let [(_, empty), (_, sword), (_, cursor)] = stacks.as_slice() else {
         panic!("the packet has three hashed stacks");
     };
-    let mut scratch = HashScratch::new();
+    let mut scratch = HashScratch::default();
     assert_eq!(
         matches_hashed(empty.as_ref(), None, &Names, &mut scratch),
         Ok(true)
@@ -453,7 +453,7 @@ fn a_hashed_stack_matches_a_stack_by_the_rule_of_the_specification() {
             Ok(true),
         ),
     ];
-    let mut scratch = HashScratch::new();
+    let mut scratch = HashScratch::default();
     for (name, claimed, held, expected) in cases {
         assert_eq!(
             matches_hashed(claimed.as_ref(), held.as_ref(), &Names, &mut scratch),

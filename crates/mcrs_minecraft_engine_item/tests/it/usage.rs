@@ -8,9 +8,11 @@ use bevy_ecs::system::Commands;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::ResMut;
 use mcrs_minecraft_engine_item::Effective;
+use mcrs_minecraft_engine_item::ItemAppExt;
 use mcrs_minecraft_engine_item::StackCommandsExt;
 use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_item_stack::Count;
+use mcrs_minecraft_item_stack::CustomComponent;
 use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Lore;
@@ -27,6 +29,19 @@ use crate::fixture::value;
 
 #[derive(Component)]
 struct Held;
+
+#[derive(Component, Clone, Debug, PartialEq, Hash)]
+struct Late;
+
+impl CustomComponent for Late {
+    const KEY: &'static str = "example:late";
+
+    fn encode(&self, _: &mut Vec<u8>) {}
+
+    fn decode(_: &[u8]) -> Option<Self> {
+        Some(Self)
+    }
+}
 
 #[derive(Resource, Default)]
 struct Sent(Vec<ItemStack>);
@@ -128,4 +143,19 @@ fn send_slots_sends_the_value_of_each_changed_count() {
             ItemStack::new(PLAIN, count(1))
         ]
     );
+}
+
+#[test]
+fn a_system_built_before_a_later_registration_does_not_run() {
+    let mut app = app();
+    app.init_resource::<Sent>().add_systems(Update, send_slots);
+    let stack = spawn(app.world_mut(), ItemStack::new(PLAIN, count(2)));
+
+    app.update();
+    app.register_item_component::<Late>().unwrap();
+    app.world_mut().commands().entity(stack).consume(1);
+    app.update();
+
+    let sent = &app.world().resource::<Sent>().0;
+    assert_eq!(sent, &[ItemStack::new(PLAIN, count(2))]);
 }

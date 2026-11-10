@@ -40,7 +40,7 @@ impl ItemStack {
     /// has, it drops the entry of `T`.
     #[must_use]
     pub fn unset<T: ItemComponent>(mut self) -> Self {
-        self.put(T::patch_key(), T::removal());
+        self.put(T::patch_key(), T::builtin_key().map(PatchEntry::Removal));
         self
     }
 
@@ -81,20 +81,16 @@ impl ItemStack {
     }
 
     fn put(&mut self, key: PatchKey<'static>, entry: Option<PatchEntry>) {
-        let found = self
-            .patch
-            .binary_search_by(|present| present.key().cmp(&key));
-        match (found, entry) {
-            (Ok(index), Some(entry)) => {
-                if let Some(present) = self.patch.get_mut(index) {
-                    *present = entry;
+        match entry {
+            Some(entry) => self.put_entry(entry),
+            None => {
+                if let Ok(index) = self
+                    .patch
+                    .binary_search_by(|present| present.key().cmp(&key))
+                {
+                    self.patch.remove(index);
                 }
             }
-            (Ok(index), None) => {
-                self.patch.remove(index);
-            }
-            (Err(index), Some(entry)) => self.patch.insert(index, entry),
-            (Err(_), None) => {}
         }
     }
 }

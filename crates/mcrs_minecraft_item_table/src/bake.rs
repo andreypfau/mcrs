@@ -57,7 +57,7 @@ pub fn bake<'file, L: NameLookup>(
                 cause,
             };
             let location = component.as_location();
-            match read_saved_component(location, &value.0, &lookup).map_err(error)? {
+            match read_saved_component(location, value, &lookup).map_err(error)? {
                 Some(builtin) => components.push(builtin),
                 None => {
                     if lookup.id(NameTable::ComponentType, location).is_none() {

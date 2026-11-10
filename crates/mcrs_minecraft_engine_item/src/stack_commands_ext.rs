@@ -19,7 +19,8 @@ pub trait StackCommandsExt {
     /// Gives the stack the component of type `T` of its prototype.
     fn reset<T: ItemComponent + Component>(&mut self) -> &mut Self;
 
-    /// Takes `count` items from the stack. The stack despawns when none is left.
+    /// Takes `count` items from the stack. The stack despawns when none is left, also when `count`
+    /// is larger than its count.
     fn consume(&mut self, count: u8) -> &mut Self;
 }
 

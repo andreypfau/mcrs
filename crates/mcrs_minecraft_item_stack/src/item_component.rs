@@ -36,9 +36,6 @@ pub trait ItemComponent: Clone + PartialEq + Hash {
     fn into_entry(self) -> PatchEntry;
 
     #[doc(hidden)]
-    fn removal() -> Option<PatchEntry>;
-
-    #[doc(hidden)]
     fn builtin_key() -> Option<BuiltinKey>;
 
     #[doc(hidden)]
@@ -78,10 +75,6 @@ impl<C: CustomComponent> ItemComponent for C {
         })
     }
 
-    fn removal() -> Option<PatchEntry> {
-        None
-    }
-
     fn builtin_key() -> Option<BuiltinKey> {
         None
     }
@@ -115,10 +108,6 @@ macro_rules! builtin_item_component {
 
                 fn into_entry(self) -> PatchEntry {
                     PatchEntry::Value(Builtin::$name(self))
-                }
-
-                fn removal() -> Option<PatchEntry> {
-                    Some(PatchEntry::Removal(BuiltinKey::$name))
                 }
 
                 fn builtin_key() -> Option<BuiltinKey> {

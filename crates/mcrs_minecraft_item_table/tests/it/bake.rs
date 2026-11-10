@@ -17,6 +17,7 @@ use mcrs_minecraft_item_stack::MaxDamage;
 use mcrs_minecraft_item_stack::MaxStackSize;
 use mcrs_minecraft_item_stack::NameLookup;
 use mcrs_minecraft_item_stack::NameTable;
+use mcrs_minecraft_item_stack::Neutral;
 use mcrs_minecraft_item_stack::Rarity;
 use mcrs_minecraft_item_stack::RepairCost;
 use mcrs_minecraft_item_stack::Tool;
@@ -269,16 +270,19 @@ fn each_prototype_has_the_neutral_value_of_each_neutral_type() {
             "STK-SHP-016: {identifier}"
         );
         assert!(
-            prototype.is_neutral::<RepairCost>(),
+            prototype.get::<RepairCost>() == Some(RepairCost::NEUTRAL),
             "STK-SHP-018: {identifier}"
         );
-        assert!(prototype.is_neutral::<Lore>(), "STK-SHP-013: {identifier}");
         assert!(
-            prototype.is_neutral::<Enchantments>(),
+            prototype.get::<Lore>() == Some(Lore::NEUTRAL),
+            "STK-SHP-013: {identifier}"
+        );
+        assert!(
+            prototype.get::<Enchantments>() == Some(Enchantments::NEUTRAL),
             "STK-SHP-015: {identifier}"
         );
         assert!(
-            prototype.is_neutral::<TooltipDisplay>(),
+            prototype.get::<TooltipDisplay>() == Some(TooltipDisplay::NEUTRAL),
             "STK-SHP-017: {identifier}"
         );
         let model = prototype

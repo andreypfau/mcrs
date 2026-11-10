@@ -44,28 +44,6 @@ use crate::lore::MAX_LINES;
 use crate::wire_text::read_text;
 use crate::wire_text::write_text;
 
-const RARITIES: [Rarity; 4] = [Rarity::Common, Rarity::Uncommon, Rarity::Rare, Rarity::Epic];
-
-const OPERATIONS: [ModifierOperation; 3] = [
-    ModifierOperation::AddValue,
-    ModifierOperation::AddMultipliedBase,
-    ModifierOperation::AddMultipliedTotal,
-];
-
-const SLOT_GROUPS: [SlotGroup; 11] = [
-    SlotGroup::Any,
-    SlotGroup::Mainhand,
-    SlotGroup::Offhand,
-    SlotGroup::Hand,
-    SlotGroup::Feet,
-    SlotGroup::Legs,
-    SlotGroup::Chest,
-    SlotGroup::Head,
-    SlotGroup::Armor,
-    SlotGroup::Body,
-    SlotGroup::Saddle,
-];
-
 const DISPLAY_DEFAULT: i32 = 0;
 const DISPLAY_HIDDEN: i32 = 1;
 const DISPLAY_OVERRIDE: i32 = 2;
@@ -74,12 +52,18 @@ const BLOCK_TAG: i32 = 0;
 
 /// Appends `value` as a VarInt.
 pub(crate) fn put_var_int(output: &mut Vec<u8>, value: i32) {
-    let mut rest = value.cast_unsigned();
-    while rest >= 0x80 {
-        output.push((rest & 0x7f) as u8 | 0x80);
-        rest >>= 7;
-    }
-    output.push(rest as u8);
+    // A write into a `Vec` does not fail.
+    let _ = VarInt(value).encode(output);
+}
+
+/// Reads a VarInt and gives a decode error to `error`.
+pub(crate) fn read_var_int(
+    input: &mut &[u8],
+    error: impl FnOnce(&mcrs_minecraft_wire::Error) -> WireError,
+) -> Result<i32, WireError> {
+    VarInt::decode(input)
+        .map(|VarInt(value)| value)
+        .map_err(|decode_error| error(&decode_error))
 }
 
 pub(crate) fn put_length(output: &mut Vec<u8>, length: usize) -> Result<(), WireError> {
@@ -106,7 +90,7 @@ pub(crate) fn read_value<L: NameLookup>(
         BuiltinKey::ItemModel => {
             Builtin::ItemModel(ItemModel::new(reader.identifier(input)?.to_buf()))
         }
-        BuiltinKey::Rarity => Builtin::Rarity(reader.list_entry(input, &RARITIES)?),
+        BuiltinKey::Rarity => Builtin::Rarity(reader.list_entry(input, &Rarity::ALL)?),
         BuiltinKey::Enchantments => Builtin::Enchantments(reader.enchantments(input)?),
         BuiltinKey::AttributeModifiers => {
             Builtin::AttributeModifiers(reader.attribute_modifiers(input)?)
@@ -135,9 +119,7 @@ impl<L: NameLookup> Reader<'_, L> {
     }
 
     fn var_int(&self, input: &mut &[u8]) -> Result<i32, WireError> {
-        VarInt::decode(input)
-            .map(|VarInt(value)| value)
-            .map_err(|error| WireError::of_value(&error, self.component))
+        read_var_int(input, |error| WireError::of_value(error, self.component))
     }
 
     fn length(&self, input: &mut &[u8]) -> Result<usize, WireError> {
@@ -221,9 +203,9 @@ impl<L: NameLookup> Reader<'_, L> {
             let attribute = AttributeId(self.id(input, NameTable::Attribute)?);
             let id = self.identifier(input)?.to_buf();
             let amount = f64::from_be_bytes(self.bytes(input)?);
-            let operation = self.list_entry(input, &OPERATIONS)?;
+            let operation = self.list_entry(input, &ModifierOperation::ALL)?;
             let mut modifier = AttributeModifier::new(attribute, id, amount, operation);
-            modifier.slot = self.list_entry(input, &SLOT_GROUPS)?;
+            modifier.slot = self.list_entry(input, &SlotGroup::ALL)?;
             modifier.display = match self.var_int(input)? {
                 DISPLAY_DEFAULT => ModifierDisplay::Default,
                 DISPLAY_HIDDEN => ModifierDisplay::Hidden,
@@ -318,7 +300,7 @@ pub(crate) fn write_value<L: NameLookup>(
         | Builtin::RepairCost(RepairCost(number)) => put_var_int(output, *number),
         Builtin::Unbreakable(Unbreakable) => {}
         Builtin::ItemModel(model) => writer.identifier(model.get(), output)?,
-        Builtin::Rarity(rarity) => writer.list_id(&RARITIES, *rarity, output)?,
+        Builtin::Rarity(rarity) => writer.list_id(&Rarity::ALL, *rarity, output)?,
         Builtin::Enchantments(enchantments) => {
             put_length(output, enchantments.entries().len())?;
             for entry in enchantments.entries() {
@@ -399,8 +381,8 @@ impl<L: NameLookup> Writer<'_, L> {
             put_var_int(output, i32::from(modifier.attribute.0));
             self.identifier(modifier.id(), output)?;
             output.extend_from_slice(&modifier.amount.to_be_bytes());
-            self.list_id(&OPERATIONS, modifier.operation, output)?;
-            self.list_id(&SLOT_GROUPS, modifier.slot, output)?;
+            self.list_id(&ModifierOperation::ALL, modifier.operation, output)?;
+            self.list_id(&SlotGroup::ALL, modifier.slot, output)?;
             match &modifier.display {
                 ModifierDisplay::Default => put_var_int(output, DISPLAY_DEFAULT),
                 ModifierDisplay::Hidden => put_var_int(output, DISPLAY_HIDDEN),

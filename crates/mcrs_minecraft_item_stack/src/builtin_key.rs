@@ -71,6 +71,11 @@ impl BuiltinKey {
         }
     }
 
+    /// The identifier of the component type.
+    pub(crate) fn location(self) -> Option<ResourceLocation<'static>> {
+        ResourceLocation::new(NAMESPACE, self.path()).ok()
+    }
+
     pub(crate) fn from_location(location: ResourceLocation<'_>) -> Option<Self> {
         if location.namespace() != NAMESPACE {
             return None;

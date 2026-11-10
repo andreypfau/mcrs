@@ -16,6 +16,21 @@ pub enum SlotGroup {
 }
 
 impl SlotGroup {
+    /// Each variant, in the order of the wire ids.
+    pub(crate) const ALL: [Self; 11] = [
+        Self::Any,
+        Self::Mainhand,
+        Self::Offhand,
+        Self::Hand,
+        Self::Feet,
+        Self::Legs,
+        Self::Chest,
+        Self::Head,
+        Self::Armor,
+        Self::Body,
+        Self::Saddle,
+    ];
+
     pub(crate) const fn name(self) -> &'static str {
         match self {
             Self::Any => "any",
@@ -33,20 +48,6 @@ impl SlotGroup {
     }
 
     pub(crate) fn from_name(name: &str) -> Option<Self> {
-        [
-            Self::Any,
-            Self::Mainhand,
-            Self::Offhand,
-            Self::Hand,
-            Self::Feet,
-            Self::Legs,
-            Self::Chest,
-            Self::Head,
-            Self::Armor,
-            Self::Body,
-            Self::Saddle,
-        ]
-        .into_iter()
-        .find(|group| group.name() == name)
+        Self::ALL.into_iter().find(|group| group.name() == name)
     }
 }

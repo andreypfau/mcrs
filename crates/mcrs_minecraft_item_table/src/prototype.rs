@@ -2,7 +2,6 @@ use alloc::boxed::Box;
 
 use mcrs_minecraft_item_stack::Builtin;
 use mcrs_minecraft_item_stack::ItemComponent;
-use mcrs_minecraft_item_stack::Neutral;
 
 /// The components that each stack of one kind has before its patch.
 #[derive(Clone, Debug, PartialEq)]
@@ -27,11 +26,5 @@ impl Prototype {
     #[must_use]
     pub fn components(&self) -> &[Builtin] {
         &self.components
-    }
-
-    /// True when the component of type `T` is the neutral value of `T`.
-    #[must_use]
-    pub fn is_neutral<T: Neutral>(&self) -> bool {
-        self.get::<T>() == Some(T::NEUTRAL)
     }
 }

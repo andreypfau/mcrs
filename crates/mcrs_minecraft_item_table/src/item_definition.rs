@@ -1,9 +1,8 @@
 use alloc::collections::BTreeMap;
 
+use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::Deserialize;
-
-use crate::json_nbt::JsonNbt;
 
 /// The layout of one file of the item definitions.
 #[derive(Debug, Deserialize)]
@@ -15,7 +14,7 @@ pub(crate) struct ItemDefinition {
 #[derive(Debug, Deserialize)]
 pub(crate) struct DefinedItem {
     pub(crate) description: Description,
-    pub(crate) components: BTreeMap<ResourceLocationBuf, JsonNbt>,
+    pub(crate) components: BTreeMap<ResourceLocationBuf, NbtTag>,
 }
 
 #[derive(Debug, Deserialize)]

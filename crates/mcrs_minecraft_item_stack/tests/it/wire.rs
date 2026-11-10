@@ -668,7 +668,7 @@ fn the_stacks_of_the_inventory_packets_read_and_write_back() {
 }
 
 fn hash(stack: &ItemStack) -> Result<Option<HashedStack>, HashError> {
-    hash_stack(Some(stack), &Names, &mut HashScratch::new())
+    hash_stack(Some(stack), &Names, &mut HashScratch::default())
 }
 
 #[test]

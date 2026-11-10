@@ -1,8 +1,5 @@
 use alloc::vec::Vec;
 
-use mcrs_minecraft_wire::Decode;
-use mcrs_minecraft_wire::VarInt;
-
 use crate::ComponentType;
 use crate::HashedComponent;
 use crate::HashedStack;
@@ -12,6 +9,7 @@ use crate::NameTable;
 use crate::WireError;
 use crate::wire_value::put_length;
 use crate::wire_value::put_var_int;
+use crate::wire_value::read_var_int;
 
 const MAX_ENTRIES: usize = 256;
 const ABSENT: u8 = 0x00;
@@ -36,8 +34,9 @@ pub fn read_hashed<L: NameLookup>(
         PRESENT => {}
         _ => return Err(WireError::Malformed),
     }
-    let kind = u16::try_from(var_int(input)?).map_err(|_| WireError::UnknownItem)?;
-    let count = var_int(input)?;
+    let kind = u16::try_from(read_var_int(input, WireError::of_frame)?)
+        .map_err(|_| WireError::UnknownItem)?;
+    let count = read_var_int(input, WireError::of_frame)?;
     let value_count = entry_count(input)?;
     let mut values: Vec<HashedComponent> = Vec::with_capacity(value_count);
     for _ in 0..value_count {
@@ -92,14 +91,9 @@ pub fn write_hashed(stack: Option<&HashedStack>, output: &mut Vec<u8>) -> Result
     Ok(())
 }
 
-fn var_int(input: &mut &[u8]) -> Result<i32, WireError> {
-    VarInt::decode(input)
-        .map(|VarInt(value)| value)
-        .map_err(|error| WireError::of_frame(&error))
-}
-
 fn entry_count(input: &mut &[u8]) -> Result<usize, WireError> {
-    let count = usize::try_from(var_int(input)?).map_err(|_| WireError::Malformed)?;
+    let count = usize::try_from(read_var_int(input, WireError::of_frame)?)
+        .map_err(|_| WireError::Malformed)?;
     if count > MAX_ENTRIES {
         return Err(WireError::TooManyEntries);
     }
@@ -107,7 +101,7 @@ fn entry_count(input: &mut &[u8]) -> Result<usize, WireError> {
 }
 
 fn component_type<L: NameLookup>(input: &mut &[u8], names: &L) -> Result<ComponentType, WireError> {
-    let raw = var_int(input)?;
+    let raw = read_var_int(input, WireError::of_frame)?;
     u16::try_from(raw)
         .ok()
         .filter(|id| names.name(NameTable::ComponentType, *id).is_some())

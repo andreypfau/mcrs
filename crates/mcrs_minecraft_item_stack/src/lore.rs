@@ -24,14 +24,6 @@ impl Lore {
     }
 }
 
-impl Default for Lore {
-    fn default() -> Self {
-        Self {
-            lines: Cow::Borrowed(&[]),
-        }
-    }
-}
-
 // chisle: the hash ignores the text of each line, so lores of one length share a hash and cost
 // one more equality check each. A `Hash` on `Text` lifts it.
 impl Hash for Lore {

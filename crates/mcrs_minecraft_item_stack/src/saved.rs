@@ -51,6 +51,10 @@ use crate::TooltipDisplay;
 use crate::Unbreakable;
 use crate::UndecodedValue;
 use crate::builtin_key::NAMESPACE;
+use crate::check_saved_form::MAX_COUNT;
+use crate::check_saved_form::NOT_NEGATIVE;
+use crate::check_saved_form::POSITIVE;
+use crate::check_saved_form::STACK_SIZE;
 use crate::saved_key::KeyKind;
 use crate::saved_key::REMOVAL_MARKER;
 use crate::saved_key::SavedKey;
@@ -66,8 +70,6 @@ const COMPONENTS: &str = "components";
 const SLOT: &str = "Slot";
 const AIR: &str = "air";
 const TAG_MARKER: char = '#';
-const MAX_COUNT: u8 = 99;
-const NOT_NEGATIVE: RangeInclusive<i32> = 0..=i32::MAX;
 
 const DISPLAY_DEFAULT: &str = "default";
 const DISPLAY_HIDDEN: &str = "hidden";
@@ -278,8 +280,10 @@ pub(crate) fn read_value<L: NameLookup>(
 ) -> Result<Builtin, SavedError> {
     let reader = Reader { component, names };
     Ok(match component {
-        BuiltinKey::MaxStackSize => Builtin::MaxStackSize(MaxStackSize(reader.int(tag, 1..=99)?)),
-        BuiltinKey::MaxDamage => Builtin::MaxDamage(MaxDamage(reader.int(tag, 1..=i32::MAX)?)),
+        BuiltinKey::MaxStackSize => {
+            Builtin::MaxStackSize(MaxStackSize(reader.int(tag, STACK_SIZE)?))
+        }
+        BuiltinKey::MaxDamage => Builtin::MaxDamage(MaxDamage(reader.int(tag, POSITIVE)?)),
         BuiltinKey::Damage => Builtin::Damage(Damage(reader.int(tag, NOT_NEGATIVE)?)),
         BuiltinKey::RepairCost => Builtin::RepairCost(RepairCost(reader.int(tag, NOT_NEGATIVE)?)),
         BuiltinKey::Unbreakable => {
@@ -338,24 +342,15 @@ impl<L: NameLookup> Reader<'_, L> {
     }
 
     fn string<'tag>(&self, tag: &'tag NbtTag) -> Result<&'tag str, SavedError> {
-        match tag {
-            NbtTag::String(text) => Ok(text),
-            _ => Err(self.bad()),
-        }
+        tag.extract_string().ok_or(self.bad())
     }
 
     fn map<'tag>(&self, tag: &'tag NbtTag) -> Result<&'tag NbtCompound, SavedError> {
-        match tag {
-            NbtTag::Compound(map) => Ok(map),
-            _ => Err(self.bad()),
-        }
+        tag.extract_compound().ok_or(self.bad())
     }
 
     fn list<'tag>(&self, tag: &'tag NbtTag) -> Result<&'tag [NbtTag], SavedError> {
-        match tag {
-            NbtTag::List(list) => Ok(list),
-            _ => Err(self.bad()),
-        }
+        tag.extract_list().ok_or(self.bad())
     }
 
     fn necessary<'tag>(
@@ -527,8 +522,8 @@ fn write_value<L: NameLookup>(value: &Builtin, names: &L) -> Result<NbtTag, Save
         names,
     };
     match value {
-        Builtin::MaxStackSize(MaxStackSize(size)) => writer.int(*size, 1..=99),
-        Builtin::MaxDamage(MaxDamage(damage)) => writer.int(*damage, 1..=i32::MAX),
+        Builtin::MaxStackSize(MaxStackSize(size)) => writer.int(*size, STACK_SIZE),
+        Builtin::MaxDamage(MaxDamage(damage)) => writer.int(*damage, POSITIVE),
         Builtin::Damage(Damage(damage)) => writer.int(*damage, NOT_NEGATIVE),
         Builtin::RepairCost(RepairCost(cost)) => writer.int(*cost, NOT_NEGATIVE),
         Builtin::Unbreakable(Unbreakable) => Ok(NbtTag::Compound(NbtCompound::new())),

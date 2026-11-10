@@ -8,10 +8,3 @@ use crate::node_hash::MapEntry;
 pub struct HashScratch {
     pub(crate) entries: Vec<MapEntry>,
 }
-
-impl HashScratch {
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-}

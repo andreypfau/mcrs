@@ -1,8 +1,6 @@
 use alloc::vec::Vec;
 
 use mcrs_minecraft_resource::ResourceLocation;
-use mcrs_minecraft_wire::Decode;
-use mcrs_minecraft_wire::VarInt;
 
 use crate::BuiltinKey;
 use crate::ComponentType;
@@ -14,12 +12,12 @@ use crate::NameTable;
 use crate::PatchEntry;
 use crate::UndecodedWireValue;
 use crate::WireError;
-use crate::builtin_key::NAMESPACE;
 use crate::check_saved_form::check_saved_form;
 use crate::saved::is_air;
 use crate::wire_value::put_length;
 use crate::wire_value::put_var_int;
 use crate::wire_value::read_value;
+use crate::wire_value::read_var_int;
 use crate::wire_value::write_value;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -83,7 +81,7 @@ pub fn write_wire_not_empty<L: NameLookup>(
     names: &L,
     output: &mut Vec<u8>,
 ) -> Result<(), WireError> {
-    if present(Some(stack), names)?.is_none() {
+    if present(Some(stack), names, WireError::UnnamedId(NameTable::Item))?.is_none() {
         return Err(WireError::EmptyStack);
     }
     write_wire(Some(stack), names, output)
@@ -98,14 +96,8 @@ pub fn write_wire_with_length<L: NameLookup>(
     write_frame(stack, names, Entries::LengthPrefixed, output)
 }
 
-fn frame_var_int(input: &mut &[u8]) -> Result<i32, WireError> {
-    VarInt::decode(input)
-        .map(|VarInt(value)| value)
-        .map_err(|error| WireError::of_frame(&error))
-}
-
 fn frame_length(input: &mut &[u8]) -> Result<usize, WireError> {
-    usize::try_from(frame_var_int(input)?).map_err(|_| WireError::Malformed)
+    usize::try_from(read_var_int(input, WireError::of_frame)?).map_err(|_| WireError::Malformed)
 }
 
 fn read_frame<L: NameLookup>(
@@ -113,7 +105,7 @@ fn read_frame<L: NameLookup>(
     names: &L,
     entries: Entries,
 ) -> Result<Option<ItemStack>, WireError> {
-    let count = frame_var_int(input)?;
+    let count = read_var_int(input, WireError::of_frame)?;
     if count <= 0 {
         return Ok(None);
     }
@@ -121,7 +113,8 @@ fn read_frame<L: NameLookup>(
         .ok()
         .and_then(Count::new)
         .ok_or(WireError::CountTooLarge)?;
-    let kind = u16::try_from(frame_var_int(input)?).map_err(|_| WireError::UnknownItem)?;
+    let kind = u16::try_from(read_var_int(input, WireError::of_frame)?)
+        .map_err(|_| WireError::UnknownItem)?;
     let item = names
         .name(NameTable::Item, kind)
         .ok_or(WireError::UnknownItem)?;
@@ -158,7 +151,7 @@ fn read_type<'names, L: NameLookup>(
     input: &mut &[u8],
     names: &'names L,
 ) -> Result<TypeRef<'names>, WireError> {
-    let raw = frame_var_int(input)?;
+    let raw = read_var_int(input, WireError::of_frame)?;
     let id = u16::try_from(raw).map_err(|_| WireError::UnknownComponentType(raw))?;
     let name = names
         .name(NameTable::ComponentType, id)
@@ -222,16 +215,17 @@ fn put_new(
     Ok(())
 }
 
-fn present<'stack, L: NameLookup>(
+/// `stack` unless it is `None` or a stack of the item air. An item without a name gives
+/// `unnamed`.
+pub(crate) fn present<'stack, L: NameLookup, E>(
     stack: Option<&'stack ItemStack>,
     names: &L,
-) -> Result<Option<&'stack ItemStack>, WireError> {
+    unnamed: E,
+) -> Result<Option<&'stack ItemStack>, E> {
     let Some(stack) = stack else {
         return Ok(None);
     };
-    let item = names
-        .name(NameTable::Item, stack.kind.0)
-        .ok_or(WireError::UnnamedId(NameTable::Item))?;
+    let item = names.name(NameTable::Item, stack.kind.0).ok_or(unnamed)?;
     Ok((!is_air(item)).then_some(stack))
 }
 
@@ -242,7 +236,7 @@ fn write_frame<L: NameLookup>(
     output: &mut Vec<u8>,
 ) -> Result<(), WireError> {
     let start = output.len();
-    let written = match present(stack, names) {
+    let written = match present(stack, names, WireError::UnnamedId(NameTable::Item)) {
         Ok(Some(stack)) => write_present(stack, names, entries, output),
         Ok(None) => {
             put_var_int(output, 0);
@@ -307,8 +301,8 @@ fn is_removal(entry: &PatchEntry) -> bool {
 
 fn type_id<L: NameLookup>(entry: &PatchEntry, names: &L) -> Result<i32, WireError> {
     let name = match entry {
-        PatchEntry::Value(value) => builtin_name(value.key())?,
-        PatchEntry::Removal(key) => builtin_name(*key)?,
+        PatchEntry::Value(value) => value.key().location().ok_or(WireError::UnregisteredType)?,
+        PatchEntry::Removal(key) => key.location().ok_or(WireError::UnregisteredType)?,
         PatchEntry::UndecodedRemoval(name) => name.as_location(),
         PatchEntry::UndecodedWire(value) => return Ok(i32::from(value.component().0)),
         PatchEntry::Undecoded(_) | PatchEntry::Custom(_) => {
@@ -319,10 +313,6 @@ fn type_id<L: NameLookup>(entry: &PatchEntry, names: &L) -> Result<i32, WireErro
         .id(NameTable::ComponentType, name)
         .map(i32::from)
         .ok_or(WireError::UnregisteredType)
-}
-
-fn builtin_name(key: BuiltinKey) -> Result<ResourceLocation<'static>, WireError> {
-    ResourceLocation::new(NAMESPACE, key.path()).map_err(|_| WireError::UnregisteredType)
 }
 
 fn write_entry_value<L: NameLookup>(

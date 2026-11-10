@@ -30,7 +30,9 @@ pub(crate) fn store<T: ItemComponent + Component>(mut entity: EntityWorldMut, ta
     };
     match value {
         Some(value) if Some(&value) != T::neutral() => {
-            entity.insert(value);
+            if entity.get::<T>() != Some(&value) {
+                entity.insert(value);
+            }
         }
         Some(_) | None => {
             entity.remove::<T>();

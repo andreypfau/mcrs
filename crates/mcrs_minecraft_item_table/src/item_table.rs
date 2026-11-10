@@ -56,10 +56,10 @@ impl ItemTable {
     }
 
     /// The effective component of type `T` of `stack`: the value of its patch entry, none for a
-    /// removal entry, else the component of the prototype. A custom type gives `None`, because
-    /// the patch holds it encoded.
+    /// removal entry, else the component of the prototype, else the neutral value of `T`. A custom
+    /// type gives `None`, because the patch holds it encoded.
     #[must_use]
-    pub fn effective<'stack, T: ItemComponent>(
+    pub fn effective<'stack, T: ItemComponent + 'static>(
         &self,
         stack: &'stack ItemStack,
     ) -> Option<&'stack T> {
@@ -72,7 +72,7 @@ impl ItemTable {
             Some(
                 PatchEntry::Removal(_) | PatchEntry::UndecodedRemoval(_) | PatchEntry::Custom(_),
             ) => None,
-            None => self.prototype(stack.kind)?.get(),
+            None => self.prototype(stack.kind)?.get().or_else(T::neutral),
         }
     }
 }

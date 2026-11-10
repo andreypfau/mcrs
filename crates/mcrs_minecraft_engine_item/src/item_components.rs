@@ -101,3 +101,22 @@ impl ItemComponents {
 fn builtin<T: ItemComponent + Component>(world: &mut World, key: BuiltinKey) -> Row {
     Row::builtin(Column::<T>::register(world), key)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn each_builtin_row_sits_at_its_key_and_fits_the_removed_bits() {
+        let components = ItemComponents::from_world(&mut World::new());
+        for (index, row) in components.rows().iter().enumerate() {
+            if let RowKey::Builtin(key) = row.key() {
+                assert_eq!(key.index(), index, "{key:?}");
+                assert!(
+                    !row.is_neutral() || key.index() < 32,
+                    "{key:?} has a neutral value, so its removal needs a bit of `Removed`"
+                );
+            }
+        }
+    }
+}

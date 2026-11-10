@@ -1,3 +1,4 @@
+use mcrs_minecraft_core::codec::NonNegativeFloat;
 use mcrs_minecraft_core::codec::NonNegativeInt;
 use mcrs_minecraft_core::codec::PositiveFloat;
 use mcrs_minecraft_core::codec::is_default;
@@ -5,8 +6,6 @@ use mcrs_minecraft_registries::{Refs, Resolved};
 use mcrs_minecraft_sound::Sound;
 use mcrs_minecraft_text::{Text, TextSerde, TextTypes};
 use serde::{Deserialize, Serialize};
-
-use crate::NonNegativeFloat;
 
 /// An entry of the `instrument` registry. `I` is the item type of the text.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

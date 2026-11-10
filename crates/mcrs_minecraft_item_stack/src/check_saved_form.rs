@@ -9,8 +9,10 @@ use crate::NameTable;
 use crate::PatchEntry;
 use crate::WireError;
 
-const MAX_COUNT: u8 = 99;
-const NOT_NEGATIVE: RangeInclusive<i32> = 0..=i32::MAX;
+pub(crate) const MAX_COUNT: u8 = 99;
+pub(crate) const NOT_NEGATIVE: RangeInclusive<i32> = 0..=i32::MAX;
+pub(crate) const POSITIVE: RangeInclusive<i32> = 1..=i32::MAX;
+pub(crate) const STACK_SIZE: RangeInclusive<i32> = 1..=MAX_COUNT as i32;
 
 /// Checks that each decoded part of the stack has a saved form: the count is at most 99, each
 /// number is in the range of its saved form, and each numeric id has a name. A component that this
@@ -36,8 +38,8 @@ fn check_value<L: NameLookup>(value: &Builtin, names: &L) -> Result<(), WireErro
         names,
     };
     match value {
-        Builtin::MaxStackSize(size) => check.range(size.0, 1..=i32::from(MAX_COUNT)),
-        Builtin::MaxDamage(damage) => check.range(damage.0, 1..=i32::MAX),
+        Builtin::MaxStackSize(size) => check.range(size.0, STACK_SIZE),
+        Builtin::MaxDamage(damage) => check.range(damage.0, POSITIVE),
         Builtin::Damage(damage) => check.range(damage.0, NOT_NEGATIVE),
         Builtin::RepairCost(cost) => check.range(cost.0, NOT_NEGATIVE),
         Builtin::Food(food) => check.range(food.nutrition, NOT_NEGATIVE),

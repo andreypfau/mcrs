@@ -31,40 +31,20 @@ impl AttributeModifier {
         amount: f64,
         operation: ModifierOperation,
     ) -> Self {
-        Self::with_id(attribute, Identifier::Owned(id), amount, operation)
-    }
-
-    /// A modifier for each slot with the default display.
-    #[must_use]
-    pub const fn from_static(
-        attribute: AttributeId,
-        id: ResourceLocation<'static>,
-        amount: f64,
-        operation: ModifierOperation,
-    ) -> Self {
-        Self::with_id(attribute, Identifier::Borrowed(id), amount, operation)
+        Self {
+            attribute,
+            id: Identifier::Owned(id),
+            amount,
+            operation,
+            slot: SlotGroup::Any,
+            display: ModifierDisplay::Default,
+        }
     }
 
     /// The name of the modifier. It is not an entry of a registry.
     #[must_use]
     pub fn id(&self) -> ResourceLocation<'_> {
         self.id.as_location()
-    }
-
-    const fn with_id(
-        attribute: AttributeId,
-        id: Identifier,
-        amount: f64,
-        operation: ModifierOperation,
-    ) -> Self {
-        Self {
-            attribute,
-            id,
-            amount,
-            operation,
-            slot: SlotGroup::Any,
-            display: ModifierDisplay::Default,
-        }
     }
 }
 

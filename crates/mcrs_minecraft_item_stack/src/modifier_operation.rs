@@ -7,6 +7,13 @@ pub enum ModifierOperation {
 }
 
 impl ModifierOperation {
+    /// Each variant, in the order of the wire ids.
+    pub(crate) const ALL: [Self; 3] = [
+        Self::AddValue,
+        Self::AddMultipliedBase,
+        Self::AddMultipliedTotal,
+    ];
+
     pub(crate) const fn name(self) -> &'static str {
         match self {
             Self::AddValue => "add_value",
@@ -16,12 +23,8 @@ impl ModifierOperation {
     }
 
     pub(crate) fn from_name(name: &str) -> Option<Self> {
-        [
-            Self::AddValue,
-            Self::AddMultipliedBase,
-            Self::AddMultipliedTotal,
-        ]
-        .into_iter()
-        .find(|operation| operation.name() == name)
+        Self::ALL
+            .into_iter()
+            .find(|operation| operation.name() == name)
     }
 }
