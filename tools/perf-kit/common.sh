@@ -5,6 +5,9 @@ KIT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KIT_HOME="${MCRS_PERF_HOME:-$HOME/.mcrs-perf}"
 JAVA_MIN=25
 
+# An ssh session starts with 256 open files, too few for cargo building the workspace.
+[ "$(ulimit -n)" = unlimited ] || [ "$(ulimit -n)" -ge 10240 ] || ulimit -n 10240 2>/dev/null || true
+
 # A terminal opened before bootstrap.sh installed rustup has no cargo on PATH yet.
 if [ -f "${CARGO_HOME:-$HOME/.cargo}/env" ]; then
     # shellcheck source=/dev/null
