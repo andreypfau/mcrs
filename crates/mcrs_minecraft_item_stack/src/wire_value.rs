@@ -3,6 +3,7 @@ use alloc::vec::Vec;
 use core::num::NonZeroU8;
 
 use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_text::Text;
 use mcrs_minecraft_wire::Decode;
 use mcrs_minecraft_wire::Encode;
 use mcrs_minecraft_wire::VarInt;
@@ -16,12 +17,15 @@ use crate::BlockTagId;
 use crate::Builtin;
 use crate::BuiltinKey;
 use crate::ComponentType;
+use crate::CustomName;
 use crate::Damage;
 use crate::EnchantmentId;
 use crate::EnchantmentLevel;
 use crate::Enchantments;
 use crate::Food;
 use crate::ItemModel;
+use crate::ItemName;
+use crate::Lore;
 use crate::MaxDamage;
 use crate::MaxStackSize;
 use crate::ModifierDisplay;
@@ -36,6 +40,9 @@ use crate::ToolRule;
 use crate::TooltipDisplay;
 use crate::Unbreakable;
 use crate::WireError;
+use crate::lore::MAX_LINES;
+use crate::wire_text::read_text;
+use crate::wire_text::write_text;
 
 const RARITIES: [Rarity; 4] = [Rarity::Common, Rarity::Uncommon, Rarity::Rare, Rarity::Epic];
 
@@ -83,15 +90,14 @@ pub(crate) fn put_length(output: &mut Vec<u8>, length: usize) -> Result<(), Wire
     Ok(())
 }
 
-/// Reads the wire form of one component. `None` is a value that holds a text, which this crate
-/// does not decode yet; the input then stands inside the value.
+/// Reads the wire form of one component.
 pub(crate) fn read_value<L: NameLookup>(
     component: BuiltinKey,
     input: &mut &[u8],
     names: &L,
-) -> Result<Option<Builtin>, WireError> {
+) -> Result<Builtin, WireError> {
     let reader = Reader { component, names };
-    let value = match component {
+    Ok(match component {
         BuiltinKey::MaxStackSize => Builtin::MaxStackSize(MaxStackSize(reader.var_int(input)?)),
         BuiltinKey::MaxDamage => Builtin::MaxDamage(MaxDamage(reader.var_int(input)?)),
         BuiltinKey::Damage => Builtin::Damage(Damage(reader.var_int(input)?)),
@@ -103,10 +109,7 @@ pub(crate) fn read_value<L: NameLookup>(
         BuiltinKey::Rarity => Builtin::Rarity(reader.list_entry(input, &RARITIES)?),
         BuiltinKey::Enchantments => Builtin::Enchantments(reader.enchantments(input)?),
         BuiltinKey::AttributeModifiers => {
-            let Some(modifiers) = reader.attribute_modifiers(input)? else {
-                return Ok(None);
-            };
-            Builtin::AttributeModifiers(modifiers)
+            Builtin::AttributeModifiers(reader.attribute_modifiers(input)?)
         }
         BuiltinKey::TooltipDisplay => Builtin::TooltipDisplay(reader.tooltip_display(input)?),
         BuiltinKey::Food => Builtin::Food(Food {
@@ -115,9 +118,10 @@ pub(crate) fn read_value<L: NameLookup>(
             can_always_eat: reader.boolean(input)?,
         }),
         BuiltinKey::Tool => Builtin::Tool(reader.tool(input)?),
-        BuiltinKey::CustomName | BuiltinKey::ItemName | BuiltinKey::Lore => return Ok(None),
-    };
-    Ok(Some(value))
+        BuiltinKey::CustomName => Builtin::CustomName(CustomName(read_text(input, component)?)),
+        BuiltinKey::ItemName => Builtin::ItemName(ItemName(read_text(input, component)?)),
+        BuiltinKey::Lore => Builtin::Lore(reader.lore(input)?),
+    })
 }
 
 struct Reader<'names, L> {
@@ -190,10 +194,21 @@ impl<L: NameLookup> Reader<'_, L> {
         Enchantments::new(entries).ok_or(self.bad())
     }
 
-    fn attribute_modifiers(
-        &self,
-        input: &mut &[u8],
-    ) -> Result<Option<AttributeModifiers>, WireError> {
+    fn lore(&self, input: &mut &[u8]) -> Result<Lore, WireError> {
+        let count = self.length(input)?;
+        if count > MAX_LINES {
+            return Err(WireError::OutOfRange(self.component));
+        }
+        let mut lines: Vec<Text> = Vec::with_capacity(count);
+        for _ in 0..count {
+            lines.push(read_text(input, self.component)?);
+        }
+        Ok(Lore {
+            lines: Cow::Owned(lines),
+        })
+    }
+
+    fn attribute_modifiers(&self, input: &mut &[u8]) -> Result<AttributeModifiers, WireError> {
         let count = self.length(input)?;
         let mut modifiers: Vec<AttributeModifier> = Vec::with_capacity(count.min(input.len()));
         for _ in 0..count {
@@ -206,14 +221,14 @@ impl<L: NameLookup> Reader<'_, L> {
             modifier.display = match self.var_int(input)? {
                 DISPLAY_DEFAULT => ModifierDisplay::Default,
                 DISPLAY_HIDDEN => ModifierDisplay::Hidden,
-                DISPLAY_OVERRIDE => return Ok(None),
+                DISPLAY_OVERRIDE => ModifierDisplay::Override(read_text(input, self.component)?),
                 _ => return Err(self.bad()),
             };
             modifiers.push(modifier);
         }
-        Ok(Some(AttributeModifiers {
+        Ok(AttributeModifiers {
             modifiers: Cow::Owned(modifiers),
-        }))
+        })
     }
 
     fn tooltip_display(&self, input: &mut &[u8]) -> Result<TooltipDisplay, WireError> {
@@ -319,8 +334,17 @@ pub(crate) fn write_value<L: NameLookup>(
             put_boolean(output, food.can_always_eat);
         }
         Builtin::Tool(tool) => writer.tool(tool, output)?,
-        Builtin::CustomName(_) | Builtin::ItemName(_) | Builtin::Lore(_) => {
-            return Err(WireError::TextNotSupported(writer.component));
+        Builtin::CustomName(CustomName(text)) | Builtin::ItemName(ItemName(text)) => {
+            write_text(text, writer.component, output)?;
+        }
+        Builtin::Lore(lore) => {
+            if lore.lines.len() > MAX_LINES {
+                return Err(WireError::OutOfRange(writer.component));
+            }
+            put_length(output, lore.lines.len())?;
+            for line in lore.lines.iter() {
+                write_text(line, writer.component, output)?;
+            }
         }
     }
     Ok(())
@@ -371,14 +395,14 @@ impl<L: NameLookup> Writer<'_, L> {
             output.extend_from_slice(&modifier.amount.to_be_bytes());
             self.list_id(&OPERATIONS, modifier.operation, output)?;
             self.list_id(&SLOT_GROUPS, modifier.slot, output)?;
-            let display = match modifier.display {
-                ModifierDisplay::Default => DISPLAY_DEFAULT,
-                ModifierDisplay::Hidden => DISPLAY_HIDDEN,
-                ModifierDisplay::Override(_) => {
-                    return Err(WireError::TextNotSupported(self.component));
+            match &modifier.display {
+                ModifierDisplay::Default => put_var_int(output, DISPLAY_DEFAULT),
+                ModifierDisplay::Hidden => put_var_int(output, DISPLAY_HIDDEN),
+                ModifierDisplay::Override(text) => {
+                    put_var_int(output, DISPLAY_OVERRIDE);
+                    write_text(text, self.component, output)?;
                 }
-            };
-            put_var_int(output, display);
+            }
         }
         Ok(())
     }

@@ -11,6 +11,7 @@ use mcrs_minecraft_item_stack::BlockTagId;
 use mcrs_minecraft_item_stack::BuiltinKey;
 use mcrs_minecraft_item_stack::ComponentType;
 use mcrs_minecraft_item_stack::Count;
+use mcrs_minecraft_item_stack::CustomName;
 use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_item_stack::EnchantmentId;
 use mcrs_minecraft_item_stack::EnchantmentLevel;
@@ -19,7 +20,6 @@ use mcrs_minecraft_item_stack::Food;
 use mcrs_minecraft_item_stack::ItemModel;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
-use mcrs_minecraft_item_stack::Lore;
 use mcrs_minecraft_item_stack::MaxDamage;
 use mcrs_minecraft_item_stack::MaxStackSize;
 use mcrs_minecraft_item_stack::ModifierDisplay;
@@ -51,6 +51,7 @@ use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_snbt::parse_compound;
 use mcrs_minecraft_snbt::parse_tag;
 use mcrs_minecraft_snbt::write_compound;
+use mcrs_minecraft_text::Text;
 use serde::Deserialize;
 
 const AIR: u16 = 0;
@@ -309,10 +310,7 @@ fn the_patch_keeps_one_order_whatever_the_order_of_the_saved_keys() {
             _ => None,
         })
         .collect();
-    assert_eq!(
-        undecoded,
-        ["minecraft:custom_name", "minecraft:bundle_contents"]
-    );
+    assert_eq!(undecoded, ["minecraft:bundle_contents"]);
 
     let written = write_saved(&stack, &Names).expect("each entry has a saved form");
     let Some(NbtTag::Compound(patch)) = written.get("components") else {
@@ -462,7 +460,7 @@ fn the_writer_names_the_rule_that_a_stack_breaks() {
         level: NonZeroU8::MIN,
     }])
     .expect("one enchantment");
-    let cases: [(ItemStack, SavedError); 6] = [
+    let cases: [(ItemStack, SavedError); 5] = [
         (stack(999, 1), SavedError::UnnamedId(NameTable::Item)),
         (stack(AIR, 1), SavedError::AirItem),
         (
@@ -476,10 +474,6 @@ fn the_writer_names_the_rule_that_a_stack_breaks() {
         (
             stack(STONE, 1).set(unnamed_enchantment),
             SavedError::UnnamedId(NameTable::Enchantment),
-        ),
-        (
-            stack(STONE, 1).set(Lore::default()),
-            SavedError::TextNotSupported(BuiltinKey::Lore),
         ),
     ];
     for (stack, expected) in cases {
@@ -550,19 +544,9 @@ fn a_stack_that_the_game_saved_reads_to_its_value_and_writes_back() {
         .set(MaxStackSize(16))
         .set(Damage(7))
         .set(Unbreakable)
+        .set(CustomName(Text::text("named")))
         .unset::<RepairCost>();
-    let name = read.patch().iter().find_map(|entry| match entry {
-        PatchEntry::Undecoded(value) => Some(value),
-        _ => None,
-    });
-    let name = name.expect("the custom name is kept undecoded");
-    assert_eq!(name.name.as_str(), "minecraft:custom_name");
-    assert_eq!(*name.bytes, *bytes_of(&NbtTag::String("named".into())));
-    assert_eq!(read.patch().len(), decoded.patch().len() + 1);
-    for entry in decoded.patch() {
-        assert!(read.patch().contains(entry), "{entry:?}");
-    }
-    assert_eq!((read.kind, read.count), (decoded.kind, decoded.count));
+    assert_eq!(read, decoded);
 
     let written = write_saved(&read, &Names).expect("the stack has a saved form");
     assert_same(&written, &nbt, "use_remainder_full");

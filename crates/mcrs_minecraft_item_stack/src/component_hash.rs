@@ -1,16 +1,20 @@
 use core::ops::RangeInclusive;
 
 use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_text::Text;
 
 use crate::AttributeModifiers;
 use crate::BlockSet;
 use crate::Builtin;
 use crate::BuiltinKey;
+use crate::CustomName;
 use crate::Damage;
 use crate::Enchantments;
 use crate::Food;
 use crate::HashError;
 use crate::HashScratch;
+use crate::ItemName;
+use crate::Lore;
 use crate::MaxDamage;
 use crate::MaxStackSize;
 use crate::ModifierDisplay;
@@ -23,12 +27,15 @@ use crate::ToolRule;
 use crate::TooltipDisplay;
 use crate::Unbreakable;
 use crate::field_map::FieldMap;
+use crate::lore::MAX_LINES;
 use crate::node_hash::ListHash;
 use crate::node_hash::MapEntry;
 use crate::node_hash::NodeHash;
+use crate::node_serializer::hash_of;
 
 const NOT_NEGATIVE: RangeInclusive<i32> = 0..=i32::MAX;
 const DISPLAY_HIDDEN: &str = "hidden";
+const DISPLAY_OVERRIDE: &str = "override";
 const DEFAULT_MINING_SPEED: f32 = 1.0;
 const DEFAULT_DAMAGE_PER_BLOCK: i32 = 1;
 
@@ -52,13 +59,14 @@ pub(crate) fn component_hash<L: NameLookup>(
         Builtin::ItemModel(model) => Ok(identifier(model.get())),
         Builtin::Rarity(rarity) => Ok(NodeHash::string(rarity.name())),
         Builtin::Enchantments(enchantments) => tree.enchantments(enchantments, scratch),
-        Builtin::AttributeModifiers(modifiers) => tree.attribute_modifiers(modifiers),
+        Builtin::AttributeModifiers(modifiers) => tree.attribute_modifiers(modifiers, scratch),
         Builtin::TooltipDisplay(display) => tree.tooltip_display(display),
         Builtin::Food(food) => tree.food(food),
         Builtin::Tool(tool) => tree.tool(tool),
-        Builtin::CustomName(_) | Builtin::ItemName(_) | Builtin::Lore(_) => {
-            Err(HashError::TextNotSupported(tree.component))
+        Builtin::CustomName(CustomName(text)) | Builtin::ItemName(ItemName(text)) => {
+            tree.text(text, scratch)
         }
+        Builtin::Lore(lore) => tree.lore(lore, scratch),
     }
 }
 
@@ -106,7 +114,26 @@ impl<L: NameLookup> Tree<'_, L> {
         Ok(NodeHash::map(&mut scratch.entries))
     }
 
-    fn attribute_modifiers(&self, modifiers: &AttributeModifiers) -> Result<NodeHash, HashError> {
+    fn text(&self, text: &Text, scratch: &mut HashScratch) -> Result<NodeHash, HashError> {
+        hash_of(text, &mut scratch.entries).map_err(|_| HashError::BadValue(self.component))
+    }
+
+    fn lore(&self, lore: &Lore, scratch: &mut HashScratch) -> Result<NodeHash, HashError> {
+        if lore.lines.len() > MAX_LINES {
+            return Err(HashError::OutOfRange(self.component));
+        }
+        let mut list = ListHash::new();
+        for line in lore.lines.iter() {
+            list = list.push(self.text(line, scratch)?);
+        }
+        Ok(list.finish())
+    }
+
+    fn attribute_modifiers(
+        &self,
+        modifiers: &AttributeModifiers,
+        scratch: &mut HashScratch,
+    ) -> Result<NodeHash, HashError> {
         let mut list = ListHash::new();
         for modifier in modifiers.modifiers.iter() {
             let mut fields = FieldMap::new();
@@ -120,15 +147,18 @@ impl<L: NameLookup> Tree<'_, L> {
             if modifier.slot != SlotGroup::Any {
                 fields.put("slot", NodeHash::string(modifier.slot.name()));
             }
-            match modifier.display {
+            match &modifier.display {
                 ModifierDisplay::Default => {}
                 ModifierDisplay::Hidden => {
                     let mut display = FieldMap::new();
                     display.put("type", NodeHash::string(DISPLAY_HIDDEN));
                     fields.put("display", display.finish());
                 }
-                ModifierDisplay::Override(_) => {
-                    return Err(HashError::TextNotSupported(self.component));
+                ModifierDisplay::Override(text) => {
+                    let mut display = FieldMap::new();
+                    display.put("type", NodeHash::string(DISPLAY_OVERRIDE));
+                    display.put("value", self.text(text, scratch)?);
+                    fields.put("display", display.finish());
                 }
             }
             list = list.push(fields.finish());

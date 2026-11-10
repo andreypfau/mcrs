@@ -23,12 +23,14 @@ use crate::Builtin;
 use crate::BuiltinKey;
 use crate::ComponentType;
 use crate::Count;
+use crate::CustomName;
 use crate::Damage;
 use crate::EnchantmentId;
 use crate::EnchantmentLevel;
 use crate::Enchantments;
 use crate::Food;
 use crate::ItemModel;
+use crate::ItemName;
 use crate::ItemStack;
 use crate::Kind;
 use crate::MaxDamage;
@@ -49,6 +51,10 @@ use crate::TooltipDisplay;
 use crate::Unbreakable;
 use crate::UndecodedValue;
 use crate::builtin_key::NAMESPACE;
+use crate::saved_text::read_lore;
+use crate::saved_text::read_text;
+use crate::saved_text::write_lore;
+use crate::saved_text::write_text;
 
 const ID: &str = "id";
 const COUNT: &str = "count";
@@ -69,8 +75,7 @@ const DEFAULT_DAMAGE_PER_BLOCK: i32 = 1;
 
 /// Reads the saved stack: a map with the item, the count and the component patch.
 ///
-/// A component of a type without a Rust type in this crate, and a component that holds a text,
-/// becomes a [`PatchEntry::Undecoded`]. The reader has no partial result: one bad key of the
+/// A component of a type without a Rust type in this crate becomes a [`PatchEntry::Undecoded`]. The reader has no partial result: one bad key of the
 /// patch gives the error and no stack.
 pub fn read_saved<L: NameLookup>(saved: &NbtCompound, names: &L) -> Result<ItemStack, SavedError> {
     let Some(NbtTag::String(id)) = saved.get(ID) else {
@@ -203,12 +208,8 @@ fn read_entry<L: NameLookup>(
             None => PatchEntry::UndecodedRemoval(name.to_buf()),
         });
     }
-    let decoded = match builtin {
-        Some(component) => read_value(component, value, names)?,
-        None => None,
-    };
-    match decoded {
-        Some(value) => Ok(PatchEntry::Value(value)),
+    match builtin {
+        Some(component) => Ok(PatchEntry::Value(read_value(component, value, names)?)),
         None => Ok(PatchEntry::Undecoded(UndecodedValue {
             name: name.to_buf(),
             bytes: encode(value)?,
@@ -263,14 +264,13 @@ fn decode(bytes: &[u8]) -> Result<NbtTag, SavedError> {
     Ok(tag)
 }
 
-// `None` is a valid value that this crate does not decode yet: the value holds a text.
 fn read_value<L: NameLookup>(
     component: BuiltinKey,
     tag: &NbtTag,
     names: &L,
-) -> Result<Option<Builtin>, SavedError> {
+) -> Result<Builtin, SavedError> {
     let reader = Reader { component, names };
-    let value = match component {
+    Ok(match component {
         BuiltinKey::MaxStackSize => Builtin::MaxStackSize(MaxStackSize(reader.int(tag, 1..=99)?)),
         BuiltinKey::MaxDamage => Builtin::MaxDamage(MaxDamage(reader.int(tag, 1..=i32::MAX)?)),
         BuiltinKey::Damage => Builtin::Damage(Damage(reader.int(tag, NOT_NEGATIVE)?)),
@@ -288,17 +288,15 @@ fn read_value<L: NameLookup>(
         }
         BuiltinKey::Enchantments => Builtin::Enchantments(reader.enchantments(tag)?),
         BuiltinKey::AttributeModifiers => {
-            let Some(modifiers) = reader.attribute_modifiers(tag)? else {
-                return Ok(None);
-            };
-            Builtin::AttributeModifiers(modifiers)
+            Builtin::AttributeModifiers(reader.attribute_modifiers(tag)?)
         }
         BuiltinKey::TooltipDisplay => Builtin::TooltipDisplay(reader.tooltip_display(tag)?),
         BuiltinKey::Food => Builtin::Food(reader.food(tag)?),
         BuiltinKey::Tool => Builtin::Tool(reader.tool(tag)?),
-        BuiltinKey::CustomName | BuiltinKey::ItemName | BuiltinKey::Lore => return Ok(None),
-    };
-    Ok(Some(value))
+        BuiltinKey::CustomName => Builtin::CustomName(CustomName(read_text(tag, component)?)),
+        BuiltinKey::ItemName => Builtin::ItemName(ItemName(read_text(tag, component)?)),
+        BuiltinKey::Lore => Builtin::Lore(read_lore(tag)?),
+    })
 }
 
 struct Reader<'names, L> {
@@ -398,10 +396,9 @@ impl<L: NameLookup> Reader<'_, L> {
         Enchantments::new(entries).ok_or(self.bad())
     }
 
-    fn attribute_modifiers(&self, tag: &NbtTag) -> Result<Option<AttributeModifiers>, SavedError> {
+    fn attribute_modifiers(&self, tag: &NbtTag) -> Result<AttributeModifiers, SavedError> {
         let list = self.list(tag)?;
         let mut modifiers: Vec<AttributeModifier> = Vec::with_capacity(list.len());
-        let mut holds_text = false;
         for entry in list {
             let entry = self.map(entry)?;
             let attribute = self.identifier(self.necessary(entry, "type")?)?;
@@ -422,20 +419,17 @@ impl<L: NameLookup> Reader<'_, L> {
                     DISPLAY_DEFAULT => {}
                     DISPLAY_HIDDEN => modifier.display = ModifierDisplay::Hidden,
                     DISPLAY_OVERRIDE => {
-                        self.necessary(display, "value")?;
-                        holds_text = true;
+                        let text = read_text(self.necessary(display, "value")?, self.component)?;
+                        modifier.display = ModifierDisplay::Override(text);
                     }
                     _ => return Err(self.bad()),
                 }
             }
             modifiers.push(modifier);
         }
-        if holds_text {
-            return Ok(None);
-        }
-        Ok(Some(AttributeModifiers {
+        Ok(AttributeModifiers {
             modifiers: Cow::Owned(modifiers),
-        }))
+        })
     }
 
     fn tooltip_display(&self, tag: &NbtTag) -> Result<TooltipDisplay, SavedError> {
@@ -545,9 +539,10 @@ fn write_value<L: NameLookup>(value: &Builtin, names: &L) -> Result<NbtTag, Save
         Builtin::TooltipDisplay(display) => writer.tooltip_display(display),
         Builtin::Food(food) => writer.food(food),
         Builtin::Tool(tool) => writer.tool(tool),
-        Builtin::CustomName(_) | Builtin::ItemName(_) | Builtin::Lore(_) => {
-            Err(SavedError::TextNotSupported(writer.component))
+        Builtin::CustomName(CustomName(text)) | Builtin::ItemName(ItemName(text)) => {
+            write_text(text, writer.component)
         }
+        Builtin::Lore(lore) => write_lore(lore),
     }
 }
 
@@ -606,15 +601,18 @@ impl<L: NameLookup> Writer<'_, L> {
             if modifier.slot != SlotGroup::Any {
                 entry.put("slot", name_tag(modifier.slot.name()));
             }
-            match modifier.display {
+            match &modifier.display {
                 ModifierDisplay::Default => {}
                 ModifierDisplay::Hidden => {
                     let mut display = NbtCompound::new();
                     display.put("type", name_tag(DISPLAY_HIDDEN));
                     entry.put("display", NbtTag::Compound(display));
                 }
-                ModifierDisplay::Override(_) => {
-                    return Err(SavedError::TextNotSupported(self.component));
+                ModifierDisplay::Override(text) => {
+                    let mut display = NbtCompound::new();
+                    display.put("type", name_tag(DISPLAY_OVERRIDE));
+                    display.put("value", write_text(text, self.component)?);
+                    entry.put("display", NbtTag::Compound(display));
                 }
             }
             list.push(NbtTag::Compound(entry));

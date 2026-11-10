@@ -37,8 +37,6 @@ pub enum SavedError {
     },
     /// The stack holds a numeric id that has no name in the table.
     UnnamedId(NameTable),
-    /// This component holds a text, and this crate has no saved form of a text yet.
-    TextNotSupported(BuiltinKey),
     /// The bytes of an undecoded patch entry are not one NBT value, or an NBT value of the input
     /// has no bytes.
     BadUndecodedBytes,
@@ -80,11 +78,6 @@ impl fmt::Display for SavedError {
                 component.path()
             ),
             Self::UnnamedId(table) => write!(formatter, "a numeric id has no name in {table:?}"),
-            Self::TextNotSupported(component) => write!(
-                formatter,
-                "the value of {} holds a text, which has no saved form yet",
-                component.path()
-            ),
             Self::BadUndecodedBytes => {
                 formatter.write_str("the bytes of an undecoded patch entry are not one NBT value")
             }

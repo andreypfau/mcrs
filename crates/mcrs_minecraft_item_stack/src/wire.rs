@@ -177,8 +177,7 @@ fn read_bare_value<L: NameLookup>(
 ) -> Result<PatchEntry, WireError> {
     let unsupported = WireError::UnsupportedComponentType(component.id);
     let key = component.builtin.ok_or(unsupported)?;
-    let value = read_value(key, input, names)?.ok_or(unsupported)?;
-    Ok(PatchEntry::Value(value))
+    Ok(PatchEntry::Value(read_value(key, input, names)?))
 }
 
 fn read_prefixed_value<L: NameLookup>(
@@ -194,16 +193,14 @@ fn read_prefixed_value<L: NameLookup>(
     if let Some(key) = component.builtin {
         let mut value_input = bytes;
         let bad_length = WireError::BadLength(component.id);
-        let read = read_value(key, &mut value_input, names).map_err(|error| match error {
+        let value = read_value(key, &mut value_input, names).map_err(|error| match error {
             WireError::UnexpectedEnd => bad_length,
             other => other,
         })?;
-        if let Some(value) = read {
-            if !value_input.is_empty() {
-                return Err(bad_length);
-            }
-            return Ok(PatchEntry::Value(value));
+        if !value_input.is_empty() {
+            return Err(bad_length);
         }
+        return Ok(PatchEntry::Value(value));
     }
     Ok(PatchEntry::UndecodedWire(UndecodedWireValue::new(
         component.id,

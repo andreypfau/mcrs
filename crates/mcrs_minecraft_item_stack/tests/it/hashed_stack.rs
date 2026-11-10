@@ -1,5 +1,4 @@
 use mcrs_minecraft_fixtures::fixture;
-use mcrs_minecraft_item_stack::BuiltinKey;
 use mcrs_minecraft_item_stack::ComponentType;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::CustomName;
@@ -12,7 +11,6 @@ use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_item_stack::NameLookup;
 use mcrs_minecraft_item_stack::NameTable;
-use mcrs_minecraft_item_stack::PatchEntry;
 use mcrs_minecraft_item_stack::RepairCost;
 use mcrs_minecraft_item_stack::Unbreakable;
 use mcrs_minecraft_item_stack::WireError;
@@ -258,7 +256,6 @@ fn stack_with(component: ComponentType, wire: &str) -> ItemStack {
 fn a_component_has_the_hash_that_the_game_recorded() {
     let mut scratch = HashScratch::new();
     let mut compared: Vec<String> = Vec::new();
-    let mut with_text = 0;
     let cases = plain_cases()
         .into_iter()
         .chain(record_cases())
@@ -267,15 +264,6 @@ fn a_component_has_the_hash_that_the_game_recorded() {
         let component = component_type(&case.kind);
         let stack = stack_with(component, &case.wire);
         let label = format!("{} {}", case.kind, case.case);
-        if let [PatchEntry::UndecodedWire(_)] = stack.patch() {
-            assert_eq!(
-                hash_stack(Some(&stack), &Names, &mut scratch),
-                Err(HashError::UndecodedComponent(component)),
-                "{label}"
-            );
-            with_text += 1;
-            continue;
-        }
         let hashed = hash_stack(Some(&stack), &Names, &mut scratch)
             .expect("a decoded component has a hash")
             .expect("the stack is not empty");
@@ -308,8 +296,7 @@ fn a_component_has_the_hash_that_the_game_recorded() {
             "the goldens lost each case of {kind}"
         );
     }
-    assert!(compared.len() >= 33, "the goldens lost cases: {compared:?}");
-    assert_eq!(with_text, 2, "the cases of a modifier with a text display");
+    assert!(compared.len() >= 35, "the goldens lost cases: {compared:?}");
 }
 
 /// The fields of `container_click` before each hashed stack: the window, the state, the slot,
@@ -378,7 +365,7 @@ fn the_click_that_the_game_wrote_holds_the_hashes_of_the_stack() {
     let named = without_name.set(CustomName(Text::text("named")));
     assert_eq!(
         matches_hashed(Some(sword), Some(&named), &Names, &mut scratch),
-        Err(HashError::TextNotSupported(BuiltinKey::CustomName))
+        Ok(true)
     );
 }
 
@@ -395,18 +382,13 @@ fn a_hashed_stack_matches_a_stack_by_the_rule_of_the_specification() {
         Some(claimed)
     };
     let named = held.clone().set(CustomName(Text::text("named")));
-    let named_claim = changed(|claimed| {
-        claimed.values.push(HashedComponent {
-            component: CUSTOM_NAME_TYPE,
-            hash: 0,
-        });
-    });
+    let named_claim = hashed(Some(&named));
     let cases: [(
         &str,
         Option<HashedStack>,
         Option<ItemStack>,
         Result<bool, HashError>,
-    ); 14] = [
+    ); 13] = [
         ("both empty", None, None, Ok(true)),
         ("empty and air", None, Some(stack(AIR, 1)), Ok(true)),
         ("empty claim", None, Some(held.clone()), Ok(false)),
@@ -457,20 +439,8 @@ fn a_hashed_stack_matches_a_stack_by_the_rule_of_the_specification() {
         (
             "text and all else equal",
             named_claim,
-            Some(named.clone()),
-            Err(HashError::TextNotSupported(BuiltinKey::CustomName)),
-        ),
-        (
-            "text and other hash",
-            changed(|claimed| {
-                claimed.values[0].hash ^= 1;
-                claimed.values.push(HashedComponent {
-                    component: CUSTOM_NAME_TYPE,
-                    hash: 0,
-                });
-            }),
             Some(named),
-            Ok(false),
+            Ok(true),
         ),
     ];
     let mut scratch = HashScratch::new();

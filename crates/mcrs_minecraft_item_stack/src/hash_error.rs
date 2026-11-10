@@ -15,8 +15,8 @@ pub enum HashError {
     UnregisteredType,
     /// This crate holds the component of this type only as bytes, so it has no tree to hash.
     UndecodedComponent(ComponentType),
-    /// This component holds a text, and this crate has no saved form of a text yet.
-    TextNotSupported(BuiltinKey),
+    /// The value of this component type has no saved form to hash.
+    BadValue(BuiltinKey),
     /// A number of this component type is out of the range of its saved form.
     OutOfRange(BuiltinKey),
     /// The value of this component type holds a numeric id that has no name in the table.
@@ -38,9 +38,9 @@ impl fmt::Display for HashError {
                 "the component of type {} is not decoded and has no hash here",
                 component_type.0
             ),
-            Self::TextNotSupported(component) => write!(
+            Self::BadValue(component) => write!(
                 formatter,
-                "the value of {} holds a text, which has no hash yet",
+                "the value of {} has no saved form",
                 component.path()
             ),
             Self::OutOfRange(component) => write!(

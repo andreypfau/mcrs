@@ -8,6 +8,7 @@ use mcrs_minecraft_item_stack::AttributeModifiers;
 use mcrs_minecraft_item_stack::BlockId;
 use mcrs_minecraft_item_stack::BlockSet;
 use mcrs_minecraft_item_stack::BlockTagId;
+use mcrs_minecraft_item_stack::Builtin;
 use mcrs_minecraft_item_stack::BuiltinKey;
 use mcrs_minecraft_item_stack::ComponentType;
 use mcrs_minecraft_item_stack::Count;
@@ -17,15 +18,20 @@ use mcrs_minecraft_item_stack::EnchantmentId;
 use mcrs_minecraft_item_stack::EnchantmentLevel;
 use mcrs_minecraft_item_stack::Enchantments;
 use mcrs_minecraft_item_stack::Food;
+use mcrs_minecraft_item_stack::HashError;
+use mcrs_minecraft_item_stack::HashScratch;
+use mcrs_minecraft_item_stack::HashedStack;
 use mcrs_minecraft_item_stack::ItemModel;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_item_stack::Lore;
 use mcrs_minecraft_item_stack::MaxDamage;
 use mcrs_minecraft_item_stack::MaxStackSize;
 use mcrs_minecraft_item_stack::ModifierDisplay;
 use mcrs_minecraft_item_stack::ModifierOperation;
 use mcrs_minecraft_item_stack::NameLookup;
 use mcrs_minecraft_item_stack::NameTable;
+use mcrs_minecraft_item_stack::PatchEntry;
 use mcrs_minecraft_item_stack::Rarity;
 use mcrs_minecraft_item_stack::RepairCost;
 use mcrs_minecraft_item_stack::SavedError;
@@ -35,6 +41,7 @@ use mcrs_minecraft_item_stack::ToolRule;
 use mcrs_minecraft_item_stack::TooltipDisplay;
 use mcrs_minecraft_item_stack::Unbreakable;
 use mcrs_minecraft_item_stack::WireError;
+use mcrs_minecraft_item_stack::hash_stack;
 use mcrs_minecraft_item_stack::read_saved;
 use mcrs_minecraft_item_stack::read_wire;
 use mcrs_minecraft_item_stack::read_wire_not_empty;
@@ -49,6 +56,8 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_snbt::parse_compound;
+use mcrs_minecraft_text::Color;
+use mcrs_minecraft_text::IntoText;
 use mcrs_minecraft_text::Text;
 use serde::Deserialize;
 
@@ -401,15 +410,20 @@ fn each_error_names_the_rule_that_the_input_breaks() {
     type Read = fn(&mut &[u8], &Names) -> Result<Option<ItemStack>, WireError>;
     let bare: Read = read_wire;
     let prefixed: Read = read_wire_with_length;
-    let reads: [(&str, Read, WireError); 10] = [
+    let reads: [(&str, Read, WireError); 11] = [
         ("01", bare, WireError::UnexpectedEnd),
         ("01 01 ffffffff0f 00", bare, WireError::Malformed),
         ("01 e807 00 00", bare, WireError::UnknownItem),
         ("01 01 01 00 7a", bare, WireError::UnknownComponentType(122)),
         (
-            "01 01 01 00 06 08 0005 6e616d6564",
+            "01 01 01 00 00 0a00",
             bare,
-            WireError::UnsupportedComponentType(ComponentType(6)),
+            WireError::UnsupportedComponentType(ComponentType(0)),
+        ),
+        (
+            "01 01 01 00 06 63",
+            bare,
+            WireError::BadValue(BuiltinKey::CustomName),
         ),
         (
             "01 01 02 00 03 07 03 08",
@@ -450,12 +464,8 @@ fn each_error_names_the_rule_that_the_input_breaks() {
     }
 
     let with_custom_data = saved(r#"{id:"stone",components:{"minecraft:custom_data":{x:1}}}"#);
-    let writes: [(ItemStack, WireError); 3] = [
+    let writes: [(ItemStack, WireError); 2] = [
         (stack(999, 1), WireError::UnnamedId(NameTable::Item)),
-        (
-            stack(STONE, 1).set(CustomName(Text::text("named"))),
-            WireError::TextNotSupported(BuiltinKey::CustomName),
-        ),
         (
             read_saved(&with_custom_data, &Names).expect("a saved stack with custom data"),
             WireError::SavedValueOnly,
@@ -586,7 +596,6 @@ fn the_stacks_of_the_inventory_packets_read_and_write_back() {
         ("set_creative_mode_slot_empty", 2, 1, Form::LengthPrefixed),
     ];
     let mut decoded = 0;
-    let mut with_text = 0;
     for (name, header, stacks, form) in packets {
         let bytes = packet(name);
         let mut input = bytes.get(header..).expect("the packet has its header");
@@ -596,14 +605,7 @@ fn the_stacks_of_the_inventory_packets_read_and_write_back() {
                 Form::Bare => read_wire(&mut input, &Names),
                 Form::LengthPrefixed => read_wire_with_length(&mut input, &Names),
             };
-            let stack = match read {
-                Ok(stack) => stack,
-                Err(WireError::UnsupportedComponentType(ComponentType(6))) => {
-                    with_text += 1;
-                    break;
-                }
-                Err(error) => panic!("{name}: {error}"),
-            };
+            let stack = read.unwrap_or_else(|error| panic!("{name}: {error}"));
             let consumed = before.len() - input.len();
             let (written, reread) = match form {
                 Form::Bare => {
@@ -617,8 +619,15 @@ fn the_stacks_of_the_inventory_packets_read_and_write_back() {
                     (written, reread)
                 }
             };
-            // The game chose an order of the entries that is not the order of the type ids.
-            if name == "set_creative_mode_slot" {
+            // In these stacks the game chose an order of the entries that is not the order of the
+            // type ids.
+            let named = stack.as_ref().is_some_and(|stack| {
+                stack
+                    .patch()
+                    .iter()
+                    .any(|entry| matches!(entry, PatchEntry::Value(Builtin::CustomName(_))))
+            });
+            if name == "set_creative_mode_slot" || named {
                 assert_eq!(written.len(), consumed, "{name}");
                 assert_eq!(reread, Ok(stack), "{name}");
             } else {
@@ -627,5 +636,65 @@ fn the_stacks_of_the_inventory_packets_read_and_write_back() {
             decoded += 1;
         }
     }
-    assert_eq!((decoded, with_text), (105, 2));
+    assert_eq!(decoded, 117);
+}
+
+fn hash(stack: &ItemStack) -> Result<Option<HashedStack>, HashError> {
+    hash_stack(Some(stack), &Names, &mut HashScratch::new())
+}
+
+#[test]
+fn a_lore_has_at_most_256_lines_in_each_form() {
+    for (count, length) in [(256, "8002"), (257, "8102")] {
+        let stack = stack(STONE, 1).set(Lore {
+            lines: vec![Text::text("a"); count].into(),
+        });
+        let lines = vec![r#""a""#; count].join(",");
+        let saved = saved(&format!(
+            r#"{{id:"stone",components:{{"minecraft:lore":[{lines}]}}}}"#
+        ));
+        let mut wire = unhex(&format!("01 01 01 00 0b {length}"));
+        for _ in 0..count {
+            wire.extend(unhex("08 0001 61"));
+        }
+
+        let fits = count <= 256;
+        let saved_error = (!fits).then_some(SavedError::OutOfRange(BuiltinKey::Lore));
+        let wire_error = (!fits).then_some(WireError::OutOfRange(BuiltinKey::Lore));
+        let hash_error = (!fits).then_some(HashError::OutOfRange(BuiltinKey::Lore));
+        assert_eq!(read_saved(&saved, &Names).err(), saved_error, "{count}");
+        assert_eq!(write_saved(&stack, &Names).err(), saved_error, "{count}");
+        assert_eq!(read_all(&wire, read_wire).err(), wire_error, "{count}");
+        let written = write_wire(Some(&stack), &Names, &mut Vec::new());
+        assert_eq!(written.err(), wire_error, "{count}");
+        assert_eq!(hash(&stack).err(), hash_error, "{count}");
+    }
+}
+
+#[test]
+fn a_named_colour_equals_its_rgb_value_and_keeps_its_spelling() {
+    let named = stack(STONE, 1).set(CustomName(Text::text("x").color(Color::RED)));
+    let rgb = Text::text("x").color(Color::rgb(0xff, 0x55, 0x55));
+    let rgb = stack(STONE, 1).set(CustomName(rgb));
+    assert_eq!(named, rgb);
+    assert_ne!(hash(&named), hash(&rgb));
+
+    for (stack, spelling) in [(&named, "red"), (&rgb, "#FF5555")] {
+        let written = write_saved(stack, &Names).expect("the name has a saved form");
+        let Some(NbtTag::Compound(patch)) = written.get("components") else {
+            panic!("the stack has a patch");
+        };
+        let Some(NbtTag::Compound(name)) = patch.get("minecraft:custom_name") else {
+            panic!("the name is a map");
+        };
+        let color = name.get("color");
+        assert_eq!(color, Some(&NbtTag::String(spelling.into())));
+
+        let from_saved = read_saved(&written, &Names).expect("the written form reads");
+        let from_wire = read_all(&wire(Some(stack)), read_wire)
+            .expect("the written form reads")
+            .expect("the stack is not empty");
+        assert_eq!(hash(&from_saved), hash(stack), "{spelling}");
+        assert_eq!(hash(&from_wire), hash(stack), "{spelling}");
+    }
 }

@@ -39,7 +39,7 @@ pub enum WireError {
     TooManyEntries,
     /// The value of this component type holds an id out of its list, a negative number of
     /// elements, a boolean byte that is not `00` or `01`, a string that is not an identifier, or
-    /// one enchantment two times.
+    /// one enchantment two times, or a text that is not one NBT value of at most 2097152 bytes.
     BadValue(BuiltinKey),
     /// A number of this component type is out of the range of its saved form.
     OutOfRange(BuiltinKey),
@@ -50,8 +50,6 @@ pub enum WireError {
     },
     /// The stack holds a numeric id that has no name in the table.
     UnnamedId(NameTable),
-    /// This component holds a text, and this crate has no wire form of a text yet.
-    TextNotSupported(BuiltinKey),
     /// The patch holds the saved form of a component that this crate does not decode. That form
     /// has no wire form here.
     SavedValueOnly,
@@ -123,11 +121,6 @@ impl fmt::Display for WireError {
                 component.path()
             ),
             Self::UnnamedId(table) => write!(formatter, "a numeric id has no name in {table:?}"),
-            Self::TextNotSupported(component) => write!(
-                formatter,
-                "the value of {} holds a text, which has no wire form yet",
-                component.path()
-            ),
             Self::SavedValueOnly => formatter
                 .write_str("the patch holds an undecoded saved component, which has no wire form"),
         }

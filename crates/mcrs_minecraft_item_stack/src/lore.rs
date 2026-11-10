@@ -6,7 +6,7 @@ use mcrs_minecraft_text::Text;
 
 use crate::Neutral;
 
-const MAX_LINES: usize = 256;
+pub(crate) const MAX_LINES: usize = 256;
 
 /// The lines of text below the name in the tooltip.
 #[derive(Clone, Debug, PartialEq)]
@@ -32,6 +32,8 @@ impl Default for Lore {
     }
 }
 
+// chisle: the hash ignores the text of each line, so lores of one length share a hash and cost
+// one more equality check each. A `Hash` on `Text` lifts it.
 impl Hash for Lore {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write_usize(self.lines.len());
