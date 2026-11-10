@@ -12,8 +12,8 @@ use std::time::Duration;
 
 use crate::schedule::{self, Chunk, Queue, REST, Ranges, Source};
 use crate::{
-    Artifact, Directory, Files, Progress, RELEASE, Release, VanillaDataError, font_files, lock,
-    verify,
+    Artifact, Directory, FONT_OBJECTS, Files, Progress, RELEASE, Release, VanillaDataError,
+    font_files, lock, verify,
 };
 
 const CHUNK: u64 = 1 << 20;
@@ -137,6 +137,49 @@ pub fn resolve(
             fonts,
         ),
     }
+}
+
+/// The asset index layer's font files, laid over the jar's by path. They come from the official
+/// launcher's object store when it holds them, else from the object server into that store.
+pub fn font_assets(progress: &Progress) -> Result<Files, String> {
+    let store = official_dir().map(|dir| dir.join("assets").join("objects"));
+    let mut files = Files::new();
+    for object in FONT_OBJECTS {
+        *lock(&progress.status) = format!("Fetching {}", object.path);
+        let kept = store
+            .as_ref()
+            .map(|store| store.join(object.directory()).join(object.sha1));
+        let bytes = match kept
+            .as_ref()
+            .and_then(|path| fs::read(path).ok())
+            .filter(|bytes| object.holds(bytes))
+        {
+            Some(bytes) => bytes,
+            None => {
+                let bytes = get(&object.url())?;
+                if !object.holds(&bytes) {
+                    return Err(format!("{} is not the pinned object", object.url()));
+                }
+                if let Some(path) = &kept
+                    && let Err(error) = keep_object(path, &bytes)
+                {
+                    tracing::warn!(path = %path.display(), "cannot keep a font object: {error}");
+                }
+                bytes
+            }
+        };
+        files.push((object.path.to_owned(), bytes));
+    }
+    Ok(files)
+}
+
+fn keep_object(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(dir)?;
+    }
+    let staging = with_suffix(path, ".part");
+    fs::write(&staging, bytes)?;
+    fs::rename(&staging, path)
 }
 
 fn local(

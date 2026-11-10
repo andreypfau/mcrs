@@ -11,7 +11,7 @@ use web_sys::{
 };
 
 use crate::schedule::{self, Queue, Source};
-use crate::{Files, Progress, RELEASE};
+use crate::{FONT_OBJECTS, Files, Progress, RELEASE};
 
 const WORKERS: usize = 4;
 const CACHE: &str = "mcrs-client-jar";
@@ -41,6 +41,31 @@ pub async fn fetch(
     let files = schedule::assets(&*source, &RELEASE, progress, pick, fonts).await;
     source.stop.set(true);
     files
+}
+
+/// The asset index layer's font files, laid over the jar's by path. The browser's HTTP cache
+/// keeps them: an object's address is its digest, so a hit is never stale.
+pub async fn font_assets() -> Result<Files, String> {
+    let window = web_sys::window().ok_or("no window")?;
+    let mut files = Files::new();
+    for object in FONT_OBJECTS {
+        let response: Response = JsFuture::from(window.fetch_with_str(&object.url()))
+            .await
+            .map_err(describe)?
+            .unchecked_into();
+        if !response.ok() {
+            return Err(format!("{}: HTTP {}", object.url(), response.status()));
+        }
+        let buffer = JsFuture::from(response.array_buffer().map_err(describe)?)
+            .await
+            .map_err(describe)?;
+        let bytes = Uint8Array::new(&buffer).to_vec();
+        if !object.holds(&bytes) {
+            return Err(format!("{} is not the pinned object", object.url()));
+        }
+        files.push((object.path.to_owned(), bytes));
+    }
+    Ok(files)
 }
 
 struct WebSource {

@@ -23,7 +23,8 @@ pub fn fill(root: &Dir, files: Files) {
     }
 }
 
-/// The resource half of the installed client jar, read once per process.
+/// The resource half of the installed client jar with the font files of the asset index laid
+/// over it, read once per process.
 ///
 /// # Panics
 ///
@@ -36,13 +37,20 @@ pub fn fill(root: &Dir, files: Files) {
 pub fn resource_files() -> &'static Files {
     use mcrs_minecraft_client_jar::Progress;
     static FILES: std::sync::LazyLock<Files> = std::sync::LazyLock::new(|| {
-        mcrs_minecraft_client_jar::resolve(
-            &Progress::default(),
-            crate::resource_set::is_resource,
-            drop,
-        )
-        .unwrap()
-        .0
+        let progress = Progress::default();
+        let mut files =
+            mcrs_minecraft_client_jar::resolve(&progress, crate::resource_set::is_resource, drop)
+                .unwrap()
+                .0;
+        // The asset index layer lies above the jar: its file of a path replaces the jar's.
+        match mcrs_minecraft_client_jar::font_assets(&progress) {
+            Ok(layer) => {
+                files.retain(|(name, _)| layer.iter().all(|(above, _)| above != name));
+                files.extend(layer);
+            }
+            Err(error) => eprintln!("the corpus has no Unifont data: {error}"),
+        }
+        files
     });
     &FILES
 }
