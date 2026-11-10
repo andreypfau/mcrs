@@ -566,7 +566,9 @@ fn test(ctx: &Context) -> Outcome {
                 );
                 return Ok(String::new());
             }
-            ("ci", selection)
+            let hosted =
+                std::env::var_os("RUNNER_ENVIRONMENT").is_some_and(|v| v == "github-hosted");
+            (if hosted { "ci-hosted" } else { "ci" }, selection)
         }
     };
     let local_only = if std::env::var_os("CI").is_some() && ctx.trigger != Trigger::Gpu {

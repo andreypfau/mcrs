@@ -30,6 +30,18 @@ fail-fast = false
 filter = 'all()'
 setup = 'fetch-client-jar'
 
+# A fork pull request runs on a hosted runner with four cores, where the five-minute budget of
+# the project's own machine does not hold.
+[profile.ci-hosted]
+default-filter = "not test(/(^|::)(exhaustive|gpu|online|vanilla_server)::/)"
+fail-fast = false
+slow-timeout = { period = "60s", terminate-after = 5 }
+global-timeout = "30m"
+
+[[profile.ci-hosted.scripts]]
+filter = 'all()'
+setup = 'fetch-client-jar'
+
 [profile.full]
 default-filter = "not test(/(^|::)(gpu|vanilla_server)::/)"
 slow-timeout = { period = "60s", terminate-after = 5 }

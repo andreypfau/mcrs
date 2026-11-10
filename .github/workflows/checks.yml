@@ -104,8 +104,23 @@ jobs:
           path: ${{ steps.jar.outputs.dir }}
           key: client-jar-${{ hashFiles('crates/mcrs_minecraft_client_jar/src/release.json') }}
 
+      # The cold build needs more than the 16 GB of a hosted runner, and a runner that runs out
+      # of memory is shut down with no message of its own: add swap, and log memory each minute.
+      - name: add swap on a hosted runner
+        if: runner.environment == 'github-hosted'
+        run: |
+          sudo fallocate -l 16G /swapfile-ci
+          sudo chmod 600 /swapfile-ci
+          sudo mkswap /swapfile-ci
+          sudo swapon /swapfile-ci
+          free -m
+
       - name: run the tests
-        run: scripts/hooks/run-checks test
+        run: |
+          if [ "$RUNNER_ENVIRONMENT" = github-hosted ]; then
+            (while sleep 60; do free -m | awk 'NR > 1'; done) &
+          fi
+          scripts/hooks/run-checks test
 
       - name: save the client jar
         if: github.ref == 'refs/heads/main' && steps.jar-cache.outputs.cache-hit != 'true'
