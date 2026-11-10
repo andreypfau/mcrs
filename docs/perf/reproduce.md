@@ -19,6 +19,36 @@ Next to the numbers, the kit records what the numbers depend on: the CPU, GPU, m
 - The first run needs internet access for about 3 GB of downloads (the Rust toolchain, Java, the game data). Later runs only need it for updates.
 - Keep 40 GB of free disk space for the toolchain and the build.
 
+## Prepare the machine
+
+Do this once before `run`, in this order. `run` checks most of it again and asks before it changes anything, but a machine you prepared yourself passes the checks without waiting.
+
+1. Restart the computer and wait five minutes after login. Background work after a boot (indexing, updates, sync) settles down in that time.
+2. Install pending system updates first, or postpone them: macOS Software Update, Windows Update ("Pause updates"). An update that starts during the run spoils it.
+3. Quit every app you do not need. Leave only the terminal that runs the kit. In particular:
+   - browsers: Chrome, Safari, Firefox, Edge, Arc, Brave, Opera, Vivaldi, Yandex;
+   - chats and calls: Slack, Discord, Teams, Telegram, WhatsApp, Zoom, Skype;
+   - editors and IDEs: VS Code, Cursor, Zed, IntelliJ IDEA, RustRover, CLion, Xcode, Android Studio;
+   - containers and VMs: Docker Desktop, OrbStack, WSL (`wsl --shutdown`), Parallels, VirtualBox;
+   - sync and media: OneDrive, Dropbox, Google Drive, iCloud uploads in progress, Spotify, OBS;
+   - game launchers and other games: Steam, Epic, Battle.net, the Minecraft launcher.
+
+   On macOS, check the menu bar and the Dock for apps that keep running without a window. On Windows, check the tray area next to the clock and Task Manager > Startup.
+4. Turn on Do Not Disturb (macOS: Control Center > Focus; Windows: Focus assist or "Do not disturb"), so no notification covers the game window.
+5. Set the power settings:
+   - plug in the charger;
+   - macOS: System Settings > Battery > Low Power Mode off; on a Mac with "High Power" mode, choose it;
+   - Windows: Settings > System > Power > Power mode "Best performance" (or the "High performance" plan; `prepare` offers to switch it and switches it back after the run);
+   - turn off the screen saver and display sleep for the duration, or let `run` keep the display awake.
+6. Graphics settings:
+   - Windows: in the NVIDIA, AMD or Intel control panel, leave Vertical sync to the application (no global "on" override) and note whether G-Sync or FreeSync is on;
+   - a laptop with two GPUs: choose the discrete GPU for the mcrs client (Windows: Settings > Display > Graphics > High performance; Intel Mac: turn off Automatic graphics switching);
+   - with an external display, make it the main one (the menu bar or the taskbar is on it), since the window opens on the main display.
+7. Let the machine cool down if it was busy: a laptop that just compiled or played a game runs at a lower clock for a few minutes.
+8. Start `run` (see the steps below) and do not touch the computer until it prints `Done`.
+
+What `prepare` checks by itself, before and after the run: the apps from the list in step 3 (it shows their CPU and memory and closes each one only after you answer `y`; it never closes the terminal or system processes), the CPU being idle (under 10% for 10 seconds, it waits up to 5 minutes), system background work (Spotlight, Time Machine, Windows Defender, Windows Search, Windows Update; it waits for them), AC power, the power plan or Low Power Mode, the thermal state and free memory. It then asks you to confirm steps 4 to 6, because a script cannot read them; your answers go into `hygiene.json`.
+
 ## macOS
 
 1. Open the Terminal app (Applications > Utilities > Terminal).
