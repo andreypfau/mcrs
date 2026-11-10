@@ -1,6 +1,9 @@
-#![expect(
-    dead_code,
-    reason = "the codec of the hashed stack is the first caller"
+#![cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the codec of the hashed stack is the first caller"
+    )
 )]
 
 /// The hash of one node of the saved form of a component.
@@ -168,8 +171,12 @@ mod tests {
         Int(i32),
         Long(i64),
         Float(f32),
+        Double(f64),
         Text(&'static str),
         Boolean(bool),
+        ByteArray(&'static [i8]),
+        IntArray(&'static [i32]),
+        LongArray(&'static [i64]),
         List(&'static [Node]),
         Map(&'static [(&'static str, Node)]),
     }
@@ -182,8 +189,12 @@ mod tests {
             Node::Int(value) => NodeHash::int(*value),
             Node::Long(value) => NodeHash::long(*value),
             Node::Float(value) => NodeHash::float(*value),
+            Node::Double(value) => NodeHash::double(*value),
             Node::Text(value) => NodeHash::string(value),
             Node::Boolean(value) => NodeHash::boolean(*value),
+            Node::ByteArray(values) => NodeHash::byte_array(values),
+            Node::IntArray(values) => NodeHash::int_array(values),
+            Node::LongArray(values) => NodeHash::long_array(values),
             Node::List(elements) => NodeHash::list(elements.iter().map(hash)),
             Node::Map(fields) => {
                 let mut entries: Vec<MapEntry> = fields
@@ -211,7 +222,27 @@ mod tests {
             ("a_short_neg2", Node::Map(&[("a", Node::Short(-2))])),
             ("str_empty", Node::Text("")),
             ("str_hello", Node::Text("hello")),
+            ("str_astral", Node::Text("a\u{1F600}b")),
+            (
+                "list_ints",
+                Node::List(&[Node::Int(1), Node::Int(-2), Node::Int(300)]),
+            ),
+            (
+                "nested",
+                Node::Map(&[
+                    (
+                        "inner",
+                        Node::Map(&[("x", Node::Text("y")), ("n", Node::Long(-5))]),
+                    ),
+                    ("flag", Node::Byte(1)),
+                    ("pos", Node::IntArray(&[1, 2, 3])),
+                ]),
+            ),
+            ("int_array", Node::IntArray(&[7, -8, 9])),
+            ("long_array", Node::LongArray(&[1 << 40, -1])),
+            ("byte_array", Node::ByteArray(&[1, 2, -3])),
             ("float", Node::Float(1.5)),
+            ("double", Node::Double(-2.25)),
             ("long", Node::Long(1_234_567_890_123)),
             ("bool_true", Node::Boolean(true)),
             ("bool_false", Node::Boolean(false)),
@@ -220,10 +251,48 @@ mod tests {
                 "list_of_bools",
                 Node::List(&[Node::Boolean(true), Node::Boolean(false)]),
             ),
+            (
+                "sixteen_keys",
+                Node::Map(&[
+                    ("a", Node::Int(97)),
+                    ("b", Node::Int(98)),
+                    ("c", Node::Int(99)),
+                    ("d", Node::Int(100)),
+                    ("e", Node::Int(101)),
+                    ("f", Node::Int(102)),
+                    ("g", Node::Int(103)),
+                    ("h", Node::Int(104)),
+                    ("i", Node::Int(105)),
+                    ("j", Node::Int(106)),
+                    ("k", Node::Int(107)),
+                    ("l", Node::Int(108)),
+                    ("m", Node::Int(109)),
+                    ("n", Node::Int(110)),
+                    ("o", Node::Int(111)),
+                    ("p", Node::Int(112)),
+                ]),
+            ),
+            (
+                "mixed_sign_keys",
+                Node::Map(&[
+                    ("k", Node::Text("v")),
+                    ("k2", Node::Text("v2")),
+                    ("count", Node::Text("1")),
+                    ("id", Node::Text("x")),
+                ]),
+            ),
             ("key_a", Node::Text("a")),
             ("key_h", Node::Text("h")),
             ("key_p", Node::Text("p")),
         ];
+        let covered: Vec<&str> = cases.iter().map(|(name, _)| *name).collect();
+        let fixture_names: Vec<&str> = recorded.keys().map(String::as_str).collect();
+        let mut sorted_covered = covered.clone();
+        sorted_covered.sort_unstable();
+        assert_eq!(
+            sorted_covered, fixture_names,
+            "each fixture case has exactly one input"
+        );
         for (name, node) in cases {
             assert_eq!(
                 Some(&hash(node).as_i32()),
