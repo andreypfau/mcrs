@@ -14,3 +14,39 @@ pub enum SlotGroup {
     Body,
     Saddle,
 }
+
+impl SlotGroup {
+    pub(crate) const fn name(self) -> &'static str {
+        match self {
+            Self::Any => "any",
+            Self::Mainhand => "mainhand",
+            Self::Offhand => "offhand",
+            Self::Hand => "hand",
+            Self::Feet => "feet",
+            Self::Legs => "legs",
+            Self::Chest => "chest",
+            Self::Head => "head",
+            Self::Armor => "armor",
+            Self::Body => "body",
+            Self::Saddle => "saddle",
+        }
+    }
+
+    pub(crate) fn from_name(name: &str) -> Option<Self> {
+        [
+            Self::Any,
+            Self::Mainhand,
+            Self::Offhand,
+            Self::Hand,
+            Self::Feet,
+            Self::Legs,
+            Self::Chest,
+            Self::Head,
+            Self::Armor,
+            Self::Body,
+            Self::Saddle,
+        ]
+        .into_iter()
+        .find(|group| group.name() == name)
+    }
+}

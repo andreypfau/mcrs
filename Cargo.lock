@@ -4901,8 +4901,11 @@ version = "0.5.8"
 dependencies = [
  "bevy_ecs",
  "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_nbt",
  "mcrs_minecraft_resource",
+ "mcrs_minecraft_snbt",
  "mcrs_minecraft_text",
+ "serde",
  "serde_json",
 ]
 

@@ -44,8 +44,9 @@ impl ItemStack {
         self
     }
 
-    /// The patch entries: the built-in types in the order of their type ids, then the custom
-    /// types in the order of their keys.
+    /// The patch entries: the built-in types in the order of their type ids, then the types that
+    /// this crate does not decode in the order of their identifiers, then the custom types in the
+    /// order of their keys.
     #[must_use]
     pub fn patch(&self) -> &[PatchEntry] {
         &self.patch
@@ -57,7 +58,21 @@ impl ItemStack {
         self.kind == other.kind && self.patch == other.patch
     }
 
-    fn put(&mut self, key: PatchKey, entry: Option<PatchEntry>) {
+    pub(crate) fn put_entry(&mut self, entry: PatchEntry) {
+        let found = self
+            .patch
+            .binary_search_by(|present| present.key().cmp(&entry.key()));
+        match found {
+            Ok(index) => {
+                if let Some(present) = self.patch.get_mut(index) {
+                    *present = entry;
+                }
+            }
+            Err(index) => self.patch.insert(index, entry),
+        }
+    }
+
+    fn put(&mut self, key: PatchKey<'static>, entry: Option<PatchEntry>) {
         let found = self
             .patch
             .binary_search_by(|present| present.key().cmp(&key));

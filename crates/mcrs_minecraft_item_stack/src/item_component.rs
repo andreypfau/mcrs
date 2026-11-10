@@ -29,7 +29,7 @@ use crate::patch_key::PatchKey;
 /// the hidden methods name a type that is private to this crate.
 pub trait ItemComponent: Clone + PartialEq + Hash {
     #[doc(hidden)]
-    fn patch_key() -> PatchKey;
+    fn patch_key() -> PatchKey<'static>;
 
     #[doc(hidden)]
     fn into_entry(self) -> PatchEntry;
@@ -40,7 +40,7 @@ pub trait ItemComponent: Clone + PartialEq + Hash {
 
 // A prototype has no custom component, so the removal of one leaves no entry in the patch.
 impl<C: CustomComponent> ItemComponent for C {
-    fn patch_key() -> PatchKey {
+    fn patch_key() -> PatchKey<'static> {
         PatchKey::Custom(C::KEY)
     }
 
@@ -62,7 +62,7 @@ macro_rules! builtin_item_component {
     ($($name:ident),* $(,)?) => {
         $(
             impl ItemComponent for $name {
-                fn patch_key() -> PatchKey {
+                fn patch_key() -> PatchKey<'static> {
                     PatchKey::Builtin(BuiltinKey::$name)
                 }
 
