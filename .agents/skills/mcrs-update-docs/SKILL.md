@@ -247,11 +247,20 @@ diff <(cd src/content/docs/en && find . -name '*.mdx' | sort) <(cd src/content/d
 
 ## Step 9. Remove signs of AI writing from the changed text
 
-This pass covers only the text this run added or changed, never the whole site. The scope is the diff from `RUN_START`, commits and working tree together:
+This pass covers only the text this run added or changed, never the whole site. A bare diff is not enough: a sign of AI writing often spans a whole paragraph, a list or a section, and a changed half-sentence can make its neighbor sound wrong. So the diff carries the whole section around each change. The markdown diff driver of git treats headings as function lines, and `-W` prints the whole function:
 
 ```bash
-git diff $RUN_START -- docs-site/src/content/docs docs-site/src/data/status.yml docs-site/src/content/i18n > "$(mktemp -t docs-run).diff"
+ATTR=$(mktemp) && echo '*.mdx diff=markdown' > "$ATTR"
+DIFF=$(mktemp -t docs-run).diff
+git -c core.attributesFile="$ATTR" diff -W $RUN_START -- docs-site/src/content/docs > "$DIFF"     # MDX: the whole section around each change
+git diff -U8 $RUN_START -- docs-site/src/data/status.yml docs-site/src/content/i18n >> "$DIFF"    # data: the whole row around each change
 ```
+
+The diff covers commits and the working tree together. In it:
+
+- A block is a run of lines between two blank lines: a paragraph (one line, since the site has no hard wrap), a whole list, a whole table, the body of an `Aside`. In `status.yml` it is one row, from `- id:` to the next one.
+- In scope: every block with an added line (`+`), and every block right before or after a removed line (`-`), because a removal can break the flow of its neighbors. The whole block is in scope, not only the changed line.
+- Context only: the rest of the section. Read it to judge tone and repetition, but do not edit it.
 
 Give the pass to one agent with no context of this run (a subagent if your tool has them; otherwise do it yourself after you re-read only the guide and the diff). The brief:
 
@@ -260,16 +269,16 @@ You remove signs of AI writing from the text that one docs update of mcrs change
 
 Read first:
 - <GUIDE>: the current wikitext of Wikipedia:Signs_of_AI_writing. Use the sections under "Content", "Language and grammar", "Style" and "Communication intended for the user". Skip the parts about Wikipedia markup, citations and article creation.
-- <DIFF>: the change of this run. Only the added lines (+) are in scope.
+- <DIFF>: the change of this run, with the whole section around each change. In scope: every block (a paragraph, a whole list, a whole table, the body of an Aside, a row of status.yml; a block is a run of lines between blank lines) that has an added line (+), and every block right before or after a removed line (-). Edit the whole block, not only the changed line. The rest of each section is context: read it to judge tone and repetition across paragraphs, do not edit it.
 - docs-site/src/content/docs/en/contributing/docs.mdx: the rules of the site. They win over the guide on a conflict.
 
-For each added line in the diff, find the signs the guide lists (inflated significance, AI vocabulary, negative parallelisms, rule of three, vague attributions, superficial -ing analyses, filler, promotional tone, sycophantic or chatty phrases, and so on) and rewrite the line in plain words. Keep:
+For each block in scope, find the signs the guide lists (inflated significance, AI vocabulary, negative parallelisms, rule of three, vague attributions, superficial -ing analyses, filler, promotional tone, sycophantic or chatty phrases, and so on) and rewrite the block in plain words. A sign that only shows across paragraphs (the same claim or the same sentence shape repeated) counts if one of the paragraphs is in scope; fix it there. Keep:
 - every fact, number, link, component (<Status>, <Example>, <Aside>, {fact(...)}) and frontmatter field as it is;
 - the EN and RU versions in step: a change in one language gets the matching change in the other;
 - the line count of tables and lists.
-Do not touch lines the diff does not add. Do not rewrite text that has no sign of AI writing.
+Do not touch blocks outside the scope. Do not rewrite text that has no sign of AI writing.
 
-Then run from docs-site/: npm test && npm run build. Commit once: docs(site): remove signs of AI writing from the text of this docs update. Report each changed line as "file: before -> after, sign from the guide", at most 40 lines.
+Then run from docs-site/: npm test && npm run build. Commit once: docs(site): remove signs of AI writing from the text of this docs update. Report each changed block as "file, heading: before -> after, sign from the guide", at most 40 lines.
 ```
 
 Review the report. Revert any change that altered a fact or broke the EN and RU match, and run step 8 again.
@@ -291,7 +300,7 @@ End the answer with a report in this form:
 - Issues whose state changed: number, before, after, by which sign.
 - Pages checked without text edits (only `verified` moved).
 - New pages and sections: what the analyst proposed, what the user approved, refused or postponed, what was created and what moved where.
-- The AI writing pass: the size of the fetched guide, the number of changed lines, and the changes you reverted.
+- The AI writing pass: the size of the fetched guide, the number of blocks in scope and of blocks changed, and the changes you reverted.
 - What is not done and needs a decision of the user: closed issues without a test, places where you could not tell whether the text is right, disagreements of the contract with the code of the components.
 - The last lines of `npm run build` and the result of the checks of step 8.
 
