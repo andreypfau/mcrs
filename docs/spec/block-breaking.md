@@ -433,8 +433,10 @@ start action on such a block starts a dig with the stage 0, and the stage does n
 action gets only one acknowledgement, and makes no delayed break. See result R34. Section 8, entry D3,
 records the reference behaviour.
 
-**BRK-SRV-012** (`black_box_confirmed`, semantic). In survival mode, the reach limit of BRK-RCH-001 is
-5.5: the attribute is 4.5, and survival mode adds nothing. A start action out of reach gets one
+**BRK-SRV-012** (`black_box_confirmed`, semantic). The reach limit of BRK-RCH-001 is the attribute
+`minecraft:block_interaction_range` plus 1. In survival mode, the default attribute is 4.5, so the
+default limit is 5.5. Creative mode adds 0.5 to the attribute, which gives the 6.0 of BRK-RCH-001.
+Only the default attribute was tested. A start action out of reach gets one
 acknowledgement, and the observer gets nothing. The limit applies to the finish action too. See
 result R36.
 
@@ -446,11 +448,11 @@ entry D2, records what a later finish action does in the reference.
 
 ### 7.3 Progress
 
-**BRK-PRG-001** (`black_box_confirmed`, client agreement). The progress at the tick count `c` is the
-sum of the rates of the ticks from 0 to `c`. Tick 0 is the start action. Each rate uses the inputs of
-its own tick. When the rate is the same in each tick, the progress is `rate × (c + 1)`, as a product in
-32-bit floating point. See results R28 and R29. The vanilla client adds the rate of each tick in the
-same way (CBK-SRV-002). Section 8, entry D4, records how the reference uses an input that changes.
+**BRK-PRG-001** (`source_suggested`, client agreement). The progress at the tick count `c` is the
+sum of the rates of the ticks from 0 to `c`, added one tick at a time in 32-bit floating point. Tick 0
+is the start action. Each rate uses the inputs of its own tick. The vanilla client adds the rate of
+each tick in the same way (CBK-SRV-002, CBK-SRV-003). The reference server calculates a product
+instead, and results R28 and R29 confirm that product. Section 8, entry D4, records the difference.
 
 For a finish action, the progress is the progress of the last tick before the request. Thus the
 first tick after the start has the progress `2 × rate`.
@@ -520,8 +522,10 @@ See result R44.
 
 **BRK-LOOT-001** (`black_box_confirmed`, semantic). A survival break with a harvest drops the items of
 the loot table of the block. The loot table uses the main-hand item, for example for Silk Touch. Each
-item stack becomes one item entity at a random position. Each coordinate of the position is from 0.25
-to 0.75 inside the block cube. A block that gives experience also drops experience orbs at the centre
+item stack becomes one item entity at a random position. The `x` and `z` coordinates are from 0.25
+to 0.75 inside the block cube. The `y` coordinate is from 0.125 to 0.625 above the bottom of the
+cube: the centre minus half the item height of 0.25, then plus or minus 0.25. The observed `y`
+offsets were from 0.13 to 0.57. A block that gives experience also drops experience orbs at the centre
 of the block, after the items. A survival break without a harvest drops nothing. See result R37.
 
 **BRK-LOOT-002** (`black_box_confirmed`, semantic). A survival break with a harvest adds 0.005 to the
@@ -609,14 +613,18 @@ in `set_entity_data`, and the reference sends that packet two times for each orb
 **D4.**
 
 - **Rule**: BRK-PRG-001 and BRK-ITM-002.
-- **Reference**: the reference multiplies the rate of the current tick by `c + 1`. A change of an
-  input thus changes the progress of the earlier ticks too. In result R35, the stage went from 4 to 0
+- **Reference**: the reference multiplies the rate of the current tick by `c + 1`, as a product in
+  32-bit floating point. With a rate that does not change, the product and the sum of BRK-PRG-001
+  can give a stage one tick apart. For stone with an empty hand, the product reaches the stage 2 at
+  the tick count 29, and the sum at 30. A change of an input changes the progress of the earlier
+  ticks too. In result R35, the stage went from 4 to 0
   when the item changed from a wooden pickaxe to the hand, and to 7 when it changed back. The vanilla
   client adds the rate of each tick, so the reference server and the vanilla client disagree when an
   input changes.
 - **Visible to the client**: yes. The stage of an observer jumps, and a finish action that the client
   sends can get a delayed break.
-- **Test**: a differential test compares the progress only with inputs that do not change.
+- **Test**: a differential test compares the progress only with inputs that do not change, and
+  accepts a stage one tick later than the reference.
 
 ## 9. Unresolved
 
@@ -669,7 +677,7 @@ Before each step, set the block with `setblock`, and read the packets that arriv
 | E25 | Wall a block position in stone. Set water and lava there, at the levels of R25. Wait until the breaker gets the `block_update`, and send the start action at once, before the fluid changes. Do each level that is not a source three times, and each source once. | R25 |
 | E26 | Wall a block position in stone. Set each block of R26 there. Send the start action. Read the block and the item entities. For tall seagrass, hit each part. | R26 |
 
-For experiments E34 to E44, put the breaker in survival mode, and keep the observer in creative mode.
+For experiments E34 to E44 and E48 to E55, put the breaker in survival mode, and keep the observer in creative mode.
 Set the difficulty to peaceful, except in E43. Let the breaker send `move_player_status_only` each
 50 ms, with the on-ground flag set, except where a step clears it. Give items with `item replace`
 and effects with `effect give`. Before each step, clear the inventory, the effects, the item entities
