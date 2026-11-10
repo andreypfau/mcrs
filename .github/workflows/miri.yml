@@ -1,0 +1,53 @@
+name: miri
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - crates/mcrs_minecraft_engine_item/**
+      - rust-toolchain.toml
+      - .config/nextest.toml
+      - .github/workflows/miri.yml
+  push:
+    branches: [main]
+    paths:
+      - crates/mcrs_minecraft_engine_item/**
+      - rust-toolchain.toml
+      - .config/nextest.toml
+      - .github/workflows/miri.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: miri-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_PROFILE_DEV_DEBUG: 0
+
+jobs:
+  miri:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: check out the commit under test
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          filter: blob:none
+
+      - uses: ./.github/actions/rust
+        with:
+          test-tools: true
+
+      - name: add Miri to the pinned toolchain
+        run: rustup component add miri rust-src
+
+      - name: run the tests of the item engine under Miri
+        env:
+          # Bevy task pool threads are never joined, which the leak check reports after a passing test.
+          MIRIFLAGS: -Zmiri-ignore-leaks
+        run: cargo miri nextest run --locked -p mcrs_minecraft_engine_item --profile ci-hosted
