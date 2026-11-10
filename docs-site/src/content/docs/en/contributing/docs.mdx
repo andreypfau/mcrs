@@ -136,6 +136,8 @@ A workflow named `docs` runs on every PR. Its script `docs-site/scripts/check-so
 
 The same workflow also runs every Monday at 06:00 UTC and on manual dispatch. That run executes `node docs-site/scripts/check-sources.mjs --stale` and writes a report to the job summary with three sections: English pages with commits to their `sources` since `verified.commit`, Russian pages that lag behind English, and `sources` paths that do not exist. A Russian page lags when English has a commit since `translated_from` that the Russian file does not have. A commit that edits both languages is not a lag, so you do not move `translated_from` after a joint edit. A commit missing from the history is listed as `unknown commit`. The report never fails the build. A `sources` path that does not exist fails `npm test`.
 
+The docs are brought up to date with main in batches. Run the skill [mcrs-update-docs](https://github.com/andreypfau/mcrs/blob/main/.agents/skills/mcrs-update-docs/SKILL.md) with a coding agent: it walks the pull requests merged since the oldest `verified.commit`, updates the pages, the status rows, the issue registry and the news, moves `docs_commit`, and at the end removes signs of AI writing from the text it changed, checked against a fresh copy of the Wikipedia guide.
+
 The check reads file names, not meaning. It does not know that an issue changed. A state change of an issue after the `verified` date is not detected, so a monthly pass over [Status](/docs/en/start/status/) is the owner's job.
 
 ## English and Russian

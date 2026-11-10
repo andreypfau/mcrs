@@ -35,6 +35,10 @@ Read [Writing docs](/docs/en/contributing/docs/) (source: `src/content/docs/en/c
 
 A change that alters behavior described on a page updates that page in the same PR. When a file listed in a page's `sources` changes, the `docs` workflow adds a warning on that page. Update the page and its `verified` block, or explain in the PR why no change is needed.
 
+## Updating the docs
+
+The skill `.agents/skills/mcrs-update-docs/SKILL.md` brings the site up to date with main in one run, for any coding agent that reads skills.
+
 ## CI
 
 - `.github/workflows/docs.yml` - type check, build and source check on every pull request.
