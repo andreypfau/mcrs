@@ -1,13 +1,13 @@
 ---
 interface Props { src: string; title: string; height?: number; footnote?: string }
 const { src, title, height = 600, footnote } = Astro.props;
-const ru = Astro.currentLocale === "ru";
+const open = Astro.locals.t("mcrs.demo.open");
 ---
 <figure>
-  <div><a href={src} target="_blank" rel="noopener">{ru ? "открыть отдельно" : "open separately"}</a></div>
+  <div><a href={src} target="_blank" rel="noopener">{open}</a></div>
   <iframe src={src} title={title} height={height} style="width:100%;border:1px solid var(--sl-color-hairline)" loading="lazy"></iframe>
   <figcaption>
-    {title} - <a href={src} target="_blank" rel="noopener">{ru ? "открыть отдельно" : "open separately"}</a>
+    {title} - <a href={src} target="_blank" rel="noopener">{open}</a>
     {footnote && <div>{footnote}</div>}
   </figcaption>
 </figure>

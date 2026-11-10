@@ -1,13 +1,13 @@
 ---
 import Default from "@astrojs/starlight/components/Footer.astro";
+import { REPO } from "../../config.mjs";
 import { pageMeta } from "../../lib/meta";
 const d = await pageMeta(Astro.locals.starlightRoute.entry);
-const ru = Astro.currentLocale === "ru";
-const repo = "https://github.com/andreypfau/mcrs";
+const t = Astro.locals.t;
 const src = (s: string) => {
   const m = /^(issue|pr):(\d+)$/.exec(s);
-  if (m) return { text: `${m[1] === "pr" ? "PR" : "issue"} #${m[2]}`, href: `${repo}/${m[1] === "pr" ? "pull" : "issues"}/${m[2]}` };
-  return { text: s, href: `${repo}/blob/main/${s}` };
+  if (m) return { text: `${m[1] === "pr" ? "PR" : "issue"} #${m[2]}`, href: `${REPO}/${m[1] === "pr" ? "pull" : "issues"}/${m[2]}` };
+  return { text: s, href: `${REPO}/blob/main/${s}` };
 };
 const sources = (d?.sources ?? []).map(src);
 const tracking = d?.tracking ?? [];
@@ -15,16 +15,16 @@ const show = d?.verified || sources.length || tracking.length;
 ---
 {show && (
   <section class="mcrs-verify">
-    <h2>{ru ? "Источники и проверка" : "Sources and verification"}</h2>
+    <h2>{t("mcrs.verify.heading")}</h2>
     {d?.verified && (
       <p>
-        {ru ? "Проверено" : "Verified"}: {d.verified.snapshot}, <code>{d.verified.commit}</code>, {d.verified.date.toISOString().slice(0, 10)}
+        {t("mcrs.verify.verified")}: {d.verified.snapshot}, <code>{d.verified.commit}</code>, {d.verified.date.toISOString().slice(0, 10)}
       </p>
     )}
-    {d?.translatedFrom && <p>Переведено с версии <code>{d.translatedFrom}</code></p>}
+    {d?.translatedFrom && <p>{t("mcrs.verify.translatedFrom")} <code>{d.translatedFrom}</code></p>}
     {sources.length > 0 && <ul>{sources.map((s) => <li><a href={s.href}>{s.text}</a></li>)}</ul>}
     {tracking.length > 0 && (
-      <p>{ru ? "Следить" : "Tracking"}: {tracking.map((n, i) => <>{i > 0 && ", "}<a href={`${repo}/issues/${n}`}>#{n}</a></>)}</p>
+      <p>{t("mcrs.verify.tracking")}: {tracking.map((n, i) => <>{i > 0 && ", "}<a href={`${REPO}/issues/${n}`}>#{n}</a></>)}</p>
     )}
   </section>
 )}

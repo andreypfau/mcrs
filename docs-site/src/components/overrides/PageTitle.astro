@@ -1,14 +1,12 @@
 ---
 import Default from "@astrojs/starlight/components/PageTitle.astro";
+import { REPO } from "../../config.mjs";
 import { pageMeta } from "../../lib/meta";
 const meta = await pageMeta(Astro.locals.starlightRoute.entry);
 const stability = meta?.stability ?? "stable";
 const tracking = meta?.tracking ?? [];
-const ru = Astro.currentLocale === "ru";
-const links = tracking.map((n) => ({ n, href: `https://github.com/andreypfau/mcrs/issues/${n}` }));
-const text = stability === "changing"
-  ? (ru ? "Меняется. Следите:" : "Changing. Follow:")
-  : (ru ? "WIP: пока не реализовано или реализовано частично. Следите:" : "WIP: not implemented yet or partly. Follow:");
+const links = tracking.map((n) => ({ n, href: `${REPO}/issues/${n}` }));
+const text = Astro.locals.t(stability === "changing" ? "mcrs.banner.changing" : "mcrs.banner.wip");
 ---
 <Default><slot /></Default>
 {stability !== "stable" && (

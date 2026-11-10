@@ -1,7 +1,6 @@
 ---
 import Default from "@astrojs/starlight/components/PageSidebar.astro";
-const ru = Astro.currentLocale === "ru";
-const label = ru ? "Свернуть или развернуть панель" : "Collapse or expand the panel";
+const label = Astro.locals.t("mcrs.sidebar.toggle");
 ---
 <button type="button" class="mcrs-toc-toggle" aria-label={label} title={label}>
   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5" /></svg>

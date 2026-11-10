@@ -1,0 +1,19 @@
+{
+  "mcrs.state.works": "Работает",
+  "mcrs.state.partial": "Частично",
+  "mcrs.state.wip": "В работе",
+  "mcrs.state.undecided": "Решения нет",
+  "mcrs.state.declined": "Не планируется",
+  "mcrs.banner.changing": "Меняется. Следите:",
+  "mcrs.banner.wip": "WIP: пока не реализовано или реализовано частично. Следите:",
+  "mcrs.verify.heading": "Источники и проверка",
+  "mcrs.verify.verified": "Проверено",
+  "mcrs.verify.tracking": "Следить",
+  "mcrs.verify.translatedFrom": "Переведено с версии",
+  "mcrs.table.area": "Область",
+  "mcrs.table.state": "Состояние",
+  "mcrs.table.works": "Работает",
+  "mcrs.table.missing": "Не готово",
+  "mcrs.demo.open": "открыть отдельно",
+  "mcrs.sidebar.toggle": "Свернуть или развернуть панель"
+}

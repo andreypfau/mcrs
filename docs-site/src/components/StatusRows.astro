@@ -11,7 +11,7 @@ const rows = ids.map((id) => {
   return r;
 });
 const l = Astro.currentLocale === "ru" ? "ru" : "en";
-const head = l === "ru" ? ["Область", "Состояние", "Работает", "Не готово"] : ["Area", "State", "Works", "Missing"];
+const head = (["area", "state", "works", "missing"] as const).map((k) => Astro.locals.t(`mcrs.table.${k}`));
 ---
 <table>
   <thead><tr>{head.map((h) => <th>{h}</th>)}</tr></thead>

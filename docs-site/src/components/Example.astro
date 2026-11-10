@@ -2,6 +2,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { Code } from "@astrojs/starlight/components";
+import { REPO } from "~/config.mjs";
 import { extractByAnchor } from "~/lib/anchor.mjs";
 interface Props { file: string; from?: string; to?: string; title?: string }
 const { file, from, to, title, ...rest } = Astro.props;
@@ -21,7 +22,7 @@ if (from !== undefined) {
 }
 const ext = path.extname(file).slice(1);
 const lang = ({ rs: "rust", yml: "yaml", md: "md" } as Record<string, string>)[ext] ?? ext;
-const url = `https://github.com/andreypfau/mcrs/blob/main/${file}` + (from !== undefined ? `#L${first}-L${last}` : "");
+const url = `${REPO}/blob/main/${file}` + (from !== undefined ? `#L${first}-L${last}` : "");
 ---
 <Code code={code} lang={lang} title={title ?? file} />
 <p><a href={url}>{file}{from !== undefined ? `:${first}-${last}` : ""}</a></p>

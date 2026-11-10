@@ -1,8 +1,19 @@
 import { defineCollection } from "astro:content";
 import { z } from "astro/zod";
 import { file } from "astro/loaders";
-import { docsLoader } from "@astrojs/starlight/loaders";
-import { docsSchema } from "@astrojs/starlight/schema";
+import { docsLoader, i18nLoader } from "@astrojs/starlight/loaders";
+import { docsSchema, i18nSchema } from "@astrojs/starlight/schema";
+
+const ui = z.object({
+  "mcrs.state.works": z.string(), "mcrs.state.partial": z.string(), "mcrs.state.wip": z.string(),
+  "mcrs.state.undecided": z.string(), "mcrs.state.declined": z.string(),
+  "mcrs.banner.changing": z.string(), "mcrs.banner.wip": z.string(),
+  "mcrs.verify.heading": z.string(), "mcrs.verify.verified": z.string(),
+  "mcrs.verify.tracking": z.string(), "mcrs.verify.translatedFrom": z.string(),
+  "mcrs.table.area": z.string(), "mcrs.table.state": z.string(),
+  "mcrs.table.works": z.string(), "mcrs.table.missing": z.string(),
+  "mcrs.demo.open": z.string(), "mcrs.sidebar.toggle": z.string(),
+});
 
 const loc = z.object({ en: z.string(), ru: z.string() });
 
@@ -25,6 +36,7 @@ export const collections = {
       }),
     }),
   }),
+  i18n: defineCollection({ loader: i18nLoader(), schema: i18nSchema({ extend: ui }) }),
   issues: defineCollection({
     loader: file("src/data/issues.yml"),
     schema: z.object({ state: z.enum(["works", "partial", "wip", "undecided", "declined"]) }),
