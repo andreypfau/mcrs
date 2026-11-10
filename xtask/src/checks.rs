@@ -41,7 +41,7 @@ const NO_STD_PACKAGES: [&str; 10] = [
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 113] = [
+const NO_BEVY_PACKAGES: [&str; 114] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -77,6 +77,7 @@ const NO_BEVY_PACKAGES: [&str; 113] = [
     "mcrs_minecraft_command_tree",
     "mcrs_minecraft_core",
     "mcrs_minecraft_damage",
+    "mcrs_minecraft_decorated_pot_pattern",
     "mcrs_minecraft_dimension",
     "mcrs_minecraft_dimension_environment",
     "mcrs_minecraft_enchantment",

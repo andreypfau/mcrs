@@ -246,7 +246,7 @@ sample_registries_table! {
     mcrs_minecraft_entity::registry_keys::FROG_VARIANT => "frog_variant" ["temperate", "warm"] [];
     mcrs_minecraft_entity::registry_keys::CAT_VARIANT => "cat_variant" ["tabby", "jellie"] [];
     mcrs_minecraft_entity::registry_keys::CAT_SOUND_VARIANT => "cat_sound_variant" ["classic", "royal"] [];
-    crate::registry_keys::DECORATED_POT_PATTERN => "decorated_pot_pattern" ["angler", "skull"] [];
+    mcrs_minecraft_decorated_pot_pattern::registry_keys::DECORATED_POT_PATTERN => "decorated_pot_pattern" ["angler", "skull"] [];
     crate::registry_keys::TRIM_MATERIAL => "trim_material" ["amethyst", "gold"] [];
     crate::registry_keys::TRIM_PATTERN => "trim_pattern" ["coast", "sentry", "vex"] [];
     crate::registry_keys::INSTRUMENT => "instrument" ["ponder_goat_horn"] [];

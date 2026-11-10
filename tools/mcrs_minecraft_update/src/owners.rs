@@ -69,8 +69,8 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:decorated_pot_pattern",
-        krate: "mcrs_minecraft_item",
-        value: ValueType::Defined("crate::decorated_pot_pattern::DecoratedPotPattern"),
+        krate: "mcrs_minecraft_decorated_pot_pattern",
+        value: ValueType::Defined("crate::DecoratedPotPattern"),
     },
     Owner {
         registry: "minecraft:dialog",

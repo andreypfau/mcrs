@@ -27,12 +27,6 @@ impl Registered for crate::data_component_type_keys::DataComponentType {
     const REGISTRY: RegistryKey<Self> = DATA_COMPONENT_TYPE;
 }
 
-pub const DECORATED_POT_PATTERN: RegistryKey<crate::decorated_pot_pattern::DecoratedPotPattern> =
-    RegistryKey::new(rl!("minecraft:decorated_pot_pattern"));
-impl Registered for crate::decorated_pot_pattern::DecoratedPotPattern {
-    const REGISTRY: RegistryKey<Self> = DECORATED_POT_PATTERN;
-}
-
 pub const DIALOG: RegistryKey<crate::dialog::Dialog> = RegistryKey::new(rl!("minecraft:dialog"));
 impl Registered for crate::dialog::Dialog {
     const REGISTRY: RegistryKey<Self> = DIALOG;

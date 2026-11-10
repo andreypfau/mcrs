@@ -1,6 +1,5 @@
 pub mod block_transformer;
 pub mod component;
-pub mod decorated_pot_pattern;
 pub mod definition;
 pub mod dialog;
 #[cfg(feature = "bevy")]
@@ -16,8 +15,6 @@ pub mod consume_effect_type_keys;
 pub mod data_component_predicate_type_keys;
 #[rustfmt::skip]
 pub mod data_component_type_keys;
-#[rustfmt::skip]
-pub mod decorated_pot_pattern_keys;
 #[rustfmt::skip]
 pub mod dialog_action_type_keys;
 #[rustfmt::skip]
@@ -121,5 +118,3 @@ mod bevy {
 
     crate::for_each_data_component!(impl_component);
 }
-
-mcrs_minecraft_registries::resolve_as_is!(crate::decorated_pot_pattern::DecoratedPotPattern);
