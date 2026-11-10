@@ -6058,6 +6058,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_perf_kit"
+version = "0.5.8"
+dependencies = [
+ "anyhow",
+ "mcrs_minecraft_client_jar",
+ "serde",
+ "serde_json",
+ "time",
+]
+
+[[package]]
 name = "mcrs_test_alloc"
 version = "0.5.8"
 

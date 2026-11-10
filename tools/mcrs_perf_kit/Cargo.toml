@@ -1,0 +1,22 @@
+[package]
+name = "mcrs_perf_kit"
+description = "Runs the mcrs measurements on a tester's machine and writes one report.json"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[[bin]]
+name = "perf-kit"
+path = "src/main.rs"
+doctest = false
+
+[lints]
+workspace = true
+
+# std: child processes, files and threads
+[dependencies]
+anyhow.workspace = true
+mcrs_minecraft_client_jar.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+time.workspace = true
