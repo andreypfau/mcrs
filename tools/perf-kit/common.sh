@@ -13,12 +13,17 @@ fi
 
 say() { printf '%s\n' "$*"; }
 
-# ask "question" -> 0 on y/yes, 1 otherwise (default No).
+# msg "english" "русский" -> prints the line in the language of PERF_KIT_LANG (default en).
+msg() {
+    if [ "${PERF_KIT_LANG:-en}" = ru ]; then printf '%s\n' "$2"; else printf '%s\n' "$1"; fi
+}
+
+# ask "question" -> 0 on y/yes/д/да, 1 otherwise (default No).
 ask() {
     local reply
     printf '%s [y/N] ' "$1" >&2
     read -r reply || return 1
-    case "$reply" in y | Y | yes | YES | Yes) return 0 ;; *) return 1 ;; esac
+    case "$reply" in [yY] | [yY][eE][sS] | д | Д | да | Да | ДА | дА) return 0 ;; *) return 1 ;; esac
 }
 
 # The checkout that contains this kit, or empty when the kit was copied out of one.

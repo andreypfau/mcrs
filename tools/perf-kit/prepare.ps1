@@ -1,4 +1,4 @@
-# Checks that this PC is quiet enough to benchmark, offers to fix what it can, writes hygiene.json.
+﻿# Checks that this PC is quiet enough to benchmark, offers to fix what it can, writes hygiene.json.
 # Usage: powershell -NoProfile -ExecutionPolicy Bypass -File prepare.ps1 [-CheckOnly] [-Out FILE]
 param([switch]$CheckOnly, [string]$Out)
 
@@ -52,7 +52,7 @@ function Close-App([string]$Name, $Processes) {
     $Processes | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | ForEach-Object { [void]$_.CloseMainWindow() }
     Wait-Process -Id $ids -Timeout 10 -ErrorAction SilentlyContinue
     if (Test-AppGone $ids) { return 'closed' }
-    if (Confirm-Choice "  $Name is still running (it may sit in the tray). Force it to stop? Unsaved work in it is lost.") {
+    if (Confirm-Choice (T "  $Name is still running (it may sit in the tray). Force it to stop? Unsaved work in it is lost." "  $Name все еще работает (возможно, свернуто в трей). Завершить принудительно? Несохраненные данные в нем пропадут.")) {
         Stop-Process -Id $ids -Force -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 2
         if (Test-AppGone $ids) { return 'forced' }
@@ -87,7 +87,7 @@ function Test-Apps {
         $action = 'none'
         if ($Interactive) {
             $action = 'kept'
-            if (Confirm-Choice "Close $($group.Name) ($value)?") { $action = Close-App $group.Name $group.Group }
+            if (Confirm-Choice (T "Close $($group.Name) ($value)?" "Закрыть $($group.Name) ($value)?")) { $action = Close-App $group.Name $group.Group }
         }
         Add-Check "app: $($group.Name)" $value ($action -eq 'closed' -or $action -eq 'forced') $action
     }
@@ -110,7 +110,7 @@ function Test-Daemons {
     $cpu = Get-DaemonCpu
     $waited = 0
     while ($Interactive -and $cpu -gt 20 -and $waited -lt $DaemonWaitSeconds) {
-        Write-Host "  Defender, Windows Update or the search indexer use $cpu% CPU; waiting for them to calm down ($waited s of $DaemonWaitSeconds s)"
+        Write-Host (T "  Defender, Windows Update or the search indexer use $cpu% CPU; waiting for them to calm down ($waited s of $DaemonWaitSeconds s)" "  Defender, Windows Update или индексатор поиска занимают $cpu% CPU; ждем, пока утихнут ($waited с из $DaemonWaitSeconds с)")
         Start-Sleep -Seconds 15
         $waited += 15
         $cpu = Get-DaemonCpu
@@ -127,7 +127,7 @@ function Get-PowerLine {
 function Test-Power {
     $line = Get-PowerLine
     if ($Interactive -and $line -eq 'Offline') {
-        Read-Host '  The PC runs on battery. Plug in the charger, then press Enter' | Out-Null
+        Read-Host (T '  The PC runs on battery. Plug in the charger, then press Enter' '  Компьютер работает от батареи. Подключите зарядку и нажмите Enter') | Out-Null
         $line = Get-PowerLine
     }
     $value = 'ac'
@@ -140,7 +140,7 @@ function Test-Power {
     if ($scheme -match '([0-9a-fA-F-]{36})') { $guid = $Matches[1].ToLower() }
     $fast = ($guid -eq $HighPerformance -or $guid -eq $UltimatePerformance)
     $action = ''
-    if ($Interactive -and -not $fast -and $guid -and (Confirm-Choice '  Switch the power plan to High performance for the run? run.ps1 switches it back at the end.')) {
+    if ($Interactive -and -not $fast -and $guid -and (Confirm-Choice (T '  Switch the power plan to High performance for the run? run.ps1 switches it back at the end.' '  Переключить схему питания на Высокую производительность на время замеров? В конце run.ps1 вернет прежнюю.'))) {
         Get-NativeOutput 'powercfg' @('/setactive', $HighPerformance) | Out-Null
         if ($LASTEXITCODE -eq 0) {
             if (-not (Test-Path $PowerRestoreFile)) {
@@ -149,7 +149,7 @@ function Test-Power {
             }
             $action = "switched from $guid"
             $fast = $true
-            Write-Host '  The power plan stays on High performance until run.ps1 finishes; if the run stops early, the next run.ps1 offers to switch it back.'
+            Write-Host (T '  The power plan stays on High performance until run.ps1 finishes; if the run stops early, the next run.ps1 offers to switch it back.' '  Схема Высокая производительность останется до конца run.ps1; если запуск прервется, следующий run.ps1 предложит вернуть прежнюю.')
         } else {
             $action = 'High performance plan not available; set Settings > System > Power > Power mode to Best performance'
         }
@@ -171,10 +171,10 @@ function Get-CpuBusy {
 
 function Test-Idle {
     $started = Get-Date
-    Write-Host '  measuring CPU load over 10 s'
+    Write-Host (T '  measuring CPU load over 10 s' '  замеряем нагрузку на CPU за 10 с')
     $busy = Get-CpuBusy
     while ($Interactive -and $busy -ge $BusyLimit -and ((Get-Date) - $started).TotalSeconds -lt $GateSeconds) {
-        Write-Host "  CPU is $busy% busy (limit $BusyLimit%). Busiest processes:"
+        Write-Host (T "  CPU is $busy% busy (limit $BusyLimit%). Busiest processes:" "  CPU загружен на $busy% (предел $BusyLimit%). Самые прожорливые процессы:")
         Get-CimInstance Win32_PerfFormattedData_PerfProc_Process |
             Where-Object { $_.Name -ne '_Total' -and $_.Name -ne 'Idle' } |
             Sort-Object PercentProcessorTime -Descending | Select-Object -First 5 |
@@ -198,8 +198,9 @@ function Test-Session {
     Add-Check 'remote desktop' "$remote" (-not $remote) ''
 }
 
-function Add-Manual([string]$Name, [string]$Question) {
-    $yes = Confirm-Choice "  $Question"
+# The record keeps the key, not the question.
+function Add-Manual([string]$Name, [string]$Question, [string]$QuestionRu) {
+    $yes = Confirm-Choice ('  ' + (T $Question $QuestionRu))
     $value = 'no'
     if ($yes) { $value = 'yes' }
     Add-Check "manual: $Name" $value $yes ''
@@ -207,7 +208,7 @@ function Add-Manual([string]$Name, [string]$Question) {
 
 $mode = 'interactive'
 if ($CheckOnly) { $mode = 'check-only' }
-Write-Host "== hygiene ($mode)"
+Write-Host (T "== hygiene ($mode)" "== подготовка машины ($mode)")
 Test-Apps
 Test-Daemons
 Test-Power
@@ -215,13 +216,19 @@ Test-Idle
 Test-Memory
 Test-Session
 if ($Interactive) {
-    Write-Host 'Please confirm (answers are recorded, nothing is enforced):'
-    Add-Manual 'focus' 'Is Do not disturb (Focus assist) on, so no notification covers the window?'
-    Add-Manual 'vsync override' 'In the NVIDIA, AMD or Intel control panel, is Vertical sync left to the application (no override)? Note G-Sync or FreeSync if on.'
-    Add-Manual 'gpu' 'On a laptop with two GPUs: is the discrete GPU set for the mcrs client (Settings > Display > Graphics > High performance)? Answer y on a desktop.'
-    Add-Manual 'primary display' 'If you use an external display, is it the main display?'
-    Add-Manual 'display stays on' 'Is the screen saver off and will the display stay on?'
-    Add-Manual 'nothing else' 'Will you leave the computer alone and start nothing else until the run ends?'
+    Write-Host (T 'Please confirm (answers are recorded, nothing is enforced):' 'Подтвердите (ответы попадут в отчет, скрипт их не проверяет):')
+    Add-Manual 'focus' 'Is Do not disturb (Focus assist) on, so no notification covers the window?' `
+        'Включен режим Не беспокоить (Помощник по фокусировке), чтобы уведомления не перекрывали окно?'
+    Add-Manual 'vsync override' 'In the NVIDIA, AMD or Intel control panel, is Vertical sync left to the application (no override)? Note G-Sync or FreeSync if on.' `
+        'В панели управления NVIDIA, AMD или Intel вертикальная синхронизация отдана приложению (без переопределения)? Если включен G-Sync или FreeSync, сообщите об этом вместе с результатами.'
+    Add-Manual 'gpu' 'On a laptop with two GPUs: is the discrete GPU set for the mcrs client (Settings > Display > Graphics > High performance)? Answer y on a desktop.' `
+        'Ноутбук с двумя GPU: для клиента mcrs выбрана дискретная видеокарта (Параметры > Дисплей > Графика > Высокая производительность)? На настольном ПК ответьте y.'
+    Add-Manual 'primary display' 'If you use an external display, is it the main display?' `
+        'Если подключен внешний дисплей, он основной?'
+    Add-Manual 'display stays on' 'Is the screen saver off and will the display stay on?' `
+        'Заставка выключена, и экран не погаснет?'
+    Add-Manual 'nothing else' 'Will you leave the computer alone and start nothing else until the run ends?' `
+        'До конца замеров компьютер никто не трогает и ничего нового не запускает?'
 }
 
 $doc = [ordered]@{
@@ -232,7 +239,7 @@ $doc = [ordered]@{
 }
 if ($Out) {
     Write-JsonFile $doc $Out
-    Write-Host "hygiene written to $Out"
+    Write-Host (T "hygiene written to $Out" "результаты проверки записаны в $Out")
 } else {
     $doc | ConvertTo-Json -Depth 6
 }

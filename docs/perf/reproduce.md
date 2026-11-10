@@ -67,8 +67,8 @@ What `prepare` checks by itself, before and after the run: the apps from the lis
    ~/mcrs-perf/mcrs/tools/perf-kit/run.sh
    ```
 
-   Add `--full` for the full profile. The script asks for a machine label (for example `m2-air`) and whether you accept the Minecraft EULA, then walks you through closing apps and checks the machine.
-5. When the game window opens, do not touch the computer until the script prints `Done`.
+   Add `--full` for the full profile. The script first asks for the language of its messages, English or Russian, with the system language as the default; `--lang en` or `--lang ru` skips the question, and the progress lines of `perf-kit` itself stay in English. It then asks for a machine label (for example `m2-air`) and whether you accept the Minecraft EULA, then walks you through closing apps and checks the machine.
+5. When the game window opens, do not touch the computer until the script prints `Done` (`Готово` in Russian).
 
 ## Windows
 
@@ -81,8 +81,8 @@ What `prepare` checks by itself, before and after the run: the apps from the lis
 
    `-ExecutionPolicy Bypass` applies to this one call only and changes no system setting.
 3. The bootstrap installs what is missing with winget: Git, the Visual Studio C++ Build Tools (about 5 GB, asks for administrator rights) and rustup with the pinned toolchain. It downloads Java 25 into a folder of its own. At the end it prints a table with OK, FIXED or FAILED for each step and a hint for each failure. Run it again after you fix a failure.
-4. Double-click `tools\perf-kit\run.cmd`, or run `powershell -NoProfile -ExecutionPolicy Bypass -File tools\perf-kit\run.ps1`. Add `-Full` for the full profile.
-5. When the game window opens, do not touch the computer until the script prints `Done`.
+4. Double-click `tools\perf-kit\run.cmd`, or run `powershell -NoProfile -ExecutionPolicy Bypass -File tools\perf-kit\run.ps1`. Add `-Full` for the full profile and `-Lang en` or `-Lang ru` to skip the language question.
+5. When the game window opens, do not touch the computer until the script prints `Done` (`Готово` in Russian).
 
 ## What the scripts change and how it is restored
 

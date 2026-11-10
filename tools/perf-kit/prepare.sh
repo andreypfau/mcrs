@@ -12,7 +12,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --check-only) mode=check-only; shift ;;
         --out) out="$2"; shift 2 ;;
-        *) say "unknown argument: $1"; exit 2 ;;
+        *) msg "unknown argument: $1" "неизвестный аргумент: $1"; exit 2 ;;
     esac
 done
 
@@ -92,7 +92,7 @@ close_app() {
         sleep 1
         waited=$((waited + 1))
     done
-    if ask "  $name did not quit within 10 s. Force quit it? Unsaved work in it is lost."; then
+    if ask "$(msg "  $name did not quit within 10 s. Force quit it? Unsaved work in it is lost." "  Приложение $name не закрылось за 10 с. Завершить принудительно? Несохраненные данные в нем пропадут.")"; then
         pids="$(pids_of "$name")"
         # shellcheck disable=SC2086
         kill $pids 2>/dev/null
@@ -117,7 +117,7 @@ check_apps() {
             continue
         fi
         action=none
-        if interactive && ask "Close $name (CPU ${cpu}%, RAM ${mem} MB)?" </dev/tty; then
+        if interactive && ask "$(msg "Close $name (CPU ${cpu}%, RAM ${mem} MB)?" "Закрыть $name (CPU ${cpu}%, RAM ${mem} МБ)?")" </dev/tty; then
             action="$(close_app "$name" </dev/tty)"
         elif interactive; then
             action=kept
@@ -142,7 +142,8 @@ check_daemons() {
     local cpu waited=0
     cpu="$(daemon_cpu)"
     while interactive && awk -v c="$cpu" 'BEGIN { exit !(c > 20) }' && [ $waited -lt $DAEMON_WAIT_SECONDS ]; do
-        say "  Spotlight, iCloud or backup daemons use ${cpu}% CPU; waiting for them to calm down ($waited s of $DAEMON_WAIT_SECONDS s)"
+        msg "  Spotlight, iCloud or backup daemons use ${cpu}% CPU; waiting for them to calm down ($waited s of $DAEMON_WAIT_SECONDS s)" \
+            "  Spotlight, iCloud или резервное копирование занимают ${cpu}% CPU; ждем, пока утихнут ($waited с из $DAEMON_WAIT_SECONDS с)"
         sleep 15
         waited=$((waited + 15))
         cpu="$(daemon_cpu)"
@@ -167,7 +168,7 @@ check_power() {
     local source state
     source="$(power_source)"
     if interactive && [ "$source" = battery ]; then
-        say "  The Mac runs on battery. Plug in the charger, then press Enter."
+        msg "  The Mac runs on battery. Plug in the charger, then press Enter." "  Mac работает от батареи. Подключите зарядку и нажмите Enter."
         read -r _ </dev/tty
         source="$(power_source)"
     fi
@@ -175,7 +176,8 @@ check_power() {
 
     state="$(process_state)"
     if interactive && [ "${state#* }" = on ]; then
-        say "  Low Power Mode is on. Turn it off in System Settings > Battery (Low Power Mode: Never), then press Enter."
+        msg "  Low Power Mode is on. Turn it off in System Settings > Battery (Low Power Mode: Never), then press Enter." \
+            "  Включен режим энергосбережения. Выключите его в Системных настройках > Аккумулятор (Режим энергосбережения: Никогда) и нажмите Enter."
         read -r _ </dev/tty
         state="$(process_state)"
     fi
@@ -191,12 +193,12 @@ cpu_busy() {
 check_idle() {
     local busy started now
     started="$(date +%s)"
-    say "  measuring CPU load over 10 s"
+    msg "  measuring CPU load over 10 s" "  замеряем нагрузку на CPU за 10 с"
     busy="$(cpu_busy)"
     while interactive && awk -v b="$busy" -v l="$BUSY_LIMIT" 'BEGIN { exit !(b >= l) }'; do
         now="$(date +%s)"
         [ $((now - started)) -ge $GATE_SECONDS ] && break
-        say "  CPU is ${busy}% busy (limit ${BUSY_LIMIT}%). Busiest processes:"
+        msg "  CPU is ${busy}% busy (limit ${BUSY_LIMIT}%). Busiest processes:" "  CPU загружен на ${busy}% (предел ${BUSY_LIMIT}%). Самые прожорливые процессы:"
         ps -Arco pcpu=,comm= | head -5 | sed 's/^/    /'
         busy="$(cpu_busy)"
     done
@@ -210,7 +212,7 @@ check_idle() {
 check_time_machine() {
     local running action=""
     running="$(tmutil status 2>/dev/null | awk -F'= ' '/Running/ { gsub(/;/, "", $2); print $2 }')"
-    if interactive && [ "$running" = 1 ] && ask "  A Time Machine backup is running. Stop it now?" </dev/tty; then
+    if interactive && [ "$running" = 1 ] && ask "$(msg "  A Time Machine backup is running. Stop it now?" "  Идет резервное копирование Time Machine. Остановить его?")" </dev/tty; then
         tmutil stopbackup >/dev/null 2>&1
         action=stopped
         sleep 5
@@ -233,11 +235,12 @@ check_memory() {
     fi
 }
 
+# manual KEY "english question" "русский вопрос"; the record keeps the key, not the question.
 manual() {
-    if ask "  $2" </dev/tty; then record "manual: $1" yes true ""; else record "manual: $1" no false ""; fi
+    if ask "  $(msg "$2" "$3")" </dev/tty; then record "manual: $1" yes true ""; else record "manual: $1" no false ""; fi
 }
 
-say "== hygiene ($mode)"
+msg "== hygiene ($mode)" "== подготовка машины ($mode)"
 check_apps
 check_daemons
 check_power
@@ -245,18 +248,23 @@ check_idle
 check_time_machine
 check_memory
 if interactive; then
-    say "Please confirm (answers are recorded, nothing is enforced):"
-    manual "focus" "Is Do Not Disturb or a Focus mode on, so no notification covers the window?"
-    manual "display stays on" "Is the lid open and the display set to stay on (no screen saver, no dimming)?"
-    manual "primary display" "If you use an external display, is it the main display (menu bar on it)?"
-    manual "gpu" "On an Intel Mac with two GPUs: is Automatic graphics switching off? (Answer y on Apple silicon.)"
-    manual "nothing else" "Will you leave the computer alone and start nothing else until the run ends?"
+    msg "Please confirm (answers are recorded, nothing is enforced):" "Подтвердите (ответы попадут в отчет, скрипт их не проверяет):"
+    manual "focus" "Is Do Not Disturb or a Focus mode on, so no notification covers the window?" \
+        "Включен режим Не беспокоить или другой режим фокусирования, чтобы уведомления не перекрывали окно?"
+    manual "display stays on" "Is the lid open and the display set to stay on (no screen saver, no dimming)?" \
+        "Крышка открыта, а дисплей не гаснет (без заставки и затемнения)?"
+    manual "primary display" "If you use an external display, is it the main display (menu bar on it)?" \
+        "Если подключен внешний дисплей, он основной (строка меню на нем)?"
+    manual "gpu" "On an Intel Mac with two GPUs: is Automatic graphics switching off? (Answer y on Apple silicon.)" \
+        "Intel Mac с двумя GPU: автоматическое переключение графики выключено? (На Apple silicon ответьте y.)"
+    manual "nothing else" "Will you leave the computer alone and start nothing else until the run ends?" \
+        "До конца замеров компьютер никто не трогает и ничего нового не запускает?"
 fi
 
 json="$(checks_to_json "$checks" "mode=$mode" "collected_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" "os=macos")" || exit 1
 if [ -n "$out" ]; then
     printf '%s\n' "$json" >"$out"
-    say "hygiene written to $out"
+    msg "hygiene written to $out" "результаты проверки записаны в $out"
 else
     printf '%s\n' "$json"
 fi

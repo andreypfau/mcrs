@@ -56,18 +56,20 @@ kit_repo() {
 
 build() {
     local repo="$1"
-    printf 'Building the release binaries in %s (the first build takes 10-40 minutes)\n' "$repo"
+    msg "Building the release binaries in $repo (the first build takes 10-40 minutes)" "Сборка release-бинарников в $repo (первая сборка занимает 10-40 минут)"
     if (cd "$repo" && cargo build --release -p mcrs -p mcrs_minecraft_client -p mcrs_mob_bench -p mcrs_perf_kit); then
         step build OK
     else
-        step build FAILED "see the cargo output above; rerun bootstrap.sh to check the toolchain"
+        step build FAILED "$(msg "see the cargo output above; rerun bootstrap.sh to check the toolchain" "смотрите вывод cargo выше; запустите bootstrap.sh еще раз, чтобы проверить тулчейн")"
     fi
 }
 
 if [ "$mode" = build-only ]; then
     load_cargo_env
+    # shellcheck source=SCRIPTDIR/common.sh
+    . "$(dirname "$0")/common.sh"
     repo="$(kit_repo)"
-    [ -n "$repo" ] || { step build FAILED "run bootstrap.sh from inside the mcrs checkout"; summary; }
+    [ -n "$repo" ] || { step build FAILED "$(msg "run bootstrap.sh from inside the mcrs checkout" "запустите bootstrap.sh из клона mcrs")"; summary; }
     build "$repo"
     summary
 fi

@@ -1,4 +1,4 @@
-# Shared helpers for the perf-kit PowerShell scripts. Dot-sourced, not run. Windows PowerShell 5.1 compatible.
+﻿# Shared helpers for the perf-kit PowerShell scripts. Dot-sourced, not run. Windows PowerShell 5.1 compatible.
 
 $KitDir = $PSScriptRoot
 $JavaMin = 25
@@ -34,9 +34,15 @@ function Update-SessionPath {
     }
 }
 
+# T 'english' 'русский' -> the text in the language of $env:PERF_KIT_LANG (default en).
+function T([string]$En, [string]$Ru) {
+    if ($env:PERF_KIT_LANG -eq 'ru') { return $Ru }
+    return $En
+}
+
 function Confirm-Choice([string]$Question) {
     $reply = Read-Host "$Question [y/N]"
-    return ($reply -match '^(y|yes)$')
+    return ($reply -match '^(y|yes|д|да)$')
 }
 
 # The checkout that contains this kit, or $null when the kit was copied out of one.

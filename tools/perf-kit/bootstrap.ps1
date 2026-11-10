@@ -1,4 +1,4 @@
-# Sets up this PC for the benchmarks: winget, Git, Visual Studio Build Tools, rustup, the pinned
+﻿# Sets up this PC for the benchmarks: winget, Git, Visual Studio Build Tools, rustup, the pinned
 # toolchain, Java 25 and the release build. Safe to run again; every step checks before it installs.
 # Usage: powershell -NoProfile -ExecutionPolicy Bypass -File bootstrap.ps1 [-Check | -BuildOnly]
 #   -Check      report what is missing, install nothing, build nothing
@@ -95,7 +95,7 @@ function Test-Toolchain([string]$Channel) {
 }
 
 function Invoke-Build([string]$Repo) {
-    Write-Host "Building the release binaries in $Repo (the first build takes 10-40 minutes)"
+    Write-Host (T "Building the release binaries in $Repo (the first build takes 10-40 minutes)" "Сборка release-бинарников в $Repo (первая сборка занимает 10-40 минут)")
     $log = Join-Path $env:TEMP 'mcrs-perf-build.log'
     Push-Location $Repo
     $code = 1
@@ -105,7 +105,7 @@ function Invoke-Build([string]$Repo) {
         if ($code -eq 0) { break }
         $denied = Select-String -Path $log -Pattern 'os error 5', 'Access is denied' -SimpleMatch -Quiet
         if ($attempt -eq 1 -and $denied) {
-            Write-Host 'The build hit "Access is denied" (os error 5), usually an antivirus scan holding a file. Retrying once in 15 s.'
+            Write-Host (T 'The build hit "Access is denied" (os error 5), usually an antivirus scan holding a file. Retrying once in 15 s.' 'Сборка получила "Access is denied" (os error 5): обычно файл держит антивирус. Повтор через 15 с, один раз.')
             Start-Sleep -Seconds 15
             continue
         }
@@ -115,15 +115,15 @@ function Invoke-Build([string]$Repo) {
     if ($code -eq 0) {
         Add-Step 'build' 'OK'
     } elseif ($denied) {
-        Add-Step 'build' 'FAILED' 'os error 5 twice: add the Defender exclusion (rerun bootstrap.ps1 and answer y) and retry'
+        Add-Step 'build' 'FAILED' (T 'os error 5 twice: add the Defender exclusion (rerun bootstrap.ps1 and answer y) and retry' 'os error 5 дважды: добавьте исключение в Defender (запустите bootstrap.ps1 еще раз и ответьте y) и повторите')
     } else {
-        Add-Step 'build' 'FAILED' 'see the cargo output above; rerun bootstrap.ps1 to check the toolchain'
+        Add-Step 'build' 'FAILED' (T 'see the cargo output above; rerun bootstrap.ps1 to check the toolchain' 'смотрите вывод cargo выше; запустите bootstrap.ps1 еще раз, чтобы проверить тулчейн')
     }
 }
 
 if ($BuildOnly) {
     $repo = Get-KitRepo
-    if (-not $repo) { Add-Step 'build' 'FAILED' 'run bootstrap.ps1 from inside the mcrs checkout'; Show-Summary }
+    if (-not $repo) { Add-Step 'build' 'FAILED' (T 'run bootstrap.ps1 from inside the mcrs checkout' 'запустите bootstrap.ps1 из клона mcrs'); Show-Summary }
     Invoke-Build $repo
     Show-Summary
 }
