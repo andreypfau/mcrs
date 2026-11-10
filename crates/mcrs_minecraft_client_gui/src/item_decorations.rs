@@ -116,24 +116,28 @@ mod tests {
                 GuiQuad::Glyph {
                     pen: Vec2::new(6.0, 10.0),
                     glyph: '6',
+                    image: corpus_font().glyph('6').image.unwrap(),
                     color: 0xFF3F_3F3F,
                     weight: Weight::Regular,
                 },
                 GuiQuad::Glyph {
                     pen: Vec2::new(5.0, 9.0),
                     glyph: '6',
+                    image: corpus_font().glyph('6').image.unwrap(),
                     color: WHITE,
                     weight: Weight::Regular,
                 },
                 GuiQuad::Glyph {
                     pen: Vec2::new(12.0, 10.0),
                     glyph: '4',
+                    image: corpus_font().glyph('4').image.unwrap(),
                     color: 0xFF3F_3F3F,
                     weight: Weight::Regular,
                 },
                 GuiQuad::Glyph {
                     pen: Vec2::new(11.0, 9.0),
                     glyph: '4',
+                    image: corpus_font().glyph('4').image.unwrap(),
                     color: WHITE,
                     weight: Weight::Regular,
                 },

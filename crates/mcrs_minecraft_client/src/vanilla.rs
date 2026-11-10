@@ -75,6 +75,8 @@ fn spawn(
     std::thread::Builder::new()
         .name("client jar".to_owned())
         .spawn(move || {
+            // The font objects come from another host, so they are fetched while the jar is.
+            let font_layer = std::thread::spawn(client_jar::font_assets);
             let resolved = client_jar::resolve(&progress, is_resource, |files| {
                 *fonts.lock().unwrap() = Some(files);
             });
@@ -87,9 +89,10 @@ fn spawn(
             };
             fill(&root, files);
             // The asset index layer lies above the jar, so its files are laid second.
-            match client_jar::font_assets(&progress) {
-                Ok(layer) => fill(&root, layer),
-                Err(error) => warn!("the text keeps to the jar's glyphs: {error}"),
+            match font_layer.join() {
+                Ok(Ok(layer)) => fill(&root, layer),
+                Ok(Err(error)) => warn!("the text keeps to the jar's glyphs: {error}"),
+                Err(_) => warn!("the text keeps to the jar's glyphs: the font fetch panicked"),
             }
             unpacked.store(true, Ordering::Release);
             if let Some(rest) = rest {
@@ -107,12 +110,16 @@ fn spawn_web(
     unpacked: Arc<AtomicBool>,
 ) {
     wasm_bindgen_futures::spawn_local(async move {
-        let files = client_jar::fetch(&progress, is_resource, |files| {
-            *fonts.lock().unwrap() = Some(files);
-        })
+        // The font objects come from another host, so they are fetched while the jar is.
+        let (files, layer) = futures_lite::future::zip(
+            client_jar::fetch(&progress, is_resource, |files| {
+                *fonts.lock().unwrap() = Some(files);
+            }),
+            client_jar::font_assets(),
+        )
         .await;
         fill(&root, files);
-        match client_jar::font_assets().await {
+        match layer {
             Ok(layer) => fill(&root, layer),
             Err(error) => warn!("the text keeps to the jar's glyphs: {error}"),
         }
@@ -367,14 +374,14 @@ fn draw_progress(
 fn glyph_node(font: &LoadingFont, quad: GuiQuad) -> Option<(Node, ImageNode)> {
     let GuiQuad::Glyph {
         pen,
-        glyph,
+        image,
         color,
         weight,
+        ..
     } = quad
     else {
         return None;
     };
-    let image = font.font.glyph(glyph).image?;
     let ImageSource::Bitmap { source, texels } = image.source else {
         return None;
     };

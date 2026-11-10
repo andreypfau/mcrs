@@ -21,6 +21,23 @@ pub(crate) struct BitmapSpec {
     chars: Vec<String>,
 }
 
+impl BitmapSpec {
+    /// FONT-PROV-004: the rules of the fields that serde cannot state.
+    pub(crate) fn check(&self) -> Result<(), String> {
+        if self.ascent > self.height {
+            return Err(format!(
+                "{}: the ascent {} is above the height {}",
+                self.file, self.ascent, self.height
+            ));
+        }
+        let columns = self.chars.first().map_or(0, |row| row.chars().count());
+        if columns == 0 || self.chars.iter().any(|row| row.chars().count() != columns) {
+            return Err(format!("{}: the rows of chars differ in length", self.file));
+        }
+        Ok(())
+    }
+}
+
 fn default_height() -> i32 {
     DEFAULT_HEIGHT
 }
@@ -50,22 +67,8 @@ impl BitmapPage {
         width: u32,
         height: u32,
     ) -> Result<Self, String> {
-        if spec.ascent > spec.height {
-            return Err(format!(
-                "{}: the ascent {} is above the height {}",
-                spec.file, spec.ascent, spec.height
-            ));
-        }
         let columns = spec.chars.first().map_or(0, |row| row.chars().count()) as u32;
         let rows = spec.chars.len() as u32;
-        if columns == 0
-            || spec
-                .chars
-                .iter()
-                .any(|row| row.chars().count() as u32 != columns)
-        {
-            return Err(format!("{}: the rows of chars differ in length", spec.file));
-        }
         let (cell_width, cell_height) = (width / columns, height / rows);
         if cell_width == 0 || cell_height == 0 || spec.height <= 0 {
             return Err(format!(
@@ -106,7 +109,7 @@ impl BitmapPage {
     }
 
     /// The glyph of `ch` in this texture, whose provider has the index `source`.
-    pub fn glyph(&self, source: usize, ch: char) -> Option<Glyph> {
+    pub(crate) fn glyph(&self, source: usize, ch: char) -> Option<Glyph> {
         let cell = self.cells.get(&ch)?;
         let texels = cell.texels;
         Some(Glyph {

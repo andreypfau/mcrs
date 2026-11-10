@@ -313,12 +313,12 @@ fn input_box(
     let caret = screen.edit().caret();
     let visible = size.width - 8;
     let mut skip = 0;
-    let mut width = font.exact_str_width(input.get(..caret).unwrap_or_default());
-    for ch in input.get(..caret).unwrap_or_default().chars() {
-        if width <= visible as f32 {
+    let before = input.get(..caret).unwrap_or_default();
+    for ch in before.chars() {
+        // Measured like it is drawn, formatting codes included.
+        if font.exact_str_width(before.get(skip..).unwrap_or_default()) <= visible as f32 {
             break;
         }
-        width -= font.advance(ch, false);
         skip += ch.len_utf8();
     }
     let y = size.height - 12;
@@ -523,6 +523,7 @@ mod tests {
                 out.contains(&GuiQuad::Glyph {
                     pen: Vec2::new(frame_x as f32, (chat_bottom - text_offset) as f32),
                     glyph: 'h',
+                    image: font.glyph('h').image.unwrap(),
                     color: 0xFFFF_FFFF,
                     weight: Weight::Regular,
                 }),

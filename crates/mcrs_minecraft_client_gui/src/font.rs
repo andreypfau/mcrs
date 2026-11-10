@@ -1,5 +1,6 @@
 use bevy::math::{IVec2, Vec2};
 
+use crate::font_bitmap::BitmapPage;
 use crate::font_definition::{FontOptions, Kind, Source, sources};
 use crate::font_glyph::{Glyph, ImageSource, MISSING, Weight};
 use crate::font_unihex::CELL_BYTES;
@@ -26,7 +27,8 @@ impl Font {
         })
     }
 
-    pub fn options(&self) -> FontOptions {
+    #[cfg(test)]
+    pub(crate) fn options(&self) -> FontOptions {
         self.options
     }
 
@@ -40,7 +42,7 @@ impl Font {
     }
 
     /// The textures of the bitmap providers, by the index of their provider.
-    pub fn bitmap_pages(&self) -> impl Iterator<Item = (usize, &crate::font_bitmap::BitmapPage)> {
+    pub fn bitmap_pages(&self) -> impl Iterator<Item = (usize, &BitmapPage)> {
         self.sources
             .iter()
             .enumerate()
@@ -51,7 +53,8 @@ impl Font {
     }
 
     /// The Unifont archives of the font, by the index of their provider.
-    pub fn unifonts(&self) -> impl Iterator<Item = (usize, &crate::font_unihex::Unihex)> {
+    #[cfg(test)]
+    pub(crate) fn unifonts(&self) -> impl Iterator<Item = (usize, &crate::font_unihex::Unihex)> {
         self.sources
             .iter()
             .enumerate()
@@ -108,13 +111,26 @@ impl Font {
     /// The width of `text` in the regular weight. A `§` and the formatting character after it
     /// change the style and have no width.
     pub fn exact_str_width(&self, text: &str) -> f32 {
-        let mut bold = false;
-        let mut width = 0.0;
-        let mut chars = text.chars().peekable();
-        while let Some(ch) = chars.next() {
+        styled(text, false)
+            .map(|(ch, bold)| self.advance(ch, bold))
+            .sum()
+    }
+
+    pub fn str_width(&self, text: &str) -> i32 {
+        self.exact_str_width(text).ceil() as i32
+    }
+}
+
+/// The code points of a plain string with the weight each is drawn in: a `§` and the formatting
+/// character after it change the weight and are not code points. Measuring and drawing a plain
+/// string both go through this, so they agree.
+fn styled(text: &str, mut bold: bool) -> impl Iterator<Item = (char, bool)> + '_ {
+    let mut chars = text.chars().peekable();
+    std::iter::from_fn(move || {
+        loop {
+            let ch = chars.next()?;
             if ch == '§'
-                && let Some(&code) = chars.peek()
-                && let Some(style) = formatting(code)
+                && let Some(style) = chars.peek().copied().and_then(formatting)
             {
                 chars.next();
                 bold = match style {
@@ -124,14 +140,9 @@ impl Font {
                 };
                 continue;
             }
-            width += self.advance(ch, bold);
+            return Some((ch, bold));
         }
-        width
-    }
-
-    pub fn str_width(&self, text: &str) -> i32 {
-        self.exact_str_width(text).ceil() as i32
-    }
+    })
 }
 
 enum Format {
@@ -207,20 +218,21 @@ pub fn draw_tinted_text(
 ) {
     let mut x = origin.x as f32;
     for span in spans {
-        x = draw_str(
+        x = draw_glyphs(
             font,
             Vec2::new(x, origin.y as f32),
-            &span.text,
+            span.text.chars().map(|ch| (ch, span.bold)),
             tint(span.color),
-            span.bold,
+            true,
             out,
         );
     }
 }
 
-/// Draws one run as [`draw_text`] does a span and returns the x where the next run starts. Each
-/// glyph with a picture is drawn under its shadow, and again one bold offset to the right when
-/// bold.
+/// Draws a plain string as [`draw_text`] does a span and returns the x where the next run starts.
+/// A `§` and its formatting character are skipped and change the weight, as
+/// [`Font::exact_str_width`] counts them. Each glyph with a picture is drawn under its shadow, and
+/// again one bold offset to the right when bold.
 pub fn draw_str(
     font: &Font,
     origin: Vec2,
@@ -229,7 +241,7 @@ pub fn draw_str(
     bold: bool,
     out: &mut Vec<GuiQuad>,
 ) -> f32 {
-    draw_layers(font, origin, text, color, true, bold, out)
+    draw_glyphs(font, origin, styled(text, bold), color, true, out)
 }
 
 /// Draws one run as [`draw_str`] does a run that is not bold, without the shadow.
@@ -240,33 +252,33 @@ pub(crate) fn draw_str_without_shadow(
     color: u32,
     out: &mut Vec<GuiQuad>,
 ) {
-    draw_layers(font, origin, text, color, false, false, out);
+    draw_glyphs(font, origin, styled(text, false), color, false, out);
 }
 
-fn draw_layers(
+fn draw_glyphs(
     font: &Font,
     origin: Vec2,
-    text: &str,
+    glyphs: impl Iterator<Item = (char, bool)>,
     color: u32,
     shadow: bool,
-    bold: bool,
     out: &mut Vec<GuiQuad>,
 ) -> f32 {
-    let (weight, strikes) = if bold {
-        (Weight::Bold, 2)
-    } else {
-        (Weight::Regular, 1)
-    };
     let mut x = origin.x;
-    for ch in text.chars() {
+    for (ch, bold) in glyphs {
+        let (weight, strikes) = if bold {
+            (Weight::Bold, 2)
+        } else {
+            (Weight::Regular, 1)
+        };
         let glyph = font.glyph(ch);
-        if glyph.image.is_some() {
+        if let Some(image) = glyph.image {
             let under = shadow.then(|| (glyph.offset, shadow_color(color)));
             for (shift, color) in under.into_iter().chain([(0.0, color)]) {
                 for strike in 0..strikes {
                     out.push(GuiQuad::Glyph {
                         pen: Vec2::new(x + shift + strike as f32 * glyph.offset, origin.y + shift),
                         glyph: ch,
+                        image,
                         color,
                         weight,
                     });
@@ -329,14 +341,13 @@ mod tests {
         use super::*;
 
         #[test]
-        fn the_ascii_page_measures_like_vanilla() {
+        fn a_plain_string_is_drawn_as_wide_as_it_measures() {
             let font = corpus_font();
-            assert_eq!(font.advance('0', false), 6.0);
-            assert_eq!(font.advance('i', false), 2.0);
-            assert_eq!(font.advance('l', false), 3.0);
-            assert_eq!(font.advance(' ', false), 4.0);
-            assert_eq!(font.advance('A', true), 7.0);
-            assert_eq!(font.width(&[Span::new("F4", 0)]), 12);
+            for text in ["§lBold§r text", "a§zb", "tail§"] {
+                let end = draw_str(font, Vec2::ZERO, text, 0, false, &mut Vec::new());
+                assert_eq!(end, font.exact_str_width(text), "{text}");
+            }
+            assert_eq!(font.exact_str_width("§lA"), font.advance('A', true));
         }
 
         #[test]

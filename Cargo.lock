@@ -4285,6 +4285,7 @@ dependencies = [
  "bytes",
  "console_error_panic_hook",
  "flate2",
+ "futures-lite",
  "getrandom 0.4.1",
  "image",
  "mcrs_minecraft_assets",

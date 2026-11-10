@@ -17,7 +17,9 @@ use mcrs_minecraft_item::{
 use crate::atlas_quad::AtlasQuad;
 use crate::font::Font;
 use crate::font_definition::FontOptions;
-use crate::font_glyph::{ImageSource, MISSING_GLYPH_SIZE, Weight, missing_glyph_pixels};
+use crate::font_glyph::{
+    GlyphImage, ImageSource, MISSING_GLYPH_SIZE, Weight, missing_glyph_pixels,
+};
 use crate::glyph_cache::{self, GlyphCache};
 use crate::gui_sprite_id::GuiSpriteId;
 use crate::gui_texture_id::GuiTextureId;
@@ -82,6 +84,8 @@ pub enum GuiQuad {
     Glyph {
         pen: Vec2,
         glyph: char,
+        /// The picture the font gave for `glyph`.
+        image: GlyphImage,
         color: u32,
         weight: Weight,
     },
@@ -225,6 +229,11 @@ impl GuiAtlasData {
         let font = Font::load(pack, FontOptions::default())?;
         for (source, page) in font.bitmap_pages() {
             let (width, height) = page.size();
+            // chisle: same fixed atlas width as the GUI images; its glyphs then draw nothing.
+            if width > ATLAS_WIDTH {
+                error!("font page {source}: {width} pixels wide, the atlas holds {ATLAS_WIDTH}");
+                continue;
+            }
             images.push((Packed::Page(source), page.pixels().to_vec(), width, height));
         }
         images.push((Packed::Named(BLANK), vec![255; 16], 2, 2));
@@ -771,12 +780,10 @@ fn push_flat_quad(
         GuiQuad::Glyph {
             pen,
             glyph,
+            image,
             color,
             weight,
         } => {
-            let Some(image) = atlas.font.glyph(glyph).image else {
-                return;
-            };
             let Some(texels) = atlas.glyph_texels(image.source, glyph, cache) else {
                 return;
             };

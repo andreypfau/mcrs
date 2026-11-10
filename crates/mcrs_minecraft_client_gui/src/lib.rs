@@ -24,8 +24,10 @@ mod edit_box_draw;
 pub mod font;
 pub mod font_bitmap;
 pub mod font_definition;
+#[cfg(test)]
+mod font_dump_tests;
 pub mod font_glyph;
-pub mod font_unihex;
+mod font_unihex;
 pub mod game_mode_switcher;
 pub mod glyph_cache;
 pub mod gui_items;

@@ -1,12 +1,12 @@
 use mcrs_minecraft_client_jar::Directory;
 use serde::Deserialize;
 
-use crate::font_definition::Filter;
+use crate::font_definition::{CodePoint, Filter};
 use crate::font_glyph::{Glyph, GlyphImage, ImageSource};
 
 /// Rows of a Unifont glyph, and the columns the glyph cache holds for one.
-pub const CELL: usize = 16;
-pub const CELL_BYTES: usize = CELL * CELL * 4;
+pub(crate) const CELL: usize = 16;
+pub(crate) const CELL_BYTES: usize = CELL * CELL * 4;
 
 #[derive(Deserialize)]
 pub(crate) struct UnihexSpec {
@@ -17,10 +17,27 @@ pub(crate) struct UnihexSpec {
     size_overrides: Vec<SizeOverride>,
 }
 
+impl UnihexSpec {
+    /// FONT-PROV-008: each override range runs upwards.
+    pub(crate) fn check(&self) -> Result<(), String> {
+        match self
+            .size_overrides
+            .iter()
+            .find(|size| size.from.0 >= size.to.0)
+        {
+            Some(size) => Err(format!(
+                "{}: an override from {:?} is not below {:?}",
+                self.hex_file, size.from.0, size.to.0
+            )),
+            None => Ok(()),
+        }
+    }
+}
+
 #[derive(Deserialize)]
 struct SizeOverride {
-    from: String,
-    to: String,
+    from: CodePoint,
+    to: CodePoint,
     left: i32,
     right: i32,
 }
@@ -37,7 +54,7 @@ struct Entry {
 /// The glyphs of the `.hex` entries of a Unifont archive, as bits. Only the glyphs a text asks for
 /// become pixels, and only when they are drawn.
 #[derive(Debug)]
-pub struct Unihex {
+pub(crate) struct Unihex {
     entries: Vec<Entry>,
     rows: Vec<u8>,
 }
@@ -66,21 +83,14 @@ impl Unihex {
             entries: unique,
             rows,
         };
-        hex.override_sizes(&spec.size_overrides, &spec.hex_file)?;
+        hex.override_sizes(&spec.size_overrides);
         Ok(hex)
     }
 
-    fn override_sizes(&mut self, overrides: &[SizeOverride], file: &str) -> Result<(), String> {
+    fn override_sizes(&mut self, overrides: &[SizeOverride]) {
         let mut taken = vec![false; self.entries.len()];
         for size in overrides {
-            let (Some(from), Some(to)) = (single(&size.from), single(&size.to)) else {
-                return Err(format!("{file}: an override bound is not one code point"));
-            };
-            if from >= to {
-                return Err(format!(
-                    "{file}: an override from {from:#x} is not below {to:#x}"
-                ));
-            }
+            let (from, to) = (u32::from(size.from.0), u32::from(size.to.0));
             let first = self
                 .entries
                 .partition_point(|entry| entry.code_point < from);
@@ -94,7 +104,6 @@ impl Unihex {
                 }
             }
         }
-        Ok(())
     }
 
     fn entry(&self, ch: char) -> Option<&Entry> {
@@ -161,25 +170,17 @@ impl Unihex {
     }
 
     /// The code point and the width in pixels of every glyph, in code point order.
-    pub fn widths(&self) -> impl Iterator<Item = (u32, i32)> + '_ {
+    #[cfg(test)]
+    pub(crate) fn widths(&self) -> impl Iterator<Item = (u32, i32)> + '_ {
         self.entries
             .iter()
             .map(|entry| (entry.code_point, entry.right - entry.left + 1))
     }
 
-    pub fn len(&self) -> usize {
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
         self.entries.len()
     }
-
-    pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
-}
-
-fn single(text: &str) -> Option<u32> {
-    let mut chars = text.chars();
-    let ch = chars.next()?;
-    chars.next().is_none().then_some(u32::from(ch))
 }
 
 fn read_lines(text: &str, entries: &mut Vec<Entry>, rows: &mut Vec<u8>) -> Result<(), String> {
@@ -255,4 +256,25 @@ fn bounds(rows: &[u8], columns: u32) -> (i32, i32) {
     let left = columns - (32 - any.leading_zeros());
     let right = columns - 1 - any.trailing_zeros();
     (left as i32, right as i32)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_glyph_is_drawn_from_its_first_inked_column_in_row_order() {
+        let line = format!("0041:38{}", "00".repeat(15));
+        let (mut entries, mut rows) = (Vec::new(), Vec::new());
+        read_lines(&line, &mut entries, &mut rows).unwrap();
+        let hex = Unihex { entries, rows };
+        let mut cell = [0; CELL_BYTES];
+        assert!(hex.rasterise('A', &mut cell));
+        let inked: Vec<(usize, usize)> = (0..CELL * CELL)
+            .filter(|at| cell[at * 4 + 3] == 255)
+            .map(|at| (at % CELL, at / CELL))
+            .collect();
+        assert_eq!(inked, [(0, 0), (1, 0), (2, 0)]);
+        assert_eq!(hex.glyph(0, 'A').unwrap().advance, 2.0);
+    }
 }

@@ -18,7 +18,7 @@ use mcrs_minecraft_render::{
     DEPTH_COMPARE, RenderPath, Terrain, Words, WorldPass, pipeline_descriptor, uniform_buffer,
 };
 
-use crate::font_unihex::{CELL, CELL_BYTES};
+use crate::font_unihex::CELL;
 use crate::glyph_cache;
 use crate::scene::{GLINT_ALPHA, GuiAtlas, GuiBatch, GuiDraw, GuiDrawKind};
 
@@ -351,7 +351,6 @@ pub(super) fn upload_glyphs(
         let Some(pixels) = wanted.and_then(|glyph| atlas.0.font.unifont_cell(glyph)) else {
             continue;
         };
-        debug_assert_eq!(pixels.len(), CELL_BYTES);
         let (x, y) = glyph_cache::cell_origin(cell);
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {

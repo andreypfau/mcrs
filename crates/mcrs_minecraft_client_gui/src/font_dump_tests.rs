@@ -3,9 +3,9 @@
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
-use mcrs_minecraft_client_gui::font::{Font, Span};
-use mcrs_minecraft_client_gui::font_definition::{FontOptions, Toggle};
-use mcrs_minecraft_client_gui::font_glyph::ImageSource;
+use crate::font::{Font, Span};
+use crate::font_definition::{FontOptions, Toggle};
+use crate::font_glyph::ImageSource;
 use mcrs_minecraft_model::resource_set::ResourceSet;
 use serde::Deserialize;
 
@@ -77,8 +77,9 @@ struct Run {
     bold: bool,
 }
 
-static DUMP: LazyLock<Dump> =
-    LazyLock::new(|| serde_json::from_str(include_str!("../fixtures/vanilla/font.json")).unwrap());
+static DUMP: LazyLock<Dump> = LazyLock::new(|| {
+    serde_json::from_str(include_str!("../tests/fixtures/vanilla/font.json")).unwrap()
+});
 
 static FONTS: LazyLock<[Font; 3]> = LazyLock::new(|| {
     let load =

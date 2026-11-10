@@ -5,13 +5,13 @@ use std::rc::Rc;
 
 use js_sys::{Array, Promise, Reflect, Uint8Array};
 use wasm_bindgen::{JsCast, JsValue};
-use wasm_bindgen_futures::{JsFuture, spawn_local};
+use wasm_bindgen_futures::{JsFuture, future_to_promise, spawn_local};
 use web_sys::{
     Cache, CacheStorage, Headers, ReadableStreamDefaultReader, Request, RequestInit, Response,
 };
 
 use crate::schedule::{self, Queue, Source};
-use crate::{FONT_OBJECTS, Files, Progress, RELEASE};
+use crate::{AssetObject, FONT_OBJECTS, Files, Progress, RELEASE};
 
 const WORKERS: usize = 4;
 const CACHE: &str = "mcrs-client-jar";
@@ -19,6 +19,7 @@ const STALL_MS: i32 = 30_000;
 const IDLE_MS: i32 = 50;
 const MIN_BACKOFF_MS: i32 = 1_000;
 const MAX_BACKOFF_MS: i32 = 30_000;
+const OBJECT_ATTEMPTS: u32 = 4;
 
 /// The picked `assets/` files of the pinned client jar, fetched in priority order by Range
 /// requests and kept per chunk in Cache Storage. The rest of the jar is never fetched.
@@ -44,28 +45,58 @@ pub async fn fetch(
 }
 
 /// The asset index layer's font files, laid over the jar's by path. The browser's HTTP cache
-/// keeps them: an object's address is its digest, so a hit is never stale.
+/// keeps them: an object's address is its digest, so a hit is never stale. The objects are
+/// fetched side by side, each retried with a growing wait.
 pub async fn font_assets() -> Result<Files, String> {
-    let window = web_sys::window().ok_or("no window")?;
-    let mut files = Files::new();
+    let promises = Array::new();
     for object in FONT_OBJECTS {
-        let response: Response = JsFuture::from(window.fetch_with_str(&object.url()))
-            .await
-            .map_err(describe)?
-            .unchecked_into();
-        if !response.ok() {
-            return Err(format!("{}: HTTP {}", object.url(), response.status()));
-        }
-        let buffer = JsFuture::from(response.array_buffer().map_err(describe)?)
-            .await
-            .map_err(describe)?;
-        let bytes = Uint8Array::new(&buffer).to_vec();
-        if !object.holds(&bytes) {
-            return Err(format!("{} is not the pinned object", object.url()));
-        }
-        files.push((object.path.to_owned(), bytes));
+        promises.push(&future_to_promise(async move {
+            fetch_object(object)
+                .await
+                .map(|bytes| Uint8Array::from(bytes.as_slice()).into())
+                .map_err(JsValue::from)
+        }));
     }
-    Ok(files)
+    let bodies = JsFuture::from(Promise::all(&promises))
+        .await
+        .map_err(describe)?;
+    Ok(FONT_OBJECTS
+        .iter()
+        .zip(Array::from(&bodies).iter())
+        .map(|(object, body)| (object.path.to_owned(), Uint8Array::new(&body).to_vec()))
+        .collect())
+}
+
+async fn fetch_object(object: &AssetObject<'_>) -> Result<Vec<u8>, String> {
+    let mut backoff = MIN_BACKOFF_MS;
+    let mut failure = String::new();
+    for attempt in 0..OBJECT_ATTEMPTS {
+        if attempt > 0 {
+            sleep(backoff).await;
+            backoff = (backoff * 2).min(MAX_BACKOFF_MS);
+        }
+        match object_body(object).await {
+            Ok(bytes) if object.holds(&bytes) => return Ok(bytes),
+            Ok(_) => failure = "it is not the pinned object".to_owned(),
+            Err(error) => failure = error,
+        }
+    }
+    Err(format!("{}: {failure}", object.url()))
+}
+
+async fn object_body(object: &AssetObject<'_>) -> Result<Vec<u8>, String> {
+    let window = web_sys::window().ok_or("no window")?;
+    let response: Response = JsFuture::from(window.fetch_with_str(&object.url()))
+        .await
+        .map_err(describe)?
+        .unchecked_into();
+    if !response.ok() {
+        return Err(format!("HTTP {}", response.status()));
+    }
+    let buffer = JsFuture::from(response.array_buffer().map_err(describe)?)
+        .await
+        .map_err(describe)?;
+    Ok(Uint8Array::new(&buffer).to_vec())
 }
 
 struct WebSource {
