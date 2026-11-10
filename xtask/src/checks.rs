@@ -40,7 +40,7 @@ const NO_STD_PACKAGES: [&str; 9] = [
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 99] = [
+const NO_BEVY_PACKAGES: [&str; 100] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -120,6 +120,7 @@ const NO_BEVY_PACKAGES: [&str; 99] = [
     "mcrs_minecraft_snbt",
     "mcrs_minecraft_sound",
     "mcrs_minecraft_text",
+    "mcrs_minecraft_text_flatten",
     "mcrs_minecraft_value_provider",
     "mcrs_minecraft_volume",
     "mcrs_minecraft_wire",

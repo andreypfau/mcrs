@@ -1,0 +1,16 @@
+[package]
+name = "mcrs_minecraft_text_flatten"
+description = "A text component as flat runs of styled text: translations filled from a language, styles inherited, and the plain and the formatting-code strings made from the runs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_lang.workspace = true
+mcrs_minecraft_text.workspace = true

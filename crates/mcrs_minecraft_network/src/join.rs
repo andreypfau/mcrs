@@ -252,7 +252,7 @@ impl Configuration {
             let disconnect = decode_body::<ClientboundDisconnect>(body)?;
             bail!(
                 "the server disconnected you: {}",
-                disconnect.reason.to_legacy_lossy()
+                crate::disconnect_reason::disconnect_reason(&disconnect.reason)
             );
         } else if id == ClientboundFinishConfiguration::ID {
             decode_body::<ClientboundFinishConfiguration>(body)?;
