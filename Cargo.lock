@@ -6017,6 +6017,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing-subscriber",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6054,6 +6055,17 @@ dependencies = [
  "serde",
  "serde_json",
  "wgpu",
+]
+
+[[package]]
+name = "mcrs_perf_kit"
+version = "0.5.8"
+dependencies = [
+ "anyhow",
+ "mcrs_minecraft_client_jar",
+ "serde",
+ "serde_json",
+ "time",
 ]
 
 [[package]]

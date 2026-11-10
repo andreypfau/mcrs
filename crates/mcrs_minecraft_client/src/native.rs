@@ -186,6 +186,8 @@ pub fn run() -> AppExit {
                     WindowMode::Windowed
                 },
                 position: WindowPosition::Centered(MonitorSelection::Primary),
+                // A titled window is fitted below the menu bar and above the Dock, which shrinks a forced size.
+                decorations: resolution.is_none(),
                 // A window another one covers stops being presented, and a frame that gets no
                 // swapchain texture is a frame that is never drawn, so a sized window stays on
                 // top for the length of the measurement.
