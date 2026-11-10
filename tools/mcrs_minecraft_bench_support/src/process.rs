@@ -186,10 +186,18 @@ impl ServerProcess {
 }
 
 fn read_lines(output: impl Read, send: &Sender<Line>) {
-    for text in BufReader::new(output).lines().map_while(Result::ok) {
+    let mut reader = BufReader::new(output);
+    let mut bytes = Vec::new();
+    loop {
+        bytes.clear();
+        match reader.read_until(b'\n', &mut bytes) {
+            Ok(0) | Err(_) => return,
+            Ok(_) => {}
+        }
+        let text = String::from_utf8_lossy(&bytes);
         let line = Line {
             at: Instant::now(),
-            text,
+            text: text.trim_end_matches(['\r', '\n']).to_owned(),
         };
         if send.send(line).is_err() {
             return;
