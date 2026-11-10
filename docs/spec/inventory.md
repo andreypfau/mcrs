@@ -5,7 +5,7 @@
 | Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
 | Protocol version | `1073742169` |
 
-Source of these values: `assets/minecraft/version.json`. All captured results of section 11 come
+Source of these values: `assets/minecraft/version.json`. All captured results of section 14 come
 from this version.
 
 This document states the inventory of a player: its slots, the selected hotbar slot, the stacks in
@@ -22,7 +22,7 @@ Issue 521 is too large for one change. This document grows in four parts, in thi
    block (sections 1 to 6, prefixes `INV-SLOT`, `INV-STK`, `INV-SEL`, `INV-SET`, `INV-CRE`,
    `INV-PCK`). This part is written.
 2. The transaction model for all editions: the atomic operations, the rejection, the state id and
-   the resync (prefixes `INV-OP`, `INV-REJ`, `INV-STATE`).
+   the resync (sections 7 to 9, prefixes `INV-OP`, `INV-REJ`, `INV-STATE`). This part is written.
 3. The click modes of Java Edition and the carried stack, as sequences of the operations of part 2
    (prefix `INV-CLK`).
 4. The hand actions (drop, swap of the hands), the insertion of a stack into the inventory, the
@@ -55,13 +55,20 @@ Issue 521 is too large for one change. This document grows in four parts, in thi
 - **Write**: the server puts a stack into a slot, for example for a command.
 - **Eye position**: as `block-breaking.md`, section 0.1, and BRK-RCH-003 define it.
 - **Bedrock edge**: the part of mcrs that connects a client of Bedrock Edition.
+- **Operation**: one atomic change of the slots of the owner (INV-OP-001).
+- **Request**: what a client sends to ask for operations: one `container_click` packet, or one item
+  stack request of Bedrock Edition.
+- **Room** of a slot for a stack: the slot limit (INV-OP-002) minus the count in the slot, when the
+  slot is empty or holds an equal stack. Else 0.
+- **Claim**: a slot and a stack in a `container_click` packet. The client states with it the stack
+  that it expects in the slot after the click.
 
 ### 0.2 Provenance
 
-- `black_box_confirmed`: shown by a captured result in section 11.
+- `black_box_confirmed`: shown by a captured result in section 14.
 - `documentation`: publicly documented behaviour, for example a report on the public bug tracker.
 - `design`: an mcrs choice. The rule states the reason.
-- `unresolved`: not decided. Section 9 collects these items.
+- `unresolved`: not decided. Section 12 collects these items.
 
 All the results come from one vanilla server and scripted clients on one machine. A rule that rests
 on one observation states this.
@@ -448,13 +455,200 @@ The results do not cover `bubble_column`, which disappears without water, and th
 `player`, `marker`, `item` and `fishing_bobber`, which a client cannot target or the `summon` command
 cannot make. See results R28 and R29.
 
-## 7. Later parts
+## 7. Operations
 
-Parts 2, 3 and 4 add their sections here. Until then, these behaviours have no rule: the
-`container_click` packet, `container_close` of an open menu, the drop of the main-hand item, the swap
-of the hands, the insertion of a stack into the inventory, and the full player file.
+**INV-OP-001** (`design`, semantic). A request asks for one or more operations. These are the
+operations:
 
-## 8. Intentional deviations
+| Operation | Effect |
+|-----------|--------|
+| take | Move items from a slot to the carried slot. |
+| place | Move items from the carried slot to a slot. |
+| swap | Exchange the stacks of two slots. One of the two can be the carried slot. |
+| split | Take half of the stack of a slot (INV-OP-005). |
+| collect | Fill the carried slot with equal stacks from other slots (INV-OP-007). |
+| drop | Move items from a slot or from the carried slot to an item entity (INV-OP-008). |
+| take craft result | Craft one time and move the result (INV-OP-009). |
+| creative set | Put a new stack into a slot, in creative mode only (INV-OP-010). |
+
+The server does all the operations of one request, or none of them. When one operation cannot
+complete, no slot changes, no item entity appears, and the server refuses the request (section 8).
+Reason: issue 521 decides this transaction model, so that the clients of Java Edition and of
+Bedrock Edition use one model. Bedrock Edition names its request actions `Take`, `Place`, `Swap`,
+`Drop`, `Destroy`, `Create` and `CraftCreative`, among others, in the public protocol documentation.
+
+The rules of this section give the effect of each operation. They come from the clicks of Java
+Edition in the inventory menu. Part 3 states which click is which sequence of operations.
+
+**INV-OP-002** (`black_box_confirmed`, semantic). The slot limit of a slot for a stack is the maximum
+stack size of the stack (INV-STK-002), with these exceptions:
+
+- An armour slot has the limit 1.
+- The craft result accepts no stack from the owner.
+- An armour slot accepts only a stack that fits it: for example `diamond_helmet` and
+  `carved_pumpkin` fit `head`, and `diamond_helmet` does not fit `chest`. A stack that does not fit
+  has the room 0.
+- The off-hand slot accepts all stacks. This is the behaviour when the game rule
+  `mcrs:offhand_accepts_any_item` of issue 521 is true, which is its default value. When it is
+  false, entry U7 applies.
+
+See results R30 (cases P, P2 to P6, Q5) and R31 (case K4).
+
+**INV-OP-003** (`black_box_confirmed`, semantic). Take moves `n` items from a slot to the carried
+slot. It completes when the slot holds at least `n` items, and the carried slot is empty or holds
+an equal stack with room for `n` items. A take from an armour slot or from the off-hand slot is a
+take like any other. See result R30 (cases A, B, J6, J7, Q2).
+
+**INV-OP-004** (`black_box_confirmed`, semantic). Place moves `n` items from the carried slot to a
+slot. It completes when the carried slot holds at least `n` items and the slot has room for `n`
+items. When the slot holds a stack that is not equal, place does not complete; the request uses
+swap instead (part 3). See result R30 (cases C, D, E, E2, H, P to P6).
+
+**INV-OP-005** (`black_box_confirmed`, semantic). Split takes `ceil(c / 2)` items of a slot with `c`
+items to the empty carried slot. The slot keeps `floor(c / 2)` items. For `c` = 11, the carried
+slot gets 6 and the slot keeps 5. For `c` = 10, each gets 5. See results R30 (case B) and R31
+(case R4b).
+
+**INV-OP-006** (`black_box_confirmed`, semantic). Swap exchanges the stacks of two slots. It
+completes when each slot accepts the stack of the other slot (INV-OP-002), and the two stacks are
+not equal. When the two stacks are equal, nothing changes. Swap between a slot and the carried slot
+is the same. See results R30 (cases F, G, K, K2, K3, P6) and R31 (case K4).
+
+**INV-OP-007** (`black_box_confirmed`, semantic). Collect moves items of equal stacks into the
+carried slot until the carried slot holds its maximum stack size. It completes only when the
+carried slot holds a stack, and the slot that the request names is empty. The server takes the
+items from the slots in this order:
+
+1. the slots that do not hold their maximum stack size, in the order of the menu index;
+2. the slots that hold their maximum stack size, in the same order.
+
+The order of the menu index is ascending for the button 0 and descending for the button 1. See
+results R30 (cases O and O2) and R31 (case R6d).
+
+**INV-OP-008** (`black_box_confirmed`, semantic). Drop moves items to one item entity from the
+owner. The source is the carried slot or a slot. A drop from a slot completes only when the carried
+slot is empty. The count is 1 or the full stack. Part 4 states the position and the motion of the
+item entity. See result R30 (cases I, I2, L, L2, L3).
+
+**INV-OP-009** (`black_box_confirmed`, semantic). Take craft result crafts one time. The craft
+result gets the result of the recipe of the craft grid, the server removes one item from each
+craft grid slot that holds a stack, and the craft result shows the result of the new craft grid.
+The result then moves:
+
+- to the carried slot, when it is empty or holds an equal stack with room for the full result;
+- to an item entity, for a drop;
+- into the main slots, for a quick move (part 3).
+
+Else, nothing changes. A take of part of the result is not possible: the button 1 takes the full
+result too. See result R30 (cases Q to Q8).
+
+**INV-OP-010** (`black_box_confirmed`, semantic). Creative set has two forms:
+
+- the `set_creative_mode_slot` request of section 5;
+- a copy: the carried slot or a slot gets a copy of a stack, with the maximum stack size as its
+  count.
+
+The server refuses creative set when the owner is not in creative mode. See result R30 (cases M,
+M2, N3, N4).
+
+**INV-OP-011** (`black_box_confirmed`, semantic). The game mode limits the operations:
+
+- creative mode: all operations.
+- survival mode and adventure mode: all operations except creative set.
+- spectator mode: no operation. The server refuses each request (INV-REJ-003).
+
+Issue 521 adds the game rule `mcrs:spectators_open_menus` (default true). It acts on open menus,
+so a later part states it. See results R30 and R31 (cases R7 to R7c).
+
+## 8. Rejection
+
+**INV-REJ-001** (`design`, semantic). A refused request has one outcome in all editions: no slot
+changes, and the server then sends the current stack of each slot that the client can show wrong.
+Reason: issue 521 decides this outcome. For Java Edition, these slots are the slots that the
+request claims and the carried slot. For Bedrock Edition, the reply is an item stack response with
+a status other than `Success`; the status values are in the public protocol documentation.
+
+**INV-REJ-002** (`black_box_confirmed`, semantic). The vanilla server ignores a `container_click`
+packet, changes nothing and sends nothing, when:
+
+- the window id is not the window id of the menu that the owner has (0 when no menu is open);
+- the slot is not a menu index of the menu and is not -999, for example 46, 200 or -1;
+- the button is not valid for the mode, for example the button 5 for the mode 0;
+- the slot is -999 and the mode is 1. The results test no other mode with the slot -999, except 0
+  and 5;
+- a mode 5 step comes without the start step before it, or after a click of another mode. A click
+  of another mode that comes between the start step and the end step is ignored too, and the drag
+  then places nothing;
+- the operations cannot complete, for example a place into an armour slot that does not fit.
+
+In the last case only, the server sends the corrections of INV-STATE-003, when the claims of the
+client are wrong. For the other cases, entry D3 states the reply of mcrs. See result R31.
+
+**INV-REJ-003** (`black_box_confirmed`, semantic). When the owner is in spectator mode, the server
+changes nothing and sends `container_set_content` with the window id 0 (INV-STATE-002). See result
+R31 (cases R7, R7b).
+
+**INV-REJ-004** (`black_box_confirmed`, wire). A `container_click` packet with more than 128 claims
+does not decode. The server disconnects the client. 128 claims decode. See results R31 (case R10)
+and R32 (case X4).
+
+**INV-REJ-005** (`black_box_confirmed`, semantic). A mode value of 7 acts as the mode 0. Result R31
+(case R9) shows this one value only.
+
+## 9. State id and resync
+
+**INV-STATE-001** (`black_box_confirmed`, wire). The `container_click` packet has these fields, in
+this order:
+
+1. window id (VarInt);
+2. state id (VarInt);
+3. slot (16-bit signed integer);
+4. button (byte);
+5. mode (VarInt);
+6. the claims: a count (VarInt), then for each claim the slot (16-bit signed integer) and a hashed
+   stack;
+7. the hashed stack of the carried slot.
+
+A hashed stack is a boolean, false for the empty stack. When it is true, these fields follow: item
+id (VarInt), count (VarInt), the added components (a count, then for each a component type id as
+a VarInt and a hash as a 32-bit integer), and the removed components (a count, then for each a
+component type id as a VarInt). The results use only stacks with no components. The hash of a
+component value is unresolved (U12). See results R30 and R31.
+
+**INV-STATE-002** (`black_box_confirmed`, semantic). The server keeps a state id for the inventory
+menu. It adds 1 to the state id before it sends each `container_set_slot` or
+`container_set_content` with the window id 0, and puts the new value in the packet. After a join,
+the first `container_set_content` has the state id 1. A request that causes no packet does not
+change the state id. See results R22, R23, R25 and R31 (cases R2, R2b). The value after 32767 is
+unresolved (U13).
+
+**INV-STATE-003** (`black_box_confirmed`, semantic). When the state id of a `container_click` packet
+is equal to the state id of the server, the server does the operations, and then compares:
+
+- each slot that the operations changed, and each slot with a claim, with the stack that the
+  client expects: the claim when there is one, else the stack before the click;
+- the carried slot with the hashed stack of the carried slot of the packet.
+
+For each slot that differs, the owner gets `container_set_slot` with the window id 0. When the
+carried slot differs, the owner gets `set_cursor_item`. When all the claims are correct, the server
+sends nothing. A claim for a slot that is not a menu index has no effect. See result R31 (cases R2,
+R3, R3b, R4, R4b, R8e).
+
+**INV-STATE-004** (`black_box_confirmed`, semantic). When the state id of a `container_click` packet
+is not equal to the state id of the server, the server does the operations as INV-STATE-003 states,
+and then sends `container_set_content` with the window id 0: all the slots of the menu and the
+carried stack. It sends no `container_set_slot` for the request. The state id of the packet can be
+less or more than the state id of the server. See result R31 (cases R1, R1b).
+
+## 10. Later parts
+
+Parts 3 and 4 add their sections here. Until then, these behaviours have no rule: the mapping of
+each click mode of `container_click` to operations, the quick move, the drag, `container_close` of
+an open menu, the drop of the main-hand item, the swap of the hands, the insertion of a stack into
+the inventory, and the full player file. Results R30 to R32 already record the clicks that part 3
+uses.
+
+## 11. Intentional deviations
 
 **D1.**
 
@@ -475,16 +669,28 @@ of the hands, the insertion of a stack into the inventory, and the full player f
 - **Visible to the client**: yes. The slot shows the stack of the server again.
 - **Test**: a differential test must not send a refused `set_creative_mode_slot` request.
 
-## 9. Unresolved
+**D3.**
+
+- **Rule**: INV-REJ-001 and INV-REJ-002. When mcrs ignores a `container_click` packet, it sends the
+  stack of each slot that the packet claims and that is a menu index, and the carried stack. Reason:
+  issue 521 decides that a refused request has one outcome in all editions.
+- **Reference**: the vanilla server sends nothing. The client keeps its prediction until the next
+  write to the slot.
+- **Visible to the client**: yes. The slots show the stacks of the server again.
+- **Test**: a differential test must not send a `container_click` packet that INV-REJ-002 ignores.
+
+## 12. Unresolved
 
 - **U7**: the slot numbers of INV-SLOT-008 that the documentation does not state, and the game rule
   `mcrs:offhand_accepts_any_item` of issue 521. The game rule acts on a move into the off-hand slot,
   so part 2 owns it.
+- **U12**: the hash of a component value in a hashed stack (INV-STATE-001).
+- **U13**: the state id after the value 32767 (INV-STATE-002).
 - **U11**: the carried slot when the player leaves. INV-SLOT-007 states the Java Edition behaviour:
   the server drops the stack. The Bedrock server keeps the stack in the player data. Issue 521 makes
   the carried stack a slot, but does not decide whether mcrs keeps it when the player leaves.
 
-## 10. Experiments
+## 13. Experiments
 
 Use a vanilla server of the game version in the table at the top of this document, with
 `online-mode=false`, `level-type=minecraft:flat` and `network-compression-threshold=-1`. Set the game
@@ -523,8 +729,11 @@ blocks apart. Read the packets that arrive after each step, and read the player 
 | E27 | Fill the main slots as R27 states and send `pick_item_from_block` on stone 2 blocks away. | R27 |
 | E28 | In creative mode with an empty inventory, for each block of the block registry, set the block in its default state 2 blocks in front of the owner, empty hotbar slot 0 with `set_creative_mode_slot`, send `pick_item_from_block` with include data false, and record the stack of `container_set_slot`. For each entity type, summon the entity with no AI and no gravity and send `pick_item_from_entity`. Do each case that gives no stack again with longer waits, and with the support block that the block needs. | R28 |
 | E29 | Pick `decorated_pot` in creative mode with include data false and true. | R29 |
+| E30 | In survival mode, unless the case states another mode, prepare the slots with `item replace` and send each `container_click` of R30, with the current state id, no claims and the empty carried stack. Read the packets after each click, the `Inventory` field and the item entities. | R30 |
+| E31 | Do E30 for each case of R31, with the state id and the claims that the case states. Do the cases that can disconnect at the end, each with a new client. | R31 |
+| E32 | Do E30 for each case of R32. | R32 |
 
-## 11. Captured results
+## 14. Captured results
 
 Each packet is shortened to its name and the fields that matter. `stone x5` is a stack of 5 `stone`.
 `P` is the owner and `W` is the observer.
@@ -883,4 +1092,377 @@ repository.
 include data false and true:
   P: set_held_slot 0; container_set_slot slot 36 decorated_pot x1 with 1 added component
   Inventory: {components: {"minecraft:pot_decorations": {}}, count: 1, Slot: 0b, id: "minecraft:decorated_pot"}
+```
+
+In R30 to R32, `slot` is a menu index of the inventory menu, `cursor` is `set_cursor_item`, and
+`after` gives the slots of the `Inventory` field (0 to 8 hotbar, 9 to 35 main) and the item entities.
+In R30, each click has the current state id, no claims and the empty carried stack, so the server
+sends a correction for each slot that changed and for the carried slot. `diamond_sword` stacks that
+fill the slots are not listed.
+
+**R30.** Clicks, one case per setup.
+
+```text
+A take all:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  after: Inventory empty
+B take half:
+  slot 36 button 1 mode 0 -> slot 36 stone x5; cursor stone x6
+  after: Inventory 0:stone x5
+C place all:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot 37 button 0 mode 0 -> slot 37 stone x10
+  after: Inventory 1:stone x10
+D place one:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot 37 button 1 mode 0 -> slot 37 stone x1; cursor stone x9
+  after: Inventory 1:stone x1
+E merge:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot 37 button 0 mode 0 -> slot 37 stone x64; cursor stone x6
+  after: Inventory 1:stone x64
+E2 merge right:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot 37 button 1 mode 0 -> slot 37 stone x61; cursor stone x9
+  after: Inventory 1:stone x61
+F swap left:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot 37 button 0 mode 0 -> slot 37 stone x10; cursor dirt x5
+  after: Inventory 1:stone x10
+G swap right:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot 37 button 1 mode 0 -> slot 37 stone x10; cursor dirt x5
+  after: Inventory 1:stone x10
+H full target:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot 37 button 0 mode 0 -> cursor stone x10
+  slot 37 button 1 mode 0 -> cursor stone x10
+  after: Inventory 1:stone x64
+H2 take with right onto same:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot 37 button 1 mode 0 -> slot 37 stone x8; cursor stone x9
+  after: Inventory 1:stone x8
+I drop all:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot -999 button 0 mode 0 -> item entity
+  after: Inventory empty; item entities stone x10
+I2 drop one:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot -999 button 1 mode 0 -> item entity; cursor stone x9
+  after: Inventory empty; item entities stone x1
+I3 outside with empty cursor:
+  slot -999 button 0 mode 0 -> nothing
+  after: Inventory 0:stone x10
+J shift hotbar to main:
+  slot 36 button 0 mode 1 -> slot 9 stone x10; slot 36 empty
+  after: Inventory 9:stone x10
+J2 shift main to hotbar:
+  slot 9 button 0 mode 1 -> slot 9 empty; slot 36 stone x10
+  after: Inventory 0:stone x10
+J3 shift merge:
+  slot 36 button 0 mode 1 -> slot 12 stone x64; slot 20 stone x36; slot 36 empty
+  after: Inventory 12:stone x64, 20:stone x36
+J4 shift helmet:
+  slot 36 button 0 mode 1 -> slot 5 diamond_helmet x1; slot 36 empty
+  after: Inventory empty
+J5 shift shield:
+  slot 36 button 0 mode 1 -> slot 36 empty; slot 45 shield x1
+  after: Inventory empty
+J6 shift from armor:
+  slot 5 button 0 mode 1 -> slot 5 empty; slot 9 diamond_helmet x1
+  after: Inventory 9:diamond_helmet x1
+J7 shift from offhand:
+  slot 45 button 0 mode 1 -> slot 9 stone x5; slot 45 empty
+  after: Inventory 9:stone x5
+J8 shift right button:
+  slot 36 button 1 mode 1 -> slot 9 stone x10; slot 36 empty
+  after: Inventory 9:stone x10
+K swap hotbar 0:
+  slot 9 button 0 mode 2 -> slot 9 stone x10; slot 36 dirt x5
+  after: Inventory 0:dirt x5, 9:stone x10
+K2 swap offhand:
+  slot 9 button 40 mode 2 -> slot 9 stone x3; slot 45 dirt x5
+  after: Inventory 9:stone x3
+K3 swap empty hotbar:
+  slot 9 button 4 mode 2 -> slot 9 empty; slot 40 dirt x5
+  after: Inventory 4:dirt x5
+K4 swap helmet slot with dirt:
+  slot 5 button 0 mode 2 -> nothing
+  after: Inventory 0:dirt x5
+K5 swap button 9:
+  slot 9 button 9 mode 2 -> nothing
+  after: Inventory 9:dirt x5
+L throw one:
+  slot 36 button 0 mode 4 -> item entity; slot 36 stone x9
+  after: Inventory 0:stone x9; item entities stone x1
+L2 throw stack:
+  slot 36 button 1 mode 4 -> item entity; slot 36 empty
+  after: Inventory empty; item entities stone x10
+L3 throw with cursor:
+  slot 37 button 0 mode 0 -> slot 37 empty; cursor dirt x3
+  slot 36 button 0 mode 4 -> cursor dirt x3
+  after: Inventory 0:stone x10
+M clone survival:
+  slot 36 button 2 mode 3 -> nothing
+  after: Inventory 0:stone x10
+M2 clone creative:
+  slot 36 button 2 mode 3 -> cursor stone x64
+  after: Inventory 0:stone x10
+N drag left:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot -999 button 0 mode 5 -> cursor stone x10
+  slot 37 button 1 mode 5 -> cursor stone x10
+  slot 38 button 1 mode 5 -> cursor stone x10
+  slot 39 button 1 mode 5 -> cursor stone x10
+  slot -999 button 2 mode 5 -> slot 37 stone x3; slot 38 stone x3; slot 39 stone x3; cursor stone x1
+  after: Inventory 1:stone x3, 2:stone x3, 3:stone x3
+N2 drag right:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot -999 button 4 mode 5 -> cursor stone x10
+  slot 37 button 5 mode 5 -> cursor stone x10
+  slot 38 button 5 mode 5 -> cursor stone x10
+  slot 39 button 5 mode 5 -> cursor stone x10
+  slot -999 button 6 mode 5 -> slot 37 stone x1; slot 38 stone x1; slot 39 stone x1; cursor stone x7
+  after: Inventory 1:stone x1, 2:stone x1, 3:stone x1
+N3 drag middle survival:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot -999 button 8 mode 5 -> cursor stone x10
+  slot 37 button 9 mode 5 -> cursor stone x10
+  slot 38 button 9 mode 5 -> cursor stone x10
+  slot -999 button 10 mode 5 -> cursor stone x10
+  after: Inventory empty
+N4 drag middle creative:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot -999 button 8 mode 5 -> cursor stone x10
+  slot 37 button 9 mode 5 -> cursor stone x10
+  slot 38 button 9 mode 5 -> cursor stone x10
+  slot -999 button 10 mode 5 -> slot 37 stone x64; slot 38 stone x64
+  after: Inventory 1:stone x64, 2:stone x64
+N5 drag onto filled:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot -999 button 0 mode 5 -> cursor stone x10
+  slot 37 button 1 mode 5 -> cursor stone x10
+  slot 38 button 1 mode 5 -> cursor stone x10
+  slot 39 button 1 mode 5 -> cursor stone x10
+  slot -999 button 2 mode 5 -> slot 37 stone x5; slot 38 stone x64; cursor stone x1
+  after: Inventory 1:stone x5, 2:stone x64, 3:dirt x1
+N6 drag one slot:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot -999 button 0 mode 5 -> cursor stone x10
+  slot 37 button 1 mode 5 -> cursor stone x10
+  slot -999 button 2 mode 5 -> slot 37 stone x10
+  after: Inventory 1:stone x10
+O collect:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot 36 button 0 mode 6 -> slot 9 empty; slot 10 stone x60; slot 37 empty; cursor stone x64
+  after: Inventory 10:stone x60
+O2 collect other slot:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot 37 button 0 mode 6 -> cursor stone x10
+  after: Inventory 1:stone x20
+P dirt to helmet:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor dirt x5
+  slot 5 button 0 mode 0 -> cursor dirt x5
+  after: Inventory empty
+P2 dirt to offhand:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor dirt x5
+  slot 45 button 0 mode 0 -> slot 45 dirt x5
+  after: Inventory empty
+P3 helmet to chest slot:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor diamond_helmet x1
+  slot 6 button 0 mode 0 -> cursor diamond_helmet x1
+  after: Inventory empty
+P4 helmet to head:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor diamond_helmet x1
+  slot 5 button 0 mode 0 -> slot 5 diamond_helmet x1
+  after: Inventory empty
+P5 pumpkin to head:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor carved_pumpkin x3
+  slot 5 button 0 mode 0 -> slot 5 carved_pumpkin x1; cursor carved_pumpkin x2
+  after: Inventory empty
+P6 two helmets:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor diamond_helmet x1
+  slot 5 button 0 mode 0 -> slot 5 diamond_helmet x1
+  slot 37 button 0 mode 0 -> slot 37 empty; cursor diamond_helmet x1
+  slot 5 button 0 mode 0 -> cursor diamond_helmet x1
+  after: Inventory empty
+Q craft take:
+  slot 0 button 0 mode 0 -> slot 0 oak_planks x4; slot 1 oak_log x2; cursor oak_planks x4
+  after: Inventory empty
+Q2 craft take twice:
+  slot 0 button 0 mode 0 -> slot 0 oak_planks x4; slot 1 oak_log x2; cursor oak_planks x4
+  slot 0 button 0 mode 0 -> slot 0 oak_planks x4; slot 1 oak_log x1; cursor oak_planks x8
+  after: Inventory empty
+Q3 craft shift:
+  slot 0 button 0 mode 1 -> slot 0 oak_planks x4; slot 0 oak_planks x4; slot 0 empty; slot 1 empty; slot 44 oak_planks x12
+  after: Inventory 8:oak_planks x12
+Q4 craft take onto other cursor:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor dirt x2
+  slot 0 button 0 mode 0 -> cursor dirt x2
+  after: Inventory empty
+Q5 craft place into result:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor dirt x2
+  slot 0 button 0 mode 0 -> cursor dirt x2
+  after: Inventory empty
+Q6 craft right take:
+  slot 0 button 1 mode 0 -> slot 0 oak_planks x4; slot 1 oak_log x2; cursor oak_planks x4
+  after: Inventory empty
+Q7 craft throw:
+  slot 0 button 0 mode 4 -> slot 0 oak_planks x4; item entity; slot 1 oak_log x2
+  after: Inventory empty; item entities oak_planks x4
+Q8 craft place log in grid:
+  slot 36 button 1 mode 0 -> slot 36 oak_log x1; cursor oak_log x2
+  slot 1 button 1 mode 0 -> slot 0 oak_planks x4; slot 1 oak_log x1; cursor oak_log x1
+  after: Inventory 0:oak_log x1
+```
+
+**R31.** State id, claims and refused clicks. `server` is the state id of the server before the click.
+
+```text
+R1 stale state:
+  slot 36 button 0 mode 0 [state 0 (server 3), claims 36=empty, carried stone x10] -> container_set_content state 4 slots all empty carried stone x10
+  after: Inventory empty
+R1b state +5:
+  slot 36 button 0 mode 0 [state 11 (server 6), claims 36=empty, carried stone x10] -> container_set_content state 7 slots all empty carried stone x10
+  after: Inventory empty
+R2 exact prediction:
+  slot 36 button 0 mode 0 [claims 36=empty, carried stone x10] -> nothing
+  slot 37 button 0 mode 0 [claims 37=stone x10, carried empty] -> nothing
+  after: Inventory 1:stone x10
+R2b next server write after silent click:
+  slot 36 button 0 mode 0 [claims 36=empty, carried stone x10] -> nothing
+  after: Inventory empty
+R2b, then item replace hotbar.5 with dirt -> slot 41 dirt x1 state 13
+R3 false claim other slot:
+  slot 36 button 0 mode 0 [claims 36=empty, 40=diamond x1, carried stone x10] -> slot 40 empty
+  after: Inventory empty
+R3b false claim only, no change:
+  slot -999 button 0 mode 0 [claims 40=diamond x1, carried empty] -> slot 40 empty
+  after: Inventory 0:stone x10
+R4 refused click, client predicted success:
+  slot 36 button 0 mode 0 [claims 36=empty, carried dirt x5] -> nothing
+  slot 5 button 0 mode 0 [claims 5=dirt x5, carried empty] -> slot 5 empty; cursor dirt x5
+  after: Inventory empty
+R4b wrong count prediction:
+  slot 36 button 1 mode 0 [claims 36=stone x6, carried stone x4] -> slot 36 stone x5; cursor stone x5
+  after: Inventory 0:stone x5
+R5 window 5:
+  slot 36 button 0 mode 0 [window 5] -> nothing
+  after: Inventory 0:stone x10
+R5b window 1 no menu:
+  slot 36 button 0 mode 0 [window 1] -> nothing
+  after: Inventory 0:stone x10
+R6 mode 0 button 5:
+  slot 36 button 5 mode 0 -> nothing
+  after: Inventory 0:stone x10
+R6b mode 1 button 2:
+  slot 36 button 2 mode 1 -> nothing
+  after: Inventory 0:stone x10
+R6c mode 4 button 2:
+  slot 36 button 2 mode 4 -> item entity; slot 36 empty
+  after: Inventory empty; item entities stone x10
+R6d mode 6 button 1:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot 36 button 1 mode 6 -> slot 37 empty; cursor stone x15
+  after: Inventory empty
+R6e drag without start:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot 37 button 1 mode 5 -> cursor stone x10
+  slot -999 button 2 mode 5 -> cursor stone x10
+  after: Inventory empty
+R6f drag interrupted by click:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot -999 button 0 mode 5 -> cursor stone x10
+  slot 37 button 1 mode 5 -> cursor stone x10
+  slot 38 button 0 mode 0 -> cursor stone x10
+  slot -999 button 2 mode 5 -> cursor stone x10
+  after: Inventory empty
+R6g drag right slot twice:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot -999 button 4 mode 5 -> cursor stone x10
+  slot 37 button 5 mode 5 -> cursor stone x10
+  slot 37 button 5 mode 5 -> cursor stone x10
+  slot -999 button 6 mode 5 -> slot 37 stone x1; cursor stone x9
+  after: Inventory 1:stone x1
+R7 spectator take:
+  slot 36 button 0 mode 0 -> container_set_content state 62 slots {36: stone x10} carried empty
+  after: Inventory 0:stone x10
+R7b spectator throw:
+  slot 36 button 1 mode 4 -> container_set_content state 66 slots {36: stone x10} carried empty
+  after: Inventory 0:stone x10
+R7c adventure take:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  after: Inventory empty
+R8 slot 46:
+  slot 46 button 0 mode 0 -> nothing
+  after: Inventory 0:stone x10
+R8b slot -1:
+  slot -1 button 0 mode 0 -> nothing
+  after: Inventory 0:stone x10
+R8c slot -1 mode 4:
+  slot -1 button 0 mode 4 -> nothing
+  after: Inventory 0:stone x10
+R8d slot -999 mode 1:
+  slot -999 button 0 mode 1 -> nothing
+  after: Inventory 0:stone x10
+R8e changed slot 60:
+  slot 36 button 0 mode 0 [claims 60=stone x1, carried stone x10] -> slot 36 empty
+  after: Inventory empty
+R9 mode 7:
+  slot 36 button 0 mode 7 -> slot 36 empty; cursor stone x10
+  after: Inventory empty
+R9b slot 200:
+  slot 200 button 0 mode 0 -> nothing
+  after: Inventory empty
+R10 129 changed slots:
+  slot -999 button 0 mode 0 [129 empty claims] -> disconnect
+  after: Inventory empty
+```
+
+**R32.** Drag with few items, quick move with no room, and 128 claims.
+
+```text
+X1 left drag 2 over 3:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x2
+  slot -999 button 0 mode 5 -> cursor stone x2
+  slot 37 button 1 mode 5 -> cursor stone x2
+  slot 38 button 1 mode 5 -> cursor stone x2
+  slot 39 button 1 mode 5 -> cursor stone x2
+  slot -999 button 2 mode 5 -> slot 37 stone x1; slot 38 stone x1
+  after: Inventory 1:stone x1, 2:stone x1
+X2 right drag 2 over 3:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x2
+  slot -999 button 4 mode 5 -> cursor stone x2
+  slot 37 button 5 mode 5 -> cursor stone x2
+  slot 38 button 5 mode 5 -> cursor stone x2
+  slot 39 button 5 mode 5 -> cursor stone x2
+  slot -999 button 6 mode 5 -> slot 37 stone x1; slot 38 stone x1
+  after: Inventory 1:stone x1, 2:stone x1
+X5 left drag 10 over 4:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x10
+  slot -999 button 0 mode 5 -> cursor stone x10
+  slot 37 button 1 mode 5 -> cursor stone x10
+  slot 38 button 1 mode 5 -> cursor stone x10
+  slot 39 button 1 mode 5 -> cursor stone x10
+  slot 40 button 1 mode 5 -> cursor stone x10
+  slot -999 button 2 mode 5 -> slot 37 stone x2; slot 38 stone x2; slot 39 stone x2; slot 40 stone x2; cursor stone x2
+  after: Inventory 1:stone x2, 2:stone x2, 3:stone x2, 4:stone x2
+X6 left drag 3 over 4:
+  slot 36 button 0 mode 0 -> slot 36 empty; cursor stone x3
+  slot -999 button 0 mode 5 -> cursor stone x3
+  slot 37 button 1 mode 5 -> cursor stone x3
+  slot 38 button 1 mode 5 -> cursor stone x3
+  slot 39 button 1 mode 5 -> cursor stone x3
+  slot 40 button 1 mode 5 -> cursor stone x3
+  slot -999 button 2 mode 5 -> slot 37 stone x1; slot 38 stone x1; slot 39 stone x1
+  after: Inventory 1:stone x1, 2:stone x1, 3:stone x1
+X3 shift no room:
+  slot 36 button 0 mode 1 -> nothing
+  after: Inventory 0:stone x10
+X7 shift partial room:
+  slot 36 button 0 mode 1 -> slot 35 stone x64; slot 36 stone x6
+  after: Inventory 0:stone x6, 35:stone x64
+X4 128 changed:
+  slot -999 button 0 mode 0 [128 empty claims] -> nothing
+  after: Inventory empty
 ```
