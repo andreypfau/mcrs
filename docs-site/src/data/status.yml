@@ -119,15 +119,15 @@
 - id: physics
   title: { en: Physics and movement, ru: Физика и движение }
   works:
-    en: "Physics kernel with collisions and impulses, a movement check for players, comparison with recordings of the vanilla client. Results do not depend on the thread count."
-    ru: "Ядро физики с коллизиями и импульсами, проверка движения игрока, сверка с записями ванильного клиента. Результат не зависит от числа потоков."
+    en: "Physics kernel with collisions and impulses, a movement check for players, comparison with recordings of the vanilla client. Results do not depend on the thread count. Teleport confirmation follows its specification, and scripted-client tests check it."
+    ru: "Ядро физики с коллизиями и импульсами, проверка движения игрока, сверка с записями ванильного клиента. Результат не зависит от числа потоков. Подтверждение телепорта работает по спецификации, его проверяют тесты со скриптовым клиентом."
   missing:
-    en: "The shared player movement model and teleport confirmation are open."
-    ru: "Общая модель движения игрока и подтверждение телепорта пока открыты."
+    en: "The shared player movement model is open. The teleport confirmation spec still has open questions, such as an accept of an older id when nothing is pending."
+    ru: "Общая модель движения игрока пока открыта. В спецификации подтверждения телепорта остались открытые вопросы, например accept старого id, когда ничего не ожидает подтверждения."
   state: partial
   issues: [85, 623]
   evidence: "cargo nextest run -p mcrs_minecraft_engine_physics -p mcrs_minecraft_server tick_determinism"
-  verified: 2026-11-09
+  verified: 2026-11-10
 
 - id: datapacks
   title: { en: Data packs and registries, ru: Датапаки и реестры }
