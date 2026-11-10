@@ -2,6 +2,7 @@ use core::error::Error;
 use core::fmt;
 
 use crate::BuiltinKey;
+use crate::ComponentType;
 use crate::NameTable;
 
 /// Why the saved form of a stack was not read or not written.
@@ -41,6 +42,9 @@ pub enum SavedError {
     /// The bytes of an undecoded patch entry are not one NBT value, or an NBT value of the input
     /// has no bytes.
     BadUndecodedBytes,
+    /// The patch holds only the wire form of a component of this type, which has no saved form
+    /// here.
+    WireValueOnly(ComponentType),
 }
 
 impl fmt::Display for SavedError {
@@ -84,6 +88,11 @@ impl fmt::Display for SavedError {
             Self::BadUndecodedBytes => {
                 formatter.write_str("the bytes of an undecoded patch entry are not one NBT value")
             }
+            Self::WireValueOnly(component_type) => write!(
+                formatter,
+                "the component type {} has only an undecoded wire form",
+                component_type.0
+            ),
         }
     }
 }

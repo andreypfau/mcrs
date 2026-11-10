@@ -5,6 +5,7 @@ use crate::Builtin;
 use crate::BuiltinKey;
 use crate::CustomValue;
 use crate::UndecodedValue;
+use crate::UndecodedWireValue;
 use crate::patch_key::PatchKey;
 
 /// One entry of the component patch of a stack.
@@ -21,6 +22,8 @@ pub enum PatchEntry {
     /// The stack has no component of the type with this identifier. The type has no Rust type in
     /// this crate.
     UndecodedRemoval(ResourceLocationBuf),
+    /// The stack has this component, which this crate does not decode, in its wire form.
+    UndecodedWire(UndecodedWireValue),
 }
 
 impl PatchEntry {
@@ -31,6 +34,7 @@ impl PatchEntry {
             Self::Custom(value) => PatchKey::Custom(value.key),
             Self::Undecoded(value) => undecoded_key(value.name.as_location()),
             Self::UndecodedRemoval(name) => undecoded_key(name.as_location()),
+            Self::UndecodedWire(value) => value.key(),
         }
     }
 }

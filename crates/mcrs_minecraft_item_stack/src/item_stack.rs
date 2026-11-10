@@ -45,8 +45,8 @@ impl ItemStack {
     }
 
     /// The patch entries: the built-in types in the order of their type ids, then the types that
-    /// this crate does not decode in the order of their identifiers, then the custom types in the
-    /// order of their keys.
+    /// this crate does not decode in the order of their identifiers, then those that a wire reader
+    /// kept in the order of their type ids, then the custom types in the order of their keys.
     #[must_use]
     pub fn patch(&self) -> &[PatchEntry] {
         &self.patch

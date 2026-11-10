@@ -181,7 +181,7 @@ pub fn write_saved_with_slot<L: NameLookup>(
     Ok(saved)
 }
 
-fn is_air(item: ResourceLocation<'_>) -> bool {
+pub(crate) fn is_air(item: ResourceLocation<'_>) -> bool {
     item.namespace() == NAMESPACE && item.path() == AIR
 }
 
@@ -234,6 +234,9 @@ fn write_entry<L: NameLookup>(
         PatchEntry::UndecodedRemoval(name) => {
             let key = format!("{REMOVAL_MARKER}{name}");
             patch.put(&key, NbtTag::Compound(NbtCompound::new()));
+        }
+        PatchEntry::UndecodedWire(value) => {
+            return Err(SavedError::WireValueOnly(value.component()));
         }
         PatchEntry::Custom(_) => {}
     }
