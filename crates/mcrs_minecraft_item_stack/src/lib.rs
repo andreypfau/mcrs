@@ -26,6 +26,7 @@ mod entity_form;
 mod field_map;
 mod float_key;
 mod food;
+mod for_each_builtin;
 mod hash_error;
 mod hash_scratch;
 mod hashed_component;

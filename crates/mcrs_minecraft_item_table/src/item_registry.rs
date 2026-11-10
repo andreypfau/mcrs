@@ -1,25 +1,9 @@
 use alloc::vec;
 use alloc::vec::Vec;
 
-use mcrs_minecraft_item_stack::AttributeModifiers;
 use mcrs_minecraft_item_stack::BuiltinKey;
 use mcrs_minecraft_item_stack::CustomComponent;
-use mcrs_minecraft_item_stack::CustomName;
-use mcrs_minecraft_item_stack::Damage;
-use mcrs_minecraft_item_stack::Enchantments;
-use mcrs_minecraft_item_stack::Food;
 use mcrs_minecraft_item_stack::ItemComponent;
-use mcrs_minecraft_item_stack::ItemModel;
-use mcrs_minecraft_item_stack::ItemName;
-use mcrs_minecraft_item_stack::Lore;
-use mcrs_minecraft_item_stack::MaxDamage;
-use mcrs_minecraft_item_stack::MaxStackSize;
-use mcrs_minecraft_item_stack::Neutral;
-use mcrs_minecraft_item_stack::Rarity;
-use mcrs_minecraft_item_stack::RepairCost;
-use mcrs_minecraft_item_stack::Tool;
-use mcrs_minecraft_item_stack::TooltipDisplay;
-use mcrs_minecraft_item_stack::Unbreakable;
 
 use crate::ComponentRow;
 use crate::DuplicateKey;
@@ -49,26 +33,15 @@ impl ItemRegistry {
     /// A registry with the rows of the built-in types and no custom type.
     #[must_use]
     pub fn new() -> Self {
-        let mut builtin: Vec<BuiltinRow> = vec![
-            row::<MaxStackSize>(),
-            row::<MaxDamage>(),
-            row::<Damage>(),
-            row::<Unbreakable>(),
-            row::<CustomName>(),
-            row::<ItemName>(),
-            row::<ItemModel>(),
-            neutral_row::<Lore>(),
-            neutral_row::<Rarity>(),
-            neutral_row::<Enchantments>(),
-            neutral_row::<AttributeModifiers>(),
-            neutral_row::<TooltipDisplay>(),
-            neutral_row::<RepairCost>(),
-            row::<Food>(),
-            row::<Tool>(),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
+        macro_rules! rows {
+            ($($name:ident => $path:literal),* $(,)?) => {
+                vec![$(row::<mcrs_minecraft_item_stack::$name>(),)*]
+            };
+        }
+        let mut builtin: Vec<BuiltinRow> = mcrs_minecraft_item_stack::for_each_builtin!(rows)
+            .into_iter()
+            .flatten()
+            .collect();
         builtin.sort_by_key(|entry| entry.key);
         Self {
             builtin,
@@ -117,16 +90,9 @@ impl Default for ItemRegistry {
     }
 }
 
-fn row<T: ItemComponent>() -> Option<BuiltinRow> {
+fn row<T: ItemComponent + 'static>() -> Option<BuiltinRow> {
     Some(BuiltinRow {
         key: T::builtin_key()?,
         row: ComponentRow::builtin::<T>(),
-    })
-}
-
-fn neutral_row<T: Neutral>() -> Option<BuiltinRow> {
-    Some(BuiltinRow {
-        key: T::builtin_key()?,
-        row: ComponentRow::builtin_with_neutral::<T>(),
     })
 }

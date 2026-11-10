@@ -6,24 +6,9 @@ use bevy_ecs::component::StorageType;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::FromWorld;
 use bevy_ecs::world::World;
-use mcrs_minecraft_item_stack::AttributeModifiers;
 use mcrs_minecraft_item_stack::BuiltinKey;
 use mcrs_minecraft_item_stack::CustomComponent;
-use mcrs_minecraft_item_stack::CustomName;
-use mcrs_minecraft_item_stack::Damage;
-use mcrs_minecraft_item_stack::Enchantments;
-use mcrs_minecraft_item_stack::Food;
 use mcrs_minecraft_item_stack::ItemComponent;
-use mcrs_minecraft_item_stack::ItemModel;
-use mcrs_minecraft_item_stack::ItemName;
-use mcrs_minecraft_item_stack::Lore;
-use mcrs_minecraft_item_stack::MaxDamage;
-use mcrs_minecraft_item_stack::MaxStackSize;
-use mcrs_minecraft_item_stack::Rarity;
-use mcrs_minecraft_item_stack::RepairCost;
-use mcrs_minecraft_item_stack::Tool;
-use mcrs_minecraft_item_stack::TooltipDisplay;
-use mcrs_minecraft_item_stack::Unbreakable;
 
 use crate::RegisterError;
 use crate::column::Column;
@@ -41,24 +26,15 @@ pub(crate) struct ItemComponents {
 
 impl FromWorld for ItemComponents {
     fn from_world(world: &mut World) -> Self {
-        let rows = vec![
-            builtin::<MaxStackSize>(world, BuiltinKey::MaxStackSize),
-            builtin::<MaxDamage>(world, BuiltinKey::MaxDamage),
-            builtin::<Damage>(world, BuiltinKey::Damage),
-            builtin::<Unbreakable>(world, BuiltinKey::Unbreakable),
-            builtin::<CustomName>(world, BuiltinKey::CustomName),
-            builtin::<ItemName>(world, BuiltinKey::ItemName),
-            builtin::<ItemModel>(world, BuiltinKey::ItemModel),
-            builtin::<Lore>(world, BuiltinKey::Lore),
-            builtin::<Rarity>(world, BuiltinKey::Rarity),
-            builtin::<Enchantments>(world, BuiltinKey::Enchantments),
-            builtin::<AttributeModifiers>(world, BuiltinKey::AttributeModifiers),
-            builtin::<TooltipDisplay>(world, BuiltinKey::TooltipDisplay),
-            builtin::<RepairCost>(world, BuiltinKey::RepairCost),
-            builtin::<Food>(world, BuiltinKey::Food),
-            builtin::<Tool>(world, BuiltinKey::Tool),
-            Row::undecoded(Column::register(world)),
-        ];
+        macro_rules! rows {
+            ($($name:ident => $path:literal),* $(,)?) => {
+                vec![
+                    $(builtin::<mcrs_minecraft_item_stack::$name>(world, BuiltinKey::$name),)*
+                    Row::undecoded(Column::register(world)),
+                ]
+            };
+        }
+        let rows = mcrs_minecraft_item_stack::for_each_builtin!(rows);
         Self { rows }
     }
 }

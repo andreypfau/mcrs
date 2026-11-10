@@ -3,7 +3,6 @@ use core::hash::Hasher;
 
 use mcrs_minecraft_item_stack::CustomComponent;
 use mcrs_minecraft_item_stack::ItemComponent;
-use mcrs_minecraft_item_stack::Neutral;
 use mcrs_minecraft_item_stack::PatchEntry;
 use rustc_hash::FxHasher;
 
@@ -23,20 +22,13 @@ pub struct ComponentRow {
 }
 
 impl ComponentRow {
-    pub(crate) fn builtin<T: ItemComponent>() -> Self {
+    pub(crate) fn builtin<T: ItemComponent + 'static>() -> Self {
         Self {
             equal: equal_builtin::<T>,
             hash: hash_builtin::<T>,
             clone: clone_builtin::<T>,
-            is_neutral: never_neutral,
-            hashing: RowHashing::Included,
-        }
-    }
-
-    pub(crate) fn builtin_with_neutral<T: Neutral>() -> Self {
-        Self {
             is_neutral: neutral_builtin::<T>,
-            ..Self::builtin::<T>()
+            hashing: RowHashing::Included,
         }
     }
 
@@ -115,8 +107,8 @@ fn clone_builtin<T: ItemComponent>(entry: &PatchEntry) -> Option<PatchEntry> {
     builtin_value::<T>(entry).map(|value| value.clone().into_entry())
 }
 
-fn neutral_builtin<T: Neutral>(entry: &PatchEntry) -> bool {
-    builtin_value::<T>(entry) == Some(T::NEUTRAL)
+fn neutral_builtin<T: ItemComponent + 'static>(entry: &PatchEntry) -> bool {
+    T::neutral().is_some_and(|neutral| builtin_value::<T>(entry) == Some(neutral))
 }
 
 fn never_neutral(_: &PatchEntry) -> bool {
