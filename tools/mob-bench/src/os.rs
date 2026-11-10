@@ -8,6 +8,8 @@ use serde::Serialize;
 
 #[cfg(target_os = "macos")]
 use crate::os_macos as platform;
+#[cfg(windows)]
+use crate::os_windows as platform;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct CoreTicks {
@@ -124,52 +126,52 @@ pub fn cpu_between(
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 pub fn process(pid: i32) -> Option<ProcessUsage> {
     platform::process(pid)
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 pub fn load_average() -> [f64; 3] {
     platform::load_average()
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 fn core_ticks() -> Vec<CoreTicks> {
     platform::core_ticks()
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 fn pids() -> Vec<i32> {
     platform::pids()
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 fn name(pid: i32) -> String {
     platform::name(pid)
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 pub fn process(_pid: i32) -> Option<ProcessUsage> {
     None
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 pub fn load_average() -> [f64; 3] {
     [0.0; 3]
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 fn core_ticks() -> Vec<CoreTicks> {
     Vec::new()
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 fn pids() -> Vec<i32> {
     Vec::new()
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 fn name(_pid: i32) -> String {
     String::new()
 }
