@@ -14,6 +14,7 @@ workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_math.workspace = true
+mcrs_minecraft_inventory_plan.workspace = true
 mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item_table = { workspace = true, features = ["bevy"] }
 rustc-hash.workspace = true

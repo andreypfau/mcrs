@@ -5,6 +5,7 @@ mod ambiguity;
 mod effective_state;
 mod fixture;
 mod placement;
+mod request;
 mod round_trip;
 mod usage;
 mod write_in_place;
