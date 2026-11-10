@@ -125,8 +125,9 @@ the log has a warning.
 - **Behavior:**
   1. The client jar holds `font/default.json`, `font/uniform.json`, `font/alt.json`,
      `font/illageralt.json`, `font/include/space.json`, `font/include/default.json` and the
-     texture files `font/ascii.png`, `font/accented.png`, `font/nonlatin_european.png`,
-     `font/ascii_sga.png` and `font/asciillager.png`.
+     texture files `textures/font/ascii.png`, `textures/font/accented.png`,
+     `textures/font/nonlatin_european.png`, `textures/font/ascii_sga.png` and
+     `textures/font/asciillager.png`.
   2. The jar also holds a file `font/include/unifont.json` with an empty list `providers`. It
      is a placeholder.
   3. The asset index of the game version holds the real `font/include/unifont.json`, the
@@ -398,8 +399,9 @@ Experiment: add a pack with `font/default.json` that has one `bitmap` provider f
   The dump `configs[0].winners` lists, for each code point of the basic plane, the index of the
   source that wins.
 - **Edge cases:** no glyph of the vanilla default font has an advance outside the limits of
-  step 3: the lowest advance is 1 and the highest bold advance is 11 (the dump `ranges`).
-  Step 3 changes no result for the vanilla fonts.
+  step 3: the lowest advance is 0 (the space provider, U+200C, FONT-PROV-003), which is not
+  less than 0, and the highest advance is 11 (the dump `ranges`, which takes the lower and the
+  higher of the normal and the bold advance). Step 3 changes no result for the vanilla fonts.
 
 Provenance: `source_suggested_black_box_confirmed`. Kind: client agreement. Confidence: high
 for steps 1 and 2, low for step 3. Evidence: the dump `winners` and `glyphs`. Step 3 is
@@ -553,6 +555,8 @@ at GUI scale 4 and measure the slant of the stem.
 Provenance: `source_suggested_black_box_confirmed`. Kind: layout. Confidence: high for steps 2
 to 5, medium for step 1. Evidence: the dump `configs[0].strings`; each row has `sum` (the exact
 width), `width`, and for plain strings `string_width`, the width of the same text as a string.
+A row of the style `mixed` has `text`, the code points of the measured text without any
+separator, and `runs`, the consecutive parts of it with their code points and a `bold` flag.
 Experiment: for step 1, put `§l` in a sign line and compare the width with a bold style.
 
 ---
