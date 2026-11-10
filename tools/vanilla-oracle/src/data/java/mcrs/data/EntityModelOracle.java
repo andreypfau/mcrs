@@ -115,9 +115,11 @@ public final class EntityModelOracle {
         header.addProperty("kind", kind);
         header.addProperty("game_version", SharedConstants.getCurrentVersion().id());
         JsonObject units = new JsonObject();
-        units.addProperty("length", "1/16 block (pixel)");
-        units.addProperty("axes", "model space: +Y down, -Z is the front of the entity, -X is its right side");
-        units.addProperty("rotation", "radians; a part applies Z, then Y, then X to its parent frame (a vertex is turned about X first)");
+        if (!kind.equals("sign_text")) {
+            units.addProperty("length", "1/16 block (pixel)");
+            units.addProperty("axes", "model space: +Y down, -Z is the front of the entity, -X is its right side");
+            units.addProperty("rotation", "radians; a part applies Z, then Y, then X to its parent frame (a vertex is turned about X first)");
+        }
         switch (kind) {
             case "models" -> units.addProperty(
                 "uv",
@@ -145,6 +147,8 @@ public final class EntityModelOracle {
                 );
             }
             case "sign_text" -> {
+                units.addProperty("length", "block space in blocks; text space in text units, one text unit is one pixel of the font at the scale of the sign");
+                units.addProperty("axes", "block space: +X east, +Y up, +Z south, the block from 0 to 1; text plane: +X right, +Y down as a viewer of the side sees it");
                 units.addProperty(
                     "matrix",
                     "4x4 matrix, rows of 4, applied to the text of one side: maps a point of the text plane, in text units "

@@ -69,9 +69,10 @@ of the sign text. `later` means a rule that a later release implements.
 | `dye_colors` | for each dye, the bright and the dark text colour |
 | `transform` | the text matrix for each family, mount, state and side |
 | `layout` | the position of each of four lines, for several line widths |
-| `paint` | colour, outline colour and light, for each dye, glowing flag and outline range |
+| `paint` | colour, outline colour and light, for each family, dye, glowing flag and outline range |
 | `filtering` | the lines that show with the filtering flag off and on |
-| `styles` | the style of each code point of lines that come from styled components |
+| `styles` | the style of each code point of lines that come from styled components, with its font |
+| `styles_inherited` | the same for a child that inherits a colour, bold or a font from its parent, and for a translation with a fallback |
 
 - **Block model artefact**: as `block-entity-models.md`, BEM-SHAPE-010.
 
@@ -139,14 +140,17 @@ Experiment: SIGN-EXP-001.
   5. The style of each code point of a line is the style of that code point after the
      inheritance of the message (`client-tooltip.md`, TIP-HOVER-002, edge cases). A style can
      set a colour, bold, italic, underlined, strikethrough, obfuscated and a font.
-  6. A translatable message shows its translation. When the language has no such key, the line
-     shows the key.
+  6. A translatable message shows its translation. When the language has no such key and the
+     message has a fallback text, the line shows the fallback text. When the language has no such
+     key and the message has no fallback text, the line shows the key.
 - **Postconditions:** a sign draws at most four lines, in message order. A message that is
   wider than `m` shows only its first row.
 
 Provenance: `source_suggested_black_box_confirmed` (the rows `filtering` and `styles` of the sign
 artefact: the filtering flag selects one of two lists; the styles of the code points follow the
-styles of the components; a key with no translation shows as the key). Item 3 and item 4 are
+styles of the components; the rows `styles_inherited` show a colour, bold and a font that a child
+inherits from its parent, and a font that a parent sets; a key with no translation shows as the
+key, and as the fallback text when the message has one). Item 3 and item 4 are
 `source_suggested`. Kind: semantic. Confidence: high for items 1, 2, 5 and 6, medium for items 3
 and 4. Milestone: 1. Experiment: SIGN-EXP-002.
 
@@ -286,8 +290,8 @@ Confidence: high. Milestone: 1.
 - **Postconditions:** a black sign with glowing text shows black text with a pale outline in
   every case.
 
-Provenance: `source_suggested_black_box_confirmed` (the 64 rows `paint` of the sign artefact,
-for items 1 to 5 and 7; the rows `styles`, for the style colour of item 6). Items 6 and 8 are
+Provenance: `source_suggested_black_box_confirmed` (the 128 rows `paint` of the sign artefact,
+64 for each family, for items 1 to 5 and 7; the rows `styles`, for the style colour of item 6). Items 6 and 8 are
 `source_suggested`. Kind: layout. Confidence: high for items 1 to 5 and 7, medium for items 6
 and 8. Milestone: 1. Experiment: SIGN-EXP-005.
 
@@ -322,8 +326,8 @@ SIGN-EXP-006.
      z-fight with the board.
 - **Postconditions:** glowing text has the same brightness in a dark cave and in daylight.
 
-Provenance: `source_suggested_black_box_confirmed` (the rows `paint` of the sign artefact, with
-the packed light 3145808 as input; the row `constants`, `full_bright_light`). Item 3 is
+Provenance: `source_suggested_black_box_confirmed` (the rows `paint` of the sign artefact, for both
+families, with the packed light 3145808 as input; the row `constants`, `full_bright_light`). Item 3 is
 `source_suggested`. Kind: semantic. Confidence: high. Milestone: 1. Experiment: SIGN-EXP-007.
 
 ---
@@ -336,12 +340,14 @@ the packed light 3145808 as input; the row `constants`, `full_bright_light`). It
 - **Behavior:**
   1. A code point with no `font` in its style uses the default font of the game. A code point
      with a `font` in its style uses that font.
-  2. The width `w` of a line is the sum of the advances of its code points, as an integer. Bold
-     and the other styles change the advance as the font states.
+  2. The width `w` of a line is the sum of the advances of its code points. When the sum is not a
+     whole number, `w` is the sum rounded up to the next whole number. Bold and the other
+     styles change the advance as the font states.
   3. The wrap of SIGN-LINE-001 and the width `w` of SIGN-LAY-002 use the same widths.
 - **Postconditions:** none.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1. The font does
+Provenance: `source_suggested` (item 2: the rounding up is `source_suggested`). Kind: semantic.
+Confidence: medium. Milestone: 1. The font does
 not have a specification yet (`client-chat.md`, section 7).
 
 ### SIGN-FONT-002: Code points that the font lacks
@@ -372,7 +378,7 @@ item 2. Milestone: 1. Experiment: SIGN-EXP-008.
      the row within `1e-6`.
   2. For each row `layout`, give each message the width of the row and compare `x` and `y` of
      each line.
-  3. For each row `paint`, compute the colour, the outline colour and the packed light of
+  3. For each row `paint`, take the family of the row. Compute the colour, the outline colour and the packed light of
      SIGN-COL-002 and SIGN-LIGHT-001 for the dye, the glowing flag and the outline range of the
      row. Compare them with the row.
   4. For each row `dye_colors`, compare the bright and the dark colour.
@@ -410,16 +416,14 @@ No deviation is recorded.
 1. SIGN-LINE-001, items 3 and 4: the wrap of a message. The artefact does not wrap. The rule
    takes the wrap of `client-tooltip.md`. Open: the break of a word that is wider than `m`, and a
    first glyph that is wider than `m`.
-2. SIGN-FONT-001, item 2: the width of a line as an integer. Open: whether the width of a line
-   is rounded up or down when the advances are not whole numbers (bold text, scaled glyphs).
-3. SIGN-FONT-002, item 2: the advance of the missing glyph. The width and the height are 5 and 8
+2. SIGN-FONT-002, item 2: the advance of the missing glyph. The width and the height are 5 and 8
    texels. The advance is probably 6, and no artefact shows it.
-4. SIGN-COL-002, item 8: the exact offsets and the draw order of the outline copies.
-5. SIGN-LIGHT-001: whether the line has the shade of a face. The rule states only the light.
-6. SIGN-SIDE-001, item 3: the text of a side shows through the board only in the case of
+3. SIGN-COL-002, item 8: the exact offsets and the draw order of the outline copies.
+4. SIGN-LIGHT-001: whether the line has the shade of a face. The rule states only the light.
+5. SIGN-SIDE-001, item 3: the text of a side shows through the board only in the case of
    a viewer behind the board. The text planes are near the board, and no artefact shows the depth
    test.
-7. The distance at which a sign stops to draw its text. The rule set has none.
+6. The distance at which a sign stops to draw its text. The rule set has none.
 
 ---
 
