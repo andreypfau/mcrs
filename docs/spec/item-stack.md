@@ -624,7 +624,19 @@ each node kind is:
 | int array | `10`, then each int as 4 bytes, least significant byte first, then `11` |
 | long array | `12`, then each long as 8 bytes, least significant byte first, then `13` |
 
-See results R8 and R9.
+The length field of the string node is the number of UTF-16 code units of the string. It is not
+the number of bytes and it is not the number of code points. The field is an unsigned 32-bit
+number of 4 bytes, least significant byte first. A code point above `U+FFFF` is 2 code units: the
+high surrogate, then the low surrogate. Thus the string `a\u{1F600}b` has the length 4 and the
+code units `0061 D83D DE00 0062`. Its byte string is
+`0C 04000000 6100 3DD8 00DE 6200`.
+
+The hash sets no limit on the length of a string, and it does not normalize the string. The
+saved form and the wire form have their own limits, which their rules state. The fixture has no
+case with a surrogate that has no pair.
+
+See results R8 and R9. The table at the end of this section gives the input of each case of the
+fixture `hash_ops`.
 
 **STK-HSH-006** (`source_suggested_black_box_confirmed`, client agreement). An entry of a map is
 `u32le(hash of the key)` then `u32le(hash of the value)`. The key is a string node. Sort the
@@ -645,6 +657,70 @@ canonical. Thus two NaN values with different bit patterns have different hashes
 `-0.0` have different hashes. An implementation must keep the bit pattern of each float and each
 double from the reader to the writer and to the hash. Two components that are equal by STK-EQ-005
 can thus have different hashes. This occurs only for a NaN. See experiment E28.
+
+#### The inputs of the fixture `hash_ops`
+
+The fixture `hash_ops` records one hash for each of 26 case names. The table below gives the
+input of each case and the hash that the game wrote. The hash is a signed 32-bit number. The
+input is a tree of the nodes of STK-HSH-005, in this notation:
+
+- `absent` is the absent value.
+- `byte 1`, `short -2`, `int 1`, `long -5`, `float 1.5` and `double -2.25` are number nodes of the
+  kind and the width that the word states. Each number is decimal.
+- `true` and `false` are boolean nodes. A boolean node is not a byte node.
+- `"hello"` is a string node. Each character is ASCII, or an escape `\u{X}` with the code point
+  in hexadecimal.
+- `[a, b]` is a list node with the elements in order.
+- `{"k": a, "m": b}` is a map node. The entries are in the order in which the game adds them.
+  STK-HSH-006 sorts them, thus this order does not change the hash.
+- `byte array [..]`, `int array [..]` and `long array [..]` are array nodes with the elements in
+  order. Each element is a signed decimal number of the width of the array.
+
+| Case | Input | Hash |
+|------|-------|------|
+| `empty` | `absent` | -1609117614 |
+| `empty_map` | `{}` | -982207288 |
+| `empty_list` | `[]` | -1978007022 |
+| `a_byte_1` | `{"a": byte 1}` | -1990988826 |
+| `a_int_1` | `{"a": int 1}` | -108872706 |
+| `a_short_neg2` | `{"a": short -2}` | 2053373670 |
+| `str_empty` | `""` | 1615905556 |
+| `str_hello` | `"hello"` | 773640809 |
+| `str_astral` | `"a\u{1F600}b"` | 2126615229 |
+| `list_ints` | `[int 1, int -2, int 300]` | 2000803920 |
+| `nested` | `{"inner": {"x": "y", "n": long -5}, "flag": byte 1, "pos": int array [1, 2, 3]}` | -1698105082 |
+| `int_array` | `int array [7, -8, 9]` | 709107336 |
+| `long_array` | `long array [1099511627776, -1]` | -309389825 |
+| `byte_array` | `byte array [1, 2, -3]` | 1491979440 |
+| `float` | `float 1.5` | -1709970540 |
+| `double` | `double -2.25` | -17727433 |
+| `long` | `long 1234567890123` | -556570646 |
+| `bool_true` | `true` | -1019818302 |
+| `bool_false` | `false` | 828198337 |
+| `byte_true` | `byte 1` | 1791337955 |
+| `list_of_bools` | `[true, false]` | 1072798967 |
+| `sixteen_keys` | a map with 16 entries, see below | 1387017585 |
+| `mixed_sign_keys` | `{"k": "v", "k2": "v2", "count": "1", "id": "x"}` | 1656600283 |
+| `key_a` | `"a"` | 754812039 |
+| `key_h` | `"h"` | -1572085944 |
+| `key_p` | `"p"` | 10153329 |
+
+Notes on the cases:
+
+- `sixteen_keys`: the keys are the 16 strings of one letter from `"a"` to `"p"`, in that order.
+  The value of each key is an int node with the code point of the letter. Thus the entries are
+  `"a": int 97`, `"b": int 98`, and so on to `"p": int 112`.
+- `long_array`: the first element is 2 to the power 40.
+- `byte_true`: the case is a byte node, not a boolean node. Compare its hash with `bool_true`.
+- `a_byte_1`, `a_int_1`, `a_short_neg2`, `nested`: the value 1 of the key `"a"` and of the key
+  `"flag"` is a byte node, not a boolean node.
+- `mixed_sign_keys`: each value is a string node. The value of `"count"` is the string `"1"`.
+  As a signed number, each of the 4 key hashes is negative. Thus this case does not separate the
+  signed order from the unsigned order of STK-HSH-006.
+- `key_a`, `key_h`, `key_p`: each case is one string node, not a map. They give three of the key
+  hashes of `sixteen_keys`. As signed numbers, the hash of `"h"` is negative and the hashes of
+  `"a"` and `"p"` are positive. Thus `sixteen_keys` fails when an implementation sorts the key
+  hashes as signed numbers.
 
 ## 7. Four component types
 
@@ -1323,7 +1399,7 @@ Each result is a case of a golden that the game wrote. The fixture name is a nam
 | R6 | `item_nested` | `use_remainder_full` | saved: `{"id":"minecraft:diamond_sword","count":3,"components":{"minecraft:max_stack_size":16,"minecraft:damage":7,"minecraft:custom_name":"named","minecraft:unbreakable":{},"!minecraft:repair_cost":{}}}`; wire: `b108 03 04 01 01 10 03 07 06 0800056e616d6564 04 13`; hash: -1619506781 |
 | R7 | `item_nested` | `use_remainder_plain` | saved: `{"id":"minecraft:stone"}`; wire: `01 01 00 00`; hash: 725422587 |
 | R8 | `item_plain` | `max_stack_size` 64, `damage` 0, `max_damage` 1561 | `max_stack_size`: wire `40`, NBT `03 00000040`, hash 733160003. `damage`: hash -2146075228. `max_damage`: wire `990c`. |
-| R9 | `hash_ops` | the node kinds | absent value: -1609117614. Empty map: -982207288. Empty list: -1978007022. True: -1019818302. False: 828198337. Float 0.5: -1631070359. String `hello`: 773640809. Empty string: 1615905556. |
+| R9 | `hash_ops` | the node kinds | absent value: -1609117614. Empty map: -982207288. Empty list: -1978007022. True: -1019818302. False: 828198337. Float 1.5: -1709970540. String `hello`: 773640809. Empty string: 1615905556. Section 6.7 gives the input and the hash of each of the 26 cases. |
 
 Notes on the results:
 
@@ -1339,3 +1415,6 @@ Notes on the results:
 - R6: the wire form has the item id, the count 3, 4 value entries and 1 removal entry. The removal
   entry is the type id 19 (`repair_cost`). The hash is the hash of the saved map, with the unsigned
   order of STK-HSH-006. The signed order gives 1172329907, which is not the value of the game.
+- R9: the `float` case of the fixture is the float 1.5. An earlier revision of this row gave
+  "Float 0.5: -1631070359". The fixture has no case with the float 0.5, thus the game did not
+  record that number. The number is the result of STK-HSH-005 for the float 0.5.
