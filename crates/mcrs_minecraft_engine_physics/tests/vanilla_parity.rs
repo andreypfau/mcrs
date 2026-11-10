@@ -7,13 +7,13 @@ use bevy_tasks::TaskPool;
 use bevy_tasks::TaskPoolBuilder;
 use mcrs_engine_muxer::EntityId;
 use mcrs_engine_muxer::TileGrid;
-use mcrs_minecraft_engine::player_tiles::TILE_WIDTH;
-use mcrs_minecraft_engine_physics::EntityRows;
 use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::TestScene;
-use mcrs_minecraft_physics::BirthKey;
-use mcrs_minecraft_physics::BodyGrid;
-use mcrs_minecraft_physics::SourceKind;
+use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::TILE_WIDTH;
+use mcrs_minecraft_entity_rows::BodyGrid;
+use mcrs_minecraft_entity_rows::RowStore;
+use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_volume::BlockVolumeMut;
 use mcrs_minecraft_volume::SparseVolume;
@@ -43,9 +43,10 @@ fn scene_of(fixture: &Fixture) -> TestScene {
     let mut scene = TestScene {
         blocks: SparseVolume::unbounded(),
         tables: Tables::new(common::table().clone()),
-        rows: EntityRows::default(),
+        rows: RowStore::default(),
         grid: BodyGrid::default(),
         tick: 1,
+        push: PushRules::default(),
     };
     let [ox, oy, oz] = fixture.origin.map(|value| value.div_euclid(16));
     for y in -AREA..=AREA {
@@ -90,7 +91,7 @@ fn replay(fixture: &Fixture, pool: &TaskPool, phase: u8) -> Vec<Failure> {
     let ids: Vec<EntityId> = (1..=recorded.len() as u64).map(EntityId).collect();
     for ((index, (entity, row)), &id) in recorded.iter().enumerate().zip(&ids) {
         let first = entity.ticks.first().copied().flatten().unwrap();
-        let key = BirthKey::new(0, SourceKind::Command, 0, index as u32);
+        let key = EntityKey(u128::from(index as u32));
         let state = start_state(entity, row, key, &first, phase);
         scene.rows.spawn(id, state, *row);
     }
@@ -107,8 +108,8 @@ fn replay(fixture: &Fixture, pool: &TaskPool, phase: u8) -> Vec<Failure> {
             };
             let body = scene
                 .rows
-                .tiles_mut()
-                .flat_map(|(_, rows)| rows.rows_mut())
+                .tiles()
+                .flat_map(|(_, rows)| rows.rows())
                 .find(|row| row.id == id)
                 .map(|row| row.state.body);
             *failure = match body {

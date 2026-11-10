@@ -1,9 +1,10 @@
-use std::collections::HashMap;
 use std::collections::HashSet;
 
-use crate::bake::Dir;
-use crate::item_model_bake::{ItemQuad, item_quad};
-use crate::model::{Element, Face};
+use bevy::math::DVec3;
+use mcrs_minecraft_core::Direction;
+
+use crate::item_model_bake::{ItemQuad, element_quads, plain_element};
+use mcrs_minecraft_model_file::model_file::FaceEntry;
 
 const MIN_Z: f32 = 7.5;
 const MAX_Z: f32 = 8.5;
@@ -29,12 +30,12 @@ impl Side {
         }
     }
 
-    fn direction(self) -> Dir {
+    fn direction(self) -> Direction {
         match self {
-            Side::Up => Dir::Up,
-            Side::Down => Dir::Down,
-            Side::Left => Dir::East,
-            Side::Right => Dir::West,
+            Side::Up => Direction::Up,
+            Side::Down => Direction::Down,
+            Side::Left => Direction::East,
+            Side::Right => Direction::West,
         }
     }
 }
@@ -52,7 +53,7 @@ pub fn extrude(
             [0.0, 0.0, MIN_Z],
             [16.0, 16.0, MAX_Z],
             [0.0, 0.0, 16.0, 16.0],
-            Dir::South,
+            Direction::South,
             sprite,
             layer,
         )?,
@@ -60,7 +61,7 @@ pub fn extrude(
             [0.0, 0.0, MIN_Z],
             [16.0, 16.0, MAX_Z],
             [16.0, 0.0, 0.0, 16.0],
-            Dir::North,
+            Direction::North,
             sprite,
             layer,
         )?,
@@ -129,25 +130,29 @@ fn quad(
     from: [f32; 3],
     to: [f32; 3],
     uv: [f32; 4],
-    dir: Dir,
+    dir: Direction,
     sprite: u16,
     layer: u32,
 ) -> Result<ItemQuad, String> {
-    let element = Element {
-        from,
-        to,
-        rotation: None,
-        shade: true,
-        faces: HashMap::new(),
-    };
-    let face = Face {
+    let face = FaceEntry {
         texture: String::new(),
-        uv: Some(uv),
+        uv: Some(uv.map(f64::from)),
         cullface: None,
         rotation: 0,
-        tint_index: Some(layer),
+        tint: Some(layer),
     };
-    item_quad(&element, dir, &face, sprite)
+    let mut faces: [Option<FaceEntry>; 6] = Default::default();
+    if let Some(slot) = faces.get_mut(dir as usize) {
+        *slot = Some(face);
+    }
+    let element = plain_element(
+        DVec3::from_array(from.map(f64::from)),
+        DVec3::from_array(to.map(f64::from)),
+        faces,
+    );
+    element_quads(element, sprite)?
+        .pop()
+        .ok_or_else(|| format!("a {} side of an item layer draws no face", dir.name()))
 }
 
 #[cfg(test)]
@@ -178,10 +183,18 @@ mod tests {
                 .iter()
                 .all(|q| q.tint == Some(1) && q.sprite == sprite)
         );
-        assert_eq!(quads[0].dir, Dir::South);
-        assert_eq!(quads[1].dir, Dir::North);
-        let dirs: Vec<Dir> = quads[2..].iter().map(|q| q.dir).collect();
-        assert_eq!(dirs, [Dir::Up, Dir::Down, Dir::West, Dir::East]);
+        assert_eq!(quads[0].dir, Direction::South);
+        assert_eq!(quads[1].dir, Direction::North);
+        let dirs: Vec<Direction> = quads[2..].iter().map(|q| q.dir).collect();
+        assert_eq!(
+            dirs,
+            [
+                Direction::Up,
+                Direction::Down,
+                Direction::West,
+                Direction::East
+            ]
+        );
         let up = &quads[2];
         let (min, max) = up.positions.iter().fold(
             (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)),
@@ -221,16 +234,16 @@ mod tests {
         let sprite = 0;
         let column = pixel_sprite(2, |x, _| x == 0);
         let quads = extrude(sprite, 2, &[&column], 0).unwrap();
-        let edge = |dir: Dir, axis: fn(&Vec3) -> f32| -> Vec<f32> {
+        let edge = |dir: Direction, axis: fn(&Vec3) -> f32| -> Vec<f32> {
             quads[2..]
                 .iter()
                 .filter(|q| q.dir == dir)
                 .map(|q| axis(&q.positions[0]))
                 .collect()
         };
-        assert_eq!(edge(Dir::Up, |p| p.y), [1.0]);
-        assert_eq!(edge(Dir::Down, |p| p.y), [0.0]);
-        assert_eq!(edge(Dir::West, |p| p.x), [0.0, 0.0]);
-        assert_eq!(edge(Dir::East, |p| p.x), [0.5, 0.5]);
+        assert_eq!(edge(Direction::Up, |p| p.y), [1.0]);
+        assert_eq!(edge(Direction::Down, |p| p.y), [0.0]);
+        assert_eq!(edge(Direction::West, |p| p.x), [0.0, 0.0]);
+        assert_eq!(edge(Direction::East, |p| p.x), [0.5, 0.5]);
     }
 }

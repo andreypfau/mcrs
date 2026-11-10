@@ -1,0 +1,214 @@
+{
+  "scene": "pig_hurt_death",
+  "version": "26.4-snapshot-7",
+  "frames": [
+    {
+      "image": "pig_hurt_death.death10_hurt10.png",
+      "camera": {
+        "position": [
+          0.0,
+          -59.000000114440915,
+          4.0
+        ],
+        "yaw": -180.0,
+        "pitch": 10.0,
+        "fov": 70.0,
+        "partial_tick": 1.0
+      },
+      "entities": [
+        {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "type": "minecraft:pig",
+          "frozen": true,
+          "partial_tick": 1.0,
+          "position": [
+            -1.0,
+            -60.0,
+            0.5
+          ],
+          "age": 10,
+          "pose": "standing",
+          "invisible": false,
+          "head_pitch": 0.0,
+          "body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "walk_position": 0.0,
+          "walk_speed": 1.0,
+          "hurt_time": 10,
+          "death_time": 0,
+          "baby": false,
+          "saddled": false,
+          "variant": "minecraft:temperate"
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000002",
+          "type": "minecraft:pig",
+          "frozen": true,
+          "partial_tick": 1.0,
+          "position": [
+            1.0,
+            -60.0,
+            0.5
+          ],
+          "age": 10,
+          "pose": "dying",
+          "invisible": false,
+          "head_pitch": 0.0,
+          "body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "walk_position": 0.0,
+          "walk_speed": 0.0,
+          "hurt_time": 0,
+          "death_time": 10,
+          "baby": false,
+          "saddled": false,
+          "variant": "minecraft:temperate"
+        }
+      ]
+    },
+    {
+      "image": "pig_hurt_death.death15_hurt5.png",
+      "camera": {
+        "position": [
+          0.0,
+          -59.000000114440915,
+          4.0
+        ],
+        "yaw": -180.0,
+        "pitch": 10.0,
+        "fov": 70.0,
+        "partial_tick": 1.0
+      },
+      "entities": [
+        {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "type": "minecraft:pig",
+          "frozen": true,
+          "partial_tick": 1.0,
+          "position": [
+            -1.0,
+            -60.0,
+            0.5
+          ],
+          "age": 15,
+          "pose": "standing",
+          "invisible": false,
+          "head_pitch": 0.0,
+          "body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "walk_position": 2.0750399,
+          "walk_speed": 0.11663999,
+          "hurt_time": 5,
+          "death_time": 0,
+          "baby": false,
+          "saddled": false,
+          "variant": "minecraft:temperate"
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000002",
+          "type": "minecraft:pig",
+          "frozen": true,
+          "partial_tick": 1.0,
+          "position": [
+            1.0,
+            -60.0,
+            0.5
+          ],
+          "age": 15,
+          "pose": "dying",
+          "invisible": false,
+          "head_pitch": 0.0,
+          "body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "walk_position": 0.0,
+          "walk_speed": 0.0,
+          "hurt_time": 0,
+          "death_time": 15,
+          "baby": false,
+          "saddled": false,
+          "variant": "minecraft:temperate"
+        }
+      ]
+    },
+    {
+      "image": "pig_hurt_death.death10_hurt10.background.png",
+      "camera": {
+        "position": [
+          0.0,
+          -59.000000114440915,
+          4.0
+        ],
+        "yaw": -180.0,
+        "pitch": 10.0,
+        "fov": 70.0,
+        "partial_tick": 1.0
+      },
+      "entities": [
+        {
+          "id": "00000000-0000-0000-0000-000000000002",
+          "type": "minecraft:pig",
+          "frozen": true,
+          "partial_tick": 1.0,
+          "position": [
+            1.0,
+            -60.0,
+            0.5
+          ],
+          "age": 15,
+          "pose": "dying",
+          "invisible": false,
+          "head_pitch": 0.0,
+          "body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "walk_position": 0.0,
+          "walk_speed": 0.0,
+          "hurt_time": 0,
+          "death_time": 15,
+          "baby": false,
+          "saddled": false,
+          "variant": "minecraft:temperate"
+        }
+      ]
+    },
+    {
+      "image": "pig_hurt_death.death15_hurt5.background.png",
+      "camera": {
+        "position": [
+          0.0,
+          -59.000000114440915,
+          4.0
+        ],
+        "yaw": -180.0,
+        "pitch": 10.0,
+        "fov": 70.0,
+        "partial_tick": 1.0
+      },
+      "entities": [
+        {
+          "id": "00000000-0000-0000-0000-000000000002",
+          "type": "minecraft:pig",
+          "frozen": true,
+          "partial_tick": 1.0,
+          "position": [
+            1.0,
+            -60.0,
+            0.5
+          ],
+          "age": 15,
+          "pose": "dying",
+          "invisible": false,
+          "head_pitch": 0.0,
+          "body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "walk_position": 0.0,
+          "walk_speed": 0.0,
+          "hurt_time": 0,
+          "death_time": 15,
+          "baby": false,
+          "saddled": false,
+          "variant": "minecraft:temperate"
+        }
+      ]
+    }
+  ]
+}

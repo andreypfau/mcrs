@@ -1,0 +1,276 @@
+{
+  "layers": [
+    {
+      "when": "q.block_state('rotation') == 0",
+      "geometry": "geometry.mcrs.block.standing_banner",
+      "texture": "minecraft:entity/banner/banner_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.666666667, 0.0, 0.0, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.0, 0.0, -0.666666667, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 0",
+      "geometry": "geometry.mcrs.block.standing_banner.flag",
+      "texture": "minecraft:entity/banner/base",
+      "tint": 10,
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.666666667, 0.0, 0.0, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.0, 0.0, -0.666666667, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 1",
+      "geometry": "geometry.mcrs.block.standing_banner",
+      "texture": "minecraft:entity/banner/banner_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.6159196880000001, 0.0, 0.25512228800000003, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.25512228800000003, 0.0, -0.6159196880000001, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 1",
+      "geometry": "geometry.mcrs.block.standing_banner.flag",
+      "texture": "minecraft:entity/banner/base",
+      "tint": 10,
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.6159196880000001, 0.0, 0.25512228800000003, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.25512228800000003, 0.0, -0.6159196880000001, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 2",
+      "geometry": "geometry.mcrs.block.standing_banner",
+      "texture": "minecraft:entity/banner/banner_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.471404521, 0.0, 0.471404521, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.471404521, 0.0, -0.471404521, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 2",
+      "geometry": "geometry.mcrs.block.standing_banner.flag",
+      "texture": "minecraft:entity/banner/base",
+      "tint": 10,
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.471404521, 0.0, 0.471404521, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.471404521, 0.0, -0.471404521, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 3",
+      "geometry": "geometry.mcrs.block.standing_banner",
+      "texture": "minecraft:entity/banner/banner_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.25512228800000003, 0.0, 0.6159196880000001, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.6159196880000001, 0.0, -0.25512228800000003, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 3",
+      "geometry": "geometry.mcrs.block.standing_banner.flag",
+      "texture": "minecraft:entity/banner/base",
+      "tint": 10,
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.25512228800000003, 0.0, 0.6159196880000001, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.6159196880000001, 0.0, -0.25512228800000003, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 4",
+      "geometry": "geometry.mcrs.block.standing_banner",
+      "texture": "minecraft:entity/banner/banner_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.0, 0.0, 0.666666667, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.666666667, 0.0, 0.0, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 4",
+      "geometry": "geometry.mcrs.block.standing_banner.flag",
+      "texture": "minecraft:entity/banner/base",
+      "tint": 10,
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.0, 0.0, 0.666666667, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.666666667, 0.0, 0.0, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 5",
+      "geometry": "geometry.mcrs.block.standing_banner",
+      "texture": "minecraft:entity/banner/banner_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[-0.25512228800000003, 0.0, 0.6159196880000001, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.6159196880000001, 0.0, 0.25512228800000003, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 5",
+      "geometry": "geometry.mcrs.block.standing_banner.flag",
+      "texture": "minecraft:entity/banner/base",
+      "tint": 10,
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[-0.25512228800000003, 0.0, 0.6159196880000001, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.6159196880000001, 0.0, 0.25512228800000003, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 6",
+      "geometry": "geometry.mcrs.block.standing_banner",
+      "texture": "minecraft:entity/banner/banner_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[-0.471404521, 0.0, 0.471404521, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.471404521, 0.0, 0.471404521, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 6",
+      "geometry": "geometry.mcrs.block.standing_banner.flag",
+      "texture": "minecraft:entity/banner/base",
+      "tint": 10,
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[-0.471404521, 0.0, 0.471404521, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.471404521, 0.0, 0.471404521, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 7",
+      "geometry": "geometry.mcrs.block.standing_banner",
+      "texture": "minecraft:entity/banner/banner_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[-0.6159196880000001, 0.0, 0.25512228800000003, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.25512228800000003, 0.0, 0.6159196880000001, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 7",
+      "geometry": "geometry.mcrs.block.standing_banner.flag",
+      "texture": "minecraft:entity/banner/base",
+      "tint": 10,
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[-0.6159196880000001, 0.0, 0.25512228800000003, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.25512228800000003, 0.0, 0.6159196880000001, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 8",
+      "geometry": "geometry.mcrs.block.standing_banner",
+      "texture": "minecraft:entity/banner/banner_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[-0.666666667, 0.0, 0.0, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.0, 0.0, 0.666666667, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 8",
+      "geometry": "geometry.mcrs.block.standing_banner.flag",
+      "texture": "minecraft:entity/banner/base",
+      "tint": 10,
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[-0.666666667, 0.0, 0.0, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.0, 0.0, 0.666666667, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 9",
+      "geometry": "geometry.mcrs.block.standing_banner",
+      "texture": "minecraft:entity/banner/banner_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[-0.6159196880000001, 0.0, -0.25512228800000003, 0.5], [0.0, -0.666666667, 0.0, 0.0], [-0.25512228800000003, 0.0, 0.6159196880000001, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 9",
+      "geometry": "geometry.mcrs.block.standing_banner.flag",
+      "texture": "minecraft:entity/banner/base",
+      "tint": 10,
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[-0.6159196880000001, 0.0, -0.25512228800000003, 0.5], [0.0, -0.666666667, 0.0, 0.0], [-0.25512228800000003, 0.0, 0.6159196880000001, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 10",
+      "geometry": "geometry.mcrs.block.standing_banner",
+      "texture": "minecraft:entity/banner/banner_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[-0.471404521, 0.0, -0.471404521, 0.5], [0.0, -0.666666667, 0.0, 0.0], [-0.471404521, 0.0, 0.471404521, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 10",
+      "geometry": "geometry.mcrs.block.standing_banner.flag",
+      "texture": "minecraft:entity/banner/base",
+      "tint": 10,
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[-0.471404521, 0.0, -0.471404521, 0.5], [0.0, -0.666666667, 0.0, 0.0], [-0.471404521, 0.0, 0.471404521, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 11",
+      "geometry": "geometry.mcrs.block.standing_banner",
+      "texture": "minecraft:entity/banner/banner_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[-0.25512228800000003, 0.0, -0.6159196880000001, 0.5], [0.0, -0.666666667, 0.0, 0.0], [-0.6159196880000001, 0.0, 0.25512228800000003, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 11",
+      "geometry": "geometry.mcrs.block.standing_banner.flag",
+      "texture": "minecraft:entity/banner/base",
+      "tint": 10,
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[-0.25512228800000003, 0.0, -0.6159196880000001, 0.5], [0.0, -0.666666667, 0.0, 0.0], [-0.6159196880000001, 0.0, 0.25512228800000003, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 12",
+      "geometry": "geometry.mcrs.block.standing_banner",
+      "texture": "minecraft:entity/banner/banner_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.0, 0.0, -0.666666667, 0.5], [0.0, -0.666666667, 0.0, 0.0], [-0.666666667, 0.0, 0.0, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 12",
+      "geometry": "geometry.mcrs.block.standing_banner.flag",
+      "texture": "minecraft:entity/banner/base",
+      "tint": 10,
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.0, 0.0, -0.666666667, 0.5], [0.0, -0.666666667, 0.0, 0.0], [-0.666666667, 0.0, 0.0, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 13",
+      "geometry": "geometry.mcrs.block.standing_banner",
+      "texture": "minecraft:entity/banner/banner_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.25512228800000003, 0.0, -0.6159196880000001, 0.5], [0.0, -0.666666667, 0.0, 0.0], [-0.6159196880000001, 0.0, -0.25512228800000003, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 13",
+      "geometry": "geometry.mcrs.block.standing_banner.flag",
+      "texture": "minecraft:entity/banner/base",
+      "tint": 10,
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.25512228800000003, 0.0, -0.6159196880000001, 0.5], [0.0, -0.666666667, 0.0, 0.0], [-0.6159196880000001, 0.0, -0.25512228800000003, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 14",
+      "geometry": "geometry.mcrs.block.standing_banner",
+      "texture": "minecraft:entity/banner/banner_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.471404521, 0.0, -0.471404521, 0.5], [0.0, -0.666666667, 0.0, 0.0], [-0.471404521, 0.0, -0.471404521, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 14",
+      "geometry": "geometry.mcrs.block.standing_banner.flag",
+      "texture": "minecraft:entity/banner/base",
+      "tint": 10,
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.471404521, 0.0, -0.471404521, 0.5], [0.0, -0.666666667, 0.0, 0.0], [-0.471404521, 0.0, -0.471404521, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 15",
+      "geometry": "geometry.mcrs.block.standing_banner",
+      "texture": "minecraft:entity/banner/banner_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.6159196880000001, 0.0, -0.25512228800000003, 0.5], [0.0, -0.666666667, 0.0, 0.0], [-0.25512228800000003, 0.0, -0.6159196880000001, 0.5]]
+    },
+    {
+      "when": "q.block_state('rotation') == 15",
+      "geometry": "geometry.mcrs.block.standing_banner.flag",
+      "texture": "minecraft:entity/banner/base",
+      "tint": 10,
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.6159196880000001, 0.0, -0.25512228800000003, 0.5], [0.0, -0.666666667, 0.0, 0.0], [-0.25512228800000003, 0.0, -0.6159196880000001, 0.5]]
+    }
+  ]
+}

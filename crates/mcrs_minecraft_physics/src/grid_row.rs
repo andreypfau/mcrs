@@ -1,8 +1,8 @@
 use glam::DVec3;
-use mcrs_engine_muxer::EntityId;
+use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_entity_key::EntityKey;
 
 use crate::Aabb;
-use crate::BirthKey;
 use crate::GridFlags;
 use crate::PushTargets;
 use crate::TeamSlot;
@@ -15,7 +15,7 @@ pub struct GridRow {
     /// `f32(width / 2)`.
     pub half_width: f32,
     pub height: f32,
-    pub key: BirthKey,
+    pub key: EntityKey,
     pub id: EntityId,
     /// The root of the vehicle tree of the entity; its own id when it rides nothing.
     pub root_vehicle: EntityId,

@@ -6,6 +6,7 @@ use bevy_ecs::system::Res;
 use mcrs_engine_cell::{CellIndex, Placement};
 use tracing::{error, warn};
 
+use crate::assign_global_entity_id::assign_global_entity_id;
 use crate::bus::{InboundPlayerSpawn, OutboundPlayerPacket};
 use crate::cell_mail::CellMailPlugin;
 use crate::command_handoff::CommandHandoff;
@@ -15,11 +16,11 @@ use crate::coordinator::entity_id_ranges::EntityIdRanges;
 use crate::coordinator::running_dimensions::{RunningDimension, RunningDimensions};
 use crate::dim_mail::DimMail;
 use crate::dim_tick::{DimInbox, DimInboxDrain, drain_dim_inbox, inbox_holds_messages};
-use crate::entity_ids::{CellEntityIds, assign_global_entity_id};
 use crate::player_order::{DepartureRequests, OrderedPlayer};
 use crate::player_roster::{ForeignPlayers, OwnPlayers, report_own_players};
 use crate::to_muxer::DimOpened;
 use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
+use mcrs_minecraft_engine_world::entity_ids::CellEntityIds;
 
 use crate::block_simulation::DimensionBlockRules;
 use crate::column_store::ColumnStorePlugin;
@@ -247,7 +248,7 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
             sub_app.insert_resource(save.clone());
         }
         sub_app.insert_resource(
-            host.get_resource::<mcrs_minecraft_environment::world_clock::WorldClocks>()
+            host.get_resource::<mcrs_minecraft_environment::WorldClocks>()
                 .cloned()
                 .unwrap_or_default(),
         );
@@ -277,11 +278,22 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
                 .unwrap_or_default(),
         );
         sub_app.insert_resource(
+            host.get_resource::<mcrs_minecraft_engine_world::game_rules::GameRules>()
+                .cloned()
+                .unwrap_or_default(),
+        );
+        if let Some(pace) = host.get_resource::<mcrs_minecraft_engine_world::tick_pace::TickPace>()
+        {
+            sub_app.insert_resource(pace.clone());
+        }
+        sub_app.insert_resource(
             host.get_resource::<crate::random_tick_speed::RandomTickSpeed>()
                 .copied()
                 .unwrap_or_default(),
         );
-        if let Some(seed) = host.get_resource::<crate::world_seed::WorldSeed>() {
+        if let Some(seed) =
+            host.get_resource::<mcrs_minecraft_engine_world::world_seed::WorldSeed>()
+        {
             sub_app.insert_resource(*seed);
         }
 

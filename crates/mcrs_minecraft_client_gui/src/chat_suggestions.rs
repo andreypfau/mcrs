@@ -7,7 +7,7 @@ use mcrs_minecraft_item::ItemHoverMap;
 use crate::chat::{GRAY, RED};
 use crate::font::{self, Font, Span};
 use crate::item_decorations::WHITE;
-use crate::language::Language;
+use crate::language::ClientLanguage;
 use crate::scene::{GuiQuad, GuiSize};
 use crate::text;
 
@@ -107,14 +107,13 @@ pub(super) fn suggestion_list(
 pub(super) fn hint_lines(
     size: GuiSize,
     font: &Font,
-    language: &Language,
+    language: &ClientLanguage,
     screen: &ChatScreen,
     out: &mut Vec<GuiQuad>,
 ) {
     let commands = &screen.commands;
     let hints = commands.hints();
     let width = |hint: &Hint| match hint {
-        // chisle: an error line builds its spans, with a String each, on every frame it shows; caching them per input lifts it.
         Hint::Error(_) => font.width(&error_spans(commands.input(), hint, language)),
         Hint::Usage(range) => font.str_width(commands.usage_text(range.clone())),
         Hint::Restriction(key) => font.str_width(language.get(key)),
@@ -166,7 +165,7 @@ pub(super) fn hint_lines(
     }
 }
 
-fn error_spans(input: &str, hint: &Hint, language: &Language) -> Vec<Span> {
+fn error_spans(input: &str, hint: &Hint, language: &ClientLanguage) -> Vec<Span> {
     let Hint::Error(error) = hint else {
         return Vec::new();
     };

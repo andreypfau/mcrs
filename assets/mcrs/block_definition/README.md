@@ -5,16 +5,16 @@ Generated from the game's own registries by the `dumpDefinitions` task of
 states. One file per registry block, named after the registry path.
 
 The shape is Bedrock's block definition with three additions under
-`description`: `properties` (Java `StateDefinition` declaration order, values in
-`getPossibleValues()` order), `base_state_id` and `default_state_id`. State ids
+`description`: `properties` (in the order of the game's block-state report, values
+in the order of that report), `base_state_id` and `default_state_id`. State ids
 are contiguous: state `n` of a block is `base_state_id + n`. `protocol_id` is the
-block's index in `BuiltInRegistries.BLOCK`, which is what the network protocol
-names a block by.
+block's index in the `minecraft:block` registry, which is what the network
+protocol names a block by.
 
 ## Deviations from the Bedrock schema
 
 - `minecraft:selection_box` is an array of boxes, not a single object. A Java
-  `VoxelShape` is a union of boxes and splitting the encoding from
+  block shape is a union of boxes and splitting the encoding from
   `minecraft:collision_box` would be worse.
 - `description.properties` values are typed: integer properties are JSON numbers
   and boolean properties are JSON booleans. Molang conditions compare against the
@@ -22,35 +22,35 @@ names a block by.
 - `minecraft:destructible_by_mining.seconds_to_destroy` is a decimal. It is
   documented as an integer, but it states hardness rather than seconds, and
   hardness is fractional for most of the game.
-- `minecraft:movable.movement_type` gains `ignore_entity`, the fifth Java
-  `PushReaction`. No vanilla block uses it, but the enum would otherwise be lossy.
-- `minecraft:instrument_sound` carries the Java `NoteBlockInstrument` name
-  (`harp`) rather than a Bedrock sound alias (`note.harp`). The name selects the
-  sound and also decides whether the instrument is tunable by the note property.
+- `minecraft:movable.movement_type` gains `ignore_entity`, the fifth Java piston
+  reaction. No vanilla block uses it, but the enum would otherwise be lossy.
+- `minecraft:instrument_sound` carries the Java instrument name (`harp`) rather
+  than a Bedrock sound alias (`note.harp`). The name selects the sound and also
+  decides whether the instrument is tunable by the note property.
 - No `minecraft:geometry`. Block models come from the Java resource pack under
   `assets/minecraft/blockstates/`.
 
-## Bedrock components and their Java source
+## Bedrock components and what they state
 
-| Component | Java source |
+| Component | What it states |
 | --- | --- |
-| `minecraft:light_emission` | `BlockState.getLightEmission` |
-| `minecraft:light_dampening` | `BlockState.getLightDampening`, what older versions exposed as `getLightBlock` |
-| `minecraft:friction` | `Block.getFriction` |
-| `minecraft:map_color` | `BlockState.getMapColor` |
-| `minecraft:collision_box` | `BlockState.getCollisionShape` |
-| `minecraft:selection_box` | `BlockState.getShape` |
-| `minecraft:destructible_by_mining` | `BlockState.getDestroySpeed`: `false` for an unbreakable state, `true` for an instant one, `seconds_to_destroy` otherwise |
-| `minecraft:destructible_by_explosion` | `Block.getExplosionResistance` |
-| `minecraft:redstone_conductivity` | `BlockState.isRedstoneConductor` |
-| `minecraft:redstone_producer` | `BlockState.isSignalSource`, `power` from `getOwnSignal`, absent when the state is not a source |
-| `minecraft:movable` | `BlockState.getPistonPushReaction`; `sticky` is slime and honey, as `PistonStructureResolver.isSticky` has them |
-| `minecraft:instrument_sound` | `BlockState.instrument`, under `up` when `worksAboveNoteBlock` and `down` otherwise |
-| `minecraft:replaceable` | `BlockState.canBeReplaced`, absent when the state is not replaceable |
-| `minecraft:flammable` | `BlockState.ignitedByLava` as `lava_flammable`, absent when lava cannot ignite it |
-| `minecraft:block_entity` | `BlockState.hasBlockEntity`, with `container.slot_count` when the block entity is a `Container` |
-| `minecraft:loot` | `Block.getLootTable`, absent when the block has none |
-| `minecraft:placement_filter` | `BlockState.canSurvive`, see below |
+| `minecraft:light_emission` | the light level that the state emits |
+| `minecraft:light_dampening` | the light levels that the state removes from light that passes through it |
+| `minecraft:friction` | the friction of the block |
+| `minecraft:map_color` | the map colour of the state |
+| `minecraft:collision_box` | the collision shape of the state |
+| `minecraft:selection_box` | the outline shape of the state |
+| `minecraft:destructible_by_mining` | the hardness: `false` for an unbreakable state, `true` for an instant one, `seconds_to_destroy` otherwise |
+| `minecraft:destructible_by_explosion` | the explosion resistance of the block |
+| `minecraft:redstone_conductivity` | whether the state conducts redstone power |
+| `minecraft:redstone_producer` | whether the state is a power source, with `power` its own signal; absent when the state is not a source |
+| `minecraft:movable` | how a piston moves the state; `sticky` is slime and honey, the blocks that pull their neighbours |
+| `minecraft:instrument_sound` | the instrument of a note block next to the state, under `up` when the instrument sounds from a note block above it and `down` otherwise |
+| `minecraft:replaceable` | present when placing a block can replace the state |
+| `minecraft:flammable` | `lava_flammable` when lava can set the state on fire; absent otherwise |
+| `minecraft:block_entity` | present when the state has a block entity, with `container.slot_count` when the block entity is a container |
+| `minecraft:loot` | the loot table of the block, absent when the block has none |
+| `minecraft:placement_filter` | the supporting blocks that let the block stay, see below |
 
 A producer whose power lives in its block entity (comparator, sculk sensor)
 reports `power: 0`, which is what it emits with no block entity present.
@@ -60,7 +60,7 @@ tool, asked of the game rather than assumed: a tool family goes in as its tag
 when every item in that tag harvests the state, and anything left over goes in
 by identifier. Stone gets `q.any_tag('minecraft:pickaxes')`; obsidian, which no
 wooden pickaxe harvests, gets the diamond and netherite pickaxes by name. The
-list is absent exactly when `requiresCorrectToolForDrops` is false, and
+list is absent exactly when the state drops its loot without the right tool, and
 `destroy_speed` repeats the hardness because Java applies its harvest bonus as a
 divisor rather than a second hardness.
 
@@ -71,15 +71,14 @@ where it is: one condition whose `allowed_faces` is `up` and whose
 `block_filter` is one block tag. It is derived by asking the game, never
 written by hand.
 
-For each block that overrides `BlockState.canSurvive` the dump calls it on the
+For each block with its own survival test, the dump runs the test on the
 default state with a stand-in level that answers one question, the state of the
 block directly below, and tries every state of every block there. The blocks it
 accepts are the accepted set. A block whose survival test asks the level
 anything else (a fluid, the light, a neighbour, the block above) gets no
 component, and neither does a block whose accepted set is no tag's members;
-nothing is answered with a made-up value. The protected `mayPlaceOn` is not
-called: a class can inherit it and never use it, so only the survival test says
-what the game accepts.
+nothing is answered with a made-up value. Only the survival test says what the
+game accepts.
 
 Several block tags can hold the same members, and equal members do not say
 which tag the game tests. The dump groups the block tags by members on every
@@ -154,48 +153,51 @@ The blocks that carry the component:
 | `minecraft:wildflowers` | `#minecraft:supports_vegetation` |
 | `minecraft:wither_rose` | `#minecraft:supports_wither_rose` |
 
+
 ## What the loader recomputes
 
-Values Java itself derives, or that another asset already states, are not written
-here. The dump asserts the first three identities for every state, so a version
-that breaks one fails the dump instead of the game.
+Values the game itself derives, or that another asset already states, are not
+written here. The dump asserts the first three identities for every state, so a
+version that breaks one fails the dump instead of the game.
 
 | Value | Where it comes from instead |
 | --- | --- |
-| `BlockState.isSolidRender` | `Block.isShapeFullBlock(occlusion shape)` |
-| `BlockState.isCollisionShapeFullBlock` | `Block.isShapeFullBlock(collision shape)` |
-| `BlockState.propagatesSkylightDown` | `light_dampening == 0` |
-| `BlockState.isAir` | the identifier, as Bedrock has it: `air`, `cave_air`, `void_air` |
-| `BlockState.getRenderShape` | the resource pack. Every state Java calls `INVISIBLE` has a model with no elements, and so do the block-entity-rendered blocks it calls `MODEL`, so the model is the authority on what the block draws |
-| `BlockState.hasAnalogOutputSignal` | block behaviour. The flag alone says nothing without `getAnalogOutputSignal`, which is code — container fullness, cake bites, composter level. The container half of it is `minecraft:block_entity.container` |
+| the state is an opaque full cube | the occlusion shape covers the whole block |
+| the collision shape is a full block | the collision shape covers the whole block |
+| sky light passes down through the state | `light_dampening == 0` |
+| the state is air | the identifier, as Bedrock has it: `air`, `cave_air`, `void_air` |
+| how the state is drawn | the resource pack. Every state that the game does not draw has a model with no elements, and so do the blocks that a block-entity renderer draws, so the model is the authority on what the block draws |
+| the state gives a comparator signal | block behaviour. The flag alone says nothing without the signal value, which is code: container fullness, cake bites, composter level. The container half of it is `minecraft:block_entity.container` |
 
 ## `mcrs:` components
 
 What is left is Java data no Bedrock component can carry. Each row states why.
 
-| Component | Java source | Why it has no Bedrock component |
+| Component | What it states | Why it has no Bedrock component |
 | --- | --- | --- |
-| `mcrs:occlusion_shape` | `BlockState.getOcclusionShape` | `minecraft:geometry.culling_shape` names a registered voxel shape definition, and vanilla registers only `minecraft:unit_cube` and `minecraft:empty`. A per-state box union has no name to give |
-| `mcrs:use_shape_for_light_occlusion` | `BlockState.useShapeForLightOcclusion` | `LightEngine.isEmptyShape` reads it to decide whether the occlusion shape counts at all, so it is behaviour and not a hint. Bedrock's light model is one integer per block and has no occlusion shape to switch on |
-| `mcrs:emissive_rendering` | `BlockState.emissiveRendering` | The nearest Bedrock field, `material_instances.face_dimming`, turns off directional shading rather than lighting, and lives in a component that must accompany `minecraft:geometry` |
-| `mcrs:fluid_state` | `BlockState.getFluidState` | `liquid_detection.can_contain_liquid` states that a block *can* be waterlogged. It carries no level, no source flag, and `liquid_type` accepts only water, so lava and flowing water have nowhere to go |
-| `mcrs:experience_drop` | `xpRange` of `DropExperienceBlock` or of `DropExperienceEntityBlock`, encoded by `IntProviders.CODEC` | Bedrock has no experience component at all; its ores drop experience from the loot table's `minecraft:furnace_smelt`-era behaviour rather than a declared range. The value is Java's `IntProvider`, so a constant is a bare integer and anything else is the dispatched object. Absent for a block that is neither: `SpawnerBlock` and `CreakingHeartBlock` compute their amount in code rather than holding a range |
+| `mcrs:occlusion_shape` | the shape that hides the faces of neighbours and blocks light | `minecraft:geometry.culling_shape` names a registered voxel shape definition, and vanilla registers only `minecraft:unit_cube` and `minecraft:empty`. A per-state box union has no name to give |
+| `mcrs:use_shape_for_light_occlusion` | whether the occlusion shape blocks light at all | The light engine reads it to decide whether the occlusion shape counts at all, so it is behaviour and not a hint. Bedrock's light model is one integer per block and has no occlusion shape to switch on |
+| `mcrs:emissive_rendering` | the state is drawn at full brightness | The nearest Bedrock field, `material_instances.face_dimming`, turns off directional shading rather than lighting, and lives in a component that must accompany `minecraft:geometry` |
+| `mcrs:occlusion_shade` | the factor by which the state darkens the corners of the faces next to it | Bedrock has no per-state value for the darkening of corners. Written only when the value differs from 0.2 for a full collision box and 1.0 otherwise |
+| `mcrs:fluid_state` | the fluid in the state | `liquid_detection.can_contain_liquid` states that a block *can* be waterlogged. It carries no level, no source flag, and `liquid_type` accepts only water, so lava and flowing water have nowhere to go |
+| `mcrs:experience_drop` | the experience range that breaking the block drops | Bedrock has no experience component at all; its ores drop experience from the loot table's `minecraft:furnace_smelt`-era behaviour rather than a declared range. The value is an int provider, so a constant is a bare integer and anything else is the dispatched object. Absent for a block without a range: the spawner and the creaking heart compute their amount in code |
 | `mcrs:block_sound_set` | The key of the state's entry in the `minecraft:block_sound_set` registry | `minecraft:sound` names a Bedrock sound group, and Java's sound set names are not Bedrock's. Absent for a block with no sound set: water, lava and bubble column |
 
 ## Java block properties this corpus does not write
 
 Expressible in Bedrock, not yet dumped:
 
-| Java | Bedrock component | Why it is not here yet |
+| Java property | Bedrock component | Why it is not here yet |
 | --- | --- | --- |
-| `Properties.offsetFunction` | `minecraft:random_offset` | Java's offset is continuous and derived from the position hash. Bedrock states `steps` and a range, which has no Java counterpart, and the max offsets are only recoverable by sampling `getOffset` |
-| `Properties.spawnTerrainParticles` | `minecraft:destruction_particles` | A boolean against a particle count; the mapping is `false` to `particle_count: 0` and nothing else, and no reader wants it yet |
-| `Properties.descriptionId` | `minecraft:display_name` | It is `block.<namespace>.<path>` by convention for every vanilla block, so the identifier already states it |
+| the random offset of the model | `minecraft:random_offset` | Java's offset is continuous and derived from the position hash. Bedrock states `steps` and a range, which has no Java counterpart, and the max offsets are only recoverable by sampling the offset |
+| the terrain particles on break | `minecraft:destruction_particles` | A boolean against a particle count; the mapping is `false` to `particle_count: 0` and nothing else, and no reader wants it yet |
+| the translation key | `minecraft:display_name` | It is `block.<namespace>.<path>` by convention for every vanilla block, so the identifier already states it |
 
-No Bedrock component exists for these, and nothing in mcrs reads them yet:
-`speedFactor`, `jumpFactor`, `bounceRestitution`, `fallDistanceReduction`,
-`isSuffocating`, `isViewBlocking`, `isValidSpawn`, `isRandomlyTicking`,
-`postProcess` and `requiredFeatures`.
+No Bedrock component exists for these, and nothing in mcrs reads them yet: the
+speed factor, the jump factor, the bounce, the fall distance reduction, whether
+the state suffocates, whether it blocks the view, whether mobs can spawn on it,
+whether it ticks randomly, whether it needs post-processing, and the features
+that it requires.
 
 ## Permutations
 

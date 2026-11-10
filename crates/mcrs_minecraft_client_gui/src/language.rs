@@ -1,67 +1,46 @@
-use std::collections::HashMap;
-
 use bevy::prelude::Resource;
 
 use crate::font::Span;
-use mcrs_minecraft_model::model::Pack;
+use mcrs_minecraft_lang::{EN_US, Language, Piece};
+use mcrs_minecraft_model::resource_set::ResourceSet;
 
-pub const EN_US: &str = "minecraft/lang/en_us.json";
-
+/// The language of the client: the English translations of the resource pack.
 #[derive(Resource, Debug, Default)]
-pub struct Language(HashMap<String, String>);
+pub struct ClientLanguage(Language);
 
-impl Language {
-    pub fn load(pack: &Pack) -> Result<Self, String> {
-        serde_json::from_slice(pack.read(EN_US)?)
+impl ClientLanguage {
+    pub fn load(pack: &ResourceSet) -> Result<Self, String> {
+        Language::from_json(pack.read(EN_US).map_err(|error| error.to_string())?)
             .map(Self)
             .map_err(|error| format!("{EN_US}: {error}"))
     }
 
     /// Whether the language has a translation for `key`.
     pub fn contains(&self, key: &str) -> bool {
-        self.0.contains_key(key)
+        self.0.contains(key)
     }
 
     /// An untranslated key reads as itself, as it does in vanilla.
     pub fn get<'a>(&'a self, key: &'a str) -> &'a str {
-        self.0.get(key).map_or(key, String::as_str)
+        self.0.get(key)
     }
 
     /// Fills `%s` and `%n$s` with the arguments' spans; the literal text between
     /// them takes `color`.
     pub fn translate(&self, key: &str, color: u32, args: &[Vec<Span>]) -> Vec<Span> {
-        let pattern = self.get(key);
         let mut spans = Vec::new();
         let mut literal = String::new();
-        let mut next_arg = 0;
-        let mut rest = pattern;
-        while let Some(at) = rest.find('%') {
-            literal.push_str(&rest[..at]);
-            rest = &rest[at + 1..];
-            let (index, consumed) = if let Some(after) = rest.strip_prefix('s') {
-                next_arg += 1;
-                (Some(next_arg - 1), rest.len() - after.len())
-            } else if let Some((digits, after)) = rest.split_once("$s")
-                && let Ok(n) = digits.parse::<usize>()
-            {
-                (n.checked_sub(1), rest.len() - after.len())
-            } else if let Some(after) = rest.strip_prefix('%') {
-                literal.push('%');
-                rest = after;
-                continue;
-            } else {
-                literal.push('%');
-                continue;
-            };
-            rest = &rest[consumed..];
-            if !literal.is_empty() {
-                spans.push(Span::new(std::mem::take(&mut literal), color));
+        mcrs_minecraft_lang::fill_pattern(self.get(key), |piece| match piece {
+            Piece::Literal(text) => literal.push_str(text),
+            Piece::Argument(index) => {
+                if !literal.is_empty() {
+                    spans.push(Span::new(std::mem::take(&mut literal), color));
+                }
+                if let Some(arg) = args.get(index) {
+                    spans.extend(arg.iter().cloned());
+                }
             }
-            if let Some(arg) = index.and_then(|index| args.get(index)) {
-                spans.extend(arg.iter().cloned());
-            }
-        }
-        literal.push_str(rest);
+        });
         if !literal.is_empty() {
             spans.push(Span::new(literal, color));
         }
@@ -70,10 +49,10 @@ impl Language {
 }
 
 #[cfg(test)]
-impl Language {
-    pub(crate) fn corpus() -> &'static Language {
-        static LANGUAGE: std::sync::LazyLock<Language> =
-            std::sync::LazyLock::new(|| Language::load(Pack::corpus()).unwrap());
+impl ClientLanguage {
+    pub(crate) fn corpus() -> &'static ClientLanguage {
+        static LANGUAGE: std::sync::LazyLock<ClientLanguage> =
+            std::sync::LazyLock::new(|| ClientLanguage::load(ResourceSet::corpus()).unwrap());
         &LANGUAGE
     }
 }
@@ -92,7 +71,7 @@ mod tests {
         fn a_placeholder_takes_the_argument_spans() {
             let key = vec![Span::new("F4", AQUA)];
             assert_eq!(
-                Language::corpus().translate("debug.gamemodes.select_next", WHITE, &[key]),
+                ClientLanguage::corpus().translate("debug.gamemodes.select_next", WHITE, &[key]),
                 [Span::new("F4", AQUA), Span::new(" Next", WHITE)]
             );
         }
@@ -100,10 +79,9 @@ mod tests {
 
     #[test]
     fn positional_and_escaped_placeholders() {
-        let mut language = Language::default();
-        language
-            .0
-            .insert("k".into(), "%2$s then %1$s at 100%%".into());
+        let language = ClientLanguage(
+            Language::from_json(br#"{"k":"%2$s then %1$s at 100%%"}"#).expect("valid JSON"),
+        );
         assert_eq!(
             language.translate(
                 "k",

@@ -1,0 +1,36 @@
+{
+  "layers": [
+    {
+      "when": "q.block_state('facing') == 'north'",
+      "geometry": "geometry.mcrs.block.chest",
+      "texture": "minecraft:entity/chest/ender",
+      "surface": "cutout",
+      "back_faces": false,
+      "placement": [[-1.0, 0.0, 0.0, 1.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, -1.0, 1.0]]
+    },
+    {
+      "when": "q.block_state('facing') == 'south'",
+      "geometry": "geometry.mcrs.block.chest",
+      "texture": "minecraft:entity/chest/ender",
+      "surface": "cutout",
+      "back_faces": false,
+      "placement": [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]]
+    },
+    {
+      "when": "q.block_state('facing') == 'west'",
+      "geometry": "geometry.mcrs.block.chest",
+      "texture": "minecraft:entity/chest/ender",
+      "surface": "cutout",
+      "back_faces": false,
+      "placement": [[0.0, 0.0, -1.0, 1.0], [0.0, 1.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]]
+    },
+    {
+      "when": "q.block_state('facing') == 'east'",
+      "geometry": "geometry.mcrs.block.chest",
+      "texture": "minecraft:entity/chest/ender",
+      "surface": "cutout",
+      "back_faces": false,
+      "placement": [[0.0, 0.0, 1.0, 0.0], [0.0, 1.0, 0.0, 0.0], [-1.0, 0.0, 0.0, 1.0]]
+    }
+  ]
+}

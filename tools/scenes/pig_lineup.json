@@ -1,0 +1,83 @@
+{
+ "name": "pig_lineup",
+ "description": "Temperate, cold and warm adult pigs, a baby pig and a saddled pig in a row.",
+ "resolution": [
+  854,
+  480
+ ],
+ "world": {
+  "type": "flat_default",
+  "seed": "1",
+  "generate_structures": false,
+  "game_rules": {
+   "advance_time": false,
+   "advance_weather": false,
+   "spawn_mobs": false,
+   "mob_drops": false
+  }
+ },
+ "options": {
+  "fov": "0.0",
+  "fovEffectScale": "0.0",
+  "bobView": "false",
+  "ao": "true",
+  "entityShadows": "false",
+  "renderClouds": "\"false\"",
+  "renderDistance": "5",
+  "gamma": "0.5",
+  "vignette": "false",
+  "entityDistanceScaling": "1.0",
+  "chunkSectionFadeInTime": "0.0",
+  "improvedTransparency": "false",
+  "mipmapLevels": "4"
+ },
+ "script": [
+  {
+   "commands": [
+    "gamerule minecraft:mob_drops false",
+    "time set 6000",
+    "weather clear",
+    "tick freeze"
+   ]
+  },
+  {
+   "wait": 10
+  },
+  {
+   "commands": [
+    "summon minecraft:pig -3.0 -60 0.5 {NoAI:1b,Silent:1b,PersistenceRequired:1b,UUID:[I;0,0,0,1],Rotation:[0f,0f]}",
+    "summon minecraft:pig -1.5 -60 0.5 {NoAI:1b,Silent:1b,PersistenceRequired:1b,UUID:[I;0,0,0,2],Rotation:[0f,0f],variant:\"minecraft:cold\"}",
+    "summon minecraft:pig 0.0 -60 0.5 {NoAI:1b,Silent:1b,PersistenceRequired:1b,UUID:[I;0,0,0,3],Rotation:[0f,0f],variant:\"minecraft:warm\"}",
+    "summon minecraft:pig 1.5 -60 0.5 {NoAI:1b,Silent:1b,PersistenceRequired:1b,UUID:[I;0,0,0,4],Rotation:[0f,0f],Age:-24000}",
+    "summon minecraft:pig 3.0 -60 0.5 {NoAI:1b,Silent:1b,PersistenceRequired:1b,UUID:[I;0,0,0,5],Rotation:[0f,0f],equipment:{saddle:{id:\"minecraft:saddle\",count:1}}}"
+   ]
+  },
+  {
+   "wait": 10
+  },
+  {
+   "capture": "front",
+   "at": {
+    "position": [
+     0.0,
+     -58.8,
+     5.5
+    ],
+    "yaw": 180,
+    "pitch": 15
+   }
+  },
+  {
+   "capture": "oblique",
+   "at": {
+    "position": [
+     4.5,
+     -58.5,
+     4.5
+    ],
+    "yaw": 135,
+    "pitch": 20
+   }
+  }
+ ]
+}

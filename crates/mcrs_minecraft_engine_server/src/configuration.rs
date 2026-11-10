@@ -300,7 +300,6 @@ pub fn request_initial_player_spawn(
         };
         requests.write(JoinRequested {
             session: session.0,
-            saved_birth: saved.as_ref().and_then(|dat| dat.birth),
             saved_dimension: saved.map(|dat| dat.dimension),
             snapshot,
         });

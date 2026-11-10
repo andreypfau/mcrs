@@ -18,7 +18,7 @@ use mcrs_minecraft_protocol_game::serverbound::{
 use crate::bus::{OutboundPlayerPacket, PacketPayload};
 use crate::coordinator::clock::GameTime;
 use crate::teleport::{
-    AcceptOutcome, ClientSine, MAX_XZ, MAX_Y, TeleportState, landing, position_packet, teleport_to,
+    AcceptOutcome, MAX_XZ, MAX_Y, TeleportState, landing, position_packet, teleport_to,
 };
 use mcrs_minecraft_engine_world::session::Owner;
 
@@ -33,7 +33,6 @@ impl Plugin for MovementPlugin {
         app.add_observer(handle_move_vehicle);
         app.add_observer(handle_accept_teleportation);
         app.add_message::<PlayerMovement>();
-        app.init_resource::<ClientSine>();
         app.add_systems(FixedUpdate, process_movement.in_set(TickSet::ClientInput));
         app.add_systems(
             FixedPostUpdate,
@@ -162,7 +161,6 @@ fn resend(owner: &Owner, teleport_id: i32, destination: Transform) -> OutboundPl
 fn teleport(
     mut clients: Query<(&Owner, &mut TeleportState, &Transform), (Changed<Transform>, With<Owner>)>,
     time: Res<GameTime>,
-    sine: Res<ClientSine>,
     mut packet_writer: MessageWriter<OutboundPlayerPacket>,
 ) {
     for (owner, mut state, transform) in &mut clients {
@@ -171,7 +169,7 @@ fn teleport(
             continue;
         }
         let teleport = teleport_to(known, *transform);
-        let destination = landing(&sine.0, known, &teleport);
+        let destination = landing(known, &teleport);
         let teleport_id = state.sent(destination, *time);
         packet_writer.write(
             to(
@@ -220,7 +218,6 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<Messages<OutboundPlayerPacket>>();
         world.init_resource::<GameTime>();
-        world.init_resource::<ClientSine>();
         let moved_session = PlayerSession(1);
         let moved = world
             .spawn((

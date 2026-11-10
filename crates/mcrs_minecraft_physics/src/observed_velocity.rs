@@ -62,7 +62,7 @@ pub fn observed_velocity<W: CollisionWorld, B: BodyView>(
         &[(false, false)]
     };
     let end = Body {
-        position: start.position + observation.displacement,
+        position: start.body.position + observation.displacement,
         flags,
         support: observation.end_support,
         ..Body::default()
@@ -70,11 +70,11 @@ pub fn observed_velocity<W: CollisionWorld, B: BodyView>(
     let efficiency = Some(start.attributes.movement_efficiency as f32);
     let speed = f64::from(speed_factor(view.world, table, &end, efficiency));
     let friction_modifier = start.attributes.friction_modifier as f32;
-    let ground = travel::ground_friction(view, &start.body(), friction_modifier);
+    let ground = travel::ground_friction(view, &start.body, friction_modifier);
     let air_drag = start.attributes.air_drag_modifier as f32;
     let horizontal = f64::from(ground * modifier(0.91, air_drag));
     let vertical_drag = f64::from(modifier(0.98, air_drag));
-    let stuck = start.stuck.length_squared() > 1.0e-7;
+    let stuck = start.body.stuck.length_squared() > 1.0e-7;
     let delta = if stuck {
         DVec3::ZERO
     } else {
@@ -86,7 +86,7 @@ pub fn observed_velocity<W: CollisionWorld, B: BodyView>(
         delta.y
     };
     let moved_vertical = vertical;
-    let climbs = travel::climbable(view, start.position).is_some();
+    let climbs = travel::climbable(view, start.body.position).is_some();
     if !stuck && climbs && (flags.horizontal_collision || observation.jump) {
         vertical = 0.2;
     }

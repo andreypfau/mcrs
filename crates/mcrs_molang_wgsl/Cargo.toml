@@ -1,0 +1,32 @@
+[package]
+name = "mcrs_molang_wgsl"
+description = "Lowering of pure Molang channels to WGSL and the WGSL math library"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_molang.workspace = true
+
+[dev-dependencies]
+bytemuck.workspace = true
+futures-lite.workspace = true
+libm = { workspace = true, features = ["arch"] }
+naga = { workspace = true, features = ["wgsl-in"] }
+proptest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+wgpu = { workspace = true, features = ["wgsl"] }
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+wgpu = { workspace = true, features = ["metal"] }
+
+[[bench]]
+name = "gpu"
+harness = false

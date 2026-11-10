@@ -774,3 +774,21 @@ cd tools/vanilla-oracle
 The task fails without `-Pgolden` and `-PgoldenIn`. The new file is written to
 `<dir>` under the name of the current file. `recapture <name>` fills in all
 three properties and puts the file back in place.
+
+# Client frames
+
+The subproject `client-capture` is a client mod. It runs each scene of `tools/scenes/` in the
+vanilla client through the Fabric client game test runner, and writes a PNG image and a record
+for each frame. `docs/spec/client-frame-capture.md` states the scene format, the record and
+the comparison. For each scene it also writes `<scene>.packets.json`, the entity packets that
+the client applied, and `<scene>.entity_ticks.json`, the state of each entity after each entity
+update. Two mixins record them on the client thread. `docs/spec/client-entities.md`, section
+0.2, states their keys.
+
+```sh
+./gradlew captureClientFrames -PoracleOut=/tmp/frames            # all scenes
+./gradlew captureClientFrames -PoracleOut=/tmp/frames -Pscene=pig_walk
+```
+
+The task opens a game window and takes about one minute for each scene. The fixture
+`client_frames` copies the output to `crates/mcrs_minecraft_client/tests/fixtures/vanilla/frames/`.

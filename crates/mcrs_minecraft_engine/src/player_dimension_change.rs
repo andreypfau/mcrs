@@ -91,7 +91,11 @@ fn depart(
     if let Some((tile, id, mode)) = listed
         && let Some(mut events) = world.get_resource_mut::<TileEvents>()
     {
-        events.push(tile, id, EntityEvent::Data(PlayerData::GameMode(mode)));
+        events.push(
+            tile,
+            id,
+            EntityEvent::Data(PlayerData::GameMode(mode).into()),
+        );
     }
     world.despawn(player);
     Ok(Departure {

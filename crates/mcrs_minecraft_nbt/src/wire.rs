@@ -20,9 +20,7 @@ fn rest_after(r: &[u8], position: u64) -> Result<&[u8]> {
 impl Encode for NbtCompound {
     fn encode(&self, mut w: impl Write) -> Result<()> {
         let mut writer = WriteAdaptor::new(&mut w);
-        writer
-            .write_u8_be(crate::COMPOUND_ID)
-            .map_err(Error::other)?;
+        writer.write_u8(crate::COMPOUND_ID).map_err(Error::other)?;
         self.serialize_content(&mut writer).map_err(Error::other)
     }
 }

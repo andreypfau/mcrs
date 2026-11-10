@@ -5,14 +5,12 @@ use mcrs_minecraft_engine_world::entity::physics::{
 };
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::ClientConnection;
-use mcrs_minecraft_physics::{
-    PlayerRotation, PlayerState, Relative, SineTable, Teleport, apply_teleport,
-};
+use mcrs_minecraft_physics::{Orientation, PlayerState, Relative, Teleport, apply_teleport};
 use mcrs_minecraft_protocol::{VarInt, WritePacket};
 use mcrs_minecraft_protocol_game::MoveFlags;
 use mcrs_minecraft_protocol_game::serverbound::{
-    ServerboundAcceptTeleportation, ServerboundMovePlayerPos, ServerboundMovePlayerPosRot,
-    ServerboundMovePlayerRot,
+    ServerboundAcceptTeleportation, ServerboundClientTickEnd, ServerboundMovePlayerPos,
+    ServerboundMovePlayerPosRot, ServerboundMovePlayerRot,
 };
 
 use crate::movement_input::MovementInput;
@@ -49,19 +47,27 @@ enum MovePacket {
 }
 
 /// What the server was last told, which is what this tick's position and look
-/// are judged against.
+/// are judged against. Empty until the first teleport is accepted: a vanilla
+/// server disconnects a client that moves before the server has placed it.
 #[derive(Component, Debug, Clone, Copy, Default)]
-pub struct LastSentMovement {
+pub struct LastSentMovement(Option<SentMovement>);
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct SentMovement {
     position: DVec3,
     rotation: Rotation,
 }
 
 impl LastSentMovement {
+    fn place(&mut self, position: DVec3, rotation: Rotation) {
+        self.0 = Some(SentMovement { position, rotation });
+    }
+
     fn tick(&mut self, position: DVec3, rotation: Rotation) -> Option<MovePacket> {
-        let moved = position != self.position;
-        let turned = rotation != self.rotation;
-        self.position = position;
-        self.rotation = rotation;
+        let last = self.0.as_mut()?;
+        let moved = position != last.position;
+        let turned = rotation != last.rotation;
+        *last = SentMovement { position, rotation };
         match (moved, turned) {
             (true, true) => Some(MovePacket::PosRot),
             (true, false) => Some(MovePacket::Pos),
@@ -82,10 +88,6 @@ pub struct LookOverride {
 #[derive(Resource, Clone, Copy)]
 pub struct PositionOverride(pub DVec3);
 
-/// The sine table that rotates the velocity of a teleport.
-#[derive(Resource, Clone, Debug, Default)]
-pub struct ClientSine(pub SineTable);
-
 /// One tick of local-player movement.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LocalPlayerTick;
@@ -97,31 +99,25 @@ impl Plugin for LocalPlayerPlugin {
         if !app.is_plugin_added::<PlayerViewPlugin>() {
             app.add_plugins(PlayerViewPlugin);
         }
-        app.init_resource::<MovementInput>()
-            .init_resource::<ClientSine>()
-            .add_systems(
-                FixedUpdate,
-                (
-                    accept_teleports.before(LocalPlayerTick),
-                    (capture_old_transform, fly).chain().in_set(LocalPlayerTick),
-                    send_movement.after(LocalPlayerTick),
-                ),
-            );
+        app.init_resource::<MovementInput>().add_systems(
+            FixedUpdate,
+            (
+                accept_teleports.before(LocalPlayerTick),
+                (capture_old_transform, fly).chain().in_set(LocalPlayerTick),
+                send_movement.after(LocalPlayerTick),
+            ),
+        );
     }
 }
 
 fn apply_server_teleport(
-    sine: &SineTable,
     transform: &mut PhysicsTransform,
     velocity: &mut Velocity,
     teleport: &ServerTeleport,
 ) {
     let mut state = PlayerState::new(transform.translation);
-    state.velocity = velocity.0;
-    let mut rotation = PlayerRotation {
-        yaw: transform.rotation.yaw(),
-        pitch: transform.rotation.pitch(),
-    };
+    state.body.velocity = velocity.0;
+    let mut rotation = Orientation::facing(transform.rotation.yaw(), transform.rotation.pitch());
     let packet = Teleport {
         position: teleport.position,
         velocity: teleport.velocity,
@@ -129,31 +125,30 @@ fn apply_server_teleport(
         pitch: teleport.look.pitch,
         relative: Relative::from_bits_truncate(teleport.flags.bits()),
     };
-    apply_teleport(sine, &mut state, &mut rotation, &packet);
-    transform.translation = state.position;
+    apply_teleport(&mut state, &mut rotation, &packet);
+    transform.translation = state.body.position;
     transform.rotation = Rotation::new(rotation.yaw, rotation.pitch);
-    velocity.0 = state.velocity;
+    velocity.0 = state.body.velocity;
 }
 
 /// Moves to where the server says, then confirms with the position that move
 /// landed on.
 fn accept_teleports(
     mut commands: Commands,
-    player: Single<(&mut PhysicsTransform, &mut Velocity), With<Player>>,
+    player: Single<(&mut PhysicsTransform, &mut Velocity, &mut LastSentMovement), With<Player>>,
     connection: Option<Single<(&mut ClientConnection, &mut PendingTeleports)>>,
     look: Option<Res<LookOverride>>,
     position: Option<Res<PositionOverride>>,
-    sine: Res<ClientSine>,
 ) {
     let Some(connection) = connection else { return };
     let (mut connection, mut pending) = connection.into_inner();
     if pending.0.is_empty() {
         return;
     }
-    let (mut transform, mut velocity) = player.into_inner();
+    let (mut transform, mut velocity, mut last_sent) = player.into_inner();
     let mut position = position.map(|position| position.0);
     for teleport in pending.0.drain(..) {
-        apply_server_teleport(&sine.0, &mut transform, &mut velocity, &teleport);
+        apply_server_teleport(&mut transform, &mut velocity, &teleport);
         if teleport.flags.is_empty() {
             if let Some(position) = position.take() {
                 transform.translation = position;
@@ -170,6 +165,7 @@ fn accept_teleports(
             position: transform.translation.into(),
             look: transform.rotation.into(),
         });
+        last_sent.place(transform.translation, transform.rotation);
     }
 }
 
@@ -189,21 +185,22 @@ fn send_movement(
     // Flying never touches the ground and never collides, so both flags stay
     // clear until the client grows a collision step.
     let flags = MoveFlags::new();
-    let Some(packet) = last_sent.tick(transform.translation, transform.rotation) else {
-        return;
-    };
-
-    let position = transform.translation.into();
-    let look = transform.rotation.into();
-    match packet {
-        MovePacket::PosRot => connection.write_packet(&ServerboundMovePlayerPosRot {
-            position,
-            look,
-            flags,
-        }),
-        MovePacket::Pos => connection.write_packet(&ServerboundMovePlayerPos { position, flags }),
-        MovePacket::Rot => connection.write_packet(&ServerboundMovePlayerRot { look, flags }),
+    if let Some(packet) = last_sent.tick(transform.translation, transform.rotation) {
+        let position = transform.translation.into();
+        let look = transform.rotation.into();
+        match packet {
+            MovePacket::PosRot => connection.write_packet(&ServerboundMovePlayerPosRot {
+                position,
+                look,
+                flags,
+            }),
+            MovePacket::Pos => {
+                connection.write_packet(&ServerboundMovePlayerPos { position, flags })
+            }
+            MovePacket::Rot => connection.write_packet(&ServerboundMovePlayerRot { look, flags }),
+        }
     }
+    connection.write_packet(&ServerboundClientTickEnd);
 }
 
 fn capture_old_transform(player: Single<(&PhysicsTransform, &mut OldTransform), With<Player>>) {
@@ -251,6 +248,28 @@ mod tests {
     use mcrs_minecraft_protocol_game::PositionFlag;
 
     #[test]
+    fn no_move_is_sent_before_the_first_accepted_teleport() {
+        let mut last_sent = LastSentMovement::default();
+        let rotation = Rotation::new(0.0, 0.0);
+        assert!(
+            last_sent
+                .tick(DVec3::new(0.5, 80.0, 0.5), rotation)
+                .is_none()
+        );
+
+        last_sent.place(DVec3::new(0.5, -60.0, 5.5), rotation);
+        assert!(
+            last_sent
+                .tick(DVec3::new(0.5, -60.0, 5.5), rotation)
+                .is_none()
+        );
+        assert!(matches!(
+            last_sent.tick(DVec3::new(0.5, -60.0, 6.5), rotation),
+            Some(MovePacket::Pos)
+        ));
+    }
+
+    #[test]
     fn forward_moves_along_the_horizontal_look_direction() {
         let forward = MovementInput {
             forward: true,
@@ -282,7 +301,7 @@ mod tests {
             rotation: Rotation::new(45.0, 10.0),
         };
         let mut velocity = Velocity(DVec3::new(1.0, 0.0, -1.0));
-        apply_server_teleport(&SineTable::new(), &mut transform, &mut velocity, teleport);
+        apply_server_teleport(&mut transform, &mut velocity, teleport);
         (transform, velocity)
     }
 

@@ -34,6 +34,30 @@ impl BlockPos {
     pub const fn as_ivec3(self) -> IVec3 {
         self.0
     }
+
+    #[must_use]
+    pub const fn offset(self, dx: i32, dy: i32, dz: i32) -> Self {
+        Self::new(
+            self.0.x.wrapping_add(dx),
+            self.0.y.wrapping_add(dy),
+            self.0.z.wrapping_add(dz),
+        )
+    }
+
+    #[must_use]
+    pub const fn below(self) -> Self {
+        self.offset(0, -1, 0)
+    }
+
+    /// The centre of the bottom face.
+    #[must_use]
+    pub fn bottom_centre(self) -> DVec3 {
+        DVec3::new(
+            f64::from(self.0.x) + 0.5,
+            f64::from(self.0.y),
+            f64::from(self.0.z) + 0.5,
+        )
+    }
 }
 
 impl Add<IVec3> for BlockPos {

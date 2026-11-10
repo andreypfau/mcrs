@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 #![expect(
     clippy::expect_used,
     clippy::indexing_slicing,
@@ -42,9 +43,12 @@ mod entity_replication;
 mod epoch_round_trip;
 mod host_app;
 mod host_subapp_handoff;
+mod hostile_commands;
 mod light_engine_e2e;
 mod login_handshake_e2e;
 mod login_profile;
+mod mob_ai;
+mod mob_replication;
 #[path = "common/mock_connection.rs"]
 mod mock_connection;
 mod op_level;

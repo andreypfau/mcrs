@@ -78,7 +78,7 @@ impl DimensionView<'_, '_> {
     }
 
     /// The column holds every section of its height, each at the loaded stage.
-    // chisle: a loaded chunk and a ticking chunk are the same test: the dimension has no
+    // A loaded chunk and a ticking chunk are the same test: the dimension has no
     // chunk levels for entity ticking yet. A ticking stage of the column lifts it.
     pub(crate) fn loaded(&self, x: i32, z: i32) -> bool {
         self.column(x, z).is_some_and(|column| {
@@ -115,8 +115,6 @@ impl DimensionView<'_, '_> {
         blocks.get_cell(local(x)?, local(y)?, local(z)?)
     }
 
-    // chisle: a linear scan of the block entities of one section; an index by position in the
-    // section lifts it.
     pub(crate) fn block_entity(&self, pos: [i32; 3]) -> Option<&GeneratedBlockEntity> {
         let section = self.section(pos)?;
         let [x, y, z] = pos;

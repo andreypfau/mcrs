@@ -11,6 +11,9 @@
     CORNERS_PER_QUAD, MODEL_WORDS_PER_VERTEX, face_normal, greedy_corner, model_position,
 }
 #import mcrs_minecraft_client::section::{SectionDesc, section_origin}
+#import mcrs_minecraft_client::visibility::{
+    Footprint, box_outside, cover, empty_footprint, occluded,
+}
 
 struct Group {
     quad_base: u32,
@@ -69,13 +72,7 @@ var<workgroup> shown_word: atomic<u32>;
 
 fn in_frustum(mn: vec3<f32>, mx: vec3<f32>) -> bool {
     for (var i = 0u; i < 5u; i = i + 1u) {
-        let plane = camera.frustum[i];
-        let corner = vec3<f32>(
-            select(mn.x, mx.x, plane.x > 0.0),
-            select(mn.y, mx.y, plane.y > 0.0),
-            select(mn.z, mx.z, plane.z > 0.0),
-        );
-        if (dot(plane.xyz, corner) + plane.w <= 0.0) {
+        if (box_outside(camera.frustum[i], mn, mx)) {
             return false;
         }
     }
@@ -162,19 +159,6 @@ fn cull_sections(
     }
 }
 
-/// Where a shape lands on the screen: its box in normalised device coordinates and its nearest
-/// depth, or `in_front` false when a corner lies behind the camera and no box can be drawn.
-struct Footprint {
-    lo: vec2<f32>,
-    hi: vec2<f32>,
-    nearest: f32,
-    in_front: bool,
-}
-
-fn empty_footprint() -> Footprint {
-    return Footprint(vec2<f32>(1e30), vec2<f32>(-1e30), 0.0, true);
-}
-
 const MODEL_BIAS_CONSTANT: f32 = #{MODEL_BIAS_CONSTANT};
 /// A shader def holds no float, so the slope scale comes as its bits.
 const MODEL_BIAS_SLOPE_BITS: u32 = #{MODEL_BIAS_SLOPE_BITS}u;
@@ -196,59 +180,17 @@ fn depth_slope(a: vec3<f32>, b: vec3<f32>, c: vec3<f32>) -> f32 {
     return max(abs(dz1 * e2.y - dz2 * e1.y), abs(e1.x * dz2 - e2.x * dz1)) / abs(det);
 }
 
-fn cover(footprint: ptr<function, Footprint>, corner: vec3<f32>) {
-    let clip = camera.clip_from_relative * vec4<f32>(corner, 1.0);
-    if (clip.w <= 0.0) {
-        (*footprint).in_front = false;
-        return;
-    }
-    let ndc = clip.xyz / clip.w;
-    (*footprint).lo = min((*footprint).lo, ndc.xy);
-    (*footprint).hi = max((*footprint).hi, ndc.xy);
-    (*footprint).nearest = max((*footprint).nearest, ndc.z);
-}
-
-/// The pyramid halves each level and hands an odd leftover row or column to its last texel, so a
-/// pixel lies under texel `min(pixel >> (level + 1), size - 1)` of a level. Scaling a coordinate by
-/// a level's size instead drifts off that by up to a texel, and reads a texel beside the box.
-fn farthest_under(pyramid: texture_2d<f32>, lo: vec2<f32>, hi: vec2<f32>) -> f32 {
-    let uv_lo = vec2<f32>(lo.x, -hi.y) * 0.5 + 0.5;
-    let uv_hi = vec2<f32>(hi.x, -lo.y) * 0.5 + 0.5;
-    let pixels = vec2<u32>(camera.viewport);
-    let base = textureDimensions(pyramid, 0);
-    let b_lo = min(min(vec2<u32>(uv_lo * camera.viewport), pixels - 1u) >> vec2<u32>(1u), base - 1u);
-    let b_hi = min(min(vec2<u32>(uv_hi * camera.viewport), pixels - 1u) >> vec2<u32>(1u), base - 1u);
-    let extent = b_hi - b_lo + 1u;
-    let level = min(u32(ceil(log2(f32(max(extent.x, extent.y))))), camera.hiz_levels - 1u);
-    let last = textureDimensions(pyramid, level) - vec2<u32>(1u);
-    let t_lo = min(b_lo >> vec2<u32>(level), last);
-    let t_hi = min(b_hi >> vec2<u32>(level), last);
-    var farthest = 1.0;
-    for (var y = t_lo.y; y <= t_hi.y; y = y + 1u) {
-        for (var x = t_lo.x; x <= t_hi.x; x = x + 1u) {
-            farthest = min(farthest, textureLoad(pyramid, vec2<u32>(x, y), level).r);
-        }
-    }
-    return farthest;
-}
-
-/// Whether the pyramid holds something nearer than every point of the footprint over the whole of
-/// it. A shape reaching behind the camera or past the edge of the screen is never hidden: what
-/// the pyramid does not cover says nothing about it.
 fn hidden_in(pyramid: texture_2d<f32>, footprint: Footprint) -> bool {
-    if (camera.hiz_levels == 0u || !footprint.in_front) {
+    if (camera.hiz_levels == 0u) {
         return false;
     }
-    if (any(footprint.lo < vec2<f32>(-1.0)) || any(footprint.hi > vec2<f32>(1.0))) {
-        return false;
-    }
-    return footprint.nearest < farthest_under(pyramid, footprint.lo, footprint.hi);
+    return occluded(pyramid, camera.viewport, camera.hiz_levels, footprint);
 }
 
 fn box_footprint(mn: vec3<f32>, mx: vec3<f32>) -> Footprint {
     var footprint = empty_footprint();
     for (var i = 0u; i < 8u; i = i + 1u) {
-        cover(&footprint, vec3<f32>(
+        cover(&footprint, camera.clip_from_relative, vec3<f32>(
             select(mn.x, mx.x, (i & 1u) != 0u),
             select(mn.y, mx.y, (i & 2u) != 0u),
             select(mn.z, mx.z, (i & 4u) != 0u),

@@ -90,13 +90,16 @@ This document states:
 - the add of a mob by the `summon` command, and the add and the removal of a mob by another system;
 - the `summon` command with the forms that section 3 lists;
 - the replication of each entity that is not a player: tracking range, spawn bundle, entity data
-  of the base entries and of the zombified piglin, updates, head rotation and removal.
+  of the base entries, of the zombified piglin and of the four farm animals of `mob-animals.md`,
+  updates, head rotation and removal;
+- the type data, the entity data and the `summon` keys of the pig, the cow, the sheep and the
+  chicken. `mob-animals.md` (ANIM) states their behaviour.
 
 These subjects are out of scope:
 
 | Subject | Reason |
 |---------|--------|
-| The first spawn setup of a type (equipment, baby, left hand, random attribute bonuses) | `natural-spawning.md` states it for natural spawns and for `summon`. TRK-DEV-001 records the gap until then. |
+| The first spawn setup of a type (equipment, baby, left hand, random attribute bonuses) | `natural-spawning.md` states it for natural spawns and for `summon`. TRK-DEV-001 records the gap until then. `mob-animals.md`, ANIM-SPAWN-001, states it for the four farm animals. |
 | Keys of the `nbt` argument of `summon` | No step of `gold-farm.md` needs them. TRK-DEV-002 records the rejection. |
 | Health changes, damage, death and the death animation | `entity-damage.md`. TRK-LIFE-004 states only the removal. |
 | AI, goals, look control and head turns of a mob | `mob-goals.md`. This document sends the rotations that the row holds. |
@@ -104,7 +107,8 @@ These subjects are out of scope:
 | The entity data of an item entity | PHY-CMP-026. Section 6 keeps the model general. |
 | Passengers, leashes, minecarts on rails, projectiles, item frames | No mob of the farm uses them. Their packets have hooks in TRK-SPN-001 and TRK-UPD-002. |
 | Teams and the team colour of a name | No team exists in the server. |
-| The removal of a mob by a command (`kill`, `tp` of a mob), and mobs as targets of a selector | No step of `gold-farm.md` needs them. In G1 an entity selector (`@e`, `@n`) finds only players. |
+| The kill of a mob by a command, and mobs as targets of a selector | `command-kill.md` states `kill`. A kill of a mob is a hit and a death (`entity-damage.md`), not a removal request (TRK-LIFE-004). `argument-entity.md`, ARG-ENT-013, states how a selector finds mobs. In G1 an entity selector (`@e`, `@n`) finds only players. |
+| The move of a mob by `tp` | `command-teleport.md` states it. No step of `gold-farm.md` needs it. |
 | The difficulty of a world | The server has no difficulty state. TRK-DEV-003 records the peaceful check of `summon`. |
 | The on-ground flag of the moves of a player subject | `replication.md` owns the player codec. Section 12, U4, records the gap. |
 
@@ -138,11 +142,22 @@ the zombified piglin.
 |------|---------|----------|----------------|------------|-------|----------|
 | `minecraft:zombified_piglin` | 160 | walker | `0.6F × 1.95F`, scalable | `1.79F` | 8 | 3 |
 | `minecraft:player` | (registry) | player | `0.6F × 1.8F` | `1.62F` | 32 | 2 |
+| `minecraft:pig` | 103 | walker | `0.9F × 0.9F`, scalable | `0.765F` | 10 | 3 |
+| `minecraft:cow` | 30 | walker | `0.9F × 1.4F`, scalable | `1.3F` | 10 | 3 |
+| `minecraft:sheep` | 116 | walker | `0.9F × 1.3F`, scalable | `1.235F` | 10 | 3 |
+| `minecraft:chicken` | 26 | walker | `0.4F × 0.7F`, scalable | `0.644F` | 10 | 3 |
 
 The player is not summonable. The motion row of the zombified piglin is
 `MotionRow::living(Category::Walker, ..)` with these dimensions; its step height is the default
 0.6. A baby zombified piglin has the dimensions `0.49F × 0.98F` and the
 eye height `0.78F`. G1 makes no baby (TRK-DEV-001).
+
+The four farm animals are summonable and are not fire immune. Their step height is the default
+0.6, and their base `armor` is 0. A baby animal has the dimensions of `mob-animals.md`,
+ANIM-TYPE-001, not the adult dimensions times an age scale. The type artefact
+(`crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_types.json`) confirms the width, the
+height, the eye height, the range and the interval of the four types. The wire ids come from
+`assets/mcrs/reports/registries.json`.
 
 **TRK-TYPE-003** (`source_suggested_black_box_confirmed`, client agreement, confidence: high).
 The default attributes of a zombified piglin are the attributes of a living entity with their
@@ -170,6 +185,20 @@ piglin differs from the attribute
 default (0.7). In this document, "the base of the type" is the value of this table, and "the
 attribute default" is the default of the attribute itself.
 
+**TRK-TYPE-004** (`source_suggested_black_box_confirmed`, client agreement, confidence: high). The
+default attributes of the four farm animals are the attributes of a living entity with their
+attribute defaults, and these values:
+
+| Attribute | `pig` | `cow` | `sheep` | `chicken` |
+|-----------|-------|-------|---------|-----------|
+| `max_health` | 10 | 10 | 8 | 4 |
+| `movement_speed` | 0.25 | `0.2F`, widened: `0.20000000298023224` | `0.23F`, widened: `0.23000000417232513` | 0.25 |
+| `follow_range` | 16 | 16 | 16 | 16 |
+| `tempt_range` | 10 | 10 | 10 | 10 |
+
+`tempt_range` is not syncable. ANIM-E2 of `mob-animals.md` shows `movement_speed` 0.25 and
+`follow_range` 16 in the save of a pig.
+
 ## 2. The life cycle of a mob
 
 **TRK-LIFE-001** (`source_suggested`, semantic, confidence: high). A mob is a row of the entity
@@ -177,7 +206,7 @@ pass of its dimension world. The row has:
 
 - the motion row of the type: the category, the dimensions and the step height of TRK-TYPE-001;
 - the living state with the default attributes of TRK-TYPE-003;
-- the birth key of PHY-CMP-013 and the UUID of PHY-CMP-024;
+- the UUID of PHY-CMP-013, which is also its order key;
 - a network id from the ids of the cell;
 - the yaw of `Living`, as raw f32 degrees.
 
@@ -185,24 +214,26 @@ The cold state of the mob holds only its entity type. In G1 each entity data val
 function of its type (TRK-DATA-003), so G1 stores no entity data value. From G2, the row is the
 authority for the health and the dying state (DMG-DTH-005): the entries 6 (pose) and 9 (health)
 come from the row, never from the cold state. In G1 the pitch and the
-head yaw of a mob are 0 and have no storage; `mob-goals.md` adds them with the look control. The
+head yaw of a mob are 0 and have no storage; `mob-goals.md` adds them with the look control
+(GOAL-CTL-001, GOAL-CTL-004, GOAL-CTL-009). The
 walker tick of PHY-ORD-002 moves the mob in each tick. Until `mob-goals.md` gives the mob an AI, the mob has no
 steering: its input vector is zero and it does not jump.
 
 **TRK-LIFE-002** (`source_suggested`, semantic, confidence: medium). A spawn request has the
-type, the position, the rotation, the velocity, the source of the birth key and the entity data
+type, the position, the rotation, the velocity, the UUID and the entity data
 values that differ from the defaults. These systems make spawn requests:
 
 - the `summon` command (section 3), with the birth source of the kind `command` and the command
-  sequence of PHY-CMP-013. The command sequence is the index of the effect of the command in the
-  command effect buffer of the world in the tick, from 0. The command computes the birth key from
-  the birth clock and this sequence when it runs, and the UUID as `birth_uuid(key, None)`. Thus the
-  success message of TRK-SUM-004 has the UUID, and the spawn request carries the key and the UUID;
+  sequence of PHY-CMP-013. The source key is the block of the spawn point, then the block of the
+  command source. The sequence numbers the summons of that pair in the tick, from 0. A summon
+  without a `UUID` key computes a new UUID from the world seed, the dimension key, the birth clock,
+  this source key and this sequence when it runs (PHY-CMP-013). Thus
+  the success message of TRK-SUM-004 has the UUID, and the spawn request carries it;
 - natural spawning (`natural-spawning.md`), with the birth source of the kind `spawn`;
 - any later system that adds a mob, with the birth source that PHY-CMP-013 gives it.
 
-The life cycle of `DomainInput` applies the spawn requests of the tick in the order of their birth
-keys (`physics-architecture.md`, section 3.9). The command effects apply in `DomainInput` before
+The life cycle of `DomainInput` applies the spawn requests of the tick in the order of their
+UUIDs (`physics-architecture.md`, section 3.9). The command effects apply in `DomainInput` before
 the life cycle, so the new row ticks first in the `Simulate` of the same tick.
 
 **TRK-LIFE-003** (`black_box_confirmed`, semantic, confidence: high). A new mob of a spawn request
@@ -250,11 +281,11 @@ for `<entity>`.
    fail with `commands.summon.failed.peaceful`. G1 skips this step (TRK-DEV-003).
 4. Let `setup` be true when the `<nbt>` node is absent, and false when it is present. Check the
    compound with TRK-SUM-003.
-5. Compute the birth key and the UUID (TRK-LIFE-002). Make a spawn request of `type` at `pos` in
+5. Compute the UUID (TRK-LIFE-002). Make a spawn request of `type` at `pos` in
    the source dimension, with no rotation. When `setup` is true, the mob also gets the first spawn
    setup of its type.
 6. If an entity with the same UUID exists in the dimension, fail with
-   `commands.summon.failed.uuid`. A UUID of PHY-CMP-024 cannot collide in practice, so G1 does not
+   `commands.summon.failed.uuid`. A new UUID of PHY-CMP-013 cannot collide in practice, so G1 does not
    implement this step.
 7. Send the success message of TRK-SUM-004. The result is 1.
 
@@ -264,8 +295,50 @@ types of TRK-TYPE-002 that are summonable; another type fails with `commands.sum
 to 6 with `pos` from the source and `setup` true.
 
 **TRK-SUM-003** (`source_suggested`, semantic, confidence: medium). The compound of `<nbt>` can
-hold no key. A compound with a key fails with `commands.summon.failed`. TRK-DEV-002 records this.
-The empty compound `{}` makes the mob without the first spawn setup.
+hold no key, except the keys of TRK-SUM-005 for the types that it names. A compound with another
+key fails with `commands.summon.failed`. TRK-DEV-002 records this. The empty compound `{}` makes the
+mob without the first spawn setup. A compound with a key also makes the mob without the first spawn
+setup.
+
+**TRK-SUM-005** (`source_suggested_black_box_confirmed`, semantic, confidence: medium). For the
+types `pig`, `cow`, `sheep` and `chicken`, the compound of `<nbt>` can hold these keys. The values
+have the meaning of `mob-animals.md`, ANIM-SAVE-002.
+
+| Key | Tag | Types | Effect |
+|-----|-----|-------|--------|
+| `NoAI` | byte | each | the mob flag "no AI" (index 15, bit 0) |
+| `Rotation` | list of two f32: yaw, pitch | each | the yaw, the body yaw and the head yaw take the first value; the pitch takes the second |
+| `PersistenceRequired` | byte | each | ANIM-SAVE-001 |
+| `Age` | int | each | the age; a negative value makes a baby |
+| `AgeLocked` | byte | each | the age lock |
+| `InLove` | int | each | the love time |
+| `variant` | string, an identifier | `pig`, `cow`, `chicken` | the variant |
+| `sound_variant` | string, an identifier | `pig`, `cow`, `chicken` | the sound variant |
+| `Color` | byte, from 0 to 15 | `sheep` | the wool colour |
+| `Sheared` | byte | `sheep` | the sheared state |
+| `EggLayTime` | int | `chicken` | the egg timer |
+| `equipment` | compound with only the key `saddle`, whose value is `{id:"minecraft:saddle"}` | `pig` | the saddle, with the default drop chance |
+
+A value with the wrong tag, or an identifier that is not in its registry, does not change the
+default, as in the reference. A spawn request then carries the entity data values that differ from
+the defaults (TRK-LIFE-002). ANIM-E1 to ANIM-E8 of `mob-animals.md` use these keys on a vanilla
+server.
+
+**TRK-SUM-007** (`source_suggested_black_box_confirmed`, semantic, confidence: high). A mob of
+`summon` has the idle time 0 (`mob-goals.md`, GOAL-STR-004). No key of TRK-SUM-005 sets the idle
+time, and no key stops its increase, except `NoAI:1b`, which stops the AI. These are the effects
+of the key `PersistenceRequired:1b` on a farm animal:
+
+- The save holds the key with the value true.
+- The mob skips the removal steps of the despawn check (AIT-VAN-020). An animal is not removed by
+  these steps without the key either (`mob-animals.md`, ANIM-SAVE-001).
+- The goals, the idle time, the entity data, the spawn bundle and the tracking do not change. The
+  AI work in each tick does not change.
+
+Thus a pig with `PersistenceRequired:1b` stops its strolls after AI step 99 when no non-spectator
+player is near, as a pig without the key does. A benchmark summons each pig with the compound `{}`.
+The compound skips the first spawn setup, so the pig is an adult of the default variant.
+`mob-goals.md`, GOAL-WAKE-019 and GOAL-WAKE-020, state the motion and the reset of the idle time.
 
 **TRK-SUM-004** (`source_suggested`, semantic, confidence: high). The success message is
 `commands.summon.success`, with the display name of the new entity, as a success message with the
@@ -280,11 +353,39 @@ broadcast flag set. The display name of a mob without a custom name is:
 Experiment: as an operator, run `summon minecraft:zombified_piglin ~ ~ ~ {}` and capture the
 `system_chat` packet. Compare its text with the list above.
 
+**TRK-SUM-006** (`source_suggested`, semantic, confidence: medium). These facts apply to a
+sequence of many summons, for example 50,000 runs of `summon pig x y z` from the server console:
+
+- One run makes exactly one mob. The command has no count argument. The server has no limit on the
+  number of mobs in a dimension.
+- `<pos>` is a `vec3`. An integer x or z gets the centre correction, so `summon pig 10 -60 10`
+  puts the pig at `10.5 -60 10.5` (ARG-COORD-003). The y does not change.
+- The new mob has the yaw 0, the pitch 0, the head yaw 0 and the body yaw 0 (TRK-LIFE-003). The
+  first spawn setup does not change the rotation. Only the key `Rotation` of `<nbt>` sets it
+  (TRK-SUM-005).
+- Two mobs at the same position overlap. The push of `entity-physics.md` separates them from
+  their first tick. The game rule `max_entity_cramming` controls the crowd damage
+  (`entity-damage.md`, DMG-CRW-001).
+- A summon into a column that does not tick entities still succeeds. The mob does not tick
+  (TRK-LIFE-005). In a column that is not loaded, the server also does not track the mob, and a
+  selector does not find it. A benchmark must load the area, for example with `forceload`, before
+  the summons.
+- Each run sends its own success message (TRK-SUM-004) and has the result 1. From the console,
+  the message goes to the server log and to the operators (`commands-packet.md`, CMDP-EXEC-004).
+- The runs of one tick apply in the order of their command sequence (TRK-LIFE-002).
+
+Experiment: on a superflat world, run `summon pig 10 -60 10` from the console. Run
+`data get entity @n[type=pig] Pos` and `data get entity @n[type=pig] Rotation`. The values are
+`[10.5d, -60.0d, 10.5d]` and `[0.0f, 0.0f]`.
+
 ### 3.1 First spawn setup
 
 The first spawn setup of a zombified piglin gives a `golden_sword` in the main hand, or a
 `golden_spear` with the chance 1/20 (TRK-E1 shows the sword in `set_equipment`). The setup has
 more random parts: baby, left hand, attribute bonuses. `natural-spawning.md` states them.
+
+The first spawn setup of a farm animal is `mob-animals.md`, ANIM-SPAWN-001. `summon` without
+`<nbt>` applies it, so TRK-DEV-001 does not apply to these four types.
 
 ## 4. The viewers of a subject
 
@@ -455,6 +556,35 @@ next update sends `update_attributes` with the changed attributes, after `set_en
 tick an update (TRK-UPD-001). The update sends `set_entity_data` with each dirty entry in the
 order of the indices, after the move packet. The entry is then clean. A player subject also
 receives its own `set_entity_data` (MVC-PKT-031).
+
+**TRK-DATA-006** (`source_suggested_black_box_confirmed`, wire, confidence: high). The chain of a
+farm animal is: entity, living entity, mob, ageable mob, then the part of the type. The parts
+"pathfinder mob" and "animal" add no entry. Indices 0 to 15 are those of TRK-DATA-002. The other
+entries:
+
+| Index | Type | Meaning | Serializer | Default |
+|-------|------|---------|------------|---------|
+| 16 | each | baby | 8 | false |
+| 17 | each | age locked | 8 | false |
+| 18 | `pig` | boost length, in ticks | 1 | 0 |
+| 19 | `pig` | pig variant | 28 | the id of `minecraft:temperate` |
+| 20 | `pig` | pig sound variant | 29 | the id of `minecraft:classic` |
+| 18 | `cow` | cow variant | 23 | the id of `minecraft:temperate` |
+| 19 | `cow` | cow sound variant | 24 | the id of `minecraft:classic` |
+| 18 | `sheep` | wool: bits 0 to 3 the colour id, bit 4 sheared | 0 | 0 |
+| 18 | `chicken` | chicken variant | 30 | the id of `minecraft:temperate` |
+| 19 | `chicken` | chicken sound variant | 31 | the id of `minecraft:classic` |
+
+A variant id is the position of the entry in the registry data that the server sent, from 0
+(`mob-pig.md`, MPIG-DATA-001). When the synced registry has no default entry, the default is one
+entry of the registry. The colour ids are: 0 `white`, 1 `orange`, 2 `magenta`, 3 `light_blue`,
+4 `yellow`, 5 `lime`, 6 `pink`, 7 `gray`, 8 `light_gray`, 9 `cyan`, 10 `purple`, 11 `blue`,
+12 `brown`, 13 `green`, 14 `red`, 15 `black`.
+
+The type artefact confirms each index and each serializer. The values of these entries are state of
+the animal (`mob-animals.md`), not a function of the type. Thus TRK-DATA-003 does not apply to them.
+The spawn bundle of a summoned pig with `{}` carries only the entry `(9, 3, 10.0)`. A pig with the
+variant `cold` also carries the entry 19. Experiment: ANIM-E9 of `mob-animals.md`.
 
 ## 7. Updates
 
@@ -685,6 +815,7 @@ move, a data, a motion or a removal packet for a network id that it does not kno
 - **Rule:** TRK-SUM-003.
 - **Reference:** the reference loads each key of the compound into the new entity, and ignores an
   unknown key.
+- **This server:** the keys of TRK-SUM-005 load into a farm animal. Each other key fails.
 - **Visible to the client:** yes. A command with a key fails with `commands.summon.failed`, and no
   entity appears. The server never gives a different meaning to a key.
 - **Test:** a differential test uses only `{}` or no compound.
@@ -853,20 +984,20 @@ update before it: the fall damage made the health entry dirty, which made an upd
 3. **Mob rows** (`mcrs_minecraft_engine_physics`). Spawn requests in the life cycle of
    `DomainInput` (TRK-LIFE-001 to TRK-LIFE-003). The cold state is a side table from `EntityId` to
    the entity type (`physics-architecture.md` §15, question 56). Add the birth source
-   `BirthSource::Command { order }` to `mcrs_minecraft_physics`. Its kind is the existing
-   `SourceKind::Command`, which sorts after `Player` and before `Spawn`; its packed source value is
-   `order`, as for `Player { order }`. `order` is the index of the effect in the command effect
-   buffer of the world in the tick, from 0. A kernel change is allowed here, because PHY-CMP-013
+   `BirthSource::Command { spawn, source }` to `mcrs_minecraft_entity_key`. Its kind number is 2
+   and its source key is the block of the spawn point, then the block of the command source
+   (PHY-CMP-013). `BirthSequences` numbers the summons of one pair in one tick, from 0. A kernel change is allowed here, because PHY-CMP-013
    requires the source and the kernel lacks it. The removal requests of TRK-LIFE-004 are a hook: G1 adds no producer.
 4. **The `summon` command** (`mcrs_minecraft_command_vanilla`). The argument
    `minecraft:nbt_compound_tag` in `VanillaArgument`. TRK-SUM-001 to TRK-SUM-004: the handler
-   computes the birth key and the UUID, writes the spawn request as a command effect, and sends the
+   computes the UUID, writes the spawn request as a command effect, and sends the
    message.
 5. **Tile deltas of mobs** (Output stage of the dimension). The engine pass keeps no mover list.
    In each tick, publish one `Move` event for each mob row that ticked, with the position, the
    velocity, the yaw and the on-ground flag. Publish `Spawn` in the tick of the spawn, and `Leave`
-   and `Enter` when `move_rows` moves a row to another tile. The tile delta data gains variants for
-   a mob next to the variants of `PlayerData`, because a muxer link has one codec.
+   and `Enter` when `move_rows` moves a row to another tile. The tile delta data is
+   `ReplicationData`: `PlayerData` for a player or `MobReport` for a mob, because a muxer link has
+   one codec.
 6. **Codec of mobs** (`mcrs_minecraft_replication`). One codec of the world handles players and
    mobs. For each mob subject it keeps the tracker of section 7: the start tick, the position base,
    the last sent packed angles, the last sent velocity and on-ground flag, the update count for
@@ -874,14 +1005,16 @@ update before it: the fall damage made the health entry dirty, which made an upd
    mob updates do not come from `blob`:
    - `apply` records the event of each mob of the tick.
    - `finish_tick` runs the tracker tick of each mob (TRK-UPD-001 to TRK-UPD-008) and owes the
-     bytes of each update to each viewer in `held_by` of the subject, as for `Joined` today.
+     bytes of each update to each viewer that holds the subject in the hold set of the codec, as for
+     `Joined`.
    - `blob` writes nothing for a mob, and `refresh` and the keyframes do nothing for a mob.
    - `hold` writes the spawn bundle of section 5 and the removal of section 9.
 
-   The tracker reuses `position_delta` of `delta_base.rs`, with the rounding of TRK-WIRE-001, and
-   the packet structs. It does not reuse `DeltaBase::advance` or `Motion`: they drop the steps that
-   do not move, write a constant on-ground flag, send a keyframe each 100 ticks and couple the head
-   to the yaw.
+   The tracker uses `position_delta::encode` of `mcrs_minecraft_protocol_game`, with the rounding
+   of TRK-WIRE-001. It shares the move choice of TRK-UPD-003 (`move_choice.rs`) with
+   `DeltaBase::advance` of the players. It does not reuse `DeltaBase::advance` or `Motion`: they
+   drop the steps that do not move, write a constant on-ground flag, send a keyframe each 100 ticks
+   and couple the head to the yaw.
 7. **Range** (`mcrs_minecraft_engine`). Set `VIEW_RADIUS` to 4 tiles on X and Z (TRK-DEV-004).
    `entity_replication.rs` uses the same radius for the players, so a viewer also subscribes to
    81 tiles of players instead of 49. G1 accepts this cost: a player has the range 160 blocks at

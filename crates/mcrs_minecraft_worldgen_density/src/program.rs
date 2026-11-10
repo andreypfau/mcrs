@@ -5,7 +5,6 @@ use crate::node::gradient::GradientParams;
 use crate::node::noise::NoiseFunctionParams;
 use crate::node::spline::CompiledSpline;
 use glam::IVec3;
-use mcrs_minecraft_core::mth;
 use mcrs_minecraft_noise::blended::BlendedNoise;
 use mcrs_minecraft_noise::interval::Interval;
 use mcrs_minecraft_noise::jmath;
@@ -16,6 +15,7 @@ use mcrs_minecraft_noise::sample_grid::{Axis, SampleGrid};
 use mcrs_minecraft_noise::strata::{
     ALL_AXES, AXIS_X, AXIS_Y, AXIS_Z, Axes, NO_AXES, axis_bit, extent, stratum,
 };
+use mcrs_minecraft_numeric as numeric;
 use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -45,11 +45,11 @@ impl UnaryOp {
             UnaryOp::Reciprocal => 1.0 / v,
             UnaryOp::Negate => -v,
             UnaryOp::Squeeze => {
-                let c = mth::clampf(v, -1.0, 1.0);
+                let c = numeric::clamp_f32(v, -1.0, 1.0);
                 c / 2.0 - (c * c * c) / 24.0
             }
-            UnaryOp::Log => mth::log(v),
-            UnaryOp::Sign => mth::signum(v),
+            UnaryOp::Log => numeric::ln_f32(v),
+            UnaryOp::Sign => numeric::sign_f32(v),
         }
     }
 }
@@ -75,7 +75,7 @@ impl BinaryOp {
             BinaryOp::Div => a / b,
             BinaryOp::Min => jmath::vmin(a, b),
             BinaryOp::Max => jmath::vmax(a, b),
-            BinaryOp::Pow => mth::pow(a, b),
+            BinaryOp::Pow => numeric::pow_f32(a, b),
         }
     }
 }
@@ -876,7 +876,7 @@ impl Program {
             upper
         };
 
-        let top_y = mth::mth_floor(upper / cell_height as f32).wrapping_mul(cell_height);
+        let top_y = numeric::floor_to_i32(upper / cell_height as f32).wrapping_mul(cell_height);
         if top_y <= lower_bound {
             return lower_bound as f32;
         }
@@ -1089,7 +1089,7 @@ impl Program {
             }
             Node::Clamp { input, min, max } => {
                 let (lo, hi) = (*min, *max);
-                map_columns(out, &ext, read(*input), |v| mth::clampf(v, lo, hi))
+                map_columns(out, &ext, read(*input), |v| numeric::clamp_f32(v, lo, hi))
             }
             Node::ConstBinary {
                 op,
@@ -1280,9 +1280,9 @@ fn is_lattice_volume(volume: &SampleGrid, cell_xz: i32, cell_y: i32) -> bool {
     (step.x == cell_xz || size.x == 1)
         && (step.y == cell_y || size.y == 1)
         && (step.z == cell_xz || size.z == 1)
-        && mth::floor_mod(min.x, cell_xz) == 0
-        && mth::floor_mod(min.y, cell_y) == 0
-        && mth::floor_mod(min.z, cell_xz) == 0
+        && numeric::floor_mod(min.x, cell_xz) == 0
+        && numeric::floor_mod(min.y, cell_y) == 0
+        && numeric::floor_mod(min.z, cell_xz) == 0
 }
 
 /// `volume` as the input of a slice is asked for it: the input's own stratum,
@@ -1314,14 +1314,14 @@ fn lattice_volume(volume: &SampleGrid, axes: Axes, cell_xz: i32, cell_y: i32) ->
     };
     let cell = IVec3::new(cell_xz, cell_y, cell_xz);
     let first = IVec3::new(
-        mth::floor_div(min.x, cell_xz),
-        mth::floor_div(min.y, cell_y),
-        mth::floor_div(min.z, cell_xz),
+        numeric::floor_div(min.x, cell_xz),
+        numeric::floor_div(min.y, cell_y),
+        numeric::floor_div(min.z, cell_xz),
     );
     let last = IVec3::new(
-        mth::floor_div(min.x + (size.x - 1) * step.x, cell_xz),
-        mth::floor_div(last_y, cell_y),
-        mth::floor_div(min.z + (size.z - 1) * step.z, cell_xz),
+        numeric::floor_div(min.x + (size.x - 1) * step.x, cell_xz),
+        numeric::floor_div(last_y, cell_y),
+        numeric::floor_div(min.z + (size.z - 1) * step.z, cell_xz),
     );
     SampleGrid::new(last - first + IVec3::splat(2), first * cell, cell)
 }
@@ -1390,20 +1390,20 @@ fn interpolate(
 ) {
     let inv_xz = 1.0 / cell_xz as f32;
     let inv_y = 1.0 / cell_y as f32;
-    let x_in_cell = mth::floor_mod(bx, cell_xz);
-    let z_in_cell = mth::floor_mod(bz, cell_xz);
+    let x_in_cell = numeric::floor_mod(bx, cell_xz);
+    let z_in_cell = numeric::floor_mod(bz, cell_xz);
     let alpha_x = x_in_cell as f32 * inv_xz;
     let alpha_z = z_in_cell as f32 * inv_xz;
     let ix = (bx - x_in_cell - lattice.min_block().x) / cell_xz;
     let iz = (bz - z_in_cell - lattice.min_block().z) / cell_xz;
-    let first_cell_y = mth::floor_div(lattice.min_block().y, cell_y);
+    let first_cell_y = numeric::floor_div(lattice.min_block().y, cell_y);
     let min_y = ext.min_block().y;
     let step_y = ext.step_block().y;
 
     let mut i = 0usize;
     while i < out.len() {
         let mut block_y = min_y + i as i32 * step_y;
-        let cell_base = mth::floor_div(block_y, cell_y) * cell_y;
+        let cell_base = numeric::floor_div(block_y, cell_y) * cell_y;
         let iy = cell_base / cell_y - first_cell_y;
         let corner = |dx, dy, dz| {
             let index = lattice.index_unchecked(ix + dx, iy + dy, iz + dz);
@@ -1451,19 +1451,21 @@ fn interpolate_cells(
     let max = min + size - IVec3::ONE;
     let lattice_min = lattice.min_block();
 
-    for cell_z in mth::floor_div(min.z, cell_xz)..=mth::floor_div(max.z, cell_xz) {
+    for cell_z in numeric::floor_div(min.z, cell_xz)..=numeric::floor_div(max.z, cell_xz) {
         let base_z = cell_z * cell_xz;
-        let lz = mth::floor_div(base_z - lattice_min.z, cell_xz);
+        let lz = numeric::floor_div(base_z - lattice_min.z, cell_xz);
         let dz0 = (min.z - base_z).max(0);
         let dz1 = (max.z - base_z).min(cell_xz - 1);
-        for cell_x in mth::floor_div(min.x, cell_xz)..=mth::floor_div(max.x, cell_xz) {
+        for cell_x in numeric::floor_div(min.x, cell_xz)..=numeric::floor_div(max.x, cell_xz) {
             let base_x = cell_x * cell_xz;
-            let lx = mth::floor_div(base_x - lattice_min.x, cell_xz);
+            let lx = numeric::floor_div(base_x - lattice_min.x, cell_xz);
             let dx0 = (min.x - base_x).max(0);
             let dx1 = (max.x - base_x).min(cell_xz - 1);
-            for cell_y_index in mth::floor_div(min.y, cell_y)..=mth::floor_div(max.y, cell_y) {
+            for cell_y_index in
+                numeric::floor_div(min.y, cell_y)..=numeric::floor_div(max.y, cell_y)
+            {
                 let base_y = cell_y_index * cell_y;
-                let ly = mth::floor_div(base_y - lattice_min.y, cell_y);
+                let ly = numeric::floor_div(base_y - lattice_min.y, cell_y);
                 let dy0 = (min.y - base_y).max(0);
                 let dy1 = (max.y - base_y).min(cell_y - 1);
                 let rows = (dy1 - dy0 + 1) as usize;

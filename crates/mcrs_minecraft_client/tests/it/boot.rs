@@ -7,7 +7,7 @@ use mcrs_minecraft_client_world::asset_source::asset_source;
 use mcrs_minecraft_client_world::registries::ClientRegistriesPlugin;
 use mcrs_minecraft_dimension::Dimension;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
-use mcrs_minecraft_dimension_environment::environment::EnvironmentAttributes;
+use mcrs_minecraft_dimension_environment::environment::DimensionAttributes;
 use mcrs_minecraft_game_registries::registry_load::{sent_by, test_packs, test_registries};
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::RegistriesReceived;
@@ -198,7 +198,7 @@ fn a_client_ends_configuration_with_the_registries_the_server_holds() {
         let dimension = ResourceKeyBuf::<Dimension>::from_location(name.clone());
         let id = Id::checked(id.number(), types.len()).unwrap();
         assert!(
-            EnvironmentAttributes::of_dimension(registries, &dimension, id).is_ok(),
+            DimensionAttributes::of_dimension(registries, &dimension, id).is_ok(),
             "every dimension type has the environment its sky is built from: {name}"
         );
     }

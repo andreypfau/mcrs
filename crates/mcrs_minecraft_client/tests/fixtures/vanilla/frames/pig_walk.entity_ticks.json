@@ -1,0 +1,254 @@
+{
+  "scene": "pig_walk",
+  "version": "26.4-snapshot-7",
+  "updates": [
+    {
+      "update": 27,
+      "entities": [
+        {
+          "entity": 218,
+          "age": 1,
+          "position": [
+            0.5,
+            -60.0,
+            -2.0
+          ],
+          "previous_position": [
+            0.5,
+            -60.0,
+            -2.0
+          ],
+          "on_ground": true,
+          "path_before_update": true,
+          "path_after_update": true,
+          "pitch": 0.0,
+          "body_yaw": 0.0,
+          "previous_body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "previous_head_yaw": 0.0,
+          "walk_position": 0.0,
+          "walk_speed": 0.0,
+          "hurt_time": 0,
+          "death_time": 0
+        }
+      ]
+    },
+    {
+      "update": 43,
+      "entities": [
+        {
+          "entity": 218,
+          "age": 2,
+          "position": [
+            0.5,
+            -60.0,
+            -1.9111111164093018
+          ],
+          "previous_position": [
+            0.5,
+            -60.0,
+            -2.0
+          ],
+          "on_ground": true,
+          "path_before_update": true,
+          "path_after_update": true,
+          "pitch": 0.0,
+          "body_yaw": 0.0,
+          "previous_body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "previous_head_yaw": 0.0,
+          "walk_position": 0.14222221,
+          "walk_speed": 0.14222221,
+          "hurt_time": 0,
+          "death_time": 0
+        }
+      ]
+    },
+    {
+      "update": 59,
+      "entities": [
+        {
+          "entity": 218,
+          "age": 3,
+          "position": [
+            0.5,
+            -60.0,
+            -1.7407696814421798
+          ],
+          "previous_position": [
+            0.5,
+            -60.0,
+            -1.9111111164093018
+          ],
+          "on_ground": true,
+          "path_before_update": true,
+          "path_after_update": true,
+          "pitch": 0.0,
+          "body_yaw": 0.0,
+          "previous_body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "previous_head_yaw": 0.0,
+          "walk_position": 0.5001018,
+          "walk_speed": 0.3578796,
+          "hurt_time": 0,
+          "death_time": 0
+        }
+      ]
+    },
+    {
+      "update": 75,
+      "entities": [
+        {
+          "entity": 218,
+          "age": 4,
+          "position": [
+            0.5,
+            -60.0,
+            -1.560552893919521
+          ],
+          "previous_position": [
+            0.5,
+            -60.0,
+            -1.7407696814421798
+          ],
+          "on_ground": true,
+          "path_before_update": true,
+          "path_after_update": true,
+          "pitch": 0.0,
+          "body_yaw": 0.0,
+          "previous_body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "previous_head_yaw": 0.0,
+          "walk_position": 1.0031765,
+          "walk_speed": 0.50307465,
+          "hurt_time": 0,
+          "death_time": 0
+        }
+      ]
+    },
+    {
+      "update": 143,
+      "entities": [
+        {
+          "entity": 218,
+          "age": 5,
+          "position": [
+            0.5,
+            -60.0,
+            -1.3735713081514405
+          ],
+          "previous_position": [
+            0.5,
+            -60.0,
+            -1.560552893919521
+          ],
+          "on_ground": true,
+          "path_before_update": true,
+          "path_after_update": true,
+          "pitch": 0.0,
+          "body_yaw": 0.0,
+          "previous_body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "previous_head_yaw": 0.0,
+          "walk_position": 1.6041918,
+          "walk_speed": 0.6010153,
+          "hurt_time": 0,
+          "death_time": 0
+        }
+      ]
+    },
+    {
+      "update": 159,
+      "entities": [
+        {
+          "entity": 218,
+          "age": 6,
+          "position": [
+            0.5,
+            -60.0,
+            -1.182397138707529
+          ],
+          "previous_position": [
+            0.5,
+            -60.0,
+            -1.3735713081514405
+          ],
+          "on_ground": true,
+          "path_before_update": true,
+          "path_after_update": true,
+          "pitch": 0.0,
+          "body_yaw": 0.0,
+          "previous_body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "previous_head_yaw": 0.0,
+          "walk_position": 2.2706797,
+          "walk_speed": 0.6664879,
+          "hurt_time": 0,
+          "death_time": 0
+        }
+      ]
+    },
+    {
+      "update": 227,
+      "entities": [
+        {
+          "entity": 218,
+          "age": 7,
+          "position": [
+            0.5,
+            -60.0,
+            -0.9882973005451277
+          ],
+          "previous_position": [
+            0.5,
+            -60.0,
+            -1.182397138707529
+          ],
+          "on_ground": true,
+          "path_before_update": true,
+          "path_after_update": true,
+          "pitch": 0.0,
+          "body_yaw": 0.0,
+          "previous_body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "previous_head_yaw": 0.0,
+          "walk_position": 2.9811323,
+          "walk_speed": 0.7104525,
+          "hurt_time": 0,
+          "death_time": 0
+        }
+      ]
+    },
+    {
+      "update": 243,
+      "entities": [
+        {
+          "entity": 218,
+          "age": 8,
+          "position": [
+            0.5,
+            -60.0,
+            -0.7922470227777012
+          ],
+          "previous_position": [
+            0.5,
+            -60.0,
+            -0.9882973005451277
+          ],
+          "on_ground": true,
+          "path_before_update": true,
+          "path_after_update": true,
+          "pitch": 0.0,
+          "body_yaw": 0.0,
+          "previous_body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "previous_head_yaw": 0.0,
+          "walk_position": 3.721084,
+          "walk_speed": 0.7399519,
+          "hurt_time": 0,
+          "death_time": 0
+        }
+      ]
+    }
+  ]
+}

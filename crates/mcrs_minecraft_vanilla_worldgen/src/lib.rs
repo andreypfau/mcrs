@@ -1,7 +1,9 @@
 // std: bevy_ecs
+#![recursion_limit = "256"]
 
 mod dimension_world;
 mod features;
+mod flat_world;
 mod generated_ticks;
 mod generation_dispatch;
 mod generation_input;

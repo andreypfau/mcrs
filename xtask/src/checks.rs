@@ -28,26 +28,42 @@ const WASM32_PACKAGES: [&str; 11] = [
     "mcrs_minecraft_biome_file",
 ];
 
-const NO_STD_PACKAGES: [&str; 2] = ["mcrs_command", "mcrs_minecraft_chat"];
+const NO_STD_PACKAGES: [&str; 9] = [
+    "mcrs_command",
+    "mcrs_minecraft_brain",
+    "mcrs_minecraft_chat",
+    "mcrs_minecraft_entity_key",
+    "mcrs_minecraft_goal_world",
+    "mcrs_minecraft_goals",
+    "mcrs_molang",
+    "mcrs_molang_wgsl",
+    "mcrs_voxel",
+];
 
-const NO_BEVY_PACKAGES: [&str; 80] = [
+const NO_BEVY_PACKAGES: [&str; 100] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
     "mcrs_engine_muxer",
     "mcrs_engine_store",
     "mcrs_minecraft_anvil",
+    "mcrs_minecraft_bench_support",
     "mcrs_minecraft_biome",
     "mcrs_minecraft_biome_file",
     "mcrs_minecraft_block",
     "mcrs_minecraft_block_entity",
     "mcrs_minecraft_block_predicate",
+    "mcrs_minecraft_brain",
     "mcrs_minecraft_chat",
     "mcrs_minecraft_chat_client",
     "mcrs_minecraft_chunk",
     "mcrs_minecraft_client_jar",
     "mcrs_minecraft_client_recorder",
+    "mcrs_minecraft_goal_world",
+    "mcrs_minecraft_goals",
+    "mcrs_minecraft_mob_control",
     "mcrs_minecraft_server_bench",
+    "mcrs_mob_bench",
     "mcrs_minecraft_client_ticks",
     "mcrs_minecraft_collision_table",
     "mcrs_minecraft_command",
@@ -58,10 +74,15 @@ const NO_BEVY_PACKAGES: [&str; 80] = [
     "mcrs_minecraft_command_registry",
     "mcrs_minecraft_command_tree",
     "mcrs_minecraft_core",
+    "mcrs_minecraft_damage",
     "mcrs_minecraft_dimension",
     "mcrs_minecraft_dimension_environment",
     "mcrs_minecraft_enchantment",
     "mcrs_minecraft_entity",
+    "mcrs_minecraft_entity_animation",
+    "mcrs_minecraft_entity_key",
+    "mcrs_minecraft_entity_model",
+    "mcrs_minecraft_entity_rows",
     "mcrs_minecraft_environment",
     "mcrs_minecraft_fixtures",
     "mcrs_minecraft_game_mode",
@@ -69,15 +90,19 @@ const NO_BEVY_PACKAGES: [&str; 80] = [
     "mcrs_minecraft_heightmap",
     "mcrs_minecraft_item",
     "mcrs_minecraft_keys",
+    "mcrs_minecraft_lang",
     "mcrs_minecraft_light_color",
     "mcrs_minecraft_light_engine",
     "mcrs_minecraft_loot",
     "mcrs_minecraft_mesh",
+    "mcrs_minecraft_model_file",
     "mcrs_minecraft_move_predict",
     "mcrs_minecraft_move_validate",
     "mcrs_minecraft_nbt",
     "mcrs_minecraft_network",
     "mcrs_minecraft_noise",
+    "mcrs_minecraft_pack_file",
+    "mcrs_minecraft_numeric",
     "mcrs_minecraft_particle",
     "mcrs_minecraft_physics",
     "mcrs_minecraft_predicate",
@@ -87,12 +112,15 @@ const NO_BEVY_PACKAGES: [&str; 80] = [
     "mcrs_minecraft_random",
     "mcrs_minecraft_registries",
     "mcrs_minecraft_registry_catalog",
+    "mcrs_minecraft_render_controller",
     "mcrs_minecraft_replication",
     "mcrs_minecraft_resource",
+    "mcrs_minecraft_server_settings",
     "mcrs_minecraft_simulation",
     "mcrs_minecraft_snbt",
     "mcrs_minecraft_sound",
     "mcrs_minecraft_text",
+    "mcrs_minecraft_text_flatten",
     "mcrs_minecraft_value_provider",
     "mcrs_minecraft_volume",
     "mcrs_minecraft_wire",
@@ -109,12 +137,27 @@ const NO_BEVY_PACKAGES: [&str; 80] = [
     "mcrs_minecraft_worldgen_structure_place",
     "mcrs_minecraft_worldgen_surface",
     "mcrs_minecraft_worldgen_testing",
+    "mcrs_molang",
+    "mcrs_molang_wgsl",
     "mcrs_test_alloc",
     "mcrs_voxel",
 ];
 
 /// The wire and network layers, which a proxy or a bot takes without any game data.
 const WIRE_LAYER_PACKAGES: [&str; 2] = ["mcrs_minecraft_protocol", "mcrs_minecraft_network"];
+
+/// The crates that bake models from a pack, which a viewer takes without a connection.
+const STANDALONE_BAKE_PACKAGES: [&str; 2] = ["mcrs_minecraft_model", "mcrs_minecraft_model_file"];
+
+const STANDALONE_BAKE_FORBIDDEN: [&str; 7] = [
+    "mcrs_minecraft_network",
+    "mcrs_minecraft_protocol",
+    "mcrs_minecraft_client",
+    "mcrs_minecraft_client_world",
+    "mcrs_minecraft_server",
+    "mcrs_minecraft_engine_server",
+    "tokio",
+];
 
 const GAME_DATA_PACKAGES: [&str; 7] = [
     "mcrs_minecraft_block",
@@ -254,6 +297,8 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
     }
 }
 
+const OWN_FEATURES: [&str; 2] = ["--config", "resolver.feature-unification=\"selected\""];
+
 const WASM32_CLIENT_FEATURES: [&[&str]; 2] = [&[], &["--no-default-features"]];
 
 fn wasm32(ctx: &Context) -> Outcome {
@@ -268,6 +313,8 @@ fn wasm32(ctx: &Context) -> Outcome {
         let mut args = vec![
             "build",
             "--locked",
+            OWN_FEATURES[0],
+            OWN_FEATURES[1],
             "--target",
             "wasm32-unknown-unknown",
             "-p",
@@ -292,7 +339,9 @@ fn build_for(
     condition: &str,
     fix: &str,
 ) -> Outcome {
-    let mut args = vec!["build", "--locked", "--target", target];
+    let mut args = vec!["build", "--locked"];
+    args.extend(OWN_FEATURES);
+    args.extend(["--target", target]);
     for package in packages {
         args.extend(["-p", package]);
     }
@@ -321,6 +370,7 @@ fn no_bevy(ctx: &Context) -> Outcome {
         ));
     }
     let mut args = vec!["check", "--locked", "--no-default-features"];
+    args.extend(OWN_FEATURES);
     for package in NO_BEVY_PACKAGES {
         args.extend(["-p", package]);
     }
@@ -331,44 +381,65 @@ fn no_bevy(ctx: &Context) -> Outcome {
     )
 }
 
+fn linked_forbidden(
+    ctx: &Context,
+    package: &str,
+    forbidden: &[&str],
+    linked: &mut Vec<String>,
+) -> Result<(), String> {
+    let args = [
+        "tree",
+        "--locked",
+        OWN_FEATURES[0],
+        OWN_FEATURES[1],
+        "--all-features",
+        "--edges",
+        "normal",
+        "--prefix",
+        "none",
+        "--format",
+        "{p}",
+        "--package",
+        package,
+    ];
+    println!("$ cargo {}", args.join(" "));
+    let output = Command::new("cargo")
+        .args(args)
+        .current_dir(&ctx.root)
+        .output()
+        .map_err(|e| format!("could not run cargo: {e}; install it and put it on PATH"))?;
+    if !output.status.success() {
+        return Err(format!("cargo tree failed for {package}"));
+    }
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        let name = line.split_whitespace().next().unwrap_or_default();
+        let found = format!("{package} links {name}");
+        if forbidden.contains(&name) && !linked.contains(&found) {
+            linked.push(found);
+        }
+    }
+    Ok(())
+}
+
 fn layers(ctx: &Context) -> Outcome {
     let mut linked = Vec::new();
     for package in WIRE_LAYER_PACKAGES {
-        let args = [
-            "tree",
-            "--locked",
-            "--all-features",
-            "--edges",
-            "normal",
-            "--prefix",
-            "none",
-            "--format",
-            "{p}",
-            "--package",
-            package,
-        ];
-        println!("$ cargo {}", args.join(" "));
-        let output = Command::new("cargo")
-            .args(args)
-            .current_dir(&ctx.root)
-            .output()
-            .map_err(|e| format!("could not run cargo: {e}; install it and put it on PATH"))?;
-        if !output.status.success() {
-            return Err(format!("cargo tree failed for {package}"));
-        }
-        for line in String::from_utf8_lossy(&output.stdout).lines() {
-            let name = line.split_whitespace().next().unwrap_or_default();
-            let found = format!("{package} links {name}");
-            if GAME_DATA_PACKAGES.contains(&name) && !linked.contains(&found) {
-                linked.push(found);
-            }
-        }
+        linked_forbidden(ctx, package, &GAME_DATA_PACKAGES, &mut linked)?;
+    }
+    if !linked.is_empty() {
+        return Err(format!(
+            "a crate of the wire or network layer links game data ({}); move the code that needs it to mcrs_minecraft_protocol_game or above",
+            linked.join(", ")
+        ));
+    }
+    for package in STANDALONE_BAKE_PACKAGES {
+        linked_forbidden(ctx, package, &STANDALONE_BAKE_FORBIDDEN, &mut linked)?;
     }
     if linked.is_empty() {
         Ok(String::new())
     } else {
         Err(format!(
-            "a crate of the wire or network layer links game data ({}); move the code that needs it to mcrs_minecraft_protocol_game or above",
+            "a model bake links the network, a client or a server ({}); a viewer bakes from the pack alone",
             linked.join(", ")
         ))
     }
@@ -496,7 +567,9 @@ fn test(ctx: &Context) -> Outcome {
                 );
                 return Ok(String::new());
             }
-            ("ci", selection)
+            let hosted =
+                std::env::var_os("RUNNER_ENVIRONMENT").is_some_and(|v| v == "github-hosted");
+            (if hosted { "ci-hosted" } else { "ci" }, selection)
         }
     };
     let local_only = if std::env::var_os("CI").is_some() && ctx.trigger != Trigger::Gpu {

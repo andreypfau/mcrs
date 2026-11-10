@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 use bevy_app::{App, Plugin};
 
 use crate::coordinator::coordinator_plugin::CoordinatorPlugin;
@@ -5,11 +7,11 @@ use crate::muxer::muxer_plugin::MuxerPlugin;
 
 pub mod ability;
 mod advance_production;
+mod assign_global_entity_id;
 pub mod banlist;
 pub mod between_ticks;
 pub mod block_action_ack;
 mod block_break;
-pub mod block_drops;
 pub mod block_entity_packet;
 pub mod block_simulation;
 mod block_update;
@@ -45,8 +47,6 @@ pub mod dimension_change;
 pub mod dimension_generators;
 pub mod drain_player_despawn;
 mod enter_level_packets;
-pub mod entity_birth;
-pub mod entity_ids;
 pub mod foreign_views;
 mod game_mode;
 pub mod game_profile;
@@ -65,22 +65,22 @@ mod player_bundle;
 mod player_dimension_change;
 pub mod player_order;
 pub mod player_roster;
-pub mod player_tiles;
 mod player_tracker;
 mod player_view;
 mod publish_player_tiles;
 mod random_tick_speed;
 mod replicated;
+pub mod server_edit;
 pub mod stored_column;
 mod stored_columns_landing;
 pub mod teleport;
-mod tile_events;
+pub mod tile_events;
 pub mod to_coordinator;
 pub mod to_muxer;
+pub mod view_radius;
 mod wanted_column;
 pub mod whitelist;
 pub mod world_kinds;
-pub mod world_seed;
 
 #[cfg(feature = "world-access")]
 pub use cell_volume::CellVolume;

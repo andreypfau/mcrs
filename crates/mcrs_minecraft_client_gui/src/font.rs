@@ -4,7 +4,8 @@ use bevy::math::IVec2;
 use serde::Deserialize;
 
 use crate::scene::GuiQuad;
-use mcrs_minecraft_model::model::{Pack, split_id};
+use mcrs_minecraft_model::resource_set::ResourceSet;
+use mcrs_minecraft_model_file::resource_id::split_id;
 
 pub const ASCII_TEXTURE: &str = "minecraft/textures/font/ascii.png";
 const ASCII_FILE: &str = "minecraft:font/ascii.png";
@@ -47,11 +48,12 @@ pub struct Font {
 }
 
 impl Font {
-    pub fn load(pack: &Pack, ascii: &[u8], width: u32, height: u32) -> Result<Self, String> {
+    pub fn load(pack: &ResourceSet, ascii: &[u8], width: u32, height: u32) -> Result<Self, String> {
         let mut font = Font::default();
         for path in DEFINITIONS {
-            let definition: FontDefinition = serde_json::from_slice(pack.read(path)?)
-                .map_err(|error| format!("{path}: {error}"))?;
+            let definition: FontDefinition =
+                serde_json::from_slice(pack.read(path).map_err(|error| error.to_string())?)
+                    .map_err(|error| format!("{path}: {error}"))?;
             for provider in definition.providers {
                 match provider {
                     Provider::Space { advances } => font.spaces.extend(advances),
@@ -271,10 +273,10 @@ pub fn draw_centered_text(
 #[cfg(test)]
 pub(crate) fn corpus_font() -> &'static Font {
     static FONT: std::sync::LazyLock<Font> = std::sync::LazyLock::new(|| {
-        let bytes = Pack::corpus().read(ASCII_TEXTURE).unwrap();
+        let bytes = ResourceSet::corpus().read(ASCII_TEXTURE).unwrap();
         let (pixels, width, height) =
             mcrs_minecraft_model::atlas::decode_png(bytes, ASCII_TEXTURE).unwrap();
-        Font::load(Pack::corpus(), &pixels, width, height).unwrap()
+        Font::load(ResourceSet::corpus(), &pixels, width, height).unwrap()
     });
     &FONT
 }

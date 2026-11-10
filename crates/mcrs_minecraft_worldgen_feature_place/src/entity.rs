@@ -2,11 +2,11 @@ use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::io::Cursor;
 
 use glam::{DVec3, IVec3};
-use mcrs_minecraft_core::mth::wrap_degrees;
 use mcrs_minecraft_core::{Direction, Mirror, Rotation};
 use mcrs_minecraft_entity::villager::VillagerData;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::{Nbt, nbt_int_array};
+use mcrs_minecraft_numeric::wrap_degrees;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;

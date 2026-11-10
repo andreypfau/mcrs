@@ -11,4 +11,5 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_entity_key.workspace = true
 bytes.workspace = true

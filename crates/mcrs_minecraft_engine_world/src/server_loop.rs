@@ -5,9 +5,10 @@ use bevy_ecs::schedule::{Schedules, SingleThreadedExecutor};
 use bevy_ecs::world::World;
 use bevy_time::{Fixed, Time, TimePlugin, TimeUpdateStrategy};
 use mcrs_engine_link::Placement;
-use std::num::NonZeroU32;
+use std::num::{NonZeroU32, NonZeroUsize};
 use std::time::{Duration, Instant};
 
+use crate::tick_pace::TickPace;
 use crate::world_placement::WorldPlacement;
 
 pub struct VoxelServerPlugin {
@@ -24,22 +25,34 @@ pub struct VoxelServerPlugin {
     /// [`Placement::Inline`] an app that does not own the task pools still runs `par_iter` on the
     /// host's compute pool.
     pub worlds: Placement,
+    /// The thread count of the compute pool, for an app that owns the task pools. `None` keeps
+    /// one thread under [`Placement::Inline`] and one thread for each logical core otherwise.
+    pub compute_threads: Option<NonZeroUsize>,
 }
 
 impl Plugin for VoxelServerPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(WorldPlacement(self.worlds));
-        let task_pool_options = if self.worlds == Placement::Inline && self.owns_task_pools {
-            TaskPoolOptions {
+        let compute_threads = match (self.compute_threads, self.worlds) {
+            _ if !self.owns_task_pools => None,
+            (Some(threads), _) => Some(threads.get()),
+            (None, Placement::Inline) => Some(1),
+            // The Bevy default keeps a quarter of the cores each for the I/O and the async
+            // pools, which a server tick leaves idle; the tick runs on the compute pool.
+            (None, _) => std::thread::available_parallelism()
+                .ok()
+                .map(NonZeroUsize::get),
+        };
+        let task_pool_options = match compute_threads {
+            Some(threads) => TaskPoolOptions {
                 compute: TaskPoolThreadAssignmentPolicy {
-                    min_threads: 1,
-                    max_threads: 1,
+                    min_threads: threads,
+                    max_threads: threads,
                     ..TaskPoolOptions::default().compute
                 },
                 ..TaskPoolOptions::default()
-            }
-        } else {
-            TaskPoolOptions::default()
+            },
+            None => TaskPoolOptions::default(),
         };
         app.add_plugins(TaskPoolPlugin { task_pool_options });
 
@@ -51,6 +64,7 @@ impl Plugin for VoxelServerPlugin {
             app.add_plugins(TimePlugin);
         }
         app.insert_resource(Time::<Fixed>::from_hz(self.tick_rate.get() as f64));
+        app.insert_resource(TickPace::new(self.tick_rate.get()));
         // One host update is one tick: the host's fixed schedules run exactly once in it, as
         // the dimensions' do, however late the update starts. Wall-clock time decides only
         // when a tick starts, never what it does.
@@ -74,6 +88,30 @@ impl Plugin for VoxelServerPlugin {
             run_schedules_on_one_thread(app.world_mut());
         }
     }
+}
+
+/// The longest backlog of ticks that the loop runs back to back to catch up.
+const MAX_BACKLOG: Duration = Duration::from_secs(2);
+
+/// When the next tick starts. The ticks keep a fixed schedule, one `tick` after another from the
+/// first, so a late wake or a long tick does not shift the ticks after it: a late tick is followed
+/// at once by the next. A backlog longer than [`MAX_BACKLOG`] is dropped, and the schedule starts
+/// again from `now`. A tick of a sprint, `at_once`, starts the schedule again from `now` too.
+fn next_deadline(previous: Instant, tick: Duration, at_once: bool, now: Instant) -> Instant {
+    if at_once {
+        return now;
+    }
+    let Some(next) = previous.checked_add(tick) else {
+        return now;
+    };
+    if now.saturating_duration_since(next) > MAX_BACKLOG {
+        tracing::warn!(
+            behind_ms = now.saturating_duration_since(next).as_millis() as u64,
+            "the server cannot keep up; it skips the ticks it is behind"
+        );
+        return now;
+    }
+    next
 }
 
 /// Gives every schedule of `world` a single-threaded executor.
@@ -127,14 +165,55 @@ pub fn run_server_loop(
     if let Some(exit) = app.should_exit() {
         return exit;
     }
+    let mut next = Instant::now();
     loop {
         let start = Instant::now();
+        if let Some(mut pace) = app.world_mut().get_resource_mut::<TickPace>() {
+            pace.begin_tick();
+        }
         app.update();
         between_ticks(&mut app);
-        tracing::trace!(target: "mcrs_tick", micros = start.elapsed().as_micros() as u64);
+        let elapsed = start.elapsed();
+        tracing::trace!(target: "mcrs_tick", micros = elapsed.as_micros() as u64);
         if let Some(exit) = app.should_exit() {
             return exit;
         }
-        until(&mut app, start + tick);
+        let nanos = u64::try_from(elapsed.as_nanos()).unwrap_or(u64::MAX);
+        let at_once = app
+            .world_mut()
+            .get_resource_mut::<TickPace>()
+            .is_some_and(|mut pace| pace.end_tick(nanos));
+        next = next_deadline(next, tick, at_once, Instant::now());
+        until(&mut app, next);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TICK: Duration = Duration::from_millis(50);
+
+    #[test]
+    fn a_late_wake_does_not_move_the_ticks_after_it() {
+        let start = Instant::now();
+        let first = next_deadline(start, TICK, false, start + Duration::from_millis(57));
+        assert_eq!(first, start + TICK);
+        let second = next_deadline(first, TICK, false, first + Duration::from_millis(7));
+        assert_eq!(
+            second,
+            start + 2 * TICK,
+            "the schedule stays on 50 ms steps"
+        );
+    }
+
+    #[test]
+    fn a_backlog_up_to_two_seconds_is_caught_up_and_a_longer_one_is_dropped() {
+        let start = Instant::now();
+        let late = start + Duration::from_millis(1500);
+        assert_eq!(next_deadline(start, TICK, false, late), start + TICK);
+        let stalled = start + Duration::from_secs(3);
+        assert_eq!(next_deadline(start, TICK, false, stalled), stalled);
+        assert_eq!(next_deadline(start, TICK, true, late), late);
     }
 }

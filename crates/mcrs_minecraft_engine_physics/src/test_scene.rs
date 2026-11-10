@@ -1,14 +1,16 @@
 use bevy_tasks::TaskPool;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
-use mcrs_minecraft_physics::BirthKey;
+use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_rows::BodyGrid;
+use mcrs_minecraft_entity_rows::Pass;
+use mcrs_minecraft_entity_rows::RowStore;
 use mcrs_minecraft_physics::Body;
-use mcrs_minecraft_physics::BodyGrid;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_physics::MoveInput;
-use mcrs_minecraft_physics::SourceKind;
+use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::Steering;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_physics::TestBlocks;
@@ -20,25 +22,24 @@ use mcrs_voxel::BlockStateId;
 use mcrs_voxel::LocalPos;
 use mcrs_voxel::SectionPos;
 
-use crate::EntityRows;
 use crate::EntityWrites;
 use crate::block_world::BlockWorld;
-use crate::entity_pass::Pass;
 
 /// The top of the stone floor of a scene: inside a section, so the floor section has two states.
 pub const FLOOR: i32 = 4;
 
 /// A square of tiles around the origin with a stone floor, walkers on it and items above it, for
-/// tests and benchmarks of the pass.
-pub struct TestScene {
+/// tests and benchmarks of the pass, with the mob column `M`.
+pub struct TestScene<M = ()> {
     pub blocks: SparseVolume,
     pub tables: Tables,
-    pub rows: EntityRows,
+    pub rows: RowStore<M>,
     pub grid: BodyGrid,
     pub tick: u64,
+    pub push: PushRules,
 }
 
-impl TestScene {
+impl<M: Send> TestScene<M> {
     /// `half` tiles on each side of the origin; half of the walkers walk, the others stand.
     #[must_use]
     pub fn new(half: i32, walkers: u32, items: u32, seed: u64) -> Self {
@@ -61,17 +62,17 @@ impl TestScene {
             }
         }
         let mut rng = TestRng(seed);
-        let mut rows = EntityRows::default();
+        let mut rows = RowStore::default();
         let range = f64::from(edge) - 1.0;
         for index in 0..walkers.saturating_add(items) {
-            let key = BirthKey::new(0, SourceKind::Spawn, 0, index);
+            let key = EntityKey(u128::from(index));
             let x = rng.range(-range, range);
             let z = rng.range(-range, range);
             let walker = index < walkers;
             let (motion, body, living) = if walker {
                 let motion = MotionRow::zombie();
                 let mut living = Living::of(&motion);
-                living.yaw = rng.range(0.0, 360.0) as f32;
+                living.orientation.yaw = rng.range(0.0, 360.0) as f32;
                 if index % 2 == 0 {
                     living.steering = Some(Steering {
                         input: MoveInput {
@@ -111,12 +112,13 @@ impl TestScene {
             rows,
             grid: BodyGrid::default(),
             tick: 0,
+            push: PushRules::default(),
         }
     }
 
     /// One tick: the merge point, the freeze, the pass and the tile moves.
     pub fn step(&mut self, pool: &TaskPool, tiles_per_task: usize, writes: &mut EntityWrites) {
-        self.rows.apply_writes(writes);
+        self.rows.apply_writes(&mut writes.0);
         self.rows.freeze(pool, &mut self.grid);
         let pass = Pass {
             world: &BlockWorld {
@@ -125,6 +127,7 @@ impl TestScene {
             },
             tables: &self.tables,
             tick: self.tick,
+            push: self.push,
             tiles_per_task,
         };
         self.rows.tick(&pass, pool, &self.grid);

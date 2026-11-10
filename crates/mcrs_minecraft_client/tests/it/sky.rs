@@ -3,7 +3,7 @@ use mcrs_minecraft_client::camera::PlayerCamera;
 use mcrs_minecraft_client::sky::{SkyEnvironment, SkyPlugin};
 use mcrs_minecraft_client::sky_state::SkyFrame;
 use mcrs_minecraft_client_world::joined_game::CurrentDimension;
-use mcrs_minecraft_dimension_environment::environment::Weather;
+use mcrs_minecraft_dimension_environment::environment::WeatherLevel;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_render::sky::SkyUniform;
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf, ResourceLocationBuf};
@@ -33,7 +33,7 @@ fn a_dimension_named_unlike_its_type_gets_its_types_sky() {
     let mut app = boot(|app| {
         app.add_plugins(SkyPlugin)
             .init_resource::<ClearColor>()
-            .insert_resource(Weather::default());
+            .insert_resource(WeatherLevel::default());
     });
 
     let connection = app.world_mut().spawn(ConnectionState::Configuration).id();

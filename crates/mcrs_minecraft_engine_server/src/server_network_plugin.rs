@@ -11,6 +11,7 @@ use crate::configuration::{ConfigurationStatePlugin, KnownPackOffer};
 use crate::dimension_worlds_plugin::DimensionWorldsPlugin;
 use crate::keep_alive::KeepAlivePlugin;
 use crate::login::{LoginPlugin, NetworkCompressionThreshold, SingleplayerProfile};
+use crate::loopback_ops::LoopbackOps;
 use crate::require::require;
 use crate::status::StatusPlugin;
 
@@ -46,6 +47,7 @@ pub struct ServerNetworkPlugin {
     pub rate_limit: InboundRateLimit,
     pub whitelist: Whitelist,
     pub banlist: BanList,
+    pub loopback_ops: LoopbackOps,
 }
 
 impl ServerNetworkPlugin {
@@ -80,6 +82,7 @@ impl Default for ServerNetworkPlugin {
             rate_limit: InboundRateLimit::default(),
             whitelist: Whitelist::default(),
             banlist: BanList::default(),
+            loopback_ops: LoopbackOps::default(),
         }
     }
 }
@@ -115,5 +118,6 @@ impl Plugin for ServerNetworkPlugin {
         app.add_plugins(crate::shutdown::ShutdownPlugin);
         app.insert_resource(self.whitelist.clone());
         app.insert_resource(self.banlist.clone());
+        app.insert_resource(self.loopback_ops);
     }
 }

@@ -10,8 +10,8 @@ use mcrs_minecraft_client_ticks::Recording;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_physics::MotionAttributes;
 use mcrs_minecraft_physics::NoBodies;
+use mcrs_minecraft_physics::Orientation;
 use mcrs_minecraft_physics::PlayerInput;
-use mcrs_minecraft_physics::PlayerRotation;
 use mcrs_minecraft_physics::PlayerState;
 use mcrs_minecraft_physics::Relative;
 use mcrs_minecraft_physics::Scratch;
@@ -86,6 +86,19 @@ events
     assert_eq!(attributes.movement_speed, 0.1 * (1.0 + 0.5));
 }
 
+fn held_keys(keys: &mcrs_minecraft_client_ticks::Keys) -> mcrs_minecraft_physics::Keys {
+    mcrs_minecraft_physics::Keys {
+        forward: keys.forward,
+        back: keys.backward,
+        left: keys.left,
+        right: keys.right,
+        jump: keys.jump,
+        shift: keys.shift,
+        sprint: keys.sprint,
+        ..Default::default()
+    }
+}
+
 /// Runs the kernel over the client ticks and compares each move packet bit for bit.
 fn replay(name: &str, recording: &Recording) -> Result<(), String> {
     let blocks = TestBlocks::new();
@@ -107,7 +120,6 @@ fn replay(name: &str, recording: &Recording) -> Result<(), String> {
         for event in events {
             match event {
                 Event::Teleport(teleport) => apply_teleport(
-                    &tables.sine,
                     &mut state,
                     &mut input.rotation,
                     &Teleport {
@@ -120,8 +132,8 @@ fn replay(name: &str, recording: &Recording) -> Result<(), String> {
                         ),
                     },
                 ),
-                Event::Motion(velocity) => state.velocity = DVec3::from_array(*velocity),
-                Event::Explosion(impulse) => state.velocity += DVec3::from_array(*impulse),
+                Event::Motion(velocity) => state.body.velocity = DVec3::from_array(*velocity),
+                Event::Explosion(impulse) => state.body.velocity += DVec3::from_array(*impulse),
                 Event::Abilities(abilities) => {
                     state.may_fly = abilities.may_fly;
                     state.flight0 = abilities.flying;
@@ -141,21 +153,10 @@ fn replay(name: &str, recording: &Recording) -> Result<(), String> {
                 Event::ChunkForgotten([x, z]) => world.unload_chunk(*x, *z),
                 Event::UseItem => state.item_use.using = true,
                 Event::ReleaseUseItem => state.item_use.using = false,
-                Event::Input(keys) => {
-                    input.keys.forward = keys.forward;
-                    input.keys.back = keys.backward;
-                    input.keys.left = keys.left;
-                    input.keys.right = keys.right;
-                    input.keys.jump = keys.jump;
-                    input.keys.shift = keys.shift;
-                    input.keys.sprint = keys.sprint;
-                }
+                Event::Input(keys) => input.keys = held_keys(keys),
                 Event::Move(step) => {
                     if let Some(rotation) = step.rotation {
-                        input.rotation = PlayerRotation {
-                            yaw: rotation.yaw,
-                            pitch: rotation.pitch,
-                        };
+                        input.rotation = Orientation::facing(rotation.yaw, rotation.pitch);
                     }
                     sent = Some(*step);
                 }
@@ -179,11 +180,18 @@ fn replay(name: &str, recording: &Recording) -> Result<(), String> {
         );
         let Some(step) = sent else { continue };
         if let Some(position) = step.position {
-            assert_eq!(state.position.to_array(), position, "{name}, tick {tick}");
+            assert_eq!(
+                state.body.position.to_array(),
+                position,
+                "{name}, tick {tick}"
+            );
         }
-        assert_eq!(state.flags.on_ground, step.on_ground, "{name}, tick {tick}");
         assert_eq!(
-            state.flags.horizontal_collision, step.horizontal_collision,
+            state.body.flags.on_ground, step.on_ground,
+            "{name}, tick {tick}"
+        );
+        assert_eq!(
+            state.body.flags.horizontal_collision, step.horizontal_collision,
             "{name}, tick {tick}"
         );
     }

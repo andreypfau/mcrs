@@ -1,27 +1,19 @@
 use glam::DVec3;
-use mcrs_voxel::BlockPos;
+use mcrs_minecraft_entity_key::EntityKey;
 
-use crate::BirthKey;
 use crate::Body;
 use crate::MotionAttributes;
 use crate::MotionEffects;
-use crate::MoveFlags;
 use crate::Pose;
 use crate::QueryEntity;
-use crate::SourceKind;
 
 /// The state of a player at the start of a tick: the values that one tick reads and writes.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct PlayerState {
-    pub position: DVec3,
-    pub velocity: DVec3,
+    /// The UUID of the profile of the player, its order key.
+    pub key: EntityKey,
+    pub body: Body,
     pub pose: Pose,
-    pub flags: MoveFlags,
-    pub support: Option<BlockPos>,
-    /// True when the last search for the supporting block found no block.
-    pub support_missed: bool,
-    pub fall_distance: f64,
-    pub stuck: DVec3,
     pub jump_delay: u8,
     pub sprint_timer: u8,
     pub jump_timer: u8,
@@ -72,19 +64,15 @@ impl ItemUse {
     }
 }
 
-/// The raw yaw and pitch of a player in degrees, never wrapped.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct PlayerRotation {
-    pub yaw: f32,
-    pub pitch: f32,
-}
-
 impl PlayerState {
     /// A standing player at `position` with the defaults of a new player.
     #[must_use]
     pub fn new(position: DVec3) -> Self {
         Self {
-            position,
+            body: Body {
+                position,
+                ..Body::default()
+            },
             flight_speed: 0.05,
             ..Self::default()
         }
@@ -93,34 +81,12 @@ impl PlayerState {
     /// The player as the entity of a query of colliders.
     pub(crate) fn query_entity(&self) -> QueryEntity {
         QueryEntity {
-            key: BirthKey::new(0, SourceKind::Player, 0, 0),
-            position: self.position,
-            fall_distance: self.fall_distance,
+            key: self.key,
+            position: self.body.position,
+            fall_distance: self.body.fall_distance,
             shift: self.shift0,
             powder_snow_solid: false,
             walks_on_powder_snow: false,
         }
-    }
-
-    pub(crate) fn body(&self) -> Body {
-        Body {
-            position: self.position,
-            velocity: self.velocity,
-            flags: self.flags,
-            support: self.support,
-            support_missed: self.support_missed,
-            fall_distance: self.fall_distance,
-            stuck: self.stuck,
-        }
-    }
-
-    pub(crate) fn set_body(&mut self, body: &Body) {
-        self.position = body.position;
-        self.velocity = body.velocity;
-        self.flags = body.flags;
-        self.support = body.support;
-        self.support_missed = body.support_missed;
-        self.fall_distance = body.fall_distance;
-        self.stuck = body.stuck;
     }
 }

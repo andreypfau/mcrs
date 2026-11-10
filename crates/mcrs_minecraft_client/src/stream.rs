@@ -18,21 +18,32 @@ use mcrs_voxel::{BlockPos, ColumnPos, LocalPos, SectionPos};
 use crate::cave::{CaveCull, NO_SLOT};
 use crate::tint::{self, BiomeTints};
 use crate::vanilla::VanillaAssets;
+use mcrs_minecraft_client_world::joined_game::CurrentDimension;
 use mcrs_minecraft_client_world::registries::{SessionSet, entered_configuration};
+use mcrs_minecraft_dimension::CardinalLight;
+use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_mesh::arena::{Arena, Block};
 use mcrs_minecraft_mesh::block::BlockInfo;
 use mcrs_minecraft_mesh::pack::QUAD_WORDS;
+use mcrs_minecraft_mesh::smooth_light::SmoothLight;
 use mcrs_minecraft_mesh::{self as mesh, Connectivity, Draw, Group, STREAMS, Scratch, SectionMesh};
 use mcrs_minecraft_model::atlas::SpriteArray;
 use mcrs_minecraft_model::block_catalog::{self, Catalog};
 use mcrs_minecraft_model::item_model_bake::{ItemModels, bake_all as bake_items};
-use mcrs_minecraft_model::model::Pack;
+use mcrs_minecraft_model::resource_set::{PackLoadError, ResourceSet};
 use mcrs_minecraft_render::{
     Animation, AtlasUpdate, Budget, FACE_BYTES, Placement, STILL, SectionDesc, SpriteEntry,
-    SpriteUpload, Upload, Uploads,
+    SpriteUpload, TerrainShade, Upload, Uploads,
 };
+use mcrs_minecraft_resource::Id;
 
 const HYSTERESIS: f32 = (16 * SECTION_SIZE) as f32;
+
+/// The options of the client that change how the terrain mesh is lit.
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LightOptions {
+    pub smooth_light: SmoothLight,
+}
 
 #[derive(Resource, Clone, Copy)]
 pub struct MeshPacing {
@@ -63,10 +74,19 @@ impl Plugin for StreamPlugin {
             .insert_resource(ColumnTints::new(self.budget.tint_size))
             .insert_resource(self.uploads.clone())
             .insert_resource(self.pacing)
+            .init_resource::<LightOptions>()
+            .init_resource::<TerrainShade>()
+            .add_systems(
+                Update,
+                apply_dimension_shade
+                    .before(ClientTerrainSet::Build)
+                    .run_if(resource_exists::<CurrentRegistries>),
+            )
             .add_systems(
                 Update,
                 (
                     follow_camera,
+                    remesh_on_light_options,
                     adopt_columns,
                     bake_catalog.run_if(in_state(VanillaAssets::Ready)),
                     tint_columns,
@@ -171,8 +191,8 @@ pub struct ColumnTints {
 
 enum PackLoad {
     Pending,
-    Loading(Task<Result<Pack, String>>),
-    Ready(Arc<Pack>),
+    Loading(Task<Result<ResourceSet, PackLoadError>>),
+    Ready(Arc<ResourceSet>),
 }
 
 struct Resident {
@@ -1000,7 +1020,7 @@ pub fn load_gui_atlas(catalog: Res<BlockCatalog>, mut commands: Commands) {
 }
 
 impl BlockCatalog {
-    pub fn pack(&self) -> Option<&Arc<Pack>> {
+    pub fn pack(&self) -> Option<&Arc<ResourceSet>> {
         match &self.pack {
             PackLoad::Ready(pack) => Some(pack),
             _ => None,
@@ -1055,12 +1075,12 @@ impl BlockCatalog {
     }
 
     /// The pack is read once, off the asset system, before anything can bake against it.
-    fn poll_pack(&mut self, assets: &AssetServer) -> Option<Arc<Pack>> {
+    fn poll_pack(&mut self, assets: &AssetServer) -> Option<Arc<ResourceSet>> {
         match &mut self.pack {
             PackLoad::Pending => {
                 let assets = assets.clone();
                 self.pack = PackLoad::Loading(
-                    IoTaskPool::get().spawn(async move { Pack::load(&assets).await }),
+                    IoTaskPool::get().spawn(async move { ResourceSet::load(&assets).await }),
                 );
                 None
             }
@@ -1068,6 +1088,9 @@ impl BlockCatalog {
                 let pack = check_ready(task)?
                     .unwrap_or_else(|reason| panic!("cannot read the resource pack: {reason}"));
                 info!(files = pack.len(), "read the resource pack");
+                for error in pack.block_entity_models().errors() {
+                    warn!("block entity content error: {error}");
+                }
                 let pack = Arc::new(pack);
                 self.pack = PackLoad::Ready(pack.clone());
                 Some(pack)
@@ -1078,7 +1101,7 @@ impl BlockCatalog {
 
     fn start_baking(
         &mut self,
-        pack: &Arc<Pack>,
+        pack: &Arc<ResourceSet>,
         definitions: &Blocks,
         pool: &'static AsyncComputeTaskPool,
     ) {
@@ -1626,11 +1649,48 @@ pub(crate) fn flush_streams(mut loader: ResMut<Loader>, uploads: Res<Uploads>) {
     loader.flush_to(&uploads);
 }
 
+/// The directional shade table follows the `cardinal_light` of the dimension type the player
+/// is in.
+fn apply_dimension_shade(
+    current: Single<&CurrentDimension, Changed<CurrentDimension>>,
+    registries: Res<CurrentRegistries>,
+    mut shade: ResMut<TerrainShade>,
+) {
+    let Some(dimension_types) = registries.registry::<DimensionTypeFile>() else {
+        return;
+    };
+    let table = Id::checked(current.dimension_type.number(), dimension_types.len())
+        .and_then(|id| dimension_types.get(id))
+        .map_or(CardinalLight::Default, |file| file.cardinal_light);
+    shade.set_if_neq(TerrainShade(table));
+}
+
+/// A change of the light options or of the shade table meshes every drawn section again; the
+/// old mesh stays drawn until the new one replaces it.
+fn remesh_on_light_options(
+    options: Res<LightOptions>,
+    shade: Res<TerrainShade>,
+    mut loader: ResMut<Loader>,
+) {
+    let options_changed = options.is_changed() && !options.is_added();
+    let shade_changed = shade.is_changed() && !shade.is_added();
+    if !options_changed && !shade_changed {
+        return;
+    }
+    let loader = &mut *loader;
+    let drawn = loader.sections.residents().map(|(at, _)| at);
+    let meshing = loader.meshing.iter().map(|(at, _, _)| *at);
+    let stale: Vec<[i32; 3]> = drawn.chain(meshing).collect();
+    loader.stale.extend(stale);
+}
+
 fn admit_meshing(
     mut loader: ResMut<Loader>,
     catalog: Res<BlockCatalog>,
     store: Res<ColumnStore>,
     pacing: Res<MeshPacing>,
+    options: Res<LightOptions>,
+    shade: Res<TerrainShade>,
 ) {
     if !catalog.caught_up() {
         return;
@@ -1649,13 +1709,23 @@ fn admit_meshing(
         };
         let world = store.around(ColumnPos::new(at[0], at[2]));
         let blocks = catalog.blocks.clone();
+        let smooth_light = options.smooth_light;
+        let shade = shade.0;
         let mut scratch = loader.scratches.pop().unwrap_or_default();
         loader.sections.start_meshing(at);
         loader.meshing.push((
             at,
             slot,
             pool.spawn(async move {
-                let mesh = mesh::mesh_section(&world, &blocks, at, slot, &mut scratch);
+                let mesh = mesh::mesh_section(
+                    &world,
+                    &blocks,
+                    at,
+                    slot,
+                    smooth_light,
+                    shade,
+                    &mut scratch,
+                );
                 (mesh, scratch)
             }),
         ));
@@ -1729,7 +1799,7 @@ mod tests {
             );
 
             app.world_mut().resource_mut::<BlockCatalog>().pack =
-                PackLoad::Ready(Pack::shared_corpus());
+                PackLoad::Ready(ResourceSet::shared_corpus());
             app.update();
             let tints = app.world().resource::<BiomeTints>().clone();
             fn biomes(set: &CurrentRegistries) -> &mcrs_minecraft_registries::Registry<BiomeFile> {

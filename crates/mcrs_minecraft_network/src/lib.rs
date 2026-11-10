@@ -4,6 +4,7 @@ pub mod browser;
 pub mod client;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 pub mod connect;
+mod disconnect_reason;
 #[cfg(feature = "bevy")]
 pub mod event;
 pub mod identity;
@@ -34,7 +35,7 @@ pub use web_time::Instant;
 
 #[cfg(not(target_family = "wasm"))]
 pub use crate::outbound::OutboundReceiver;
-pub use crate::packet_io::{MAX_QUEUED_BYTES_PER_SOCKET, RawConnection};
+pub use crate::packet_io::{Inbound, MAX_QUEUED_BYTES_PER_SOCKET, RawConnection};
 pub use crate::shared_frames::{SharedAppend, SharedFrames};
 #[cfg(not(target_family = "wasm"))]
 pub use crate::writer_wakes::WriterWakes;

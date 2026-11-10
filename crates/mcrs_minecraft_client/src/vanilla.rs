@@ -12,7 +12,7 @@ use mcrs_minecraft_client_jar::{self as client_jar, Files, Progress};
 use mcrs_minecraft_client_gui::font::{ASCII_TEXTURE, Font, Span, draw_centered_text};
 use mcrs_minecraft_client_gui::scene::GuiQuad;
 use mcrs_minecraft_model::atlas::decode_png;
-use mcrs_minecraft_model::model::{Pack, is_resource};
+use mcrs_minecraft_model::resource_set::{ResourceSet, is_resource};
 use mcrs_minecraft_model::vanilla_source::{fill, register_source};
 
 const BAR_WIDTH: f32 = 400.0;
@@ -63,7 +63,7 @@ pub fn register(app: &mut App) {
 }
 
 // A dedicated thread rather than the IO pool: a download can block for minutes, and the pool
-// is shared with `Pack::load` and every other asset load.
+// is shared with `ResourceSet::load` and every other asset load.
 #[cfg(not(target_family = "wasm"))]
 fn spawn(
     root: Dir,
@@ -162,8 +162,13 @@ fn load_font(fetch: Res<Fetch>, mut images: ResMut<Assets<Image>>, mut commands:
 }
 
 fn font_page(files: Files) -> Result<(Font, Image), String> {
-    let pack: Pack = files.into_iter().collect();
-    let (pixels, width, height) = decode_png(pack.read(ASCII_TEXTURE)?, ASCII_TEXTURE)?;
+    let pack: ResourceSet = files.into_iter().collect();
+    let (pixels, width, height) = decode_png(
+        pack.read(ASCII_TEXTURE)
+            .map_err(|error| error.to_string())?,
+        ASCII_TEXTURE,
+    )
+    .map_err(|error| error.to_string())?;
     let font = Font::load(&pack, &pixels, width, height)?;
     let mut page = Image::new(
         Extent3d {

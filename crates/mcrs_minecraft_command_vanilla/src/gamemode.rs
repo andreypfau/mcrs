@@ -1,4 +1,4 @@
-use crate::select::{FoundPlayers, SelfSource, targets_or_self};
+use crate::select::{SelectionBuffers, SelfSource, targets_or_self};
 use crate::set::{VanillaCommands, VanillaContext};
 use bevy_ecs::prelude::*;
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
@@ -59,7 +59,7 @@ pub(crate) fn run(
     context: VanillaContext,
     mut output: CommandOutput,
     mut modes: ResMut<EffectQueue<SetGameMode>>,
-    mut found: Local<FoundPlayers>,
+    mut found: Local<SelectionBuffers>,
 ) -> CommandResult {
     let command = call.command;
     let mode = context.arg(&call.invocation, command.mode)?;
@@ -73,7 +73,7 @@ pub(crate) fn run(
             targets,
         )?;
         let mut changed: i32 = 0;
-        for &target in targets.found.iter() {
+        for target in targets.players() {
             if target.mode == mode {
                 continue;
             }

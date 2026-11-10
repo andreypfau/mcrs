@@ -10,6 +10,7 @@ use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured, save_to_dis
 use mcrs_minecraft_render_probe::probe::{self, CpuTimings, GpuTimings};
 
 use crate::Unsettled;
+use crate::settle::Settle;
 
 const DEFAULT_DIR: &str = "screenshots";
 
@@ -46,7 +47,6 @@ impl Plugin for ScreenshotPlugin {
             .add_systems(Update, capture);
         if let Some(path) = knobs.capture_path() {
             app.insert_resource(SceneCapture(path))
-                .add_message::<Unsettled>()
                 .add_systems(Update, capture_scene);
         }
     }
@@ -108,16 +108,13 @@ const TIMING_FRAMES: usize = 240;
 
 #[derive(Default)]
 struct Settling {
-    quiet_since: Option<f32>,
-    last: (usize, usize, usize),
+    settle: Settle,
     timed: usize,
     requested: bool,
 }
 
-/// `Streaming::done` also holds in the gaps between the server's batches, so the
-/// scene counts as settled only once it has stayed done with nothing new arriving. It also
-/// waits while any plugin reports `Unsettled`, with no timeout of its own: work that never
-/// settles fails the capture rather than shooting it unfinished.
+/// Waits for the terrain to stay quiet, with no timeout of its own for work that reports
+/// `Unsettled`: work that never settles fails the capture rather than shooting it unfinished.
 #[expect(
     clippy::too_many_arguments,
     reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
@@ -146,18 +143,14 @@ fn capture_scene(
         commands.write_message(AppExit::error());
         return;
     }
-    let status = streaming.status();
-    let counts = (status.columns, status.sections, status.sections_total);
-    let settled = unsettled.read().count() == 0;
-    let quiet = streaming.done() && status.columns > 0 && counts == settling.last && settled;
-    settling.last = counts;
-    if !quiet {
-        settling.quiet_since = None;
+    let quiet = settling
+        .settle
+        .observe(time.elapsed(), &streaming, &mut unsettled);
+    let Some(quiet) = quiet else {
         settling.timed = 0;
         return;
-    }
-    let since = *settling.quiet_since.get_or_insert(now);
-    if now - since < SETTLE_SECS {
+    };
+    if quiet.as_secs_f32() < SETTLE_SECS {
         return;
     }
     settling.timed += 1;

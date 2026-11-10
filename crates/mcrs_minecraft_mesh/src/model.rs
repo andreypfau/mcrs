@@ -1,10 +1,10 @@
 use crate::SECTION_SIZE;
-use crate::ambient;
 use crate::block::{BlockInfo, face_hidden};
 use crate::pack::{
     FACE_NONE, MODEL_BLOCK_LIGHT, MODEL_OVERHANG, MODEL_SHADE, MODEL_SKY_LIGHT, MODEL_SPRITE,
     MODEL_STEPS, MODEL_TINT, MODEL_TINT_HIGH, MODEL_U, MODEL_V, MODEL_X, MODEL_Y, MODEL_Z,
 };
+use crate::smooth_light::{self, LightPath, VertexLight};
 
 use super::Sink;
 use super::face_normal;
@@ -23,7 +23,7 @@ pub(super) struct Quad {
     pub positions: [[f32; 3]; 4],
     pub uvs: [[f32; 2]; 4],
     pub shade: [u8; 4],
-    pub light: [u32; 4],
+    pub light: [VertexLight; 4],
     pub tint: u32,
     pub sprite: u16,
 }
@@ -45,8 +45,8 @@ pub(super) fn push(out: &mut Vec<u32>, quad: &Quad) {
         MODEL_V.set(&mut words, (v.clamp(0.0, 1.0) * scale) as u64);
         MODEL_TINT.set(&mut words, quad.tint as u64 & MODEL_TINT.max());
         MODEL_TINT_HIGH.set(&mut words, quad.tint as u64 >> MODEL_TINT.bits);
-        MODEL_BLOCK_LIGHT.set(&mut words, ambient::block_light(light) as u64);
-        MODEL_SKY_LIGHT.set(&mut words, ambient::sky_light(light) as u64);
+        MODEL_BLOCK_LIGHT.set(&mut words, u64::from(light.block));
+        MODEL_SKY_LIGHT.set(&mut words, u64::from(light.sky));
         MODEL_SHADE.set(&mut words, shade as u64);
         MODEL_SPRITE.set(&mut words, quad.sprite as u64);
         out.extend_from_slice(&words);
@@ -67,12 +67,14 @@ pub(super) fn blocks(catalog: &[BlockInfo], scratch: &mut Scratch) {
             for x in 0..SECTION_SIZE {
                 let here = border_index(x as i32, y as i32, z as i32);
                 let info = block_info(catalog, cell(&*scratch.states, here));
-                if info.quads.is_empty() {
+                let mut quads = info.quads_of(cell(&*scratch.choices, here)).peekable();
+                if quads.peek().is_none() {
                     continue;
                 }
 
-                for quad in &info.quads {
-                    let mut sample = here;
+                let path =
+                    LightPath::choose(scratch.smooth_light, &info.light, info.ambient_occlusion);
+                for quad in quads {
                     if let Some(cull) = quad.cull {
                         let normal = face_normal(cull as usize);
                         let front = border_index(
@@ -84,42 +86,25 @@ pub(super) fn blocks(catalog: &[BlockInfo], scratch: &mut Scratch) {
                         if face_hidden(info, across, cull as usize) {
                             continue;
                         }
-                        sample = front;
                     }
-                    let (shade, light) = if info.ambient_occlusion {
-                        let lit = ambient::smooth(
-                            &quad.positions,
-                            quad.facing,
-                            info.neighbour.full_block,
-                            cell(&*scratch.coords, here),
-                            |o| scratch.sample(x as i32 + o.x, y as i32 + o.y, z as i32 + o.z),
-                        );
-                        (
-                            lit.shade.map(|ao| ambient::shade_byte(ao, quad.shade)),
-                            lit.light,
-                        )
-                    } else {
-                        if quad.cull.is_none()
-                            && ambient::face_cubic(
-                                &quad.positions,
-                                quad.facing,
-                                info.neighbour.full_block,
+                    let face_shade = quad.shade.factor(scratch.shade);
+                    let values = smooth_light::light_quad(
+                        path,
+                        &quad.positions,
+                        quad.facing,
+                        quad.cull,
+                        |offset| {
+                            scratch.sample(
+                                x as i32 + offset.x,
+                                y as i32 + offset.y,
+                                z as i32 + offset.z,
                             )
-                        {
-                            let normal = face_normal(quad.facing as usize);
-                            sample = border_index(
-                                x as i32 + normal[0],
-                                y as i32 + normal[1],
-                                z as i32 + normal[2],
-                            );
-                        }
-                        let light = ambient::light_coords(
-                            info.emissive,
-                            info.emission,
-                            cell(&*scratch.light, sample),
-                        );
-                        ([ambient::shade_byte(1.0, quad.shade); 4], [light; 4])
-                    };
+                        },
+                    );
+                    let shade = values
+                        .occlusion
+                        .map(|occlusion| smooth_light::shade_byte(occlusion, face_shade));
+                    let light = values.light.map(|light| light.with_emission(quad.emission));
                     let group = quad.face.map_or(UNGROUPED, |group| group as usize);
                     let Some(out) = quad
                         .pass
@@ -171,9 +156,9 @@ pub(super) fn fixed(value: f32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::fixed;
-    use crate::ambient::{Neighbour, corners};
     use crate::block::{BlockInfo, ModelQuad, Pass};
     use crate::pack::{MODEL_OVERHANG, MODEL_SHADE, MODEL_STEPS};
+    use crate::smooth_light::{LightState, corners};
     use crate::{SECTION_SIZE, SECTION_VOLUME};
     use crate::{Scratch, mesh_world, one_section_world};
     use glam::Vec3;
@@ -193,8 +178,9 @@ mod tests {
             face: None,
             sprite: 0,
             pass: Pass::Solid,
-            shade: 1.0,
+            shade: crate::face_shade::FaceShade::Factor(1.0),
             tint: crate::tint::Tint::None,
+            emission: 0,
         }];
 
         let mut scratch = Scratch::new();
@@ -228,13 +214,16 @@ mod tests {
             _ => 0,
         });
         let mut catalog: Vec<BlockInfo> = (0..3).map(|_| BlockInfo::default()).collect();
-        let solid = Neighbour {
-            full_block: true,
+        let stone = LightState {
+            occlusion_shade: 0.2,
             solid_render: true,
-            light_opaque: true,
+            light_dampening: 15,
+            full_collision: true,
+            emission: 0,
+            emissive: false,
         };
-        catalog[FLOOR as usize].neighbour = solid;
-        catalog[BLOCK as usize].neighbour = solid;
+        catalog[FLOOR as usize].light = stone;
+        catalog[BLOCK as usize].light = stone;
         catalog[BLOCK as usize].ambient_occlusion = ambient_occlusion;
         catalog[BLOCK as usize].quads = vec![ModelQuad {
             positions: corners(Direction::West, Vec3::ZERO, Vec3::ONE),
@@ -244,8 +233,9 @@ mod tests {
             face: None,
             sprite: 0,
             pass: Pass::Solid,
-            shade: 0.6,
+            shade: crate::face_shade::FaceShade::Factor(0.6),
             tint: crate::tint::Tint::None,
+            emission: 0,
         }];
 
         let batch = mesh_world(&world, &catalog, &[[0, 0, 0]], &mut Scratch::new());

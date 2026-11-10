@@ -1,8 +1,3 @@
-// chisle: every reference in a built template pool is a
-// `ResourceLocation<Arc<str>>`, one allocation each, and a structure template is
-// built as a typed value, encoded to NBT and parsed back by the asset loader. A
-// `Holder` that is `Reference(Id<T>)` and a loader that takes typed templates
-// lift both.
 mod beta;
 mod biome;
 mod density;
@@ -13,7 +8,7 @@ mod template_pool;
 mod terrain;
 
 use mcrs_minecraft_biome_file::BiomeFile;
-use mcrs_minecraft_environment::attribute::AttributeError;
+use mcrs_minecraft_environment::AttributeError;
 use mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec;
 use mcrs_minecraft_noise::proto::NoiseParam;
 use mcrs_minecraft_registries::Named;

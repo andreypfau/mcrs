@@ -15,13 +15,13 @@ use mcrs_minecraft_engine_world::session::{PlayerSessionCounter, Session};
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_engine_world::world::sub_app::DimDespawnQueue;
-use mcrs_minecraft_environment::world_clock::{ClockState, WorldClockPlugin, WorldClocks};
+use mcrs_minecraft_environment::{ClockTime, WorldClockPlugin, WorldClocks};
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_registries::{CurrentRegistries, Registries, Resolver};
 use mcrs_minecraft_resource::Id;
 
 use crate::host_app;
-use mcrs_minecraft_environment::world_clock::WorldClock;
+use mcrs_minecraft_environment::WorldClock;
 
 #[test]
 fn dim_sub_apps_are_isolated_worlds_that_come_and_go() {
@@ -132,7 +132,7 @@ fn overworld_clock(app: &App) -> Id<WorldClock> {
     .expect("the overworld clock is registered")
 }
 
-fn sub_app_clock(app: &mut App, dim_label: Entity) -> ClockState {
+fn sub_app_clock(app: &mut App, dim_label: Entity) -> ClockTime {
     let overworld = overworld_clock(app);
     *host_app::world(app, dim_label)
         .resource::<WorldClocks>()
@@ -140,7 +140,7 @@ fn sub_app_clock(app: &mut App, dim_label: Entity) -> ClockState {
         .expect("the tick input carried the overworld clock into the sub-world")
 }
 
-fn main_clock(app: &App) -> ClockState {
+fn main_clock(app: &App) -> ClockTime {
     *app.world()
         .resource::<WorldClocks>()
         .get(overworld_clock(app))

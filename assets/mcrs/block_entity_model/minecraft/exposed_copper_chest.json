@@ -1,0 +1,100 @@
+{
+  "layers": [
+    {
+      "when": "q.block_state('facing') == 'north' && q.block_state('type') == 'single'",
+      "geometry": "geometry.mcrs.block.chest",
+      "texture": "minecraft:entity/chest/copper_exposed",
+      "surface": "cutout",
+      "back_faces": false,
+      "placement": [[-1.0, 0.0, 0.0, 1.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, -1.0, 1.0]]
+    },
+    {
+      "when": "q.block_state('facing') == 'north' && q.block_state('type') == 'left'",
+      "geometry": "geometry.mcrs.block.double_chest_left",
+      "texture": "minecraft:entity/chest/copper_exposed_left",
+      "surface": "cutout",
+      "back_faces": false,
+      "placement": [[-1.0, 0.0, 0.0, 1.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, -1.0, 1.0]]
+    },
+    {
+      "when": "q.block_state('facing') == 'north' && q.block_state('type') == 'right'",
+      "geometry": "geometry.mcrs.block.double_chest_right",
+      "texture": "minecraft:entity/chest/copper_exposed_right",
+      "surface": "cutout",
+      "back_faces": false,
+      "placement": [[-1.0, 0.0, 0.0, 1.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, -1.0, 1.0]]
+    },
+    {
+      "when": "q.block_state('facing') == 'south' && q.block_state('type') == 'single'",
+      "geometry": "geometry.mcrs.block.chest",
+      "texture": "minecraft:entity/chest/copper_exposed",
+      "surface": "cutout",
+      "back_faces": false,
+      "placement": [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]]
+    },
+    {
+      "when": "q.block_state('facing') == 'south' && q.block_state('type') == 'left'",
+      "geometry": "geometry.mcrs.block.double_chest_left",
+      "texture": "minecraft:entity/chest/copper_exposed_left",
+      "surface": "cutout",
+      "back_faces": false,
+      "placement": [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]]
+    },
+    {
+      "when": "q.block_state('facing') == 'south' && q.block_state('type') == 'right'",
+      "geometry": "geometry.mcrs.block.double_chest_right",
+      "texture": "minecraft:entity/chest/copper_exposed_right",
+      "surface": "cutout",
+      "back_faces": false,
+      "placement": [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]]
+    },
+    {
+      "when": "q.block_state('facing') == 'west' && q.block_state('type') == 'single'",
+      "geometry": "geometry.mcrs.block.chest",
+      "texture": "minecraft:entity/chest/copper_exposed",
+      "surface": "cutout",
+      "back_faces": false,
+      "placement": [[0.0, 0.0, -1.0, 1.0], [0.0, 1.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]]
+    },
+    {
+      "when": "q.block_state('facing') == 'west' && q.block_state('type') == 'left'",
+      "geometry": "geometry.mcrs.block.double_chest_left",
+      "texture": "minecraft:entity/chest/copper_exposed_left",
+      "surface": "cutout",
+      "back_faces": false,
+      "placement": [[0.0, 0.0, -1.0, 1.0], [0.0, 1.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]]
+    },
+    {
+      "when": "q.block_state('facing') == 'west' && q.block_state('type') == 'right'",
+      "geometry": "geometry.mcrs.block.double_chest_right",
+      "texture": "minecraft:entity/chest/copper_exposed_right",
+      "surface": "cutout",
+      "back_faces": false,
+      "placement": [[0.0, 0.0, -1.0, 1.0], [0.0, 1.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]]
+    },
+    {
+      "when": "q.block_state('facing') == 'east' && q.block_state('type') == 'single'",
+      "geometry": "geometry.mcrs.block.chest",
+      "texture": "minecraft:entity/chest/copper_exposed",
+      "surface": "cutout",
+      "back_faces": false,
+      "placement": [[0.0, 0.0, 1.0, 0.0], [0.0, 1.0, 0.0, 0.0], [-1.0, 0.0, 0.0, 1.0]]
+    },
+    {
+      "when": "q.block_state('facing') == 'east' && q.block_state('type') == 'left'",
+      "geometry": "geometry.mcrs.block.double_chest_left",
+      "texture": "minecraft:entity/chest/copper_exposed_left",
+      "surface": "cutout",
+      "back_faces": false,
+      "placement": [[0.0, 0.0, 1.0, 0.0], [0.0, 1.0, 0.0, 0.0], [-1.0, 0.0, 0.0, 1.0]]
+    },
+    {
+      "when": "q.block_state('facing') == 'east' && q.block_state('type') == 'right'",
+      "geometry": "geometry.mcrs.block.double_chest_right",
+      "texture": "minecraft:entity/chest/copper_exposed_right",
+      "surface": "cutout",
+      "back_faces": false,
+      "placement": [[0.0, 0.0, 1.0, 0.0], [0.0, 1.0, 0.0, 0.0], [-1.0, 0.0, 0.0, 1.0]]
+    }
+  ]
+}

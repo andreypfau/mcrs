@@ -1,13 +1,16 @@
 use crate::atlas::SpriteRegistry;
-use crate::bake::Dir;
+use crate::bake::BlockModels;
 use crate::block_build::build_one;
-use crate::model::Pack;
+use crate::catalog_failure::CatalogFailure;
+use crate::resource_set::ResourceSet;
 use bevy::math::Vec3;
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
+use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_mesh::block::BlockInfo;
 use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
+use mcrs_minecraft_model_file::property_table::PropertyTable;
 use mcrs_voxel::BlockStateId;
 
 /// A block state as the resource pack names it: the block's identifier and
@@ -68,12 +71,12 @@ fn render(value: &PropertyValue) -> String {
 pub struct Catalog {
     pub blocks: Vec<BlockInfo>,
     pub sprites: SpriteRegistry,
-    pub failures: Vec<String>,
+    pub failures: Vec<CatalogFailure>,
 }
 
 /// The four corners of a full cube's `dir` face, in the order a baked quad winds them.
-pub fn cube_corners(dir: Dir) -> [Vec3; 4] {
-    mcrs_minecraft_mesh::ambient::corners(dir, Vec3::ZERO, Vec3::ONE)
+pub fn cube_corners(dir: Direction) -> [Vec3; 4] {
+    mcrs_minecraft_mesh::smooth_light::corners(dir, Vec3::ZERO, Vec3::ONE)
 }
 
 pub fn empty() -> Catalog {
@@ -86,7 +89,13 @@ pub fn empty() -> Catalog {
 
 /// Bakes the states named by `ids`, which are indices into the corpus'
 /// state space and so index the catalog directly.
-pub fn extend(pack: &Pack, catalog: &mut Catalog, definitions: &BlockDefinitions, ids: &[u16]) {
+pub fn extend(
+    pack: &ResourceSet,
+    catalog: &mut Catalog,
+    definitions: &BlockDefinitions,
+    ids: &[u16],
+) {
+    let mut models = BlockModels::new(pack);
     if catalog.blocks.len() < definitions.state_count() {
         catalog
             .blocks
@@ -94,26 +103,26 @@ pub fn extend(pack: &Pack, catalog: &mut Catalog, definitions: &BlockDefinitions
     }
     for &id in ids {
         let Some(id_state) = BlockStateId::checked(id, definitions.state_count()) else {
-            catalog.failures.push(format!(
-                "state {id}: past the {} corpus states",
-                definitions.state_count()
-            ));
+            catalog.failures.push(CatalogFailure::PastStates {
+                id,
+                count: definitions.state_count(),
+            });
             continue;
         };
-        let (Some(state), Some(block)) = (
+        let (Some(state), Some(block), Some(owner)) = (
             state_key(definitions, id_state),
             definitions.block_index(id_state).and_then(Block::from_id),
+            definitions.owner(id_state),
         ) else {
-            catalog
-                .failures
-                .push(format!("state {id}: no registry block owns it"));
+            catalog.failures.push(CatalogFailure::NoOwner { id });
             continue;
         };
         let data = definitions.state(id_state);
         match build_one(
-            pack,
+            &mut models,
             block,
             &state,
+            &PropertyTable::of_block(&owner.properties),
             data,
             definitions.shape(data.occlusion_shape),
             &mut catalog.sprites,
@@ -123,11 +132,18 @@ pub fn extend(pack: &Pack, catalog: &mut Catalog, definitions: &BlockDefinitions
                     *slot = info;
                 }
             }
-            Err(reason) => catalog
-                .failures
-                .push(format!("{}: {reason}", state.label())),
+            Err(cause) => catalog.failures.push(CatalogFailure::Build {
+                state: state.label(),
+                cause,
+            }),
         }
     }
+    catalog.failures.extend(
+        models
+            .take_errors()
+            .into_iter()
+            .map(CatalogFailure::Content),
+    );
     assert!(
         catalog.sprites.arrays().len() <= MAX_SPRITE_ARRAYS,
         "the pack fills {} texture arrays, but the shaders bind only {MAX_SPRITE_ARRAYS}",

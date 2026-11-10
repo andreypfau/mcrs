@@ -64,8 +64,6 @@ pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'s
     (mcrs_minecraft_keys::TICKET_TYPE, mcrs_minecraft_keys::ticket_type::ENTRIES),
     (mcrs_minecraft_keys::INCOMING_RPC_METHODS, mcrs_minecraft_keys::incoming_rpc_methods::ENTRIES),
     (mcrs_minecraft_keys::OUTGOING_RPC_METHODS, mcrs_minecraft_keys::outgoing_rpc_methods::ENTRIES),
-    (mcrs_minecraft_environment::registry_keys::TEST_ENVIRONMENT_DEFINITION_TYPE.location(), mcrs_minecraft_environment::test_environment_definition_type_keys::TestEnvironmentDefinitionType::ENTRIES),
-    (mcrs_minecraft_environment::registry_keys::TEST_INSTANCE_TYPE.location(), mcrs_minecraft_environment::test_instance_type_keys::TestInstanceType::ENTRIES),
     (mcrs_minecraft_entity::registry_keys::SPAWN_CONDITION_TYPE.location(), mcrs_minecraft_entity::spawn_condition_type_keys::SpawnConditionType::ENTRIES),
     (mcrs_minecraft_item::registry_keys::DIALOG_TYPE.location(), mcrs_minecraft_item::dialog_type_keys::DialogType::ENTRIES),
     (mcrs_minecraft_item::registry_keys::DIALOG_ACTION_TYPE.location(), mcrs_minecraft_item::dialog_action_type_keys::DialogActionType::ENTRIES),

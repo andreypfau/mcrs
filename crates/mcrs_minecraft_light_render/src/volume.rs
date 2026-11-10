@@ -21,10 +21,10 @@ const LANE_WORDS_PER_JOB: u32 = 4;
 const MAX_SLOTS: u32 = 1 << 16;
 const PENDING: u32 = 1 << 31;
 
-// chisle: 9.5 atlas slots per column rests on the densest Nether window measured, 7.7 lit and
+// 9.5 atlas slots per column rests on the densest Nether window measured, 7.7 lit and
 // 9.1 propagated sections per column; a denser region reads the vanilla tint.
 const ATLAS_HALF_SLOTS_PER_COLUMN: u32 = 19;
-// chisle: 12 bricks per column rests on the 11.5 measured around Nether emitters; a denser
+// 12 bricks per column rests on the 11.5 measured around Nether emitters; a denser
 // region reads the vanilla tint.
 const POOL_BRICKS_PER_COLUMN: u64 = 12;
 

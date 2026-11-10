@@ -1,25 +1,22 @@
+use crate::entity_view::EntityView;
+use crate::mob_view::MobView;
 use crate::set::VanillaContext;
-use bevy_math::DVec3;
 use mcrs_command::ArgumentHandle;
 use mcrs_minecraft_command::ErrorText;
-use mcrs_minecraft_command_argument_entity::{Candidate, EntityArgument, EntityBounds};
+use mcrs_minecraft_command_argument_entity::{EntityArgument, SelectorKind, Target};
 use mcrs_minecraft_command_engine::{CommandFailure, Invocation, PlayerEntry};
 use mcrs_minecraft_engine_world::session::PlayerSession;
-use mcrs_minecraft_entity::entity_type_keys::EntityType;
-use mcrs_minecraft_entity::{PLAYER_HEIGHT, PLAYER_WIDTH};
-use mcrs_minecraft_game_mode::GameMode;
-use mcrs_minecraft_protocol::uuid::Uuid;
 
-/// The players a selector found, which a handler keeps between its runs so that a search
-/// allocates only when it finds more players than every search before it.
+/// The buffers of a selector search, which a handler keeps between its runs so that a search
+/// allocates only when it finds more entities than every search before it.
 #[derive(Default)]
-pub(crate) struct FoundPlayers {
-    found: Vec<&'static PlayerEntry>,
-    candidates: Vec<PlayerCandidate<'static>>,
-    picked: Vec<&'static PlayerCandidate<'static>>,
+pub(crate) struct SelectionBuffers {
+    found: Vec<EntityView<'static>>,
+    candidates: Vec<EntityView<'static>>,
+    picked: Vec<&'static EntityView<'static>>,
 }
 
-impl FoundPlayers {
+impl SelectionBuffers {
     /// Lends the buffers to `search` and takes them back on every path out of it.
     pub(crate) fn with<'c, R>(&mut self, search: impl FnOnce(&mut Selection<'c>) -> R) -> R {
         let mut selection = Selection {
@@ -35,15 +32,61 @@ impl FoundPlayers {
     }
 }
 
-/// The players a search found, and the buffers the search reuses.
+/// The players and the mobs a search found, in the order of the selector, and the buffers the
+/// search reuses.
 pub(crate) struct Selection<'c> {
-    pub(crate) found: Vec<&'c PlayerEntry>,
-    candidates: Vec<PlayerCandidate<'c>>,
-    picked: Vec<&'static PlayerCandidate<'static>>,
+    found: Vec<EntityView<'c>>,
+    candidates: Vec<EntityView<'c>>,
+    picked: Vec<&'static EntityView<'static>>,
 }
 
-/// The players a selector argument finds in every dimension, in
-/// `out`, or the failure of its search.
+impl<'c> Selection<'c> {
+    /// The number of players and mobs found.
+    pub(crate) fn len(&self) -> usize {
+        self.found.len()
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.found.is_empty()
+    }
+
+    /// The entities found, in the order of the selector.
+    pub(crate) fn iter(&self) -> impl Iterator<Item = EntityView<'c>> + '_ {
+        self.found.iter().copied()
+    }
+
+    pub(crate) fn first(&self) -> Option<EntityView<'c>> {
+        self.found.first().copied()
+    }
+
+    /// The players found, in the order of the selector.
+    pub(crate) fn players(&self) -> impl Iterator<Item = &'c PlayerEntry> + '_ {
+        self.found.iter().filter_map(|found| match found {
+            EntityView::Player(player) => Some(*player),
+            EntityView::Mob { .. } => None,
+        })
+    }
+
+    /// The mobs found, in the order of the selector.
+    pub(crate) fn mobs(&self) -> impl Iterator<Item = MobView<'c>> + '_ {
+        self.found.iter().filter_map(|found| match found {
+            EntityView::Player(_) => None,
+            EntityView::Mob { view, .. } => Some(*view),
+        })
+    }
+
+    /// The first entity found when it is a mob; `command.failed` otherwise, as for a target that
+    /// a mob-only command cannot handle.
+    pub(crate) fn single_mob(&self) -> Result<MobView<'c>, CommandFailure> {
+        match self.first() {
+            Some(EntityView::Mob { view, .. }) => Ok(view),
+            _ => Err(CommandFailure::failed()),
+        }
+    }
+}
+
+/// The entities a selector argument finds: the players in every dimension and the mobs of this
+/// world, in `out`, or the failure of its search.
 pub(crate) fn select<'c>(
     context: &'c VanillaContext,
     call: &Invocation,
@@ -68,14 +111,45 @@ fn select_if_present<'c>(
     };
     let source = context.source(call)?;
     let targets = context.targets();
-    let me = call
-        .source
-        .player
-        .and_then(|session| targets.player(session))
-        .map(PlayerCandidate);
+    let dimension = targets
+        .dimension_of(call.source.dimension)
+        .unwrap_or_default();
+    let me = match (call.source.player, call.source.mob) {
+        (Some(session), _) => targets.player(session).map(EntityView::Player),
+        (None, Some(mob)) => context
+            .lookup()
+            .mob(mob)
+            .map(|view| EntityView::Mob { view, dimension }),
+        (None, None) => None,
+    };
     let mut random = |bound: usize| rand::random_range(0..bound.max(1));
     let mut candidates = mcrs_command::recycle(core::mem::take(&mut out.candidates));
-    candidates.extend(targets.players().iter().map(PlayerCandidate));
+    match selector.target {
+        Target::Kind(SelectorKind::SelfEntity) => {}
+        Target::Uuid(uuid) => {
+            candidates.extend(targets.players().iter().map(EntityView::Player));
+            candidates.extend(
+                context
+                    .lookup()
+                    .mob_by_uuid(uuid.as_u128())
+                    .map(|view| EntityView::Mob { view, dimension }),
+            );
+        }
+        Target::Name(_) => {
+            candidates.extend(targets.players().iter().map(EntityView::Player));
+        }
+        Target::Kind(_) => {
+            candidates.extend(targets.players().iter().map(EntityView::Player));
+            if selector.includes_entities() {
+                candidates.extend(
+                    context
+                        .lookup()
+                        .mobs()
+                        .map(|view| EntityView::Mob { view, dimension }),
+                );
+            }
+        }
+    }
     let mut picked = mcrs_command::recycle(core::mem::take(&mut out.picked));
     let selected = selector.select(
         &source,
@@ -85,8 +159,7 @@ fn select_if_present<'c>(
         &mut picked,
     );
     out.found.clear();
-    out.found
-        .extend(picked.iter().map(|&&PlayerCandidate(player)| player));
+    out.found.extend(picked.iter().map(|&&candidate| candidate));
     out.picked = mcrs_command::recycle(picked);
     candidates.clear();
     out.candidates = candidates;
@@ -103,14 +176,14 @@ pub(crate) enum SelfSource {
 }
 
 impl SelfSource {
-    fn require<P>(
+    fn require(
         self,
-        entity: Option<PlayerSession>,
-        player: Option<P>,
+        session: Option<PlayerSession>,
+        player: Option<&PlayerEntry>,
     ) -> Result<(), CommandFailure> {
         let (satisfied, key) = match self {
             Self::Player => (player.is_some(), "permissions.requires.player"),
-            Self::Entity => (entity.is_some(), "permissions.requires.entity"),
+            Self::Entity => (session.is_some(), "permissions.requires.entity"),
         };
         if satisfied {
             Ok(())
@@ -120,7 +193,7 @@ impl SelfSource {
     }
 }
 
-/// The players a selector finds, or the source player when the branch has no selector, in
+/// The entities a selector finds, or the source entity when the branch has no selector, in
 /// `out`. A branch without a selector fails when its source is not what `needs` says.
 pub(crate) fn targets_or_self<'c>(
     context: &'c VanillaContext,
@@ -132,94 +205,49 @@ pub(crate) fn targets_or_self<'c>(
 ) -> Result<(), CommandFailure> {
     if !select_if_present(context, call, arg, out)? {
         out.found.clear();
-        let source = call.source.player;
-        out.found
-            .extend(source.and_then(|session| context.targets().player(session)));
-        return needs.require(source, out.found.first());
+        let session = call.source.player;
+        let player = session.and_then(|session| context.targets().player(session));
+        out.found.extend(player.map(EntityView::Player));
+        if let Some(view) = call.source.mob.and_then(|mob| context.lookup().mob(mob)) {
+            let dimension = context
+                .targets()
+                .dimension_of(call.source.dimension)
+                .unwrap_or_default();
+            out.found.push(EntityView::Mob { view, dimension });
+            return Ok(());
+        }
+        return needs.require(session, player);
     }
-    if out.found.is_empty() {
+    if out.is_empty() {
         return Err(CommandFailure::translate(none_found, vec![]));
     }
     Ok(())
 }
 
-/// A player as an entity selector sees it. The engine that owns [`PlayerEntry`] does not know
-/// the selector crate, so the candidate is a view of the entry.
-#[derive(Clone, Copy)]
-struct PlayerCandidate<'c>(&'c PlayerEntry);
-
-impl Candidate for PlayerCandidate<'_> {
-    fn uuid(&self) -> Uuid {
-        self.0.uuid
-    }
-
-    fn name(&self) -> &str {
-        &self.0.name
-    }
-
-    fn entity_type(&self) -> EntityType {
-        EntityType::Player
-    }
-
-    fn position(&self) -> DVec3 {
-        self.0.transform.translation
-    }
-
-    fn bounding_box(&self) -> EntityBounds {
-        let half = DVec3::new(PLAYER_WIDTH / 2.0, 0.0, PLAYER_WIDTH / 2.0);
-        let position = self.0.transform.translation;
-        EntityBounds {
-            min: position - half,
-            max: position + half + DVec3::Y * PLAYER_HEIGHT,
-        }
-    }
-
-    fn yaw(&self) -> f32 {
-        self.0.transform.rotation.yaw()
-    }
-
-    fn pitch(&self) -> f32 {
-        self.0.transform.rotation.pitch()
-    }
-
-    fn game_mode(&self) -> Option<GameMode> {
-        Some(self.0.mode)
-    }
-
-    // chisle: experience, tags and teams have no state in the server yet: every player is at
-    // level 0, has no tag and no team. Their components lift it.
-    fn experience_level(&self) -> Option<i32> {
-        Some(0)
-    }
-
-    fn alive(&self) -> bool {
-        true
-    }
-
-    fn has_tag(&self, _: &str) -> bool {
-        false
-    }
-
-    fn has_any_tag(&self) -> bool {
-        false
-    }
-
-    fn team(&self) -> Option<&str> {
-        None
-    }
-
-    fn dimension(&self) -> usize {
-        self.0.dimension
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bevy_math::DVec3;
+    use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
+    use mcrs_minecraft_game_mode::GameMode;
+    use mcrs_minecraft_protocol::uuid::Uuid;
 
     #[test]
     fn a_selectorless_branch_fails_with_what_its_source_lacks() {
-        let entity = Some(PlayerSession(1));
+        let session = Some(PlayerSession(1));
+        let entry = PlayerEntry {
+            session: PlayerSession(1),
+            dimension: 0,
+            entity: None,
+            uuid: Uuid::nil(),
+            name: String::from("Steve"),
+            transform: Transform {
+                translation: DVec3::ZERO,
+                rotation: Rotation::new(0.0, 0.0),
+            },
+            mode: GameMode::Survival,
+        };
+        let player = Some(&entry);
         let cases = [
             (
                 SelfSource::Player,
@@ -229,22 +257,22 @@ mod tests {
             ),
             (
                 SelfSource::Player,
-                entity,
+                session,
                 None,
                 Some("permissions.requires.player"),
             ),
-            (SelfSource::Player, entity, Some(()), None),
+            (SelfSource::Player, session, player, None),
             (
                 SelfSource::Entity,
                 None,
                 None,
                 Some("permissions.requires.entity"),
             ),
-            (SelfSource::Entity, entity, None, None),
+            (SelfSource::Entity, session, None, None),
         ];
-        for (needs, entity, player, key) in cases {
+        for (needs, session, player, key) in cases {
             let expected = key.map(|key| CommandFailure::translate(key, vec![]));
-            assert_eq!(needs.require(entity, player).err(), expected);
+            assert_eq!(needs.require(session, player).err(), expected);
         }
     }
 }

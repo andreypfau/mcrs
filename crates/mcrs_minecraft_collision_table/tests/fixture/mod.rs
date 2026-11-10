@@ -10,8 +10,8 @@ use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use glam::DVec3;
+use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_fixtures::FixtureFile;
-use mcrs_minecraft_physics::BirthKey;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::Living;
@@ -165,7 +165,7 @@ fn row_of(kind: &str) -> Option<MotionRow> {
 pub fn start_state(
     recorded: &Recorded,
     row: &MotionRow,
-    key: BirthKey,
+    key: EntityKey,
     sample: &Sample,
     phase: u8,
 ) -> EntityState {

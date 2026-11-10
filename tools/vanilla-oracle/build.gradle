@@ -198,3 +198,89 @@ tasks.register('dumpGolden', JavaExec) {
 		args = [project.findProperty('goldenOut') ?: "${layout.buildDirectory.get()}/golden-out".toString(), golden.toString(), goldenIn.toString()]
 	}
 }
+
+tasks.register('dumpEntityModels', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.EntityModelOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/entity-out".toString(), 'models']
+}
+
+tasks.register('dumpEntityAnimations', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.EntityModelOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/entity-out".toString(), 'animations']
+}
+
+tasks.register('dumpEntityPoses', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.EntityModelOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/entity-out".toString(), 'poses']
+}
+
+tasks.register('dumpBlockEntityPoses', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.EntityModelOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/entity-out".toString(), 'block_entities']
+}
+
+tasks.register('dumpEntityTypes', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.EntityModelOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/entity-out".toString(), 'types']
+}
+
+tasks.register('dumpNumeric', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.NumericOracle'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/numeric-out".toString()]
+}
+
+tasks.register('dumpBlockModels', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.BlockModelOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/block-model-out".toString()]
+}
+
+tasks.register('dumpBlockFaces', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.BlockFaceOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/block-face-out".toString()]
+}
+
+tasks.register('dumpBlockSmoothLight', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.BlockLightOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/block-light-out".toString(), 'smooth_light']
+}
+
+tasks.register('dumpBlockOcclusionShade', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.BlockLightOracle'
+	jvmArgs '-Xmx2G'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/block-light-out".toString(), 'occlusion_shade']
+}
+
+tasks.register('dumpEnvironment', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.EnvironmentOracle'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/environment-out".toString()]
+}

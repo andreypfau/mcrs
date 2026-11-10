@@ -1,0 +1,44 @@
+[package]
+name = "mcrs_minecraft_engine_brain"
+description = "The AI stage of the mobs of a dimension world: the host that publishes the snapshot of the mob rows, runs the stage per tile beside the entity pass, applies the decisions through the mob controls and steers the rows"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+# std: the host keeps its tiles in BTreeMap and its index in a hash map
+[dependencies]
+mcrs_minecraft_entity_key.workspace = true
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+bevy_tasks.workspace = true
+glam.workspace = true
+mcrs_minecraft_brain.workspace = true
+mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_engine_physics.workspace = true
+mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_entity_rows = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_game_mode.workspace = true
+mcrs_minecraft_goal_world.workspace = true
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_mob_control.workspace = true
+mcrs_minecraft_physics.workspace = true
+mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_volume.workspace = true
+mcrs_voxel.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+# Without it a pool of the tests runs every task on one thread.
+bevy_tasks = { workspace = true, features = ["multi_threaded"] }
+mcrs_minecraft_damage.workspace = true
+mcrs_minecraft_engine_physics = { workspace = true, features = ["testing"] }
+mcrs_minecraft_goals.workspace = true
+mcrs_minecraft_physics = { workspace = true, features = ["testing"] }
+mcrs_minecraft_protocol_game.workspace = true

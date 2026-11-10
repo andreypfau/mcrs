@@ -3,6 +3,7 @@ use crate::block::{BlockInfo, Fluid, Pass};
 use crate::pack::{
     FACE_FLUID, FACE_NONE, FACE_SPRITE, FACE_TINT, FACE_WORDS, FLUID_INSET, MODEL_STEPS,
 };
+use crate::smooth_light::{CellLight, VertexLight};
 use crate::tint::Tint;
 
 use super::model::{self, SHADE_DOWN, SHADE_EAST_WEST, SHADE_NORTH_SOUTH, SHADE_UP, UNGROUPED};
@@ -272,10 +273,11 @@ fn face_attr(
     } else {
         border_index(local[0], local[1] + 1, local[2])
     };
-    let mine = cell(&*scratch.light, here) as u32;
-    let other = cell(&*scratch.light, vertical) as u32;
-    let block_light = (mine >> 4).max(other >> 4).max(info.emission as u32);
-    let sky_light = (mine & 0xf).max(other & 0xf);
+    let light = fluid_light(
+        cell(&*scratch.light, here),
+        cell(&*scratch.light, vertical),
+        info.light.emission,
+    );
 
     let sprite = if face < 2 {
         fluid.still
@@ -288,7 +290,7 @@ fn face_attr(
     if !fluid.lava {
         FACE_TINT.set(&mut words, Tint::Water.index() as u64);
     }
-    cube::set_corners(&mut words, [0; 4], [block_light << 4 | sky_light << 20; 4]);
+    cube::set_corners(&mut words, [0; 4], [light; 4]);
     if face >= 2 {
         FACE_FLUID.set(&mut words, 1);
     }
@@ -323,7 +325,7 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch) {
             continue;
         };
         let kind = fluid_kind(cell(&*scratch.fluid, here));
-        let emission = info.emission as u32;
+        let emission = info.light.emission;
         let pass = if fluid.lava {
             Pass::Solid
         } else {
@@ -352,12 +354,7 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch) {
         let bottom = if down { FLUID_INSET } else { 0.0 };
 
         let light = |a: usize, b: usize| {
-            let (a, b) = (
-                cell(&*scratch.light, a) as u32,
-                cell(&*scratch.light, b) as u32,
-            );
-            let (block, sky) = ((a >> 4).max(b >> 4).max(emission), (a & 0xf).max(b & 0xf));
-            [block << 4 | sky << 20; 4]
+            [fluid_light(cell(&*scratch.light, a), cell(&*scratch.light, b), emission); 4]
         };
         let side_light = light(here, above);
 
@@ -459,6 +456,18 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch) {
         }
     }
     scratch.sloped = sloped;
+}
+
+/// A fluid face takes the brighter of two cells on each kind of light.
+fn fluid_light(first: u8, second: u8, emission: u8) -> VertexLight {
+    let (first, second) = (
+        CellLight::from_packed(first),
+        CellLight::from_packed(second),
+    );
+    VertexLight::of_levels(CellLight {
+        block: first.block.max(second.block).max(emission),
+        sky: first.sky.max(second.sky),
+    })
 }
 
 #[cfg(test)]
@@ -595,6 +604,8 @@ mod tests {
                 sprite: 1,
                 pass: Pass::Translucent as u8,
                 tint: crate::tint::Tint::None,
+                emission: 0,
+                uv: crate::uv_orientation::UvOrientation::IDENTITY,
             }; 6],
         );
 

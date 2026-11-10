@@ -28,7 +28,7 @@ document states what they compute. `gold-farm.md`, step G4, is the reason for th
   `entity-physics.md`, section 0.1, defines them.
 - **Mob**, **goal**, **path**, **path search**, **next node**, **guidance**, **path follower**,
   **move control**, **jump control**, **follow range**, **decision**, **reflex**, **issue tick**,
-  **snapshot**, **birth key**: as `entity-ai-timing.md`, section 0.1, defines them.
+  **snapshot**, **order key**: as `entity-ai-timing.md`, section 0.1, defines them.
 - **Block position**: the integer position `(floor(x), floor(y), floor(z))` of a point.
 - **Mob block position**: the block position of the position of a mob.
 - **Air**: a state of the block `air`, `cave_air` or `void_air`.
@@ -538,8 +538,9 @@ the path shape depends on it. The rule makes the paths of this server equal to t
 ## 5. Navigation requests
 
 **PATH-REQ-001** (`source_suggested`, semantic, confidence: medium). A request gives the targets,
-the reach range, the speed modifier, and optionally `L` and the node multiplier. A request of a
-mob on the ground does these steps:
+the reach range, the speed modifier, and optionally `L` and the node multiplier. Its kind is a
+point, a set of block targets or an entity. PATH-REQ-004 reads the kind. A request of a mob on the
+ground does these steps:
 
 1. For a single block target: if the column of the target is not loaded, give no path. Else adjust
    the target with PATH-REQ-002. A request for an entity uses the block position of the entity as
@@ -581,7 +582,13 @@ loaded, gives air. A read above or below the build height gives air.
 **PATH-REQ-004** (`source_suggested`, semantic, confidence: medium). A navigation accepts a new path
 from a request in this way:
 
-1. If the result is no path, the navigation has no path. Stop.
+1. If the result is no path, the kind of the request selects the result. Each case then stops:
+   - A request for an entity keeps the current path, the speed modifier, the stored target and
+     the reach range. The navigation does not change.
+   - A request for a point or for a set of block targets clears the path. The navigation has no
+     path.
+
+   A result of no path includes each early stop of PATH-REQ-001, steps 1 and 2.
 2. The path changes when its list of node positions differs from the current path.
 3. If the new path is done (its next node index is the node count, also for 0 nodes), stop.
 4. Apply the cauldron rule to each node in order: when the node is at a block of the tag
@@ -591,6 +598,11 @@ from a request in this way:
 5. Store the speed modifier. When the path changed, reset the stuck check of PATH-FOL-003.
 
 A request that gives the current path (step 3 of PATH-REQ-001) keeps the next node index.
+
+A goal that follows an entity asks again on its own timer, so a failed request does not stop the
+mob on its current path. `mob-goals.md`, E-G3, shows a failed request for an entity: a summoned
+baby pig is not on the ground in its first tick. Experiment: give a mob a stroll path, then let a
+request for an entity fail. The mob walks on to the end of the stroll path.
 
 **PATH-REQ-005** (`design`, semantic, confidence: medium). A request is a decision (AIT-DEC-001). The
 search runs on the snapshot of the issue tick, and PATH-REQ-004 applies the result at the
@@ -691,7 +703,7 @@ step of its operation:
   the attribute `movement_speed`, in f64. When the on-ground flag is true, or the mob is in a liquid
   that affects it, the operation becomes `wait`.
 - `wait`: set the forward input to 0.
-- `strafe`: a goal sets it. `mob-goals.md` states it.
+- `strafe`: a goal sets it. `mob-goals.md` reserves it for the ranged goals (section 6.5).
 
 A set of the mob speed also sets the forward input to the same value.
 

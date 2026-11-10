@@ -24,13 +24,24 @@ const REDSTONE: u8 = STEM + STEM_AGES;
 const REDSTONE_POWERS: u8 = 16;
 const DYE: u8 = REDSTONE + REDSTONE_POWERS;
 
-/// `CommonColors.TEXTURE_TINT_COLORS`, by dye id: what a banner's base layer is multiplied by.
+/// The texture tint of each dye, by dye id: what a banner's base layer is multiplied by.
 const DYE_COLORS: [u32; 16] = [
     0xf9fffe, 0xf9801d, 0xc74ebd, 0x3ab3da, 0xfed83d, 0x80c71f, 0xf38baa, 0x474f52, 0x9d9d97,
     0x169c9c, 0x8932b8, 0x3c44aa, 0x835432, 0x5e7c16, 0xb02e26, 0x1d1d21,
 ];
 
 pub const FIXED_TINTS: usize = DYE as usize + DYE_COLORS.len();
+
+const _: () = assert!(
+    Tint::Fixed(FIXED_TINTS as u8 - 1).index() as u64 <= crate::pack::FACE_TINT.max(),
+    "the face tint field is too narrow for the fixed tints"
+);
+
+const _: () = assert!(
+    Tint::Fixed(0).index() == 1 + BIOME_TINTS.len() as u32
+        && Tint::Water.index() == BIOME_TINTS.len() as u32,
+    "the fixed tints follow the biome tints without a gap or an overlap"
+);
 
 impl Tint {
     pub const SPRUCE_LEAVES: Tint = Tint::Fixed(SPRUCE_LEAVES);
@@ -113,21 +124,5 @@ mod tests {
         assert_eq!(colors[(STEM + 7) as usize], 0xe0c71c);
         assert_eq!(colors[REDSTONE as usize], 0x4c0000);
         assert_eq!(colors[(REDSTONE + 15) as usize], 0xff3200);
-    }
-
-    #[test]
-    fn every_index_is_distinct_and_fits_the_fields() {
-        let mut seen = std::collections::BTreeSet::new();
-        let all = [Tint::None]
-            .into_iter()
-            .chain(BIOME_TINTS)
-            .chain((0..FIXED_TINTS as u8).map(Tint::Fixed));
-        for tint in all {
-            assert!(seen.insert(tint.index()), "{tint:?}");
-        }
-        assert!(
-            (*seen.last().unwrap() as u64) <= crate::pack::FACE_TINT.max(),
-            "the face tint field is too narrow"
-        );
     }
 }

@@ -15,6 +15,7 @@ mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_mesh.workspace = true
 mcrs_minecraft_model.workspace = true
+mcrs_minecraft_model_file.workspace = true
 mcrs_minecraft_volume.workspace = true
 mcrs_minecraft_render.workspace = true
 mcrs_minecraft_light_render.workspace = true
@@ -33,6 +34,11 @@ mcrs_minecraft_light_engine.workspace = true
 mcrs_minecraft_light_color = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_client_jar.workspace = true
 mcrs_minecraft_client_world.workspace = true
+mcrs_minecraft_client_entity.workspace = true
+mcrs_minecraft_entity_render.workspace = true
+mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_protocol_game.workspace = true
+uuid = { workspace = true, optional = true }
 mcrs_minecraft_client_gui.workspace = true
 bevy = { version = "0.19.1", default-features = false, features = [
     "std",
@@ -73,7 +79,7 @@ bevy = { version = "0.19.1", default-features = false, features = ["file_watcher
 mcrs_minecraft_server = { workspace = true, optional = true }
 mcrs_minecraft_engine_server = { workspace = true, optional = true }
 mcrs_minecraft_engine = { workspace = true, optional = true }
-mcrs_minecraft_vanilla_light = { workspace = true, optional = true }
+mcrs_minecraft_server_settings = { workspace = true, optional = true }
 mcrs_minecraft_vanilla_worldgen = { workspace = true, optional = true }
 tracing-tracy = { version = "0.12", optional = true }
 
@@ -92,8 +98,11 @@ web-sys = { version = "0.3", features = ["Window", "Location", "UrlSearchParams"
 
 [features]
 default = ["singleplayer", "dev"]
-singleplayer = ["dep:mcrs_minecraft_server", "dep:mcrs_minecraft_engine_server", "dep:mcrs_minecraft_engine", "dep:mcrs_minecraft_vanilla_light", "dep:mcrs_minecraft_vanilla_worldgen"]
+singleplayer = ["dep:mcrs_minecraft_server", "dep:mcrs_minecraft_engine_server", "dep:mcrs_minecraft_engine", "dep:mcrs_minecraft_server_settings", "dep:mcrs_minecraft_vanilla_worldgen"]
 dev = []
+# The frame-capture harness: an off-screen client that writes the frames a test requests and
+# replays the entities of a vanilla record. The shipped client leaves it out.
+scene = ["dep:uuid"]
 # Bevy links as a shared library instead of being statically relinked into every
 # client rebuild. Dev loop only; it is not a shape we ship.
 dynamic_linking = ["bevy/dynamic_linking"]
@@ -103,14 +112,15 @@ dynamic_linking = ["bevy/dynamic_linking"]
 telemetry-tracy = ["bevy/trace", "dep:tracing-tracy", "mcrs_minecraft_server?/telemetry-tracy"]
 
 [dev-dependencies]
-mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_game_mode.workspace = true
-mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_model = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
 bytes.workspace = true
 mcrs_minecraft_fixtures.workspace = true
+# The scene frames are judged with NVIDIA's own FLIP code, so the numbers match its reference tool.
+nv-flip = "0.1.2"
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 [build-dependencies]
 flate2.workspace = true
@@ -122,3 +132,8 @@ objc2-foundation = { version = "0.3", default-features = false, features = ["std
 [[example]]
 name = "block_viewer"
 path = "examples/block_viewer/main.rs"
+
+[[test]]
+name = "scene_frames"
+path = "tests/scene_frames/main.rs"
+required-features = ["scene"]

@@ -11,7 +11,7 @@ use mcrs_minecraft_protocol_game::clientbound::{
 /// the `respawn` of a dimension change: with `position` as the destination of the move. The
 /// center and the radius of the chunk cache come from the view of the muxer, before its first
 /// batch.
-// chisle: steps 2, 8, 9, 10, 13 to 16 and 18 are not sent, because the server holds no
+// Steps 2, 8, 9, 10, 13 to 16 and 18 are not sent, because the server holds no
 // difficulty, world border, clock packet, spawn position, tick rate packet, inventory sync or post
 // effects yet; each step joins this sequence with its state.
 pub(crate) fn enter_level_packets(

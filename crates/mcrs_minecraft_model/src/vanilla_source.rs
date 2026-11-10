@@ -17,8 +17,6 @@ pub fn register_source(app: &mut App, root: Dir) {
     );
 }
 
-// chisle: the resource half is held twice, here and again in `Pack`; have `Pack` hold the
-// `Dir`'s `Arc<Vec<u8>>` values instead if the memory matters.
 pub fn fill(root: &Dir, files: Files) {
     for (path, bytes) in files {
         root.insert_asset(Path::new(&path), bytes);
@@ -38,9 +36,13 @@ pub fn fill(root: &Dir, files: Files) {
 pub fn resource_files() -> &'static Files {
     use mcrs_minecraft_client_jar::Progress;
     static FILES: std::sync::LazyLock<Files> = std::sync::LazyLock::new(|| {
-        mcrs_minecraft_client_jar::resolve(&Progress::default(), crate::model::is_resource, drop)
-            .unwrap()
-            .0
+        mcrs_minecraft_client_jar::resolve(
+            &Progress::default(),
+            crate::resource_set::is_resource,
+            drop,
+        )
+        .unwrap()
+        .0
     });
     &FILES
 }

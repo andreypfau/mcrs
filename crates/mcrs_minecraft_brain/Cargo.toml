@@ -1,0 +1,18 @@
+[package]
+name = "mcrs_minecraft_brain"
+description = "The AI stage of mobs without Bevy: the snapshot replica, the issue and the late application of decisions, keyed random values, the wake schedule and the goal selector"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_entity_key.workspace = true
+mcrs_voxel.workspace = true
+# The workspace entry enables std, which the wasm32v1-none build of this crate does not have.
+glam = { version = "0.32.1", default-features = false, features = ["nostd-libm"] }
+libm.workspace = true

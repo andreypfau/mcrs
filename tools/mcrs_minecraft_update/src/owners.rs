@@ -3,6 +3,7 @@ use crate::keys::{Owner, ValueType};
 /// The owners that list their own static registries: the catalog stays below world generation,
 /// so it cannot depend on them.
 pub const OWN_LISTS: &[&str] = &[
+    "mcrs_minecraft_game_registries",
     "mcrs_minecraft_worldgen_carver",
     "mcrs_minecraft_worldgen_density",
     "mcrs_minecraft_worldgen_feature",
@@ -14,12 +15,12 @@ pub const OWNERS: &[Owner] = &[
     Owner {
         registry: "minecraft:timeline",
         krate: "mcrs_minecraft_environment",
-        value: ValueType::Defined("crate::timeline::Timeline"),
+        value: ValueType::Defined("crate::Timeline"),
     },
     Owner {
         registry: "minecraft:world_clock",
         krate: "mcrs_minecraft_environment",
-        value: ValueType::Defined("crate::world_clock::WorldClock"),
+        value: ValueType::Defined("crate::WorldClock"),
     },
     Owner {
         registry: "minecraft:banner_pattern",
@@ -408,12 +409,12 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:test_environment_definition_type",
-        krate: "mcrs_minecraft_environment",
+        krate: "mcrs_minecraft_game_registries",
         value: ValueType::Enum("TestEnvironmentDefinitionType"),
     },
     Owner {
         registry: "minecraft:test_instance_type",
-        krate: "mcrs_minecraft_environment",
+        krate: "mcrs_minecraft_game_registries",
         value: ValueType::Enum("TestInstanceType"),
     },
     Owner {

@@ -226,7 +226,7 @@ impl<const MIN: i32, const MAX: i32, const DEFAULT: i32> Serialize for Bounded<M
 pub type NonNegativeInt = Bounded<0, { i32::MAX }>;
 pub type PositiveInt = Bounded<1, { i32::MAX }>;
 
-/// `ExtraCodecs.POSITIVE_FLOAT`: the low bound is exclusive.
+/// A positive float: the low bound is exclusive.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "f32")]
 pub struct PositiveFloat(pub f32);
@@ -590,7 +590,7 @@ color_int!(
     |[r, g, b, a]: [f32; 4]| argb_from_floats(a, r, g, b)
 );
 
-/// `ExtraCodecs.STRING_RGB_COLOR`: written as `#rrggbb`; read from that, from
+/// An RGB colour string: written as `#rrggbb`; read from that, from
 /// a packed int, or from `[r, g, b]`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 pub struct HexRgb(pub u32);

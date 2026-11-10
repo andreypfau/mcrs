@@ -15,6 +15,8 @@ pub enum BlockError {
     BlockIdInvalid(Span),
     /// The identifier at the span names no block tag.
     BlockTagUnknown(Span),
+    /// A block state names a tag.
+    TagDisallowed,
     /// The block at `block` has no property `name`.
     PropertyUnknown { block: Span, name: StringSpan },
     /// The property `name` appears twice in the list of `subject`.
@@ -46,6 +48,7 @@ impl fmt::Display for BlockError {
         f.write_str(match self {
             BlockError::BlockIdInvalid(_) => "unknown block",
             BlockError::BlockTagUnknown(_) => "unknown block tag",
+            BlockError::TagDisallowed => "a block state names no tag",
             BlockError::PropertyUnknown { .. } => "unknown block property",
             BlockError::PropertyDuplicate { .. } => "duplicate block property",
             BlockError::PropertyNoValue { .. } => "block property without a value",
@@ -115,6 +118,7 @@ impl ErrorText for BlockError {
                 ],
             ),
             PropertyUnclosed => Text::translate("argument.block.property.unclosed", vec![]),
+            TagDisallowed => Text::translate("argument.block.tag.disallowed", vec![]),
             Nbt(error) => snbt_text(input, error),
             Resource(error) => error.text(input),
         }

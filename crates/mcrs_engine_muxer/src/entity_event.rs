@@ -1,5 +1,5 @@
-use crate::entity_id::EntityId;
-use crate::tile_key::TileKey;
+use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_entity_key::TileKey;
 
 /// A change of one subject in one tick, as its tile sees it. `D` is the data of the game.
 #[non_exhaustive]

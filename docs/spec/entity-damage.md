@@ -201,7 +201,7 @@ tests of DMG-HIT-001, the hit does these steps before the cooldown:
 
 1. Hook: set the idle time of the entity to 0 (AIT-RFX-006). This step occurs before the
    cooldown, so also a hit that the cooldown rejects sets it. G2 has no idle time; `mob-goals.md`
-   and `natural-spawning.md` add it.
+   adds it for the stroll (GOAL-STR-001), and `natural-spawning.md` for the despawn.
 2. If the amount is less than 0, set it to 0.
 3. If the amount is NaN or infinite, set it to the largest finite f32 value.
 
@@ -233,7 +233,8 @@ client sees the same bits as the server (DMG-NET-002).
 is not rejected does these steps:
 
 1. Hook: record the causing entity for the kill credit and for the anger of mobs. A source with
-   no causing entity records nothing. `player-attack.md` and `mob-goals.md` state these records.
+   no causing entity records nothing. `player-attack.md` and `mob-goals.md` (section 6.1, a hook)
+   state these records. The damage record that the panic reads is GOAL-PNC-001.
 2. For a full hit:
    - send the damage event (DMG-NET-001);
    - if the damage type does not have the tag `no_impact`, mark the velocity of the entity for

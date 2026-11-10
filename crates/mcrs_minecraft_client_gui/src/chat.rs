@@ -11,7 +11,7 @@ use mcrs_minecraft_chat_client::{
 use crate::chat_suggestions;
 use crate::font::{self, Font, Hover, Span};
 use crate::item_decorations::WHITE;
-use crate::language::Language;
+use crate::language::ClientLanguage;
 use crate::scene::{self, GuiAtlas, GuiConfig, GuiQuad, GuiScene, GuiSize};
 use crate::text::{self, Wrap};
 use crate::tooltip::Tooltip;
@@ -73,7 +73,7 @@ fn with_alpha(color: u32, alpha: f32) -> u32 {
 /// The mouse over the open chat, and where the log makes its tooltip requests.
 pub(crate) struct Pointer<'a> {
     pub at: IVec2,
-    pub language: &'a Language,
+    pub language: &'a ClientLanguage,
     pub tooltip: &'a mut Tooltip,
     pub icon: IVec2,
 }
@@ -82,8 +82,6 @@ impl Pointer<'_> {
     fn tag_tooltip(&mut self, tag: Tag, font: &Font) {
         let language = self.language;
         self.tooltip.request(self.at, |rows| {
-            // chisle: a `Modified` tooltip ends with the original text in gray,
-            // which the log does not keep; no message is tagged `Modified` yet.
             let spans = [Span::new(language.get(tag.tooltip_key()), WHITE)];
             text::wrap(&spans, TAG_TOOLTIP_WIDTH, Wrap::Tooltip, font, rows);
         });
@@ -245,7 +243,7 @@ fn hover_lines(
     hover: &Hover,
     gui_width: i32,
     advanced: bool,
-    language: &Language,
+    language: &ClientLanguage,
     font: &Font,
     rows: &mut Vec<Vec<Span>>,
 ) {
@@ -254,8 +252,6 @@ fn hover_lines(
             let spans = text::text_spans(value, language, WHITE);
             text::wrap(&spans, (gui_width / 2).max(200), Wrap::Tooltip, font, rows);
         }
-        // chisle: `show_item` shows the item tooltip of the stack, which has no specification
-        // yet; it shows nothing until one states its lines.
         Hover::ShowItem(_) => {}
         Hover::ShowEntity { id, uuid, name } => {
             if !advanced {
@@ -366,7 +362,7 @@ pub fn draw(
     (chat, lines): (Res<Chat>, Res<crate::chat_input::ChatLines>),
     input: Res<ChatInput>,
     screen: Res<Screen>,
-    (language, atlas): (Option<Res<Language>>, Option<Res<GuiAtlas>>),
+    (language, atlas): (Option<Res<ClientLanguage>>, Option<Res<GuiAtlas>>),
     time: Res<Time<Real>>,
     config: Res<GuiConfig>,
     mut scene: ResMut<GuiScene>,
@@ -453,7 +449,7 @@ mod tests {
                     &hover,
                     427,
                     advanced,
-                    Language::corpus(),
+                    ClientLanguage::corpus(),
                     corpus_font(),
                     &mut rows,
                 );
@@ -486,7 +482,11 @@ mod tests {
             let mut lines = mcrs_minecraft_chat_client::ChatLines::default();
             chat.log.push(Text::text("hi"), 0, None);
             lines.sync(&chat.log, None, |text, _, rows| {
-                rows.push(text::text_spans(text, Language::corpus(), 0xFFFF_FFFF));
+                rows.push(text::text_spans(
+                    text,
+                    ClientLanguage::corpus(),
+                    0xFFFF_FFFF,
+                ));
             });
             let size = GuiSize {
                 width: 400,

@@ -7,6 +7,7 @@
 //! the coordinator decides from the messages of `to_muxer`, and tells the coordinator what it
 //! needs through the messages of `to_coordinator`.
 
+pub mod backlog;
 mod batch_pacing;
 pub mod bridge;
 pub mod bridge_queue;

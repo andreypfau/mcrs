@@ -14,10 +14,16 @@ workspace = true
 mcrs_minecraft_chat_server.workspace = true
 mcrs_minecraft_command_engine.workspace = true
 mcrs_minecraft_command_vanilla.workspace = true
+mcrs_minecraft_command_world.workspace = true
 mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_brain.workspace = true
+mcrs_minecraft_engine_mob_replication.workspace = true
 mcrs_minecraft_engine_physics.workspace = true
 mcrs_minecraft_engine_server.workspace = true
 mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_goals.workspace = true
+mcrs_minecraft_item.workspace = true
 mcrs_minecraft_text.workspace = true
 mcrs_minecraft_vanilla_light.workspace = true
 mcrs_minecraft_vanilla_worldgen.workspace = true
@@ -32,6 +38,8 @@ bevy_ecs = { workspace = true, features = ["multi_threaded"] }
 bevy_asset = { workspace = true, features = ["multi_threaded"] }
 
 [dev-dependencies]
+mcrs_minecraft_lang.workspace = true
+mcrs_minecraft_text_flatten.workspace = true
 mcrs_engine_link.workspace = true
 mcrs_engine_muxer.workspace = true
 mcrs_minecraft_physics.workspace = true
@@ -67,7 +75,6 @@ mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_heightmap = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_simulation.workspace = true
 mcrs_minecraft_random.workspace = true
-mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_nbt.workspace = true
 rustc-hash.workspace = true
 serde_json.workspace = true

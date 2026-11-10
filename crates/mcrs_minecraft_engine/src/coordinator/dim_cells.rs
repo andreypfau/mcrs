@@ -17,7 +17,7 @@ use mcrs_minecraft_core::Versioned;
 use mcrs_minecraft_engine_registries::RegistrySnapshot;
 use mcrs_minecraft_engine_world::owned_columns::{HALO, column_key};
 use mcrs_minecraft_engine_world::session::PlayerSession;
-use mcrs_minecraft_environment::world_clock::WorldClocks;
+use mcrs_minecraft_environment::WorldClocks;
 use mcrs_voxel::ColumnPos;
 use rustc_hash::FxHashMap;
 
@@ -28,7 +28,6 @@ use crate::column_generation::{GenerationAnswer, GenerationAsk};
 use crate::column_request::ColumnRequest;
 use crate::column_store::{ColumnDisk, ColumnStoreOutput};
 use crate::command_handoff::CommandHandoff;
-use crate::coordinator::birth_clock::BirthClock;
 use crate::coordinator::clock::GameTime;
 use crate::coordinator::entity_id_ranges::EntityIdRanges;
 use crate::coordinator::ops::OpList;
@@ -37,12 +36,15 @@ use crate::coordinator::running_dimensions::RunningDimensions;
 use crate::departure::PlayerTransfer;
 use crate::dim_tick;
 use crate::dim_tick::{DimInput, DimOutput, DimWorld, TickDimensions, TickDimensionsSet};
-use crate::entity_ids::EntityIdRange;
 use crate::player_roster::RosterRow;
 use crate::player_view::PlayerView;
 use crate::to_coordinator::RoutedInput;
 use crate::to_muxer::{DimClosed, DimDelivered, DimOpened};
 use crate::whitelist::Whitelist;
+use mcrs_minecraft_engine_world::birth_clock::BirthClock;
+use mcrs_minecraft_engine_world::entity_ids::EntityIdRange;
+use mcrs_minecraft_engine_world::game_rules::GameRules;
+use mcrs_minecraft_engine_world::tick_pace::TickPace;
 
 /// Ticks the dimension worlds once in every host update, in lockstep.
 pub struct DimCellsPlugin;
@@ -672,6 +674,8 @@ struct Globals {
     ops: Option<OpList>,
     whitelist: Option<Whitelist>,
     bans: Option<BanList>,
+    game_rules: Option<GameRules>,
+    tick_pace: Option<TickPace>,
     registries: Option<Versioned<RegistrySnapshot>>,
     dimensions: Option<RunningDimensions>,
 }
@@ -688,6 +692,8 @@ impl Globals {
             ops: changed(host),
             whitelist: changed(host),
             bans: changed(host),
+            game_rules: changed(host),
+            tick_pace: changed(host),
             registries: changed(host),
             dimensions: changed(host),
         }
@@ -715,6 +721,8 @@ impl Globals {
             ops: self.ops.clone(),
             whitelist: self.whitelist.clone(),
             bans: self.bans.clone(),
+            game_rules: self.game_rules.clone(),
+            tick_pace: self.tick_pace.clone(),
             registries: self.registries.clone(),
             dimensions: self.dimensions.clone(),
             players,
@@ -791,21 +799,20 @@ mod tests {
         let source = SourceState {
             level: CommandLevel::All,
             player: None,
+            mob: None,
             dimension: label,
             position,
             yaw: 0.0,
             pitch: 0.0,
             anchor: LookAnchor::Feet,
         };
-        ToDim::Command(Box::new(CommandHandoff {
-            to: label,
-            output: PlayerSession(1),
-            line: "execute if block ~ ~ ~ stone".into(),
-            origin: source.clone(),
-            stage: 1,
-            sources: vec![source],
-            cost: 0,
-        }))
+        ToDim::Command(Box::new(CommandHandoff::single(
+            label,
+            PlayerSession(1),
+            "execute if block ~ ~ ~ stone".into(),
+            source,
+            1,
+        )))
     }
 
     #[test]

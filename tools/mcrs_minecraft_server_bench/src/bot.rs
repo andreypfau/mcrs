@@ -1,37 +1,22 @@
 use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::str::FromStr;
-use std::time::Duration;
 
 use anyhow::bail;
 use glam::DVec3;
-use mcrs_minecraft_core::VERSION;
-use mcrs_minecraft_network::RawConnection;
-use mcrs_minecraft_network::join::{Join, Joined, join};
-use mcrs_minecraft_network::packet_io::PacketIo;
-use mcrs_minecraft_protocol::packets::common::serverbound::{KeepAlive, Pong};
-use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundKeepAlive;
-use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundKeepAlive;
-use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_bench_support::{TICK, Upkeep, announce_loaded, answer_upkeep, connect};
 use mcrs_minecraft_protocol::{Decode, Packet, WritePacket};
 use mcrs_minecraft_protocol_game::MoveFlags;
 use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundChunkBatchFinished, ClientboundForgetLevelChunk, ClientboundLevelChunkWithLight,
-    ClientboundPing, ClientboundPlayerPosition,
+    ClientboundForgetLevelChunk, ClientboundLevelChunkWithLight,
 };
 use mcrs_minecraft_protocol_game::serverbound::{
-    ServerboundAcceptTeleportation, ServerboundChunkBatchReceived, ServerboundClientTickEnd,
-    ServerboundMovePlayerPos, ServerboundPlayerAbilities, ServerboundPlayerLoaded, ServerboundPong,
+    ServerboundClientTickEnd, ServerboundMovePlayerPos,
 };
 use mcrs_voxel::ColumnPos;
 use serde::Serialize;
 use tokio::time::{Instant, MissedTickBehavior};
 
-const TICK: Duration = Duration::from_millis(50);
-pub const VIEW_DISTANCE: u8 = 10;
-/// Both servers clamp the asked rate to their own ceiling, so asking for the most leaves the
-/// pace to the server's batch window, the same rule on both.
-const DESIRED_CHUNKS_PER_TICK: f32 = 64.0;
 const ALTITUDE: f64 = 24.0;
 const WALK_RADIUS: f64 = 48.0;
 const WALK_BLOCKS_PER_SECOND: f64 = 5.6;
@@ -94,7 +79,7 @@ pub struct BotReport {
 }
 
 pub async fn run(plan: Plan) -> anyhow::Result<BotReport> {
-    let mut connection = connect(plan.address, plan.index).await?;
+    let mut connection = connect(plan.address, format!("bot{}", plan.index)).await?;
     let behaviour = plan.behaviour.of_bot(plan.index);
     let mut random = Random(plan.index as u64 * 0x9e37_79b9_7f4a_7c15 + 1);
     let heading = plan.index as f64 * 2.399_963;
@@ -130,34 +115,17 @@ pub async fn run(plan: Plan) -> anyhow::Result<BotReport> {
                     x: forget.x,
                     z: forget.z,
                 });
-            } else if packet.id == ClientboundChunkBatchFinished::ID {
-                connection.write_packet(&ServerboundChunkBatchReceived {
-                    desired_chunks_per_tick: DESIRED_CHUNKS_PER_TICK,
-                });
-            } else if packet.id == ClientboundKeepAlive::ID {
-                let keep_alive = ClientboundKeepAlive::decode(body)?;
-                connection.write_packet(&ServerboundKeepAlive(KeepAlive {
-                    payload: keep_alive.0.payload,
-                }));
-            } else if packet.id == ClientboundPing::ID {
-                let ping = ClientboundPing::decode(body)?;
-                connection.write_packet(&ServerboundPong(Pong { payload: ping.id }));
-            } else if packet.id == ClientboundPlayerPosition::ID {
-                let teleport = ClientboundPlayerPosition::decode(body)?;
-                connection.write_packet(&ServerboundAcceptTeleportation {
-                    teleport_id: teleport.teleport_id,
-                    position: teleport.position.into(),
-                    look: teleport.look,
-                });
+            } else if let Upkeep::Teleported(teleported) =
+                answer_upkeep(&mut connection, packet.id, body)?
+            {
                 if position.is_none() {
-                    spawn = teleport.position;
+                    spawn = teleported;
                     target = spawn + DVec3::Y * ALTITUDE;
-                    connection.write_packet(&ServerboundPlayerLoaded);
-                    connection.write_packet(&ServerboundPlayerAbilities { flying: true });
+                    announce_loaded(&mut connection);
                 } else if measuring {
                     report.pulled_back_during += 1;
                 }
-                position = Some(teleport.position);
+                position = Some(teleported);
             }
         }
         match position.as_mut() {
@@ -186,25 +154,6 @@ pub async fn run(plan: Plan) -> anyhow::Result<BotReport> {
         connection.write_packet(&ServerboundClientTickEnd);
         connection.flush()?;
     }
-}
-
-async fn connect(address: SocketAddr, index: usize) -> anyhow::Result<RawConnection> {
-    let io = PacketIo::connect(address).await?;
-    let Joined { connection, .. } = join(
-        io,
-        Join {
-            server_address: address.ip().to_string(),
-            server_port: address.port(),
-            remote_addr: address,
-            username: format!("bot{index}"),
-            profile_id: Uuid::nil(),
-            protocol_version: VERSION.protocol_version,
-            view_distance: VIEW_DISTANCE,
-            holds_vanilla_pack: false,
-        },
-    )
-    .await?;
-    Ok(connection)
 }
 
 /// Where a bot that reached its target goes next, at the height of its climb.

@@ -309,6 +309,45 @@ Rules for the budget:
   `acc += weight × dt`. Spare budget sends a keyframe of the tile with the largest `acc`, and
   sets that `acc` to zero.
 
+### Subjects with a tracking range
+
+The tiers, the layers, the cap and the budget apply only to players. A mob has the tracking range
+of its type (`entity-tracking.md`, TRK-RNG-001). A viewer holds each mob within that range on X
+and Z, and the codec sends each update of the mob to each viewer that holds it (TRK-UPD-009).
+The Muxer keeps the mobs apart from the ranks of a tile, so a mob counts neither for K nor for
+the budget.
+
+The Muxer judges a mob again only in these cases:
+
+- the mob spawns, despawns, or goes into another tile;
+- the mob moves in a tile that is partly inside the range of the viewer;
+- the viewer moves. Then the Muxer judges only the tiles that are partly inside the range.
+
+A held mob stays held up to 1 block past its range, so a mob on the edge does not spawn and
+despawn in each tick.
+
+A slow client does not get a queue that grows. The host marks a connection as behind when more
+than 512 KiB wait on its writer, and as clear again below 64 KiB. While a connection is behind,
+the codec sends it no update of a mob and records the mob as missed. Spawn bundles, removals,
+signals and columns still go. When the connection is clear, the codec sends at most 1,024 missed
+mobs in each tick: an absolute position at the base of the tracker, the velocity, the head yaw
+and the entity data. Thus the client holds the state of every other viewer, and the next relative
+move fits its base. A missed mob gets no relative move until its state goes.
+
+The writer of a connection has two lanes. The ordered lane holds the columns, the teleports, the
+keep-alives, the probes and every other packet in the order of the server. The deferred lane
+holds the entity bytes of the Muxer in their own order, so a spawn stays before the updates of
+its entity and a removal after them. The writer takes the deferred lane only when the ordered
+lane is empty, in batches of 64 KiB, so a column waits behind little entity data. A respawn, a
+login and a disconnect fence the lanes: the deferred bytes go before them. The server kicks a
+connection for a stalled writer only when the writer took nothing for 30 s while 64 MiB wait, or
+when 256 MiB wait.
+
+This rule replaces the cap of TRK-RNG-003 for mobs. TRK-RNG-003 lets the cap and the budget stop
+a pairing, but then a viewer in a crowd holds the first ranks of each tile, not the nearest mobs.
+In a pen of 50,000 pigs, the vanilla server pairs about 27,000 pigs with a viewer at the fence,
+and the client must show the same set.
+
 ## 7.5 Profile entries and the player list
 
 - The profile entries of a viewer are the players of its visible set, with `listed = false`, and

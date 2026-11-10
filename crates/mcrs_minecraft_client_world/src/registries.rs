@@ -10,10 +10,8 @@ use bevy::prelude::*;
 use mcrs_minecraft_block::definition::{Blocks, load_block_definitions};
 use mcrs_minecraft_datapack::DirectoryPacks;
 use mcrs_minecraft_engine_registries::load_item_definitions;
-use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_environment::world_clock::{
-    ClockTimeMarkers, WorldClock, WorldClockPlugin, WorldClocks,
-};
+use mcrs_minecraft_environment::Timeline;
+use mcrs_minecraft_environment::{ClockTimeMarkers, WorldClock, WorldClockPlugin, WorldClocks};
 use mcrs_minecraft_game_registries::registry_load::{RegistryLoadError, load_received};
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_network::ConnectionState;
@@ -23,7 +21,6 @@ use mcrs_minecraft_network::client::{
 use mcrs_minecraft_network::event;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundUpdateTags;
 use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Received, Registries};
-use mcrs_minecraft_resource::Id;
 
 use crate::joined_game::{self, CurrentDimension};
 use crate::received::{received, received_tags};
@@ -83,6 +80,8 @@ impl Plugin for ClientRegistriesPlugin {
             .add_observer(load_server_registries)
             .add_observer(replace_server_tags);
         joined_game::add_observers(app);
+        crate::clock_sync::add_systems(app);
+        crate::pong::add_observers(app);
     }
 
     fn finish(&self, app: &mut App) {
@@ -254,27 +253,12 @@ fn clear_derived_tables(
 }
 
 fn derive_clock_markers(registries: Res<CurrentRegistries>, mut commands: Commands) {
-    let (Some(clocks), Some(timelines)) = (
-        registries.registry::<WorldClock>(),
-        registries.registry::<Timeline>(),
-    ) else {
-        error!(
-            "the session registries hold no world clocks and timelines to read time markers from"
-        );
+    let Some(timelines) = registries.registry::<Timeline>() else {
+        error!("the session registries hold no timelines to read time markers from");
         commands.remove_resource::<ClockTimeMarkers>();
         return;
     };
-    let clock_name =
-        |clock: Id<WorldClock>| clocks.name(Id::checked(clock.number(), clocks.len())?);
-    match ClockTimeMarkers::derive(timelines.values(), clock_name) {
-        Ok(markers) => commands.insert_resource(markers),
-        Err(duplicates) => {
-            for (timeline, duplicate) in duplicates {
-                error!(timeline, %duplicate, "the session defines a time marker twice");
-            }
-            commands.remove_resource::<ClockTimeMarkers>();
-        }
-    }
+    commands.insert_resource(ClockTimeMarkers::new(timelines.values()));
 }
 
 fn seed_session_clocks(mut clocks: ResMut<WorldClocks>, registries: Res<CurrentRegistries>) {

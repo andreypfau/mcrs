@@ -10,22 +10,22 @@ use criterion::Criterion;
 use criterion::criterion_group;
 use criterion::criterion_main;
 use glam::DVec3;
+use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_physics::Aabb;
-use mcrs_minecraft_physics::BirthKey;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::CollisionSection;
 use mcrs_minecraft_physics::CollisionTable;
 use mcrs_minecraft_physics::CollisionWorld;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::GridRow;
-use mcrs_minecraft_physics::KeyedStream;
 use mcrs_minecraft_physics::Keys;
 use mcrs_minecraft_physics::ListedBodies;
 use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_physics::NoBodies;
+use mcrs_minecraft_physics::Orientation;
 use mcrs_minecraft_physics::PlayerInput;
-use mcrs_minecraft_physics::PlayerRotation;
 use mcrs_minecraft_physics::PlayerState;
 use mcrs_minecraft_physics::Probe;
 use mcrs_minecraft_physics::PushRules;
@@ -33,7 +33,6 @@ use mcrs_minecraft_physics::Scratch;
 use mcrs_minecraft_physics::SectionLookup;
 use mcrs_minecraft_physics::SectionMasks;
 use mcrs_minecraft_physics::Side;
-use mcrs_minecraft_physics::SourceKind;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_physics::TestBlocks;
 use mcrs_minecraft_physics::TestFixture;
@@ -183,7 +182,7 @@ fn bench_entities(c: &mut Criterion) {
     let view = View::new(&world, &NoBodies, &tables);
     let mut scratch = Scratch::new();
     let mut actions = Vec::new();
-    let key = BirthKey::new(0, SourceKind::Command, 0, 0);
+    let key = EntityKey(0);
     let walker_row = MotionRow::zombie();
     let mut walker = EntityState::new(
         key,
@@ -259,10 +258,7 @@ fn bench_player(c: &mut Criterion) {
             forward: true,
             ..Keys::default()
         },
-        rotation: PlayerRotation {
-            yaw: 30.0,
-            pitch: 0.0,
-        },
+        rotation: Orientation::facing(30.0, 0.0),
         ..PlayerInput::default()
     };
     for _ in 0..3 {
@@ -289,7 +285,7 @@ fn bench_player(c: &mut Criterion) {
                 &mut actions,
                 &mut scratch,
             );
-            out.velocity
+            out.body.velocity
         })
     });
 }

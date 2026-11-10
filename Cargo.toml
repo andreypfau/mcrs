@@ -14,7 +14,7 @@ path = "src/main.rs"
 workspace = true
 
 [workspace]
-members = ["crates/*", "tools/mcrs_minecraft_client_recorder", "tools/mcrs_minecraft_client_ticks", "tools/mcrs_minecraft_fixtures", "tools/mcrs_minecraft_hotspots", "tools/mcrs_minecraft_server_bench", "tools/mcrs_minecraft_update", "xtask"]
+members = ["crates/*", "tools/mcrs_minecraft_bench_support", "tools/mcrs_minecraft_block_entity_oracle", "tools/mcrs_minecraft_client_recorder", "tools/mcrs_minecraft_client_ticks", "tools/mcrs_minecraft_fixtures", "tools/mcrs_minecraft_hotspots", "tools/mcrs_minecraft_server_bench", "tools/mcrs_minecraft_update", "tools/mob-bench", "tools/molang-corpus", "xtask"]
 
 [workspace.package]
 version = "0.5.8"
@@ -52,6 +52,8 @@ syn = "2.0.110"
 quote = "1.0.42"
 bytes = "1"
 anyhow = "1.0.100"
+libc = "0.2"
+tracing-subscriber = "0.3"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.145"}
 time = { version = "0.3.55", features = ["formatting", "parsing", "local-offset", "macros"] }
@@ -75,6 +77,13 @@ sha2 = "0.11.0"
 rand_xoshiro = "0.8.0-rc.0"
 flume = { version = "0.12.0", default-features = false }
 rayon = "1"
+libm = { version = "0.2.16", default-features = false }
+proptest = "1.11.0"
+criterion = "0.7"
+bytemuck = "1"
+futures-lite = "2"
+naga = "29"
+wgpu = "29"
 
 mcrs_minecraft_wire = { path = "crates/mcrs_minecraft_wire" }
 mcrs_minecraft_wire_macros = { path = "crates/mcrs_minecraft_wire_macros" }
@@ -87,9 +96,17 @@ mcrs_minecraft_engine_world = { path = "crates/mcrs_minecraft_engine_world" }
 mcrs_minecraft_engine = { path = "crates/mcrs_minecraft_engine" }
 mcrs_minecraft_engine_server = { path = "crates/mcrs_minecraft_engine_server", default-features = false }
 mcrs_voxel = { path = "crates/mcrs_voxel" }
+mcrs_minecraft_entity_key = { path = "crates/mcrs_minecraft_entity_key" }
 mcrs_minecraft_physics = { path = "crates/mcrs_minecraft_physics" }
 mcrs_minecraft_collision_table = { path = "crates/mcrs_minecraft_collision_table" }
 mcrs_minecraft_engine_physics = { path = "crates/mcrs_minecraft_engine_physics" }
+mcrs_minecraft_engine_mob_replication = { path = "crates/mcrs_minecraft_engine_mob_replication" }
+mcrs_minecraft_entity_rows = { path = "crates/mcrs_minecraft_entity_rows" }
+mcrs_minecraft_brain = { path = "crates/mcrs_minecraft_brain" }
+mcrs_minecraft_goals = { path = "crates/mcrs_minecraft_goals" }
+mcrs_minecraft_goal_world = { path = "crates/mcrs_minecraft_goal_world" }
+mcrs_minecraft_mob_control = { path = "crates/mcrs_minecraft_mob_control" }
+mcrs_minecraft_engine_brain = { path = "crates/mcrs_minecraft_engine_brain" }
 mcrs_minecraft_move_validate = { path = "crates/mcrs_minecraft_move_validate" }
 mcrs_minecraft_move_predict = { path = "crates/mcrs_minecraft_move_predict" }
 mcrs_engine_link = { path = "crates/mcrs_engine_link" }
@@ -99,6 +116,8 @@ mcrs_engine_cell = { path = "crates/mcrs_engine_cell" }
 mcrs_engine_store = { path = "crates/mcrs_engine_store" }
 mcrs_minecraft_resource = { path = "crates/mcrs_minecraft_resource" }
 mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core", default-features = false }
+mcrs_minecraft_damage = { path = "crates/mcrs_minecraft_damage" }
+mcrs_minecraft_numeric = { path = "crates/mcrs_minecraft_numeric" }
 mcrs_minecraft_datapack = { path = "crates/mcrs_minecraft_datapack" }
 mcrs_minecraft_registries = { path = "crates/mcrs_minecraft_registries" }
 mcrs_minecraft_registries_derive = { path = "crates/mcrs_minecraft_registries_derive" }
@@ -118,6 +137,8 @@ mcrs_minecraft_chat_client = { path = "crates/mcrs_minecraft_chat_client" }
 mcrs_minecraft_keys = { path = "crates/mcrs_minecraft_keys", default-features = false }
 mcrs_minecraft_game_mode = { path = "crates/mcrs_minecraft_game_mode" }
 mcrs_minecraft_command_vanilla = { path = "crates/mcrs_minecraft_command_vanilla" }
+mcrs_minecraft_command_world = { path = "crates/mcrs_minecraft_command_world" }
+mcrs_minecraft_console = { path = "crates/mcrs_minecraft_console" }
 mcrs_minecraft_loot = { path = "crates/mcrs_minecraft_loot" }
 mcrs_minecraft_predicate = { path = "crates/mcrs_minecraft_predicate" }
 mcrs_minecraft_registry_catalog = { path = "crates/mcrs_minecraft_registry_catalog" }
@@ -130,13 +151,23 @@ mcrs_minecraft_enchantment = { path = "crates/mcrs_minecraft_enchantment" }
 mcrs_minecraft_biome_file = { path = "crates/mcrs_minecraft_biome_file" }
 mcrs_minecraft_profile = { path = "crates/mcrs_minecraft_profile" }
 mcrs_minecraft_text = { path = "crates/mcrs_minecraft_text" }
+mcrs_minecraft_lang = { path = "crates/mcrs_minecraft_lang" }
+mcrs_minecraft_text_flatten = { path = "crates/mcrs_minecraft_text_flatten" }
+mcrs_minecraft_server_settings = { path = "crates/mcrs_minecraft_server_settings" }
 mcrs_minecraft_entity = { path = "crates/mcrs_minecraft_entity" }
+mcrs_minecraft_entity_model = { path = "crates/mcrs_minecraft_entity_model" }
+mcrs_minecraft_pack_file = { path = "crates/mcrs_minecraft_pack_file" }
 mcrs_minecraft_assets = { path = "crates/mcrs_minecraft_assets" }
 mcrs_minecraft_game_registries = { path = "crates/mcrs_minecraft_game_registries", default-features = false }
 mcrs_minecraft_save = { path = "crates/mcrs_minecraft_save" }
 mcrs_minecraft_engine_registries = { path = "crates/mcrs_minecraft_engine_registries" }
 mcrs_minecraft_environment = { path = "crates/mcrs_minecraft_environment" }
 mcrs_minecraft_block = { path = "crates/mcrs_minecraft_block" }
+mcrs_molang = { path = "crates/mcrs_molang" }
+mcrs_molang_wgsl = { path = "crates/mcrs_molang_wgsl" }
+mcrs_minecraft_entity_animation = { path = "crates/mcrs_minecraft_entity_animation" }
+mcrs_minecraft_render_controller = { path = "crates/mcrs_minecraft_render_controller" }
+mcrs_minecraft_entity_render = { path = "crates/mcrs_minecraft_entity_render" }
 mcrs_minecraft_biome = { path = "crates/mcrs_minecraft_biome" }
 mcrs_minecraft_dimension = { path = "crates/mcrs_minecraft_dimension" }
 mcrs_minecraft_dimension_environment = { path = "crates/mcrs_minecraft_dimension_environment" }
@@ -144,9 +175,12 @@ mcrs_minecraft_item = { path = "crates/mcrs_minecraft_item" }
 mcrs_minecraft_server = { path = "crates/mcrs_minecraft_server" }
 mcrs_minecraft_client = { path = "crates/mcrs_minecraft_client", default-features = false }
 mcrs_minecraft_client_world = { path = "crates/mcrs_minecraft_client_world" }
+mcrs_minecraft_client_entity = { path = "crates/mcrs_minecraft_client_entity" }
 mcrs_minecraft_client_gui = { path = "crates/mcrs_minecraft_client_gui" }
 mcrs_minecraft_mesh = { path = "crates/mcrs_minecraft_mesh" }
 mcrs_minecraft_model = { path = "crates/mcrs_minecraft_model" }
+mcrs_minecraft_model_file = { path = "crates/mcrs_minecraft_model_file" }
+mcrs_minecraft_block_entity_oracle = { path = "tools/mcrs_minecraft_block_entity_oracle" }
 mcrs_minecraft_render = { path = "crates/mcrs_minecraft_render" }
 mcrs_minecraft_light_render = { path = "crates/mcrs_minecraft_light_render" }
 mcrs_minecraft_render_probe = { path = "crates/mcrs_minecraft_render_probe" }
@@ -175,6 +209,7 @@ mcrs_minecraft_heightmap = { path = "crates/mcrs_minecraft_heightmap", default-f
 mcrs_minecraft_volume = { path = "crates/mcrs_minecraft_volume" }
 mcrs_minecraft_simulation = { path = "crates/mcrs_minecraft_simulation" }
 mcrs_minecraft_client_ticks = { path = "tools/mcrs_minecraft_client_ticks" }
+mcrs_minecraft_bench_support = { path = "tools/mcrs_minecraft_bench_support" }
 mcrs_minecraft_fixtures = { path = "tools/mcrs_minecraft_fixtures" }
 wtransport = "0.7.2"
 
@@ -206,14 +241,19 @@ bevy_app.workspace = true
 bevy_log.workspace = true
 tokio = { version = "1", features = ["full"] }
 mcrs_minecraft_server.workspace = true
+mcrs_minecraft_client_jar.workspace = true
+mcrs_minecraft_console.workspace = true
+mcrs_minecraft_lang.workspace = true
+mcrs_minecraft_server_settings.workspace = true
 mcrs_minecraft_engine_server.workspace = true
 mcrs_minecraft_engine.workspace = true
-mcrs_minecraft_vanilla_light.workspace = true
+mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_vanilla_worldgen.workspace = true
 bevy_diagnostic = { version = "0.19.0-rc.3", optional = true }
 
 [dev-dependencies]
 mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_vanilla_light.workspace = true
 mcrs_minecraft_save.workspace = true
 mcrs_minecraft_worldgen_generator = { workspace = true, features = ["test-support"] }
 bevy_state.workspace = true
@@ -337,6 +377,9 @@ opt-level = 3
 opt-level = 3
 
 [profile.dev.package."mcrs_minecraft_core"]
+opt-level = 3
+
+[profile.dev.package."mcrs_minecraft_numeric"]
 opt-level = 3
 
 [profile.dev.package."mcrs_minecraft_chunk"]

@@ -27,9 +27,6 @@ pub async fn pack_names(reader: &dyn ErasedAssetReader) -> Vec<String> {
     names
 }
 
-// chisle: admits a pack by layout only; one whose pack.mcmeta the registry
-// loader rejects as malformed or incompatible still layers here. Taking the
-// loaded pack stack as the layer list lifts this.
 async fn is_local_pack(reader: &dyn ErasedAssetReader, pack: &Path) -> bool {
     reader.is_directory(pack).await.unwrap_or(false)
         && reader.read(&pack.join("pack.mcmeta")).await.is_ok()
@@ -242,7 +239,7 @@ impl AssetReader for BuiltinLayer {
         AssetReader::read_meta(&self.layers, path).await
     }
 
-    // chisle: a directory listing shows files only. The template reader adds
+    // A directory listing shows files only. The template reader adds
     // the built-in template paths itself; merging the listings here lifts that.
     async fn read_directory<'a>(
         &'a self,

@@ -12,8 +12,8 @@ use mcrs_minecraft_biome_file::{BiomeDraft as Draft, BiomeGeneration as Generati
 use mcrs_minecraft_core::codec::{Bounded, HexRgb};
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::spawn::MobCategory;
-use mcrs_minecraft_environment::attribute::id::*;
-use mcrs_minecraft_environment::attribute::{MobSpawnSettings, Operation};
+use mcrs_minecraft_environment::attribute_id::*;
+use mcrs_minecraft_environment::{MobSpawnSettings, Operation};
 use mcrs_minecraft_resource::{ResourceKey, ResourceLocationBuf};
 use mcrs_minecraft_sound::sound_event_keys::SoundEvent;
 use mcrs_minecraft_value_provider::IntProvider;

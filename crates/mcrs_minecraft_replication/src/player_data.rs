@@ -1,11 +1,11 @@
-use crate::delta_base::Pose;
-use crate::player_spawn::PlayerSpawn;
 use bytes::Bytes;
 use mcrs_minecraft_game_mode::GameMode;
 
+use crate::delta_base::Pose;
+use crate::player_spawn::PlayerSpawn;
+
 /// What a world publishes about a player in a tile delta. A spawn carries
-/// [`PlayerData::Spawn`], a move [`PlayerData::Pose`], and a data event any other variant. The
-/// codec ignores a variant on an event that does not carry it.
+/// [`PlayerData::Spawn`], a move [`PlayerData::Pose`], and a data event any other variant.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PlayerData {
     Spawn(PlayerSpawn),

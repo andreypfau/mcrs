@@ -3,6 +3,7 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
 use bevy_math::DVec3;
+use mcrs_engine_muxer::{EntityId, TileKey};
 use mcrs_minecraft_command::CommandLevel;
 use mcrs_minecraft_core::{Look, LookAnchor};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -18,6 +19,8 @@ pub struct SourceState {
     /// The session of the player the source holds, which names the player in every
     /// dimension, so the source keeps it when the player changes dimension.
     pub player: Option<PlayerSession>,
+    /// The mob the source holds, in the world of the source dimension.
+    pub mob: Option<SourceMob>,
     /// The label of the source dimension. The source entity can be in another one.
     pub dimension: Entity,
     /// The position of the source, at its feet.
@@ -43,10 +46,26 @@ impl SourceState {
         Self {
             level,
             player: Some(player),
+            mob: None,
             dimension,
             position: transform.translation,
             yaw,
             pitch,
+            anchor: LookAnchor::Feet,
+        }
+    }
+
+    /// The source of the server console: no entity, the highest level, at the origin of the
+    /// dimension labelled `dimension`.
+    pub fn server(dimension: Entity) -> Self {
+        Self {
+            level: CommandLevel::Owners,
+            player: None,
+            mob: None,
+            dimension,
+            position: DVec3::ZERO,
+            yaw: 0.0,
+            pitch: 0.0,
             anchor: LookAnchor::Feet,
         }
     }
@@ -60,6 +79,13 @@ impl SourceState {
             ..*self
         }
     }
+}
+
+/// A mob row as a command source: its tile when the source was made, and its id.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SourceMob {
+    pub tile: TileKey,
+    pub id: EntityId,
 }
 
 /// The sources of a command line that reached a stage whose handler reads the world of the
@@ -81,4 +107,26 @@ pub struct CommandHandoff {
     pub sources: Vec<SourceState>,
     /// What the stages before it cost, against the sequence limit.
     pub cost: usize,
+}
+
+impl CommandHandoff {
+    /// The handoff of one source, `origin`, that runs `line` on from `stage` in the dimension
+    /// `to`, with nothing spent yet.
+    pub fn single(
+        to: Entity,
+        output: PlayerSession,
+        line: String,
+        origin: SourceState,
+        stage: usize,
+    ) -> Self {
+        Self {
+            to,
+            output,
+            line,
+            sources: vec![origin.clone()],
+            origin,
+            stage,
+            cost: 0,
+        }
+    }
 }

@@ -567,14 +567,18 @@ CU6, records this.
 The break speed `S` starts with the speed of the main-hand item for the block. When this speed is
 more than 1, add the attribute `minecraft:mining_efficiency`. Then apply in this order:
 
-1. Haste or Conduit Power with the amplifier `a`: multiply by `1 + (a + 1) × 0.2`.
+1. Haste or Conduit Power with the amplifier `a`: multiply by `1 + (a + 1) × 0.2`. With both
+   effects, `a` is the larger amplifier.
 2. Mining Fatigue with the amplifier `a`: multiply by `0.3^(a + 1)`.
 3. Multiply by the attribute `minecraft:block_break_speed`.
 4. When the eyes are in water: multiply by the attribute `minecraft:submerged_mining_speed`.
 5. When the player is not on the ground: divide by 5.
 
 The client adds the progress in 32-bit floating point. Section "Not in this document" lists the
-inputs that this document does not state.
+inputs that this document does not state. The vanilla server uses the same rate, and experiments on
+it confirm each factor (`block-breaking.md`, BRK-PRG-002). The server accepts a finish from a
+progress of 0.7 (BRK-SRV-008). Thus one more tick of the client, from the sum in 32-bit floating
+point, does not change the result of a finish.
 
 **CBK-SRV-004** (`source_suggested`, wire). A face change sends `player_action` with the action 1,
 the position of the break, the new face and the sequence 0. It makes no prediction.
@@ -600,7 +604,8 @@ break progress of 0, the client shows no crack. The client uses the entity id of
 crack, with the rules of section 9.
 
 **CBK-SRV-008** (`source_suggested`, semantic). While the break continues, the vanilla server sends a
-`level_event` to each player near the block in each tick, the breaker too. The type is 2020 when
+`level_event` to each player near the block in each tick, the breaker too (`block-breaking.md`,
+BRK-SRV-004). The type is 2020 when
 the number of ticks since the start is a multiple of 4, and otherwise 2019. The data is the face.
 The type 2020 plays the hit sound of CBK-EFF-004 and shows a particle. The type 2019 only shows a
 particle. The client plays the hit sound during the break only from these packets.
@@ -735,13 +740,11 @@ can show their new meshes in different frames.
   newer chunk. This can be a defect of the reference. No experiment shows it yet.
 - **CU3**: the entity test of the ray, and the effect of the component `minecraft:attack_range` on
   the target. CBK-TGT-009 states only the order of a block hit and an entity hit.
-- **CU4**: the server rules for the actions 1 and 3 in survival mode. `block-breaking.md` covers only
-  creative mode. There, these actions get only the acknowledgement.
-- **CU5**: the exact tick of the finish in survival mode. The sum in 32-bit floating point can need
-  one more tick than the exact sum, for example ten additions of 0.1.
 - **CU6**: a survival hold on a block that comes back after a finish. The server can refuse the
   finish and send the old block again. The vanilla client then adds progress to the old break, and
   later sends the action 3 with no action 0 before it. This can be a defect of the reference.
+  `block-breaking.md` states that such a finish gets only the acknowledgement (BRK-SRV-010), and
+  entry D2 records that the reference can break the block.
 
 - **CU7**: the light of a new chunk. Its blocks apply at once, and its light applies from the
   queue of CBK-LGT-007, in the same frame or later. The client can show the new blocks with no light

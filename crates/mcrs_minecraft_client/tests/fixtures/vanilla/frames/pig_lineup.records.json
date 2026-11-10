@@ -1,0 +1,308 @@
+{
+  "scene": "pig_lineup",
+  "version": "26.4-snapshot-7",
+  "frames": [
+    {
+      "image": "pig_lineup.front.png",
+      "camera": {
+        "position": [
+          0.0,
+          -58.80000011444092,
+          5.5
+        ],
+        "yaw": -180.0,
+        "pitch": 15.0,
+        "fov": 70.0,
+        "partial_tick": 1.0
+      },
+      "entities": [
+        {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "type": "minecraft:pig",
+          "frozen": true,
+          "partial_tick": 1.0,
+          "position": [
+            -3.0,
+            -60.0,
+            0.5
+          ],
+          "age": 0,
+          "pose": "standing",
+          "invisible": false,
+          "head_pitch": 0.0,
+          "body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "walk_position": 0.0,
+          "walk_speed": 0.0,
+          "hurt_time": 0,
+          "death_time": 0,
+          "baby": false,
+          "saddled": false,
+          "variant": "minecraft:temperate"
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000002",
+          "type": "minecraft:pig",
+          "frozen": true,
+          "partial_tick": 1.0,
+          "position": [
+            -1.5,
+            -60.0,
+            0.5
+          ],
+          "age": 0,
+          "pose": "standing",
+          "invisible": false,
+          "head_pitch": 0.0,
+          "body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "walk_position": 0.0,
+          "walk_speed": 0.0,
+          "hurt_time": 0,
+          "death_time": 0,
+          "baby": false,
+          "saddled": false,
+          "variant": "minecraft:cold"
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000003",
+          "type": "minecraft:pig",
+          "frozen": true,
+          "partial_tick": 1.0,
+          "position": [
+            0.0,
+            -60.0,
+            0.5
+          ],
+          "age": 0,
+          "pose": "standing",
+          "invisible": false,
+          "head_pitch": 0.0,
+          "body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "walk_position": 0.0,
+          "walk_speed": 0.0,
+          "hurt_time": 0,
+          "death_time": 0,
+          "baby": false,
+          "saddled": false,
+          "variant": "minecraft:warm"
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000004",
+          "type": "minecraft:pig",
+          "frozen": true,
+          "partial_tick": 1.0,
+          "position": [
+            1.5,
+            -60.0,
+            0.5
+          ],
+          "age": 0,
+          "pose": "standing",
+          "invisible": false,
+          "head_pitch": 0.0,
+          "body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "walk_position": 0.0,
+          "walk_speed": 0.0,
+          "hurt_time": 0,
+          "death_time": 0,
+          "baby": true,
+          "saddled": false,
+          "variant": "minecraft:temperate"
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000005",
+          "type": "minecraft:pig",
+          "frozen": true,
+          "partial_tick": 1.0,
+          "position": [
+            3.0,
+            -60.0,
+            0.5
+          ],
+          "age": 0,
+          "pose": "standing",
+          "invisible": false,
+          "head_pitch": 0.0,
+          "body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "walk_position": 0.0,
+          "walk_speed": 0.0,
+          "hurt_time": 0,
+          "death_time": 0,
+          "baby": false,
+          "saddled": true,
+          "variant": "minecraft:temperate"
+        }
+      ]
+    },
+    {
+      "image": "pig_lineup.oblique.png",
+      "camera": {
+        "position": [
+          4.5,
+          -58.500000114440915,
+          4.5
+        ],
+        "yaw": 135.0,
+        "pitch": 20.0,
+        "fov": 70.0,
+        "partial_tick": 1.0
+      },
+      "entities": [
+        {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "type": "minecraft:pig",
+          "frozen": true,
+          "partial_tick": 1.0,
+          "position": [
+            -3.0,
+            -60.0,
+            0.5
+          ],
+          "age": 0,
+          "pose": "standing",
+          "invisible": false,
+          "head_pitch": 0.0,
+          "body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "walk_position": 0.0,
+          "walk_speed": 0.0,
+          "hurt_time": 0,
+          "death_time": 0,
+          "baby": false,
+          "saddled": false,
+          "variant": "minecraft:temperate"
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000002",
+          "type": "minecraft:pig",
+          "frozen": true,
+          "partial_tick": 1.0,
+          "position": [
+            -1.5,
+            -60.0,
+            0.5
+          ],
+          "age": 0,
+          "pose": "standing",
+          "invisible": false,
+          "head_pitch": 0.0,
+          "body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "walk_position": 0.0,
+          "walk_speed": 0.0,
+          "hurt_time": 0,
+          "death_time": 0,
+          "baby": false,
+          "saddled": false,
+          "variant": "minecraft:cold"
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000003",
+          "type": "minecraft:pig",
+          "frozen": true,
+          "partial_tick": 1.0,
+          "position": [
+            0.0,
+            -60.0,
+            0.5
+          ],
+          "age": 0,
+          "pose": "standing",
+          "invisible": false,
+          "head_pitch": 0.0,
+          "body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "walk_position": 0.0,
+          "walk_speed": 0.0,
+          "hurt_time": 0,
+          "death_time": 0,
+          "baby": false,
+          "saddled": false,
+          "variant": "minecraft:warm"
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000004",
+          "type": "minecraft:pig",
+          "frozen": true,
+          "partial_tick": 1.0,
+          "position": [
+            1.5,
+            -60.0,
+            0.5
+          ],
+          "age": 0,
+          "pose": "standing",
+          "invisible": false,
+          "head_pitch": 0.0,
+          "body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "walk_position": 0.0,
+          "walk_speed": 0.0,
+          "hurt_time": 0,
+          "death_time": 0,
+          "baby": true,
+          "saddled": false,
+          "variant": "minecraft:temperate"
+        },
+        {
+          "id": "00000000-0000-0000-0000-000000000005",
+          "type": "minecraft:pig",
+          "frozen": true,
+          "partial_tick": 1.0,
+          "position": [
+            3.0,
+            -60.0,
+            0.5
+          ],
+          "age": 0,
+          "pose": "standing",
+          "invisible": false,
+          "head_pitch": 0.0,
+          "body_yaw": 0.0,
+          "head_yaw": 0.0,
+          "walk_position": 0.0,
+          "walk_speed": 0.0,
+          "hurt_time": 0,
+          "death_time": 0,
+          "baby": false,
+          "saddled": true,
+          "variant": "minecraft:temperate"
+        }
+      ]
+    },
+    {
+      "image": "pig_lineup.front.background.png",
+      "camera": {
+        "position": [
+          0.0,
+          -58.80000011444092,
+          5.5
+        ],
+        "yaw": -180.0,
+        "pitch": 15.0,
+        "fov": 70.0,
+        "partial_tick": 1.0
+      },
+      "entities": []
+    },
+    {
+      "image": "pig_lineup.oblique.background.png",
+      "camera": {
+        "position": [
+          4.5,
+          -58.500000114440915,
+          4.5
+        ],
+        "yaw": 135.0,
+        "pitch": 20.0,
+        "fov": 70.0,
+        "partial_tick": 1.0
+      },
+      "entities": []
+    }
+  ]
+}

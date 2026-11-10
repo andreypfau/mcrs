@@ -3,7 +3,7 @@ use std::num::NonZeroU32;
 
 use crate::subscription::{LAYERS, LayerState, Subscription, layer_ranks};
 use crate::tier::Tier;
-use crate::tile_key::TileKey;
+use mcrs_minecraft_entity_key::TileKey;
 
 /// The farthest distance of each tier but the last, in the units of the game.
 const REACH: [f64; 3] = [32.0, 64.0, 128.0];

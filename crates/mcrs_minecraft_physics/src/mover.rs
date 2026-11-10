@@ -1,6 +1,6 @@
 use glam::DVec3;
+use mcrs_minecraft_entity_key::EntityKey;
 
-use crate::BirthKey;
 use crate::Body;
 use crate::Dimensions;
 use crate::QueryEntity;
@@ -18,7 +18,7 @@ pub enum Physics {
 /// The values of an entity that one move reads besides its [`Body`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Mover {
-    pub key: BirthKey,
+    pub key: EntityKey,
     pub width: f32,
     pub height: f32,
     pub step_height: f32,
@@ -47,7 +47,7 @@ impl Mover {
     /// A mover that collides, with no step height, restitution, gravity, movement efficiency,
     /// powder snow rule or intent, a block bounce factor of 1 and a vertical drag of `0.98F`.
     #[must_use]
-    pub fn new(key: BirthKey, dimensions: Dimensions, side: Side) -> Self {
+    pub fn new(key: EntityKey, dimensions: Dimensions, side: Side) -> Self {
         Self {
             key,
             width: dimensions.width,

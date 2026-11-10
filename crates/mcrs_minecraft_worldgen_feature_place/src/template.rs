@@ -2,10 +2,10 @@ use glam::IVec3;
 use mcrs_minecraft_block_predicate::block_state::BlockState;
 use mcrs_minecraft_block_predicate::predicate::HeightmapName;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::mth::clamped_map;
 use mcrs_minecraft_core::{Axis, BoundingBox, Direction, dist_manhattan};
 use mcrs_minecraft_core::{Mirror, Rotation};
 use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_numeric::remap_clamped;
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::worldgen::WorldgenRandom;
 use mcrs_minecraft_random::{Random, block_pos_seed, shuffled};
@@ -85,8 +85,6 @@ fn value_of<'a>(layout: &'a BlockLayout, state: VoxelId, name: &str) -> Option<&
 
 /// `BlockState.rotate` for a rotation about Y, over the property names the
 /// block overrides act on.
-// chisle: every placed block looks its properties up by name; the upgrade is
-// a per-block table built once from `layouts`, as `tree/provider.rs` does.
 pub fn rotate_state(world: &WorldStates, state: VoxelId, rotation: Rotation) -> VoxelId {
     if rotation == Rotation::None || world.unrotated.contains(state.0 as usize) {
         return state;
@@ -217,7 +215,7 @@ impl PosRule {
         };
         let l = &self.linear;
         rng.next_f32()
-            <= clamped_map(
+            <= remap_clamped(
                 dist as f32,
                 l.min_dist as f32,
                 l.max_dist as f32,
@@ -607,7 +605,7 @@ fn compile_processor_rule(
     let modifier = match &rule.block_entity_modifier {
         None | Some(RuleBlockEntityModifier::Passthrough) => None,
         Some(RuleBlockEntityModifier::AppendLoot { loot_table }) => {
-            // chisle: the entity id comes from the output block's name, which
+            // The entity id comes from the output block's name, which
             // holds for brushable blocks and the modelled kinds that share a
             // name with their entity; a container output under another name
             // needs a name-to-kind arm.
@@ -882,11 +880,6 @@ fn place_liquid<W: WorldGenVolume>(volume: &mut W, pos: BlockPos, state: VoxelId
 /// `StructureTemplate.placeInWorld` for one palette the caller has already
 /// drawn. The template's entities land in `spawns`, clipped by their block
 /// position and never finalized.
-// chisle: only the villager pair is placed, and only unfinalized, which is
-// what the igloo asks for. A jigsaw piece finalizes what it places, so the
-// jigsaw kinds (village villagers and animals, cushions, golems, piglins, the
-// hoglin, outpost allays) are frozen but stay unplaced; the upgrade is a
-// finalized `GeneratedKind` per kind.
 #[expect(
     clippy::too_many_lines,
     reason = "runs the processor chain over every block of the palette and then writes the blocks and their block entities, in the reference's order"

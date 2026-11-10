@@ -48,6 +48,9 @@ const FACE_FLUID_BITS: u32 = 1u;
 const FACE_SPRITE_WORD: u32 = 0u;
 const FACE_SPRITE_SHIFT: u32 = 15u;
 const FACE_SPRITE_BITS: u32 = 16u;
+const FACE_UV_WORD: u32 = 2u;
+const FACE_UV_SHIFT: u32 = 24u;
+const FACE_UV_BITS: u32 = 3u;
 
 const MODEL_X_WORD: u32 = 0u;
 const MODEL_X_SHIFT: u32 = 0u;

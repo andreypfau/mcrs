@@ -283,11 +283,11 @@ apply at the start of the next tick in a stable order (PHY-CMP-015). Exclusive a
 a merge, a removal) are claims, arbitrated once per tick after the block domain (PHY-CMP-017). The
 block domain writes entities in the same tick, after the entity pass (PHY-BLK-001).
 
-Two small sets tick in sequence, in the order of the birth key: groups of colliders whose read
+Two small sets tick in sequence, in the order of the UUID: groups of colliders whose read
 zones touch (PHY-CMP-018), and explosion groups around primed TNT that explodes in the tick
 (PHY-CMP-020). The start-of-tick state decides them, and each group is one task.
 
-The order key of every rule above is the persisted birth key of PHY-CMP-013, not the network id,
+The order key of every rule above is the persisted UUID of PHY-CMP-013, not the network id,
 which an implementation gives per cell and does not save.
 
 The exact-parity mode does not use the start-of-tick rules. It ticks the entities in sequence, in
@@ -696,7 +696,7 @@ The same inputs give the same result regardless of thread count. Shard layout is
 
 For a step beside the tick, thread timing decides only the tick that applies its writes, never their content or order. This is the third choice above. World generation and lighting accept it, and vanilla also computes both on worker threads.
 
-AI accepts it too, within a bound. The AI step of tick `T` is a function of the brain state, the replica at `T` and a random stream keyed by the birth key and `T`. A path search advances by a budget of nodes per stage tick, never by time. Results apply in the order of `T` and the birth key, at a tick in `[T + k, T + max_lag]`: past `max_lag` the tick waits for the stage (`entity-ai-timing.md`). A mode with a fixed delay of `k` ticks makes the tick always wait, so tests and replays apply each result at the same tick in every run.
+AI accepts it too, within a bound. The AI step of tick `T` is a function of the brain state, the replica at `T` and a random stream keyed by the UUID and `T`. A path search advances by a budget of nodes per stage tick, never by time. Results apply in the order of `T` and the UUID, at a tick in `[T + k, T + max_lag]`: past `max_lag` the tick waits for the stage (`entity-ai-timing.md`). A mode with a fixed delay of `k` ticks makes the tick always wait, so tests and replays apply each result at the same tick in every run.
 
 ---
 
@@ -1160,7 +1160,7 @@ With PHY-CMP-008, PHY-CMP-009 and PHY-CMP-012, the tick of each server-simulated
 
 The hot loop and the cold work are separate.
 
-The hot loop holds physics, the push, steering along the current plan and due events. Goal and target selection, sensing, pathfinding, item merge search and similar work run in an AI stage beside the tick. Reflexes that a stale state would make wrong (a creeper that swells, melee reach, a door on the path) stay in the hot loop. The stage runs at the rate of the reference, with no throttling by distance, on its own pool at a lower priority, in slices. A decision is a pure function of the brain state, the replica at tick `T` and a random stream of the birth key and `T`. It applies at a tick in `[T + k, T + max_lag]`, in the order of `T` and the birth key. Pair actions (breeding, a pack) use propose and accept inside one stage tick. The hot loop waits for the stage only past `max_lag`, or in the mode with a fixed delay that tests use. With `max_lag` = 2 (`entity-ai-timing.md`), the stage is a pipeline: it must finish one tick of AI work per tick, so AI cost is on the critical path whenever it needs more cores than the stage has. In the exact-parity mode, decisions run inside the tick with no delay (`AiDelay::Inline`).
+The hot loop holds physics, the push, steering along the current plan and due events. Goal and target selection, sensing, pathfinding, item merge search and similar work run in an AI stage beside the tick. Reflexes that a stale state would make wrong (a creeper that swells, melee reach, a door on the path) stay in the hot loop. The stage runs at the rate of the reference, with no throttling by distance, on its own pool at a lower priority, in slices. A decision is a pure function of the brain state, the replica at tick `T` and a random stream of the UUID and `T`. It applies at a tick in `[T + k, T + max_lag]`, in the order of `T` and the UUID. Pair actions (breeding, a pack) use propose and accept inside one stage tick. The hot loop waits for the stage only past `max_lag`, or in the mode with a fixed delay that tests use. With `max_lag` = 2 (`entity-ai-timing.md`), the stage is a pipeline: it must finish one tick of AI work per tick, so AI cost is on the critical path whenever it needs more cores than the stage has. In the exact-parity mode, decisions run inside the tick with no delay (`AiDelay::Inline`).
 
 **Revised.** The first version issued decisions at a cadence by the distance to the nearest player, and had no bound on the lag. Throttling by distance is visible to players, and an unbounded lag lets a stale decision act long after its cause. A reduced cadence for far mobs exists only as an operator's recorded deviation, off by default.
 
@@ -1180,7 +1180,7 @@ Inside a process, a world is one cell by default, and tiles are the work units o
 
 ## Decision 26 (new)
 
-A write from one entity to another applies at the start of the next tick, at one merge point for local and mailed writes, in the order of the target key, the writer key and a sequence. Claims are arbitrated once per tick after the block domain, with a total writer key (`command < entity < block`). The key of an entity is its persisted birth key.
+A write from one entity to another applies at the start of the next tick, at one merge point for local and mailed writes, in the order of the target key, the writer key and a sequence. Claims are arbitrated once per tick after the block domain, with a total writer key (`command < entity < block`). The key of an entity is its persisted UUID.
 
 **Revised.** The first version applied the writes after the pass and keyed them by the global entity id. The id comes from per-cell ranges and is not saved, so it gave different orders in different layouts and after a restart; and a second application point for mailed writes changed the f64 sum order between layouts.
 

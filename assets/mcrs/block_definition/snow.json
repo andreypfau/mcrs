@@ -168,7 +168,8 @@
           ],
           "mcrs:occlusion_shape": [
             { "origin": [-8, 0, -8], "size": [16, 16, 16] }
-          ]
+          ],
+          "mcrs:occlusion_shade": 0.2
         }
       }
     ]

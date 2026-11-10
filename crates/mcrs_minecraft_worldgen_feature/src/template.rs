@@ -113,9 +113,6 @@ pub struct FrozenEntity {
 
 /// Every entity id the shipped templates carry; any other id fails the
 /// freeze.
-// chisle: only the villager pair, which the igloo places, keeps its data.
-// The jigsaw kinds are never placed, so a cat drops its variant and a piglin
-// its sword; the upgrade is a data-carrying variant per kind that gets placed.
 #[dispatch(registry = mcrs_minecraft_entity::entity_type_keys::EntityType, key = "id", only)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum EntityKind {

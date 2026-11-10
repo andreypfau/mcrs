@@ -1,0 +1,17 @@
+[package]
+name = "mcrs_minecraft_pack_file"
+description = "Files of an entity pack: lenient JSON, the client entity file, load diagnostics and the compile of Molang fields"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_molang.workspace = true
+serde.workspace = true
+serde_json.workspace = true

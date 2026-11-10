@@ -140,7 +140,7 @@ pub(super) fn dimension_with(
             carvers: None,
             features: Some(Arc::new(program)),
         },
-        router,
+        router: Some(router),
         material: Some(Arc::new(material)),
         y_sections: y_sections.clone(),
         structures: None,

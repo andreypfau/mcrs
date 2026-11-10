@@ -6,6 +6,7 @@
 mod binary_read_guard;
 pub mod compound;
 pub mod deserializer;
+pub mod encoding;
 mod error;
 mod nbt;
 mod nbt_array;
@@ -21,7 +22,8 @@ mod test;
 mod wire;
 
 pub(crate) use binary_read_guard::{BinaryReadGuard, reading_binary};
-pub use deserializer::{from_bytes, from_bytes_unnamed};
+pub use deserializer::{from_bytes, from_bytes_unnamed, from_bytes_unnamed_with, from_bytes_with};
+pub use encoding::{BigEndian, LittleEndian, NbtEncoding, NetworkLittleEndian};
 pub use error::{Error, MAX_DEPTH};
 pub use nbt::{Nbt, get_nbt_string};
 pub use nbt_array::{
@@ -30,7 +32,10 @@ pub use nbt_array::{
 };
 pub(crate) use nbt_array::{NBT_BYTE_ARRAY_TAG, NBT_INT_ARRAY_TAG, NBT_LONG_ARRAY_TAG};
 pub use nbt_flag::nbt_flag;
-pub use serializer::{to_bytes, to_bytes_named, to_bytes_unnamed};
+pub use serializer::{
+    to_bytes, to_bytes_named, to_bytes_named_with, to_bytes_unnamed, to_bytes_unnamed_with,
+    to_bytes_with,
+};
 pub use tag_deserializer::from_tag;
 pub use tag_id::{
     BYTE_ARRAY_ID, BYTE_ID, COMPOUND_ID, DOUBLE_ID, END_ID, FLOAT_ID, INT_ARRAY_ID, INT_ID,

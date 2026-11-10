@@ -18,13 +18,13 @@ use crate::hotbar::hotbar;
 use crate::inventory_screen::inventory_screen;
 use crate::item_decorations::{Decorated, WHITE, decorations};
 use crate::item_resolve::{GuiVertex, ItemRenderLayers};
-use crate::language::Language;
+use crate::language::ClientLanguage;
 use crate::sprite::{GuiSprite, Scaling};
 use crate::tooltip::{Tooltip, TooltipSprites};
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_model::atlas::{MISSING_SIZE, decode_png, missing_pixels, rgba};
-use mcrs_minecraft_model::model::Pack;
+use mcrs_minecraft_model::resource_set::ResourceSet;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct GuiSize {
@@ -159,14 +159,16 @@ pub struct GuiAtlas(pub Arc<GuiAtlasData>);
 impl GuiAtlasData {
     /// Shelf-packs the GUI textures the screens blit, which are not square and so
     /// bypass the sprite arrays; the glint stays separate because it repeats.
-    pub fn load(pack: &Pack) -> Result<Self, String> {
+    pub fn load(pack: &ResourceSet) -> Result<Self, String> {
         let mut images = Vec::new();
         let mut glint = None;
         let mut font = None;
         let tooltip_scaling = load_tooltip_sprites(pack, &mut images);
         for name in GUI_TEXTURES {
             let path = texture_path(name);
-            let (pixels, width, height) = decode_png(pack.read(&path)?, &path)?;
+            let (pixels, width, height) =
+                decode_png(pack.read(&path).map_err(|error| error.to_string())?, &path)
+                    .map_err(|error| error.to_string())?;
             match name {
                 "misc/enchanted_glint_item" => glint = Some((width, height, pixels)),
                 "container/inventory" => {
@@ -275,14 +277,16 @@ impl GuiAtlasData {
 /// The scaling of the background and the outline sprites of a tooltip. A sprite the pack lacks,
 /// or one with an error, is left out, so it draws the missing sprite.
 fn load_tooltip_sprites(
-    pack: &Pack,
+    pack: &ResourceSet,
     images: &mut Vec<(&'static str, Vec<u8>, u32, u32)>,
 ) -> [Option<Scaling>; 2] {
     TOOLTIP_SPRITES.map(|name| {
         let path = texture_path(name);
         let bytes = pack.get(&path)?;
-        let loaded = Scaling::read(pack.get(&format!("{path}.mcmeta")))
-            .and_then(|scaling| Ok((scaling, decode_png(bytes, &path)?)));
+        let loaded = Scaling::read(pack.get(&format!("{path}.mcmeta"))).and_then(|scaling| {
+            let image = decode_png(bytes, &path).map_err(|error| error.to_string())?;
+            Ok((scaling, image))
+        });
         match loaded {
             Ok((scaling, (pixels, width, height))) => {
                 images.push((name, pixels, width, height));
@@ -424,9 +428,10 @@ fn draw_screens(
 }
 
 /// Loads the GUI textures and the translations from `pack`, or says which of them it lacks.
-pub fn load_gui_atlas(pack: &Pack, commands: &mut Commands) -> Result<(), String> {
+pub fn load_gui_atlas(pack: &ResourceSet, commands: &mut Commands) -> Result<(), String> {
     let atlas = GuiAtlasData::load(pack).map_err(|reason| format!("the GUI textures: {reason}"))?;
-    let language = Language::load(pack).map_err(|reason| format!("the translations: {reason}"))?;
+    let language =
+        ClientLanguage::load(pack).map_err(|reason| format!("the translations: {reason}"))?;
     commands.insert_resource(GuiAtlas(Arc::new(atlas)));
     commands.insert_resource(language);
     Ok(())
@@ -541,7 +546,6 @@ fn push_flat_quad(
             region,
             color,
         } => {
-            // chisle: a sprite quad names its region and the string lookup runs per quad per frame; a resolved rect on `GuiQuad::Sprite` lifts it.
             push_quad(
                 vertices,
                 rect,
@@ -640,7 +644,7 @@ mod tests {
 
         #[test]
         fn the_gui_atlas_holds_every_region_and_the_digit_widths() {
-            let atlas = GuiAtlasData::load(Pack::corpus()).unwrap();
+            let atlas = GuiAtlasData::load(ResourceSet::corpus()).unwrap();
             for name in GUI_TEXTURES
                 .iter()
                 .filter(|n| **n != "misc/enchanted_glint_item")

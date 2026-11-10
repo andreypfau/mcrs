@@ -2,8 +2,8 @@ use std::collections::BTreeSet;
 
 use bevy_ecs::entity::Entity;
 use mcrs_engine_muxer::EntityId;
-use mcrs_minecraft_engine::entity_ids::{ENTITY_ID_RANGE_LEN, GlobalEntityId};
 use mcrs_minecraft_engine::minecraft_entity::MinecraftEntity;
+use mcrs_minecraft_engine_world::entity_ids::{ENTITY_ID_RANGE_LEN, GlobalEntityId};
 use mcrs_minecraft_replication::wire_id;
 
 use crate::host_app::{self, PlayServer};

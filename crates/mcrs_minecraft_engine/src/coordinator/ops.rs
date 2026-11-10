@@ -1,7 +1,9 @@
 use crate::ability::PlayerOpLevel;
-use bevy_ecs::prelude::Resource;
+use crate::json_list::write_atomic;
+use bevy_app::{App, Plugin};
+use bevy_ecs::prelude::{Event, On, ResMut, Resource};
 use mcrs_minecraft_protocol::uuid::Uuid;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -20,13 +22,31 @@ pub struct OpListEntry {
     pub bypasses_player_limit: bool,
 }
 
+impl OpListEntry {
+    /// An operator at the top level, which the `op` command and a loopback join give.
+    pub fn owner(uuid: Uuid, name: String) -> Self {
+        Self {
+            uuid,
+            name,
+            level: PlayerOpLevel::MAX,
+            bypasses_player_limit: false,
+        }
+    }
+}
+
 fn clamped_level<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u8, D::Error> {
     let level = i32::deserialize(deserializer)?;
     Ok(level.clamp(0, PlayerOpLevel::MAX as i32) as u8)
 }
 
+/// The operators. The operators of a loopback join stay out of the file, so they end with the
+/// process and a later join from another address does not find them.
 #[derive(Resource, Clone, Debug, Default)]
-pub struct OpList(Arc<FxHashMap<Uuid, OpListEntry>>);
+pub struct OpList {
+    entries: Arc<FxHashMap<Uuid, OpListEntry>>,
+    loopback: FxHashSet<Uuid>,
+    path: Option<Arc<Path>>,
+}
 
 #[derive(Resource, Clone, Copy, Debug, Default)]
 pub struct DefaultOpLevel(pub PlayerOpLevel);
@@ -45,18 +65,49 @@ pub enum OpListError {
     },
 }
 
+/// A change to the operators. The host owns the list, applies the change, writes the file and
+/// tells every dimension.
+#[derive(Event, Clone, Debug, PartialEq, Eq)]
+pub enum EditOps {
+    Add(OpListEntry),
+    Remove(Uuid),
+}
+
+/// The host side of the operators: it applies the edits that the dimensions send.
+pub struct OpListHostPlugin;
+
+impl Plugin for OpListHostPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<OpList>();
+        app.add_observer(apply_ops_edit);
+    }
+}
+
+fn apply_ops_edit(edit: On<EditOps>, mut ops: ResMut<OpList>) {
+    if ops.apply(edit.event()) {
+        ops.write_file();
+    }
+}
+
 impl OpList {
     pub fn new(entries: impl IntoIterator<Item = OpListEntry>) -> Self {
-        Self(Arc::new(
-            entries
-                .into_iter()
-                .map(|entry| (entry.uuid, entry))
-                .collect(),
-        ))
+        Self {
+            entries: Arc::new(
+                entries
+                    .into_iter()
+                    .map(|entry| (entry.uuid, entry))
+                    .collect(),
+            ),
+            ..Self::default()
+        }
     }
 
+    /// The operators of the file at `path`, which each later edit writes back.
     pub fn read(path: &Path) -> Result<Self, OpListError> {
-        Self::read_entries(path).map(Self::new)
+        Ok(Self {
+            path: Some(Arc::from(path)),
+            ..Self::new(Self::read_entries(path)?)
+        })
     }
 
     /// The entries of the ops file at `path`; none when the file does not exist.
@@ -78,12 +129,70 @@ impl OpList {
     }
 
     pub fn get(&self, uuid: &Uuid) -> Option<&OpListEntry> {
-        self.0.get(uuid)
+        self.entries.get(uuid)
+    }
+
+    /// The operator with `name`, in any case.
+    pub fn find_by_name(&self, name: &str) -> Option<&OpListEntry> {
+        self.entries
+            .values()
+            .find(|entry| entry.name.eq_ignore_ascii_case(name))
     }
 
     pub fn level_of(&self, uuid: &Uuid, default: DefaultOpLevel) -> PlayerOpLevel {
         self.get(uuid)
             .map_or(default.0, |entry| PlayerOpLevel(entry.level))
+    }
+
+    /// Returns whether the operators changed. An add of an operator that is listed changes
+    /// nothing.
+    pub fn apply(&mut self, edit: &EditOps) -> bool {
+        match edit {
+            EditOps::Add(entry) => self.add(entry.clone()),
+            EditOps::Remove(id) => {
+                self.loopback.remove(id);
+                self.entries.contains_key(id)
+                    && Arc::make_mut(&mut self.entries).remove(id).is_some()
+            }
+        }
+    }
+
+    /// Makes `entry` an operator for the life of the process, unless it is one. The file does
+    /// not hold it.
+    pub fn grant_loopback(&mut self, entry: OpListEntry) -> bool {
+        let id = entry.uuid;
+        if !self.add(entry) {
+            return false;
+        }
+        self.loopback.insert(id);
+        true
+    }
+
+    fn add(&mut self, entry: OpListEntry) -> bool {
+        if self.entries.contains_key(&entry.uuid) {
+            return false;
+        }
+        Arc::make_mut(&mut self.entries).insert(entry.uuid, entry);
+        true
+    }
+
+    pub fn save(&self, path: &Path) -> std::io::Result<()> {
+        let mut entries: Vec<&OpListEntry> = self
+            .entries
+            .values()
+            .filter(|entry| !self.loopback.contains(&entry.uuid))
+            .collect();
+        entries.sort_by(|left, right| left.name.cmp(&right.name));
+        write_atomic(path, &serde_json::to_string_pretty(&entries)?)
+    }
+
+    pub fn write_file(&self) {
+        let Some(path) = &self.path else {
+            return;
+        };
+        if let Err(err) = self.save(path) {
+            tracing::warn!("failed to write {}: {err}", path.display());
+        }
     }
 }
 

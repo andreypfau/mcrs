@@ -1,0 +1,55 @@
+{
+  "format_version": "1.12.0",
+  "minecraft:geometry": [
+    {
+      "description": {
+        "identifier": "geometry.mcrs.block.decorated_pot_base",
+        "texture_width": 32.0,
+        "texture_height": 32.0
+      },
+      "bones": [
+        {
+          "name": "bottom",
+          "pivot": [1.0, 24.0, 1.0],
+          "cubes": [
+            {
+              "origin": [1.0, 24.0, 1.0],
+              "size": [14.0, 0.0, 14.0],
+              "uv": [-14.0, 13.0]
+            }
+          ]
+        },
+        {
+          "name": "neck",
+          "pivot": [0.0, -13.0, 16.0],
+          "rotation": [180.000003, 0.0, 0.0],
+          "cubes": [
+            {
+              "origin": [4.0, -33.0, 20.0],
+              "size": [8.0, 3.0, 8.0],
+              "inflate": -0.09999999999999999,
+              "uv": [0.0, 0.0]
+            },
+            {
+              "origin": [5.0, -34.0, 21.0],
+              "size": [6.0, 1.0, 6.0],
+              "inflate": 0.19999999999999998,
+              "uv": [0.0, 5.0]
+            }
+          ]
+        },
+        {
+          "name": "top",
+          "pivot": [1.0, 8.0, 1.0],
+          "cubes": [
+            {
+              "origin": [1.0, 8.0, 1.0],
+              "size": [14.0, 0.0, 14.0],
+              "uv": [-14.0, 13.0]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

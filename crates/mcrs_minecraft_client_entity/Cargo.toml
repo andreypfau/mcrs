@@ -1,0 +1,33 @@
+[package]
+name = "mcrs_minecraft_client_entity"
+description = "The client state of the entities that the server adds: movement, interpolation, head and body yaw, walk, hurt and death, and the values a renderer reads"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+glam.workspace = true
+mcrs_minecraft_client_world.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_numeric.workspace = true
+mcrs_minecraft_protocol_game.workspace = true
+mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_resource.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_fixtures.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_protocol.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true

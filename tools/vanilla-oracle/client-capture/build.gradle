@@ -1,0 +1,52 @@
+plugins {
+	id 'net.fabricmc.fabric-loom'
+}
+
+def game = new groovy.json.JsonSlurper().parse(file('../../../assets/minecraft/version.json'))
+def repository = file('../../..').canonicalPath
+def captureOut = project.findProperty('oracleOut') ?: "${projectDir}/capture-out".toString()
+def sceneFilter = project.findProperty('scene') ?: ''
+
+repositories {
+	maven { url = 'https://maven.fabricmc.net/' }
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${game.id}"
+	implementation "net.fabricmc:fabric-loader:${project.fabric_loader_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 25
+}
+
+java {
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
+}
+
+fabricApi {
+	configureTests {
+		enableGameTests = false
+		enableClientGameTests = true
+		eula = true
+		username = 'Capture'
+	}
+}
+
+loom {
+	runs {
+		clientGameTest {
+			property 'mcrs.capture.scenes', "${repository}/tools/scenes".toString()
+			property 'mcrs.capture.out', captureOut.toString()
+			property 'mcrs.capture.filter', sceneFilter.toString()
+			property 'mcrs.capture.version', game.id.toString()
+		}
+	}
+}
+
+tasks.register('captureClientFrames') {
+	group = 'oracle'
+	dependsOn 'runClientGameTest'
+}

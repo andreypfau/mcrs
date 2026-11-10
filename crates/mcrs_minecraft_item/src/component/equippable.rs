@@ -61,6 +61,21 @@ impl EquipmentSlot {
         }
     }
 
+    /// The name of the slot in data files, as its serde form spells it.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::MainHand => "mainhand",
+            Self::OffHand => "offhand",
+            Self::Feet => "feet",
+            Self::Legs => "legs",
+            Self::Chest => "chest",
+            Self::Head => "head",
+            Self::Body => "body",
+            Self::Saddle => "saddle",
+        }
+    }
+
     /// Out of range reads as the first slot (`ByIdMap` `ZERO`).
     pub const fn from_equippable_id(id: u8) -> Self {
         match id {
@@ -75,6 +90,29 @@ impl EquipmentSlot {
         }
     }
 }
+
+impl std::str::FromStr for EquipmentSlot {
+    type Err = UnknownEquipmentSlot;
+
+    fn from_str(name: &str) -> std::result::Result<Self, Self::Err> {
+        Self::ALL
+            .into_iter()
+            .find(|slot| slot.name() == name)
+            .ok_or(UnknownEquipmentSlot)
+    }
+}
+
+/// A name that no [`EquipmentSlot`] has.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnknownEquipmentSlot;
+
+impl std::fmt::Display for UnknownEquipmentSlot {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("unknown equipment slot")
+    }
+}
+
+impl std::error::Error for UnknownEquipmentSlot {}
 
 #[registry_value]
 #[derive(mcrs_minecraft_registries::FromWire, Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -238,5 +276,22 @@ impl Decode<'_> for Equippable<Wire> {
             can_be_sheared: bool::decode(r)?,
             shearing_sound: Option::decode(r)?,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn each_slot_name_is_its_serde_name_and_parses_back() {
+        for slot in EquipmentSlot::ALL {
+            assert_eq!(
+                serde_json::to_string(&slot).ok(),
+                Some(format!("\"{}\"", slot.name()))
+            );
+            assert_eq!(slot.name().parse(), Ok(slot));
+        }
+        assert_eq!("tail".parse::<EquipmentSlot>(), Err(UnknownEquipmentSlot));
     }
 }

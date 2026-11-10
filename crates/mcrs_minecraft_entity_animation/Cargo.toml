@@ -1,0 +1,28 @@
+[package]
+name = "mcrs_minecraft_entity_animation"
+description = "Entity animation on the CPU: clips, keyframes, the play list of a client entity, its scripts and the bone pose of a frame"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+glam.workspace = true
+mcrs_minecraft_entity_model.workspace = true
+mcrs_minecraft_pack_file.workspace = true
+mcrs_molang.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_fixtures.workspace = true
+criterion = { version = "0.7", features = ["html_reports"] }
+serde.workspace = true
+serde_json.workspace = true
+
+[[bench]]
+name = "pose"
+harness = false

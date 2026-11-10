@@ -45,6 +45,7 @@ extension of it. The character order that matters is:
 - `source_suggested_black_box_confirmed`: taken from the reference behaviour, and consistent with an artefact cited by path.
 - `source_suggested`: taken from the reference behaviour, with no artefact yet. Confidence is at most medium, and a concrete experiment is attached.
 - `documentation`: publicly documented player-facing behaviour.
+- `design`: an mcrs choice where the documentation and the reference state nothing, or where mcrs selects a different behaviour. The rule states the reason.
 - `unresolved`: not decided. It is collected in section 11.
 
 None of the experiments in this document has been run. Each one is a proposal.

@@ -10,6 +10,7 @@ pub mod noise_settings_keys;
 pub mod registry_keys;
 
 use mcrs_minecraft_block::block_keys::Block;
+pub use mcrs_minecraft_core::CardinalLight;
 use mcrs_minecraft_registries::IdSet;
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_value_provider::IntProvider;
@@ -56,13 +57,4 @@ pub enum Skybox {
     None,
     #[serde(rename = "end")]
     End,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum CardinalLight {
-    #[default]
-    #[serde(rename = "default")]
-    Default,
-    #[serde(rename = "nether")]
-    Nether,
 }

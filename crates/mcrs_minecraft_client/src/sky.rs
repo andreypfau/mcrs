@@ -10,19 +10,21 @@ use mcrs_minecraft_client_world::joined_game::CurrentDimension;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::Id;
 
-use crate::sky_state::{SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyValue};
+use crate::sky_state::{SkyField, SkyFrame, SkyKey, SkyLayout, SkyStatic, SkyTime, SkyValue};
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::{
-    EnvironmentAttributes, EnvironmentContext, Weather,
+    DimensionAttributes, EnvironmentContext, WeatherLevel,
 };
-use mcrs_minecraft_environment::attribute::MoonPhase;
-use mcrs_minecraft_environment::world_clock::{WorldClock, WorldClocks};
+use mcrs_minecraft_environment::MoonPhase;
+use mcrs_minecraft_environment::{WorldClock, WorldClocks};
 
 use crate::camera::PlayerCamera;
 use crate::vanilla::VanillaAssets;
 use mcrs_minecraft_client_world::registries::{SessionSet, entered_configuration};
 use mcrs_minecraft_model::vanilla_source;
-use mcrs_minecraft_render::sky::{ExtractedSky, SkyDrawsOnly, SkyRenderPlugin, SkyUniform};
+use mcrs_minecraft_render::sky::{
+    ExtractedSky, SkyDrawsOnly, SkyEffects, SkyRenderPlugin, SkyUniform,
+};
 
 const SUN: &str = "minecraft/textures/environment/celestial/sun.png";
 
@@ -59,9 +61,25 @@ pub struct SkyTextures {
 
 pub struct SkyPlugin;
 
+/// Vanilla's "Clouds" option. mcrs draws one kind of cloud, so only off and on exist.
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Clouds {
+    Off,
+    #[default]
+    On,
+}
+
+impl From<bool> for Clouds {
+    fn from(on: bool) -> Self {
+        if on { Self::On } else { Self::Off }
+    }
+}
+
 impl Plugin for SkyPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<SkyFrame>()
+            .init_resource::<PreviousClockTicks>()
+            .init_resource::<Clouds>()
             .add_plugins(SkyRenderPlugin)
             .add_systems(OnEnter(VanillaAssets::Ready), request_sources)
             .add_systems(
@@ -78,6 +96,10 @@ impl Plugin for SkyPlugin {
                         .after(SessionSet::Derive)
                         .run_if(resource_exists::<CurrentRegistries>),
                 ),
+            )
+            .add_systems(
+                FixedPreUpdate,
+                record_previous_ticks.run_if(resource_exists::<SkyEnvironment>),
             )
             .add_systems(
                 PostUpdate,
@@ -108,10 +130,10 @@ const CLOUD_DRIFT_SPAN: f64 = 4096.0 * 12.0;
 /// dimension. Rebuilt whole, never patched.
 #[derive(Resource)]
 pub struct SkyEnvironment {
-    attributes: EnvironmentAttributes,
+    attributes: DimensionAttributes,
     layout: SkyLayout,
     statics: SkyStatic,
-    clock: Option<Id<mcrs_minecraft_environment::world_clock::WorldClock>>,
+    clock: Option<Id<mcrs_minecraft_environment::WorldClock>>,
 }
 
 impl SkyEnvironment {
@@ -216,7 +238,7 @@ fn build_sky_environment(
         dimension_type,
     } = &**current;
     let attributes =
-        match EnvironmentAttributes::of_dimension(&registries, dimension, *dimension_type) {
+        match DimensionAttributes::of_dimension(&registries, dimension, *dimension_type) {
             Ok(attributes) => attributes,
             Err(error) => {
                 error!(%dimension, %error, "no environment to draw a sky from");
@@ -255,19 +277,58 @@ fn build_sky_environment(
     });
 }
 
-fn evaluate_sky(
+/// The clock ticks of the sky's dimension before the clocks last advanced: the ticks of the
+/// previous client tick.
+#[derive(Resource, Default)]
+struct PreviousClockTicks(Vec<i64>);
+
+fn record_previous_ticks(
     environment: Res<SkyEnvironment>,
     clocks: Res<WorldClocks>,
-    weather: Res<Weather>,
+    mut previous: ResMut<PreviousClockTicks>,
+) {
+    environment.attributes.clock_ticks(&clocks, &mut previous.0);
+}
+
+/// What a frame reads to place itself between two client ticks.
+#[derive(bevy::ecs::system::SystemParam)]
+struct FrameClocks<'w> {
+    clocks: Res<'w, WorldClocks>,
+    previous: Res<'w, PreviousClockTicks>,
+    fixed: Option<Res<'w, Time<Fixed>>>,
+}
+
+fn evaluate_sky(
+    environment: Res<SkyEnvironment>,
+    frame_clocks: FrameClocks,
+    weather: Res<WeatherLevel>,
     camera: Single<&GlobalTransform, With<PlayerCamera>>,
     mut frame: ResMut<SkyFrame>,
     mut clear: ResMut<ClearColor>,
-    mut ticks: Local<Vec<f64>>,
+    mut ticks: Local<Vec<i64>>,
 ) {
-    environment.attributes.clock_ticks(&clocks, &mut ticks);
+    environment
+        .attributes
+        .clock_ticks(&frame_clocks.clocks, &mut ticks);
+    let previous = &frame_clocks.previous.0;
+    // Before the first tick of a dimension there is no previous tick to move from.
+    let previous_ticks: &[i64] = if previous.len() == ticks.len() {
+        previous
+    } else {
+        &ticks
+    };
+    let time = SkyTime {
+        previous: EnvironmentContext {
+            ticks: previous_ticks,
+        },
+        current: EnvironmentContext { ticks: &ticks },
+        partial: frame_clocks
+            .fixed
+            .map_or(1.0, |fixed| fixed.overstep_fraction()),
+    };
     environment.layout.evaluate(
         &environment.attributes,
-        &EnvironmentContext { ticks: &ticks },
+        &time,
         camera.translation(),
         *weather,
         &mut frame,
@@ -282,6 +343,7 @@ fn extract_sky(
     frame: Extract<Res<SkyFrame>>,
     clocks: Extract<Res<WorldClocks>>,
     only: Extract<Option<Res<SkyDrawsOnly>>>,
+    clouds: Extract<Res<Clouds>>,
 ) {
     let (Some(environment), Some(textures)) = (environment.as_ref(), textures.as_ref()) else {
         return;
@@ -289,6 +351,9 @@ fn extract_sky(
     let mut effects = environment.key().effects;
     if let Some(only) = only.as_ref() {
         effects &= only.0;
+    }
+    if **clouds == Clouds::Off {
+        effects.remove(SkyEffects::CLOUDS);
     }
     commands.insert_resource(ExtractedSky {
         uniform: environment.uniform(&frame, environment.drift(&clocks)),
@@ -495,7 +560,7 @@ mod tests {
         fn every_layer_path_names_a_file_in_the_corpus() {
             for path in celestial_paths().chain(CLOUD_LAYERS.iter().map(|p| (*p).to_owned())) {
                 assert!(
-                    mcrs_minecraft_model::model::Pack::corpus()
+                    mcrs_minecraft_model::resource_set::ResourceSet::corpus()
                         .get(&path)
                         .is_some(),
                     "{path} is missing"
@@ -509,11 +574,11 @@ mod tests {
 mod sky_regression {
     use mcrs_minecraft_dimension::Skybox;
     use mcrs_minecraft_dimension_environment::environment::{
-        DimensionEnvironment, EnvironmentAttributes,
+        DimensionAttributes, DimensionEnvironment,
     };
-    use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
-    use mcrs_minecraft_environment::timeline::Timeline;
-    use mcrs_minecraft_environment::world_clock::ClockState;
+    use mcrs_minecraft_environment::ClockTime;
+    use mcrs_minecraft_environment::ModifierMap;
+    use mcrs_minecraft_environment::Timeline;
 
     use super::*;
     use crate::sky_state::{test_clock_count, test_resolved};
@@ -527,7 +592,7 @@ mod sky_regression {
         #[serde(default)]
         skybox: Skybox,
         #[serde(default)]
-        attributes: EnvironmentAttributeMap,
+        attributes: ModifierMap,
     }
 
     fn read<T: serde::de::DeserializeOwned>(relative: &str) -> T {
@@ -557,7 +622,7 @@ mod sky_regression {
         let dimension: Dimension = read("dimension_type/overworld.json");
         let mut timelines = Vec::new();
         tagged_timelines("in_overworld", &mut timelines);
-        let attributes = EnvironmentAttributes::build(
+        let attributes = DimensionAttributes::build(
             &DimensionEnvironment {
                 attributes: &dimension.attributes,
                 skybox: dimension.skybox,
@@ -579,12 +644,12 @@ mod sky_regression {
 
     /// The uniform the attribute system produces at `ticks`, from a camera
     /// above the horizon in clear weather.
-    fn ticks_at(attributes: &EnvironmentAttributes, ticks: i64) -> Vec<f64> {
+    fn ticks_at(attributes: &DimensionAttributes, ticks: i64) -> Vec<i64> {
         let mut clocks = WorldClocks::default();
         for clock in attributes.clocks() {
             clocks.insert(
                 *clock,
-                ClockState {
+                ClockTime {
                     total_ticks: ticks,
                     ..default()
                 },
@@ -601,9 +666,13 @@ mod sky_regression {
         let mut frame = SkyFrame::default();
         environment.layout.evaluate(
             &environment.attributes,
-            &EnvironmentContext { ticks: &resolved },
+            &SkyTime {
+                previous: EnvironmentContext { ticks: &resolved },
+                current: EnvironmentContext { ticks: &resolved },
+                partial: 0.0,
+            },
             camera,
-            Weather::default(),
+            WeatherLevel::default(),
             &mut frame,
         );
         environment.uniform(&frame, cloud_drift(ticks as f64))
@@ -664,7 +733,7 @@ mod sky_regression {
         let mut clocks = WorldClocks::default();
         clocks.insert(
             overworld_clock,
-            ClockState {
+            ClockTime {
                 total_ticks: 6000,
                 ..default()
             },

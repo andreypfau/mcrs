@@ -32,6 +32,7 @@ use rustc_hash::FxHashMap;
 use tracing::{error, info_span};
 
 use crate::feature_program::{FeatureProgram, RunScratch};
+use crate::flat::FlatLayers;
 use crate::ids::FillIds;
 use crate::modern_carvers::{
     CarverBiomeTable, ModernCarverBlockIds, TerrainCarving, carve_unsurfaced, modern_carving_mask,
@@ -62,7 +63,8 @@ use mcrs_minecraft_worldgen_structure::frozen::DimensionStructureTables;
 #[derive(Clone)]
 #[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct FillContext {
-    pub router: Arc<NoiseRouter>,
+    /// `None` for a flat dimension, which fills no density graph.
+    pub router: Option<Arc<NoiseRouter>>,
     /// `None` for a router compiled without material rules, whose columns get no surface.
     pub material: Option<Arc<MaterialProgram>>,
     pub blocks: Arc<BlockDefinitions>,
@@ -95,6 +97,18 @@ pub enum ColumnGenerator {
         surface: Option<(Arc<SurfaceIds>, SurfaceStates)>,
         carver_blocks: Arc<ModernCarverBlockIds>,
     },
+    /// Fixed layers, with no noise, surface, carver or feature.
+    Flat(Arc<FlatLayers>),
+}
+
+/// What a dimension generates its columns from.
+pub enum GeneratorSetup {
+    Noise {
+        router: Arc<NoiseRouter>,
+        /// `None` for a router compiled without material rules, whose columns get no surface.
+        material: Option<Arc<MaterialProgram>>,
+    },
+    Flat(Arc<FlatLayers>),
 }
 
 impl ColumnProgram {
@@ -120,8 +134,7 @@ impl FillContext {
         reason = "the router, material rules, blocks, sections and biome source of one dimension and each optional table its column stages are built from, every one its own input"
     )]
     pub fn build(
-        router: Arc<NoiseRouter>,
-        material: Option<Arc<MaterialProgram>>,
+        setup: GeneratorSetup,
         blocks: Arc<BlockDefinitions>,
         y_sections: Arc<[i32]>,
         biome: Option<Arc<BiomeSource>>,
@@ -134,6 +147,31 @@ impl FillContext {
         features: Option<Arc<FeatureProgram>>,
         structures: Option<Arc<DimensionStructureTables>>,
     ) -> Self {
+        let (router, material) = match setup {
+            GeneratorSetup::Noise { router, material } => (router, material),
+            GeneratorSetup::Flat(layers) => {
+                let biomes = ColumnBiomes::new(biome.as_deref(), None).unwrap_or_else(|error| {
+                    error!(%error, "the biome of a flat dimension does not fit the palette");
+                    ColumnBiomes::None
+                });
+                return FillContext {
+                    saved,
+                    router: None,
+                    material: None,
+                    blocks,
+                    y_sections,
+                    biome,
+                    predicates,
+                    program: ColumnProgram {
+                        generator: ColumnGenerator::Flat(layers),
+                        biomes,
+                        carvers: None,
+                        features: None,
+                    },
+                    structures: None,
+                };
+            }
+        };
         let multi_noise = biome.as_ref().and_then(|source| {
             let BiomeSource::MultiNoise(multi) = source.as_ref() else {
                 return None;
@@ -147,15 +185,7 @@ impl FillContext {
             }
         });
         let structures = structures.map(|tables| {
-            let biome_lookup = match (&multi_noise, &biome) {
-                (Some(table), _) => BiomeLookup::MultiNoise(Arc::clone(table)),
-                (None, Some(source)) => match source.as_ref() {
-                    BiomeSource::Fixed { biome } => BiomeLookup::Fixed(biome.number()),
-                    BiomeSource::TheEnd => BiomeLookup::TheEnd(fill_ids.end),
-                    _ => BiomeLookup::None,
-                },
-                (None, None) => BiomeLookup::None,
-            };
+            let biome_lookup = structure_biomes(multi_noise.as_ref(), biome.as_deref(), fill_ids);
             let (min_y, height) = match y_sections.first() {
                 Some(&first) => (
                     first << SectionPos::BITS,
@@ -206,7 +236,7 @@ impl FillContext {
         };
         FillContext {
             saved,
-            router,
+            router: Some(router),
             material,
             blocks,
             y_sections,
@@ -214,6 +244,25 @@ impl FillContext {
             predicates,
             program,
             structures,
+        }
+    }
+
+    /// The vertical extent the column stages read: the router's, or the section list's for a
+    /// dimension with no router.
+    pub fn height_context(&self) -> HeightContext {
+        match self.router.as_deref() {
+            Some(router) => extent(router),
+            None => {
+                let min_y = self
+                    .y_sections
+                    .first()
+                    .map_or(0, |&bottom| bottom << SectionPos::BITS);
+                HeightContext {
+                    min_y,
+                    depth: (self.y_sections.len() as i32) << SectionPos::BITS,
+                    sea_level: min_y,
+                }
+            }
         }
     }
 
@@ -292,7 +341,6 @@ pub fn fill_column(
     cancel: &CancellationToken,
 ) -> Option<FilledSnapshot> {
     let _span = info_span!("world::column_load").entered();
-    let router = ctx.router.as_ref();
     let y_sections = &ctx.y_sections;
 
     let loaded = ctx.saved.as_ref().and_then(|saved| {
@@ -333,6 +381,18 @@ pub fn fill_column(
             ticks: Vec::new(),
         });
     }
+
+    if let ColumnGenerator::Flat(layers) = &ctx.program.generator {
+        return Some(flat_column(ctx, col, column, layers));
+    }
+    let Some(router) = ctx.router.as_deref() else {
+        error!(
+            x = col.x,
+            z = col.z,
+            "a noise dimension has no noise router"
+        );
+        return None;
+    };
 
     let beard = ctx.structures.as_deref().and_then(|index| {
         let _beard = info_span!("world::column_beard").entered();
@@ -426,6 +486,7 @@ pub fn fill_column(
                 carve_unsurfaced(column, carving);
             }
         }
+        ColumnGenerator::Flat(_) => return None,
     }
 
     // The reference keeps the two `_WG` maps live through the carvers and
@@ -434,6 +495,26 @@ pub fn fill_column(
     let terrain = terrain_maps(ctx, column);
 
     Some(pack(ctx, col, column, &filled.biomes, terrain))
+}
+
+fn flat_column(
+    ctx: &FillContext,
+    col: ColumnPos,
+    column: &mut ColumnBlocks,
+    layers: &FlatLayers,
+) -> FilledSnapshot {
+    layers.fill(column, &ctx.y_sections);
+    let biomes = match &ctx.program.biomes {
+        ColumnBiomes::Fixed(biome) => {
+            vec![
+                mcrs_minecraft_chunk::palette::BiomePalette::homogeneous(*biome);
+                ctx.y_sections.len()
+            ]
+        }
+        _ => vec![mcrs_minecraft_chunk::palette::BiomePalette::default(); ctx.y_sections.len()],
+    };
+    let terrain = terrain_maps(ctx, column);
+    pack(ctx, col, column, &biomes, terrain)
 }
 
 fn pack(
@@ -842,7 +923,7 @@ impl WorldGenVolume for ColumnRegion<'_> {
     }
 
     fn extent(&self) -> HeightContext {
-        extent(&self.ctx.router)
+        self.ctx.height_context()
     }
 
     fn would_survive(&self, state: VoxelId, p: BlockPos) -> bool {
@@ -889,8 +970,11 @@ pub fn run_column(ctx: &FillContext, region: &mut ColumnRegion, rung: usize) {
         return;
     }
 
-    let origin = BlockPos::new(col.x * 16, ctx.router.noise.min_y, col.z * 16);
-    let seed = decoration_seed(ctx.router.world_seed as i64, origin.x, origin.z);
+    let Some(router) = ctx.router.as_deref() else {
+        return;
+    };
+    let origin = BlockPos::new(col.x * 16, router.noise.min_y, col.z * 16);
+    let seed = decoration_seed(router.world_seed as i64, origin.x, origin.z);
     let clip = column_clip(col, &ctx.y_sections);
     thread_local! {
         static SCRATCH: RefCell<(PlacerScratch, RunScratch)> = RefCell::default();
@@ -1058,6 +1142,12 @@ pub fn run_region(
     })
 }
 
+/// The section list of a flat dimension: exactly the sections of its dimension type.
+pub fn flat_y_sections(min_y: i32, section_count: u32) -> Arc<[i32]> {
+    let bottom = min_y >> SectionPos::BITS;
+    (bottom..bottom + section_count as i32).collect()
+}
+
 /// The section list every column of one dimension is generated over.
 ///
 /// One list for the whole dimension, not one per dispatch: a delta names a cell
@@ -1071,6 +1161,19 @@ pub fn dimension_y_sections(router: &NoiseRouter, min_y: i32, section_count: u32
     let top = (config_bottom + section_count as i32)
         .max(noise_bottom + (router.noise.height as i32 >> SectionPos::BITS));
     (bottom..top).collect()
+}
+
+fn structure_biomes(
+    multi_noise: Option<&Arc<crate::multi_noise_biomes::MultiNoiseBiomeTable>>,
+    biome: Option<&BiomeSource>,
+    fill_ids: &FillIds,
+) -> BiomeLookup {
+    match (multi_noise, biome) {
+        (Some(table), _) => BiomeLookup::MultiNoise(Arc::clone(table)),
+        (None, Some(BiomeSource::Fixed { biome })) => BiomeLookup::Fixed(biome.number()),
+        (None, Some(BiomeSource::TheEnd)) => BiomeLookup::TheEnd(fill_ids.end),
+        (None, _) => BiomeLookup::None,
+    }
 }
 
 #[cfg(test)]
@@ -1309,7 +1412,7 @@ mod tests {
                     carvers: Some(Arc::new(beta_carver_table(&source))),
                     features: None,
                 },
-                router,
+                router: Some(router),
                 material: None,
                 structures: None,
             };

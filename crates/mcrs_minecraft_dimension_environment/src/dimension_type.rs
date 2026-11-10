@@ -4,9 +4,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_core::codec::{Bounded, is_default};
 use mcrs_minecraft_dimension::{CardinalLight, DimensionType, Skybox};
-use mcrs_minecraft_environment::attribute::EnvironmentAttributeMap;
-use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_environment::world_clock::WorldClock;
+use mcrs_minecraft_environment::ModifierMap;
+use mcrs_minecraft_environment::Timeline;
+use mcrs_minecraft_environment::WorldClock;
 use mcrs_minecraft_registries::{IdSet, Named, Refs, Resolve, Resolved};
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_value_provider::{BoundedIntProvider, IntProvider};
@@ -79,8 +79,8 @@ pub struct DimensionTypeFile<M: Refs = Resolved> {
     pub cardinal_light: CardinalLight,
     #[serde(default, skip_serializing_if = "is_default")]
     pub has_fixed_time: bool,
-    #[serde(default, skip_serializing_if = "EnvironmentAttributeMap::is_empty")]
-    pub attributes: EnvironmentAttributeMap,
+    #[serde(default, skip_serializing_if = "ModifierMap::is_empty")]
+    pub attributes: ModifierMap,
     #[serde(default, skip_serializing_if = "is_default")]
     pub timelines: M::Set<Timeline>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -126,7 +126,7 @@ impl Serialize for DimensionTypeFile<Named> {
 /// the column the environment stacks are built from.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DimensionTypeEnvironment {
-    pub attributes: EnvironmentAttributeMap,
+    pub attributes: ModifierMap,
     pub timelines: IdSet<Timeline>,
     pub default_clock: Option<Id<WorldClock>>,
 }
@@ -146,7 +146,7 @@ impl DimensionTypeFile {
             monster_spawn_block_light_limit: self.monster_spawn_block_light_limit,
             monster_spawn_light_level: self.monster_spawn_light_level.clone(),
             skybox: self.skybox,
-            cardinal_light: self.cardinal_light.clone(),
+            cardinal_light: self.cardinal_light,
             has_fixed_time: self.has_fixed_time,
         };
         let environment = DimensionTypeEnvironment {
@@ -173,7 +173,7 @@ impl DimensionTypeFile {
             monster_spawn_block_light_limit: dimension_type.monster_spawn_block_light_limit,
             monster_spawn_light_level: dimension_type.monster_spawn_light_level.clone(),
             skybox: dimension_type.skybox,
-            cardinal_light: dimension_type.cardinal_light.clone(),
+            cardinal_light: dimension_type.cardinal_light,
             has_fixed_time: dimension_type.has_fixed_time,
             attributes: environment.attributes.clone(),
             timelines: environment.timelines.clone(),
@@ -258,7 +258,7 @@ mod tests {
         assert!(!attributes.is_empty());
         for id in attributes.keys() {
             assert!(
-                mcrs_minecraft_environment::attribute::is_syncable(id),
+                mcrs_minecraft_environment::is_syncable(id),
                 "{id} is not syncable"
             );
         }

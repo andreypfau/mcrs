@@ -11,9 +11,13 @@ pub mod registry_keys;
 #[rustfmt::skip]
 pub mod sulfur_cube_archetype_keys;
 #[rustfmt::skip]
+pub mod test_environment_definition_type_keys;
+#[rustfmt::skip]
 pub mod test_environment_keys;
 #[rustfmt::skip]
 pub mod test_instance_keys;
+#[rustfmt::skip]
+pub mod test_instance_type_keys;
 #[rustfmt::skip]
 pub mod trade_set_keys;
 #[rustfmt::skip]

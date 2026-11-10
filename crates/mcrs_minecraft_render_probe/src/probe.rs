@@ -574,9 +574,9 @@ mod tests {
 
         let shared = Shared::default();
         shared.period_ns.store(1.0f32.to_bits(), Ordering::Relaxed);
-        let ticks: [u64; SLOTS * 2] = [
-            0, 1_000_000, 0, 4_000_000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        ];
+        let mut ticks = [0u64; SLOTS * 2];
+        ticks[2 * PassSlot::Cull as usize + 1] = 1_000_000;
+        ticks[2 * PassSlot::Hiz as usize + 1] = 4_000_000;
         shared.read(bytemuck::cast_slice(&ticks));
         let timings = GpuTimings(Arc::new(shared));
         assert_eq!(timings.median(PassSlot::Cull as usize), Some(1.0));
@@ -587,10 +587,16 @@ mod tests {
     #[test]
     fn median_and_p95_cover_the_newest_frames_and_ignore_a_stall() {
         let timings = GpuTimings::default();
+        let mut frame = [0.0; SLOTS];
+        frame[PassSlot::Cull as usize] = 1.0;
+        frame[PassSlot::Hiz as usize] = 4.0;
+        frame[PassSlot::CullSecond as usize] = 0.2;
+        frame[SLOTS - 1] = 0.5;
         for _ in 0..8 {
-            timings.push([1.0, 4.0, 0.2, 0.0, 0.0, 0.0, 0.0, 0.5]);
+            timings.push(frame);
         }
-        timings.push([1.0, 400.0, 0.2, 0.0, 0.0, 0.0, 0.0, 0.5]);
+        frame[PassSlot::Hiz as usize] = 400.0;
+        timings.push(frame);
         assert_eq!(timings.median(PassSlot::Cull as usize), Some(1.0));
         assert_eq!(timings.median(PassSlot::Hiz as usize), Some(4.0));
 

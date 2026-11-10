@@ -1,10 +1,12 @@
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
 use std::net::{Ipv4Addr, SocketAddr};
 
 use crate::cave::CaveCull;
+use crate::options::{ClientOptions, VIEW_DISTANCE_RANGE};
 use bevy::app::App;
 use bevy::ecs::resource::Resource;
 use mcrs_minecraft_client_gui::scene::{GuiConfig, GuiPlugin};
@@ -67,6 +69,7 @@ pub const MAX_VIEW_DISTANCE: u8 = 96;
 #[derive(Resource, Clone, Debug, Default)]
 pub struct Knobs {
     values: Arc<HashMap<String, String>>,
+    options: ClientOptions,
     overlay_times_encoders: bool,
 }
 
@@ -80,8 +83,16 @@ impl Knobs {
         for (name, value) in values {
             map.entry(name).or_insert(value);
         }
+        let options = map
+            .get("OPTIONS")
+            .and_then(|path| match ClientOptions::read(Path::new(path)) {
+                Ok(options) => Some(options),
+                Err(error) => reject("OPTIONS", path, error),
+            })
+            .unwrap_or_default();
         Self {
             values: Arc::new(map),
+            options,
             overlay_times_encoders,
         }
     }
@@ -101,9 +112,10 @@ impl Knobs {
     pub fn view_distance(&self) -> u8 {
         self.parsed(
             "VIEW",
-            |columns| (2..=MAX_VIEW_DISTANCE).contains(columns),
+            |columns| VIEW_DISTANCE_RANGE.contains(columns),
             format_args!("expected a render distance from 2 to {MAX_VIEW_DISTANCE} columns"),
         )
+        .or(self.options.view_distance)
         .unwrap_or(VIEW_DISTANCE)
     }
 
@@ -172,57 +184,14 @@ impl Knobs {
         self.flag("OPEN_TO_LAN", false)
     }
 
-    /// `WORLD_SEED` is written signed, as the Java long it is, or unsigned; the router hashes the
-    /// same bits either way.
+    /// The settings of the integrated server that the knobs set: `WORLD_SEED`, `WORLD_PRESET`,
+    /// `DEFAULT_GAMEMODE` and the others the server binary reads.
     #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
-    pub fn world_seed(&self) -> u64 {
-        let Some(raw) = self.knob("WORLD_SEED") else {
-            return 0;
-        };
-        let raw = raw.trim();
-        raw.parse::<i64>()
-            .map(|seed| seed as u64)
-            .or_else(|_| raw.parse::<u64>())
-            .unwrap_or_else(|error| {
-                eprintln!(
-                    "MCRS_WORLD_SEED={raw} is not a number ({error}); generating with seed 0"
-                );
-                0
-            })
-    }
-
-    /// `WORLD_PRESET` takes a short name (`normal`) or a namespaced one (`minecraft:normal`).
-    #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
-    pub fn world_preset(&self) -> String {
-        self.knob("WORLD_PRESET")
-            .map(|name| name.trim().to_lowercase())
-            .filter(|name| !name.is_empty())
-            .unwrap_or_else(|| "normal".to_owned())
-    }
-
-    /// `NO_LIGHTING=1` turns light propagation off.
-    #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
-    pub fn propagates_light(&self) -> bool {
-        !self.flag("NO_LIGHTING", false)
-    }
-
-    /// `DEFAULT_GAMEMODE` is `survival`, `creative`, `adventure` or `spectator`, in any case; unset
-    /// or anything else is creative.
-    #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
-    pub fn default_game_mode(&self) -> mcrs_minecraft_engine_server::GameMode {
-        use mcrs_minecraft_engine_server::GameMode;
-        let Some(mode) = self.knob("DEFAULT_GAMEMODE") else {
-            return GameMode::Creative;
-        };
-        mode.trim()
-            .to_ascii_lowercase()
-            .parse()
-            .unwrap_or_else(|_| {
-                eprintln!(
-                    "MCRS_DEFAULT_GAMEMODE={mode} is not a game mode; defaulting to creative"
-                );
-                GameMode::Creative
-            })
+    pub fn server_settings(&self) -> mcrs_minecraft_server_settings::ServerSettings {
+        mcrs_minecraft_server_settings::ServerSettings::read(
+            |name| self.knob(name).map(str::to_owned),
+            |error| eprintln!("{error}"),
+        )
     }
 
     /// `GPU_HOT=<workgroups>` burns that many workgroups of arithmetic after the frame's own passes.
@@ -315,14 +284,9 @@ impl Knobs {
         self.knob("SCREENSHOT_DIR").map(std::path::PathBuf::from)
     }
 
-    /// Vanilla's "Brightness" slider, from 0 (Moody) through 0.5 (the default) to 1 (Bright).
-    pub fn brightness(&self) -> f32 {
-        self.parsed(
-            "BRIGHTNESS",
-            |value: &f32| (0.0..=1.0).contains(value),
-            "a brightness from 0 to 1",
-        )
-        .unwrap_or(0.5)
+    /// The video options that `MCRS_OPTIONS=<file>` names.
+    pub fn options(&self) -> ClientOptions {
+        self.options
     }
 
     /// `OCCLUSION=0` draws every group the frustum and the cave graph keep, without the depth
@@ -401,7 +365,6 @@ impl Knobs {
                 scale: self.gui_scale(),
                 cursor: self.gui_cursor(),
                 frozen_ticks: self.frozen_time(),
-                // chisle: nothing toggles it yet; F3 + H is the vanilla key.
                 advanced_tooltips: false,
             },
             screen: if self.opens_inventory() {

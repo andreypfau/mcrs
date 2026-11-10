@@ -244,7 +244,7 @@ impl DueIndex {
         }
         self.forget(entry);
         if let Some(due) = due {
-            // chisle: every head change leaves one stale entry behind; the compaction in
+            // Every head change leaves one stale entry behind; the compaction in
             // `tidy_index` bounds them at max(sections, 64).
             self.heap.push(Reverse((due, section_order(section))));
         }
@@ -382,8 +382,6 @@ impl<T: TickKind> TickQueue<T> {
                 self.index.reindex(*section, entry);
             }
         }
-        // chisle: a section that does not run ticks but has a due head is popped and
-        // re-indexed every tick; a wake-up on its property change would lift this.
         out.retain(|section| eligible(*section));
         self.tidy_index();
     }
@@ -400,7 +398,6 @@ impl<T: TickKind> TickQueue<T> {
         let Reverse(tick) = entry.heap.pop()?;
         entry.release(tick.local, tick.kind);
         if entry.heap.is_empty() {
-            // chisle: an emptied section keeps up to 64 slots; the number is not measured.
             entry.heap.shrink_to(KEPT_CAPACITY);
             entry.pending.shrink_to(KEPT_CAPACITY);
         }

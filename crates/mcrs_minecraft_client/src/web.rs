@@ -6,8 +6,8 @@ use bevy::asset::io::{AssetSourceBuilder, AssetSourceId};
 use bevy::math::DVec3;
 use bevy::prelude::*;
 use mcrs_minecraft_assets::packs::PackLayers;
-use mcrs_minecraft_dimension_environment::environment::Weather;
-use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClocks};
+use mcrs_minecraft_dimension_environment::environment::WeatherLevel;
+use mcrs_minecraft_environment::{AdvanceTime, WorldClocks};
 use mcrs_minecraft_network::browser::target_from_query;
 use mcrs_minecraft_network::client::ClientNetworkPlugin;
 use mcrs_minecraft_registries::CurrentRegistries;
@@ -125,7 +125,7 @@ pub fn run() {
     .insert_resource(Time::<Fixed>::from_hz(local_player::TICKS_PER_SECOND))
     .insert_resource(WorldClocks::default())
     .insert_resource(AdvanceTime(frozen_at.is_none()))
-    .insert_resource(Weather::default());
+    .insert_resource(WeatherLevel::default());
 
     // With no save to seed them, the clocks appear only when the session's
     // registries arrive, which is later than this, so a frozen time has to be
@@ -154,6 +154,7 @@ pub fn run() {
                 play: Some(mcrs_minecraft_client_world::game_packets::GAME_CLIENTBOUND),
             });
             app.add_plugins(mcrs_minecraft_client_world::columns::ColumnCachePlugin);
+            app.add_plugins(mcrs_minecraft_client_entity::ClientEntityPlugin);
         }
         None => warn!(
             "no ?server=<https url>&cert=<sha-256 hex>: the browser draws sky only. \

@@ -10,10 +10,14 @@ pub enum PassSlot {
     CullBlended,
     CullQuads,
     CullQuadsSecond,
+    EntityScatter,
+    EntityCull,
+    EntityPose,
+    EntityExpand,
 }
 
 impl PassSlot {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 11] = [
         Self::Cull,
         Self::Hiz,
         Self::CullSecond,
@@ -21,6 +25,10 @@ impl PassSlot {
         Self::CullBlended,
         Self::CullQuads,
         Self::CullQuadsSecond,
+        Self::EntityScatter,
+        Self::EntityCull,
+        Self::EntityPose,
+        Self::EntityExpand,
     ];
 
     pub fn name(self) -> &'static str {
@@ -32,6 +40,10 @@ impl PassSlot {
             Self::CullBlended => "cull blended",
             Self::CullQuads => "cull quads",
             Self::CullQuadsSecond => "cull quads second",
+            Self::EntityScatter => "entity scatter",
+            Self::EntityCull => "entity cull",
+            Self::EntityPose => "entity pose",
+            Self::EntityExpand => "entity expand",
         }
     }
 }

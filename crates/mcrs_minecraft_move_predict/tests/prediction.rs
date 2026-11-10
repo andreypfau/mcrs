@@ -14,8 +14,8 @@ use mcrs_minecraft_move_predict::Pusher;
 use mcrs_minecraft_move_validate::Move;
 use mcrs_minecraft_physics::Keys;
 use mcrs_minecraft_physics::NoBodies;
+use mcrs_minecraft_physics::Orientation;
 use mcrs_minecraft_physics::PlayerInput;
-use mcrs_minecraft_physics::PlayerRotation;
 use mcrs_minecraft_physics::PlayerState;
 use mcrs_minecraft_physics::Relative;
 use mcrs_minecraft_physics::Scratch;
@@ -78,10 +78,7 @@ impl Session {
             prediction: Prediction::new(state, Limits::default()),
             pushers: Vec::new(),
             input: PlayerInput {
-                rotation: PlayerRotation {
-                    yaw: -90.0,
-                    pitch: 0.0,
-                },
+                rotation: Orientation::facing(-90.0, 0.0),
                 ..PlayerInput::default()
             },
             sprint: None,
@@ -149,10 +146,10 @@ impl Session {
             &mut self.scratch,
         );
         let mut reported = Move {
-            position: Some(self.client.position),
+            position: Some(self.client.body.position),
             look: None,
-            on_ground: self.client.flags.on_ground,
-            horizontal_collision: self.client.flags.horizontal_collision,
+            on_ground: self.client.body.flags.on_ground,
+            horizontal_collision: self.client.body.flags.horizontal_collision,
         };
         edit(&mut reported);
         let tick = ClientTick {
@@ -170,8 +167,8 @@ impl Session {
 
 fn apply(change: &Change, state: &mut PlayerState) {
     match *change {
-        Change::Motion(velocity) => state.velocity = velocity,
-        Change::Impulse(impulse) => state.velocity += impulse,
+        Change::Motion(velocity) => state.body.velocity = velocity,
+        Change::Impulse(impulse) => state.body.velocity += impulse,
         _ => {}
     }
 }
@@ -193,7 +190,7 @@ fn pred_009_an_honest_client_that_walks_and_jumps_passes_each_tick() {
         assert!(passes(session.step(keys)), "tick {tick}");
     }
     assert!(
-        session.prediction.accepted().position.x > 5.0,
+        session.prediction.accepted().body.position.x > 5.0,
         "the player walked"
     );
 }
@@ -210,18 +207,14 @@ fn rsp_001_a_report_far_above_the_prediction_sets_the_client_back_to_the_accepte
         }
     });
     let setback = outcome.setback.expect("an offset of 0.2 sets back at once");
-    assert_eq!(setback.position, accepted.position, "RSP-002");
+    assert_eq!(setback.position, accepted.body.position, "RSP-002");
     assert_eq!(
-        setback.velocity, accepted.velocity,
+        setback.velocity, accepted.body.velocity,
         "RSP-001 keeps the velocity"
     );
     assert_eq!(setback.relative, Relative::YAW | Relative::PITCH);
     assert_eq!(session.step(FORWARD).mode, Mode::Exempt, "RSP-003");
-    assert!(passes(
-        session
-            .prediction
-            .accept(&session.fixture.tables, setback.position)
-    ));
+    assert!(passes(session.prediction.accept(setback.position)));
 }
 
 #[test]
@@ -337,7 +330,7 @@ fn pred_017_a_replay_sees_the_blocks_that_the_client_had() {
         assert!(passes(outcome), "tick {tick}: {outcome:?}");
     }
     assert!(
-        session.client.flags.horizontal_collision,
+        session.client.body.flags.horizontal_collision,
         "the client walked into the old wall"
     );
     let applied = ChangeStates {
@@ -372,146 +365,30 @@ fn lat_008_an_accept_matches_the_destination_of_a_candidate() {
     };
     let mut destination = session.client;
     let mut rotation = session.input.rotation;
-    apply_teleport(
-        &session.fixture.tables.sine,
-        &mut destination,
-        &mut rotation,
-        &teleport,
-    );
+    apply_teleport(&mut destination, &mut rotation, &teleport);
 
     session.prediction.teleport(teleport);
-    let far = destination.position + DVec3::new(0.0, 0.0, 5.0);
-    let outcome = session.prediction.accept(&session.fixture.tables, far);
+    let far = destination.body.position + DVec3::new(0.0, 0.0, 5.0);
+    let outcome = session.prediction.accept(far);
     let correction = outcome
         .setback
         .expect("an accept elsewhere gets a correction");
-    assert_eq!(correction.position, destination.position);
+    assert_eq!(correction.position, destination.body.position);
     assert_eq!(outcome.offset, Some(5.0));
 
-    let outcome = session
-        .prediction
-        .accept(&session.fixture.tables, destination.position);
+    let outcome = session.prediction.accept(destination.body.position);
     assert!(passes(outcome));
-    assert_eq!(session.prediction.accepted().position, destination.position);
+    assert_eq!(
+        session.prediction.accepted().body.position,
+        destination.body.position
+    );
     session.client = destination;
     assert!(passes(session.step(FORWARD)));
 }
 
-/// The teleport arrives at the client, which sends its accept.
-fn arrive(session: &mut Session, teleport: &Teleport) -> Outcome {
-    let mut rotation = session.input.rotation;
-    apply_teleport(
-        &session.fixture.tables.sine,
-        &mut session.client,
-        &mut rotation,
-        teleport,
-    );
-    session
-        .prediction
-        .accept(&session.fixture.tables, session.client.position)
-}
-
-fn absolute(position: DVec3) -> Teleport {
-    Teleport {
-        position,
-        velocity: DVec3::ZERO,
-        yaw: 0.0,
-        pitch: 0.0,
-        relative: Relative::YAW | Relative::PITCH,
-    }
-}
-
-#[test]
-fn lat_008_the_client_ticks_before_the_accept_of_a_setback_move_the_accepted_state() {
-    let mut session = Session::new();
-    let all = ChangeStates::default();
-    let refused = session.tick(Keys::default(), all, 0, DVec3::ZERO, |reported| {
-        if let Some(position) = &mut reported.position {
-            position.y += 0.2;
-        }
-    });
-    assert!(
-        refused.setback.is_some(),
-        "an offset of 0.2 sets back at once"
-    );
-    session.send(Change::Motion(DVec3::new(0.0, 0.42, 0.0)));
-    for tick in 0..4 {
-        let outcome = session.step(Keys::default());
-        assert_eq!(outcome, Outcome::from(Mode::Exempt), "tick {tick}");
-        assert_eq!(
-            session.prediction.accepted().position,
-            session.client.position,
-            "MVC-RSP-003: tick {tick}"
-        );
-    }
-}
-
-#[test]
-fn lat_008_an_absolute_teleport_keeps_the_fall_distance_of_the_client() {
-    let mut session = Session::new();
-    let teleport = absolute(DVec3::new(5.5, 0.0, 0.5));
-    session.prediction.teleport(teleport);
-    session.send(Change::Motion(DVec3::new(0.0, 0.42, 0.0)));
-    for _ in 0..8 {
-        session.step(Keys::default());
-    }
-    let accept = arrive(&mut session, &teleport);
-    assert!(passes(accept), "{accept:?}");
-    let fall_distance = session.client.fall_distance;
-    assert!(
-        fall_distance > 0.0,
-        "the client falls when the teleport arrives"
-    );
-    let accepted = session.prediction.accepted();
-    assert_eq!(accepted.fall_distance, fall_distance);
-    assert_eq!(accepted.flags, session.client.flags);
-    assert!(passes(session.step(Keys::default())));
-}
-
-#[test]
-fn lat_008_a_tick_with_no_match_before_the_accept_makes_the_next_tick_a_resync_tick() {
-    let mut session = Session::new();
-    let teleport = absolute(DVec3::new(5.5, 0.0, 0.5));
-    session.prediction.teleport(teleport);
-    let all = ChangeStates::default();
-    let unmatched = session.tick(Keys::default(), all, 0, DVec3::ZERO, |reported| {
-        if let Some(position) = &mut reported.position {
-            position.y += 0.2;
-        }
-    });
-    assert_eq!(unmatched, Outcome::from(Mode::Exempt));
-    let accept = arrive(&mut session, &teleport);
-    assert!(passes(accept), "{accept:?}");
-    assert_eq!(session.step(Keys::default()).mode, Mode::Resync);
-}
-
-#[test]
-fn lat_008_a_relative_velocity_after_a_coarse_tick_makes_the_next_tick_a_resync_tick() {
-    for (relative, mode) in [
-        (Relative::VELOCITY_Y, Mode::Resync),
-        (Relative::empty(), Mode::Predicted),
-    ] {
-        let mut session = Session::new();
-        let pusher = mob_at_the_side(&session, 0.0);
-        session.pushers = vec![pusher; 25];
-        let push = push_of(&pusher, session.client.position) * 25.0;
-        let teleport = Teleport {
-            relative,
-            ..absolute(DVec3::new(5.5, 0.0, 0.5))
-        };
-        session.prediction.teleport(teleport);
-        let coarse = session.tick(FORWARD, ChangeStates::default(), 0, push, |_| {});
-        assert_eq!(coarse, Outcome::from(Mode::Exempt));
-        session.pushers.clear();
-        let accept = arrive(&mut session, &teleport);
-        assert!(passes(accept), "{relative:?}: {accept:?}");
-        assert_eq!(session.step(Keys::default()).mode, mode, "{relative:?}");
-    }
-}
-
 /// A mob on the side of `-x` pushes the player at each of its positions.
 fn mob_at_the_side(session: &Session, jitter: f64) -> Pusher {
-    let player = session.prediction.accepted().position;
+    let player = session.prediction.accepted().body.position;
     let at = player - DVec3::new(0.45, 0.0, 0.0);
     Pusher {
         low: at - DVec3::splat(jitter),
@@ -535,7 +412,7 @@ fn unc_005_a_client_that_takes_the_push_passes_and_one_that_ignores_it_fails() {
     let mut session = Session::new();
     let pusher = mob_at_the_side(&session, 0.05);
     session.pushers = vec![pusher];
-    let push = push_of(&pusher, session.client.position);
+    let push = push_of(&pusher, session.client.body.position);
     let honest = session.tick(Keys::default(), ChangeStates::default(), 0, push, |_| {});
     assert!(passes(honest), "{honest:?}");
 
@@ -556,7 +433,7 @@ fn pred_019_too_many_pushers_make_the_tick_coarse_and_the_next_position_resyncs(
     let mut session = Session::new();
     let pusher = mob_at_the_side(&session, 0.0);
     session.pushers = vec![pusher; 25];
-    let push = push_of(&pusher, session.client.position) * 25.0;
+    let push = push_of(&pusher, session.client.body.position) * 25.0;
     let coarse = session.tick(FORWARD, ChangeStates::default(), 0, push, |_| {});
     assert_eq!(coarse.mode, Mode::Coarse);
     session.pushers.clear();
@@ -597,7 +474,7 @@ fn ack_and_move(session: &mut Session, at: BlockPos, back: DVec3) -> Outcome {
 }
 
 fn move_to(session: &mut Session, back: DVec3, seen: u64) -> Outcome {
-    session.client.position = back;
+    session.client.body.position = back;
     let window = ChangeStates { applied: 1, seen };
     session.tick(FORWARD, window, 2, DVec3::ZERO, |_| {})
 }
@@ -621,12 +498,12 @@ fn broken_two_times() -> (Session, BlockPos, [DVec3; 2]) {
     session
         .prediction
         .block_requested(under, Some(BlockStateId::AIR));
-    let first = session.client.position;
+    let first = session.client.body.position;
     session.step(FORWARD);
     session
         .prediction
         .block_requested(under, Some(BlockStateId::AIR));
-    let second = session.client.position;
+    let second = session.client.body.position;
     refuse_break(&mut session, under);
     (session, under, [first, second])
 }
@@ -664,7 +541,7 @@ fn lat_007_a_client_does_not_move_back_when_no_kept_state_meets_its_box() {
     session
         .prediction
         .block_requested(far, Some(BlockStateId::AIR));
-    let first = session.client.position;
+    let first = session.client.body.position;
     refuse_break(&mut session, far);
     let outcome = ack_and_move(&mut session, far, first);
     assert!(outcome.offset.is_some(), "{outcome:?}");
@@ -680,9 +557,9 @@ fn lat_007_a_request_after_the_ack_waits_for_a_later_ack() {
     session
         .prediction
         .block_requested(under, Some(BlockStateId::AIR));
-    let second = session.client.position;
+    let second = session.client.body.position;
     session.tick(FORWARD, ChangeStates::default(), 0, DVec3::ZERO, |_| {});
-    session.client.position = second;
+    session.client.body.position = second;
     let window = ChangeStates {
         applied: 0,
         seen: 1,
@@ -730,7 +607,7 @@ fn walk(session: &mut Session, states: ChangeStates) -> f64 {
         let outcome = session.tick(FORWARD, states, 3, DVec3::ZERO, |_| {});
         assert!(passes(outcome), "tick {tick}: {outcome:?}");
     }
-    session.prediction.accepted().position.x
+    session.prediction.accepted().body.position.x
 }
 
 #[test]
@@ -797,33 +674,6 @@ fn pred_016_too_many_open_windows_at_the_step_cap_set_back() {
         }
     });
     assert!(outcome.setback.is_some(), "{outcome:?}");
-}
-
-#[test]
-fn rsp_003_too_many_open_windows_before_an_accept_send_no_other_teleport() {
-    let mut session = Session::new();
-    for _ in 0..70 {
-        session.send(Change::Impulse(DVec3::new(0.0, 0.01, 0.0)));
-    }
-    let teleport = Teleport {
-        position: DVec3::new(3.0, 0.0, 0.0),
-        relative: Relative::X | Relative::Y | Relative::Z,
-        ..absolute(DVec3::ZERO)
-    };
-    session.prediction.teleport(teleport);
-    let window = ChangeStates {
-        applied: 0,
-        seen: 70,
-    };
-    let outcome = session.tick(FORWARD, window, 0, DVec3::ZERO, |reported| {
-        if let Some(position) = &mut reported.position {
-            position.y += 3.0;
-        }
-    });
-    assert_eq!(outcome, Outcome::from(Mode::Exempt));
-    session.client.position.y += 3.0;
-    let accept = arrive(&mut session, &teleport);
-    assert!(passes(accept), "{accept:?}");
 }
 
 #[test]

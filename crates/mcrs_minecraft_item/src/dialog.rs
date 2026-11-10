@@ -571,7 +571,7 @@ dialog_type!(ServerLinks {
     pub button_width: ButtonWidth,
 });
 
-// chisle: a dialog list names registered dialogs and tags only; the game also takes a dialog
+// A dialog list names registered dialogs and tags only; the game also takes a dialog
 // written inline in the list, which is refused here until a holder set that holds inline entries
 // exists.
 dialog_type!(DialogList {

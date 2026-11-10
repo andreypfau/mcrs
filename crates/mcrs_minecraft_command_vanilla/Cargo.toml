@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_command_vanilla"
-description = "The vanilla commands execute, gamemode, teleport, locate and time, and the command effects they write"
+description = "The vanilla commands execute, gamemode, teleport, locate, summon and time, and the command effects they write"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -20,6 +20,7 @@ locate = [
 ]
 
 [dependencies]
+mcrs_minecraft_entity_key.workspace = true
 mcrs_minecraft_network.workspace = true
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_resource.workspace = true
@@ -37,13 +38,20 @@ mcrs_minecraft_command_argument_entity.workspace = true
 mcrs_minecraft_command_registry.workspace = true
 mcrs_minecraft_command_argument_vanilla.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_damage.workspace = true
+mcrs_minecraft_numeric.workspace = true
 mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_brain.workspace = true
+mcrs_minecraft_engine_physics.workspace = true
+mcrs_minecraft_entity_rows.workspace = true
 mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_physics.workspace = true
 mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_heightmap = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_keys.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_snbt.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_text.workspace = true
@@ -54,3 +62,4 @@ bevy_ecs.workspace = true
 bevy_math.workspace = true
 rand.workspace = true
 tracing.workspace = true
+uuid.workspace = true

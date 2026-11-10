@@ -1,4 +1,5 @@
 use bevy_app::{App, AppExit};
+use bevy_ecs::world::World;
 use mcrs_minecraft_engine::between_ticks::{
     drain_dim_despawn_queue, drain_dim_spawn_queue, take_dim_outputs,
 };
@@ -14,10 +15,19 @@ pub const DEFAULT_TPS: NonZeroU32 = match NonZeroU32::new(20) {
 };
 
 pub fn run_server_loop(app: App) -> AppExit {
+    run_server_loop_with(app, |_| {})
+}
+
+/// [`run_server_loop`] with `after_tick` run after the host took the output of each tick and
+/// before the packets of the tick go out to the sockets.
+pub fn run_server_loop_with(app: App, after_tick: fn(&mut World)) -> AppExit {
     mcrs_minecraft_engine_world::server_loop::run_server_loop(
         app,
         DEFAULT_TPS,
-        between_ticks,
+        |app| {
+            between_ticks(app);
+            after_tick(app.world_mut());
+        },
         drain_until,
     )
 }

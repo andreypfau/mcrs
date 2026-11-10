@@ -1,6 +1,6 @@
 // Written by `cargo run -p mcrs_minecraft_update -- keys`; do not edit.
 
-use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
+use mcrs_minecraft_resource::{Registered, RegistryKey, ResourceLocation, rl};
 
 pub const CHAT_TYPE: RegistryKey<crate::chat_type::ChatType> =
     RegistryKey::new(rl!("minecraft:chat_type"));
@@ -26,10 +26,23 @@ impl Registered for crate::test_types::TestEnvironment {
     const REGISTRY: RegistryKey<Self> = TEST_ENVIRONMENT;
 }
 
+pub const TEST_ENVIRONMENT_DEFINITION_TYPE: RegistryKey<
+    crate::test_environment_definition_type_keys::TestEnvironmentDefinitionType,
+> = RegistryKey::new(rl!("minecraft:test_environment_definition_type"));
+impl Registered for crate::test_environment_definition_type_keys::TestEnvironmentDefinitionType {
+    const REGISTRY: RegistryKey<Self> = TEST_ENVIRONMENT_DEFINITION_TYPE;
+}
+
 pub const TEST_INSTANCE: RegistryKey<crate::test_types::TestInstance> =
     RegistryKey::new(rl!("minecraft:test_instance"));
 impl Registered for crate::test_types::TestInstance {
     const REGISTRY: RegistryKey<Self> = TEST_INSTANCE;
+}
+
+pub const TEST_INSTANCE_TYPE: RegistryKey<crate::test_instance_type_keys::TestInstanceType> =
+    RegistryKey::new(rl!("minecraft:test_instance_type"));
+impl Registered for crate::test_instance_type_keys::TestInstanceType {
+    const REGISTRY: RegistryKey<Self> = TEST_INSTANCE_TYPE;
 }
 
 pub const TRADE_SET: RegistryKey<crate::villager_trade::TradeSet> =
@@ -49,3 +62,15 @@ pub const WORLD_PRESET: RegistryKey<crate::worldgen::world_preset::WorldPreset> 
 impl Registered for crate::worldgen::world_preset::WorldPreset {
     const REGISTRY: RegistryKey<Self> = WORLD_PRESET;
 }
+
+/// The static registries of this crate, which the catalog does not list.
+pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'static>])] = &[
+    (
+        TEST_ENVIRONMENT_DEFINITION_TYPE.location(),
+        crate::test_environment_definition_type_keys::TestEnvironmentDefinitionType::ENTRIES,
+    ),
+    (
+        TEST_INSTANCE_TYPE.location(),
+        crate::test_instance_type_keys::TestInstanceType::ENTRIES,
+    ),
+];

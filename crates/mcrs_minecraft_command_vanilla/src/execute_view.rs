@@ -1,6 +1,7 @@
 use crate::dimension_view::{DimensionView, unloaded};
+use crate::entity_view::EntityView;
 use crate::execute::{Branch, ExecuteCommand, Polarity, Test};
-use crate::select::{FoundPlayers, select};
+use crate::select::{SelectionBuffers, select};
 use crate::set::VanillaContext;
 use bevy_ecs::system::SystemParam;
 use bevy_math::DVec3;
@@ -10,8 +11,7 @@ use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_command_argument::{DimensionArgument, ResourceOrTag};
 use mcrs_minecraft_command_argument_entity::EntityArgument;
 use mcrs_minecraft_command_engine::{
-    Call, CommandFailure, CommandOutput, DimensionEntry, Modified, ModifyResult, PlayerEntry,
-    SourceState,
+    Call, CommandFailure, CommandOutput, DimensionEntry, Modified, ModifyResult, SourceState,
 };
 use mcrs_minecraft_nbt::compound::NbtCompound;
 
@@ -36,13 +36,13 @@ impl ExecuteView<'_, '_> {
         &self,
         call: &Call<Branch, ExecuteCommand>,
         targets: ArgumentHandle<EntityArgument>,
-        found: &mut FoundPlayers,
+        found: &mut SelectionBuffers,
         output: &mut CommandOutput,
-        each: impl Fn(&SourceState, &PlayerEntry) -> SourceState,
+        each: impl Fn(&SourceState, EntityView<'_>) -> SourceState,
     ) -> ModifyResult {
         found.with(|out| {
             select(&self.context, &call.invocation, targets, out)?;
-            for target in out.found.iter() {
+            for target in out.iter() {
                 output.fork(each(&call.invocation.source, target));
             }
             Ok(Modified::Forked)
@@ -54,7 +54,7 @@ impl ExecuteView<'_, '_> {
         call: &Call<Branch, ExecuteCommand>,
         test: Test,
         polarity: Polarity,
-        found: &mut FoundPlayers,
+        found: &mut SelectionBuffers,
     ) -> Result<Outcome, CommandFailure> {
         let args = call.command.condition(polarity);
         let context = &self.context;
@@ -62,9 +62,7 @@ impl ExecuteView<'_, '_> {
         match test {
             Test::Entity => found.with(|out| {
                 select(context, &call.invocation, args.entities, out)?;
-                Ok(Outcome::Count(
-                    i32::try_from(out.found.len()).unwrap_or(i32::MAX),
-                ))
+                Ok(Outcome::Count(i32::try_from(out.len()).unwrap_or(i32::MAX)))
             }),
             Test::Dimension => {
                 let named = dimension(context, call, args.dimension)?;
@@ -97,8 +95,6 @@ impl ExecuteView<'_, '_> {
                 let name = entry.identifier.as_str();
                 let in_subject = match predicate.subject {
                     ResourceOrTag::Entry(id) => id == name,
-                    // chisle: the tag is found by a scan of the tag names per test; a tag id
-                    // resolved when the argument is parsed lifts it.
                     ResourceOrTag::Tag(tag) => {
                         let id = u16::try_from(index.index()).ok();
                         context
@@ -110,9 +106,6 @@ impl ExecuteView<'_, '_> {
                 };
                 let passes = in_subject
                     && predicate.test(entry, state)
-                    // chisle: the block entity is serialized to NBT per test; matching the
-                    // predicate compound against the entity without serializing needs a visitor
-                    // on the block entity type.
                     && predicate.test_data(|| {
                         let entry = self.dimension.block_entity(pos)?;
                         saved_data(entry).ok()

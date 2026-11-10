@@ -29,12 +29,25 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::tasks::block_on;
 
 use mcrs_minecraft_client::vanilla::{self, VanillaAssets};
-use mcrs_minecraft_mesh::ambient::{self, Neighbour, Sample};
+use mcrs_minecraft_core::CardinalLight;
+use mcrs_minecraft_mesh::face_shade::FaceShade;
+use mcrs_minecraft_mesh::smooth_light::{self, LightState, Sample};
 use mcrs_minecraft_model::atlas;
-use mcrs_minecraft_model::bake;
-use mcrs_minecraft_model::model::{self, Pack};
+use mcrs_minecraft_model::bake::BlockModels;
+use mcrs_minecraft_model::resource_set::ResourceSet;
+use mcrs_minecraft_model_file::property_table::PropertyTable;
+use mcrs_minecraft_model_file::resource_id;
 
 const DEFAULT_TARGET: &str = "minecraft:oak_log[axis=y]";
+
+const SOLID: LightState = LightState {
+    occlusion_shade: 0.2,
+    solid_render: true,
+    light_dampening: 15,
+    full_collision: true,
+    emission: 0,
+    emissive: false,
+};
 
 fn main() {
     let target = Target::from_args();
@@ -61,7 +74,7 @@ fn main() {
         Update,
         (
             toggle_floor,
-            rebuild_scene.run_if(resource_exists::<Pack>),
+            rebuild_scene.run_if(resource_exists::<ResourceSet>),
             orbit,
         ),
     )
@@ -131,7 +144,7 @@ struct Orbit {
 }
 
 fn read_pack(mut commands: Commands, assets: Res<AssetServer>) {
-    let pack = block_on(Pack::load(&assets)).expect("the resource pack is readable");
+    let pack = block_on(ResourceSet::load(&assets)).expect("the resource pack is readable");
     commands.insert_resource(pack);
 }
 
@@ -164,7 +177,7 @@ fn rebuild_scene(
     mut commands: Commands,
     target: Res<Target>,
     show: Res<ShowFloor>,
-    pack: Res<Pack>,
+    pack: Res<ResourceSet>,
     existing: Query<Entity, With<BlockMesh>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -220,7 +233,7 @@ fn scene_blocks(show_floor: bool) -> Vec<IVec3> {
 }
 
 fn build_mesh(
-    pack: &Pack,
+    pack: &ResourceSet,
     blocks: &[IVec3],
     target: &Target,
 ) -> Result<(Mesh, Vec<String>), String> {
@@ -234,12 +247,19 @@ fn build_mesh(
     let mut indices: Vec<u32> = Vec::new();
     let mut baked_quads = Vec::new();
 
-    let baked = bake::bake(pack, &target.block, &props)?;
+    let definitions = &mcrs_minecraft_engine_registries::test_corpus().0.0;
+    let block = definitions
+        .block(&target.block)
+        .ok_or_else(|| format!("no block {}", target.block))?;
+    let properties = PropertyTable::of_block(&block.properties);
+    let baked = BlockModels::new(pack)
+        .bake_state(&target.block, &properties, &props, [0, 0, 0])
+        .map_err(|error| error.to_string())?;
     for &pos in blocks {
         for quad in baked.quads.iter().cloned() {
-            // The only piece of vanilla's `shouldRenderFace` a lone block needs: a face touching a
+            // The only face-culling rule a lone block needs: a face touching a
             // full neighbour is never visible.
-            if let Some(cull) = quad.cull
+            if let Some(cull) = quad.face.cull
                 && solid(pos + cull.normal())
             {
                 continue;
@@ -253,18 +273,15 @@ fn build_mesh(
                 }
             };
             let ao = if baked.ambient_occlusion {
-                ambient::smooth(&quad.positions, quad.dir, solid(pos), 0, |offset| {
-                    let full = solid(pos + offset);
-                    Sample {
-                        neighbour: Neighbour {
-                            full_block: full,
-                            solid_render: full,
-                            light_opaque: full,
-                        },
-                        light: 0,
-                    }
+                smooth_light::smooth(&quad.face.positions, quad.face.direction, |offset| Sample {
+                    state: if solid(pos + offset) {
+                        SOLID
+                    } else {
+                        LightState::AIR
+                    },
+                    light: Default::default(),
                 })
-                .shade
+                .occlusion
             } else {
                 [1.0; 4]
             };
@@ -275,13 +292,20 @@ fn build_mesh(
     let slots = sprites.len().max(1) as f32;
     for (pos, quad, slot, ao) in baked_quads {
         let base = positions.len() as u32;
-        let normal = quad.dir.normal().as_vec3().to_array();
+        let normal = quad.face.direction.normal().as_vec3().to_array();
         for i in 0..4 {
-            positions.push((quad.positions[i] + pos.as_vec3()).to_array());
+            positions.push((quad.face.positions[i] + pos.as_vec3()).to_array());
             normals.push(normal);
-            uvs.push([quad.uvs[i][0], (slot as f32 + quad.uvs[i][1]) / slots]);
+            uvs.push([
+                quad.face.uvs[i][0],
+                (slot as f32 + quad.face.uvs[i][1]) / slots,
+            ]);
             // Vanilla's shade byte is sRGB; Bevy consumes vertex colours as linear.
-            let c = ambient::shade_byte(ao[i], quad.shade);
+            let c = smooth_light::shade_byte(
+                ao[i],
+                FaceShade::Direction(quad.face.shade_face.unwrap_or(quad.face.direction))
+                    .factor(CardinalLight::Default),
+            );
             colors.push(LinearRgba::from(Color::srgb_u8(c, c, c)).to_f32_array());
         }
         indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
@@ -304,11 +328,13 @@ fn build_mesh(
 
 /// One vertical strip of sprites, so the whole block is a single mesh with a single material —
 /// which is what a chunk section will need.
-fn build_atlas(pack: &Pack, sprites: &[String]) -> Result<Image, String> {
+fn build_atlas(pack: &ResourceSet, sprites: &[String]) -> Result<Image, String> {
     let mut cells: Vec<(usize, Vec<u8>)> = Vec::new();
     for id in sprites {
-        let path = model::resource_path(id, "textures", "png");
-        let (data, width, _) = atlas::decode_png(pack.read(&path)?, &path)?;
+        let path = resource_id::resource_path(id, "textures", "png");
+        let (data, width, _) =
+            atlas::decode_png(pack.read(&path).map_err(|error| error.to_string())?, &path)
+                .map_err(|error| error.to_string())?;
         let width = width as usize;
         // An animated sprite is a vertical strip of square frames; take the first one.
         let frame = width * width * 4;

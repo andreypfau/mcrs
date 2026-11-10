@@ -6,8 +6,8 @@ use mcrs_minecraft_nbt::deserializer::NbtReadHelper;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_nbt::{
     ArrayKind, ArrayVisitor, BYTE_ARRAY_ID, BYTE_ID, COMPOUND_ID, DOUBLE_ID, END_ID, Error,
-    FLOAT_ID, INT_ARRAY_ID, INT_ID, LIST_ID, LONG_ARRAY_ID, LONG_ID, SHORT_ID, from_bytes,
-    nbt_array,
+    FLOAT_ID, INT_ARRAY_ID, INT_ID, LIST_ID, LONG_ARRAY_ID, LONG_ID, Nbt, NetworkLittleEndian,
+    SHORT_ID, STRING_ID, from_bytes, nbt_array,
 };
 use serde::Deserialize;
 use serde::de::{DeserializeOwned, IgnoredAny, SeqAccess, Visitor};
@@ -129,6 +129,27 @@ fn an_array_declaring_more_than_the_input_holds_is_an_error_and_not_an_allocatio
                 "{declared} elements of {width} bytes asked for {largest} bytes at once"
             );
         }
+    }
+}
+
+#[test]
+fn a_varint_string_length_larger_than_the_input_is_an_error_and_not_an_allocation() {
+    let u32_max = [0xFF, 0xFF, 0xFF, 0xFF, 0x0F];
+    let mut as_name = vec![COMPOUND_ID, STRING_ID];
+    as_name.extend_from_slice(&u32_max);
+    as_name.extend_from_slice(b"short");
+    let mut as_value = vec![COMPOUND_ID, STRING_ID, 1, b'k'];
+    as_value.extend_from_slice(&u32_max);
+    as_value.extend_from_slice(b"short");
+
+    for bytes in [as_name, as_value] {
+        let (read, largest) = largest_request(|| {
+            let mut reader =
+                NbtReadHelper::<_, NetworkLittleEndian>::with_encoding(Cursor::new(&bytes));
+            Nbt::read_unnamed_with(&mut reader)
+        });
+        assert!(matches!(read, Err(Error::Incomplete(_))));
+        assert!(largest < A_MEGABYTE, "asked for {largest} bytes at once");
     }
 }
 

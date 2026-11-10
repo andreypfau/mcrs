@@ -2603,7 +2603,7 @@ between server-simulated entities. An implementation can compute the push in thi
 3. For each direction that applies, `E` gets the push that PHY-PSH-004 gives to it. Both directions
    give the same vector to `E` (PHY-PSH-005).
 4. `E` adds the pushes to its own velocity in step 9 of its tick, one at a time. The order is the
-   birth key of `O` (PHY-CMP-013), from the lowest to the highest. For one `O`, the push from `O` comes first.
+   UUID of `O` (PHY-CMP-013), from the lowest to the highest. For one `O`, the push from `O` comes first.
 5. The count of the crowd damage of PHY-PSH-007 uses the neighbours of step 1, without the
    neighbours that DMG-CRW-002 leaves out.
 
@@ -2612,37 +2612,43 @@ f64 sum independent of the order of the ticks. PHY-DEV-004 records this relaxati
 is not in this rule (PHY-PSH-008, PHY-PSH-010).
 
 **PHY-CMP-013** (`source_suggested`, semantic, confidence: medium). The order key of each
-order-independent rule is the birth key of the entity. The network id is not an order key, because
-an implementation can give network ids in a way that depends on the layout. The birth key has three
-parts, compared in this order:
+order-independent rule is the UUID of the entity. The rule compares two UUIDs as unsigned integers
+of 128 bits. Order by UUID replaces an order by birth. The network id is not an order key, because
+an implementation can give network ids in a way that depends on the layout.
 
-1. the birth tick: the value of the birth clock of the world in the tick of the birth;
-2. the source key: the key of the parent or of the source, as the table states;
-3. the sequence: the number of the entity among the entities of the same source and tick, from 0.
+An entity that comes into existence without a UUID gets a new UUID. The new UUID is a fixed hash
+of 128 bits of these birth inputs, in this order:
 
-| Way of birth | Source key |
-|--------------|------------|
-| another entity creates it, for example a drop, a projectile, a child or an experience orb | the kind `entity`, then the birth key of the parent |
-| a block creates it, for example a dispenser, a spawner, a primed TNT from a block or the drops of a block | the kind `block`, then the block position, compared by `y`, then `z`, then `x` |
-| a natural spawn | the kind `spawn`, then the chunk position, then the number of the spawn attempt in that chunk and tick |
-| a load from a save that has no birth key | the kind `load`, then the chunk position, then the position of the entity in the saved list of that chunk |
-| a command | the kind `command`, then the sequence number of the command in the tick |
-| a player that joins with no saved birth key | the kind `player`, then the order of the login in that tick |
+1. the world seed;
+2. the dimension key, for example `minecraft:overworld`: first its length in bytes, then its bytes;
+3. the birth tick: the value of the birth clock of the world in the tick of the birth;
+4. the number of the kind of the source, as the table states;
+5. the source key: four words of 64 bits, as the table states. A key of one value ends with
+   zero words;
+6. the sequence: the number of the entity among the entities of the same source and tick, from 0.
 
-The kinds compare in this order: `load`, `player`, `command`, `spawn`, `block`, `entity`. The
-sequence of a source depends only on the order of the work of that source. Thus the birth key does
-not depend on the layout, on the thread count or on the network id.
+The hash then sets the version bits to 4 and the variant bits to the variant of RFC 9562. Thus the
+client takes the value as a random UUID. The implementation uses no shared random source for the
+hash. Each process with the same inputs gives the same UUID, at each thread count.
 
-The birth key is saved with the entity, as data of this implementation. An entity that the
-implementation loads keeps its saved birth key. A change of dimension keeps the birth key. The
-vanilla server ignores this data, and the client never sees it.
+| Way of birth | Kind (number) | Source key |
+|--------------|---------------|------------|
+| a load of a saved entity that has no UUID | `load` (0) | the chunk position, then the position of the entity in the saved list of that chunk |
+| no way of birth: a player always has the UUID of its profile | `player` (1) | not used |
+| a command | `command` (2) | the block of the spawn point, then the block of the command source |
+| a natural spawn | `spawn` (3) | the chunk position, then the number of the spawn attempt in that chunk and tick |
+| a block creates it, for example a dispenser, a spawner, a primed TNT from a block or the drops of a block | `block` (4) | the block position: `y`, `z` and `x`, 32 bits each |
+| another entity creates it, for example a drop, a projectile, a child or an experience orb | `entity` (5) | the UUID of the parent |
 
-A player keeps its saved birth key at each login, and also at a respawn. The player is the same
-entity with the same UUID, so it keeps its place in the order. Only a player without a saved
-birth key gets a new key of the kind `player`.
+The sequence of a source depends only on the order of the work of that source. Thus the new UUID
+does not depend on the layout, on the thread count or on the network id.
 
-The birth clock is a counter of each world, shared by all its dimensions, because a key survives a
-change of dimension. It has these properties:
+A UUID that a save, a load or the `UUID` key of a summon gives stays as it is. A spawn with the
+UUID of an entity of the world is refused. An entity that the implementation loads keeps its
+saved UUID. A change of dimension keeps the UUID. A player keeps the UUID of its profile at each
+login and at each respawn, so it keeps its place in the order.
+
+The birth clock is a counter of each world, shared by all its dimensions. It has these properties:
 
 - It increases by 1 at the start of each server tick, also in a tick in which the tick rate is
   frozen. A command can create an entity in such a tick.
@@ -2654,28 +2660,19 @@ change of dimension. It has these properties:
 - No command changes it.
 - A save without the value starts the clock at the game time of that save.
 
+Thus the birth inputs of two new UUIDs of one world are never equal.
+
 The birth clock is not the game time and not a clock of `command-time.md`. The game time of the
 reference is saved, and no command sets it. But the game time does not advance while the tick
 rate is frozen, so two ticks can have the same game time. Thus the game time can not be the birth
 tick.
 
-The source key of the kind `entity` contains the birth key of the parent. That key can nest to any
-depth. An implementation can store it in a fixed size, as a digest of 128 bits of the birth key of
-the parent. The digest is a fixed function of the full key. With this form, these order rules
-apply:
-
-- Two entities with the same birth tick and the same parent keep the order of their sequence.
-- Two entities with the same birth tick and different parents rank by the digest of the parents,
-  not by the full keys of the parents.
-- Two different parent keys can have the same digest. Then the stored keys of two entities can be
-  equal. PHY-CMP-024 states the comparison for this case.
-
-The order of the digests does not follow the order of the full keys. This is permitted, because the
+The order of the UUIDs does not follow the order of the births. This is permitted, because the
 order only needs to be total, fixed and independent of the layout.
 
 **PHY-CMP-014** (`source_suggested`, semantic, confidence: medium). Policy `semantic`: the random
 value of the crowd damage (PHY-PSH-007, step 3). An implementation can take this value from a
-stream. The stream is a function of the birth key (PHY-CMP-013) and of the tick number.
+stream. The stream is a function of the UUID (PHY-CMP-013) and of the tick number.
 
 It takes one value for each entity and each tick, and it uses the value only when step 3 runs. Thus the value does not
 depend on the order of the entities or on the other uses of a random value. The chance of 1 in 4
@@ -2687,16 +2684,17 @@ the removal of an entity. In the order-independent pass, such a write does not c
 in the same tick. The writer records it, and the target applies it at the start of the next tick,
 before step 1 of its tick.
 
-When several writes have the same target, the target applies them in the order of the birth key
-of the writer (PHY-CMP-013). A claim, for example a pickup, uses PHY-CMP-017 instead. The push is
+When several writes have the same target, the target applies them in the order of the UUID of
+the writer (PHY-CMP-013). A claim, for example a pickup, uses PHY-CMP-017 instead. The push is
 not such a write, because each entity computes its own push (PHY-CMP-012). The block domain does
 not use this rule. Its writes apply in the same tick (PHY-BLK-001). PHY-DEV-005 records this
 relaxation.
 
 **PHY-CMP-016** (`source_suggested`, semantic, confidence: medium). A rule that reads the network
 id for the choice of a tick reads the phase offset in its place. The item rest cycle of
-PHY-ORD-005 and PHY-SKIP-003 is such a rule. The phase offset is a fixed function of the birth key,
-from 0 to 3. It is saved with the birth key.
+PHY-ORD-005 and PHY-SKIP-003 is such a rule. The phase offset is the value of the two lowest bits
+of the UUID, from 0 to 3. These bits are random in a UUID of version 4. The phase offset is not
+saved: a load derives it again from the UUID.
 
 For a vanilla parity test, the test sets the
 phase offset of each item to the remainder of the vanilla network id divided by 4. The test reads
@@ -2722,12 +2720,12 @@ The order-independent pass handles claims in this way:
    item. The other claims have no effect.
 4. The winner and the target apply the result before the server sends the changes of the tick.
 5. One writer can win several claims in one tick, for example several items for one inventory. The
-   writer applies its grants in the order of the birth key of the targets. The lowest key comes
+   writer applies its grants in the order of the UUID of the targets. The lowest key comes
    first. Thus the layout does not change the slots that the items fill. It also does not change
    which item does not fit into a full inventory.
 
 The writer key is total over all writers. It compares first the kind of the writer, in this order:
-`command`, `entity`, `block`. Then it compares a second value. For an entity, this is the birth key.
+`command`, `entity`, `block`. Then it compares a second value. For an entity, this is the UUID.
 For a block, this is the block position, by `y`, then `z`, then `x`. For a command, this is the
 sequence number of the command.
 
@@ -2747,7 +2745,7 @@ steps them in a pre-pass, before the other entities:
 
 1. The colliders whose read zones (PHY-RCH-001) intersect form a group. Two groups that share a
    collider are one group.
-2. Inside a group, the colliders step one after the other, in the order of the birth key. A
+2. Inside a group, the colliders step one after the other, in the order of the UUID. A
    collider reads the box after the step of each earlier collider of the group. It reads the box
    at the start of the tick of each other collider.
 3. A collider reads the boxes of the entities that are not colliders from the start of the tick.
@@ -2763,7 +2761,7 @@ number of push neighbours. It applies only when the game rule `max_entity_crammi
 push of PHY-CMP-012 uses only the `K` nearest neighbours of each entity, with `K = 24` by default.
 
 1. The distance of a pair is `m` of PHY-PSH-004, from the positions at the start of the tick.
-2. Each entity sorts its neighbours by the distance, and then by the birth key.
+2. Each entity sorts its neighbours by the distance, and then by the UUID.
 3. A pair pushes only when each entity of the pair is among the first `K` neighbours of the other.
 
 Step 3 makes the rule symmetric, so each pair still gets equal and opposite pushes (PHY-PSH-005).
@@ -2781,8 +2779,8 @@ visible behaviour of the reference: explosions in the order-independent pass.
    grow. Two groups that share an entity are one group.
 4. Two groups whose reaches intersect are also one group, even when they share no entity. Two
    such explosions can remove the same block or ignite the same TNT block. The merge keeps the
-   order of the birth key for both.
-5. The entities of a group tick one after the other, in the order of the birth key. In the group,
+   order of the UUID for both.
+5. The entities of a group tick one after the other, in the order of the UUID. In the group,
    an explosion changes the velocity and the health of the other members in that step (PHY-EXP-001). A
    member that ticks later uses the impulse in the same tick. A member that ticked before uses it
    in the next tick. The blocks that an explosion removes are absent for the later members.
@@ -2812,8 +2810,8 @@ group with more than `N` members, where `N` is a setting. In the wave mode:
 1. Each explosion of the group traces its rays and its exposures. It uses the state of the group
    at the start of the tick (PHY-EXP-003).
 2. For each member, sum the impulses and the damage of all explosions. The order of the sum is the
-   birth key of the exploders.
-3. The members then move, in the order of the birth key, with the summed impulses.
+   UUID of the exploders.
+3. The members then move, in the order of the UUID, with the summed impulses.
 4. The blocks of all explosions are removed after step 1. A block that two explosions remove is
    removed one time.
 
@@ -2838,23 +2836,32 @@ player.
 The copy does not do the travel step. `movement-checks.md` reads this velocity as the velocity that
 the server expects.
 
-**PHY-CMP-024** (`source_suggested`, semantic, confidence: medium). The comparison of two stored
-birth keys has these steps:
+**PHY-CMP-024** (`source_suggested`, semantic, confidence: medium). Two new UUIDs of one server
+never come from the same birth inputs. The birth clock never repeats a tick (PHY-CMP-013). In one
+tick, the inputs of two births differ in one of these ways:
 
-1. Compare the birth ticks.
-2. Compare the kinds of the source keys, in the order of PHY-CMP-013.
-3. Compare the values of the source keys. A digest compares as an unsigned integer of 128 bits.
-4. Compare the sequences.
-5. If all these are equal, compare the UUIDs of the two entities, as unsigned integers of 128 bits.
-   The implementation must make the UUID when the entity comes into existence. The input is the
-   stored key of the entity. For the kind `entity`, the input also holds the UUID of the parent.
-   The function must be independent of the digest function.
-6. If the UUIDs are also equal, the order of the two entities is not specified.
+- Two dimensions have two dimension keys. The hash reads the length of the key before its bytes,
+  so two keys never give the same words.
+- A command runs in the cell that owns the column of its source. Thus one pair of a spawn point
+  and a source block has one world in one tick, and that world numbers its summons by the sequence.
+- Only the cell that owns a block changes it, so one block in one tick has one source of births.
+- One parent numbers its children by the sequence.
 
-Step 6 occurs only when two independent functions of 128 bits both collide. Its probability for one
-pair is about `2^-256`. Two children can have equal stored keys because the digests of their
-parents collide. Their UUIDs then differ, unless the UUIDs of the parents are also equal. Thus a
-collision upstream does not raise the probability of step 6 to `2^-128`.
+None of these inputs is a cell index. Thus a world of one cell and a world of many cells give the
+same UUIDs. The sequence of a command source follows the order of the command pass of its world.
+That pass runs first the runs that other worlds hand over, in the order that they come, then the
+command lines of its players, in the order of the input of the tick.
+
+Two new UUIDs can thus be equal only when the hash collides. The probability for one pair is about
+`2^-122`, because the version and the variant fix 6 of the 128 bits.
+
+A spawn with a given UUID is refused when an entity of the world that applies the spawn has that
+UUID. Each cell of a dimension is such a world. The rules of PHY-CMP-013 compare only the entities
+of one world, so this check is sufficient for them while each entity stays in its world. Two
+dimensions can thus hold the same given UUID. A move of an entity to another world must check its
+UUID against that world again.
+
+Thus no rule needs a second comparison after the UUID.
 
 **PHY-CMP-025** (`source_suggested`, semantic, confidence: medium). Policy `semantic`: the start
 state of an item that a block drops. Let `(bx, by, bz)` be the block position. Let `U(a, b)` be
@@ -2877,8 +2884,8 @@ other axis uses fixed values.
 | `y` | `by + 0.5 + U(-0.25, 0.25) - h` | `by + 0.5 + s × (0.5 + h) - h` | `U(0, 0.1)` | `s × 0.1 + 0.1` |
 | `z` | `bz + 0.5 + U(-0.25, 0.25)` | `bz + 0.5 + s × (0.5 + w)` | `U(-0.1, 0.1)` | `s × 0.1` |
 
-The random values come from a stream that is a function of the birth key of the item
-(PHY-CMP-013). The block is the source of the birth key. PHY-DEV-013 records this choice. E54
+The random values come from a stream that is a function of the UUID of the item
+(PHY-CMP-013). The block is the source of the new UUID. PHY-DEV-013 records this choice. E54
 confirms the drop at the block. The drop from a face has no experiment yet.
 
 **PHY-CMP-026** (`source_suggested`, wire, confidence: medium). The entity data of an item entity
@@ -2934,7 +2941,7 @@ the deviations of this section for server-simulated entities. An implementation 
   sees the new box of each collider. A boat, a shulker or a happy ghast can move. An entity that
   ticks before it in the reference can stop one tick earlier. The bound is the displacement of the collider
   in one tick. Two colliders do not pass through each other, as in the reference. Inside a group
-  of colliders, the order is the birth key, not the order of the ticks.
+  of colliders, the order is the UUID, not the order of the ticks.
 - **Test:** a differential test skips an entity that has a collider that moves in its read zone.
 
 ### PHY-DEV-003: Block states from the start of the tick
@@ -3006,7 +3013,7 @@ the deviations of this section for server-simulated entities. An implementation 
   reference, but the chance stays 1 in 4.
 - **Test:** a differential test compares the rate of crowd damage, not the ticks.
 
-### PHY-DEV-007: Phase offset from the birth key
+### PHY-DEV-007: Phase offset from the UUID
 
 - **Rule:** PHY-CMP-016.
 - **Reference:** the phase of the item rest cycle comes from the network id of the item.
@@ -3141,6 +3148,8 @@ for client agreement. A server that computes another result gives false setbacks
 - **U10**: no tool in the repository records the motion of the vanilla client. The experiments
   for the player (E9 to E14) need a vanilla client and a proxy that records the serverbound move
   packets.
+- **U11**: two cells of one dimension can accept the same given UUID, because each cell refuses
+  only the UUIDs of its own entities (PHY-CMP-024).
 
 ## 15. Experiments
 

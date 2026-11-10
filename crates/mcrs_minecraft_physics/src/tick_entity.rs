@@ -1,7 +1,8 @@
 use glam::DVec3;
+use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_numeric as numeric;
 
 use crate::Aabb;
-use crate::BirthKey;
 use crate::BlockAction;
 use crate::Body;
 use crate::BodyView;
@@ -31,7 +32,6 @@ use crate::move_body::offset_block;
 use crate::open_air;
 use crate::query;
 use crate::rest::same_bits;
-use crate::sine_table::yaw_radians;
 use crate::support::MOVEMENT_OFFSET;
 use crate::tolerance::CLIP;
 use crate::tolerance::COLLISION;
@@ -187,7 +187,7 @@ fn tick_living<W: CollisionWorld, B: BodyView>(
             input: living.input,
             speed: living.speed,
             air_speed: AIR_SPEED,
-            yaw: living.yaw,
+            yaw: living.orientation.yaw,
             jump: living.jump,
             omnidirectional,
             climbs_powder_snow: living.in_powder_snow && living.walks_on_powder_snow,
@@ -216,7 +216,7 @@ fn tick_living<W: CollisionWorld, B: BodyView>(
 
 /// The mover of a living entity that is not a player, with no gravity.
 fn living_mover(
-    key: BirthKey,
+    key: EntityKey,
     side: Side,
     row: &MotionRow,
     living: &Living,
@@ -262,12 +262,11 @@ pub(crate) fn jump<W: CollisionWorld, B: BodyView>(
     }
     body.velocity.y = power.max(body.velocity.y);
     if let Some(yaw) = sprint_yaw {
-        let angle = yaw_radians(yaw);
-        let sine = &view.tables.sine;
+        let angle = numeric::radians_from_degrees(yaw);
         body.velocity += DVec3::new(
-            -f64::from(sine.sin(angle)) * 0.2,
+            -f64::from(numeric::sin_nearest(angle)) * 0.2,
             0.0,
-            f64::from(sine.cos(angle)) * 0.2,
+            f64::from(numeric::cos_nearest(angle)) * 0.2,
         );
     }
 }

@@ -166,8 +166,16 @@ fn veins_of(
     let column = ColumnBlocks::from_sections(&snapshots[4].sections, y_sections);
     let mut region = ColumnRegion::new(&snapshots, &column, ctx);
 
-    let origin = BlockPos::new(col.x * 16, ctx.router.noise.min_y, col.z * 16);
-    let seed = decoration_seed(ctx.router.world_seed as i64, origin.x, origin.z);
+    let origin = BlockPos::new(
+        col.x * 16,
+        ctx.router.as_deref().expect("a noise context").noise.min_y,
+        col.z * 16,
+    );
+    let seed = decoration_seed(
+        ctx.router.as_deref().expect("a noise context").world_seed as i64,
+        origin.x,
+        origin.z,
+    );
     let mut counts: BTreeMap<String, usize> = BTreeMap::new();
     let mut scratch = PlacerScratch::default();
     let mut ore_scratch = OreScratch::default();

@@ -3,8 +3,8 @@ use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry, BlockStateF
 use mcrs_minecraft_command_argument::ResourceOrTag;
 use mcrs_minecraft_dimension::DimensionType;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
-use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_environment::world_clock::WorldClock;
+use mcrs_minecraft_environment::Timeline;
+use mcrs_minecraft_environment::WorldClock;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_resource::{Id, ResourceLocation, ResourceLocationBuf};
 
@@ -100,8 +100,6 @@ impl<'a> RegistryLookup<'a> {
     }
 
     /// The registry id of the entry `name`.
-    // chisle: a linear scan of the names per read, because `id_of` takes the full text and a
-    // short identifier would need it built; an index by `ResourceLocation` lifts it.
     pub fn id(
         &self,
         registry: ResourceLocation<'static>,
@@ -115,8 +113,6 @@ impl<'a> RegistryLookup<'a> {
     }
 
     /// The entry of the block table for `block`.
-    // chisle: a linear scan of the block table per read; an index by identifier that takes
-    // borrowed text lifts it.
     pub fn block(&self, block: ResourceLocation<'_>) -> Option<&'a BlockEntry> {
         self.blocks?
             .blocks()

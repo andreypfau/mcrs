@@ -1,0 +1,394 @@
+{
+  "server": "mcrs",
+  "client": "none",
+  "threads": null,
+  "threads_note": "Bevy default compute pool",
+  "pigs": 50000,
+  "pen": {
+    "min_x": -125,
+    "min_z": -125,
+    "size": 250
+  },
+  "roam": {
+    "min_x": 380,
+    "min_z": -320,
+    "size": 640
+  },
+  "tick_metric": "mcrs_trace",
+  "start_seconds": 0.98,
+  "console": true,
+  "settings": [
+    {
+      "line": "gamerule spawn_mobs false",
+      "answer": "2026-11-08T18:20:53.938421Z  INFO mcrs_console: Game rule spawn_mobs is now set to false"
+    },
+    {
+      "line": "gamerule spawn_monsters false",
+      "answer": "2026-11-08T18:20:53.998512Z  INFO mcrs_console: Game rule spawn_monsters is now set to false"
+    },
+    {
+      "line": "gamerule spawn_patrols false",
+      "answer": "2026-11-08T18:20:54.058398Z  INFO mcrs_console: Game rule spawn_patrols is now set to false"
+    },
+    {
+      "line": "gamerule spawn_wandering_traders false",
+      "answer": "2026-11-08T18:20:54.118976Z  INFO mcrs_console: Game rule spawn_wandering_traders is now set to false"
+    },
+    {
+      "line": "gamerule advance_time false",
+      "answer": "2026-11-08T18:20:54.177305Z  INFO mcrs_console: Game rule advance_time is now set to false"
+    },
+    {
+      "line": "gamerule advance_weather false",
+      "answer": "2026-11-08T18:20:54.235726Z  INFO mcrs_console: Game rule advance_weather is now set to false"
+    },
+    {
+      "line": "gamerule max_entity_cramming 0",
+      "answer": "2026-11-08T18:20:54.287729Z  INFO mcrs_console: Game rule max_entity_cramming is now set to 0"
+    },
+    {
+      "line": "gamerule mob_drops false",
+      "answer": "2026-11-08T18:20:54.349725Z  INFO mcrs_console: Game rule mob_drops is now set to false"
+    },
+    {
+      "line": "time set noon",
+      "answer": "2026-11-08T18:20:54.403539Z  INFO mcrs_console: Set minecraft:overworld to time marker minecraft:noon"
+    },
+    {
+      "line": "weather clear",
+      "answer": "2026-11-08T18:20:54.463410Z  INFO mcrs_console: Set the weather to clear"
+    },
+    {
+      "line": "forceload add -144 -144 111 111",
+      "answer": "2026-11-08T18:20:54.524152Z  INFO mcrs_console: Marked 256 chunks in minecraft:overworld from [-9, -9] to [6, 6] to be force loaded"
+    },
+    {
+      "line": "forceload add -144 112 111 143",
+      "answer": "2026-11-08T18:20:54.590105Z  INFO mcrs_console: Marked 32 chunks in minecraft:overworld from [-9, 7] to [6, 8] to be force loaded"
+    },
+    {
+      "line": "forceload add 112 -144 143 111",
+      "answer": "2026-11-08T18:20:54.646127Z  INFO mcrs_console: Marked 32 chunks in minecraft:overworld from [7, -9] to [8, 6] to be force loaded"
+    },
+    {
+      "line": "forceload add 112 112 143 143",
+      "answer": "2026-11-08T18:20:54.698943Z  INFO mcrs_console: Marked 4 chunks in minecraft:overworld from [7, 7] to [8, 8] to be force loaded"
+    },
+    {
+      "line": "forceload add 352 -336 607 -81",
+      "answer": "2026-11-08T18:20:54.749183Z  INFO mcrs_console: Marked 256 chunks in minecraft:overworld from [22, -21] to [37, -6] to be force loaded"
+    },
+    {
+      "line": "forceload add 352 -80 607 175",
+      "answer": "2026-11-08T18:20:54.806206Z  INFO mcrs_console: Marked 256 chunks in minecraft:overworld from [22, -5] to [37, 10] to be force loaded"
+    },
+    {
+      "line": "forceload add 352 176 607 335",
+      "answer": "2026-11-08T18:20:54.859804Z  INFO mcrs_console: Marked 160 chunks in minecraft:overworld from [22, 11] to [37, 20] to be force loaded"
+    },
+    {
+      "line": "forceload add 608 -336 863 -81",
+      "answer": "2026-11-08T18:20:54.919868Z  INFO mcrs_console: Marked 256 chunks in minecraft:overworld from [38, -21] to [53, -6] to be force loaded"
+    },
+    {
+      "line": "forceload add 608 -80 863 175",
+      "answer": "2026-11-08T18:20:54.975319Z  INFO mcrs_console: Marked 256 chunks in minecraft:overworld from [38, -5] to [53, 10] to be force loaded"
+    },
+    {
+      "line": "forceload add 608 176 863 335",
+      "answer": "2026-11-08T18:20:55.025643Z  INFO mcrs_console: Marked 160 chunks in minecraft:overworld from [38, 11] to [53, 20] to be force loaded"
+    },
+    {
+      "line": "forceload add 864 -336 1039 -81",
+      "answer": "2026-11-08T18:20:55.076482Z  INFO mcrs_console: Marked 176 chunks in minecraft:overworld from [54, -21] to [64, -6] to be force loaded"
+    },
+    {
+      "line": "forceload add 864 -80 1039 175",
+      "answer": "2026-11-08T18:20:55.133114Z  INFO mcrs_console: Marked 176 chunks in minecraft:overworld from [54, -5] to [64, 10] to be force loaded"
+    },
+    {
+      "line": "forceload add 864 176 1039 335",
+      "answer": "2026-11-08T18:20:55.184780Z  INFO mcrs_console: Marked 110 chunks in minecraft:overworld from [54, 11] to [64, 20] to be force loaded"
+    },
+    {
+      "line": "fill -126 -60 -126 125 -60 -126 minecraft:oak_fence",
+      "answer": "2026-11-08T18:20:55.245417Z  INFO mcrs_console: Successfully filled 252 block(s)"
+    },
+    {
+      "line": "fill -126 -60 125 125 -60 125 minecraft:oak_fence",
+      "answer": "2026-11-08T18:20:55.304747Z  INFO mcrs_console: Successfully filled 252 block(s)"
+    },
+    {
+      "line": "fill -126 -60 -126 -126 -60 125 minecraft:oak_fence",
+      "answer": "2026-11-08T18:20:55.364818Z  INFO mcrs_console: Successfully filled 250 block(s)"
+    },
+    {
+      "line": "fill 125 -60 -126 125 -60 125 minecraft:oak_fence",
+      "answer": "2026-11-08T18:20:55.419084Z  INFO mcrs_console: Successfully filled 250 block(s)"
+    }
+  ],
+  "watcher_error": null,
+  "machine": {
+    "cpu": "Apple M4 Max",
+    "logical_cpus": "16",
+    "performance_cpus": "12",
+    "efficiency_cpus": "4",
+    "memory_bytes": "137438953472",
+    "os": "Darwin 25.6.0 arm64"
+  },
+  "started_unix": 1794162052,
+  "command": [
+    "/Users/andreypfau/orca/workspaces/mcrs/mob_render/target/release/mcrs"
+  ],
+  "env": [
+    [
+      "MCRS_WORLD_SEED",
+      "12345"
+    ],
+    [
+      "MCRS_WORLD_PRESET",
+      "flat"
+    ],
+    [
+      "MCRS_COMPRESSION_THRESHOLD",
+      "-1"
+    ],
+    [
+      "MCRS_DEFAULT_GAMEMODE",
+      "creative"
+    ],
+    [
+      "MCRS_LAN_ANNOUNCE",
+      "off"
+    ],
+    [
+      "BEVY_ASSET_ROOT",
+      "/Users/andreypfau/orca/workspaces/mcrs/mob_render"
+    ],
+    [
+      "RUST_LOG",
+      "info,mcrs_tick=trace"
+    ],
+    [
+      "MCRS_PORT",
+      "25610"
+    ]
+  ],
+  "phases": [
+    {
+      "phase": "idle",
+      "skipped": null,
+      "pigs_before": 0,
+      "pigs_after": 0,
+      "setup_seconds": 0.05,
+      "warmup_seconds": 10.17,
+      "measure_seconds": 60.01,
+      "server_mspt": {
+        "samples": 1056,
+        "mean": 1.12,
+        "p50": 0.76,
+        "p95": 2.54,
+        "p99": 4.85,
+        "worst": 14.91
+      },
+      "external": {
+        "console_game_time": {
+          "ticks": 1056,
+          "seconds": 60.02,
+          "tps": 17.59,
+          "mean_ms_per_tick": 56.84
+        },
+        "watcher_set_time": null,
+        "sprint": {
+          "ticks": 100,
+          "wall_ms_per_tick": 0.86,
+          "server_ms_per_tick": 0.44
+        }
+      },
+      "motion": {
+        "console": null,
+        "watcher": null,
+        "watcher_move_packets_per_second": null
+      },
+      "cpu": {
+        "per_core_percent": [
+          45.15,
+          39.78,
+          38.29,
+          34.52,
+          28.76,
+          25.98,
+          25.94,
+          21.39,
+          21.99,
+          20.63,
+          5.19,
+          3.72,
+          3.2,
+          2.7,
+          2.27,
+          2.1
+        ],
+        "busy_cores": 3.22,
+        "server_cores": 0.03,
+        "harness_cores": 0.0,
+        "other_cores": 3.19,
+        "top_other_processes": [
+          {
+            "pid": 8610,
+            "name": "postgres",
+            "cores": 0.54
+          },
+          {
+            "pid": 943,
+            "name": "Orca Helper (Renderer)",
+            "cores": 0.12
+          },
+          {
+            "pid": 91673,
+            "name": "java",
+            "cores": 0.09
+          },
+          {
+            "pid": 50524,
+            "name": "java",
+            "cores": 0.08
+          },
+          {
+            "pid": 904,
+            "name": "Orca Helper",
+            "cores": 0.05
+          },
+          {
+            "pid": 99386,
+            "name": "com.apple.Virtualization.Virtua",
+            "cores": 0.04
+          }
+        ]
+      },
+      "server_rss_mib_mean": 530.43,
+      "server_rss_mib_max": 530.44,
+      "load_average_start": [
+        4.95166015625,
+        6.1982421875,
+        6.671875
+      ],
+      "load_average_end": [
+        5.57861328125,
+        6.11962890625,
+        6.60693359375
+      ],
+      "load_average_1m_max": 5.58,
+      "contended": true,
+      "probe_rounds_skipped": 0
+    },
+    {
+      "phase": "roam",
+      "skipped": "the pig count stayed at Some(0)",
+      "pigs_before": null,
+      "pigs_after": null,
+      "setup_seconds": 0.0,
+      "warmup_seconds": 0.0,
+      "measure_seconds": 0.0,
+      "server_mspt": null,
+      "external": {
+        "console_game_time": null,
+        "watcher_set_time": null,
+        "sprint": null
+      },
+      "motion": {
+        "console": null,
+        "watcher": null,
+        "watcher_move_packets_per_second": null
+      },
+      "cpu": null,
+      "server_rss_mib_mean": null,
+      "server_rss_mib_max": null,
+      "load_average_start": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "load_average_end": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "load_average_1m_max": 0.0,
+      "contended": false,
+      "probe_rounds_skipped": 0
+    },
+    {
+      "phase": "crowd",
+      "skipped": "the pig count stayed at Some(0)",
+      "pigs_before": null,
+      "pigs_after": null,
+      "setup_seconds": 0.0,
+      "warmup_seconds": 0.0,
+      "measure_seconds": 0.0,
+      "server_mspt": null,
+      "external": {
+        "console_game_time": null,
+        "watcher_set_time": null,
+        "sprint": null
+      },
+      "motion": {
+        "console": null,
+        "watcher": null,
+        "watcher_move_packets_per_second": null
+      },
+      "cpu": null,
+      "server_rss_mib_mean": null,
+      "server_rss_mib_max": null,
+      "load_average_start": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "load_average_end": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "load_average_1m_max": 0.0,
+      "contended": false,
+      "probe_rounds_skipped": 0
+    },
+    {
+      "phase": "stimulus",
+      "skipped": "the pig count stayed at Some(0)",
+      "pigs_before": null,
+      "pigs_after": null,
+      "setup_seconds": 0.0,
+      "warmup_seconds": 0.0,
+      "measure_seconds": 0.0,
+      "server_mspt": null,
+      "external": {
+        "console_game_time": null,
+        "watcher_set_time": null,
+        "sprint": null
+      },
+      "motion": {
+        "console": null,
+        "watcher": null,
+        "watcher_move_packets_per_second": null
+      },
+      "cpu": null,
+      "server_rss_mib_mean": null,
+      "server_rss_mib_max": null,
+      "load_average_start": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "load_average_end": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "load_average_1m_max": 0.0,
+      "contended": false,
+      "probe_rounds_skipped": 0
+    }
+  ]
+}

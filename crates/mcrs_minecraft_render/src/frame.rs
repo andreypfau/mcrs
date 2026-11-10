@@ -1,5 +1,4 @@
 use bevy::math::DVec3;
-use bevy::math::primitives::ViewFrustum;
 use bevy::prelude::*;
 use bevy::render::extract_resource::ExtractResource;
 use bevy::render::render_resource::*;
@@ -8,8 +7,11 @@ use bevy::render::view::ExtractedView;
 
 use super::Occlusion;
 use super::draws::PARAMS_STRIDE;
+use super::frame_view::{FrameView, SIDE_PLANES};
 use super::stats::args_reset;
 use super::terrain::Terrain;
+use mcrs_minecraft_core::CardinalLight;
+use mcrs_minecraft_mesh::face_shade;
 use mcrs_minecraft_mesh::{SECTION_SIZE, STREAMS};
 
 use super::Budget;
@@ -37,6 +39,17 @@ impl CameraOrigin {
     }
 }
 
+/// The directional shade table of the dimension the camera is in.
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, ExtractResource)]
+pub struct TerrainShade(pub CardinalLight);
+
+impl TerrainShade {
+    #[must_use]
+    pub fn is_nether(self) -> bool {
+        self.0 == CardinalLight::Nether
+    }
+}
+
 /// The frame's view, expressed against the origin of the section the camera stands in. Nothing
 /// here is an absolute world coordinate: at the edge of the world f32 has no block left to give.
 #[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
@@ -53,13 +66,11 @@ pub(super) struct CameraUniform {
     hiz_levels: u32,
     quad_cull: u32,
     viewport: [f32; 2],
+    shade_table: u32,
+    _pad_end: [u32; 3],
 }
 
 pub(super) const CAMERA_SIZE: u64 = size_of::<CameraUniform>() as u64;
-
-/// The projection is an infinite reverse-Z one, so the sixth plane a frustum carries is the
-/// degenerate far plane and nothing to test against.
-const SIDE_PLANES: usize = 5;
 
 pub(super) struct Frame {
     pub params: Buffer,
@@ -126,48 +137,58 @@ pub fn clip_from_relative(clip_from_view: Mat4, rotation: Quat, offset: Vec3) ->
     clip_from_view * Mat4::from_rotation_translation(rotation, offset).inverse()
 }
 
-pub(super) fn write_camera(
-    terrain: Option<Res<Terrain>>,
+/// Publishes the view of the frame for the passes of the render world.
+pub(super) fn write_frame_view(
+    mut commands: Commands,
     origin: Option<Res<CameraOrigin>>,
     views: Query<&ExtractedView, With<Camera3d>>,
-    occlusion: Res<Occlusion>,
-    quad_cull: Res<super::QuadCull>,
-    queue: Res<RenderQueue>,
 ) {
-    let (Some(terrain), Some(origin), Some(view)) = (terrain, origin, views.iter().next()) else {
+    let (Some(origin), Some(view)) = (origin, views.iter().next()) else {
         return;
     };
-    let clip_from_relative = clip_from_relative(
+    commands.insert_resource(FrameView::new(
         view.clip_from_view,
-        view.world_from_view.rotation(),
-        origin.offset,
-    );
-    let [side_planes @ .., _far] =
-        ViewFrustum::from_clip_from_world(&clip_from_relative).half_spaces;
+        Mat4::from_rotation_translation(view.world_from_view.rotation(), origin.offset).inverse(),
+        *origin,
+        view.viewport.zw().as_vec2(),
+    ));
+}
+
+pub(super) fn write_camera(
+    terrain: Option<Res<Terrain>>,
+    frame_view: Option<Res<FrameView>>,
+    occlusion: Res<Occlusion>,
+    quad_cull: Res<super::QuadCull>,
+    shade: Res<TerrainShade>,
+    queue: Res<RenderQueue>,
+) {
+    let (Some(terrain), Some(frame_view)) = (terrain, frame_view) else {
+        return;
+    };
+    let section = frame_view.camera_section;
     // The tint window wraps, so only the camera section's place inside it matters, and that
     // stays exact in i32 where the section's absolute position would not in f32.
     let tint_origin = [
-        -(origin.section.x * SECTION_SIZE as i32).rem_euclid(terrain.budget.tint_size[0] as i32)
-            as f32,
-        -(origin.section.z * SECTION_SIZE as i32).rem_euclid(terrain.budget.tint_size[1] as i32)
-            as f32,
+        -(section.x * SECTION_SIZE as i32).rem_euclid(terrain.budget.tint_size[0] as i32) as f32,
+        -(section.z * SECTION_SIZE as i32).rem_euclid(terrain.budget.tint_size[1] as i32) as f32,
     ];
     queue.write_buffer(
         &terrain.frame.camera,
         0,
         bytemuck::bytes_of(&CameraUniform {
-            clip_from_relative: clip_from_relative.to_cols_array(),
-            frustum: side_planes.map(|plane| plane.normal_d().to_array()),
-            section: origin.section.to_array(),
-            offset: origin.offset.to_array(),
+            clip_from_relative: frame_view.clip_from_relative.to_cols_array(),
+            frustum: frame_view.frustum.map(|plane| plane.to_array()),
+            section: section.to_array(),
+            offset: frame_view.camera_offset.to_array(),
             tint_origin,
             tint_scale: [
                 1.0 / terrain.budget.tint_size[0] as f32,
                 1.0 / terrain.budget.tint_size[1] as f32,
             ],
             hiz_levels: if occlusion.0 { terrain.hiz.levels() } else { 0 },
-            viewport: view.viewport.zw().as_vec2().to_array(),
+            viewport: frame_view.viewport.to_array(),
             quad_cull: quad_cull.0 as u32,
+            shade_table: face_shade::shader_index(shade.0),
             ..default()
         }),
     );

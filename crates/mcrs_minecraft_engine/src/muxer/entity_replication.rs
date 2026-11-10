@@ -10,7 +10,8 @@ use mcrs_engine_muxer::{
     EntityEvent, EntityId, MuxerInput, SubjectEvent, TileDeltas, TileKey, View, ViewerId, WorldId,
 };
 use mcrs_minecraft_engine_world::session::{PlayerSession, SessionAnchors};
-use mcrs_minecraft_replication::{PlayerCodec, PlayerData, PlayerInput};
+use mcrs_minecraft_entity_key::TILE_WIDTH;
+use mcrs_minecraft_replication::{Backlog, EntityCodec, PlayerData, PlayerInput, ReplicationData};
 
 use crate::muxer::latency::Latency;
 use crate::muxer::muxer_link::MuxerLink;
@@ -18,7 +19,7 @@ use crate::muxer::muxer_stage::{MuxerCall, MuxerStage};
 use crate::muxer::session::SessionConnection;
 #[cfg(feature = "world-access")]
 use crate::muxer::tile_delta_log::{LoggedDeltas, TileDeltaLog};
-use crate::player_tiles::{TILE_WIDTH, VIEW_RADIUS};
+use crate::view_radius::VIEW_RADIUS;
 
 /// The subscription of each player to the entity muxer of its world.
 #[derive(Default)]
@@ -28,7 +29,7 @@ pub(crate) struct EntityReplication {
     viewers: BTreeMap<ViewerId, WorldPlayer>,
     /// The viewer of each player, by the world it is in.
     players: BTreeMap<WorldPlayer, ViewerId>,
-    inputs: Vec<MuxerInput<PlayerCodec>>,
+    inputs: Vec<MuxerInput<EntityCodec>>,
     #[cfg(feature = "world-access")]
     pub(crate) published_tiles: u64,
 }
@@ -46,7 +47,7 @@ impl EntityReplication {
         &mut self,
         link: &mut Link<MuxerStage>,
         world: WorldId,
-        deltas: TileDeltas<PlayerData>,
+        deltas: TileDeltas<ReplicationData>,
     ) {
         if self.worlds.insert(world) {
             link.send(MuxerCall::Entities(MuxerInput::Open {
@@ -76,11 +77,11 @@ impl EntityReplication {
         world: WorldId,
         tile: TileKey,
         subject: EntityId,
-        event: &EntityEvent<PlayerData>,
+        event: &EntityEvent<ReplicationData>,
     ) {
         let player = WorldPlayer { world, subject };
         match event {
-            EntityEvent::Spawn(PlayerData::Spawn(spawn)) => {
+            EntityEvent::Spawn(ReplicationData::Player(PlayerData::Spawn(spawn))) => {
                 let viewer = spawn.viewer;
                 if let Some(old) = self.viewers.get(&viewer)
                     && old.world != world
@@ -141,10 +142,25 @@ impl EntityReplication {
         latency: i32,
     ) {
         let viewer = ViewerId(session.0);
+        self.send_input(link, viewer, PlayerInput::Latency { viewer, latency });
+    }
+
+    /// Hands the `backlog` of the connection of `session` to the muxer of the world it watches.
+    pub(crate) fn send_backlog(
+        &self,
+        link: &mut Link<MuxerStage>,
+        session: PlayerSession,
+        backlog: Backlog,
+    ) {
+        let viewer = ViewerId(session.0);
+        self.send_input(link, viewer, PlayerInput::Backlog { viewer, backlog });
+    }
+
+    fn send_input(&self, link: &mut Link<MuxerStage>, viewer: ViewerId, input: PlayerInput) {
         if let Some(watch) = self.viewers.get(&viewer) {
             link.send(MuxerCall::Entities(MuxerInput::Codec {
                 world: watch.world,
-                input: PlayerInput { viewer, latency },
+                input,
             }));
         }
     }
@@ -171,7 +187,7 @@ fn subscribe(
     viewer: ViewerId,
     center: TileKey,
     subject: EntityId,
-) -> MuxerInput<PlayerCodec> {
+) -> MuxerInput<EntityCodec> {
     MuxerInput::Subscribe {
         world,
         viewer,
@@ -185,7 +201,7 @@ fn subscribe(
 
 /// Hands the tile deltas of the dimension `label` to the muxer. A player that comes into the
 /// world gets the latency the host knows for it.
-pub fn publish(world: &mut World, label: Entity, deltas: TileDeltas<PlayerData>) {
+pub fn publish(world: &mut World, label: Entity, deltas: TileDeltas<ReplicationData>) {
     #[cfg(feature = "world-access")]
     if let Some(mut log) = world.get_resource_mut::<TileDeltaLog>() {
         log.0.push(LoggedDeltas {
@@ -198,7 +214,7 @@ pub fn publish(world: &mut World, label: Entity, deltas: TileDeltas<PlayerData>)
         .iter()
         .flat_map(|delta| &delta.events)
         .filter_map(|event| match &event.event {
-            EntityEvent::Spawn(PlayerData::Spawn(spawn)) => {
+            EntityEvent::Spawn(ReplicationData::Player(PlayerData::Spawn(spawn))) => {
                 let session = PlayerSession(spawn.viewer.0);
                 Some((session, latency_of(world, session)?))
             }

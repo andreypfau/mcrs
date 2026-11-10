@@ -5,7 +5,7 @@ use bevy_ecs::entity::Entity;
 use mcrs_engine_link::{Stage, Step};
 use mcrs_engine_muxer::{MuxerInput, Muxers, ViewerBytes};
 use mcrs_minecraft_engine_world::session::PlayerSession;
-use mcrs_minecraft_replication::PlayerCodec;
+use mcrs_minecraft_replication::EntityCodec;
 use rustc_hash::FxHashSet;
 
 use crate::bus::OutboundPlayerPacket;
@@ -26,7 +26,7 @@ pub enum MuxerCall {
     /// every player that is not `blocked`, and the requests for the dimensions.
     Send { blocked: FxHashSet<PlayerSession> },
     /// A call to the entity muxer of one world.
-    Entities(MuxerInput<PlayerCodec>),
+    Entities(MuxerInput<EntityCodec>),
 }
 
 /// What the [`MuxerStage`] hands back to the host.
@@ -44,7 +44,7 @@ pub enum MuxerOutput {
 #[derive(Default)]
 pub struct MuxerStage {
     views: ColumnViews,
-    entities: Muxers<PlayerCodec>,
+    entities: Muxers<EntityCodec>,
     calls: VecDeque<MuxerCall>,
     out: Vec<OutboundPlayerPacket>,
 }

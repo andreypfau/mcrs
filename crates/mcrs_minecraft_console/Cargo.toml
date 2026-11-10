@@ -1,0 +1,24 @@
+[package]
+name = "mcrs_minecraft_console"
+description = "The server console: command lines from the standard input, run as the server, and their answers in the log in English"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_dimension.workspace = true
+mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_lang.workspace = true
+mcrs_minecraft_text.workspace = true
+mcrs_minecraft_text_flatten.workspace = true
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+flume.workspace = true
+tracing.workspace = true

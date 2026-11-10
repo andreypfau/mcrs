@@ -128,8 +128,6 @@ impl SectionVolume for SparseVolume {
     where
         F: FnMut(SectionPos, Result<PalettedSection<'_>, Unavailable>) -> ControlFlow<B>,
     {
-        // chisle: column-major order and reported holes walk the whole area; a second
-        // index keyed (x, z, y) would let column-major walk only what is held.
         if options.missing == Missing::Report || options.order == VisitOrder::ColumnMajor {
             return walk(self, area, options, f);
         }

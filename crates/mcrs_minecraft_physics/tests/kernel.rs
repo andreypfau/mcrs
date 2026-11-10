@@ -1,5 +1,3 @@
-use core::f64::consts::PI;
-
 use glam::DVec3;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_physics::Axis;
@@ -11,11 +9,11 @@ use mcrs_minecraft_physics::CollisionTableBuilder;
 use mcrs_minecraft_physics::InsideBoxes;
 use mcrs_minecraft_physics::InsideEffect;
 use mcrs_minecraft_physics::NoBodies;
+use mcrs_minecraft_physics::PathType;
 use mcrs_minecraft_physics::Probe;
 use mcrs_minecraft_physics::QueryVariant;
 use mcrs_minecraft_physics::Scratch;
 use mcrs_minecraft_physics::Shape;
-use mcrs_minecraft_physics::SineTable;
 use mcrs_minecraft_physics::SourcedCollider;
 use mcrs_minecraft_physics::StateSpec;
 use mcrs_minecraft_physics::Tables;
@@ -27,37 +25,10 @@ use mcrs_minecraft_physics::WorldBorder;
 use mcrs_minecraft_physics::collide;
 use mcrs_minecraft_physics::query_colliders;
 use mcrs_minecraft_physics::resolve;
-use mcrs_minecraft_physics::yaw_radians;
 use mcrs_voxel::BlockPos;
 
 fn unit_box(min: [f64; 3], max: [f64; 3]) -> Aabb {
     Aabb::new(DVec3::from_array(min), DVec3::from_array(max))
-}
-
-#[test]
-fn sine_table_has_exact_quarter_turns() {
-    let table = SineTable::new();
-    assert_eq!(table.entry(0).to_bits(), 0.0_f32.to_bits());
-    assert_eq!(table.entry(16384), 1.0);
-    assert_eq!(table.entry(32768).to_bits(), 0.0_f32.to_bits());
-    assert_eq!(table.entry(49152), -1.0);
-    assert_eq!(table.entry(1), (1.0 / 10430.378350470453_f64).sin() as f32);
-}
-
-#[test]
-fn sine_table_reads_raw_yaw_beyond_one_turn() {
-    let table = SineTable::new();
-    // 450 degrees is 81920 table steps: one turn and a quarter.
-    assert_eq!(table.sin(yaw_radians(450.0)), 1.0);
-    assert_eq!(table.cos(yaw_radians(450.0)), 0.0);
-    assert_eq!(table.sin(yaw_radians(-450.0)), -1.0);
-    assert_eq!(table.cos(yaw_radians(-450.0)), 0.0);
-    assert_eq!(table.sin(yaw_radians(720.0)), 0.0);
-    assert_eq!(table.cos(yaw_radians(-720.0)), 1.0);
-    assert_eq!(
-        yaw_radians(180.0),
-        f64::from(180.0_f32 * (PI / 180.0) as f32)
-    );
 }
 
 #[test]
@@ -203,6 +174,7 @@ fn scan_reads_large_shapes_on_faces_only() {
         inside: InsideEffect::None,
         inside_shape: InsideBoxes::FullCube,
         motion: BlockMotion::DEFAULT,
+        path: PathType::Open,
     };
     let _air = builder.push(spec(&[]));
     let big = builder

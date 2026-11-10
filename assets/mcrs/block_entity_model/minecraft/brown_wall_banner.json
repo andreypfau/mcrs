@@ -1,0 +1,72 @@
+{
+  "layers": [
+    {
+      "when": "q.block_state('facing') == 'north'",
+      "geometry": "geometry.mcrs.block.wall_banner",
+      "texture": "minecraft:entity/banner/banner_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[-0.666666667, 0.0, 0.0, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.0, 0.0, 0.666666667, 0.5]]
+    },
+    {
+      "when": "q.block_state('facing') == 'north'",
+      "geometry": "geometry.mcrs.block.wall_banner.flag",
+      "texture": "minecraft:entity/banner/base",
+      "tint": 12,
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[-0.666666667, 0.0, 0.0, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.0, 0.0, 0.666666667, 0.5]]
+    },
+    {
+      "when": "q.block_state('facing') == 'south'",
+      "geometry": "geometry.mcrs.block.wall_banner",
+      "texture": "minecraft:entity/banner/banner_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.666666667, 0.0, 0.0, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.0, 0.0, -0.666666667, 0.5]]
+    },
+    {
+      "when": "q.block_state('facing') == 'south'",
+      "geometry": "geometry.mcrs.block.wall_banner.flag",
+      "texture": "minecraft:entity/banner/base",
+      "tint": 12,
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.666666667, 0.0, 0.0, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.0, 0.0, -0.666666667, 0.5]]
+    },
+    {
+      "when": "q.block_state('facing') == 'west'",
+      "geometry": "geometry.mcrs.block.wall_banner",
+      "texture": "minecraft:entity/banner/banner_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.0, 0.0, 0.666666667, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.666666667, 0.0, 0.0, 0.5]]
+    },
+    {
+      "when": "q.block_state('facing') == 'west'",
+      "geometry": "geometry.mcrs.block.wall_banner.flag",
+      "texture": "minecraft:entity/banner/base",
+      "tint": 12,
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.0, 0.0, 0.666666667, 0.5], [0.0, -0.666666667, 0.0, 0.0], [0.666666667, 0.0, 0.0, 0.5]]
+    },
+    {
+      "when": "q.block_state('facing') == 'east'",
+      "geometry": "geometry.mcrs.block.wall_banner",
+      "texture": "minecraft:entity/banner/banner_base",
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.0, 0.0, -0.666666667, 0.5], [0.0, -0.666666667, 0.0, 0.0], [-0.666666667, 0.0, 0.0, 0.5]]
+    },
+    {
+      "when": "q.block_state('facing') == 'east'",
+      "geometry": "geometry.mcrs.block.wall_banner.flag",
+      "texture": "minecraft:entity/banner/base",
+      "tint": 12,
+      "surface": "opaque",
+      "back_faces": false,
+      "placement": [[0.0, 0.0, -0.666666667, 0.5], [0.0, -0.666666667, 0.0, 0.0], [-0.666666667, 0.0, 0.0, 0.5]]
+    }
+  ]
+}

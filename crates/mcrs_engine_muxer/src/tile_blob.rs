@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use bytes::Bytes;
 
-use crate::entity_id::EntityId;
+use mcrs_minecraft_entity_key::EntityId;
 
 /// The bytes of the subjects of one tile at one tier, which every viewer of the tier shares.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

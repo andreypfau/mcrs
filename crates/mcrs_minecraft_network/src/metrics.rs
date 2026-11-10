@@ -173,8 +173,6 @@ impl TableCounts {
                 let extra = r.len();
                 (
                     Some(id),
-                    // chisle: the game also names the packet's Java class in parentheses
-                    // after the type; no table here knows those names.
                     format!(
                         "{DECODER_EXCEPTION}: java.io.IOException: Packet {protocol}/{packet} was larger than I expected, found {extra} bytes extra whilst reading packet {packet}"
                     ),

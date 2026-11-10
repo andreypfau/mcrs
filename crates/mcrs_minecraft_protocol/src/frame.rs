@@ -60,7 +60,6 @@ impl FrameError {
 
 pub struct Deflate {
     compress: Compress,
-    // chisle: keeps the capacity of the largest packet compressed so far; release it if that ever shows up in memory use
     scratch: Vec<u8>,
 }
 

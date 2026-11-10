@@ -1,5 +1,6 @@
+use crate::entity_view::EntityView;
 use crate::relative_move::{DimensionChange, Pose, RelativeRotation, relative_move};
-use crate::select::{FoundPlayers, SelfSource, select, targets_or_self};
+use crate::select::{SelectionBuffers, SelfSource, select, targets_or_self};
 use crate::set::{VanillaCommands, VanillaContext};
 use bevy_ecs::prelude::*;
 use bevy_math::{BVec3, DVec3};
@@ -173,36 +174,42 @@ struct Destination {
     to_entity: Option<Text>,
 }
 
-/// The first player a selector argument finds.
+/// The first entity a selector argument finds.
 fn one<'c>(
     context: &'c VanillaContext,
     call: &Invocation,
     arg: ArgumentHandle<EntityArgument>,
-    found: &mut FoundPlayers,
-) -> Result<&'c PlayerEntry, CommandFailure> {
+    found: &mut SelectionBuffers,
+) -> Result<EntityView<'c>, CommandFailure> {
     let first = found.with(|out| {
         select(context, call, arg, out)?;
-        Ok::<_, CommandFailure>(out.found.first().copied())
+        Ok::<_, CommandFailure>(out.first())
     })?;
     first.ok_or_else(|| CommandFailure::translate("argument.entity.notfound.entity", vec![]))
+}
+
+/// The failure of a teleport that would move a mob or face one: the physics rows have no move
+/// of a mob to an arbitrary position yet, and a silent skip would report a move that did not
+/// happen.
+fn mob_not_supported() -> CommandFailure {
+    CommandFailure(Text::text(
+        "teleport does not move or face a mob yet; only players can be victims or facing targets",
+    ))
 }
 
 fn to_entity(
     context: &VanillaContext,
     call: &Call<Branch, TeleportCommand>,
     arg: ArgumentHandle<EntityArgument>,
-    found: &mut FoundPlayers,
+    found: &mut SelectionBuffers,
 ) -> Result<Destination, CommandFailure> {
     let entity = one(context, &call.invocation, arg, found)?;
-    let dimension = context
-        .targets()
-        .label_of(entity.dimension)
-        .ok_or_else(CommandFailure::failed)?;
+    let dimension = entity.dimension_label(context.targets(), call.invocation.source.dimension);
     Ok(Destination {
         to: Teleport {
             dimension,
-            position: entity.transform.translation,
-            rotation: Some(entity.transform.rotation.into()),
+            position: entity.position(),
+            rotation: Some(entity.look()),
             relative_position: BVec3::FALSE,
             relative_rotation: RelativeRotation {
                 yaw: false,
@@ -211,7 +218,7 @@ fn to_entity(
             facing: None,
             anchor: call.invocation.source.anchor,
         },
-        to_entity: Some(entity.name.clone().into_text()),
+        to_entity: Some(entity.display_name()),
     })
 }
 
@@ -220,7 +227,7 @@ fn destination(
     command: &TeleportCommand,
     context: &VanillaContext,
     call: &Call<Branch, TeleportCommand>,
-    found: &mut FoundPlayers,
+    found: &mut SelectionBuffers,
 ) -> Result<Destination, CommandFailure> {
     let source = context.source(&call.invocation)?;
     let (location, rotation, facing) = match call.branch {
@@ -240,7 +247,11 @@ fn destination(
             None,
         ),
         Branch::TargetsFacingEntity => {
-            let entity = one(context, &call.invocation, command.facing_entity, found)?;
+            let EntityView::Player(entity) =
+                one(context, &call.invocation, command.facing_entity, found)?
+            else {
+                return Err(mob_not_supported());
+            };
             let at: LookAnchor = context
                 .opt(&call.invocation, command.facing_anchor)?
                 .unwrap_or_default();
@@ -298,8 +309,8 @@ pub(crate) fn run(
     context: VanillaContext,
     mut output: CommandOutput,
     mut teleports: ResMut<EffectQueue<TeleportPlayer>>,
-    mut found_victims: Local<FoundPlayers>,
-    mut found_entity: Local<FoundPlayers>,
+    mut found_victims: Local<SelectionBuffers>,
+    mut found_entity: Local<SelectionBuffers>,
 ) -> CommandResult {
     let command = call.command;
     found_victims.with(|victims| {
@@ -311,6 +322,9 @@ pub(crate) fn run(
             SelfSource::Entity,
             victims,
         )?;
+        if victims.mobs().next().is_some() {
+            return Err(mob_not_supported());
+        }
         let destination = destination(&command, &context, &call, &mut found_entity)?;
         if !spawnable(destination.to.position) {
             return Err(CommandFailure::translate(
@@ -318,10 +332,10 @@ pub(crate) fn run(
                 vec![],
             ));
         }
-        let Some(&first) = victims.found.first() else {
+        let Some(first) = victims.players().next() else {
             return Ok(0);
         };
-        for victim in victims.found.iter() {
+        for victim in victims.players() {
             output.effect(
                 &mut teleports,
                 TeleportPlayer {
@@ -330,7 +344,7 @@ pub(crate) fn run(
                 },
             );
         }
-        let moved = victims.found.len();
+        let moved = victims.len();
         let message = success_message(first, moved, destination);
         output.success(&call.invocation, message, Feedback::SourceAndOperators);
         Ok(i32::try_from(moved).unwrap_or(i32::MAX))

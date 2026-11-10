@@ -49,7 +49,7 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> EntityStack<'w, '_, L> {
         has_component(self.entity, self.items, kind)
     }
 
-    /// Vanilla's `hasNonDefault`: the value is not the prototype's, a
+    /// The value is not the prototype's, a
     /// tombstone included.
     fn has_non_default(&self, kind: DataComponentType) -> bool {
         has_non_default(self.entity, self.items, kind)
@@ -107,7 +107,7 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> EntityStack<'w, '_, L> {
         if let Some(EnchantmentGlintOverride(foil)) = self.get::<EnchantmentGlintOverride>() {
             return foil;
         }
-        // chisle: the only vanilla override is the compass with a lodestone
+        // The only vanilla override is the compass with a lodestone
         // tracker; a `foil_when_has` field in the dumped corpus is the upgrade.
         if self.item().as_str() == Item::Compass.as_static_str()
             && self.has(DataComponentType::LodestoneTracker)
@@ -288,7 +288,7 @@ impl<'w, L: Copy + Fn(Entity) -> Option<EntityRef<'w>>> Evaluator<'_, EntityStac
                 .stack
                 .get::<DyedColor>()
                 .map_or(default.0 as u32, |DyedColor(rgb)| opaque(rgb.0)),
-            // chisle: without the custom colour a potion shows the base colour;
+            // Without the custom colour a potion shows the base colour;
             // averaging effect colours needs the potion and mob_effect tables in the corpus.
             TintSource::Potion { default } => opaque(
                 self.stack

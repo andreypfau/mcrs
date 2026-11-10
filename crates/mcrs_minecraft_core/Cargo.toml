@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_core"
-description = "Directions, Mth, shapes, codecs and the version"
+description = "Directions, numeric operations, shapes, codecs and the version"
 version.workspace = true
 edition.workspace = true
 

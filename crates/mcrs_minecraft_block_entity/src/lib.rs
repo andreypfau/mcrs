@@ -1,11 +1,6 @@
 //! Block entities in the typed shape the save, the chunk packet and the anvil reader share.
 // std: mcrs_minecraft_nbt (`from_bytes_unnamed` reads through `std::io::Cursor`).
 
-// chisle: data components, item components, skull profiles, pot sherds,
-// trial-spawner configs and vault runtime state pass through as raw NBT. The
-// ceiling is that nothing can read them typed; the upgrade is a typed
-// DataComponentMap once something does.
-
 mod banner_layer;
 mod bee_occupant;
 mod container_data;

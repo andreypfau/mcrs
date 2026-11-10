@@ -1,0 +1,31 @@
+{
+ "name": "r2-on-t1",
+ "threads": 1,
+ "ai": true,
+ "pigs": 50000,
+ "count": 50000,
+ "summon_s": 10.2,
+ "ticks": {
+  "n": 348,
+  "mean": 86.11,
+  "p50": 85.61,
+  "p95": 90.93,
+  "p99": 94.52,
+  "max": 97.26
+ },
+ "tick_query": {
+  "avg": 86.0,
+  "p50": 85.4,
+  "p95": 92.0,
+  "p99": 96.7
+ },
+ "ai_log": [
+  "2026-11-08T22:15:55.697667Z DEBUG mcrs_ai: mob AI tick=600 mobs=50000 prepare_mean_us=19982 prepare_max_us=57884 life_cycle_mean_us=4834 tile_tasks_mean_us=14889 publish_mean_us=258 stage_mean_us=58137 stage_max_us=159714 evaluations_per_tick=2462 decisions_per_tick=773 waits=0",
+  "2026-11-08T22:16:12.920109Z DEBUG mcrs_ai: mob AI tick=800 mobs=50000 prepare_mean_us=18730 prepare_max_us=27808 life_cycle_mean_us=4563 tile_tasks_mean_us=13928 publish_mean_us=237 stage_mean_us=54329 stage_max_us=63301 evaluations_per_tick=2462 decisions_per_tick=769 waits=0"
+ ],
+ "sprint": {
+  "tps": 6.0,
+  "ms": 145.08,
+  "wall": 14.865361213684082
+ }
+}

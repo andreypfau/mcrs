@@ -24,19 +24,17 @@ use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_chunk::{BlockLight, LightStorage, SkyLight};
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_engine::ability::{PlayerGameMode, PlayerOpLevel};
-use mcrs_minecraft_engine::block_drops::{BlockDrops, ItemDropped};
 use mcrs_minecraft_engine::block_simulation::{BlockSimulationPlugin, DimensionBlockRules};
-use mcrs_minecraft_engine::bus::{PacketPayload, PlayerTransferSnapshot};
-use mcrs_minecraft_engine::coordinator::birth_clock::BirthClock;
+use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
 use mcrs_minecraft_engine::coordinator::ops::DefaultOpLevel;
-use mcrs_minecraft_engine::entity_birth::EntityBirth;
 use mcrs_minecraft_engine::muxer::muxer_link::MuxerLink;
-use mcrs_minecraft_engine::to_coordinator::JoinRequested;
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
-use mcrs_minecraft_engine_physics::{EntityRows, ItemStacks};
+use mcrs_minecraft_engine_brain::EntityRows;
+use mcrs_minecraft_engine_physics::ItemStacks;
+use mcrs_minecraft_engine_world::block_drops::{BlockDrops, ItemDropped};
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
-use mcrs_minecraft_engine_world::session::{PlayerSession, PlayerSessionCounter, Session};
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
@@ -48,7 +46,6 @@ use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item::item_keys::Item;
 use mcrs_minecraft_item::{ItemHoverMap, ItemStack};
-use mcrs_minecraft_physics::Birth;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, Decode, Packet, VarInt};
 use mcrs_minecraft_protocol_game::chunk::{LightChunk, LightData};
@@ -1328,8 +1325,8 @@ fn a_block_that_a_shape_update_destroys_drops_the_items_of_the_rules() {
         .next()
         .expect("a cell");
     let mut items = Vec::new();
-    for (_, rows) in world.resource_mut::<EntityRows>().tiles_mut() {
-        items.extend(rows.rows_mut().map(|row| (row.id, row.state.body.position)));
+    for (_, rows) in world.resource::<EntityRows>().tiles() {
+        items.extend(rows.rows().map(|row| (row.id, row.state.body.position)));
     }
     let [(id, position)] = items[..] else {
         panic!("one item row: {items:?}");
@@ -1353,10 +1350,10 @@ fn a_block_that_a_shape_update_destroys_drops_the_items_of_the_rules() {
         .next()
         .expect("a cell");
     let later = world
-        .resource_mut::<EntityRows>()
-        .tiles_mut()
+        .resource::<EntityRows>()
+        .tiles()
         .flat_map(|(_, rows)| {
-            rows.rows_mut()
+            rows.rows()
                 .map(|row| row.state.body.position.y)
                 .collect::<Vec<_>>()
         })
@@ -1617,76 +1614,6 @@ fn a_broadcast_sends_one_packet_per_section_before_the_block_events() {
             vec![format!("block {ECHO_LAMP:?}")],
         ]
     );
-}
-
-/// Asks the coordinator to place a player at `position`, as a client that just logged in does.
-fn request_join(app: &mut App, name: &str, position: DVec3) -> PlayerSession {
-    let session = app
-        .world_mut()
-        .resource_mut::<PlayerSessionCounter>()
-        .next();
-    app.world_mut().spawn(Session(session));
-    app.world_mut().write_message(JoinRequested {
-        session,
-        saved_dimension: None,
-        saved_birth: None,
-        snapshot: PlayerTransferSnapshot {
-            uuid: Uuid::from_u128(name.bytes().fold(0, |id, byte| id << 8 | u128::from(byte))),
-            username: name.into(),
-            position,
-            rotation: bevy_math::Vec2::ZERO,
-            client_info: Some(crate::support::client_info_with_view_distance(2)),
-        },
-    });
-    session
-}
-
-/// The birth of each player of two batches of joins, and the number of cells that hold them.
-fn run_births(cells: u32) -> (Vec<Birth>, usize) {
-    let mut app = server(cells);
-    let label = label_of(&app, OVERWORLD);
-    wait_for_generation(&mut app, label);
-    // The wait above takes as many ticks as the generation needs; the scenario starts at one tick.
-    app.world_mut().insert_resource(BirthClock(1000));
-    let batches = [
-        vec![("a", -600.5), ("b", 8.5), ("c", 600.5)],
-        vec![("d", -8.5), ("e", 1200.5)],
-    ];
-    let mut sessions = Vec::new();
-    for batch in batches {
-        for (name, x) in batch {
-            sessions.push(request_join(&mut app, name, DVec3::new(x, 100.0, 8.5)));
-        }
-        lockstep_tick(&mut app, label);
-    }
-    for _ in 0..5 {
-        lockstep_tick(&mut app, label);
-    }
-    let mut holders = BTreeSet::new();
-    let births = sessions
-        .into_iter()
-        .map(|session| {
-            let Holder { cell, player } =
-                holder(&mut app, label, session).expect("the player joined");
-            holders.insert(cell);
-            cell_worlds(&mut app, label)
-                .swap_remove(cell)
-                .get::<EntityBirth>(player)
-                .expect("a player has a birth")
-                .0
-        })
-        .collect();
-    (births, holders.len())
-}
-
-#[test]
-fn cmp_013_players_get_the_same_birth_keys_in_one_cell_and_in_four() {
-    let (one, _) = run_births(1);
-    let (four, holders) = run_births(4);
-    assert!(holders > 1, "the players stand in several cells");
-    assert_eq!(one, four);
-    let keys: BTreeSet<_> = one.iter().map(|birth| birth.key).collect();
-    assert_eq!(keys.len(), one.len(), "every player has its own key");
 }
 
 /// A player breaks a block of the column of the other cell, across the boundary at x = 0. The

@@ -25,7 +25,7 @@ use crate::chat::{
 
 /// The registries whose identifiers the client can name, so their arguments parse on the
 /// client.
-// chisle: a fixed list; an argument of another registry reads as a type without a grammar and
+// A fixed list; an argument of another registry reads as a type without a grammar and
 // asks the server. Registry keys that are not static lift it.
 const STATIC_REGISTRIES: [ResourceLocation<'static>; 5] = [
     mcrs_minecraft_biome::registry_keys::BIOME.location(),

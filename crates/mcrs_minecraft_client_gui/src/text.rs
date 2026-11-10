@@ -1,11 +1,10 @@
 //! Text components as styled spans, and the wrap of spans into rows.
 
-use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol_game::text::color::RgbColor;
 use mcrs_minecraft_protocol_game::text::{Color, Text, TextContent, TranslateArg};
 
 use crate::font::{ClickEvent, Font, Hover, Span};
-use crate::language::Language;
+use crate::language::ClientLanguage;
 
 #[derive(Clone, Copy)]
 struct Inherited<'a> {
@@ -41,19 +40,6 @@ pub fn argb(color: Color) -> u32 {
     0xFF00_0000 | u32::from(rgb.r) << 16 | u32::from(rgb.g) << 8 | u32::from(rgb.b)
 }
 
-fn number(tag: &NbtTag) -> String {
-    match tag {
-        NbtTag::Byte(v) => v.to_string(),
-        NbtTag::Short(v) => v.to_string(),
-        NbtTag::Int(v) => v.to_string(),
-        NbtTag::Long(v) => v.to_string(),
-        NbtTag::Float(v) => mcrs_minecraft_snbt::java_float(*v),
-        NbtTag::Double(v) => mcrs_minecraft_snbt::java_double(*v),
-        _ => String::new(),
-    }
-}
-
-// chisle: every span clones its hover event into a Box; spans borrowing the hover from the Text lift it.
 fn push(out: &mut Vec<Span>, text: impl Into<String>, style: Inherited) {
     let text = text.into();
     if !text.is_empty() {
@@ -61,7 +47,12 @@ fn push(out: &mut Vec<Span>, text: impl Into<String>, style: Inherited) {
     }
 }
 
-fn collect<'a>(text: &'a Text, language: &Language, parent: Inherited<'a>, out: &mut Vec<Span>) {
+fn collect<'a>(
+    text: &'a Text,
+    language: &ClientLanguage,
+    parent: Inherited<'a>,
+    out: &mut Vec<Span>,
+) {
     let style = Inherited {
         color: text.style.color.map_or(parent.color, argb),
         bold: text.style.bold.unwrap_or(parent.bold),
@@ -83,7 +74,9 @@ fn collect<'a>(text: &'a Text, language: &Language, parent: Inherited<'a>, out: 
                     match arg {
                         TranslateArg::Text(text) => collect(text, language, style, &mut spans),
                         TranslateArg::Bool(value) => push(&mut spans, value.to_string(), style),
-                        TranslateArg::Number(tag) => push(&mut spans, number(tag), style),
+                        TranslateArg::Number(tag) => {
+                            push(&mut spans, mcrs_minecraft_lang::primitive_text(tag), style)
+                        }
                     }
                     spans
                 })
@@ -109,7 +102,7 @@ fn collect<'a>(text: &'a Text, language: &Language, parent: Inherited<'a>, out: 
 
 /// The spans of a text component in `color` where it sets none. Content that needs the world
 /// (scores, selectors, NBT) shows nothing.
-pub fn text_spans(text: &Text, language: &Language, color: u32) -> Vec<Span> {
+pub fn text_spans(text: &Text, language: &ClientLanguage, color: u32) -> Vec<Span> {
     let mut out = Vec::new();
     collect(
         text,
@@ -253,7 +246,7 @@ mod tests {
             .insertion("ins");
         let mut text = text;
         text.extra.push(Text::text("cd").insertion("own"));
-        let spans = text_spans(&text, &Language::default(), 0xFFFF_FFFF);
+        let spans = text_spans(&text, &ClientLanguage::default(), 0xFFFF_FFFF);
         assert_eq!(spans.len(), 2);
         assert!(spans.iter().all(|span| span.click.is_some()));
         assert_eq!(spans[0].insertion.as_deref(), Some("ins"));
@@ -274,7 +267,7 @@ mod tests {
                 vec!["Alex".color(Color::GOLD), "hi".into_text()],
             )
             .color(Color::GRAY);
-            let spans = text_spans(&text, Language::corpus(), 0xFFFF_FFFF);
+            let spans = text_spans(&text, ClientLanguage::corpus(), 0xFFFF_FFFF);
             assert_eq!(
                 spans,
                 [

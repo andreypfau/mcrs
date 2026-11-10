@@ -13,7 +13,6 @@ use mcrs_minecraft_game_registries::dimension::{DimensionEntry, Dimensions, bake
 use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_game_registries::worldgen::world_preset::WorldPreset;
 use mcrs_minecraft_item::Items;
-use mcrs_minecraft_physics::{Birth, BirthKey, BirthSource};
 use mcrs_minecraft_protocol::setting::ChatMode;
 use mcrs_minecraft_registries::{Registries, Resolver};
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf, ResourceLocationBuf};
@@ -99,10 +98,4 @@ pub fn client_info_with_view_distance(view_distance: u8) -> ClientInfo {
         view_distance,
         chat_mode: ChatMode::Enabled,
     }
-}
-
-/// The birth of a player that a test spawns without the coordinator: a login of tick 0.
-pub fn login_birth(order: u64) -> Birth {
-    let order = u32::try_from(order).expect("a test logs in few players");
-    Birth::from(BirthKey::born(0, &BirthSource::Player { order }, 0))
 }

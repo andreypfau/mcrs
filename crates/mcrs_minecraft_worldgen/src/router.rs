@@ -15,9 +15,6 @@ use mcrs_minecraft_worldgen_surface::{
 };
 use std::collections::BTreeMap;
 
-// chisle: the compiler takes its registries keyed by name, so every entry of
-// each is cloned once per dimension at start. A compiler that takes ids and
-// reads the registries lifts it.
 fn named<T: RegistryValue + Clone + Send + Sync + 'static>(
     registries: &Registries,
 ) -> BTreeMap<ResourceLocationBuf, T> {

@@ -96,9 +96,9 @@ this server. Section 10 gives the experiments.
 - **Grant**: the result of a proposal that passes its check in the hot tick.
 - **Point of interest**: a block that the game records for villagers, for example a job site block
   or a bed. A villager claims it with a ticket.
-- **Birth key**: the order key of an entity, as PHY-CMP-013 defines it. It does not depend on the
+- **Order key**: the UUID of an entity, as PHY-CMP-013 defines it. It does not depend on the
   division of the world into cells, and the save keeps it.
-- **Phase offset**: the value from 0 to 3 that PHY-CMP-016 derives from the birth key.
+- **Phase offset**: the value from 0 to 3 that PHY-CMP-016 derives from the UUID.
 - **Merge point**: the one global step at the start of a tick in which the proposals apply
   (AIT-CPL-002). The writes between entities that are not claims also apply there (PHY-CMP-015). A
   claim does not apply at the merge point. It enters the arbitration of PHY-CMP-017.
@@ -799,7 +799,7 @@ The hot tick does not compute a new decision in its place. The part runs again a
 slot (section 5). The fact lets that run see the reason.
 
 **AIT-LAG-007** (`design`, semantic, confidence: medium). In one tick, the decisions apply in the
-order of the pair `(issue tick, birth key)`, from the lowest. The birth key compares as PHY-CMP-013
+order of the pair `(issue tick, UUID)`, from the lowest. The UUID compares as PHY-CMP-013
 states. Each decision writes only its own entity, so only the order inside one entity can change the
 result. The proposals at the merge point use the same order (AIT-CPL-002).
 
@@ -808,7 +808,7 @@ decision of one entity never applies before a decision of the same entity with a
 tick.
 
 **AIT-LAG-008** (`design`, semantic, confidence: medium). A decision takes its random values from a
-stream. The stream is a function of the world seed, the birth key of the entity (PHY-CMP-013), the
+stream. The stream is a function of the world seed, the UUID of the entity (PHY-CMP-013), the
 issue tick and the part. The `i`-th value of one decision is the `i`-th value of its stream. Thus
 the value does not depend on the order of the entities, on the thread count or on other uses of a
 random value. AIT-DEV-002 records the difference from the vanilla server.
@@ -870,7 +870,7 @@ have these checks:
 
 | Pair action | Check at the grant | Changes |
 |-------------|--------------------|---------|
-| breed (AIT-VAN-023) | both animals alive, in love, not in panic; the partner less than 3 blocks away | a child with a birth key of the source kind `entity` (PHY-CMP-013); the love of both ends |
+| breed (AIT-VAN-023) | both animals alive, in love, not in panic; the partner less than 3 blocks away | a child with a new UUID of the source kind `entity` (PHY-CMP-013); the love of both ends |
 | alert (AIT-VAN-024) | each receiver alive, of the same type, with no attack target now | the attack target of each receiver that passes; a fact to its brain |
 | gossip (AIT-VAN-022) | both villagers alive; 1200 ticks after the last gossip of each | the gossip of the proposer from the snapshot of the other; the time of both |
 | golem summon (AIT-VAN-022) | the count of villagers that want a golem, now, is still enough | the iron golem; the memory `golem_detected_recently` for each villager in the box |
@@ -896,7 +896,7 @@ A removed item makes each later proposal with it stale.
 The grant of a merge enters the arbitration of PHY-CMP-017 in the same tick, as a claim on each of
 the two items. The arbitration decides between it and the other claims on the same item, for example
 a pickup or a transfer into a hopper. PHY-CMP-015 does not apply to a merge. The writer key is the
-birth key of the item that tries. A despawn is a claim of the removal in the same way.
+UUID of the item that tries. A despawn is a claim of the removal in the same way.
 
 **AIT-CPL-006** (`design`, semantic, confidence: medium). A raid itself is not a part of the AI. In
 the reference, the dimension ticks its raids before its entities in the same tick (step 3 of
@@ -920,12 +920,16 @@ tick in which the vanilla server runs that part. A part whose vanilla phase read
 reads the phase offset of PHY-CMP-016 in its place (AIT-DEV-003). The issue never depends on the
 backlog of the AI stage, on wall time or on the load of the server.
 
+The goal selection of a mob is an exception. The AI stage can skip a full evaluation that
+`mob-goals.md`, GOAL-WAKE-002, states to be quiet. A quiet evaluation gives no change, so the skip
+is not visible.
+
 A reduced rate for far mobs is visible in mob farms and in villages. Other servers removed it for
 that reason. Thus this server keeps the vanilla periods by default.
 
 **AIT-CDN-002** (`design`, semantic, confidence: medium). Each cell keeps the player table of each
 dimension. The table holds the position of each player at the end of the previous tick, with the
-flags spectator and alive. The coordinator sends each change to each cell at the sync point. Thus
+flags spectator and alive. `mob-goals.md`, GOAL-QRY-005, adds the values that the goals read. The coordinator sends each change to each cell at the sync point. Thus
 the table is the same in each cell and in each division of the world. The nearest player of the
 despawn check, of the idle time reset and of the orb attraction comes from this table.
 
@@ -1009,7 +1013,8 @@ apply in each mode except the exact-parity mode. AIT-DEV-006 applies only when t
 
 ### AIT-DEV-002: Keyed random values for the AI
 
-- **Rule:** AIT-LAG-008, with the birth key of PHY-CMP-013.
+- **Rule:** AIT-LAG-008, with the UUID of PHY-CMP-013. The stream of the AI stays separate from
+  the stream of PHY-CMP-014.
 - **Reference:** the goals take random values from the random source of the mob. The brains, the
   sensors and the point of interest take random values from the random source of the dimension. Thus
   the values in the vanilla server depend on the order of the entities.
@@ -1017,7 +1022,7 @@ apply in each mode except the exact-parity mode. AIT-DEV-006 applies only when t
 - **Test:** a differential test compares distributions over many runs. It does not compare one
   sequence of random values.
 
-### AIT-DEV-003: The phase of a part from the birth key
+### AIT-DEV-003: The phase of a part from the UUID
 
 - **Rule:** AIT-CDN-001, PHY-CMP-016 and PHY-CMP-013.
 - **Reference:** the phase of the goal selection uses the network id (AIT-VAN-002). The merge
@@ -1025,7 +1030,7 @@ apply in each mode except the exact-parity mode. AIT-DEV-006 applies only when t
 - **This server:** a full evaluation occurs when `(t + o)` is even, or when `t ≤ 1`. `o` is the
   phase offset of PHY-CMP-016. This is the rule of PHY-CMP-016: the phase offset replaces the
   network id in the choice of a tick. The merge class of an orb is not the choice of a tick, so
-  PHY-CMP-016 does not give it. The merge class is a fixed function of the birth key, from 0 to 39.
+  PHY-CMP-016 does not give it. The merge class is a fixed function of the UUID, from 0 to 39.
   Two orbs can merge only when their merge classes are equal.
 - **Visible to the client:** no. The distribution of the phases and of the merge classes stays the
   same. An implementation can give network ids in a way that depends on the layout, so this server
@@ -1067,7 +1072,8 @@ apply in each mode except the exact-parity mode. AIT-DEV-006 applies only when t
 
 ## 9. Unresolved
 
-- **U1**: closed. PHY-CMP-013 defines the birth key, and PHY-CMP-016 defines the phase offset.
+- **U1**: closed. PHY-CMP-013 defines the order key (the UUID), and PHY-CMP-016 defines the phase
+  offset.
 - **U2**: nobody measured the throughput of the AI stage with `max_lag` 2. A path search costs 50 to
   500 microseconds. The AI stage can split one path search over several stage ticks. The search
   reads a versioned snapshot of its issue tick. The stage keeps the old versions of the changed

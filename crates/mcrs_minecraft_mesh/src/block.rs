@@ -1,7 +1,10 @@
 use glam::Vec3;
 use mcrs_minecraft_core::Direction;
 
-use crate::ambient::Neighbour;
+use crate::face_shade::FaceShade;
+use crate::smooth_light::LightState;
+use crate::state_variants::StateVariants;
+use crate::uv_orientation::UvOrientation;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct Fluid {
@@ -61,14 +64,17 @@ impl Pass {
 
 use crate::tint::Tint;
 
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, Debug)]
 pub struct CubeFace {
     pub sprite: u16,
     pub pass: u8,
     pub tint: Tint,
+    pub uv: UvOrientation,
+    /// The light emission of the model element the face comes from, `0` to `15`.
+    pub emission: u8,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ModelQuad {
     pub positions: [Vec3; 4],
     pub uvs: [[f32; 2]; 4],
@@ -77,8 +83,10 @@ pub struct ModelQuad {
     pub face: Option<u8>,
     pub sprite: u16,
     pub pass: Pass,
-    pub shade: f32,
+    pub shade: FaceShade,
     pub tint: Tint,
+    /// The light emission of the model element the quad comes from, `0` to `15`.
+    pub emission: u8,
 }
 
 /// Rows of a side on a sixteenth grid, its two tangent axes taken in axis order.
@@ -93,8 +101,7 @@ pub struct FaceShapes {
     pub inner: [SideCells; 6],
 }
 
-/// Vanilla's `Block.shouldRenderFace`, answered the other way round: whether the face this block
-/// shows towards `side` is hidden by the neighbour across it.
+/// Whether the face this block shows towards `side` is hidden by the neighbour across it.
 pub fn face_hidden(own: &BlockInfo, neighbour: &BlockInfo, side: usize) -> bool {
     if neighbour.occludes {
         return true;
@@ -121,11 +128,12 @@ pub struct BlockInfo {
     pub occludes: bool,
     pub self_culls: bool,
     pub sturdy: u8,
-    pub emission: u8,
-    pub emissive: bool,
     pub fluid: Option<Fluid>,
-    pub neighbour: Neighbour,
+    pub light: LightState,
+    /// The ambient occlusion flag of the block model, of its first part when it has more.
     pub ambient_occlusion: bool,
+    /// The geometry of the other variants, when a cell chooses among them by its position.
+    pub variants: Option<Box<StateVariants>>,
 }
 
 /// What a cell is drawn as when the catalog has no row for its state.
@@ -137,15 +145,10 @@ pub(crate) static AIR: BlockInfo = BlockInfo {
     occludes: false,
     self_culls: false,
     sturdy: 0,
-    emission: 0,
-    emissive: false,
     fluid: None,
-    neighbour: Neighbour {
-        full_block: false,
-        solid_render: false,
-        light_opaque: false,
-    },
+    light: LightState::AIR,
     ambient_occlusion: false,
+    variants: None,
 };
 
 pub const FACE_AXES: [[u8; 6]; 6] = [

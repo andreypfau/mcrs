@@ -5,16 +5,15 @@
 use bevy_tasks::TaskPool;
 use bevy_tasks::TaskPoolBuilder;
 use glam::DVec3;
-use mcrs_minecraft_engine_physics::EntityRows;
 use mcrs_minecraft_engine_physics::EntityWrites;
 use mcrs_minecraft_engine_physics::TestScene;
-use mcrs_minecraft_physics::BirthKey;
-use mcrs_minecraft_physics::BodyGrid;
-use mcrs_minecraft_physics::EffectBuffer;
-use mcrs_minecraft_physics::Keyed;
+use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_rows::BodyGrid;
+use mcrs_minecraft_entity_rows::EffectBuffer;
+use mcrs_minecraft_entity_rows::Keyed;
+use mcrs_minecraft_entity_rows::RowStore;
+use mcrs_minecraft_entity_rows::WriterKey;
 use mcrs_minecraft_physics::Rest;
-use mcrs_minecraft_physics::SourceKind;
-use mcrs_minecraft_physics::WriterKey;
 
 const TICKS: u64 = 60;
 
@@ -23,17 +22,17 @@ fn pool(threads: usize) -> TaskPool {
 }
 
 fn dense_scene() -> TestScene {
-    TestScene::new(2, 400, 400, 7)
+    TestScene::<()>::new(2, 400, 400, 7)
 }
 
 /// Impulses from two writers on the first rows of each tile, binned by two tasks and gathered in
 /// the order `reversed` picks.
-fn writes(rows: &mut EntityRows, tick: u64, reversed: bool) -> EntityWrites {
+fn writes(rows: &RowStore<()>, tick: u64, reversed: bool) -> EntityWrites {
     let mut tasks = [EffectBuffer::default(), EffectBuffer::default()];
-    for (tile, tile_rows) in rows.tiles_mut() {
-        for (index, row) in tile_rows.rows_mut().take(3).enumerate() {
+    for (tile, tile_rows) in rows.tiles() {
+        for (index, row) in tile_rows.rows().take(3).enumerate() {
             for (task, buffer) in tasks.iter_mut().enumerate() {
-                let writer = BirthKey::new(tick, SourceKind::Entity, task as u128, 0);
+                let writer = EntityKey(u128::from(tick) << 64 | task as u128);
                 buffer.push(
                     tile,
                     Keyed {
@@ -67,7 +66,7 @@ fn run(
     let pool = pool(threads);
     for tick in 0..TICKS {
         let mut writes = if tick % 10 == 3 {
-            writes(&mut scene.rows, tick, reversed)
+            writes(&scene.rows, tick, reversed)
         } else {
             EntityWrites::default()
         };
@@ -78,11 +77,11 @@ fn run(
 
 #[test]
 fn inv_015_the_pass_gives_the_same_state_for_each_thread_count_and_task_split() {
-    let (expected, mut scene) = run(dense_scene(), 1, 1, false);
+    let (expected, scene) = run(dense_scene(), 1, 1, false);
     let resting = scene
         .rows
-        .tiles_mut()
-        .flat_map(|(_, tile_rows)| tile_rows.rows_mut())
+        .tiles()
+        .flat_map(|(_, tile_rows)| tile_rows.rows())
         .filter(|row| matches!(row.state.rest, Rest::Resting(_)))
         .count();
     assert!(resting > 100, "the items rest after the fall: {resting}");
@@ -98,20 +97,20 @@ fn inv_015_the_pass_gives_the_same_state_for_each_thread_count_and_task_split() 
 #[test]
 fn the_grid_that_the_pass_writes_and_the_freeze_patches_equals_a_rebuild() {
     // The sparse scene has tiles in which every body walks, and tiles with no body that moves.
-    for start in [dense_scene(), TestScene::new(2, 12, 0, 3)] {
+    for start in [dense_scene(), TestScene::<()>::new(2, 12, 0, 3)] {
         let (_, mut scene) = run(start, 4, 2, false);
-        scene.rows.apply_writes(&mut EntityWrites::default());
+        scene.rows.apply_writes(&mut EntityWrites::default().0);
         scene.rows.freeze(&pool(1), &mut scene.grid);
 
-        let mut rebuilt = EntityRows::default();
-        for (_, tile_rows) in scene.rows.tiles_mut() {
-            for row in tile_rows.rows_mut() {
+        let mut rebuilt: RowStore<()> = RowStore::default();
+        for (_, tile_rows) in scene.rows.tiles() {
+            for row in tile_rows.rows() {
                 rebuilt.spawn(row.id, *row.state, *row.motion);
             }
         }
         let mut grid = BodyGrid::default();
         rebuilt.freeze(&pool(1), &mut grid);
-        for (tile, _) in scene.rows.tiles_mut() {
+        for (tile, _) in scene.rows.tiles() {
             assert_eq!(
                 scene.grid.front(tile).rows,
                 grid.front(tile).rows,
@@ -119,7 +118,7 @@ fn the_grid_that_the_pass_writes_and_the_freeze_patches_equals_a_rebuild() {
             );
         }
         assert!(
-            scene.rows.tiles_mut().count() > 4,
+            scene.rows.tiles().count() > 4,
             "the rows spread over several tiles, so the patch moved rows between tiles"
         );
     }
@@ -129,8 +128,8 @@ fn the_grid_that_the_pass_writes_and_the_freeze_patches_equals_a_rebuild() {
 fn cmp_015_a_write_adds_its_impulse_to_the_velocity_of_its_target_and_wakes_it() {
     let (_, mut scene) = run(dense_scene(), 1, 1, false);
     let mut resting = Vec::new();
-    for (tile, tile_rows) in scene.rows.tiles_mut() {
-        for row in tile_rows.rows_mut() {
+    for (tile, tile_rows) in scene.rows.tiles() {
+        for row in tile_rows.rows() {
             if matches!(row.state.rest, Rest::Resting(_)) {
                 resting.push((tile, row.id, row.state.key, row.state.body.velocity));
             }
@@ -151,20 +150,18 @@ fn cmp_015_a_write_adds_its_impulse_to_the_velocity_of_its_target_and_wakes_it()
         Keyed {
             target: key,
             target_id: target,
-            writer: WriterKey::Entity {
-                key: BirthKey::new(0, SourceKind::Entity, 0, 0),
-            },
+            writer: WriterKey::Entity { key: EntityKey(0) },
             sequence: 0,
             effect,
         },
     );
     let mut writes = EntityWrites::default();
     writes.0.gather(&mut buffer);
-    scene.rows.apply_writes(&mut writes);
+    scene.rows.apply_writes(&mut writes.0);
     let after: Vec<_> = scene
         .rows
-        .tiles_mut()
-        .flat_map(|(_, tile_rows)| tile_rows.rows_mut())
+        .tiles()
+        .flat_map(|(_, tile_rows)| tile_rows.rows())
         .filter(|row| row.id == target || row.id == other)
         .map(|row| (row.id, row.state.body.velocity, row.state.rest))
         .collect();

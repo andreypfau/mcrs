@@ -1,8 +1,8 @@
-use mcrs_minecraft_core::mth::{jmax, jmin};
 use mcrs_minecraft_noise::interval::Interval;
 use mcrs_minecraft_noise::jmath::{lerp, mul_add};
 use mcrs_minecraft_noise::kernel::{Runs, at, each_column};
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
+use mcrs_minecraft_numeric::{max_f32, min_f32};
 
 #[derive(Clone, Debug)]
 pub enum SplineValue {
@@ -159,18 +159,18 @@ pub(crate) fn multipoint_range(
     if input.min() < first_location {
         let edge1 = linear_extend(input.min(), locations, first.min(), derivatives, 0);
         let edge2 = linear_extend(input.min(), locations, first.max(), derivatives, 0);
-        min_value = jmin(min_value, jmin(edge1, edge2));
-        max_value = jmax(max_value, jmax(edge1, edge2));
+        min_value = min_f32(min_value, min_f32(edge1, edge2));
+        max_value = max_f32(max_value, max_f32(edge1, edge2));
     }
     if input.max() > last_location {
         let edge1 = linear_extend(input.max(), locations, end.min(), derivatives, last);
         let edge2 = linear_extend(input.max(), locations, end.max(), derivatives, last);
-        min_value = jmin(min_value, jmin(edge1, edge2));
-        max_value = jmax(max_value, jmax(edge1, edge2));
+        min_value = min_f32(min_value, min_f32(edge1, edge2));
+        max_value = max_f32(max_value, max_f32(edge1, edge2));
     }
     for range in value_ranges {
-        min_value = jmin(min_value, range.min());
-        max_value = jmax(max_value, range.max());
+        min_value = min_f32(min_value, range.min());
+        max_value = max_f32(max_value, range.max());
     }
     let segments = locations
         .windows(2)
@@ -191,12 +191,12 @@ pub(crate) fn multipoint_range(
         let (min2, max2) = (range2.min(), range2.max());
         let p1 = d1 * x_diff;
         let p2 = d2 * x_diff;
-        let min_lerp1 = jmin(min1, min2);
-        let max_lerp1 = jmax(max1, max2);
-        let min_lerp2 = jmin(p1 - max2 + min1, -p2 + min2 - max1);
-        let max_lerp2 = jmax(p1 - min2 + max1, -p2 + max2 - min1);
-        min_value = jmin(min_value, min_lerp1 + 0.25 * min_lerp2);
-        max_value = jmax(max_value, max_lerp1 + 0.25 * max_lerp2);
+        let min_lerp1 = min_f32(min1, min2);
+        let max_lerp1 = max_f32(max1, max2);
+        let min_lerp2 = min_f32(p1 - max2 + min1, -p2 + min2 - max1);
+        let max_lerp2 = max_f32(p1 - min2 + max1, -p2 + max2 - min1);
+        min_value = min_f32(min_value, min_lerp1 + 0.25 * min_lerp2);
+        max_value = max_f32(max_value, max_lerp1 + 0.25 * max_lerp2);
     }
 
     // Vanilla throws instead; a NaI point value or an infinity cancelling in an

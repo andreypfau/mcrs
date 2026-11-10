@@ -13,8 +13,8 @@ use tracing::{error, info};
 
 use crate::structures::DimensionStructures;
 use mcrs_minecraft_engine::dimension_generators::DimensionGenerators;
-use mcrs_minecraft_engine::world_seed::WorldSeed;
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
+use mcrs_minecraft_engine_world::world_seed::WorldSeed;
 use mcrs_minecraft_worldgen_density::router::NoiseGeneratorSettings;
 
 /// Every dimension's compiled router, keyed by the id the world preset gave it.
@@ -55,17 +55,16 @@ pub(crate) fn build_dimension_routers(
 
     let mut routers = DimensionRouters::default();
     for (dimension, generator) in dimensions.iter(&list) {
-        // A flat or debug generator drives no density graph, so the dimension
-        // is left out rather than refused.
-        let ChunkGenerator::Noise(generator) = generator else {
-            continue;
+        let settings_id = match generator {
+            ChunkGenerator::Noise(generator) => generator.settings,
+            ChunkGenerator::Flat(_) | ChunkGenerator::Debug => continue,
         };
         let dimension = dimension.location();
         let (Some(settings), Some(settings_name)) = (
-            noise_settings.get(generator.settings),
-            noise_settings.name(generator.settings),
+            noise_settings.get(settings_id),
+            noise_settings.name(settings_id),
         ) else {
-            error!(%dimension, id = ?generator.settings, "the dimension names noise settings the registry does not number");
+            error!(%dimension, id = ?settings_id, "the dimension names noise settings the registry does not number");
             continue;
         };
         if let Some(tables) = structures

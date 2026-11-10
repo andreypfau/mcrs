@@ -16,6 +16,7 @@ use crate::CollisionWorld;
 use crate::ContextShape;
 use crate::InsideBoxes;
 use crate::InsideEffect;
+use crate::PathType;
 use crate::SectionLookup;
 use crate::SectionMasks;
 use crate::StateSpec;
@@ -185,6 +186,13 @@ impl TestBlocks {
     pub fn new() -> Self {
         let mut builder = CollisionTableBuilder::new();
         let mut push = |boxes: &[Aabb], flags: BlockFlags, motion: BlockMotion| {
+            let path = if flags.intersects(BlockFlags::FENCE | BlockFlags::WALL) {
+                PathType::Fence
+            } else if boxes.is_empty() {
+                PathType::Open
+            } else {
+                PathType::Blocked
+            };
             builder
                 .push(StateSpec {
                     boxes,
@@ -193,13 +201,18 @@ impl TestBlocks {
                     inside: InsideEffect::None,
                     inside_shape: InsideBoxes::FullCube,
                     motion,
+                    path,
                 })
                 .unwrap_or(BlockStateId::AIR)
         };
         let plain = BlockFlags::empty();
         let default = BlockMotion::DEFAULT;
         let _air = push(&[], plain, default);
-        let stone = push(&[cube([0.0; 3], [1.0; 3])], BlockFlags::SUFFOCATES, default);
+        let stone = push(
+            &[cube([0.0; 3], [1.0; 3])],
+            BlockFlags::SUFFOCATES | BlockFlags::SOLID_RENDER | BlockFlags::LEGACY_SOLID,
+            default,
+        );
         let bottom_slab = push(&[cube([0.0; 3], [1.0, 0.5, 1.0])], plain, default);
         let top_slab = push(&[cube([0.0, 0.5, 0.0], [1.0; 3])], plain, default);
         let carpet = push(&[cube([0.0; 3], [1.0, PIXEL, 1.0])], plain, default);
@@ -294,6 +307,11 @@ impl TestBlocks {
                             _ => InsideBoxes::FullCube,
                         },
                         motion: default,
+                        path: match context {
+                            Some(ContextShape::Scaffolding { .. }) => PathType::Blocked,
+                            _ if flags.contains(BlockFlags::FLUID) => PathType::Water,
+                            _ => PathType::Open,
+                        },
                     })
                     .unwrap_or(BlockStateId::AIR)
             };
@@ -319,7 +337,10 @@ impl TestBlocks {
         );
         let water = push_special(
             None,
-            BlockFlags::FLUID | BlockFlags::OWN_SPEED_FACTOR | BlockFlags::COARSE_NEAR,
+            BlockFlags::FLUID
+                | BlockFlags::WATER
+                | BlockFlags::OWN_SPEED_FACTOR
+                | BlockFlags::COARSE_NEAR,
             InsideEffect::None,
         );
         let tripwire = builder
@@ -333,6 +354,7 @@ impl TestBlocks {
                     [1.0, 2.5 * PIXEL, 1.0],
                 )]),
                 motion: default,
+                path: PathType::Open,
             })
             .unwrap_or(BlockStateId::AIR);
         Self {

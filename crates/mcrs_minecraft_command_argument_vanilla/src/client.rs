@@ -32,7 +32,7 @@ pub enum SuggestionType {
 
 impl From<ResourceLocation<'_>> for SuggestionType {
     fn from(name: ResourceLocation<'_>) -> Self {
-        // chisle: summonable_entities and post_effects ask the server, because the client
+        // Summonable_entities and post_effects ask the server, because the client
         // holds no summonable entity set and no post effect list yet.
         if name == mcrs_minecraft_resource::rl!("minecraft:available_sounds") {
             SuggestionType::AvailableSounds

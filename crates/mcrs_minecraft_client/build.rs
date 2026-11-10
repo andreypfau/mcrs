@@ -11,9 +11,11 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-const WEB_ASSETS: [&str; 6] = [
+const WEB_ASSETS: [&str; 8] = [
     "minecraft/version.json",
     "mcrs/block_definition",
+    "mcrs/block_entity_model",
+    "mcrs/entity",
     "mcrs/item_definition",
     "mcrs/light_color",
     "mcrs/item_light",

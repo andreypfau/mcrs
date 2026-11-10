@@ -14,7 +14,7 @@ use uuid::Uuid;
 use mcrs_minecraft_game_registries::dimension::DimensionEntry;
 
 use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_environment::world_clock::ClockState;
+use mcrs_minecraft_environment::ClockTime;
 
 #[derive(Debug, thiserror::Error)]
 pub enum SaveError {
@@ -112,7 +112,7 @@ impl Default for GameRules {
     }
 }
 
-pub type WorldClockStates = HashMap<ResourceLocationBuf, ClockState>;
+pub type WorldClockStates = HashMap<ResourceLocationBuf, ClockTime>;
 
 pub fn read_level_dat(world: &Path) -> Result<LevelDat, SaveError> {
     let path = world.join("level.dat");
@@ -132,7 +132,6 @@ pub fn read_world_gen_settings(
     parse_world_gen_settings(&read_bytes(&path)?, &path, registries)
 }
 
-// chisle: only the seed and the dimensions are written; bonus_chest and generate_structures are dropped, and the first writer that preserves a vanilla file needs them.
 pub fn write_world_gen_settings(
     world: &Path,
     settings: &WorldGenSettings,
@@ -183,7 +182,7 @@ pub fn read_game_rules(world: &Path) -> Result<GameRules, SaveError> {
     parse_game_rules(&read_bytes(&path)?, &path)
 }
 
-/// The birth clock of the world: the birth tick of the entity keys. It is data of mcrs, so it
+/// The birth clock of the world: the birth tick of the new entity UUIDs. It is data of mcrs, so it
 /// has its own file next to the saved data of the game.
 #[derive(Serialize, Deserialize)]
 struct BirthClockData {

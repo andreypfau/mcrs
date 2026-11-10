@@ -13,9 +13,9 @@ use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block_predicate::provider::DirectBlockStateProvider;
 use mcrs_minecraft_block_predicate::provider::Holder;
 use mcrs_minecraft_engine::dimension_generators::DimensionGenerators;
-use mcrs_minecraft_engine::world_seed::WorldSeed;
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_engine_world::world::sub_app::DimSpawnEnqueue;
+use mcrs_minecraft_engine_world::world_seed::WorldSeed;
 use mcrs_minecraft_game_registries::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_registries::{
     CurrentRegistries, IdSet, Named, Namer, Registries, Registry, Resolve, Tags,
@@ -152,8 +152,6 @@ fn build_dimension_features(
     registries: Res<CurrentRegistries>,
     mut exit: MessageWriter<AppExit>,
 ) {
-    // chisle: every named template is cloned, though only the templates a
-    // template feature places are read from here; upgrade = collect those alone.
     let template_names = match named_templates(&registries) {
         Ok(names) => names,
         Err(error) => {

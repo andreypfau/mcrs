@@ -12,6 +12,7 @@ mod server;
 
 use std::collections::HashSet;
 use std::net::{Ipv4Addr, SocketAddr};
+use std::path::Path;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, bail};
@@ -19,7 +20,8 @@ use mcrs_voxel::ColumnPos;
 use serde::Serialize;
 
 use bot::{Behaviour, BotReport, Plan};
-use server::{Kind, Server, Usage, Window};
+use mcrs_minecraft_bench_support::{Kind, Line, ServerProcess, TickWindow, answers_status, round};
+use server::Usage;
 
 /// The port `run.sh` gives both servers.
 const PORT: u16 = 25565;
@@ -89,12 +91,12 @@ fn main() -> anyhow::Result<()> {
     let runtime = tokio::runtime::Runtime::new()?;
     let address = SocketAddr::from((Ipv4Addr::LOCALHOST, PORT));
     let started = Instant::now();
-    let mut server = Server::start(&args.command)?;
+    let mut server = ServerProcess::start(&args.command, &[], Path::new("."), None)?;
     let ready = loop {
         if server.exited() {
             bail!("the server exited before it answered a status request");
         }
-        if runtime.block_on(server::answers_status(address)) {
+        if runtime.block_on(answers_status(address)) {
             break started.elapsed();
         }
         if started.elapsed() > READY_TIMEOUT {
@@ -104,7 +106,7 @@ fn main() -> anyhow::Result<()> {
     };
     if args.kind == Kind::Vanilla {
         for rule in VANILLA_RULES {
-            server.command(rule)?;
+            server.send(rule)?;
         }
     }
 
@@ -137,7 +139,7 @@ fn main() -> anyhow::Result<()> {
             usage.push(sample);
         }
         if args.kind == Kind::Vanilla && now.duration_since(last_query) >= QUERY_INTERVAL {
-            server.command("tick query")?;
+            server.send("tick query")?;
             last_query = now;
         }
         if server.exited() {
@@ -156,7 +158,7 @@ fn main() -> anyhow::Result<()> {
             Err(error) => failures.push(format!("bot{index}: {error}")),
         }
     }
-    let log = server.stop(args.kind, STOP_GRACE);
+    let log = server.stop(args.kind.stop(), STOP_GRACE);
     let text: Vec<&str> = log.iter().map(|line| line.text.as_str()).collect();
     std::fs::write(format!("{}.log", args.out), text.join("\n"))?;
     let windows = server::windows(args.kind, &log, measure_from, measure_until);
@@ -231,21 +233,17 @@ struct Work {
     waits_for_chunk: u64,
 }
 
-fn count(log: &[server::Line], needle: &str) -> usize {
+fn count(log: &[Line], needle: &str) -> usize {
     log.iter().filter(|line| line.text.contains(needle)).count()
-}
-
-fn round(value: f64) -> f64 {
-    (value * 100.0).round() / 100.0
 }
 
 /// The means of the windows' averages and percentiles, the highest window P99, and TPS as 20
 /// while the average fits in a tick, else 1000 / average.
-fn mspt(windows: &[Window]) -> Option<Mspt> {
+fn mspt(windows: &[TickWindow]) -> Option<Mspt> {
     if windows.is_empty() {
         return None;
     }
-    let mean = |pick: fn(&Window) -> f64| {
+    let mean = |pick: fn(&TickWindow) -> f64| {
         round(windows.iter().map(pick).sum::<f64>() / windows.len() as f64)
     };
     let average = mean(|window| window.average);

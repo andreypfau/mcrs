@@ -1,0 +1,62 @@
+[package]
+name = "mcrs_minecraft_entity_render"
+description = "GPU-driven entity rendering: persistent slots, the entity cull, the pose and expand passes and the gbuffer draw of the face records"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy = { version = "0.19.1", default-features = false, features = [
+    "std",
+    "bevy_asset",
+    "bevy_log",
+    "bevy_render",
+    "bevy_core_pipeline",
+] }
+bytemuck = { version = "1", features = ["derive"] }
+glam.workspace = true
+half = "2"
+mcrs_minecraft_client_entity.workspace = true
+mcrs_minecraft_client_world.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_animation.workspace = true
+mcrs_minecraft_game_registries.workspace = true
+mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_mesh.workspace = true
+mcrs_minecraft_model.workspace = true
+mcrs_minecraft_model_file.workspace = true
+mcrs_minecraft_protocol_game.workspace = true
+mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_render.workspace = true
+mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_volume.workspace = true
+mcrs_voxel.workspace = true
+mcrs_minecraft_entity_model.workspace = true
+mcrs_minecraft_pack_file.workspace = true
+mcrs_minecraft_render_controller.workspace = true
+mcrs_molang.workspace = true
+mcrs_molang_wgsl.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+wgpu = { version = "29", default-features = false, features = ["wgsl"] }
+
+[dev-dependencies]
+naga = { workspace = true, features = ["wgsl-in"] }
+criterion = { version = "0.7", features = ["html_reports"] }
+mcrs_minecraft_fixtures.workspace = true
+futures-lite = "2"
+image = { version = "0.25", default-features = false, features = ["png"] }
+mcrs_minecraft_client_jar.workspace = true
+nv-flip = "0.1.2"
+wgpu = { version = "29", features = ["metal", "wgsl"] }
+
+[[bench]]
+name = "layers"
+harness = false

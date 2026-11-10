@@ -1,6 +1,6 @@
-use mcrs_minecraft_core::mth::jmax;
 use mcrs_minecraft_noise::jmath::mul_add;
 use mcrs_minecraft_noise::sample_grid::SampleGrid;
+use mcrs_minecraft_numeric::max_f32;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -25,7 +25,7 @@ impl DistanceMetric {
             Self::Euclidean => Self::length_squared(dx, dy, dz).sqrt(),
             Self::EuclideanSquared => Self::length_squared(dx, dy, dz),
             Self::Manhattan => dx.abs() + dy.abs() + dz.abs(),
-            Self::Chebyshev => jmax(jmax(dx.abs(), dy.abs()), dz.abs()),
+            Self::Chebyshev => max_f32(max_f32(dx.abs(), dy.abs()), dz.abs()),
         }
     }
 }

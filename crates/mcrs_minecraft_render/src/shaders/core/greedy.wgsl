@@ -7,6 +7,7 @@
     FACE_SKY_LIGHT_WORD, FACE_SKY_LIGHT_SHIFT, FACE_SKY_LIGHT_BITS,
     FACE_SPRITE_WORD, FACE_SPRITE_SHIFT, FACE_SPRITE_BITS,
     FACE_TINT_WORD, FACE_TINT_SHIFT, FACE_TINT_BITS,
+    FACE_UV_WORD, FACE_UV_SHIFT, FACE_UV_BITS,
     FACE_WORDS,
     QUAD_FACE_WORD, QUAD_FACE_SHIFT, QUAD_FACE_BITS,
     QUAD_FACE_BASE_WORD, QUAD_FACE_BASE_SHIFT, QUAD_FACE_BASE_BITS,
@@ -55,7 +56,7 @@ fn vertex_greedy(@builtin(vertex_index) vertex: u32) -> GreedyOut {
     out.face_base = desc.face_base
         + quad_field(quad, QUAD_FACE_BASE_WORD, QUAD_FACE_BASE_SHIFT, QUAD_FACE_BASE_BITS);
     out.face_span = span;
-    out.directional = face_shade(face);
+    out.directional = face_shade(face, camera.shade_table);
     out.face = face;
     return out;
 }
@@ -87,15 +88,38 @@ fn greedy_surface(in: GreedyOut) -> Surface {
     let fluid = face_field(face.attr, FACE_FLUID_WORD, FACE_FLUID_SHIFT, FACE_FLUID_BITS) != 0u;
     let scale = select(1.0, 0.5, fluid);
 
+    let orientation = face_field(face.attr, FACE_UV_WORD, FACE_UV_SHIFT, FACE_UV_BITS);
+    let uv = oriented_uv(face.uv, face.cell, orientation);
+
     var s: Surface;
     s.sprite = face_field(face.attr, FACE_SPRITE_WORD, FACE_SPRITE_SHIFT, FACE_SPRITE_BITS);
     s.tint_kind = face_field(face.attr, FACE_TINT_WORD, FACE_TINT_SHIFT, FACE_TINT_BITS);
     s.shade = vec3<f32>(1.0);
-    s.uv = select(face.uv, fract(face.uv) * 0.5, fluid);
+    s.uv = select(uv, fract(face.uv) * 0.5, fluid);
     s.world_xz = in.world_xz;
-    s.ddx = dpdx(face.uv) * scale;
-    s.ddy = dpdy(face.uv) * scale;
+    s.ddx = oriented_gradient(dpdx(face.uv), orientation) * scale;
+    s.ddy = oriented_gradient(dpdy(face.uv), orientation) * scale;
     return s;
+}
+
+/// The sprite coordinates at `uv` of a face whose cell `cell` lays its sprite with the
+/// orientation bits of `UvOrientation`: swap, then mirror u, then mirror v.
+fn oriented_uv(uv: vec2<f32>, cell: vec2<u32>, orientation: u32) -> vec2<f32> {
+    var inside = uv - vec2<f32>(cell);
+    if ((orientation & 1u) != 0u) {
+        inside = inside.yx;
+    }
+    if ((orientation & 2u) != 0u) {
+        inside.x = 1.0 - inside.x;
+    }
+    if ((orientation & 4u) != 0u) {
+        inside.y = 1.0 - inside.y;
+    }
+    return vec2<f32>(cell) + inside;
+}
+
+fn oriented_gradient(gradient: vec2<f32>, orientation: u32) -> vec2<f32> {
+    return select(gradient, gradient.yx, (orientation & 1u) != 0u);
 }
 
 /// A corner's vertex colour as vanilla computes it, before the lightmap: the occlusion byte
@@ -126,13 +150,13 @@ fn greedy_light(in: GreedyOut) -> vec3<f32> {
     return corners[0] + (corners[3] - corners[0]) * f.x + (corners[2] - corners[3]) * f.y;
 }
 
-fn greedy_gbuffer(in: GreedyOut, albedo: vec3<f32>) -> mcrs_minecraft_client::deferred::GBuffer {
+fn greedy_gbuffer(in: GreedyOut, albedo: vec3<f32>) -> mcrs_minecraft_client::gbuffer_encode::GBuffer {
     let light = greedy_light(in);
     return mcrs_minecraft_client::deferred::gbuffer(albedo, light.x, face_normal(in.face), light.y, light.z);
 }
 
 @fragment
-fn fragment_greedy_solid(in: GreedyOut) -> mcrs_minecraft_client::deferred::GBuffer {
+fn fragment_greedy_solid(in: GreedyOut) -> mcrs_minecraft_client::gbuffer_encode::GBuffer {
     let wireframe_discards = mcrs_minecraft_client::finish::wireframe_discards(in.quad_uv);
     let color = shade_surface(greedy_surface(in));
     if (wireframe_discards) {
@@ -142,7 +166,7 @@ fn fragment_greedy_solid(in: GreedyOut) -> mcrs_minecraft_client::deferred::GBuf
 }
 
 @fragment
-fn fragment_greedy_cutout(in: GreedyOut) -> mcrs_minecraft_client::deferred::GBuffer {
+fn fragment_greedy_cutout(in: GreedyOut) -> mcrs_minecraft_client::gbuffer_encode::GBuffer {
     // Taken before the test: behind a short-circuit the derivative inside would sit in
     // non-uniform control flow, which WebGPU rejects for the whole module.
     let wireframe_discards = mcrs_minecraft_client::finish::wireframe_discards(in.quad_uv);

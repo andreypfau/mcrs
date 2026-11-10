@@ -1,12 +1,9 @@
 //! The bounds of a teleport and the teleport state of a player.
 
 use bevy_ecs::component::Component;
-use bevy_ecs::resource::Resource;
 use bevy_math::DVec3;
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
-use mcrs_minecraft_physics::{
-    PlayerRotation, PlayerState, Relative, SineTable, Teleport, apply_teleport,
-};
+use mcrs_minecraft_physics::{Orientation, PlayerState, Relative, Teleport, apply_teleport};
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::PositionFlags;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerPosition;
@@ -114,10 +111,6 @@ impl TeleportState {
     }
 }
 
-/// The sine table of the client, which a teleport that rotates the velocity reads.
-#[derive(Resource, Default)]
-pub struct ClientSine(pub SineTable);
-
 /// A teleport from `known`, the transform the client has, to `destination`. The position is
 /// absolute. The client keeps its velocity, as the server does not hold one, and its rotation
 /// when the rotation does not change.
@@ -141,15 +134,12 @@ pub fn teleport_to(known: Transform, destination: Transform) -> Teleport {
 
 /// The transform that the client computes from `known` for `teleport`.
 #[must_use]
-pub fn landing(sine: &SineTable, known: Transform, teleport: &Teleport) -> Transform {
+pub fn landing(known: Transform, teleport: &Teleport) -> Transform {
     let mut state = PlayerState::new(known.translation);
-    let mut rotation = PlayerRotation {
-        yaw: known.rotation.yaw(),
-        pitch: known.rotation.pitch(),
-    };
-    apply_teleport(sine, &mut state, &mut rotation, teleport);
+    let mut rotation = Orientation::facing(known.rotation.yaw(), known.rotation.pitch());
+    apply_teleport(&mut state, &mut rotation, teleport);
     Transform {
-        translation: state.position,
+        translation: state.body.position,
         rotation: Rotation::new(rotation.yaw, rotation.pitch),
     }
 }
@@ -206,14 +196,13 @@ mod tests {
 
     #[test]
     fn a_turn_sends_the_raw_rotation_and_the_client_lands_on_the_server_transform() {
-        let sine = SineTable::new();
         let known = at(0.0);
         let destination = at(5.0).with_rotation(Rotation::new(720.0, -30.0));
         let teleport = teleport_to(known, destination);
         let packet = position_packet(1, &teleport);
         assert_eq!((packet.look.yaw, packet.look.pitch), (720.0, -30.0));
         assert!(!packet.flags.contains(PositionFlag::YRot));
-        assert_eq!(landing(&sine, known, &teleport), destination, "PHY-SRV-010");
+        assert_eq!(landing(known, &teleport), destination, "PHY-SRV-010");
     }
 
     #[test]

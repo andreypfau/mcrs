@@ -124,7 +124,7 @@ fn bearded_columns_match_the_block_by_block_fill_of_the_summed_density(radius: i
         .structures
         .as_deref()
         .expect("a structure dimension carries its index");
-    let router = dim.ctx.router.as_ref();
+    let router = dim.ctx.router.as_deref().expect("a noise context");
     let y_sections = &dim.ctx.y_sections[..];
     let stone = router.default_block_state;
     let (mut checked, mut raised, mut carved) = (0usize, 0usize, 0usize);

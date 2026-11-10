@@ -13,9 +13,6 @@ use mcrs_voxel::BlockStateId;
 
 /// The value of a `block_predicate`. The property list and the data compound stay text and are
 /// read again by the test, so the value borrows the command line and owns nothing.
-// chisle: the test re-reads the property names and the SNBT per call. Resolving property and
-// value indices, or holding the parsed `NbtCompound`, needs an owned value, which the
-// allocation-free parse test forbids; a caller-owned compiled predicate lifts it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BlockPredicate<'a> {
     pub subject: ResourceOrTag<'a>,
@@ -27,7 +24,9 @@ pub struct BlockPredicate<'a> {
 }
 
 impl<'a> BlockPredicate<'a> {
-    fn properties(&self) -> impl Iterator<Item = (StringValue<'a>, StringValue<'a>)> + 'a {
+    pub(crate) fn properties(
+        &self,
+    ) -> impl Iterator<Item = (StringValue<'a>, StringValue<'a>)> + 'a {
         let input = self.input;
         entries(input, self.list).map(move |(name, value)| {
             (
@@ -181,7 +180,7 @@ fn block_entry<'a>(
             name_start,
         ));
     };
-    // chisle: one bit per property finds duplicates only among the first 64 properties of a
+    // One bit per property finds duplicates only among the first 64 properties of a
     // block; vanilla has at most 7. A block with more needs a wider set.
     let bit = 1u64
         .checked_shl(u32::try_from(index).unwrap_or(u32::MAX))

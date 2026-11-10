@@ -19,7 +19,7 @@ use crate::chat_suggestions;
 use crate::cursor_grab::grab;
 use crate::font::{Font, Span};
 use crate::item_decorations::WHITE;
-use crate::language::Language;
+use crate::language::ClientLanguage;
 use crate::scene::{GuiAtlas, GuiScene};
 use crate::text::{self, Wrap};
 use mcrs_minecraft_client_world::chat::{
@@ -51,7 +51,7 @@ impl Plugin for ChatScreenPlugin {
 fn project_lines(
     chat: Res<Chat>,
     screen: Res<Screen>,
-    language: Option<Res<Language>>,
+    language: Option<Res<ClientLanguage>>,
     atlas: Option<Res<GuiAtlas>>,
     mut lines: ResMut<ChatLines>,
 ) {

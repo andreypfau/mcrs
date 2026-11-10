@@ -1,0 +1,89 @@
+{
+ "name": "pig_idle",
+ "description": "One temperate pig, seen from the front, the side and the top.",
+ "resolution": [
+  854,
+  480
+ ],
+ "world": {
+  "type": "flat_default",
+  "seed": "1",
+  "generate_structures": false,
+  "game_rules": {
+   "advance_time": false,
+   "advance_weather": false,
+   "spawn_mobs": false,
+   "mob_drops": false
+  }
+ },
+ "options": {
+  "fov": "0.0",
+  "fovEffectScale": "0.0",
+  "bobView": "false",
+  "ao": "true",
+  "entityShadows": "false",
+  "renderClouds": "\"false\"",
+  "renderDistance": "5",
+  "gamma": "0.5",
+  "vignette": "false",
+  "entityDistanceScaling": "1.0",
+  "chunkSectionFadeInTime": "0.0",
+  "improvedTransparency": "false",
+  "mipmapLevels": "4"
+ },
+ "script": [
+  {
+   "commands": [
+    "gamerule minecraft:mob_drops false",
+    "time set 6000",
+    "weather clear",
+    "tick freeze"
+   ]
+  },
+  {
+   "wait": 10
+  },
+  {
+   "command": "summon minecraft:pig 0.5 -60 0.5 {NoAI:1b,Silent:1b,PersistenceRequired:1b,UUID:[I;0,0,0,1],Rotation:[0f,0f]}"
+  },
+  {
+   "wait": 10
+  },
+  {
+   "capture": "front",
+   "at": {
+    "position": [
+     0.5,
+     -59.0,
+     3.5
+    ],
+    "yaw": 180,
+    "pitch": 10
+   }
+  },
+  {
+   "capture": "side",
+   "at": {
+    "position": [
+     3.5,
+     -59.0,
+     0.5
+    ],
+    "yaw": 90,
+    "pitch": 10
+   }
+  },
+  {
+   "capture": "top",
+   "at": {
+    "position": [
+     0.5,
+     -56.0,
+     0.5
+    ],
+    "yaw": 180,
+    "pitch": 90
+   }
+  }
+ ]
+}

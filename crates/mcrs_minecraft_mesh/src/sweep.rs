@@ -214,6 +214,8 @@ mod tests {
                 sprite: 263,
                 pass: Pass::Solid as u8,
                 tint: crate::tint::Tint::None,
+                emission: 0,
+                uv: crate::uv_orientation::UvOrientation::IDENTITY,
             }; 6],
         );
         blocks[TEST_BLOCK as usize].occludes = true;

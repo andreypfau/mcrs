@@ -44,5 +44,15 @@ bitflags::bitflags! {
         const COARSE_PISTON = 1 << 18;
         /// The state causes suffocation: the client pushes its player out of it.
         const SUFFOCATES = 1 << 19;
+        /// The state has a solid render state: a floor that a mob stands on.
+        const SOLID_RENDER = 1 << 20;
+        /// The legacy solid flag of the state.
+        const LEGACY_SOLID = 1 << 21;
+        /// The state holds water.
+        const WATER = 1 << 22;
+        /// A `grass_block`.
+        const GRASS_BLOCK = 1 << 23;
+        /// The block tag `doors`.
+        const DOOR = 1 << 24;
     }
 }

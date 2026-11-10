@@ -81,6 +81,12 @@ pub(crate) fn take_dim_outputs(world: &mut World) {
         for edit in output.ban_edits {
             world.trigger(edit);
         }
+        for edit in output.ops_edits {
+            world.trigger(edit);
+        }
+        for edit in output.server_edits {
+            world.trigger(edit);
+        }
         let running = world.get_resource::<RunningDimensions>();
         let departures: Vec<RoutedDeparture> = output
             .departures

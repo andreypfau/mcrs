@@ -15,7 +15,7 @@
 >   table of every entity. Writes to an entity of another cell, and block-domain writes to it,
 >   apply at the sync point before the next pass (PHY-CMP-015, PHY-BLK-001); a claim joins the
 >   arbitration of the next tick.
-> - Section 3, "A player belongs to the cell ...": the order key of entities is the birth key of
+> - Section 3, "A player belongs to the cell ...": the order key of entities is the UUID of
 >   PHY-CMP-013, not the id from the coordinator's ranges.
 > - Section 12, step 5: the last item (groups) is dropped. The other items stay, for a layout of
 >   many cells.

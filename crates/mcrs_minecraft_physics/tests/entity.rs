@@ -5,7 +5,7 @@
 )]
 
 use glam::DVec3;
-use mcrs_minecraft_physics::BirthKey;
+use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_physics::BlockAction;
 use mcrs_minecraft_physics::BlockFlags;
 use mcrs_minecraft_physics::BlockMotion;
@@ -17,10 +17,10 @@ use mcrs_minecraft_physics::InsideEffect;
 use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_physics::NoBodies;
+use mcrs_minecraft_physics::PathType;
 use mcrs_minecraft_physics::Rest;
 use mcrs_minecraft_physics::Scratch;
 use mcrs_minecraft_physics::Side;
-use mcrs_minecraft_physics::SourceKind;
 use mcrs_minecraft_physics::StateSpec;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_physics::TestBlocks;
@@ -66,7 +66,7 @@ fn entity(position: DVec3, velocity: DVec3, living: bool) -> EntityState {
         ..Body::default()
     };
     let living = living.then(Living::default);
-    EntityState::new(BirthKey::new(0, SourceKind::Command, 0, 0), body, living)
+    EntityState::new(EntityKey(0), body, living)
 }
 
 fn velocity_after(
@@ -221,6 +221,7 @@ fn fall_004_a_block_acts_inside_a_masked_section_without_an_inside_action() {
                 inside,
                 inside_shape: InsideBoxes::FullCube,
                 motion: BlockMotion::DEFAULT,
+                path: PathType::Open,
             })
             .unwrap()
     };

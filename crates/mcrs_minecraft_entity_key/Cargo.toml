@@ -1,0 +1,16 @@
+[package]
+name = "mcrs_minecraft_entity_key"
+description = "The keys of an entity without the physics kernel: its id, its UUID as its order key, the sources of a new UUID, its keyed random stream and the tile that holds it"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# The workspace entry enables std, which the wasm32v1-none build of this crate does not have.
+glam = { version = "0.32.1", default-features = false, features = ["nostd-libm"] }
+mcrs_voxel.workspace = true

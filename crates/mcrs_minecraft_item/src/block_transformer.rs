@@ -32,7 +32,6 @@ pub struct BlockTransformData<M: Refs = Resolved> {
     pub particle: TransformParticle,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub disallowed_faces: Vec<Direction>,
-    // chisle: an unchecked name until loot tables load as a registry
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub loot: Option<ResourceLocationBuf>,
     #[serde(default, skip_serializing_if = "is_default")]

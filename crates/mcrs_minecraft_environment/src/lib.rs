@@ -1,43 +1,49 @@
-#![cfg_attr(
-    test,
-    expect(
-        clippy::disallowed_macros,
-        clippy::disallowed_types,
-        reason = "test input is written as JSON"
-    )
-)]
-
-pub mod attribute;
 #[rustfmt::skip]
 pub mod activity_keys;
+pub mod attribute_id;
 #[rustfmt::skip]
 pub mod environment_attribute_keys;
 #[rustfmt::skip]
 pub mod registry_keys;
-#[rustfmt::skip]
-pub mod test_environment_definition_type_keys;
-#[rustfmt::skip]
-pub mod test_instance_type_keys;
 #[rustfmt::skip]
 pub mod timeline_keys;
 #[rustfmt::skip]
 pub mod timeline_tag_keys;
 #[rustfmt::skip]
 pub mod world_clock_keys;
-pub mod timeline;
-pub mod world_clock;
 
-use mcrs_minecraft_registries::{DataDeclaration, Declaration};
+mod attribute_map;
+mod attribute_value;
+mod clock_markers;
+mod clock_time;
+mod color;
+mod easing;
+mod kind;
+mod mob_spawns;
+mod operation;
+mod time_marker;
+mod timeline;
+mod track;
+mod value;
+#[cfg(feature = "bevy")]
+mod world_clock_plugin;
+mod world_clocks;
 
-mcrs_minecraft_registries::resolve_as_is!(crate::world_clock::WorldClock);
+pub use attribute_map::{AttributeError, ModifierEntry, ModifierMap, read_argument};
+pub use attribute_value::{AttributeValue, Interpolation, default_value};
+pub use clock_markers::{ClockTimeMarker, ClockTimeMarkers};
+pub use clock_time::{ClockEdit, ClockTime};
+pub use color::{argb_hex, rgb_hex};
+pub use easing::{Easing, NamedEasing};
+pub use kind::{AttributeInfo, AttributeType, Bounds, info, is_syncable};
+pub use mob_spawns::{MobSpawnSettings, SpawnCost};
+pub use operation::{Argument, ArgumentKind, Operation};
+pub use time_marker::TimeMarker;
+pub use timeline::{NetworkTimeline, Timeline};
+pub use track::{Keyframe, Track};
+pub use value::*;
+#[cfg(feature = "bevy")]
+pub use world_clock_plugin::{WorldClockPlugin, WorldClockSystems};
+pub use world_clocks::{AdvanceTime, WorldClock, WorldClocks};
 
-impl crate::timeline::Timeline {
-    pub fn declaration() -> DataDeclaration<Self> {
-        Declaration::data::<Self>().validate(|registry, registries| {
-            match registries.registry::<crate::world_clock::WorldClock>() {
-                Some(clocks) => crate::world_clock::check_time_markers(registry.values(), clocks),
-                None => Vec::new(),
-            }
-        })
-    }
-}
+pub(crate) use attribute_value::read_float;

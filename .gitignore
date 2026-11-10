@@ -7,3 +7,7 @@
 # Ephemeral memory profiling outputs
 dhat-heap.json
 target/memory-profile/
+
+# Local Claude Code state
+.claude/settings.local.json
+.claude/worktrees/

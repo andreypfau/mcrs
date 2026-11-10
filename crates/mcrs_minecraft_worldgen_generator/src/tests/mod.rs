@@ -32,6 +32,8 @@ mod cell_fill;
 pub mod corpus_generators;
 pub mod corpus_ores;
 #[cfg(test)]
+mod flat;
+#[cfg(test)]
 mod footprint;
 #[cfg(test)]
 mod ids;
@@ -249,7 +251,7 @@ pub fn fill_context_with(
     let router = router.into();
     crate::stages::FillContext {
         y_sections: crate::stages::dimension_y_sections(&router, -64, 24),
-        router,
+        router: Some(router),
         material: None,
         blocks: blocks().0.clone(),
         biome: None,

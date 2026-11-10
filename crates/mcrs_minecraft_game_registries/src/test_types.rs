@@ -5,8 +5,8 @@ use std::fmt;
 use mcrs_minecraft_core::Rotation;
 use mcrs_minecraft_core::codec::{Bounded, default_true, int_value, is_default, is_true};
 use mcrs_minecraft_dimension::Dimension;
-use mcrs_minecraft_environment::timeline::Timeline;
-use mcrs_minecraft_environment::world_clock::WorldClock;
+use mcrs_minecraft_environment::Timeline;
+use mcrs_minecraft_environment::WorldClock;
 use mcrs_minecraft_game_rule::{GameRule, GameRuleValueType};
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, dispatch, registry_value};
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
@@ -15,7 +15,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 pub type EnvironmentRef<M = Resolved> = Ref<M, TestEnvironment, TestEnvironment<M>>;
 
 #[registry_value]
-#[dispatch(registry = mcrs_minecraft_environment::test_environment_definition_type_keys::TestEnvironmentDefinitionType)]
+#[dispatch(registry = crate::test_environment_definition_type_keys::TestEnvironmentDefinitionType)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum TestEnvironment<M: Refs = Resolved> {
     AllOf {
@@ -198,7 +198,7 @@ test_instance!(FunctionTest {
 });
 
 #[registry_value]
-#[dispatch(registry = mcrs_minecraft_environment::test_instance_type_keys::TestInstanceType)]
+#[dispatch(registry = crate::test_instance_type_keys::TestInstanceType)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum TestInstance<M: Refs = Resolved> {
     BlockBased(BlockBasedTest<M>),

@@ -1,5 +1,5 @@
 use crate::entity_event::SubjectEvent;
-use crate::tile_key::TileKey;
+use mcrs_minecraft_entity_key::TileKey;
 
 /// The events of one tile in one tick, sorted by subject. The events of one subject keep the
 /// order in which they happened.

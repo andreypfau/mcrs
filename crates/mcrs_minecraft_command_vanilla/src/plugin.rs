@@ -1,6 +1,8 @@
 #[cfg(feature = "locate")]
 use crate::locate;
-use crate::{ban, execute, gamemode, teleport, time, whitelist};
+use crate::{
+    ban, damage, data, execute, gamemode, kill, mob_hit, op, summon, teleport, time, whitelist,
+};
 use bevy_app::{App, Plugin};
 use core::fmt::Display;
 use mcrs_minecraft_command_engine::{AppCommandsExt, Worlds};
@@ -17,7 +19,10 @@ impl Plugin for VanillaCommandsPlugin {
             .add_command_effect(gamemode::apply)
             .add_command_effect(|worlds: &mut Worlds<'_>, edit| worlds.edit_clock(edit))
             .add_command_effect(whitelist::apply)
-            .add_command_effect(ban::apply);
+            .add_command_effect(ban::apply)
+            .add_command_effect(op::apply)
+            .add_command_effect(summon::apply)
+            .add_command_effect(mob_hit::apply);
         report(
             "execute",
             app.add_modifying_command(execute::build, execute::run, execute::modify),
@@ -26,8 +31,13 @@ impl Plugin for VanillaCommandsPlugin {
         report("teleport", app.add_command(teleport::build, teleport::run));
         #[cfg(feature = "locate")]
         report("locate", app.add_command(locate::build, locate::run));
+        report("summon", app.add_command(summon::build, summon::run));
+        report("kill", app.add_command(kill::build, kill::run));
+        report("damage", app.add_command(damage::build, damage::run));
+        report("data", app.add_command(data::build, data::run));
         report("time", app.add_command(time::build, time::run));
         report("ban", app.add_command(ban::build, ban::run));
+        report("op", app.add_command(op::build, op::run));
         report(
             "whitelist",
             app.add_command(whitelist::build, whitelist::run),

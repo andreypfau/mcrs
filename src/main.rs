@@ -4,29 +4,48 @@
 )]
 
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 
-use bevy_app::{App, AppExit, PluginGroup, Update};
+use bevy_app::{App, AppExit, Plugin, PluginGroup, Update};
+use bevy_ecs::error::{BevyError, ErrorContext, FallbackErrorHandler, Severity};
 use bevy_ecs::message::MessageWriter;
 use bevy_log::{Level, LogPlugin, tracing_subscriber};
+use mcrs_minecraft_client_jar::{Directory, Progress, RELEASE, candidates, locate};
+use mcrs_minecraft_console::{ConsolePlugin, log_console_answers};
 use mcrs_minecraft_engine::banlist::{BANLIST_FILE, BanList};
 use mcrs_minecraft_engine::coordinator::ops::{OPS_FILE, OpList};
 use mcrs_minecraft_engine::whitelist::{WHITELIST_FILE, Whitelist};
 use mcrs_minecraft_engine_server::{
-    DimensionWorldsPlugin, GameMode, InboundRateLimit, NetworkCompressionThreshold, Placement,
-    ServerCorePlugin, ServerNetworkPlugin, ShutdownRequest,
+    DimensionWorldsPlugin, LoopbackOps, NetworkCompressionThreshold, ServerCorePlugin,
+    ServerNetworkPlugin, ShutdownRequest,
 };
-use mcrs_minecraft_server::MinecraftServerPlugins;
-use mcrs_minecraft_vanilla_light::LightingPlugin;
+use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
+use mcrs_minecraft_lang::{EN_US, Language};
+use mcrs_minecraft_server::{MinecraftServerPlugins, VanillaMobBrainPlugin};
+use mcrs_minecraft_server_settings::ServerSettings;
 use mcrs_minecraft_vanilla_worldgen::WorldGenPlugin;
 
 const LOG_FILTER: &str = "mcrs_minecraft_server=debug,mcrs_minecraft_engine=debug,mcrs_minecraft_engine::muxer::column_views=trace,mcrs_minecraft_engine_world::entity::player::chunk_view=trace,mcrs_minecraft_network=debug";
 
-#[tokio::main]
-async fn main() -> AppExit {
+// The server loop runs outside `block_on`: the network owns runtimes of its own, and tokio
+// panics when one drops inside an async context, as on an exit before the first tick.
+fn main() -> AppExit {
+    let runtime = match tokio::runtime::Runtime::new() {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            eprintln!("the async runtime does not start: {error}");
+            return AppExit::error();
+        }
+    };
+    let _entered = runtime.enter();
+    serve()
+}
+
+fn serve() -> AppExit {
     let mut app = App::new();
+    app.insert_resource(FallbackErrorHandler(log_instead_of_panic));
+    app.add_dimension_plugin(LogInsteadOfPanicPlugin);
     app.add_plugins(LogPlugin {
-        filter: LOG_FILTER.to_string(),
+        filter: log_filter(std::env::var("RUST_LOG").ok().as_deref()),
         level: Level::INFO,
         fmt_layer: |_| {
             Some(Box::new(
@@ -49,27 +68,36 @@ async fn main() -> AppExit {
             return AppExit::error();
         }
     };
+    let settings = ServerSettings::read(
+        |name| std::env::var(format!("MCRS_{name}")).ok(),
+        |error| bevy_log::warn!("{error}"),
+    );
     let mut server = MinecraftServerPlugins {
         core: ServerCorePlugin {
-            worlds: worlds(variable("MCRS_WORLDS").as_deref()),
+            compute_threads: settings.compute_threads,
             ..MinecraftServerPlugins::default().core
         },
         worlds: DimensionWorldsPlugin {
             world: world_folder(),
             ops,
-            seed: world_seed(variable("MCRS_WORLD_SEED").as_deref()),
-            preset: world_preset(variable("MCRS_WORLD_PRESET").as_deref()),
-            default_game_mode: game_mode(variable("MCRS_DEFAULT_GAMEMODE").as_deref()),
+            seed: settings.world_seed,
+            preset: settings.world_preset.clone(),
+            default_game_mode: settings.default_game_mode,
             ..Default::default()
         },
         world_gen: WorldGenPlugin,
-        network: network(),
+        network: network(&settings),
     }
     .build();
-    if !propagates_light(variable("MCRS_NO_LIGHTING").as_deref()) {
-        server = server.disable::<LightingPlugin>();
+    if !settings.mob_ai {
+        server = server.disable::<VanillaMobBrainPlugin>();
     }
-    app.add_plugins(server);
+    app.add_plugins((
+        server,
+        ConsolePlugin {
+            language: english(),
+        },
+    ));
     let (signal_send, mut signal_recv) = tokio::sync::mpsc::channel(1);
     tokio::spawn(async move {
         shutdown_signal().await;
@@ -85,72 +113,84 @@ async fn main() -> AppExit {
             }
         },
     );
-    mcrs_minecraft_engine_server::run_server_loop(app)
+    mcrs_minecraft_engine_server::run_server_loop_with(app, log_console_answers)
 }
 
-fn network() -> ServerNetworkPlugin {
-    ServerNetworkPlugin {
-        announce_on_lan: on_off(
-            "MCRS_LAN_ANNOUNCE",
-            variable("MCRS_LAN_ANNOUNCE").as_deref(),
-            true,
-        ),
-        offer_known_packs: on_off(
-            "MCRS_KNOWN_PACKS",
-            variable("MCRS_KNOWN_PACKS").as_deref(),
-            true,
-        ),
-        compression_threshold: compression_threshold(
-            variable("MCRS_COMPRESSION_THRESHOLD").as_deref(),
-        ),
-        accepts_transfers: on_off(
-            "MCRS_ACCEPT_TRANSFERS",
-            variable("MCRS_ACCEPT_TRANSFERS").as_deref(),
-            false,
-        ),
-        hide_online_players: on_off(
-            "MCRS_HIDE_ONLINE_PLAYERS",
-            variable("MCRS_HIDE_ONLINE_PLAYERS").as_deref(),
-            false,
-        ),
-        enable_status: on_off(
-            "MCRS_ENABLE_STATUS",
-            variable("MCRS_ENABLE_STATUS").as_deref(),
-            true,
-        ),
-        send_buffer_bytes: positive_count(
-            "MCRS_SEND_BUFFER_BYTES",
-            variable("MCRS_SEND_BUFFER_BYTES").as_deref(),
-            ServerNetworkPlugin::default().send_buffer_bytes,
-        ),
-        accept_backlog: positive_count(
-            "MCRS_ACCEPT_BACKLOG",
-            variable("MCRS_ACCEPT_BACKLOG").as_deref(),
-            ServerNetworkPlugin::default().accept_backlog,
-        ),
-        rate_limit: InboundRateLimit(positive_count(
-            "MCRS_RATE_LIMIT",
-            variable("MCRS_RATE_LIMIT").as_deref(),
-            0,
-        )),
-        whitelist: Whitelist::read(Path::new(WHITELIST_FILE))
-            .enabled(on_off(
-                "MCRS_WHITE_LIST",
-                variable("MCRS_WHITE_LIST").as_deref(),
-                false,
-            ))
-            .enforced(on_off(
-                "MCRS_ENFORCE_WHITELIST",
-                variable("MCRS_ENFORCE_WHITELIST").as_deref(),
-                false,
-            )),
-        banlist: BanList::read(Path::new(BANLIST_FILE)),
-        ..Default::default()
+/// Logs an error that Bevy would panic on, such as a command for an entity that left the world,
+/// so that the server keeps ticking.
+fn log_instead_of_panic(error: BevyError, context: ErrorContext) {
+    match error.severity() {
+        Severity::Panic => bevy_ecs::error::error(error, context),
+        _ => bevy_ecs::error::match_severity(error, context),
     }
 }
 
-fn variable(name: &str) -> Option<String> {
-    std::env::var(name).ok()
+/// [`log_instead_of_panic`] in a dimension world.
+#[derive(Clone)]
+struct LogInsteadOfPanicPlugin;
+
+impl Plugin for LogInsteadOfPanicPlugin {
+    fn build(&self, app: &mut App) {
+        app.insert_resource(FallbackErrorHandler(log_instead_of_panic));
+    }
+}
+
+fn network(settings: &ServerSettings) -> ServerNetworkPlugin {
+    let defaults = ServerNetworkPlugin::default();
+    let mut bind_address = defaults.bind_address;
+    if let Some(port) = settings.port {
+        bind_address.set_port(port);
+    }
+    ServerNetworkPlugin {
+        bind_address,
+        announce_on_lan: settings.lan_announce,
+        compression_threshold: settings.compression_threshold.map_or_else(
+            NetworkCompressionThreshold::default,
+            NetworkCompressionThreshold,
+        ),
+        accepts_transfers: settings.accept_transfers,
+        hide_online_players: settings.hide_online_players,
+        enable_status: settings.enable_status,
+        whitelist: Whitelist::read(Path::new(WHITELIST_FILE)),
+        banlist: BanList::read(Path::new(BANLIST_FILE)),
+        // A player who joins from this machine is an operator for the session; the ops file
+        // names every other operator.
+        loopback_ops: LoopbackOps::Grant,
+        ..defaults
+    }
+}
+
+/// The English language of the installed client jar, for the console answers. Without the jar,
+/// an answer reads as its translation key and its arguments.
+fn english() -> Language {
+    let Some(jar) = locate(&candidates(), &RELEASE.jar, &Progress::default()) else {
+        bevy_log::warn!("no client jar; the console writes translation keys, not English");
+        return Language::default();
+    };
+    let path = format!("assets/{EN_US}");
+    let read = Directory::of(&jar)
+        .and_then(|directory| directory.read(&jar, |name| name == path))
+        .and_then(|files| {
+            let (_, bytes) = files
+                .into_iter()
+                .next()
+                .ok_or_else(|| format!("the client jar holds no {path}"))?;
+            Language::from_json(&bytes).map_err(|error| error.to_string())
+        });
+    read.unwrap_or_else(|error| {
+        bevy_log::warn!(%error, "the console writes translation keys, not English");
+        Language::default()
+    })
+}
+
+/// `RUST_LOG` replaces the default filter, so it can lower the levels that the default raises for
+/// the server's own crates; bevy alone only adds it on top of them.
+fn log_filter(rust_log: Option<&str>) -> String {
+    rust_log
+        .map(str::trim)
+        .filter(|filter| !filter.is_empty())
+        .unwrap_or(LOG_FILTER)
+        .to_owned()
 }
 
 /// The first argument names a world folder whose saved chunks the server reads; without one it
@@ -162,121 +202,6 @@ fn world_folder() -> Option<PathBuf> {
         std::process::exit(1);
     }
     Some(path)
-}
-
-/// `on`, `1`, `true` and `yes` turn a setting on; `off`, `0`, `false` and `no` turn it off, in any
-/// case. An unset, empty or unrecognised value leaves the default, and the last two are logged.
-fn on_off(name: &str, value: Option<&str>, default: bool) -> bool {
-    let Some(raw) = value else {
-        return default;
-    };
-    match raw.trim().to_ascii_lowercase().as_str() {
-        "on" | "1" | "true" | "yes" => true,
-        "off" | "0" | "false" | "no" => false,
-        other => {
-            let state = if default { "on" } else { "off" };
-            eprintln!("{name}={other:?} is neither on nor off; leaving it {state}");
-            default
-        }
-    }
-}
-
-/// `MCRS_WORLD_SEED` is written signed, as the Java long it is, or unsigned; the router hashes
-/// the same bits either way.
-fn world_seed(value: Option<&str>) -> u64 {
-    let Some(raw) = value.map(str::trim) else {
-        return 0;
-    };
-    if let Ok(seed) = raw.parse::<i64>() {
-        return seed as u64;
-    }
-    match raw.parse::<u64>() {
-        Ok(seed) => seed,
-        Err(error) => {
-            bevy_log::error!(%error, raw, "MCRS_WORLD_SEED is not a number; generating with seed 0");
-            0
-        }
-    }
-}
-
-/// `MCRS_WORLD_PRESET` takes a short name (`normal`) or a namespaced one (`minecraft:normal`).
-fn world_preset(value: Option<&str>) -> String {
-    value
-        .map(|name| name.trim().to_lowercase())
-        .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| "normal".to_owned())
-}
-
-/// `MCRS_WORLDS` is `inline` or `thread`, in any case; unset or anything else keeps the
-/// default placement.
-fn worlds(value: Option<&str>) -> Placement {
-    let default = ServerCorePlugin::default().worlds;
-    let Some(value) = value else {
-        return default;
-    };
-    value.trim().parse().unwrap_or_else(|error| {
-        bevy_log::warn!(value, worlds = ?default, "MCRS_WORLDS: {error}; keeping the default");
-        default
-    })
-}
-
-/// `MCRS_NO_LIGHTING=1` turns propagation off.
-fn propagates_light(value: Option<&str>) -> bool {
-    !matches!(value, Some("1" | "true" | "on" | "yes"))
-}
-
-/// `MCRS_DEFAULT_GAMEMODE` is `survival`, `creative`, `adventure` or `spectator`, in any case;
-/// unset or anything else is creative.
-fn game_mode(value: Option<&str>) -> GameMode {
-    let Some(value) = value else {
-        return GameMode::Creative;
-    };
-    match value.trim().to_ascii_lowercase().as_str() {
-        "survival" => GameMode::Survival,
-        "creative" => GameMode::Creative,
-        "adventure" => GameMode::Adventure,
-        "spectator" => GameMode::Spectator,
-        other => {
-            bevy_log::warn!(
-                value = other,
-                "MCRS_DEFAULT_GAMEMODE unrecognized, defaulting to creative"
-            );
-            GameMode::Creative
-        }
-    }
-}
-
-/// `MCRS_COMPRESSION_THRESHOLD` is the packet size in bytes from which packets are compressed;
-/// a negative value turns compression off.
-fn compression_threshold(value: Option<&str>) -> NetworkCompressionThreshold {
-    let Some(raw) = value.map(str::trim) else {
-        return NetworkCompressionThreshold::default();
-    };
-    match raw.parse() {
-        Ok(threshold) => NetworkCompressionThreshold(threshold),
-        Err(error) => {
-            bevy_log::error!(%error, raw, "MCRS_COMPRESSION_THRESHOLD is not a number; using the default");
-            NetworkCompressionThreshold::default()
-        }
-    }
-}
-
-/// A positive whole number; unset or anything else keeps `default`.
-fn positive_count<T: FromStr + Default + PartialOrd>(
-    name: &str,
-    value: Option<&str>,
-    default: T,
-) -> T {
-    let Some(raw) = value.map(str::trim) else {
-        return default;
-    };
-    match raw.parse() {
-        Ok(count) if count > T::default() => count,
-        _ => {
-            bevy_log::error!(raw, "{name} is not a positive number; using the default");
-            default
-        }
-    }
 }
 
 async fn shutdown_signal() {
@@ -297,57 +222,5 @@ async fn shutdown_signal() {
     if let Err(error) = tokio::signal::ctrl_c().await {
         bevy_log::error!("Ctrl+C is not handled: {error}");
         std::future::pending::<()>().await;
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{game_mode, on_off, world_seed};
-    use mcrs_minecraft_engine_server::GameMode;
-
-    #[test]
-    fn the_on_off_settings_read_their_spellings_in_any_case() {
-        for default in [true, false] {
-            for off in ["OFF", "Off", " False ", "NO", "0", "fAlSe"] {
-                assert!(!on_off("MCRS_TEST", Some(off), default), "{off:?}");
-            }
-            for on in ["ON", "On", " TRUE ", "Yes", "1"] {
-                assert!(on_off("MCRS_TEST", Some(on), default), "{on:?}");
-            }
-            for other in ["disabled", "of f", "2", ""] {
-                assert_eq!(
-                    on_off("MCRS_TEST", Some(other), default),
-                    default,
-                    "{other:?}"
-                );
-            }
-            assert_eq!(on_off("MCRS_TEST", None, default), default);
-        }
-    }
-
-    #[test]
-    fn a_seed_reads_as_a_signed_or_an_unsigned_long() {
-        for (value, seed) in [
-            (None, 0),
-            (Some(" 42 "), 42),
-            (Some("-1"), u64::MAX),
-            (Some("18446744073709551615"), u64::MAX),
-            (Some("seed"), 0),
-        ] {
-            assert_eq!(world_seed(value), seed, "{value:?}");
-        }
-    }
-
-    #[test]
-    fn the_game_mode_reads_its_names_in_any_case_and_falls_back_to_creative() {
-        for (value, mode) in [
-            (None, GameMode::Creative),
-            (Some(" Survival "), GameMode::Survival),
-            (Some("ADVENTURE"), GameMode::Adventure),
-            (Some("spectator"), GameMode::Spectator),
-            (Some("hardcore"), GameMode::Creative),
-        ] {
-            assert_eq!(game_mode(value), mode, "{value:?}");
-        }
     }
 }

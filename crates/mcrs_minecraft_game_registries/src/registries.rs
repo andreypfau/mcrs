@@ -22,8 +22,8 @@ use mcrs_minecraft_entity::variant::{
     CatSoundVariant, CatVariant, ChickenSoundVariant, ChickenVariant, CowSoundVariant, CowVariant,
     FrogVariant, PigSoundVariant, PigVariant, WolfSoundVariant, WolfVariant, ZombieNautilusVariant,
 };
-use mcrs_minecraft_environment::timeline::{NetworkTimeline, Timeline};
-use mcrs_minecraft_environment::world_clock::WorldClock;
+use mcrs_minecraft_environment::WorldClock;
+use mcrs_minecraft_environment::{NetworkTimeline, Timeline};
 use mcrs_minecraft_item::block_transformer::BlockTransformer;
 use mcrs_minecraft_item::damage_type::DamageType;
 use mcrs_minecraft_item::decorated_pot_pattern::DecoratedPotPattern;
@@ -162,7 +162,10 @@ pub fn declarations(
     extra: Vec<Declaration>,
 ) -> Result<Vec<Declaration>, RegistryLoadError> {
     let mut declarations = Vec::new();
-    for (key, names) in mcrs_minecraft_registry_catalog::STATIC_REGISTRIES {
+    for (key, names) in mcrs_minecraft_registry_catalog::STATIC_REGISTRIES
+        .iter()
+        .chain(crate::registry_keys::STATIC_REGISTRIES)
+    {
         let names = names.iter().map(|&name| name.into()).collect();
         declarations.push(Declaration::fixed((*key).into(), names));
     }

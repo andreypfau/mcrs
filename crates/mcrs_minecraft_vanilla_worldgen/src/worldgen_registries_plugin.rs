@@ -39,7 +39,7 @@ const TEMPLATE_FOLDER: &str = "minecraft/structure";
 
 /// The `<folder>/<file>.<extension>` paths the default `AssetSource` lists for a folder, with the
 /// templates the code builds added, since a listing names files only.
-// chisle: a source that cannot list directories yields only the built-in templates here, so
+// A source that cannot list directories yields only the built-in templates here, so
 // a template neither built nor named by a loaded value is not requested; listing the files
 // through the pack stack the registry loader read lifts this.
 fn list_registry_files(asset_server: &AssetServer, folder: &str, extension: &str) -> Vec<String> {

@@ -32,10 +32,19 @@ pub mod cave;
 pub mod config;
 #[cfg(feature = "dev")]
 pub mod dev;
+pub mod entities;
+pub mod frozen_clocks;
 pub mod input;
 pub mod light_volume;
+pub mod options;
+#[cfg(all(feature = "scene", not(target_family = "wasm")))]
+pub mod scene_capture;
+#[cfg(all(feature = "scene", not(target_family = "wasm")))]
+pub mod scene_record;
 #[cfg(not(target_family = "wasm"))]
 pub mod screenshot;
+#[cfg(not(target_family = "wasm"))]
+pub mod settle;
 pub mod sky;
 pub mod sky_state;
 pub mod stream;
@@ -58,7 +67,10 @@ impl PluginGroup for ClientPlugins {
             .add(input::ClientInputPlugin)
             .add(local_player::LocalPlayerPlugin)
             .add(block_breaking::BlockBreakingPlugin)
-            .add(camera::CameraPlugin)
+            .add(camera::CameraPlugin {
+                render_distance: self.0.view_distance(),
+                fov: self.0.options().fov_options(),
+            })
             .add(mcrs_minecraft_client_gui::debug_screen::DebugScreenPlugin {
                 stats_interval: self.0.stats_interval(),
                 always_time_passes: self.0.always_time_passes(),
@@ -71,6 +83,7 @@ impl PluginGroup for ClientPlugins {
             >::new(self.0.light_levels()))
             .add(registries::ClientRegistriesPlugin::default())
             .add(sky::SkyPlugin)
+            .add(frozen_clocks::FrozenClocksPlugin)
     }
 }
 
@@ -89,8 +102,13 @@ impl Plugin for ClientTerrainPlugin {
             timestamps: knobs.pass_timestamps(),
         })
         .add_plugins(mcrs_minecraft_client_gui::gui_items::GuiItemsPlugin)
+        .add_plugins(entities::ClientEntityRenderPlugin)
         .insert_resource(mcrs_minecraft_render::Occlusion(knobs.occlusion()))
-        .insert_resource(mcrs_minecraft_render::Brightness(knobs.brightness()))
+        .insert_resource(mcrs_minecraft_render::Brightness(
+            knobs.options().brightness,
+        ))
+        .insert_resource(knobs.options().light_options())
+        .insert_resource(knobs.options().clouds())
         .add_plugins(stream::StreamPlugin::new(
             budget,
             uploads,

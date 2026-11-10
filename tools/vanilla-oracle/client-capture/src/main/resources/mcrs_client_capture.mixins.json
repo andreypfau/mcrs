@@ -1,0 +1,12 @@
+{
+	"required": true,
+	"package": "mcrs.capture.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"PacketUtilsMixin",
+		"ClientLevelMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

@@ -1,0 +1,20 @@
+[package]
+name = "mcrs_minecraft_bench_support"
+description = "The server child process, status probe, tick parsers and headless client upkeep that the server benchmarks share"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+# std: child processes, tokio and sockets
+[dependencies]
+anyhow.workspace = true
+glam.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_network.workspace = true
+mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_protocol_game.workspace = true
+serde.workspace = true
+tokio.workspace = true

@@ -1,7 +1,7 @@
 use glam::DVec3;
-use mcrs_engine_muxer::EntityId;
+use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_entity_key::EntityKey;
 
-use crate::BirthKey;
 use crate::BlockAction;
 use crate::GridFlags;
 use crate::GridRow;
@@ -9,13 +9,11 @@ use crate::NoBodies;
 use crate::PushTargets;
 use crate::QueryEntity;
 use crate::Scratch;
-use crate::SourceKind;
 use crate::Tables;
 use crate::TeamSlot;
 use crate::TestBlocks;
 use crate::TestWorld;
 use crate::View;
-use crate::birth_key;
 
 /// The test blocks, their tables, an empty world and the buffers of a tick, for tests and
 /// benchmarks.
@@ -50,7 +48,7 @@ impl TestFixture {
     #[must_use]
     pub fn query_entity(position: DVec3) -> QueryEntity {
         QueryEntity {
-            key: BirthKey::new(0, SourceKind::Command, 0, 0),
+            key: EntityKey(0),
             position,
             fall_distance: 0.0,
             shift: false,
@@ -68,7 +66,7 @@ impl TestFixture {
             position: DVec3::new(x, 0.0, z),
             half_width: 0.3,
             height: 1.95,
-            key: BirthKey::new(0, SourceKind::Spawn, 0, index),
+            key: EntityKey(u128::from(index)),
             id,
             root_vehicle: id,
             team: TeamSlot::default(),
@@ -89,7 +87,7 @@ pub struct TestRng(pub u64);
 
 impl TestRng {
     pub fn next_u64(&mut self) -> u64 {
-        let value = birth_key::mix(self.0);
+        let value = split_mix(self.0);
         self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
         value
     }
@@ -105,4 +103,11 @@ impl TestRng {
     pub fn chance(&mut self, numerator: u64, denominator: u64) -> bool {
         self.next_u64() % denominator < numerator
     }
+}
+
+fn split_mix(value: u64) -> u64 {
+    let mut z = value.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
 }

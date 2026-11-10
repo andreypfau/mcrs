@@ -4,12 +4,11 @@ use mcrs_minecraft_core::Look;
 use mcrs_minecraft_protocol::{Result, VarInt, write_record};
 use mcrs_minecraft_protocol_game::ByteAngle;
 use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundEntityPositionSync, ClientboundMoveEntityPos, ClientboundMoveEntityPosRot,
-    ClientboundMoveEntityRot, ClientboundRotateHead, DeltaStep, PositionPath, VecDelta,
+    ClientboundEntityPositionSync, ClientboundRotateHead, DeltaStep, PositionPath, VecDelta,
 };
+use mcrs_minecraft_protocol_game::position_delta;
 
-/// The steps of one block in a relative move.
-const STEPS_PER_BLOCK: f64 = 4096.0;
+use crate::move_choice::{Due, KEYFRAME_INTERVAL_TICKS, MoveChoice, Resync};
 
 /// Where a subject is and where it looks, in degrees.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -17,10 +16,6 @@ pub struct Pose {
     pub position: DVec3,
     pub look: Look,
 }
-
-/// A moving subject sends its absolute position at least this often, in ticks, so a client that
-/// lost a relative move under the drop policy of its queue comes back to the right place.
-pub const KEYFRAME_INTERVAL_TICKS: u64 = 100;
 
 /// A point of a path: the position that the subject reaches `ticks` ticks after the point before.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -90,55 +85,35 @@ impl DeltaBase {
             position: end,
             look,
         };
-        let keyframe_due = tick.wrapping_sub(self.keyframe_tick) >= KEYFRAME_INTERVAL_TICKS;
+        let resync = if tick.wrapping_sub(self.keyframe_tick) >= KEYFRAME_INTERVAL_TICKS {
+            Resync::Due
+        } else {
+            Resync::NotDue
+        };
         let delta = match path {
-            Path::Linear(position) => position_delta(self.position, position).map(VecDelta::Linear),
+            Path::Linear(position) => {
+                position_delta::encode(self.position, position).map(VecDelta::Linear)
+            }
             Path::Stepped(waypoints) => stepped_delta(self.position, waypoints),
         };
-        let Some(delta) = delta.filter(|_| !keyframe_due) else {
-            return self.sync(id, &pose, tick, bytes);
-        };
         let mut next = Self::new(&pose, self.keyframe_tick);
-        let turned = (next.yaw, next.pitch) != (self.yaw, self.pitch);
-        let still = delta == VecDelta::Linear([0; 3]) || delta == VecDelta::Stepped(Vec::new());
-        if still && !turned {
+        let due = Due {
+            position: delta.as_ref().is_none_or(|delta| match delta {
+                VecDelta::Linear(delta) => *delta != [0; 3],
+                VecDelta::Stepped { steps, .. } => !steps.is_empty(),
+            }),
+            rotation: (next.yaw, next.pitch) != (self.yaw, self.pitch),
+        };
+        match MoveChoice::choose(resync, due, || delta) {
+            MoveChoice::Sync => return self.sync(id, &pose, tick, bytes),
             // Only the exact look changed, below what a client can see: keep the old one so that
             // a keyframe shows what the client has.
-            next.look = self.look;
+            MoveChoice::Still => next.look = self.look,
+            MoveChoice::Relative(relative) => all_or_nothing(bytes, |bytes| {
+                relative.write(id, next.yaw, next.pitch, true, bytes)?;
+                self.write_head(id, next.yaw, bytes)
+            })?,
         }
-        all_or_nothing(bytes, |bytes| {
-            match delta {
-                _ if still && !turned => {}
-                _ if still => write_record(
-                    bytes,
-                    &ClientboundMoveEntityRot {
-                        entity_id: id,
-                        y_rot: next.yaw,
-                        x_rot: next.pitch,
-                        on_ground: true,
-                    },
-                )?,
-                delta if turned => write_record(
-                    bytes,
-                    &ClientboundMoveEntityPosRot {
-                        entity_id: id,
-                        delta,
-                        y_rot: next.yaw,
-                        x_rot: next.pitch,
-                        on_ground: true,
-                    },
-                )?,
-                delta => write_record(
-                    bytes,
-                    &ClientboundMoveEntityPos {
-                        entity_id: id,
-                        delta,
-                        on_ground: true,
-                    },
-                )?,
-            }
-            self.write_head(id, next.yaw, bytes)
-        })?;
         *self = next;
         Ok(())
     }
@@ -206,7 +181,7 @@ impl DeltaBase {
 }
 
 /// Runs `write` on `bytes`, and takes back what it wrote when it fails.
-fn all_or_nothing(
+pub(crate) fn all_or_nothing(
     bytes: &mut BytesMut,
     write: impl FnOnce(&mut BytesMut) -> Result<()>,
 ) -> Result<()> {
@@ -226,7 +201,7 @@ fn stepped_delta(from: DVec3, waypoints: &[Waypoint]) -> Option<VecDelta> {
     let mut waited = 0u32;
     for waypoint in waypoints {
         waited = waited.saturating_add(waypoint.ticks);
-        let delta = position_delta(at, waypoint.position)?;
+        let delta = position_delta::encode(at, waypoint.position)?;
         if delta == [0; 3] {
             continue;
         }
@@ -237,22 +212,11 @@ fn stepped_delta(from: DVec3, waypoints: &[Waypoint]) -> Option<VecDelta> {
         at = waypoint.position;
         waited = 0;
     }
-    Some(VecDelta::Stepped(steps))
-}
-
-/// The delta from `from` to `to` in steps, or `None` when an axis moves more than a relative
-/// move holds. Both ends round to the step grid, as the client does, so the rounding of one
-/// delta never carries into the next.
-fn position_delta(from: DVec3, to: DVec3) -> Option<[i16; 3]> {
-    let step = |from: f64, to: f64| {
-        let steps = (to * STEPS_PER_BLOCK).round() - (from * STEPS_PER_BLOCK).round();
-        (steps >= f64::from(i16::MIN) && steps <= f64::from(i16::MAX)).then_some(steps as i16)
-    };
-    Some([
-        step(from.x, to.x)?,
-        step(from.y, to.y)?,
-        step(from.z, to.z)?,
-    ])
+    // The steps start at the end of the path that the viewers last received, so they extend it.
+    Some(VecDelta::Stepped {
+        steps,
+        start_immediately: false,
+    })
 }
 
 #[cfg(test)]
@@ -260,6 +224,9 @@ mod tests {
     use super::*;
     use crate::encode::record;
     use bytes::Bytes;
+    use mcrs_minecraft_protocol_game::clientbound::{
+        ClientboundMoveEntityPos, ClientboundMoveEntityRot,
+    };
 
     fn at(x: f64, yaw: f32) -> Pose {
         Pose {
@@ -370,16 +337,19 @@ mod tests {
 
         let expected = record(&ClientboundMoveEntityPos {
             entity_id: VarInt(3),
-            delta: VecDelta::Stepped(vec![
-                DeltaStep {
-                    ticks: VarInt(7),
-                    delta: [4096, 0, 0],
-                },
-                DeltaStep {
-                    ticks: VarInt(3),
-                    delta: [6144, 0, 0],
-                },
-            ]),
+            delta: VecDelta::Stepped {
+                steps: vec![
+                    DeltaStep {
+                        ticks: VarInt(7),
+                        delta: [4096, 0, 0],
+                    },
+                    DeltaStep {
+                        ticks: VarInt(3),
+                        delta: [6144, 0, 0],
+                    },
+                ],
+                start_immediately: false,
+            },
             on_ground: true,
         })?;
         assert_eq!(

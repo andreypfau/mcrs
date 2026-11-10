@@ -5,7 +5,7 @@ use bevy_ecs::message::Message;
 use mcrs_engine_muxer::TileDeltas;
 use mcrs_minecraft_dimension::{Dimension as DimensionKey, DimensionType};
 use mcrs_minecraft_engine_world::session::PlayerSession;
-use mcrs_minecraft_replication::PlayerData;
+use mcrs_minecraft_replication::ReplicationData;
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf};
 
 use crate::block_action_ack::BlockActionAck;
@@ -51,7 +51,7 @@ pub struct ClientOutput {
     pub attached: Vec<OutboundPlayerAttached>,
     /// The changes of the players of the tick, for the entity muxer. A player that departs in
     /// the tick despawns in them.
-    pub tiles: TileDeltas<PlayerData>,
+    pub tiles: TileDeltas<ReplicationData>,
     /// The orders of the tick for players of other dimensions, for the dimension that holds
     /// each player once every departure of the tick is routed.
     pub orders: Vec<OrderedPlayer>,

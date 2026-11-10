@@ -1,0 +1,634 @@
+{
+  "scene": "pig_lineup",
+  "version": "26.4-snapshot-7",
+  "packets": [
+    {
+      "updates_before": 1,
+      "packet": "minecraft:ticking_state",
+      "tick_rate": 20.0,
+      "frozen": true
+    },
+    {
+      "updates_before": 1,
+      "packet": "minecraft:set_entity_data",
+      "entity": 211,
+      "values": [
+        {
+          "index": 0,
+          "value": 32
+        }
+      ]
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:add_entity",
+      "entity": 212,
+      "uuid": "00000000-0000-0000-0000-000000000001",
+      "type": "minecraft:pig",
+      "position": [
+        -3.0,
+        -60.0,
+        0.5
+      ],
+      "velocity": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "yaw": 0.0,
+      "pitch": 0.0,
+      "head_yaw": 0.0,
+      "data": 0
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:set_entity_data",
+      "entity": 212,
+      "values": [
+        {
+          "index": 4,
+          "value": true
+        },
+        {
+          "index": 9,
+          "value": 10.0
+        },
+        {
+          "index": 15,
+          "value": 1
+        }
+      ]
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:add_entity",
+      "entity": 213,
+      "uuid": "00000000-0000-0000-0000-000000000002",
+      "type": "minecraft:pig",
+      "position": [
+        -1.5,
+        -60.0,
+        0.5
+      ],
+      "velocity": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "yaw": 0.0,
+      "pitch": 0.0,
+      "head_yaw": 0.0,
+      "data": 0
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:set_entity_data",
+      "entity": 213,
+      "values": [
+        {
+          "index": 4,
+          "value": true
+        },
+        {
+          "index": 9,
+          "value": 10.0
+        },
+        {
+          "index": 15,
+          "value": 1
+        },
+        {
+          "index": 19,
+          "value": "minecraft:cold"
+        }
+      ]
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:add_entity",
+      "entity": 214,
+      "uuid": "00000000-0000-0000-0000-000000000003",
+      "type": "minecraft:pig",
+      "position": [
+        0.0,
+        -60.0,
+        0.5
+      ],
+      "velocity": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "yaw": 0.0,
+      "pitch": 0.0,
+      "head_yaw": 0.0,
+      "data": 0
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:set_entity_data",
+      "entity": 214,
+      "values": [
+        {
+          "index": 4,
+          "value": true
+        },
+        {
+          "index": 9,
+          "value": 10.0
+        },
+        {
+          "index": 15,
+          "value": 1
+        },
+        {
+          "index": 19,
+          "value": "minecraft:warm"
+        }
+      ]
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:add_entity",
+      "entity": 215,
+      "uuid": "00000000-0000-0000-0000-000000000004",
+      "type": "minecraft:pig",
+      "position": [
+        1.5,
+        -60.0,
+        0.5
+      ],
+      "velocity": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "yaw": 0.0,
+      "pitch": 0.0,
+      "head_yaw": 0.0,
+      "data": 0
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:set_entity_data",
+      "entity": 215,
+      "values": [
+        {
+          "index": 4,
+          "value": true
+        },
+        {
+          "index": 9,
+          "value": 10.0
+        },
+        {
+          "index": 15,
+          "value": 1
+        },
+        {
+          "index": 16,
+          "value": true
+        }
+      ]
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:add_entity",
+      "entity": 216,
+      "uuid": "00000000-0000-0000-0000-000000000005",
+      "type": "minecraft:pig",
+      "position": [
+        3.0,
+        -60.0,
+        0.5
+      ],
+      "velocity": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "yaw": 0.0,
+      "pitch": 0.0,
+      "head_yaw": 0.0,
+      "data": 0
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:set_entity_data",
+      "entity": 216,
+      "values": [
+        {
+          "index": 4,
+          "value": true
+        },
+        {
+          "index": 9,
+          "value": 10.0
+        },
+        {
+          "index": 15,
+          "value": 1
+        }
+      ]
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:set_equipment",
+      "entity": 216,
+      "slots": [
+        {
+          "slot": "saddle",
+          "item": "minecraft:saddle",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:move_entity_pos",
+      "entity": 214,
+      "delta": {
+        "form": "single",
+        "units": [
+          0,
+          0,
+          0
+        ]
+      },
+      "path": {
+        "form": "single",
+        "position": [
+          0.0,
+          -60.0,
+          0.5
+        ]
+      },
+      "on_ground": false
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:set_entity_data",
+      "entity": 214,
+      "values": [
+        {
+          "index": 4,
+          "value": true
+        },
+        {
+          "index": 9,
+          "value": 10.0
+        },
+        {
+          "index": 15,
+          "value": 1
+        },
+        {
+          "index": 19,
+          "value": "minecraft:warm"
+        }
+      ]
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:move_entity_pos",
+      "entity": 216,
+      "delta": {
+        "form": "single",
+        "units": [
+          0,
+          0,
+          0
+        ]
+      },
+      "path": {
+        "form": "single",
+        "position": [
+          3.0,
+          -60.0,
+          0.5
+        ]
+      },
+      "on_ground": false
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:set_entity_data",
+      "entity": 216,
+      "values": [
+        {
+          "index": 4,
+          "value": true
+        },
+        {
+          "index": 9,
+          "value": 10.0
+        },
+        {
+          "index": 15,
+          "value": 1
+        }
+      ]
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:move_entity_pos",
+      "entity": 215,
+      "delta": {
+        "form": "single",
+        "units": [
+          0,
+          0,
+          0
+        ]
+      },
+      "path": {
+        "form": "single",
+        "position": [
+          1.5,
+          -60.0,
+          0.5
+        ]
+      },
+      "on_ground": false
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:set_entity_data",
+      "entity": 215,
+      "values": [
+        {
+          "index": 4,
+          "value": true
+        },
+        {
+          "index": 9,
+          "value": 10.0
+        },
+        {
+          "index": 15,
+          "value": 1
+        },
+        {
+          "index": 16,
+          "value": true
+        }
+      ]
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:move_entity_pos",
+      "entity": 213,
+      "delta": {
+        "form": "single",
+        "units": [
+          0,
+          0,
+          0
+        ]
+      },
+      "path": {
+        "form": "single",
+        "position": [
+          -1.5,
+          -60.0,
+          0.5
+        ]
+      },
+      "on_ground": false
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:set_entity_data",
+      "entity": 213,
+      "values": [
+        {
+          "index": 4,
+          "value": true
+        },
+        {
+          "index": 9,
+          "value": 10.0
+        },
+        {
+          "index": 15,
+          "value": 1
+        },
+        {
+          "index": 19,
+          "value": "minecraft:cold"
+        }
+      ]
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:move_entity_pos",
+      "entity": 212,
+      "delta": {
+        "form": "single",
+        "units": [
+          0,
+          0,
+          0
+        ]
+      },
+      "path": {
+        "form": "single",
+        "position": [
+          -3.0,
+          -60.0,
+          0.5
+        ]
+      },
+      "on_ground": false
+    },
+    {
+      "updates_before": 11,
+      "packet": "minecraft:set_entity_data",
+      "entity": 212,
+      "values": [
+        {
+          "index": 4,
+          "value": true
+        },
+        {
+          "index": 9,
+          "value": 10.0
+        },
+        {
+          "index": 15,
+          "value": 1
+        }
+      ]
+    },
+    {
+      "updates_before": 71,
+      "packet": "minecraft:move_entity_pos",
+      "entity": 214,
+      "delta": {
+        "form": "stepped",
+        "steps": [
+          {
+            "units": [
+              0,
+              0,
+              0
+            ],
+            "ticks": 3
+          }
+        ],
+        "start_immediately": false
+      },
+      "path": {
+        "form": "stepped",
+        "steps": [
+          {
+            "position": [
+              0.0,
+              -60.0,
+              0.5
+            ],
+            "ticks": 3
+          }
+        ],
+        "start_immediately": false
+      },
+      "on_ground": false
+    },
+    {
+      "updates_before": 71,
+      "packet": "minecraft:move_entity_pos",
+      "entity": 216,
+      "delta": {
+        "form": "stepped",
+        "steps": [
+          {
+            "units": [
+              0,
+              0,
+              0
+            ],
+            "ticks": 3
+          }
+        ],
+        "start_immediately": false
+      },
+      "path": {
+        "form": "stepped",
+        "steps": [
+          {
+            "position": [
+              3.0,
+              -60.0,
+              0.5
+            ],
+            "ticks": 3
+          }
+        ],
+        "start_immediately": false
+      },
+      "on_ground": false
+    },
+    {
+      "updates_before": 71,
+      "packet": "minecraft:move_entity_pos",
+      "entity": 215,
+      "delta": {
+        "form": "stepped",
+        "steps": [
+          {
+            "units": [
+              0,
+              0,
+              0
+            ],
+            "ticks": 3
+          }
+        ],
+        "start_immediately": false
+      },
+      "path": {
+        "form": "stepped",
+        "steps": [
+          {
+            "position": [
+              1.5,
+              -60.0,
+              0.5
+            ],
+            "ticks": 3
+          }
+        ],
+        "start_immediately": false
+      },
+      "on_ground": false
+    },
+    {
+      "updates_before": 71,
+      "packet": "minecraft:move_entity_pos",
+      "entity": 213,
+      "delta": {
+        "form": "stepped",
+        "steps": [
+          {
+            "units": [
+              0,
+              0,
+              0
+            ],
+            "ticks": 3
+          }
+        ],
+        "start_immediately": false
+      },
+      "path": {
+        "form": "stepped",
+        "steps": [
+          {
+            "position": [
+              -1.5,
+              -60.0,
+              0.5
+            ],
+            "ticks": 3
+          }
+        ],
+        "start_immediately": false
+      },
+      "on_ground": false
+    },
+    {
+      "updates_before": 71,
+      "packet": "minecraft:move_entity_pos",
+      "entity": 212,
+      "delta": {
+        "form": "stepped",
+        "steps": [
+          {
+            "units": [
+              0,
+              0,
+              0
+            ],
+            "ticks": 3
+          }
+        ],
+        "start_immediately": false
+      },
+      "path": {
+        "form": "stepped",
+        "steps": [
+          {
+            "position": [
+              -3.0,
+              -60.0,
+              0.5
+            ],
+            "ticks": 3
+          }
+        ],
+        "start_immediately": false
+      },
+      "on_ground": false
+    }
+  ]
+}

@@ -16,7 +16,7 @@ fn main() {
     let threads: usize = arguments.next().unwrap().parse().unwrap();
     let ticks: u32 = arguments.next().unwrap().parse().unwrap();
     let pool = TaskPoolBuilder::new().num_threads(threads).build();
-    let mut scene = TestScene::new(16, 50_000, 50_000, 11);
+    let mut scene = TestScene::<()>::new(16, 50_000, 50_000, 11);
     let tiles_per_task = (32 * 32_usize).div_ceil(threads * 4);
     let mut writes = EntityWrites::default();
     for _ in 0..ticks {
@@ -24,8 +24,8 @@ fn main() {
     }
     let resting = scene
         .rows
-        .tiles_mut()
-        .flat_map(|(_, rows)| rows.rows_mut())
+        .tiles()
+        .flat_map(|(_, rows)| rows.rows())
         .filter(|row| matches!(row.state.rest, Rest::Resting(_)))
         .count();
     println!("{resting} resting rows");

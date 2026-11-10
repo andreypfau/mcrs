@@ -1,0 +1,29 @@
+[package]
+name = "mcrs_minecraft_entity_rows"
+description = "The rows of the server entities by tile, with a column for the hot state of the mobs: the body grid, the merge point, the rest and wake of tiles and the entity pass over the physics kernel"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+# std: the rows and the grid live in Vec, BTreeMap and hash maps
+[dependencies]
+bevy_ecs = { workspace = true, optional = true }
+bevy_tasks = { workspace = true, optional = true }
+glam.workspace = true
+mcrs_minecraft_entity_key.workspace = true
+mcrs_minecraft_physics.workspace = true
+mcrs_voxel.workspace = true
+rustc-hash.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_physics = { workspace = true, features = ["testing"] }
+
+[features]
+default = []
+# The row store as a Bevy resource, and the compute pool of Bevy as the executor of the pass.
+bevy = ["dep:bevy_ecs", "dep:bevy_tasks"]

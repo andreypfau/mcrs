@@ -21,6 +21,7 @@ use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item::ItemHoverMap;
+use mcrs_minecraft_lang::Language;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, VarInt};
 use mcrs_minecraft_protocol_game::serverbound::{
@@ -33,8 +34,8 @@ use mcrs_minecraft_block_entity::GeneratedBlockEntity;
 use mcrs_minecraft_command_tree::{CommandNode, NumberRange, ParserProperties};
 use mcrs_minecraft_engine::coordinator::clock::{GameTime, WorldClockHostPlugin};
 use mcrs_minecraft_engine_world::world::storage::block_entity::BlockEntity;
-use mcrs_minecraft_environment::world_clock::{AdvanceTime, WorldClockPlugin};
-use mcrs_minecraft_environment::world_clock::{ClockState, WorldClock, WorldClocks};
+use mcrs_minecraft_environment::{AdvanceTime, WorldClockPlugin};
+use mcrs_minecraft_environment::{ClockTime, WorldClock, WorldClocks};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::{Decode, Packet, VarLong};
 use mcrs_minecraft_protocol_game::clientbound::{
@@ -147,7 +148,7 @@ fn transform_in(server: &mut PlayServer, dim: Entity, anchor: Entity) -> Transfo
 }
 
 /// Loads the column at chunk `0 0` with stone from the bottom up to y 63 and air above.
-fn load_stone_column(server: &mut PlayServer) {
+pub(crate) fn load_stone_column(server: &mut PlayServer) {
     use mcrs_minecraft_engine_world::palette::{ChunkBlocks, SectionStates};
     use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeConfig};
     use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
@@ -266,7 +267,7 @@ fn root_literals(packets: &[PacketPayload]) -> Vec<String> {
         .collect()
 }
 
-fn chats(packets: &[PacketPayload]) -> Vec<Text> {
+pub(crate) fn chats(packets: &[PacketPayload]) -> Vec<Text> {
     packets
         .iter()
         .filter_map(|packet| match packet {
@@ -296,7 +297,10 @@ fn replies(packets: &[PacketPayload]) -> Vec<(i32, Vec<String>)> {
 }
 
 fn plain(messages: &[Text]) -> Vec<String> {
-    messages.iter().map(Text::to_legacy_lossy).collect()
+    messages
+        .iter()
+        .map(|message| mcrs_minecraft_text_flatten::plain_text(&Language::default(), message))
+        .collect()
 }
 
 #[test]
@@ -308,7 +312,8 @@ fn an_operator_sees_completes_and_runs_a_plugin_command_that_a_guest_cannot() {
     assert_eq!(
         literals,
         [
-            "echo", "execute", "gamemode", "locate", "shout", "teleport", "time", "tp"
+            "damage", "data", "echo", "execute", "gamemode", "kill", "locate", "shout", "summon",
+            "teleport", "time", "tp"
         ]
     );
     let (guest, packets) = server.join(GUEST, "Guest");
@@ -1095,7 +1100,7 @@ fn clock_id(server: &PlayServer, clock: &str) -> Id<WorldClock> {
         .unwrap()
 }
 
-fn clock(server: &PlayServer, clock: &str) -> ClockState {
+fn clock(server: &PlayServer, clock: &str) -> ClockTime {
     *server
         .app
         .world()

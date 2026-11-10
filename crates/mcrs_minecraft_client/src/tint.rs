@@ -14,7 +14,7 @@ use mcrs_minecraft_biome::GrassColorModifier;
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_core::codec::HexRgb;
 use mcrs_minecraft_model::colormap::{load_colormap, sample_colormap};
-use mcrs_minecraft_model::model::Pack;
+use mcrs_minecraft_model::resource_set::ResourceSet;
 use mcrs_minecraft_registries::Registries;
 
 use mcrs_minecraft_mesh::tint::BIOME_TINTS;
@@ -84,7 +84,10 @@ impl std::ops::Deref for BiomeTints {
     }
 }
 
-pub fn derive_tints(pack: &Pack, registries: &Registries) -> Option<(BiomeTints, Vec<String>)> {
+pub fn derive_tints(
+    pack: &ResourceSet,
+    registries: &Registries,
+) -> Option<(BiomeTints, Vec<String>)> {
     let registry = registries.registry::<BiomeFile>()?;
     let mut failures = Vec::new();
     let grass_map = noted(load_colormap(pack, "grass"), &mut failures);
@@ -134,8 +137,10 @@ pub fn derive_tints(pack: &Pack, registries: &Registries) -> Option<(BiomeTints,
     Some((BiomeTints(tints), failures))
 }
 
-fn noted<T>(result: Result<T, String>, failures: &mut Vec<String>) -> Option<T> {
-    result.map_err(|reason| failures.push(reason)).ok()
+fn noted<T, E: ToString>(result: Result<T, E>, failures: &mut Vec<String>) -> Option<T> {
+    result
+        .map_err(|reason| failures.push(reason.to_string()))
+        .ok()
 }
 
 pub fn tint_column(
@@ -209,8 +214,8 @@ mod tests {
 
     fn tints_of(biome: &str) -> BiomeTint {
         static TINTS: LazyLock<BiomeTints> = LazyLock::new(|| {
-            let (tints, failures) =
-                derive_tints(Pack::corpus(), test_registries()).expect("the corpus holds biomes");
+            let (tints, failures) = derive_tints(ResourceSet::corpus(), test_registries())
+                .expect("the corpus holds biomes");
             assert!(failures.is_empty(), "{failures:?}");
             tints
         });
@@ -284,7 +289,9 @@ mod tests {
 
     fn dark_forest_grass_is_its_colormap_colour_pulled_toward_a_dark_green() {
         let base = sample_colormap(
-            load_colormap(Pack::corpus(), "grass").ok().as_deref(),
+            load_colormap(ResourceSet::corpus(), "grass")
+                .ok()
+                .as_deref(),
             0.7,
             0.8,
         );

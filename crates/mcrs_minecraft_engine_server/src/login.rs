@@ -16,6 +16,8 @@ use mcrs_minecraft_protocol::packets::login::serverbound::{
 use mcrs_minecraft_protocol::{CompressionThreshold, uuid};
 use mcrs_minecraft_text::Text;
 
+use crate::loopback_ops::{LoopbackOps, grant_loopback_ops};
+
 use mcrs_minecraft_engine::banlist::{BanEntry, BanList, EnforceBans};
 use mcrs_minecraft_engine::coordinator::ops::OpList;
 use mcrs_minecraft_engine::game_profile::GameProfile;
@@ -50,6 +52,7 @@ impl bevy_app::Plugin for LoginPlugin {
         app.init_resource::<Whitelist>();
         app.init_resource::<BanList>();
         app.init_resource::<OpList>();
+        app.init_resource::<LoopbackOps>();
         app.init_resource::<NetworkCompressionThreshold>();
         app.add_systems(
             bevy_app::First,
@@ -59,6 +62,7 @@ impl bevy_app::Plugin for LoginPlugin {
         app.add_observer(handle_hello_packet);
         app.add_observer(handle_login_acknowledged);
         app.add_observer(on_login_accepted);
+        app.add_observer(grant_loopback_ops);
         // A login ended as slow must be closed before a release in the same tick could finish it.
         app.add_systems(
             bevy_app::Update,

@@ -1,4 +1,4 @@
-use mcrs_minecraft_core::mth;
+use mcrs_minecraft_numeric as numeric;
 
 /// The bounds a value can take. Only ever widened: a bound narrower than the
 /// truth would let the optimiser delete a reachable branch.
@@ -200,7 +200,7 @@ impl Interval {
         if self.is_nai() {
             Self::NAI
         } else if self.min == self.max {
-            Self::exact(mth::signum(self.min))
+            Self::exact(numeric::sign_f32(self.min))
         } else if !self.contains(0.0) {
             Self::exact(if self.min > 0.0 { 1.0 } else { -1.0 })
         } else if self.min == 0.0 {
@@ -216,7 +216,8 @@ impl Interval {
         if self.max < 0.0 {
             return Self::NAI;
         }
-        self.pointwise_max(Self::exact(0.0)).map_monotonic(mth::log)
+        self.pointwise_max(Self::exact(0.0))
+            .map_monotonic(numeric::ln_f32)
     }
 
     pub fn map_monotonic(self, op: impl Fn(f32) -> f32) -> Self {

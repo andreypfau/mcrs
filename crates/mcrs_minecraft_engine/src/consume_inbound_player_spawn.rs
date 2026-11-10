@@ -8,7 +8,6 @@ use crate::coordinator::default_game_mode::DefaultGameMode;
 use crate::coordinator::ops::{DefaultOpLevel, OpList};
 use crate::dimension_change::Arrival;
 use crate::enter_level_packets::enter_level_packets;
-use crate::entity_birth::EntityBirth;
 use crate::game_mode::{self, ListedGameMode};
 use crate::game_profile::GameProfile;
 use crate::minecraft_entity::EntityBundle;
@@ -95,9 +94,7 @@ pub(crate) fn consume_inbound_player_spawn(
             op_level,
             default_game_mode.0,
         );
-        commands
-            .entity(new_entity)
-            .insert((teleport_state, EntityBirth(spawn.birth)));
+        commands.entity(new_entity).insert(teleport_state);
         if let Some(info) = &spawn.snapshot.client_info {
             commands.entity(new_entity).insert(info.clone());
         }

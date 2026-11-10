@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_replication"
-description = "The Minecraft side of entity replication: the muxer codec for players, delta bases for moves, spawn bundles, profile entries and the player list policy, as encoded packets"
+description = "The Minecraft side of entity replication: the muxer codec for players and mobs, mob trackers, delta bases for moves, spawn bundles, profile entries and the player list policy, as encoded packets"
 version.workspace = true
 edition.workspace = true
 
@@ -21,5 +21,6 @@ mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_wire.workspace = true
 bytes.workspace = true
 glam.workspace = true
+rustc-hash.workspace = true
 tracing.workspace = true
 uuid.workspace = true

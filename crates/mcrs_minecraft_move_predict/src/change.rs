@@ -37,8 +37,8 @@ impl Change {
     /// Applies the change to the state of one candidate. A block changes the world view instead.
     pub(crate) fn apply(&self, state: &mut PlayerState) {
         match *self {
-            Change::Motion(velocity) => state.velocity = velocity,
-            Change::Impulse(impulse) => state.velocity += impulse,
+            Change::Motion(velocity) => state.body.velocity = velocity,
+            Change::Impulse(impulse) => state.body.velocity += impulse,
             Change::Abilities {
                 may_fly,
                 flying,

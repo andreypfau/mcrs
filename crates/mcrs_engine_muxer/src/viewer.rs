@@ -2,14 +2,15 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use bytes::Bytes;
 
-use crate::entity_id::EntityId;
 use crate::planner::{Measured, Point};
 use crate::subscription::Subscription;
 use crate::tier::Tier;
 use crate::tile_blob::TileBlob;
-use crate::tile_key::TileKey;
+use crate::tile_reach::TileReach;
 use crate::tile_stream::TileStream;
 use crate::view::View;
+use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_entity_key::TileKey;
 
 /// What the muxer keeps of one viewer.
 #[derive(Debug)]
@@ -26,6 +27,10 @@ pub(crate) struct Viewer {
     pub(crate) measured: Measured,
     /// The position of the last plan, when that plan changed nothing.
     pub(crate) settled_at: Option<Point>,
+    /// The tiles where the viewer can hold ranged subjects, with their reach from `tracked_at`.
+    pub(crate) region: BTreeMap<TileKey, TileReach>,
+    /// The position that `region` was measured from.
+    pub(crate) tracked_at: Option<Point>,
 }
 
 impl Viewer {
@@ -39,6 +44,8 @@ impl Viewer {
             average_sixteenths: 0,
             measured: Measured::default(),
             settled_at: None,
+            region: BTreeMap::new(),
+            tracked_at: None,
         }
     }
 

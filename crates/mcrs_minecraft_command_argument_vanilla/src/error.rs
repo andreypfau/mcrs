@@ -1,11 +1,12 @@
 use core::fmt;
 use mcrs_command::SyntaxError;
-use mcrs_minecraft_command::{ErrorText, ResourceError};
+use mcrs_minecraft_command::{ErrorText, ResourceError, snbt_text};
 use mcrs_minecraft_command_argument::CoordinatesError;
 use mcrs_minecraft_command_argument::KeywordError;
 use mcrs_minecraft_command_argument::TimeError;
 use mcrs_minecraft_command_argument_block::BlockError;
 use mcrs_minecraft_command_argument_entity::EntityError;
+use mcrs_minecraft_snbt::SnbtError;
 use mcrs_minecraft_text::Text;
 
 /// The syntax errors of the vanilla argument types. An error of an identifier or of a resource
@@ -25,6 +26,8 @@ pub enum ArgumentError {
     Block(BlockError),
     /// An error of a tick count.
     Time(TimeError),
+    /// An error of an SNBT compound.
+    Nbt(SnbtError),
 }
 
 impl fmt::Display for ArgumentError {
@@ -36,6 +39,7 @@ impl fmt::Display for ArgumentError {
             ArgumentError::Entity(error) => fmt::Display::fmt(error, f),
             ArgumentError::Block(error) => fmt::Display::fmt(error, f),
             ArgumentError::Time(error) => fmt::Display::fmt(error, f),
+            ArgumentError::Nbt(error) => fmt::Display::fmt(error, f),
         }
     }
 }
@@ -88,6 +92,12 @@ impl From<BlockError> for ArgumentError {
     }
 }
 
+impl From<SnbtError> for ArgumentError {
+    fn from(error: SnbtError) -> Self {
+        ArgumentError::Nbt(error)
+    }
+}
+
 impl From<TimeError> for ArgumentError {
     fn from(error: TimeError) -> Self {
         ArgumentError::Time(error)
@@ -103,6 +113,7 @@ impl ErrorText for ArgumentError {
             ArgumentError::Entity(error) => error.text(input),
             ArgumentError::Block(error) => error.text(input),
             ArgumentError::Time(error) => error.text(input),
+            ArgumentError::Nbt(error) => snbt_text(input, *error),
         }
     }
 }

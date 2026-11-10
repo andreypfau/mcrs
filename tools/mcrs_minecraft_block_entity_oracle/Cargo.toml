@@ -1,0 +1,18 @@
+[package]
+name = "mcrs_minecraft_block_entity_oracle"
+description = "The oracle artefacts and the shape table of the static block entities, for the parity test and the asset generator"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+glam.workspace = true
+mcrs_minecraft_block.workspace = true
+serde.workspace = true
+serde_json.workspace = true

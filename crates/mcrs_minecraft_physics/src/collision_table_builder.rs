@@ -11,6 +11,7 @@ use crate::CollisionTable;
 use crate::InsideBoxes;
 use crate::InsideEffect;
 use crate::InsideShape;
+use crate::PathType;
 use crate::Shape;
 use crate::ShapeClass;
 use crate::ShapeId;
@@ -27,6 +28,7 @@ pub struct StateSpec<'a> {
     pub inside: InsideEffect,
     pub inside_shape: InsideBoxes<'a>,
     pub motion: BlockMotion,
+    pub path: PathType,
 }
 
 /// A shape that depends on the entity.
@@ -112,6 +114,7 @@ impl CollisionTableBuilder {
             inside: spec.inside,
             inside_shape,
             motion: spec.motion,
+            path: spec.path,
         });
         BlockStateId::checked(number, self.table.states.len())
     }

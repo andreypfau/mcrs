@@ -6,6 +6,7 @@ mod arenas;
 mod binds;
 mod draws;
 mod frame;
+mod frame_view;
 mod gbuffer;
 mod hiz;
 mod layer;
@@ -13,6 +14,7 @@ mod pass;
 mod pipeline;
 mod reconstruct;
 mod shaders;
+mod shared_wgsl;
 mod show;
 pub mod sky;
 mod sprites;
@@ -39,10 +41,13 @@ use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 
 use mcrs_minecraft_mesh::STREAMS;
 
-pub use frame::{CameraOrigin, clip_from_relative};
+pub use frame::{CameraOrigin, TerrainShade, clip_from_relative};
+pub use frame_view::{FrameView, SIDE_PLANES};
+pub use gbuffer::{DeferredFrame, GBUFFER_FORMATS};
 pub use layer::{LayerGroup, Shape};
 pub use pass::draw_layer_group;
 pub use pipeline::{TERRAIN_PIPELINES, stream_slot, terrain_slot};
+pub use shared_wgsl::{gbuffer_encode_wgsl, visibility_wgsl};
 pub use show::{DepthDisplay, DepthSource};
 pub use stats::{DrawArgs, FrameCounts, VERTICES_PER_QUAD, args_reset};
 pub use terrain::Terrain;
@@ -199,6 +204,8 @@ fn embed_shaders(app: &mut App) {
     load_shader_library!(app, "shaders/include/terrain_bindings.wgsl");
     load_shader_library!(app, "shaders/include/surface.wgsl");
     load_shader_library!(app, "shaders/include/finish.wgsl");
+    load_shader_library!(app, "shaders/include/gbuffer_encode.wgsl");
+    load_shader_library!(app, "shaders/include/visibility.wgsl");
     load_shader_library!(app, "shaders/include/deferred.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/include/untinted.wgsl");
     bevy::asset::embedded_asset!(app, "shaders/core/greedy.wgsl");
@@ -219,6 +226,8 @@ pub enum WorldPass {
     Opaque,
     Occlusion,
     OpaqueSecond,
+    /// The entity passes: after the depth pyramid of the full frame, before the lighting.
+    Entities,
     Lighting,
     Forward,
 }
@@ -231,6 +240,7 @@ impl WorldPass {
             Self::Opaque,
             Self::Occlusion,
             Self::OpaqueSecond,
+            Self::Entities,
             Self::Lighting,
             Self::Forward,
         )
@@ -256,6 +266,8 @@ impl Plugin for TerrainPlugin {
             .init_resource::<DrawMask>()
             .init_resource::<DebugViews>()
             .init_resource::<SelectedView>()
+            .init_resource::<TerrainShade>()
+            .add_plugins(ExtractResourcePlugin::<TerrainShade>::default())
             .add_plugins(ExtractResourcePlugin::<SelectedView>::default())
             .add_plugins(ExtractResourcePlugin::<Occlusion>::default())
             .add_plugins(ExtractResourcePlugin::<QuadCull>::default())
@@ -284,7 +296,9 @@ impl Plugin for TerrainPlugin {
                     pass::drop_unused_bins.in_set(RenderSystems::Prepare),
                     terrain::write_lightmap.in_set(RenderSystems::Prepare),
                     sprites::write_animation_frames.in_set(RenderSystems::Prepare),
-                    frame::write_camera.in_set(RenderSystems::Prepare),
+                    (frame::write_frame_view, frame::write_camera)
+                        .chain()
+                        .in_set(RenderSystems::Prepare),
                     pipeline::prepare_deferred_pipelines.in_set(RenderSystems::Prepare),
                     (
                         gbuffer::fit_deferred_frame,

@@ -5,7 +5,7 @@ use crate::proto::{
 };
 use glam::IVec3;
 use mcrs_minecraft_chunk::VoxelId;
-use mcrs_minecraft_core::mth::map;
+use mcrs_minecraft_numeric::remap;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_value_provider::HeightContext;
@@ -139,7 +139,7 @@ impl<'a> MaterialOracle<'a> {
                 let secondary = if *secondary_depth_range == 0 {
                     0
                 } else {
-                    map(
+                    remap(
                         eval.surface_secondary(),
                         -1.0,
                         1.0,
@@ -216,7 +216,7 @@ impl<'a> MaterialOracle<'a> {
                     false
                 } else {
                     let probability =
-                        map(f64::from(y), f64::from(below), f64::from(above), 1.0, 0.0);
+                        remap(f64::from(y), f64::from(below), f64::from(above), 1.0, 0.0);
                     let id = eval
                         .program
                         .random_id(random_name)

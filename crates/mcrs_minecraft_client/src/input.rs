@@ -1,7 +1,7 @@
 use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
-use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
+use mcrs_minecraft_engine_world::entity::physics::{OldTransform, Transform as PhysicsTransform};
 
 use mcrs_minecraft_client_world::attack_input::AttackInput;
 use mcrs_minecraft_client_world::local_player::{FlyingSpeed, LocalPlayerTick};
@@ -128,13 +128,17 @@ fn screen_is_none(screen: Option<Res<Screen>>) -> bool {
 pub(crate) fn apply_mouse_look(
     motion: Res<AccumulatedMouseMotion>,
     window: Single<&CursorOptions, With<PrimaryWindow>>,
-    mut transform: Single<&mut PhysicsTransform, With<Player>>,
+    player: Single<(&mut PhysicsTransform, &mut OldTransform), With<Player>>,
 ) {
     if window.grab_mode == CursorGrabMode::None || motion.delta == Vec2::ZERO {
         return;
     }
-    transform.rotation = transform.rotation.turn(
-        motion.delta.x * LOOK_SENSITIVITY,
-        motion.delta.y * LOOK_SENSITIVITY,
-    );
+    let (mut transform, mut previous) = player.into_inner();
+    let before = transform.rotation;
+    let yaw = motion.delta.x * LOOK_SENSITIVITY;
+    transform.rotation = before.turn(yaw, motion.delta.y * LOOK_SENSITIVITY);
+    // The previous look turns with the current one, so the frame shows the turn at once and
+    // only a turn that a tick makes is interpolated.
+    let pitch = transform.rotation.pitch() - before.pitch();
+    previous.0.rotation = previous.rotation.turn(yaw, pitch);
 }

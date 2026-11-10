@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::BoundingBox;
-use mcrs_minecraft_core::mth::{fast_inv_sqrt, floor_div};
 use mcrs_minecraft_noise::SampleGrid;
+use mcrs_minecraft_numeric::{floor_div, inverse_sqrt_estimate};
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_minecraft_worldgen_density::proto::{DensityFunctionHolder, ProtoDensityFunction};
 use mcrs_minecraft_worldgen_feature::template::Projection;
@@ -241,7 +241,7 @@ fn beard_contribution(
     let dy_offset = y_to_ground as f32 + 0.5;
     let (dx, dz) = (dx as f32, dz as f32);
     let distance_sq = dx * dx + dy_offset * dy_offset + dz * dz;
-    let value = -dy_offset * fast_inv_sqrt((distance_sq / 2.0) as f64) as f32 / 2.0;
+    let value = -dy_offset * inverse_sqrt_estimate((distance_sq / 2.0) as f64) as f32 / 2.0;
     kernel
         .get(kernel_index(xi, yi, zi))
         .map_or(0.0, |weight| value * weight)

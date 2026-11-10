@@ -5,6 +5,7 @@ use mcrs_minecraft_engine_world::session::{PlayerSessionCounter, SessionAnchors}
 use mcrs_minecraft_network::metrics::{BridgeTelemetry, PacketDispatcher};
 
 use crate::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPacket};
+use crate::muxer::backlog;
 use crate::muxer::bridge;
 use crate::muxer::dim_inputs::DimInputsPlugin;
 use crate::muxer::disconnect::DisconnectProtocolPlugin;
@@ -41,7 +42,12 @@ impl Plugin for MuxerPlugin {
         app.add_schedule(flush);
         app.add_systems(
             bridge::OutboundFlush,
-            (bridge::bridge_outbound, bridge::dispatch_encode).chain(),
+            (
+                bridge::bridge_outbound,
+                bridge::dispatch_encode,
+                backlog::forward_backlog,
+            )
+                .chain(),
         );
         app.add_systems(
             FixedPostUpdate,

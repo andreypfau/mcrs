@@ -7,7 +7,6 @@ use std::path::{Path, PathBuf};
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_physics::Birth;
 use mcrs_minecraft_protocol_game::item::{ItemStackValue, ItemStackWithSlot};
 use mcrs_minecraft_registries::Named;
 use serde::de::{Error as _, MapAccess, Visitor};
@@ -15,7 +14,6 @@ use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
-use crate::birth::{BIRTH, SavedBirth};
 use crate::level::{SaveError, check_data_version};
 
 /// The keys mcrs models, typed; every other root key rides along in `rest`
@@ -30,8 +28,6 @@ pub struct PlayerDat {
     pub inventory: Vec<ItemStackWithSlot<Named>>,
     pub selected_item_slot: i32,
     pub equipment: BTreeMap<String, ItemStackValue<Named>>,
-    /// `None` in a file that mcrs did not write.
-    pub birth: Option<Birth>,
     pub rest: NbtCompound,
 }
 
@@ -45,7 +41,6 @@ impl Default for PlayerDat {
             inventory: Vec::new(),
             selected_item_slot: 0,
             equipment: BTreeMap::new(),
-            birth: None,
             rest: NbtCompound::new(),
         }
     }
@@ -58,6 +53,9 @@ const DIMENSION: &str = "Dimension";
 const INVENTORY: &str = "Inventory";
 const SELECTED_ITEM_SLOT: &str = "SelectedItemSlot";
 const EQUIPMENT: &str = "equipment";
+/// The birth key that older mcrs saves kept. The UUID of the player is its order key now, so a
+/// read drops the key and a write does not carry it forward.
+const LEGACY_BIRTH: &str = "mcrs:birth";
 
 impl Serialize for PlayerDat {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
@@ -70,9 +68,6 @@ impl Serialize for PlayerDat {
         map.serialize_entry(SELECTED_ITEM_SLOT, &self.selected_item_slot)?;
         if !self.equipment.is_empty() {
             map.serialize_entry(EQUIPMENT, &self.equipment)?;
-        }
-        if let Some(birth) = &self.birth {
-            map.serialize_entry(BIRTH, &SavedBirth::from(birth))?;
         }
         for (key, tag) in self.rest.child_tags.iter() {
             map.serialize_entry(key, tag)?;
@@ -106,9 +101,8 @@ impl<'de> Deserialize<'de> for PlayerDat {
                         INVENTORY => dat.inventory = map.next_value()?,
                         SELECTED_ITEM_SLOT => dat.selected_item_slot = map.next_value()?,
                         EQUIPMENT => dat.equipment = map.next_value()?,
-                        BIRTH => {
-                            let saved: SavedBirth = map.next_value()?;
-                            dat.birth = Some(saved.to_birth()?);
+                        LEGACY_BIRTH => {
+                            let _: NbtTag = map.next_value()?;
                         }
                         _ => {
                             let tag: NbtTag = map.next_value()?;

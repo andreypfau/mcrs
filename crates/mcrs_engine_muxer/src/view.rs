@@ -1,6 +1,6 @@
-use crate::entity_id::EntityId;
-use crate::tile_key::TileKey;
 use crate::tile_radius::TileRadius;
+use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_entity_key::TileKey;
 
 /// What a viewer subscribes to: the tiles within `radius` of `center`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

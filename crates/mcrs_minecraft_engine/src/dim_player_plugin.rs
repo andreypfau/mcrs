@@ -4,19 +4,20 @@ use crate::client_info::ClientInfoPlugin;
 use crate::column_streams::ColumnStreamPlugin;
 use crate::consume_inbound_player_spawn::consume_inbound_player_spawn;
 use crate::coordinator::default_game_mode::DefaultGameMode;
+use crate::coordinator::ops::OpList;
 use crate::departure::PlayerTransfer;
 use crate::despawn_inbound_player::despawn_inbound_player;
 use crate::dim_tick::DimInboxDrain;
 use crate::dim_tick::drain_dim_inbox;
 use crate::game_mode::{self, GameModePlugin};
 use crate::movement::MovementPlugin;
-use crate::op_level::send_op_level;
+use crate::op_level::{refresh_op_levels, send_op_level};
 use crate::persistence;
 use crate::player_dimension_change::receive_transfers;
 use crate::player_order::{OrderedPlayer, obey_orders};
 use bevy_app::{App, FixedPreUpdate, FixedUpdate, Plugin, Update};
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_ecs::schedule::common_conditions::on_message;
+use bevy_ecs::schedule::common_conditions::{on_message, resource_exists_and_changed};
 use mcrs_minecraft_engine_world::aoi::every_n_ticks;
 use mcrs_minecraft_engine_world::entity::add_entity_to_chunk;
 use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
@@ -65,7 +66,11 @@ impl Plugin for DimPlayerPlugin {
             Update,
             (
                 (
-                    (consume_inbound_player_spawn, send_op_level)
+                    (
+                        consume_inbound_player_spawn,
+                        refresh_op_levels.run_if(resource_exists_and_changed::<OpList>),
+                        send_op_level,
+                    )
                         .chain()
                         .in_set(AnnounceOpLevel),
                     game_mode::send_game_mode.after(AnswerOpLevel),

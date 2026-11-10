@@ -5,6 +5,7 @@ use mcrs_minecraft_engine::muxer::muxer_placement::MuxerPlacement;
 use mcrs_minecraft_engine_world::server_loop::VoxelServerPlugin;
 use mcrs_minecraft_engine_world::world_cells::WorldCells;
 use mcrs_minecraft_registries::RegistryAdditions;
+use std::num::NonZeroUsize;
 
 use crate::data_pack::DataPack;
 use crate::runner::DEFAULT_TPS;
@@ -36,6 +37,8 @@ pub struct ServerCorePlugin {
     /// [`Placement::Inline`] on the server thread, [`Placement::Thread`] on a thread of its own,
     /// the default.
     pub muxer: Placement,
+    /// The thread count of the compute pool; `None` keeps the default that `worlds` implies.
+    pub compute_threads: Option<NonZeroUsize>,
 }
 
 impl Default for ServerCorePlugin {
@@ -49,6 +52,7 @@ impl Default for ServerCorePlugin {
             worlds: Placement::Thread,
             cells: WorldCells::default(),
             muxer: Placement::Thread,
+            compute_threads: None,
         }
     }
 }
@@ -89,6 +93,7 @@ impl Plugin for ServerCorePlugin {
             owns_task_pools: self.owns_task_pools,
             asset_path: self.asset_path.clone(),
             worlds: self.worlds,
+            compute_threads: self.compute_threads,
         });
         app.add_plugins(mcrs_minecraft_assets::MinecraftCorePlugin);
         app.add_plugins(mcrs_minecraft_engine_registries::RegistryLoadPlugin);

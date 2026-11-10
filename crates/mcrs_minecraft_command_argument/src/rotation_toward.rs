@@ -1,6 +1,6 @@
 use glam::DVec3;
 use mcrs_minecraft_core::Look;
-use mcrs_minecraft_core::mth::{atan2, wrap_degrees};
+use mcrs_minecraft_numeric::{atan2, wrap_degrees};
 
 /// The yaw and the pitch that look from `from` to `to`.
 #[must_use]
