@@ -113,10 +113,31 @@ pub fn dye_colors(dye: &str) -> (u32, u32) {
     (bright, 0xFF00_0000 | dark(16) | dark(8) | dark(0))
 }
 
+/// How the player looks at the world: a spyglass in use stretches the outline range.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Sight {
+    Naked,
+    Spyglass,
+}
+
+/// Whether a glowing sign is near enough to show its outline.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OutlineRange {
+    Near,
+    Far,
+}
+
+/// Whether the text of a side glows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Glow {
+    Plain,
+    Glowing,
+}
+
 /// SIGN-COL-003: whether the outline of a glowing sign shows. `camera` is the position of the
 /// camera entity, when there is one.
-pub fn outline_in_range(camera: Option<DVec3>, block: BlockPos, spyglass: bool) -> bool {
-    spyglass
+pub fn outline_range(camera: Option<DVec3>, block: BlockPos, sight: Sight) -> OutlineRange {
+    let near = sight == Sight::Spyglass
         || camera.is_some_and(|camera| {
             let centre = DVec3::new(
                 f64::from(block.x) + 0.5,
@@ -124,7 +145,12 @@ pub fn outline_in_range(camera: Option<DVec3>, block: BlockPos, spyglass: bool) 
                 f64::from(block.z) + 0.5,
             );
             camera.distance_squared(centre) < OUTLINE_DISTANCE_SQUARED
-        })
+        });
+    if near {
+        OutlineRange::Near
+    } else {
+        OutlineRange::Far
+    }
 }
 
 /// The colours and the light of the lines of one side.
@@ -137,9 +163,9 @@ pub struct Paint {
 }
 
 /// SIGN-COL-002 and SIGN-LIGHT-001. `block_light` is the packed light of the block position.
-pub fn paint(dye: &str, glowing: bool, outline_in_range: bool, block_light: u32) -> Paint {
+pub fn paint(dye: &str, glow: Glow, range: OutlineRange, block_light: u32) -> Paint {
     let (bright, dark) = dye_colors(dye);
-    if !glowing {
+    if glow == Glow::Plain {
         return Paint {
             color: dark,
             outline: None,
@@ -149,7 +175,7 @@ pub fn paint(dye: &str, glowing: bool, outline_in_range: bool, block_light: u32)
     let outline = if dye_is_black(dye) {
         Some(BLACK_GLOW_OUTLINE)
     } else {
-        outline_in_range.then_some(dark)
+        (range == OutlineRange::Near).then_some(dark)
     };
     Paint {
         color: bright,
@@ -158,7 +184,7 @@ pub fn paint(dye: &str, glowing: bool, outline_in_range: bool, block_light: u32)
     }
 }
 
-fn dye_is_black(dye: &str) -> bool {
+pub fn dye_is_black(dye: &str) -> bool {
     dye_colors(dye).0 == 0xFF00_0000
 }
 
@@ -548,7 +574,16 @@ mod tests {
                 continue;
             };
             assert!(matches!(family.as_str(), "standing" | "hanging"));
-            let got = paint(&dye, glowing, outline_in_range, input_light);
+            let got = paint(
+                &dye,
+                if glowing { Glow::Glowing } else { Glow::Plain },
+                if outline_in_range {
+                    OutlineRange::Near
+                } else {
+                    OutlineRange::Far
+                },
+                input_light,
+            );
             assert_eq!(
                 got.color, color as u32,
                 "{dye} {glowing} {outline_in_range}"
@@ -610,10 +645,11 @@ mod tests {
     fn the_outline_range_is_sixteen_blocks_or_a_spyglass() {
         let block = BlockPos::new(0, 0, 0);
         let at = |x: f64| Some(DVec3::new(x, 0.5, 0.5));
-        assert!(outline_in_range(at(15.4), block, false));
-        assert!(!outline_in_range(at(16.6), block, false));
-        assert!(!outline_in_range(None, block, false));
-        assert!(outline_in_range(at(40.0), block, true));
+        let range = |camera, sight| outline_range(camera, block, sight);
+        assert_eq!(range(at(15.4), Sight::Naked), OutlineRange::Near);
+        assert_eq!(range(at(16.6), Sight::Naked), OutlineRange::Far);
+        assert_eq!(range(None, Sight::Naked), OutlineRange::Far);
+        assert_eq!(range(at(40.0), Sight::Spyglass), OutlineRange::Near);
     }
 
     mod jar {

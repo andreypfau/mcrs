@@ -1,32 +1,27 @@
 //! Draws the text of signs and hanging signs (`docs/spec/client-sign-text.md`). The plugin reads
 //! the sign entities of the resident columns, builds the glyph quads of each, and hands the
-//! whole list to the world text pass.
-//!
-//! A column the plugin has not seen, or one whose handle moved, has its signs built again. Every
-//! change of a column goes through `Arc::make_mut`, and the plugin keeps a `Weak` to each handle,
-//! so a changed column always has a new handle. The plugin reads the store and no message, so an
-//! embedder that fills the store without the network (`ColumnStore::insert`, then
-//! `ColumnStore::set_sign` or `Column::with_signs`) gets its signs drawn too.
+//! whole list to the world text pass. A column is built again when a change message names it
+//! and it holds signs, so an embedder that fills the store without the network gets its signs
+//! drawn through the same messages the store raises.
 //!
 //! Not drawn: italic, underline, strikethrough and obfuscation, since a span carries only a
 //! colour and bold; code points of the pages other than the ASCII one, which show as the missing
 //! glyph; the spyglass case of the outline range.
 
 use std::collections::HashMap;
-use std::sync::{Arc, Weak};
 
 use bevy::asset::RenderAssetUsages;
 use bevy::image::ImageSampler;
-use bevy::math::{DVec3, IVec2, Vec2, Vec3};
+use bevy::math::{DVec3, IVec2, Vec2};
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_client_gui::font::{ASCII_TEXTURE, Font};
 use mcrs_minecraft_client_gui::language::ClientLanguage;
 use mcrs_minecraft_client_gui::sign_text::{
-    self, MISSING_ADVANCE, Paint, Side, SignQuad, packed_light,
+    self, Glow, MISSING_ADVANCE, OutlineRange, Paint, Side, Sight, SignQuad, packed_light,
 };
-use mcrs_minecraft_client_world::columns::{Column, ColumnStore, Columns, SignEntity};
+use mcrs_minecraft_client_world::columns::{ColumnChange, ColumnStore, Columns, SignEntity};
 use mcrs_minecraft_client_world::sign::{SignBlock, sign_block};
 use mcrs_minecraft_render::world_text::{TextVertex, WorldText};
 use mcrs_minecraft_volume::LightVolume;
@@ -70,7 +65,12 @@ fn load_assets(
     mut commands: Commands,
     catalog: Res<BlockCatalog>,
     mut images: ResMut<Assets<Image>>,
+    mut failed: Local<bool>,
 ) {
+    // A pack that cannot give the font fails the same way on every frame: try once.
+    if *failed {
+        return;
+    }
     let Some(pack) = catalog.pack() else {
         return;
     };
@@ -110,7 +110,10 @@ fn load_assets(
             page: images.add(image),
             page_size,
         }),
-        Err(reason) => error!("the sign text cannot load its font: {reason}"),
+        Err(reason) => {
+            *failed = true;
+            error!("the sign text cannot load its font: {reason}");
+        }
     }
 }
 
@@ -120,34 +123,26 @@ struct Built {
     pos: BlockPos,
     /// A side is glowing and its dye is not black: the outline comes and goes with the range.
     watches_range: bool,
-    in_range: bool,
+    in_range: OutlineRange,
 }
 
 #[derive(Resource, Default)]
 struct SignScene {
     columns: HashMap<ColumnPos, Vec<Built>>,
-    seen: HashMap<ColumnPos, Weak<Column>>,
     revision: u64,
 }
 
-/// SIGN-LIGHT-001 gives the light as numbers and the frame takes a colour, so the light of a
-/// line is the brightness of the brighter of its two levels on the game's own curve.
-fn brightness(light: u32) -> f32 {
-    let level = ((light >> 4) & 15).max((light >> 20) & 15) as f32 / 15.0;
-    0.05 + 0.95 * level / (4.0 - 3.0 * level)
-}
-
-fn linear(argb: u32, brightness: f32) -> [f32; 4] {
+fn linear(argb: u32) -> [f32; 3] {
     let color = Color::srgb_u8((argb >> 16) as u8, (argb >> 8) as u8, argb as u8).to_linear();
-    [
-        color.red * brightness,
-        color.green * brightness,
-        color.blue * brightness,
-        1.0,
-    ]
+    [color.red, color.green, color.blue]
 }
 
-fn push_quad(quad: &SignQuad, origin: Vec3, assets: &SignAssets, out: &mut Vec<TextVertex>) {
+/// The block and the sky level of a packed light on the scale of the lightmap: a level times 16.
+fn lightmap_levels(light: u32) -> [f32; 2] {
+    [(light & 0xFF) as f32, ((light >> 20) & 15) as f32 * 16.0]
+}
+
+fn push_quad(quad: &SignQuad, cell: [i32; 3], assets: &SignAssets, out: &mut Vec<TextVertex>) {
     let size = assets.font.cell_size;
     let page = assets.page_size;
     let uv = |cell: IVec2, dx: i32, dy: i32| {
@@ -162,11 +157,14 @@ fn push_quad(quad: &SignQuad, origin: Vec3, assets: &SignAssets, out: &mut Vec<T
         ],
         None => [[0.5 / page.x, (page.y - 0.5) / page.y]; 4],
     };
-    let color = linear(quad.color, brightness(quad.light));
+    let color = linear(quad.color);
+    let light = lightmap_levels(quad.light);
     let vertex = |index: usize| TextVertex {
-        position: (quad.corners[index] + origin).to_array(),
+        block: cell,
+        offset: quad.corners[index].to_array(),
         uv: corners[index],
         color,
+        light,
     };
     for index in [0, 1, 2, 0, 2, 3] {
         out.push(vertex(index));
@@ -182,18 +180,22 @@ fn build_sign(
 ) -> Built {
     // A client with no account has the profanity filter off.
     const FILTERING: bool = false;
-    let in_range = sign_text::outline_in_range(camera, sign.pos, false);
+    let in_range = sign_text::outline_range(camera, sign.pos, Sight::Naked);
     let packed = packed_light(light >> 4, light & 15);
-    let origin = Vec3::new(sign.pos.x as f32, sign.pos.y as f32, sign.pos.z as f32);
+    let cell = [sign.pos.x, sign.pos.y, sign.pos.z];
     let mut vertices = Vec::new();
     let mut watches_range = false;
     for (side, text) in [
         (Side::Front, &sign.texts.front_text),
         (Side::Back, &sign.texts.back_text),
     ] {
-        watches_range |=
-            text.has_glowing_text && sign_text::dye_colors(&text.color).0 != 0xFF00_0000;
-        let paint: Paint = sign_text::paint(&text.color, text.has_glowing_text, in_range, packed);
+        watches_range |= text.has_glowing_text && !sign_text::dye_is_black(&text.color);
+        let glow = if text.has_glowing_text {
+            Glow::Glowing
+        } else {
+            Glow::Plain
+        };
+        let paint: Paint = sign_text::paint(&text.color, glow, in_range, packed);
         let lines = sign_text::lines(
             text,
             FILTERING,
@@ -206,7 +208,7 @@ fn build_sign(
         let mut quads = Vec::new();
         sign_text::quads(&assets.font, &lines, &matrix, &paint, &mut quads);
         for quad in &quads {
-            push_quad(quad, origin, assets, &mut vertices);
+            push_quad(quad, cell, assets, &mut vertices);
         }
     }
     Built {
@@ -240,41 +242,56 @@ fn build_column(
         .collect()
 }
 
+/// Whether a change at `pos` can alter what is drawn: the column holds signs, or held some.
+fn holds_signs(store: &ColumnStore, scene: &SignScene, pos: ColumnPos) -> bool {
+    scene.columns.contains_key(&pos)
+        || store
+            .get(pos)
+            .is_some_and(|column| !column.signs().is_empty())
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and reader is its own parameter"
+)]
 fn sync_signs(
     store: Res<ColumnStore>,
     blocks: Res<Blocks>,
     assets: Res<SignAssets>,
     camera: Option<Single<&Transform, With<PlayerCamera>>>,
+    mut changes: MessageReader<ColumnChange>,
     mut scene: ResMut<SignScene>,
     mut text: ResMut<WorldText>,
+    mut stale: Local<Vec<ColumnPos>>,
+    mut primed: Local<bool>,
 ) {
     let camera = camera.map(|transform| transform.translation.as_dvec3());
     let scene = &mut *scene;
-    let mut stale: Vec<ColumnPos> = Vec::new();
-    for (pos, handle) in store.resident() {
-        let current = Arc::as_ptr(handle);
-        if scene
-            .seen
-            .get(&pos)
-            .is_none_or(|seen| seen.as_ptr() != current)
-        {
-            scene.seen.insert(pos, Arc::downgrade(handle));
-            stale.push(pos);
+    stale.clear();
+    if !*primed {
+        // The messages before the assets loaded are gone, so the first run reads the store.
+        *primed = true;
+        stale.extend(store.resident().map(|(pos, _)| pos));
+        changes.clear();
+    }
+    for change in changes.read() {
+        let at = match change {
+            ColumnChange::Arrived(pos, _)
+            | ColumnChange::Departed(pos, _)
+            | ColumnChange::Relit(pos, _) => *pos,
+            ColumnChange::Filled(at) => ColumnPos::from(*at),
+            ColumnChange::Reblocked(at, _) | ColumnChange::Signed(at) => ColumnPos::from(*at),
+        };
+        if holds_signs(&store, scene, at) {
+            stale.push(at);
         }
     }
-    scene.seen.retain(|pos, _| {
-        let held = store.holds(*pos);
-        if !held {
-            stale.push(*pos);
-        }
-        held
-    });
-    // ponytail: a camera move re-checks every glowing sign every frame and rebuilds the
-    // ones that cross the range; an index by distance if signs ever number in the thousands.
+    // chisle: a camera move re-checks every glowing sign every frame and rebuilds the ones that
+    // cross the range; an index by distance lifts it when signs number in the thousands.
     for (pos, signs) in &scene.columns {
         let crossed = signs.iter().any(|built| {
             built.watches_range
-                && built.in_range != sign_text::outline_in_range(camera, built.pos, false)
+                && built.in_range != sign_text::outline_range(camera, built.pos, Sight::Naked)
         });
         if crossed {
             stale.push(*pos);
@@ -285,7 +302,7 @@ fn sync_signs(
     if stale.is_empty() {
         return;
     }
-    for pos in stale {
+    for pos in stale.drain(..) {
         let built = build_column(&store, &blocks, pos, camera, &assets);
         if built.is_empty() {
             scene.columns.remove(&pos);
@@ -294,13 +311,15 @@ fn sync_signs(
         }
     }
     scene.revision += 1;
-    text.vertices = Arc::new(
+    // chisle: a change uploads the vertices of every sign again; ranges per column in the
+    // buffer lift it when signs number in the tens of thousands.
+    text.vertices.clear();
+    text.vertices.extend(
         scene
             .columns
             .values()
             .flatten()
-            .flat_map(|built| built.vertices.iter().copied())
-            .collect(),
+            .flat_map(|built| built.vertices.iter().copied()),
     );
     text.texture = Some(assets.page.clone());
     text.revision = scene.revision;
