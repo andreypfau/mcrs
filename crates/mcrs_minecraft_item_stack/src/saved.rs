@@ -55,28 +55,25 @@ use crate::check_saved_form::MAX_COUNT;
 use crate::check_saved_form::NOT_NEGATIVE;
 use crate::check_saved_form::POSITIVE;
 use crate::check_saved_form::STACK_SIZE;
+use crate::saved_form::DISPLAY_DEFAULT;
+use crate::saved_form::DISPLAY_HIDDEN;
+use crate::saved_form::DISPLAY_OVERRIDE;
+use crate::saved_form::Fault;
+use crate::saved_form::saved_form;
 use crate::saved_key::KeyKind;
 use crate::saved_key::REMOVAL_MARKER;
 use crate::saved_key::SavedKey;
+use crate::saved_sink::TAG_MARKER;
 use crate::saved_text::read_lore;
 use crate::saved_text::read_text;
-use crate::saved_text::write_lore;
-use crate::saved_text::write_text;
 use crate::tag_number::TagNumber;
+use crate::tag_sink::TagSink;
 
 const ID: &str = "id";
 const COUNT: &str = "count";
 const COMPONENTS: &str = "components";
 const SLOT: &str = "Slot";
 const AIR: &str = "air";
-const TAG_MARKER: char = '#';
-
-const DISPLAY_DEFAULT: &str = "default";
-const DISPLAY_HIDDEN: &str = "hidden";
-const DISPLAY_OVERRIDE: &str = "override";
-
-const DEFAULT_MINING_SPEED: f32 = 1.0;
-const DEFAULT_DAMAGE_PER_BLOCK: i32 = 1;
 
 /// Reads the saved stack: a map with the item, the count and the component patch.
 ///
@@ -517,183 +514,5 @@ impl<L: NameLookup> Reader<'_, L> {
 }
 
 fn write_value<L: NameLookup>(value: &Builtin, names: &L) -> Result<NbtTag, SavedError> {
-    let writer = Writer {
-        component: value.key(),
-        names,
-    };
-    match value {
-        Builtin::MaxStackSize(MaxStackSize(size)) => writer.int(*size, STACK_SIZE),
-        Builtin::MaxDamage(MaxDamage(damage)) => writer.int(*damage, POSITIVE),
-        Builtin::Damage(Damage(damage)) => writer.int(*damage, NOT_NEGATIVE),
-        Builtin::RepairCost(RepairCost(cost)) => writer.int(*cost, NOT_NEGATIVE),
-        Builtin::Unbreakable(Unbreakable) => Ok(NbtTag::Compound(NbtCompound::new())),
-        Builtin::ItemModel(model) => Ok(NbtTag::String(model.get().to_string())),
-        Builtin::Rarity(rarity) => Ok(name_tag(rarity.name())),
-        Builtin::Enchantments(enchantments) => writer.enchantments(enchantments),
-        Builtin::AttributeModifiers(modifiers) => writer.attribute_modifiers(modifiers),
-        Builtin::TooltipDisplay(display) => writer.tooltip_display(display),
-        Builtin::Food(food) => writer.food(food),
-        Builtin::Tool(tool) => writer.tool(tool),
-        Builtin::CustomName(CustomName(text)) | Builtin::ItemName(ItemName(text)) => {
-            write_text(text, writer.component)
-        }
-        Builtin::Lore(lore) => write_lore(lore),
-    }
-}
-
-fn name_tag(name: &str) -> NbtTag {
-    NbtTag::String(name.into())
-}
-
-fn boolean_tag(value: bool) -> NbtTag {
-    NbtTag::Byte(i8::from(value))
-}
-
-struct Writer<'names, L> {
-    component: BuiltinKey,
-    names: &'names L,
-}
-
-impl<L: NameLookup> Writer<'_, L> {
-    fn int(&self, value: i32, range: RangeInclusive<i32>) -> Result<NbtTag, SavedError> {
-        if range.contains(&value) {
-            Ok(NbtTag::Int(value))
-        } else {
-            Err(SavedError::OutOfRange(self.component))
-        }
-    }
-
-    fn name(&self, table: NameTable, id: u16) -> Result<ResourceLocation<'_>, SavedError> {
-        self.names
-            .name(table, id)
-            .ok_or(SavedError::UnnamedId(table))
-    }
-
-    fn entry(&self, table: NameTable, id: u16) -> Result<NbtTag, SavedError> {
-        Ok(NbtTag::String(self.name(table, id)?.to_string()))
-    }
-
-    fn enchantments(&self, enchantments: &Enchantments) -> Result<NbtTag, SavedError> {
-        let mut map = NbtCompound::new();
-        for entry in enchantments.entries() {
-            let name = self.name(NameTable::Enchantment, entry.enchantment.0)?;
-            map.put(&name.to_string(), NbtTag::Int(i32::from(entry.level.get())));
-        }
-        Ok(NbtTag::Compound(map))
-    }
-
-    fn attribute_modifiers(&self, modifiers: &AttributeModifiers) -> Result<NbtTag, SavedError> {
-        let mut list: Vec<NbtTag> = Vec::with_capacity(modifiers.modifiers.len());
-        for modifier in modifiers.modifiers.iter() {
-            let mut entry = NbtCompound::new();
-            entry.put(
-                "type",
-                self.entry(NameTable::Attribute, modifier.attribute.0)?,
-            );
-            entry.put("id", NbtTag::String(modifier.id().to_string()));
-            entry.put("amount", NbtTag::Double(modifier.amount));
-            entry.put("operation", name_tag(modifier.operation.name()));
-            if modifier.slot != SlotGroup::Any {
-                entry.put("slot", name_tag(modifier.slot.name()));
-            }
-            match &modifier.display {
-                ModifierDisplay::Default => {}
-                ModifierDisplay::Hidden => {
-                    let mut display = NbtCompound::new();
-                    display.put("type", name_tag(DISPLAY_HIDDEN));
-                    entry.put("display", NbtTag::Compound(display));
-                }
-                ModifierDisplay::Override(text) => {
-                    let mut display = NbtCompound::new();
-                    display.put("type", name_tag(DISPLAY_OVERRIDE));
-                    display.put("value", write_text(text, self.component)?);
-                    entry.put("display", NbtTag::Compound(display));
-                }
-            }
-            list.push(NbtTag::Compound(entry));
-        }
-        Ok(NbtTag::List(list))
-    }
-
-    fn tooltip_display(&self, display: &TooltipDisplay) -> Result<NbtTag, SavedError> {
-        let mut map = NbtCompound::new();
-        if display.hide_tooltip {
-            map.put("hide_tooltip", boolean_tag(true));
-        }
-        let hidden = display.hidden_components();
-        if !hidden.is_empty() {
-            let mut list: Vec<NbtTag> = Vec::with_capacity(hidden.len());
-            for component_type in hidden {
-                list.push(self.entry(NameTable::ComponentType, component_type.0)?);
-            }
-            map.put("hidden_components", NbtTag::List(list));
-        }
-        Ok(NbtTag::Compound(map))
-    }
-
-    fn food(&self, food: &Food) -> Result<NbtTag, SavedError> {
-        let mut map = NbtCompound::new();
-        map.put("nutrition", self.int(food.nutrition, NOT_NEGATIVE)?);
-        map.put("saturation", NbtTag::Float(food.saturation));
-        if food.can_always_eat {
-            map.put("can_always_eat", boolean_tag(true));
-        }
-        Ok(NbtTag::Compound(map))
-    }
-
-    fn tool(&self, tool: &Tool) -> Result<NbtTag, SavedError> {
-        let mut rules: Vec<NbtTag> = Vec::with_capacity(tool.rules.len());
-        for rule in tool.rules.iter() {
-            rules.push(self.tool_rule(rule)?);
-        }
-        let mut map = NbtCompound::new();
-        map.put("rules", NbtTag::List(rules));
-        if tool.default_mining_speed.to_bits() != DEFAULT_MINING_SPEED.to_bits() {
-            map.put(
-                "default_mining_speed",
-                NbtTag::Float(tool.default_mining_speed),
-            );
-        }
-        if tool.damage_per_block != DEFAULT_DAMAGE_PER_BLOCK {
-            map.put(
-                "damage_per_block",
-                self.int(tool.damage_per_block, NOT_NEGATIVE)?,
-            );
-        }
-        if !tool.can_destroy_blocks_in_creative {
-            map.put("can_destroy_blocks_in_creative", boolean_tag(false));
-        }
-        Ok(NbtTag::Compound(map))
-    }
-
-    fn tool_rule(&self, rule: &ToolRule) -> Result<NbtTag, SavedError> {
-        let mut map = NbtCompound::new();
-        map.put("blocks", self.block_set(&rule.blocks)?);
-        if let Some(speed) = rule.speed() {
-            map.put("speed", NbtTag::Float(speed));
-        }
-        if let Some(correct_for_drops) = rule.correct_for_drops {
-            map.put("correct_for_drops", boolean_tag(correct_for_drops));
-        }
-        Ok(NbtTag::Compound(map))
-    }
-
-    fn block_set(&self, blocks: &BlockSet) -> Result<NbtTag, SavedError> {
-        match blocks {
-            BlockSet::Tag(block_tag) => {
-                let name = self.name(NameTable::BlockTag, block_tag.0)?;
-                Ok(NbtTag::String(format!("{TAG_MARKER}{name}")))
-            }
-            BlockSet::Blocks(blocks) => {
-                if let [block] = blocks.as_ref() {
-                    return self.entry(NameTable::Block, block.0);
-                }
-                let mut list: Vec<NbtTag> = Vec::with_capacity(blocks.len());
-                for block in blocks.iter() {
-                    list.push(self.entry(NameTable::Block, block.0)?);
-                }
-                Ok(NbtTag::List(list))
-            }
-        }
-    }
+    saved_form(value, names, &mut TagSink).map_err(Fault::into_saved)
 }
