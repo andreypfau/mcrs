@@ -4869,6 +4869,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_item_stack"
+version = "0.5.8"
+dependencies = [
+ "bevy_ecs",
+]
+
+[[package]]
 name = "mcrs_minecraft_keys"
 version = "0.5.8"
 dependencies = [

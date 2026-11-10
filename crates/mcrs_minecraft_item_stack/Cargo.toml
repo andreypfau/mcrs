@@ -1,0 +1,18 @@
+[package]
+name = "mcrs_minecraft_item_stack"
+description = "Item stack values: the kind, the count, the component patch and the item component types"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy_ecs = { workspace = true, optional = true }
+
+[features]
+default = []
+bevy = ["dep:bevy_ecs"]
