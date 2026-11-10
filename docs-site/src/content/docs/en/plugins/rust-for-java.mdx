@@ -22,9 +22,9 @@ import Status from '~/components/Status.astro';
 import Example from '~/components/Example.astro';
 import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
-You do not need to learn all of Rust to write a plugin. This page lists what the tutorials use. The Java snippets here are illustrations, they are not from mcrs. The Rust snippets are small sketches too, not compiled in CI.
+You do not need to learn all of Rust to write a plugin. This page shows the part that the tutorials use, next to the Java you already know, and ends with links for when you want more. The Java snippets are illustrations and are not part of mcrs. The Rust snippets are short sketches too, and CI does not compile them.
 
-## What you need
+## The Rust you need, in Java terms
 
 | Rust | Java idea |
 |---|---|
@@ -40,7 +40,11 @@ You do not need to learn all of Rust to write a plugin. This page lists what the
 | `&T` and `&mut T` | Many readers or one writer, checked at compile time |
 | Modules, `use`, `Cargo.toml` | Packages, imports, `build.gradle` |
 
-## Paired snippets
+You can leave `unsafe`, procedural macros and `async` for later. The same goes for lifetimes, except that you will meet them when you read signatures that other people wrote.
+
+## The same code in Java and in Rust
+
+A Java class becomes two things in Rust: a `struct` for the data and an `impl` block for the methods.
 
 <Tabs syncKey="jvm">
 <TabItem label="Java">
@@ -68,6 +72,8 @@ impl Counter {
 </TabItem>
 </Tabs>
 
+A Paper plugin extends `JavaPlugin`, and an mcrs plugin implements the `Plugin` trait. The `#[derive(Clone)]` line is there because every dimension gets its own copy of the plugin.
+
 <Tabs syncKey="jvm">
 <TabItem label="Java">
 ```java
@@ -93,6 +99,8 @@ impl Plugin for MyPlugin {
 </TabItem>
 </Tabs>
 
+Where Java returns `null` or throws an exception, Rust returns an `Option` or a `Result`, so both cases are visible in the type. The `?` operator returns the error to the caller.
+
 <Tabs syncKey="jvm">
 <TabItem label="Java">
 ```java
@@ -111,6 +119,8 @@ let n: i32 = text.parse()?; // returns the error to the caller
 </TabItem>
 </Tabs>
 
+A closure does the job of a lambda. In the Rust tab the closure is an observer, which is a function that runs when an event is triggered.
+
 <Tabs syncKey="jvm">
 <TabItem label="Java">
 ```java
@@ -128,36 +138,36 @@ app.add_observer(|mut e: On<PlayerChatEvent>| {
 </TabItem>
 </Tabs>
 
-A real plugin from the repository, with a resource and a system in `FixedUpdate`:
+The next example is a real plugin from the repository. It has a resource and a system that runs in `FixedUpdate`.
 
 <Example file="crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs" from={"#[derive(Resource, Default)]\nstruct Ticks<const ALL: bool>(u32);"} to={"    }\n}"} title="CountTicks: a plugin with a resource and a system" />
 
-## Ownership in one paragraph
+## A value has one owner
 
-A value has one owner. You can lend it as `&T` (many readers) or `&mut T` (one writer), never both at once. In Bevy systems this is written in the parameters: `Query<&T>` reads, `Query<&mut T>` writes. You rarely write lifetimes. The habits to change: store an `Entity` id instead of a reference to a player, and call `.clone()` instead of sharing. Do not copy patterns from Rust servers built on `Arc<Mutex<..>>`, the project avoids them in its library layers, see <Status issue={566} />. More on ownership: [the Rust Book chapter](https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html).
+A value in Rust has one owner. The owner can lend it as `&T` to many readers or as `&mut T` to one writer, but never both at once. In a Bevy system you write this in the parameters, where `Query<&T>` reads and `Query<&mut T>` writes. You rarely write lifetimes.
+
+Two habits change because of this. Keep an `Entity` id where you would keep a reference to a player, and call `.clone()` where you would share a value. Do not copy patterns from Rust servers built on `Arc<Mutex<..>>`, because the project avoids them in its library layers (<Status issue={566} />). The [ownership chapter of the Rust Book](https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html) explains the rules in full.
 
 ## Three errors you will meet
 
-1. Use of a moved value. You passed a value by value and used it again. Pass `&value` or call `.clone()`.
-2. A function is not accepted as a system. One parameter has a type Bevy cannot supply. Check that every parameter is `Res`, `ResMut`, `Query`, `Commands`, a message reader or writer, or `Local`.
-3. Two parameters of one system want the same data, one of them as `&mut`. The scheduler reports it when it builds the graph, at startup, not at compile time. Merge the queries or split the system.
+| Error | Cause | Fix |
+|---|---|---|
+| Use of a moved value | You passed a value by value and then used it again | Pass `&value` or call `.clone()` |
+| A function is not accepted as a system | One parameter has a type that Bevy cannot supply | Check that every parameter is `Res`, `ResMut`, `Query`, `Commands`, a message reader or writer, or `Local` |
+| Two parameters of one system want the same data, one of them as `&mut` | The scheduler reports this when it builds the graph at startup, and the compiler does not catch it | Merge the queries or split the system |
 
-## What you do not need yet
+## Where to read more
 
-Lifetimes (except reading the signatures of other people), `unsafe`, procedural macros and `async`.
-
-## Where to read
-
-- [The Rust Programming Language](https://doc.rust-lang.org/book/): read ownership, enums and `match`, error handling and traits.
-- [Rust by Example](https://doc.rust-lang.org/rust-by-example/): short runnable examples.
-- [Rustlings](https://github.com/rust-lang/rustlings): small exercises.
-- [Cargo guide](https://doc.rust-lang.org/cargo/guide/): `Cargo.toml` and dependencies.
-- [Bevy learn](https://bevy.org/learn/) and the [ECS examples](https://github.com/bevyengine/bevy/tree/main/examples/ecs).
-- [Unofficial Bevy Cheat Book](https://bevy-cheatbook.github.io/): it can lag behind. mcrs uses Bevy 0.19, where `Message`, `MessageReader` and `On<E>` are the names, older text may use other names.
-- [bevy_ecs on docs.rs](https://docs.rs/bevy_ecs/0.19.1/bevy_ecs/) for exact signatures.
+- In [The Rust Programming Language](https://doc.rust-lang.org/book/), read the chapters on ownership, enums and `match`, error handling and traits.
+- [Rust by Example](https://doc.rust-lang.org/rust-by-example/) has short runnable examples.
+- [Rustlings](https://github.com/rust-lang/rustlings) is a set of small exercises.
+- The [Cargo guide](https://doc.rust-lang.org/cargo/guide/) covers `Cargo.toml` and dependencies.
+- [Bevy learn](https://bevy.org/learn/) and the [ECS examples](https://github.com/bevyengine/bevy/tree/main/examples/ecs) introduce Bevy.
+- The [Unofficial Bevy Cheat Book](https://bevy-cheatbook.github.io/) can lag behind. mcrs uses Bevy 0.19, where the names are `Message`, `MessageReader` and `On<E>`, and older text may use other names.
+- [bevy_ecs on docs.rs](https://docs.rs/bevy_ecs/0.19.1/bevy_ecs/) has the exact signatures.
 
 <Aside type="caution" title="WIP">
-The toolchain is pinned in `rust-toolchain.toml` (nightly). For a project outside the repository on stable Rust, see <Status issue={321} />. A detailed setup guide will appear by the alpha.
+The toolchain is pinned to nightly in `rust-toolchain.toml`. For a project outside the repository on stable Rust, see <Status issue={321} />. A detailed setup guide will appear by the alpha.
 </Aside>
 
 Next: [your first plugin](/docs/en/plugins/first-plugin/), then [Paper and Minestom in mcrs terms](/docs/en/plugins/paper-to-mcrs/).

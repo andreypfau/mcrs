@@ -21,46 +21,59 @@ verified:
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
+This page explains how mcrs splits a world into cells, which parts of that run today, and what is still a design for running one dimension on several machines.
+
 <Aside type="caution" title="WIP">
-This page describes a direction. One process with cells exists in code. Several nodes do not: <Status issue={181} />. The source note [`docs/cells.md`](https://github.com/andreypfau/mcrs/blob/main/docs/cells.md) is a **working note, not an authority**. It has a status block that lists parts that the entity design in `docs/physics-architecture.md` replaced. Where this page and a note disagree, the code and the newer note win.
+This page describes a direction. One process with cells exists in code, and several nodes do not: <Status issue={181} />. The source note [`docs/cells.md`](https://github.com/andreypfau/mcrs/blob/main/docs/cells.md) is a working note and has no authority. Its status block lists the parts that the entity design in `docs/physics-architecture.md` replaced. Where this page and a note disagree, the code and the newer note win.
 </Aside>
 
-## The target
+## The target is ten thousand players in one dimension
 
-Ten thousand players in one dimension, with the unmodified vanilla client (<Status issue={181} />, decision <Status issue={351} />). Nobody has published that many interacting players in one continuous space, so this is a goal and not a promise. The limit is not the tick. The binding limit is how many players see each other: a moving player costs each viewer roughly 200 to 250 bytes per second before compression, and the client drops its world on a transfer. So the plan is "spread over one dimension, with a bounded number visible to each client".
+The goal is ten thousand players in one dimension with the unmodified vanilla client. It is tracked in <Status issue={181} />, and the decision is <Status issue={351} />. Nobody has published that many interacting players in one continuous space, so this is a goal and not a promise.
 
-## Parts
+The tick is not what limits the number. The binding limit is how many players see each other, because a moving player costs each viewer roughly 200 to 250 bytes per second before compression. The client also drops its world on a transfer. So the plan is to spread the players over one dimension and to bound the number that each client sees.
 
-Four ideas, each a small crate in the `mcrs_engine_*` family:
+## Four parts, each in a small crate
 
-- **Cell** (`mcrs_engine_cell`): the owner of a box of hot space. Only the owner changes the chunks in its box. A cell also holds a halo, a copy of the columns of its neighbours within two columns, so it never changes a column it does not own. A cell is a unit of placement. A shard (the unit of causality, see [the sharding note](https://github.com/andreypfau/mcrs/blob/main/docs/minecraft-bevy-sharding-architecture.md)) is a different thing, and one cell holds many shards.
-- **Link** (`mcrs_engine_link`): the connection between two parts. Messages go in, messages come out. No part reads the state of another part. Where the far end runs is its placement: `Inline`, `Thread` or `Remote`.
-- **Muxer** (`mcrs_engine_muxer`): the gateway for clients. It owns the connections, decides what each client gets, and encodes a change once for all viewers of a tile.
-- **Data layer** (`mcrs_engine_store`): the versioned chunks of cold space.
+The design rests on four ideas, and each is a small crate in the `mcrs_engine_*` family.
 
-Cells do not exist to make a tick parallel. Inside one cell, each domain already uses every core (see [How a tick runs in parallel](/docs/en/concepts/parallel-tick/)). Cells exist for balance and for placement: a cell can move to another thread, process or machine.
+| Part | Crate | What it does |
+|---|---|---|
+| Cell | `mcrs_engine_cell` | Owns a box of hot space. Only the owner changes the chunks in its box. |
+| Link | `mcrs_engine_link` | Connects two parts. Messages go in and messages come out, and no part reads the state of another part. |
+| Muxer | `mcrs_engine_muxer` | The gateway for clients. It owns the connections, decides what each client gets, and encodes a change once for all viewers of a tile. |
+| Data layer | `mcrs_engine_store` | Holds the versioned chunks of cold space. |
+
+A cell also holds a halo, which is a copy of the columns of its neighbours within two columns. With the halo a cell never changes a column it does not own. Where the far end of a link runs is called its placement, and the placement is `Inline`, `Thread` or `Remote`.
+
+Do not confuse a cell with a shard. A cell is a unit of placement, a shard is the unit of causality described in [the sharding note](https://github.com/andreypfau/mcrs/blob/main/docs/minecraft-bevy-sharding-architecture.md), and one cell holds many shards.
+
+Cells are not what makes a tick parallel, because inside one cell each domain already uses every core, as [How a tick runs in parallel](/docs/en/concepts/parallel-tick/) shows. Cells exist for balance and for placement: a cell can move to another thread, process or machine.
 
 ## What exists today
 
-From section 11 of `docs/cells.md` ("Where the code is today"), checked against the test `tick_determinism.rs`:
+This list follows section 11 of `docs/cells.md`, "Where the code is today", checked against the test `tick_determinism.rs`.
 
-- A world has one cell, or a static division into several. The cells of all worlds tick in lockstep, either inline or each on a thread, set by the server settings (`worlds`, `cells`, `muxer` in `crates/mcrs_minecraft_server_settings/src/server_settings.rs`).
+- A world has one cell, or a static division into several. The cells of all worlds tick in lockstep, either inline or each on a thread. The server settings choose this with `worlds`, `cells` and `muxer` in `crates/mcrs_minecraft_server_settings/src/server_settings.rs`.
 - A muxer stage runs on a link from the host. The host talks to each dimension over a link, with one input and one output per tick.
 - An in-memory data layer serves cold columns, with generation and light stages on a thread.
 - A player moves to another cell at the end of the tick in which it stands in a column of that cell. There is no hysteresis yet, and no entity other than a player crosses.
-- There is no disk under the data layer: the server does not write chunks to disk yet (<Status issue={78} />).
+- There is no disk under the data layer, because the server does not write chunks to disk yet (<Status issue={78} />).
 
 ## What is still design
 
-- Split and merge of cells by cost, a k-d division on X and Z, moves at a tick boundary with a hysteresis of about 8 blocks.
-- `Placement::Remote`: a cell in another process, and an edge as its own process that holds every connection (<Status issue={181} /> lists the child issues, for example <Status issue={160} />, <Status issue={162} /> to <Status issue={167} />).
-- The replication tiers for entities in `docs/replication.md`, which is also a design note.
+Three parts exist only as a design.
+
+The first is the split and merge of cells by cost. The design is a k-d division on X and Z, with moves at a tick boundary and a hysteresis of about 8 blocks.
+
+The second is `Placement::Remote`, which means a cell in another process, together with an edge as its own process that holds every connection. <Status issue={181} /> lists the child issues, for example <Status issue={160} /> and <Status issue={162} /> to <Status issue={167} />.
+
+The third is the set of replication tiers for entities in `docs/replication.md`, which is also a design note.
 
 ## The simplest server stays simple
 
-All of this is optional. The design asks that a user can drop cells, the muxer and the data layer and write a server on one thread, with the game logic depending only on kernels and a world-view trait. The middle mode is the full engine with one cell per world and every link inline. It is deterministic, and it is the mode of the tests. See [Layers and crates](/docs/en/concepts/layers/).
+All of this is optional. The design asks that a user can drop cells, the muxer and the data layer and write a server on one thread, with the game logic depending only on kernels and a world-view trait. [Layers and crates](/docs/en/concepts/layers/) explains what a kernel is.
 
-## Related
+Between that and the full layout there is a middle mode: the full engine with one cell per world and every link inline. It is deterministic, and it is the mode of the tests.
 
-- [Roadmap](/docs/en/project/roadmap/)
-- [Status](/docs/en/start/status/)
+Next: [Roadmap](/docs/en/project/roadmap/).

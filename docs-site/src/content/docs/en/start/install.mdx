@@ -22,37 +22,43 @@ import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
+This page lists what you need on your machine to build mcrs. If you come from Java, the second half maps the parts of Gradle you know to Cargo, the build tool of Rust.
+
 <Aside type="caution" title="WIP">
-A detailed install guide will come before the alpha. Today only developers use the project, so this page is short and we have not run its steps again for the docs. The authority is the [README Quick start](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start). Binary releases are planned and do not exist yet. There is no issue for them (see <Status issue={321} /> for publishing crates, which is a different thing).
+A detailed install guide will come before the alpha. Today only developers use the project, so this page is short and we have not run its steps again for the docs. When in doubt, follow the [README Quick start](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start). Binary releases are planned and do not exist yet, and no issue tracks them. <Status issue={321} /> is about publishing crates, which is a different thing.
 </Aside>
 
 ## What you need
 
-- Rust through [rustup](https://rustup.rs). You do not pick a version: [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml) pins `nightly-2026-09-02` and rustup downloads it on the first `cargo` call. It also adds rustfmt, clippy and the wasm32 targets.
-- An IDE: RustRover, or IntelliJ IDEA with the Rust plugin. Open the repository root as a Cargo project. Check the current licence terms of RustRover yourself.
-- The official client jar of the snapshot. You do not download it by hand: it is taken from the launcher folder, or downloaded from Mojang on first run into the same folder, and checked by SHA-1.
-- Java is not needed to run mcrs. Some tools (`tools/vanilla-oracle`, the mob bench) need Java 21 or newer.
-- An operating system: the author measured and ran everything on macOS (Apple M4 Max, Metal). CI runs lint, clippy, portability checks and tests on Ubuntu 24.04, without the crates that need a GPU. Windows has a jar path in the code and nobody has checked it.
+Install Rust through [rustup](https://rustup.rs). You do not pick a version, because [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml) pins `nightly-2026-09-02` and rustup downloads it on the first `cargo` call. It also adds rustfmt, clippy and the wasm32 targets.
 
-How long the first build takes and how much disk it needs: not measured yet. The workspace has {fact('crates')} crates, so expect a long first build.
+For an IDE, use RustRover, or IntelliJ IDEA with the Rust plugin, and open the repository root as a Cargo project. Check the current licence terms of RustRover yourself.
+
+mcrs needs the official client jar of the snapshot, but you do not download it by hand. It is taken from the launcher folder, or downloaded from Mojang into the same folder on the first run, and then checked by SHA-1.
+
+You do not need Java to run mcrs. Some tools, such as `tools/vanilla-oracle` and the mob bench, need Java 21 or newer.
+
+The operating system that has been tried is macOS. The author measured and ran everything on an Apple M4 Max with Metal. CI runs lint, clippy, portability checks and tests on Ubuntu 24.04, without the crates that need a GPU. For Windows the code has a jar path, and nobody has checked it.
+
+Nobody has measured yet how long the first build takes or how much disk it needs. The workspace has {fact('crates')} crates, so expect a long first build.
 
 ## Cargo for people who know Gradle
+
+Each row of the table gives the Cargo counterpart of something you use in Gradle.
 
 | Gradle | Cargo |
 |---|---|
 | `settings.gradle` with subprojects | Root `Cargo.toml` with `[workspace]`. The {fact('crates')} members are in `crates/` |
 | `build.gradle` of a project | `Cargo.toml` of a crate |
-| `./gradlew run` | `cargo run`. For mcrs add `--release`, a debug build is too slow |
+| `./gradlew run` | `cargo run`. For mcrs add `--release`, because a debug build is too slow |
 | `./gradlew build` | `cargo build` |
 | `./gradlew test` | `cargo test`. This repository uses `cargo nextest run` |
 | Gradle wrapper pins the Gradle version | `rust-toolchain.toml` pins the compiler |
 | `build/` folder | `target/` folder |
 | Maven coordinates and a version | A crate name and a version, or a git URL with `rev` |
 | Lock file of dependencies | `Cargo.lock`, committed |
-| `implementation` and `api` scopes | `[dependencies]`; there is no `api` scope, all `pub` items are visible |
+| `implementation` and `api` scopes | `[dependencies]`. There is no `api` scope, and all `pub` items are visible |
 
-Crates are not published on crates.io (<Status issue={321} />). So your own code today lives in a clone of the repository, or depends on a git commit.
+Crates are not published on crates.io (<Status issue={321} />), so today your own code lives in a clone of the repository or depends on a git commit.
 
-## Next
-
-[Run a server](/docs/en/start/run-server/), or go back to [Status](/docs/en/start/status/).
+Next: [Run a server](/docs/en/start/run-server/).

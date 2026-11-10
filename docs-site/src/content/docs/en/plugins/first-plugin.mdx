@@ -24,15 +24,15 @@ import Status from '~/components/Status.astro';
 import Example from '~/components/Example.astro';
 import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
-You will add a plugin that counts server ticks. The plugin lives in your own copy of the mcrs repository, next to the server binary. mcrs has no plugin loader and no jar files (see [This is not the Paper API](/docs/en/plugins/not-paper/)), so "installing a plugin" means adding Rust code to the program that starts the server.
+In this tutorial you add a plugin that counts server ticks. mcrs has no plugin loader and no jar files, as [This is not the Paper API](/docs/en/plugins/not-paper/) explains, so "installing a plugin" means adding Rust code to the program that starts the server. Your plugin lives in your own copy of the mcrs repository, next to the server binary.
 
 <Aside type="caution" title="WIP">
-The way to build a plugin in its own project, with mcrs as a git dependency, is not checked. The crates are not published (<Status issue={321} />) and the examples workspace does not exist yet (<Status issue={288} />). This page edits `src/main.rs` inside the clone instead. The code comes from test files of the repository. We did not run these steps outside the repository tests.
+Building a plugin in its own project, with mcrs as a git dependency, is not checked. The crates are not published (<Status issue={321} />) and the examples workspace does not exist yet (<Status issue={288} />), so this page edits `src/main.rs` inside the clone. The code comes from test files of the repository, and we did not run these steps outside the repository tests.
 </Aside>
 
-## Words you will see now
+## Eight terms this page uses
 
-If Rust and Bevy are new to you, read these eight lines first. The full minimum is on [Rust for Java developers](/docs/en/plugins/rust-for-java/).
+If Rust and Bevy are new to you, read this table first. [Rust for Java developers](/docs/en/plugins/rust-for-java/) has the full minimum.
 
 | Word | Closest Java idea | Meaning here |
 |---|---|---|
@@ -41,15 +41,11 @@ If Rust and Bevy are new to you, read these eight lines first. The full minimum 
 | resource | a singleton field of the server | one value per world, read with `Res<T>` or `ResMut<T>` |
 | observer | an event listener | a function that runs when an event is triggered, written with `On<Event>` |
 | query | a stream over all players, with a filter | a system parameter that visits entities with the components you name |
-| `&mut` | a mutable reference | a borrow that may change the value; one at a time |
-| `Clone` | `clone()` | a copy of the value; a dimension plugin needs it, see below |
+| `&mut` | a mutable reference | a borrow that may change the value; only one can exist at a time |
+| `Clone` | `clone()` | a copy of the value; a dimension plugin needs it, as step 2 explains |
 | dimension world | one `World` object per dimension | each dimension has its own world, and your plugin is built once in each |
 
-## What you build
-
-A resource `Ticks` holds a number. One system adds one to it each server tick. The test file of the repository has exactly this plugin, and it counts in the overworld and in the nether.
-
-## Step 1: get the repository
+## Step 1: clone the repository
 
 Clone `andreypfau/mcrs`. The [README Quick start](https://github.com/andreypfau/mcrs/blob/main/README.md) has the toolchain note and the run commands.
 
@@ -57,41 +53,43 @@ Clone `andreypfau/mcrs`. The [README Quick start](https://github.com/andreypfau/
 A detailed install and run guide will appear before the alpha. Until then, use the README and the technical `.md` files in the repository.
 </Aside>
 
-## Step 2: the plugin
+## Step 2: write the plugin
 
-A plugin is a struct that implements `Plugin`. This one registers a resource and a system. The system runs in `FixedUpdate` and adds one to the counter. The test uses a const generic `ALL` to run two variants. Read it as a plain `CountTicks` and ignore `ALL`.
+A plugin is a struct that implements `Plugin`. The plugin below registers a resource named `Ticks`, which holds a number, and one system. The system runs in `FixedUpdate` and adds one to the number on each server tick.
 
 <Example file="crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs" from={"#[derive(Resource, Default)]\nstruct Ticks<const ALL: bool>(u32);"} to={"    }\n}"} title="A plugin that counts ticks" />
 
-Your plugin must be `Clone`. The server builds one copy of it for every dimension world, so it needs to copy it. The binary already has a small plugin that shows the shape:
+This code comes from a test file of the repository, where the plugin counts ticks in the overworld and in the nether. The test uses a const generic `ALL` to run two variants of the plugin. Read the code as a plain `CountTicks` and ignore `ALL`.
+
+Your plugin must be `Clone`, because the server builds one copy of it for every dimension world. The server binary already has a small plugin that shows the shape:
 
 <Example file="src/main.rs" from={"#[derive(Clone)]\nstruct LogInsteadOfPanicPlugin"} to={"    }\n}"} title="The smallest Clone plugin in src/main.rs" />
 
 ## Step 3: register it with add_dimension_plugin
 
-In `serve()` of `src/main.rs`, the server already registers one plugin the right way. Add yours on the next line.
+The function `serve()` in `src/main.rs` already registers one plugin the right way. Add yours on the next line.
 
 <Example file="src/main.rs" from="fn serve() -> AppExit" to="app.add_dimension_plugin(LogInsteadOfPanicPlugin);" title="Where serve() registers a dimension plugin" />
 
-<Aside type="caution" title="The trap: add_plugins is not enough">
-Each dimension runs as a separate Bevy `SubApp` with its own `World`. A plugin that you add with `app.add_plugins(...)` goes to the main app. It never reaches the simulation of a dimension (<Status issue={280} />). Your system would build without an error and never see a block, a mob or a player entity. Use `add_dimension_plugin(plugin)` for every dimension, or `add_dimension_plugin_to(key, plugin)` for one. The plugin goes in before the dimensions spawn, so call it before the server starts. More in [Dimensions](/docs/en/plugins/dimensions/).
+<Aside type="caution" title="add_plugins does not reach a dimension">
+Each dimension runs as a separate Bevy `SubApp` with its own `World`. A plugin that you add with `app.add_plugins(...)` goes to the main app and never reaches the simulation of a dimension (<Status issue={280} />). Your system would build without an error and never see a block, a mob or a player entity. Use `add_dimension_plugin(plugin)` to add a plugin to every dimension, or `add_dimension_plugin_to(key, plugin)` to add it to one. Call either of them before the server starts, because the plugin goes in before the dimensions spawn. [Dimensions](/docs/en/plugins/dimensions/) has more.
 </Aside>
 
-The test shows both calls, and what the server builds from them:
+The test shows both calls and what the server builds from them:
 
 <Example file="crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs" from={"#[test]\nfn dimension_plugins_run_in_every_world_or_in_the_world_of_their_key"} to="OVERWORLD, Rate(2)" title="One plugin in every world, one in the overworld only" />
 
-## Step 4: see the count
+## Step 4: run the test that checks the count
 
-The test plugin does not print anything. It asserts that the counter is above zero in both worlds (`ticks::<true>(...)` in the same file). The command below runs this test. It is the pattern that the chat test also uses (<Status pr={636} state="works" />).
+The test plugin prints nothing. The test asserts that the counter is above zero in both worlds, with `ticks::<true>(...)` in the same file. The command below runs this test, and the chat test uses the same pattern (<Status pr={636} state="works" />).
 
 ```bash
 cargo test -p mcrs_minecraft_server --test it dimension_plugins::
 ```
 
-We did not run this command for this page. The repository has no log line for this plugin, so this page shows no expected log. If you want one, add a `tracing::info!` call in your system.
+We did not run this command for this page. The repository has no log line for this plugin, so this page shows no expected log. If you want one, add a `tracing::info!` call to your system.
 
-## The same in Paper
+## The same plugin in Paper
 
 <Tabs syncKey="jvm">
 <TabItem label="Paper (for comparison)">
@@ -109,12 +107,12 @@ public final class CountTicks extends JavaPlugin {
 ```
 </TabItem>
 <TabItem label="mcrs">
-Same idea, with three differences. The plugin is part of the server program, not a jar. The counter is a resource in a world, not a field of your class. The task is a system that Bevy schedules, and it runs once in each dimension world.
+The idea is the same, and three things differ. The mcrs plugin is compiled into the server program, while the Paper plugin ships as a jar. The counter is a resource in a world, where Paper keeps it in a field of your class. The task is a system that Bevy schedules, and it runs once in each dimension world.
 </TabItem>
 </Tabs>
 
-## What next
+## What plugins cannot do yet
 
-- [Intercept chat](/docs/en/plugins/chat-event/): the first public event, cancel and rewrite.
-- [Dimensions](/docs/en/plugins/dimensions/): why the trap above exists.
-- [Status](/docs/en/start/status/): what is missing for plugins. Follow <Status issue={283} /> (events), <Status issue={281} /> (chunk sources), <Status issue={78} /> (saving) and <Status issue={546} /> (dimensions at run time).
+Four things a plugin may need are still tracked in issues. They are public events (<Status issue={283} />), chunk sources (<Status issue={281} />), saving (<Status issue={78} />) and dimensions at run time (<Status issue={546} />). [Status](/docs/en/start/status/) shows what else is missing for plugins, and [Dimensions](/docs/en/plugins/dimensions/) explains why the `add_plugins` trap exists.
+
+Next: [Intercept chat](/docs/en/plugins/chat-event/) uses the first public event to cancel and rewrite a chat line.

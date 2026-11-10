@@ -24,43 +24,43 @@ import Status from '~/components/Status.astro';
 import StatusRows from '~/components/StatusRows.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-This is the only full status table in the docs. Other pages show a cut of it. Each row has a date and a check you can run or a PERF.md section.
+This page shows what mcrs does and what it does not do yet, area by area. It is the only full status table in the docs, and other pages show a part of it. Each row has a date and either a check you can run or a section of PERF.md.
 
-## Legend
+## What the states mean
 
 | State | Meaning |
 |---|---|
-| <Status state="works" /> | A test you can run, or a PERF.md measurement, shows it |
-| <Status state="partial" /> | Part works, the rest is in an issue or PR |
-| <Status state="wip" /> | Not in the code, or not finished, and there is an issue |
-| <Status state="undecided" /> | No decision yet. The plugin loader (jar, wasm, scripts) is here |
+| <Status state="works" /> | A test you can run or a measurement in PERF.md shows it |
+| <Status state="partial" /> | Part works, and the rest is in an issue or a PR |
+| <Status state="wip" /> | It is not in the code or not finished, and an issue tracks it |
+| <Status state="undecided" /> | No decision yet. The plugin loader (jar, wasm, scripts) is in this state |
 | <Status state="declined" /> | A closed decision says no |
 
-<Aside type="note" title="Direction, not commitment">
-An issue that says "planned" states a direction. It has no date and it is not a promise. A closed issue does not always mean done, and an open one does not always mean no code: some features are partly in the code while their issue is still open.
+<Aside type="note" title="Planned is a direction">
+An issue that says "planned" states a direction. It has no date and it is not a promise. The state of an issue also does not tell you the state of the code. A closed issue does not always mean done, and some features are partly in the code while their issue is still open.
 </Aside>
 
-## Areas
+## Status by area
 
 <StatusRows areas="worldgen,lighting,client,protocol,network,persistence,gameplay,commands,entities,physics,datapacks,molang,tools,library" />
 
-Performance numbers live in [PERF.md](https://github.com/andreypfau/mcrs/blob/main/PERF.md), always with the machine and the scenario. They were measured on an Apple M4 Max with macOS only. We publish no comparison with vanilla, Paper or other servers.
+Performance numbers are in [PERF.md](https://github.com/andreypfau/mcrs/blob/main/PERF.md), each with the machine and the scenario. All of them were measured on one machine, an Apple M4 Max with macOS. We publish no comparison with vanilla, Paper or other servers.
 
-## Not planned
+## What is not planned
 
-- Support for older game versions: one version at a time (<Status issue={412} />).
+- Support for older game versions. mcrs targets one version at a time (<Status issue={412} />).
 - Datafixers. A save is read at exactly the targeted data version, and an unknown field is a loud error (<Status issue={388} />).
-- A facade or a Bukkit-like API crate (<Status issue={437} />). This decision is only about the facade. A plugin loader for jar, wasm or scripts has no decision yet.
+- A facade or a Bukkit-like API crate (<Status issue={437} />). This decision covers only the facade. A plugin loader for jar, wasm or scripts has no decision yet.
 
 ## How to follow progress
 
 You do not need to read code to follow the project.
 
-- [The GitHub repository](https://github.com/andreypfau/mcrs): all the work is visible there.
-- Issues: open one from the table and press Watch on the right (a GitHub account is needed). You get a mail when it changes.
-- [Latest code changes](https://github.com/andreypfau/mcrs/commits/main) and [releases](https://github.com/andreypfau/mcrs/releases).
-- [Discord](https://discord.gg/ged3nMRzwG): questions and progress reports.
-- Direction issues: <Status issue={180} /> (library), <Status issue={181} /> (many nodes), <Status issue={182} /> (gameplay).
-- Decisions with their reasons: issues with the label [`decision`](https://github.com/andreypfau/mcrs/issues?q=label%3Adecision).
+- All the work is visible in [the GitHub repository](https://github.com/andreypfau/mcrs).
+- To follow one issue, open it from the table and press Watch on the right. You need a GitHub account, and you get a mail when the issue changes.
+- The [latest code changes](https://github.com/andreypfau/mcrs/commits/main) and the [releases](https://github.com/andreypfau/mcrs/releases) are on GitHub too.
+- Questions and progress reports are on [Discord](https://discord.gg/ged3nMRzwG).
+- Three issues hold the direction: <Status issue={180} /> for the library, <Status issue={181} /> for many nodes and <Status issue={182} /> for gameplay.
+- Decisions and their reasons are the issues with the label [`decision`](https://github.com/andreypfau/mcrs/issues?q=label%3Adecision).
 
 We check this page by hand once a month and on every new tag.

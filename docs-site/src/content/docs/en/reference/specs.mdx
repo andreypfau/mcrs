@@ -22,14 +22,16 @@ import { fact } from '~/lib/facts.mjs';
 import { Aside } from '@astrojs/starlight/components';
 
 <Aside type="note" title="Written for AI agents and spec authors">
-The files in `docs/spec/` are written for AI agents and for the people who write specifications. They follow the rules of ASD-STE100 Simplified Technical English, as `docs/spec/README.md` says. They are exact and dry on purpose. This page is the map. Use it to find the file, then read the file.
+The files in `docs/spec/` are written for AI agents and for the people who write specifications. They follow the rules of ASD-STE100 Simplified Technical English, as `docs/spec/README.md` says. That is why they are exact and dry. Use this page to find the right file, then read the file itself.
 </Aside>
 
-Each file in [docs/spec](https://github.com/andreypfau/mcrs/tree/main/docs/spec) states the behavior of one domain: inputs, outputs, order, timing and constants as data. A spec never describes the shape of game code. Specs are the only source of game behavior that an implementer may read for a rule ([Clean-room](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md)). Some spec headers still name `26.4-snapshot-4` as the game version. The project follows <code dir="auto">{fact('snapshot')}</code> (`assets/minecraft/version.json`).
+This page tells you which file in [docs/spec](https://github.com/andreypfau/mcrs/tree/main/docs/spec) specifies each domain of game behavior, and how to read a rule in such a file. Each file states the behavior of one domain as data, which means its inputs, outputs, order, timing and constants. A spec never describes the shape of game code. Specs are also the only source of game behavior that an implementer may read for a rule, as the [clean-room rule](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md) requires.
+
+Some spec headers still name `26.4-snapshot-4` as the game version. The project follows <code dir="auto">{fact('snapshot')}</code>, which is set in `assets/minecraft/version.json`.
 
 ## Files by domain
 
-Rule ids look like `CMD-TP-013`: a domain prefix, a topic, and a number. Tests and issues cite them. In the table, `*` stands for the topic part.
+A rule id such as `CMD-TP-013` has a domain prefix, a topic and a number. Tests and issues cite rules by these ids. In the table, `*` stands for the topic part.
 
 | Domain | Files in `docs/spec/` | Id prefix |
 |---|---|---|
@@ -49,9 +51,9 @@ Rule ids look like `CMD-TP-013`: a domain prefix, a topic, and a number. Tests a
 | Client: GUI, chat, commands | `client-chat.md`, `client-commands.md`, `client-gui-sprite.md`, `client-tooltip.md` | `CHAT`, `CCMD`, `GSPR`, `TIP` |
 | Block models and light | `block-model-resolution.md`, `block-face-bake.md`, `block-entity-models.md`, `block-smooth-light.md` | `BMR`, `BFB`, `BEM`, `BSL` |
 
-The folder has more notes next to the specs, for example [docs/command-dimensions.md](https://github.com/andreypfau/mcrs/blob/main/docs/command-dimensions.md) and [docs/entity-render.md](https://github.com/andreypfau/mcrs/blob/main/docs/entity-render.md). Those are working notes, not specs.
+Most specs list their own id prefixes in a table near the top. When that table and this page differ, the table in the file is the full list.
 
-Most specs list their own id prefixes in a table near the top. That table, not this page, is the full list per file.
+The `docs` folder also has notes next to the specs, for example [docs/command-dimensions.md](https://github.com/andreypfau/mcrs/blob/main/docs/command-dimensions.md) and [docs/entity-render.md](https://github.com/andreypfau/mcrs/blob/main/docs/entity-render.md). Those are working notes, not specs.
 
 ## How to read a rule
 
@@ -61,7 +63,7 @@ A rule has a heading with its id, a behavior section, and a provenance line:
 Provenance: source_suggested. Kind: semantic. Confidence: medium. Experiment: ...
 ```
 
-Provenance says where the rule comes from (`docs/spec/registry.md`, section 0.3).
+Provenance says where the rule comes from. Section 0.3 of `docs/spec/registry.md` defines the labels.
 
 | Label | Meaning |
 |---|---|
@@ -72,12 +74,19 @@ Provenance says where the rule comes from (`docs/spec/registry.md`, section 0.3)
 | `design` | An mcrs choice. The rule states why. |
 | `unresolved` | Not decided. Collected in a section at the end of the file. |
 
-Kind says how exact the rule must be: `wire` (bytes and ids the vanilla client decodes), `client agreement` (the server must agree with the client), `semantic` (meaning and result, not internal order), `layout` (GUI positions and sizes), `deviation` (a defect of the reference, where the rule states the correct behavior), `unspecified` (a parity test must not compare it).
+Kind says how exact the rule must be.
 
-The "Intentional deviations" section of a file records where mcrs differs from vanilla on purpose, with the rule id, the reference behavior, whether the client sees it, and what a test does about it.
+| Kind | What the rule fixes |
+|---|---|
+| `wire` | The bytes and ids that the vanilla client decodes. |
+| `client agreement` | The server must agree with the client. |
+| `semantic` | The meaning and the result, but not the internal order. |
+| `layout` | GUI positions and sizes. |
+| `deviation` | The reference has a defect, and the rule states the correct behavior. |
+| `unspecified` | A parity test must not compare it. |
 
-`registry.md` says that none of its experiments has been run. Treat a `source_suggested` rule as a claim with no game artifact behind it yet.
+A file also has an "Intentional deviations" section, which records where mcrs differs from vanilla on purpose. Each entry gives the rule id, the reference behavior, whether the client sees the difference, and what a test does about it.
 
-## Next
+`registry.md` says that none of its experiments has been run. So treat a `source_suggested` rule as a claim that has no game artifact behind it yet.
 
-How to write and read specs as a contributor: [How to contribute](/docs/en/contributing/). How parity tests use them: [Parity](/docs/en/concepts/parity/).
+Next: [How to contribute](/docs/en/contributing/) explains how a contributor writes and reads specs, and [Parity](/docs/en/concepts/parity/) explains how parity tests use them.

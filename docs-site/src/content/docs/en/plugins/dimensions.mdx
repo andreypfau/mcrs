@@ -25,61 +25,69 @@ import Status from '~/components/Status.astro';
 import Example from '~/components/Example.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-In Paper, a `World` is an object that your plugin can reach from anywhere. In mcrs, a dimension is a separate simulation, and code in the main app cannot touch it directly. This page explains the model once, because three other pages depend on it. Examples come from repository files, and we did not run them outside the repository tests.
+This page explains how mcrs runs dimensions and what that means for a plugin. It tells you where your code has to run to see players and blocks, who is allowed to write state that all dimensions share, and how a player gets from one dimension to another.
+
+In Paper, a `World` is an object that your plugin can reach from anywhere. In mcrs, a dimension is a separate simulation, and code in the main app cannot touch it directly. The examples come from repository files, and we did not run them outside the repository tests.
 
 ## One main app, one sub-app per dimension
 
-The server has one main Bevy `App`. Each dimension runs as a Bevy `SubApp` with its own `World` (<Status issue={362} />). The reason from the issue: in one shared world, every system would visit the entities of all dimensions and filter them by a dimension component, and the dimensions could not tick in parallel or move to another machine later.
+The server has one main Bevy `App`. Each dimension runs as a `SubApp`, which is a Bevy app nested in the main one, and it has its own `World` with its own entities and resources (<Status issue={362} />). The issue gives the reason. In one shared world, every system would visit the entities of all dimensions and filter them by a dimension component. The dimensions also could not tick in parallel or move to another machine later.
 
-Consequences you will meet:
+You will meet three consequences in your code. A system of a dimension world sees only the entities of that dimension. Immutable registries are shared with the dimensions as `Arc` values, and mutable state is not shared.
 
-- A system of a dimension world sees only the entities of that dimension.
-- Immutable registries are shared with the dimensions as `Arc` values. Mutable state is not shared.
-- A dimension world has no `Time` resource and does not run the stock `Main` schedule. It runs `First`, `PreUpdate`, the `Fixed*` schedules, `Update`, `PostUpdate` and `Last` once per host tick, so it counts ticks and cannot depend on the wall clock (from the doc comment in `sub_app.rs`).
+The third consequence is about time. A dimension world has no `Time` resource and does not run the stock `Main` schedule. It runs `First`, `PreUpdate`, the `Fixed*` schedules, `Update`, `PostUpdate` and `Last` once per host tick. A dimension therefore counts ticks and cannot depend on the wall clock, as the doc comment in `sub_app.rs` says.
 
-## Adding a plugin to dimensions
+## A plugin gets into a dimension through add_dimension_plugin
 
-<Status issue={280} /> A plugin added with `add_plugins` goes to the main app only. To put it into the dimensions, use the `AddDimensionPlugins` trait:
+A plugin added with `add_plugins` goes to the main app only, where it sees no players and no blocks. To put a plugin into the dimensions, use the `AddDimensionPlugins` trait (<Status issue={280} />):
 
 <Example file="crates/mcrs_minecraft_engine_world/src/world/sub_app.rs" from="pub trait AddDimensionPlugins" title="The two methods" />
 
 - `add_dimension_plugin(plugin)` builds a copy of the plugin in every dimension world.
 - `add_dimension_plugin_to(key, plugin)` builds it only in the dimension with that key, for example `OVERWORLD`.
-- The plugin must be `Clone`. Each world builds its own clone, in the order the plugins were added.
-- You must add it before the dimensions spawn. A dimension that is already live does not get a later plugin.
-- A unique plugin added for one dimension replaces the unique plugins with the same name for all dimensions in that world. A unique plugin whose name the world already has is skipped, and the server logs an error.
 
-The repository test checks each rule. It adds one counter to every world and another only to the overworld, then asserts that the nether has no second counter and that the overworld got the value of the plugin added for its key.
+The plugin must be `Clone`, because each world builds its own clone. The worlds build the clones in the order the plugins were added. Add your plugin before the dimensions spawn, because a dimension that is already live does not get a later plugin.
+
+One more rule applies to unique plugins, which is the Bevy name for a plugin that an app can hold only once. A unique plugin that you add for one dimension replaces, in that world, the unique plugins with the same name that were added for all dimensions. Any other unique plugin whose name the world already has is skipped, and the server logs an error.
+
+The repository test checks each rule. It adds one counter to every world and another counter only to the overworld. Then it asserts that the nether has no second counter and that the overworld got the value of the plugin added for its key.
 
 <Example file="crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs" from={"#[test]\nfn dimension_plugins_run_in_every_world_or_in_the_world_of_their_key"} to={"        1\n    );"} title="Test: a plugin for every world and a plugin for one key" />
 
 ## Global state has one writer
 
-<Status issue={357} /> Game time, world clocks, weather, game rules, the world border and scoreboards are read by every dimension. The decision in the issue: each piece of such state has one owner, which writes it. In one process the owner is the main app. A dimension holds a read-only, versioned snapshot and gets a new one only when the version changes. A dimension that wants a change, such as a command or a weather cycle, sends a message to the owner.
+Every dimension reads game time, world clocks, weather, game rules, the world border and scoreboards. The decision in <Status issue={357} /> is that each piece of such state has one owner, and only the owner writes it. In one process the owner is the main app.
 
-For a plugin author this means: do not keep your own copy of the game clock inside a dimension and advance it. The copies would drift apart. Test setups that set game rules, weather or clocks write through the owner, not into a dimension world.
+A dimension holds a read-only snapshot with a version, and it gets a new snapshot only when the version changes. When a dimension wants a change, for example because of a command or a weather cycle, it sends a message to the owner.
 
-## Players move as messages
+For a plugin this means that you do not keep your own copy of the game clock inside a dimension and advance it, because the copies would drift apart. The same holds for a test setup. When it sets game rules, weather or clocks, it writes through the owner and never into a dimension world.
 
-A system of one dimension cannot reach another world. Players move between dimension worlds as messages, never by moving entities (<Status issue={362} />). A portal, or any move decided inside a tick, writes a request:
+## A player moves between dimensions as a message
+
+A system of one dimension cannot reach another world, so the server cannot move the entity of a player from one world to the other. Instead, a portal, or any other move decided inside a tick, writes a request (<Status issue={362} />):
 
 <Example file="crates/mcrs_minecraft_engine_world/src/entity/player/mod.rs" from={"#[derive(Message, Clone, Debug)]\npub struct ChangeDimensionRequest"} title="ChangeDimensionRequest" />
 
-At the end of the tick, the old world takes the carried state of the player, despawns the player and hands a departure to the host. The player arrives in the new world on the next tick. The rules are in [docs/command-dimensions.md](https://github.com/andreypfau/mcrs/blob/main/docs/command-dimensions.md), section "Change of dimension".
+At the end of the tick, the old world takes the carried state of the player, despawns the player and hands a departure to the host. The player arrives in the new world on the next tick. The rules are in the section "Change of dimension" of [docs/command-dimensions.md](https://github.com/andreypfau/mcrs/blob/main/docs/command-dimensions.md).
 
 <Aside type="caution" title="Your player components stay behind">
-The carried state is a plain struct of the components that go with the player. A component that is not in it stays in the old world and is despawned with the old entity (docs/command-dimensions.md). If your plugin adds a component to players, check whether it needs to travel. No public way to add your own data to the carried state is documented yet, so for now this is a question for the issue tracker.
+The carried state is a plain struct of the components that go with the player. A component that is not in it stays in the old world and is despawned with the old entity, as docs/command-dimensions.md says. If your plugin adds a component to players, check whether it needs to travel. No public way to add your own data to the carried state is documented yet, so for now this is a question for the issue tracker.
 </Aside>
 
-The same document describes how commands work across worlds. A command runs in one world. Its effects on other worlds are messages, and the host forwards them between ticks. See [Add a command](/docs/en/plugins/commands/).
+The same document describes how commands work across worlds. A command runs in one world. Its effects on other worlds are messages, and the host forwards them between ticks. The page [Add a command](/docs/en/plugins/commands/) shows how a handler writes such an effect.
 
-## Dimensions at run time
+## You cannot create a dimension at run time yet
 
 <Aside type="caution" title="WIP">
-The dimension list is fixed when the server starts. A lobby or a minigame cannot create a world for a match and remove it afterwards. <Status issue={546} /> describes the plan: a public message that adds a dimension world with a name, a dimension type, a chunk source (<Status issue={281} />) and its plugins; a message that removes one and moves its players first; and a message that moves a player to a named world and position, which a plugin can cancel (<Status issue={283} />). The issue needs <Status issue={142} />, <Status issue={280} /> and the chunk source above. It is a direction, not a promise.
+The dimension list is fixed when the server starts. A lobby or a minigame cannot create a world for a match and remove it afterwards.
+
+<Status issue={546} /> describes the plan, which has three messages:
+
+- A public message adds a dimension world with a name, a dimension type, a chunk source (<Status issue={281} />) and its plugins.
+- One message removes a dimension world and moves its players first.
+- One message moves a player to a named world and position, and a plugin can cancel it (<Status issue={283} />).
+
+The issue needs <Status issue={142} />, <Status issue={280} /> and the chunk source above. It sets a direction without a promise.
 </Aside>
 
-## What next
-
-- [Customize the server](/docs/en/plugins/customize-server/): leave out vanilla parts and replace the chunk source.
-- [Concepts: layers](/docs/en/concepts/layers/): how the crates fit together.
+Next: [Remove and replace vanilla parts](/docs/en/plugins/customize-server/).

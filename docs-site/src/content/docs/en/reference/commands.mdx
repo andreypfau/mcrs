@@ -24,15 +24,15 @@ import Status from '~/components/Status.astro';
 
 import { Aside } from '@astrojs/starlight/components';
 
-The server registers {fact('root_commands')} root commands (21 names with the alias `tp`). They come from two plugins: `VanillaCommandsPlugin` in `crates/mcrs_minecraft_command_vanilla` and `WorldCommandsPlugin` in `crates/mcrs_minecraft_command_world`. This list was checked against both `plugin.rs` files and the permission calls of each command on commit `51d45c26a`. Commands that vanilla has and that are not in this list do not exist here yet. `setblock`, `give`, `say` and `stop` are not registered, for example.
+This page lists the commands that the server registers today, the permission level each one needs and the specification that states its behavior. The server registers {fact('root_commands')} root commands, or 21 names when you count the alias `tp`. `VanillaCommandsPlugin` in `crates/mcrs_minecraft_command_vanilla` registers most of them, and `WorldCommandsPlugin` in `crates/mcrs_minecraft_command_world` registers the rest. The list was checked against both `plugin.rs` files and the permission calls of each command on commit `51d45c26a`. A vanilla command that is missing from the list does not exist here yet. For example, `setblock`, `give`, `say` and `stop` are not registered.
 
 <Aside type="caution" title="WIP">
-The table is written by hand. It will be generated from the two `plugin.rs` files. The command tree with permission levels is tracked in <Status issue={285} />, and a Bedrock command dialect in <Status issue={667} />.
+The table is written by hand for now, and it will be generated from the two `plugin.rs` files. The command tree with permission levels is tracked in <Status issue={285} />, and a Bedrock command dialect in <Status issue={667} />.
 </Aside>
 
 ## Permission levels
 
-There are five ordered levels, as in vanilla ([command-permissions spec](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-permissions.md), PERM-LEVEL-001).
+Every command needs a permission level. There are five levels and they are ordered, the same as in vanilla. Rule PERM-LEVEL-001 of the [command-permissions spec](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-permissions.md) defines them.
 
 | Id | Name |
 |---|---|
@@ -42,11 +42,11 @@ There are five ordered levels, as in vanilla ([command-permissions spec](https:/
 | 3 | `admins` |
 | 4 | `owners` |
 
-A player who is not an operator has level `all`. An operator has the level that `ops.json` gives, from 0 to 4. The `op` command gives the default level, which is `owners`. A player who joins from the same machine is an operator for the session. Every command below needs level 2 or 3, so only operators can run them.
+A player who is not an operator has level `all`. An operator has the level that `ops.json` gives, from 0 to 4, and the `op` command gives the default level, which is `owners`. A player who joins from the same machine as the server is an operator for the session. Every command in the next table needs level 2 or 3, so only operators can run them.
 
 ## Commands
 
-The behavior column links to the specification in `docs/spec/`. Where no file is named, there is no specification for that command yet.
+In the "Plugin" column, `vanilla` stands for `VanillaCommandsPlugin` and `world` for `WorldCommandsPlugin`. The last column links to the specification of the command in `docs/spec/`. When it says `none`, the command has no specification yet.
 
 | Command | Level | Plugin | Specification |
 |---|---|---|---|
@@ -68,12 +68,12 @@ The behavior column links to the specification in `docs/spec/`. Where no file is
 | `weather` | gamemasters (2) | world | [command-weather.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-weather.md) |
 | `tick` (including `tick sprint stop`) | admins (3) | world | [command-tick.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-tick.md) |
 
-Parsing, argument types and the command tree sent to the client are in [command-parser.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-parser.md), the `argument-*.md` files and [commands-packet.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/commands-packet.md). How a command finds players in every dimension is in [docs/command-dimensions.md](https://github.com/andreypfau/mcrs/blob/main/docs/command-dimensions.md).
+Three more groups of specs cover what all commands share. Parsing is in [command-parser.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-parser.md), argument types are in the `argument-*.md` files, and the command tree that the server sends to the client is in [commands-packet.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/commands-packet.md). The note [docs/command-dimensions.md](https://github.com/andreypfau/mcrs/blob/main/docs/command-dimensions.md) explains how a command finds players in every dimension.
 
 ## Typing commands
 
-A player types commands in chat. The server also reads its standard input: each line runs as a command of the server source, in the overworld (`ConsolePlugin` in `crates/mcrs_minecraft_console`). A burst of lines runs over several ticks, at most 2000 lines per tick. The answers go to the server log.
+A player types commands in chat. The server also reads its standard input, and each line runs in the overworld as a command whose source is the server itself. When many lines arrive at once, the server spreads them over several ticks and runs at most 2000 lines per tick. The answers go to the server log. The code is `ConsolePlugin` in `crates/mcrs_minecraft_console`.
 
 ## For plugin authors
 
-Commands are Bevy plugin code: a plugin calls `add_command` with a build function and a run function (see both `plugin.rs` files for the pattern), and a command can write effects that other systems apply. Commands also raise a cancellable `CommandEvent`. There is no loader for plugins that are not compiled into the server, and no decision about one yet. The page [Commands for plugins](/docs/en/plugins/commands/) has the details.
+A command is ordinary Bevy plugin code. A plugin calls `add_command` with a build function and a run function, and both `plugin.rs` files show the pattern. A command can write effects that other systems apply, and commands also raise a `CommandEvent` that can be cancelled. A plugin must be compiled into the server, because there is no loader for other plugins and no decision about one yet. [Commands for plugins](/docs/en/plugins/commands/) has the details.

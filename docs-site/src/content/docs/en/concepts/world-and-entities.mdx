@@ -22,9 +22,9 @@ verified:
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-This page is short on purpose. The layout is settled for blocks and still moving for entities and for the world-access API. If you know Paper, the key change is that a "chunk" is two different things here, and a mob is not an object.
+This page shows how mcrs lays out a world in memory: blocks in sections and columns, and mobs as rows in a table. The layout is settled for blocks and still moving for entities and for the world-access API, so the page is short. If you know Paper, expect two changes. A "chunk" is two different things here, and a mob is not an object.
 
-## Three levels
+## A dimension holds columns, and a column holds sections
 
 | Level | Size | What it is for |
 |---|---|---|
@@ -32,39 +32,36 @@ This page is short on purpose. The layout is settled for blocks and still moving
 | Column | 16 x height x 16 blocks | a vertical stack of sections; it owns the heightmaps |
 | Dimension | unbounded | the top container; it owns the column index and the section index |
 
-In the engine, each of these is an ECS entity with a marker component (`Section`, `Column`, `Dimension` in `mcrs_minecraft_engine_world`). mcrs says "section" and "column" and avoids a bare "chunk", because "chunk" does not say which of the two it means. The position types `BlockPos`, `SectionPos` and `ColumnPos` are plain coordinate math in `mcrs_minecraft_core` and carry no ECS state. Block data inside a section is a `PalettedContainer`-style palette, as in the game.
+mcrs says "section" and "column" and avoids a bare "chunk", because "chunk" does not say which of the two it means. The [glossary](/docs/en/reference/glossary/) defines both terms.
 
-A dimension that is a separate Bevy world also gets its own tick. This is the base of [Cells and the road to many nodes](/docs/en/concepts/scaling/) and of the dimension plugins you write in [Dimensions](/docs/en/plugins/dimensions/).
+In the engine, each of the three levels is an ECS entity with a marker component that tags what the entity is. The markers are `Section`, `Column` and `Dimension` in `mcrs_minecraft_engine_world`. The position types `BlockPos`, `SectionPos` and `ColumnPos` are plain coordinate math in `mcrs_minecraft_core` and carry no ECS state. Block data inside a section is a `PalettedContainer`-style palette, as in the game.
+
+A dimension that is a separate Bevy world also gets its own tick. [Cells and the road to many nodes](/docs/en/concepts/scaling/) builds on this, and so do the dimension plugins you write in [Dimensions are separate worlds](/docs/en/plugins/dimensions/).
 
 ## Tickets decide what is hot
 
-Space ticks only when a ticket covers it: a player's simulation area, the spawn area, a chunk loader. The code keeps the loading tickets on columns, the 3D simulation areas of players and the stage of each section (`lifecycle/` in the world module). Cold space is data that does not tick. That split is what lets an untouched section cost nothing.
+Space ticks only when a ticket covers it. A ticket comes from a player's simulation area, the spawn area or a chunk loader. The code keeps the loading tickets on columns, the 3D simulation areas of players and the stage of each section in `lifecycle/` in the world module. Cold space is data that does not tick. This split is what lets an untouched section cost nothing.
 
-## One API for reading the world: volumes
+## Volumes become the one API for reading the world
 
-Today several code paths read blocks through their own view: the chunk crate, the world generator, the light engine, the mesher, the client. Each answers "section not loaded" in its own way. <Status issue={486} /> (migration in steps) replaces them with one layer-3 crate, `mcrs_minecraft_volume`:
+Today several code paths read blocks, and each uses a view of its own: the chunk crate, the world generator, the light engine, the mesher and the client. Each answers "section not loaded" in its own way. <Status issue={486} /> replaces them, in steps, with one layer-3 crate called `mcrs_minecraft_volume`.
 
-- a volume has bounds and says, per section, whether it may be written, is read-only, belongs to another owner, is not loaded, or is outside;
-- capabilities are separate traits (blocks, biomes, heights, light, block entities, and mutable forms), generic, with no per-block dynamic dispatch;
-- the main path is per section and per palette; access per block is a cursor over it;
-- nothing loads on access, and errors are types you can match.
+A volume has bounds. For each section it says whether the section may be written, is read-only, belongs to another owner, is not loaded, or is outside. Nothing loads on access, and errors are types you can match.
 
-The crate exists and exports these types. The migration of callers is done in seven steps listed in the issue (engine dimension view, heights and biomes, snapshots and light, meshing and the client store, and so on), so some code still uses the old views.
+Capabilities are separate traits for blocks, biomes, heights, light and block entities, plus mutable forms of them. The traits are generic, so there is no dynamic dispatch per block. The main path works per section and per palette, and access per block is a cursor over that path.
+
+The crate exists and exports these types. The callers move to it in seven steps listed in the issue, such as the engine dimension view, heights and biomes, snapshots and light, and meshing and the client store. Until the steps are done, some code still uses the old views.
 
 <Aside type="caution" title="WIP">
 Treat the volume API as the direction. The migration is in progress and the traits may still change: <Status issue={486} />.
 </Aside>
 
-## Mobs are rows, not entities
+## Mobs are rows in a store by tile
 
-A Bevy entity per mob would be flexible and expensive. For server-simulated entities, mcrs keeps rows in a store by tile (`mcrs_minecraft_entity_rows`), with a dense column of hot state for mobs. Items and experience orbs are rows only. Players are rows too. Each tick, one pass steps every row in parallel over tiles against the frozen snapshot. [How a tick runs in parallel](/docs/en/concepts/parallel-tick/) explains why that gives one result on any thread count.
+A Bevy entity per mob would be flexible and expensive. So for the entities that the server simulates, mcrs keeps rows in a store by tile, in the crate `mcrs_minecraft_entity_rows`. Mobs get a dense column of hot state. Items and experience orbs are rows only, and players are rows too. Each tick, one pass steps every row in parallel over tiles against a frozen snapshot. [How a tick runs in parallel](/docs/en/concepts/parallel-tick/) explains why that gives one result on any thread count.
 
-Cold state of a mob (components you may want to read from a normal system) stays in the ECS. The split is "hybrid" in the design note: hot state in rows, cold state in components. The store has no Bevy in its core, and a `bevy` feature turns it into a resource.
+The cold state of a mob stays in the ECS, as components that you may want to read from a normal system. The design note calls this split "hybrid", with hot state in rows and cold state in components. The core of the store has no Bevy, and a `bevy` feature turns the store into a resource.
 
-What is not settled: the exact shape of the API for reading and changing these rows from your own plugin. There is no decision on it yet, so no stable page can describe it. The memory cost per section and per entity component is not measured either: <Status issue={324} />.
+The exact shape of the API for reading and changing these rows from your own plugin is not settled. There is no decision on it yet, so no stable page can describe it. The memory cost per section and per entity component is not measured either (<Status issue={324} />).
 
-## Related
-
-- [Layers and crates](/docs/en/concepts/layers/)
-- [Worlds and data packs](/docs/en/server/worlds/)
-- [Glossary](/docs/en/reference/glossary/)
+Next: [Cells and the road to many nodes](/docs/en/concepts/scaling/).

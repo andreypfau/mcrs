@@ -25,22 +25,22 @@ import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-This page gets you to green tests on your machine and explains what the CI runs on your pull request. It does not cover the install of Rust or of a GPU driver.
+This page gets you to green tests on your machine and explains what CI runs on your pull request. It does not cover how to install Rust or a GPU driver.
 
 <Aside type="caution" title="WIP">
 The detailed build guide is not written yet. It will appear before the alpha for players. Use the [README Quick start](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start) for now. Nothing on this page was run by the author of this page: the commands come from the repository files named in the sources.
 </Aside>
 
-## The repository in one screen
+## Where things are in the repository
 
 | Path | What is there |
 |---|---|
-| `crates/` | the Rust crates, {fact('crates')} of them |
-| `tools/` | the snapshot update tool, fixtures, the vanilla oracle, benchmarks |
-| `xtask/` | the check runner that CI and the local hooks use |
-| `assets/` | the version file, reports from the game, local data packs |
-| `docs/` | specifications and design notes. See the [docs index](https://github.com/andreypfau/mcrs/blob/main/docs/README.md) |
-| `docs-site/` | this site |
+| `crates/` | The Rust crates, {fact('crates')} of them. |
+| `tools/` | The snapshot update tool, fixtures, the vanilla oracle and benchmarks. |
+| `xtask/` | The check runner that CI and the local hooks use. |
+| `assets/` | The version file, reports from the game and local data packs. |
+| `docs/` | Specifications and design notes. The [docs index](https://github.com/andreypfau/mcrs/blob/main/docs/README.md) lists them. |
+| `docs-site/` | This site. |
 
 ## Run the tests
 
@@ -50,75 +50,79 @@ cargo nextest run --workspace       # everything, before a commit
 cargo nextest run --profile full    # plus the exhaustive sweeps
 ```
 
-The runner is [cargo-nextest](https://nexte.st). The repository pins the Rust toolchain in `rust-toolchain.toml`, and `.config/nextest.toml` pins the minimum runner version. Do not use `cargo test`: it ignores `.config/nextest.toml`, and most crates set `doctest = false`. A Claude Code hook in the repository rejects it.
+The runner is [cargo-nextest](https://nexte.st). The repository pins the Rust toolchain in `rust-toolchain.toml`, and `.config/nextest.toml` pins the minimum version of the runner. Do not use `cargo test`, because it ignores `.config/nextest.toml` and most crates set `doctest = false`. A Claude Code hook in the repository rejects it.
 
-Every profile first runs a setup script that installs the game's client jar and unpacks its data pack into your cache directory. You do not download anything by hand. The first run needs network access to Mojang.
+The tests read the game's data pack, so every profile first runs a setup script that installs the game's client jar and unpacks its data pack into your cache directory. You do not download anything by hand, but the first run needs network access to Mojang.
 
-Test names carry a tier prefix, and the profiles filter by it:
+A test name carries a tier prefix such as `exhaustive::` or `gpu::`, and each profile selects tests by that prefix.
 
 | Profile | What it runs |
 |---|---|
-| `default` | everything except `exhaustive::`, `gpu::`, `online::` and `vanilla_server::` tests |
-| `ci` | the same filter as `default`, and it does not stop at the first failure |
-| `ci-hosted` | the filter of `ci`, for the `test` job on a GitHub-hosted machine with four cores. A test may run 5 minutes, and the whole run 30 minutes |
-| `full` | the default tier plus `exhaustive::` and `online::`. The scheduled CI job uses it |
-| `gpu` | only `gpu::` tests. They need a machine with a Metal GPU |
-| `vanilla-server` | only `vanilla_server::` tests. They run through [`vanilla-server/run.sh`](https://github.com/andreypfau/mcrs/blob/main/tools/vanilla-server/run.sh) |
+| `default` | Everything except `exhaustive::`, `gpu::`, `online::` and `vanilla_server::` tests. |
+| `ci` | The same filter as `default`, and it does not stop at the first failure. |
+| `ci-hosted` | The filter of `ci`, for the `test` job on a GitHub-hosted machine with four cores. A test may run 5 minutes, and the whole run 30 minutes. |
+| `full` | The default tier plus `exhaustive::` and `online::`. The scheduled CI job uses it. |
+| `gpu` | Only `gpu::` tests. They need a machine with a Metal GPU. |
+| `vanilla-server` | Only `vanilla_server::` tests. They run through [`vanilla-server/run.sh`](https://github.com/andreypfau/mcrs/blob/main/tools/vanilla-server/run.sh). |
 
 No test run may take longer than five minutes, except in `ci-hosted`. A test that is slower belongs in the `exhaustive::` tier.
 
-## The checks of xtask
+## Run the xtask checks before a push
 
-The CI and the local hooks call one runner: `scripts/hooks/run-checks <trigger>`. It builds `xtask` and runs the checks of that trigger. Run it yourself before a push:
+CI and the local hooks call one runner, `scripts/hooks/run-checks <trigger>`. It builds `xtask` and runs the checks that belong to the trigger. You can run the same checks yourself before a push:
 
 ```bash
 scripts/hooks/run-checks commit
 ```
+
+Each trigger runs a fixed set of checks. Run `scripts/hooks/run-checks` with no argument to see all triggers.
 
 | Trigger | Checks |
 |---|---|
 | `commit`, `push` | `parity`, `fmt` |
 | `lint` | `parity`, `fmt`, `keys` |
 | `clippy` | `clippy` |
-| `test` | the tests of the changed crates and their dependents |
+| `test` | The tests of the changed crates and their dependents. |
 | `portability` | `no-bevy`, `layers`, `wasm32`, `no-std` |
 
-What the checks mean:
+`fmt` and `clippy` run the Cargo commands of the same names. The other checks are specific to mcrs, and the package lists they use are in `xtask/src/checks.rs`.
 
-- `parity`: a test that claims vanilla behavior must load a fixture the game produced. A claim against a literal gives a warning. See [Specs and parity](/docs/en/contributing/specs-and-parity/).
-- `keys`: the generated registry key sources must match what the generator writes from the stored reports. Never edit a generated file by hand.
-- `no-bevy`: 100 packages must build without Bevy. `no-std`: 9 packages must build for a target without std. `wasm32`: 11 packages must build for wasm32. The lists are in `xtask/src/checks.rs`.
-- `layers`: the wire and network crates must not link game data, so a proxy or a bot can use them alone.
+| Check | What it requires |
+|---|---|
+| `parity` | A test that claims vanilla behavior must load a fixture the game produced. A claim against a literal gives a warning. [Specs and parity](/docs/en/contributing/specs-and-parity/) explains parity tests. |
+| `keys` | The generated registry key sources must match what the generator writes from the stored reports. Never edit a generated file by hand. |
+| `no-bevy` | 100 packages must build without Bevy. |
+| `no-std` | 9 packages must build for a target without std. |
+| `wasm32` | 11 packages must build for wasm32. |
+| `layers` | The wire and network crates must not link game data, so a proxy or a bot can use them alone. |
 
-Run `scripts/hooks/run-checks` with no argument to see all triggers.
+## Rewrite a stale blessed file with MCRS_BLESS
 
-## MCRS_BLESS
-
-Some tests compare a generated file with a checked-in copy, for example the baked entity assets and a shader field table. When the copy is stale the test fails and says so. Rewrite the copy with the environment variable the message names:
+Some tests compare a generated file with a checked-in copy, called a blessed file. The baked entity assets and a shader field table are checked this way. When the copy is stale, the test fails and its message names an environment variable. Run the test again with that variable set, and the test rewrites the copy:
 
 ```bash
 MCRS_BLESS=1 cargo nextest run -p <crate>
 ```
 
-Read the diff before you commit it. A blessed file that changed without a reason is a bug in your change, not in the test. The tests that read the variable are in `crates/mcrs_minecraft_mesh/src/pack.rs` and `crates/mcrs_minecraft_entity_model/tests/it/mob_assets.rs`.
+Read the diff before you commit it. If a blessed file changed and you cannot say why, the bug is in your change and the test was right to fail. The tests that read the variable are in `crates/mcrs_minecraft_mesh/src/pack.rs` and `crates/mcrs_minecraft_entity_model/tests/it/mob_assets.rs`.
 
-## CI
+## What CI runs on your pull request
 
 The workflow `.github/workflows/checks.yml` runs on every pull request to `main` and on every push to `main`. Its first job, `changes`, reads the file list of the pull request. If every file is under `docs/`, is a Markdown file in the repository root or is a `LICENSE-*` file, no other job runs and the check passes. A change to `docs-site/` runs the full set.
 
-The jobs depend on where the pull request comes from:
+Which jobs run depends on where the pull request comes from.
 
 | Source | Jobs |
 |---|---|
-| A branch of this repository | `lint` on a GitHub-hosted `ubuntu-24.04` machine. One `self-hosted` job on the project's own runner runs the `clippy`, `test` and `portability` triggers at the same time |
-| A fork | `lint`, `clippy`, `test` and `portability`, each on a GitHub-hosted `ubuntu-24.04` machine. They start from the build caches that each push to `main` saves |
-| A push to `main` | both sets |
+| A branch of this repository | `lint` on a GitHub-hosted `ubuntu-24.04` machine. One `self-hosted` job on the project's own runner runs the `clippy`, `test` and `portability` triggers at the same time. |
+| A fork | `lint`, `clippy`, `test` and `portability`, each on a GitHub-hosted `ubuntu-24.04` machine. They start from the build caches that each push to `main` saves. |
+| A push to `main` | Both sets. |
 
-A final job `checks` fails unless every job that applies passed.
+A final job, `checks`, fails unless every job that applies passed.
 
-- On a GitHub-hosted machine, the `test` trigger uses the `ci-hosted` profile, and Cargo resolves features for the selected packages only.
-- In CI, the tests skip every crate that depends on wgpu and everything above it. Those tests run locally only, so run them yourself when you touch the client or the renderer.
-- A second workflow, `docs`, warns about pages of this site whose sources changed. See [Write these docs](/docs/en/contributing/docs/).
+On a GitHub-hosted machine the `test` trigger uses the `ci-hosted` profile, and Cargo resolves features for the selected packages only. In CI the tests skip every crate that depends on wgpu and everything above it. Those tests run locally only, so run them yourself when you touch the client or the renderer.
+
+A second workflow, `docs`, warns about pages of this site whose sources changed. [Write these docs](/docs/en/contributing/docs/) describes it.
 
 <Aside type="note" title="Spec coverage report">
 A report of specification rules that no test names is planned: <Status issue={507} />. It will list the gaps and fail nothing.

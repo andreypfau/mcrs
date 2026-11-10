@@ -26,49 +26,62 @@ import Status from '~/components/Status.astro';
 import Example from '~/components/Example.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-In Paper you start from a finished server and add plugins. In mcrs you start from a group of plugins and take parts out. A lobby can run without world generation, and a test can run without lighting. Examples come from repository files, and we did not run them outside the repository tests.
+This page shows how to build your own server from the same parts as the stock one. You will see which plugins the server consists of, how to leave one out, and how to pass settings to them.
 
-## The group
+In Paper you start from a finished server and add plugins. In mcrs you start from a group of plugins and take parts out, so a lobby can run without world generation and a test can run without lighting. The examples come from repository files, and we did not run them outside the repository tests.
 
-`MinecraftServerPlugins` is a Bevy `PluginGroup`. Its four fields are the parts that take settings. The rest of the vanilla server is added by `build()`.
+## The server is a group of plugins
+
+`MinecraftServerPlugins` is a Bevy `PluginGroup`, which is a set of plugins that you add to the app as one value. Its four fields are the parts that take settings:
 
 <Example file="crates/mcrs_minecraft_server/src/lib.rs" from="pub struct MinecraftServerPlugins {" title="The fields of the group" />
 
-<Status issue={279} /> The members, in the order `build()` adds them: the server core, world generation registries, the vanilla command set, vanilla commands, world commands, dimension worlds, chat, entity physics, mob brains, world generation, lighting and the network.
+`build()` adds the rest of the vanilla server. The members, in the order `build()` adds them, are the server core, world generation registries, the vanilla command set, vanilla commands, world commands, dimension worlds, chat, entity physics, mob brains, world generation, lighting and the network (<Status issue={279} />).
 
 <Example file="crates/mcrs_minecraft_server/src/lib.rs" from="impl PluginGroup for MinecraftServerPlugins" title="The members of the group" />
 
-Each member can be disabled or replaced without editing the server crate. A member that needs another one panics when the group builds and names the missing plugin. You see the error at start, not as a missing resource at the first tick.
+You can disable or replace each member without editing the server crate. A member that needs another one panics when the group builds and names the missing plugin. You get the error at start, so you do not have to trace a missing resource at the first tick.
 
-<Status issue={282} /> The vanilla gameplay lives in plugins above the engine, each removable on its own, and they reach every dimension world through `add_dimension_plugin`.
+The vanilla gameplay lives in plugins above the engine. Each of them is removable on its own, and they reach every dimension world through `add_dimension_plugin` (<Status issue={282} />).
 
-## Disable a member
+## Disable a member with disable
 
-`disable::<T>()` is a method of the Bevy plugin group builder. The binary uses it to switch mob AI off, and a test uses it to start a server without world generation and lighting:
+The binary switches mob AI off like this:
 
 <Example file="src/main.rs" from="if !settings.mob_ai {" title="src/main.rs: switch off mob AI" />
 
+`disable::<T>()` is a method of the Bevy plugin group builder, and `T` is the plugin you leave out. A repository test uses the same method to start a server without world generation and lighting:
+
 <Example file="crates/mcrs_minecraft_server/tests/it/client_join.rs" from="fn a_client_without_an_app_joins_the_embedded_server_offline" to="StopOnDrop(Arc::new(AtomicBool::new(false)))" title="Test: a server without world generation and lighting" />
 
-That test also uses `MinecraftServerPlugins::embedded()`. It gives a server for another process: loopback only, an OS-assigned port, and task pools left to the host app.
+That test also calls `MinecraftServerPlugins::embedded()`. It gives a server that runs inside another process. Such a server listens on loopback only, takes a port that the OS assigns, and leaves the task pools to the host app.
 
 <Example file="crates/mcrs_minecraft_server/src/lib.rs" from="impl MinecraftServerPlugins {" title="embedded()" />
 
 ## Settings are plugin fields
 
-<Status issue={278} /> A library crate does not read an environment variable or a file for its settings. Every setting is a field of the plugin that uses it. Only the binary reads the environment and translates it into fields. You can see both sides in `src/main.rs`:
+The binary reads its settings from the environment and turns them into plugin fields in `src/main.rs`:
 
 <Example file="src/main.rs" from="let settings = ServerSettings::read(" to=".build();" title="src/main.rs: from settings to plugin fields" />
 
-The environment variables of the binary are the fields of `ServerSettings`, each named by its `MCRS_` variable without the prefix. The full list is in the [source file](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server_settings/src/server_settings.rs). In your own program, skip `ServerSettings` and fill the plugin fields yourself. An embedded server in a test then starts with explicit settings, whatever the shell exported.
+Only the binary does this. A library crate does not read an environment variable or a file for its settings, and every setting is a field of the plugin that uses it (<Status issue={278} />).
 
-## Your own chunk source
+The environment variables of the binary are the fields of `ServerSettings`. Each variable has the name of its field with the prefix `MCRS_`. The full list is in the [source file](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server_settings/src/server_settings.rs).
+
+In your own program, skip `ServerSettings` and fill the plugin fields yourself. An embedded server in a test then starts with explicit settings, whatever the shell exported.
+
+## You cannot supply your own chunks yet
 
 <Aside type="caution" title="WIP">
-This does not exist yet. <Status issue={281} /> describes the plan. Today the chunks of a dimension come from a fixed setup inside the server: the noise generator of the dimension plus the saved columns of the world folder. A lobby, an arena or a test cannot hand the server its own chunks. The issue proposes a chunk source per dimension: given a column position, it yields a column or says there is none, off the tick on the task pool. The server would ship three sources, the generator with the save in front, an empty source and a flat source built from a list of layers. A source of your own would be a type that implements the same trait. A dimension on the empty source would not pull in the world generation crates. The issue also gives the test for it: one dimension on the empty source and another on the flat source, a client joins each, and the dependency tree has no world generation crates. It is a direction, not a promise. Chunk saving to disk is separate: <Status issue={78} />.
+A chunk source of your own does not exist yet. <Status issue={281} /> describes the plan, and it sets a direction without a promise.
+
+Today the chunks of a dimension come from a fixed setup inside the server, which is the noise generator of the dimension plus the saved columns of the world folder. A lobby, an arena or a test cannot hand the server its own chunks.
+
+The issue proposes a chunk source per dimension. Given a column position, the source yields a column or says there is none, and it does so off the tick, on the task pool. The server would ship three sources: the generator with the save in front, an empty source, and a flat source built from a list of layers. A source of your own would be a type that implements the same trait. A dimension on the empty source would not pull in the world generation crates.
+
+The issue also gives the test. One dimension runs on the empty source and another on the flat source, a client joins each, and the dependency tree has no world generation crates.
+
+Saving chunks to disk is a separate topic, <Status issue={78} />.
 </Aside>
 
-## What next
-
-- [Dimensions](/docs/en/plugins/dimensions/): how a plugin reaches each world.
-- [Status](/docs/en/start/status/): what is missing around plugins.
+Next: [Add a command](/docs/en/plugins/commands/).

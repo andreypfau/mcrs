@@ -10,37 +10,43 @@ import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
+Здесь перечислено, что нужно поставить на машину, чтобы собрать mcrs. Если вы пришли из Java, во второй половине страницы знакомые части Gradle сопоставлены с Cargo, системой сборки Rust.
+
 <Aside type="caution" title="WIP">
-Подробный гайд по установке появится к альфе. Сейчас проектом пользуются только разработчики, поэтому страница короткая, а ее шаги мы для документации заново не прогоняли. Ориентируйтесь на [README Quick start](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start). Бинарные релизы запланированы, но пока их нет, и issue про них тоже нет (<Status issue={321} /> - про публикацию крейтов, это другое).
+Подробный гайд по установке появится к альфе. Сейчас проектом пользуются только разработчики, поэтому страница короткая, а ее шаги мы для документации заново не прогоняли. Если сомневаетесь, идите по [README Quick start](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start). Бинарные релизы запланированы, но их пока нет, и issue про них тоже нет. <Status issue={321} /> относится к публикации крейтов, а это другая задача.
 </Aside>
 
 ## Что нужно
 
-- Rust через [rustup](https://rustup.rs). Версию выбирать не нужно: [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml) закрепляет `nightly-2026-09-02`, и rustup скачает ее при первом вызове `cargo`. Он же добавит rustfmt, clippy и цели wasm32.
-- IDE: RustRover или IntelliJ IDEA с плагином Rust. Корень репозитория открывайте как проект Cargo. Условия лицензии RustRover проверьте самостоятельно.
-- Официальный клиентский jar снапшота. Скачивать его вручную не нужно: mcrs берет его из папки лаунчера или при первом запуске скачивает с Mojang в ту же папку и проверяет SHA-1.
-- Для запуска mcrs Java не нужна. Часть инструментов (`tools/vanilla-oracle`, mob bench) требует Java 21 или новее.
-- Операционная система: автор мерил и запускал все на macOS (Apple M4 Max, Metal). CI гоняет lint, clippy, проверки переносимости и тесты на Ubuntu 24.04, без крейтов, которым нужен GPU. Для Windows в коде есть путь к jar, но его никто не проверял.
+Rust ставится через [rustup](https://rustup.rs). Версию выбирать не нужно, потому что [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml) закрепляет `nightly-2026-09-02`, и rustup скачает ее при первом вызове `cargo`. Он же добавит rustfmt, clippy и цели wasm32.
 
-Сколько длится первая сборка и сколько нужно места на диске, пока не измерено. В workspace {fact('crates')} крейта, так что первая сборка будет долгой.
+В качестве IDE подойдет RustRover или IntelliJ IDEA с плагином Rust. Корень репозитория открывайте как проект Cargo. Условия лицензии RustRover проверьте сами.
+
+mcrs нужен официальный клиентский jar снапшота, но скачивать его вручную не придется. mcrs берет его из папки лаунчера или при первом запуске скачивает с Mojang в ту же папку, а потом проверяет SHA-1.
+
+Чтобы запустить mcrs, Java не нужна. Некоторым инструментам, например `tools/vanilla-oracle` и mob bench, требуется Java 21 или новее.
+
+Из операционных систем проверена macOS. Автор мерил и запускал все на Apple M4 Max с Metal. CI гоняет lint, clippy, проверки переносимости и тесты на Ubuntu 24.04, без крейтов, которым нужен GPU. Для Windows в коде есть путь к jar, но его никто не проверял.
+
+Сколько длится первая сборка и сколько места она занимает на диске, пока никто не измерял. В workspace {fact('crates')} крейта, так что первая сборка будет долгой.
 
 ## Cargo для тех, кто знает Gradle
+
+В каждой строке таблицы слева то, чем вы пользуетесь в Gradle, а справа его аналог в Cargo.
 
 | Gradle | Cargo |
 |---|---|
 | `settings.gradle` с подпроектами | Корневой `Cargo.toml` с `[workspace]`. {fact('crates')} участника лежат в `crates/` |
 | `build.gradle` проекта | `Cargo.toml` крейта |
-| `./gradlew run` | `cargo run`. Для mcrs добавляйте `--release`: отладочная сборка слишком медленная |
+| `./gradlew run` | `cargo run`. Для mcrs добавляйте `--release`, потому что отладочная сборка слишком медленная |
 | `./gradlew build` | `cargo build` |
 | `./gradlew test` | `cargo test`. В этом репозитории запускают `cargo nextest run` |
 | Gradle wrapper закрепляет версию Gradle | `rust-toolchain.toml` закрепляет компилятор |
 | Папка `build/` | Папка `target/` |
 | Координаты Maven и версия | Имя крейта и версия либо git URL с `rev` |
 | Lock-файл зависимостей | `Cargo.lock`, хранится в репозитории |
-| Области `implementation` и `api` | `[dependencies]`; области `api` нет, видны все `pub`-элементы |
+| Области `implementation` и `api` | `[dependencies]`. Области `api` нет, видны все `pub`-элементы |
 
-Крейты не опубликованы на crates.io (<Status issue={321} />). Поэтому собственный код сейчас живет в клоне репозитория или зависит от git-коммита.
+Крейты не опубликованы на crates.io (<Status issue={321} />), поэтому свой код сейчас приходится держать в клоне репозитория или подключать mcrs по git-коммиту.
 
-## Дальше
-
-[Запуск сервера](/docs/ru/start/run-server/) или вернитесь к [Статусу](/docs/ru/start/status/).
+Дальше: [Запуск сервера](/docs/ru/start/run-server/).

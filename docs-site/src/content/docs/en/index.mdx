@@ -22,17 +22,17 @@ import DocsFreshness from '~/components/DocsFreshness.astro';
 
 <DocsFreshness />
 
-mcrs is Minecraft Java Edition written in Rust on Bevy ECS: a server, a client and {fact('crates')} crates they are built from.
+mcrs is Minecraft Java Edition written in Rust on Bevy ECS. It is a server, a client and the {fact('crates')} crates they are built from.
 
 <Aside type="caution" title="Early WIP">
-The project is in active development, so a lot is missing: world saving, online mode, most of the gameplay. The world and the client already run.
+The project is in active development and a lot is missing, including world saving, online mode and most of the gameplay. The world and the client already run.
 </Aside>
 
 ## Why mcrs
 
-mcrs is not the Java server rewritten in Rust. It decides from scratch how the game should be built, starting with the engine. Read [Why mcrs: a new design, not a rewrite](/docs/en/start/philosophy/).
+mcrs is not the Java server rewritten in Rust. It decides from scratch how the game should be built, and it starts with the engine. The page [Why mcrs: a new design, not a rewrite](/docs/en/start/philosophy/) explains each choice.
 
-## Pick your door
+## Pick where to start
 
 <CardGrid>
   <LinkCard title="I write plugins in Java or Kotlin" description="There is no Bukkit-like API and no plugin loader. Read what you can do today." href="/docs/en/plugins/not-paper/" />
@@ -41,8 +41,8 @@ mcrs is not the Java server rewritten in Rust. It decides from scratch how the g
   <LinkCard title="I play or run servers" description="What mcrs is, what it is not, and who should look elsewhere." href="/docs/en/start/what-is-mcrs/" />
 </CardGrid>
 
-## Status in one line
+## Where the project stands
 
-Checked on 2026-11-10 at commit `3540f457b`, game snapshot {fact('snapshot')}: world generation matches the real game on reference dumps and the client renders it, but chunks are not saved (<Status issue={78} />) and there is no online mode (<Status issue={82} />). The full table is on the [Status](/docs/en/start/status/) page.
+World generation matches the real game on reference dumps, and the client renders that world. Chunks are not saved (<Status issue={78} />) and there is no online mode (<Status issue={82} />). We checked this on 2026-11-10 at commit `3540f457b`, against game snapshot {fact('snapshot')}. The [Status](/docs/en/start/status/) page has the full table.
 
-Questions and progress reports: [Discord](https://discord.gg/ged3nMRzwG).
+You can ask questions and read progress reports on [Discord](https://discord.gg/ged3nMRzwG).

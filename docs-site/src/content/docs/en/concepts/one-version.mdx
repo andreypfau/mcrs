@@ -22,39 +22,38 @@ import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-mcrs follows the newest Minecraft snapshot and supports exactly that one. Today it is **{fact('snapshot')}**. The decision is <Status issue={412} />. This page lists what it costs you and what it buys.
+mcrs follows the newest Minecraft snapshot and supports exactly that one. Today it is {fact('snapshot')}, and the decision behind this is <Status issue={412} />. This page explains where the version is set, how the project moves to the next snapshot, and what you give up because of it.
 
 ## The version lives in one file
 
-`assets/minecraft/version.json` is the only statement of the version. It is the file of the same name from the client jar, copied byte for byte, and the core crate embeds it. A test fails when a Rust, TOML or Gradle source file repeats one of its values. The oracle tool reads the version from the same file. The world plugin refuses to start on a data pack whose `version.json` differs from the embedded one.
+The file `assets/minecraft/version.json` is the only place that states the version. It is the file of the same name from the client jar, copied byte for byte, and the core crate embeds it.
 
-## Moving to the next snapshot
+Everything else reads the version from there. A test fails when a Rust, TOML or Gradle source file repeats one of its values, and the oracle tool reads the same file. The world plugin refuses to start on a data pack whose `version.json` differs from the embedded one.
 
-The move is one command (details in [New snapshot](/docs/en/contributing/new-snapshot/) and the [tool README](https://github.com/andreypfau/mcrs/blob/main/tools/mcrs_minecraft_update/README.md)):
+## One command moves the project to the next snapshot
 
 ```sh
 cargo run -p mcrs_minecraft_update -- <version id>
 ```
 
-It replaces the version file, the client jar descriptor, the generated reports and the block and item definitions, and it regenerates the captured fixtures. It ports no code. What the new snapshot changes in the Rust crates shows up as broken tests and printed diffs, and people fix those. So the move is mostly a data update plus the port of real behaviour changes.
+The command replaces the version file, the client jar descriptor, the generated reports and the block and item definitions, and it regenerates the captured fixtures that [Parity with vanilla](/docs/en/concepts/parity/) describes. It ports no code. Whatever the new snapshot changes in the Rust crates shows up as broken tests and printed diffs, and people fix those. So a move is mostly a data update, plus the port of the behaviour that really changed. The details are in [Move to a new snapshot](/docs/en/contributing/new-snapshot/) and in the [tool README](https://github.com/andreypfau/mcrs/blob/main/tools/mcrs_minecraft_update/README.md).
 
 ## What you give up
 
-- **No datafixers.** A chunk or player file must carry the targeted `DataVersion`. A missing or different one is an error that names both numbers. There is no migration chain (<Status issue={388} />). An unknown field in a file the game wrote is a loud error, not something to keep as raw bytes. Worlds written between an update and the ports that follow it are not worth keeping.
-- **The client must be the same snapshot.** A vanilla client of the same snapshot can join in offline mode. A client of another version cannot, for now.
-- **No older packet layouts.** The protocol crate holds one version's packets, so there is no negotiation inside the engine.
+There are no datafixers, so mcrs does not upgrade old saves. A chunk or player file must carry the targeted `DataVersion`. When the value is missing or different, you get an error that names both numbers, because there is no migration chain (<Status issue={388} />). An unknown field in a file the game wrote is also a loud error, and mcrs does not keep such a field as raw bytes. Worlds written between an update and the ports that follow it are not worth keeping.
 
-If you run a server for players, read [What is mcrs](/docs/en/start/what-is-mcrs/) first: for production the project points to Paper, Folia, Minestom and Velocity.
+The client must be the same snapshot as the server. A vanilla client of that snapshot can join in offline mode. A client of another version cannot, for now.
 
-## Older clients: planned
+The protocol crate holds the packets of one version and no older packet layouts, so the engine does no version negotiation.
 
-Most players stay on releases, so a lobby or a proxy needs to accept their clients. <Status issue={537} /> proposes a translator at the network edge. It is a chain of steps that converts frames between the client protocol and the targeted protocol, from the targeted version down to 1.21.6 (protocol 771). The engine would still see only one version. A step lists what it degrades, and a new snapshot would change only the newest step.
+If you run a server for players, read [What mcrs is, and what it is not](/docs/en/start/what-is-mcrs/) first. For production the project points to Paper, Folia, Minestom and Velocity.
+
+## Support for older clients is planned
+
+Most players stay on releases, so a lobby or a proxy needs to accept their clients. <Status issue={537} /> proposes a translator at the network edge. It is a chain of steps that converts frames between the client protocol and the targeted protocol, from the targeted version down to 1.21.6, which is protocol 771. The engine would still see only one version. Each step would list what it degrades, and a new snapshot would change only the newest step.
 
 <Aside type="caution" title="WIP">
 The translator is a decision in review and has no code: <Status issue={537} />. Saves and data packs of older versions stay refused under <Status issue={412} />.
 </Aside>
 
-## Related
-
-- [Status](/docs/en/start/status/): what works today for this snapshot.
-- [Parity with vanilla](/docs/en/concepts/parity/): fixtures are captured per snapshot.
+[Status](/docs/en/start/status/) lists what works today for this snapshot.

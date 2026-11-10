@@ -21,9 +21,11 @@ import { fact } from '~/lib/facts.mjs';
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-Anyone can add or fix a page. This page is the contract: what a page is for, which fields it needs, how to mark what does not exist yet, and what to check before you open a PR. The site lives in `docs-site/`, and its [README](https://github.com/andreypfau/mcrs/blob/main/docs-site/README.md) tells you how to run it locally.
+Anyone can add or fix a page of this site. This page tells you what a page is for, which fields and components it uses, how to mark a feature that does not exist yet, and what to check before you open a PR. The site lives in `docs-site/`, and its [README](https://github.com/andreypfau/mcrs/blob/main/docs-site/README.md) tells you how to run it locally.
 
 ## Three kinds of docs
+
+The project has three kinds of documentation, and each answers a different question for a different reader.
 
 | | Canon: `docs/`, `PERF.md`, `DECISIONS.md` | This site | README and landing page |
 |---|---|---|---|
@@ -31,23 +33,27 @@ Anyone can add or fix a page. This page is the contract: what a page is for, whi
 | Reader's question | What exactly does the rule require? | How do I do X, and why is it built so? | What is this, and is it for me? |
 | Depth | full | 1 to 4 screens, then a link to the canon | one screen per section |
 
-Rules that follow from this table:
+The canon is never edited for the sake of the site, so a page explains the canon and links to it. When a reader needs a precise rule, give the link and do not copy the rule. When an idea is new to a beginner, retell it in 1 or 2 screens. The reason for a decision is not retold either: link the issue that has the label `decision`, and add one line in your own words.
 
-- The canon is not edited for the sake of this site. This site explains and links to it.
-- A precise rule is a link, not a copy. A new idea for a beginner is retold in 1 or 2 screens.
-- The reason for a decision is not retold. Link the issue with the label `decision` and give one line in your own words.
-- A count that two pages repeat, and the game snapshot id, live in `src/data/facts.yml` and are written as `{fact('crates')}` after `import { fact } from '~/lib/facts.mjs';`. Inside `status.yml` they are `{crates}`. The id `snapshot` is read from `assets/minecraft/version.json`. Every entry has a `how` field that says how to measure it. A number that only one page states stays in the text. The Russian word forms after a number ("122 крейта", "122 крейтов") are edited by hand when the number changes: `grep -rn "fact('crates')" src/content/docs/ru`.
-- The banner at the top of the home page names the commit of `origin/main` that the last docs update checked against: `docs_commit` and `docs_commit_date` in `facts.yml`. A docs update moves both. `npm test` fails if the date is not the commit date of that commit. The banner asks GitHub on each visit how many commits main has after it, and hides that line if GitHub does not answer.
-- Every fact has one source of truth: the game version in `assets/minecraft/version.json`, performance numbers in `PERF.md`, behavior in `docs/spec/`, decisions in issues. Do not type a number from memory.
-- Nothing from the world generation design notes (`docs/worldgen.md`, `structures.md`, `surface.md`, `scattering.md`, `heightmap.md`, `aquifer.md`) is copied here. They name the game's code.
+Copy nothing from the world generation design notes, which are `docs/worldgen.md`, `structures.md`, `surface.md`, `scattering.md`, `heightmap.md` and `aquifer.md`. They name the game's code.
+
+### Every fact has one source
+
+Do not type a number from memory. The game version lives in `assets/minecraft/version.json`, performance numbers in `PERF.md`, behavior in `docs/spec/`, and decisions in issues.
+
+A count that two pages repeat, and the game snapshot id, live in `src/data/facts.yml`. A page writes such a value as `{fact('crates')}` after the line `import { fact } from '~/lib/facts.mjs';`, and `status.yml` writes it as `{crates}`. The id `snapshot` is read from `assets/minecraft/version.json`. Every entry has a `how` field that says how to measure it. A number that only one page states stays in the text of that page.
+
+Russian changes the form of a word after a number ("122 крейта", "122 крейтов"), so the Russian pages are edited by hand when a number changes. Find the places with `grep -rn "fact('crates')" src/content/docs/ru`.
+
+The banner at the top of the home page names the commit of `origin/main` that the last docs update checked against. The commit and its date are `docs_commit` and `docs_commit_date` in `facts.yml`, and a docs update moves both. `npm test` fails if the date is not the commit date of that commit. On each visit the banner asks GitHub how many commits main has after that commit, and it hides the line if GitHub does not answer.
 
 ## One page, one file
 
-English is the main language. A page lives at `docs-site/src/content/docs/en/<group>/<slug>.mdx`. The Russian page lives at the same path under `ru/`. Groups are `start`, `plugins`, `concepts`, `crates`, `server`, `client`, `reference`, `contributing` and `project`. The sidebar is built from the directories, and `sidebar.order` sets the order inside a group.
+English is the main language. A page lives at `docs-site/src/content/docs/en/<group>/<slug>.mdx`, and its Russian version lives at the same path under `ru/`. The groups are `start`, `plugins`, `concepts`, `crates`, `server`, `client`, `reference`, `contributing` and `project`. The sidebar is built from the directories, and `sidebar.order` sets the order inside a group.
 
 ### Frontmatter
 
-The schema is in `docs-site/src/content.config.ts`. A wrong field breaks the build.
+A page starts with a block of fields called the frontmatter. Its schema is in `docs-site/src/content.config.ts`, and a wrong field breaks the build.
 
 ```yaml
 ---
@@ -70,15 +76,19 @@ translated_from: 51d45c26a   # only in ru files
 ---
 ```
 
-- `kind` says what the page is. A page has one kind. A tutorial leads a reader by the hand, a how-to solves one task, a reference lists facts, an explanation answers "why".
-- `sources` lists every repository file the page relies on. A page without sources does not pass review. Take paths from files, not from old issue text, because crates get renamed.
-- `verified` is the snapshot, the commit and the date when you last checked the page against the code. Do not copy it from another page.
-- The stability banner on top and the "Sources and verification" block at the bottom are drawn from the frontmatter. Do not write them by hand.
-- A Russian file carries only `title`, `description`, `sidebar` and `translated_from`. `kind`, `audience`, `stability`, `tracking`, `sources` and `verified` come from the English page, and a Russian file that sets one of them fails the build.
+| Field | What to put there |
+|---|---|
+| `kind` | What the page is. A page has one kind. A tutorial leads a reader by the hand, a how-to solves one task, a reference lists facts, and an explanation answers "why". |
+| `sources` | Every repository file the page relies on. A page without sources does not pass review. Take the paths from the files themselves and not from old issue text, because crates get renamed. |
+| `verified` | The snapshot, the commit and the date when you last checked the page against the code. Do not copy it from another page. |
+
+The site draws the stability banner at the top of a page and the "Sources and verification" block at the bottom from the frontmatter, so do not write them by hand.
+
+A Russian file carries only `title`, `description`, `sidebar` and `translated_from`. The fields `kind`, `audience`, `stability`, `tracking`, `sources` and `verified` come from the English page, and a Russian file that sets one of them fails the build.
 
 ### Components
 
-Import them right after the frontmatter:
+Import the components you use right after the frontmatter:
 
 ```mdx
 import Status from '~/components/Status.astro';
@@ -90,70 +100,93 @@ import { Aside, Tabs, TabItem, Card, CardGrid, LinkCard } from '@astrojs/starlig
 
 | Component | Use |
 |---|---|
-| `<Status issue={78} />` | a state badge with a link. The state of an issue comes from `docs-site/src/data/issues.yml` (`works`, `partial`, `wip`, `undecided` or `declined`), so `state` next to `issue` fails the build, and so does an issue missing from the registry. Every issue and pull request on the site goes through this badge: no `#78` as text and no state in words next to it. A pull request carries its own state, because it belongs to one statement: a merged pull request is `<Status pr={636} state="works" />`. Also `doc="docs/spec/login.md"` |
-| `<StatusRows areas="network,persistence" />` | rows from `docs-site/src/data/status.yml` for the listed IDs |
-| `<Example file="path" from="fn run" to="..." title="..." />` | a fragment of a repository file, cut at build time by text anchors. An anchor that is missing or found twice breaks the build |
-| `<Demo src="/docs/demos/cows.html" title="..." />` | an interactive page in an iframe |
-| `Tabs` with `syncKey="jvm"` | Paper and mcrs side by side |
+| `<Status issue={78} />` | A state badge with a link to an issue, a pull request or a document. |
+| `<StatusRows areas="network,persistence" />` | Rows from `docs-site/src/data/status.yml` for the listed IDs. |
+| `<Example file="path" from="fn run" to="..." title="..." />` | A fragment of a repository file, cut at build time by text anchors. |
+| `<Demo src="/docs/demos/cows.html" title="..." />` | An interactive page in an iframe. |
+| `Tabs` with `syncKey="jvm"` | Paper and mcrs side by side. |
 
-Never paste repository code into MDX by hand: use `Example`, so it cannot rot. Code that is not in the repository, such as a Paper snippet, goes in an ordinary fenced block marked `java`.
+Every issue and pull request on the site goes through `Status`. Do not write `#78` as text, and do not put the state in words next to the badge. The state of an issue comes from `docs-site/src/data/issues.yml` and is one of `works`, `partial`, `wip`, `undecided` or `declined`. For that reason `state` next to `issue` fails the build, and so does an issue that is missing from the registry. A pull request carries its own state, because it belongs to one statement, so a merged pull request is `<Status pr={636} state="works" />`. A badge can also point to a document with `doc="docs/spec/login.md"`.
 
-Pick `from` as the shortest text that is unique in the file and survives a rename of its neighbours: a signature such as `pub fn add_command`, `fn run_echo(` or `impl Plugin for CountTicks`. Do not anchor on a comment or on a line like `}`. Without `to`, the fragment is the block that opens on the `from` line, up to the brace that closes it. Add `to` when the fragment is a piece of a function or several items in a row: it ends on the first line after `from` that contains `to`. Both may span lines: separate them with `\n` inside `{"..."}`. Braces inside string literals confuse the count, so give `to` then. The link under the block gets its line numbers from the anchors.
+Never paste repository code into MDX by hand. Use `Example`, which cuts the code from the file at build time, so the page cannot show code that no longer exists. Code that is not in the repository, such as a Paper snippet, goes in an ordinary fenced block marked `java`.
 
-Links between pages are absolute and carry the base and a trailing slash: `/docs/en/start/status/`, and `/docs/ru/...` in Russian files. A link to a repository file is `https://github.com/andreypfau/mcrs/blob/main/<path>`. Write an issue or a PR with `Status`, not as a bare number.
+`Example` finds its fragment by two text anchors, `from` and `to`. An anchor that is missing or found twice breaks the build, so choose them with care:
+
+- Pick `from` as the shortest text that is unique in the file and survives a rename of its neighbours. A signature works well, such as `pub fn add_command`, `fn run_echo(` or `impl Plugin for CountTicks`. Do not anchor on a comment or on a line like `}`.
+- Without `to`, the fragment is the block that opens on the `from` line, up to the brace that closes it.
+- Add `to` when the fragment is a piece of a function or several items in a row. The fragment then ends on the first line after `from` that contains `to`.
+- Braces inside string literals confuse the brace count, so give `to` in that case too.
+- Both anchors may span lines. Separate the lines with `\n` inside `{"..."}`.
+
+The link under the block gets its line numbers from the anchors.
+
+Links between pages are absolute and carry the base and a trailing slash: `/docs/en/start/status/`, and `/docs/ru/...` in Russian files. A link to a repository file is `https://github.com/andreypfau/mcrs/blob/main/<path>`.
 
 ## Unimplemented things: write them, and mark them
 
-The owner decided that a feature that does not exist yet can be described in detail now, if some source describes it: an issue, a spec, a file in `docs/`, or code. This is not a lie, because the mark says it is not there. When the feature lands, fix the text and remove the mark.
+Here is an honest line about the plugin loader: "There is no loader for jar, wasm or script plugins, and no decision about one." It stops there, because the decision <Status issue={437} /> rejects only a facade and a Bukkit-like API and says nothing more.
 
-- A whole page gets `stability: wip` and `tracking`.
+The owner decided that a feature that does not exist yet can be described in detail now, if some source describes it: an issue, a spec, a file in `docs/`, or code. This is not a lie, because the mark says the feature is not there. When the feature lands, fix the text and remove the mark.
+
+- A whole page about such a feature gets `stability: wip` and `tracking`.
 - A block inside a stable page gets `<Aside type="caution" title="WIP">` with a link to the issue, or a `<Status issue={N} />` badge.
 - Do not invent. Base the text on the issue (`gh issue view N -R andreypfau/mcrs`), a spec, a file in `docs/` or the code. If you have no source, write "no decision yet" and say nothing more.
 - Do not turn a goal into a claim. Say "direction, not a commitment".
-- A guide to install and run is short: a few lines, a link to the README Quick start and the technical notes, and the mark "a detailed guide will appear before the alpha". Do not run the steps and write them down from a guess.
+- Keep a guide to install and run short: a few lines, a link to the README Quick start and the technical notes, and the mark "a detailed guide will appear before the alpha". Do not write the steps down from a guess without running them.
 
-Example of an honest line about the plugin loader: "There is no loader for jar, wasm or script plugins, and no decision about one." The decision <Status issue={437} /> rejects only a facade and a Bukkit-like API.
+## A feature has a state, and a page has a stability
 
-## Two axes of marks
+A plugin page can be `changing` because an issue still alters the mechanism, while one line inside it is marked `works` and another `wip`. The first mark is the stability of the page, and the other two are states of features.
 
-Axis A, the state of a feature, is shown in text and tables with `Status`. The state of an issue is one line in `docs-site/src/data/issues.yml`, and every badge of that issue on both languages changes with it. The weekly `check-issues` report lists registry entries that disagree with GitHub:
+The state of a feature is shown in text and tables with `Status`. The state of an issue is one line in `docs-site/src/data/issues.yml`, and every badge of that issue in both languages changes with it.
 
 | State | When to use it |
 |---|---|
-| `works` | a test runs it, or `PERF.md` has a measurement. A commit alone is not enough |
-| `partial` | a part works, the rest is in an issue or a PR. A link is required |
-| `wip` | not in the code, or not finished, and an issue exists. "Direction, not a commitment" |
-| `undecided` | no issue, or the label `needs-decision` |
-| `declined` | only when a `decision` issue is closed |
+| `works` | A test runs it, or `PERF.md` has a measurement. A commit alone is not enough. |
+| `partial` | A part works, and the rest is in an issue or a PR. A link is required. |
+| `wip` | Not in the code, or not finished, and an issue exists. "Direction, not a commitment." |
+| `undecided` | No issue, or the label `needs-decision`. |
+| `declined` | Only when a `decision` issue is closed. |
 
-Axis B, the stability of a page, is the banner from the frontmatter: `stable` has no banner, `changing` says "Changing, follow #N", `wip` says it is not in the code yet. An example of both: a plugin page can be `changing` because an issue still alters the mechanism, while one line inside it is marked `works` and another `wip`.
+The stability of a page is the banner that the site draws from the `stability` field. A `stable` page has no banner, a `changing` page says "Changing, follow #N", and a `wip` page says that the feature is not in the code yet.
 
 ## Docs go in the same PR
 
 If you change code that a page relies on, you update the page in the same PR. The PR template has a checkbox for it.
 
-A workflow named `docs` runs on every PR. Its script `docs-site/scripts/check-sources.mjs` compares the changed files with the `sources` of every page and writes a warning for each page that your PR touches. The warning never fails the build. When you see one, open the page, check it, and update the text and the `verified` block, or write in the PR why no change is needed. Run it locally with `npm run check-sources` in `docs-site/`.
+A workflow named `docs` runs on every PR. Its script, `docs-site/scripts/check-sources.mjs`, compares the changed files with the `sources` of every page and writes a warning for each page that your PR touches. The warning never fails the build. When you see one, open the page and check it. Then update the text and the `verified` block, or write in the PR why no change is needed. You can run the same check locally with `npm run check-sources` in `docs-site/`.
 
-The same workflow also runs every Monday at 06:00 UTC and on manual dispatch. That run executes `node docs-site/scripts/check-sources.mjs --stale` and writes a report to the job summary with three sections: English pages with commits to their `sources` since `verified.commit`, Russian pages that lag behind English, and `sources` paths that do not exist. A Russian page lags when English has a commit since `translated_from` that the Russian file does not have. A commit that edits both languages is not a lag, so you do not move `translated_from` after a joint edit. A commit missing from the history is listed as `unknown commit`. The report never fails the build. A `sources` path that does not exist fails `npm test`.
+The same workflow also runs every Monday at 06:00 UTC and on manual dispatch. That run executes `node docs-site/scripts/check-sources.mjs --stale` and writes a report with three sections to the job summary:
 
-The docs are brought up to date with main in batches. Run the skill [mcrs-update-docs](https://github.com/andreypfau/mcrs/blob/main/.agents/skills/mcrs-update-docs/SKILL.md) with a coding agent: it walks the pull requests merged since the oldest `verified.commit`, updates the pages, the status rows, the issue registry and the news, moves `docs_commit`, and at the end removes signs of AI writing from the text it changed, checked against a fresh copy of the Wikipedia guide.
+The docs catch up with main in batches. To do that, run the skill [mcrs-update-docs](https://github.com/andreypfau/mcrs/blob/main/.agents/skills/mcrs-update-docs/SKILL.md) with a coding agent. It walks the pull requests merged since the oldest `verified.commit` and updates the pages, the status rows, the issue registry and the news. Then it moves `docs_commit` and removes signs of AI writing from the text it changed, which it checks against a fresh copy of the Wikipedia guide.
 
-The check reads file names, not meaning. It does not know that an issue changed. A state change of an issue after the `verified` date is not detected, so a monthly pass over [Status](/docs/en/start/status/) is the owner's job.
+- English pages that have commits to their `sources` since `verified.commit`.
+- Russian pages that lag behind English.
+- `sources` paths that do not exist.
+
+A commit that is missing from the history is listed as `unknown commit`. The report never fails the build, but a `sources` path that does not exist fails `npm test`.
+
+The weekly job also runs `check-issues`, which compares the states in `issues.yml` with GitHub.
+
+<Aside type="caution" title="The reports decide nothing">
+The weekly job reports registry entries whose issue is closed but marked `wip`, `partial` or `undecided`, open but marked `declined`, or unknown to GitHub. It does not decide the new state: the owner changes the line in `issues.yml`. The other automation is the `check-sources` warning and the weekly `--stale` report.
+</Aside>
+
+These checks read file names and know nothing about meaning. They do not notice that the state of an issue changed after the `verified` date of a page, so a monthly pass over [Status](/docs/en/start/status/) is the owner's job.
 
 ## English and Russian
 
-- The Russian file has the same path, the same structure and the same order as the English one. It adds no content that English does not have.
-- The Russian file carries `translated_from: <commit>`, the commit of the English page you translated from. When the English page moves on, the Russian page is behind, and the difference is visible in `git log` between the two commits.
-- The Russian file holds only `title`, `description`, `sidebar` and `translated_from`. Everything else comes from the English page.
-- A page without a Russian file shows in English with a note that the page is not translated yet.
-- Established English terms (tick, chunk, crate, plugin, snapshot) stay, and the first mention has the English term in brackets.
-- Issue titles stay in English.
+The Russian file has the same path, the same structure and the same order as the English one, and it adds no content that English does not have. A page without a Russian file shows in English with a note that the page is not translated yet.
+
+The field `translated_from: <commit>` names the commit of the English page you translated from. When the English page moves on, the difference is visible in `git log` between the two commits. The weekly report counts a Russian page as lagging when English has a commit since `translated_from` that the Russian file does not have. A commit that edits both languages is not a lag, so you do not move `translated_from` after a joint edit.
+
+Established English terms such as tick, chunk, crate, plugin and snapshot stay in the Russian text, and the first mention has the English term in brackets. Issue titles stay in English.
 
 ## Template for an explainer
 
-An interactive explainer, like the cows demo, has 12 required parts. Without one of them, it is not published.
+An interactive explainer, like the cows demo, has 12 required parts. An explainer that lacks one of them is not published.
 
-1. One claim: a single sentence saying what is compared.
+1. One claim: a single sentence that says what is compared.
 2. Two sides on a shared clock: vanilla left, mcrs right, one frame index, no separate timers. On a narrow screen they stack in the same order.
 3. The same input: one seed, one scene, one number of entities. If the input differs, say why.
 4. Declarative scenario data: frames in an array or JSON next to the file. The renderer does not know the scenario.
@@ -166,35 +199,37 @@ An interactive explainer, like the cows demo, has 12 required parts. Without one
 11. Accessibility: light and dark theme, `prefers-reduced-motion` with no autoplay, `aria-label` on SVG, focus on buttons, text contrast of at least 4.5 to 1.
 12. Meta: `lang`, the snapshot version, and the date when you checked it against the code.
 
-The colors of the comparison are fixed: vanilla ochre `#b8741a`, mcrs teal `#1d7a70`.
+The colors of the comparison are fixed: vanilla is ochre `#b8741a` and mcrs is teal `#1d7a70`.
 
-Rules of honesty for an explainer: a mechanism is not a measurement; show what is implemented and label the target; a toy model names its simplifications; vanilla comes from a spec or from the oracle, not from the author's memory.
+An explainer follows four rules of honesty. A mechanism is not a measurement. Show what is implemented, and label the target. A toy model names its simplifications. Vanilla behavior comes from a spec or from the oracle, never from the author's memory.
 
 ## Checklist of honesty
 
-Go through it before every PR that adds or changes a page.
+Go through this list before every PR that adds or changes a page.
 
-1. Every number has the machine, the scenario and a link (`PERF.md`, an issue). Numbers come from `PERF.md` only, with the machine (M4 Max, macOS) and the scenario beside them.
-2. "Works" only when a test, a commit or a `PERF.md` entry shows it. Otherwise "partial" or "wip".
+1. Every measured number comes from `PERF.md` only, and has the machine (M4 Max, macOS), the scenario and a link to `PERF.md` or an issue beside it.
+2. "Works" appears only when a test, a commit or a `PERF.md` entry shows it. Otherwise write "partial" or "wip".
 3. State and goal differ visibly: a badge, a label or an Aside.
 4. Every "no" links to an issue or a decision.
 5. No numbers that are not measured on a quiet machine, and no comparison with vanilla, Paper or Horizon in numbers.
 6. A claim about another project has a source, or it is not written. For production we name only Paper, Folia, Minestom and Velocity. Rust projects get one neutral line, no ratings.
-7. The game version and the counts come from `fact(...)`, not from memory and not typed by hand: `{fact('snapshot')}` reads `assets/minecraft/version.json`, and `{fact('crates')}` reads `facts.yml`.
+7. The game version and the counts come from `fact(...)` and are never typed by hand: `{fact('snapshot')}` reads `assets/minecraft/version.json`, and `{fact('crates')}` reads `facts.yml`.
 8. A page with changing content has the date and the commit of the last check.
 9. "We" is not used for a bigger group than it is. No "community" claims.
 10. A safety warning stands next to every run command: the server has no authentication, so do not open its port.
 11. Goals and issues are shown as "direction, not a commitment".
 
-Two facts that are often wrong in drafts. First, the compiler does not check conflicts between Bevy systems: the scheduler checks the data access when it builds the graph. Second, issue <Status issue={437} /> rejects only a facade and a Bukkit-like API. It says nothing about a plugin loader.
+Drafts often get two facts wrong. First, the compiler does not check conflicts between Bevy systems. The scheduler checks the data access when it builds the graph. Second, issue <Status issue={437} /> rejects only a facade and a Bukkit-like API, and it says nothing about a plugin loader.
 
 ## Clean-room in docs
 
-The same rules as in code apply. Do not write names of classes, methods or fields of the game's code, except `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos` and `PalettedContainer`. Public APIs of Paper, Bukkit, Velocity and Minestom are fine. Do not write that mcrs is a port. See [Clean-room in practice](/docs/en/contributing/clean-room/).
+The clean-room rules of the code apply to the docs too. Do not write names of classes, methods or fields of the game's code, except `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos` and `PalettedContainer`. You can name the public APIs of Paper, Bukkit, Velocity and Minestom. Do not write that mcrs is a port. [Clean-room in practice](/docs/en/contributing/clean-room/) explains the rules.
 
 ## Style
 
-Write for a person who reads the page once, top to bottom, and has never seen the repository. The lists of patterns to avoid come from [Wikipedia: Signs of AI writing](https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing) and its [Russian counterpart](https://ru.wikipedia.org/wiki/Википедия:Признаки_сгенерированности_текста). Those patterns make a reader stop trusting the text, whoever wrote it.
+Write for a person who reads the page once, top to bottom, and has never seen the repository. The authority on what reads as machine-written text is Wikipedia: [Signs of AI writing](https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing) for English and [Признаки сгенерированности текста](https://ru.wikipedia.org/wiki/Википедия:Признаки_сгенерированности_текста) for Russian. Editors update both pages almost every day, because the patterns change with every new model. Open the current version before you write or review a page, and check your text against it.
+
+The rules below are a general summary, written on 2026-11-10. They will go out of date. When they disagree with the Wikipedia pages, or miss a pattern that the pages list, follow the pages. Those patterns make a reader stop trusting the text, whoever wrote it.
 
 ### Explain, do not list assertions
 
@@ -251,7 +286,3 @@ Write for a person who reads the page once, top to bottom, and has never seen th
 3. Links point to pages that exist in the tree.
 4. `npm run build` in `docs-site/` passes.
 5. The page has no long dashes, no letter with two dots in Russian text, and no names from the game's code.
-
-<Aside type="caution" title="WIP">
-The weekly job reports registry entries whose issue is closed but marked `wip`, `partial` or `undecided`, open but marked `declined`, or unknown to GitHub. It does not decide the new state: the owner changes the line in `issues.yml`. The other automation is the `check-sources` warning and the weekly `--stale` report.
-</Aside>

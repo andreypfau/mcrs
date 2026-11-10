@@ -15,43 +15,23 @@ verified:
 ---
 import { Aside } from '@astrojs/starlight/components';
 
-This page retells [docs/clean-room.md](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md) in plain words. That file is the rule. If this page and the file differ, the file is right.
+mcrs builds the behavior of the game from descriptions of that behavior and never from the game's code. This page explains who may read what, what the repository may contain, and what to do if you have already read the game's code. It retells [docs/clean-room.md](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md) in plain words. That file is the rule, so if this page and the file differ, the file is right.
 
-The idea is simple. mcrs builds the behavior of the game from descriptions of that behavior, not from the game's code. Two kinds of people do the two jobs, so the code never grows out of the game's code.
+## Two people do the two jobs
 
-## Two roles
+Suppose the project needs the whitelist check at login. One person, the specification author, finds out what the game does and writes it down as rules. A second person, the implementer, writes the Rust code from those rules and never looks at the game's code. Because the two jobs belong to two people, our code cannot grow out of the game's code.
 
 | | Specification author | Implementer |
 |---|---|---|
-| Output | a file in `docs/spec/` | code, tests, design notes |
-| May read | any source, the game's code included | `docs/spec/`, public player-facing documentation, artifacts the game produced, this repository's code that the rules allow |
-| Must not | write the shape of the game's code into the spec | read decompiled, deobfuscated or mapped game code |
+| Output | A file in `docs/spec/` | Code, tests, design notes |
+| May read | Any source, the game's code included | `docs/spec/`, public player-facing documentation, artifacts the game produced, this repository's code that the rules allow |
+| Must not | Write the shape of the game's code into the spec | Read decompiled, deobfuscated or mapped game code |
 
 "Artifacts the game produced" means the data pack, the reports in `assets/mcrs/reports/`, captured packets, saves, and the output of `tools/vanilla-oracle`. This output is evidence, and a parity test compares our output with it.
 
-A specification states behavior: inputs, outputs, order, timing and constants as data. It does not state class, method, field or variable names, or the structure of a function.
+A specification states behavior, which is inputs, outputs, order, timing and constants as data. It leaves out class, method, field and variable names, and it leaves out the structure of a function.
 
-One person does not take both roles for the same behavior. You can be an author for one behavior and an implementer for another.
-
-## What the repository does not contain
-
-- Names of classes, methods or fields of the game's code, in code, comments, tests, design notes, commit messages and issues.
-- Text that calls code a port, a transcription or a mirror of the game's code. Do not write "port of" in a commit or a doc.
-- A test, tool or script that reads the game's code.
-
-The community uses a few names of the game's code as common terms. They are allowed everywhere: `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos` and `PalettedContainer`. A new name joins this list only after a review.
-
-Public APIs of other projects, such as Paper, Bukkit, Velocity and Minestom, can be named. They are not the game's code.
-
-## Provenance of a rule
-
-Each rule in a spec carries a label (`docs/spec/registry.md`, section 0.3). `source_suggested` means the author read the reference behavior and states only behavior. When an experiment against the game confirms the rule, the label changes to a confirmed one. The label is how a reader knows how much to trust a rule.
-
-## The exception: world generation
-
-The world generation code keeps its history. The exception covers the crates `mcrs_minecraft_worldgen*`, `mcrs_minecraft_biome` and `crates/mcrs_minecraft_vanilla_worldgen/`, with their design notes. New work in these places follows the normal rules, and a change that touches a game name there removes the name.
-
-Old commit messages may name the game's code. History is not rewritten, because it would break every clone. New commit messages follow the rules.
+One person does not take both roles for the same behavior. You can still be an author for one behavior and an implementer for another.
 
 ## If you have read the game's code
 
@@ -59,10 +39,32 @@ Old commit messages may name the game's code. History is not rewritten, because 
 If you read the game's code about some behavior, you cannot implement that behavior here. Write the specification instead, or pick another behavior. Say it in the issue when you are unsure. A second person then writes the code from your spec.
 </Aside>
 
-## A new behavior, step by step
+## What the repository does not contain
+
+The rule covers code, comments, tests, design notes, commit messages and issues. None of them contains these three things:
+
+- Names of classes, methods or fields of the game's code.
+- Text that calls code a port, a transcription or a mirror of the game's code. Do not write "port of" in a commit or a doc.
+- A test, tool or script that reads the game's code.
+
+The community uses a few names of the game's code as common terms, and those are allowed everywhere: `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos` and `PalettedContainer`. A new name joins this list only after a review.
+
+You can name the public APIs of other projects, such as Paper, Bukkit, Velocity and Minestom, because they are not the game's code.
+
+## A provenance label says how far to trust a rule
+
+Each rule in a spec carries a provenance label, which records where the rule comes from. For example, `source_suggested` means that the author read the reference behavior and states only behavior. When an experiment against the game confirms the rule, the label changes to a confirmed one. A reader uses the label to judge how much to trust a rule. Section 0.3 of `docs/spec/registry.md` defines the labels.
+
+## World generation is the exception
+
+The world generation code stays as it is and keeps its history. The exception covers the crates `mcrs_minecraft_worldgen*`, `mcrs_minecraft_biome` and `crates/mcrs_minecraft_vanilla_worldgen/`, with their design notes. New work in these places follows the normal rules, and a change that touches a game name there removes the name.
+
+Old commit messages may name the game's code too. History is not rewritten, because a rewrite would break every clone. New commit messages follow the rules.
+
+## A new behavior takes two issues
 
 1. An issue asks for a specification, and the author writes it under `docs/spec/`.
 2. A second issue asks for the implementation and cites the rule IDs.
-3. The implementer works from the spec. A question goes back to the author, and the answer goes into the spec, not into a chat.
+3. The implementer works from the spec. A question goes back to the author, and the answer goes into the spec so that the next reader finds it there and not in a chat.
 
-More on the spec format: [Specs and parity](/docs/en/contributing/specs-and-parity/).
+Next: [Specs and parity](/docs/en/contributing/specs-and-parity/) describes the spec format.

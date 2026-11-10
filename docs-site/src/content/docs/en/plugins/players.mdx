@@ -24,33 +24,35 @@ import Status from '~/components/Status.astro';
 import Example from '~/components/Example.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-In Paper, a `Player` is an object with methods. In mcrs, a player is an entity inside the world of a dimension, and its state is a set of components. There is no `Player` object to hold on to. You write a query. This page is short on purpose: the set of components grows with the project. Examples come from repository files, and we did not run them outside the repository tests.
+This page shows how a plugin finds players, reads their data, tells their ids apart and changes them. In Paper a `Player` is an object with methods. In mcrs a player is an entity inside the world of a dimension, and its state is a set of components, so you write a query where Paper code would hold on to the object.
 
-## Query players
+The page is short because the set of components grows with the project. The examples come from repository files, and we did not run them outside the repository tests.
 
-A player entity has the marker component `Player`. A system in a dimension world sees the players of that dimension only (see [Dimensions](/docs/en/plugins/dimensions/)). The test harness finds a player with the same kind of query:
+## Find players with a query
+
+Every player entity has the marker component `Player`. A system in a dimension world sees the players of that dimension only, as [Dimensions](/docs/en/plugins/dimensions/) explains. The test harness finds a player with this kind of query:
 
 <Example file="crates/mcrs_minecraft_server/tests/it/host_app/mod.rs" from="pub fn player_in(" title="Find a player entity by its session" />
 
-In a plugin, you write the query as a system parameter: `Query<(&GameProfile, &PlayerGameMode), With<Player>>`. The type names come from the files below. The line is illustrative and was not compiled.
+In a plugin you write the query as a system parameter, for example `Query<(&GameProfile, &PlayerGameMode), With<Player>>`. That line is an illustration and was not compiled. Its type names come from the files in the next section.
 
 ## Components you can read
 
-The profile the client logged in with:
+`GameProfile` is the profile that the client logged in with:
 
 <Example file="crates/mcrs_minecraft_engine/src/game_profile.rs" from={"#[derive(Debug, Clone, Component)]\npub struct GameProfile"} title="GameProfile" />
 
-The game mode, the flight state and the operator level:
+The game mode, the flight state and the operator level are in one file:
 
 <Example file="crates/mcrs_minecraft_engine/src/ability.rs" from={"#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut)]\npub struct PlayerGameMode"} to="pub struct PlayerFlying" title="PlayerGameMode and PlayerFlying" />
 
-`PlayerOpLevel` in the same file holds the operator level, from 0 for a player who is no operator to 4. The test harness reads a game mode like this:
+`PlayerOpLevel` in the same file holds the operator level, which goes from 0 for a player who is not an operator up to 4. The test harness reads a game mode like this:
 
 <Example file="crates/mcrs_minecraft_server/tests/it/host_app/mod.rs" from="pub fn game_mode(" title="Read PlayerGameMode of a player" />
 
-## Three different ids
+## One player has three ids
 
-One player has three names, and they are not interchangeable.
+A player has three ids, and you cannot use one in place of another.
 
 | Id | Where | What it is |
 |---|---|---|
@@ -63,22 +65,21 @@ One player has three names, and they are not interchangeable.
 Use the session to address a player across worlds and to send packets. Use the UUID for anything that must survive a reconnect.
 
 <Aside type="caution" title="WIP: the id on the wire">
-The entity id that the client receives is today the index of the Bevy `Entity` in the world of the dimension. That has two faults, per <Status issue={158} />. Bevy can hand a freed index to a new entity while a client still tracks the old one, and vanilla never reuses an id while the server runs. And two dimension worlds allocate indices on their own, so their ids collide as soon as one connection sees entities of more than one owner. The issue plans a `NetId` component for every networked entity, with ids leased to each world, never reused, and kept when an entity is handed to another node. Until that issue is done, do not store the wire id of an entity and do not assume it stays the same.
+The entity id that the client receives is today the index of the Bevy `Entity` in the world of the dimension. <Status issue={158} /> names two faults in that. Bevy can hand a freed index to a new entity while a client still tracks the old one, and vanilla never reuses an id while the server runs. Two dimension worlds also allocate indices on their own, so their ids collide as soon as one connection sees entities of more than one owner. The issue plans a `NetId` component for every networked entity, with ids that are leased to each world, never reused, and kept when an entity is handed to another node. Until that issue is done, do not store the wire id of an entity and do not assume it stays the same.
 </Aside>
 
-## Change a player
+## Change a player inside its own world
 
-Do not change another player from a system that runs in a different world. Inside the world of the player you can insert or edit its components. Across worlds, a change is a message or an effect. The vanilla commands `gamemode` and `teleport` do this with command effects, see [Add a command](/docs/en/plugins/commands/).
+Inside the world of a player you can insert or edit its components. Do not change a player from a system that runs in a different world. A change that crosses worlds is a message or an effect. The vanilla commands `gamemode` and `teleport` do this with command effects, see [Add a command](/docs/en/plugins/commands/).
 
 ## Send a message to a player
 
-There is no `player.sendMessage()`. The low-level way is to write a packet for a session. The chat plugin does this for a player who has chat hidden:
+mcrs has no `player.sendMessage()`. The low-level way is to write a packet for a session. The chat plugin does this for a player who has chat hidden:
 
 <Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" from="info.is_some_and(|info| info.chat_mode == ChatMode::Hidden)" title="Write a system chat packet to the session of a player" />
 
 A friendlier layer for this does not exist yet. We know of no issue for it, so we promise nothing.
 
-## What next
+Saving player data is not done either, see <Status issue={78} /> and [Status](/docs/en/start/status/).
 
-- [Test a plugin without a client](/docs/en/plugins/testing/): join a fake player and read these components in a test.
-- [Status](/docs/en/start/status/): saving player data is not done, see <Status issue={78} />.
+Next: [Test a plugin without a client](/docs/en/plugins/testing/) joins a fake player and reads these components in a test.

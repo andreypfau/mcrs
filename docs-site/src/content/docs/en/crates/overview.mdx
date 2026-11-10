@@ -22,42 +22,44 @@ import { fact } from '~/lib/facts.mjs';
 import { Aside } from '@astrojs/starlight/components';
 import Status from '~/components/Status.astro';
 
-mcrs is {fact('crates')} crates under `crates/`, and you can take them one at a time. This page lists all of them, grouped by layer. Use it to find the crate you need and to see what it drags in.
+mcrs is {fact('crates')} crates under `crates/`, and you can take them one at a time. This page lists all of them by layer and marks the ones that CI builds without Bevy, without `std` or for wasm32. Use it to find the crate you need and to see what it brings with it.
 
 <Aside type="caution" title="WIP">
-This table was made by a script from `cargo metadata` and the three lists in [`xtask/src/checks.rs`](https://github.com/andreypfau/mcrs/blob/main/xtask/src/checks.rs), then pasted here. A generator that rebuilds it on every docs build is planned. Until it exists, the table can be out of date: check the verified date at the bottom.
+A script made the crate tables from `cargo metadata` and the three lists in [`xtask/src/checks.rs`](https://github.com/andreypfau/mcrs/blob/main/xtask/src/checks.rs), and the result was pasted here by hand. A generator that rebuilds them on every docs build is planned. Until it exists the tables can be out of date, so check the verified date at the bottom of the page.
 </Aside>
 
-## How to read the table
+## How to read the tables
 
-The layers come from the [README](https://github.com/andreypfau/mcrs/blob/main/README.md#layers). Each layer should depend only on layers below it, so you can take a prefix and pay for nothing above it. A few crates do not follow this yet: the protocol and network crates still reach into game data. CI checks only one part of this rule (the wire and network crates must not link game data).
+The crates are grouped into the seven layers of the [README](https://github.com/andreypfau/mcrs/blob/main/README.md#layers). Each layer should depend only on the layers below it, so you can take the lower layers and pay for nothing above them. A few crates do not follow this yet, because the protocol and network crates still reach into game data. CI checks only one part of the rule, which is that the wire and network crates do not link game data.
 
-The layer of a crate is not stored anywhere in the code. It was assigned by hand from the README table and the crate description. Treat it as a guide, not as a checked fact.
+The layer of a crate is not stored anywhere in the code. It was assigned by hand from the README table and the crate description, and no check confirms it, so use it as a guide.
+
+Each table has the same five columns. The crate name is the package name, and the other four come from these places:
 
 | Column | Where it comes from |
 |---|---|
-| Description | `description` in the `Cargo.toml` of the crate. Five crates had none or only their own name, so the description is written from their source files |
+| Description | `description` in the `Cargo.toml` of the crate. Five crates had no description or only their own name, so theirs is written from the source files |
 | No Bevy | `NO_BEVY_PACKAGES` in [`checks.rs`](https://github.com/andreypfau/mcrs/blob/main/xtask/src/checks.rs). CI runs `cargo check --no-default-features` on these crates and fails if one requires Bevy |
-| no_std | `NO_STD_PACKAGES`, built without `std` in CI |
-| wasm32 | `WASM32_PACKAGES`, built for the `wasm32` target in CI |
+| no_std | `NO_STD_PACKAGES` in the same file. CI builds these crates without `std` |
+| wasm32 | `WASM32_PACKAGES` in the same file. CI builds these crates for the `wasm32` target |
 
-The no-Bevy list has {fact('crates_no_bevy')} names. Six of them are tools under `tools/`, so among the {fact('crates')} crates of `crates/` the count is 94. The no_std list has {fact('crates_no_std')} crates and the wasm32 list has {fact('crates_wasm32')}. A dash means "not on the CI list", which is not the same as "does not work".
+The no-Bevy list has {fact('crates_no_bevy')} names. Six of them are tools under `tools/`, so among the {fact('crates')} crates of `crates/` the count is 94. The no_std list has {fact('crates_no_std')} crates and the wasm32 list has {fact('crates_wasm32')}. A dash means only that the crate is not on the CI list. The crate may still build that way.
 
-## What to take for
+## Which crates to start with
 
-Nothing here is published to crates.io, so every route below uses a git dependency (see [Use the crates in your project](/docs/en/crates/use-as-library/)). There are no library examples yet: the examples issue is <Status issue={287} />, and the first working use is [parsing SNBT](/docs/en/crates/hello-nbt/).
+The table below names the crates to start with for five kinds of project. None of them is published to crates.io, so every row needs a git dependency, which [Use the crates in your project](/docs/en/crates/use-as-library/) describes. There are no library examples yet (<Status issue={287} />), and the first working use is [parsing SNBT](/docs/en/crates/hello-nbt/).
 
 | You build | Start with | State |
 |---|---|---|
-| A proxy | `mcrs_minecraft_protocol` and `mcrs_minecraft_network`. Both are on the no-Bevy list, and `xtask` checks that they do not link game data | The crates exist. The proxy library itself, with routing and forwarding, is <Status issue={296} />. Online mode is <Status issue={82} /> |
-| A bot | The same two crates, plus `mcrs_minecraft_client_world`, which keeps the world state of a client without a window or a renderer. It is not on the no-Bevy list | The split of the client state from rendering is done (<Status issue={301} />). The walker bot is <Status issue={302} /> |
-| A map or a world viewer | `mcrs_minecraft_anvil` for regions (also on the wasm32 list), `mcrs_minecraft_chunk` and `mcrs_minecraft_block` for the data, `mcrs_minecraft_mesh` for meshes | The crates exist. Top-down tiles without a window are <Status issue={297} />, and a model viewer is <Status issue={298} /> |
+| A proxy | `mcrs_minecraft_protocol` and `mcrs_minecraft_network`. Both are on the no-Bevy list, and `xtask` checks that they do not link game data | The crates exist. The proxy library itself, with routing and forwarding, is tracked in <Status issue={296} />, and online mode in <Status issue={82} /> |
+| A bot | The same two crates, plus `mcrs_minecraft_client_world`, which keeps the world state of a client without a window or a renderer. It is not on the no-Bevy list | The client state is split from rendering (<Status issue={301} />). The walker bot is tracked in <Status issue={302} /> |
+| A map or a world viewer | `mcrs_minecraft_anvil` for regions (also on the wasm32 list), `mcrs_minecraft_chunk` and `mcrs_minecraft_block` for the data, `mcrs_minecraft_mesh` for meshes | The crates exist. Top-down tiles without a window are tracked in <Status issue={297} />, and a model viewer in <Status issue={298} /> |
 | A tool for NBT, commands or data packs | `mcrs_minecraft_nbt`, `mcrs_minecraft_snbt`, `mcrs_command`, `mcrs_minecraft_datapack` | The crates exist. `mcrs_command` and `mcrs_minecraft_snbt` read and write what the game reads and writes |
-| A world generator preview | `mcrs_minecraft_worldgen_generator` and the `mcrs_minecraft_worldgen_*` crates | A preview by seed through the public API is <Status issue={299} />. The generator itself matches vanilla in parity tests on reference seeds |
+| A world generator preview | `mcrs_minecraft_worldgen_generator` and the `mcrs_minecraft_worldgen_*` crates | A preview by seed through the public API is tracked in <Status issue={299} />. The generator itself matches vanilla in parity tests on reference seeds |
 
-"The crates exist" means they build in this repository. It does not mean they have a stable API or a README: only six crates have a README.
+"The crates exist" means that they build in this repository. None of them promises a stable API, and only six crates have a README.
 
-## All crates
+## All crates by layer
 
 ### Layer 1: Protocol
 
@@ -223,4 +225,4 @@ Nothing here is published to crates.io, so every route below uses a git dependen
 
 ## Why some crates need Bevy
 
-Below layer 4, Bevy is an optional feature, and below layer 2 so is tokio. From layer 4 up, Bevy is required, because the engine, the vanilla plugins, the client and the server are Bevy plugins. If you only want data types and codecs, stay in layers 1 to 3 and build with `--no-default-features`. Layers 4 and 5 are covered in [Layers](/docs/en/concepts/layers/).
+Below layer 4, Bevy is an optional feature, and below layer 2 so is tokio. From layer 4 up, Bevy is required, because the engine, the vanilla plugins, the client and the server are Bevy plugins. If you only want data types and codecs, stay in layers 1 to 3 and build with `--no-default-features`. [Layers](/docs/en/concepts/layers/) covers layers 4 and 5.

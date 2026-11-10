@@ -18,52 +18,52 @@ verified:
 import { fact } from '~/lib/facts.mjs';
 import { Aside } from '@astrojs/starlight/components';
 
-mcrs follows the latest Minecraft snapshot. One command updates the repository, and the tests that break show the rest. The full procedure is [tools/mcrs_minecraft_update/README.md](https://github.com/andreypfau/mcrs/blob/main/tools/mcrs_minecraft_update/README.md). This page tells you the shape of it.
+mcrs follows the latest Minecraft snapshot. This page shows how a contributor moves the repository to a new one: a single command updates the data, and the tests that break tell you what is left. The full procedure is in [tools/mcrs_minecraft_update/README.md](https://github.com/andreypfau/mcrs/blob/main/tools/mcrs_minecraft_update/README.md).
 
 ```bash
 cargo run -p mcrs_minecraft_update -- <version id>
 ```
 
-The version id is the only argument, for example <code dir="auto">{fact('snapshot')}</code>. Requirements: JDK 25 for Gradle, and network access to Mojang and to the Fabric Maven repository. Run it once at a time. The tool does not port any code.
+The version id is the only argument, for example <code dir="auto">{fact('snapshot')}</code>. The command needs JDK 25 for Gradle, and network access to Mojang and to the Fabric Maven repository. Run one instance at a time. The tool does not port any code.
 
 ## What the command changes
 
-- `assets/minecraft/version.json`: the only statement of the version, copied byte for byte from the client jar. A test fails when a Rust, TOML or Gradle source file repeats one of its values.
-- `crates/mcrs_minecraft_client_jar/src/release.json`: the descriptor of the client jar.
-- `assets/mcrs/reports/`: reports from the game (`registries.json`, `packets.json`, `datapack.json`, `names.json`).
-- `assets/mcrs/block_definition`, `item_definition` and `registry_definition`.
-- The generated registry key sources. Never edit them by hand.
+| Path | What the command writes there |
+|---|---|
+| `assets/minecraft/version.json` | The only statement of the version, copied byte for byte from the client jar. A test fails when a Rust, TOML or Gradle source file repeats one of its values. |
+| `crates/mcrs_minecraft_client_jar/src/release.json` | The descriptor of the client jar. |
+| `assets/mcrs/reports/` | Reports from the game: `registries.json`, `packets.json`, `datapack.json` and `names.json`. |
+| `assets/mcrs/block_definition`, `item_definition` and `registry_definition` | The block, item and registry definitions, replaced with what the dump from the game wrote. |
+| The generated registry key sources | Regenerated keys. Never edit them by hand. |
 
-It prints three diffs: protocol IDs that moved, changed definition fields, and names added or dropped.
+The command also prints three diffs: protocol IDs that moved, changed definition fields, and names added or dropped.
 
-There is no datafixer. Chunks, saves and templates written at another `DataVersion` fail to load, so worlds written between an update and the ports that follow it are not worth keeping.
+mcrs has no datafixer, so chunks, saves and templates written at another `DataVersion` fail to load. A world written between an update and the code changes that follow it is not worth keeping.
 
 ## What you do next
 
 1. Read the printed diffs.
 2. Run `cargo nextest run --workspace`. The failing tests list what the snapshot changed. Entries of built-in worldgen that differ from the game's files fail by name.
-3. Recapture the fixtures. A test lists every fixture whose entry in `tools/captures.json` is not the new version:
+3. Recapture the fixtures, which are files the game produced and our tests compare against. A test lists every fixture whose entry in `tools/captures.json` is not the new version.
 
    ```bash
    cargo run -p mcrs_minecraft_update -- recapture --all
    ```
 
    Some fixtures are outside the table and need a manual step. The README lists them.
-4. If the protocol or serialization formats changed, find out how from the game's reference sources. Only a specification author does this step, since it reads the game's code. An implementer works from the resulting specification. See [Clean-room in practice](/docs/en/contributing/clean-room/).
-5. A new snapshot may need compile fixes in `tools/vanilla-oracle` before fixtures can be recaptured.
+4. If the protocol or serialization formats changed, find out how from the game's reference sources. Only a specification author does this step, because it reads the game's code. An implementer works from the specification that results. [Clean-room in practice](/docs/en/contributing/clean-room/) explains the two roles.
+5. Fix `tools/vanilla-oracle` if it no longer compiles. A new snapshot may need compile fixes there before fixtures can be recaptured.
 
-## Docs checklist
-
-Docs go in the same PR as the update.
+## Update the docs in the same PR
 
 1. Search the docs for the old version string. The version in badges and FAQ text should come from `assets/minecraft/version.json`. If you find a typed copy, replace it.
-2. Pages whose `sources` changed get a warning in the PR. Go through each, and when the page still matches, update its `verified` block.
+2. Go through each page that gets a warning in the PR because its `sources` changed. When the page still matches, update its `verified` block.
 3. If packet tables changed, update the numbers on [Status](/docs/en/start/status/).
 4. If `PERF.md` changed, check that the machine and scenario next to every number on the site are still right.
 5. Retake screenshots and videos that show the version.
-6. Check every interactive explainer: the field "checked against code" in its meta holds the snapshot and a date.
-7. Add a line to [News](/docs/en/project/news/): the version, what broke and what was fixed.
+6. Check every interactive explainer. The field "checked against code" in its meta holds the snapshot and a date.
+7. Add a line to [News](/docs/en/project/news/) with the version, what broke and what was fixed.
 
 <Aside type="note">
-The `check-sources` warning reads file paths, not meaning. A green run does not prove the docs are right. Read the diffs.
+The `check-sources` warning reads file paths and knows nothing about meaning. A green run does not prove the docs are right. Read the diffs.
 </Aside>

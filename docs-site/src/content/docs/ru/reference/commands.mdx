@@ -10,15 +10,15 @@ import Status from '~/components/Status.astro';
 
 import { Aside } from '@astrojs/starlight/components';
 
-Сервер регистрирует {fact('root_commands')} корневых команд (21 имя с алиасом `tp`). Они приходят из двух плагинов: `VanillaCommandsPlugin` в `crates/mcrs_minecraft_command_vanilla` и `WorldCommandsPlugin` в `crates/mcrs_minecraft_command_world`. Список проверен по обоим файлам `plugin.rs` и по вызовам проверки прав у каждой команды на коммите `51d45c26a`. Команд, которые есть в ванили, но нет в этом списке, здесь пока нет. Например, `setblock`, `give`, `say` и `stop` не зарегистрированы.
+На этой странице перечислены команды, которые сервер регистрирует сегодня, уровень прав для каждой и спецификация, где описано ее поведение. Корневых команд у сервера {fact('root_commands')}, а вместе с алиасом `tp` получается 21 имя. Большую часть регистрирует `VanillaCommandsPlugin` из `crates/mcrs_minecraft_command_vanilla`, остальные - `WorldCommandsPlugin` из `crates/mcrs_minecraft_command_world`. Список проверен по обоим файлам `plugin.rs` и по вызовам проверки прав у каждой команды на коммите `51d45c26a`. Если команда есть в ванили, но ее нет в списке, значит, здесь ее пока нет. Например, `setblock`, `give`, `say` и `stop` не зарегистрированы.
 
 <Aside type="caution" title="WIP">
-Таблица написана вручную. Ее будут генерировать из двух файлов `plugin.rs`. Дерево команд с уровнями прав отслеживается в <Status issue={285} />, диалект команд Bedrock - в <Status issue={667} />.
+Пока таблица написана вручную, позже ее будут генерировать из двух файлов `plugin.rs`. Дерево команд с уровнями прав отслеживается в <Status issue={285} />, диалект команд Bedrock - в <Status issue={667} />.
 </Aside>
 
 ## Уровни прав
 
-Уровней пять, они упорядочены, как в ванили ([спецификация command-permissions](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-permissions.md), PERM-LEVEL-001).
+Каждой команде нужен уровень прав. Уровней пять, и они упорядочены так же, как в ванили. Их задает правило PERM-LEVEL-001 [спецификации command-permissions](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-permissions.md).
 
 | Id | Название |
 |---|---|
@@ -28,11 +28,11 @@ import { Aside } from '@astrojs/starlight/components';
 | 3 | `admins` |
 | 4 | `owners` |
 
-Игрок, который не оператор, имеет уровень `all`. У оператора уровень тот, что указан в `ops.json`, от 0 до 4. Команда `op` выдает уровень по умолчанию, то есть `owners`. Игрок, который заходит с той же машины, становится оператором на время сессии. Каждой команде ниже нужен уровень 2 или 3, поэтому запускать их могут только операторы.
+У игрока без прав оператора уровень `all`. У оператора тот уровень, который указан в `ops.json`, от 0 до 4, а команда `op` выдает уровень по умолчанию, то есть `owners`. Игрок, который заходит с той же машины, где работает сервер, становится оператором на время сессии. Каждой команде из следующей таблицы нужен уровень 2 или 3, поэтому запускать их могут только операторы.
 
 ## Команды
 
-В колонке со спецификацией стоит ссылка на файл в `docs/spec/`. Где файл не назван, спецификации для этой команды пока нет.
+В колонке "Плагин" `vanilla` означает `VanillaCommandsPlugin`, а `world` - `WorldCommandsPlugin`. В последней колонке стоит ссылка на спецификацию команды в `docs/spec/`. Если там написано "нет", спецификации для этой команды пока нет.
 
 | Команда | Уровень | Плагин | Спецификация |
 |---|---|---|---|
@@ -54,12 +54,12 @@ import { Aside } from '@astrojs/starlight/components';
 | `weather` | gamemasters (2) | world | [command-weather.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-weather.md) |
 | `tick` (включая `tick sprint stop`) | admins (3) | world | [command-tick.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-tick.md) |
 
-Разбор, типы аргументов и дерево команд, которое уходит клиенту, описаны в [command-parser.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-parser.md), файлах `argument-*.md` и [commands-packet.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/commands-packet.md). Как команда находит игроков во всех измерениях, написано в [docs/command-dimensions.md](https://github.com/andreypfau/mcrs/blob/main/docs/command-dimensions.md).
+Общее для всех команд описано еще в трех группах спецификаций. Разбор описан в [command-parser.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/command-parser.md), типы аргументов - в файлах `argument-*.md`, а дерево команд, которое сервер отправляет клиенту, - в [commands-packet.md](https://github.com/andreypfau/mcrs/blob/main/docs/spec/commands-packet.md). Как команда находит игроков во всех измерениях, объясняет заметка [docs/command-dimensions.md](https://github.com/andreypfau/mcrs/blob/main/docs/command-dimensions.md).
 
 ## Ввод команд
 
-Игрок вводит команды в чате. Сервер также читает свой стандартный ввод: каждая строка выполняется как команда источника "сервер" в верхнем мире (overworld) (`ConsolePlugin` в `crates/mcrs_minecraft_console`). Пачка строк выполняется за несколько тиков, не больше 2000 строк за тик. Ответы идут в лог сервера.
+Игрок вводит команды в чате. Сервер также читает свой стандартный ввод, и каждая строка выполняется в верхнем мире (overworld) как команда, источник которой - сам сервер. Если строк пришло много сразу, сервер растягивает их на несколько тиков и выполняет не больше 2000 строк за тик. Ответы попадают в лог сервера. Код находится в `ConsolePlugin` из `crates/mcrs_minecraft_console`.
 
 ## Для авторов плагинов
 
-Команды - это код Bevy-плагинов: плагин вызывает `add_command` с функцией сборки и функцией выполнения (паттерн смотрите в обоих файлах `plugin.rs`), а команда может записывать эффекты, которые применяют другие системы. Команды также порождают отменяемое событие `CommandEvent`. Загрузчика для плагинов, которые не скомпилированы в сервер, нет, и решения о нем пока тоже нет. Подробности на странице [Команды для плагинов](/docs/ru/plugins/commands/).
+Команда - это обычный код Bevy-плагина. Плагин вызывает `add_command` с функцией сборки и функцией выполнения, а образец есть в обоих файлах `plugin.rs`. Команда может записывать эффекты, которые применяют другие системы, и еще команды порождают событие `CommandEvent`, которое можно отменить. Плагин нужно скомпилировать в сервер, потому что загрузчика для других плагинов нет и решения о нем пока тоже нет. Подробности есть на странице [Команды для плагинов](/docs/ru/plugins/commands/).
