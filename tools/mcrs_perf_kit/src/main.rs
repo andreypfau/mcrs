@@ -38,7 +38,10 @@ fn main() -> ExitCode {
     };
     // The mcrs console writes translation keys instead of English until the client jar is on disk,
     // and mob-bench reads its answers in English, so the jar comes before any section starts.
-    println!("[setup] client jar of {}", mcrs_minecraft_client_jar::RELEASE.id);
+    println!(
+        "[setup] client jar of {}",
+        mcrs_minecraft_client_jar::RELEASE.id
+    );
     if let Err(error) = mcrs_minecraft_client_jar::vanilla_data(
         &mcrs_minecraft_client_jar::ClientJar::InstalledOrDownloaded,
         None,

@@ -208,6 +208,14 @@ impl Launch<'_> {
                 report.settled = measured.settled;
                 report.settle_seconds = measured.settle_seconds;
                 let medians = StatsLine::median_of(&measured.lines);
+                if medians.sections.is_some_and(|sections| sections > 0.0)
+                    && medians.terrain_draws == Some(0.0)
+                {
+                    report.error = Some(
+                        "nothing was drawn: the window got no frames (covered, off screen or not presented)"
+                            .to_owned(),
+                    );
+                }
                 if self.mode == Mode::Window {
                     report.window_mismatch = window_mismatch(self.options.window, &medians);
                 }

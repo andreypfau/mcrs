@@ -119,8 +119,8 @@ prepare_mode=()
 
 java="$(find_java)" || { msg "Java $JAVA_MIN not found; run $KIT_DIR/bootstrap.sh first." "Java $JAVA_MIN не найдена; сначала запустите $KIT_DIR/bootstrap.sh."; exit 1; }
 
-# The client sizes a --window in physical pixels (scale factor 1) and keeps it centred and on top,
-# so a candidate is compared with the full pixel size of the main display.
+# The client sizes a --window in physical pixels (scale factor 1), with no title bar, centred and
+# on top, so a candidate is compared with the full pixel size of the main display.
 size="$(osascript -l JavaScript -e 'ObjC.import("AppKit"); const s = $.NSScreen.screens.objectAtIndex(0); const f = s.frame; const k = s.backingScaleFactor; Math.floor(f.size.width * k) + " " + Math.floor(f.size.height * k)')"
 window=""
 for candidate in 1920x1080 1600x900 1280x720 960x540; do
