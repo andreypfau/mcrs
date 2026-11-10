@@ -51,7 +51,7 @@ impl ItemTable {
             Some(PatchEntry::Value(value)) => T::from_builtin(value),
             // chisle: a type that still travels as bytes has no typed effective value; lifted
             // when the codec of that type exists.
-            Some(PatchEntry::Undecoded(_)) => None,
+            Some(PatchEntry::Undecoded(_) | PatchEntry::UndecodedWire(_)) => None,
             Some(
                 PatchEntry::Removal(_) | PatchEntry::UndecodedRemoval(_) | PatchEntry::Custom(_),
             ) => None,
