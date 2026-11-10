@@ -26,7 +26,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 <Status issue={280} state="works" /> Плагин, добавленный через `add_plugins`, попадает только в главное приложение. Чтобы поместить его в измерения, используйте трейт `AddDimensionPlugins`:
 
-<Example file="crates/mcrs_minecraft_engine_world/src/world/sub_app.rs" lines="112-120" title="Два метода" />
+<Example file="crates/mcrs_minecraft_engine_world/src/world/sub_app.rs" from="pub trait AddDimensionPlugins" title="Два метода" />
 
 - `add_dimension_plugin(plugin)` собирает копию плагина в каждом мире измерения.
 - `add_dimension_plugin_to(key, plugin)` собирает его только в измерении с этим ключом, например `OVERWORLD`.
@@ -36,7 +36,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 Тест репозитория проверяет каждое правило. Он добавляет один счетчик в каждый мир, другой только в верхний мир, а затем проверяет, что в Незере второго счетчика нет, а верхний мир получил значение плагина, добавленного для его ключа.
 
-<Example file="crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs" lines="90-125" title="Тест: плагин для каждого мира и плагин для одного ключа" />
+<Example file="crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs" from={"#[test]\nfn dimension_plugins_run_in_every_world_or_in_the_world_of_their_key"} to={"        1\n    );"} title="Тест: плагин для каждого мира и плагин для одного ключа" />
 
 ## У глобального состояния один писатель
 
@@ -48,7 +48,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 Система одного измерения не может дотянуться до другого мира. Игроки переходят между мирами измерений как сообщения, а не переносом сущностей (<Status issue={362} state="partial" />). Портал или любой переход, решенный внутри тика, пишет запрос:
 
-<Example file="crates/mcrs_minecraft_engine_world/src/entity/player/mod.rs" lines="14-24" title="ChangeDimensionRequest" />
+<Example file="crates/mcrs_minecraft_engine_world/src/entity/player/mod.rs" from={"#[derive(Message, Clone, Debug)]\npub struct ChangeDimensionRequest"} title="ChangeDimensionRequest" />
 
 В конце тика старый мир забирает переносимое состояние игрока, удаляет игрока и передает хосту уход. В новом мире игрок появляется на следующем тике. Правила описаны в [docs/command-dimensions.md](https://github.com/andreypfau/mcrs/blob/main/docs/command-dimensions.md), раздел "Change of dimension".
 

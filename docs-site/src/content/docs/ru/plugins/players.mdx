@@ -16,7 +16,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 У сущности игрока есть компонент-маркер `Player`. Система в мире измерения видит только игроков этого измерения (см. [Измерения](/docs/ru/plugins/dimensions/)). Тестовое окружение находит игрока таким же запросом:
 
-<Example file="crates/mcrs_minecraft_server/tests/it/host_app/mod.rs" lines="374-382" title="Найти сущность игрока по его сессии" />
+<Example file="crates/mcrs_minecraft_server/tests/it/host_app/mod.rs" from="pub fn player_in(" title="Найти сущность игрока по его сессии" />
 
 В плагине запрос пишется как параметр системы: `Query<(&GameProfile, &PlayerGameMode), With<Player>>`. Имена типов взяты из файлов ниже. Эта строка иллюстративная и не компилировалась.
 
@@ -24,15 +24,15 @@ import { Aside } from '@astrojs/starlight/components';
 
 Профиль, с которым клиент вошел на сервер:
 
-<Example file="crates/mcrs_minecraft_engine/src/game_profile.rs" lines="6-13" title="GameProfile" />
+<Example file="crates/mcrs_minecraft_engine/src/game_profile.rs" from={"#[derive(Debug, Clone, Component)]\npub struct GameProfile"} title="GameProfile" />
 
 Режим игры, состояние полета и уровень оператора:
 
-<Example file="crates/mcrs_minecraft_engine/src/ability.rs" lines="11-27" title="PlayerGameMode и PlayerFlying" />
+<Example file="crates/mcrs_minecraft_engine/src/ability.rs" from={"#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut)]\npub struct PlayerGameMode"} to="pub struct PlayerFlying" title="PlayerGameMode и PlayerFlying" />
 
 `PlayerOpLevel` в том же файле хранит уровень оператора: от 0 для игрока без прав оператора до 4. Тестовое окружение читает режим игры так:
 
-<Example file="crates/mcrs_minecraft_server/tests/it/host_app/mod.rs" lines="389-392" title="Прочитать PlayerGameMode игрока" />
+<Example file="crates/mcrs_minecraft_server/tests/it/host_app/mod.rs" from="pub fn game_mode(" title="Прочитать PlayerGameMode игрока" />
 
 ## Три разных идентификатора
 
@@ -44,7 +44,7 @@ import { Aside } from '@astrojs/starlight/components';
 | `PlayerSession` | компонент `Owner` игрока в мире измерения, а также на хосте | имя одного соединения. Хост не выдает одно значение дважды, а смена измерения его сохраняет |
 | `Entity` | сущность игрока внутри одного мира измерения | идентификатор Bevy, который существует только в одном мире. У хоста для того же игрока есть еще якорная сущность, и это другая сущность |
 
-<Example file="crates/mcrs_minecraft_engine_world/src/session/sessions.rs" lines="8-13" title="PlayerSession" />
+<Example file="crates/mcrs_minecraft_engine_world/src/session/sessions.rs" from={"#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]\npub struct PlayerSession"} title="PlayerSession" />
 
 Сессия нужна, чтобы адресовать игрока между мирами и отправлять пакеты. UUID используйте для всего, что должно пережить переподключение.
 
@@ -60,7 +60,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 Метода `player.sendMessage()` нет. Низкоуровневый способ - записать пакет в сессию. Плагин чата так и делает для игрока, который скрыл чат:
 
-<Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" lines="56-62" title="Записать пакет системного чата в сессию игрока" />
+<Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" from="info.is_some_and(|info| info.chat_mode == ChatMode::Hidden)" title="Записать пакет системного чата в сессию игрока" />
 
 Более удобного слоя для этого пока нет. Issue о нем мы не знаем, поэтому ничего не обещаем.
 

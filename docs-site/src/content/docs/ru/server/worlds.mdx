@@ -57,7 +57,7 @@ cargo run --release -- "<path to a world folder>"
 
 Тест, который проверяет чистую остановку, короткий:
 
-<Example file="tests/it/shutdown.rs" lines="74-83" title="Запрос на остановку записывает файл игрока" />
+<Example file="tests/it/shutdown.rs" from="let player_file = player_dat_path(" to="assert!(player_file.exists()" title="Запрос на остановку записывает файл игрока" />
 
 <Aside type="caution" title="WIP">
 Сохранение чанков - это план, а не код. Его описывает <Status issue={78} state="wip" />: измененные чанки записываются в формате Anvil вне главного потока, при выгрузке и через интервалы, по одному писателю на файл региона. Пока этого нет, воспринимайте работающий сервер mcrs как место, где можно посмотреть мир и попробовать разное, а не хранить его.

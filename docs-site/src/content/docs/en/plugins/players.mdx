@@ -30,7 +30,7 @@ In Paper, a `Player` is an object with methods. In mcrs, a player is an entity i
 
 A player entity has the marker component `Player`. A system in a dimension world sees the players of that dimension only (see [Dimensions](/docs/en/plugins/dimensions/)). The test harness finds a player with the same kind of query:
 
-<Example file="crates/mcrs_minecraft_server/tests/it/host_app/mod.rs" lines="374-382" title="Find a player entity by its session" />
+<Example file="crates/mcrs_minecraft_server/tests/it/host_app/mod.rs" from="pub fn player_in(" title="Find a player entity by its session" />
 
 In a plugin, you write the query as a system parameter: `Query<(&GameProfile, &PlayerGameMode), With<Player>>`. The type names come from the files below. The line is illustrative and was not compiled.
 
@@ -38,15 +38,15 @@ In a plugin, you write the query as a system parameter: `Query<(&GameProfile, &P
 
 The profile the client logged in with:
 
-<Example file="crates/mcrs_minecraft_engine/src/game_profile.rs" lines="6-13" title="GameProfile" />
+<Example file="crates/mcrs_minecraft_engine/src/game_profile.rs" from={"#[derive(Debug, Clone, Component)]\npub struct GameProfile"} title="GameProfile" />
 
 The game mode, the flight state and the operator level:
 
-<Example file="crates/mcrs_minecraft_engine/src/ability.rs" lines="11-27" title="PlayerGameMode and PlayerFlying" />
+<Example file="crates/mcrs_minecraft_engine/src/ability.rs" from={"#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut)]\npub struct PlayerGameMode"} to="pub struct PlayerFlying" title="PlayerGameMode and PlayerFlying" />
 
 `PlayerOpLevel` in the same file holds the operator level, from 0 for a player who is no operator to 4. The test harness reads a game mode like this:
 
-<Example file="crates/mcrs_minecraft_server/tests/it/host_app/mod.rs" lines="389-392" title="Read PlayerGameMode of a player" />
+<Example file="crates/mcrs_minecraft_server/tests/it/host_app/mod.rs" from="pub fn game_mode(" title="Read PlayerGameMode of a player" />
 
 ## Three different ids
 
@@ -58,7 +58,7 @@ One player has three names, and they are not interchangeable.
 | `PlayerSession` | component `Owner` of the player in a dimension world; also on the host | the name of one connection. The host never hands out a value twice, and a change of dimension keeps it |
 | `Entity` | the entity of the player inside one dimension world | a Bevy id that exists in one world only. The host also has an anchor entity for the same player, and it is a different entity |
 
-<Example file="crates/mcrs_minecraft_engine_world/src/session/sessions.rs" lines="8-13" title="PlayerSession" />
+<Example file="crates/mcrs_minecraft_engine_world/src/session/sessions.rs" from={"#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]\npub struct PlayerSession"} title="PlayerSession" />
 
 Use the session to address a player across worlds and to send packets. Use the UUID for anything that must survive a reconnect.
 
@@ -74,7 +74,7 @@ Do not change another player from a system that runs in a different world. Insid
 
 There is no `player.sendMessage()`. The low-level way is to write a packet for a session. The chat plugin does this for a player who has chat hidden:
 
-<Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" lines="56-62" title="Write a system chat packet to the session of a player" />
+<Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" from="info.is_some_and(|info| info.chat_mode == ChatMode::Hidden)" title="Write a system chat packet to the session of a player" />
 
 A friendlier layer for this does not exist yet. We know of no issue for it, so we promise nothing.
 

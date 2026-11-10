@@ -22,7 +22,7 @@ cargo test -p mcrs_minecraft_server --test it chat::
 
 Окружение лежит в `tests/it/host_app/mod.rs`. `make_host_app()` собирает приложение хоста с наборами сообщений и реестрами, которые нужны тику измерения.
 
-<Example file="crates/mcrs_minecraft_server/tests/it/host_app/mod.rs" lines="76-108" title="make_host_app" />
+<Example file="crates/mcrs_minecraft_server/tests/it/host_app/mod.rs" from="pub fn make_host_app()" title="make_host_app" />
 
 ## Фиктивный игрок и тики
 
@@ -30,15 +30,15 @@ cargo test -p mcrs_minecraft_server --test it chat::
 
 Вот первая половина теста чата: он добавляет плагин в измерения, подключает игрока, ставит в очередь строку чата и прогоняет два тика.
 
-<Example file="crates/mcrs_minecraft_server/tests/it/chat.rs" lines="79-97" title="Тест: подключиться, отправить строку чата, собрать пакеты" />
+<Example file="crates/mcrs_minecraft_server/tests/it/chat.rs" from="for (case, mode, message, broadcast, reply) in cases {" to=".collect();" title="Тест: подключиться, отправить строку чата, собрать пакеты" />
 
 Затем тест сравнивает услышанное с ожидаемым текстом:
 
-<Example file="crates/mcrs_minecraft_server/tests/it/chat.rs" lines="98-109" title="Тест: проверить пакеты" />
+<Example file="crates/mcrs_minecraft_server/tests/it/chat.rs" from="if broadcast {" title="Тест: проверить пакеты" />
 
 Чтобы заглянуть внутрь мира, используйте `server.world()` для первого измерения или `server.world_in(dim)`. Тест наблюдателей чата добавляет туда наблюдателя и читает ресурс обратно.
 
-<Example file="crates/mcrs_minecraft_server/tests/it/chat.rs" lines="144-181" title="Тест: наблюдатель в мире, ресурс читается обратно" />
+<Example file="crates/mcrs_minecraft_server/tests/it/chat.rs" from={"#[test]\nfn an_observer_that_replaces_a_chat_line_changes_its_broadcast"} title="Тест: наблюдатель в мире, ресурс читается обратно" />
 
 Тики считаются точно. Один тик хоста - это один `update()` плюс передача между хостом и измерениями, которую выполняет `ticks_all(1)`. Настенных часов ничто не ждет.
 
@@ -46,7 +46,7 @@ cargo test -p mcrs_minecraft_server --test it chat::
 
 <Status issue={323} state="works" /> Если две системы пишут одни и те же данные и порядок между ними не задан, они могут выполниться в любом порядке, и одни и те же входные данные дадут разные тики. Один тест собирает главное приложение и мир измерения с полным плагином сервера и превращает любую неоднозначность в расписаниях симуляции в ошибку. Когда такая неоднозначность появляется, тест падает и называет обе системы.
 
-<Example file="crates/mcrs_minecraft_server/tests/it/schedule_ambiguity.rs" lines="84-113" title="Тест: нет неупорядоченной конфликтующей пары" />
+<Example file="crates/mcrs_minecraft_server/tests/it/schedule_ambiguity.rs" from={"#[test]\nfn no_simulation_schedule_has_an_unordered_conflicting_pair"} title="Тест: нет неупорядоченной конфликтующей пары" />
 
 Тест собирает `MinecraftServerPlugins::embedded()`. Если плагина в этом приложении нет, добавьте его в тест, иначе тест не увидит системы плагина. Неоднозначности он разрешает упорядочиванием систем или разделением данных, а не общим игнорированием. Правило Bevy о конфликте проверяет планировщик при сборке расписания, а не компилятор.
 

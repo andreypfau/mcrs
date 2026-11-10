@@ -89,11 +89,13 @@ import { Aside, Tabs, TabItem, Card, CardGrid, LinkCard } from '@astrojs/starlig
 |---|---|
 | `<Status issue={78} state="wip" />` | a state badge with a link. `state` is `works`, `partial`, `wip`, `undecided` or `declined`. Every issue and pull request on the site goes through this badge, always with `state`: no `#78` as text and no state in words next to it. A merged pull request is `<Status pr={636} state="works" />`. Also `doc="docs/spec/login.md"` |
 | `<StatusRows areas="network,persistence" />` | rows from `docs-site/src/data/status.yml` for the listed IDs |
-| `<Example file="path" lines="10-40" title="..." />` | a fragment of a repository file, read at build time. A wrong line range breaks the build |
+| `<Example file="path" from="fn run" to="..." title="..." />` | a fragment of a repository file, cut at build time by text anchors. An anchor that is missing or found twice breaks the build |
 | `<Demo src="/docs/demos/cows.html" title="..." height={900} />` | an interactive page in an iframe |
 | `Tabs` with `syncKey="jvm"` | Paper and mcrs side by side |
 
 Never paste repository code into MDX by hand: use `Example`, so it cannot rot. Code that is not in the repository, such as a Paper snippet, goes in an ordinary fenced block marked `java`.
+
+Pick `from` as the shortest text that is unique in the file and survives a rename of its neighbours: a signature such as `pub fn add_command`, `fn run_echo(` or `impl Plugin for CountTicks`. Do not anchor on a comment or on a line like `}`. Without `to`, the fragment is the block that opens on the `from` line, up to the brace that closes it. Add `to` when the fragment is a piece of a function or several items in a row: it ends on the first line after `from` that contains `to`. Both may span lines: separate them with `\n` inside `{"..."}`. Braces inside string literals confuse the count, so give `to` then. The link under the block gets its line numbers from the anchors.
 
 Links between pages are absolute and carry the base and a trailing slash: `/docs/en/start/status/`, and `/docs/ru/...` in Russian files. A link to a repository file is `https://github.com/andreypfau/mcrs/blob/main/<path>`. Write an issue or a PR with `Status`, not as a bare number.
 
@@ -199,7 +201,7 @@ The same rules as in code apply. Do not write names of classes, methods or field
 ## Before you open the PR
 
 1. The frontmatter matches the schema, and `wip` and `changing` pages have `tracking`.
-2. Every `Example` line range matches the file.
+2. Every `Example` anchor finds its code, and the fragment shows what the text around it says.
 3. Links point to pages that exist in the tree.
 4. `npm run build` in `docs-site/` passes.
 5. The page has no long dashes, no letter with two dots in Russian text, and no names from the game's code.

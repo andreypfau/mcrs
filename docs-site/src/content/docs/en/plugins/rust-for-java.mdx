@@ -130,7 +130,7 @@ app.add_observer(|mut e: On<PlayerChatEvent>| {
 
 A real plugin from the repository, with a resource and a system in `FixedUpdate`:
 
-<Example file="crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs" lines="10-40" title="CountTicks: a plugin with a resource and a system" />
+<Example file="crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs" from={"#[derive(Resource, Default)]\nstruct Ticks<const ALL: bool>(u32);"} to={"    }\n}"} title="CountTicks: a plugin with a resource and a system" />
 
 ## Ownership in one paragraph
 

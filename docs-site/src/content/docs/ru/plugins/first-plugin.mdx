@@ -47,17 +47,17 @@ import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
 Плагин - структура, которая реализует `Plugin`. Этот регистрирует ресурс и систему. Система работает в `FixedUpdate` и прибавляет единицу к счетчику. Чтобы получить два варианта, тест использует константный обобщенный параметр `ALL`. Читайте код как простой `CountTicks` и игнорируйте `ALL`.
 
-<Example file="crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs" lines="10-40" title="Плагин, который считает тики" />
+<Example file="crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs" from={"#[derive(Resource, Default)]\nstruct Ticks<const ALL: bool>(u32);"} to={"    }\n}"} title="Плагин, который считает тики" />
 
 Плагин должен быть `Clone`: сервер строит отдельную копию для каждого мира измерения, поэтому ему нужно уметь копировать плагин. В бинарнике уже есть маленький плагин такой формы:
 
-<Example file="src/main.rs" lines="128-136" title="Самый маленький Clone-плагин в src/main.rs" />
+<Example file="src/main.rs" from={"#[derive(Clone)]\nstruct LogInsteadOfPanicPlugin"} to={"    }\n}"} title="Самый маленький Clone-плагин в src/main.rs" />
 
 ## Шаг 3: зарегистрируйте через add_dimension_plugin
 
 В `serve()` из `src/main.rs` сервер уже регистрирует один плагин правильным способом. Добавьте свой на следующей строке.
 
-<Example file="src/main.rs" lines="43-46" title="Где serve() регистрирует плагин измерения" />
+<Example file="src/main.rs" from="fn serve() -> AppExit" to="app.add_dimension_plugin(LogInsteadOfPanicPlugin);" title="Где serve() регистрирует плагин измерения" />
 
 <Aside type="caution" title="Ловушка: add_plugins недостаточно">
 Каждое измерение работает как отдельный Bevy `SubApp` со своим `World`. Плагин, добавленный через `app.add_plugins(...)`, попадает в главное приложение и не доходит до симуляции измерения (<Status issue={280} state="works" />). Система соберется без ошибок, но ни разу не увидит ни блок, ни моба, ни сущность игрока. Для всех измерений используйте `add_dimension_plugin(plugin)`, для одного - `add_dimension_plugin_to(key, plugin)`. Плагин добавляется до создания измерений, поэтому вызывайте функцию до запуска сервера. Подробнее - на странице [Измерения](/docs/ru/plugins/dimensions/).
@@ -65,11 +65,11 @@ import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
 Тест показывает оба вызова и то, что сервер из них строит:
 
-<Example file="crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs" lines="90-98" title="Один плагин в каждом мире и один только в верхнем" />
+<Example file="crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs" from={"#[test]\nfn dimension_plugins_run_in_every_world_or_in_the_world_of_their_key"} to="OVERWORLD, Rate(2)" title="Один плагин в каждом мире и один только в верхнем" />
 
 ## Шаг 4: посмотрите счет
 
-Тестовый плагин ничего не печатает: он проверяет, что счетчик больше нуля в обоих мирах (`ticks::<true>(...)` в том же файле, строки 110-111). Команда ниже запускает этот тест. Тот же прием использует тест чата (<Status pr={636} state="works" />).
+Тестовый плагин ничего не печатает: он проверяет, что счетчик больше нуля в обоих мирах (`ticks::<true>(...)` в том же файле). Команда ниже запускает этот тест. Тот же прием использует тест чата (<Status pr={636} state="works" />).
 
 ```bash
 cargo test -p mcrs_minecraft_server --test it dimension_plugins::

@@ -16,7 +16,7 @@ Open http://localhost:4321/docs/. `npm run build` writes the static site to `doc
 
 - `src/content/docs/en/<group>/<slug>.mdx` - English pages (main language). Groups: start, plugins, concepts, crates, server, client, reference, contributing, project.
 - `src/content/docs/ru/` - Russian pages at the same paths.
-- `src/components/` - Status, StatusRows, Example, Demo.
+- `src/components/` - Status, StatusRows, Example (cuts code by text anchors with `src/lib/anchor.mjs`), Demo.
 - `src/data/status.yml` - data for the StatusRows component.
 - `src/content.config.ts` - frontmatter schema. A wrong field breaks the build.
 - `src/lib/meta.ts` - `pageMeta`: the page metadata for the banner and the footer. A Russian page takes it from its English pair and fails the build if it sets one of the inherited fields.

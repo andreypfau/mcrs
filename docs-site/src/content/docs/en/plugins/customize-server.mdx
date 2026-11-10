@@ -32,11 +32,11 @@ In Paper you start from a finished server and add plugins. In mcrs you start fro
 
 `MinecraftServerPlugins` is a Bevy `PluginGroup`. Its four fields are the parts that take settings. The rest of the vanilla server is added by `build()`.
 
-<Example file="crates/mcrs_minecraft_server/src/lib.rs" lines="19-27" title="The fields of the group" />
+<Example file="crates/mcrs_minecraft_server/src/lib.rs" from="pub struct MinecraftServerPlugins {" title="The fields of the group" />
 
 <Status issue={279} state="works" /> The members, in the order `build()` adds them: the server core, world generation registries, the vanilla command set, vanilla commands, world commands, dimension worlds, chat, entity physics, mob brains, world generation, lighting and the network.
 
-<Example file="crates/mcrs_minecraft_server/src/lib.rs" lines="61-77" title="The members of the group" />
+<Example file="crates/mcrs_minecraft_server/src/lib.rs" from="impl PluginGroup for MinecraftServerPlugins" title="The members of the group" />
 
 Each member can be disabled or replaced without editing the server crate. A member that needs another one panics when the group builds and names the missing plugin. You see the error at start, not as a missing resource at the first tick.
 
@@ -46,19 +46,19 @@ Each member can be disabled or replaced without editing the server crate. A memb
 
 `disable::<T>()` is a method of the Bevy plugin group builder. The binary uses it to switch mob AI off, and a test uses it to start a server without world generation and lighting:
 
-<Example file="src/main.rs" lines="92-94" title="src/main.rs: switch off mob AI" />
+<Example file="src/main.rs" from="if !settings.mob_ai {" title="src/main.rs: switch off mob AI" />
 
-<Example file="crates/mcrs_minecraft_server/tests/it/client_join.rs" lines="31-42" title="Test: a server without world generation and lighting" />
+<Example file="crates/mcrs_minecraft_server/tests/it/client_join.rs" from="fn a_client_without_an_app_joins_the_embedded_server_offline" to="StopOnDrop(Arc::new(AtomicBool::new(false)))" title="Test: a server without world generation and lighting" />
 
 That test also uses `MinecraftServerPlugins::embedded()`. It gives a server for another process: loopback only, an OS-assigned port, and task pools left to the host app.
 
-<Example file="crates/mcrs_minecraft_server/src/lib.rs" lines="45-59" title="embedded()" />
+<Example file="crates/mcrs_minecraft_server/src/lib.rs" from="impl MinecraftServerPlugins {" title="embedded()" />
 
 ## Settings are plugin fields
 
 <Status issue={278} state="works" /> A library crate does not read an environment variable or a file for its settings. Every setting is a field of the plugin that uses it. Only the binary reads the environment and translates it into fields. You can see both sides in `src/main.rs`:
 
-<Example file="src/main.rs" lines="71-91" title="src/main.rs: from settings to plugin fields" />
+<Example file="src/main.rs" from="let settings = ServerSettings::read(" to=".build();" title="src/main.rs: from settings to plugin fields" />
 
 The environment variables of the binary are the fields of `ServerSettings`, each named by its `MCRS_` variable without the prefix. The full list is in the [source file](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server_settings/src/server_settings.rs). In your own program, skip `ServerSettings` and fill the plugin fields yourself. An embedded server in a test then starts with explicit settings, whatever the shell exported.
 

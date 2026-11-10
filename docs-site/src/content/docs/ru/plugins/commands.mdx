@@ -16,19 +16,19 @@ import { Aside } from '@astrojs/starlight/components';
 
 Команды добавляют в приложение после `CommandPlugin` и до того, как приложение завершит сборку. Для ванильного набора `MinecraftServerPlugins` уже добавляет этот плагин. `add_command` принимает два аргумента: билдер, который добавляет узлы, и обработчик.
 
-<Example file="crates/mcrs_minecraft_command_engine/src/app_commands.rs" lines="40-53" title="Сигнатура add_command" />
+<Example file="crates/mcrs_minecraft_command_engine/src/app_commands.rs" from="pub trait AppCommandsExt" to="M: 'static;" title="Сигнатура add_command" />
 
 Билдер получает `CommandRegistrar`. С его помощью под родителем добавляют литеральный узел (`literal`) или узел аргумента (`arg`), начиная с `NodeId::ROOT`. Узел, на котором строка команды может закончиться, вызывает `runs(...)`. Билдер возвращает дескрипторы аргументов, которые потом читает обработчик.
 
-<Example file="crates/mcrs_minecraft_server/tests/it/commands.rs" lines="50-76" title="Тест: узлы команды echo с одним целочисленным аргументом" />
+<Example file="crates/mcrs_minecraft_server/tests/it/commands.rs" from={"#[derive(Clone, Copy)]\nstruct Echo {"} to={"        Ok(Echo { times })\n    }\n}"} title="Тест: узлы команды echo с одним целочисленным аргументом" />
 
-Вызов выглядит так: `app.add_command(echo_at("echo"), run_echo).unwrap();` (строка 113 того же файла). Он возвращает `Result`. Если узел конфликтует с деревом, будет ошибка, и из команды не добавится ничего, как показывает тест в конце файла.
+Вызов выглядит так: `app.add_command(echo_at("echo"), run_echo).unwrap();` (в том же файле). Он возвращает `Result`. Если узел конфликтует с деревом, будет ошибка, и из команды не добавится ничего, как показывает тест в конце файла.
 
 ## Уровни доступа
 
 Узел может потребовать уровень через `requires(PermissionCheck::Require(level))`. Уровней пять, они упорядочены, и источник проходит, если его уровень не ниже требуемого.
 
-<Example file="crates/mcrs_minecraft_command/src/permission.rs" lines="4-13" title="CommandLevel" />
+<Example file="crates/mcrs_minecraft_command/src/permission.rs" from={"#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]\npub enum CommandLevel"} title="CommandLevel" />
 
 Игрок с уровнем ниже требуемого не видит узел в дереве и не может его выполнить. Уровень игрока берется из списка операторов или из уровня сервера по умолчанию. Строковых узлов прав вроде `myplugin.use` нет. Системы прав с группами в mcrs сегодня нет, и <Status issue={285} state="partial" /> ее не описывает.
 
@@ -36,7 +36,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 Обработчик - система, у которой первый параметр `In<Call<...>>`, а остальные параметры обычные. Он возвращает `CommandResult`: число, которое команда сообщает при успехе, или ошибку. Текст отправляется через `CommandOutput`, а `Feedback` определяет, кто его услышит: только источник или источник и все операторы.
 
-<Example file="crates/mcrs_minecraft_server/tests/it/commands.rs" lines="78-91" title="Тест: обработчик команды echo" />
+<Example file="crates/mcrs_minecraft_server/tests/it/commands.rs" from="fn run_echo(" to={"    Ok(times)\n}"} title="Тест: обработчик команды echo" />
 
 Обработчик не меняет игрока напрямую. Он записывает эффект через `CommandOutput::effect`, а мир применяет эффекты после вызова, в порядке записи. Тип эффекта регистрируется через `add_command_effect`. Так `teleport` и `gamemode` меняют игроков в других измерениях. Причины описаны в [docs/command-dimensions.md](https://github.com/andreypfau/mcrs/blob/main/docs/command-dimensions.md) и на странице [Измерения](/docs/ru/plugins/dimensions/).
 

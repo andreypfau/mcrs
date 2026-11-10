@@ -80,7 +80,7 @@ A player file that cannot be parsed is not overwritten: the player joins empty a
 
 The test that checks the clean stop is short:
 
-<Example file="tests/it/shutdown.rs" lines="74-83" title="A shutdown request writes the player file" />
+<Example file="tests/it/shutdown.rs" from="let player_file = player_dat_path(" to="assert!(player_file.exists()" title="A shutdown request writes the player file" />
 
 <Aside type="caution" title="WIP">
 Chunk saving is a plan, not code. <Status issue={78} state="wip" /> describes it: changed chunks are written in the Anvil format off the main thread, on unload and at intervals, with one writer per region file. Until it lands, treat a running mcrs server as a place to look at a world and to try things, not to keep one.

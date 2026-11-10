@@ -53,7 +53,7 @@ A fixed order makes the result independent of the machine. The merge of effects 
 
 Two checks hold this today. The test `tick_determinism.rs` ticks a world of two cells for 60 ticks, once with every world inline on one thread and once with threads, hashes the whole simulation state after every tick, and fails at the first tick where the hashes differ.
 
-<Example file="crates/mcrs_minecraft_server/tests/it/tick_determinism.rs" lines="274-283" title="The test: threads and inline must give the same world" />
+<Example file="crates/mcrs_minecraft_server/tests/it/tick_determinism.rs" from={"#[test]\nfn the_world_a_tick_produces_does_not_depend_on_the_threads"} title="The test: threads and inline must give the same world" />
 
 ## Try it yourself
 
@@ -65,7 +65,7 @@ cargo run --release -p mcrs_minecraft_engine_physics --example state_hash -- <th
 
 Run it with 1 thread and with 8 threads: the hash at the end of the line is the same. It also prints the architecture, so you can compare two machines. The code is short:
 
-<Example file="crates/mcrs_minecraft_engine_physics/examples/state_hash.rs" lines="14-24" title="state_hash: same scene, any number of threads" />
+<Example file="crates/mcrs_minecraft_engine_physics/examples/state_hash.rs" from="fn main() {" to={"scene.step(&pool, tiles_per_task, &mut writes);\n    }"} title="state_hash: same scene, any number of threads" />
 
 This is a check on the design, not a speed claim. It needs a nightly toolchain and is not part of the install guide, which is WIP.
 

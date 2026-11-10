@@ -41,7 +41,7 @@ Consequences you will meet:
 
 <Status issue={280} state="works" /> A plugin added with `add_plugins` goes to the main app only. To put it into the dimensions, use the `AddDimensionPlugins` trait:
 
-<Example file="crates/mcrs_minecraft_engine_world/src/world/sub_app.rs" lines="112-120" title="The two methods" />
+<Example file="crates/mcrs_minecraft_engine_world/src/world/sub_app.rs" from="pub trait AddDimensionPlugins" title="The two methods" />
 
 - `add_dimension_plugin(plugin)` builds a copy of the plugin in every dimension world.
 - `add_dimension_plugin_to(key, plugin)` builds it only in the dimension with that key, for example `OVERWORLD`.
@@ -51,7 +51,7 @@ Consequences you will meet:
 
 The repository test checks each rule. It adds one counter to every world and another only to the overworld, then asserts that the nether has no second counter and that the overworld got the value of the plugin added for its key.
 
-<Example file="crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs" lines="90-125" title="Test: a plugin for every world and a plugin for one key" />
+<Example file="crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs" from={"#[test]\nfn dimension_plugins_run_in_every_world_or_in_the_world_of_their_key"} to={"        1\n    );"} title="Test: a plugin for every world and a plugin for one key" />
 
 ## Global state has one writer
 
@@ -63,7 +63,7 @@ For a plugin author this means: do not keep your own copy of the game clock insi
 
 A system of one dimension cannot reach another world. Players move between dimension worlds as messages, never by moving entities (<Status issue={362} state="partial" />). A portal, or any move decided inside a tick, writes a request:
 
-<Example file="crates/mcrs_minecraft_engine_world/src/entity/player/mod.rs" lines="14-24" title="ChangeDimensionRequest" />
+<Example file="crates/mcrs_minecraft_engine_world/src/entity/player/mod.rs" from={"#[derive(Message, Clone, Debug)]\npub struct ChangeDimensionRequest"} title="ChangeDimensionRequest" />
 
 At the end of the tick, the old world takes the carried state of the player, despawns the player and hands a departure to the host. The player arrives in the new world on the next tick. The rules are in [docs/command-dimensions.md](https://github.com/andreypfau/mcrs/blob/main/docs/command-dimensions.md), section "Change of dimension".
 

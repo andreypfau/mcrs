@@ -2,23 +2,26 @@
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { Code } from "@astrojs/starlight/components";
-interface Props { file: string; lines?: string; title?: string }
-const { file, lines, title } = Astro.props;
+import { extractByAnchor } from "~/lib/anchor.mjs";
+interface Props { file: string; from?: string; to?: string; title?: string }
+const { file, from, to, title, ...rest } = Astro.props;
+if (from === undefined && to !== undefined) throw new Error(`Example ${file}: "to" needs "from"`);
+if ("lines" in rest) throw new Error(`Example: "lines" is gone, pass from="..." (and to="...") with text from ${file}`);
 // docs-site lives one level below the repository root; the build runs from docs-site.
 const full = path.resolve(process.cwd(), "..", file);
 if (!existsSync(full)) throw new Error(`Example: file not found in repository: ${file}`);
-const all = readFileSync(full, "utf8").replace(/\n$/, "").split("\n");
-let from = 1, to = all.length;
-if (lines) {
-  const m = /^(\d+)-(\d+)$/.exec(lines);
-  if (!m) throw new Error(`Example: bad lines "${lines}" for ${file}, expected "A-B"`);
-  from = +m[1]; to = +m[2];
-  if (from < 1 || to < from || to > all.length) throw new Error(`Example: lines ${lines} out of range for ${file} (${all.length} lines)`);
+const text = readFileSync(full, "utf8");
+let code = text.replace(/\n$/, ""), first = 1, last = code.split("\n").length;
+if (from !== undefined) {
+  try {
+    ({ code, from: first, to: last } = extractByAnchor(text, from, to));
+  } catch (e) {
+    throw new Error(`Example ${file}: ${(e as Error).message}`);
+  }
 }
-const code = all.slice(from - 1, to).join("\n");
 const ext = path.extname(file).slice(1);
 const lang = ({ rs: "rust", yml: "yaml", md: "md" } as Record<string, string>)[ext] ?? ext;
-const url = `https://github.com/andreypfau/mcrs/blob/main/${file}` + (lines ? `#L${from}-L${to}` : "");
+const url = `https://github.com/andreypfau/mcrs/blob/main/${file}` + (from !== undefined ? `#L${first}-L${last}` : "");
 ---
 <Code code={code} lang={lang} title={title ?? file} />
-<p><a href={url}>{file}{lines ? `:${from}-${to}` : ""}</a></p>
+<p><a href={url}>{file}{from !== undefined ? `:${first}-${last}` : ""}</a></p>

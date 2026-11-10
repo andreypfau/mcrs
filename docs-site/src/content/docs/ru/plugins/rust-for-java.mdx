@@ -118,7 +118,7 @@ app.add_observer(|mut e: On<PlayerChatEvent>| {
 
 Настоящий плагин из репозитория, с ресурсом и системой в `FixedUpdate`:
 
-<Example file="crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs" lines="10-40" title="CountTicks: плагин с ресурсом и системой" />
+<Example file="crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs" from={"#[derive(Resource, Default)]\nstruct Ticks<const ALL: bool>(u32);"} to={"    }\n}"} title="CountTicks: плагин с ресурсом и системой" />
 
 ## Владение коротко
 

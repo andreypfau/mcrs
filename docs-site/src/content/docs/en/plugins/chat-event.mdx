@@ -28,7 +28,7 @@ Chat is the first and, for now, the only public player event of mcrs. It is the 
 
 The server raises `PlayerChatEvent` for a chat line, before it broadcasts the line. The event has three fields.
 
-<Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" lines="19-24" title="PlayerChatEvent" />
+<Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" from={"#[derive(Event, Debug)]\npub struct PlayerChatEvent"} title="PlayerChatEvent" />
 
 | Field | Meaning |
 |---|---|
@@ -46,7 +46,7 @@ The event comes after the checks of the server and before the broadcast.
 - A line from a player who hides chat raises no event, and the player gets the "chat disabled" message.
 - Any other line raises the event in the dimension world of the sender. After the observers ran, the server reads `cancelled` and `text` and broadcasts.
 
-<Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" lines="64-93" title="Raise the event, then broadcast" />
+<Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" from="let text = msg.to_string().into_text();" to="    })" title="Raise the event, then broadcast" />
 
 The broadcast happens right after `handle_chat` ends, not inside it, because the trigger runs in a queued command.
 
@@ -54,19 +54,19 @@ The broadcast happens right after `handle_chat` ends, not inside it, because the
 
 In Paper you call `setCancelled(true)` on `AsyncChatEvent`. Here you write an observer, a function with the parameter `On<PlayerChatEvent>`, and set the field.
 
-<Example file="crates/mcrs_minecraft_server/tests/it/chat.rs" lines="123-142" title="Test: an observer cancels a line" />
+<Example file="crates/mcrs_minecraft_server/tests/it/chat.rs" from={"#[test]\nfn an_observer_that_cancels_a_chat_line_stops_its_broadcast"} title="Test: an observer cancels a line" />
 
 ## Replace the text
 
 Set `event.text` to a new `Text`. The broadcast uses it. The test also reads `event.player` to show who spoke.
 
-<Example file="crates/mcrs_minecraft_server/tests/it/chat.rs" lines="144-181" title="Test: an observer rewrites a line to ***" />
+<Example file="crates/mcrs_minecraft_server/tests/it/chat.rs" from={"#[test]\nfn an_observer_that_replaces_a_chat_line_changes_its_broadcast"} title="Test: an observer rewrites a line to ***" />
 
 ## Where the observer lives
 
 Chat runs inside each dimension world, so the observer has to be in the dimension world as well. The test adds it to the world directly (`server.world().add_observer(...)`). In a real server, put `app.add_observer(...)` into the `build` method of a `Clone` plugin and register it with `add_dimension_plugin`. `ChatPlugin` itself does the same for its own observer:
 
-<Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" lines="26-33" title="ChatPlugin adds its observer in build" />
+<Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" from="impl Plugin for ChatPlugin" title="ChatPlugin adds its observer in build" />
 
 See [Your first plugin](/docs/en/plugins/first-plugin/) for why `add_plugins` does not work here.
 

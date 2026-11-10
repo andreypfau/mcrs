@@ -16,7 +16,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 Перед рассылкой строки чата сервер вызывает событие `PlayerChatEvent`. У него три поля.
 
-<Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" lines="19-24" title="PlayerChatEvent" />
+<Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" from={"#[derive(Event, Debug)]\npub struct PlayerChatEvent"} title="PlayerChatEvent" />
 
 | Поле | Значение |
 |---|---|
@@ -34,7 +34,7 @@ import { Aside } from '@astrojs/starlight/components';
 - Строка от игрока, который скрыл чат, тоже не вызывает событие, а игрок получает сообщение "чат отключен".
 - Любая другая строка вызывает событие в мире измерения отправителя. Когда наблюдатели (observer) отработают, сервер читает `cancelled` и `text` и рассылает строку.
 
-<Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" lines="64-93" title="Вызвать событие, затем разослать" />
+<Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" from="let text = msg.to_string().into_text();" to="    })" title="Вызвать событие, затем разослать" />
 
 Рассылка идет сразу после выхода из `handle_chat`, а не внутри нее: триггер выполняется в отложенной команде.
 
@@ -42,19 +42,19 @@ import { Aside } from '@astrojs/starlight/components';
 
 В Paper для этого вызывают `setCancelled(true)` у `AsyncChatEvent`. Здесь пишут наблюдателя, то есть функцию с параметром `On<PlayerChatEvent>`, и выставляют поле.
 
-<Example file="crates/mcrs_minecraft_server/tests/it/chat.rs" lines="123-142" title="Тест: наблюдатель отменяет строку" />
+<Example file="crates/mcrs_minecraft_server/tests/it/chat.rs" from={"#[test]\nfn an_observer_that_cancels_a_chat_line_stops_its_broadcast"} title="Тест: наблюдатель отменяет строку" />
 
 ## Замена текста
 
 Запишите в `event.text` новый `Text`, и рассылка возьмет его. Тест еще читает `event.player`, чтобы показать, кто говорил.
 
-<Example file="crates/mcrs_minecraft_server/tests/it/chat.rs" lines="144-181" title="Тест: наблюдатель переписывает строку в ***" />
+<Example file="crates/mcrs_minecraft_server/tests/it/chat.rs" from={"#[test]\nfn an_observer_that_replaces_a_chat_line_changes_its_broadcast"} title="Тест: наблюдатель переписывает строку в ***" />
 
 ## Где живет наблюдатель
 
 Чат работает внутри каждого мира измерения, значит, и наблюдатель должен быть в мире измерения. Тест добавляет его прямо в мир (`server.world().add_observer(...)`). На настоящем сервере положите `app.add_observer(...)` в метод `build` плагина с `Clone` и зарегистрируйте плагин через `add_dimension_plugin`. Так же `ChatPlugin` добавляет собственного наблюдателя:
 
-<Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" lines="26-33" title="ChatPlugin добавляет своего наблюдателя в build" />
+<Example file="crates/mcrs_minecraft_chat_server/src/chat_plugin.rs" from="impl Plugin for ChatPlugin" title="ChatPlugin добавляет своего наблюдателя в build" />
 
 Почему здесь не подходит `add_plugins`, см. в разделе [Первый плагин](/docs/ru/plugins/first-plugin/).
 

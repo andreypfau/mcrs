@@ -37,7 +37,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 Сейчас это подтверждают две проверки. Тест `tick_determinism.rs` прогоняет мир из двух ячеек 60 тиков: один раз со всеми мирами в одном потоке, другой раз с потоками. После каждого тика он хеширует все состояние симуляции и падает на первом тике, где хеши различаются.
 
-<Example file="crates/mcrs_minecraft_server/tests/it/tick_determinism.rs" lines="274-283" title="Тест: потоки и один поток должны дать одинаковый мир" />
+<Example file="crates/mcrs_minecraft_server/tests/it/tick_determinism.rs" from={"#[test]\nfn the_world_a_tick_produces_does_not_depend_on_the_threads"} title="Тест: потоки и один поток должны дать одинаковый мир" />
 
 ## Попробовать самому
 
@@ -49,7 +49,7 @@ cargo run --release -p mcrs_minecraft_engine_physics --example state_hash -- <th
 
 Запустите его с 1 потоком и с 8 потоками: хеш в конце строки совпадет. Пример печатает и архитектуру, так что можно сравнить две машины. Код короткий:
 
-<Example file="crates/mcrs_minecraft_engine_physics/examples/state_hash.rs" lines="14-24" title="state_hash: одна сцена, любое число потоков" />
+<Example file="crates/mcrs_minecraft_engine_physics/examples/state_hash.rs" from="fn main() {" to={"scene.step(&pool, tiles_per_task, &mut writes);\n    }"} title="state_hash: одна сцена, любое число потоков" />
 
 Это проверка дизайна, а не заявление о скорости. Нужен тулчейн nightly, а в руководство по установке пример не входит: оно пока WIP.
 

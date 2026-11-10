@@ -61,17 +61,17 @@ A detailed install and run guide will appear before the alpha. Until then, use t
 
 A plugin is a struct that implements `Plugin`. This one registers a resource and a system. The system runs in `FixedUpdate` and adds one to the counter. The test uses a const generic `ALL` to run two variants. Read it as a plain `CountTicks` and ignore `ALL`.
 
-<Example file="crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs" lines="10-40" title="A plugin that counts ticks" />
+<Example file="crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs" from={"#[derive(Resource, Default)]\nstruct Ticks<const ALL: bool>(u32);"} to={"    }\n}"} title="A plugin that counts ticks" />
 
 Your plugin must be `Clone`. The server builds one copy of it for every dimension world, so it needs to copy it. The binary already has a small plugin that shows the shape:
 
-<Example file="src/main.rs" lines="128-136" title="The smallest Clone plugin in src/main.rs" />
+<Example file="src/main.rs" from={"#[derive(Clone)]\nstruct LogInsteadOfPanicPlugin"} to={"    }\n}"} title="The smallest Clone plugin in src/main.rs" />
 
 ## Step 3: register it with add_dimension_plugin
 
 In `serve()` of `src/main.rs`, the server already registers one plugin the right way. Add yours on the next line.
 
-<Example file="src/main.rs" lines="43-46" title="Where serve() registers a dimension plugin" />
+<Example file="src/main.rs" from="fn serve() -> AppExit" to="app.add_dimension_plugin(LogInsteadOfPanicPlugin);" title="Where serve() registers a dimension plugin" />
 
 <Aside type="caution" title="The trap: add_plugins is not enough">
 Each dimension runs as a separate Bevy `SubApp` with its own `World`. A plugin that you add with `app.add_plugins(...)` goes to the main app. It never reaches the simulation of a dimension (<Status issue={280} state="works" />). Your system would build without an error and never see a block, a mob or a player entity. Use `add_dimension_plugin(plugin)` for every dimension, or `add_dimension_plugin_to(key, plugin)` for one. The plugin goes in before the dimensions spawn, so call it before the server starts. More in [Dimensions](/docs/en/plugins/dimensions/).
@@ -79,11 +79,11 @@ Each dimension runs as a separate Bevy `SubApp` with its own `World`. A plugin t
 
 The test shows both calls, and what the server builds from them:
 
-<Example file="crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs" lines="90-98" title="One plugin in every world, one in the overworld only" />
+<Example file="crates/mcrs_minecraft_server/tests/it/dimension_plugins.rs" from={"#[test]\nfn dimension_plugins_run_in_every_world_or_in_the_world_of_their_key"} to="OVERWORLD, Rate(2)" title="One plugin in every world, one in the overworld only" />
 
 ## Step 4: see the count
 
-The test plugin does not print anything. It asserts that the counter is above zero in both worlds (`ticks::<true>(...)` in the same file, lines 110-111). The command below runs this test. It is the pattern that the chat test also uses (<Status pr={636} state="works" />).
+The test plugin does not print anything. It asserts that the counter is above zero in both worlds (`ticks::<true>(...)` in the same file). The command below runs this test. It is the pattern that the chat test also uses (<Status pr={636} state="works" />).
 
 ```bash
 cargo test -p mcrs_minecraft_server --test it dimension_plugins::
