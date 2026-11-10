@@ -21,9 +21,12 @@ sources:
   - pr:686
   - pr:687
   - pr:691
+  - pr:645
+  - pr:692
+  - pr:683
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 3540f457b
+  commit: f50e2fdf6
   date: 2026-11-10
 ---
 
@@ -36,7 +39,7 @@ The last tag is 27 days old, and 152 pull requests were merged after it. So the 
 
 ## Since v0.5.8 (no tag yet)
 
-From 2026-10-14 to 2026-11-10: 870 commits and 152 merged pull requests from 6 authors. 121 of the pull requests are from andreypfau, and 31 from five other people.
+From 2026-10-14 to 2026-11-10: 874 commits and 156 merged pull requests from 6 authors. 123 of the pull requests are from andreypfau, and 33 from five other people.
 
 What was merged, in a few lines:
 
@@ -48,7 +51,8 @@ What was merged, in a few lines:
 - A fix to the VarInt and VarLong reader so it rejects out-of-range bits (<Status pr={653} state="works" />).
 - NBT in the two Bedrock encodings, little-endian storage and network varint, next to the Java one (<Status pr={679} state="works" />).
 - The new crate `mcrs_minecraft_text_flatten` fills translations in flattened text. A translated disconnect reason now shows its fallback or its key, not an empty line (<Status pr={680} state="works" />).
-- A specification of survival block breaking, taken from a vanilla server (<Status pr={686} state="works" />).
+- A specification of survival block breaking, taken from a vanilla server (<Status pr={686} state="works" />). A specification of block placing in creative mode, also from a vanilla server (<Status pr={645} state="works" />, <Status pr={692} state="works" />).
+- Teleport confirmation follows its specification. The server resends a pending teleport while the client moves, and tests check it through a scripted client (<Status pr={683} state="works" />, part of <Status issue={623} />).
 - CI runs own pull requests in one self-hosted job and fork pull requests on hosted runners, and a change to `docs/` alone builds nothing (<Status pr={691} state="works" />). Cargo resolves features once for the whole workspace (<Status pr={685} state="works" />).
 - `AGENTS.md`, agent skills and path rules for coding agents (<Status pr={687} state="works" />, see [How to contribute](/docs/en/contributing/#work-with-a-coding-agent)); search engine metadata, `robots.txt` and a sitemap for the landing page (<Status pr={684} state="works" />).
 
