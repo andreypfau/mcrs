@@ -1,6 +1,5 @@
 use alloc::boxed::Box;
 use alloc::vec;
-use core::iter;
 use core::mem;
 
 use bevy_ecs::component::Component;
@@ -9,6 +8,7 @@ use bevy_ecs::lifecycle::HookContext;
 use bevy_ecs::world::DeferredWorld;
 
 use crate::Occupant;
+use crate::row;
 
 const WORD: usize = u64::BITS as usize;
 
@@ -64,8 +64,11 @@ impl Slots {
     /// The lowest index of an empty slot.
     #[must_use]
     pub fn first_free(&self) -> Option<u16> {
-        let index = (self.occupied.iter().enumerate())
-            .find_map(|(word, bits)| first_bit(!bits).map(|bit| word * WORD + bit))?;
+        let index = (self.occupied.iter().enumerate()).find_map(|(word, &bits)| {
+            row::bits(u128::from(!bits))
+                .next()
+                .map(|bit| word * WORD + bit)
+        })?;
         if index >= self.len() {
             return None;
         }
@@ -99,19 +102,9 @@ impl Slots {
     }
 
     fn occupied_indices(&self) -> impl Iterator<Item = usize> + '_ {
-        (self.occupied.iter().enumerate()).flat_map(|(word, &bits)| {
-            let mut bits = bits;
-            iter::from_fn(move || {
-                let bit = first_bit(bits)?;
-                bits &= bits.wrapping_sub(1);
-                Some(word * WORD + bit)
-            })
-        })
+        (self.occupied.iter().enumerate())
+            .flat_map(|(word, &bits)| row::bits(u128::from(bits)).map(move |bit| word * WORD + bit))
     }
-}
-
-fn first_bit(bits: u64) -> Option<usize> {
-    (bits != 0).then(|| bits.trailing_zeros() as usize)
 }
 
 fn despawn_stacks(mut world: DeferredWorld, context: HookContext) {

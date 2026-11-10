@@ -1,6 +1,5 @@
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_item_stack::ComponentType;
-use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::CustomName;
 use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_item_stack::HashError;
@@ -23,38 +22,9 @@ use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_text::Text;
 use serde::Deserialize;
 
-/// The type ids of the specification, from 0 to 28.
-const COMPONENT_TYPES: [&str; 29] = [
-    "custom_data",
-    "max_stack_size",
-    "max_damage",
-    "damage",
-    "unbreakable",
-    "use_effects",
-    "custom_name",
-    "minimum_attack_charge",
-    "damage_type",
-    "item_name",
-    "item_model",
-    "lore",
-    "rarity",
-    "enchantments",
-    "can_place_on",
-    "can_break",
-    "attribute_modifiers",
-    "custom_model_data",
-    "tooltip_display",
-    "repair_cost",
-    "creative_slot_lock",
-    "enchantment_glint_override",
-    "intangible_projectile",
-    "food",
-    "consumable",
-    "use_remainder",
-    "use_cooldown",
-    "damage_resistant",
-    "tool",
-];
+use crate::common::COMPONENT_TYPES;
+use crate::common::stack;
+use crate::common::unhex;
 
 const AIR: u16 = 0;
 const STONE: u16 = 1;
@@ -107,18 +77,6 @@ impl NameLookup for Names {
             .find(|(entry, _)| *entry == id)?;
         ResourceLocation::new("minecraft", path).ok()
     }
-}
-
-fn unhex(hex: &str) -> Vec<u8> {
-    (0..hex.len())
-        .step_by(2)
-        .map(|at| u8::from_str_radix(&hex[at..at + 2], 16).expect("the golden holds hex digits"))
-        .collect()
-}
-
-fn stack(kind: u16, count: u8) -> ItemStack {
-    let count = Count::new(count).expect("the test counts are not zero");
-    ItemStack::new(Kind(kind), count)
 }
 
 fn hashed(stack: Option<&ItemStack>) -> Option<HashedStack> {

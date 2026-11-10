@@ -17,9 +17,7 @@ impl Removed {
         T::builtin_key().is_some_and(|key| self.bits & bit(key) != 0)
     }
 
-    pub(crate) fn of(key: BuiltinKey) -> Self {
-        Self { bits: bit(key) }
-    }
+    pub(crate) const EMPTY: Self = Self { bits: 0 };
 
     pub(crate) fn bits(self) -> u32 {
         self.bits

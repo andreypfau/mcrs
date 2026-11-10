@@ -235,36 +235,36 @@ fn array_hash<T: Serialize + ?Sized>(variant: &str, value: &T) -> Result<NodeHas
         .ok_or(Unhashable)?;
     match kind {
         ArrayKind::Byte => {
-            let mut values: Vec<i8> = Vec::with_capacity(elements.len());
-            for element in elements {
-                let NbtTag::Byte(value) = element else {
-                    return Err(Unhashable);
-                };
-                values.push(value);
-            }
+            let values = array_values(elements, |tag| match tag {
+                NbtTag::Byte(value) => Some(value),
+                _ => None,
+            })?;
             Ok(NodeHash::byte_array(&values))
         }
         ArrayKind::Int => {
-            let mut values: Vec<i32> = Vec::with_capacity(elements.len());
-            for element in elements {
-                let NbtTag::Int(value) = element else {
-                    return Err(Unhashable);
-                };
-                values.push(value);
-            }
+            let values = array_values(elements, |tag| match tag {
+                NbtTag::Int(value) => Some(value),
+                _ => None,
+            })?;
             Ok(NodeHash::int_array(&values))
         }
         ArrayKind::Long => {
-            let mut values: Vec<i64> = Vec::with_capacity(elements.len());
-            for element in elements {
-                let NbtTag::Long(value) = element else {
-                    return Err(Unhashable);
-                };
-                values.push(value);
-            }
+            let values = array_values(elements, |tag| match tag {
+                NbtTag::Long(value) => Some(value),
+                _ => None,
+            })?;
             Ok(NodeHash::long_array(&values))
         }
     }
+}
+
+fn array_values<V>(
+    elements: Vec<NbtTag>,
+    value: fn(NbtTag) -> Option<V>,
+) -> Result<Vec<V>, Unhashable> {
+    (elements.into_iter())
+        .map(|element| value(element).ok_or(Unhashable))
+        .collect()
 }
 
 struct ListSerializer<'scratch> {
@@ -280,44 +280,28 @@ impl ListSerializer<'_> {
     }
 }
 
-impl ser::SerializeSeq for ListSerializer<'_> {
-    type Ok = Node;
-    type Error = Unhashable;
+macro_rules! list_serializer {
+    ($($trait:ident :: $method:ident),*) => {$(
+        impl ser::$trait for ListSerializer<'_> {
+            type Ok = Node;
+            type Error = Unhashable;
 
-    fn serialize_element<T: Serialize + ?Sized>(&mut self, value: &T) -> Result<(), Unhashable> {
-        self.push(value)
-    }
+            fn $method<T: Serialize + ?Sized>(&mut self, value: &T) -> Result<(), Unhashable> {
+                self.push(value)
+            }
 
-    fn end(self) -> Result<Node, Unhashable> {
-        Ok(Some(self.list.finish()))
-    }
+            fn end(self) -> Result<Node, Unhashable> {
+                Ok(Some(self.list.finish()))
+            }
+        }
+    )*};
 }
 
-impl ser::SerializeTuple for ListSerializer<'_> {
-    type Ok = Node;
-    type Error = Unhashable;
-
-    fn serialize_element<T: Serialize + ?Sized>(&mut self, value: &T) -> Result<(), Unhashable> {
-        self.push(value)
-    }
-
-    fn end(self) -> Result<Node, Unhashable> {
-        Ok(Some(self.list.finish()))
-    }
-}
-
-impl ser::SerializeTupleStruct for ListSerializer<'_> {
-    type Ok = Node;
-    type Error = Unhashable;
-
-    fn serialize_field<T: Serialize + ?Sized>(&mut self, value: &T) -> Result<(), Unhashable> {
-        self.push(value)
-    }
-
-    fn end(self) -> Result<Node, Unhashable> {
-        Ok(Some(self.list.finish()))
-    }
-}
+list_serializer!(
+    SerializeSeq::serialize_element,
+    SerializeTuple::serialize_element,
+    SerializeTupleStruct::serialize_field
+);
 
 // The entries of the map stand in `entries` from `start` on. A nested map adds its entries after
 // them and removes them when it ends, so one buffer serves each level.

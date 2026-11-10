@@ -8,17 +8,8 @@ use crate::SlotRef;
 use crate::commit::Settlement;
 
 /// The buffers of the commit of a request, used again by each request.
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub(crate) struct RequestScratch {
     pub(crate) plan: Box<Plan<SlotRef, Entity>>,
     pub(crate) settlement: Settlement,
-}
-
-impl Default for RequestScratch {
-    fn default() -> Self {
-        Self {
-            plan: Box::new(Plan::new()),
-            settlement: Settlement::default(),
-        }
-    }
 }

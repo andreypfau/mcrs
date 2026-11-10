@@ -1,13 +1,17 @@
 use core::ops::RangeInclusive;
 
-use crate::BlockSet;
-use crate::Builtin;
-use crate::BuiltinKey;
+use mcrs_minecraft_text::Text;
+
 use crate::ItemStack;
 use crate::NameLookup;
-use crate::NameTable;
 use crate::PatchEntry;
 use crate::WireError;
+use crate::saved_form::Fault;
+use crate::saved_form::saved_form;
+use crate::saved_sink::Field;
+use crate::saved_sink::Leaf;
+use crate::saved_sink::NamedEntry;
+use crate::saved_sink::SavedSink;
 
 pub(crate) const MAX_COUNT: u8 = 99;
 pub(crate) const NOT_NEGATIVE: RangeInclusive<i32> = 0..=i32::MAX;
@@ -26,85 +30,52 @@ pub(crate) fn check_saved_form<L: NameLookup>(
     }
     for entry in stack.patch() {
         if let PatchEntry::Value(value) = entry {
-            check_value(value, names)?;
+            saved_form(value, names, &mut Check).map_err(wire_error)?;
         }
     }
     Ok(())
 }
 
-fn check_value<L: NameLookup>(value: &Builtin, names: &L) -> Result<(), WireError> {
-    let check = Check {
-        component: value.key(),
-        names,
-    };
-    match value {
-        Builtin::MaxStackSize(size) => check.range(size.0, STACK_SIZE),
-        Builtin::MaxDamage(damage) => check.range(damage.0, POSITIVE),
-        Builtin::Damage(damage) => check.range(damage.0, NOT_NEGATIVE),
-        Builtin::RepairCost(cost) => check.range(cost.0, NOT_NEGATIVE),
-        Builtin::Food(food) => check.range(food.nutrition, NOT_NEGATIVE),
-        Builtin::Enchantments(enchantments) => {
-            for entry in enchantments.entries() {
-                check.named(NameTable::Enchantment, entry.enchantment.0)?;
-            }
-            Ok(())
-        }
-        Builtin::AttributeModifiers(modifiers) => {
-            for modifier in modifiers.modifiers.iter() {
-                check.named(NameTable::Attribute, modifier.attribute.0)?;
-            }
-            Ok(())
-        }
-        Builtin::TooltipDisplay(display) => {
-            for component_type in display.hidden_components() {
-                check.named(NameTable::ComponentType, component_type.0)?;
-            }
-            Ok(())
-        }
-        Builtin::Tool(tool) => {
-            check.range(tool.damage_per_block, NOT_NEGATIVE)?;
-            for rule in tool.rules.iter() {
-                match &rule.blocks {
-                    BlockSet::Tag(block_tag) => check.named(NameTable::BlockTag, block_tag.0)?,
-                    BlockSet::Blocks(blocks) => {
-                        for block in blocks.iter() {
-                            check.named(NameTable::Block, block.0)?;
-                        }
-                    }
-                }
-            }
-            Ok(())
-        }
-        Builtin::Unbreakable(_)
-        | Builtin::ItemModel(_)
-        | Builtin::Rarity(_)
-        | Builtin::CustomName(_)
-        | Builtin::ItemName(_)
-        | Builtin::Lore(_) => Ok(()),
+fn wire_error(fault: Fault) -> WireError {
+    match fault {
+        Fault::BadValue(component) => WireError::BadValue(component),
+        Fault::OutOfRange(component) => WireError::OutOfRange(component),
+        Fault::UnnamedId { component, table } => WireError::UnknownEntry { component, table },
     }
 }
 
-struct Check<'names, L> {
-    component: BuiltinKey,
-    names: &'names L,
-}
+/// A sink that builds nothing, so the walk only checks the ranges and the names.
+struct Check;
 
-impl<L: NameLookup> Check<'_, L> {
-    fn range(&self, number: i32, range: RangeInclusive<i32>) -> Result<(), WireError> {
-        if range.contains(&number) {
-            Ok(())
-        } else {
-            Err(WireError::OutOfRange(self.component))
-        }
+impl SavedSink for Check {
+    type Node = ();
+
+    fn leaf(&self, _: Leaf<'_>) {}
+
+    fn text(&mut self, _: &Text) -> Option<()> {
+        Some(())
     }
 
-    fn named(&self, table: NameTable, id: u16) -> Result<(), WireError> {
-        match self.names.name(table, id) {
-            Some(_) => Ok(()),
-            None => Err(WireError::UnknownEntry {
-                component: self.component,
-                table,
-            }),
+    fn fields(&self, _: impl IntoIterator<Item = Field<()>>) {}
+
+    fn named_map<'a>(
+        &mut self,
+        entries: impl IntoIterator<Item = Result<NamedEntry<'a>, Fault>>,
+    ) -> Result<(), Fault> {
+        for entry in entries {
+            entry?;
         }
+        Ok(())
+    }
+
+    fn list<T>(
+        &mut self,
+        items: impl IntoIterator<Item = T>,
+        mut element: impl FnMut(&mut Self, T) -> Result<(), Fault>,
+    ) -> Result<(), Fault> {
+        for item in items {
+            element(self, item)?;
+        }
+        Ok(())
     }
 }

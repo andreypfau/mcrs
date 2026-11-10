@@ -10,7 +10,6 @@ use mcrs_minecraft_item_stack::BlockSet;
 use mcrs_minecraft_item_stack::BlockTagId;
 use mcrs_minecraft_item_stack::BuiltinKey;
 use mcrs_minecraft_item_stack::ComponentType;
-use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::CustomName;
 use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_item_stack::EnchantmentId;
@@ -19,7 +18,6 @@ use mcrs_minecraft_item_stack::Enchantments;
 use mcrs_minecraft_item_stack::Food;
 use mcrs_minecraft_item_stack::ItemModel;
 use mcrs_minecraft_item_stack::ItemStack;
-use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_item_stack::MaxDamage;
 use mcrs_minecraft_item_stack::MaxStackSize;
 use mcrs_minecraft_item_stack::ModifierDisplay;
@@ -53,6 +51,9 @@ use mcrs_minecraft_snbt::parse_tag;
 use mcrs_minecraft_snbt::write_compound;
 use mcrs_minecraft_text::Text;
 use serde::Deserialize;
+
+use crate::common::stack;
+use crate::common::unhex;
 
 const AIR: u16 = 0;
 const STONE: u16 = 1;
@@ -102,11 +103,6 @@ impl NameLookup for Names {
     }
 }
 
-fn stack(kind: u16, count: u8) -> ItemStack {
-    let count = Count::new(count).expect("the test counts are not zero");
-    ItemStack::new(Kind(kind), count)
-}
-
 fn saved(snbt: &str) -> NbtCompound {
     parse_compound(snbt).expect("the test input is valid SNBT")
 }
@@ -147,13 +143,6 @@ fn assert_same(actual: &NbtCompound, expected: &NbtCompound, case: &str) {
         write_compound(actual),
         write_compound(expected)
     );
-}
-
-fn unhex(hex: &str) -> Vec<u8> {
-    (0..hex.len())
-        .step_by(2)
-        .map(|at| u8::from_str_radix(&hex[at..at + 2], 16).expect("the golden holds hex digits"))
-        .collect()
 }
 
 fn tag_of(bytes: &[u8]) -> NbtTag {

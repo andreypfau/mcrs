@@ -8,7 +8,6 @@ use bevy_ecs::world::FromWorld;
 use bevy_ecs::world::World;
 use mcrs_minecraft_item_stack::BuiltinKey;
 use mcrs_minecraft_item_stack::CustomComponent;
-use mcrs_minecraft_item_stack::ItemComponent;
 
 use crate::RegisterError;
 use crate::column::Column;
@@ -29,7 +28,10 @@ impl FromWorld for ItemComponents {
         macro_rules! rows {
             ($($name:ident => $path:literal),* $(,)?) => {
                 vec![
-                    $(builtin::<mcrs_minecraft_item_stack::$name>(world, BuiltinKey::$name),)*
+                    $(Row::builtin(
+                        Column::<mcrs_minecraft_item_stack::$name>::register(world),
+                        BuiltinKey::$name,
+                    ),)*
                     Row::undecoded(Column::register(world)),
                 ]
             };
@@ -72,10 +74,6 @@ impl ItemComponents {
         self.rows.push(Row::custom(Column::<C>::register(world)));
         Ok(())
     }
-}
-
-fn builtin<T: ItemComponent + Component>(world: &mut World, key: BuiltinKey) -> Row {
-    Row::builtin(Column::<T>::register(world), key)
 }
 
 #[cfg(test)]

@@ -40,17 +40,17 @@ pub(crate) fn store<T: ItemComponent + Component>(mut entity: EntityWorldMut, ta
     }
     if let Some(key) = T::builtin_key().filter(|_| T::neutral().is_some()) {
         let removed = entity.get::<Removed>().copied();
-        let next = match (removed, removal) {
-            (None, false) => return,
-            (None, true) => Removed::of(key),
-            (Some(removed), true) => removed.with(key),
-            (Some(removed), false) => removed.without(key),
+        let current = removed.unwrap_or(Removed::EMPTY);
+        let next = if removal {
+            current.with(key)
+        } else {
+            current.without(key)
         };
         if next.bits() == 0 {
             if removed.is_some() {
                 entity.remove::<Removed>();
             }
-        } else if Some(next) != removed {
+        } else if next != current {
             entity.insert(next);
         }
     }

@@ -1,32 +1,12 @@
-use std::fs;
-use std::path::PathBuf;
-
-use mcrs_minecraft_fixtures::vanilla_dir;
+use mcrs_minecraft_fixtures::assert_vanilla_round_trip;
 use mcrs_minecraft_text::ItemHover;
-use mcrs_minecraft_trim::{TrimMaterial, TrimPattern};
-use serde::Serialize;
-use serde::de::DeserializeOwned;
-use serde_json::Value;
+use mcrs_minecraft_trim::TrimMaterial;
+use mcrs_minecraft_trim::TrimPattern;
 
 #[test]
 fn every_vanilla_trim_file_writes_back_as_read() {
-    fn check<T: Serialize + DeserializeOwned>(registry: &str) {
-        let files: Vec<PathBuf> = fs::read_dir(vanilla_dir().join(registry))
-            .unwrap()
-            .map(|entry| entry.unwrap().path())
-            .collect();
-        assert!(!files.is_empty(), "the data pack ships {registry} files");
-        for path in files {
-            let bytes = fs::read(&path).unwrap();
-            let value: T =
-                serde_json::from_slice(&bytes).unwrap_or_else(|error| panic!("{path:?}: {error}"));
-            let file: Value = serde_json::from_slice(&bytes).unwrap();
-            assert_eq!(serde_json::to_value(&value).unwrap(), file, "{path:?}");
-        }
-    }
-
-    check::<TrimMaterial<ItemHover>>("trim_material");
-    check::<TrimPattern<ItemHover>>("trim_pattern");
+    assert_vanilla_round_trip::<TrimMaterial<ItemHover>>("trim_material");
+    assert_vanilla_round_trip::<TrimPattern<ItemHover>>("trim_pattern");
 }
 
 #[test]

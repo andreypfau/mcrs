@@ -54,13 +54,8 @@ impl<'w, 's> StackRows<'w, 's> {
 }
 
 fn equal(rows: &[Row], left: &Cells, right: &Cells) -> bool {
-    let same_shape = left.mask() == right.mask() && left.removed() == right.removed();
-    let rows_to_compare = if same_shape {
-        left.mask()
-    } else {
-        left.present() | right.present()
-    };
-    bits(rows_to_compare).all(|index| rows.get(index).is_some_and(|row| row.equal(left, right)))
+    bits(left.present() | right.present())
+        .all(|index| rows.get(index).is_some_and(|row| row.equal(left, right)))
 }
 
 fn row_hash(rows: &[Row], kind: Kind, cells: &Cells) -> u64 {

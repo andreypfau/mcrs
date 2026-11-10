@@ -22,7 +22,6 @@ pub(crate) fn spawn_stack(mut entity: EntityWorldMut, value: ItemStack) {
         entity.despawn();
         return;
     };
-    entity.world_scope(|world| world.init_resource::<ItemComponents>());
     entity.insert((value.kind, value.count));
     let mut patched = 0;
     let mut removed: Option<Removed> = None;
@@ -43,7 +42,7 @@ pub(crate) fn spawn_stack(mut entity: EntityWorldMut, value: ItemStack) {
             (PatchEntry::Removal(key), Some(row)) => {
                 let in_prototype = (prototype.components().iter()).any(|value| value.key() == *key);
                 if row.is_neutral() && in_prototype {
-                    removed = Some(removed.map_or(Removed::of(*key), |removed| removed.with(*key)));
+                    removed = Some(removed.unwrap_or(Removed::EMPTY).with(*key));
                 }
             }
             (PatchEntry::Removal(_), None) => {}

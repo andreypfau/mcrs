@@ -36,10 +36,6 @@ impl<'w> Cells<'w> {
         cells
     }
 
-    pub(crate) fn mask(&self) -> u128 {
-        self.mask
-    }
-
     pub(crate) fn removed(&self) -> Option<&'w Removed> {
         self.removed
     }
