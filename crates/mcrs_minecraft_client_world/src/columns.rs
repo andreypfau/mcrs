@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::hash::Hash;
 use std::sync::Arc;
 
@@ -136,6 +136,24 @@ pub struct ColumnStore {
     columns: HashMap<ColumnPos, Arc<Column>>,
     changes: Vec<ColumnChange>,
     light_checks: Vec<LightCheck>,
+    unlit_light: UnlitColumnLight,
+    /// The resident columns that came in without the light `unlit_light` computes, for the
+    /// light step to take. Empty while the option is off.
+    unlit_arrivals: HashSet<ColumnPos>,
+}
+
+/// What the client lights in a column that arrives without light data, from its blocks. For a
+/// program that embeds the client as a viewer and has no server to send light. The networked
+/// client leaves it off (CBK-LGT-013). Set it on `ColumnCachePlugin`.
+#[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
+pub enum UnlitColumnLight {
+    /// No local light for a new column: the light is the server's.
+    #[default]
+    Off,
+    /// Block light for a column with no block light. The sky layer stays as the program set it.
+    Block,
+    /// Block light and sky light for a column with no light of either layer.
+    BlockAndSky,
 }
 
 impl ColumnStore {
@@ -150,6 +168,7 @@ impl ColumnStore {
             }
             self.dimension = Some(dimension);
             self.light_checks.clear();
+            self.unlit_arrivals.clear();
         }
     }
 
@@ -159,6 +178,7 @@ impl ColumnStore {
         }
         self.dimension = None;
         self.light_checks.clear();
+        self.unlit_arrivals.clear();
     }
 
     pub fn dimension(&self) -> Option<&Dimension> {
@@ -169,7 +189,24 @@ impl ColumnStore {
         self.columns.is_empty() && self.dimension.is_none()
     }
 
+    pub fn set_unlit_light(&mut self, mode: UnlitColumnLight) {
+        self.unlit_light = mode;
+        if mode == UnlitColumnLight::Off {
+            self.unlit_arrivals.clear();
+        }
+    }
+
+    pub fn unlit_light(&self) -> UnlitColumnLight {
+        self.unlit_light
+    }
+
     pub fn insert(&mut self, pos: ColumnPos, column: Column) {
+        // A column that replaces another is judged on its own light, and the one it replaces
+        // no longer waits.
+        self.unlit_arrivals.remove(&pos);
+        if column.arrives_unlit(self.unlit_light) {
+            self.unlit_arrivals.insert(pos);
+        }
         let column = Arc::new(column);
         if let Some(old) = self.columns.insert(pos, column.clone()) {
             self.changes.push(ColumnChange::Departed(pos, old));
@@ -189,6 +226,7 @@ impl ColumnStore {
     }
 
     pub fn remove(&mut self, pos: ColumnPos) {
+        self.unlit_arrivals.remove(&pos);
         if let Some(old) = self.columns.remove(&pos) {
             self.changes.push(ColumnChange::Departed(pos, old));
         }
@@ -226,6 +264,33 @@ impl ColumnStore {
             new: state,
         });
         Some(old)
+    }
+
+    pub(crate) fn has_unlit_arrivals(&self) -> bool {
+        !self.unlit_arrivals.is_empty()
+    }
+
+    /// Whether `pos` is a resident column that arrived without light and has not been taken.
+    pub(crate) fn is_unlit_arrival(&self, pos: ColumnPos) -> bool {
+        self.unlit_arrivals.contains(&pos)
+    }
+
+    /// Moves the columns that arrived without light since the last call into `into`.
+    pub(crate) fn take_unlit_arrivals(&mut self, into: &mut Vec<ColumnPos>) {
+        into.extend(self.unlit_arrivals.drain());
+    }
+
+    /// Moves those of `named` that arrived without light and have not been taken into `into`.
+    pub(crate) fn take_unlit_among(
+        &mut self,
+        named: impl IntoIterator<Item = ColumnPos>,
+        into: &mut Vec<ColumnPos>,
+    ) {
+        into.extend(
+            named
+                .into_iter()
+                .filter(|pos| self.unlit_arrivals.remove(pos)),
+        );
     }
 
     pub(crate) fn has_light_checks(&self) -> bool {
@@ -464,6 +529,20 @@ impl Column {
         }
     }
 
+    /// Whether the column holds none of the light that `mode` computes: no light row at all for
+    /// both layers, no lit block cell for block light alone.
+    fn arrives_unlit(&self, mode: UnlitColumnLight) -> bool {
+        match mode {
+            UnlitColumnLight::Off => false,
+            UnlitColumnLight::Block => !self
+                .light
+                .iter()
+                .flatten()
+                .any(|row| row.iter().any(|cell| cell >> 4 != 0)),
+            UnlitColumnLight::BlockAndSky => self.light.iter().all(Option::is_none),
+        }
+    }
+
     pub fn decode(
         data: &ChunkData<'_>,
         light: &LightData<'_>,
@@ -647,7 +726,12 @@ fn dimension_of(registries: &Registries, current: &CurrentDimension) -> Option<D
     })
 }
 
-pub struct ColumnCachePlugin;
+/// Keeps the columns the server sends. `unlit_light` is off by default, so the networked client
+/// takes its light from the server alone.
+#[derive(Default)]
+pub struct ColumnCachePlugin {
+    pub unlit_light: UnlitColumnLight,
+}
 
 /// Columns reach the store after the frame's packets are read, and whatever builds on the
 /// store runs after them, so a column is taken up in the frame it arrived.
@@ -660,6 +744,9 @@ pub enum ClientTerrainSet {
 impl Plugin for ColumnCachePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ColumnStore>();
+        app.world_mut()
+            .resource_mut::<ColumnStore>()
+            .set_unlit_light(self.unlit_light);
         app.init_resource::<Arrivals>();
         app.init_resource::<BlockPredictions>();
         app.add_message::<ColumnChange>();
@@ -1006,19 +1093,51 @@ struct ServerLight {
 /// The local light of each block change comes before the server light of the same frame, so
 /// the server light wins over it. A column that arrives or leaves settles both first, so each
 /// lands on the column it was meant for.
+///
+/// The columns that arrived without light wait for the end of the frame, so that all of them
+/// are lit in one step. Only a column that the server light of the frame names is lit sooner,
+/// so that the server light still wins over the local one (CBK-LGT-014).
 struct LightStep<'a> {
     blocks: Option<&'a Blocks>,
     server: Vec<ServerLight>,
+    /// The columns taken for the step, kept between frames so a step allocates nothing.
+    due: &'a mut Vec<ColumnPos>,
+}
+
+/// When a `LightStep::settle` runs, which decides what it lights of the columns that arrived
+/// without light.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Settling {
+    /// Before a column or a dimension change: only the columns the server light names.
+    NamedByServer,
+    /// The end of the frame: every column that is still waiting.
+    FrameEnd,
 }
 
 impl LightStep<'_> {
-    fn settle(&mut self, store: &mut ResMut<ColumnStore>) {
+    fn settle(&mut self, store: &mut ResMut<ColumnStore>, when: Settling) {
         if store.has_light_checks() {
             let store = store.as_mut();
             let checks = store.take_light_checks();
             if let Some(blocks) = self.blocks {
                 client_light::relight(store, &block_light_registry(blocks), &checks);
             }
+        }
+        // The columns are taken only when the light can run, or they would stay dark for good.
+        let can_light = self.blocks.is_some() && store.dimension().is_some();
+        let named = when == Settling::NamedByServer;
+        if can_light && store.has_unlit_arrivals() && !(named && self.server.is_empty()) {
+            let store = store.as_mut();
+            if named {
+                store.take_unlit_among(self.server.iter().map(|server| server.pos), self.due);
+            } else {
+                store.take_unlit_arrivals(self.due);
+            }
+            if let (Some(blocks), false) = (self.blocks, self.due.is_empty()) {
+                let mode = store.unlit_light();
+                client_light::light_arrived(store, &block_light_registry(blocks), self.due, mode);
+            }
+            self.due.clear();
         }
         for server in self.server.drain(..) {
             store.relight(server.pos, &server.update);
@@ -1039,6 +1158,7 @@ fn settle_columns(
     blocks: Option<Res<Blocks>>,
     mut changes: MessageWriter<ColumnChange>,
     mut drained: Local<Vec<ColumnChange>>,
+    mut due: Local<Vec<ColumnPos>>,
     connection: Option<Single<(Entity, &mut ClientConnection)>>,
     mut commands: Commands,
 ) {
@@ -1047,18 +1167,19 @@ fn settle_columns(
     let mut light = LightStep {
         blocks: blocks.as_deref(),
         server: Vec::new(),
+        due: &mut due,
     };
     while let Some(arrival) = arrivals.queue.pop_front() {
         match arrival {
             Arrival::Enter(dimension) => {
-                light.settle(&mut store);
+                light.settle(&mut store, Settling::NamedByServer);
                 if store.dimension.as_ref() != Some(&dimension) {
                     predictions.clear();
                 }
                 store.enter(dimension);
             }
             Arrival::Forget(pos) => {
-                light.settle(&mut store);
+                light.settle(&mut store, Settling::NamedByServer);
                 store.remove(pos);
             }
             Arrival::Light(pos, update) => light.server.push(ServerLight { pos, update }),
@@ -1089,7 +1210,7 @@ fn settle_columns(
                     break;
                 }
                 Some(Ok(Some((pos, column)))) => {
-                    light.settle(&mut store);
+                    light.settle(&mut store, Settling::NamedByServer);
                     store.insert(pos, column);
                 }
                 Some(Ok(None)) => {}
@@ -1107,7 +1228,7 @@ fn settle_columns(
             },
         }
     }
-    light.settle(&mut store);
+    light.settle(&mut store, Settling::FrameEnd);
     store.bypass_change_detection().drain_changes(&mut drained);
     changes.write_batch(drained.drain(..));
 }
@@ -1698,6 +1819,363 @@ mod tests {
             ));
         app.update();
         assert_eq!(sky_and_block(&app, BlockPos::new(5, 14, 5)), (0, 0));
+    }
+
+    fn unlit_app(mode: UnlitColumnLight) -> App {
+        let mut app = App::new();
+        app.init_resource::<ColumnStore>()
+            .init_resource::<Arrivals>()
+            .init_resource::<BlockPredictions>()
+            .init_resource::<Seen<0>>()
+            .insert_resource(mcrs_minecraft_engine_registries::test_corpus().0.clone())
+            .add_message::<ColumnChange>()
+            .add_systems(
+                Update,
+                (settle_columns, read_into::<0>.after(settle_columns)),
+            );
+        let mut store = app.world_mut().resource_mut::<ColumnStore>();
+        store.set_unlit_light(mode);
+        store.enter(Extent {
+            min_section_y: 0,
+            sections: 2,
+        });
+        app
+    }
+
+    /// A column of air with no light, with a glowstone block at `lamp` when it is given.
+    fn unlit_column(lamp: Option<BlockPos>) -> Column {
+        let upper = lamp.map(|at| {
+            let glow = corpus_state("minecraft:glowstone");
+            let mut section = Section::air();
+            section.blocks[LocalPos::from(at).index()] = glow;
+            section.states.push(glow);
+            section
+        });
+        Column::unlit(0, vec![None, upper])
+    }
+
+    /// Puts an unlit column into the store, as an embedder does.
+    fn arrive(app: &mut App, column: ColumnPos, lamp: Option<BlockPos>) {
+        app.world_mut()
+            .resource_mut::<ColumnStore>()
+            .insert(column, unlit_column(lamp));
+    }
+
+    /// A light update with the same chunk in every row of one layer and nothing in the other.
+    fn layer_light(chunk: LightChunk, block: bool) -> ColumnLight {
+        let rows = 4;
+        let filled = || (0..rows).map(|_| RowLight::Filled(chunk)).collect();
+        let none = || (0..rows).map(|_| RowLight::Unchanged).collect();
+        if block {
+            ColumnLight {
+                sky: none(),
+                block: filled(),
+            }
+        } else {
+            ColumnLight {
+                sky: filled(),
+                block: none(),
+            }
+        }
+    }
+
+    const LAMP: BlockPos = BlockPos::new(5, 20, 5);
+
+    #[test]
+    fn cbk_lgt_014_a_column_without_light_is_lit_from_its_blocks() {
+        let mut app = unlit_app(UnlitColumnLight::Block);
+        arrive(&mut app, ColumnPos::new(0, 0), Some(LAMP));
+        app.update();
+        assert_eq!(sky_and_block(&app, LAMP + IVec3::Y).1, 14);
+        assert_eq!(sky_and_block(&app, BlockPos::new(5, 20, 15)).1, 5);
+        assert_eq!(sky_and_block(&app, BlockPos::new(15, 20, 15)).1, 0);
+    }
+
+    #[test]
+    fn cbk_lgt_015_the_form_for_block_light_leaves_the_sky_alone() {
+        let above = BlockPos::new(5, 25, 5);
+        let mut app = unlit_app(UnlitColumnLight::Block);
+        arrive(&mut app, ColumnPos::new(0, 0), Some(LAMP));
+        app.update();
+        assert_eq!(sky_and_block(&app, above).0, 0);
+
+        let mut app = unlit_app(UnlitColumnLight::BlockAndSky);
+        arrive(&mut app, ColumnPos::new(0, 0), Some(LAMP));
+        app.update();
+        assert_eq!(sky_and_block(&app, above), (15, 10));
+    }
+
+    #[test]
+    fn cbk_lgt_013_with_the_option_off_nothing_is_calculated() {
+        let mut app = unlit_app(UnlitColumnLight::Off);
+        arrive(&mut app, ColumnPos::new(0, 0), Some(LAMP));
+        app.update();
+        assert_eq!(sky_and_block(&app, LAMP + IVec3::Y), (0, 0));
+        assert!(!app.world().resource::<ColumnStore>().has_unlit_arrivals());
+    }
+
+    #[test]
+    fn cbk_lgt_016_light_crosses_into_a_held_column_and_out_of_it() {
+        let edge = BlockPos::new(15, 20, 5);
+        let mut app = unlit_app(UnlitColumnLight::Block);
+        arrive(&mut app, ColumnPos::new(1, 0), None);
+        app.update();
+        arrive(&mut app, ColumnPos::new(0, 0), Some(edge));
+        app.update();
+        assert_eq!(sky_and_block(&app, BlockPos::new(16, 20, 5)).1, 14);
+        assert_eq!(sky_and_block(&app, BlockPos::new(17, 20, 5)).1, 13);
+
+        // The lamp is held first and the dark column arrives beside it.
+        let mut app = unlit_app(UnlitColumnLight::Block);
+        arrive(&mut app, ColumnPos::new(0, 0), Some(edge));
+        app.update();
+        arrive(&mut app, ColumnPos::new(1, 0), None);
+        app.update();
+        assert_eq!(sky_and_block(&app, BlockPos::new(16, 20, 5)).1, 14);
+    }
+
+    #[test]
+    fn cbk_lgt_016_a_held_column_whose_light_does_not_move_is_not_relit() {
+        let mut app = unlit_app(UnlitColumnLight::Block);
+        arrive(
+            &mut app,
+            ColumnPos::new(0, 0),
+            Some(BlockPos::new(15, 20, 5)),
+        );
+        app.update();
+        app.world_mut().resource_mut::<Seen<0>>().0.clear();
+        // The light of the lamp falls to nothing before the column at x = -1.
+        arrive(&mut app, ColumnPos::new(-1, 0), None);
+        app.update();
+        let seen = &app.world().resource::<Seen<0>>().0;
+        assert!(
+            !seen
+                .iter()
+                .any(|(kind, pos, _)| *kind == "relit" && *pos == ColumnPos::new(0, 0)),
+            "{seen:?}"
+        );
+    }
+
+    #[test]
+    fn cbk_lgt_017_columns_that_arrive_in_one_frame_are_lit_in_one_step() {
+        let mut app = unlit_app(UnlitColumnLight::Block);
+        let pool = AsyncComputeTaskPool::get_or_init(bevy::tasks::TaskPool::new);
+        // One tile of 4 x 4 columns, with a lamp at the border of two of them.
+        for x in 0..4 {
+            for z in 0..4 {
+                let pos = ColumnPos::new(x, z);
+                let lamp = match (x, z) {
+                    (1, 1) => Some(BlockPos::new(31, 20, 21)),
+                    (2, 1) => Some(BlockPos::new(40, 20, 21)),
+                    _ => None,
+                };
+                let column = unlit_column(lamp);
+                let task = pool.spawn(async move { Ok(Some((pos, column))) });
+                app.world_mut()
+                    .resource_mut::<Arrivals>()
+                    .queue
+                    .push_back(Arrival::Column(task));
+            }
+        }
+        // Every decode has finished before the frame, so the frame lands all of them.
+        while (app.world().resource::<Arrivals>().queue.iter())
+            .any(|arrival| matches!(arrival, Arrival::Column(task) if !task.is_finished()))
+        {
+            std::thread::yield_now();
+        }
+        app.update();
+        assert!(app.world().resource::<Arrivals>().queue.is_empty());
+        assert_each_section_relit_once(&app);
+        // Light of the lamp at x = 31 crosses into the column at x = 2 and meets the other.
+        assert_eq!(sky_and_block(&app, BlockPos::new(32, 20, 21)).1, 14);
+        assert_eq!(sky_and_block(&app, BlockPos::new(36, 20, 21)).1, 11);
+    }
+
+    /// Panics when a section of a column was announced as relit more than once.
+    fn assert_each_section_relit_once(app: &App) {
+        let seen = &app.world().resource::<Seen<0>>().0;
+        let mut rows: Vec<(ColumnPos, i32)> = seen
+            .iter()
+            .filter(|(kind, ..)| *kind == "relit")
+            .flat_map(|(_, pos, rows)| rows.iter().map(|&row| (*pos, row)))
+            .collect();
+        let relit = rows.len();
+        rows.sort_by_key(|(pos, row)| (pos.x, pos.z, *row));
+        rows.dedup();
+        assert_eq!(
+            rows.len(),
+            relit,
+            "a section was lit more than once: {seen:?}"
+        );
+    }
+
+    #[test]
+    fn cbk_lgt_014_a_column_taken_while_the_light_cannot_run_stays_for_later() {
+        let mut app = unlit_app(UnlitColumnLight::Block);
+        let blocks = app
+            .world_mut()
+            .remove_resource::<Blocks>()
+            .expect("the app holds the blocks");
+        arrive(&mut app, ColumnPos::new(0, 0), Some(LAMP));
+        app.update();
+        assert!(app.world().resource::<ColumnStore>().has_unlit_arrivals());
+        assert_eq!(sky_and_block(&app, LAMP + IVec3::Y).1, 0);
+
+        app.insert_resource(blocks);
+        app.update();
+        assert_eq!(sky_and_block(&app, LAMP + IVec3::Y).1, 14);
+        assert!(!app.world().resource::<ColumnStore>().has_unlit_arrivals());
+    }
+
+    #[test]
+    fn cbk_lgt_017_a_column_named_early_does_not_light_the_ones_still_waiting() {
+        let lamp_a = BlockPos::new(15, 20, 5);
+        let lamp_b = BlockPos::new(17, 20, 5);
+        let mut app = unlit_app(UnlitColumnLight::Block);
+        arrive(&mut app, ColumnPos::new(0, 0), Some(lamp_a));
+        arrive(&mut app, ColumnPos::new(1, 0), Some(lamp_b));
+        // The server light of the first column lights it before the later arrival, and the
+        // second column waits for the end of the frame.
+        let rows = 4;
+        let unchanged = || (0..rows).map(|_| RowLight::Unchanged).collect::<Vec<_>>();
+        let mut arrivals = app.world_mut().resource_mut::<Arrivals>();
+        arrivals.queue.push_back(Arrival::Light(
+            ColumnPos::new(0, 0),
+            ColumnLight {
+                sky: unchanged(),
+                block: unchanged(),
+            },
+        ));
+        arrivals
+            .queue
+            .push_back(Arrival::Forget(ColumnPos::new(9, 9)));
+        app.update();
+        assert_each_section_relit_once(&app);
+        assert_eq!(sky_and_block(&app, BlockPos::new(16, 20, 5)).1, 14);
+        assert_eq!(sky_and_block(&app, BlockPos::new(18, 20, 5)).1, 14);
+    }
+
+    #[test]
+    fn cbk_lgt_017_a_block_change_in_a_column_that_waits_is_lit_once() {
+        let mut app = unlit_app(UnlitColumnLight::Block);
+        arrive(&mut app, ColumnPos::new(0, 0), Some(LAMP));
+        let glow = corpus_state("minecraft:glowstone");
+        server_sets(&mut app, BlockPos::new(10, 20, 10), glow);
+        app.update();
+        assert_each_section_relit_once(&app);
+        assert_eq!(sky_and_block(&app, LAMP + IVec3::Y).1, 14);
+        assert_eq!(sky_and_block(&app, BlockPos::new(10, 21, 10)).1, 14);
+    }
+
+    #[test]
+    fn cbk_lgt_015_a_dimension_without_sky_keeps_the_sky_of_a_held_column() {
+        let mut app = unlit_app(UnlitColumnLight::BlockAndSky);
+        app.world_mut()
+            .resource_mut::<ColumnStore>()
+            .enter(Dimension {
+                name: String::new(),
+                extent: Extent {
+                    min_section_y: 0,
+                    sections: 2,
+                },
+                sky_light: false,
+            });
+        let mut held = unlit_column(None);
+        held.relight(&layer_light(LightChunk::new([0xff; 2048]), false));
+        app.world_mut()
+            .resource_mut::<ColumnStore>()
+            .insert(ColumnPos::new(1, 0), held);
+        app.update();
+        arrive(
+            &mut app,
+            ColumnPos::new(0, 0),
+            Some(BlockPos::new(15, 20, 5)),
+        );
+        app.update();
+        assert_eq!(sky_and_block(&app, BlockPos::new(16, 20, 5)), (15, 14));
+        assert_eq!(sky_and_block(&app, BlockPos::new(20, 5, 5)).0, 15);
+    }
+
+    #[test]
+    fn cbk_lgt_016_a_column_that_replaces_a_held_one_leaves_no_light_of_the_old_one() {
+        let edge = BlockPos::new(15, 20, 5);
+        let mut app = unlit_app(UnlitColumnLight::Block);
+        arrive(&mut app, ColumnPos::new(1, 0), None);
+        arrive(&mut app, ColumnPos::new(0, 0), Some(edge));
+        app.update();
+        assert_eq!(sky_and_block(&app, BlockPos::new(16, 20, 5)).1, 14);
+
+        arrive(&mut app, ColumnPos::new(0, 0), None);
+        app.update();
+        for pos in [edge, BlockPos::new(14, 20, 5), BlockPos::new(16, 20, 5)] {
+            assert_eq!(sky_and_block(&app, pos).1, 0, "{pos:?}");
+        }
+    }
+
+    #[test]
+    fn cbk_lgt_014_a_column_replaced_or_removed_before_the_step_is_not_lit() {
+        let sky_cell = BlockPos::new(0, 0, 0);
+        let mut app = unlit_app(UnlitColumnLight::BlockAndSky);
+        arrive(&mut app, ColumnPos::new(0, 0), Some(LAMP));
+        arrive(&mut app, ColumnPos::new(5, 5), Some(LAMP));
+        let mut store = app.world_mut().resource_mut::<ColumnStore>();
+        let mut provided = unlit_column(Some(LAMP));
+        provided.relight(&layer_light(one_lit_cell(0, 15), false));
+        store.insert(ColumnPos::new(0, 0), provided);
+        store.remove(ColumnPos::new(5, 5));
+        app.update();
+        // The light that came with the column stays, and nothing was calculated over it.
+        assert_eq!(sky_and_block(&app, sky_cell), (15, 0));
+        assert_eq!(sky_and_block(&app, LAMP + IVec3::Y), (0, 0));
+        assert!(!app.world().resource::<ColumnStore>().has_unlit_arrivals());
+    }
+
+    #[test]
+    fn cbk_lgt_014_the_form_for_block_light_lights_a_column_that_came_with_sky_light() {
+        let above = BlockPos::new(5, 25, 5);
+        let mut app = unlit_app(UnlitColumnLight::Block);
+        let mut column = unlit_column(Some(LAMP));
+        column.relight(&layer_light(LightChunk::new([0xff; 2048]), false));
+        app.world_mut()
+            .resource_mut::<ColumnStore>()
+            .insert(ColumnPos::new(0, 0), column);
+        app.update();
+        assert_eq!(sky_and_block(&app, above), (15, 10));
+
+        // A column that came with block light of its own keeps it.
+        let mut column = unlit_column(Some(LAMP));
+        column.relight(&layer_light(one_lit_cell(0, 7), true));
+        app.world_mut()
+            .resource_mut::<ColumnStore>()
+            .insert(ColumnPos::new(0, 0), column);
+        app.update();
+        assert_eq!(sky_and_block(&app, LAMP + IVec3::Y).1, 0);
+    }
+
+    #[test]
+    fn cbk_lgt_017_a_batch_over_a_few_frames_lights_each_column_once_and_settles() {
+        let mut app = unlit_app(UnlitColumnLight::BlockAndSky);
+        let columns: Vec<ColumnPos> = (0..10)
+            .flat_map(|x| (0..10).map(move |z| ColumnPos::new(x, z)))
+            .collect();
+        for frame in columns.chunks(25) {
+            for &column in frame {
+                let lamp = (column.x + column.z) % 7 == 0;
+                let at = BlockPos::new(column.x * 16 + 8, 20, column.z * 16 + 8);
+                arrive(&mut app, column, lamp.then_some(at));
+            }
+            app.update();
+        }
+        app.world_mut().resource_mut::<Seen<0>>().0.clear();
+        for _ in 0..3 {
+            app.update();
+        }
+        let seen = &app.world().resource::<Seen<0>>().0;
+        assert!(seen.is_empty(), "the world kept changing: {seen:?}");
+        assert!(!app.world().resource::<ColumnStore>().has_unlit_arrivals());
+        // The lamps of two columns far apart both lit their surroundings.
+        assert_eq!(sky_and_block(&app, BlockPos::new(8, 21, 8)).1, 14);
+        assert_eq!(sky_and_block(&app, BlockPos::new(8 + 16 * 7, 21, 8)).1, 14);
     }
 
     #[test]

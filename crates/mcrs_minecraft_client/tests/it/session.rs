@@ -28,7 +28,7 @@ use crate::boot::{boot, receive_registries, received_id};
 
 fn play_app() -> App {
     boot(|app| {
-        app.add_plugins((ColumnCachePlugin, SkyPlugin))
+        app.add_plugins((ColumnCachePlugin::default(), SkyPlugin))
             .init_resource::<ButtonInput<KeyCode>>()
             .init_resource::<ClearColor>()
             .insert_resource(WeatherLevel::default());

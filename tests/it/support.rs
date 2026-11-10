@@ -61,7 +61,7 @@ pub fn joining_client(server: SocketAddr, view_distance: u8) -> App {
         holds_vanilla_pack: true,
         play: Some(GAME_CLIENTBOUND),
     });
-    client.add_plugins((ColumnCachePlugin, PlayerViewPlugin));
+    client.add_plugins((ColumnCachePlugin::default(), PlayerViewPlugin));
     add_client_registries(&mut client);
     client.world_mut().spawn(Player);
     client.finish();

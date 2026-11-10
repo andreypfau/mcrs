@@ -305,7 +305,7 @@ pub fn run() -> AppExit {
         holds_vanilla_pack: true,
         play: Some(mcrs_minecraft_client_world::game_packets::GAME_CLIENTBOUND),
     });
-    app.add_plugins(mcrs_minecraft_client_world::columns::ColumnCachePlugin);
+    app.add_plugins(mcrs_minecraft_client_world::columns::ColumnCachePlugin::default());
     app.init_resource::<mcrs_minecraft_client_world::screen::Screen>();
     app.add_plugins(mcrs_minecraft_client_world::game_mode::GameModePlugin);
     app.add_plugins(mcrs_minecraft_client_entity::ClientEntityPlugin);
