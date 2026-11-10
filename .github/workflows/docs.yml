@@ -41,6 +41,7 @@ jobs:
         working-directory: docs-site
         run: |
           npm ci
+          npm test
           npm run build
       - name: warn about pages whose sources changed
         run: node docs-site/scripts/check-sources.mjs
