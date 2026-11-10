@@ -116,7 +116,7 @@ Out of scope:
 - **Edge cases:** a style that names a font with no definition draws every code point as the
   missing glyph.
 
-Provenance: `source_suggested`. Kind: client agreement. Confidence: high. Experiment: add a
+Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Experiment: add a
 pack with a `font/default.json` that is not valid JSON. The text keeps the vanilla glyphs, and
 the log has a warning.
 
@@ -184,7 +184,7 @@ FONT-ORD-001. Experiment: none needed.
 - **Postconditions:** the effective list of the font `minecraft:default` is the list of
   `include/space`, then the list of `include/default`, then the list of `include/unifont`.
 
-Provenance: `source_suggested`. Kind: client agreement. Confidence: high. Experiment: create a
+Provenance: `source_suggested`. Kind: client agreement. Confidence: medium. Experiment: create a
 font `example:a` that references `example:b` and `example:b` that references `example:a`. Use
 `example:a` in a text style. Every code point draws as the missing glyph, and the log has a
 warning.
@@ -467,8 +467,9 @@ none needed.
 Provenance: `source_suggested_black_box_confirmed`. Kind: layout. Confidence: high for the
 numbers, medium for the crop of the leading blank columns. Evidence: the dump `glyphs`:
 U+AC00 has the box 0, 7.5, 0, 8 and the image width 15. The crop of the columns is
-`source_suggested`. Experiment: draw U+0021 next to the letter `A`. The exclamation mark starts
-at the pen position, with no gap on its left.
+`source_suggested`. Experiment: with the font `minecraft:uniform`, which takes every glyph from
+the Unifont data, draw U+0021 next to the letter `A`. The exclamation mark starts at the pen
+position, with no gap on its left.
 
 ---
 
@@ -585,8 +586,9 @@ Experiment: for step 1, put `§l` in a sign line and compare the width with a bo
      U+FFFE and U+FFFF have the missing glyph.
   3. The Unifont data also has glyphs in the planes 1 and above. The dump `glyphs` shows that
      U+1F600, U+20000 and U+1D400 have a glyph, and that U+F0000 and U+10FFFF do not.
-  4. A code point of the private use area never has a glyph in the vanilla fonts, because no
-     vanilla font references `include/unifont_pua`.
+  4. A code point of the private use area has no glyph in `minecraft:default`, because that
+     font does not reference `include/unifont_pua`. A text style that names
+     `minecraft:include/unifont_pua` directly can draw those code points.
 - **Postconditions:** the Cyrillic letters U+0400 to U+045F, including `Ё` (U+0401), `ё`
   (U+0451), `Ї` (U+0407), `Є` (U+0404), `І` (U+0406) and `Ґ` (U+0490), have a bitmap glyph.
   The letters `Й` (U+0419) and `й` (U+0439) come from `accented.png`. The Greek letters

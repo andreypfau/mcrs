@@ -54,8 +54,9 @@ section "Semantics, not accidents".
 
 A colour is a 32-bit ARGB value in hexadecimal. The font has a line height of 9 GUI units. GUI
 text draws with a drop shadow unless a rule says otherwise. The width of a text is the font
-width in GUI units (`client-font.md`, FONT-WID-001). The wrap of a text component does not
-have a specification yet (section 7).
+width in GUI units (`client-font.md`, FONT-WID-001). `client-font.md` states the font of
+`26.4-snapshot-7`; this document is not yet checked against it for its own snapshot. The wrap
+of a text component does not have a specification yet (section 7).
 
 ### 0.4 Wire types
 
