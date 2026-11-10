@@ -4,6 +4,7 @@ use crate::SimulationVolume;
 use crate::behaviour::{BlockBehaviour, BlockFacts};
 use crate::cx::Cx;
 use crate::output::StepOutput;
+use crate::policy::OrderingPolicy;
 use crate::scalar::GameTick;
 use crate::section;
 use crate::shard::{BlockShard, Env};
@@ -172,7 +173,7 @@ pub fn random_step<K, V, F, B, P, S>(
     V: SimulationVolume + Sync,
     F: BlockFacts<K> + Sync,
     B: BlockBehaviour<K>,
-    P: Sync,
+    P: OrderingPolicy,
     S: Spread,
 {
     shard.chain.reset();

@@ -1,8 +1,9 @@
 use crate::probe::*;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_simulation::{
-    BlockUpdateFlags, ChainLedger, ChainLimit, ChainOrigin, Destroyed, Message, MessageBody,
-    PartitionKind, Phase, ShardId, StepError, StepOutput, StepReport, UpdateRequest,
+    BlockUpdateFlags, ChainLedger, ChainLimit, ChainOrder, ChainOrigin, CollectScratch, Collected,
+    Destroyed, GameTick, Message, MessageBody, OrderingPolicy, PartitionKind, Phase, SemanticOrder,
+    ShardId, StepError, StepOutput, StepReport, TickKind, TickQueue, UpdateRequest,
 };
 use mcrs_minecraft_volume::Access;
 use mcrs_voxel::{BlockPos, BlockStateId};
@@ -1174,4 +1175,112 @@ fn sim_model_103_a_chain_split_by_other_messages_keeps_one_budget() {
         "the second run restarted the budget: {hits:?}"
     );
     assert_eq!(out.report.first_chain_overflow, Some(over));
+}
+
+#[test]
+fn sim_nbr_006_a_container_updates_comparators_through_a_conductor() {
+    let p = at(8, 8, 8);
+    let north = at(8, 8, 7);
+    let east = at(9, 8, 8);
+    let beyond_east = at(10, 8, 8);
+    let mut host = filled(&[(0, 0, 0)]);
+    host.put(north, COMPARATOR);
+    host.put(east, CONDUCTOR);
+    host.put(beyond_east, COMPARATOR);
+
+    let runner = run_set(host, Vec::new(), p, CONTAINER, 1);
+    let updates: Vec<_> = neighbour_entries(&runner.behaviour.log())
+        .into_iter()
+        .filter(|(_, _, source)| *source == BLOCK_CONTAINER)
+        .map(|(pos, state, _)| (pos, state))
+        .collect();
+    assert_eq!(updates, [(north, COMPARATOR), (beyond_east, COMPARATOR)]);
+}
+
+#[test]
+fn sim_shp_003_the_old_wire_makes_its_indirect_shape_update_first() {
+    let p = at(8, 8, 8);
+    let north = at(8, 8, 7);
+    let above = at(8, 9, 8);
+    let target = at(8, 9, 7);
+    let mut host = filled(&[(0, 0, 0)]);
+    host.put(p, WIRE_NS);
+    host.put(north, AIR);
+    host.put(above, A);
+    host.put(target, WIRE_NS);
+
+    let runner = run_set(host, Vec::new(), p, AIR, 1);
+    let shapes = shape_entries(&runner.behaviour.log());
+    assert_eq!(shapes.first(), Some(&(target, Direction::South, above, A)));
+}
+
+#[test]
+fn sim_shp_003_the_new_wire_makes_its_indirect_shape_update_last() {
+    let p = at(8, 8, 8);
+    let north = at(8, 8, 7);
+    let above = at(8, 9, 8);
+    let target = at(8, 9, 7);
+    let mut host = filled(&[(0, 0, 0)]);
+    host.put(north, AIR);
+    host.put(above, A);
+    host.put(target, WIRE_NS);
+
+    let runner = run_set(host, Vec::new(), p, WIRE_NS, 1);
+    let shapes = shape_entries(&runner.behaviour.log());
+    assert_eq!(shapes.last(), Some(&(target, Direction::South, above, A)));
+}
+
+#[derive(Clone, Copy)]
+struct ChosenOrder(ChainOrder);
+
+impl OrderingPolicy for ChosenOrder {
+    fn chain_order(&self) -> ChainOrder {
+        self.0
+    }
+
+    fn order_due<T: TickKind>(
+        &self,
+        queue: &mut TickQueue<T>,
+        now: GameTick,
+        budget: usize,
+        scratch: &mut CollectScratch,
+        out: &mut Vec<Collected<T>>,
+    ) {
+        SemanticOrder.order_due(queue, now, budget, scratch, out);
+    }
+}
+
+#[test]
+fn sim_nbr_001_the_policy_supplies_the_neighbour_order() {
+    let p = at(8, 8, 8);
+    let order = ChainOrder {
+        neighbours: [
+            Direction::East,
+            Direction::West,
+            Direction::Up,
+            Direction::Down,
+            Direction::South,
+            Direction::North,
+        ],
+        shapes: ChainOrder::VANILLA.shapes,
+    };
+    let policy = ChosenOrder(order);
+    let mut runner = Runner::new(filled(&[(0, 0, 0)]), Vec::new());
+    runner
+        .step_with_policy(100, Phase::Ingress, &[set_message(0, p, B, 1)], &policy)
+        .expect("owned message");
+    assert_eq!(
+        neighbour_hits(&runner.behaviour.log()),
+        around(p, &order.neighbours)
+    );
+
+    let mut runner = Runner::new(filled(&[(0, 0, 0)]), Vec::new());
+    runner
+        .step_with_policy(100, Phase::Ingress, &[set_message(0, p, B, 0)], &policy)
+        .expect("owned message");
+    let shapes: Vec<_> = shape_entries(&runner.behaviour.log())
+        .into_iter()
+        .map(|(pos, _, _, _)| pos)
+        .collect();
+    assert_eq!(shapes, around(p, &order.shapes));
 }

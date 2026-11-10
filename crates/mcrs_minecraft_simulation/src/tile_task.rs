@@ -6,6 +6,7 @@ use crate::behaviour::{BlockBehaviour, BlockFacts};
 use crate::cx::{Cx, TileCx};
 use crate::output::StepOutput;
 use crate::overlay::{OverlaidVolume, Overlay};
+use crate::policy::OrderingPolicy;
 use crate::random_tick::{RandomHit, RandomPicks, block_tile};
 use crate::region::{Region, colour};
 use crate::scalar::GameTick;
@@ -94,6 +95,7 @@ impl<K: Kinds> TileTask<K> {
         V: SimulationVolume,
         F: BlockFacts<K>,
         B: BlockBehaviour<K>,
+        P: OrderingPolicy,
     {
         self.shard.chain.reset();
         let region = Region::of(self.tile);
@@ -129,6 +131,7 @@ impl<K: Kinds> TileTask<K> {
         V: SimulationVolume,
         F: BlockFacts<K>,
         B: BlockBehaviour<K>,
+        P: OrderingPolicy,
     {
         for write in &self.out.writes {
             // The task wrote only sections that were writable, and nothing wrote them since.

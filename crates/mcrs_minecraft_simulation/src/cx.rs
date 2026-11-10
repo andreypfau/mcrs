@@ -4,6 +4,7 @@ use crate::event_queue::{BlockEvent, QueuedEvent};
 use crate::footprints::Footprints;
 use crate::message::{ChainOrigin, Message, MessageBody};
 use crate::output::{BlockWrite, Destroyed, StepOutput};
+use crate::policy::{ChainOrder, OrderingPolicy};
 use crate::region::Region;
 use crate::scalar::{GameTick, ShardId, TickPriority};
 use crate::sequence::{SubTick, TickKey};
@@ -58,6 +59,7 @@ pub struct Cx<'a, K: Kinds, V, F, B> {
     pub(crate) kind: PartitionKind,
     pub(crate) partition: ShardId,
     pub(crate) now: GameTick,
+    pub(crate) chain_order: ChainOrder,
     pub(crate) task: Option<TileCx<'a, K>>,
 }
 
@@ -79,7 +81,7 @@ where
     F: BlockFacts<K>,
     B: BlockBehaviour<K>,
 {
-    pub(crate) fn new<P>(
+    pub(crate) fn new<P: OrderingPolicy>(
         shard: &'a mut BlockShard<K>,
         volume: &'a mut V,
         out: &'a mut StepOutput<K>,
@@ -96,6 +98,7 @@ where
             kind: env.kind,
             partition: env.partition,
             now,
+            chain_order: env.policy.chain_order(),
             task: None,
         }
     }
@@ -379,9 +382,14 @@ where
         if self.volume.block(pos).is_ok_and(|now| now == state) {
             if flags.contains(BlockUpdateFlags::NEIGHBORS) {
                 self.update_neighbours(pos, self.facts.block_of(old), None);
+                if self.facts.has_analog_output(state) {
+                    self.update_comparators(pos, self.facts.block_of(state));
+                }
             }
             if !flags.contains(BlockUpdateFlags::KNOWN_SHAPE) {
+                self.emit_indirect_shape_updates(pos, old, flags, limit);
                 self.emit_shape_updates(pos, state, flags, limit);
+                self.emit_indirect_shape_updates(pos, state, flags, limit);
             }
         }
         true

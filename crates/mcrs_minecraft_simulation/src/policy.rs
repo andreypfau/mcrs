@@ -2,12 +2,45 @@ use crate::scalar::{GameTick, TickPriority};
 use crate::section::{SectionOrder, bytes, section_at, section_order};
 use crate::sequence::{SubTick, TickKey};
 use crate::tick_queue::{Collected, TickKind, TickQueue};
+use mcrs_minecraft_core::Direction;
 use mcrs_voxel::SectionPos;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::ops::Range;
 
+/// The direction orders that a chain of updates uses.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ChainOrder {
+    pub neighbours: [Direction; 6],
+    pub shapes: [Direction; 6],
+}
+
+impl ChainOrder {
+    pub const VANILLA: Self = Self {
+        neighbours: [
+            Direction::West,
+            Direction::East,
+            Direction::Down,
+            Direction::Up,
+            Direction::North,
+            Direction::South,
+        ],
+        shapes: [
+            Direction::West,
+            Direction::East,
+            Direction::North,
+            Direction::South,
+            Direction::Down,
+            Direction::Up,
+        ],
+    };
+}
+
 pub trait OrderingPolicy: Sync {
+    fn chain_order(&self) -> ChainOrder {
+        ChainOrder::VANILLA
+    }
+
     fn collect_due<T: TickKind, E>(
         &self,
         queue: &mut TickQueue<T>,
