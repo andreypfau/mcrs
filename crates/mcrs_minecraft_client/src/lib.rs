@@ -47,6 +47,7 @@ pub mod scene_record;
 pub mod screenshot;
 #[cfg(not(target_family = "wasm"))]
 pub mod settle;
+pub mod sign_text;
 pub mod sky;
 pub mod sky_state;
 pub mod stream;
@@ -109,6 +110,7 @@ impl Plugin for ClientTerrainPlugin {
         })
         .add_plugins(mcrs_minecraft_client_gui::gui_items::GuiItemsPlugin)
         .add_plugins(entities::ClientEntityRenderPlugin)
+        .add_plugins(sign_text::SignTextPlugin)
         .insert_resource(mcrs_minecraft_render::Occlusion(knobs.occlusion()))
         .add_plugins(stream::StreamPlugin::new(
             budget,
