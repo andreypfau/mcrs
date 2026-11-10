@@ -31,7 +31,7 @@ The vanilla server runs one game tick on one thread: it walks the world and ever
 
 In an ECS, behaviour is a set of systems. Each system is one transformation over every entity that has the data it names. Bevy runs two systems at the same time when their data access does not overlap. The Bevy scheduler checks those conflicts when it builds the schedule graph, not the compiler. So you do not write a lock for this.
 
-The order between groups of systems is fixed by system sets, and the project checks the schedule for ambiguity (the sharding note, section 13). The tick is split into a few phases with few sync points ([#364](https://github.com/andreypfau/mcrs/issues/364)).
+The order between groups of systems is fixed by system sets, and the project checks the schedule for ambiguity (the sharding note, section 13). The tick is split into a few phases with few sync points (<Status issue={364} state="partial" />).
 
 ## Tiles and a frozen snapshot
 
@@ -45,7 +45,7 @@ Because no entity reads another entity's new state in the same pass, the tasks d
 
 ## One result on any thread count
 
-A fixed order makes the result independent of the machine. The merge of effects goes by a stable key: the persisted UUID of the entity, never a network id. Ties between entities are broken by that key. The rule is written in [#367](https://github.com/andreypfau/mcrs/issues/367), which sorts determinism into three tiers:
+A fixed order makes the result independent of the machine. The merge of effects goes by a stable key: the persisted UUID of the entity, never a network id. Ties between entities are broken by that key. The rule is written in <Status issue={367} state="works" />, which sorts determinism into three tiers:
 
 - exact, as the reference: world generation, the arithmetic of player movement, anything rolled from a seed stored in the save;
 - independent of the scheduler: everything else. The same inputs give the same tick regardless of thread order;
@@ -81,14 +81,14 @@ This is a check on the design, not a speed claim. It needs a nightly toolchain a
 | One dimension on many machines | goal: <Status issue={181} state="wip" /> |
 
 <Aside type="caution" title="WIP">
-Redstone and the many-node layout are directions, not features. [#190](https://github.com/andreypfau/mcrs/issues/190) states that redstone will be semantic first (the results and delays match vanilla, the order inside a tick may differ) with the exact order as a later change of one ordering policy. Do not plan a farm around it yet. Today the project has no redstone at all.
+Redstone and the many-node layout are directions, not features. <Status issue={190} state="wip" /> states that redstone will be semantic first (the results and delays match vanilla, the order inside a tick may differ) with the exact order as a later change of one ordering policy. Do not plan a farm around it yet. Today the project has no redstone at all.
 </Aside>
 
 ## Work proportional to change
 
-The second idea next to parallelism is that a thing that does not change costs nothing. A resting entity waits for an event instead of being checked every tick, and a cell that has nothing to tick is skipped. This is a decision in [#365](https://github.com/andreypfau/mcrs/issues/365): sparse changes over a large population go through an explicit work queue. Mob AI uses waits instead of per-tick checks.
+The second idea next to parallelism is that a thing that does not change costs nothing. A resting entity waits for an event instead of being checked every tick, and a cell that has nothing to tick is skipped. This is a decision in <Status issue={365} state="partial" />: sparse changes over a large population go through an explicit work queue. Mob AI uses waits instead of per-tick checks.
 
-What is not measured yet: the cost of an idle server tick ([#320](https://github.com/andreypfau/mcrs/issues/320)) and the memory per section ([#324](https://github.com/andreypfau/mcrs/issues/324)). The project publishes no mob benchmark numbers on this page. See [Performance](/docs/en/project/performance/) for what PERF.md holds, with the machine and the scenario next to each number.
+What is not measured yet: the cost of an idle server tick (<Status issue={320} state="wip" />) and the memory per section (<Status issue={324} state="wip" />). The project publishes no mob benchmark numbers on this page. See [Performance](/docs/en/project/performance/) for what PERF.md holds, with the machine and the scenario next to each number.
 
 ## Related
 

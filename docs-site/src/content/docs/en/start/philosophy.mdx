@@ -13,15 +13,16 @@ sources:
   - issue:566
   - issue:324
   - issue:190
+  - issue:365
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 3540f457b
+  date: 2026-11-10
 ---
 
 import Status from '~/components/Status.astro';
 
-A new Minecraft server in Rust is announced about twice a year; there is a [counter](https://dayssincelastrustmcserver.com/) for it, and a [tracker](https://areweminecraftyet.com/) that still answers "not yet" for all of them. Most follow the same recipe: take the Java server's classes, rewrite them as Rust structs behind `Arc<Mutex<…>>`, keep the single game-tick thread, and put async tasks around it. That is Java's object graph with a borrow checker. It inherits the design that makes the vanilla server slow, and adds locks and deadlocks of its own.
+mcrs does not copy the classes of the Java server into Rust structs. If shared objects sit behind `Arc<Mutex<...>>` and one thread runs the game tick with async tasks around it, the result is the same object graph with a borrow checker, plus locks.
 
 A new language does not fix that, and neither does a prompt that says "rewrite Minecraft in Rust, make no mistakes". The hard part is deciding how the game should be built once the Java is gone, and that is most of the work in this repository. mcrs starts with the engine.
 
@@ -35,7 +36,7 @@ Deeper: [From objects to data](/docs/en/plugins/mental-model/).
 
 ## Parallel by what the work touches
 
-Java server forks move one job at a time off the main thread and sell it as a feature: async pathfinding, async entity tracking, parallel world ticking, sometimes as a paid jar. Folia goes further and cuts the world into regions, but a crowded spot still ends up on one thread.
+A common way to use more cores is to move single jobs off the main thread, such as pathfinding or entity tracking.
 
 mcrs looks at what each piece of work reads and writes. A mob farm and the redstone that drives it sit in the same chunks, yet mob AI and redstone run in parallel, and so do two farms at opposite ends of a base. Work that really interacts stays together and runs in order, and the result is the same on any number of threads.
 
@@ -45,7 +46,7 @@ Deeper: [How a tick runs in parallel](/docs/en/concepts/parallel-tick/).
 
 ## Work is proportional to change
 
-A resting entity and an untouched section cost nothing. Idle cost and frame times are measured in [`PERF.md`](https://github.com/andreypfau/mcrs/blob/main/PERF.md), and every exception to these rules cites a number there. Memory per section is not measured yet: <Status issue={324} state="wip" />
+The goal is that a resting entity and an untouched section add no work to a tick: <Status issue={365} state="partial" />. Idle cost and frame times are measured in [`PERF.md`](https://github.com/andreypfau/mcrs/blob/main/PERF.md), and every exception to these rules cites a number there. Memory per section is not measured yet: <Status issue={324} state="wip" />
 
 Deeper: [Performance and how we measure](/docs/en/project/performance/).
 

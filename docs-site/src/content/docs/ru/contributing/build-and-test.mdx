@@ -13,12 +13,14 @@ sources:
   - xtask/src/checks.rs
   - xtask/src/trigger.rs
   - .github/workflows/checks.yml
+  - .github/actions/rust/action.yml
+  - pr:691
   - scripts/hooks/run-checks
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
-translated_from: 51d45c26a
+  commit: 3540f457b
+  date: 2026-11-10
+translated_from: 3540f457b
 ---
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
@@ -33,7 +35,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 | Путь | Что там |
 |---|---|
-| `crates/` | крейты на Rust, их 121 |
+| `crates/` | крейты на Rust, их 122 |
 | `tools/` | инструмент обновления снапшота, фикстуры, ванильный оракул, бенчмарки |
 | `xtask/` | раннер проверок, который используют CI и локальные хуки |
 | `assets/` | файл версии, отчеты из игры, локальные датапаки |
@@ -48,7 +50,7 @@ cargo nextest run --workspace       # все, перед коммитом
 cargo nextest run --profile full    # плюс исчерпывающие прогоны
 ```
 
-Раннер - [cargo-nextest](https://nexte.st). Версию тулчейна Rust репозиторий закрепляет в `rust-toolchain.toml`, а минимальную версию раннера - в `.config/nextest.toml`.
+Раннер - [cargo-nextest](https://nexte.st). Версию тулчейна Rust репозиторий закрепляет в `rust-toolchain.toml`, а минимальную версию раннера - в `.config/nextest.toml`. `cargo test` не используйте: он не читает `.config/nextest.toml`, а у большинства крейтов стоит `doctest = false`. Хук Claude Code в репозитории его не пускает.
 
 Каждый профиль сначала запускает setup-скрипт: он ставит клиентский JAR игры и распаковывает его датапак в каталог кеша. Скачивать вручную ничего не нужно. Первому запуску нужен доступ к сети Mojang.
 
@@ -58,11 +60,12 @@ cargo nextest run --profile full    # плюс исчерпывающие про
 |---|---|
 | `default` | все, кроме тестов `exhaustive::`, `gpu::`, `online::` и `vanilla_server::` |
 | `ci` | тот же фильтр, что у `default`, и он не останавливается на первой ошибке |
+| `ci-hosted` | фильтр `ci` для задачи `test` на машине GitHub с четырьмя ядрами. Тест может идти 5 минут, весь прогон 30 минут |
 | `full` | уровень `default` плюс `exhaustive::` и `online::`. Его использует плановая задача CI |
 | `gpu` | только тесты `gpu::`. Нужна машина с GPU Metal |
 | `vanilla-server` | только тесты `vanilla_server::`. Они идут через [`vanilla-server/run.sh`](https://github.com/andreypfau/mcrs/blob/main/tools/vanilla-server/run.sh) |
 
-Прогон теста не должен длиться дольше пяти минут. Более медленный тест относится к уровню `exhaustive::`.
+Прогон теста не должен длиться дольше пяти минут, кроме профиля `ci-hosted`. Более медленный тест относится к уровню `exhaustive::`.
 
 ## Проверки xtask
 
@@ -84,7 +87,7 @@ scripts/hooks/run-checks commit
 
 - `parity`: тест, который заявляет ванильное поведение, должен загружать фикстуру, созданную игрой. Сравнение с литералом дает предупреждение. См. [Спецификации и parity-тесты](/docs/ru/contributing/specs-and-parity/).
 - `keys`: сгенерированные исходники ключей реестров должны совпадать с тем, что генератор пишет из сохраненных отчетов. Сгенерированные файлы вручную не правьте никогда.
-- `no-bevy`: 99 пакетов должны собираться без Bevy. `no-std`: 9 пакетов должны собираться под цель без std. `wasm32`: 11 пакетов должны собираться под wasm32. Списки лежат в `xtask/src/checks.rs`.
+- `no-bevy`: 100 пакетов должны собираться без Bevy. `no-std`: 9 пакетов должны собираться под цель без std. `wasm32`: 11 пакетов должны собираться под wasm32. Списки лежат в `xtask/src/checks.rs`.
 - `layers`: крейты протокола и сети не должны линковать игровые данные, чтобы прокси или бот могли использовать только их.
 
 Запустите `scripts/hooks/run-checks` без аргумента, чтобы увидеть все триггеры.
@@ -101,10 +104,20 @@ MCRS_BLESS=1 cargo nextest run -p <crate>
 
 ## CI
 
-Workflow `.github/workflows/checks.yml` на каждом pull request в `main` запускает четыре задачи: `lint`, `clippy`, `test` и `portability`. Финальная задача `checks` падает, если не прошли все четыре.
+Workflow `.github/workflows/checks.yml` запускается на каждом pull request в `main` и на каждом push в `main`. Первая задача, `changes`, читает список файлов pull request. Если все файлы лежат в `docs/`, это Markdown-файлы в корне репозитория или файлы `LICENSE-*`, остальные задачи не запускаются и проверка проходит. Правка в `docs-site/` запускает полный набор.
 
-- Задача `test` для pull request из форка идет на машине `ubuntu-24.04` в GitHub. Она пропускает каждый крейт, который зависит от wgpu, и все, что выше по зависимостям. Эти тесты идут только локально, поэтому при правках клиента или рендерера запускайте их сами.
-- Pull request из того же репозитория идет на собственном раннере проекта.
+Набор задач зависит от того, откуда пришел pull request:
+
+| Откуда | Задачи |
+|---|---|
+| Ветка этого репозитория | `lint` на машине `ubuntu-24.04` в GitHub. Одна задача `self-hosted` на собственном раннере проекта запускает триггеры `clippy`, `test` и `portability` одновременно |
+| Форк | `lint`, `clippy`, `test` и `portability`, каждая на машине `ubuntu-24.04` в GitHub. Они стартуют с кешей сборки, которые сохраняет каждый push в `main` |
+| Push в `main` | оба набора |
+
+Финальная задача `checks` падает, если не прошла хотя бы одна из задач, которые относятся к этому запуску.
+
+- На машине GitHub триггер `test` берет профиль `ci-hosted`, а Cargo собирает features только для выбранных пакетов.
+- В CI тесты пропускают каждый крейт, который зависит от wgpu, и все, что выше по зависимостям. Эти тесты идут только локально, поэтому при правках клиента или рендерера запускайте их сами.
 - Второй workflow, `docs`, предупреждает о страницах этого сайта, у которых изменились sources. См. [Как писать эту документацию](/docs/ru/contributing/docs/).
 
 <Aside type="note" title="Отчет о покрытии спецификаций">

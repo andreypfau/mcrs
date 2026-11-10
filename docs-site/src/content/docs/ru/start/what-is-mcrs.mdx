@@ -16,9 +16,9 @@ sources:
   - issue:82
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
-translated_from: 51d45c26a
+  commit: 3540f457b
+  date: 2026-11-10
+translated_from: 3540f457b
 ---
 
 import Status from '~/components/Status.astro';
@@ -26,9 +26,9 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## Что это
 
-mcrs - это набор из 121 крейта на Rust для Minecraft Java Edition. Из них на Bevy ECS собраны сервер и клиент. В ECS (entity component system) мир хранится как данные в таблицах, а поведение описывают функции, которые называются системами. Если системы трогают разные данные, планировщик Bevy запускает их параллельно.
+mcrs - это набор из 122 крейтов на Rust для Minecraft Java Edition. Из них на Bevy ECS собраны сервер и клиент. В ECS (entity component system) мир хранится как данные в таблицах, а поведение описывают функции, которые называются системами. Если системы трогают разные данные, планировщик Bevy запускает их параллельно.
 
-Проект следует за одним снапшотом игры за раз. Сейчас это 26.4-snapshot-7 (`assets/minecraft/version.json`). Совместимости со старыми версиями нет ([#412](https://github.com/andreypfau/mcrs/issues/412)).
+Проект следует за одним снапшотом игры за раз. Сейчас это 26.4-snapshot-7 (`assets/minecraft/version.json`). Совместимости со старыми версиями нет (<Status issue={412} state="declined" />).
 
 Проект на раннем этапе (WIP). Репозиторий открыт с 2025-12-10.
 
@@ -42,8 +42,8 @@ mcrs - это набор из 121 крейта на Rust для Minecraft Java E
 
 ## Чего mcrs не делает
 
-- Это не Paper. Bukkit-подобного API и фасада нет: решение [#437](https://github.com/andreypfau/mcrs/issues/437) их отклоняет, а публичный интерфейс - сами крейты и плагины. Загрузчика плагинов в виде jar, wasm или скриптов нет, и решения о нем пока нет. Сегодня свой код пишут как Rust-плагин для Bevy, который собирается вместе с сервером. Это ближе к Minestom, чем к Paper. См. [Это не Paper](/docs/ru/plugins/not-paper/).
-- Это не продакшен. Сервер не сохраняет чанки ([#78](https://github.com/andreypfau/mcrs/issues/78)), не поддерживает online mode ([#82](https://github.com/andreypfau/mcrs/issues/82)) и слушает все сетевые интерфейсы без аутентификации.
+- Это не Paper. Bukkit-подобного API и фасада нет: решение <Status issue={437} state="declined" /> их отклоняет, а публичный интерфейс - сами крейты и плагины. Загрузчика плагинов в виде jar, wasm или скриптов нет, и решения о нем пока нет. Сегодня свой код пишут как Rust-плагин для Bevy, который собирается вместе с сервером. Это ближе к Minestom, чем к Paper. См. [Это не Paper](/docs/ru/plugins/not-paper/).
+- Это не продакшен. Сервер не сохраняет чанки (<Status issue={78} state="wip" />), не поддерживает online mode (<Status issue={82} state="wip" />) и слушает все сетевые интерфейсы без аутентификации.
 - Это не лаунчер и не мод. Клиент это отдельное приложение на Rust. Текстуры и модели он читает из официального jar игры, а графики Mojang в репозитории нет.
 
 <Aside type="caution" title="WIP">

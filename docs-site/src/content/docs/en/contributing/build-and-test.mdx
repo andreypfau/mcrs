@@ -13,11 +13,13 @@ sources:
   - xtask/src/checks.rs
   - xtask/src/trigger.rs
   - .github/workflows/checks.yml
+  - .github/actions/rust/action.yml
+  - pr:691
   - scripts/hooks/run-checks
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 3540f457b
+  date: 2026-11-10
 ---
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
@@ -32,7 +34,7 @@ The detailed build guide is not written yet. It will appear before the alpha for
 
 | Path | What is there |
 |---|---|
-| `crates/` | the Rust crates, 121 of them |
+| `crates/` | the Rust crates, 122 of them |
 | `tools/` | the snapshot update tool, fixtures, the vanilla oracle, benchmarks |
 | `xtask/` | the check runner that CI and the local hooks use |
 | `assets/` | the version file, reports from the game, local data packs |
@@ -47,7 +49,7 @@ cargo nextest run --workspace       # everything, before a commit
 cargo nextest run --profile full    # plus the exhaustive sweeps
 ```
 
-The runner is [cargo-nextest](https://nexte.st). The repository pins the Rust toolchain in `rust-toolchain.toml`, and `.config/nextest.toml` pins the minimum runner version.
+The runner is [cargo-nextest](https://nexte.st). The repository pins the Rust toolchain in `rust-toolchain.toml`, and `.config/nextest.toml` pins the minimum runner version. Do not use `cargo test`: it ignores `.config/nextest.toml`, and most crates set `doctest = false`. A Claude Code hook in the repository rejects it.
 
 Every profile first runs a setup script that installs the game's client jar and unpacks its data pack into your cache directory. You do not download anything by hand. The first run needs network access to Mojang.
 
@@ -57,11 +59,12 @@ Test names carry a tier prefix, and the profiles filter by it:
 |---|---|
 | `default` | everything except `exhaustive::`, `gpu::`, `online::` and `vanilla_server::` tests |
 | `ci` | the same filter as `default`, and it does not stop at the first failure |
+| `ci-hosted` | the filter of `ci`, for the `test` job on a GitHub-hosted machine with four cores. A test may run 5 minutes, and the whole run 30 minutes |
 | `full` | the default tier plus `exhaustive::` and `online::`. The scheduled CI job uses it |
 | `gpu` | only `gpu::` tests. They need a machine with a Metal GPU |
 | `vanilla-server` | only `vanilla_server::` tests. They run through [`vanilla-server/run.sh`](https://github.com/andreypfau/mcrs/blob/main/tools/vanilla-server/run.sh) |
 
-No test run may take longer than five minutes. A test that is slower belongs in the `exhaustive::` tier.
+No test run may take longer than five minutes, except in `ci-hosted`. A test that is slower belongs in the `exhaustive::` tier.
 
 ## The checks of xtask
 
@@ -83,7 +86,7 @@ What the checks mean:
 
 - `parity`: a test that claims vanilla behavior must load a fixture the game produced. A claim against a literal gives a warning. See [Specs and parity](/docs/en/contributing/specs-and-parity/).
 - `keys`: the generated registry key sources must match what the generator writes from the stored reports. Never edit a generated file by hand.
-- `no-bevy`: 99 packages must build without Bevy. `no-std`: 9 packages must build for a target without std. `wasm32`: 11 packages must build for wasm32. The lists are in `xtask/src/checks.rs`.
+- `no-bevy`: 100 packages must build without Bevy. `no-std`: 9 packages must build for a target without std. `wasm32`: 11 packages must build for wasm32. The lists are in `xtask/src/checks.rs`.
 - `layers`: the wire and network crates must not link game data, so a proxy or a bot can use them alone.
 
 Run `scripts/hooks/run-checks` with no argument to see all triggers.
@@ -100,10 +103,20 @@ Read the diff before you commit it. A blessed file that changed without a reason
 
 ## CI
 
-The workflow `.github/workflows/checks.yml` runs four jobs on every pull request to `main`: `lint`, `clippy`, `test` and `portability`. A final job `checks` fails unless all four passed.
+The workflow `.github/workflows/checks.yml` runs on every pull request to `main` and on every push to `main`. Its first job, `changes`, reads the file list of the pull request. If every file is under `docs/`, is a Markdown file in the repository root or is a `LICENSE-*` file, no other job runs and the check passes. A change to `docs-site/` runs the full set.
 
-- The `test` job of a pull request from a fork runs on a GitHub-hosted `ubuntu-24.04` machine. It skips every crate that depends on wgpu and everything above it. Those tests run locally only, so run them yourself when you touch the client or the renderer.
-- Pull requests from the same repository run on the project's own runner.
+The jobs depend on where the pull request comes from:
+
+| Source | Jobs |
+|---|---|
+| A branch of this repository | `lint` on a GitHub-hosted `ubuntu-24.04` machine. One `self-hosted` job on the project's own runner runs the `clippy`, `test` and `portability` triggers at the same time |
+| A fork | `lint`, `clippy`, `test` and `portability`, each on a GitHub-hosted `ubuntu-24.04` machine. They start from the build caches that each push to `main` saves |
+| A push to `main` | both sets |
+
+A final job `checks` fails unless every job that applies passed.
+
+- On a GitHub-hosted machine, the `test` trigger uses the `ci-hosted` profile, and Cargo resolves features for the selected packages only.
+- In CI, the tests skip every crate that depends on wgpu and everything above it. Those tests run locally only, so run them yourself when you touch the client or the renderer.
 - A second workflow, `docs`, warns about pages of this site whose sources changed. See [Write these docs](/docs/en/contributing/docs/).
 
 <Aside type="note" title="Spec coverage report">

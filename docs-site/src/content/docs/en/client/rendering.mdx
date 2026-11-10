@@ -29,7 +29,7 @@ import Status from '~/components/Status.astro';
 This page is a map for people who want to read the renderer. It gives the idea of each part in a few lines and sends you to the notes that hold the rules and the numbers. It does not repeat them.
 
 <Aside type="caution" title="WIP">
-The renderer is being restructured, and its notes are working notes, not a stable contract. The restart tracking issues are #16 to #37; the check against the baseline before the restructure is <Status issue={330} state="wip" />. Expect this page to change with them.
+The renderer is being restructured, and its notes are working notes, not a stable contract. The restart tracking issues are <Status issue={16} state="wip" /> to <Status issue={37} state="wip" />; the check against the baseline before the restructure is <Status issue={330} state="wip" />. Expect this page to change with them.
 </Aside>
 
 The renderer is the crate `mcrs_minecraft_render` (terrain and sky, layer 6 in the [crate map](/docs/en/crates/overview/)). It works on the data of the layers below and has no network, client or server code. Mobs are drawn by `mcrs_minecraft_entity_render`.

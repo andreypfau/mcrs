@@ -18,6 +18,7 @@ verified:
   commit: 51d45c26a
   date: 2026-11-09
 ---
+import Status from '~/components/Status.astro';
 
 import { Aside } from '@astrojs/starlight/components';
 
@@ -86,7 +87,7 @@ Some words in the scaling terms (shard, cell, tile) are design words from `docs/
 | Clean-room | A spec author who may see the game code writes behavior down. An implementer who reads only specs and game artifacts writes the code. Names from the game code do not go in the repository ([`clean-room.md`](https://github.com/andreypfau/mcrs/blob/main/docs/clean-room.md)). | - |
 | Spec issue, plugin issue | A pair of issues. The spec comes first in `docs/spec/`. The implementation follows and cites rule ids. | - |
 | Snapshot | A test version of the game. mcrs follows the newest, now `26.4-snapshot-7`. | - |
-| DataVersion | The data format version of a save. A mismatch means the world does not load, because there are no data fixers (#388). | Same idea as in Paper. |
+| DataVersion | The data format version of a save. A mismatch means the world does not load, because there are no data fixers (<Status issue={388} state="declined" />). | Same idea as in Paper. |
 
 ## Game data and rendering
 

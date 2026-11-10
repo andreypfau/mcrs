@@ -11,14 +11,14 @@ sources:
   - issue:437
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 3540f457b
+  date: 2026-11-10
 ---
 
 import Status from '~/components/Status.astro';
 import { Aside, Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-mcrs is Minecraft Java Edition written in Rust on Bevy ECS: a server, a client and 121 crates they are built from.
+mcrs is Minecraft Java Edition written in Rust on Bevy ECS: a server, a client and 122 crates they are built from.
 
 <Aside type="caution" title="Early WIP">
 The project is in active development, so a lot is missing: world saving, online mode, most of the gameplay. The world and the client already run.
@@ -33,12 +33,12 @@ mcrs is not the Java server rewritten in Rust. It decides from scratch how the g
 <CardGrid>
   <LinkCard title="I write plugins in Java or Kotlin" description="There is no Bukkit-like API and no plugin loader. Read what you can do today." href="/docs/en/plugins/not-paper/" />
   <LinkCard title="I want to contribute" description="Build, test, clean-room rules and first tasks." href="/docs/en/contributing/" />
-  <LinkCard title="I want to take crates" description="121 crates by layer. Nothing is on crates.io yet." href="/docs/en/crates/overview/" />
+  <LinkCard title="I want to take crates" description="122 crates by layer. Nothing is on crates.io yet." href="/docs/en/crates/overview/" />
   <LinkCard title="I play or run servers" description="What mcrs is, what it is not, and who should look elsewhere." href="/docs/en/start/what-is-mcrs/" />
 </CardGrid>
 
 ## Status in one line
 
-Checked on 2026-11-09 at commit `51d45c26a`, game snapshot 26.4-snapshot-7: world generation matches the real game on reference dumps and the client renders it, but chunks are not saved (<Status issue={78} state="wip" />) and there is no online mode (<Status issue={82} state="wip" />). The full table is on the [Status](/docs/en/start/status/) page.
+Checked on 2026-11-10 at commit `3540f457b`, game snapshot 26.4-snapshot-7: world generation matches the real game on reference dumps and the client renders it, but chunks are not saved (<Status issue={78} state="wip" />) and there is no online mode (<Status issue={82} state="wip" />). The full table is on the [Status](/docs/en/start/status/) page.
 
 Questions and progress reports: [Discord](https://discord.gg/ged3nMRzwG).

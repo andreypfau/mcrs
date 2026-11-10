@@ -18,15 +18,15 @@ sources:
   - issue:285
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 3540f457b
+  date: 2026-11-10
 ---
 
 import Status from '~/components/Status.astro';
 import Example from '~/components/Example.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-PR <Status pr={579} /> added a typed command tree. Plugins register nodes into it, the server sends each player the part of the tree that the player's level allows, and the handler of a command is a Bevy system. In Paper terms it is the Commands API with its node tree, not `plugin.yml` and `onCommand`. Examples come from the repository test `commands.rs`, and we did not run them outside the repository tests.
+<Status pr={579} state="works" /> added a typed command tree. Plugins register nodes into it, the server sends each player the part of the tree that the player's level allows, and the handler of a command is a Bevy system. In Paper terms it is the Commands API with its node tree, not `plugin.yml` and `onCommand`. Examples come from the repository test `commands.rs`, and we did not run them outside the repository tests.
 
 ## Register a command
 
@@ -46,7 +46,7 @@ A node can require a level with `requires(PermissionCheck::Require(level))`. The
 
 <Example file="crates/mcrs_minecraft_command/src/permission.rs" lines="4-13" title="CommandLevel" />
 
-A player who is below the level of a node neither sees the node in the tree nor can run it. The level of a player comes from the operator list or the default level of the server. There are no string permission nodes like `myplugin.use`. A permission system with groups is not part of mcrs today, and <Status issue={285} /> does not describe one.
+A player who is below the level of a node neither sees the node in the tree nor can run it. The level of a player comes from the operator list or the default level of the server. There are no string permission nodes like `myplugin.use`. A permission system with groups is not part of mcrs today, and <Status issue={285} state="partial" /> does not describe one.
 
 ## The handler
 
@@ -61,7 +61,7 @@ Before a command line runs, the server raises `CommandEvent` in the world of the
 ## Limits
 
 <Aside type="caution" title="WIP">
-<Status issue={285} state="partial" /> is still open. Known limits today:
+Known limits of <Status issue={285} state="partial" /> today:
 
 - The vanilla commands are not building blocks for you. For example, `build` and `run` of `kill` are `pub(crate)`, so a plugin cannot reuse them or wrap them.
 - The argument types of a node come from the argument set of the command set (`VanillaCommands`). A type outside that set needs a set of your own.

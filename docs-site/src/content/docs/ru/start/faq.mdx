@@ -16,9 +16,9 @@ sources:
   - issue:321
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
-translated_from: 51d45c26a
+  commit: 3540f457b
+  date: 2026-11-10
+translated_from: 3540f457b
 ---
 
 import Status from '~/components/Status.astro';
@@ -26,11 +26,11 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## Уже можно пользоваться?
 
-Как основой для разработчиков и для наблюдения: да. Как сервером для игроков: нет. Ванильный клиент того же снапшота может зайти в offline-режиме, писать в чат, выполнять 20 команд и ломать блоки в креативе. После выхода мир не сохраняется, сохраняются только игроки ([#78](https://github.com/andreypfau/mcrs/issues/78)). См. [Запуск сервера](/docs/ru/start/run-server/) и [Статус](/docs/ru/start/status/).
+Как основой для разработчиков и для наблюдения: да. Как сервером для игроков: нет. Ванильный клиент того же снапшота может зайти в offline-режиме, писать в чат, выполнять 20 команд и ломать блоки в креативе. После выхода мир не сохраняется, сохраняются только игроки (<Status issue={78} state="wip" />). См. [Запуск сервера](/docs/ru/start/run-server/) и [Статус](/docs/ru/start/status/).
 
 ## Мои плагины заработают?
 
-Нет. Плагины Bukkit и Paper не загружаются, фасада API нет: решение [#437](https://github.com/andreypfau/mcrs/issues/437) его отклоняет. Загрузчика плагинов в виде jar, wasm или скриптов нет, и решения о нем пока нет. Сегодня свой код пишут как Rust-плагин для Bevy, который собирается вместе с сервером, как в Minestom, где `main` пишет сам разработчик. Плагины переписывают, а не переносят. См. [Это не Paper](/docs/ru/plugins/not-paper/) и [От Paper к mcrs](/docs/ru/plugins/paper-to-mcrs/).
+Нет. Плагины Bukkit и Paper не загружаются, фасада API нет: решение <Status issue={437} state="declined" /> его отклоняет. Загрузчика плагинов в виде jar, wasm или скриптов нет, и решения о нем пока нет. Сегодня свой код пишут как Rust-плагин для Bevy, который собирается вместе с сервером, как в Minestom, где `main` пишет сам разработчик. Плагины переписывают, а не переносят. См. [Это не Paper](/docs/ru/plugins/not-paper/) и [От Paper к mcrs](/docs/ru/plugins/paper-to-mcrs/).
 
 ## Зачем Rust?
 
@@ -46,7 +46,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## Какая версия игры?
 
-Одна: 26.4-snapshot-7 (`assets/minecraft/version.json`). Старые клиенты и миры с другой версией данных не работают, датафиксеров нет ([#388](https://github.com/andreypfau/mcrs/issues/388), [#412](https://github.com/andreypfau/mcrs/issues/412)). Трансляция старых версий клиента на границе сети - в планах: <Status issue={537} state="wip" />.
+Одна: 26.4-snapshot-7 (`assets/minecraft/version.json`). Старые клиенты и миры с другой версией данных не работают, датафиксеров нет (<Status issue={388} state="declined" />, <Status issue={412} state="declined" />). Трансляция старых версий клиента на границе сети - в планах: <Status issue={537} state="wip" />.
 
 ## Это легально?
 
@@ -62,7 +62,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## Можно ли публиковать свой плагин как крейт или брать крейты mcrs?
 
-На crates.io крейтов нет: <Status issue={321} state="undecided" />. Можно зависеть от git-коммита. Примеров использования как библиотеки пока нет ([#287](https://github.com/andreypfau/mcrs/issues/287)). См. [Карта крейтов](/docs/ru/crates/overview/).
+На crates.io крейтов нет: <Status issue={321} state="undecided" />. Можно зависеть от git-коммита. Примеров использования как библиотеки пока нет (<Status issue={287} state="wip" />). См. [Карта крейтов](/docs/ru/crates/overview/).
 
 ## Как следить за ходом работы?
 

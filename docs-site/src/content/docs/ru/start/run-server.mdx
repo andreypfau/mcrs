@@ -16,9 +16,9 @@ sources:
   - issue:82
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
-translated_from: 51d45c26a
+  commit: 3540f457b
+  date: 2026-11-10
+translated_from: 3540f457b
 ---
 
 import Status from '~/components/Status.astro';
@@ -39,7 +39,7 @@ cargo run --release
 cargo run --release -- "<path to a world folder>"
 ```
 
-Первая команда запускает сервер с новым миром. Вторая открывает готовое сохранение Java Edition, у которого версия данных совпадает со снапшотом игры 26.4-snapshot-7. Сохранения других версий не загружаются, датафиксеров нет ([#388](https://github.com/andreypfau/mcrs/issues/388)).
+Первая команда запускает сервер с новым миром. Вторая открывает готовое сохранение Java Edition, у которого версия данных совпадает со снапшотом игры 26.4-snapshot-7. Сохранения других версий не загружаются, датафиксеров нет (<Status issue={388} state="declined" />).
 
 На эталонной машине релизная сборка без папки мира доходит до состояния Playing за 0.77 с (медиана трех прогонов, Apple M4 Max, macOS, [PERF.md](https://github.com/andreypfau/mcrs/blob/main/PERF.md#server-start)). Это время запуска уже собранного бинарника, а не время сборки.
 

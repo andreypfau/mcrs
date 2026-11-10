@@ -11,11 +11,16 @@ sources:
   - README.md
   - CONTRIBUTING.md
   - .github/pull_request_template.md
+  - AGENTS.md
+  - .claude/agents/implementer.md
+  - .claude/agents/spec-author.md
+  - .claude/hooks/cargo-guard.sh
+  - pr:687
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
-translated_from: 51d45c26a
+  commit: 3540f457b
+  date: 2026-11-10
+translated_from: 3540f457b
 ---
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
@@ -69,6 +74,21 @@ cargo nextest run --profile full    # плюс исчерпывающие про
 Подробный гайд по установке пока не написан, он появится до альфы для игроков. До тех пор используйте [Quick start из README](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start) и технические заметки, на которые ссылается этот раздел.
 </Aside>
 
+## Работа с агентом
+
+Инструкции для агентов, которые пишут код, лежат в репозитории, а не на этом сайте. [AGENTS.md](https://github.com/andreypfau/mcrs/blob/main/AGENTS.md) - общий файл инструкций для любого агента, а `CLAUDE.md` - ссылка на него. В нем правила, которые действуют везде: слои, clean-room, стиль, тесты и путь до `main`.
+
+| Путь | Что там |
+|---|---|
+| [.agents/skills](https://github.com/andreypfau/mcrs/tree/main/.agents/skills) | скиллы, которые `AGENTS.md` называет словами "Load `<name>`", например `rust-style`, `efficient-testing` и `ship`. `.claude/skills/` ссылается на те же папки |
+| [.agents/rules](https://github.com/andreypfau/mcrs/tree/main/.agents/rules) | правила, каждое для своей области: `codec`, `memory`, `rendering` и `simulation`. В заголовке правила перечислены пути крейтов, к которым оно относится. `.claude/rules/` ссылается на них |
+| [.claude/agents](https://github.com/andreypfau/mcrs/tree/main/.claude/agents) | роли `implementer`, `spec-author` и `reviewer` |
+| [.claude/hooks/cargo-guard.sh](https://github.com/andreypfau/mcrs/blob/main/.claude/hooks/cargo-guard.sh) | хук Claude Code, который не пускает `cargo test`, см. [Сборка и тесты](/docs/ru/contributing/build-and-test/) |
+
+Claude Code сам подгружает скиллы, правила и роли. С другим инструментом читайте `.agents/skills/<name>/SKILL.md` там, где `AGENTS.md` пишет "Load `<name>`", читайте правило области перед правкой одного из ее крейтов и вставляйте текст роли из `.claude/agents/` в бриф агента.
+
+Роли разводят две роли из [Clean-room на практике](/docs/ru/contributing/clean-room/). `spec-author` пишет поведение и не пишет код реализации. `implementer` никогда не читает декомпилированный, деобфусцированный или размапленный код игры.
+
 ## Доки идут в том же PR
 
 Если ваше изменение меняет поведение, которое описывает страница сайта, правьте страницу в том же PR. Предупреждение в PR перечислит страницы, у которых вы тронули файлы из `sources`. Слияние оно не блокирует. Как писать страницу, объясняет [Как писать эту документацию](/docs/ru/contributing/docs/).
@@ -77,13 +97,13 @@ cargo nextest run --profile full    # плюс исчерпывающие про
 
 Короткий отобранный список лежит на странице [Первые задачи](/docs/ru/contributing/first-tasks/). Вкратце:
 
-- <Status issue={623} /> спецификация подтверждения телепорта
-- <Status issue={308} /> баг: исходящая очередь теряет пакеты состояния
-- <Status issue={295} /> типизированные пакеты для cookie, transfer и чата
-- <Status issue={290} /> пример пинга статуса
-- <Status issue={293} /> эхо-бот чата поверх сетевого слоя
-- <Status issue={289} /> пример инспектора пакетов
-- <Status issue={507} /> отчет о правилах спецификаций, которые не называет ни один тест
+- <Status issue={623} state="partial" /> спецификация подтверждения телепорта
+- <Status issue={308} state="wip" /> баг: исходящая очередь теряет пакеты состояния
+- <Status issue={295} state="wip" /> типизированные пакеты для cookie, transfer и чата
+- <Status issue={290} state="wip" /> пример пинга статуса
+- <Status issue={293} state="wip" /> эхо-бот чата поверх сетевого слоя
+- <Status issue={289} state="wip" /> пример инспектора пакетов
+- <Status issue={507} state="wip" /> отчет о правилах спецификаций, которые не называет ни один тест
 
 ## Как быстро идет ревью
 

@@ -171,12 +171,12 @@
 - id: library
   title: { en: Crates as a library, ru: Крейты как библиотека }
   works:
-    en: "121 crates. CI checks that 99 packages build without Bevy, 9 without std and 11 for wasm32."
-    ru: "121 крейт. CI проверяет, что 99 пакетов собираются без Bevy, 9 без std и 11 под wasm32."
+    en: "122 crates. CI checks that 100 packages build without Bevy, 9 without std and 11 for wasm32."
+    ru: "122 крейта. CI проверяет, что 100 пакетов собираются без Bevy, 9 без std и 11 под wasm32."
   missing:
     en: "Nothing is published on crates.io, there are no library examples, and the API is not stable."
     ru: "На crates.io ничего не опубликовано, примеров библиотеки нет, API не стабилен."
   state: partial
   issues: [180, 287, 321]
   evidence: "xtask/src/checks.rs (portability job in CI)"
-  verified: 2026-11-09
+  verified: 2026-11-10

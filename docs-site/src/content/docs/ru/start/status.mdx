@@ -16,9 +16,9 @@ sources:
   - issue:437
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
-translated_from: 51d45c26a
+  commit: 3540f457b
+  date: 2026-11-10
+translated_from: 3540f457b
 ---
 
 import Status from '~/components/Status.astro';
@@ -49,9 +49,9 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## Не планируется
 
-- Поддержка старых версий игры: одна версия за раз ([#412](https://github.com/andreypfau/mcrs/issues/412)).
-- Датафиксеры (datafixers). Сохранение читается строго в целевой версии данных, а неизвестное поле вызывает явную ошибку ([#388](https://github.com/andreypfau/mcrs/issues/388)).
-- Фасад или крейт с Bukkit-подобным API ([#437](https://github.com/andreypfau/mcrs/issues/437)). Это решение только про фасад. По загрузчику плагинов в виде jar, wasm или скриптов решения пока нет.
+- Поддержка старых версий игры: одна версия за раз (<Status issue={412} state="declined" />).
+- Датафиксеры (datafixers). Сохранение читается строго в целевой версии данных, а неизвестное поле вызывает явную ошибку (<Status issue={388} state="declined" />).
+- Фасад или крейт с Bukkit-подобным API (<Status issue={437} state="declined" />). Это решение только про фасад. По загрузчику плагинов в виде jar, wasm или скриптов решения пока нет.
 
 ## Как следить за ходом работы
 
@@ -61,7 +61,7 @@ import { Aside } from '@astrojs/starlight/components';
 - Issue: откройте нужную из таблицы и нажмите Watch справа (нужен аккаунт GitHub), при каждом изменении придет письмо.
 - [Последние изменения в коде](https://github.com/andreypfau/mcrs/commits/main) и [релизы](https://github.com/andreypfau/mcrs/releases).
 - [Discord](https://discord.gg/ged3nMRzwG): вопросы и отчеты о ходе работы.
-- Issue-направления: [#180](https://github.com/andreypfau/mcrs/issues/180) (библиотека), [#181](https://github.com/andreypfau/mcrs/issues/181) (много нод), [#182](https://github.com/andreypfau/mcrs/issues/182) (геймплей).
+- Issue-направления: <Status issue={180} state="wip" /> (библиотека), <Status issue={181} state="wip" /> (много нод), <Status issue={182} state="wip" /> (геймплей).
 - Решения с причинами: issue с меткой [`decision`](https://github.com/andreypfau/mcrs/issues?q=label%3Adecision).
 
 Эту страницу мы вручную проверяем раз в месяц и при каждом новом теге.

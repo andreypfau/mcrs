@@ -11,10 +11,15 @@ sources:
   - README.md
   - CONTRIBUTING.md
   - .github/pull_request_template.md
+  - AGENTS.md
+  - .claude/agents/implementer.md
+  - .claude/agents/spec-author.md
+  - .claude/hooks/cargo-guard.sh
+  - pr:687
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 3540f457b
+  date: 2026-11-10
 ---
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
@@ -68,6 +73,21 @@ These are the commands of the [README Development section](https://github.com/an
 The detailed setup guide is not written yet. It will appear before the alpha for players. Until then use the [README Quick start](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start) and the technical notes linked from this section.
 </Aside>
 
+## Work with a coding agent
+
+The instructions for coding agents live in the repository, not on this site. [AGENTS.md](https://github.com/andreypfau/mcrs/blob/main/AGENTS.md) is the instruction file for every agent, and `CLAUDE.md` is a link to it. It holds the rules that apply everywhere: layers, clean-room, style, tests and the path to `main`.
+
+| Path | What is there |
+|---|---|
+| [.agents/skills](https://github.com/andreypfau/mcrs/tree/main/.agents/skills) | skills that `AGENTS.md` names with "Load `<name>`", such as `rust-style`, `efficient-testing` and `ship`. `.claude/skills/` links to the same folders |
+| [.agents/rules](https://github.com/andreypfau/mcrs/tree/main/.agents/rules) | the rules of one domain each: `codec`, `memory`, `rendering` and `simulation`. The header of a rule lists the crate paths it covers. `.claude/rules/` links to them |
+| [.claude/agents](https://github.com/andreypfau/mcrs/tree/main/.claude/agents) | the roles `implementer`, `spec-author` and `reviewer` |
+| [.claude/hooks/cargo-guard.sh](https://github.com/andreypfau/mcrs/blob/main/.claude/hooks/cargo-guard.sh) | a Claude Code hook that rejects `cargo test`, see [Build and test](/docs/en/contributing/build-and-test/) |
+
+Claude Code loads the skills, the rules and the roles by itself. With another tool, read `.agents/skills/<name>/SKILL.md` where `AGENTS.md` says "Load `<name>`", read the rule of a domain before you edit one of its crates, and copy the text of a role from `.claude/agents/` into the brief of the agent.
+
+The roles keep the two roles of [Clean-room in practice](/docs/en/contributing/clean-room/) apart. The `spec-author` writes behavior and no implementation code. The `implementer` never reads decompiled, deobfuscated or mapped game code.
+
 ## Docs go in the same PR
 
 If your change alters behavior that a page of this site describes, update the page in the same PR. A warning on the PR lists the pages whose `sources` files you touched. It does not block the merge. How to write a page is on [Write these docs](/docs/en/contributing/docs/).
@@ -76,13 +96,13 @@ If your change alters behavior that a page of this site describes, update the pa
 
 A short hand-picked list is on [First tasks](/docs/en/contributing/first-tasks/). Short version:
 
-- <Status issue={623} /> a specification for the confirmation of a teleport
-- <Status issue={308} /> a bug: the outbound queue drops state packets
-- <Status issue={295} /> typed packets for cookies, transfer and chat
-- <Status issue={290} /> a status ping example
-- <Status issue={293} /> an echo chat bot over the network layer
-- <Status issue={289} /> a packet inspector example
-- <Status issue={507} /> a report of spec rules that no test names
+- <Status issue={623} state="partial" /> a specification for the confirmation of a teleport
+- <Status issue={308} state="wip" /> a bug: the outbound queue drops state packets
+- <Status issue={295} state="wip" /> typed packets for cookies, transfer and chat
+- <Status issue={290} state="wip" /> a status ping example
+- <Status issue={293} state="wip" /> an echo chat bot over the network layer
+- <Status issue={289} state="wip" /> a packet inspector example
+- <Status issue={507} state="wip" /> a report of spec rules that no test names
 
 ## How fast is review
 

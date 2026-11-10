@@ -17,8 +17,8 @@ sources:
   - issue:288
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 3540f457b
+  date: 2026-11-10
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -27,7 +27,7 @@ import Status from '~/components/Status.astro';
 You can use an mcrs crate in your own Rust project today, with a git dependency. You cannot get it from crates.io, and nobody has yet checked this route outside the repository on a clean machine, so read this page as the plan and the known limits, not as a tested guide.
 
 <Aside type="caution" title="WIP">
-Publishing the protocol, network and game data crates is an open issue that waits for a decision: <Status issue={321} state="undecided" />. The question there is whether publishing and stable Rust are goals at all while the project follows one game snapshot at a time. Library examples with a dependency-tree test per example are <Status issue={287} state="wip" /> and <Status issue={288} state="wip" />.
+Publishing the protocol, network and game data crates waits for a decision: <Status issue={321} state="undecided" />. The question there is whether publishing and stable Rust are goals at all while the project follows one game snapshot at a time. Library examples with a dependency-tree test per example are <Status issue={287} state="wip" /> and <Status issue={288} state="wip" />.
 </Aside>
 
 ## 1. A git dependency with a rev
@@ -41,11 +41,11 @@ Cargo finds the crate by name inside the repository. Use one `rev` for every mcr
 
 ## 2. Nightly Rust
 
-The repository pins `nightly-2026-09-02` in [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml). Cargo reads that file only in the directory where you run it, so it does not follow a git dependency. Install a nightly yourself and pin it in your project, ideally the same date. Whether the lower layers also build on stable is not checked. The stated goal of #321 is that the protocol, network and game data crates build on stable, which means they do not all do it today.
+The repository pins `nightly-2026-09-02` in [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml). Cargo reads that file only in the directory where you run it, so it does not follow a git dependency. Install a nightly yourself and pin it in your project, ideally the same date. Whether the lower layers also build on stable is not checked. The stated goal of <Status issue={321} state="undecided" /> is that the protocol, network and game data crates build on stable, which means they do not all do it today.
 
 ## 3. Leave Bevy out
 
-Below layer 4, Bevy is an optional feature, so `default-features = false` keeps it out. CI checks 99 package names with `cargo check --no-default-features`; the list is `NO_BEVY_PACKAGES` in [`xtask/src/checks.rs`](https://github.com/andreypfau/mcrs/blob/main/xtask/src/checks.rs). The [crate map](/docs/en/crates/overview/) marks each of them.
+Below layer 4, Bevy is an optional feature, so `default-features = false` keeps it out. CI checks 100 package names with `cargo check --no-default-features`; the list is `NO_BEVY_PACKAGES` in [`xtask/src/checks.rs`](https://github.com/andreypfau/mcrs/blob/main/xtask/src/checks.rs). The [crate map](/docs/en/crates/overview/) marks each of them.
 
 Layer 4 and above need Bevy. `mcrs_minecraft_assets` is the known exception in the lower layers: the README says it still needs Bevy even with default features off.
 
@@ -59,7 +59,7 @@ If Bevy shows up in a crate from the no-Bevy list, that is a bug in mcrs: open a
 
 ## What does not work
 
-- `cargo package` fails for crates that read files outside their own folder at build time. Two known cases are `crates/mcrs_minecraft_core/src/version.rs`, which reads `assets/minecraft/version.json`, and `crates/mcrs_minecraft_game_rule/src/lib.rs`, which reads a file from `assets/mcrs/`. A git dependency works, because the whole repository is checked out. This blocks publishing (<Status issue={321} />).
+- `cargo package` fails for crates that read files outside their own folder at build time. Two known cases are `crates/mcrs_minecraft_core/src/version.rs`, which reads `assets/minecraft/version.json`, and `crates/mcrs_minecraft_game_rule/src/lib.rs`, which reads a file from `assets/mcrs/`. A git dependency works, because the whole repository is checked out. This blocks publishing (<Status issue={321} state="undecided" />).
 - The public API of the protocol and network crates returns `anyhow` errors in several places, so a caller cannot tell an incomplete frame from a broken one without matching text. The same issue lists this as the second blocker.
 - There is no example project to copy. The first small one is [Parse SNBT](/docs/en/crates/hello-nbt/), and it is itself untested outside the workspace.
 - Types change with every game snapshot, and there is no stable API promise. Pin a rev and read the change before you move it.

@@ -1,6 +1,6 @@
 ---
 title: Crate map
-description: The 121 crates of mcrs by layer, with the ones that build without Bevy, without std or for wasm32, and which to take for a proxy, a bot, a map or a tool.
+description: The 122 crates of mcrs by layer, with the ones that build without Bevy, without std or for wasm32, and which to take for a proxy, a bot, a map or a tool.
 sidebar:
   order: 1
 kind: reference
@@ -14,14 +14,14 @@ sources:
   - issue:321
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 3540f457b
+  date: 2026-11-10
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 import Status from '~/components/Status.astro';
 
-mcrs is 121 crates under `crates/`, and you can take them one at a time. This page lists all of them, grouped by layer. Use it to find the crate you need and to see what it drags in.
+mcrs is 122 crates under `crates/`, and you can take them one at a time. This page lists all of them, grouped by layer. Use it to find the crate you need and to see what it drags in.
 
 <Aside type="caution" title="WIP">
 This table was made by a script from `cargo metadata` and the three lists in [`xtask/src/checks.rs`](https://github.com/andreypfau/mcrs/blob/main/xtask/src/checks.rs), then pasted here. A generator that rebuilds it on every docs build is planned. Until it exists, the table can be out of date: check the verified date at the bottom.
@@ -40,7 +40,7 @@ The layer of a crate is not stored anywhere in the code. It was assigned by hand
 | no_std | `NO_STD_PACKAGES`, built without `std` in CI |
 | wasm32 | `WASM32_PACKAGES`, built for the `wasm32` target in CI |
 
-The no-Bevy list has 99 names. Six of them are tools under `tools/`, so among the 121 crates of `crates/` the count is 93. The no_std list has 9 crates and the wasm32 list has 11. A dash means "not on the CI list", which is not the same as "does not work".
+The no-Bevy list has 100 names. Six of them are tools under `tools/`, so among the 122 crates of `crates/` the count is 94. The no_std list has 9 crates and the wasm32 list has 11. A dash means "not on the CI list", which is not the same as "does not work".
 
 ## What to take for
 
@@ -49,7 +49,7 @@ Nothing here is published to crates.io, so every route below uses a git dependen
 | You build | Start with | State |
 |---|---|---|
 | A proxy | `mcrs_minecraft_protocol` and `mcrs_minecraft_network`. Both are on the no-Bevy list, and `xtask` checks that they do not link game data | The crates exist. The proxy library itself, with routing and forwarding, is <Status issue={296} state="wip" />. Online mode is <Status issue={82} state="wip" /> |
-| A bot | The same two crates, plus `mcrs_minecraft_client_world`, which keeps the world state of a client without a window or a renderer. It is not on the no-Bevy list | The split of the client state from rendering is done (<Status issue={301} />). The walker bot is <Status issue={302} state="wip" /> |
+| A bot | The same two crates, plus `mcrs_minecraft_client_world`, which keeps the world state of a client without a window or a renderer. It is not on the no-Bevy list | The split of the client state from rendering is done (<Status issue={301} state="works" />). The walker bot is <Status issue={302} state="wip" /> |
 | A map or a world viewer | `mcrs_minecraft_anvil` for regions (also on the wasm32 list), `mcrs_minecraft_chunk` and `mcrs_minecraft_block` for the data, `mcrs_minecraft_mesh` for meshes | The crates exist. Top-down tiles without a window are <Status issue={297} state="wip" />, and a model viewer is <Status issue={298} state="wip" /> |
 | A tool for NBT, commands or data packs | `mcrs_minecraft_nbt`, `mcrs_minecraft_snbt`, `mcrs_command`, `mcrs_minecraft_datapack` | The crates exist. `mcrs_command` and `mcrs_minecraft_snbt` read and write what the game reads and writes |
 | A world generator preview | `mcrs_minecraft_worldgen_generator` and the `mcrs_minecraft_worldgen_*` crates | A preview by seed through the public API is <Status issue={299} state="wip" />. The generator itself matches vanilla in parity tests on reference seeds |
@@ -67,7 +67,7 @@ Nothing here is published to crates.io, so every route below uses a git dependen
 | `mcrs_minecraft_core` | Directions, numeric operations, shapes, codecs and the version | yes | - | - |
 | `mcrs_minecraft_game_mode` | The game modes of a player, their names and their wire forms | yes | - | - |
 | `mcrs_minecraft_keys` | Names of the vanilla registries no crate keys by a type, with their entries and tags | yes | - | yes |
-| `mcrs_minecraft_nbt` | NBT tags and compounds, the binary read and write, and the serde codecs | yes | - | - |
+| `mcrs_minecraft_nbt` | NBT tags and compounds, the binary read and write in the Java big-endian and the two Bedrock little-endian encodings, and the serde codecs | yes | - | - |
 | `mcrs_minecraft_numeric` | Bit-exact numeric operations: integer division, comparisons, interpolation, angle wrap, sine tables and the arctangent | yes | - | - |
 | `mcrs_minecraft_profile` | Game profiles, their properties and the resolvable profile of a player head | yes | - | - |
 | `mcrs_minecraft_protocol` | Protocol library for Minecraft: Java Edition: framing, compression, and the handshake, status, login and configuration packets | yes | - | yes |
@@ -140,6 +140,7 @@ Nothing here is published to crates.io, so every route below uses a git dependen
 | `mcrs_minecraft_save` | The files of a world save other than its regions: the level, its world generation settings and each player's file | - | - | - |
 | `mcrs_minecraft_simulation` | Block simulation kernels: the step and update chain over a volume, their queues and ordering policies | yes | - | - |
 | `mcrs_minecraft_sound` | Sound events | yes | - | - |
+| `mcrs_minecraft_text_flatten` | A text component as flat runs of styled text: translations filled from a language, styles inherited, and the plain and the formatting-code strings made from the runs | yes | - | - |
 | `mcrs_minecraft_value_provider` | Int, float and height providers and their codecs | yes | - | - |
 | `mcrs_minecraft_volume` | One block access API over every store of world data: bounds, per-section access, section handles and cursors | yes | - | - |
 | `mcrs_minecraft_worldgen` | The world generator: the worldgen registries, their loaders and the beardifier | yes | - | - |

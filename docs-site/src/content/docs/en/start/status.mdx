@@ -16,8 +16,8 @@ sources:
   - issue:437
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 3540f457b
+  date: 2026-11-10
 ---
 
 import Status from '~/components/Status.astro';
@@ -48,9 +48,9 @@ Performance numbers live in [PERF.md](https://github.com/andreypfau/mcrs/blob/ma
 
 ## Not planned
 
-- Support for older game versions: one version at a time ([#412](https://github.com/andreypfau/mcrs/issues/412)).
-- Datafixers. A save is read at exactly the targeted data version, and an unknown field is a loud error ([#388](https://github.com/andreypfau/mcrs/issues/388)).
-- A facade or a Bukkit-like API crate ([#437](https://github.com/andreypfau/mcrs/issues/437)). This decision is only about the facade. A plugin loader for jar, wasm or scripts has no decision yet.
+- Support for older game versions: one version at a time (<Status issue={412} state="declined" />).
+- Datafixers. A save is read at exactly the targeted data version, and an unknown field is a loud error (<Status issue={388} state="declined" />).
+- A facade or a Bukkit-like API crate (<Status issue={437} state="declined" />). This decision is only about the facade. A plugin loader for jar, wasm or scripts has no decision yet.
 
 ## How to follow progress
 
@@ -60,7 +60,7 @@ You do not need to read code to follow the project.
 - Issues: open one from the table and press Watch on the right (a GitHub account is needed). You get a mail when it changes.
 - [Latest code changes](https://github.com/andreypfau/mcrs/commits/main) and [releases](https://github.com/andreypfau/mcrs/releases).
 - [Discord](https://discord.gg/ged3nMRzwG): questions and progress reports.
-- Direction issues: [#180](https://github.com/andreypfau/mcrs/issues/180) (library), [#181](https://github.com/andreypfau/mcrs/issues/181) (many nodes), [#182](https://github.com/andreypfau/mcrs/issues/182) (gameplay).
+- Direction issues: <Status issue={180} state="wip" /> (library), <Status issue={181} state="wip" /> (many nodes), <Status issue={182} state="wip" /> (gameplay).
 - Decisions with their reasons: issues with the label [`decision`](https://github.com/andreypfau/mcrs/issues?q=label%3Adecision).
 
 We check this page by hand once a month and on every new tag.

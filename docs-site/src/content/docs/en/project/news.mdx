@@ -14,44 +14,59 @@ sources:
   - pr:551
   - pr:552
   - pr:592
+  - pr:679
+  - pr:680
+  - pr:684
+  - pr:685
+  - pr:686
+  - pr:687
+  - pr:691
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 3540f457b
+  date: 2026-11-10
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import Status from '~/components/Status.astro';
 
-Each entry answers three questions: what was merged, what changed for people who write plugins (marked "Breaking" when old code stops compiling), and what is not there yet. Newest first. The tags come from `git tag --sort=-creatordate`, the commits from `git log` between them, and the pull requests from `gh pr list`, all read on 2026-11-09.
+Each entry answers three questions: what was merged, what changed for people who write plugins (marked "Breaking" when old code stops compiling), and what is not there yet. Newest first.
 
-The last tag is 26 days old, and 143 pull requests were merged after it. So the first entry covers work that has no tag yet.
+The last tag is 27 days old, and 152 pull requests were merged after it. So the first entry covers work that has no tag yet.
 
 ## Since v0.5.8 (no tag yet)
 
-From 2026-10-14 to 2026-11-09: 850 commits and 143 merged pull requests from 6 authors. 117 of the pull requests are from the project owner, and 26 from five other people.
+From 2026-10-14 to 2026-11-10: 870 commits and 152 merged pull requests from 6 authors. 121 of the pull requests are from andreypfau, and 31 from five other people.
 
 What was merged, in a few lines:
 
-- Worlds tick as parallel cells behind a muxer thread and a shared data layer ([#646](https://github.com/andreypfau/mcrs/pull/646)).
-- Server mobs with a parallel AI stage, mob rendering in the client, and the 50,000-pig benchmark ([#651](https://github.com/andreypfau/mcrs/pull/651)).
-- Entity physics, movement checks and block simulation ([#648](https://github.com/andreypfau/mcrs/pull/648)); block tick and block event queues ([#477](https://github.com/andreypfau/mcrs/pull/477)).
-- Player bans and the whitelist from their specifications ([#637](https://github.com/andreypfau/mcrs/pull/637), [#635](https://github.com/andreypfau/mcrs/pull/635)); disconnect and save every player before shutdown ([#624](https://github.com/andreypfau/mcrs/pull/624)); breaking blocks in creative mode ([#643](https://github.com/andreypfau/mcrs/pull/643)).
-- The mc.rs landing page with a language switcher ([#629](https://github.com/andreypfau/mcrs/pull/629), [#633](https://github.com/andreypfau/mcrs/pull/633)), and a client compile check for `wasm32` in CI ([#622](https://github.com/andreypfau/mcrs/pull/622)).
-- A fix to the VarInt and VarLong reader so it rejects out-of-range bits ([#653](https://github.com/andreypfau/mcrs/pull/653)).
+- Worlds tick as parallel cells behind a muxer thread and a shared data layer (<Status pr={646} state="works" />).
+- Server mobs with a parallel AI stage, mob rendering in the client, and the 50,000-pig benchmark (<Status pr={651} state="works" />).
+- Entity physics, movement checks and block simulation (<Status pr={648} state="works" />); block tick and block event queues (<Status pr={477} state="works" />).
+- Player bans and the whitelist from their specifications (<Status pr={637} state="works" />, <Status pr={635} state="works" />); disconnect and save every player before shutdown (<Status pr={624} state="works" />); breaking blocks in creative mode (<Status pr={643} state="works" />).
+- The mc.rs landing page with a language switcher (<Status pr={629} state="works" />, <Status pr={633} state="works" />), and a client compile check for `wasm32` in CI (<Status pr={622} state="works" />).
+- A fix to the VarInt and VarLong reader so it rejects out-of-range bits (<Status pr={653} state="works" />).
+- NBT in the two Bedrock encodings, little-endian storage and network varint, next to the Java one (<Status pr={679} state="works" />).
+- The new crate `mcrs_minecraft_text_flatten` fills translations in flattened text. A translated disconnect reason now shows its fallback or its key, not an empty line (<Status pr={680} state="works" />).
+- A specification of survival block breaking, taken from a vanilla server (<Status pr={686} state="works" />).
+- CI runs own pull requests in one self-hosted job and fork pull requests on hosted runners, and a change to `docs/` alone builds nothing (<Status pr={691} state="works" />). Cargo resolves features once for the whole workspace (<Status pr={685} state="works" />).
+- `AGENTS.md`, agent skills and path rules for coding agents (<Status pr={687} state="works" />, see [How to contribute](/docs/en/contributing/#work-with-a-coding-agent)); search engine metadata, `robots.txt` and a sitemap for the landing page (<Status pr={684} state="works" />).
 
 Breaking for plugin authors (Rust, compiled into the server):
 
-- `MinecraftServerPlugin` became the plugin group `MinecraftServerPlugins`, with members such as `ServerCorePlugin`, `DimensionWorldsPlugin`, `WorldGenPlugin` and `ServerNetworkPlugin`. Any member can be disabled or replaced ([#551](https://github.com/andreypfau/mcrs/pull/551)). The engine members then moved to the new crate `mcrs_minecraft_engine_server`, and `mcrs_minecraft_server` keeps the vanilla group ([#592](https://github.com/andreypfau/mcrs/pull/592)).
-- No library crate reads the environment or the working directory for settings now. Operators are an `ops` field of the plugin, and the client knobs are a `Knobs` resource ([#548](https://github.com/andreypfau/mcrs/pull/548)). See [Environment variables](/docs/en/reference/env-vars/).
+- `MinecraftServerPlugin` became the plugin group `MinecraftServerPlugins`, with members such as `ServerCorePlugin`, `DimensionWorldsPlugin`, `WorldGenPlugin` and `ServerNetworkPlugin`. Any member can be disabled or replaced (<Status pr={551} state="works" />). The engine members then moved to the new crate `mcrs_minecraft_engine_server`, and `mcrs_minecraft_server` keeps the vanilla group (<Status pr={592} state="works" />).
+- No library crate reads the environment or the working directory for settings now. Operators are an `ops` field of the plugin, and the client knobs are a `Knobs` resource (<Status pr={548} state="works" />). See [Environment variables](/docs/en/reference/env-vars/).
+- `Text::to_legacy_lossy` is removed. Use `plain_text` or `legacy_text` from `mcrs_minecraft_text_flatten`, which also take a `Language` (<Status pr={680} state="works" />).
+- The reader and the writer of `mcrs_minecraft_nbt` lost the `_be` suffix of their methods: `get_u8_be` is `get_u8` now (<Status pr={679} state="works" />).
 
 New for plugin authors:
 
-- A plugin can add plugins to every dimension world or to one: `add_dimension_plugin` and `add_dimension_plugin_to` ([#552](https://github.com/andreypfau/mcrs/pull/552)).
-- A cancellable chat event: an observer can stop a line or replace its text before the broadcast ([#636](https://github.com/andreypfau/mcrs/pull/636), part of #283). Join, leave, movement and block events are not done.
+- A plugin can add plugins to every dimension world or to one: `add_dimension_plugin` and `add_dimension_plugin_to` (<Status pr={552} state="works" />).
+- A cancellable chat event: an observer can stop a line or replace its text before the broadcast (<Status pr={636} state="works" />, part of <Status issue={283} state="partial" />). Join, leave, movement and block events are not done.
 
 Not there yet:
 
-- Saving changed chunks to region files ([#78](https://github.com/andreypfau/mcrs/issues/78)) and online mode ([#82](https://github.com/andreypfau/mcrs/issues/82)).
+- Saving changed chunks to region files (<Status issue={78} state="wip" />) and online mode (<Status issue={82} state="wip" />).
 - A loader for plugins outside the server build. There is no decision on it.
 - Any speed claim against another server. The benchmark runs are provisional, see [Performance](/docs/en/project/performance/).
 
@@ -61,7 +76,7 @@ Commit `bf147fb2c`. Two commits since v0.5.7.
 
 - Merged: the workspace version is now 0.5.8, and CI runs mutation testing only on demand.
 - Breaking for plugin authors: nothing.
-- Not there yet: the crates are still not published ([#321](https://github.com/andreypfau/mcrs/issues/321)).
+- Not there yet: the crates are still not published (<Status issue={321} state="undecided" />).
 
 ## v0.5.7, 2026-10-13
 

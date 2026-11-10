@@ -27,7 +27,7 @@ This page describes a direction. One process with cells exists in code. Several 
 
 ## The target
 
-Ten thousand players in one dimension, with the unmodified vanilla client ([#181](https://github.com/andreypfau/mcrs/issues/181), decision [#351](https://github.com/andreypfau/mcrs/issues/351)). Nobody has published that many interacting players in one continuous space, so this is a goal and not a promise. The limit is not the tick. The binding limit is how many players see each other: a moving player costs each viewer roughly 200 to 250 bytes per second before compression, and the client drops its world on a transfer. So the plan is "spread over one dimension, with a bounded number visible to each client".
+Ten thousand players in one dimension, with the unmodified vanilla client (<Status issue={181} state="wip" />, decision <Status issue={351} state="partial" />). Nobody has published that many interacting players in one continuous space, so this is a goal and not a promise. The limit is not the tick. The binding limit is how many players see each other: a moving player costs each viewer roughly 200 to 250 bytes per second before compression, and the client drops its world on a transfer. So the plan is "spread over one dimension, with a bounded number visible to each client".
 
 ## Parts
 
@@ -48,12 +48,12 @@ From section 11 of `docs/cells.md` ("Where the code is today"), checked against 
 - A muxer stage runs on a link from the host. The host talks to each dimension over a link, with one input and one output per tick.
 - An in-memory data layer serves cold columns, with generation and light stages on a thread.
 - A player moves to another cell at the end of the tick in which it stands in a column of that cell. There is no hysteresis yet, and no entity other than a player crosses.
-- There is no disk under the data layer: the server does not write chunks to disk yet ([#78](https://github.com/andreypfau/mcrs/issues/78)).
+- There is no disk under the data layer: the server does not write chunks to disk yet (<Status issue={78} state="wip" />).
 
 ## What is still design
 
 - Split and merge of cells by cost, a k-d division on X and Z, moves at a tick boundary with a hysteresis of about 8 blocks.
-- `Placement::Remote`: a cell in another process, and an edge as its own process that holds every connection ([#181](https://github.com/andreypfau/mcrs/issues/181) lists the child issues, for example #160, #162 to #167).
+- `Placement::Remote`: a cell in another process, and an edge as its own process that holds every connection (<Status issue={181} state="wip" /> lists the child issues, for example <Status issue={160} state="wip" />, <Status issue={162} state="wip" /> to <Status issue={167} state="wip" />).
 - The replication tiers for entities in `docs/replication.md`, which is also a design note.
 
 ## The simplest server stays simple

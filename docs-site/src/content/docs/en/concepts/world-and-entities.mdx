@@ -42,7 +42,7 @@ Space ticks only when a ticket covers it: a player's simulation area, the spawn 
 
 ## One API for reading the world: volumes
 
-Today several code paths read blocks through their own view: the chunk crate, the world generator, the light engine, the mesher, the client. Each answers "section not loaded" in its own way. [#486](https://github.com/andreypfau/mcrs/issues/486) (closed as a decision, migration in steps) replaces them with one layer-3 crate, `mcrs_minecraft_volume`:
+Today several code paths read blocks through their own view: the chunk crate, the world generator, the light engine, the mesher, the client. Each answers "section not loaded" in its own way. <Status issue={486} state="partial" /> (migration in steps) replaces them with one layer-3 crate, `mcrs_minecraft_volume`:
 
 - a volume has bounds and says, per section, whether it may be written, is read-only, belongs to another owner, is not loaded, or is outside;
 - capabilities are separate traits (blocks, biomes, heights, light, block entities, and mutable forms), generic, with no per-block dynamic dispatch;

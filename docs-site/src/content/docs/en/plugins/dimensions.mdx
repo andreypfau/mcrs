@@ -29,7 +29,7 @@ In Paper, a `World` is an object that your plugin can reach from anywhere. In mc
 
 ## One main app, one sub-app per dimension
 
-The server has one main Bevy `App`. Each dimension runs as a Bevy `SubApp` with its own `World` ([#362](https://github.com/andreypfau/mcrs/issues/362), a closed decision). The reason from the issue: in one shared world, every system would visit the entities of all dimensions and filter them by a dimension component, and the dimensions could not tick in parallel or move to another machine later.
+The server has one main Bevy `App`. Each dimension runs as a Bevy `SubApp` with its own `World` (<Status issue={362} state="partial" />). The reason from the issue: in one shared world, every system would visit the entities of all dimensions and filter them by a dimension component, and the dimensions could not tick in parallel or move to another machine later.
 
 Consequences you will meet:
 
@@ -61,7 +61,7 @@ For a plugin author this means: do not keep your own copy of the game clock insi
 
 ## Players move as messages
 
-A system of one dimension cannot reach another world. Players move between dimension worlds as messages, never by moving entities (#362). A portal, or any move decided inside a tick, writes a request:
+A system of one dimension cannot reach another world. Players move between dimension worlds as messages, never by moving entities (<Status issue={362} state="partial" />). A portal, or any move decided inside a tick, writes a request:
 
 <Example file="crates/mcrs_minecraft_engine_world/src/entity/player/mod.rs" lines="14-24" title="ChangeDimensionRequest" />
 
@@ -76,7 +76,7 @@ The same document describes how commands work across worlds. A command runs in o
 ## Dimensions at run time
 
 <Aside type="caution" title="WIP">
-The dimension list is fixed when the server starts. A lobby or a minigame cannot create a world for a match and remove it afterwards. <Status issue={546} state="wip" /> describes the plan: a public message that adds a dimension world with a name, a dimension type, a chunk source ([#281](https://github.com/andreypfau/mcrs/issues/281)) and its plugins; a message that removes one and moves its players first; and a message that moves a player to a named world and position, which a plugin can cancel (#283). The issue needs #142, #280 and #281. It is a direction, not a promise.
+The dimension list is fixed when the server starts. A lobby or a minigame cannot create a world for a match and remove it afterwards. <Status issue={546} state="wip" /> describes the plan: a public message that adds a dimension world with a name, a dimension type, a chunk source (<Status issue={281} state="wip" />) and its plugins; a message that removes one and moves its players first; and a message that moves a player to a named world and position, which a plugin can cancel (<Status issue={283} state="partial" />). The issue needs <Status issue={142} state="wip" />, <Status issue={280} state="works" /> and the chunk source above. It is a direction, not a promise.
 </Aside>
 
 ## What next

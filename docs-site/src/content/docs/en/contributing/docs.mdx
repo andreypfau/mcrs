@@ -14,8 +14,8 @@ sources:
   - PERF.md
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 3540f457b
+  date: 2026-11-10
 ---
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
@@ -86,7 +86,7 @@ import { Aside, Tabs, TabItem, Card, CardGrid, LinkCard } from '@astrojs/starlig
 
 | Component | Use |
 |---|---|
-| `<Status issue={78} state="wip" />` | a state badge with a link. `state` is `works`, `partial`, `wip`, `undecided` or `declined`. Without `state` it is a plain link `#78`. Also `pr={636}` and `doc="docs/spec/login.md"` |
+| `<Status issue={78} state="wip" />` | a state badge with a link. `state` is `works`, `partial`, `wip`, `undecided` or `declined`. Every issue and pull request on the site goes through this badge, always with `state`: no `#78` as text and no state in words next to it. A merged pull request is `<Status pr={636} state="works" />`. Also `doc="docs/spec/login.md"` |
 | `<StatusRows areas="network,persistence" />` | rows from `docs-site/src/data/status.yml` for the listed IDs |
 | `<Example file="path" lines="10-40" title="..." />` | a fragment of a repository file, read at build time. A wrong line range breaks the build |
 | `<Demo src="/docs/demos/cows.html" title="..." height={900} />` | an interactive page in an iframe |
@@ -169,13 +169,13 @@ Go through it before every PR that adds or changes a page.
 4. Every "no" links to an issue or a decision.
 5. No numbers that are not measured on a quiet machine, and no comparison with vanilla, Paper or Horizon in numbers.
 6. A claim about another project has a source, or it is not written. For production we name only Paper, Folia, Minestom and Velocity. Rust projects get one neutral line, no ratings.
-7. The game version is `26.4-snapshot-7`, from `assets/minecraft/version.json`, not from memory. The same applies to counts: 121 crates, not a guess.
+7. The game version is `26.4-snapshot-7`, from `assets/minecraft/version.json`, not from memory. The same applies to counts: 122 crates, not a guess.
 8. A page with changing content has the date and the commit of the last check.
 9. "We" is not used for a bigger group than it is. No "community" claims.
 10. A safety warning stands next to every run command: the server has no authentication, so do not open its port.
 11. Goals and issues are shown as "direction, not a commitment".
 
-Two facts that are often wrong in drafts. First, the compiler does not check conflicts between Bevy systems: the scheduler checks the data access when it builds the graph. Second, issue <Status issue={437} /> rejects only a facade and a Bukkit-like API. It says nothing about a plugin loader.
+Two facts that are often wrong in drafts. First, the compiler does not check conflicts between Bevy systems: the scheduler checks the data access when it builds the graph. Second, issue <Status issue={437} state="declined" /> rejects only a facade and a Bukkit-like API. It says nothing about a plugin loader.
 
 ## Clean-room in docs
 

@@ -18,6 +18,7 @@ verified:
   commit: 51d45c26a
   date: 2026-11-09
 ---
+import Status from '~/components/Status.astro';
 
 import { Aside } from '@astrojs/starlight/components';
 
@@ -64,8 +65,8 @@ Source: `PERF.md`, Server start. This is a baseline. A later start time on the s
 
 ## Not measured yet
 
-- Memory per loaded section and per entity component. The README used to promise it, and `PERF.md` has no such table. [#324](https://github.com/andreypfau/mcrs/issues/324) is open and says the number goes into `PERF.md` when a test counts it.
-- The cost of an idle server tick, and a count of overrun ticks. [#320](https://github.com/andreypfau/mcrs/issues/320) is open. Today the server loop starts the next tick at once after an overrun, with no count and no warning.
+- Memory per loaded section and per entity component. The README used to promise it, and `PERF.md` has no such table. <Status issue={324} state="wip" /> says the number goes into `PERF.md` when a test counts it.
+- The cost of an idle server tick, and a count of overrun ticks: <Status issue={320} state="wip" />. Today the server loop starts the next tick at once after an overrun, with no count and no warning.
 - Server tick time under load by players. A bot load exists (`crates/mcrs_minecraft_server/examples/tick_load.rs`), but its machine and conditions are not recorded, so we do not quote it.
 - Anything on Linux or Windows.
 

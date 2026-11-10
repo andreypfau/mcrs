@@ -46,19 +46,19 @@ Every row is an analogy. mcrs has no Bukkit-like API, see [This is not the Paper
 | `/reload`, PlugMan | None. Code is not reloaded | <Status issue={316} state="wip" /> | Only data pack reload is planned |
 | NMS, CraftBukkit | Any public crate of the library layers | <Status issue={437} state="declined" /> | No facade between you and the engine. It is NMS and API at once |
 | Static `Bukkit.getServer()` | None. Take `Res<T>`, `Query<..>`, `Commands` as system parameters | <Status issue={437} state="declined" /> | The static accessor was rejected |
-| Dependency on `paper-api` | A git dependency on mcrs crates | <Status issue={321} state="undecided" /> | One game version at a time, no backward compatibility ([#412](https://github.com/andreypfau/mcrs/issues/412)) |
+| Dependency on `paper-api` | A git dependency on mcrs crates | <Status issue={321} state="undecided" /> | One game version at a time, no backward compatibility (<Status issue={412} state="declined" />) |
 
 ## Events
 
 | JVM | mcrs | State | Notes |
 |---|---|---|---|
-| `Listener`, `@EventHandler` | An observer `app.add_observer(f)` with `f: fn(On<Event>)`, or `MessageReader<M>` for a message buffer | <Status issue={283} state="partial" /> | Public events exist only for chat (#283). Packet observers exist as `Received<P>` |
-| `setCancelled(true)` | The `cancelled` field of the event, set in an observer that takes `mut` | <Status pr={636} state="partial" /> | Only `PlayerChatEvent`. A general mechanism with rollback of client prediction is [#283](https://github.com/andreypfau/mcrs/issues/283) |
+| `Listener`, `@EventHandler` | An observer `app.add_observer(f)` with `f: fn(On<Event>)`, or `MessageReader<M>` for a message buffer | <Status issue={283} state="partial" /> | Public events exist only for chat. Packet observers exist as `Received<P>` |
+| `setCancelled(true)` | The `cancelled` field of the event, set in an observer that takes `mut` | <Status pr={636} state="partial" /> | Only `PlayerChatEvent`. A general mechanism with rollback of client prediction is <Status issue={283} state="partial" /> |
 | `AsyncChatEvent` | `PlayerChatEvent { player, text, cancelled }` | <Status pr={636} state="works" /> | `text` is a `Text` component, not a `String`. It fires before the broadcast |
-| `EventPriority` | System order: `.before()`, `.after()`, `SystemSet` such as `TickSet` | <Status issue={323} /> | Observers have no priority. An unordered conflict fails a test ([#323](https://github.com/andreypfau/mcrs/issues/323)) |
-| `PlayerJoinEvent`, `PlayerQuitEvent` | Internal bus messages `InboundPlayerSpawn` and `InboundPlayerDespawn` | <Status issue={283} state="wip" /> | Not a public event yet, #283 plans join and leave |
-| `BlockBreakEvent`, `BlockPlaceEvent` | The message `BlockActionRequest`, internal | <Status issue={283} state="wip" /> | Public cancellable events are planned in #283 |
-| `ProtocolLib`, packet listeners | `On<Received<P>>` over the typed game packets | <Status state="partial" /> | About half of the packets are typed, see the README. One typed receive path is closed ([#57](https://github.com/andreypfau/mcrs/issues/57)) |
+| `EventPriority` | System order: `.before()`, `.after()`, `SystemSet` such as `TickSet` | <Status issue={323} state="works" /> | Observers have no priority. An unordered conflict fails a test |
+| `PlayerJoinEvent`, `PlayerQuitEvent` | Internal bus messages `InboundPlayerSpawn` and `InboundPlayerDespawn` | <Status issue={283} state="partial" /> | Not a public event yet, join and leave are planned |
+| `BlockBreakEvent`, `BlockPlaceEvent` | The message `BlockActionRequest`, internal | <Status issue={283} state="partial" /> | Public cancellable events are planned |
+| `ProtocolLib`, packet listeners | `On<Received<P>>` over the typed game packets | <Status state="partial" /> | About half of the packets are typed, see the README. One typed receive path: <Status issue={57} state="partial" /> |
 | Minestom `EventNode` tree | No event tree, only Bevy observers and schedules | <Status state="undecided" /> | No issue, do not copy the pattern |
 
 ## Scheduler
@@ -74,23 +74,23 @@ Every row is an analogy. mcrs has no Bukkit-like API, see [This is not the Paper
 
 | JVM | mcrs | State | Notes |
 |---|---|---|---|
-| `Player`, `Entity` as objects | An `Entity` id plus components `Player`, `GameProfile`, `PlayerGameMode`, `Transform` | <Status state="works" doc="crates/mcrs_minecraft_engine/src/ability.rs" /> | There are three ids: the Bevy `Entity`, `PlayerSession` (lives across dimensions), the network id ([#158](https://github.com/andreypfau/mcrs/issues/158)) |
+| `Player`, `Entity` as objects | An `Entity` id plus components `Player`, `GameProfile`, `PlayerGameMode`, `Transform` | <Status state="works" doc="crates/mcrs_minecraft_engine/src/ability.rs" /> | There are three ids: the Bevy `Entity`, `PlayerSession` (lives across dimensions), the network id (<Status issue={158} state="wip" />) |
 | `player.sendMessage(Component)` | An `OutboundPlayerPacket` message, built with `bus::to` and the `system_chat` helper | <Status state="partial" /> | Low level, no `player.send()`. |
-| `Bukkit.getOnlinePlayers()` | `Query<&GameProfile, With<Player>>` inside a dimension | <Status state="partial" /> | Players live in dimension worlds, there is no global collection (see [#154](https://github.com/andreypfau/mcrs/issues/154)) |
-| `world.getBlockAt(..).setType(..)` | The `BlockSetRequest` message and the `WorldView` volume API | <Status state="partial" /> | Works inside one dimension. "One world-access API" is closed ([#486](https://github.com/andreypfau/mcrs/issues/486)) |
+| `Bukkit.getOnlinePlayers()` | `Query<&GameProfile, With<Player>>` inside a dimension | <Status state="partial" /> | Players live in dimension worlds, there is no global collection (see <Status issue={154} state="wip" />) |
+| `world.getBlockAt(..).setType(..)` | The `BlockSetRequest` message and the `WorldView` volume API | <Status state="partial" /> | Works inside one dimension. "One world-access API": <Status issue={486} state="partial" /> |
 | `World` and `createWorld` for mini games | Dimension worlds are fixed at start | <Status issue={546} state="wip" /> | Create and remove at run time is planned |
 | Minestom `Instance` | A dimension world (a sub-app) | <Status issue={280} state="works" /> | Add plugins with `add_dimension_plugin`, not `add_plugins` |
 | `ChunkGenerator` | A replaceable chunk source | <Status issue={281} state="wip" /> | Today the generator is the vanilla one |
 | Saving the world, `world.save()` | None. Reading Anvil works, writing does not | <Status issue={78} state="wip" /> | The server does not save chunks |
 | Boss bar | None | <Status issue={247} state="wip" /> | |
-| Scoreboard | None. Only the planned owner of global state names scoreboards | <Status issue={154} state="undecided" /> | No scoreboard issue, no code found |
+| Scoreboard | None. Only the planned owner of global state names scoreboards | <Status issue={154} state="wip" /> | No scoreboard issue, no code found |
 
 ## Commands and permissions
 
 | JVM | mcrs | State | Notes |
 |---|---|---|---|
 | Brigadier, `registerCommand` | `add_command`, a typed command tree, literal and argument nodes | <Status pr={579} state="works" /> | The vanilla commands are the reference |
-| Tab completion and the commands packet with levels | The command tree with permission levels and the commands packet | <Status issue={285} state="wip" /> | Open |
+| Tab completion and the commands packet with levels | The command tree with permission levels and the commands packet | <Status issue={285} state="partial" /> | Open |
 | `hasPermission("x.y")` | `PermissionCheck::Require(CommandLevel::..)`, operator level 0-4 in `PlayerOpLevel` | <Status issue={285} state="partial" /> | No string permission nodes, no LuckPerms-like plugin |
 | Whitelist, ban list | A ban list resource and the `/ban` and `/whitelist` commands | <Status state="works" doc="crates/mcrs_minecraft_server/tests/it/ban.rs" /> | Covered by tests in `ban.rs` and `whitelist.rs` |
 | A custom argument type | Added only at compile time, as part of the command set | <Status issue={285} state="partial" /> | |
@@ -99,8 +99,8 @@ Every row is an analogy. mcrs has no Bukkit-like API, see [This is not the Paper
 
 | JVM | mcrs | State | Notes |
 |---|---|---|---|
-| `config.yml`, `saveDefaultConfig()` | Fields on the plugin struct. The binary reads `MCRS_*` environment variables | <Status state="partial" /> | Config only through the plugin is closed ([#278](https://github.com/andreypfau/mcrs/issues/278)). The settings are in [server_settings.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server_settings/src/server_settings.rs). No per-plugin config file format yet |
-| `PersistentDataContainer` | Your own component plus a registry of persisted components | <Status issue={159} state="wip" /> | Needs saving, [#78](https://github.com/andreypfau/mcrs/issues/78) |
+| `config.yml`, `saveDefaultConfig()` | Fields on the plugin struct. The binary reads `MCRS_*` environment variables | <Status state="partial" /> | Config only through the plugin: <Status issue={278} state="works" />. The settings are in [server_settings.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server_settings/src/server_settings.rs). No per-plugin config file format yet |
+| `PersistentDataContainer` | Your own component plus a registry of persisted components | <Status issue={159} state="wip" /> | Needs saving, <Status issue={78} state="wip" /> |
 
 ## Network and proxy
 
@@ -114,6 +114,6 @@ Every row is an analogy. mcrs has no Bukkit-like API, see [This is not the Paper
 
 | JVM | mcrs | State | Notes |
 |---|---|---|---|
-| MockBukkit | Integration tests with `PlayServer` and `host_app` in `crates/mcrs_minecraft_server/tests/it/` | <Status issue={266} state="partial" /> | About 45 test files. No test harness as a separate crate |
+| MockBukkit | Integration tests with `PlayServer` and `host_app` in `crates/mcrs_minecraft_server/tests/it/` | <Status issue={266} state="wip" /> | About 45 test files. No test harness as a separate crate |
 
 See also [Status](/docs/en/start/status/) for the state of each area.

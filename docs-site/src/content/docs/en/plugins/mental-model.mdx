@@ -60,7 +60,7 @@ Two systems that do not touch the same data run at the same time, with no code f
 
 So you do not need `Bukkit.getScheduler().runTask(...)` to go back to "the main thread": there is none in the Bukkit sense. This is not Folia either: there are no regions, the work is split by the data it touches, not by place (README, "Parallel by what the work touches").
 
-Dimensions tick in parallel as separate worlds. Shared data (time, weather, rules) has one writer, the others read snapshots, see <Status issue={357} />. Dimensions talk by messages.
+Dimensions tick in parallel as separate worlds. Shared data (time, weather, rules) has one writer, the others read snapshots, see <Status issue={357} state="works" />. Dimensions talk by messages.
 
 <Aside type="caution" title="Dimension trap">
 A dimension is a separate world with its own sub-app. Add a plugin that must see players and blocks with `add_dimension_plugin`, not with `app.add_plugins`. The plugin must be `Clone`. More in [Rust for Java developers](/docs/en/plugins/rust-for-java/) and the first plugin tutorial.
@@ -82,7 +82,7 @@ One input gives one result, no matter how many threads run. A conflict between t
 | Independent of the scheduler | Same inputs, same tick, any thread order | Most other things |
 | Free | Entities and systems that share no written data | Order does not matter |
 
-For a plugin author the rule is short: do not rely on the order of systems without `.before()` or `.after()`. CI runs simulation schedules with ambiguity detection set to error, so an unordered conflict breaks a test ([#323](https://github.com/andreypfau/mcrs/issues/323)). See [tick_determinism.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server/tests/it/tick_determinism.rs) and [schedule_ambiguity.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server/tests/it/schedule_ambiguity.rs).
+For a plugin author the rule is short: do not rely on the order of systems without `.before()` or `.after()`. CI runs simulation schedules with ambiguity detection set to error, so an unordered conflict breaks a test (<Status issue={323} state="works" />). See [tick_determinism.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server/tests/it/tick_determinism.rs) and [schedule_ambiguity.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server/tests/it/schedule_ambiguity.rs).
 
 Random sequences of the reference are not matched outside the exact tier, only their distributions.
 

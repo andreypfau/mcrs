@@ -27,7 +27,7 @@ MockBukkit gives Paper plugin authors a fake server and fake players. mcrs has a
 
 ## Where tests live
 
-All integration tests of the server crate are modules of one test binary, `tests/it/main.rs`. A new file becomes a module there. Run one module with a filter, as PR [#636](https://github.com/andreypfau/mcrs/pull/636) does for chat:
+All integration tests of the server crate are modules of one test binary, `tests/it/main.rs`. A new file becomes a module there. Run one module with a filter, as <Status pr={636} state="works" /> does for chat:
 
 ```bash
 cargo test -p mcrs_minecraft_server --test it chat::

@@ -12,13 +12,16 @@ sources:
   - crates/mcrs_minecraft_snbt/src/parse.rs
   - crates/mcrs_minecraft_snbt/src/tests.rs
   - crates/mcrs_minecraft_nbt/src/compound.rs
+  - crates/mcrs_minecraft_nbt/src/encoding.rs
+  - crates/mcrs_minecraft_nbt/tests/it/encodings.rs
+  - issue:661
   - rust-toolchain.toml
   - issue:321
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
-translated_from: 51d45c26a
+  commit: 3540f457b
+  date: 2026-11-10
+translated_from: 3540f457b
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -32,7 +35,7 @@ import Status from '~/components/Status.astro';
 
 ## 1. Добавьте зависимость
 
-Репозиторий закрепляет nightly-компилятор в [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml) (`nightly-2026-09-02`). Этот файл действует только внутри чекаута mcrs, поэтому в своем проекте nightly нужно выбрать самому. Собирается ли `mcrs_minecraft_snbt` еще и на stable, не проверено: чтобы это стало правдой, нужно сделать #321.
+Репозиторий закрепляет nightly-компилятор в [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml) (`nightly-2026-09-02`). Этот файл действует только внутри чекаута mcrs, поэтому в своем проекте nightly нужно выбрать самому. Собирается ли `mcrs_minecraft_snbt` еще и на stable, не проверено: чтобы это стало правдой, нужно сделать <Status issue={321} state="undecided" />.
 
 ```toml
 [dependencies]
@@ -77,6 +80,6 @@ fn main() {
 
 ## Что дальше
 
-- Сторону NBT смотрите в [`mcrs_minecraft_nbt`](https://github.com/andreypfau/mcrs/tree/main/crates/mcrs_minecraft_nbt): бинарное чтение и запись, сжатие и serde.
+- Сторону NBT смотрите в [`mcrs_minecraft_nbt`](https://github.com/andreypfau/mcrs/tree/main/crates/mcrs_minecraft_nbt): бинарное чтение и запись, сжатие и serde. <Status issue={661} state="works" /> У бинарного кодека три кодировки: `BigEndian` для Java Edition, `LittleEndian` для хранения мира Bedrock и `NetworkLittleEndian` для пакетов Bedrock. У каждой точки входа вроде `from_bytes` есть форма `_with::<E>`, а функции без нее работают с `BigEndian`.
 - Следующий крейт ищите в [карте крейтов](/docs/ru/crates/overview/).
 - Об ограничениях пути через git читайте в [Использование крейтов в своем проекте](/docs/ru/crates/use-as-library/).

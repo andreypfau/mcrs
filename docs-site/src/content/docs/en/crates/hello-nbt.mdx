@@ -12,12 +12,15 @@ sources:
   - crates/mcrs_minecraft_snbt/src/parse.rs
   - crates/mcrs_minecraft_snbt/src/tests.rs
   - crates/mcrs_minecraft_nbt/src/compound.rs
+  - crates/mcrs_minecraft_nbt/src/encoding.rs
+  - crates/mcrs_minecraft_nbt/tests/it/encodings.rs
+  - issue:661
   - rust-toolchain.toml
   - issue:321
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 51d45c26a
-  date: 2026-11-09
+  commit: 3540f457b
+  date: 2026-11-10
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -31,7 +34,7 @@ The code below is not compiled outside the workspace. The crates are not publish
 
 ## 1. Add the dependency
 
-The repository pins a nightly compiler in [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml) (`nightly-2026-09-02`). That file applies only inside the mcrs checkout, so in your project pick a nightly yourself. Whether `mcrs_minecraft_snbt` also builds on stable is not checked; making that true is part of #321.
+The repository pins a nightly compiler in [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml) (`nightly-2026-09-02`). That file applies only inside the mcrs checkout, so in your project pick a nightly yourself. Whether `mcrs_minecraft_snbt` also builds on stable is not checked; making that true is part of <Status issue={321} state="undecided" />.
 
 ```toml
 [dependencies]
@@ -76,6 +79,6 @@ The crate follows the number and string rules of the game (suffixes, `0x` and `0
 
 ## What to do next
 
-- Read the NBT side in [`mcrs_minecraft_nbt`](https://github.com/andreypfau/mcrs/tree/main/crates/mcrs_minecraft_nbt): binary read and write, compression, and serde.
+- Read the NBT side in [`mcrs_minecraft_nbt`](https://github.com/andreypfau/mcrs/tree/main/crates/mcrs_minecraft_nbt): binary read and write, compression, and serde. <Status issue={661} state="works" /> The binary codec has three encodings: `BigEndian` for Java Edition, `LittleEndian` for Bedrock world storage and `NetworkLittleEndian` for Bedrock packets. Each entry point such as `from_bytes` has a `_with::<E>` form, and the functions without it use `BigEndian`.
 - Look for the next crate in the [crate map](/docs/en/crates/overview/).
 - For the limits of the git route, see [Use the crates in your project](/docs/en/crates/use-as-library/).
