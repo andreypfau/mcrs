@@ -21,6 +21,7 @@ use crate::RepairCost;
 use crate::Tool;
 use crate::TooltipDisplay;
 use crate::Unbreakable;
+use crate::entity_form::EntityForm;
 use crate::patch_key::PatchKey;
 
 /// A component type of an item stack.
@@ -42,6 +43,18 @@ pub trait ItemComponent: Clone + PartialEq + Hash {
 
     #[doc(hidden)]
     fn from_builtin(value: &Builtin) -> Option<&Self>;
+
+    /// The value that a stack entity does not store, for a type that has one.
+    #[doc(hidden)]
+    fn neutral() -> Option<&'static Self>
+    where
+        Self: 'static;
+
+    /// A copy of a value of the prototype table that borrows the heap data of the value.
+    #[doc(hidden)]
+    fn borrow_static(value: &'static Self) -> Self
+    where
+        Self: 'static;
 
     /// True when `entry` is an entry of this type, also when it holds the type as undecoded bytes.
     #[doc(hidden)]
@@ -76,6 +89,20 @@ impl<C: CustomComponent> ItemComponent for C {
     fn from_builtin(_: &Builtin) -> Option<&Self> {
         None
     }
+
+    fn neutral() -> Option<&'static Self>
+    where
+        Self: 'static,
+    {
+        None
+    }
+
+    fn borrow_static(value: &'static Self) -> Self
+    where
+        Self: 'static,
+    {
+        value.clone()
+    }
 }
 
 macro_rules! builtin_item_component {
@@ -103,6 +130,14 @@ macro_rules! builtin_item_component {
                         Builtin::$name(value) => Some(value),
                         _ => None,
                     }
+                }
+
+                fn neutral() -> Option<&'static Self> {
+                    <Self as EntityForm>::NEUTRAL
+                }
+
+                fn borrow_static(value: &'static Self) -> Self {
+                    EntityForm::borrow_static(value)
                 }
             }
         )*

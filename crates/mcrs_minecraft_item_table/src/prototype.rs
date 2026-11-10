@@ -22,6 +22,13 @@ impl Prototype {
         self.components.iter().find_map(T::from_builtin)
     }
 
+    /// Each component, in the order of the bake.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn components(&self) -> &[Builtin] {
+        &self.components
+    }
+
     /// True when the component of type `T` is the neutral value of `T`.
     #[must_use]
     pub fn is_neutral<T: Neutral>(&self) -> bool {

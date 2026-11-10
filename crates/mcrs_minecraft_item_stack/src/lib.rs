@@ -22,6 +22,7 @@ mod damage;
 mod enchantment_id;
 mod enchantment_level;
 mod enchantments;
+mod entity_form;
 mod field_map;
 mod float_key;
 mod food;

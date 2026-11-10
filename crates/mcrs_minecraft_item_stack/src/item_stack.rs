@@ -58,6 +58,14 @@ impl ItemStack {
         self.kind == other.kind && self.patch == other.patch
     }
 
+    /// Puts `entry` in the patch. It replaces the entry of the same type.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn with_entry(mut self, entry: PatchEntry) -> Self {
+        self.put_entry(entry);
+        self
+    }
+
     pub(crate) fn put_entry(&mut self, entry: PatchEntry) {
         let found = self
             .patch

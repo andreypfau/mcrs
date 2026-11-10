@@ -6,6 +6,7 @@ use core::hash::Hasher;
 
 use crate::ComponentType;
 use crate::Neutral;
+use crate::entity_form::EntityForm;
 
 /// What the tooltip of the stack does not show.
 // The hidden types hold no type two times. Equality and the hash read them as a set.
@@ -89,4 +90,15 @@ impl Neutral for TooltipDisplay {
         hide_tooltip: false,
         hidden_components: Cow::Borrowed(&[]),
     };
+}
+
+impl EntityForm for TooltipDisplay {
+    const NEUTRAL: Option<&'static Self> = Some(<Self as Neutral>::NEUTRAL);
+
+    fn borrow_static(&'static self) -> Self {
+        Self {
+            hide_tooltip: self.hide_tooltip,
+            hidden_components: Cow::Borrowed(&self.hidden_components),
+        }
+    }
 }

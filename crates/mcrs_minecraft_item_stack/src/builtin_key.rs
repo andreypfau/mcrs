@@ -43,6 +43,13 @@ const ALL: [BuiltinKey; 15] = [
 pub(crate) const NAMESPACE: &str = "minecraft";
 
 impl BuiltinKey {
+    /// The place of the type in the order of the type ids, from 0.
+    #[doc(hidden)]
+    #[must_use]
+    pub const fn index(self) -> usize {
+        self as usize
+    }
+
     /// The path of the identifier of the component type. Its namespace is [`NAMESPACE`].
     pub(crate) const fn path(self) -> &'static str {
         match self {

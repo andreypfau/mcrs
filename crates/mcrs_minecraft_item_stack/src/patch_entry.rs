@@ -37,6 +37,16 @@ impl PatchEntry {
             Self::UndecodedWire(value) => value.key(),
         }
     }
+
+    /// The built-in type whose place the entry takes, also when the entry holds it undecoded.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn builtin_key(&self) -> Option<BuiltinKey> {
+        match self.key() {
+            PatchKey::Builtin(key) => Some(key),
+            PatchKey::Undecoded(_) | PatchKey::UndecodedWire(_) | PatchKey::Custom(_) => None,
+        }
+    }
 }
 
 // An undecoded value of a built-in type takes the place of that type in the order, so the patch

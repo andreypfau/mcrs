@@ -37,7 +37,9 @@ pub enum Builtin {
 }
 
 impl Builtin {
-    pub(crate) fn key(&self) -> BuiltinKey {
+    #[doc(hidden)]
+    #[must_use]
+    pub fn key(&self) -> BuiltinKey {
         match self {
             Self::MaxStackSize(_) => BuiltinKey::MaxStackSize,
             Self::MaxDamage(_) => BuiltinKey::MaxDamage,
