@@ -15,6 +15,10 @@ bevy_ecs = { workspace = true, optional = true }
 mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_text.workspace = true
 
+[dev-dependencies]
+mcrs_minecraft_fixtures.workspace = true
+serde_json.workspace = true
+
 [features]
 default = []
 bevy = ["dep:bevy_ecs"]

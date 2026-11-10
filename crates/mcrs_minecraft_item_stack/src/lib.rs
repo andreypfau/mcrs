@@ -34,6 +34,7 @@ mod max_stack_size;
 mod modifier_display;
 mod modifier_operation;
 mod neutral;
+mod node_hash;
 mod patch_entry;
 mod patch_key;
 mod rarity;
