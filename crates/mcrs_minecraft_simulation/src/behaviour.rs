@@ -20,6 +20,14 @@ pub trait BlockFacts<K: Kinds> {
 
     fn is_redstone_wire(&self, state: BlockStateId) -> bool;
 
+    fn wire_connects(&self, state: BlockStateId, direction: Direction) -> bool;
+
+    fn is_comparator(&self, state: BlockStateId) -> bool;
+
+    fn is_redstone_conductor(&self, state: BlockStateId) -> bool;
+
+    fn has_analog_output(&self, state: BlockStateId) -> bool;
+
     fn legacy_block_of_fluid(&self, state: BlockStateId) -> BlockStateId;
 }
 

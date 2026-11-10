@@ -196,6 +196,22 @@ impl BlockFacts<Bench> for Facts {
         false
     }
 
+    fn wire_connects(&self, _: BlockStateId, _: mcrs_minecraft_core::Direction) -> bool {
+        false
+    }
+
+    fn is_comparator(&self, _: BlockStateId) -> bool {
+        false
+    }
+
+    fn is_redstone_conductor(&self, _: BlockStateId) -> bool {
+        false
+    }
+
+    fn has_analog_output(&self, _: BlockStateId) -> bool {
+        false
+    }
+
     fn legacy_block_of_fluid(&self, state: BlockStateId) -> BlockStateId {
         state
     }

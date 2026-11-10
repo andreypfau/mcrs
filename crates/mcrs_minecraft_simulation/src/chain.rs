@@ -11,9 +11,6 @@ use mcrs_voxel::{BlockPos, BlockStateId, SectionPos};
 
 use Direction::{Down, East, North, South, Up, West};
 
-pub(crate) const NEIGHBOUR_ORDER: [Direction; 6] = [West, East, Down, Up, North, South];
-pub(crate) const SHAPE_ORDER: [Direction; 6] = [West, East, North, South, Down, Up];
-
 pub(crate) fn neighbour(pos: BlockPos, direction: Direction) -> Option<BlockPos> {
     let normal = direction.normal();
     Some(BlockPos::new(
@@ -71,10 +68,14 @@ impl<K: Kinds> Chain<K> {
     }
 }
 
-fn next_direction(skip: Option<Direction>, from: u8) -> Option<(Direction, u8)> {
+fn next_direction(
+    order: &[Direction; 6],
+    skip: Option<Direction>,
+    from: u8,
+) -> Option<(Direction, u8)> {
     let mut index = from;
     loop {
-        let direction = *NEIGHBOUR_ORDER.get(usize::from(index))?;
+        let direction = *order.get(usize::from(index))?;
         index = index.saturating_add(1);
         if Some(direction) != skip {
             return Some((direction, index));
@@ -82,8 +83,8 @@ fn next_direction(skip: Option<Direction>, from: u8) -> Option<(Direction, u8)> 
     }
 }
 
-fn has_direction_after(skip: Option<Direction>, next: u8) -> bool {
-    next_direction(skip, next).is_some()
+fn has_direction_after(order: &[Direction; 6], skip: Option<Direction>, next: u8) -> bool {
+    next_direction(order, skip, next).is_some()
 }
 
 impl<K, V, F, B> Cx<'_, K, V, F, B>
@@ -135,7 +136,7 @@ where
         };
         let flags =
             flags.difference(BlockUpdateFlags::NEIGHBORS | BlockUpdateFlags::SUPPRESS_DROPS);
-        for direction in SHAPE_ORDER {
+        for direction in self.chain_order.shapes {
             if let Some(target) = neighbour(pos, direction) {
                 self.offer(UpdateRequest::Shape {
                     target,
@@ -144,6 +145,96 @@ where
                     flags,
                     limit,
                 });
+            }
+        }
+    }
+
+    pub(crate) fn emit_indirect_shape_updates(
+        &mut self,
+        pos: BlockPos,
+        state: BlockStateId,
+        flags: BlockUpdateFlags,
+        limit: u16,
+    ) {
+        let Some(limit) = limit.checked_sub(1) else {
+            return;
+        };
+        let flags =
+            flags.difference(BlockUpdateFlags::NEIGHBORS | BlockUpdateFlags::SUPPRESS_DROPS);
+        let facts = self.facts;
+        if !facts.is_redstone_wire(state) {
+            return;
+        }
+        for direction in [North, East, South, West] {
+            if !facts.wire_connects(state, direction) {
+                continue;
+            }
+            let Some(adjacent) = neighbour(pos, direction) else {
+                continue;
+            };
+            if self
+                .state(adjacent)
+                .is_ok_and(|state| facts.is_redstone_wire(state))
+            {
+                continue;
+            }
+            for vertical in [Down, Up] {
+                let Some(target) = neighbour(adjacent, vertical) else {
+                    continue;
+                };
+                if !self
+                    .state(target)
+                    .is_ok_and(|state| facts.is_redstone_wire(state))
+                {
+                    continue;
+                }
+                let Some(neighbour_pos) = neighbour(pos, vertical) else {
+                    continue;
+                };
+                let Ok(neighbour_state) = self.state(neighbour_pos) else {
+                    continue;
+                };
+                self.offer(UpdateRequest::Shape {
+                    target,
+                    from: direction.opposite(),
+                    neighbour_state,
+                    flags,
+                    limit,
+                });
+            }
+        }
+    }
+
+    pub(crate) fn update_comparators(&mut self, pos: BlockPos, source: K::Block) {
+        let facts = self.facts;
+        for direction in [North, East, South, West] {
+            let Some(target) = neighbour(pos, direction) else {
+                continue;
+            };
+            if !matches!(
+                self.volume.access(SectionPos::from(target)),
+                Access::Read | Access::Write
+            ) {
+                continue;
+            }
+            let Ok(state) = self.state(target) else {
+                continue;
+            };
+            if facts.is_comparator(state) {
+                self.update_neighbour_with_state(target, state, source, false);
+                continue;
+            }
+            if !facts.is_redstone_conductor(state) {
+                continue;
+            }
+            let Some(far) = neighbour(target, direction) else {
+                continue;
+            };
+            let Ok(far_state) = self.state(far) else {
+                continue;
+            };
+            if facts.is_comparator(far_state) {
+                self.update_neighbour_with_state(far, far_state, source, false);
             }
         }
     }
@@ -271,12 +362,13 @@ where
                 block,
                 skip,
             } => {
-                let Some((direction, next)) = next_direction(skip, frame.next) else {
+                let order = self.chain_order.neighbours;
+                let Some((direction, next)) = next_direction(&order, skip, frame.next) else {
                     return false;
                 };
                 frame.next = next;
                 self.run_around(source, block, direction);
-                has_direction_after(skip, next)
+                has_direction_after(&order, skip, next)
             }
             UpdateRequest::Single { target, block } => {
                 self.run_single(target, block);

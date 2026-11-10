@@ -1,10 +1,11 @@
 use mcrs_minecraft_core::{BoundingBox, Direction};
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockEvent, BlockFacts, BlockShard, BlockUpdateFlags, ChainLedger, ChainOrigin,
-    Cx, Env, GameTick, KernelConfig, Kinds, Message, MessageBody, PartitionKind, Phase, PhaseInput,
-    RandomHit, RandomTickTable, SectionProperties, SectionStreams, SemanticOrder, ShardId,
-    SimulatedSections, SimulationVolume, StepAt, StepError, StepOutput, StreamSeed, SubTick,
-    TickPriority, TickingPositions, TickingSectionMut, draw_random_picks, step,
+    Cx, Env, GameTick, KernelConfig, Kinds, Message, MessageBody, OrderingPolicy, PartitionKind,
+    Phase, PhaseInput, RandomHit, RandomTickTable, SectionProperties, SectionStreams,
+    SemanticOrder, ShardId, SimulatedSections, SimulationVolume, StepAt, StepError, StepOutput,
+    StreamSeed, SubTick, TickPriority, TickingPositions, TickingSectionMut, draw_random_picks,
+    step,
 };
 use mcrs_minecraft_volume::{
     Access, BlockVolume, BlockVolumeMut, Denied, PaletteBuffer, PalettedSection,
@@ -29,7 +30,7 @@ impl Kinds for ProbeKinds {
     type Fluid = ProbeFluid;
 }
 
-pub const STATES: usize = 16;
+pub const STATES: usize = 22;
 
 const fn state(number: u16) -> BlockStateId {
     match BlockStateId::checked(number, STATES) {
@@ -53,14 +54,25 @@ pub const STACK_CHANGED: BlockStateId = state(12);
 pub const NEEDS_SUPPORT: BlockStateId = state(13);
 pub const NEEDS_SUPPORT_WET: BlockStateId = state(14);
 pub const WIRE: BlockStateId = state(15);
+pub const COMPARATOR: BlockStateId = state(16);
+pub const CONDUCTOR: BlockStateId = state(17);
+pub const CONTAINER: BlockStateId = state(18);
+pub const WIRE_NS: BlockStateId = state(19);
+pub const WIRE_EW: BlockStateId = state(20);
+pub const WIRE_ALL: BlockStateId = state(21);
 
 pub const BLOCK_A: ProbeBlock = ProbeBlock(10);
 pub const BLOCK_B: ProbeBlock = ProbeBlock(11);
 pub const BLOCK_C: ProbeBlock = ProbeBlock(12);
 pub const BLOCK_NEEDS_SUPPORT: ProbeBlock = ProbeBlock(42);
+pub const BLOCK_COMPARATOR: ProbeBlock = ProbeBlock(50);
+pub const BLOCK_CONDUCTOR: ProbeBlock = ProbeBlock(51);
+pub const BLOCK_CONTAINER: ProbeBlock = ProbeBlock(52);
 pub const WATER: ProbeFluid = ProbeFluid(1);
 
-const BLOCKS: [u16; STATES] = [0, 1, 10, 10, 11, 12, 13, 20, 21, 30, 30, 40, 41, 42, 42, 44];
+const BLOCKS: [u16; STATES] = [
+    0, 1, 10, 10, 11, 12, 13, 20, 21, 30, 30, 40, 41, 42, 42, 44, 50, 51, 52, 44, 44, 44,
+];
 
 pub struct ProbeFacts;
 
@@ -86,7 +98,31 @@ impl BlockFacts<ProbeKinds> for ProbeFacts {
     }
 
     fn is_redstone_wire(&self, state: BlockStateId) -> bool {
-        state == WIRE
+        self.block_of(state) == ProbeBlock(44)
+    }
+
+    fn wire_connects(&self, state: BlockStateId, direction: Direction) -> bool {
+        match state {
+            WIRE_NS => matches!(direction, Direction::North | Direction::South),
+            WIRE_EW => matches!(direction, Direction::East | Direction::West),
+            WIRE_ALL => matches!(
+                direction,
+                Direction::North | Direction::East | Direction::South | Direction::West
+            ),
+            _ => false,
+        }
+    }
+
+    fn is_comparator(&self, state: BlockStateId) -> bool {
+        self.block_of(state) == BLOCK_COMPARATOR
+    }
+
+    fn is_redstone_conductor(&self, state: BlockStateId) -> bool {
+        self.block_of(state) == BLOCK_CONDUCTOR
+    }
+
+    fn has_analog_output(&self, state: BlockStateId) -> bool {
+        self.block_of(state) == BLOCK_CONTAINER
     }
 
     fn legacy_block_of_fluid(&self, state: BlockStateId) -> BlockStateId {
@@ -700,11 +736,23 @@ impl Runner {
         ledgers: &[ChainLedger],
         out: &mut StepOutput<ProbeKinds>,
     ) -> Result<(), StepError> {
+        self.step_into_with_policy(now, phase, inbound, ledgers, &SemanticOrder, out)
+    }
+
+    fn step_into_with_policy<P: OrderingPolicy>(
+        &mut self,
+        now: i64,
+        phase: Phase,
+        inbound: &[Message<ProbeKinds>],
+        ledgers: &[ChainLedger],
+        policy: &P,
+        out: &mut StepOutput<ProbeKinds>,
+    ) -> Result<(), StepError> {
         let env = Env {
             partition: self.partition,
             facts: &self.facts,
             behaviour: &self.behaviour,
-            policy: &SemanticOrder,
+            policy,
             kind: self.kind,
             config: &self.config,
         };
@@ -720,6 +768,18 @@ impl Runner {
             PhaseInput { inbound, ledgers },
             out,
         )
+    }
+
+    pub fn step_with_policy<P: OrderingPolicy>(
+        &mut self,
+        now: i64,
+        phase: Phase,
+        inbound: &[Message<ProbeKinds>],
+        policy: &P,
+    ) -> Result<StepOutput<ProbeKinds>, StepError> {
+        let mut out = StepOutput::default();
+        self.step_into_with_policy(now, phase, inbound, &[], policy, &mut out)?;
+        Ok(out)
     }
 
     pub fn step(

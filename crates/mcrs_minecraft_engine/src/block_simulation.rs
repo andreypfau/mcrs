@@ -521,6 +521,14 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
             tracing::error!(%error, ?phase, "the block step refused its input");
         }
     }
+    if out.report.chain_overflows > 0 {
+        tracing::warn!(
+            target: "block_simulation",
+            overflows = out.report.chain_overflows,
+            first = ?out.report.first_chain_overflow,
+            "neighbor update chain limit reached; further updates dropped",
+        );
+    }
     mark_client_writes(
         &mut outlets.marks,
         out.writes.get(broadcast_cut..).unwrap_or_default(),

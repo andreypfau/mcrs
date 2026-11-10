@@ -31,7 +31,7 @@ pub use event_queue::{BlockEvent, DrainEnd, Drained, EventQueue, QueuedEvent};
 pub use footprints::Footprints;
 pub use message::{ChainOrigin, Message, MessageBody, UpdateRequest};
 pub use output::{BlockWrite, ChainLedger, Destroyed, StepError, StepOutput, StepReport};
-pub use policy::{CollectScratch, OrderingPolicy, SemanticOrder, VanillaOrder};
+pub use policy::{ChainOrder, CollectScratch, OrderingPolicy, SemanticOrder, VanillaOrder};
 pub use precipitation::{
     PRECIPITATION_GATE, PRECIPITATION_TILE, PrecipitationHit, precipitation_hits,
 };
