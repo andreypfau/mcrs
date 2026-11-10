@@ -36,6 +36,16 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    // The mcrs console writes translation keys instead of English until the client jar is on disk,
+    // and mob-bench reads its answers in English, so the jar comes before any section starts.
+    println!("[setup] client jar of {}", mcrs_minecraft_client_jar::RELEASE.id);
+    if let Err(error) = mcrs_minecraft_client_jar::vanilla_data(
+        &mcrs_minecraft_client_jar::ClientJar::InstalledOrDownloaded,
+        None,
+        &mcrs_minecraft_client_jar::Progress::default(),
+    ) {
+        eprintln!("[setup] the client jar is missing ({error}); the mob section will fail");
+    }
     let out = options.out.clone();
     let report = Report::run(options);
     let path = out.join("report.json");
