@@ -403,9 +403,33 @@ fn each_loop_counts_only_its_own_connections() {
     assert_eq!(configuration, 0);
 }
 
+fn disconnect_reason(state: ConnectionState, body: &[u8]) -> serde_json::Value {
+    let body = &mut &body[..];
+    match state {
+        ConnectionState::Login => {
+            serde_json::from_str(ClientboundLoginDisconnect::decode(body).unwrap().reason.0)
+                .unwrap()
+        }
+        ConnectionState::Configuration => serde_json::to_value(
+            configuration::clientbound::ClientboundDisconnect::decode(body)
+                .unwrap()
+                .reason,
+        )
+        .unwrap(),
+        ConnectionState::Game => serde_json::to_value(
+            game::clientbound::ClientboundDisconnect::decode(body)
+                .unwrap()
+                .reason,
+        )
+        .unwrap(),
+        ConnectionState::Handshaking | ConnectionState::Status => unreachable!(),
+    }
+}
+
 #[test]
 fn a_malformed_frame_disconnects_its_client_in_the_protocol_of_its_state() {
     let hello = row_of(login_serverbound::NAMES, "hello").unwrap();
+    let accept = row_of(game_serverbound::NAMES, "accept_teleportation").unwrap();
     let unknown = configuration_serverbound::NAMES.len() as i32;
     let decoder = "io.netty.handler.codec.DecoderException";
     for (state, sent, disconnect, cause) in [
@@ -426,6 +450,14 @@ fn a_malformed_frame_disconnects_its_client_in_the_protocol_of_its_state() {
             frame(-1, &[]),
             game::clientbound::ClientboundDisconnect::ID,
             format!("{decoder}: Received unknown packet id -1"),
+        ),
+        (
+            ConnectionState::Game,
+            frame(accept, &[1]),
+            game::clientbound::ClientboundDisconnect::ID,
+            format!(
+                "{decoder}: Failed to decode packet 'serverbound/minecraft:accept_teleportation'"
+            ),
         ),
         (
             ConnectionState::Game,
@@ -473,28 +505,8 @@ fn a_malformed_frame_disconnects_its_client_in_the_protocol_of_its_state() {
             panic!("{state:?}: {received:?}");
         };
         assert_eq!(received.id, disconnect, "{state:?}");
-        let body = &mut &received.body[..];
-        let reason = match state {
-            ConnectionState::Login => {
-                serde_json::from_str(ClientboundLoginDisconnect::decode(body).unwrap().reason.0)
-                    .unwrap()
-            }
-            ConnectionState::Configuration => serde_json::to_value(
-                configuration::clientbound::ClientboundDisconnect::decode(body)
-                    .unwrap()
-                    .reason,
-            )
-            .unwrap(),
-            ConnectionState::Game => serde_json::to_value(
-                game::clientbound::ClientboundDisconnect::decode(body)
-                    .unwrap()
-                    .reason,
-            )
-            .unwrap(),
-            ConnectionState::Handshaking | ConnectionState::Status => unreachable!(),
-        };
         assert_eq!(
-            reason,
+            disconnect_reason(state, &received.body),
             serde_json::json!({
                 "translate": "disconnect.genericReason",
                 "with": [format!("Internal Exception: {cause}")],

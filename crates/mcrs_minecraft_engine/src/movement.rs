@@ -21,6 +21,8 @@ use crate::teleport::{
     AcceptOutcome, MAX_XZ, MAX_Y, TeleportState, landing, position_packet, teleport_to,
 };
 use mcrs_minecraft_engine_world::session::Owner;
+use mcrs_minecraft_physics::{Relative, Teleport};
+use mcrs_minecraft_text::Text;
 
 pub struct MovementPlugin;
 
@@ -128,7 +130,7 @@ pub(crate) fn process_movement(
         if state.pending().is_some() {
             if let Some(destination) = state.resend_due(*time) {
                 let id = state.sent(destination, *time);
-                packets.write(resend(owner, id, destination));
+                packets.write(resend(owner, id, destination, transform.rotation));
             }
             continue;
         }
@@ -147,13 +149,34 @@ fn reachable(position: DVec3) -> DVec3 {
     position.clamp(-MAX_POS, MAX_POS)
 }
 
-/// The resend or the correction of a pending teleport: the position of `destination`, and the
-/// client keeps its rotation and velocity.
-fn resend(owner: &Owner, teleport_id: i32, destination: Transform) -> OutboundPlayerPacket {
-    let teleport = teleport_to(destination, destination);
+/// The resend of a pending teleport: absolute values, with the position of `destination`, the
+/// rotation of the player and zero velocity.
+fn resend(
+    owner: &Owner,
+    teleport_id: i32,
+    destination: Transform,
+    rotation: Rotation,
+) -> OutboundPlayerPacket {
+    let teleport = Teleport {
+        position: destination.translation,
+        velocity: DVec3::ZERO,
+        yaw: rotation.yaw(),
+        pitch: rotation.pitch(),
+        relative: Relative::empty(),
+    };
+    position(owner, teleport_id, &teleport)
+}
+
+/// The correction of an accept: the position of `destination`, and the client keeps its rotation
+/// and velocity.
+fn correction(owner: &Owner, teleport_id: i32, destination: Transform) -> OutboundPlayerPacket {
+    position(owner, teleport_id, &teleport_to(destination, destination))
+}
+
+fn position(owner: &Owner, teleport_id: i32, teleport: &Teleport) -> OutboundPlayerPacket {
     to(
         owner.0,
-        PacketPayload::PlayerPosition(position_packet(teleport_id, &teleport)),
+        PacketPayload::PlayerPosition(position_packet(teleport_id, teleport)),
     )
     .critical()
 }
@@ -183,7 +206,7 @@ fn teleport(
 
 /// An accept of the pending teleport at its destination confirms it, and an accept at another
 /// position gets a correction: the position of an accept never becomes the position of the
-/// player.
+/// player. An accept of the newest id once it is confirmed disconnects the client.
 fn handle_accept_teleportation(
     event: On<Received<ServerboundAcceptTeleportation>>,
     mut players: Query<(&Owner, &mut TeleportState)>,
@@ -196,11 +219,21 @@ fn handle_accept_teleportation(
     let Ok((owner, mut state)) = players.get_mut(event.entity) else {
         return;
     };
-    if let AcceptOutcome::Mismatch { destination } =
-        state.accept(accept.teleport_id.0, accept.position.into())
-    {
-        let id = state.sent(destination, *time);
-        packets.write(resend(owner, id, destination));
+    match state.accept(accept.teleport_id.0, accept.position.into()) {
+        AcceptOutcome::Mismatch { destination } => {
+            let id = state.sent(destination, *time);
+            packets.write(correction(owner, id, destination));
+        }
+        AcceptOutcome::Invalid => {
+            packets.write(to(
+                owner.0,
+                PacketPayload::Disconnect(Text::translate(
+                    "multiplayer.disconnect.invalid_player_movement",
+                    vec![],
+                )),
+            ));
+        }
+        AcceptOutcome::Confirmed | AcceptOutcome::Ignored => {}
     }
 }
 
