@@ -725,9 +725,11 @@ Registry moves. The old crate depends on each new crate and imports from it.
   `-p mcrs_minecraft_decorated_pot_pattern -p mcrs_minecraft_game_registries`.
 - **4.6 Block transformer (K).** Move the two files and the test. Check:
   `-p mcrs_minecraft_block_transformer -p mcrs_minecraft_game_registries`.
-- **4.7 Discriminators (K).** Move the three files to `mcrs_minecraft_item_stack`. A test compares
-  `BuiltinKey` with the generated enum. Edit the imports of the 7 users. Check:
-  `-p mcrs_minecraft_item_stack` and the 7 users.
+- **4.7 Discriminators (K).** Deferred to step 11. The old crate has methods and trait
+  implementations on the three generated enums, and the flag table of a component type comes from
+  the old component list. A move before the old crate goes breaks the orphan rule. The move runs
+  in the pull request that deletes the old crate; the flag table is written again from the
+  specification in `mcrs_minecraft_item_stack`.
 - **4.8 to 4.11 Instrument, jukebox song, painting variant, trim.** One new crate for each
   sub-step, with the value type over `I` and no key file. Needs: none for the types; 4.18 for a
   codec of the description. Check: `-p` the new crate.
