@@ -1,6 +1,6 @@
 #!/bin/bash
 # The one entry point: records the machine, prepares it, builds, runs the benchmarks and zips the results.
-# Usage: run.sh [--full] [--label NAME] [--lang en|ru] [--only mob,client,server,worldgen]
+# Usage: run.sh [--full] [--label NAME] [--lang en|ru] [--only mob,client,server,worldgen] [--yes] [--accept-eula]
 set -u
 # shellcheck source=SCRIPTDIR/common.sh
 . "$(dirname "$0")/common.sh"
@@ -20,9 +20,13 @@ profile=quick
 label=""
 lang=""
 only="mob,client,server,worldgen"
+yes=0
+accept_eula=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --full) profile=full; shift ;;
+        --yes) yes=1; shift ;;
+        --accept-eula) accept_eula=1; shift ;;
         --label) label="$2"; shift 2 ;;
         --only)
             for section in $(printf '%s' "${2:-}" | tr ',' ' '); do
@@ -36,6 +40,16 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+if [ "$yes" = 0 ] && [ ! -t 0 ]; then
+    PERF_KIT_LANG="${lang:-$(system_lang)}"
+    msg "Standard input is not a terminal, so run.sh cannot ask questions. Add --yes (with --label and, for the mob section, --accept-eula) to run unattended." \
+        "Стандартный ввод не терминал, поэтому run.sh не может задавать вопросы. Добавьте --yes (вместе с --label и, для секции мобов, --accept-eula), чтобы запуск шел без вопросов."
+    exit 2
+fi
+
+if [ -z "$lang" ] && [ "$yes" = 1 ]; then
+    lang="$(system_lang)"
+fi
 if [ -z "$lang" ]; then
     if [ "$(system_lang)" = ru ]; then default=2; else default=1; fi
     while [ -z "$lang" ]; do
@@ -59,6 +73,10 @@ msg "While it runs, do not touch the computer. The game window must stay visible
 say ""
 
 label="$(clean_label "$label")"
+if [ "$yes" = 1 ] && [ -z "$label" ]; then
+    msg "--yes needs --label NAME, since the run cannot ask for it." "С --yes нужен --label NAME, так как запуск не может его спросить."
+    exit 2
+fi
 while [ -z "$label" ]; do
     printf '%s ' "$(msg "Machine label (for example m2-air or ryzen-3060):" "Метка машины (например, m2-air или ryzen-3060):")" >&2
     read -r label || exit 1
@@ -70,7 +88,7 @@ case ",$only," in
     *,mob,*)
         msg "The mob benchmark runs the Minecraft server, which needs the Minecraft EULA: https://aka.ms/MinecraftEULA" \
             "Бенчмарк мобов запускает сервер Minecraft, а для него нужно принять Minecraft EULA: https://aka.ms/MinecraftEULA"
-        if ask "$(msg "Do you accept the Minecraft EULA?" "Принять Minecraft EULA?")"; then
+        if [ "$accept_eula" = 1 ] || { [ "$yes" = 0 ] && ask "$(msg "Do you accept the Minecraft EULA?" "Принять Minecraft EULA?")"; }; then
             sections=(--accept-eula)
         else
             msg "Running without the mob section." "Запуск без секции мобов."
@@ -94,17 +112,19 @@ trap cleanup EXIT
 trap 'say ""; msg "Interrupted; partial results stay in $dir" "Прервано; частичные результаты остались в $dir"; exit 130' INT TERM
 
 "$KIT_DIR/sysinfo.sh" --label "$label" --out "$dir/system.json" || exit 1
-"$KIT_DIR/prepare.sh" --out "$dir/hygiene.json" || exit 1
+prepare_mode=()
+[ "$yes" = 1 ] && prepare_mode=(--check-only)
+"$KIT_DIR/prepare.sh" ${prepare_mode[@]+"${prepare_mode[@]}"} --out "$dir/hygiene.json" || exit 1
 "$KIT_DIR/bootstrap.sh" --build-only || { msg "The build failed; run $KIT_DIR/bootstrap.sh and try again." "Сборка не удалась; запустите $KIT_DIR/bootstrap.sh и попробуйте снова."; exit 1; }
 
 java="$(find_java)" || { msg "Java $JAVA_MIN not found; run $KIT_DIR/bootstrap.sh first." "Java $JAVA_MIN не найдена; сначала запустите $KIT_DIR/bootstrap.sh."; exit 1; }
 
-# The client sizes a --window in physical pixels (scale factor 1), so the visible area of the main
-# display, menu bar and dock excluded, is compared in pixels.
-visible="$(osascript -l JavaScript -e 'ObjC.import("AppKit"); const s = $.NSScreen.screens.objectAtIndex(0); const f = s.visibleFrame; const k = s.backingScaleFactor; Math.floor(f.size.width * k) + " " + Math.floor(f.size.height * k)')"
+# The client sizes a --window in physical pixels (scale factor 1) and keeps it centred and on top,
+# so a candidate is compared with the full pixel size of the main display.
+size="$(osascript -l JavaScript -e 'ObjC.import("AppKit"); const s = $.NSScreen.screens.objectAtIndex(0); const f = s.frame; const k = s.backingScaleFactor; Math.floor(f.size.width * k) + " " + Math.floor(f.size.height * k)')"
 window=""
 for candidate in 1920x1080 1600x900 1280x720 960x540; do
-    if [ "${candidate%x*}" -le $((${visible% *} - 40)) ] && [ "${candidate#*x}" -le $((${visible#* } - 40)) ]; then
+    if [ "${candidate%x*}" -le "${size% *}" ] && [ "${candidate#*x}" -le "${size#* }" ]; then
         window="$candidate"
         break
     fi

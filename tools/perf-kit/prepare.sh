@@ -259,6 +259,8 @@ if interactive; then
         "Intel Mac с двумя GPU: автоматическое переключение графики выключено? (На Apple silicon ответьте y.)"
     manual "nothing else" "Will you leave the computer alone and start nothing else until the run ends?" \
         "До конца замеров компьютер никто не трогает и ничего нового не запускает?"
+else
+    for key in "focus" "display stays on" "primary display" "gpu" "nothing else"; do record "manual: $key" "not asked" false ""; done
 fi
 
 json="$(checks_to_json "$checks" "mode=$mode" "collected_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" "os=macos")" || exit 1

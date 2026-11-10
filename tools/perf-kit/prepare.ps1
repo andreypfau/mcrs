@@ -229,6 +229,10 @@ if ($Interactive) {
         'Заставка выключена, и экран не погаснет?'
     Add-Manual 'nothing else' 'Will you leave the computer alone and start nothing else until the run ends?' `
         'До конца замеров компьютер никто не трогает и ничего нового не запускает?'
+} else {
+    foreach ($key in @('focus', 'vsync override', 'gpu', 'primary display', 'display stays on', 'nothing else')) {
+        Add-Check "manual: $key" 'not asked' $false ''
+    }
 }
 
 $doc = [ordered]@{

@@ -7,7 +7,7 @@ use serde::Serialize;
 
 use crate::client_run::{Measured, SettleLimit, Timing, measure};
 use crate::median::spread;
-use crate::options::Options;
+use crate::options::{Options, Window};
 use crate::process::Process;
 use crate::profile::Profile;
 use crate::progress::Progress;
@@ -67,6 +67,22 @@ pub struct RunReport {
     pub medians: Option<StatsLine>,
     pub raw_log: PathBuf,
     pub error: Option<String>,
+    /// Set when the OS gave the window another size than the one requested.
+    pub window_mismatch: Option<String>,
+}
+
+fn window_mismatch(window: Window, medians: &StatsLine) -> Option<String> {
+    let (Some(width), Some(height)) = (medians.physical_width, medians.physical_height) else {
+        return None;
+    };
+    // Whole pixels: the stats line prints integers and the median of equal values is exact.
+    if width.round() == f64::from(window.width) && height.round() == f64::from(window.height) {
+        return None;
+    }
+    Some(format!(
+        "requested {}, got {width:.0}x{height:.0}",
+        window.resolution()
+    ))
 }
 
 const SEED: &str = "12345";
@@ -126,6 +142,9 @@ pub fn run(options: &Options, errors: &mut Vec<String>) -> anyhow::Result<Client
             if let Some(error) = &run_report.error {
                 errors.push(format!("client {label} run {run}: {error}"));
             }
+            if let Some(mismatch) = &run_report.window_mismatch {
+                println!("[client] warning: {label} run {run}: window {mismatch}");
+            }
             medians.extend(run_report.medians.clone());
             run_reports.push(run_report);
         }
@@ -178,6 +197,7 @@ impl Launch<'_> {
             medians: None,
             raw_log: shown_path::under_out(&raw_log, &self.options.out),
             error: None,
+            window_mismatch: None,
         };
         match self.measure(&raw_log) {
             Ok(measured) => {
@@ -187,7 +207,11 @@ impl Launch<'_> {
                 report.lines = measured.lines.len();
                 report.settled = measured.settled;
                 report.settle_seconds = measured.settle_seconds;
-                report.medians = Some(StatsLine::median_of(&measured.lines));
+                let medians = StatsLine::median_of(&measured.lines);
+                if self.mode == Mode::Window {
+                    report.window_mismatch = window_mismatch(self.options.window, &medians);
+                }
+                report.medians = Some(medians);
             }
             Err(error) => report.error = Some(format!("{error:#}")),
         }
@@ -271,5 +295,32 @@ impl Clock {
             Self::Cold => "cold",
             Self::Hot => "hot",
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sized(width: f64, height: f64) -> StatsLine {
+        StatsLine {
+            physical_width: Some(width),
+            physical_height: Some(height),
+            ..StatsLine::default()
+        }
+    }
+
+    #[test]
+    fn a_shrunk_window_is_reported() {
+        let window = Window {
+            width: 1920,
+            height: 1080,
+        };
+        assert_eq!(window_mismatch(window, &sized(1920.0, 1080.0)), None);
+        assert_eq!(window_mismatch(window, &StatsLine::default()), None);
+        assert_eq!(
+            window_mismatch(window, &sized(1920.0, 1050.0)).as_deref(),
+            Some("requested 1920x1080, got 1920x1050")
+        );
     }
 }

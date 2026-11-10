@@ -1,11 +1,22 @@
 ﻿# The one entry point: records the machine, prepares it, builds, runs the benchmarks and zips the results.
-# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File run.ps1 [-Full] [-Label NAME] [-Lang en|ru] [-Only mob,client,server,worldgen]
-param([switch]$Full, [string]$Label = '', [ValidateSet('en', 'ru')][string]$Lang = '', [string]$Only = 'mob,client,server,worldgen')
+# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File run.ps1 [-Full] [-Label NAME] [-Lang en|ru] [-Only mob,client,server,worldgen] [-Yes] [-AcceptEula]
+param([switch]$Full, [string]$Label = '', [ValidateSet('en', 'ru')][string]$Lang = '', [string]$Only = 'mob,client,server,worldgen', [switch]$Yes, [switch]$AcceptEula)
 
 # Keeps Cyrillic in redirected output and in the text read from perf-kit.exe.
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 . (Join-Path $PSScriptRoot 'common.ps1')
 
+if ((-not $Yes) -and [Console]::IsInputRedirected) {
+    $env:PERF_KIT_LANG = $Lang
+    if (-not $Lang -and (Get-UICulture).TwoLetterISOLanguageName -eq 'ru') { $env:PERF_KIT_LANG = 'ru' }
+    Write-Host (T 'Standard input is redirected, so run.ps1 cannot ask questions. Add -Yes (with -Label and, for the mob section, -AcceptEula) to run unattended.' 'Стандартный ввод перенаправлен, поэтому run.ps1 не может задавать вопросы. Добавьте -Yes (вместе с -Label и, для секции мобов, -AcceptEula), чтобы запуск шел без вопросов.')
+    exit 2
+}
+
+if ($Yes -and -not $Lang) {
+    $Lang = 'en'
+    if ((Get-UICulture).TwoLetterISOLanguageName -eq 'ru') { $Lang = 'ru' }
+}
 if (-not $Lang) {
     $defaultChoice = '1'
     if ((Get-UICulture).TwoLetterISOLanguageName -eq 'ru') { $defaultChoice = '2' }
@@ -44,7 +55,7 @@ function Restore-PowerPlan {
 $repo = Get-KitRepo
 if (-not $repo) { Write-Host (T 'run.ps1 must stay inside the mcrs checkout; run bootstrap.ps1 first.' 'run.ps1 должен лежать внутри клона mcrs; сначала запустите bootstrap.ps1.'); exit 1 }
 
-if ((Test-Path $PowerRestoreFile) -and (Confirm-Choice (T 'An earlier run stopped before it switched the power plan back. Restore the previous plan now? Otherwise this run restores it when it ends.' 'Прошлый запуск прервался и не вернул схему питания. Вернуть прежнюю схему сейчас? Иначе ее вернет этот запуск, когда закончится.'))) {
+if ((Test-Path $PowerRestoreFile) -and ($Yes -or (Confirm-Choice (T 'An earlier run stopped before it switched the power plan back. Restore the previous plan now? Otherwise this run restores it when it ends.' 'Прошлый запуск прервался и не вернул схему питания. Вернуть прежнюю схему сейчас? Иначе ее вернет этот запуск, когда закончится.')))) {
     Restore-PowerPlan
 }
 
@@ -58,6 +69,10 @@ Write-Host (T 'While it runs, do not touch the computer. The game window must st
 Write-Host ''
 
 $Label = ($Label -replace '[^A-Za-z0-9_-]+', '-').Trim('-')
+if ($Yes -and -not $Label) {
+    Write-Host (T '-Yes needs -Label NAME, since the run cannot ask for it.' 'С -Yes нужен -Label NAME, так как запуск не может его спросить.')
+    exit 2
+}
 while (-not $Label) {
     $Label = ((Read-Host (T 'Machine label (for example ryzen-3060 or xps-15)' 'Метка машины (например, ryzen-3060 или xps-15)')) -replace '[^A-Za-z0-9_-]+', '-').Trim('-')
 }
@@ -71,7 +86,7 @@ if ($Only.Count -eq 0) { Write-Host '-Only takes a comma list of mob, client, se
 $sections = @()
 if ($Only -contains 'mob') {
     Write-Host (T 'The mob benchmark runs the Minecraft server, which needs the Minecraft EULA: https://aka.ms/MinecraftEULA' 'Бенчмарк мобов запускает сервер Minecraft, а для него нужно принять Minecraft EULA: https://aka.ms/MinecraftEULA')
-    if (Confirm-Choice (T 'Do you accept the Minecraft EULA?' 'Принять Minecraft EULA?')) {
+    if ($AcceptEula -or ((-not $Yes) -and (Confirm-Choice (T 'Do you accept the Minecraft EULA?' 'Принять Minecraft EULA?')))) {
         $sections = @('--accept-eula')
     } else {
         Write-Host (T 'Running without the mob section.' 'Запуск без секции мобов.')
@@ -94,7 +109,11 @@ try {
     & (Join-Path $KitDir 'sysinfo.ps1') -Label $Label -Out $systemFile
     if (-not (Test-Path $systemFile)) { Write-Host (T 'Recording the system failed; see the error above.' 'Не удалось записать сведения о системе; ошибка выше.'); exit 1 }
     $hygieneFile = Join-Path $dir 'hygiene.json'
-    & (Join-Path $KitDir 'prepare.ps1') -Out $hygieneFile
+    if ($Yes) {
+        & (Join-Path $KitDir 'prepare.ps1') -CheckOnly -Out $hygieneFile
+    } else {
+        & (Join-Path $KitDir 'prepare.ps1') -Out $hygieneFile
+    }
     if (-not (Test-Path $hygieneFile)) { Write-Host (T 'Preparing the machine failed; see the error above.' 'Подготовка машины не удалась; ошибка выше.'); exit 1 }
     & (Join-Path $KitDir 'bootstrap.ps1') -BuildOnly
     if ($LASTEXITCODE -ne 0) { Write-Host (T "The build failed; run $KitDir\bootstrap.ps1 and try again." "Сборка не удалась; запустите $KitDir\bootstrap.ps1 и попробуйте снова."); exit 1 }
@@ -102,15 +121,15 @@ try {
     $java = Find-Java
     if (-not $java) { Write-Host (T "Java $JavaMin not found; run $KitDir\bootstrap.ps1 first." "Java $JavaMin не найдена; сначала запустите $KitDir\bootstrap.ps1."); exit 1 }
 
-    # The client sizes a window in physical pixels (scale factor 1), so it is compared with the
-    # primary display's pixels, minus the taskbar and the title bar.
+    # The client sizes a window in physical pixels (scale factor 1) and keeps it centred and on top,
+    # so a candidate is compared with the full pixel size of the primary display.
     $system = Get-Content -Raw -Encoding UTF8 -Path $systemFile | ConvertFrom-Json
     $window = '960x540'
     if ($system.primary_display) {
         $pixels = $system.primary_display.pixels
         foreach ($candidate in @('1920x1080', '1600x900', '1280x720', '960x540')) {
             $size = $candidate.Split('x')
-            if ([int]$size[0] -le $pixels.width - 40 -and [int]$size[1] -le $pixels.height - 160) { $window = $candidate; break }
+            if ([int]$size[0] -le $pixels.width -and [int]$size[1] -le $pixels.height) { $window = $candidate; break }
         }
     }
     $heap = [math]::Max(1, [math]::Min(16, [math]::Floor($system.memory_bytes / 1GB / 2)))

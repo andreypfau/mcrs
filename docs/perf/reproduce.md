@@ -70,6 +70,8 @@ What `prepare` checks by itself, before and after the run: the apps from the lis
    Add `--full` for the full profile. The script first asks for the language of its messages, English or Russian, with the system language as the default; `--lang en` or `--lang ru` skips the question, and the progress lines of `perf-kit` itself stay in English. It then asks for a machine label (for example `m2-air`) and whether you accept the Minecraft EULA, then walks you through closing apps and checks the machine.
 
    `--only mob,server,worldgen` runs a subset of the sections `mob`, `client`, `server` and `worldgen`. Only `client` needs a display: on a Mac mini with no monitor, a Screen Sharing session changes how frames reach the screen and costs CPU, and with no session there is no display to draw on. Run the other sections with Screen Sharing disconnected, and the client with a monitor or an HDMI dummy plug attached.
+
+   For an unattended run over ssh, pass every answer on the command line: `tools/perf-kit/run.sh --yes --accept-eula --lang ru --label mac-mini-m4 --only mob`. `--yes` asks nothing: the language follows the system unless `--lang` is given, `--label` is required (exit code 2 without it), the EULA counts as declined unless `--accept-eula` is given, and the hygiene check only records the state without closing apps or waiting for Enter (the manual items are recorded as `not asked`). Without `--yes` a script whose standard input is not a terminal stops with a message. On Windows the switches are `-Yes` and `-AcceptEula`. The `client` section still needs a logged-in desktop session and a display.
 5. When the game window opens, do not touch the computer until the script prints `Done` (`Готово` in Russian).
 
 ## Windows
