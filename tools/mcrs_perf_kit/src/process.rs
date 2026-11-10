@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::path::Path;
@@ -6,6 +7,26 @@ use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
 use std::time::Instant;
 
 use anyhow::Context;
+
+/// A command for a measured binary that drops the tester's own `MCRS_*` variables, so only the
+/// knobs the kit sets shape a run.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the kit reads the tester's environment only to keep it out of the measured binaries"
+)]
+pub fn clean_command(program: impl AsRef<OsStr>) -> Command {
+    let mut command = Command::new(program);
+    for (key, _) in std::env::vars_os() {
+        if key
+            .to_string_lossy()
+            .to_ascii_uppercase()
+            .starts_with("MCRS_")
+        {
+            command.env_remove(key);
+        }
+    }
+    command
+}
 
 pub struct Line {
     pub at: Instant,

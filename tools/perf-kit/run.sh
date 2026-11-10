@@ -55,9 +55,9 @@ trap 'say ""; say "Interrupted; partial results stay in $dir"; exit 130' INT TER
 
 java="$(find_java)" || { say "Java $JAVA_MIN not found; run $KIT_DIR/bootstrap.sh first."; exit 1; }
 
-# Assumption: the client takes --window in logical points and applies the display scale itself,
-# so the size is compared with the scaled resolution of the main display, minus menu bar and dock.
-visible="$(osascript -l JavaScript -e 'ObjC.import("AppKit"); const f = $.NSScreen.screens.objectAtIndex(0).visibleFrame; Math.floor(f.size.width) + " " + Math.floor(f.size.height)')"
+# The client sizes a --window in physical pixels (scale factor 1), so the visible area of the main
+# display, menu bar and dock excluded, is compared in pixels.
+visible="$(osascript -l JavaScript -e 'ObjC.import("AppKit"); const s = $.NSScreen.screens.objectAtIndex(0); const f = s.visibleFrame; const k = s.backingScaleFactor; Math.floor(f.size.width * k) + " " + Math.floor(f.size.height * k)')"
 window=""
 for candidate in 1920x1080 1600x900 1280x720 960x540; do
     if [ "${candidate%x*}" -le $((${visible% *} - 40)) ] && [ "${candidate#*x}" -le $((${visible#* } - 40)) ]; then

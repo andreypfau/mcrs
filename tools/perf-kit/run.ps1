@@ -58,15 +58,15 @@ try {
     $java = Find-Java
     if (-not $java) { Write-Host "Java $JavaMin not found; run $KitDir\bootstrap.ps1 first."; exit 1 }
 
-    # Assumption: the client takes -window in logical pixels and applies the display scale itself,
-    # so the size is compared with the logical size of the primary display, minus taskbar and title bar.
+    # The client sizes a window in physical pixels (scale factor 1), so it is compared with the
+    # primary display's pixels, minus the taskbar and the title bar.
     $system = Get-Content -Raw -Path (Join-Path $dir 'system.json') | ConvertFrom-Json
     $window = '960x540'
     if ($system.primary_display) {
-        $logical = $system.primary_display.logical
+        $pixels = $system.primary_display.pixels
         foreach ($candidate in @('1920x1080', '1600x900', '1280x720', '960x540')) {
             $size = $candidate.Split('x')
-            if ([int]$size[0] -le $logical.width - 40 -and [int]$size[1] -le $logical.height - 100) { $window = $candidate; break }
+            if ([int]$size[0] -le $pixels.width - 40 -and [int]$size[1] -le $pixels.height - 160) { $window = $candidate; break }
         }
     }
     $heap = [math]::Min(16, [math]::Floor($system.memory_bytes / 1GB / 2))

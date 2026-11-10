@@ -1,6 +1,6 @@
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+
 use std::time::Duration;
 
 use serde::Serialize;
@@ -195,7 +195,7 @@ impl Launch<'_> {
 
     fn measure(&self, raw_log: &Path) -> anyhow::Result<Measured> {
         let dir = ScratchDir::new("client")?;
-        let mut command = Command::new(self.binary);
+        let mut command = crate::process::clean_command(self.binary);
         command
             .current_dir(dir.path())
             .env("BEVY_ASSET_ROOT", &self.options.repo)

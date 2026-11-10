@@ -1,5 +1,5 @@
 use std::path::Path;
-use std::process::Command;
+
 use std::time::{Duration, Instant};
 
 use anyhow::bail;
@@ -92,7 +92,7 @@ struct Timed {
 
 fn start(binary: &Path, repo: &Path, raw_log: &Path) -> anyhow::Result<Timed> {
     let dir = ScratchDir::new("server")?;
-    let mut command = Command::new(binary);
+    let mut command = crate::process::clean_command(binary);
     command
         .current_dir(dir.path())
         .env("BEVY_ASSET_ROOT", repo)

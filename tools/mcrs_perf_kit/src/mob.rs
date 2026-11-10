@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::time::Duration;
 
 use anyhow::{Context, bail};
@@ -107,7 +107,7 @@ fn run_one(
     }
     let stdout = File::create(raw.join(format!("{name}.stdout")))?;
     let stderr = stdout.try_clone()?;
-    let status = Command::new(bench)
+    let status = crate::process::clean_command(bench)
         .args(arguments(options, target, client, dir.path(), &report)?)
         .stdin(Stdio::null())
         .stdout(stdout)
