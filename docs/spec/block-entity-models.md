@@ -187,13 +187,13 @@ Provenance: `design`. Kind: semantic. Confidence: medium. Milestone: 1.
 - **Inputs:** the rules of section 4.
 - **Behavior:**
   1. The data files contain exactly the shapes, the textures, the tints, the surfaces and the
-     placements of section 4, for each block state of each block of section 4.
+     placements of section 4, for each block state of each block of BEM-SHAPE-001 to BEM-SHAPE-009.
   2. A generator makes the data files and the geometry files of BEM-ART-002 from the model
      artefact, the pose artefact and the rules of section 4. The repository contains the files
      that the generator makes.
   3. A test runs the generator and compares its output with the files of the repository. A
      difference fails the test. The client does not read an artefact at run time.
-- **Postconditions:** BEM-TEST-001 passes for each block state of section 4. A new version of
+- **Postconditions:** BEM-TEST-001 passes for each block state of BEM-SHAPE-001 to BEM-SHAPE-009. A new version of
   the artefacts changes the files only through the generator.
 
 Provenance: `design`. Kind: semantic. Confidence: high. Milestone: 1.
@@ -204,7 +204,9 @@ Provenance: `design`. Kind: semantic. Confidence: high. Milestone: 1.
 
 The tables of this section use the yaw `y(d)` of a direction `d`. A placement matrix in the
 pose artefact has the `shape` and the `state` that the rule names. Each placement formula of
-this section agrees with the matrix of the pose artefact within `1e-6`.
+this section agrees with the matrix of the pose artefact within `1e-6`. The rules of
+this section state layers, except BEM-SHAPE-010. The states of BEM-SHAPE-010 have no layer, and
+the other rules and tests of this document skip them.
 
 ### BEM-SHAPE-001: Chests
 
@@ -444,11 +446,14 @@ the same place in each block.
 
 | Block | Models and states |
 |-------|-------------------|
-| `<wood>_sign` | `block/<wood>_sign_rot_<r>`, with `r` = `rotation` mod 4, turned about Y by 90° · (`rotation` div 4) |
-| `<wood>_wall_sign` | `block/<wood>_wall_sign`, turned about Y by the yaw of `facing` |
+| `<wood>_sign` | `block/<wood>_sign_rot_<r>`, with `r` = `rotation` mod 4, turned about Y clockwise, seen from above, by 90° · (`rotation` div 4); in the terms of section 0.1 this is `Ry(−a)` with `a` = 90° · (`rotation` div 4) |
+| `<wood>_wall_sign` | `block/<wood>_wall_sign`, turned about Y clockwise, seen from above, by the yaw of `facing`; this is `Ry(−y(facing))` |
 | `<wood>_hanging_sign` | `block/<wood>_hanging_sign_rot_<r>` when `attached` is `false`, and `block/<wood>_hanging_sign_attached_rot_<r>` when `attached` is `true`; `r` and the turn are as for `<wood>_sign` |
-| `<wood>_wall_hanging_sign` | `block/<wood>_wall_hanging_sign`, turned about Y by the yaw of `facing` |
+| `<wood>_wall_hanging_sign` | `block/<wood>_wall_hanging_sign`, turned about Y clockwise, seen from above, by the yaw of `facing`; this is `Ry(−y(facing))` |
 
+     A model with no turn has its front on the south side. A block state therefore has its board
+     front on the side to which the text front of `client-sign-text.md`, SIGN-PLACE-001, faces:
+     `rotation` 4 faces west, and `facing` `east` faces east.
   3. The faces of these models enter the terrain mesh as the faces of any block model
      (`block-model-resolution.md`, `block-face-bake.md`). They use the sprite
      `block/<wood>_sign` or `block/<wood>_hanging_sign`.
@@ -587,7 +592,7 @@ Provenance: `design`. Kind: semantic. Confidence: high. Milestone: later.
 
 - **Inputs:** the model artefact, the pose artefact and the data files.
 - **Behavior:**
-  1. For each block state of section 4, bake the drawn layers (BEM-BAKE-001).
+  1. For each block state of BEM-SHAPE-001 to BEM-SHAPE-009, bake the drawn layers (BEM-BAKE-001).
   2. For each layer, take the cubes of its layer entry in shape space, in the pose of section 4.
      Transform each corner by the part transforms of the artefact header (translate by the
      position, then rotate Z, Y, X, then scale), divide by 16, then apply the placement.

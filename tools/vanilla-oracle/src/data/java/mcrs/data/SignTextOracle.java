@@ -21,9 +21,11 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FontDescription;
 import net.minecraft.network.chat.FormattedText;
 import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.TextColor;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.world.item.DyeColor;
@@ -42,6 +44,9 @@ import org.joml.Matrix4fc;
 final class SignTextOracle {
     private static final int STUB_ADVANCE = 3;
     private static final int LIGHT = LightCoordsUtil.pack(5, 3);
+    private static final SignBlockEntity SIGN = new SignBlockEntity(BlockPos.ZERO, Blocks.OAK_SIGN.defaultBlockState());
+    private static final HangingSignBlockEntity HANGING =
+        new HangingSignBlockEntity(BlockPos.ZERO, Blocks.OAK_HANGING_SIGN.defaultBlockState());
     private static final Direction[] HORIZONTAL = {Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST};
 
     private SignTextOracle() {}
@@ -88,7 +93,12 @@ final class SignTextOracle {
                             new org.joml.Matrix4f(pose.last().pose())
                         ));
                     }
-                    return method.getReturnType().isInstance(proxy) ? proxy : null;
+                    return switch (method.getName()) {
+                        case "hashCode" -> System.identityHashCode(proxy);
+                        case "equals" -> proxy == args[0];
+                        case "toString" -> "recording collector";
+                        default -> defaultFor(method.getReturnType(), proxy);
+                    };
                 }
             );
         }
@@ -104,6 +114,34 @@ final class SignTextOracle {
             }
             return new ArrayList<>(seen);
         }
+    }
+
+    private static Object defaultFor(final Class<?> type, final Object proxy) {
+        if (type == boolean.class) {
+            return false;
+        }
+        if (type == char.class) {
+            return (char) 0;
+        }
+        if (type == byte.class) {
+            return (byte) 0;
+        }
+        if (type == short.class) {
+            return (short) 0;
+        }
+        if (type == int.class) {
+            return 0;
+        }
+        if (type == long.class) {
+            return 0L;
+        }
+        if (type == float.class) {
+            return 0.0F;
+        }
+        if (type == double.class) {
+            return 0.0D;
+        }
+        return type.isInstance(proxy) ? proxy : null;
     }
 
     static List<JsonObject> rows() throws ReflectiveOperationException {
@@ -128,14 +166,12 @@ final class SignTextOracle {
     }
 
     private static JsonObject constants() throws ReflectiveOperationException {
-        SignBlockEntity sign = new SignBlockEntity(BlockPos.ZERO, Blocks.OAK_SIGN.defaultBlockState());
-        HangingSignBlockEntity hanging = new HangingSignBlockEntity(BlockPos.ZERO, Blocks.OAK_HANGING_SIGN.defaultBlockState());
         JsonObject row = new JsonObject();
         row.addProperty("kind", "constants");
-        row.addProperty("sign_line_height", sign.getTextLineHeight());
-        row.addProperty("sign_max_line_width", sign.getMaxTextLineWidth());
-        row.addProperty("hanging_line_height", hanging.getTextLineHeight());
-        row.addProperty("hanging_max_line_width", hanging.getMaxTextLineWidth());
+        row.addProperty("sign_line_height", SIGN.getTextLineHeight());
+        row.addProperty("sign_max_line_width", SIGN.getMaxTextLineWidth());
+        row.addProperty("hanging_line_height", HANGING.getTextLineHeight());
+        row.addProperty("hanging_max_line_width", HANGING.getMaxTextLineWidth());
         row.addProperty("lines", SignText.LINES);
         row.addProperty("full_bright_light", LightCoordsUtil.FULL_BRIGHT);
         row.addProperty("black_glow_outline_color", privateInt("BLACK_TEXT_OUTLINE_COLOR"));
@@ -158,22 +194,22 @@ final class SignTextOracle {
         return new SignText(messages, messages, dye, glowing);
     }
 
-    private static SignRenderState state(final boolean hangingFamily, final SignText front, final SignText back, final int lineHeight, final int width) {
+    private static SignRenderState state(final boolean hangingFamily, final SignText front, final SignText back) {
         SignRenderState state = hangingFamily ? new HangingSignRenderState() : new StandingSignRenderState();
         state.frontText = front;
         state.backText = back;
-        state.textLineHeight = lineHeight;
-        state.maxTextLineWidth = width;
+        state.textLineHeight = lineHeight(hangingFamily);
+        state.maxTextLineWidth = lineWidth(hangingFamily);
         state.lightCoords = LIGHT;
         return state;
     }
 
     private static int lineHeight(final boolean hangingFamily) {
-        return hangingFamily ? 9 : 10;
+        return (hangingFamily ? HANGING : SIGN).getTextLineHeight();
     }
 
     private static int lineWidth(final boolean hangingFamily) {
-        return hangingFamily ? 60 : 90;
+        return (hangingFamily ? HANGING : SIGN).getMaxTextLineWidth();
     }
 
     // Each side with one line: the pose of the collector is the map from block space to text space.
@@ -182,8 +218,7 @@ final class SignTextOracle {
             var table = hangingFamily ? HangingSignRenderer.TRANSFORMATIONS : StandingSignRenderer.TRANSFORMATIONS;
             for (int index = 0; index < 20; index++) {
                 SignRenderState state = state(
-                    hangingFamily, text(DyeColor.BLACK, false, "x", "", "", ""), text(DyeColor.BLACK, false, "y", "", "", ""),
-                    lineHeight(hangingFamily), lineWidth(hangingFamily)
+                    hangingFamily, text(DyeColor.BLACK, false, "x", "", "", ""), text(DyeColor.BLACK, false, "y", "", "", "")
                 );
                 String attachment;
                 String position;
@@ -227,27 +262,26 @@ final class SignTextOracle {
     private static void layout(final Rig rig, final List<JsonObject> rows) {
         for (boolean hangingFamily : new boolean[] {false, true}) {
             SignRenderState state = state(
-                hangingFamily, text(DyeColor.BLACK, false, "", "a", "ab", "abc"), null, lineHeight(hangingFamily), lineWidth(hangingFamily)
+                hangingFamily, text(DyeColor.BLACK, false, "", "a", "ab", "abc"), null
             );
-            state.transformations = SignRenderState.SignTransformations.IDENTITY;
-            addLines(rows, "layout", hangingFamily, rig.run(hangingFamily, state));
+            addLines(rows, hangingFamily, rig.run(hangingFamily, state));
             SignRenderState wide = state(
-                hangingFamily, text(DyeColor.BLACK, false, "abcd", "abcde", "abcdef", "abcdefg"), null, lineHeight(hangingFamily), lineWidth(hangingFamily)
+                hangingFamily, text(DyeColor.BLACK, false, "abcd", "abcde", "abcdef", "abcdefg"), null
             );
-            wide.transformations = SignRenderState.SignTransformations.IDENTITY;
-            addLines(rows, "layout", hangingFamily, rig.run(hangingFamily, wide));
+            addLines(rows, hangingFamily, rig.run(hangingFamily, wide));
         }
     }
 
-    private static void addLines(final List<JsonObject> rows, final String kind, final boolean hangingFamily, final List<Submitted> lines) {
+    private static void addLines(final List<JsonObject> rows, final boolean hangingFamily, final List<Submitted> lines) {
         JsonObject row = new JsonObject();
-        row.addProperty("kind", kind);
+        row.addProperty("kind", "layout");
         row.addProperty("family", hangingFamily ? "hanging" : "standing");
         JsonArray array = new JsonArray();
         for (Submitted line : lines) {
+            String text = plain(line.text());
             JsonObject json = new JsonObject();
-            json.addProperty("text", plain(line.text()));
-            json.addProperty("advance_total", plain(line.text()).codePointCount(0, plain(line.text()).length()) * STUB_ADVANCE);
+            json.addProperty("text", text);
+            json.addProperty("advance_total", text.codePointCount(0, text.length()) * STUB_ADVANCE);
             json.addProperty("x", line.x());
             json.addProperty("y", line.y());
             array.add(json);
@@ -256,17 +290,18 @@ final class SignTextOracle {
         rows.add(row);
     }
 
-    // Colour, outline and light of every dye, with and without glow, with and without the outline distance.
+    // Colour, outline and light of every dye in both families, with and without glow, with and without the outline distance.
     private static void paint(final Rig rig, final List<JsonObject> rows) {
+        for (boolean hangingFamily : new boolean[] {false, true}) {
         for (DyeColor dye : DyeColor.values()) {
             for (boolean glowing : new boolean[] {false, true}) {
                 for (boolean outline : new boolean[] {false, true}) {
-                    SignRenderState state = state(false, text(dye, glowing, "p", "", "", ""), null, 10, 90);
-                    state.transformations = SignRenderState.SignTransformations.IDENTITY;
+                    SignRenderState state = state(hangingFamily, text(dye, glowing, "p", "", "", ""), null);
                     state.drawOutline = outline;
-                    Submitted line = firstOfText(rig.run(false, state), "p");
+                    Submitted line = firstOfText(rig.run(hangingFamily, state), "p");
                     JsonObject row = new JsonObject();
                     row.addProperty("kind", "paint");
+                    row.addProperty("family", hangingFamily ? "hanging" : "standing");
                     row.addProperty("dye", dye.getSerializedName());
                     row.addProperty("glowing", glowing);
                     row.addProperty("outline_in_range", outline);
@@ -281,6 +316,7 @@ final class SignTextOracle {
                 }
             }
         }
+        }
     }
 
     // The unfiltered and the filtered messages differ; the flag of the state selects one list.
@@ -288,8 +324,7 @@ final class SignTextOracle {
         for (boolean filtering : new boolean[] {false, true}) {
             List<Component> raw = List.of(Component.literal("raw1"), Component.literal("raw2"), Component.literal("raw3"), Component.literal("raw4"));
             List<Component> clean = List.of(Component.literal("cln1"), Component.literal("cln2"), Component.literal("cln3"), Component.literal("cln4"));
-            SignRenderState state = state(false, new SignText(raw, clean, DyeColor.BLACK, false), null, 10, 90);
-            state.transformations = SignRenderState.SignTransformations.IDENTITY;
+            SignRenderState state = state(false, new SignText(raw, clean, DyeColor.BLACK, false), null);
             state.isTextFilteringEnabled = filtering;
             JsonObject row = new JsonObject();
             row.addProperty("kind", "filtering");
@@ -303,16 +338,26 @@ final class SignTextOracle {
 
     // Formatting of the components reaches the collector as the style of each code point.
     private static void styles(final Rig rig, final List<JsonObject> rows) {
-        List<Component> messages = List.of(
+        styleRow(rig, rows, "styles", List.of(
             Component.literal("red").withColor(0xFF0000),
             Component.literal("b").append(Component.literal("i").withStyle(style -> style.withBold(true).withItalic(true))),
             Component.literal("u").withStyle(style -> style.withUnderlined(true).withStrikethrough(true).withObfuscated(true)),
             Component.translatable("sign.test.missing.key")
-        );
-        SignRenderState state = state(false, new SignText(messages, messages, DyeColor.BLACK, false), null, 10, 90);
-        state.transformations = SignRenderState.SignTransformations.IDENTITY;
+        ));
+        // Inheritance from a parent, a font override, and a translation key with a fallback.
+        styleRow(rig, rows, "styles_inherited", List.of(
+            Component.literal("p").withColor(0xFF0000).append(Component.literal("c")),
+            Component.literal("p").withStyle(style -> style.withBold(true)).append(Component.literal("c").withStyle(style -> style.withItalic(true))),
+            Component.literal("f").withStyle(style -> style.withFont(new FontDescription.Resource(Identifier.withDefaultNamespace("alt"))))
+                .append(Component.literal("g")),
+            Component.translatableWithFallback("sign.test.missing.key", "fallback text")
+        ));
+    }
+
+    private static void styleRow(final Rig rig, final List<JsonObject> rows, final String kind, final List<Component> messages) {
+        SignRenderState state = state(false, new SignText(messages, messages, DyeColor.BLACK, false), null);
         JsonObject row = new JsonObject();
-        row.addProperty("kind", "styles");
+        row.addProperty("kind", kind);
         JsonArray lines = new JsonArray();
         for (Submitted line : rig.run(false, state)) {
             JsonArray runs = new JsonArray();
@@ -331,6 +376,9 @@ final class SignTextOracle {
                     current[0].addProperty("underlined", style.isUnderlined());
                     current[0].addProperty("strikethrough", style.isStrikethrough());
                     current[0].addProperty("obfuscated", style.isObfuscated());
+                    if (style.getFont() != null) {
+                        current[0].addProperty("font", style.getFont().toString());
+                    }
                     runs.add(current[0]);
                     last[0] = style;
                 }
