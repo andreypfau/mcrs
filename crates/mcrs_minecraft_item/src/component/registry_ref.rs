@@ -1,10 +1,10 @@
 use std::borrow::Cow;
 use std::fmt;
 
-use crate::block_transformer::BlockTransformer;
 use crate::enchantment::Enchantment;
 use mcrs_minecraft_banner_pattern::BannerPattern;
 use mcrs_minecraft_block::block_keys::Block;
+use mcrs_minecraft_block_transformer::BlockTransformer;
 use mcrs_minecraft_core::codec::{Bounded, NonNegativeInt, Validate, int_value};
 use mcrs_minecraft_core::validated;
 use mcrs_minecraft_entity::damage_type::DamageType;

@@ -32,6 +32,7 @@ mcrs_minecraft_block_predicate.workspace = true
 mcrs_minecraft_item.workspace = true
 mcrs_minecraft_item_key.workspace = true
 mcrs_minecraft_banner_pattern.workspace = true
+mcrs_minecraft_block_transformer.workspace = true
 mcrs_minecraft_decorated_pot_pattern.workspace = true
 mcrs_minecraft_dimension_environment.workspace = true
 mcrs_minecraft_biome.workspace = true

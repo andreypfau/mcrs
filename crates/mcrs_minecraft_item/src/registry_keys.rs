@@ -2,12 +2,6 @@
 
 use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
-pub const BLOCK_TRANSFORMER: RegistryKey<crate::block_transformer::BlockTransformer> =
-    RegistryKey::new(rl!("minecraft:block_transformer"));
-impl Registered for crate::block_transformer::BlockTransformer {
-    const REGISTRY: RegistryKey<Self> = BLOCK_TRANSFORMER;
-}
-
 pub const CONSUME_EFFECT_TYPE: RegistryKey<crate::consume_effect_type_keys::ConsumeEffectType> =
     RegistryKey::new(rl!("minecraft:consume_effect_type"));
 impl Registered for crate::consume_effect_type_keys::ConsumeEffectType {

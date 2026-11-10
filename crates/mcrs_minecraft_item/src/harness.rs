@@ -232,7 +232,7 @@ sample_registries_table! {
         numbered mcrs_minecraft_entity::attribute_keys::Attribute::ENTRIES ["armor", "attack_damage"] [];
     mcrs_minecraft_banner_pattern::registry_keys::BANNER_PATTERN => "banner_pattern" ["globe", "creeper"]
         [("pattern_item/globe" => ["globe"])];
-    crate::registry_keys::BLOCK_TRANSFORMER => "block_transformer" ["axe", "shovel"] [];
+    mcrs_minecraft_block_transformer::registry_keys::BLOCK_TRANSFORMER => "block_transformer" ["axe", "shovel"] [];
     mcrs_minecraft_entity::registry_keys::VILLAGER_TYPE => "villager_type" ["plains", "desert"] [];
     mcrs_minecraft_entity::registry_keys::WOLF_VARIANT => "wolf_variant" ["pale", "ashen"] [];
     mcrs_minecraft_entity::registry_keys::WOLF_SOUND_VARIANT => "wolf_sound_variant" ["classic", "big"] [];

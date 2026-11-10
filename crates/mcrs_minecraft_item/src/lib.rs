@@ -1,4 +1,3 @@
-pub mod block_transformer;
 pub mod component;
 pub mod definition;
 pub mod dialog;
@@ -7,8 +6,6 @@ pub mod dropped;
 #[cfg(feature = "bevy")]
 pub mod effective;
 pub mod enchantment;
-#[rustfmt::skip]
-pub mod block_transformer_keys;
 #[rustfmt::skip]
 pub mod consume_effect_type_keys;
 #[rustfmt::skip]

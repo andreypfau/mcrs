@@ -79,8 +79,8 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:block_transformer",
-        krate: "mcrs_minecraft_item",
-        value: ValueType::Defined("crate::block_transformer::BlockTransformer"),
+        krate: "mcrs_minecraft_block_transformer",
+        value: ValueType::Defined("crate::BlockTransformer"),
     },
     Owner {
         registry: "minecraft:enchantment",
