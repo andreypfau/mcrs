@@ -27,7 +27,6 @@ use std::sync::Arc;
 #[derive(Message, Clone, Debug)]
 pub struct OutboundPlayerPacket {
     pub target: PacketTarget,
-    pub priority: PacketPriority,
     pub data: PacketPayload,
     // `dim_outputs::deliver` stamps these, not the dimension. PlayerSession(0) is no session's
     // id, so `bridge_outbound` drops an unstamped packet for one player.
@@ -79,34 +78,17 @@ pub enum PacketTarget {
     PlayerSet(SmallVec<[PlayerSession; 8]>),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PacketPriority {
-    Critical,
-    High,
-    Normal,
-}
-
 pub fn to(session: PlayerSession, data: PacketPayload) -> OutboundPlayerPacket {
     to_target(PacketTarget::SinglePlayer(session), data)
 }
 
-/// A packet for `target` at the normal priority, not yet stamped with a session.
+/// A packet for `target`, not yet stamped with a session.
 pub fn to_target(target: PacketTarget, data: PacketPayload) -> OutboundPlayerPacket {
     OutboundPlayerPacket {
         target,
-        priority: PacketPriority::Normal,
         data,
         session: PlayerSession(0),
         epoch: 0,
-    }
-}
-
-impl OutboundPlayerPacket {
-    pub fn critical(self) -> Self {
-        Self {
-            priority: PacketPriority::Critical,
-            ..self
-        }
     }
 }
 

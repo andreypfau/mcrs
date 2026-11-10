@@ -52,7 +52,7 @@ use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::FxHashSet;
 
 use crate::block_update::{BroadcastMarks, remove_replaced_block_entities};
-use crate::bus::{PacketPayload, PacketPriority};
+use crate::bus::PacketPayload;
 use crate::cell_mail::CellOutbox;
 use crate::cell_volume::CellVolume;
 use crate::column_change::ColumnChange;
@@ -647,7 +647,6 @@ fn publish_block_events(
         }
         changes.write(ColumnChange {
             column,
-            priority: PacketPriority::Normal,
             // The client takes only the low 8 bits of each argument.
             payload: PacketPayload::BlockEvent(ClientboundBlockEvent {
                 pos: event.pos,

@@ -14,7 +14,7 @@ use crate::mock_connection;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::world::World;
-use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, OutboundPlayerPacket, PacketPriority};
+use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, OutboundPlayerPacket};
 use mcrs_minecraft_engine::despawn_inbound_player::despawn_inbound_player;
 use mcrs_minecraft_engine::muxer::bridge::bridge_outbound;
 use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
@@ -66,7 +66,7 @@ fn cross_player_isolation() {
     register_session(&mut world, session_b, socket_b, 0);
 
     // --- Emit a packet stamped with A's removed session ---
-    write_packet_stamped(&mut world, session_a, 0, PacketPriority::Normal, 1);
+    write_packet_stamped(&mut world, session_a, 0, 1);
     run_system(&mut world, bridge_outbound);
 
     // B's queue must be empty: A's session is gone, so bridge_outbound finds
@@ -81,7 +81,7 @@ fn cross_player_isolation() {
     );
 
     // Sanity: B still receives its own packets.
-    write_packet_stamped(&mut world, session_b, 0, PacketPriority::Normal, 2);
+    write_packet_stamped(&mut world, session_b, 0, 2);
     run_system(&mut world, bridge_outbound);
 
     let packets_b = drain_queue(&mut world, socket_b);

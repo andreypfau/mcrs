@@ -8,9 +8,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
-use mcrs_minecraft_engine::bus::{
-    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
-};
+use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
 use mcrs_minecraft_engine::muxer::bridge_queue::{OutboundQueue, QueuedPacket};
 use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle};
 use mcrs_minecraft_engine_world::session::{
@@ -64,14 +62,12 @@ pub fn write_packet(
     target: PacketTarget,
     session: PlayerSession,
     epoch: u32,
-    priority: PacketPriority,
     seq: u32,
 ) {
     world
         .resource_mut::<Messages<OutboundPlayerPacket>>()
         .write(OutboundPlayerPacket {
             target,
-            priority,
             data: marker(seq),
             session,
             epoch,
@@ -81,29 +77,17 @@ pub fn write_packet(
 /// Convenience wrapper: write a packet with `PlayerSession(0)` / epoch 0,
 /// suitable for fan-out targets (`AllInDim`, `AllPlayers`, `PlayerSet`) when
 /// all sessions in the registry are also at epoch 0.
-pub fn write_packet_broadcast(
-    world: &mut World,
-    target: PacketTarget,
-    priority: PacketPriority,
-    seq: u32,
-) {
-    write_packet(world, target, PlayerSession(0), 0, priority, seq);
+pub fn write_packet_broadcast(world: &mut World, target: PacketTarget, seq: u32) {
+    write_packet(world, target, PlayerSession(0), 0, seq);
 }
 
 /// Write a test packet stamped for `session` and addressed to it.
-pub fn write_packet_stamped(
-    world: &mut World,
-    session: PlayerSession,
-    epoch: u32,
-    priority: PacketPriority,
-    seq: u32,
-) {
+pub fn write_packet_stamped(world: &mut World, session: PlayerSession, epoch: u32, seq: u32) {
     write_packet(
         world,
         PacketTarget::SinglePlayer(session),
         session,
         epoch,
-        priority,
         seq,
     );
 }
@@ -142,7 +126,7 @@ pub fn drain_queue(world: &mut World, socket: Entity) -> Vec<QueuedPacket> {
     let mut q = world
         .get_mut::<OutboundQueue>(socket)
         .expect("OutboundQueue present");
-    q.drain().map(|queued| queued.packet).collect()
+    q.drain().collect()
 }
 
 /// A small real packet that carries `seq`, so a test can tell its packets apart.

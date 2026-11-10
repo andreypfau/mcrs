@@ -7,7 +7,7 @@ use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
 use mcrs_minecraft_engine::between_ticks::take_dim_outputs;
 use mcrs_minecraft_engine::bus::{
-    InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerPacket, PacketPriority, PacketTarget,
+    InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerPacket, PacketTarget,
     PlayerTransferSnapshot,
 };
 use mcrs_minecraft_engine::channel_types::ToDim;
@@ -101,7 +101,6 @@ fn outbound_latency_is_one_host_tick() {
         .resource_mut::<Messages<OutboundPlayerPacket>>()
         .write(OutboundPlayerPacket {
             target: PacketTarget::SinglePlayer(PlayerSession(0)),
-            priority: PacketPriority::Normal,
             data: marker(0xDEAD),
             session: PlayerSession(0),
             epoch: 0,

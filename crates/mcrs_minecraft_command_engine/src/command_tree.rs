@@ -44,7 +44,7 @@ impl CommandTreePackets {
         op_level: PlayerOpLevel,
     ) -> Option<OutboundPlayerPacket> {
         let packet = self.by_level.get(usize::from(op_level.clamped()))?.clone();
-        Some(bus::to(session, PacketPayload::Commands(packet)).critical())
+        Some(bus::to(session, PacketPayload::Commands(packet)))
     }
 
     pub(crate) fn new<S: CommandSet>(graph: &SetGraph<S>) -> anyhow::Result<Self> {

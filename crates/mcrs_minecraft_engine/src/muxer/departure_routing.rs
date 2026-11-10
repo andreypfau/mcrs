@@ -95,8 +95,7 @@ fn announce(host: &mut World, anchor: Entity, destination: Destination, departur
                 ),
                 data_to_keep: KEEP_ATTRIBUTES_AND_DATA,
             }),
-        )
-        .critical(),
+        ),
     );
     enter_level_packets(
         session,
@@ -106,9 +105,6 @@ fn announce(host: &mut World, anchor: Entity, destination: Destination, departur
         |packet| dim_outputs::deliver(host, packet),
     );
     if let Some(look_at) = departure.arrival.look_at.clone() {
-        dim_outputs::deliver(
-            host,
-            bus::to(session, PacketPayload::PlayerLookAt(look_at)).critical(),
-        );
+        dim_outputs::deliver(host, bus::to(session, PacketPayload::PlayerLookAt(look_at)));
     }
 }

@@ -1,12 +1,12 @@
 //! Integration tests for `bridge_outbound`: packet drain, `PacketTarget`
-//! resolution against the sessions, and priority sub-deque ordering.
+//! resolution against the sessions, and the order of the writes.
 //!
 //! All tests are pure ECS routing — no sockets, no network I/O.
 
 use crate::mock_connection;
 
 use bevy_ecs::entity::Entity;
-use mcrs_minecraft_engine::bus::{PacketPriority, PacketTarget};
+use mcrs_minecraft_engine::bus::PacketTarget;
 use mcrs_minecraft_engine::muxer::bridge::bridge_outbound;
 use mcrs_minecraft_engine::muxer::bridge_queue::{OutboundQueue, QueuedPacket};
 use smallvec::SmallVec;
@@ -57,14 +57,7 @@ fn a_packet_target_reaches_exactly_its_players() {
                 (PacketTarget::PlayerSet(set), PlayerSession(0))
             }
         };
-        write_packet(
-            &mut world,
-            packet_target,
-            session,
-            0,
-            PacketPriority::Normal,
-            1,
-        );
+        write_packet(&mut world, packet_target, session, 0, 1);
         run_system(&mut world, bridge_outbound);
 
         let delivered: Vec<usize> = sockets
@@ -100,7 +93,6 @@ fn packet_target_missing_queue_counted() {
         PacketTarget::SinglePlayer(session),
         session,
         0,
-        PacketPriority::Normal,
         0,
     );
 
@@ -121,7 +113,7 @@ fn packet_target_missing_queue_counted() {
 // write_order
 // ---------------------------------------------------------------------------
 
-/// MVC-LAT-001: the queue drains in the order of the writes, whatever their priority, so the
+/// MVC-LAT-001: the queue drains in the order of the writes, so the
 /// client applies the changes in the order the server made them.
 #[test]
 fn the_queue_drains_in_the_order_of_the_writes() {
@@ -131,17 +123,12 @@ fn the_queue_drains_in_the_order_of_the_writes() {
     let socket = spawn_connection(&mut world);
     let (_, session) = register_player(&mut world, socket, dim);
 
-    for (priority, seq) in [
-        (PacketPriority::Normal, 3),
-        (PacketPriority::High, 2),
-        (PacketPriority::Critical, 1),
-    ] {
+    for seq in [3, 2, 1] {
         write_packet(
             &mut world,
             PacketTarget::SinglePlayer(session),
             session,
             0,
-            priority,
             seq,
         );
     }
@@ -159,12 +146,11 @@ fn the_queue_drains_in_the_order_of_the_writes() {
     assert_eq!(seqs, vec![3, 2, 1]);
 }
 
-/// MVC-LAT-001, MVC-TICK-002: a packet that the bridge serializes once for many players has the
-/// need it has for one player, so the probes bracket it exactly as they bracket the packet of one.
+/// MVC-LAT-001, MVC-TICK-002: a packet that the bridge serializes once for many players changes
+/// the prediction exactly when it does for one player, so the probes bracket it the same way.
 #[test]
-fn a_shared_packet_keeps_the_need_it_has_for_one_player() {
+fn a_shared_packet_changes_the_prediction_as_for_one_player() {
     use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload};
-    use mcrs_minecraft_engine::muxer::bridge_queue::Need;
     use mcrs_minecraft_protocol::VarInt;
     use mcrs_minecraft_protocol_game::block::BlockStateNumber;
     use mcrs_minecraft_protocol_game::clientbound::{
@@ -173,13 +159,13 @@ fn a_shared_packet_keeps_the_need_it_has_for_one_player() {
     use mcrs_voxel::BlockPos;
 
     let pos = BlockPos::new(1, 64, 0);
-    for (data, need) in [
+    for (data, changes_prediction) in [
         (
             PacketPayload::BlockUpdate(ClientboundBlockUpdate {
                 block_pos: pos,
                 block_state_id: BlockStateNumber(1),
             }),
-            Need::PredictedChange,
+            true,
         ),
         (
             PacketPayload::BlockEvent(ClientboundBlockEvent {
@@ -188,7 +174,7 @@ fn a_shared_packet_keeps_the_need_it_has_for_one_player() {
                 param: 0,
                 block: VarInt(1),
             }),
-            Need::Other,
+            false,
         ),
     ] {
         let mut world = build_bridge_world();
@@ -206,7 +192,6 @@ fn a_shared_packet_keeps_the_need_it_has_for_one_player() {
         ] {
             world.write_message(OutboundPlayerPacket {
                 target,
-                priority: PacketPriority::Normal,
                 data: data.clone(),
                 session,
                 epoch: 0,
@@ -215,12 +200,12 @@ fn a_shared_packet_keeps_the_need_it_has_for_one_player() {
 
         run_system(&mut world, bridge_outbound);
 
-        let needs: Vec<Need> = [sockets[0], sockets[1], lone]
+        let predicted: Vec<bool> = [sockets[0], sockets[1], lone]
             .into_iter()
             .flat_map(|socket| drain_queue(&mut world, socket))
-            .map(|queued| queued.need())
+            .map(|queued| queued.changes_prediction())
             .collect();
-        assert_eq!(needs, [need; 3], "{data:?}");
+        assert_eq!(predicted, [changes_prediction; 3], "{data:?}");
     }
 }
 
@@ -247,18 +232,8 @@ fn broadcast_delivered_to_post_transfer_session() {
     // bridge_outbound once (a single MessageReader pass) so each message is
     // read exactly once. Under the old per-recipient epoch filter both would be
     // dropped (0 != 2); both must now be delivered.
-    write_packet_broadcast(
-        &mut world,
-        PacketTarget::AllInDim(dim),
-        PacketPriority::Normal,
-        1,
-    );
-    write_packet_broadcast(
-        &mut world,
-        PacketTarget::AllPlayers,
-        PacketPriority::High,
-        2,
-    );
+    write_packet_broadcast(&mut world, PacketTarget::AllInDim(dim), 1);
+    write_packet_broadcast(&mut world, PacketTarget::AllPlayers, 2);
     run_system(&mut world, bridge_outbound);
     assert_eq!(
         world.get::<OutboundQueue>(socket).unwrap().total_len(),

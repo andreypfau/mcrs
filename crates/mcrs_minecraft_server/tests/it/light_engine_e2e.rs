@@ -4,7 +4,7 @@ use bevy_ecs::prelude::{Entity, ResMut, Resource, World};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_chunk::{BlockLight, SkyLight};
 use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
-use mcrs_minecraft_engine::bus::{PacketPayload, PacketPriority};
+use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::column_change::ColumnChange;
 use mcrs_minecraft_engine::column_streams::ColumnStreams;
 use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
@@ -281,11 +281,6 @@ fn a_torch_sends_one_delta_carrying_only_the_rows_it_changed() {
     assert_eq!(captured.len(), 1, "one change for one column");
     let packet = &captured[0];
     assert_eq!(packet.column, ColumnPos::new(0, 0));
-    assert_eq!(
-        packet.priority,
-        PacketPriority::High,
-        "a column's light is sent in full once, so a shed delta is never made good"
-    );
     let PacketPayload::LightUpdate(ClientboundLightUpdate { x, z, light_data }) = &packet.payload
     else {
         unreachable!("filtered above");

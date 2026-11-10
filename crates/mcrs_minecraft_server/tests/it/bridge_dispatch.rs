@@ -14,9 +14,7 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_ecs::world::World;
 use bytes::{Bytes, BytesMut};
-use mcrs_minecraft_engine::bus::{
-    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
-};
+use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
 use mcrs_minecraft_engine::muxer::bridge::dispatch_encode;
 use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine_world::session::PlayerSession;
@@ -80,16 +78,15 @@ fn spawn_mock_connection(world: &mut World) -> (Entity, OutboundReceiver) {
     (entity, rx)
 }
 
-/// Push `count` small packets at `priority` directly into `entity`'s
-/// `OutboundQueue` without going through `bridge_outbound`.
-fn enqueue(world: &mut World, entity: Entity, priority: PacketPriority, count: usize) {
+/// Push `count` small packets directly into `entity`'s `OutboundQueue` without going through
+/// `bridge_outbound`.
+fn enqueue(world: &mut World, entity: Entity, count: usize) {
     let mut q = world
         .get_mut::<OutboundQueue>(entity)
         .expect("OutboundQueue present");
     for i in 0..count {
         q.push(OutboundPlayerPacket {
             target: PacketTarget::AllPlayers,
-            priority,
             data: mock_connection::marker(i as u32),
             session: PlayerSession(0),
             epoch: 0,
@@ -105,32 +102,32 @@ fn run_dispatch(world: &mut World) {
 }
 
 // ---------------------------------------------------------------------------
-// deep_critical_queue_is_not_kicked
+// deep_queue_is_not_kicked
 // ---------------------------------------------------------------------------
 
-/// A tick's worth of critical packets is what the server produced, not what the
-/// client failed to take, so no depth of critical backlog kicks the connection.
-/// Columns are paced by the client's batch acknowledgements instead.
+/// A tick's worth of packets is what the server produced, not what the client
+/// failed to take, so no depth of backlog kicks the connection. Columns are
+/// paced by the client's batch acknowledgements instead.
 #[test]
-fn deep_critical_queue_is_not_kicked() {
+fn deep_queue_is_not_kicked() {
     let mut world = build_dispatch_world();
     let (socket, _rx) = spawn_mock_connection(&mut world);
 
     let before_kick = world.resource::<BridgeTelemetry>().kick_overflow_total;
 
     for _ in 0..8 {
-        enqueue(&mut world, socket, PacketPriority::Critical, 512);
+        enqueue(&mut world, socket, 512);
         run_dispatch(&mut world);
     }
 
     assert_eq!(
         world.resource::<BridgeTelemetry>().kick_overflow_total,
         before_kick,
-        "a deep critical queue must not count as an overflow kick"
+        "a deep queue must not count as an overflow kick"
     );
     assert!(
         world.get::<ServerSideConnection>(socket).is_some(),
-        "the connection must survive a deep critical queue"
+        "the connection must survive a deep queue"
     );
 }
 
@@ -157,7 +154,6 @@ fn coalesce_single_write_per_tick() {
         for i in 0..5u32 {
             q.push(OutboundPlayerPacket {
                 target: PacketTarget::AllPlayers,
-                priority: PacketPriority::Normal,
                 data: PacketPayload::BlockUpdate(ClientboundBlockUpdate {
                     block_pos: BlockPos::new(i as i32, 64, 0),
                     block_state_id: BlockStateNumber(i as u16),
@@ -195,7 +191,6 @@ fn chunk_load_encodes() {
             .expect("OutboundQueue");
         q.push(OutboundPlayerPacket {
             target: PacketTarget::AllPlayers,
-            priority: PacketPriority::Critical,
             data: chunk_load(&[0x80u8; 2000]),
             session: PlayerSession(0),
             epoch: 0,
@@ -236,7 +231,6 @@ fn section_blocks_update_encodes() {
         .expect("OutboundQueue")
         .push(OutboundPlayerPacket {
             target: PacketTarget::AllPlayers,
-            priority: PacketPriority::Normal,
             data: PacketPayload::SectionBlocksUpdate(packet),
             session: PlayerSession(0),
             epoch: 0,
@@ -286,7 +280,6 @@ fn a_shared_column_is_framed_once_for_each_threshold() {
             .unwrap()
             .push(OutboundPlayerPacket {
                 target: PacketTarget::AllPlayers,
-                priority: PacketPriority::Critical,
                 data: column.clone(),
                 session: PlayerSession(0),
                 epoch: 0,
@@ -335,7 +328,7 @@ enum Wire {
     Probe(i32),
 }
 
-fn payload_of(wire: &Wire) -> (PacketPriority, PacketPayload) {
+fn payload_of(wire: &Wire) -> PacketPayload {
     use mcrs_minecraft_protocol_game::block::BlockStateNumber;
     use mcrs_minecraft_protocol_game::clientbound::{
         ClientboundBlockEvent, ClientboundPlayerPosition, ClientboundUpdateAttributes,
@@ -343,22 +336,16 @@ fn payload_of(wire: &Wire) -> (PacketPriority, PacketPayload) {
     use mcrs_voxel::BlockPos;
 
     match *wire {
-        Wire::Update(x) => (
-            PacketPriority::Normal,
-            PacketPayload::BlockUpdate(ClientboundBlockUpdate {
-                block_pos: BlockPos::new(x, 64, 0),
-                block_state_id: BlockStateNumber(1),
-            }),
-        ),
-        Wire::Event(x) => (
-            PacketPriority::Normal,
-            PacketPayload::BlockEvent(ClientboundBlockEvent {
-                pos: BlockPos::new(x, 64, 0),
-                action: 0,
-                param: 0,
-                block: VarInt(1),
-            }),
-        ),
+        Wire::Update(x) => PacketPayload::BlockUpdate(ClientboundBlockUpdate {
+            block_pos: BlockPos::new(x, 64, 0),
+            block_state_id: BlockStateNumber(1),
+        }),
+        Wire::Event(x) => PacketPayload::BlockEvent(ClientboundBlockEvent {
+            pos: BlockPos::new(x, 64, 0),
+            action: 0,
+            param: 0,
+            block: VarInt(1),
+        }),
         Wire::Own(entity_id) => {
             let mut packet = Vec::new();
             ClientboundUpdateAttributes {
@@ -367,21 +354,15 @@ fn payload_of(wire: &Wire) -> (PacketPriority, PacketPayload) {
             }
             .encode_with_id(&mut packet)
             .unwrap();
-            (
-                PacketPriority::Normal,
-                PacketPayload::OwnEntityState(packet.into()),
-            )
+            PacketPayload::OwnEntityState(packet.into())
         }
-        Wire::Position => (
-            PacketPriority::Critical,
-            PacketPayload::PlayerPosition(ClientboundPlayerPosition {
-                teleport_id: VarInt(1),
-                position: bevy_math::DVec3::ZERO,
-                velocity: bevy_math::DVec3::ZERO,
-                look: mcrs_minecraft_core::Look::default(),
-                flags: mcrs_minecraft_protocol_game::PositionFlags::default(),
-            }),
-        ),
+        Wire::Position => PacketPayload::PlayerPosition(ClientboundPlayerPosition {
+            teleport_id: VarInt(1),
+            position: bevy_math::DVec3::ZERO,
+            velocity: bevy_math::DVec3::ZERO,
+            look: mcrs_minecraft_core::Look::default(),
+            flags: mcrs_minecraft_protocol_game::PositionFlags::default(),
+        }),
         Wire::Probe(_) => unreachable!("the test writes no probe"),
     }
 }
@@ -446,11 +427,9 @@ fn a_burst_reaches_the_wire_whole_with_the_predicted_changes_between_probes() {
     {
         let mut queue = world.get_mut::<OutboundQueue>(socket).unwrap();
         for wire in &written {
-            let (priority, data) = payload_of(wire);
             queue.push(OutboundPlayerPacket {
                 target: PacketTarget::AllPlayers,
-                priority,
-                data,
+                data: payload_of(wire),
                 session: PlayerSession(0),
                 epoch: 0,
             });

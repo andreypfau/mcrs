@@ -277,16 +277,13 @@ impl ColumnViews {
             };
             let previous = player.set(column, None);
             if previous == Some(ColumnState::Sent) {
-                out.push(
-                    to(
-                        session,
-                        PacketPayload::ChunkUnload(ClientboundForgetLevelChunk {
-                            x: column.x,
-                            z: column.z,
-                        }),
-                    )
-                    .critical(),
-                );
+                out.push(to(
+                    session,
+                    PacketPayload::ChunkUnload(ClientboundForgetLevelChunk {
+                        x: column.x,
+                        z: column.z,
+                    }),
+                ));
             }
             if previous.is_some_and(|state| state != ColumnState::Queued) {
                 self.leave(session, DimColumn { dim, column });
@@ -346,7 +343,6 @@ impl ColumnViews {
         if !recipients.is_empty() {
             out.push(OutboundPlayerPacket {
                 target: PacketTarget::PlayerSet(recipients),
-                priority: change.priority,
                 data: change.payload,
                 session: PlayerSession(0),
                 epoch: 0,
@@ -507,29 +503,21 @@ impl ColumnViews {
                 };
                 let packet = &version.bytes;
                 if sends == 0 {
-                    out.push(
-                        to(
-                            session,
-                            PacketPayload::ChunkBatchStart(ClientboundChunkBatchStart),
-                        )
-                        .critical(),
-                    );
+                    out.push(to(
+                        session,
+                        PacketPayload::ChunkBatchStart(ClientboundChunkBatchStart),
+                    ));
                 }
                 batch_bytes = batch_bytes.saturating_add(packet.len());
-                out.push(
-                    to(
-                        session,
-                        PacketPayload::ChunkLoad {
-                            column: picked.at.column,
-                            packet: packet.clone(),
-                        },
-                    )
-                    .critical(),
-                );
+                out.push(to(
+                    session,
+                    PacketPayload::ChunkLoad {
+                        column: picked.at.column,
+                        packet: packet.clone(),
+                    },
+                ));
                 for change in &version.changes {
-                    let mut packet = to(session, change.payload.clone());
-                    packet.priority = change.priority;
-                    out.push(packet);
+                    out.push(to(session, change.payload.clone()));
                 }
                 feed.hold(viewer(session));
                 if let Some(player) = self.players.get_mut(&session) {
@@ -540,15 +528,12 @@ impl ColumnViews {
             if sends == 0 {
                 continue;
             }
-            out.push(
-                to(
-                    session,
-                    PacketPayload::ChunkBatchFinished(ClientboundChunkBatchFinished {
-                        batch_size: VarInt(i32::try_from(sends).unwrap_or(i32::MAX)),
-                    }),
-                )
-                .critical(),
-            );
+            out.push(to(
+                session,
+                PacketPayload::ChunkBatchFinished(ClientboundChunkBatchFinished {
+                    batch_size: VarInt(i32::try_from(sends).unwrap_or(i32::MAX)),
+                }),
+            ));
             if let Some(player) = self.players.get_mut(&session) {
                 player.pacing.sent_batch(sends);
             }
@@ -574,27 +559,21 @@ fn send_cache_view(
     out: &mut Vec<OutboundPlayerPacket>,
 ) {
     if old.is_none_or(|old| old.center != new.center) {
-        out.push(
-            to(
-                session,
-                PacketPayload::SetChunkCacheCenter(ClientboundSetChunkCacheCenter {
-                    x: VarInt(new.center.x),
-                    z: VarInt(new.center.z),
-                }),
-            )
-            .critical(),
-        );
+        out.push(to(
+            session,
+            PacketPayload::SetChunkCacheCenter(ClientboundSetChunkCacheCenter {
+                x: VarInt(new.center.x),
+                z: VarInt(new.center.z),
+            }),
+        ));
     }
     if old.is_none_or(|old| old.distance != new.distance) {
-        out.push(
-            to(
-                session,
-                PacketPayload::SetChunkCacheRadius(ClientboundChunkCacheRadius {
-                    radius: VarInt(i32::from(new.distance.saturating_sub(VIEW_MARGIN))),
-                }),
-            )
-            .critical(),
-        );
+        out.push(to(
+            session,
+            PacketPayload::SetChunkCacheRadius(ClientboundChunkCacheRadius {
+                radius: VarInt(i32::from(new.distance.saturating_sub(VIEW_MARGIN))),
+            }),
+        ));
     }
 }
 
@@ -638,8 +617,6 @@ mod tests {
         ClientboundBlockEvent, ClientboundBlockUpdate, ClientboundLevelEvent,
     };
     use mcrs_voxel::{BlockPos, SectionPos};
-
-    use crate::bus::PacketPriority;
 
     fn dim() -> Entity {
         EcsWorld::new().spawn_empty().id()
@@ -693,7 +670,6 @@ mod tests {
     fn block_change(column: ColumnPos) -> ColumnChange {
         ColumnChange {
             column,
-            priority: PacketPriority::Normal,
             payload: PacketPayload::BlockUpdate(ClientboundBlockUpdate {
                 block_pos: BlockPos::new(column.x * 16, 0, column.z * 16),
                 block_state_id: mcrs_minecraft_protocol_game::block::BlockStateNumber(1),
@@ -755,7 +731,6 @@ mod tests {
         send(&mut views);
         let event = ColumnChange {
             column,
-            priority: PacketPriority::Normal,
             payload: PacketPayload::BlockEvent(ClientboundBlockEvent {
                 pos: BlockPos::new(0, 0, 0),
                 action: 1,
@@ -797,7 +772,6 @@ mod tests {
         send(&mut views);
         let event = ColumnChange {
             column,
-            priority: PacketPriority::Normal,
             payload: PacketPayload::BlockEvent(ClientboundBlockEvent {
                 pos: BlockPos::new(2, 10, 3),
                 action: 1,
@@ -834,7 +808,6 @@ mod tests {
         send(&mut views);
         let event = ColumnChange {
             column,
-            priority: PacketPriority::Normal,
             payload: PacketPayload::LevelEvent(ClientboundLevelEvent {
                 effect: 2001,
                 pos: BlockPos::new(0, 0, 0),

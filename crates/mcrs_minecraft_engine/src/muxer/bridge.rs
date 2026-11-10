@@ -59,8 +59,10 @@ use std::mem;
 use tracing::{trace, warn};
 
 use crate::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPacket};
-use crate::bus::{PacketPayload, PacketPriority, PacketTarget};
-use crate::muxer::bridge_queue::{EncodedPacket, Need, OutboundQueue, Queued, QueuedPacket};
+use crate::bus::{PacketPayload, PacketTarget};
+use crate::muxer::bridge_queue::{
+    EncodedPacket, OutboundQueue, QueuedPacket, payload_changes_prediction,
+};
 use crate::muxer::dim_inputs::DimInputs;
 use crate::muxer::probes::Probes;
 use crate::muxer::session::{HostAnchorRef, PendingInbound, SessionConnection};
@@ -127,18 +129,10 @@ pub fn bridge_outbound(
                 &mut telemetry,
                 &mut pending,
                 connection,
-                msg.priority,
                 packet.clone(),
             );
         }
-        push_to_connection(
-            &mut queues,
-            &mut telemetry,
-            &mut pending,
-            last,
-            msg.priority,
-            packet,
-        );
+        push_to_connection(&mut queues, &mut telemetry, &mut pending, last, packet);
     }
 }
 
@@ -206,7 +200,7 @@ fn encode_once(
         return Ok(queued);
     };
     let kind = payload.kind();
-    let need = Need::of(&payload);
+    let changes_prediction = payload_changes_prediction(&payload);
     if let Err(error) = write_payload(buffer, payload) {
         buffer.0.clear();
         return Err(error);
@@ -214,7 +208,7 @@ fn encode_once(
     telemetry.encode_calls_total = telemetry.encode_calls_total.saturating_add(1);
     Ok(QueuedPacket::Encoded(EncodedPacket {
         kind,
-        need,
+        changes_prediction,
         packet: buffer.0.split().freeze(),
     }))
 }
@@ -238,7 +232,6 @@ fn push_to_connection(
     telemetry: &mut BridgeTelemetry,
     pending: &mut PendingConnections,
     connection: Entity,
-    priority: PacketPriority,
     packet: QueuedPacket,
 ) {
     let Ok(mut queue) = queues.get_mut(connection) else {
@@ -250,7 +243,7 @@ fn push_to_connection(
     if queue.total_len() == 0 {
         pending.connections.push(connection);
     }
-    queue.push_queued(priority, packet);
+    queue.push_queued(packet);
 }
 
 /// The connections that the flush writes to, with their probes when the server checks their
@@ -427,7 +420,7 @@ fn dispatch_listed(
 /// more than one connection costs a frame on this thread.
 fn count_recipients(queue: &OutboundQueue, frames: &mut SharedFrames) {
     for queued in queue.iter() {
-        if let QueuedPacket::Encoded(encoded) = &queued.packet {
+        if let QueuedPacket::Encoded(encoded) = queued {
             frames.add_recipient(&encoded.packet);
         }
     }
@@ -493,12 +486,10 @@ fn write_queue(
     frames: &mut SharedFrames,
     mut layer_one: Option<LayerOne<'_>>,
 ) {
-    let last_change = layer_one.as_ref().and_then(|_| {
-        queue
-            .iter()
-            .rposition(|queued| queued.packet.changes_prediction())
-    });
-    for (index, Queued { packet: queued, .. }) in queue.drain().enumerate() {
+    let last_change = layer_one
+        .as_ref()
+        .and_then(|_| queue.iter().rposition(|queued| queued.changes_prediction()));
+    for (index, queued) in queue.drain().enumerate() {
         trace!(
             target: "mcrs_minecraft_engine::bridge",
             conn = ?entity,
