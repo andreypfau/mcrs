@@ -44,15 +44,15 @@ The no-Bevy list has 100 names. Six of them are tools under `tools/`, so among t
 
 ## What to take for
 
-Nothing here is published to crates.io, so every route below uses a git dependency (see [Use the crates in your project](/docs/en/crates/use-as-library/)). There are no library examples yet: the examples issue is <Status issue={287} state="wip" />, and the first working use is [parsing SNBT](/docs/en/crates/hello-nbt/).
+Nothing here is published to crates.io, so every route below uses a git dependency (see [Use the crates in your project](/docs/en/crates/use-as-library/)). There are no library examples yet: the examples issue is <Status issue={287} />, and the first working use is [parsing SNBT](/docs/en/crates/hello-nbt/).
 
 | You build | Start with | State |
 |---|---|---|
-| A proxy | `mcrs_minecraft_protocol` and `mcrs_minecraft_network`. Both are on the no-Bevy list, and `xtask` checks that they do not link game data | The crates exist. The proxy library itself, with routing and forwarding, is <Status issue={296} state="wip" />. Online mode is <Status issue={82} state="wip" /> |
-| A bot | The same two crates, plus `mcrs_minecraft_client_world`, which keeps the world state of a client without a window or a renderer. It is not on the no-Bevy list | The split of the client state from rendering is done (<Status issue={301} state="works" />). The walker bot is <Status issue={302} state="wip" /> |
-| A map or a world viewer | `mcrs_minecraft_anvil` for regions (also on the wasm32 list), `mcrs_minecraft_chunk` and `mcrs_minecraft_block` for the data, `mcrs_minecraft_mesh` for meshes | The crates exist. Top-down tiles without a window are <Status issue={297} state="wip" />, and a model viewer is <Status issue={298} state="wip" /> |
+| A proxy | `mcrs_minecraft_protocol` and `mcrs_minecraft_network`. Both are on the no-Bevy list, and `xtask` checks that they do not link game data | The crates exist. The proxy library itself, with routing and forwarding, is <Status issue={296} />. Online mode is <Status issue={82} /> |
+| A bot | The same two crates, plus `mcrs_minecraft_client_world`, which keeps the world state of a client without a window or a renderer. It is not on the no-Bevy list | The split of the client state from rendering is done (<Status issue={301} />). The walker bot is <Status issue={302} /> |
+| A map or a world viewer | `mcrs_minecraft_anvil` for regions (also on the wasm32 list), `mcrs_minecraft_chunk` and `mcrs_minecraft_block` for the data, `mcrs_minecraft_mesh` for meshes | The crates exist. Top-down tiles without a window are <Status issue={297} />, and a model viewer is <Status issue={298} /> |
 | A tool for NBT, commands or data packs | `mcrs_minecraft_nbt`, `mcrs_minecraft_snbt`, `mcrs_command`, `mcrs_minecraft_datapack` | The crates exist. `mcrs_command` and `mcrs_minecraft_snbt` read and write what the game reads and writes |
-| A world generator preview | `mcrs_minecraft_worldgen_generator` and the `mcrs_minecraft_worldgen_*` crates | A preview by seed through the public API is <Status issue={299} state="wip" />. The generator itself matches vanilla in parity tests on reference seeds |
+| A world generator preview | `mcrs_minecraft_worldgen_generator` and the `mcrs_minecraft_worldgen_*` crates | A preview by seed through the public API is <Status issue={299} />. The generator itself matches vanilla in parity tests on reference seeds |
 
 "The crates exist" means they build in this repository. It does not mean they have a stable API or a README: only six crates have a README.
 

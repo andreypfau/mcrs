@@ -22,7 +22,7 @@ import Status from '~/components/Status.astro';
 import Example from '~/components/Example.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-Chat is the first and, for now, the only public player event of mcrs. It is the part of <Status issue={283} state="partial" /> that <Status pr={636} state="works" /> merged. Join, leave, movement and block events do not exist yet. Examples here come from test files of the repository, and we did not run them outside those tests.
+Chat is the first and, for now, the only public player event of mcrs. It is the part of <Status issue={283} /> that <Status pr={636} state="works" /> merged. Join, leave, movement and block events do not exist yet. Examples here come from test files of the repository, and we did not run them outside those tests.
 
 ## The event
 
@@ -71,7 +71,7 @@ Chat runs inside each dimension world, so the observer has to be in the dimensio
 See [Your first plugin](/docs/en/plugins/first-plugin/) for why `add_plugins` does not work here.
 
 <Aside type="caution" title="WIP: open questions from PR 636">
-Three points are open in the PR text. First, where the event should live: it is in `mcrs_minecraft_chat_server`, while the issue says "raised by the engine". Second, observer order: Bevy has no priority for observers, so two plugins that rewrite one line give a result that depends on the order. Third, the length of replaced text: the 256-character limit is on the packet, and a plugin can set a longer text. Track them in <Status issue={283} state="partial" /> and <Status pr={636} state="works" />.
+Three points are open in the PR text. First, where the event should live: it is in `mcrs_minecraft_chat_server`, while the issue says "raised by the engine". Second, observer order: Bevy has no priority for observers, so two plugins that rewrite one line give a result that depends on the order. Third, the length of replaced text: the 256-character limit is on the packet, and a plugin can set a longer text. Track them in <Status issue={283} /> and <Status pr={636} state="works" />.
 </Aside>
 
 ## Test it

@@ -26,7 +26,7 @@ import { Aside } from '@astrojs/starlight/components';
 The server registers 20 root commands (21 names with the alias `tp`). They come from two plugins: `VanillaCommandsPlugin` in `crates/mcrs_minecraft_command_vanilla` and `WorldCommandsPlugin` in `crates/mcrs_minecraft_command_world`. This list was checked against both `plugin.rs` files and the permission calls of each command on commit `51d45c26a`. Commands that vanilla has and that are not in this list do not exist here yet. `setblock`, `give`, `say` and `stop` are not registered, for example.
 
 <Aside type="caution" title="WIP">
-The table is written by hand. It will be generated from the two `plugin.rs` files. The command tree with permission levels is tracked in <Status issue={285} state="partial" />, and a Bedrock command dialect in <Status issue={667} state="wip" />.
+The table is written by hand. It will be generated from the two `plugin.rs` files. The command tree with permission levels is tracked in <Status issue={285} />, and a Bedrock command dialect in <Status issue={667} />.
 </Aside>
 
 ## Permission levels

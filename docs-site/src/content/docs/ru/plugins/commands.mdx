@@ -30,7 +30,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 <Example file="crates/mcrs_minecraft_command/src/permission.rs" from={"#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]\npub enum CommandLevel"} title="CommandLevel" />
 
-Игрок с уровнем ниже требуемого не видит узел в дереве и не может его выполнить. Уровень игрока берется из списка операторов или из уровня сервера по умолчанию. Строковых узлов прав вроде `myplugin.use` нет. Системы прав с группами в mcrs сегодня нет, и <Status issue={285} state="partial" /> ее не описывает.
+Игрок с уровнем ниже требуемого не видит узел в дереве и не может его выполнить. Уровень игрока берется из списка операторов или из уровня сервера по умолчанию. Строковых узлов прав вроде `myplugin.use` нет. Системы прав с группами в mcrs сегодня нет, и <Status issue={285} /> ее не описывает.
 
 ## Обработчик
 
@@ -40,12 +40,12 @@ import { Aside } from '@astrojs/starlight/components';
 
 Обработчик не меняет игрока напрямую. Он записывает эффект через `CommandOutput::effect`, а мир применяет эффекты после вызова, в порядке записи. Тип эффекта регистрируется через `add_command_effect`. Так `teleport` и `gamemode` меняют игроков в других измерениях. Причины описаны в [docs/command-dimensions.md](https://github.com/andreypfau/mcrs/blob/main/docs/command-dimensions.md) и на странице [Измерения](/docs/ru/plugins/dimensions/).
 
-Перед выполнением строки команды сервер вызывает `CommandEvent` в мире измерения источника. Наблюдатель может выставить `cancelled`, и тогда команда не выполнится. Это командная сторона <Status issue={283} state="partial" />.
+Перед выполнением строки команды сервер вызывает `CommandEvent` в мире измерения источника. Наблюдатель может выставить `cancelled`, и тогда команда не выполнится. Это командная сторона <Status issue={283} />.
 
 ## Ограничения
 
 <Aside type="caution" title="WIP">
-Известные ограничения <Status issue={285} state="partial" /> на сегодня:
+Известные ограничения <Status issue={285} /> на сегодня:
 
 - Ванильные команды нельзя использовать как строительные блоки. Например, `build` и `run` у `kill` объявлены как `pub(crate)`, поэтому плагин не может ни переиспользовать их, ни обернуть.
 - Типы аргументов узла берутся из набора аргументов набора команд (`VanillaCommands`). Тип вне этого набора требует собственного набора.

@@ -32,15 +32,15 @@ mcrs состоит из 122 крейтов в `crates/`, и брать их м�
 
 ## Что брать для задачи
 
-Ничего из этого не опубликовано на crates.io, поэтому во всех случаях ниже нужна git-зависимость (см. [Использование крейтов в своем проекте](/docs/ru/crates/use-as-library/)). Примеров использования библиотеки пока нет: issue с примерами - <Status issue={287} state="wip" />, а первый рабочий пример - [разбор SNBT](/docs/ru/crates/hello-nbt/).
+Ничего из этого не опубликовано на crates.io, поэтому во всех случаях ниже нужна git-зависимость (см. [Использование крейтов в своем проекте](/docs/ru/crates/use-as-library/)). Примеров использования библиотеки пока нет: issue с примерами - <Status issue={287} />, а первый рабочий пример - [разбор SNBT](/docs/ru/crates/hello-nbt/).
 
 | Что вы пишете | С чего начать | Состояние |
 |---|---|---|
-| Прокси | `mcrs_minecraft_protocol` и `mcrs_minecraft_network`. Оба в списке "без Bevy", и `xtask` проверяет, что они не линкуют игровые данные | Крейты есть. Сама библиотека прокси с маршрутизацией и пересылкой - <Status issue={296} state="wip" />. Онлайн-режим - <Status issue={82} state="wip" /> |
-| Бот | Те же два крейта и `mcrs_minecraft_client_world`, который хранит состояние мира клиента без окна и рендерера. В списке "без Bevy" его нет | Состояние клиента отделено от рендеринга (<Status issue={301} state="works" />). Бот-ходок - <Status issue={302} state="wip" /> |
-| Карта или просмотрщик мира | `mcrs_minecraft_anvil` для регионов (он есть и в списке wasm32), `mcrs_minecraft_chunk` и `mcrs_minecraft_block` для данных, `mcrs_minecraft_mesh` для мешей | Крейты есть. Тайлы вида сверху без окна - <Status issue={297} state="wip" />, просмотрщик моделей - <Status issue={298} state="wip" /> |
+| Прокси | `mcrs_minecraft_protocol` и `mcrs_minecraft_network`. Оба в списке "без Bevy", и `xtask` проверяет, что они не линкуют игровые данные | Крейты есть. Сама библиотека прокси с маршрутизацией и пересылкой - <Status issue={296} />. Онлайн-режим - <Status issue={82} /> |
+| Бот | Те же два крейта и `mcrs_minecraft_client_world`, который хранит состояние мира клиента без окна и рендерера. В списке "без Bevy" его нет | Состояние клиента отделено от рендеринга (<Status issue={301} />). Бот-ходок - <Status issue={302} /> |
+| Карта или просмотрщик мира | `mcrs_minecraft_anvil` для регионов (он есть и в списке wasm32), `mcrs_minecraft_chunk` и `mcrs_minecraft_block` для данных, `mcrs_minecraft_mesh` для мешей | Крейты есть. Тайлы вида сверху без окна - <Status issue={297} />, просмотрщик моделей - <Status issue={298} /> |
 | Инструмент для NBT, команд или датапаков | `mcrs_minecraft_nbt`, `mcrs_minecraft_snbt`, `mcrs_command`, `mcrs_minecraft_datapack` | Крейты есть. `mcrs_command` и `mcrs_minecraft_snbt` читают и пишут то же, что читает и пишет игра |
-| Предпросмотр генерации мира | `mcrs_minecraft_worldgen_generator` и крейты `mcrs_minecraft_worldgen_*` | Предпросмотр по сиду через публичный API - <Status issue={299} state="wip" />. Сам генератор совпадает с ванилью в parity-тестах на эталонных сидах |
+| Предпросмотр генерации мира | `mcrs_minecraft_worldgen_generator` и крейты `mcrs_minecraft_worldgen_*` | Предпросмотр по сиду через публичный API - <Status issue={299} />. Сам генератор совпадает с ванилью в parity-тестах на эталонных сидах |
 
 "Крейты есть" значит, что они собираются в этом репозитории. Стабильный API или README при этом не обещаны: README есть только у шести крейтов.
 

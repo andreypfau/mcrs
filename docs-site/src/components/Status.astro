@@ -1,6 +1,14 @@
 ---
+import { getEntry } from "astro:content";
 interface Props { issue?: number; pr?: number; state?: "works" | "partial" | "wip" | "undecided" | "declined"; doc?: string }
-const { issue, pr, state, doc } = Astro.props;
+const { issue, pr, doc } = Astro.props;
+let state = Astro.props.state;
+if (issue !== undefined) {
+  if (state) throw new Error(`Status: the state of issue #${issue} comes from src/data/issues.yml, write <Status issue={${issue}} />`);
+  const entry = await getEntry("issues", String(issue));
+  if (!entry) throw new Error(`Status: issue #${issue} is not in src/data/issues.yml`);
+  state = entry.data.state;
+}
 const ru = Astro.currentLocale === "ru";
 const labels = {
   works: ["Works", "Работает"], partial: ["Partial", "Частично"], wip: ["WIP", "В работе"],

@@ -33,10 +33,10 @@ import { Aside } from '@astrojs/starlight/components';
 | semantic | the gameplay result matches, the order of work inside a tick may not | lighting, fluids, redstone, neighbour updates, random behaviour (distributions, not vanilla's random sequence) |
 | intentional deviation | vanilla is accidental or pathological, so mcrs differs on purpose and writes it down | each one has an entry in the spec, with the rule, the reference behaviour, what the client sees and what a differential test does |
 
-The full table per subsystem is in [the sharding design note](https://github.com/andreypfau/mcrs/blob/main/docs/minecraft-bevy-sharding-architecture.md), section 2. The reasoning for three tiers of determinism is the decision <Status issue={367} state="works" />. The short version: matching the reference everywhere would mean copying the order in which Java iterates hash maps. Matching it nowhere makes parity untestable.
+The full table per subsystem is in [the sharding design note](https://github.com/andreypfau/mcrs/blob/main/docs/minecraft-bevy-sharding-architecture.md), section 2. The reasoning for three tiers of determinism is the decision <Status issue={367} />. The short version: matching the reference everywhere would mean copying the order in which Java iterates hash maps. Matching it nowhere makes parity untestable.
 
 <Aside type="note" title="Semantic now, exact later">
-Redstone, fluids and block updates are semantic for now. Their queues keep the fields vanilla orders by (due tick, priority, insertion sequence), and the order is one replaceable policy per domain. Moving to vanilla's tick-for-tick order is a change of that policy, tested against recorded fixtures (<Status issue={272} state="wip" />). Redstone itself does not exist yet: <Status issue={190} state="wip" />.
+Redstone, fluids and block updates are semantic for now. Their queues keep the fields vanilla orders by (due tick, priority, insertion sequence), and the order is one replaceable policy per domain. Moving to vanilla's tick-for-tick order is a change of that policy, tested against recorded fixtures (<Status issue={272} />). Redstone itself does not exist yet: <Status issue={190} />.
 </Aside>
 
 ## Kinds of rules

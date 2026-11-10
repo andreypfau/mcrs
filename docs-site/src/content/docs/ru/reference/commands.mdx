@@ -12,7 +12,7 @@ import { Aside } from '@astrojs/starlight/components';
 Сервер регистрирует 20 корневых команд (21 имя с алиасом `tp`). Они приходят из двух плагинов: `VanillaCommandsPlugin` в `crates/mcrs_minecraft_command_vanilla` и `WorldCommandsPlugin` в `crates/mcrs_minecraft_command_world`. Список проверен по обоим файлам `plugin.rs` и по вызовам проверки прав у каждой команды на коммите `51d45c26a`. Команд, которые есть в ванили, но нет в этом списке, здесь пока нет. Например, `setblock`, `give`, `say` и `stop` не зарегистрированы.
 
 <Aside type="caution" title="WIP">
-Таблица написана вручную. Ее будут генерировать из двух файлов `plugin.rs`. Дерево команд с уровнями прав отслеживается в <Status issue={285} state="partial" />, диалект команд Bedrock - в <Status issue={667} state="wip" />.
+Таблица написана вручную. Ее будут генерировать из двух файлов `plugin.rs`. Дерево команд с уровнями прав отслеживается в <Status issue={285} />, диалект команд Bedrock - в <Status issue={667} />.
 </Aside>
 
 ## Уровни прав

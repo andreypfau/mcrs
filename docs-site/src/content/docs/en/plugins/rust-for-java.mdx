@@ -134,7 +134,7 @@ A real plugin from the repository, with a resource and a system in `FixedUpdate`
 
 ## Ownership in one paragraph
 
-A value has one owner. You can lend it as `&T` (many readers) or `&mut T` (one writer), never both at once. In Bevy systems this is written in the parameters: `Query<&T>` reads, `Query<&mut T>` writes. You rarely write lifetimes. The habits to change: store an `Entity` id instead of a reference to a player, and call `.clone()` instead of sharing. Do not copy patterns from Rust servers built on `Arc<Mutex<..>>`, the project avoids them in its library layers, see <Status issue={566} state="wip" />. More on ownership: [the Rust Book chapter](https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html).
+A value has one owner. You can lend it as `&T` (many readers) or `&mut T` (one writer), never both at once. In Bevy systems this is written in the parameters: `Query<&T>` reads, `Query<&mut T>` writes. You rarely write lifetimes. The habits to change: store an `Entity` id instead of a reference to a player, and call `.clone()` instead of sharing. Do not copy patterns from Rust servers built on `Arc<Mutex<..>>`, the project avoids them in its library layers, see <Status issue={566} />. More on ownership: [the Rust Book chapter](https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html).
 
 ## Three errors you will meet
 
@@ -157,7 +157,7 @@ Lifetimes (except reading the signatures of other people), `unsafe`, procedural 
 - [bevy_ecs on docs.rs](https://docs.rs/bevy_ecs/0.19.1/bevy_ecs/) for exact signatures.
 
 <Aside type="caution" title="WIP">
-The toolchain is pinned in `rust-toolchain.toml` (nightly). For a project outside the repository on stable Rust, see <Status issue={321} state="undecided" />. A detailed setup guide will appear by the alpha.
+The toolchain is pinned in `rust-toolchain.toml` (nightly). For a project outside the repository on stable Rust, see <Status issue={321} />. A detailed setup guide will appear by the alpha.
 </Aside>
 
 Next: [your first plugin](/docs/en/plugins/first-plugin/), then [Paper and Minestom in mcrs terms](/docs/en/plugins/paper-to-mcrs/).

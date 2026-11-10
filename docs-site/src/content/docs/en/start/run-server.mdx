@@ -38,7 +38,7 @@ cargo run --release
 cargo run --release -- "<path to a world folder>"
 ```
 
-The first command starts a server on a new world. The second one opens an existing Java Edition save, which must have the same data version as the game snapshot (26.4-snapshot-7). Saves of other versions do not load and there are no datafixers (<Status issue={388} state="declined" />).
+The first command starts a server on a new world. The second one opens an existing Java Edition save, which must have the same data version as the game snapshot (26.4-snapshot-7). Saves of other versions do not load and there are no datafixers (<Status issue={388} />).
 
 On the reference machine, a release build with no world folder reaches the Playing state in 0.77 s, median of three runs (Apple M4 Max, macOS, [PERF.md](https://github.com/andreypfau/mcrs/blob/main/PERF.md#server-start)). That is the start of an already built binary, not the build time.
 
@@ -58,7 +58,7 @@ Settings come from environment variables, for example `MCRS_PORT`, `MCRS_WORLD_S
 ## What is not saved
 
 <Aside type="caution" title="WIP">
-Changed chunks are not written to disk, so every block you break is lost when the server stops: <Status issue={78} state="wip" />. Players are saved on a clean shutdown (<Status pr={624} state="works" />), and a clean shutdown that also saves the world is <Status issue={169} state="wip" />.
+Changed chunks are not written to disk, so every block you break is lost when the server stops: <Status issue={78} />. Players are saved on a clean shutdown (<Status pr={624} state="works" />), and a clean shutdown that also saves the world is <Status issue={169} />.
 </Aside>
 
 Expected console output and a first-run checklist are not written yet. For the details, read the README.

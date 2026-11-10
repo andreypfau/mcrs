@@ -25,6 +25,10 @@ export const collections = {
       }),
     }),
   }),
+  issues: defineCollection({
+    loader: file("src/data/issues.yml"),
+    schema: z.object({ state: z.enum(["works", "partial", "wip", "undecided", "declined"]) }),
+  }),
   status: defineCollection({
     loader: file("src/data/status.yml"),
     schema: z.object({

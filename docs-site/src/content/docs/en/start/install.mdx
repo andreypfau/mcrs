@@ -22,7 +22,7 @@ import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
 <Aside type="caution" title="WIP">
-A detailed install guide will come before the alpha. Today only developers use the project, so this page is short and we have not run its steps again for the docs. The authority is the [README Quick start](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start). Binary releases are planned and do not exist yet. There is no issue for them (see <Status issue={321} state="undecided" /> for publishing crates, which is a different thing).
+A detailed install guide will come before the alpha. Today only developers use the project, so this page is short and we have not run its steps again for the docs. The authority is the [README Quick start](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start). Binary releases are planned and do not exist yet. There is no issue for them (see <Status issue={321} /> for publishing crates, which is a different thing).
 </Aside>
 
 ## What you need
@@ -50,7 +50,7 @@ How long the first build takes and how much disk it needs: not measured yet. The
 | Lock file of dependencies | `Cargo.lock`, committed |
 | `implementation` and `api` scopes | `[dependencies]`; there is no `api` scope, all `pub` items are visible |
 
-Crates are not published on crates.io (<Status issue={321} state="undecided" />). So your own code today lives in a clone of the repository, or depends on a git commit.
+Crates are not published on crates.io (<Status issue={321} />). So your own code today lives in a clone of the repository, or depends on a git commit.
 
 ## Next
 

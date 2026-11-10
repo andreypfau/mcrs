@@ -62,11 +62,11 @@ Breaking for plugin authors (Rust, compiled into the server):
 New for plugin authors:
 
 - A plugin can add plugins to every dimension world or to one: `add_dimension_plugin` and `add_dimension_plugin_to` (<Status pr={552} state="works" />).
-- A cancellable chat event: an observer can stop a line or replace its text before the broadcast (<Status pr={636} state="works" />, part of <Status issue={283} state="partial" />). Join, leave, movement and block events are not done.
+- A cancellable chat event: an observer can stop a line or replace its text before the broadcast (<Status pr={636} state="works" />, part of <Status issue={283} />). Join, leave, movement and block events are not done.
 
 Not there yet:
 
-- Saving changed chunks to region files (<Status issue={78} state="wip" />) and online mode (<Status issue={82} state="wip" />).
+- Saving changed chunks to region files (<Status issue={78} />) and online mode (<Status issue={82} />).
 - A loader for plugins outside the server build. There is no decision on it.
 - Any speed claim against another server. The benchmark runs are provisional, see [Performance](/docs/en/project/performance/).
 
@@ -76,7 +76,7 @@ Commit `bf147fb2c`. Two commits since v0.5.7.
 
 - Merged: the workspace version is now 0.5.8, and CI runs mutation testing only on demand.
 - Breaking for plugin authors: nothing.
-- Not there yet: the crates are still not published (<Status issue={321} state="undecided" />).
+- Not there yet: the crates are still not published (<Status issue={321} />).
 
 ## v0.5.7, 2026-10-13
 

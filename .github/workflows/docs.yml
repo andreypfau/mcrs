@@ -56,6 +56,9 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: read
     steps:
       - name: check out the full history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -72,3 +75,7 @@ jobs:
         run: npm ci
       - name: report stale pages and lagging translations
         run: node docs-site/scripts/check-sources.mjs --stale >> "$GITHUB_STEP_SUMMARY"
+      - name: report issues whose registry state may be stale
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node docs-site/scripts/check-issues.mjs >> "$GITHUB_STEP_SUMMARY"

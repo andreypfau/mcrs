@@ -12,12 +12,12 @@ import Status from '~/components/Status.astro';
 Это самый маленький пример использования крейта mcrs снаружи репозитория: прочитать строку SNBT (текстовая форма NBT, например `{Health:20.0f}` в команде), посмотреть теги и записать их обратно.
 
 <Aside type="caution" title="WIP">
-Код ниже не компилировали вне workspace. Крейты не опубликованы, а `cargo package` для них не работает (<Status issue={321} state="undecided" />), поэтому остается только git-зависимость, и именно этот проект пока никто не собирал. Внутри workspace те же функции проверяет [`tests.rs`](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_snbt/src/tests.rs) самого крейта. Если какой-то шаг не работает, заведите issue.
+Код ниже не компилировали вне workspace. Крейты не опубликованы, а `cargo package` для них не работает (<Status issue={321} />), поэтому остается только git-зависимость, и именно этот проект пока никто не собирал. Внутри workspace те же функции проверяет [`tests.rs`](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_snbt/src/tests.rs) самого крейта. Если какой-то шаг не работает, заведите issue.
 </Aside>
 
 ## 1. Добавьте зависимость
 
-Репозиторий закрепляет nightly-компилятор в [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml) (`nightly-2026-09-02`). Этот файл действует только внутри чекаута mcrs, поэтому в своем проекте nightly нужно выбрать самому. Собирается ли `mcrs_minecraft_snbt` еще и на stable, не проверено: чтобы это стало правдой, нужно сделать <Status issue={321} state="undecided" />.
+Репозиторий закрепляет nightly-компилятор в [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml) (`nightly-2026-09-02`). Этот файл действует только внутри чекаута mcrs, поэтому в своем проекте nightly нужно выбрать самому. Собирается ли `mcrs_minecraft_snbt` еще и на stable, не проверено: чтобы это стало правдой, нужно сделать <Status issue={321} />.
 
 ```toml
 [dependencies]
@@ -62,6 +62,6 @@ fn main() {
 
 ## Что дальше
 
-- Сторону NBT смотрите в [`mcrs_minecraft_nbt`](https://github.com/andreypfau/mcrs/tree/main/crates/mcrs_minecraft_nbt): бинарное чтение и запись, сжатие и serde. <Status issue={661} state="works" /> У бинарного кодека три кодировки: `BigEndian` для Java Edition, `LittleEndian` для хранения мира Bedrock и `NetworkLittleEndian` для пакетов Bedrock. У каждой точки входа вроде `from_bytes` есть форма `_with::<E>`, а функции без нее работают с `BigEndian`.
+- Сторону NBT смотрите в [`mcrs_minecraft_nbt`](https://github.com/andreypfau/mcrs/tree/main/crates/mcrs_minecraft_nbt): бинарное чтение и запись, сжатие и serde. <Status issue={661} /> У бинарного кодека три кодировки: `BigEndian` для Java Edition, `LittleEndian` для хранения мира Bedrock и `NetworkLittleEndian` для пакетов Bedrock. У каждой точки входа вроде `from_bytes` есть форма `_with::<E>`, а функции без нее работают с `BigEndian`.
 - Следующий крейт ищите в [карте крейтов](/docs/ru/crates/overview/).
 - Об ограничениях пути через git читайте в [Использование крейтов в своем проекте](/docs/ru/crates/use-as-library/).

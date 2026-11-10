@@ -87,7 +87,7 @@ import { Aside, Tabs, TabItem, Card, CardGrid, LinkCard } from '@astrojs/starlig
 
 | Component | Use |
 |---|---|
-| `<Status issue={78} state="wip" />` | a state badge with a link. `state` is `works`, `partial`, `wip`, `undecided` or `declined`. Every issue and pull request on the site goes through this badge, always with `state`: no `#78` as text and no state in words next to it. A merged pull request is `<Status pr={636} state="works" />`. Also `doc="docs/spec/login.md"` |
+| `<Status issue={78} />` | a state badge with a link. The state of an issue comes from `docs-site/src/data/issues.yml` (`works`, `partial`, `wip`, `undecided` or `declined`), so `state` next to `issue` fails the build, and so does an issue missing from the registry. Every issue and pull request on the site goes through this badge: no `#78` as text and no state in words next to it. A pull request carries its own state, because it belongs to one statement: a merged pull request is `<Status pr={636} state="works" />`. Also `doc="docs/spec/login.md"` |
 | `<StatusRows areas="network,persistence" />` | rows from `docs-site/src/data/status.yml` for the listed IDs |
 | `<Example file="path" from="fn run" to="..." title="..." />` | a fragment of a repository file, cut at build time by text anchors. An anchor that is missing or found twice breaks the build |
 | `<Demo src="/docs/demos/cows.html" title="..." height={900} />` | an interactive page in an iframe |
@@ -104,16 +104,16 @@ Links between pages are absolute and carry the base and a trailing slash: `/docs
 The owner decided that a feature that does not exist yet can be described in detail now, if some source describes it: an issue, a spec, a file in `docs/`, or code. This is not a lie, because the mark says it is not there. When the feature lands, fix the text and remove the mark.
 
 - A whole page gets `stability: wip` and `tracking`.
-- A block inside a stable page gets `<Aside type="caution" title="WIP">` with a link to the issue, or a `<Status state="wip" issue={N} />` badge.
+- A block inside a stable page gets `<Aside type="caution" title="WIP">` with a link to the issue, or a `<Status issue={N} />` badge.
 - Do not invent. Base the text on the issue (`gh issue view N -R andreypfau/mcrs`), a spec, a file in `docs/` or the code. If you have no source, write "no decision yet" and say nothing more.
 - Do not turn a goal into a claim. Say "direction, not a commitment".
 - A guide to install and run is short: a few lines, a link to the README Quick start and the technical notes, and the mark "a detailed guide will appear before the alpha". Do not run the steps and write them down from a guess.
 
-Example of an honest line about the plugin loader: "There is no loader for jar, wasm or script plugins, and no decision about one." The decision <Status issue={437} state="declined" /> rejects only a facade and a Bukkit-like API.
+Example of an honest line about the plugin loader: "There is no loader for jar, wasm or script plugins, and no decision about one." The decision <Status issue={437} /> rejects only a facade and a Bukkit-like API.
 
 ## Two axes of marks
 
-Axis A, the state of a feature, is shown in text and tables with `Status`:
+Axis A, the state of a feature, is shown in text and tables with `Status`. The state of an issue is one line in `docs-site/src/data/issues.yml`, and every badge of that issue on both languages changes with it. The weekly `check-issues` report lists registry entries that disagree with GitHub:
 
 | State | When to use it |
 |---|---|
@@ -181,7 +181,7 @@ Go through it before every PR that adds or changes a page.
 10. A safety warning stands next to every run command: the server has no authentication, so do not open its port.
 11. Goals and issues are shown as "direction, not a commitment".
 
-Two facts that are often wrong in drafts. First, the compiler does not check conflicts between Bevy systems: the scheduler checks the data access when it builds the graph. Second, issue <Status issue={437} state="declined" /> rejects only a facade and a Bukkit-like API. It says nothing about a plugin loader.
+Two facts that are often wrong in drafts. First, the compiler does not check conflicts between Bevy systems: the scheduler checks the data access when it builds the graph. Second, issue <Status issue={437} /> rejects only a facade and a Bukkit-like API. It says nothing about a plugin loader.
 
 ## Clean-room in docs
 
@@ -207,5 +207,5 @@ The same rules as in code apply. Do not write names of classes, methods or field
 5. The page has no long dashes, no letter with two dots in Russian text, and no names from the game's code.
 
 <Aside type="caution" title="WIP">
-An automatic check of issue states is not built. There is no issue for it yet. The automation today is the `check-sources` warning and the weekly `--stale` report.
+The weekly job reports registry entries whose issue is closed but marked `wip`, `partial` or `undecided`, open but marked `declined`, or unknown to GitHub. It does not decide the new state: the owner changes the line in `issues.yml`. The other automation is the `check-sources` warning and the weekly `--stale` report.
 </Aside>

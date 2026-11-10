@@ -47,11 +47,11 @@ mcrs has its own client, written in Rust on Bevy and wgpu. You can fly around a 
 
 | Feature | State |
 |---|---|
-| Sound | <Status issue={136} state="wip" />. The client is silent |
-| Particles | <Status issue={137} state="wip" /> |
-| Weather: rain, snow, lightning | <Status issue={341} state="wip" />. Rain only dims the sun and the moon today |
-| Inventory and container screens | <Status issue={521} state="wip" /> for the player inventory, with the screens in <Status issue={129} state="wip" />, <Status issue={130} state="wip" /> and <Status issue={131} state="wip" />. The client draws an inventory screen only when started with `MCRS_SCREEN=inventory`, and it is not playable |
-| A web build | <Status issue={344} state="wip" />. The build draws the sky in Chrome, but start-up blocks the page for 87 s and it never reaches a steady frame |
+| Sound | <Status issue={136} />. The client is silent |
+| Particles | <Status issue={137} /> |
+| Weather: rain, snow, lightning | <Status issue={341} />. Rain only dims the sun and the moon today |
+| Inventory and container screens | <Status issue={521} /> for the player inventory, with the screens in <Status issue={129} />, <Status issue={130} /> and <Status issue={131} />. The client draws an inventory screen only when started with `MCRS_SCREEN=inventory`, and it is not playable |
+| A web build | <Status issue={344} />. The build draws the sky in Chrome, but start-up blocks the page for 87 s and it never reaches a steady frame |
 | Binary downloads | None yet. Releases are planned, and there is no tracking issue for them at this date |
 
 ## Platforms
@@ -68,7 +68,7 @@ The default view is 96 columns, three times the maximum of vanilla (32). One num
 | GPU frame | 3.7 ms with the occlusion test on, 6.0 ms with it off (`MCRS_OCCLUSION=0`). The note in PERF.md calls 3.7 ms over its ceiling | PERF.md, Hardening |
 | Memory of the process | 12 GB | [PERF.md, Render distance](https://github.com/andreypfau/mcrs/blob/main/PERF.md#render-distance) |
 
-The 12 GB figure comes from the Render distance section, which was written before the occlusion work, so a newer build may differ. Bounding the memory at 96 columns is <Status issue={337} state="wip" />. At 96 columns the frame is limited by the GPU, not by the CPU. Flying at the top speed is worse than standing: 1.56 ms median and 5.0 ms for the worst second of the engine frame, in the same scenario.
+The 12 GB figure comes from the Render distance section, which was written before the occlusion work, so a newer build may differ. Bounding the memory at 96 columns is <Status issue={337} />. At 96 columns the frame is limited by the GPU, not by the CPU. Flying at the top speed is worse than standing: 1.56 ms median and 5.0 ms for the worst second of the engine frame, in the same scenario.
 
 You can lower `MCRS_VIEW` (the number of columns the client asks for) if your GPU or RAM is smaller than this. In the Render distance table of PERF.md, 12 columns reads 0.71 ms of engine time (an older build). There are no numbers for other machines.
 

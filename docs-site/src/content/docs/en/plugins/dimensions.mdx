@@ -29,7 +29,7 @@ In Paper, a `World` is an object that your plugin can reach from anywhere. In mc
 
 ## One main app, one sub-app per dimension
 
-The server has one main Bevy `App`. Each dimension runs as a Bevy `SubApp` with its own `World` (<Status issue={362} state="partial" />). The reason from the issue: in one shared world, every system would visit the entities of all dimensions and filter them by a dimension component, and the dimensions could not tick in parallel or move to another machine later.
+The server has one main Bevy `App`. Each dimension runs as a Bevy `SubApp` with its own `World` (<Status issue={362} />). The reason from the issue: in one shared world, every system would visit the entities of all dimensions and filter them by a dimension component, and the dimensions could not tick in parallel or move to another machine later.
 
 Consequences you will meet:
 
@@ -39,7 +39,7 @@ Consequences you will meet:
 
 ## Adding a plugin to dimensions
 
-<Status issue={280} state="works" /> A plugin added with `add_plugins` goes to the main app only. To put it into the dimensions, use the `AddDimensionPlugins` trait:
+<Status issue={280} /> A plugin added with `add_plugins` goes to the main app only. To put it into the dimensions, use the `AddDimensionPlugins` trait:
 
 <Example file="crates/mcrs_minecraft_engine_world/src/world/sub_app.rs" from="pub trait AddDimensionPlugins" title="The two methods" />
 
@@ -55,13 +55,13 @@ The repository test checks each rule. It adds one counter to every world and ano
 
 ## Global state has one writer
 
-<Status issue={357} state="works" /> Game time, world clocks, weather, game rules, the world border and scoreboards are read by every dimension. The decision in the issue: each piece of such state has one owner, which writes it. In one process the owner is the main app. A dimension holds a read-only, versioned snapshot and gets a new one only when the version changes. A dimension that wants a change, such as a command or a weather cycle, sends a message to the owner.
+<Status issue={357} /> Game time, world clocks, weather, game rules, the world border and scoreboards are read by every dimension. The decision in the issue: each piece of such state has one owner, which writes it. In one process the owner is the main app. A dimension holds a read-only, versioned snapshot and gets a new one only when the version changes. A dimension that wants a change, such as a command or a weather cycle, sends a message to the owner.
 
 For a plugin author this means: do not keep your own copy of the game clock inside a dimension and advance it. The copies would drift apart. Test setups that set game rules, weather or clocks write through the owner, not into a dimension world.
 
 ## Players move as messages
 
-A system of one dimension cannot reach another world. Players move between dimension worlds as messages, never by moving entities (<Status issue={362} state="partial" />). A portal, or any move decided inside a tick, writes a request:
+A system of one dimension cannot reach another world. Players move between dimension worlds as messages, never by moving entities (<Status issue={362} />). A portal, or any move decided inside a tick, writes a request:
 
 <Example file="crates/mcrs_minecraft_engine_world/src/entity/player/mod.rs" from={"#[derive(Message, Clone, Debug)]\npub struct ChangeDimensionRequest"} title="ChangeDimensionRequest" />
 
@@ -76,7 +76,7 @@ The same document describes how commands work across worlds. A command runs in o
 ## Dimensions at run time
 
 <Aside type="caution" title="WIP">
-The dimension list is fixed when the server starts. A lobby or a minigame cannot create a world for a match and remove it afterwards. <Status issue={546} state="wip" /> describes the plan: a public message that adds a dimension world with a name, a dimension type, a chunk source (<Status issue={281} state="wip" />) and its plugins; a message that removes one and moves its players first; and a message that moves a player to a named world and position, which a plugin can cancel (<Status issue={283} state="partial" />). The issue needs <Status issue={142} state="wip" />, <Status issue={280} state="works" /> and the chunk source above. It is a direction, not a promise.
+The dimension list is fixed when the server starts. A lobby or a minigame cannot create a world for a match and remove it afterwards. <Status issue={546} /> describes the plan: a public message that adds a dimension world with a name, a dimension type, a chunk source (<Status issue={281} />) and its plugins; a message that removes one and moves its players first; and a message that moves a player to a named world and position, which a plugin can cancel (<Status issue={283} />). The issue needs <Status issue={142} />, <Status issue={280} /> and the chunk source above. It is a direction, not a promise.
 </Aside>
 
 ## What next

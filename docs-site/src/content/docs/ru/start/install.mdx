@@ -10,7 +10,7 @@ import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
 <Aside type="caution" title="WIP">
-Подробный гайд по установке появится к альфе. Сейчас проектом пользуются только разработчики, поэтому страница короткая, а ее шаги мы для документации заново не прогоняли. Ориентируйтесь на [README Quick start](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start). Бинарные релизы запланированы, но пока их нет, и issue про них тоже нет (<Status issue={321} state="undecided" /> - про публикацию крейтов, это другое).
+Подробный гайд по установке появится к альфе. Сейчас проектом пользуются только разработчики, поэтому страница короткая, а ее шаги мы для документации заново не прогоняли. Ориентируйтесь на [README Quick start](https://github.com/andreypfau/mcrs/blob/main/README.md#quick-start). Бинарные релизы запланированы, но пока их нет, и issue про них тоже нет (<Status issue={321} /> - про публикацию крейтов, это другое).
 </Aside>
 
 ## Что нужно
@@ -38,7 +38,7 @@ import { Aside } from '@astrojs/starlight/components';
 | Lock-файл зависимостей | `Cargo.lock`, хранится в репозитории |
 | Области `implementation` и `api` | `[dependencies]`; области `api` нет, видны все `pub`-элементы |
 
-Крейты не опубликованы на crates.io (<Status issue={321} state="undecided" />). Поэтому собственный код сейчас живет в клоне репозитория или зависит от git-коммита.
+Крейты не опубликованы на crates.io (<Status issue={321} />). Поэтому собственный код сейчас живет в клоне репозитория или зависит от git-коммита.
 
 ## Дальше
 

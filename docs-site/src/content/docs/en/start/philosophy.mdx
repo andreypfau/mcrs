@@ -30,7 +30,7 @@ A new language does not fix that, and neither does a prompt that says "rewrite M
 
 World state is components and resources; behaviour is systems, each one transformation over every entity that has the data it names. Bevy's scheduler runs systems in parallel when their data access does not overlap, and a system can split its entities across threads. Nobody writes a lock for that.
 
-The goal is mcrs code with no `Arc`, no `Mutex` and no trait object on the hot path. This is work in progress: <Status issue={566} state="wip" />
+The goal is mcrs code with no `Arc`, no `Mutex` and no trait object on the hot path. This is work in progress: <Status issue={566} />
 
 Deeper: [From objects to data](/docs/en/plugins/mental-model/).
 
@@ -40,13 +40,13 @@ A common way to use more cores is to move single jobs off the main thread, such 
 
 mcrs looks at what each piece of work reads and writes. A mob farm and the redstone that drives it sit in the same chunks, yet mob AI and redstone run in parallel, and so do two farms at opposite ends of a base. Work that really interacts stays together and runs in order, and the result is the same on any number of threads.
 
-Redstone itself is not implemented yet, so the farm example is the design target: <Status issue={190} state="wip" />
+Redstone itself is not implemented yet, so the farm example is the design target: <Status issue={190} />
 
 Deeper: [How a tick runs in parallel](/docs/en/concepts/parallel-tick/).
 
 ## Work is proportional to change
 
-The goal is that a resting entity and an untouched section add no work to a tick: <Status issue={365} state="partial" />. Idle cost and frame times are measured in [`PERF.md`](https://github.com/andreypfau/mcrs/blob/main/PERF.md), and every exception to these rules cites a number there. Memory per section is not measured yet: <Status issue={324} state="wip" />
+The goal is that a resting entity and an untouched section add no work to a tick: <Status issue={365} />. Idle cost and frame times are measured in [`PERF.md`](https://github.com/andreypfau/mcrs/blob/main/PERF.md), and every exception to these rules cites a number there. Memory per section is not measured yet: <Status issue={324} />
 
 Deeper: [Performance and how we measure](/docs/en/project/performance/).
 

@@ -52,7 +52,7 @@ Each chunk and each player file must carry the same `DataVersion` as the game ve
 
 ## No datafixers
 
-There is no converter from older worlds, and there will not be one. This is decided in <Status issue={388} state="declined" />: mcrs follows one snapshot at a time and keeps no compatibility chain. If you have an older world, open it once in a vanilla client of the right snapshot so that the game rewrites it, then give the folder to mcrs. The same decision says that a field no type claims fails the load and is not kept as raw bytes.
+There is no converter from older worlds, and there will not be one. This is decided in <Status issue={388} />: mcrs follows one snapshot at a time and keeps no compatibility chain. If you have an older world, open it once in a vanilla client of the right snapshot so that the game rewrites it, then give the folder to mcrs. The same decision says that a field no type claims fails the load and is not kept as raw bytes.
 
 ## Start a new world
 
@@ -72,18 +72,18 @@ World generation matches vanilla in parity tests on the reference seeds. See [Pa
 |---|---|
 | Player files | Saved. Each player is written to `players/data/<uuid>.dat` in the world folder on disconnect, and by an autosave every 6000 ticks, which is vanilla's own interval |
 | A clean stop with players | <Status pr={624} state="works" />. On the first SIGINT or SIGTERM the server disconnects every player with the vanilla shutdown reason, saves them, and exits. A second signal exits at once |
-| Chunks and block edits | Not saved. The server reads chunks but never writes them: <Status issue={78} state="wip" /> |
-| Clean shutdown with chunks | Not done. Waiting for chunk writes is <Status issue={169} state="wip" /> |
-| `level.dat`, world clocks, weather, game rules | Read, not written yet. <Status issue={78} state="wip" /> lists writing them |
+| Chunks and block edits | Not saved. The server reads chunks but never writes them: <Status issue={78} /> |
+| Clean shutdown with chunks | Not done. Waiting for chunk writes is <Status issue={169} /> |
+| `level.dat`, world clocks, weather, game rules | Read, not written yet. <Status issue={78} /> lists writing them |
 
-A player file that cannot be parsed is not overwritten: the player joins empty and is never saved over the old file. If a player has an inventory in the file, it is kept as opaque data and written back unchanged, because the inventory code was removed and is being rewritten from a specification (<Status issue={521} state="wip" />).
+A player file that cannot be parsed is not overwritten: the player joins empty and is never saved over the old file. If a player has an inventory in the file, it is kept as opaque data and written back unchanged, because the inventory code was removed and is being rewritten from a specification (<Status issue={521} />).
 
 The test that checks the clean stop is short:
 
 <Example file="tests/it/shutdown.rs" from="let player_file = player_dat_path(" to="assert!(player_file.exists()" title="A shutdown request writes the player file" />
 
 <Aside type="caution" title="WIP">
-Chunk saving is a plan, not code. <Status issue={78} state="wip" /> describes it: changed chunks are written in the Anvil format off the main thread, on unload and at intervals, with one writer per region file. Until it lands, treat a running mcrs server as a place to look at a world and to try things, not to keep one.
+Chunk saving is a plan, not code. <Status issue={78} /> describes it: changed chunks are written in the Anvil format off the main thread, on unload and at intervals, with one writer per region file. Until it lands, treat a running mcrs server as a place to look at a world and to try things, not to keep one.
 </Aside>
 
 ## Data packs
@@ -96,6 +96,6 @@ cargo run -p mcrs_minecraft_game_registries --example check_pack -- "<data pack 
 
 The directory must hold `pack.mcmeta` and `data/`. The usage line of the tool says the same.
 
-There is no reload while the server runs. Changing a pack needs a restart. `/reload` and live enabling of packs are planned: <Status issue={316} state="wip" />. The plan is that a reload replaces the data at a tick boundary, and refuses changes that the saved world depends on, such as the height of a dimension type.
+There is no reload while the server runs. Changing a pack needs a restart. `/reload` and live enabling of packs are planned: <Status issue={316} />. The plan is that a reload replaces the data at a tick boundary, and refuses changes that the saved world depends on, such as the height of a dimension type.
 
 There is no source yet for how the server treats a `datapacks` folder inside a world folder, so this page makes no claim about it.

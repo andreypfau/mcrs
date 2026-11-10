@@ -34,13 +34,13 @@ In Paper you start from a finished server and add plugins. In mcrs you start fro
 
 <Example file="crates/mcrs_minecraft_server/src/lib.rs" from="pub struct MinecraftServerPlugins {" title="The fields of the group" />
 
-<Status issue={279} state="works" /> The members, in the order `build()` adds them: the server core, world generation registries, the vanilla command set, vanilla commands, world commands, dimension worlds, chat, entity physics, mob brains, world generation, lighting and the network.
+<Status issue={279} /> The members, in the order `build()` adds them: the server core, world generation registries, the vanilla command set, vanilla commands, world commands, dimension worlds, chat, entity physics, mob brains, world generation, lighting and the network.
 
 <Example file="crates/mcrs_minecraft_server/src/lib.rs" from="impl PluginGroup for MinecraftServerPlugins" title="The members of the group" />
 
 Each member can be disabled or replaced without editing the server crate. A member that needs another one panics when the group builds and names the missing plugin. You see the error at start, not as a missing resource at the first tick.
 
-<Status issue={282} state="works" /> The vanilla gameplay lives in plugins above the engine, each removable on its own, and they reach every dimension world through `add_dimension_plugin`.
+<Status issue={282} /> The vanilla gameplay lives in plugins above the engine, each removable on its own, and they reach every dimension world through `add_dimension_plugin`.
 
 ## Disable a member
 
@@ -56,7 +56,7 @@ That test also uses `MinecraftServerPlugins::embedded()`. It gives a server for 
 
 ## Settings are plugin fields
 
-<Status issue={278} state="works" /> A library crate does not read an environment variable or a file for its settings. Every setting is a field of the plugin that uses it. Only the binary reads the environment and translates it into fields. You can see both sides in `src/main.rs`:
+<Status issue={278} /> A library crate does not read an environment variable or a file for its settings. Every setting is a field of the plugin that uses it. Only the binary reads the environment and translates it into fields. You can see both sides in `src/main.rs`:
 
 <Example file="src/main.rs" from="let settings = ServerSettings::read(" to=".build();" title="src/main.rs: from settings to plugin fields" />
 
@@ -65,7 +65,7 @@ The environment variables of the binary are the fields of `ServerSettings`, each
 ## Your own chunk source
 
 <Aside type="caution" title="WIP">
-This does not exist yet. <Status issue={281} state="wip" /> describes the plan. Today the chunks of a dimension come from a fixed setup inside the server: the noise generator of the dimension plus the saved columns of the world folder. A lobby, an arena or a test cannot hand the server its own chunks. The issue proposes a chunk source per dimension: given a column position, it yields a column or says there is none, off the tick on the task pool. The server would ship three sources, the generator with the save in front, an empty source and a flat source built from a list of layers. A source of your own would be a type that implements the same trait. A dimension on the empty source would not pull in the world generation crates. The issue also gives the test for it: one dimension on the empty source and another on the flat source, a client joins each, and the dependency tree has no world generation crates. It is a direction, not a promise. Chunk saving to disk is separate: <Status issue={78} state="wip" />.
+This does not exist yet. <Status issue={281} /> describes the plan. Today the chunks of a dimension come from a fixed setup inside the server: the noise generator of the dimension plus the saved columns of the world folder. A lobby, an arena or a test cannot hand the server its own chunks. The issue proposes a chunk source per dimension: given a column position, it yields a column or says there is none, off the tick on the task pool. The server would ship three sources, the generator with the save in front, an empty source and a flat source built from a list of layers. A source of your own would be a type that implements the same trait. A dimension on the empty source would not pull in the world generation crates. The issue also gives the test for it: one dimension on the empty source and another on the flat source, a client joins each, and the dependency tree has no world generation crates. It is a direction, not a promise. Chunk saving to disk is separate: <Status issue={78} />.
 </Aside>
 
 ## What next

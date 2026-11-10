@@ -57,7 +57,7 @@ Ticks are counted exactly. One host tick is one `update()` plus the hand-over be
 
 ## Catch an unordered pair of systems
 
-<Status issue={323} state="works" /> Two systems that write the same data with no order between them can run in either order, so the same inputs can give different ticks. One test builds the main app and a dimension world with the full server plugin and turns every ambiguity in the simulation schedules into an error. It fails and names both systems when one appears.
+<Status issue={323} /> Two systems that write the same data with no order between them can run in either order, so the same inputs can give different ticks. One test builds the main app and a dimension world with the full server plugin and turns every ambiguity in the simulation schedules into an error. It fails and names both systems when one appears.
 
 <Example file="crates/mcrs_minecraft_server/tests/it/schedule_ambiguity.rs" from={"#[test]\nfn no_simulation_schedule_has_an_unordered_conflicting_pair"} title="Test: no unordered conflicting pair" />
 
@@ -66,7 +66,7 @@ The test builds `MinecraftServerPlugins::embedded()`. If your plugin is not part
 ## Limits
 
 <Aside type="caution" title="WIP: a headless dimension">
-Today a dimension world needs a player to tick, because chunks are loaded and simulated only around players. <Status issue={266} state="wip" /> plans a harness crate that does not depend on the server crate and runs one dimension with a fixed seed: the flat generator, no network, no session and no player. A ticket that belongs to no player would hold a box of sections at the entity-ticking level until released. A step would run exactly N ticks of the main app and the dimension in production order. The issue's test: boot, raise the ticket, step until the box ticks, step 100 ticks, and see the tick counter advance by exactly 100; two runs with the same seed hold the same blocks. This is a direction, not a promise. The harness above is the only one now, and it is not a stable API.
+Today a dimension world needs a player to tick, because chunks are loaded and simulated only around players. <Status issue={266} /> plans a harness crate that does not depend on the server crate and runs one dimension with a fixed seed: the flat generator, no network, no session and no player. A ticket that belongs to no player would hold a box of sections at the entity-ticking level until released. A step would run exactly N ticks of the main app and the dimension in production order. The issue's test: boot, raise the ticket, step until the box ticks, step 100 ticks, and see the tick counter advance by exactly 100; two runs with the same seed hold the same blocks. This is a direction, not a promise. The harness above is the only one now, and it is not a stable API.
 </Aside>
 
 ## What next

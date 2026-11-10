@@ -27,7 +27,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 mcrs is a set of 122 Rust crates for Minecraft Java Edition. A server and a client are built from them on Bevy ECS. In ECS (entity component system) the world is data in tables and the behaviour is functions called systems, which the Bevy scheduler runs in parallel when they touch different data.
 
-The project follows one game snapshot at a time. Today that is 26.4-snapshot-7 (`assets/minecraft/version.json`). It does not keep compatibility with older versions (<Status issue={412} state="declined" />).
+The project follows one game snapshot at a time. Today that is 26.4-snapshot-7 (`assets/minecraft/version.json`). It does not keep compatibility with older versions (<Status issue={412} />).
 
 It is an early work in progress. The repository is open since 2025-12-10.
 
@@ -41,12 +41,12 @@ The full table with a link to every missing piece is on the [Status](/docs/en/st
 
 ## What it is not
 
-- Not Paper. There is no Bukkit-like API and no facade: the decision <Status issue={437} state="declined" /> rejects them, and the public surface is the crates and plugins themselves. A loader for plugins as jar files, wasm or scripts does not exist, and there is no decision about one yet. Your code today is a Rust Bevy plugin built together with the server, which is closer to Minestom than to Paper. See [Not Paper](/docs/en/plugins/not-paper/).
-- Not ready for production. The server does not save chunks (<Status issue={78} state="wip" />), has no online mode (<Status issue={82} state="wip" />) and listens on all network interfaces without authentication.
+- Not Paper. There is no Bukkit-like API and no facade: the decision <Status issue={437} /> rejects them, and the public surface is the crates and plugins themselves. A loader for plugins as jar files, wasm or scripts does not exist, and there is no decision about one yet. Your code today is a Rust Bevy plugin built together with the server, which is closer to Minestom than to Paper. See [Not Paper](/docs/en/plugins/not-paper/).
+- Not ready for production. The server does not save chunks (<Status issue={78} />), has no online mode (<Status issue={82} />) and listens on all network interfaces without authentication.
 - Not a launcher and not a mod. The client is a separate Rust application. It reads textures and models from the official game jar, and the repository ships no Mojang art.
 
 <Aside type="caution" title="WIP">
-Gameplay such as crafting, combat, redstone and fluids is planned, tracked in <Status issue={182} state="wip" />. Planned is a direction, not a promise.
+Gameplay such as crafting, combat, redstone and fluids is planned, tracked in <Status issue={182} />. Planned is a direction, not a promise.
 </Aside>
 
 ## Where next

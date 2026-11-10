@@ -21,7 +21,7 @@ verified:
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-mcrs follows the newest Minecraft snapshot and supports exactly that one. Today it is **26.4-snapshot-7**. The decision is <Status issue={412} state="declined" />. This page lists what it costs you and what it buys.
+mcrs follows the newest Minecraft snapshot and supports exactly that one. Today it is **26.4-snapshot-7**. The decision is <Status issue={412} />. This page lists what it costs you and what it buys.
 
 ## The version lives in one file
 
@@ -39,7 +39,7 @@ It replaces the version file, the client jar descriptor, the generated reports a
 
 ## What you give up
 
-- **No datafixers.** A chunk or player file must carry the targeted `DataVersion`. A missing or different one is an error that names both numbers. There is no migration chain (<Status issue={388} state="declined" />). An unknown field in a file the game wrote is a loud error, not something to keep as raw bytes. Worlds written between an update and the ports that follow it are not worth keeping.
+- **No datafixers.** A chunk or player file must carry the targeted `DataVersion`. A missing or different one is an error that names both numbers. There is no migration chain (<Status issue={388} />). An unknown field in a file the game wrote is a loud error, not something to keep as raw bytes. Worlds written between an update and the ports that follow it are not worth keeping.
 - **The client must be the same snapshot.** A vanilla client of the same snapshot can join in offline mode. A client of another version cannot, for now.
 - **No older packet layouts.** The protocol crate holds one version's packets, so there is no negotiation inside the engine.
 
@@ -47,10 +47,10 @@ If you run a server for players, read [What is mcrs](/docs/en/start/what-is-mcrs
 
 ## Older clients: planned
 
-Most players stay on releases, so a lobby or a proxy needs to accept their clients. <Status issue={537} state="wip" /> proposes a translator at the network edge. It is a chain of steps that converts frames between the client protocol and the targeted protocol, from the targeted version down to 1.21.6 (protocol 771). The engine would still see only one version. A step lists what it degrades, and a new snapshot would change only the newest step.
+Most players stay on releases, so a lobby or a proxy needs to accept their clients. <Status issue={537} /> proposes a translator at the network edge. It is a chain of steps that converts frames between the client protocol and the targeted protocol, from the targeted version down to 1.21.6 (protocol 771). The engine would still see only one version. A step lists what it degrades, and a new snapshot would change only the newest step.
 
 <Aside type="caution" title="WIP">
-The translator is a decision in review and has no code: <Status issue={537} state="wip" />. Saves and data packs of older versions stay refused under <Status issue={412} state="declined" />.
+The translator is a decision in review and has no code: <Status issue={537} />. Saves and data packs of older versions stay refused under <Status issue={412} />.
 </Aside>
 
 ## Related

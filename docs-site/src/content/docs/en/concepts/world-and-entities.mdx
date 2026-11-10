@@ -42,7 +42,7 @@ Space ticks only when a ticket covers it: a player's simulation area, the spawn 
 
 ## One API for reading the world: volumes
 
-Today several code paths read blocks through their own view: the chunk crate, the world generator, the light engine, the mesher, the client. Each answers "section not loaded" in its own way. <Status issue={486} state="partial" /> (migration in steps) replaces them with one layer-3 crate, `mcrs_minecraft_volume`:
+Today several code paths read blocks through their own view: the chunk crate, the world generator, the light engine, the mesher, the client. Each answers "section not loaded" in its own way. <Status issue={486} /> (migration in steps) replaces them with one layer-3 crate, `mcrs_minecraft_volume`:
 
 - a volume has bounds and says, per section, whether it may be written, is read-only, belongs to another owner, is not loaded, or is outside;
 - capabilities are separate traits (blocks, biomes, heights, light, block entities, and mutable forms), generic, with no per-block dynamic dispatch;
@@ -52,7 +52,7 @@ Today several code paths read blocks through their own view: the chunk crate, th
 The crate exists and exports these types. The migration of callers is done in seven steps listed in the issue (engine dimension view, heights and biomes, snapshots and light, meshing and the client store, and so on), so some code still uses the old views.
 
 <Aside type="caution" title="WIP">
-Treat the volume API as the direction. The migration is in progress and the traits may still change: <Status issue={486} state="partial" />.
+Treat the volume API as the direction. The migration is in progress and the traits may still change: <Status issue={486} />.
 </Aside>
 
 ## Mobs are rows, not entities
@@ -61,7 +61,7 @@ A Bevy entity per mob would be flexible and expensive. For server-simulated enti
 
 Cold state of a mob (components you may want to read from a normal system) stays in the ECS. The split is "hybrid" in the design note: hot state in rows, cold state in components. The store has no Bevy in its core, and a `bevy` feature turns it into a resource.
 
-What is not settled: the exact shape of the API for reading and changing these rows from your own plugin. There is no decision on it yet, so no stable page can describe it. The memory cost per section and per entity component is not measured either: <Status issue={324} state="wip" />.
+What is not settled: the exact shape of the API for reading and changing these rows from your own plugin. There is no decision on it yet, so no stable page can describe it. The memory cost per section and per entity component is not measured either: <Status issue={324} />.
 
 ## Related
 

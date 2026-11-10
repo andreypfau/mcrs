@@ -25,7 +25,7 @@ import { Aside } from '@astrojs/starlight/components';
 This page lists every `MCRS_*` variable found in the code with `grep -rn 'MCRS_' crates src` on commit `51d45c26a`. The server reads 11 of them. The client reads many more, and most of those are measurement knobs.
 
 <Aside type="caution" title="WIP">
-This table is written by hand. It will be generated from `ServerSettings` and `config.rs` so that it cannot drift from the code. The decision <Status issue={278} state="works" /> also moves the client knobs into plugin fields, so some names here may change. The old `MCRS_OP_LOCAL` variable is gone: the server now hands operator rights to a player who joins from the same machine, and `ops.json` names all other operators.
+This table is written by hand. It will be generated from `ServerSettings` and `config.rs` so that it cannot drift from the code. The decision <Status issue={278} /> also moves the client knobs into plugin fields, so some names here may change. The old `MCRS_OP_LOCAL` variable is gone: the server now hands operator rights to a player who joins from the same machine, and `ops.json` names all other operators.
 </Aside>
 
 ## Server
@@ -49,7 +49,7 @@ On/off variables accept `on`, `1`, `true`, `yes` and `off`, `0`, `false`, `no`, 
 | `MCRS_HIDE_ONLINE_PLAYERS` | off | Whether the status leaves out the names of online players. The counts stay. |
 
 <Aside type="caution" title="No authentication">
-The server has no online mode yet (<Status issue={82} state="wip" />). It listens on `0.0.0.0:25565`, and anyone who connects can use any player name. Do not open the port to the internet.
+The server has no online mode yet (<Status issue={82} />). It listens on `0.0.0.0:25565`, and anyone who connects can use any player name. Do not open the port to the internet.
 </Aside>
 
 The server also reads `ops.json`, `whitelist` and ban files from the working directory. They are files, not variables, and are not part of this table.

@@ -63,7 +63,7 @@ One player has three names, and they are not interchangeable.
 Use the session to address a player across worlds and to send packets. Use the UUID for anything that must survive a reconnect.
 
 <Aside type="caution" title="WIP: the id on the wire">
-The entity id that the client receives is today the index of the Bevy `Entity` in the world of the dimension. That has two faults, per <Status issue={158} state="wip" />. Bevy can hand a freed index to a new entity while a client still tracks the old one, and vanilla never reuses an id while the server runs. And two dimension worlds allocate indices on their own, so their ids collide as soon as one connection sees entities of more than one owner. The issue plans a `NetId` component for every networked entity, with ids leased to each world, never reused, and kept when an entity is handed to another node. Until that issue is done, do not store the wire id of an entity and do not assume it stays the same.
+The entity id that the client receives is today the index of the Bevy `Entity` in the world of the dimension. That has two faults, per <Status issue={158} />. Bevy can hand a freed index to a new entity while a client still tracks the old one, and vanilla never reuses an id while the server runs. And two dimension worlds allocate indices on their own, so their ids collide as soon as one connection sees entities of more than one owner. The issue plans a `NetId` component for every networked entity, with ids leased to each world, never reused, and kept when an entity is handed to another node. Until that issue is done, do not store the wire id of an entity and do not assume it stays the same.
 </Aside>
 
 ## Change a player
@@ -81,4 +81,4 @@ A friendlier layer for this does not exist yet. We know of no issue for it, so w
 ## What next
 
 - [Test a plugin without a client](/docs/en/plugins/testing/): join a fake player and read these components in a test.
-- [Status](/docs/en/start/status/): saving player data is not done, see <Status issue={78} state="wip" />.
+- [Status](/docs/en/start/status/): saving player data is not done, see <Status issue={78} />.

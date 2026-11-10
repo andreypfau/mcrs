@@ -22,7 +22,7 @@ verified:
 import Status from '~/components/Status.astro';
 import { Aside } from '@astrojs/starlight/components';
 
-mcrs is a repository of 122 crates. They sit in seven layers, and each layer is meant to depend only on the layers below it. The goal is simple: you take the layers you need and pay for nothing above them. A proxy needs the bottom two layers. A full server needs the first five. The idea is the direction in <Status issue={180} state="wip" />.
+mcrs is a repository of 122 crates. They sit in seven layers, and each layer is meant to depend only on the layers below it. The goal is simple: you take the layers you need and pay for nothing above them. A proxy needs the bottom two layers. A full server needs the first five. The idea is the direction in <Status issue={180} />.
 
 ## The seven layers
 
@@ -41,7 +41,7 @@ Every crate is named `mcrs_minecraft_<name>` under [`crates/`](https://github.co
 Two rules about dependencies:
 
 - Below layer 4, Bevy is an optional feature. Below layer 2, tokio is optional too. Only the network layer talks to tokio.
-- A few crates break the direction today. The README says it plainly: the protocol and network crates still reach into game data. Fixing that is part of <Status issue={180} state="wip" />.
+- A few crates break the direction today. The README says it plainly: the protocol and network crates still reach into game data. Fixing that is part of <Status issue={180} />.
 
 ## Kernels and drivers
 
@@ -56,12 +56,12 @@ If you come from Paper: a kernel is like the logic of a vanilla system with the 
 The promise is "Minecraft as a set of crates". This is what is true on 2026-11-10:
 
 - 100 packages build without Bevy. A check in `xtask/src/checks.rs` fails when a crate below layer 4 requires Bevy. 9 packages also build without std (`wasm32v1-none`), and 11 build for a browser (`wasm32-unknown-unknown`).
-- The crates are not published on crates.io. Two things block it: some crates embed files from outside their folder, and the protocol and network APIs return `anyhow` errors. See <Status issue={321} state="undecided" />. A git dependency works.
-- There are no library examples yet: no proxy, bot, lobby or map renderer. The first three planned examples (`hello_server`, `lobby`, `arena`) are in <Status issue={287} state="wip" />.
+- The crates are not published on crates.io. Two things block it: some crates embed files from outside their folder, and the protocol and network APIs return `anyhow` errors. See <Status issue={321} />. A git dependency works.
+- There are no library examples yet: no proxy, bot, lobby or map renderer. The first three planned examples (`hello_server`, `lobby`, `arena`) are in <Status issue={287} />.
 - The public API of layers 1 to 4 is not stable. Every `pub` item there will become a commitment, so it is being reviewed first.
 
 <Aside type="caution" title="WIP">
-The layer table is the design, not a guarantee. Treat "take only layers 1 and 2" as the direction in <Status issue={180} state="wip" />. The status of each area is on [Status](/docs/en/start/status/).
+The layer table is the design, not a guarantee. Treat "take only layers 1 and 2" as the direction in <Status issue={180} />. The status of each area is on [Status](/docs/en/start/status/).
 </Aside>
 
 ## Where to go next
