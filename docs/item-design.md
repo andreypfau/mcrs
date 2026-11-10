@@ -110,6 +110,8 @@ impl Count {
 }
 pub struct ItemStack { pub kind: Kind, pub count: Count, /* private patch */ }
 impl ItemStack {
+    // No check of the kind. For a stack of air, the wire writer writes the empty stack and the
+    // saved writer gives an error.
     pub fn new(kind: Kind, count: Count) -> Self;
     pub fn set<T: ItemComponent>(self, value: T) -> Self;
     pub fn unset<T: ItemComponent>(self) -> Self;
@@ -169,24 +171,44 @@ conversion to and from the value form. It has no `dyn`.
 ## 4.3 `mcrs_minecraft_inventory_plan`
 
 ```rust
+pub const MAX_OPS: usize = 128;
 pub enum Op<I> {
     Split { from: I, to: I, count: u8 },
     Merge { from: I, to: I },
     Swap { left: I, right: I },
+    Drop { from: I, count: u8 },
 }
-pub enum Reason { NoSuchSlot, EmptySource, Occupied, NotEqual, NoRoom, TooManyOps }
+pub enum Reason {
+    TooManyOps, NoSuchSlot, SameSlot, BadCount, EmptySource,
+    NotEnough, TakeDenied, NotEqual, PlaceDenied, NoRoom,
+}
 pub struct Rejected { pub op: usize, pub reason: Reason }
 pub struct Planned<T> { pub stack: T, pub kind: u16, pub count: u8, pub max: u8 }
+pub enum Filter { Permits, Refuses }
+pub struct Loaded<T> { pub stack: Option<Planned<T>>, pub limit: u8, pub take: Filter }
 pub struct Entry<I, T> { pub slot: I, pub before: Option<Planned<T>>, pub after: Option<Planned<T>> }
+pub struct Plan<I, T> { /* inline scratch: 256 slots, 128 dropped stacks */ }
+impl<I, T> Plan<I, T> {
+    pub const fn new() -> Self;
+    pub fn changes(&self) -> impl Iterator<Item = Entry<I, T>> + '_;
+    pub fn dropped(&self) -> impl Iterator<Item = Planned<T>> + '_;
+}
 pub fn plan<I: Copy + PartialEq, T: Copy + PartialEq>(
     ops: impl IntoIterator<Item = Op<I>>,
-    entries: &mut Vec<Entry<I, T>>,
-    load: impl FnMut(I) -> Result<Option<Planned<T>>, Reason>,
+    scratch: &mut Plan<I, T>,
+    load: impl FnMut(I) -> Option<Loaded<T>>,
+    place: impl FnMut(I, T) -> Filter,
     equal: impl FnMut(T, T) -> bool,
 ) -> Result<(), Rejected>;
 ```
 
-The caller owns `entries` and uses it again for the next request.
+The operations, the reasons and the order of the checks are the rules `ITX-*` of
+`spec/inventory-transactions.md`. The crate links no `alloc`. A `load` that returns `None` gives
+`NoSuchSlot`. Two stacks of different `kind` are never equal; the planner calls `equal` only for the
+same `kind`. A slot limit out of range is an error of the caller. An operation that makes or
+destroys items is not part of a request.
+
+The caller owns `scratch` and uses it again for the next request.
 
 ## 4.4 `mcrs_minecraft_engine_item`
 
@@ -333,6 +355,9 @@ fn sign(mut stacks: Query<(Entity, Option<&mut Lore>), With<InSlot>>, mut comman
 ```
 
 A system that writes no item data, such as a network or save system, uses `Stacks`:
+
+This example reacts to a change of the count only. A change of the placement or of a component
+needs its own change source.
 
 ```rust
 fn send_slots(mut stacks: Stacks, changed: Query<(Entity, &InSlot), Changed<Count>>) {
@@ -541,8 +566,8 @@ in parallel.
 9. `mcrs_minecraft_engine_item`, `Selected` and the projection of `Equipped`. Parallel with step 8.
 10. The Miri run and the test with a counting allocator for the hopper path.
 11. **(c)** Migrate the users of the old crate, one group for each pull request: the protocol and
-    save crates; the engine and server crates; the client crates; the worldgen, registry and tool
-    crates.
+    save crates; the engine and server crates; the client crates; the worldgen, registry, recipe and
+    tool crates.
 12. Delete `mcrs_minecraft_item` and its entry in the workspace manifest, in the pull request that
     moves its last user.
 13. Measure the budgets of section 8 with the real data pack and write them to `PERF.md`.
@@ -556,7 +581,7 @@ Migration surface: the crates that depend on `mcrs_minecraft_item` today.
 crates/  block_entity  chat_client  client  client_entity  client_gui  client_world  enchantment
          engine  engine_brain  engine_physics  engine_registries  engine_world  entity_render
          environment  game_registries  light_color  light_render  model  particle  protocol_game
-         registry_catalog  save  server  vanilla_worldgen  worldgen_builtin
+         recipe  registry_catalog  save  server  worldgen_builtin
          worldgen_feature_place  worldgen_structure  worldgen_structure_place
 tools/   mcrs_minecraft_client_recorder  mcrs_minecraft_update
 ```
