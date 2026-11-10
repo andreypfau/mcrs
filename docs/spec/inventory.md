@@ -298,7 +298,10 @@ of the craft grid. Part 4 states which main slot gets a stack. The owner gets th
 2. `container_set_slot` with the window id 0 for each slot that changed, the craft grid included.
 3. `set_cursor_item` with the empty stack.
 
-See result R23. No result shows a close when the main slots have no room (U3).
+The main slots take as many items of a stack as they have room for. The server drops the remainder
+of each stack as an item entity from the owner, as for a drop of the main-hand item, which part 4
+states. A stack that the main slots do not take at all sends no `set_player_inventory`. See results
+R23 and R25.
 
 ## 5. The creative slot request
 
@@ -355,7 +358,14 @@ these fields, in this order: position (long), include data (boolean). The server
 sends nothing, when the distance from the eye position to the nearest point of the block cube is
 more than a limit. The limit is the same as in BRK-RCH-001: 5.5 in survival mode and 6.0 in
 creative mode. Result R20 found the limit between 5.4 and 5.6 in survival mode, and between 5.9 and
-6.1 in creative mode. No result tests the distance for `pick_item_from_entity` (U8).
+6.1 in creative mode.
+
+The server ignores `pick_item_from_entity` in the same way when the distance from the eye position
+to the nearest point of the bounding box of the entity is more than 6.0 in survival mode, or more
+than 8.0 in creative mode. Result R26 found the limit between 5.9 and 6.1 in survival mode, and
+between 7.9 and 8.1 in creative mode, both straight and on the diagonal. On the diagonal, the
+distance to the centre of the entity is more than the limit, so the limit applies to the bounding
+box.
 
 **INV-PCK-003** (`black_box_confirmed`, semantic). The picked stack is a stack with the count 1:
 
@@ -365,7 +375,7 @@ creative mode. Result R20 found the limit between 5.4 and 5.6 in survival mode, 
 In creative mode, when include data is true and the block has a block entity, the picked stack also
 has the data of the block entity as components. For a chest with items, this is the
 `minecraft:container` component. Outside creative mode, include data has no effect. See result R21.
-The picked item of each block and of each entity is unspecified in this part (U9).
+INV-PCK-008 states the picked item of each block and each entity.
 
 **INV-PCK-004** (`black_box_confirmed`, semantic). A main slot matches when its stack has the item and
 the patch of the picked stack. The count has no effect. A `stone` with a `minecraft:custom_name` does
@@ -390,16 +400,53 @@ states, in all game modes that the results tested: creative, survival and advent
 |------|--------|
 | The match is a hotbar slot. | The selected slot changes to the match. No stack moves. |
 | The match is a main slot from 9 to 35. | The stacks of the match and of the target slot change places. The selected slot changes to the target slot. |
-| No match, creative mode. | The stack of the target slot moves to the first empty main slot. The target slot gets the picked stack. The selected slot changes to the target slot. |
+| No match, creative mode. | The stack of the target slot moves to the first empty main slot. When no main slot is empty, the server deletes that stack. The target slot gets the picked stack. The selected slot changes to the target slot. |
 | No match, survival mode or adventure mode. | Nothing changes. |
 
-See results R18, R19 and R21. No result shows the creative case when no main slot is empty (U10).
+See results R18, R19, R21 and R27.
 
-**INV-PCK-007** (`black_box_confirmed`, semantic). In reach, the owner first gets `set_held_slot`
+**INV-PCK-007** (`black_box_confirmed`, semantic). When the block or the entity has no picked item
+(INV-PCK-008), the server sends nothing and changes nothing, also in reach. Else, in reach, the owner
+first gets `set_held_slot`
 with the selected slot, also when the selected slot does not change and nothing moves. Then the
 owner gets `container_set_slot` for each main slot that changed: first the main slot that lost the
 match or got the old stack, then the target slot. Observers get `set_equipment` as INV-SET-006
 states. See results R18 and R21.
+
+**INV-PCK-008** (`black_box_confirmed`, semantic). The picked item of a block, in its default
+state, is the item with the name of the block, with these exceptions:
+
+| Block | Picked item |
+|-------|-------------|
+| a block whose name has `wall_` in it: the wall signs, the wall hanging signs, the wall banners, the wall torches, the wall heads and skulls, the coral wall fans | the item whose name is the block name without `wall_`, for example `oak_sign` for `oak_wall_sign` and `torch` for `wall_torch` |
+| `potted_<plant>` | `<plant>`, but `azalea` for `potted_azalea_bush` and `flowering_azalea` for `potted_flowering_azalea_bush` |
+| `candle_cake` and each `<colour>_candle_cake` | `cake` |
+| `water_cauldron`, `lava_cauldron`, `powder_snow_cauldron` | `cauldron` |
+| `melon_stem`, `attached_melon_stem` | `melon_seeds` |
+| `pumpkin_stem`, `attached_pumpkin_stem` | `pumpkin_seeds` |
+| `wheat`, `beetroots`, `torchflower_crop` | `wheat_seeds`, `beetroot_seeds`, `torchflower_seeds` |
+| `carrots`, `potatoes`, `pitcher_crop` | `carrot`, `potato`, `pitcher_pod` |
+| `cave_vines`, `cave_vines_plant` | `glow_berries` |
+| `kelp_plant`, `twisting_vines_plant`, `weeping_vines_plant` | `kelp`, `twisting_vines`, `weeping_vines` |
+| `bamboo_sapling`, `big_dripleaf_stem`, `tall_seagrass` | `bamboo`, `big_dripleaf`, `seagrass` |
+| `cocoa`, `sweet_berry_bush` | `cocoa_beans`, `sweet_berries` |
+| `redstone_wire`, `tripwire`, `piston_head`, `powder_snow` | `redstone`, `string`, `piston`, `powder_snow_bucket` |
+| `decorated_pot` | `decorated_pot` with the `minecraft:pot_decorations` component, also when include data is false |
+| `air`, `cave_air`, `void_air`, `water`, `lava`, `fire`, `soul_fire`, `nether_portal`, `end_portal`, `end_gateway`, `moving_piston`, `frosted_ice` | no picked item |
+
+The picked item of an entity is its spawn egg, with these exceptions:
+
+| Entity | Picked item |
+|--------|-------------|
+| each boat, chest boat and raft; `minecart`, `chest_minecart`, `furnace_minecart`, `hopper_minecart`, `tnt_minecart`, `command_block_minecart`; `armor_stand`, `end_crystal`, `item_frame`, `glow_item_frame`, `painting` | the item with the name of the entity |
+| `spawner_minecart` | `minecart` |
+| `leash_knot` | `lead` |
+| `cushion` | `white_cushion` |
+| the projectiles (`arrow`, `spectral_arrow`, `trident`, `egg`, `snowball`, `ender_pearl`, `eye_of_ender`, `experience_bottle`, `splash_potion`, `lingering_potion`, `fireball`, `small_fireball`, `dragon_fireball`, `wither_skull`, `shulker_bullet`, `llama_spit`, `wind_charge`, `breeze_wind_charge`, `ice_ball`, `firework_rocket`); `block_display`, `item_display`, `text_display`, `interaction`, `area_effect_cloud`, `evoker_fangs`, `experience_orb`, `falling_block`, `lightning_bolt`, `ominous_item_spawner`, `tnt`; `giant`, `illusioner`, `mannequin` | no picked item |
+
+The results do not cover `bubble_column`, which disappears without water, and the entities
+`player`, `marker`, `item` and `fishing_bobber`, which a client cannot target or the `summon` command
+cannot make. See results R28 and R29.
 
 ## 7. Later parts
 
@@ -430,15 +477,9 @@ of the hands, the insertion of a stack into the inventory, and the full player f
 
 ## 9. Unresolved
 
-- **U3**: `container_close` with the window id 0 when the main slots have no room for the carried
-  stack or the craft grid. Part 4 states the insertion and can test this case.
 - **U7**: the slot numbers of INV-SLOT-008 that the documentation does not state, and the game rule
   `mcrs:offhand_accepts_any_item` of issue 521. The game rule acts on a move into the off-hand slot,
   so part 2 owns it.
-- **U8**: the distance limit of `pick_item_from_entity`.
-- **U9**: the picked item of each block and each entity, for example a block whose item has another
-  name (PLC-INV-007).
-- **U10**: pick block in creative mode with no match, when all main slots hold a stack.
 - **U11**: the carried slot when the player leaves. INV-SLOT-007 states the Java Edition behaviour:
   the server drops the stack. The Bedrock server keeps the stack in the player data. Issue 521 makes
   the carried stack a slot, but does not decide whether mcrs keeps it when the player leaves.
@@ -477,6 +518,11 @@ blocks apart. Read the packets that arrive after each step, and read the player 
 | E22 | In survival mode, write `dirt 4` to `player.crafting.0`, `stone 2` to `player.crafting.3` and `iron_ingot 3` to `player.cursor`. Leave. Read the item entities. Join again. Do it again with 36 `diamond_sword` in the main slots. | R22 |
 | E23 | Write `dirt 4` to `player.crafting.0` and `iron_ingot 3` to `player.cursor`, with empty main slots. Send `container_close` with the window id 0. | R23 |
 | E24 | Send `set_creative_mode_slot` with 5 `stone` and the added component `minecraft:max_stack_size` 10, with no length before the value. | R24 |
+| E25 | In survival mode, fill the main slots and the craft grid as R25 states, and send `container_close` with the window id 0. Read the item entities and the main slots. | R25 |
+| E26 | Summon a pig with no AI and no gravity at the eye height. Move it to each gap of R26, along the x axis and on the diagonal. Send `pick_item_from_entity`. | R26 |
+| E27 | Fill the main slots as R27 states and send `pick_item_from_block` on stone 2 blocks away. | R27 |
+| E28 | In creative mode with an empty inventory, for each block of the block registry, set the block in its default state 2 blocks in front of the owner, empty hotbar slot 0 with `set_creative_mode_slot`, send `pick_item_from_block` with include data false, and record the stack of `container_set_slot`. For each entity type, summon the entity with no AI and no gravity and send `pick_item_from_entity`. Do each case that gives no stack again with longer waits, and with the support block that the block needs. | R28 |
+| E29 | Pick `decorated_pot` in creative mode with include data false and true. | R29 |
 
 ## 11. Captured results
 
@@ -786,4 +832,55 @@ no item entity
 ```text
 P: disconnect; the reason ends with
    "Failed to decode packet 'serverbound/minecraft:set_creative_mode_slot'"
+```
+
+**R25.** `container_close` with the window id 0, in survival mode.
+
+```text
+36 diamond_sword in the main slots, dirt 4 in craft grid slot 1, iron_ingot 3 in the carried slot:
+  P: add_entity item; add_entity item
+     container_set_slot win 0 state 42 slot 1 empty
+     set_cursor_item empty
+  item entities: iron_ingot x3, dirt x4
+35 diamond_sword, dirt 62 in main slot 35, dirt 4 in craft grid slot 1, dirt 3 in the carried slot:
+  P: set_player_inventory slot 35 dirt x64
+     add_entity item; add_entity item
+     container_set_slot win 0 state 119 slot 1 empty
+     container_set_slot win 0 state 120 slot 35 dirt x64
+     set_cursor_item empty
+  item entities: dirt x1 and dirt x4, which then merge to dirt x5
+```
+
+**R26.** Pick entity on a pig. The pig has no gravity and its bounding box contains the eye height.
+`gap` is the distance from the eye position to the nearest point of the bounding box. The
+diagonal pig is at the same gap along the line of yaw -45.
+
+```text
+survival, main slot 20 has pig_spawn_egg x2:
+  gap 1.9 to 5.9, straight and diagonal: set_held_slot 0; slot 20 empty; slot 36 pig_spawn_egg x2
+  gap 6.1 and 7.9, straight and diagonal: nothing
+creative, empty inventory:
+  gap 1.9 to 7.9, straight and diagonal: set_held_slot 0; slot 36 pig_spawn_egg x1
+  gap 8.1 and 8.4, straight and diagonal: nothing
+```
+
+**R27.** Pick block on stone in creative mode, no match. Hotbar slot `n` has dirt `n + 1`, the
+main slots 9 to 35 have a `diamond_sword`, the selected slot is 3.
+
+```text
+P: set_held_slot 3; container_set_slot slot 39 stone x1
+Inventory after: hotbar 3 stone x1, no dirt x4 anywhere, main slots unchanged, no item entity
+```
+
+**R28.** Bulk pick, game version 26.4-snapshot-7. Of 1311 blocks, 1147 give the item with the name of
+the block. The other blocks and the entities give the results of INV-PCK-008. A block or entity of
+the last table row gives no packet. The full list is in the notes of the experiment, outside this
+repository.
+
+**R29.**
+
+```text
+include data false and true:
+  P: set_held_slot 0; container_set_slot slot 36 decorated_pot x1 with 1 added component
+  Inventory: {components: {"minecraft:pot_decorations": {}}, count: 1, Slot: 0b, id: "minecraft:decorated_pot"}
 ```
