@@ -43,8 +43,9 @@ section "Semantics, not accidents".
 
 ### 0.3 Colours and text
 
-A colour is a 32-bit ARGB value in hexadecimal. The font, the width of a text and the wrap of a
-text component are as `client-chat.md`, section 0.3, states. To wrap a text component at a
+A colour is a 32-bit ARGB value in hexadecimal. The font and the width of a text are as
+`client-font.md` states. The wrap of a text component is as `client-chat.md`, section 0.3,
+states. To wrap a text component at a
 width means to split it into lines no wider than that width:
 
 - A line break (U+000A) in the text also starts a new line. The line break is not in a line.

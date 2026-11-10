@@ -54,8 +54,8 @@ section "Semantics, not accidents".
 
 A colour is a 32-bit ARGB value in hexadecimal. The font has a line height of 9 GUI units. GUI
 text draws with a drop shadow unless a rule says otherwise. The width of a text is the font
-width in GUI units. The font and the wrap of a text component do not have a specification yet
-(section 7).
+width in GUI units (`client-font.md`, FONT-WID-001). The wrap of a text component does not
+have a specification yet (section 7).
 
 ### 0.4 Wire types
 
@@ -788,8 +788,9 @@ first.
 
 ## 7. Open points
 
-- The font, the wrap of a text component and the text of a translation with arguments
-  have no specification. CHAT-LOG-001 and CHAT-RECV-004 depend on them.
+- The wrap of a text component and the text of a translation with arguments
+  have no specification. CHAT-LOG-001 and CHAT-RECV-004 depend on them. The font has one
+  (`client-font.md`).
 - CHAT-LOG-002: the chat scale 0 is allowed, and the option shows "OFF". The layout then
   divides by 0. Experiment: set "Chat Text Size" to 0, send a message and check that no line
   shows.
