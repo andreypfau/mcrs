@@ -1,6 +1,6 @@
 ---
 title: Дорожная карта
-description: Куда движется mcrs, в четырех направлениях, с датированным снимком вех (milestones). Направление, а не обязательство.
+description: Куда движется mcrs, в четырех направлениях. Направление, а не обязательство.
 sidebar:
   order: 1
 translated_from: 3540f457b
@@ -50,32 +50,13 @@ import { Aside } from '@astrojs/starlight/components';
 
 Крейты библиотеки должны работать в прокси, боте, веб-клиенте и тесте без движка. Issue задает цель для слоев с 1 по 4: без `Arc` и `Rc`, без `Mutex`, `RwLock`, `RefCell` и `Cell` в типах данных, без `dyn` и `Any`, без аллокаций на горячих путях. На момент написания issue `Arc` встречался в 119 исходных файлах. Строка README "no Arc, no Mutex" - это цель, а не текущее состояние.
 
-## Вехи, снапшот на 2026-11-09
+## Вехи
 
-Источник: `gh api repos/andreypfau/mcrs/milestones` в этот день. Всего 54 вехи, в них 284 открытых и 172 закрытых issue. Закрытая issue не всегда значит "сделано", а открытая не всегда значит "кода нет", так что читайте это как грубую карту.
-
-| Веха | Закрыто | Открыто |
-|---|---|---|
-| [Registry core](https://github.com/andreypfau/mcrs/milestone/5) | 20 | 0 |
-| [World registries](https://github.com/andreypfau/mcrs/milestone/6) | 19 | 0 |
-| [Project infrastructure](https://github.com/andreypfau/mcrs/milestone/48) | 16 | 3 |
-| [Scaling one dimension](https://github.com/andreypfau/mcrs/milestone/23) | 15 | 11 |
-| [Renderer restructure](https://github.com/andreypfau/mcrs/milestone/1) | 13 | 12 |
-| [Engine conformance](https://github.com/andreypfau/mcrs/milestone/49) | 10 | 1 |
-| [Login and status](https://github.com/andreypfau/mcrs/milestone/14) | 8 | 1 |
-| [Crate layering](https://github.com/andreypfau/mcrs/milestone/54) | 7 | 1 |
-| [Server as plugins](https://github.com/andreypfau/mcrs/milestone/25) | 7 | 6 |
-| [Worldgen performance](https://github.com/andreypfau/mcrs/milestone/24) | 6 | 5 |
-| [Gametest harness](https://github.com/andreypfau/mcrs/milestone/26) | 5 | 14 |
-| [Library examples](https://github.com/andreypfau/mcrs/milestone/45) | 1 | 12 |
-| [Redstone](https://github.com/andreypfau/mcrs/milestone/28) | 0 | 6 |
-| [Health and combat](https://github.com/andreypfau/mcrs/milestone/17) | 0 | 17 |
-
-Полный список на [странице вех](https://github.com/andreypfau/mcrs/milestones). У вех Fluids, Growth, Villagers, Bosses и Vehicles закрытых issue нет совсем.
+Вехи ведутся на [странице вех GitHub](https://github.com/andreypfau/mcrs/milestones), там же живые счетчики открытых и закрытых issue. Закрытая issue не всегда значит "сделано", а открытая не всегда значит "кода нет", так что читайте счетчики как грубую карту.
 
 ## Как следить
 
 - Следите за четырьмя issue с направлениями выше.
 - Читайте страницу [Новости](/docs/ru/project/news/) после каждого тега.
 - Фильтруйте issue по меткам: `decision` для решений, `needs-decision` для открытых.
-- Эту страницу обновляют вручную при каждом новом теге. Таблицу вех позже будут генерировать (WIP).
+- Эту страницу обновляют вручную при каждом новом теге.

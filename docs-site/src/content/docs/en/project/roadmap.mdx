@@ -1,6 +1,6 @@
 ---
 title: Roadmap
-description: Where mcrs is heading, in four directions, with a dated snapshot of the milestones. A direction, not a commitment.
+description: Where mcrs is heading, in four directions. A direction, not a commitment.
 sidebar:
   order: 1
 kind: reference
@@ -63,32 +63,13 @@ What exists today is in [Status](/docs/en/start/status/). The gameplay milestone
 
 The library crates should run in a proxy, a bot, a web client and a test without an engine. The issue sets a target for layers 1 to 4: no `Arc` or `Rc`, no `Mutex`, `RwLock`, `RefCell` or `Cell` in data types, no `dyn` or `Any`, and no allocation on hot paths. When the issue was written, `Arc` appeared in 119 source files. The README line "no Arc, no Mutex" is this goal, not the current state.
 
-## Milestones, snapshot of 2026-11-09
+## Milestones
 
-Source: `gh api repos/andreypfau/mcrs/milestones` on that day. There are 54 milestones with 284 open and 172 closed issues in total. A closed issue is not always "done", and an open issue is not always "no code", so read this as a rough map.
-
-| Milestone | Closed | Open |
-|---|---|---|
-| [Registry core](https://github.com/andreypfau/mcrs/milestone/5) | 20 | 0 |
-| [World registries](https://github.com/andreypfau/mcrs/milestone/6) | 19 | 0 |
-| [Project infrastructure](https://github.com/andreypfau/mcrs/milestone/48) | 16 | 3 |
-| [Scaling one dimension](https://github.com/andreypfau/mcrs/milestone/23) | 15 | 11 |
-| [Renderer restructure](https://github.com/andreypfau/mcrs/milestone/1) | 13 | 12 |
-| [Engine conformance](https://github.com/andreypfau/mcrs/milestone/49) | 10 | 1 |
-| [Login and status](https://github.com/andreypfau/mcrs/milestone/14) | 8 | 1 |
-| [Crate layering](https://github.com/andreypfau/mcrs/milestone/54) | 7 | 1 |
-| [Server as plugins](https://github.com/andreypfau/mcrs/milestone/25) | 7 | 6 |
-| [Worldgen performance](https://github.com/andreypfau/mcrs/milestone/24) | 6 | 5 |
-| [Gametest harness](https://github.com/andreypfau/mcrs/milestone/26) | 5 | 14 |
-| [Library examples](https://github.com/andreypfau/mcrs/milestone/45) | 1 | 12 |
-| [Redstone](https://github.com/andreypfau/mcrs/milestone/28) | 0 | 6 |
-| [Health and combat](https://github.com/andreypfau/mcrs/milestone/17) | 0 | 17 |
-
-The full list is on the [milestones page](https://github.com/andreypfau/mcrs/milestones). Milestones such as Fluids, Growth, Villagers, Bosses and Vehicles are all at 0 closed.
+The milestones live on the [GitHub milestones page](https://github.com/andreypfau/mcrs/milestones), with live counts of open and closed issues. A closed issue is not always "done", and an open issue is not always "no code", so read the counts as a rough map.
 
 ## How to follow
 
 - Watch the four direction issues above.
 - Read the [News](/docs/en/project/news/) page after each tag.
 - Filter issues by label: `decision` for decisions, `needs-decision` for open ones.
-- This page is refreshed by hand when a tag is cut. The milestone table will be generated later (WIP).
+- This page is refreshed by hand when a tag is cut.
