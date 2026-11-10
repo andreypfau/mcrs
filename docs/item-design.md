@@ -497,7 +497,9 @@ guarantees:
 6. The removal of `Slots` from a holder, and the despawn of a holder, despawn its stacks.
 7. The despawn of a stack clears its slot.
 
-Only the engine crate can construct `InSlot`, so no user code can break guarantee 1.
+Only the engine crate can construct `InSlot`. `Slots` has no method that writes a slot, but it is a
+mutable component: a user system that replaces the value of a `Slots` in place breaks guarantee 1.
+A holder gets new slots through an insert of `Slots`, never through an assignment.
 
 ## 7.3 What does not panic
 
