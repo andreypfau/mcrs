@@ -240,7 +240,9 @@ The rules below are a general summary, written on 2026-11-10. They will go out o
 - A heading says what the section tells or what the reader does: "A player is a row in a table", "Run the server". Avoid "Overview" and "Introduction". Use sentence case.
 - Use a numbered list for steps the reader performs, a table for values the reader looks up, and a bullet list for short parallel items. Everything else is prose.
 - An aside is for a warning or for something the reader can skip. A page with more than two or three asides has no asides.
-- Put the file path or the issue at the end of the sentence, or in a sentence of its own. Do not interrupt a thought with brackets.
+- An issue or a pull request is a source, and a source goes into a footnote, the way Wikipedia cites. Write the sentence so that it carries the fact by itself, then put `[^357]` after its full stop. At the end of the file write `[^357]: <Status issue={357} /> One line that says what the issue decides or tracks.` A reader who does not open the issue loses nothing. Do not write "see #357", "the decision in #357 says" or "tracked in #357" in the text.
+- Inside a table cell the state is the content, so `<Status issue={357} />` stays in the cell. The change log on the News page keeps its pull request links in the entries.
+- Put a file path at the end of the sentence, or in a sentence of its own. Do not interrupt a thought with brackets.
 
 ### Patterns to remove
 

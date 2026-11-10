@@ -29,3 +29,9 @@ const show = d?.verified || sources.length || tracking.length;
   </section>
 )}
 <Default><slot /></Default>
+<script>
+  for (const a of document.querySelectorAll<HTMLAnchorElement>("sup a[data-footnote-ref]")) {
+    const note = document.getElementById(decodeURIComponent(a.hash.slice(1)));
+    if (note) a.title = (note.textContent ?? "").replace("↩", "").replace(/\s+/g, " ").trim();
+  }
+</script>

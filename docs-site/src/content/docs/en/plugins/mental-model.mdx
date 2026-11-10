@@ -80,7 +80,7 @@ Bevy compares the signatures of your systems. Two systems that touch different d
 
 You never call `Bukkit.getScheduler().runTask(...)` to get back to the main thread, because there is no such thread. The model also differs from Folia. Folia splits the world into regions by position, while mcrs splits the work by the data each system touches.
 
-Each dimension is a separate world, and the dimensions tick in parallel. Time, weather and game rules are shared between them, so that data has one writer and every dimension reads a snapshot of it (<Status issue={357} />). When one dimension needs something from another, it sends a message.
+Each dimension is a separate world, and the dimensions tick in parallel. Time, weather and game rules are shared between them, so that data has one writer and every dimension reads a snapshot of it.[^357] When one dimension needs something from another, it sends a message.
 
 <Aside type="caution" title="Register dimension plugins with add_dimension_plugin">
 A plugin that needs to see players and blocks must run inside a dimension. Add it with `add_dimension_plugin`. If you add it with `app.add_plugins`, it goes to the main app, where there are no players and no blocks. The plugin type must also implement `Clone`, because every dimension gets its own copy. [Your first plugin](/docs/en/plugins/first-plugin/) shows the whole setup.
@@ -94,7 +94,7 @@ The demo below runs the same herd of cows twice, once in vanilla order and once 
 
 Parallel code usually raises one worry: will two runs give two different worlds? In mcrs the result of a tick does not depend on how many threads ran it. When two entities compete for the same thing, a stable key such as arrival order or entity id picks the winner, so thread timing never does.
 
-How strict the guarantee is depends on the part of the game. The decision in <Status issue={367} /> defines three tiers:
+How strict the guarantee is depends on the part of the game. The project defines three tiers:[^367]
 
 | Tier | Guarantee | Examples |
 |---|---|---|
@@ -104,10 +104,14 @@ How strict the guarantee is depends on the part of the game. The decision in <St
 
 Outside the exact tier, mcrs matches the distributions of the reference game's random numbers and does not reproduce its exact sequences.
 
-For your plugin this comes down to one rule. If one of your systems must run before another, say so with `.before()` or `.after()`, and never rely on the order you happen to observe. CI runs the simulation schedules with ambiguity detection set to error, so an unordered conflict fails a test (<Status issue={323} />). The tests are [tick_determinism.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server/tests/it/tick_determinism.rs) and [schedule_ambiguity.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server/tests/it/schedule_ambiguity.rs).
+For your plugin this comes down to one rule. If one of your systems must run before another, say so with `.before()` or `.after()`, and never rely on the order you happen to observe. CI runs the simulation schedules with ambiguity detection set to error, so an unordered conflict fails a test.[^323] The tests are [tick_determinism.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server/tests/it/tick_determinism.rs) and [schedule_ambiguity.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server/tests/it/schedule_ambiguity.rs).
 
 ## A panic does not stop the server
 
 The server installs a fallback error handler in [src/main.rs](https://github.com/andreypfau/mcrs/blob/main/src/main.rs). When a system panics, the handler logs the panic and the server keeps running. This is close to an uncaught exception in a Bukkit event handler.
 
 Next: [Rust for Java developers](/docs/en/plugins/rust-for-java/).
+
+[^357]: <Status issue={357} /> The decision that global mutable state has one writer.
+[^367]: <Status issue={367} /> The decision that defines the three tiers of determinism.
+[^323]: <Status issue={323} /> Simulation schedules fail on an ambiguous system order.

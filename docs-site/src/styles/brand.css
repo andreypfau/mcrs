@@ -40,3 +40,9 @@
   html[data-toc-collapsed][data-has-sidebar][data-has-toc] .main-pane { width: calc(100% - 2.75rem); --sl-content-margin-inline: auto; }
 }
 @media (max-width: 71.99rem) { .mcrs-toc-toggle { display: none; } }
+
+.sl-markdown-content .footnotes { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--sl-color-gray-5); font-size: var(--sl-text-sm); color: var(--sl-color-gray-2); }
+.sl-markdown-content .footnotes .sl-heading-wrapper { display: none; }
+.sl-markdown-content sup a[data-footnote-ref] { text-decoration: none; padding: 0 0.15em; }
+.sl-markdown-content sup a[data-footnote-ref]::before { content: "["; }
+.sl-markdown-content sup a[data-footnote-ref]::after { content: "]"; }
