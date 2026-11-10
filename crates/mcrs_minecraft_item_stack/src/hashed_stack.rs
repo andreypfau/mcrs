@@ -56,8 +56,9 @@ pub fn hash_stack<L: NameLookup>(
 /// True when the hashed stack that a client sent matches `stack`. The check makes no allocation
 /// beyond `scratch`.
 ///
-/// A component that this crate cannot hash gives an error only when each other part matches:
-/// the result is then not decided.
+/// A present hashed stack of the item air with the count 0 and no entries matches the empty
+/// stack. A component that this crate cannot hash gives an error only when each other part
+/// matches: the result is then not decided.
 pub fn matches_hashed<L: NameLookup>(
     hashed: Option<&HashedStack>,
     stack: Option<&ItemStack>,
@@ -66,8 +67,9 @@ pub fn matches_hashed<L: NameLookup>(
 ) -> Result<bool, HashError> {
     let (hashed, stack) = match (hashed, present(stack, names)?) {
         (None, None) => return Ok(true),
+        (Some(hashed), None) => return Ok(is_empty(hashed, names)),
         (Some(hashed), Some(stack)) => (hashed, stack),
-        _ => return Ok(false),
+        (None, Some(_)) => return Ok(false),
     };
     if hashed.kind != stack.kind || hashed.count != i32::from(stack.count.get()) {
         return Ok(false);
@@ -107,6 +109,15 @@ pub fn matches_hashed<L: NameLookup>(
         Some(error) => Err(error),
         None => Ok(true),
     }
+}
+
+fn is_empty<L: NameLookup>(hashed: &HashedStack, names: &L) -> bool {
+    hashed.count == 0
+        && hashed.values.is_empty()
+        && hashed.removals.is_empty()
+        && names
+            .name(NameTable::Item, hashed.kind.0)
+            .is_some_and(is_air)
 }
 
 enum HashedEntry {

@@ -189,7 +189,13 @@ impl<L: NameLookup> Reader<'_, L> {
             let enchantment = EnchantmentId(self.id(input, NameTable::Enchantment)?);
             let level = u8::try_from(self.var_int(input)?).map_err(|_| self.bad())?;
             let level = NonZeroU8::new(level).ok_or(WireError::OutOfRange(self.component))?;
-            entries.push(EnchantmentLevel { enchantment, level });
+            match entries
+                .iter_mut()
+                .find(|entry| entry.enchantment == enchantment)
+            {
+                Some(entry) => entry.level = level,
+                None => entries.push(EnchantmentLevel { enchantment, level }),
+            }
         }
         Enchantments::new(entries).ok_or(self.bad())
     }

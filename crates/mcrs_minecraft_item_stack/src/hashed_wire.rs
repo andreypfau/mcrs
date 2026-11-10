@@ -7,6 +7,8 @@ use crate::ComponentType;
 use crate::HashedComponent;
 use crate::HashedStack;
 use crate::Kind;
+use crate::NameLookup;
+use crate::NameTable;
 use crate::WireError;
 use crate::wire_value::put_length;
 use crate::wire_value::put_var_int;
@@ -18,9 +20,13 @@ const PRESENT: u8 = 0x01;
 /// Reads the hashed stack of a click. The byte `00` gives `None`, the empty stack.
 ///
 /// The reader accepts each count and each item id that fits a numeric id; only the comparison
-/// with a stack gives them a meaning. A list of more than 256 entries, or one type two times in a
-/// list, is an error.
-pub fn read_hashed(input: &mut &[u8]) -> Result<Option<HashedStack>, WireError> {
+/// with a stack gives them a meaning. A list of more than 256 entries, or a type id that names no
+/// component type, is an error. A value type two times keeps the last hash, and a removal type two
+/// times is one removal.
+pub fn read_hashed<L: NameLookup>(
+    input: &mut &[u8],
+    names: &L,
+) -> Result<Option<HashedStack>, WireError> {
     let Some((&present, rest)) = input.split_first() else {
         return Err(WireError::UnexpectedEnd);
     };
@@ -35,27 +41,24 @@ pub fn read_hashed(input: &mut &[u8]) -> Result<Option<HashedStack>, WireError> 
     let value_count = entry_count(input)?;
     let mut values: Vec<HashedComponent> = Vec::with_capacity(value_count);
     for _ in 0..value_count {
-        let component = component_type(input)?;
+        let component = component_type(input, names)?;
         let (hash, rest) = input
             .split_first_chunk::<4>()
             .ok_or(WireError::UnexpectedEnd)?;
         *input = rest;
-        if values.iter().any(|value| value.component == component) {
-            return Err(WireError::RepeatedComponentType(component));
+        let hash = i32::from_be_bytes(*hash);
+        match values.iter_mut().find(|value| value.component == component) {
+            Some(value) => value.hash = hash,
+            None => values.push(HashedComponent { component, hash }),
         }
-        values.push(HashedComponent {
-            component,
-            hash: i32::from_be_bytes(*hash),
-        });
     }
     let removal_count = entry_count(input)?;
     let mut removals: Vec<ComponentType> = Vec::with_capacity(removal_count);
     for _ in 0..removal_count {
-        let component = component_type(input)?;
-        if removals.contains(&component) {
-            return Err(WireError::RepeatedComponentType(component));
+        let component = component_type(input, names)?;
+        if !removals.contains(&component) {
+            removals.push(component);
         }
-        removals.push(component);
     }
     Ok(Some(HashedStack {
         kind: Kind(kind),
@@ -103,11 +106,13 @@ fn entry_count(input: &mut &[u8]) -> Result<usize, WireError> {
     Ok(count)
 }
 
-fn component_type(input: &mut &[u8]) -> Result<ComponentType, WireError> {
+fn component_type<L: NameLookup>(input: &mut &[u8], names: &L) -> Result<ComponentType, WireError> {
     let raw = var_int(input)?;
     u16::try_from(raw)
+        .ok()
+        .filter(|id| names.name(NameTable::ComponentType, *id).is_some())
         .map(ComponentType)
-        .map_err(|_| WireError::UnknownComponentType(raw))
+        .ok_or(WireError::UnknownComponentType(raw))
 }
 
 fn check_entries<T>(entries: &[T], component: fn(&T) -> ComponentType) -> Result<(), WireError> {

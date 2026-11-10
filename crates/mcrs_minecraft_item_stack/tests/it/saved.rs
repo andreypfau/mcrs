@@ -256,10 +256,18 @@ fn a_saved_stack_with_each_decoded_type_reads_to_its_value_and_writes_back() {
 
 #[test]
 fn the_writer_gives_the_canonical_form_of_what_the_reader_accepts() {
-    let cases: [(&str, &str); 7] = [
+    let cases: [(&str, &str); 9] = [
         (r#"{id:"stone"}"#, r#"{id:"minecraft:stone",count:1}"#),
         (
-            r#"{id:"minecraft:stone",count:5,components:{"minecraft:bundle_contents":[{id:"minecraft:stone"}],"!custom_data":{x:1},repair_cost:2,"!damage":7,"minecraft:custom_name":"named"}}"#,
+            r#"{id:"stone",count:3b,components:{"minecraft:max_stack_size":64.5f,"minecraft:max_damage":10000000000.0d,"minecraft:damage":-0.5d,"minecraft:repair_cost":4294967298L,"minecraft:enchantments":{sharpness:3s},"minecraft:attribute_modifiers":[{type:"attack_damage",id:"base",amount:2,operation:"add_value"}],"minecraft:tooltip_display":{hide_tooltip:2b},"minecraft:food":{nutrition:4.9f,saturation:1,can_always_eat:0.5f},"minecraft:tool":{rules:[{blocks:"stone",speed:2b,correct_for_drops:-1}],default_mining_speed:3L,damage_per_block:2.9d,can_destroy_blocks_in_creative:0L}}}"#,
+            r#"{id:"minecraft:stone",count:3,components:{"minecraft:max_stack_size":64,"minecraft:max_damage":2147483647,"minecraft:damage":0,"minecraft:repair_cost":2,"minecraft:enchantments":{"minecraft:sharpness":3},"minecraft:attribute_modifiers":[{type:"minecraft:attack_damage",id:"minecraft:base",amount:2.0d,operation:"add_value"}],"minecraft:tooltip_display":{hide_tooltip:1b},"minecraft:food":{nutrition:4,saturation:1.0f,can_always_eat:1b},"minecraft:tool":{rules:[{blocks:"minecraft:stone",speed:2.0f,correct_for_drops:1b}],default_mining_speed:3.0f,damage_per_block:2,can_destroy_blocks_in_creative:0b}}}"#,
+        ),
+        (
+            r#"{id:"stone",components:{damage:3,"!minecraft:damage":{},"!repair_cost":{},"minecraft:repair_cost":5}}"#,
+            r#"{id:"minecraft:stone",count:1,components:{"!minecraft:damage":{},"minecraft:repair_cost":5}}"#,
+        ),
+        (
+            r#"{id:"minecraft:stone",count:5,components:{"minecraft:bundle_contents":[{id:"minecraft:stone"}],"!custom_data":{x:1},repair_cost:2,"!damage":{x:1},"minecraft:custom_name":"named"}}"#,
             r#"{id:"minecraft:stone",count:5,components:{"!minecraft:damage":{},"minecraft:custom_name":"named","minecraft:repair_cost":2,"minecraft:bundle_contents":[{id:"minecraft:stone"}],"!minecraft:custom_data":{}}}"#,
         ),
         (
@@ -335,7 +343,7 @@ fn the_patch_keeps_one_order_whatever_the_order_of_the_saved_keys() {
 
 #[test]
 fn the_saved_count_is_an_int_from_1_to_99_and_an_absent_count_is_1() {
-    let cases: [(&str, Result<u8, SavedError>); 9] = [
+    let cases: [(&str, Result<u8, SavedError>); 12] = [
         ("", Ok(1)),
         (",count:1", Ok(1)),
         (",count:99", Ok(99)),
@@ -343,7 +351,10 @@ fn the_saved_count_is_an_int_from_1_to_99_and_an_absent_count_is_1() {
         (",count:-1", Err(SavedError::BadCount)),
         (",count:100", Err(SavedError::BadCount)),
         (",count:257", Err(SavedError::BadCount)),
-        (",count:1b", Err(SavedError::BadCount)),
+        (",count:1b", Ok(1)),
+        (",count:64.5f", Ok(64)),
+        (",count:4294967298L", Ok(2)),
+        (",count:0.5f", Err(SavedError::BadCount)),
         (",count:\"1\"", Err(SavedError::BadCount)),
     ];
     for (count, expected) in cases {
@@ -375,7 +386,7 @@ fn the_reader_names_the_rule_that_a_saved_stack_breaks() {
 
     let unknown =
         |component: BuiltinKey, table: NameTable| SavedError::UnknownEntry { component, table };
-    let patches: [(&str, SavedError); 19] = [
+    let patches: [(&str, SavedError); 23] = [
         (r#""Bad Key":1"#, SavedError::BadKey),
         (r#""!Bad Key":{}"#, SavedError::BadKey),
         (
@@ -385,6 +396,16 @@ fn the_reader_names_the_rule_that_a_saved_stack_breaks() {
         (
             r#""!minecraft:no_such_type":{}"#,
             SavedError::UnknownComponentType,
+        ),
+        (r#""!minecraft:damage":1b"#, SavedError::BadRemovalValue),
+        (r#"damage:1,"minecraft:damage":2"#, SavedError::RepeatedKey),
+        (
+            r#""!bundle_contents":{},"!minecraft:bundle_contents":{}"#,
+            SavedError::RepeatedKey,
+        ),
+        (
+            r#""minecraft:damage":-1.5f"#,
+            SavedError::OutOfRange(BuiltinKey::Damage),
         ),
         (
             r#""minecraft:damage":"7""#,
@@ -407,7 +428,7 @@ fn the_reader_names_the_rule_that_a_saved_stack_breaks() {
             SavedError::BadValue(BuiltinKey::Food),
         ),
         (
-            r#""minecraft:tooltip_display":{hide_tooltip:2b}"#,
+            r#""minecraft:tooltip_display":{hide_tooltip:"true"}"#,
             SavedError::BadValue(BuiltinKey::TooltipDisplay),
         ),
         (

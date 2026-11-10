@@ -351,6 +351,34 @@ fn removals_follow_the_values_and_the_empty_stack_is_one_byte() {
     assert_eq!(read_all(&[0], read_wire), Ok(None));
     assert_eq!(read_all(&[0], read_wire_with_length), Ok(None));
     assert_eq!(read_all(&unhex("01 00 01 00 03 07"), read_wire), Ok(None));
+
+    let air_with_patch = unhex("01 00 01 00 03 07");
+    let mut input = air_with_patch.as_slice();
+    assert_eq!(
+        read_wire_not_empty(&mut input, &Names),
+        Err(WireError::EmptyStack)
+    );
+    assert!(
+        input.is_empty(),
+        "the reader reads the patch before the error"
+    );
+}
+
+#[test]
+fn a_repeated_enchantment_on_the_wire_keeps_the_last_level() {
+    type Read = fn(&mut &[u8], &Names) -> Result<Option<ItemStack>, WireError>;
+    let cases: [(&str, Read); 2] = [
+        ("01 01 01 00 0d 02 00 01 00 03", read_wire),
+        ("01 01 01 00 0d 05 02 00 01 00 03", read_wire_with_length),
+    ];
+    let expected = stack(STONE, 1).set(Enchantments::new([level(0, 3)]).expect("one type"));
+    for (bytes, read) in cases {
+        assert_eq!(
+            read_all(&unhex(bytes), read),
+            Ok(Some(expected.clone())),
+            "{bytes}"
+        );
+    }
 }
 
 #[test]

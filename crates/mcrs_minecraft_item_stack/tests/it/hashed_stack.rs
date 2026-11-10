@@ -319,7 +319,7 @@ fn the_click_that_the_game_wrote_holds_the_hashes_of_the_stack() {
     for slot_field in [2, 2, 0] {
         skip(&mut input, slot_field);
         let before = input;
-        let stack = read_hashed(&mut input).expect("the game wrote a valid hashed stack");
+        let stack = read_hashed(&mut input, &Names).expect("the game wrote a valid hashed stack");
         stacks.push((&before[..before.len() - input.len()], stack));
     }
     assert!(input.is_empty(), "{} bytes are left", input.len());
@@ -383,13 +383,23 @@ fn a_hashed_stack_matches_a_stack_by_the_rule_of_the_specification() {
     };
     let named = held.clone().set(CustomName(Text::text("named")));
     let named_claim = hashed(Some(&named));
+    let air_claim = |count: i32| {
+        Some(HashedStack {
+            kind: Kind(AIR),
+            count,
+            values: Vec::new(),
+            removals: Vec::new(),
+        })
+    };
     let cases: [(
         &str,
         Option<HashedStack>,
         Option<ItemStack>,
         Result<bool, HashError>,
-    ); 13] = [
+    ); 15] = [
         ("both empty", None, None, Ok(true)),
+        ("air claim of count 0", air_claim(0), None, Ok(true)),
+        ("air claim of count 1", air_claim(1), None, Ok(false)),
         ("empty and air", None, Some(stack(AIR, 1)), Ok(true)),
         ("empty claim", None, Some(held.clone()), Ok(false)),
         ("empty stack", Some(claimed.clone()), None, Ok(false)),
@@ -461,7 +471,7 @@ fn the_reader_refuses_what_the_wire_form_does_not_allow() {
         bytes.extend((0..257).flat_map(|_| [0x03, 0, 0, 0, 0]));
         bytes
     };
-    let cases: [(&str, Vec<u8>, WireError); 5] = [
+    let cases: [(&str, Vec<u8>, WireError); 4] = [
         ("presence byte", vec![0x02], WireError::Malformed),
         (
             "cut hash",
@@ -470,20 +480,46 @@ fn the_reader_refuses_what_the_wire_form_does_not_allow() {
         ),
         ("257 values", too_many, WireError::TooManyEntries),
         (
+            "unknown type",
+            vec![0x01, 0x01, 0x01, 0x00, 0x01, 0x7a],
+            WireError::UnknownComponentType(122),
+        ),
+    ];
+    for (name, bytes, expected) in cases {
+        let read = read_hashed(&mut bytes.as_slice(), &Names);
+        assert_eq!(read, Err(expected), "{name}");
+    }
+
+    let accepted: [(&str, Vec<u8>, HashedStack); 2] = [
+        (
             "one value type two times",
             vec![
                 0x01, 0x01, 0x01, 0x02, 0x03, 0, 0, 0, 0, 0x03, 0, 0, 0, 1, 0x00,
             ],
-            WireError::RepeatedComponentType(DAMAGE_TYPE),
+            HashedStack {
+                kind: Kind(STONE),
+                count: 1,
+                values: vec![HashedComponent {
+                    component: DAMAGE_TYPE,
+                    hash: 1,
+                }],
+                removals: Vec::new(),
+            },
         ),
         (
             "one removal type two times",
             vec![0x01, 0x01, 0x01, 0x00, 0x02, 0x13, 0x13],
-            WireError::RepeatedComponentType(REPAIR_COST_TYPE),
+            HashedStack {
+                kind: Kind(STONE),
+                count: 1,
+                values: Vec::new(),
+                removals: vec![REPAIR_COST_TYPE],
+            },
         ),
     ];
-    for (name, bytes, expected) in cases {
-        assert_eq!(read_hashed(&mut bytes.as_slice()), Err(expected), "{name}");
+    for (name, bytes, expected) in accepted {
+        let read = read_hashed(&mut bytes.as_slice(), &Names);
+        assert_eq!(read, Ok(Some(expected)), "{name}");
     }
 
     let mut output = vec![0xAA];

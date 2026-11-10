@@ -51,17 +51,20 @@ use crate::TooltipDisplay;
 use crate::Unbreakable;
 use crate::UndecodedValue;
 use crate::builtin_key::NAMESPACE;
+use crate::saved_key::KeyKind;
+use crate::saved_key::REMOVAL_MARKER;
+use crate::saved_key::SavedKey;
 use crate::saved_text::read_lore;
 use crate::saved_text::read_text;
 use crate::saved_text::write_lore;
 use crate::saved_text::write_text;
+use crate::tag_number::TagNumber;
 
 const ID: &str = "id";
 const COUNT: &str = "count";
 const COMPONENTS: &str = "components";
 const SLOT: &str = "Slot";
 const AIR: &str = "air";
-const REMOVAL_MARKER: char = '!';
 const TAG_MARKER: char = '#';
 const MAX_COUNT: u8 = 99;
 const NOT_NEGATIVE: RangeInclusive<i32> = 0..=i32::MAX;
@@ -90,8 +93,7 @@ pub fn read_saved<L: NameLookup>(saved: &NbtCompound, names: &L) -> Result<ItemS
         .ok_or(SavedError::UnknownItem)?;
     let count = match saved.get(COUNT) {
         None => 1,
-        Some(NbtTag::Int(count)) => *count,
-        Some(_) => return Err(SavedError::BadCount),
+        Some(count) => TagNumber::of(count).ok_or(SavedError::BadCount)?.to_int(),
     };
     let count = u8::try_from(count)
         .ok()
@@ -102,7 +104,11 @@ pub fn read_saved<L: NameLookup>(saved: &NbtCompound, names: &L) -> Result<ItemS
     match saved.get(COMPONENTS) {
         None => {}
         Some(NbtTag::Compound(patch)) => {
-            for (key, value) in &patch.child_tags {
+            for (index, (key, value)) in patch.child_tags.iter().enumerate() {
+                let key = SavedKey::read(key)?;
+                if key.is_repeated(patch.child_tags.get(..index).unwrap_or_default()) {
+                    return Err(SavedError::RepeatedKey);
+                }
                 stack.put_entry(read_entry(key, value, names)?);
             }
         }
@@ -191,18 +197,19 @@ pub(crate) fn is_air(item: ResourceLocation<'_>) -> bool {
 }
 
 fn read_entry<L: NameLookup>(
-    key: &str,
+    key: SavedKey<'_>,
     value: &NbtTag,
     names: &L,
 ) -> Result<PatchEntry, SavedError> {
-    let removal_name = key.strip_prefix(REMOVAL_MARKER);
-    let name =
-        ResourceLocation::read(removal_name.unwrap_or(key)).map_err(|_| SavedError::BadKey)?;
+    let name = key.name;
     let builtin = BuiltinKey::from_location(name);
     if builtin.is_none() && names.id(NameTable::ComponentType, name).is_none() {
         return Err(SavedError::UnknownComponentType);
     }
-    if removal_name.is_some() {
+    if key.kind == KeyKind::Removal {
+        if !matches!(value, NbtTag::Compound(_)) {
+            return Err(SavedError::BadRemovalValue);
+        }
         return Ok(match builtin {
             Some(component) => PatchEntry::Removal(component),
             None => PatchEntry::UndecodedRemoval(name.to_buf()),
@@ -309,30 +316,25 @@ impl<L: NameLookup> Reader<'_, L> {
         SavedError::BadValue(self.component)
     }
 
+    fn number(&self, tag: &NbtTag) -> Result<TagNumber, SavedError> {
+        TagNumber::of(tag).ok_or(self.bad())
+    }
+
     fn int(&self, tag: &NbtTag, range: RangeInclusive<i32>) -> Result<i32, SavedError> {
-        let NbtTag::Int(value) = tag else {
-            return Err(self.bad());
-        };
-        if range.contains(value) {
-            Ok(*value)
+        let value = self.number(tag)?.to_int();
+        if range.contains(&value) {
+            Ok(value)
         } else {
             Err(SavedError::OutOfRange(self.component))
         }
     }
 
     fn float(&self, tag: &NbtTag) -> Result<f32, SavedError> {
-        match tag {
-            NbtTag::Float(value) => Ok(*value),
-            _ => Err(self.bad()),
-        }
+        Ok(self.number(tag)?.to_float())
     }
 
     fn boolean(&self, tag: &NbtTag) -> Result<bool, SavedError> {
-        match tag {
-            NbtTag::Byte(0) => Ok(false),
-            NbtTag::Byte(1) => Ok(true),
-            _ => Err(self.bad()),
-        }
+        Ok(self.number(tag)?.is_true())
     }
 
     fn string<'tag>(&self, tag: &'tag NbtTag) -> Result<&'tag str, SavedError> {
@@ -404,12 +406,10 @@ impl<L: NameLookup> Reader<'_, L> {
             let attribute = self.identifier(self.necessary(entry, "type")?)?;
             let attribute = AttributeId(self.entry(NameTable::Attribute, attribute)?);
             let id = self.identifier(self.necessary(entry, "id")?)?.to_buf();
-            let NbtTag::Double(amount) = self.necessary(entry, "amount")? else {
-                return Err(self.bad());
-            };
+            let amount = self.number(self.necessary(entry, "amount")?)?.to_double();
             let operation = self.string(self.necessary(entry, "operation")?)?;
             let operation = ModifierOperation::from_name(operation).ok_or(self.bad())?;
-            let mut modifier = AttributeModifier::new(attribute, id, *amount, operation);
+            let mut modifier = AttributeModifier::new(attribute, id, amount, operation);
             if let Some(slot) = entry.get("slot") {
                 modifier.slot = SlotGroup::from_name(self.string(slot)?).ok_or(self.bad())?;
             }

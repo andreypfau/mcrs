@@ -15,7 +15,7 @@ pub enum SavedError {
     UnknownItem,
     /// `id` names air. The saved stack has no form for the empty stack.
     AirItem,
-    /// `count` is not an int, or is out of `1..=99`.
+    /// `count` is not a number, or is out of `1..=99` after the conversion to an int.
     BadCount,
     /// `Slot` is not a byte.
     BadSlot,
@@ -25,6 +25,10 @@ pub enum SavedError {
     BadKey,
     /// A key of the patch names no component type.
     UnknownComponentType,
+    /// The value of a removal key `!<type>` is not a map.
+    BadRemovalValue,
+    /// An earlier key of the same kind, value or removal, names the same component type.
+    RepeatedKey,
     /// The value of this component type has a tag of the wrong kind, lacks a necessary field,
     /// holds a string that is not a name of its list, or holds one entry two times.
     BadValue(BuiltinKey),
@@ -51,7 +55,7 @@ impl fmt::Display for SavedError {
             Self::BadItemId => formatter.write_str("the item id is absent or is not an identifier"),
             Self::UnknownItem => formatter.write_str("the item id names no item"),
             Self::AirItem => formatter.write_str("the item id names air"),
-            Self::BadCount => formatter.write_str("the count is not an int from 1 to 99"),
+            Self::BadCount => formatter.write_str("the count is not a number from 1 to 99"),
             Self::BadSlot => formatter.write_str("the slot is not a byte"),
             Self::BadPatch => formatter.write_str("the component patch is not a map"),
             Self::BadKey => {
@@ -60,6 +64,10 @@ impl fmt::Display for SavedError {
             Self::UnknownComponentType => {
                 formatter.write_str("a key of the component patch names no component type")
             }
+            Self::BadRemovalValue => formatter
+                .write_str("the value of a removal key of the component patch is not a map"),
+            Self::RepeatedKey => formatter
+                .write_str("two keys of the component patch of one kind name one component type"),
             Self::BadValue(component) => write!(
                 formatter,
                 "the value of {} is not a valid saved form",
