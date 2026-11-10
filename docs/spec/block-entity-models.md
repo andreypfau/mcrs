@@ -68,7 +68,10 @@ In scope: chests, shulker boxes, banners, heads and skulls, decorated pots, the 
 enchanting table, the book of a lectern and the body of a bell. These shapes are static. They
 show the pose that the reference shows when nothing acts on the block.
 
-Out of scope: signs, hanging signs, beds, conduits, end portals, end gateways, beacons, spawner
+Signs and hanging signs are in scope only as BEM-SHAPE-010 states. Their shape is a block model,
+not a layer entry. `client-sign-text.md` states their text.
+
+Out of scope: beds, conduits, end portals, end gateways, beacons, spawner
 contents, copper golem statues, campfire items, shelf items and pistons. A later release can add
 them.
 
@@ -424,6 +427,37 @@ at a known camera. Compare each book outline with BEM-TEST-002.
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1. Experiment:
 put a bell on the floor, on a wall and under a block. Take a screenshot of each. The body is at
 the same place in each block.
+
+### BEM-SHAPE-010: Signs and hanging signs
+
+- **Inputs:** a block state of `minecraft:<wood>_sign`, `minecraft:<wood>_wall_sign`,
+  `minecraft:<wood>_hanging_sign` or `minecraft:<wood>_wall_hanging_sign`. The 13 values of
+  `<wood>` are `oak`, `spruce`, `birch`, `jungle`, `acacia`, `dark_oak`, `pale_oak`, `mangrove`,
+  `cherry`, `bamboo`, `poplar`, `crimson` and `warped`.
+- **Behavior:**
+  1. The model artefact has no layer entry for a sign. The pose artefact has no case for a sign.
+     A sign has no file under `assets/mcrs/block_entity_model/`. A sign is not a static block
+     entity (BEM-DATA-001, item 5).
+  2. The board, the post and the chains of a sign are the faces of its block model. The block
+     model artefact `crates/mcrs_minecraft_model/tests/fixtures/vanilla/block_models.json` lists
+     52 blocks, 4 for each wood, with the models of these states:
+
+| Block | Models and states |
+|-------|-------------------|
+| `<wood>_sign` | `block/<wood>_sign_rot_<r>`, with `r` = `rotation` mod 4, turned about Y by 90° · (`rotation` div 4) |
+| `<wood>_wall_sign` | `block/<wood>_wall_sign`, turned about Y by the yaw of `facing` |
+| `<wood>_hanging_sign` | `block/<wood>_hanging_sign_rot_<r>` when `attached` is `false`, and `block/<wood>_hanging_sign_attached_rot_<r>` when `attached` is `true`; `r` and the turn are as for `<wood>_sign` |
+| `<wood>_wall_hanging_sign` | `block/<wood>_wall_hanging_sign`, turned about Y by the yaw of `facing` |
+
+  3. The faces of these models enter the terrain mesh as the faces of any block model
+     (`block-model-resolution.md`, `block-face-bake.md`). They use the sprite
+     `block/<wood>_sign` or `block/<wood>_hanging_sign`.
+  4. The text of a sign is not a face of the block model. `client-sign-text.md` states it.
+- **Postconditions:** the client draws a sign body with no entity pack file.
+
+Provenance: `black_box_confirmed` (the block model artefact; the model artefact and the pose
+artefact have no sign entries). Kind: semantic. Confidence: high. Milestone: 1. Experiment:
+none. BEM-TEST-001 does not apply to signs.
 
 ---
 
