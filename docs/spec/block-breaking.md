@@ -150,6 +150,13 @@ The limit is the value of the `minecraft:block_interaction_range` attribute, plu
 shape of the block. A bottom slab has the same limit as a full block when the breaker is above it. See
 result R8.
 
+**BRK-RCH-003** (`source_suggested_black_box_confirmed`, semantic). The eye position is the position of
+the player plus the eye height of its current pose. The eye height is 1.62 when the player stands,
+1.27 when it crouches, and 0.4 when it crawls or swims. The player crouches while its last
+`player_input` has the sneak flag and it does not fly. It crawls when a block above it leaves no room
+to stand or crouch. See result R47. The result bounds the crouch height to 0.85 to 1.43, and the crawl
+height to 0.19 to 0.85.
+
 ### 3.2 Refusals that send the block state
 
 **BRK-REF-001** (`black_box_confirmed`, semantic). In each case of this table, the breaker gets
@@ -281,6 +288,16 @@ The data of each packet is the state of the part at its position. See results R1
 **BRK-PRT-003** (`black_box_confirmed`, semantic). A door, a bed and a tall plant drop no item in a
 creative break. See result R12.
 
+**BRK-PRT-005** (`black_box_confirmed`, semantic). A break of a piston head removes only the head. The
+piston stays, with the state `extended=true`. A break of an extended piston also removes its head:
+the breaker gets `level_event` with type 2001 at the head, and then the block states of both parts.
+An observer gets the `level_event` for the piston and then for the head. No item drops. See result R49.
+The result tests a piston and a sticky piston that face up.
+
+**BRK-PRT-006** (`black_box_confirmed`, semantic). A break of one half of a double chest changes the
+other half to a single chest. Both changes reach the breaker in one block update of the section. See
+result R49.
+
 ## 5. Drops
 
 **BRK-DRP-001** (`black_box_confirmed`, semantic). A creative break of a block drops no item for the
@@ -306,6 +323,30 @@ is: `level_event` for the removed block, where the block has one, then `add_enti
 on the block, the server sends the acknowledgement first. About one tick later, it sends `add_entity`
 and the new block state of the sand. See result R23. `block-simulation.md` states how neighbours update.
 
+**BRK-DRP-007** (`black_box_confirmed`, semantic). In a creative break, these blocks drop the items
+that they hold, and not the block item. The breaker and each observer get `add_entity` for each item
+before the block state. See result R49.
+
+| Block | Drop |
+|-------|------|
+| jukebox with a disc | the disc. The breaker and each observer also get `level_event` with type 1011 and data 0. |
+| lectern with a book | the book |
+| chiseled bookshelf | each book |
+| campfire | each item on it |
+| decorated pot | the item in it, and not the pot |
+
+A flower pot with a plant drops nothing. Ice changes to air, and not to water. TNT does not ignite.
+
+**BRK-DRP-008** (`black_box_confirmed`, semantic). In a creative break, a beehive or a bee nest with
+bees or with a honey level more than 0 drops one item of the block. The item holds the bees and the
+honey level. An empty beehive drops nothing. For the observer, the `add_entity` comes before the
+`level_event` with type 2001. See result R49.
+
+**BRK-DRP-009** (`black_box_confirmed`, semantic). A cactus or sugar cane on the broken block breaks in
+the same tick, as in BRK-DRP-004, and drops its item. For kelp, the kelp plant above the broken block
+breaks in the same tick, and the top kelp one tick later. Each part above the broken block drops one
+kelp item. The positions of the kelp change to water. See result R49.
+
 ## 6. Several requests and the sequence
 
 **BRK-SEQ-001** (`black_box_confirmed`, semantic). Requests that the server handles between two ticks
@@ -325,6 +366,11 @@ valid. See result R24.
 **BRK-SEQ-005** (`black_box_confirmed`, semantic). A negative sequence closes the connection with the
 translation key `disconnect.packetError`. The block breaks before the connection closes. See result
 R24. This rule rests on one observation.
+
+**BRK-SEQ-006** (`black_box_confirmed`, semantic). When breaks in one tick change blocks in more than
+one section, the breaker gets the packet of BRK-BRK-002 for each section, and then one
+acknowledgement. The order of the sections is not specified. An observer gets the `level_event` of
+each break in the order of the requests, and then the block states. See result R48.
 
 ## 7. Survival mode
 
@@ -630,11 +676,9 @@ in `set_entity_data`, and the reference sends that packet two times for each orb
 
 - **U7**: a position in reach in a chunk that is not loaded. The only tested position was also out of
   reach.
-- **U9**: the eye position when the player sneaks, swims or has another pose. All experiments used a
-  player that stands. Result R8 confirms the height 1.62 only to within 0.05.
-- **U11**: two breaks in one tick in different sections.
-- **U13**: other blocks that act differently in a creative break. For example, a piston head also
-  removes its piston, and a beehive with bees or honey drops itself.
+- **U9**: the eye position for the poses of BRK-RCH-003 that no experiment tested: sleeping and
+  flying with elytra.
+- **U13**: blocks that act differently in a creative break and that result R49 does not test.
 - **U22**: the packet order of a delayed break (BRK-SRV-009). D1 prevents an experiment on the
   reference. In result R45, a shulker box broke by D1, and the breaker got the acknowledgement one
   tick before the `block_update`.
@@ -676,6 +720,9 @@ Before each step, set the block with `setblock`, and read the packets that arriv
 | E24 | Send the sequences 0, 1, 2147483646, 2147483647 and -1. | R24 |
 | E25 | Wall a block position in stone. Set water and lava there, at the levels of R25. Wait until the breaker gets the `block_update`, and send the start action at once, before the fluid changes. Do each level that is not a source three times, and each source once. | R25 |
 | E26 | Wall a block position in stone. Set each block of R26 there. Send the start action. Read the block and the item entities. For tall seagrass, hit each part. | R26 |
+| E56 | Set stone at (6,-57,0). Put the breaker at the distances of R47 on `x` from the face of the block, and send the start action. Send `player_input` with the sneak flag and repeat. Clear the flag, set stone at (-1,-59,0) and (0,-59,0) above the breaker, and repeat. | R47 |
+| E57 | Send two start actions in one burst on (-1,-60,2) and (0,-60,2), in two sections. Then do it on (2,-60,2) and (2,-60,3), in one section. | R48 |
+| E58 | Set each block of R49, and send the start action on the block that R49 states. Read the blocks and the item entities. | R49 |
 
 For experiments E34 to E44 and E48 to E55, put the breaker in survival mode, and keep the observer in creative mode.
 Set the difficulty to peaceful, except in E43. Let the breaker send `move_player_status_only` each
@@ -1316,3 +1363,67 @@ red shulker box: the finish came at a progress less than 0.7, and the box broke 
 The orbs of one break had the values 1, 1 and 3 for 5, 3 and 3 for 6, 7 for 7, and 1, 1, 37 for 39.
 The one result of 4 for a sculk sensor had the orbs 1 and 3. A probable cause is that an orb of 1
 merged with an older orb before the client got its value.
+
+**R47.** Creative mode, so the limit is 6.0. The block is at (6,-57,0), above the eye position. The
+distance is on `x`, from the player position to the face of the block. The last column gives the
+distance from the eye position to the block cube for the eye height of BRK-RCH-003.
+
+| Pose | `x` distance | Result | Distance with that eye height |
+|------|--------------|--------|-------------------------------|
+| stands | 5.79 | breaks | 5.952 |
+| stands | 5.84 | stays | 6.000 |
+| crouches | 5.79 | stays | 6.043 |
+| crouches | 5.6, 5.5 | breaks | 5.861, 5.765 |
+| stands again | 5.79 | breaks | 5.952 |
+| crawls | 5.6 | stays | 6.174 |
+| crawls | 5.3, 5.2 | breaks | 5.903, 5.817 |
+
+**R48.**
+
+```text
+(-1,-60,2) and (0,-60,2), two sections:
+  breaker:  block_update (0,-60,2) state 0; block_update (-1,-60,2) state 0; block_changed_ack
+  observer: level_event 2001 at (-1,-60,2); level_event 2001 at (0,-60,2);
+            block_update (0,-60,2); block_update (-1,-60,2)
+(2,-60,2) and (2,-60,3), one section:
+  breaker:  section_blocks_update with 2 entries; block_changed_ack
+  observer: level_event 2001 at (2,-60,2); level_event 2001 at (2,-60,3); section_blocks_update
+```
+
+**R49.** Creative mode. The block is at (2,-60,0), except where the case states another position.
+
+```text
+piston head at (2,-59,0) on an extended piston, hit the head:
+  breaker:  block_update (2,-59,0) state 0; block_changed_ack; the piston stays; no item
+  observer: level_event 2001 at the head; block_update
+extended piston, hit the piston:
+  breaker:  level_event 2001 at (2,-59,0) data 2403; section_blocks_update with both; block_changed_ack
+  observer: level_event 2001 at the piston, data 2383; level_event 2001 at the head; section_blocks_update
+sticky piston head:  as the piston head
+beehive, honey level 5, one bee:
+  breaker:  add_entity (item); block_update state 0; block_changed_ack
+  observer: add_entity; level_event 2001; block_update
+  item:     beehive with the components minecraft:bees (one bee) and minecraft:block_state honey_level 5
+bee nest, honey level 5, no bee: as the beehive; the item has honey_level 5
+empty beehive:       block_update; block_changed_ack; no item
+left half of a double chest:
+  breaker:  section_blocks_update: (2,-60,0) air, (3,-60,0) a single chest; block_changed_ack
+ice:                 the block changes to air
+jukebox with a disc:
+  breaker:  add_entity (music_disc_13); level_event 1011 data 0; block_update; block_changed_ack
+  observer: level_event 2001; add_entity; level_event 1011; block_update
+lectern with a book:          one item, the writable book
+chiseled bookshelf, one book: one item, the book
+campfire with beef:           one item, the beef
+decorated pot with a diamond: one item, the diamond
+potted poppy:                 no item
+tnt:                          the block changes to air; no entity
+cactus on sand, two high, hit the bottom:
+  breaker:  level_event 2001 at (2,-59,0); add_entity (cactus); section_blocks_update with both;
+            block_changed_ack
+sugar cane, two high:         as the cactus; one item, sugar_cane
+kelp plant, kelp plant, kelp in a glass column of water, hit the bottom:
+  breaker:  level_event 2001 at (2,-59,0); add_entity (kelp); section_blocks_update: (2,-60,0)
+            and (2,-59,0) water; block_changed_ack
+            one tick later: level_event 2001 at (2,-58,0); add_entity (kelp); block_update water
+```
