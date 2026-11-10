@@ -1,0 +1,11 @@
+[package]
+name = "mcrs_minecraft_inventory_plan"
+description = "The planner of an atomic inventory request: split, merge, swap and drop over slots, applied in full or rejected with a reason"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
