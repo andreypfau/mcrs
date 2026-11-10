@@ -24,7 +24,7 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:banner_pattern",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_banner_pattern",
         value: ValueType::Defined("crate::BannerPattern"),
     },
     Owner {

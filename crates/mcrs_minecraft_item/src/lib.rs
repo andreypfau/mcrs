@@ -9,10 +9,6 @@ pub mod dropped;
 pub mod effective;
 pub mod enchantment;
 #[rustfmt::skip]
-pub mod banner_pattern_keys;
-#[rustfmt::skip]
-pub mod banner_pattern_tag_keys;
-#[rustfmt::skip]
 pub mod block_transformer_keys;
 #[rustfmt::skip]
 pub mod consume_effect_type_keys;

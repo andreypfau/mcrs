@@ -1,14 +1,14 @@
 use crate::item::harness::WireCodec;
 use std::sync::Arc;
 
+use mcrs_minecraft_banner_pattern::BannerPattern;
 use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::item::WireLookup;
 use mcrs_minecraft_protocol_game::item::for_each_data_component;
 use mcrs_minecraft_protocol_game::item::{
-    BannerPattern, BundleContents, ChargedProjectiles, ComponentPatch, Container,
-    ItemComponentValue, ItemStackValue, PotDecorations, ProtoStack, SulfurCubeContent, Template,
-    UseRemainder,
+    BundleContents, ChargedProjectiles, ComponentPatch, Container, ItemComponentValue,
+    ItemStackValue, PotDecorations, ProtoStack, SulfurCubeContent, Template, UseRemainder,
 };
 use mcrs_minecraft_registries::{FromWire, Named, Ref, Resolved, Wire};
 use mcrs_minecraft_resource::{Id, rl};

@@ -41,13 +41,14 @@ const NO_STD_PACKAGES: [&str; 10] = [
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 112] = [
+const NO_BEVY_PACKAGES: [&str; 113] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
     "mcrs_engine_muxer",
     "mcrs_engine_store",
     "mcrs_minecraft_anvil",
+    "mcrs_minecraft_banner_pattern",
     "mcrs_minecraft_bench_support",
     "mcrs_minecraft_biome",
     "mcrs_minecraft_biome_file",
