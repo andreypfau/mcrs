@@ -16,10 +16,13 @@ use crate::{AssetObject, FONT_OBJECTS, Files, Progress, RELEASE};
 const WORKERS: usize = 4;
 const CACHE: &str = "mcrs-client-jar";
 const STALL_MS: i32 = 30_000;
+const OBJECT_BODY_MS: i32 = 60_000;
 const IDLE_MS: i32 = 50;
 const MIN_BACKOFF_MS: i32 = 1_000;
 const MAX_BACKOFF_MS: i32 = 30_000;
 const OBJECT_ATTEMPTS: u32 = 4;
+/// The longest wait for the font objects; after it the text keeps to the jar's glyphs.
+const FONT_DEADLINE_MS: i32 = 120_000;
 
 /// The picked `assets/` files of the pinned client jar, fetched in priority order by Range
 /// requests and kept per chunk in Cache Storage. The rest of the jar is never fetched.
@@ -57,9 +60,7 @@ pub async fn font_assets() -> Result<Files, String> {
                 .map_err(JsValue::from)
         }));
     }
-    let bodies = JsFuture::from(Promise::all(&promises))
-        .await
-        .map_err(describe)?;
+    let bodies = within(Promise::all(&promises), FONT_DEADLINE_MS).await?;
     Ok(FONT_OBJECTS
         .iter()
         .zip(Array::from(&bodies).iter())
@@ -86,17 +87,26 @@ async fn fetch_object(object: &AssetObject<'_>) -> Result<Vec<u8>, String> {
 
 async fn object_body(object: &AssetObject<'_>) -> Result<Vec<u8>, String> {
     let window = web_sys::window().ok_or("no window")?;
-    let response: Response = JsFuture::from(window.fetch_with_str(&object.url()))
-        .await
-        .map_err(describe)?
+    // Browser fetch has no timeout of its own, so each wait is raced against a timer.
+    let response: Response = within(window.fetch_with_str(&object.url()), STALL_MS)
+        .await?
         .unchecked_into();
     if !response.ok() {
         return Err(format!("HTTP {}", response.status()));
     }
-    let buffer = JsFuture::from(response.array_buffer().map_err(describe)?)
+    let buffer = within(response.array_buffer().map_err(describe)?, OBJECT_BODY_MS).await?;
+    Ok(Uint8Array::new(&buffer).to_vec())
+}
+
+/// The promise's value, or an error when it neither settles nor fails within `ms`.
+async fn within(promise: Promise, ms: i32) -> Result<JsValue, String> {
+    let settled = JsFuture::from(Promise::race(&Array::of2(&promise, &timeout(ms))))
         .await
         .map_err(describe)?;
-    Ok(Uint8Array::new(&buffer).to_vec())
+    if settled.is_undefined() {
+        return Err("the download stalled".to_owned());
+    }
+    Ok(settled)
 }
 
 struct WebSource {

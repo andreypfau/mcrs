@@ -76,7 +76,10 @@ fn spawn(
         .name("client jar".to_owned())
         .spawn(move || {
             // The font objects come from another host, so they are fetched while the jar is.
-            let font_layer = std::thread::spawn(client_jar::font_assets);
+            let (sender, font_layer) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                let _ = sender.send(client_jar::font_assets());
+            });
             let resolved = client_jar::resolve(&progress, is_resource, |files| {
                 *fonts.lock().unwrap() = Some(files);
             });
@@ -89,10 +92,9 @@ fn spawn(
             };
             fill(&root, files);
             // The asset index layer lies above the jar, so its files are laid second.
-            match font_layer.join() {
-                Ok(Ok(layer)) => fill(&root, layer),
-                Ok(Err(error)) => warn!("the text keeps to the jar's glyphs: {error}"),
-                Err(_) => warn!("the text keeps to the jar's glyphs: the font fetch panicked"),
+            match await_layer(&font_layer, FONT_LAYER_DEADLINE) {
+                Ok(layer) => fill(&root, layer),
+                Err(error) => warn!("the text keeps to the jar's glyphs: {error}"),
             }
             unpacked.store(true, Ordering::Release);
             if let Some(rest) = rest {
@@ -100,6 +102,24 @@ fn spawn(
             }
         })
         .expect("a thread for the client jar")
+}
+
+/// One overall wait for the font layer, so a stalling link cannot hold startup through every
+/// retry; the fetch thread is left to finish on its own.
+#[cfg(not(target_family = "wasm"))]
+const FONT_LAYER_DEADLINE: std::time::Duration = std::time::Duration::from_secs(120);
+
+#[cfg(not(target_family = "wasm"))]
+fn await_layer(
+    layer: &std::sync::mpsc::Receiver<Result<Files, String>>,
+    deadline: std::time::Duration,
+) -> Result<Files, String> {
+    use std::sync::mpsc::RecvTimeoutError;
+    match layer.recv_timeout(deadline) {
+        Ok(result) => result,
+        Err(RecvTimeoutError::Timeout) => Err(format!("the font fetch took over {deadline:?}")),
+        Err(RecvTimeoutError::Disconnected) => Err("the font fetch panicked".to_owned()),
+    }
 }
 
 #[cfg(target_family = "wasm")]
@@ -409,6 +429,20 @@ fn glyph_node(font: &LoadingFont, quad: GuiQuad) -> Option<(Node, ImageNode)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(not(target_family = "wasm"))]
+    mod layer_deadline {
+        use std::time::Duration;
+
+        use super::*;
+
+        #[test]
+        fn a_silent_fetch_times_out() {
+            let (_sender, receiver) = std::sync::mpsc::channel();
+            let error = await_layer(&receiver, Duration::from_millis(20)).unwrap_err();
+            assert!(error.contains("took over"), "{error}");
+        }
+    }
 
     mod jar {
         use super::*;

@@ -22,7 +22,7 @@ pub const WORKERS: usize = 4;
 pub(crate) const FIRST_BACKOFF: Duration = Duration::from_secs(1);
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
 /// The Unifont archive is 1.5 MB: a link must be allowed minutes for it, not seconds.
-const OBJECT_BODY_TIMEOUT: Duration = Duration::from_secs(300);
+const OBJECT_BODY_TIMEOUT: Duration = Duration::from_secs(60);
 const OBJECT_ATTEMPTS: u32 = 4;
 
 pub(crate) fn home() -> Option<PathBuf> {
