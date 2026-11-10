@@ -137,3 +137,31 @@ fn stacks_with_different_counts_have_the_same_item_and_components() {
     assert_eq!(one.kind, many.kind);
     assert_eq!(one.patch(), many.patch());
 }
+
+#[test]
+fn stacks_are_mergeable_when_item_and_patch_are_equal() {
+    let cases: [(&str, ItemStack, ItemStack, bool); 4] = [
+        (
+            "different counts",
+            stack(7, 1).set(Rarity::Rare).unset::<Damage>(),
+            stack(7, 64).unset::<Damage>().set(Rarity::Rare),
+            true,
+        ),
+        ("different items", stack(7, 1), stack(8, 1), false),
+        (
+            "different values of one type",
+            stack(7, 1).set(Damage(1)),
+            stack(7, 1).set(Damage(2)),
+            false,
+        ),
+        (
+            "a custom value against no entry",
+            stack(7, 1).set(Owner(3)),
+            stack(7, 1),
+            false,
+        ),
+    ];
+    for (name, left, right, mergeable) in cases {
+        assert_eq!(left.mergeable(&right), mergeable, "{name}");
+    }
+}

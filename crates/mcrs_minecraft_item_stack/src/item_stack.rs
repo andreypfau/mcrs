@@ -51,6 +51,12 @@ impl ItemStack {
         &self.patch
     }
 
+    /// True when the two stacks have the same item and equal patches. The count has no part.
+    #[must_use]
+    pub fn mergeable(&self, other: &Self) -> bool {
+        self.kind == other.kind && self.patch == other.patch
+    }
+
     fn put(&mut self, key: PatchKey, entry: Option<PatchEntry>) {
         let found = self
             .patch
