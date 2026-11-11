@@ -13,6 +13,7 @@ use crate::projectiles::{ProjectileHitEvent, tick_projectiles};
 
 /// The Bevy plugin providing health, combat, status effects, experience,
 /// projectiles, equipment and entity life cycle.
+#[derive(Clone, Copy, Debug, Default)]
 pub struct CombatPlugin;
 
 impl Plugin for CombatPlugin {

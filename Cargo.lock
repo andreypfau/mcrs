@@ -6136,6 +6136,7 @@ dependencies = [
  "mcrs_minecraft_chat_client",
  "mcrs_minecraft_chat_server",
  "mcrs_minecraft_chunk",
+ "mcrs_minecraft_combat",
  "mcrs_minecraft_command",
  "mcrs_minecraft_command_argument_vanilla",
  "mcrs_minecraft_command_engine",

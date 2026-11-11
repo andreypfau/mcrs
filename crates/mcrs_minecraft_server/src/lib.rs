@@ -74,6 +74,7 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(VanillaEntityPhysicsPlugin)
             .add(VanillaItemEntityPlugin)
             .add(VanillaMobBrainPlugin)
+            .add(VanillaCombatPlugin)
             .add(self.world_gen)
             .add(LightingPlugin)
             .add(self.network)
@@ -100,6 +101,15 @@ impl Plugin for VanillaMobBrainPlugin {
             vanilla_brains::vanilla_brain,
             PANIC_CAUSES,
         ));
+    }
+}
+
+/// Combat, health, damage, status effects, projectiles and experience in every dimension world.
+pub struct VanillaCombatPlugin;
+
+impl Plugin for VanillaCombatPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_dimension_plugin(mcrs_minecraft_combat::CombatPlugin);
     }
 }
 

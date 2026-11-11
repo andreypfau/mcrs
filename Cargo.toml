@@ -123,6 +123,7 @@ mcrs_engine_store = { path = "crates/mcrs_engine_store" }
 mcrs_minecraft_resource = { path = "crates/mcrs_minecraft_resource" }
 mcrs_minecraft_core = { path = "crates/mcrs_minecraft_core", default-features = false }
 mcrs_minecraft_damage = { path = "crates/mcrs_minecraft_damage" }
+mcrs_minecraft_combat = { path = "crates/mcrs_minecraft_combat" }
 mcrs_minecraft_numeric = { path = "crates/mcrs_minecraft_numeric" }
 mcrs_minecraft_datapack = { path = "crates/mcrs_minecraft_datapack" }
 mcrs_minecraft_registries = { path = "crates/mcrs_minecraft_registries" }
