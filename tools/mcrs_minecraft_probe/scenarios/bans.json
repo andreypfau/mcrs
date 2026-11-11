@@ -1,0 +1,28 @@
+{
+  "target": {
+    "operators": ["bloperator"],
+    "banned_players": []
+  },
+  "steps": [
+    { "id": "operator_joins", "join": "bloperator" },
+    { "id": "player_joins", "join": "blonline" },
+    {
+      "id": "ban_online_player",
+      "command": { "client": "bloperator", "line": "ban blonline" },
+      "read_player_bans": true
+    },
+    { "id": "ban_banned_player", "command": { "client": "bloperator", "line": "ban blonline" } },
+    { "id": "banlist", "command": { "client": "bloperator", "line": "banlist" } },
+    { "id": "banned_player_joins", "join": "blonline" },
+    {
+      "id": "ban_with_reason",
+      "command": { "client": "bloperator", "line": "ban blreason griefing the spawn" },
+      "read_player_bans": true
+    },
+    { "id": "player_banned_with_reason_joins", "join": "blreason" },
+    { "id": "pardon", "command": { "client": "bloperator", "line": "pardon blreason" } },
+    { "id": "pardon_again", "command": { "client": "bloperator", "line": "pardon blreason" } },
+    { "id": "pardoned_player_joins", "join": "blreason" },
+    { "id": "pardoned_player_leaves", "leave": "blreason" }
+  ]
+}

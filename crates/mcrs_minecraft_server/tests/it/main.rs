@@ -53,6 +53,7 @@ mod mob_replication;
 mod mock_connection;
 mod op_level;
 mod play_state_delivery;
+mod probe_bans;
 mod run_server_loop_exit;
 mod schedule_ambiguity;
 mod session_lifecycle;
