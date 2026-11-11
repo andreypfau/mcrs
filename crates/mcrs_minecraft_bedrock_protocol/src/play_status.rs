@@ -1,51 +1,36 @@
-use mcrs_minecraft_bedrock_wire::{BedrockDecode, BedrockEncode, Error};
+use mcrs_minecraft_bedrock_wire::{BeI32, BedrockDecode, BedrockEncode};
 
-use crate::packet_header::{decode_be_i32, encode_be_i32, read_packet_header, write_packet_header};
-use crate::packet_ids;
-
-/// A step of the login and spawn flow.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-#[repr(i32)]
-pub enum PlayStatusType {
-    LoginSuccess = 0,
-    FailedClient = 1,
-    FailedServer = 2,
-    PlayerSpawn = 3,
-    InvalidTenant = 4,
-    VanillaEdu = 5,
-    EduVanilla = 6,
-    ServerFull = 7,
-}
-
-/// The server reports a step of the login and spawn flow.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The result of a login, or the signal that the client can show the world.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, BedrockEncode, BedrockDecode)]
+#[bedrock(id = 0x02)]
 pub struct PlayStatus {
-    pub status: PlayStatusType,
+    /// The status.
+    pub status: PlayStatusKind,
 }
 
-impl BedrockEncode for PlayStatus {
-    fn encode(&self, w: &mut Vec<u8>) -> Result<(), Error> {
-        write_packet_header(packet_ids::PLAY_STATUS, w)?;
-        encode_be_i32(self.status as i32, w);
-        Ok(())
-    }
-}
-
-impl<'a> BedrockDecode<'a> for PlayStatus {
-    fn decode(r: &mut &'a [u8]) -> Result<Self, Error> {
-        read_packet_header(r, packet_ids::PLAY_STATUS)?;
-        let status = match decode_be_i32(r)? {
-            0 => PlayStatusType::LoginSuccess,
-            1 => PlayStatusType::FailedClient,
-            2 => PlayStatusType::FailedServer,
-            3 => PlayStatusType::PlayerSpawn,
-            4 => PlayStatusType::InvalidTenant,
-            5 => PlayStatusType::VanillaEdu,
-            6 => PlayStatusType::EduVanilla,
-            7 => PlayStatusType::ServerFull,
-            other => return Err(Error::UnknownEnumValue(i64::from(other))),
-        };
-        Ok(Self { status })
-    }
+/// The status of [`PlayStatus`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, BedrockEncode, BedrockDecode)]
+#[bedrock(tag = BeI32)]
+#[non_exhaustive]
+pub enum PlayStatusKind {
+    /// The login is accepted.
+    LoginSuccess = 0,
+    /// The login fails: the client is older than the server.
+    ClientOutdated = 1,
+    /// The login fails: the server is older than the client.
+    ServerOutdated = 2,
+    /// The player spawns: the client can show the world.
+    PlayerSpawn = 3,
+    /// The login fails: the Education Edition tenant is not valid.
+    InvalidTenant = 4,
+    /// The login fails: an Education Edition client joins a server that is not Education Edition.
+    EducationClientOnVanillaServer = 5,
+    /// The login fails: a client that is not Education Edition joins an Education Edition server.
+    VanillaClientOnEducationServer = 6,
+    /// The login fails: the server is full for a sub-client.
+    ServerFullForSubClient = 7,
+    /// The login fails: an Editor client joins a server that is not an Editor server.
+    EditorClientOnVanillaServer = 8,
+    /// The login fails: a client that is not an Editor client joins an Editor server.
+    VanillaClientOnEditorServer = 9,
 }

@@ -3,6 +3,7 @@
 // std: mcrs_minecraft_bedrock_protocol
 
 mod movement;
+mod packet_header;
 pub mod packet_ids;
 mod start_game;
 mod text;

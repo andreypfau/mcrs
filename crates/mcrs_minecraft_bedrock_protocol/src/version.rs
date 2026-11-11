@@ -1,7 +1,5 @@
-//! Pinned Bedrock Edition protocol version constants.
-
-/// Pinned Minecraft: Bedrock Edition protocol version (1.21.40).
+/// The Bedrock Edition protocol version of the handshake and the game packets.
 pub const PROTOCOL_VERSION: i32 = 729;
 
-/// Pinned Minecraft: Bedrock Edition game version string.
-pub const MINECRAFT_VERSION: &str = "1.21.40";
+/// The Bedrock Edition game version of [`PROTOCOL_VERSION`].
+pub const MINECRAFT_VERSION: &str = "1.21.30";

@@ -4050,6 +4050,7 @@ version = "0.5.8"
 dependencies = [
  "flate2",
  "mcrs_minecraft_bedrock_wire",
+ "snap",
  "thiserror 2.0.18",
 ]
 
@@ -8562,6 +8563,12 @@ checksum = "dd538fb6910ac1099850255cf94a94df6551fbdd602454387d0adb2d1ca6dead"
 dependencies = [
  "serde",
 ]
+
+[[package]]
+name = "snap"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "199905e6153d6405f9728fe44daace35f8f837bbf830bb6e85fbd5828709a886"
 
 [[package]]
 name = "socket2"

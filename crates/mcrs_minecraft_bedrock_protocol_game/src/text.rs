@@ -1,6 +1,6 @@
 //! Bedrock Edition Text packet.
 
-use mcrs_minecraft_bedrock_protocol::{read_packet_header, write_packet_header};
+use crate::packet_header::{read_packet_header, write_packet_header};
 use mcrs_minecraft_bedrock_wire::{BedrockDecode, BedrockEncode, Error};
 
 use crate::packet_ids;

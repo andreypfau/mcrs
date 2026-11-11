@@ -24,3 +24,9 @@ pub trait BedrockDecode<'a>: Sized {
     /// Reads a value from the front of `r` and advances `r` past it.
     fn decode(r: &mut &'a [u8]) -> Result<Self, Error>;
 }
+
+impl<T: BedrockEncode + ?Sized> BedrockEncode for &T {
+    fn encode(&self, w: &mut Vec<u8>) -> Result<(), Error> {
+        (**self).encode(w)
+    }
+}

@@ -211,6 +211,8 @@ struct NamedLists<'a> {
     #[bedrock(count = u16)]
     fixed: Vec<u8>,
     varied: Vec<u8>,
+    #[bedrock(count = u16)]
+    names: Vec<&'a str>,
 }
 
 #[test]
@@ -219,8 +221,11 @@ fn derived_struct_borrows_and_counts_fields() {
         name: "ab",
         fixed: vec![7, 9],
         varied: vec![1],
+        names: vec!["c"],
     };
-    let bytes = [0x02, b'a', b'b', 0x02, 0x00, 7, 9, 0x01, 0x01];
+    let bytes = [
+        0x02, b'a', b'b', 0x02, 0x00, 7, 9, 0x01, 0x01, 0x01, 0x00, 0x01, b'c',
+    ];
     assert_eq!(to_bytes(&value).unwrap(), bytes);
     assert_eq!(from_slice::<NamedLists>(&bytes).unwrap(), value);
 }

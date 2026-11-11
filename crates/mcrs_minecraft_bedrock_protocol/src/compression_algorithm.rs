@@ -1,49 +1,13 @@
-use mcrs_minecraft_bedrock_wire::{BedrockDecode, BedrockEncode, Error};
+use mcrs_minecraft_bedrock_wire::{BedrockDecode, BedrockEncode};
 
-/// The compression algorithm that `NetworkSettings` selects for a connection.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-#[non_exhaustive]
+/// The compression algorithm that `NetworkSettings` selects for both directions.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, BedrockEncode, BedrockDecode)]
+#[bedrock(tag = u16)]
 pub enum CompressionAlgorithm {
-    /// Raw deflate.
-    #[default]
-    Deflate,
-    /// Snappy.
-    Snappy,
-    /// No compression.
-    None,
-}
-
-impl CompressionAlgorithm {
-    const fn id(self) -> u16 {
-        match self {
-            Self::Deflate => 0,
-            Self::Snappy => 1,
-            Self::None => 0xFFFF,
-        }
-    }
-
-    pub(crate) const fn batch_marker(self) -> u8 {
-        match self {
-            Self::Deflate => 0x00,
-            Self::Snappy => 0x01,
-            Self::None => 0xFF,
-        }
-    }
-}
-
-impl BedrockEncode for CompressionAlgorithm {
-    fn encode(&self, w: &mut Vec<u8>) -> Result<(), Error> {
-        self.id().encode(w)
-    }
-}
-
-impl<'a> BedrockDecode<'a> for CompressionAlgorithm {
-    fn decode(r: &mut &'a [u8]) -> Result<Self, Error> {
-        match u16::decode(r)? {
-            0 => Ok(Self::Deflate),
-            1 => Ok(Self::Snappy),
-            0xFFFF => Ok(Self::None),
-            other => Err(Error::UnknownEnumValue(i64::from(other))),
-        }
-    }
+    /// Raw deflate (RFC 1951), with no zlib header and no checksum.
+    Deflate = 0x0000,
+    /// A Snappy block, with no frame format.
+    Snappy = 0x0001,
+    /// No compression: each batch has the marker `0xff`.
+    Disabled = 0xffff,
 }

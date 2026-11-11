@@ -1,90 +1,50 @@
-use mcrs_minecraft_bedrock_wire::{BedrockDecode, BedrockEncode, Error};
+use mcrs_minecraft_bedrock_wire::{BedrockDecode, BedrockEncode};
 
-use crate::packet_header::{read_packet_header, write_packet_header};
-use crate::packet_ids;
+/// The packs that the server offers after the login.
+#[derive(Clone, Debug, PartialEq, Eq, BedrockEncode, BedrockDecode)]
+#[bedrock(id = 0x06)]
+pub struct ResourcePacksInfo<'a> {
+    /// The client must accept the packs to join.
+    pub packs_required: bool,
+    /// The server has add-on packs.
+    pub has_addon_packs: bool,
+    /// The server has scripts.
+    pub has_scripts: bool,
+    /// The resource packs.
+    #[bedrock(count = u16)]
+    pub resource_packs: Vec<ResourcePackInfoEntry<'a>>,
+    /// The addresses where the client can download packs.
+    pub cdn_urls: Vec<PackCdnUrl<'a>>,
+}
 
-/// Resource pack entry in `ResourcePacksInfo`.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ResourcePackInfoEntry {
-    pub uuid: String,
-    pub version: String,
+/// One resource pack of [`ResourcePacksInfo`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, BedrockEncode, BedrockDecode)]
+pub struct ResourcePackInfoEntry<'a> {
+    /// The UUID of the pack in text form.
+    pub pack_id: &'a str,
+    /// The pack version, for example `1.0.0`.
+    pub version: &'a str,
+    /// The size of the pack archive in bytes.
     pub size: u64,
-    pub content_key: String,
-    pub sub_pack_name: String,
-    pub content_identity: String,
+    /// The key of an encrypted pack, or empty.
+    pub content_key: &'a str,
+    /// The sub-pack name.
+    pub sub_pack_name: &'a str,
+    /// The content identity.
+    pub content_identity: &'a str,
+    /// The pack has scripts.
     pub has_scripts: bool,
+    /// The pack is part of an add-on.
+    pub is_addon_pack: bool,
+    /// The pack supports ray tracing.
+    pub ray_tracing_capable: bool,
 }
 
-impl BedrockEncode for ResourcePackInfoEntry {
-    fn encode(&self, w: &mut Vec<u8>) -> Result<(), Error> {
-        self.uuid.encode(w)?;
-        self.version.encode(w)?;
-        self.size.encode(w)?;
-        self.content_key.encode(w)?;
-        self.sub_pack_name.encode(w)?;
-        self.content_identity.encode(w)?;
-        self.has_scripts.encode(w)?;
-        Ok(())
-    }
-}
-
-impl<'a> BedrockDecode<'a> for ResourcePackInfoEntry {
-    fn decode(r: &mut &'a [u8]) -> Result<Self, Error> {
-        let uuid = String::decode(r)?;
-        let version = String::decode(r)?;
-        let size = u64::decode(r)?;
-        let content_key = String::decode(r)?;
-        let sub_pack_name = String::decode(r)?;
-        let content_identity = String::decode(r)?;
-        let has_scripts = bool::decode(r)?;
-        Ok(Self {
-            uuid,
-            version,
-            size,
-            content_key,
-            sub_pack_name,
-            content_identity,
-            has_scripts,
-        })
-    }
-}
-
-/// Server packet advertising available resource and behavior packs.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ResourcePacksInfo {
-    pub must_accept: bool,
-    pub has_scripts: bool,
-    pub force_server_packs: bool,
-    pub behavior_packs: Vec<ResourcePackInfoEntry>,
-    pub resource_packs: Vec<ResourcePackInfoEntry>,
-}
-
-impl BedrockEncode for ResourcePacksInfo {
-    fn encode(&self, w: &mut Vec<u8>) -> Result<(), Error> {
-        write_packet_header(packet_ids::RESOURCE_PACKS_INFO, w)?;
-        self.must_accept.encode(w)?;
-        self.has_scripts.encode(w)?;
-        self.force_server_packs.encode(w)?;
-        self.behavior_packs.encode(w)?;
-        self.resource_packs.encode(w)?;
-        Ok(())
-    }
-}
-
-impl<'a> BedrockDecode<'a> for ResourcePacksInfo {
-    fn decode(r: &mut &'a [u8]) -> Result<Self, Error> {
-        read_packet_header(r, packet_ids::RESOURCE_PACKS_INFO)?;
-        let must_accept = bool::decode(r)?;
-        let has_scripts = bool::decode(r)?;
-        let force_server_packs = bool::decode(r)?;
-        let behavior_packs = Vec::<ResourcePackInfoEntry>::decode(r)?;
-        let resource_packs = Vec::<ResourcePackInfoEntry>::decode(r)?;
-        Ok(Self {
-            must_accept,
-            has_scripts,
-            force_server_packs,
-            behavior_packs,
-            resource_packs,
-        })
-    }
+/// A download address of one pack in [`ResourcePacksInfo`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, BedrockEncode, BedrockDecode)]
+pub struct PackCdnUrl<'a> {
+    /// The pack reference: the pack id, `_` and the pack version.
+    pub pack_reference: &'a str,
+    /// The address where the client can download the pack.
+    pub url: &'a str,
 }

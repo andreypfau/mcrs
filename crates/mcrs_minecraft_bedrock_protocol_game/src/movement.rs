@@ -1,7 +1,7 @@
 //! Bedrock Edition movement and input packets.
 
+use crate::packet_header::{read_packet_header, write_packet_header};
 use glam::Vec3;
-use mcrs_minecraft_bedrock_protocol::{read_packet_header, write_packet_header};
 use mcrs_minecraft_bedrock_wire::{BedrockDecode, BedrockEncode, Error, VarU32, VarU64};
 
 use crate::packet_ids;

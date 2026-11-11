@@ -1,6 +1,6 @@
 //! Bedrock Edition world state packets: SetTime, UpdateBlock, and ChunkColumn.
 
-use mcrs_minecraft_bedrock_protocol::{read_packet_header, write_packet_header};
+use crate::packet_header::{read_packet_header, write_packet_header};
 use mcrs_minecraft_bedrock_wire::{BedrockDecode, BedrockEncode, Error, VarI32, VarU32};
 
 use crate::packet_ids;
