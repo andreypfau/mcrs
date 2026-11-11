@@ -11,6 +11,5 @@ doctest = false
 workspace = true
 
 [dependencies]
-# The workspace entry enables std, which the wasm32v1-none build of this crate does not have.
-glam = { version = "0.33.12", default-features = false, features = ["nostd-libm", "all-types"] }
+glam = { workspace = true, features = ["nostd-libm"] }
 mcrs_voxel.workspace = true

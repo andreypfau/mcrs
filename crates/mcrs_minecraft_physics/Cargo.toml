@@ -13,7 +13,7 @@ workspace = true
 # std: Vec and Box for the shape table and the scratch buffers
 [dependencies]
 mcrs_minecraft_entity_key.workspace = true
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 mcrs_voxel.workspace = true
 mcrs_minecraft_numeric.workspace = true
 bitflags = "2"

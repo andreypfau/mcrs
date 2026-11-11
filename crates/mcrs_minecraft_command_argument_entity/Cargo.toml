@@ -24,7 +24,7 @@ mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_loot.workspace = true
 mcrs_minecraft_snbt.workspace = true
 mcrs_minecraft_value_provider.workspace = true
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 uuid.workspace = true
 
 [dev-dependencies]
