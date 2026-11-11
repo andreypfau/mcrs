@@ -390,9 +390,9 @@ must be in the box of the llama grown by 16, at a feet distance of at most 16. T
 check the line of sight. When the squared feet distance to that entity is more than 4, the llama
 runs a path search to it with the reach range 0.
 
-The search does not change the path of the llama. When it gives a path, the navigation stores its
-target and its reach range (PATH-REQ-001, step 4). A later recompute (PATH-RCP-002) then goes to
-that target. No vanilla rule sets the bred flag except the save key `Bred`. Thus the check acts only
+The search does not change the navigation of the llama (PATH-REQ-001, step 4). In the reference,
+the search stores its target, and a later recompute goes to that target; `pathfinding.md`,
+PATH-DEV-006, records it. No vanilla rule sets the bred flag except the save key `Bred`. Thus the check acts only
 for a baby of `summon` or of a load with `Bred:1b`.
 
 **LLAMA-TICK-004** (`source_suggested`, semantic, fidelity: exact, confidence: medium). The fall
@@ -1047,5 +1047,4 @@ None of these experiments ran. Use the settings of `mob-goals.md`, section 10.1.
   specification that does not exist yet. The margin of the hit test is unspecified here.
 - **U6**: the leash specification does not exist. LLAMA-HOOK-004 and the state "leashed" of the
   caravan depend on it. The home of a leash also limits the revenge target (CGOAL-HURT).
-- **U7**: the effect of the stored target of LLAMA-TICK-003 on a recompute rests on PATH-RCP-002. No
-  experiment shows it.
+- **U7**: closed. The search of LLAMA-TICK-003 does not change the navigation (PATH-DEV-006).

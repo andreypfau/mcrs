@@ -328,31 +328,30 @@ tick (step 4 of AIT-VAN-001). For walking mobs, it does the steps below in the o
 PATH-FOL-001. Steps 2 to 5 require an unfinished path. Steps 3 and 4 also require a mob that can
 update a path (PATH-REQ-001, step 2).
 
-1. If a recompute waits (AIT-VAN-015), try it, even with a done or absent path.
+1. If a recompute waits (AIT-VAN-015), try it. The end of the path drops a waiting recompute
+   (PATH-RCP-002).
 2. Advance the next node as PATH-FOL-002 states. A mob that cannot update a path does only the air
    advance of PATH-FOL-001, step 4, and then step 5.
 3. Then do the stuck check of PATH-FOL-003.
-   A usable path starts the window on acceptance if no path exists or its ordered node positions
-   differ (PATH-REQ-004). The same path given again keeps it.
-   The current path holds its nodes after the cauldron rule of PATH-REQ-004, step 4. Thus a new
-   search for a route through a cauldron differs from the current path and starts the window.
-   A path from a recompute (PATH-RCP-002) does not start the window, also after a stop.
+   The acceptance of a changed path starts the window: the navigation has no unfinished path, or
+   the ordered node positions differ (PATH-REQ-004). The same path given again keeps it. A
+   recompute is a request, so the same rule applies to its path.
    Each advance and each check starts it again.
-   The follower counts its ticks also without a path.
    Check only after more than 100 follower ticks from the window start.
 
    A failed check drops the path and marks the mob stuck.
    Without an earlier stop or restart, a motionless mob with positive mob speed drops its path
    101 follower ticks after the window starts.
    A mob that advances within 100 follower ticks after each window start does not fail this check.
-4. If an unfinished path remains, do the timeout check of PATH-FOL-004.
-   Its total carries over a node change.
+4. If an unfinished path remains, do the timeout check of PATH-FOL-004. The timer starts again at
+   each new next node.
 5. If an unfinished path remains, give the move control its wanted position and speed modifier
    (PATH-FOL-005).
 
-The stuck state has no fixed expiry. A fresh search that returns a path, a timeout, or a later
-stuck check with enough movement clears it. A cached request, a stop, path acceptance, an advance
-and idle ticks do not clear it.
+The stuck state has no fixed expiry. The acceptance of a changed path, a timeout, or a later stuck
+check with enough movement clears it. A request that gives the current path, a stop, an advance and
+idle ticks do not clear it. `pathfinding.md`, PATH-DEV-006 to PATH-DEV-009, records where the
+reference differs.
 
 **AIT-VAN-013** (`source_suggested`, semantic, confidence: medium). The move control, the look
 control and the jump control run in each tick, after the path follower and after the goals. A look
