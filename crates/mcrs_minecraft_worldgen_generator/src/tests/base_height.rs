@@ -1,4 +1,5 @@
 use crate::ColumnBiomes;
+use crate::probe_lattice::ProbeLattice;
 use mcrs_minecraft_worldgen_density::program::Workspace;
 
 use crate::stages::build_terrain_heightmaps;
@@ -22,6 +23,7 @@ fn base_height_matches_a_descent_of_the_raw_fill() {
     let y_sections: Vec<i32> = (-4..20).collect();
     let mut column = ColumnBlocks::new(&y_sections);
     let mut ws = Workspace::new();
+    let mut lattice = ProbeLattice::default();
     for (chunk_x, chunk_z) in [(3, -7), (-12, 5), (0, 0), (40, 0)] {
         fill_column_dense_any(
             &mut column,
@@ -40,6 +42,7 @@ fn base_height_matches_a_descent_of_the_raw_fill() {
             let surface = base_height(
                 &router,
                 &mut ws,
+                &mut lattice,
                 &predicates,
                 HeightmapKinds::SURFACE,
                 x,
@@ -50,6 +53,7 @@ fn base_height_matches_a_descent_of_the_raw_fill() {
             let solid = base_height(
                 &router,
                 &mut ws,
+                &mut lattice,
                 &predicates,
                 HeightmapKinds::SOLID,
                 x,
@@ -81,6 +85,7 @@ fn base_height_matches_a_descent_of_the_raw_fill() {
     let above_the_noise = base_height(
         &router,
         &mut ws,
+        &mut lattice,
         &predicates,
         HeightmapKinds::SURFACE,
         0,

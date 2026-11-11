@@ -16,6 +16,7 @@
 
 use crate::biome_upscale::upscale_biomes;
 use crate::multi_noise_biomes::{BiomeGrid, MultiNoiseBiomeTable};
+use crate::probe_lattice::ProbeLattice;
 use crate::structures::index::EndBiomes;
 use crate::task::CancellationToken;
 use glam::IVec3;
@@ -609,11 +610,12 @@ pub fn first_free_kind(name: HeightmapName) -> HeightmapKinds {
 /// the floor of that range when no block does.
 #[expect(
     clippy::too_many_arguments,
-    reason = "the noise router and its workspace, the predicates and kind of the heightmap, the column, and the accessor's bottom and height of one height query"
+    reason = "the noise router with its workspace and the lattice its probes share, the predicates and kind of the heightmap, the column, and the accessor's bottom and height of one height query"
 )]
 pub fn base_height(
     router: &NoiseRouter,
     ws: &mut Workspace,
+    lattice: &mut ProbeLattice,
     predicates: &HeightmapPredicates,
     kind: HeightmapKinds,
     x: i32,
@@ -621,7 +623,7 @@ pub fn base_height(
     accessor_min_y: i32,
     accessor_height: i32,
 ) -> i32 {
-    let (min_y, column) = base_column(router, ws, x, z, accessor_min_y, accessor_height);
+    let (min_y, column) = base_column(router, ws, lattice, x, z, accessor_min_y, accessor_height);
     column
         .iter()
         .rposition(|state| predicates.get(*state).contains(kind))
@@ -633,6 +635,7 @@ pub fn base_height(
 pub fn base_column(
     router: &NoiseRouter,
     ws: &mut Workspace,
+    lattice: &mut ProbeLattice,
     x: i32,
     z: i32,
     accessor_min_y: i32,
@@ -647,6 +650,7 @@ pub fn base_column(
     }
     let volume = SampleGrid::dense(IVec3::new(1, height, 1), IVec3::new(x, min_y, z));
     let mut density = vec![0.0f32; volume.len()];
+    lattice.pin(router, ws, x, z);
     router
         .program
         .fill(ws, &volume, FINAL_DENSITY, &mut density);
@@ -1209,6 +1213,7 @@ pub mod flat;
 pub mod ids;
 pub mod modern_carvers;
 pub mod multi_noise_biomes;
+pub mod probe_lattice;
 pub mod routers;
 pub mod stages;
 pub mod staging;
