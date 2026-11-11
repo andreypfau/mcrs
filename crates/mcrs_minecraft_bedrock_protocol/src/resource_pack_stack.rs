@@ -1,4 +1,4 @@
-use mcrs_minecraft_bedrock_wire::{BedrockDecode, BedrockEncode};
+use mcrs_minecraft_bedrock_wire::{BedrockDecode, BedrockEncode, Experiment};
 
 /// The packs that the client applies, in the order of each list.
 #[derive(Clone, Debug, PartialEq, Eq, BedrockEncode, BedrockDecode)]
@@ -30,13 +30,4 @@ pub struct ResourcePackStackEntry<'a> {
     pub version: &'a str,
     /// The sub-pack name.
     pub sub_pack_name: &'a str,
-}
-
-/// A named toggle of the world that turns on game content that is not final.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, BedrockEncode, BedrockDecode)]
-pub struct Experiment<'a> {
-    /// The name, for example `gametest`.
-    pub name: &'a str,
-    /// The experiment is on.
-    pub enabled: bool,
 }

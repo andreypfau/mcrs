@@ -3,15 +3,19 @@ use core::num::ParseIntError;
 
 use glam::{Vec2, Vec3};
 use mcrs_minecraft_bedrock_protocol_game::{
-    BlobCache, BlockAction, BlockLayer, ChunkColumn, DimensionId, InputFlags, InputMode,
-    InteractPrediction, InteractionModel, ItemUseAction, ItemUseTransaction, ItemUseTrigger,
-    MoveMode, MovePlayer, PlayMode, PlayerAuthInput, SetTime, StartGame, SubChunkCount,
-    TargetedBlockAction, TeleportCause, Text, TextContent, UpdateBlock, UpdateBlockFlags,
+    BlobCache, BlockAction, BlockLayer, BroadcastMode, ChatRestrictionLevel, ChunkColumn,
+    Difficulty, DimensionId, EditorWorldType, EducationOffer, GameRule, GameRuleValue, GameType,
+    Generator, InputFlags, InputMode, InteractPrediction, InteractionModel, ItemUseAction,
+    ItemUseTransaction, ItemUseTrigger, LevelSettings, MoveMode, MovePlayer, MovementAuthority,
+    MovementSettings, NetworkNbt, PlayMode, PlayerAuthInput, PlayerGameType, PlayerPermission,
+    SetTime, SpawnBiomeType, StartGame, SubChunkCount, TargetedBlockAction, TeleportCause, Text,
+    TextContent, UpdateBlock, UpdateBlockFlags, WorldTemplateId,
 };
 use mcrs_minecraft_bedrock_wire::{
     BedrockDecode, BedrockEncode, Error, NetworkBlockPos, NetworkChunkPos, NetworkSignedBlockPos,
-    Packet, VarI32, VarI64, VarU32, VarU64, decode_packet, encode_packet,
+    Packet, VarI32, VarI64, VarU32, VarU64, decode_packet, encode_packet, from_slice, to_bytes,
 };
+use mcrs_minecraft_nbt::compound::NbtCompound;
 
 fn hex(fixture: &str) -> Result<Vec<u8>, ParseIntError> {
     fixture
@@ -198,33 +202,167 @@ fn chunk_column_fixtures() {
     );
 }
 
-#[test]
-fn start_game_round_trip() {
-    let packet = StartGame {
-        entity_id: VarI64(123456789),
-        runtime_entity_id: VarU64(1),
-        player_gamemode: VarI32(1),
-        player_position: Vec3::new(100.5, 64.0, -200.5),
-        pitch: 15.0,
-        yaw: 90.0,
-        seed: 42,
-        dimension: VarI32(0),
-        generator: VarI32(1),
-        world_gamemode: VarI32(1),
-        difficulty: VarI32(2),
-        spawn_x: VarI32(100),
-        spawn_y: VarU32(64),
-        spawn_z: VarI32(-200),
-        has_achievements_disabled: true,
-        world_name: "Bedrock World".to_string(),
-    };
-    let mut buf = Vec::new();
-    packet.encode(&mut buf).unwrap();
+const START_GAME: &str = "
+    0b 02 01 00 00 00 00 3f 71 3d 83 42 00 00 00 3f
+    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    00 00 00 00 02 00 00 02 00 40 00 00 00 00 00 00
+    00 00 00 00 00 00 00 00 00 00 00 00 01 01 08 08
+    01 00 01 0f 64 6f 64 61 79 6c 69 67 68 74 63 79
+    63 6c 65 00 01 01 00 00 00 00 00 00 00 02 04 00
+    00 00 00 00 00 00 00 00 00 00 00 00 01 2a 00 00
+    00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00
+    05 77 6f 72 6c 64 00 00 02 00 00 00 00 00 00 00
+    00 00 00 00 00 00 00 01 04 6d 63 72 73 0a 00 00
+    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    00 00 00 00 00 00 00 00 00 00 00";
 
-    let mut r = buf.as_slice();
-    let decoded = StartGame::decode(&mut r).unwrap();
-    assert_eq!(decoded, packet);
-    assert!(r.is_empty());
+fn day_light_cycle() -> GameRule<'static> {
+    GameRule {
+        name: "dodaylightcycle",
+        editable: false,
+        value: GameRuleValue::Bool(true),
+    }
+}
+
+#[test]
+fn start_game_fixture() {
+    let packet = StartGame {
+        entity_unique_id: VarI64(1),
+        entity_runtime_id: VarU64(1),
+        player_game_type: PlayerGameType::Survival,
+        position: Vec3::new(0.5, 65.62, 0.5),
+        rotation: Vec2::ZERO,
+        level_settings: LevelSettings {
+            seed: 0,
+            spawn_biome_type: SpawnBiomeType::Default,
+            user_defined_biome_name: "",
+            dimension: DimensionId::Overworld,
+            generator: Generator::Overworld,
+            world_game_type: GameType::Survival,
+            hardcore: false,
+            difficulty: Difficulty::Easy,
+            world_spawn: NetworkBlockPos { x: 0, y: 64, z: 0 },
+            achievements_disabled: false,
+            editor_world_type: EditorWorldType::NotEditor,
+            created_in_editor: false,
+            exported_from_editor: false,
+            day_cycle_stop_time: VarI32(0),
+            education_offer: EducationOffer::None,
+            education_features_enabled: false,
+            education_product_id: "",
+            rain_level: 0.0,
+            lightning_level: 0.0,
+            confirmed_platform_locked_content: false,
+            multiplayer_game_intent: true,
+            lan_broadcast_intent: true,
+            xbox_live_broadcast_mode: BroadcastMode::Public,
+            platform_broadcast_mode: BroadcastMode::Public,
+            commands_enabled: true,
+            texture_packs_required: false,
+            game_rules: vec![day_light_cycle()],
+            experiments: Vec::new(),
+            experiments_previously_toggled: false,
+            bonus_chest: false,
+            start_with_map: false,
+            player_permission: PlayerPermission::Member,
+            server_chunk_tick_range: 4,
+            locked_behaviour_pack: false,
+            locked_resource_pack: false,
+            from_locked_template: false,
+            only_microsoft_account_gamertags: false,
+            from_world_template: false,
+            world_template_option_locked: false,
+            only_old_villagers: false,
+            persona_disabled: false,
+            custom_skins_disabled: false,
+            emote_chat_muted: false,
+            base_game_version: "*",
+            limited_world_width: 0,
+            limited_world_depth: 0,
+            new_nether: true,
+            education_shared_resource_button_name: "",
+            education_shared_resource_link: "",
+            force_experimental_gameplay: None,
+            chat_restriction_level: ChatRestrictionLevel::None,
+            player_interactions_disabled: false,
+            server_id: "",
+            world_id: "",
+            scenario_id: "",
+        },
+        level_id: "",
+        level_name: "world",
+        template_content_identity: "",
+        trial: false,
+        movement_settings: MovementSettings {
+            authority: MovementAuthority::Server,
+            rewind_history_size: VarI32(0),
+            server_authoritative_block_breaking: false,
+        },
+        current_level_time: 0,
+        enchantment_seed: VarI32(0),
+        block_properties: Vec::new(),
+        item_table: Vec::new(),
+        multiplayer_correlation_id: "",
+        item_stack_net_manager: true,
+        server_version: "mcrs",
+        player_property_data: NetworkNbt::default(),
+        block_registry_checksum: 0,
+        world_template_id: WorldTemplateId::default(),
+        client_side_generation: false,
+        block_network_ids_are_hashes: false,
+        server_authoritative_sound: false,
+    };
+    let bytes = hex(START_GAME).unwrap();
+    assert_eq!(bytes.len(), 187, "the fixture is the packet of BEG-SG-001");
+    assert_fixture(packet, &bytes);
+}
+
+fn assert_codec<'a, T>(value: T, bytes: &'a [u8])
+where
+    T: BedrockEncode + BedrockDecode<'a> + PartialEq + Debug,
+{
+    assert_eq!(to_bytes(&value).as_deref(), Ok(bytes), "encode {value:?}");
+    assert_eq!(from_slice::<T>(bytes), Ok(value), "decode {bytes:02x?}");
+}
+
+#[test]
+fn game_rule_fixtures() {
+    let rules = hex("01 0f 64 6f 64 61 79 6c 69 67 68 74 63 79 63 6c 65 00 01 01").unwrap();
+    assert_eq!(to_bytes(&[day_light_cycle()][..]), Ok(rules.clone()));
+    assert_eq!(
+        from_slice::<Vec<GameRule>>(&rules),
+        Ok(vec![day_light_cycle()])
+    );
+    let values = [
+        ("02 05", GameRuleValue::Int(5)),
+        ("03 00 00 80 3f", GameRuleValue::Float(1.0)),
+    ];
+    for (fixture, value) in values {
+        assert_codec(value, &hex(fixture).unwrap());
+    }
+    assert_eq!(
+        from_slice::<GameRuleValue>(&[0x04, 0x00]),
+        Err(Error::UnknownEnumValue(4))
+    );
+}
+
+#[test]
+fn network_nbt_fixture() {
+    let mut compound = NbtCompound::new();
+    compound.put_int("a", -1);
+    assert_codec(NetworkNbt(compound), &hex("0a 00 03 01 61 01 00").unwrap());
+    let errors = [
+        ("0a 00 03 01 61", Error::UnexpectedEof),
+        ("0a 00 0d 01 61 00", Error::Nbt),
+        ("03 00 01", Error::Nbt),
+    ];
+    for (bytes, error) in errors {
+        assert_eq!(
+            from_slice::<NetworkNbt>(&hex(bytes).unwrap()),
+            Err(error),
+            "{bytes}"
+        );
+    }
 }
 
 fn idle_input(client_tick: u64) -> PlayerAuthInput<'static> {

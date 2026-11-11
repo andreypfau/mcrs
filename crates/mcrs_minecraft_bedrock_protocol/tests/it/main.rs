@@ -6,13 +6,12 @@ use flate2::Compression;
 use flate2::write::{DeflateEncoder, ZlibEncoder};
 use mcrs_minecraft_bedrock_protocol::{
     BatchCompression, BatchDecoder, BatchEncoder, CompressionAlgorithm, ConnectionRequest,
-    DEFAULT_INFLATE_LIMIT, Disconnect, DisconnectReason, DisconnectScreen, Experiment, Login,
-    NetworkSettings, PlayStatus, PlayStatusKind, ProtocolError, RequestNetworkSettings,
-    ResourcePackClientResponse, ResourcePackInfoEntry, ResourcePackResponse, ResourcePackStack,
-    ResourcePacksInfo,
+    DEFAULT_INFLATE_LIMIT, Disconnect, DisconnectReason, DisconnectScreen, Login, NetworkSettings,
+    PlayStatus, PlayStatusKind, ProtocolError, RequestNetworkSettings, ResourcePackClientResponse,
+    ResourcePackInfoEntry, ResourcePackResponse, ResourcePackStack, ResourcePacksInfo,
 };
 use mcrs_minecraft_bedrock_wire::{
-    BeI32, BedrockDecode, BedrockEncode, Error, Packet, decode_packet, encode_packet,
+    BeI32, BedrockDecode, BedrockEncode, Error, Experiment, Packet, decode_packet, encode_packet,
 };
 
 mod counting_allocator {

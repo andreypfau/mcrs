@@ -17,14 +17,16 @@ pub enum Error {
     /// A packet header carries another packet id than the one decoded.
     UnexpectedPacketId {
         /// The id of the packet the caller decodes.
-        expected: u32,
+        expected: u16,
         /// The id in the header.
-        actual: u32,
+        actual: u16,
     },
     /// A packet header field does not fit its bits.
     PacketHeaderOverflow,
     /// An enum field holds a value outside its known set.
     UnknownEnumValue(i64),
+    /// A network NBT value is not valid.
+    Nbt,
 }
 
 impl fmt::Display for Error {
@@ -40,6 +42,7 @@ impl fmt::Display for Error {
             }
             Self::PacketHeaderOverflow => f.write_str("packet header field exceeds its bits"),
             Self::UnknownEnumValue(value) => write!(f, "unknown enum value {value}"),
+            Self::Nbt => f.write_str("invalid network NBT value"),
         }
     }
 }

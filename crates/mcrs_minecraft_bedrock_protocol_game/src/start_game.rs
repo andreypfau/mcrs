@@ -1,114 +1,85 @@
-use alloc::string::String;
 use alloc::vec::Vec;
 
-use glam::Vec3;
-use mcrs_minecraft_bedrock_wire::{
-    BedrockDecode, BedrockEncode, Error, Packet, VarI32, VarI64, VarU32, VarU64,
-};
+use glam::{Vec2, Vec3};
+use mcrs_minecraft_bedrock_wire::{BedrockDecode, BedrockEncode, VarI32, VarI64, VarU64};
 
-/// Server packet initializing world state, player identity, and generation settings.
-#[derive(Clone, Debug, PartialEq)]
-pub struct StartGame {
-    /// Unique entity ID of the player.
-    pub entity_id: VarI64,
-    /// Runtime entity ID of the player.
-    pub runtime_entity_id: VarU64,
-    /// Player gamemode (0: Survival, 1: Creative, 2: Adventure, 3: Spectator).
-    pub player_gamemode: VarI32,
-    /// Player initial spawn position.
-    pub player_position: Vec3,
-    /// Initial pitch rotation.
-    pub pitch: f32,
-    /// Initial yaw rotation.
-    pub yaw: f32,
-    /// World random seed.
-    pub seed: i64,
-    /// Dimension ID (0: Overworld, 1: Nether, 2: The End).
-    pub dimension: VarI32,
-    /// Generator type (1: Flat, 2: Infinite).
-    pub generator: VarI32,
-    /// World default gamemode.
-    pub world_gamemode: VarI32,
-    /// World difficulty.
-    pub difficulty: VarI32,
-    /// Default spawn X coordinate.
-    pub spawn_x: VarI32,
-    /// Default spawn Y coordinate.
-    pub spawn_y: VarU32,
-    /// Default spawn Z coordinate.
-    pub spawn_z: VarI32,
-    /// True if achievements are disabled (e.g. cheats on).
-    pub has_achievements_disabled: bool,
-    /// Name of the world level.
-    pub world_name: String,
+use crate::block_property::BlockProperty;
+use crate::item_table_entry::ItemTableEntry;
+use crate::level_settings::LevelSettings;
+use crate::movement_settings::MovementSettings;
+use crate::network_nbt::NetworkNbt;
+use crate::world_template_id::WorldTemplateId;
+
+/// Starts the world for the player: the identity of the player, the world settings and the tables
+/// of the connection.
+#[derive(Clone, Debug, PartialEq, BedrockEncode, BedrockDecode)]
+#[bedrock(id = 0x0b)]
+pub struct StartGame<'a> {
+    /// The unique id of the player.
+    pub entity_unique_id: VarI64,
+    /// The runtime id of the player.
+    pub entity_runtime_id: VarU64,
+    /// The game type of the player.
+    pub player_game_type: PlayerGameType,
+    /// The eye position of the player.
+    pub position: Vec3,
+    /// The pitch as x and the yaw as y, in degrees.
+    pub rotation: Vec2,
+    /// The settings of the world.
+    pub level_settings: LevelSettings<'a>,
+    /// An opaque id of the world.
+    pub level_id: &'a str,
+    /// The name that the pause screen shows.
+    pub level_name: &'a str,
+    /// The template content identity; empty when the world is not from a template.
+    pub template_content_identity: &'a str,
+    /// Whether the world is a trial.
+    pub trial: bool,
+    /// The movement settings.
+    pub movement_settings: MovementSettings,
+    /// The time of day in ticks.
+    pub current_level_time: i64,
+    /// The enchantment seed.
+    pub enchantment_seed: VarI32,
+    /// The custom blocks; empty when the server has none.
+    pub block_properties: Vec<BlockProperty<'a>>,
+    /// The item network ids of the connection.
+    pub item_table: Vec<ItemTableEntry<'a>>,
+    /// The multiplayer correlation id.
+    pub multiplayer_correlation_id: &'a str,
+    /// Whether the client sends item stack requests.
+    pub item_stack_net_manager: bool,
+    /// A free text, for example `mcrs`.
+    pub server_version: &'a str,
+    /// The player properties; an empty compound when the server has none.
+    pub player_property_data: NetworkNbt,
+    /// The block registry checksum; a server of mcrs writes 0, and the client then does not
+    /// compare the block registry.
+    pub block_registry_checksum: u64,
+    /// The world template; the zero UUID when the world is not from a template.
+    pub world_template_id: WorldTemplateId,
+    /// Whether the client generates the world.
+    pub client_side_generation: bool,
+    /// Whether block runtime ids are hashes; a server of mcrs writes false, and the ids are then
+    /// the indices of the block palette.
+    pub block_network_ids_are_hashes: bool,
+    /// Whether the server owns the sounds.
+    pub server_authoritative_sound: bool,
 }
 
-impl Packet for StartGame {
-    const ID: u32 = 0x0b;
-}
-
-impl BedrockEncode for StartGame {
-    fn encode(&self, w: &mut Vec<u8>) -> Result<(), Error> {
-        self.entity_id.encode(w)?;
-        self.runtime_entity_id.encode(w)?;
-        self.player_gamemode.encode(w)?;
-        self.player_position.x.encode(w)?;
-        self.player_position.y.encode(w)?;
-        self.player_position.z.encode(w)?;
-        self.pitch.encode(w)?;
-        self.yaw.encode(w)?;
-        self.seed.encode(w)?;
-        self.dimension.encode(w)?;
-        self.generator.encode(w)?;
-        self.world_gamemode.encode(w)?;
-        self.difficulty.encode(w)?;
-        self.spawn_x.encode(w)?;
-        self.spawn_y.encode(w)?;
-        self.spawn_z.encode(w)?;
-        self.has_achievements_disabled.encode(w)?;
-        self.world_name.encode(w)?;
-        Ok(())
-    }
-}
-
-impl<'a> BedrockDecode<'a> for StartGame {
-    fn decode(r: &mut &'a [u8]) -> Result<Self, Error> {
-        let entity_id = VarI64::decode(r)?;
-        let runtime_entity_id = VarU64::decode(r)?;
-        let player_gamemode = VarI32::decode(r)?;
-        let x = f32::decode(r)?;
-        let y = f32::decode(r)?;
-        let z = f32::decode(r)?;
-        let pitch = f32::decode(r)?;
-        let yaw = f32::decode(r)?;
-        let seed = i64::decode(r)?;
-        let dimension = VarI32::decode(r)?;
-        let generator = VarI32::decode(r)?;
-        let world_gamemode = VarI32::decode(r)?;
-        let difficulty = VarI32::decode(r)?;
-        let spawn_x = VarI32::decode(r)?;
-        let spawn_y = VarU32::decode(r)?;
-        let spawn_z = VarI32::decode(r)?;
-        let has_achievements_disabled = bool::decode(r)?;
-        let world_name = String::decode(r)?;
-
-        Ok(Self {
-            entity_id,
-            runtime_entity_id,
-            player_gamemode,
-            player_position: Vec3::new(x, y, z),
-            pitch,
-            yaw,
-            seed,
-            dimension,
-            generator,
-            world_gamemode,
-            difficulty,
-            spawn_x,
-            spawn_y,
-            spawn_z,
-            has_achievements_disabled,
-            world_name,
-        })
-    }
+/// The game type of the player in [`StartGame`], as a `varint32`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, BedrockEncode, BedrockDecode)]
+#[bedrock(tag = VarI32)]
+#[non_exhaustive]
+pub enum PlayerGameType {
+    /// Survival.
+    Survival = 0,
+    /// Creative.
+    Creative = 1,
+    /// Adventure.
+    Adventure = 2,
+    /// The game type of the world, [`LevelSettings::world_game_type`].
+    Default = 5,
+    /// Spectator.
+    Spectator = 6,
 }

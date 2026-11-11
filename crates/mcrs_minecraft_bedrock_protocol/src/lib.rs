@@ -32,6 +32,6 @@ pub use play_status::{PlayStatus, PlayStatusKind};
 pub use protocol_error::ProtocolError;
 pub use request_network_settings::RequestNetworkSettings;
 pub use resource_pack_client_response::{ResourcePackClientResponse, ResourcePackResponse};
-pub use resource_pack_stack::{Experiment, ResourcePackStack, ResourcePackStackEntry};
+pub use resource_pack_stack::{ResourcePackStack, ResourcePackStackEntry};
 pub use resource_packs_info::{PackCdnUrl, ResourcePackInfoEntry, ResourcePacksInfo};
 pub use version::{MINECRAFT_VERSION, PROTOCOL_VERSION};
