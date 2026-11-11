@@ -66,10 +66,11 @@ Each rule states its kind, as `docs/spec/README.md` defines it. A rule with a ca
 states confidence high. A `source_suggested` rule states confidence medium. A `design` or
 `unresolved` rule states no confidence.
 
-The reference has defects and accidents. Each one that this document knows has one of two
-entries in section 11. A deviation (`D`) states that mcrs does not copy the accident. A kept quirk
-(`K`) states that mcrs copies the accident, and the reason. A rule that copies or corrects an
-accident names its entry.
+The reference is not a correct implementation. A rule states the behaviour that a player expects,
+not each accident of the reference. Each accident that this document knows is a deviation (`D`)
+in section 11.1, and the rule that corrects it names the entry. Where the order of the reference
+has no meaning for a player, the rule states a bound and gives the exact value the kind
+unspecified. Section 11.2 keeps an accident only when the vanilla client depends on it.
 
 ### 0.3 Artefacts cited
 
@@ -198,9 +199,10 @@ inventory (IEN-PCK-003). Then:
 - When some items found no room, the rest becomes one item entity with the values of the table row
   "rest of the `give` command".
 
-For a player in creative mode, the insertion of IEN-PCK-006 applies. The items that find no room
-are destroyed, and the server makes the display item entity. Thus no rest item entity exists. This
-is kept quirk K4. Experiment E21 checks it.
+The display item entity is not an item in the world. It cannot be picked up or merged, and it is
+not saved.
+
+These steps apply also to a player in creative mode (D6). Experiment E21 records the reference.
 
 **IEN-SPN-005** (`source_suggested_black_box_confirmed`, semantic, confidence high). When a container block is
 destroyed, each stack of the container becomes item entities in this way:
@@ -244,7 +246,7 @@ shows a drop of the main slots, a helmet and the off-hand slot.
 **IEN-MOV-001** (`source_suggested_black_box_confirmed`, semantic, confidence high). In each tick, an item entity
 moves as the row "item" of the table of PHY-ORD-005 states, with one change. When the item entity is
 in water and the fluid height of water is more than 0.1F, step `G` changes to this step.
-The water height is the value of the first fluid update of the tick (IEN-MOV-006, step 3).
+The water height is the value of the fluid update of the tick (IEN-MOV-006, step 3).
 
 - multiply `v.x` and `v.z` by 0.99F;
 - when `v.y < 0.06F`, add 5.0E-4F to `v.y`.
@@ -256,17 +258,16 @@ The drag `D` of PHY-ORD-005 follows. Result R10 shows `v.x` 0.1, 0.09702, 0.0941
 decreases by 1 when it is above 0 and is not 32767. The pickup delay 32767 never changes. Result R11
 shows a pickup delay of 5 that permits a pickup some ticks later, and the value 32767 that stays.
 
-**IEN-MOV-003** (`source_suggested`, semantic, confidence medium). The server gives an item entity the "needs sync"
-mark of TRK-UPD-001 in two cases:
+**IEN-MOV-003** (`source_suggested`, wire, confidence medium). The server gives an item entity the
+"needs sync" mark of TRK-UPD-001 in two cases:
 
-- the velocity at the end of the tick differs from the velocity after step 5 of IEN-MOV-006 by a
-  squared length of more than 0.01. Thus the current of the first fluid update is not in the
-  difference, and the current of the second fluid update is in it;
-- at the second fluid update of the tick (IEN-MOV-006, step 9), the item entity touches a fluid.
+- the velocity changed in the tick by a length of more than 0.1;
+- at the end of the tick, the item entity touches a fluid (IEN-MOV-006, step 9).
 
 An item entity touches a fluid when its fluid box overlaps a block with a fluid, and the surface of
 that fluid is at or above the bottom of the fluid box. Thus an item entity in a fluid gets the mark
-in each tick, not only when it goes into the fluid.
+in each tick. The vanilla client simulates the motion of an item entity itself, so this mark also
+corrects the client after D3, D4 and D5.
 
 **IEN-MOV-004** (`black_box_confirmed`, semantic, confidence high). When the `y` of an item entity is less than the
 minimum `y` of the dimension minus 64, the server removes the item entity. Result R12 shows the
@@ -282,7 +283,7 @@ tick of an item entity in this order:
 
 1. Add 1 to the tick count.
 2. When the stack is empty, remove the item entity, and stop.
-3. Do the first fluid update. In this step, an item entity can also go through a portal
+3. Do the fluid update (IEN-MOV-007). In this step, an item entity can also go through a portal
    (section 9).
 4. Apply the burn of IEN-DMG-002 and the removal below the world of IEN-MOV-004.
 5. Decrease the pickup delay (IEN-MOV-002).
@@ -290,30 +291,28 @@ tick of an item entity in this order:
    example the damage of lava, `fire` and `cactus`.
 7. Look for merge partners (IEN-MRG-001). The merge reads the age before step 8.
 8. Increase the age (IEN-AGE-001).
-9. Do the second fluid update, and set the "needs sync" mark (IEN-MOV-003).
+9. Find whether the item entity touches a fluid at its new position, and set the "needs sync"
+   mark (IEN-MOV-003). This step applies no current (D3).
 10. When the age is 6000 or more, remove the item entity.
 
 A pickup is not a step of this tick. It occurs in the tick of the player (IEN-PCK-001). For
 example, an item entity with the age 5999 can merge in step 7 and is then removed in step 10.
 
-**IEN-MOV-007** (`source_suggested`, semantic, confidence medium). Each fluid update applies the
-current of each fluid that the item entity touches. Thus a tick applies the current two times
-(K1). A fluid is one entry of the fluid registry. `minecraft:water` and `minecraft:flowing_water`
-are two fluids, and each has its own current and its own fluid height (K2). The fluid height of
-water in IEN-MOV-001 is the larger fluid height of the fluids in the fluid tag `minecraft:water`.
-For one fluid:
+**IEN-MOV-007** (`source_suggested`, semantic, confidence medium). The fluid update applies one
+current for each kind of fluid that the item entity touches, once in a tick (D3). A kind of fluid
+is a fluid tag: `minecraft:water` or `minecraft:lava`. A source block and a flowing block of one
+kind are the same kind (D5). For one kind:
 
-1. Visit the blocks that the fluid box overlaps in the order of `x`, then `y`, then `z`, each from
-   the smallest value. Let `S` be the sum of the flow vectors of the visited blocks of the fluid
-   that the item entity touches. Before a flow vector is added, multiply it by `h` when `h < 0.4`.
-   `h` is the fluid height of this fluid over the blocks visited up to and including that block.
-2. When `|S|²` is less than 1.0E-5F, the fluid adds no current.
-3. Otherwise the current of the fluid is `normalize(S) × s`. `s` is 0.014 for water. For lava, `s`
+1. Let `h` be the fluid height of the kind. Let `S` be the sum of the flow vectors of the blocks of
+   the kind that the item entity touches. When `h < 0.4`, multiply `S` by `h` (D4).
+2. When `|S|²` is less than 1.0E-5F, the kind adds no current.
+3. Otherwise the current of the kind is `normalize(S) × 2s`. `s` is 0.014 for water. For lava, `s`
    is 0.0023333333333333335, or 0.007 in a dimension with the attribute `fast_lava`.
 
-Let `I` be the sum of the currents of all fluids. When `(v.x + I.x)² + (v.z + I.z)²` is less than
-9.0E-6, and `|I|` is more than 1.0E-5F and less than 0.0045, scale `I` to the length 0.0045. Then
-add `I` to `v`.
+Let `I` be the sum of the currents of all kinds. When `(v.x + I.x)² + (v.z + I.z)²` is less than
+9.0E-6, and `|I|` is more than 2.0E-5 and less than 0.009, scale `I` to the length 0.009. Then add
+`I` to `v`. The factor 2 and the length 0.009 keep the speed of an item entity in a current near
+the speed in the reference, which applies the current two times in a tick.
 
 When a chunk that holds a block of the fluid box, larger by 1 on `x` and `z`, is not loaded, the
 fluid update finds no fluid and applies no current. The flow vector of a fluid block is not stated here (section 9).
@@ -402,6 +401,8 @@ client subtracts that count from the stack that it shows, and removes the item e
 the stack is empty. The server also sends `set_entity_data` with the new stack (IEN-NET-003). It
 sends no `remove_entities`. Result R17 shows the reference, which sends no packet for the item
 entity (D1). A later full pickup of the rest sends `take_item_entity` with the count of the rest.
+A partial pickup is a pickup of the items that moved, for each effect of a pickup, for example a
+statistic.
 
 **IEN-PCK-006** (`black_box_confirmed`, semantic, confidence high). For a collector in creative mode, the items that
 find no room are destroyed, and the pickup takes all items. Result R18 shows a pickup of 10 `stone`
@@ -413,10 +414,11 @@ entities.
 
 ## 6. Merge of two item entities
 
-**IEN-MRG-001** (`source_suggested`, semantic, confidence medium). An item entity looks for merge partners in a tick
-when the tick count is a multiple of `k`. `k` is 2 when the block position of the item entity
-changed in this tick, and 40 in the other case. An item entity that teleports looks for merge
-partners at once. This applies to a teleport in the same dimension, for example `tp` or an
+**IEN-MRG-001** (`source_suggested`, semantic, confidence medium). An item entity that can merge
+looks for merge partners at least once in each 40 ticks. When its block position changed in the
+tick, it looks at least once in each 2 ticks. Kind of the exact tick of a search: unspecified. The
+reference looks when the tick count is a multiple of `k`, with `k` 2 or 40 as above. An item
+entity that teleports looks for merge partners at once. This applies to a teleport in the same dimension, for example `tp` or an
 `end_gateway`, and to a change of the dimension.
 
 **IEN-MRG-002** (`source_suggested_black_box_confirmed`, semantic, confidence high). An item entity can merge when
@@ -451,13 +453,15 @@ item entity with the larger count is the target. The target gets all items of th
 entity, and the other item entity is removed. The target keeps its position, its velocity, its
 owner and its thrower. Its pickup delay becomes the larger of the two pickup delays, and its age
 becomes the smaller of the two ages. Result R19 shows the target with 30 items and the age of the
-younger partner. When the counts are equal, the partner that the item entity found is the target:
-the item entity that looks for partners gives its items (K3). Result R19 shows
-`a 10, b 10 -> b 20`. A merge moves all items of the other item entity, also above the count 64
-(D2).
+younger partner. When the counts are equal, the kind of the target is unspecified: a parity test
+compares the stack and the count, not which item entity stays. In the reference, the item entity
+that looks for partners gives its items (result R19, `a 10, b 10 -> b 20`). A merge moves all
+items of the other item entity, also above the count 64 (D2).
 
-**IEN-MRG-006** (`design`, semantic). An item entity merges with its partners one at a time. Each
-merge is a claim of PHY-CMP-017. Reason: the result must not depend on the order of the entities.
+**IEN-MRG-006** (`design`, semantic). Each merge is a claim of PHY-CMP-017. An item entity takes
+part in at most one merge in a tick. A later merge waits for its next search (IEN-MRG-001).
+Reason: the result must not depend on the order of the entities, and the delay stays within the
+bound of IEN-MRG-001.
 
 ## 7. Damage and destruction
 
@@ -635,67 +639,54 @@ each Bedrock value comes from the public protocol documentation or is not known 
 - **Visible to the client**: yes, only for a stack whose maximum stack size is above 64.
 - **Test**: a differential test must not merge stacks with a maximum stack size above 64.
 
-### 11.2 Kept quirks
-
-A kept quirk is an accident of the reference that mcrs copies. Each entry has these parts:
-
-- **Rule**: the id of the rule that copies the accident.
-- **Reference**: the accident.
-- **Why kept**: the reason to copy it.
-- **Revisit when**: the condition that makes a deviation possible.
-
-**K1.**
+**D3.**
 
 - **Rule**: IEN-MOV-006, IEN-MOV-007.
-- **Reference**: a tick applies the current of a fluid two times.
-- **Why kept**: the vanilla client also simulates the motion of an item entity. A different
-  current makes the client position drift from the server position between the updates.
-- **Revisit when**: never for a vanilla client.
+- **Reference**: a tick has two fluid updates, before and after the move. Each applies the
+  current, so a tick applies it two times, at two positions.
+- **Visible to the client**: yes, a small difference of the path in a current. The "needs sync"
+  mark of IEN-MOV-003 corrects the client in each tick in a fluid.
+- **Test**: a differential test compares the speed in a current with a tolerance, not the path.
 
-**K2.**
+**D4.**
 
 - **Rule**: IEN-MOV-007.
-- **Reference**: a source block and a flowing block of one fluid give two currents. An item entity
-  on the boundary gets up to two times the current.
-- **Why kept**: as K1.
-- **Revisit when**: as K1.
+- **Reference**: in a shallow fluid, the factor `h` of a block is the fluid height over the blocks
+  visited before it, in the order of `x`, `y`, `z`. Thus the push depends on the order of the
+  search, not only on the fluid.
+- **Visible to the client**: yes, only at the edge of a shallow fluid.
+- **Test**: as D3.
 
-**K3.**
+**D5.**
 
-- **Rule**: IEN-MRG-005.
-- **Reference**: of two partners with equal counts, the target is selected by the order of the
-  search, not by a property of the item entities.
-- **Why kept**: the count and the stack of the result are the same. Only the position of the
-  result and its network id change.
-- **Revisit when**: IEN-MRG-006 has a key that selects the target.
+- **Rule**: IEN-MOV-007.
+- **Reference**: a source block and a flowing block of one fluid are two fluids. Each gives its own
+  current of the full length, so an item entity on the boundary gets up to two times the current.
+- **Visible to the client**: yes, on the boundary.
+- **Test**: as D3.
 
-**K4.**
+**D6.**
 
-- **Rule**: IEN-SPN-004, IEN-PCK-006.
-- **Reference**: a player in creative mode loses the items that find no room, both for a pickup
-  and for `give`.
-- **Why kept**: a player in creative mode has infinite materials. A full inventory must not fill
-  the world with item entities.
-- **Revisit when**: the owner selects a different policy for creative mode.
+- **Rule**: IEN-SPN-004.
+- **Reference**: for a player in creative mode with no room, the `give` command destroys the items,
+  and the viewers see the display item as for a success.
+- **Visible to the client**: yes. In the reference, the player gets nothing and no message.
+- **Test**: a differential test skips `give` to a player in creative mode with a full inventory.
+
+### 11.2 Known vanilla quirks
+
+None. The motion of an item entity on land and in air keeps the quirks of `entity-physics.md`.
 
 ### 11.3 Open questions
 
 For the owner:
 
-- **Q1**: D2. Does mcrs keep the limit 64 of the reference for parity, or move all items? Result R19
-  shows the reference.
 - **Q2**: IEN-PCK-003. `inventory-transactions.md`, section 8, gives the insert rule of the player
   inventory to a later specification. This document states it for the pickup and for `give`. Does
   the rule move to the specification of the player inventory when it exists?
 - **Q3**: IEN-DAT-001. The model of `docs/item-design.md` keeps one entity for a stack. Does the
   item entity get a new network id when a stack goes from a slot to the world, as in the reference,
   or does the stack keep one id? The id that the client sees must be new for each `add_entity`.
-- **Q4**: IEN-MRG-006. In the reference, an item entity can take the items of one partner and then
-  give all its items to a second partner in the same tick. With claims, does a target of a merge
-  in a tick stay out of other merges until the next tick? The merge then can come 2 to 40 ticks
-  later than in the reference.
-- **Q5**: D1. Does a partial pickup count as a pickup for the statistics, the advancements and a
-  public pickup message, with the count of the items that moved?
 
 ### 11.4 Unresolved
 
