@@ -20,6 +20,7 @@ use mcrs_minecraft_item_stack::read_wire_with_length;
 use mcrs_minecraft_item_stack::write_hashed;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_text::Text;
+use mcrs_test_alloc::allocations;
 use serde::Deserialize;
 
 use crate::common::COMPONENT_TYPES;
@@ -39,24 +40,25 @@ const REPAIR_COST_TYPE: ComponentType = ComponentType(19);
 struct Names;
 
 impl Names {
-    fn entries(table: NameTable) -> Vec<(u16, &'static str)> {
-        let indexed = |paths: &[&'static str]| -> Vec<(u16, &'static str)> {
-            (0..).zip(paths.iter().copied()).collect()
-        };
-        match table {
-            NameTable::Item => vec![
+    fn entries(table: NameTable) -> impl Iterator<Item = (u16, &'static str)> {
+        let listed: &'static [(u16, &'static str)] = match table {
+            NameTable::Item => &[
                 (AIR, "air"),
                 (STONE, "stone"),
                 (APPLE, "apple"),
                 (DIAMOND_SWORD, "diamond_sword"),
             ],
-            NameTable::Enchantment => vec![(33, "sharpness"), (40, "unbreaking")],
-            NameTable::Attribute => vec![(1, "armor"), (3, "attack_damage"), (30, "scale")],
-            NameTable::Block => vec![(1, "stone"), (9, "dirt")],
-            NameTable::BlockTag => indexed(&["mineable/pickaxe"]),
-            NameTable::ComponentType => indexed(&COMPONENT_TYPES),
-            _ => Vec::new(),
-        }
+            NameTable::Enchantment => &[(33, "sharpness"), (40, "unbreaking")],
+            NameTable::Attribute => &[(1, "armor"), (3, "attack_damage"), (30, "scale")],
+            NameTable::Block => &[(1, "stone"), (9, "dirt")],
+            _ => &[],
+        };
+        let indexed: &'static [&'static str] = match table {
+            NameTable::BlockTag => &["mineable/pickaxe"],
+            NameTable::ComponentType => &COMPONENT_TYPES,
+            _ => &[],
+        };
+        (listed.iter().copied()).chain((0..).zip(indexed.iter().copied()))
     }
 }
 
@@ -66,15 +68,12 @@ impl NameLookup for Names {
             return None;
         }
         Self::entries(table)
-            .into_iter()
             .find(|(_, path)| *path == name.path())
             .map(|(id, _)| id)
     }
 
     fn name(&self, table: NameTable, id: u16) -> Option<ResourceLocation<'_>> {
-        let (_, path) = Self::entries(table)
-            .into_iter()
-            .find(|(entry, _)| *entry == id)?;
+        let (_, path) = Self::entries(table).find(|(entry, _)| *entry == id)?;
         ResourceLocation::new("minecraft", path).ok()
     }
 }
@@ -492,4 +491,24 @@ fn the_reader_refuses_what_the_wire_form_does_not_allow() {
         Err(WireError::RepeatedComponentType(REPAIR_COST_TYPE))
     );
     assert_eq!(output, [0xAA], "a failed write leaves the output as it was");
+}
+
+#[test]
+fn a_match_of_a_name_with_an_entity_hover_allocates_nothing_after_the_warm_up() {
+    let name: Text = serde_json::from_str(
+        r#"{"text":"named","hover_event":{"action":"show_entity","id":"minecraft:pig","uuid":[1,-2,3,-4]}}"#,
+    )
+    .expect("the name is a valid text");
+    let held = stack(DIAMOND_SWORD, 1).set(CustomName(name));
+    let claimed = hashed(Some(&held));
+    let mut scratch = HashScratch::default();
+    let check =
+        |scratch: &mut HashScratch| matches_hashed(claimed.as_ref(), Some(&held), &Names, scratch);
+    assert_eq!(check(&mut scratch), Ok(true));
+
+    let before = allocations();
+    let matched = check(&mut scratch);
+    let allocated = allocations() - before;
+
+    assert_eq!((matched, allocated), (Ok(true), 0));
 }

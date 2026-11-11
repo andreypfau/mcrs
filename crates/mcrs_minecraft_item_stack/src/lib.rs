@@ -3,6 +3,7 @@
 
 extern crate alloc;
 
+mod array_serializer;
 mod attribute_id;
 mod attribute_modifier;
 mod attribute_modifiers;

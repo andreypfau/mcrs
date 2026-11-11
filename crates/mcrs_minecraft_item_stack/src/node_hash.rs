@@ -6,6 +6,8 @@
     )
 )]
 
+use mcrs_minecraft_nbt::ArrayKind;
+
 /// The hash of one node of the saved form of a component.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct NodeHash(u32);
@@ -83,29 +85,29 @@ impl NodeHash {
 
     #[must_use]
     pub(crate) fn byte_array(values: &[i8]) -> Self {
-        let mut checksum = Checksum::tagged(0x0E);
+        let mut array = ArrayHash::new(ArrayKind::Byte);
         for value in values {
-            checksum = checksum.push(&value.to_le_bytes());
+            array = array.push(&value.to_le_bytes());
         }
-        checksum.push(&[0x0F]).finish()
+        array.finish()
     }
 
     #[must_use]
     pub(crate) fn int_array(values: &[i32]) -> Self {
-        let mut checksum = Checksum::tagged(0x10);
+        let mut array = ArrayHash::new(ArrayKind::Int);
         for value in values {
-            checksum = checksum.push(&value.to_le_bytes());
+            array = array.push(&value.to_le_bytes());
         }
-        checksum.push(&[0x11]).finish()
+        array.finish()
     }
 
     #[must_use]
     pub(crate) fn long_array(values: &[i64]) -> Self {
-        let mut checksum = Checksum::tagged(0x12);
+        let mut array = ArrayHash::new(ArrayKind::Long);
         for value in values {
-            checksum = checksum.push(&value.to_le_bytes());
+            array = array.push(&value.to_le_bytes());
         }
-        checksum.push(&[0x13]).finish()
+        array.finish()
     }
 
     /// The hash of a list node from the hashes of its elements in order.
@@ -156,6 +158,42 @@ impl ListHash {
     #[must_use]
     pub(crate) fn finish(self) -> NodeHash {
         self.0.push(&[0x05]).finish()
+    }
+}
+
+/// An array node whose elements come one at a time. Each element is pushed in the little-endian
+/// bytes of the kind of the array.
+#[derive(Clone, Copy)]
+pub(crate) struct ArrayHash {
+    checksum: Checksum,
+    end: u8,
+}
+
+impl ArrayHash {
+    #[must_use]
+    pub(crate) fn new(kind: ArrayKind) -> Self {
+        let (start, end) = match kind {
+            ArrayKind::Byte => (0x0E, 0x0F),
+            ArrayKind::Int => (0x10, 0x11),
+            ArrayKind::Long => (0x12, 0x13),
+        };
+        Self {
+            checksum: Checksum::tagged(start),
+            end,
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn push(self, element: &[u8]) -> Self {
+        Self {
+            checksum: self.checksum.push(element),
+            end: self.end,
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn finish(self) -> NodeHash {
+        self.checksum.push(&[self.end]).finish()
     }
 }
 

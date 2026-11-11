@@ -2,14 +2,12 @@ use alloc::vec::Vec;
 use core::error::Error;
 use core::fmt;
 
-use mcrs_minecraft_nbt::ArrayKind;
 use mcrs_minecraft_nbt::NBT_ARRAY_TAG;
-use mcrs_minecraft_nbt::tag::NbtTag;
-use mcrs_minecraft_nbt::to_nbt_tag;
 use serde::Serialize;
 use serde::ser;
 use serde::ser::Impossible;
 
+use crate::array_serializer::array_hash;
 use crate::node_hash::ListHash;
 use crate::node_hash::MapEntry;
 use crate::node_hash::NodeHash;
@@ -222,49 +220,6 @@ impl<'scratch> ser::Serializer for NodeSerializer<'scratch> {
     ) -> Result<Impossible<Node, Unhashable>, Unhashable> {
         Err(Unhashable)
     }
-}
-
-// An array occurs only in a UUID and in a payload, so the detour through the NBT tree costs little.
-fn array_hash<T: Serialize + ?Sized>(variant: &str, value: &T) -> Result<NodeHash, Unhashable> {
-    let NbtTag::List(elements) = to_nbt_tag(&value).map_err(|_| Unhashable)? else {
-        return Err(Unhashable);
-    };
-    let kind = [ArrayKind::Byte, ArrayKind::Int, ArrayKind::Long]
-        .into_iter()
-        .find(|kind| kind.variant() == variant)
-        .ok_or(Unhashable)?;
-    match kind {
-        ArrayKind::Byte => {
-            let values = array_values(elements, |tag| match tag {
-                NbtTag::Byte(value) => Some(value),
-                _ => None,
-            })?;
-            Ok(NodeHash::byte_array(&values))
-        }
-        ArrayKind::Int => {
-            let values = array_values(elements, |tag| match tag {
-                NbtTag::Int(value) => Some(value),
-                _ => None,
-            })?;
-            Ok(NodeHash::int_array(&values))
-        }
-        ArrayKind::Long => {
-            let values = array_values(elements, |tag| match tag {
-                NbtTag::Long(value) => Some(value),
-                _ => None,
-            })?;
-            Ok(NodeHash::long_array(&values))
-        }
-    }
-}
-
-fn array_values<V>(
-    elements: Vec<NbtTag>,
-    value: fn(NbtTag) -> Option<V>,
-) -> Result<Vec<V>, Unhashable> {
-    (elements.into_iter())
-        .map(|element| value(element).ok_or(Unhashable))
-        .collect()
 }
 
 struct ListSerializer<'scratch> {
