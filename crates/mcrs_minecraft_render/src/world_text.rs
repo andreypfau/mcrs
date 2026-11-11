@@ -1,6 +1,4 @@
-//! Textured quads in world space, drawn over the lit frame with the depth of the opaque world.
-//! A text on a sign is one run of glyph quads; the pass keeps no state beyond the vertex list
-//! the main world hands it, and uploads the list again only when its revision changes.
+//! Textured quads in world space, drawn over the lit frame against the opaque world's depth.
 
 use bevy::asset::embedded_asset;
 use bevy::core_pipeline::core_3d::CORE_3D_DEPTH_FORMAT;
@@ -13,7 +11,7 @@ use bevy::render::render_resource::binding_types::{sampler, texture_2d, uniform_
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
 use bevy::render::texture::GpuImage;
-use bevy::render::view::{ExtractedView, ViewDepthTexture, ViewTarget};
+use bevy::render::view::{ExtractedView, ViewDepthStencilTexture, ViewTarget};
 use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 use bevy::shader::Shader;
 use std::num::NonZeroU64;
@@ -41,6 +39,7 @@ pub struct TextVertex {
 /// what it uploaded while `revision` stays the same. The list is copied into the render world
 /// when the resource changes, so a writer touches it only when the vertices change.
 #[derive(Resource, Clone, Default, ExtractResource)]
+#[extract_app(RenderApp)]
 pub struct WorldText {
     pub vertices: Vec<TextVertex>,
     pub texture: Option<Handle<Image>>,
@@ -297,7 +296,7 @@ fn prepare_text_bind_groups(
     pass.texture = Some((texture.id(), lightmap.id(), bind_group));
 }
 
-type TextTarget = (&'static ViewTarget, &'static ViewDepthTexture);
+type TextTarget = (&'static ViewTarget, &'static ViewDepthStencilTexture);
 
 fn draw_world_text(
     view: ViewQuery<TextTarget>,

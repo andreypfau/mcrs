@@ -1,6 +1,4 @@
-//! The text of signs and hanging signs (`docs/spec/client-sign-text.md`): which lines show, where
-//! they sit in the block, their colours and light, and the glyph quads that draw them. The module
-//! has no renderer: it gives quads in block space that a pass turns into a mesh.
+//! Sign text layout (`docs/spec/client-sign-text.md`): glyph quads in block space for a pass.
 
 use bevy::math::{DMat4, DVec3, IVec2, Vec3};
 use mcrs_minecraft_block_entity::{SignText, Text as StoredText};
@@ -205,6 +203,7 @@ fn component(stored: &StoredText) -> Text {
     match stored {
         StoredText::Plain(text) => Text::text(text.clone()),
         StoredText::Rich(tag) => {
+            // One unreadable line shows empty so the other lines of the sign still draw.
             mcrs_minecraft_nbt::from_tag(tag.clone()).unwrap_or_else(|_| "".into_text())
         }
     }

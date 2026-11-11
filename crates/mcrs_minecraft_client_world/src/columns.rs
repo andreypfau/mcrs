@@ -307,14 +307,8 @@ impl ColumnStore {
         );
     }
 
-    /// Gives the sign at `at` the sides of `update`, in a resident column; a side the update leaves
-    /// out keeps its stored text. Answers `false` when the column is not resident or the position
-    /// is outside the extent.
-    ///
-    /// This is the path a block entity update takes from the network. An embedder that builds its
-    /// columns without packets can call it after `insert`, or hand the signs over with
-    /// [`Column::with_signs`] before it. Replacing a block with `set_block` leaves the sign in
-    /// place: the caller drops it with [`ColumnStore::remove_sign`] when the new block is no sign.
+    /// A side `update` leaves out keeps its stored text. `set_block` does not drop the sign: the
+    /// caller uses [`ColumnStore::remove_sign`] when the new block is no sign.
     pub fn set_sign(&mut self, at: BlockPos, update: SignUpdate) -> bool {
         let Some(column) = self.columns.get_mut(&ColumnPos::from(at)) else {
             return false;

@@ -1,12 +1,5 @@
-//! Draws the text of signs and hanging signs (`docs/spec/client-sign-text.md`). The plugin reads
-//! the sign entities of the resident columns, builds the glyph quads of each, and hands the
-//! whole list to the world text pass. A column is built again when a change message names it
-//! and it holds signs, so an embedder that fills the store without the network gets its signs
-//! drawn through the same messages the store raises.
-//!
-//! Not drawn: italic, underline, strikethrough and obfuscation, since a span carries only a
-//! colour and bold; code points of the pages other than the ASCII one, which show as the missing
-//! glyph; the spyglass case of the outline range.
+//! Draws the text of signs (`docs/spec/client-sign-text.md`). A column is rebuilt when a change
+//! message names it, so an embedder that fills the store without the network gets its signs too.
 
 use std::collections::HashMap;
 
@@ -96,20 +89,15 @@ fn load_assets(
         );
         image.sampler = ImageSampler::nearest();
         let language = ClientLanguage::load(pack)?;
-        Ok::<_, String>((
-            font,
-            language,
-            image,
-            Vec2::new(width as f32, (height + 1) as f32),
-        ))
-    })();
-    match loaded {
-        Ok((font, language, image, page_size)) => commands.insert_resource(SignAssets {
+        Ok::<_, String>(SignAssets {
             font,
             language,
             page: images.add(image),
-            page_size,
-        }),
+            page_size: Vec2::new(width as f32, (height + 1) as f32),
+        })
+    })();
+    match loaded {
+        Ok(assets) => commands.insert_resource(assets),
         Err(reason) => {
             *failed = true;
             error!("the sign text cannot load its font: {reason}");
