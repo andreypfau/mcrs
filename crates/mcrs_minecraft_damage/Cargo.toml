@@ -11,4 +11,8 @@ doctest = false
 workspace = true
 
 [dependencies]
+glam.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_key.workspace = true
 mcrs_minecraft_physics.workspace = true
+mcrs_minecraft_resource.workspace = true
