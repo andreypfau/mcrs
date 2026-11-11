@@ -1,0 +1,45 @@
+//! Bedrock Edition wire encoding: varints, little-endian primitives, optional values, byte arrays and the packet header.
+#![no_std]
+
+extern crate alloc;
+extern crate self as mcrs_minecraft_bedrock_wire;
+
+mod be_i32;
+mod codec;
+mod counted_list;
+mod error;
+mod experiment;
+#[cfg(feature = "glam")]
+mod glam;
+mod network_block_pos;
+mod network_chunk_pos;
+mod network_signed_block_pos;
+mod optional;
+mod packet;
+mod packet_header;
+mod primitives;
+mod slice;
+mod string;
+mod tag_conversions;
+mod traits;
+mod var_int;
+
+pub use be_i32::BeI32;
+pub use codec::{from_slice, to_bytes};
+pub use counted_list::{decode_counted_list, encode_counted_list};
+pub use error::Error;
+pub use experiment::Experiment;
+pub use mcrs_minecraft_bedrock_wire_macros::{BedrockDecode, BedrockEncode};
+pub use network_block_pos::NetworkBlockPos;
+pub use network_chunk_pos::NetworkChunkPos;
+pub use network_signed_block_pos::NetworkSignedBlockPos;
+pub use packet::{Packet, decode_packet, encode_packet};
+pub use packet_header::PacketHeader;
+pub use slice::decode_items;
+pub use traits::{BedrockDecode, BedrockEncode};
+pub use var_int::{VarI32, VarI64, VarU32, VarU64};
+
+#[doc(hidden)]
+pub mod __private {
+    pub use alloc::vec::Vec;
+}

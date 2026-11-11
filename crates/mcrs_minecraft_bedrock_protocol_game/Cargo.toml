@@ -1,0 +1,18 @@
+[package]
+name = "mcrs_minecraft_bedrock_protocol_game"
+description = "Bedrock Edition game packets: StartGame, Text, MovePlayer, PlayerAuthInput, SetTime, UpdateBlock, ChunkColumn"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_bedrock_wire = { workspace = true, features = ["glam"] }
+glam = { workspace = true }
+mcrs_minecraft_nbt = { workspace = true }

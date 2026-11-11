@@ -62,6 +62,7 @@ bitfield-struct = "0.12.1"
 crc32c = "0.6.8"
 derive_more = "2.0.1"
 flate2 = "1.1.5"
+snap = "1.1.1"
 thiserror = "2.0.17"
 unicode_names2 = { version = "3.1.0", default-features = false }
 tracing = "0.1.41"
@@ -89,6 +90,10 @@ mcrs_minecraft_wire = { path = "crates/mcrs_minecraft_wire" }
 mcrs_minecraft_wire_macros = { path = "crates/mcrs_minecraft_wire_macros" }
 mcrs_minecraft_protocol = { path = "crates/mcrs_minecraft_protocol" }
 mcrs_minecraft_protocol_game = { path = "crates/mcrs_minecraft_protocol_game" }
+mcrs_minecraft_bedrock_wire = { path = "crates/mcrs_minecraft_bedrock_wire" }
+mcrs_minecraft_bedrock_wire_macros = { path = "crates/mcrs_minecraft_bedrock_wire_macros" }
+mcrs_minecraft_bedrock_protocol = { path = "crates/mcrs_minecraft_bedrock_protocol" }
+mcrs_minecraft_bedrock_protocol_game = { path = "crates/mcrs_minecraft_bedrock_protocol_game" }
 mcrs_minecraft_nbt = { path = "crates/mcrs_minecraft_nbt" }
 mcrs_minecraft_snbt = { path = "crates/mcrs_minecraft_snbt" }
 mcrs_minecraft_network = { path = "crates/mcrs_minecraft_network", default-features = false }
