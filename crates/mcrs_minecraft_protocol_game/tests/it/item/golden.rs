@@ -11,7 +11,7 @@ use mcrs_minecraft_registries::FromWire;
 use mcrs_minecraft_registries::Named;
 
 use crate::item::harness::{custom_data, hex, json_of, lookup, named, read_json, registries};
-use mcrs_minecraft_item::item_keys::Item;
+use mcrs_minecraft_item_key::item_keys::Item;
 
 const PATCH_WIRE: &str = "07020110000a03000178000186a00800046e616d6500046d637273000b010800046c696e65060800056e616d656403070414130d";
 const PATCH_DELIMITED_WIRE: &str = "070201011000170a03000178000186a00800046e616d6500046d637273000b08010800046c696e6506080800056e616d656403010704001400130d";

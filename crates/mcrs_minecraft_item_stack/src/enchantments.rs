@@ -3,6 +3,7 @@ use alloc::vec::Vec;
 
 use crate::EnchantmentLevel;
 use crate::Neutral;
+use crate::entity_form::EntityForm;
 
 /// The enchantments of the stack, at most one level for each enchantment.
 // The entries are in the order of the enchantment ids, so the derived equality ignores the order
@@ -20,12 +21,6 @@ impl Enchantments {
         is_strictly_ascending(&entries).then_some(Self(Cow::Owned(entries)))
     }
 
-    /// Gives `None` when the entries are not in the strict order of the enchantment ids.
-    #[must_use]
-    pub fn from_static(entries: &'static [EnchantmentLevel]) -> Option<Self> {
-        is_strictly_ascending(entries).then_some(Self(Cow::Borrowed(entries)))
-    }
-
     /// The entries in the order of the enchantment ids.
     #[must_use]
     pub fn entries(&self) -> &[EnchantmentLevel] {
@@ -33,14 +28,16 @@ impl Enchantments {
     }
 }
 
-impl Default for Enchantments {
-    fn default() -> Self {
-        Self(Cow::Borrowed(&[]))
-    }
-}
-
 impl Neutral for Enchantments {
     const NEUTRAL: &'static Self = &Self(Cow::Borrowed(&[]));
+}
+
+impl EntityForm for Enchantments {
+    const NEUTRAL: Option<&'static Self> = Some(<Self as Neutral>::NEUTRAL);
+
+    fn borrow_static(&'static self) -> Self {
+        Self(Cow::Borrowed(&self.0))
+    }
 }
 
 fn is_strictly_ascending(entries: &[EnchantmentLevel]) -> bool {

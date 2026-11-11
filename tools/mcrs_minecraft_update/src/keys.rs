@@ -1389,7 +1389,7 @@ mod tests {
     fn generated_tags_name_their_shipped_files() {
         use mcrs_minecraft_biome::{biome_tag_keys, registry_keys::BIOME};
         use mcrs_minecraft_block::{block_tag_keys, registry_keys::BLOCK};
-        use mcrs_minecraft_item::{item_tag_keys, registry_keys::ITEM};
+        use mcrs_minecraft_item_key::{item_tag_keys, registry_keys::ITEM};
 
         let vanilla = mcrs_minecraft_fixtures::vanilla_dir();
         let rows = [

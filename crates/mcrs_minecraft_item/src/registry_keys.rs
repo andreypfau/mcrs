@@ -2,18 +2,6 @@
 
 use mcrs_minecraft_resource::{Registered, RegistryKey, rl};
 
-pub const BANNER_PATTERN: RegistryKey<crate::BannerPattern> =
-    RegistryKey::new(rl!("minecraft:banner_pattern"));
-impl Registered for crate::BannerPattern {
-    const REGISTRY: RegistryKey<Self> = BANNER_PATTERN;
-}
-
-pub const BLOCK_TRANSFORMER: RegistryKey<crate::block_transformer::BlockTransformer> =
-    RegistryKey::new(rl!("minecraft:block_transformer"));
-impl Registered for crate::block_transformer::BlockTransformer {
-    const REGISTRY: RegistryKey<Self> = BLOCK_TRANSFORMER;
-}
-
 pub const CONSUME_EFFECT_TYPE: RegistryKey<crate::consume_effect_type_keys::ConsumeEffectType> =
     RegistryKey::new(rl!("minecraft:consume_effect_type"));
 impl Registered for crate::consume_effect_type_keys::ConsumeEffectType {
@@ -31,12 +19,6 @@ pub const DATA_COMPONENT_TYPE: RegistryKey<crate::data_component_type_keys::Data
     RegistryKey::new(rl!("minecraft:data_component_type"));
 impl Registered for crate::data_component_type_keys::DataComponentType {
     const REGISTRY: RegistryKey<Self> = DATA_COMPONENT_TYPE;
-}
-
-pub const DECORATED_POT_PATTERN: RegistryKey<crate::decorated_pot_pattern::DecoratedPotPattern> =
-    RegistryKey::new(rl!("minecraft:decorated_pot_pattern"));
-impl Registered for crate::decorated_pot_pattern::DecoratedPotPattern {
-    const REGISTRY: RegistryKey<Self> = DECORATED_POT_PATTERN;
 }
 
 pub const DIALOG: RegistryKey<crate::dialog::Dialog> = RegistryKey::new(rl!("minecraft:dialog"));
@@ -80,33 +62,16 @@ impl Registered for crate::InstrumentValue {
     const REGISTRY: RegistryKey<Self> = INSTRUMENT;
 }
 
-pub const ITEM: RegistryKey<crate::item_keys::Item> = RegistryKey::new(rl!("minecraft:item"));
-impl Registered for crate::item_keys::Item {
-    const REGISTRY: RegistryKey<Self> = ITEM;
-}
-
 pub const JUKEBOX_SONG: RegistryKey<crate::JukeboxSong> =
     RegistryKey::new(rl!("minecraft:jukebox_song"));
 impl Registered for crate::JukeboxSong {
     const REGISTRY: RegistryKey<Self> = JUKEBOX_SONG;
 }
 
-pub const MAP_DECORATION_TYPE: RegistryKey<crate::map_decoration_type_keys::MapDecorationType> =
-    RegistryKey::new(rl!("minecraft:map_decoration_type"));
-impl Registered for crate::map_decoration_type_keys::MapDecorationType {
-    const REGISTRY: RegistryKey<Self> = MAP_DECORATION_TYPE;
-}
-
 pub const PAINTING_VARIANT: RegistryKey<crate::PaintingVariantValue> =
     RegistryKey::new(rl!("minecraft:painting_variant"));
 impl Registered for crate::PaintingVariantValue {
     const REGISTRY: RegistryKey<Self> = PAINTING_VARIANT;
-}
-
-pub const POTION: RegistryKey<crate::potion_keys::Potion> =
-    RegistryKey::new(rl!("minecraft:potion"));
-impl Registered for crate::potion_keys::Potion {
-    const REGISTRY: RegistryKey<Self> = POTION;
 }
 
 pub const RECIPE: RegistryKey<crate::recipe::Recipe> = RegistryKey::new(rl!("minecraft:recipe"));

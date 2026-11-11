@@ -8,7 +8,7 @@ use mcrs_minecraft_block::fluid_keys::Fluid;
 use mcrs_minecraft_block::fluid_tag_keys::WATER;
 use mcrs_minecraft_chunk::VoxelId;
 use mcrs_minecraft_item::ItemDefinitions;
-use mcrs_minecraft_item::item_keys::Item;
+use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_resource::{Id, ResourceLocationBuf, TagKey, rl};
 use mcrs_voxel::BlockStateId;

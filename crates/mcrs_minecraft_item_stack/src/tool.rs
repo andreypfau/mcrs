@@ -27,17 +27,6 @@ impl Tool {
             can_destroy_blocks_in_creative: true,
         }
     }
-
-    /// Gives `None` for a negative damage, which the saved form does not hold.
-    #[must_use]
-    pub fn with_damage_per_block(mut self, damage_per_block: i32) -> Option<Self> {
-        if damage_per_block >= 0 {
-            self.damage_per_block = damage_per_block;
-            Some(self)
-        } else {
-            None
-        }
-    }
 }
 
 impl PartialEq for Tool {

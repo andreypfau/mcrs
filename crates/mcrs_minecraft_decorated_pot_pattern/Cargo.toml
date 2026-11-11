@@ -1,0 +1,16 @@
+[package]
+name = "mcrs_minecraft_decorated_pot_pattern"
+description = "The decorated pot pattern registry value and its keys"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_registries.workspace = true
+serde = { workspace = true, features = ["derive"] }

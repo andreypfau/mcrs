@@ -14,6 +14,7 @@
 )]
 
 mod error;
+mod vanilla_round_trip;
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -25,6 +26,7 @@ use mcrs_minecraft_core::VERSION;
 use serde::Deserialize;
 
 pub use error::FixtureError;
+pub use vanilla_round_trip::assert_vanilla_round_trip;
 
 pub const MANIFEST: &str = "tools/captures.json";
 const TABLE_FILE: &str = "tools/fixtures.json";

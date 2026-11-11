@@ -1,14 +1,14 @@
 use crate::item::harness::WireCodec;
 use std::sync::Arc;
 
+use mcrs_minecraft_banner_pattern::BannerPattern;
 use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::item::WireLookup;
 use mcrs_minecraft_protocol_game::item::for_each_data_component;
 use mcrs_minecraft_protocol_game::item::{
-    BannerPattern, BundleContents, ChargedProjectiles, ComponentPatch, Container,
-    ItemComponentValue, ItemStackValue, PotDecorations, ProtoStack, SulfurCubeContent, Template,
-    UseRemainder,
+    BundleContents, ChargedProjectiles, ComponentPatch, Container, ItemComponentValue,
+    ItemStackValue, PotDecorations, ProtoStack, SulfurCubeContent, Template, UseRemainder,
 };
 use mcrs_minecraft_registries::{FromWire, Named, Ref, Resolved, Wire};
 use mcrs_minecraft_resource::{Id, rl};
@@ -20,7 +20,7 @@ use crate::item::harness::{
     decode, entry, from_json, from_nbt, json_of, lookup, named, persistent_json, read_json,
     resolved, wire,
 };
-use mcrs_minecraft_item::item_keys::Item;
+use mcrs_minecraft_item_key::item_keys::Item;
 
 const ITERATIONS: usize = 256;
 const ITEMS: [&str; 4] = ["stone", "diamond_sword", "apple", "bundle"];

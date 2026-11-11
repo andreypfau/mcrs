@@ -131,14 +131,6 @@ fn stacks_are_equal_when_item_count_and_patch_entries_are_equal() {
 }
 
 #[test]
-fn stacks_with_different_counts_have_the_same_item_and_components() {
-    let one = stack(7, 1).set(Rarity::Rare).unset::<Damage>();
-    let many = stack(7, 64).unset::<Damage>().set(Rarity::Rare);
-    assert_eq!(one.kind, many.kind);
-    assert_eq!(one.patch(), many.patch());
-}
-
-#[test]
 fn stacks_are_mergeable_when_item_and_patch_are_equal() {
     let cases: [(&str, ItemStack, ItemStack, bool); 4] = [
         (

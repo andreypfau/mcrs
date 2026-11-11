@@ -14,7 +14,7 @@ use crate::component::consume::{
 };
 use crate::data_component_type_keys::DataComponentType;
 use crate::harness::Sample;
-use crate::item_keys::Item;
+use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_wire::{Decode, Encode, Result, VarInt};
 
 float_default! {

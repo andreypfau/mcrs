@@ -238,7 +238,7 @@ fn out_of_range_wire_ids_read_as_the_first_entry() {
 
 #[test]
 fn a_stack_with_several_enchantments_survives_the_registry_free_pass() {
-    use mcrs_minecraft_item::item_keys::Item;
+    use mcrs_minecraft_item_key::item_keys::Item;
     use mcrs_minecraft_protocol::{Decode, Encode};
     use mcrs_minecraft_protocol_game::item::{ComponentPatch, Enchantments, ProtoStack};
     use mcrs_minecraft_registries::{FromWire, Wire};

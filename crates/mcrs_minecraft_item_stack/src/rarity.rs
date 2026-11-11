@@ -7,3 +7,21 @@ pub enum Rarity {
     Rare,
     Epic,
 }
+
+impl Rarity {
+    /// Each variant, in the order of the wire ids.
+    pub(crate) const ALL: [Self; 4] = [Self::Common, Self::Uncommon, Self::Rare, Self::Epic];
+
+    pub(crate) const fn name(self) -> &'static str {
+        match self {
+            Self::Common => "common",
+            Self::Uncommon => "uncommon",
+            Self::Rare => "rare",
+            Self::Epic => "epic",
+        }
+    }
+
+    pub(crate) fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|rarity| rarity.name() == name)
+    }
+}

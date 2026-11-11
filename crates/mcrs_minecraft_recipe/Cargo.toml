@@ -13,6 +13,7 @@ workspace = true
 [dependencies]
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_item.workspace = true
+mcrs_minecraft_item_key.workspace = true
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_wire.workspace = true

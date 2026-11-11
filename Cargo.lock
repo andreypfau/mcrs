@@ -3617,6 +3617,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_banner_pattern"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+ "mcrs_minecraft_wire",
+ "serde",
+]
+
+[[package]]
 name = "mcrs_minecraft_bench_support"
 version = "0.5.8"
 dependencies = [
@@ -3692,6 +3702,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_item_key",
  "mcrs_minecraft_loot",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_registries",
@@ -3724,6 +3735,20 @@ dependencies = [
  "mcrs_minecraft_resource",
  "mcrs_minecraft_value_provider",
  "mcrs_minecraft_wire",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_block_transformer"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_block_predicate",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+ "mcrs_minecraft_sound",
+ "mcrs_minecraft_worldgen_testing",
  "serde",
  "serde_json",
 ]
@@ -3872,6 +3897,7 @@ dependencies = [
  "mcrs_minecraft_entity",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_item_key",
  "mcrs_minecraft_network",
  "mcrs_minecraft_numeric",
  "mcrs_minecraft_protocol",
@@ -3901,6 +3927,7 @@ dependencies = [
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_item_key",
  "mcrs_minecraft_lang",
  "mcrs_minecraft_model",
  "mcrs_minecraft_model_file",
@@ -4292,6 +4319,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_decorated_pot_pattern"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+ "serde",
+]
+
+[[package]]
 name = "mcrs_minecraft_dimension"
 version = "0.5.8"
 dependencies = [
@@ -4327,6 +4363,7 @@ name = "mcrs_minecraft_enchantment"
 version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_item",
+ "mcrs_minecraft_item_key",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
@@ -4421,6 +4458,21 @@ dependencies = [
  "mcrs_minecraft_volume",
  "mcrs_voxel",
  "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_engine_item"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_math",
+ "mcrs_minecraft_inventory_plan",
+ "mcrs_minecraft_item_stack",
+ "mcrs_minecraft_item_table",
+ "mcrs_minecraft_text",
+ "mcrs_test_alloc",
+ "rustc-hash 2.1.1",
 ]
 
 [[package]]
@@ -4734,12 +4786,15 @@ dependencies = [
  "bytes",
  "glam",
  "mcrs_minecraft_assets",
+ "mcrs_minecraft_banner_pattern",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block",
  "mcrs_minecraft_block_predicate",
+ "mcrs_minecraft_block_transformer",
  "mcrs_minecraft_core",
  "mcrs_minecraft_datapack",
+ "mcrs_minecraft_decorated_pot_pattern",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_enchantment",
@@ -4750,6 +4805,7 @@ dependencies = [
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_game_rule",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_item_key",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_noise",
  "mcrs_minecraft_protocol",
@@ -4834,6 +4890,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_instrument"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_sound",
+ "mcrs_minecraft_text",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mcrs_minecraft_inventory_plan"
 version = "0.5.8"
 
@@ -4845,14 +4914,20 @@ dependencies = [
  "bevy_ecs",
  "crc32c",
  "hashbrown 0.16.1",
+ "mcrs_minecraft_banner_pattern",
  "mcrs_minecraft_block",
  "mcrs_minecraft_block_predicate",
+ "mcrs_minecraft_block_transformer",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_decorated_pot_pattern",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_item_key",
  "mcrs_minecraft_loot",
+ "mcrs_minecraft_map_decoration",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_potion",
  "mcrs_minecraft_profile",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
@@ -4869,12 +4944,53 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_item_key"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+]
+
+[[package]]
 name = "mcrs_minecraft_item_stack"
 version = "0.5.8"
 dependencies = [
  "bevy_ecs",
+ "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_nbt",
  "mcrs_minecraft_resource",
+ "mcrs_minecraft_snbt",
  "mcrs_minecraft_text",
+ "mcrs_minecraft_wire",
+ "mcrs_test_alloc",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_item_table"
+version = "0.5.8"
+dependencies = [
+ "bevy_ecs",
+ "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_item_stack",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_resource",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_jukebox_song"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_sound",
+ "mcrs_minecraft_text",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -4908,6 +5024,7 @@ dependencies = [
  "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_item_key",
  "mcrs_minecraft_light_engine",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
@@ -4958,6 +5075,14 @@ dependencies = [
 
 [[package]]
 name = "mcrs_minecraft_loot"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+]
+
+[[package]]
+name = "mcrs_minecraft_map_decoration"
 version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_registries",
@@ -5019,6 +5144,7 @@ dependencies = [
  "mcrs_minecraft_entity_model",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_item_key",
  "mcrs_minecraft_mesh",
  "mcrs_minecraft_model_file",
  "mcrs_minecraft_nbt",
@@ -5143,6 +5269,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_painting_variant"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_resource",
+ "mcrs_minecraft_text",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mcrs_minecraft_particle"
 version = "0.5.8"
 dependencies = [
@@ -5170,6 +5308,14 @@ dependencies = [
  "mcrs_minecraft_physics",
  "mcrs_voxel",
  "rustc-hash 2.1.1",
+]
+
+[[package]]
+name = "mcrs_minecraft_potion"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
 ]
 
 [[package]]
@@ -5227,6 +5373,7 @@ dependencies = [
  "criterion",
  "derive_more",
  "glam",
+ "mcrs_minecraft_banner_pattern",
  "mcrs_minecraft_block",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_command_tree",
@@ -5238,6 +5385,7 @@ dependencies = [
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_item_key",
  "mcrs_minecraft_menu",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_particle",
@@ -5274,6 +5422,7 @@ version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_item_key",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_wire",
@@ -5323,10 +5472,13 @@ dependencies = [
  "mcrs_minecraft_environment",
  "mcrs_minecraft_game_rule",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_item_key",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_loot",
+ "mcrs_minecraft_map_decoration",
  "mcrs_minecraft_menu",
  "mcrs_minecraft_particle",
+ "mcrs_minecraft_potion",
  "mcrs_minecraft_predicate",
  "mcrs_minecraft_recipe",
  "mcrs_minecraft_resource",
@@ -5468,6 +5620,7 @@ dependencies = [
  "mcrs_minecraft_goals",
  "mcrs_minecraft_heightmap",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_item_key",
  "mcrs_minecraft_lang",
  "mcrs_minecraft_light_engine",
  "mcrs_minecraft_nbt",
@@ -5590,6 +5743,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_trim"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_resource",
+ "mcrs_minecraft_text",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mcrs_minecraft_update"
 version = "0.5.8"
 dependencies = [
@@ -5599,7 +5763,7 @@ dependencies = [
  "mcrs_minecraft_client_jar",
  "mcrs_minecraft_core",
  "mcrs_minecraft_fixtures",
- "mcrs_minecraft_item",
+ "mcrs_minecraft_item_key",
  "mcrs_minecraft_resource",
  "serde",
  "serde_json",
@@ -5767,7 +5931,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_environment",
- "mcrs_minecraft_item",
+ "mcrs_minecraft_item_key",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_noise",
  "mcrs_minecraft_numeric",
@@ -5875,7 +6039,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_fixtures",
- "mcrs_minecraft_item",
+ "mcrs_minecraft_item_key",
  "mcrs_minecraft_loot",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_noise",

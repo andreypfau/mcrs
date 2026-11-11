@@ -8,6 +8,7 @@ use bevy_asset::io::{AssetReaderError, AssetSourceBuilder, AssetSourceId};
 use bevy_asset::{AssetApp, AssetPlugin, AssetServer};
 use mcrs_minecraft_assets::asset::read_whole;
 use mcrs_minecraft_assets::packs::{PackLayers, layered_file_source, layered_reader};
+use mcrs_minecraft_banner_pattern::BannerPattern;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_datapack::{Level, PackDiagnostic, StackedPack, VANILLA_PACK};
@@ -23,7 +24,7 @@ use mcrs_minecraft_game_registries::variant::{WolfVariantFile, spawn_selectors};
 use mcrs_minecraft_game_registries::worldgen::chunk_generator::ChunkGenerator;
 use mcrs_minecraft_game_registries::worldgen::world_preset::WorldPreset;
 use mcrs_minecraft_item::dialog::{Action, Dialog, DialogBody, Input};
-use mcrs_minecraft_item::{BannerPattern, InstrumentValue, PaintingVariantValue};
+use mcrs_minecraft_item::{InstrumentValue, PaintingVariantValue};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registries::{
     CurrentRegistries, Declaration, Diagnostic, IdSet, NetworkSnapshot, Registries,
@@ -40,7 +41,7 @@ use crate::common::{
     tag_members, write_named,
 };
 use mcrs_minecraft_dimension::DimensionType;
-use mcrs_minecraft_item::item_keys::Item;
+use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_noise::proto::NoiseParam;
 use mcrs_minecraft_worldgen_carver::config::CarverConfig;
 use mcrs_minecraft_worldgen_density::proto::DensityFunctionHolder;

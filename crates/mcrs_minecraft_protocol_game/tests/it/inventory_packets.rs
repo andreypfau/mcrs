@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use mcrs_minecraft_core::codec::Bounded as Range;
-use mcrs_minecraft_item::item_keys::Item;
+use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_menu::menu_keys::MenuType;
 use mcrs_minecraft_protocol::{Bounded, Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::ProtoStack;

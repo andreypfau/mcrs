@@ -1,4 +1,4 @@
-use mcrs_minecraft_item::block_transformer::BlockTransformer;
+use mcrs_minecraft_block_transformer::BlockTransformer;
 use mcrs_minecraft_registries::Named;
 use mcrs_minecraft_worldgen_testing::{json_files, reencode, vanilla_dir};
 

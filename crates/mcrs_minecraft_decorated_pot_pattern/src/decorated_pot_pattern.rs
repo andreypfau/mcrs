@@ -6,3 +6,5 @@ use serde::{Deserialize, Serialize};
 pub struct DecoratedPotPattern {
     pub asset_id: ResourceLocationBuf,
 }
+
+mcrs_minecraft_registries::resolve_as_is!(DecoratedPotPattern);

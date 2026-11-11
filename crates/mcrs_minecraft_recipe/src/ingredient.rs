@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::codec::Validate;
 use mcrs_minecraft_core::validated;
-use mcrs_minecraft_item::item_keys::Item;
+use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_registries::{
     IdSet, KeySet, Named, Refs, Resolved, Wire, WireId, WireSet, registry_value,
 };

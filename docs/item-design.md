@@ -78,7 +78,7 @@ All crate names are **(proposal)**. The layer numbers are those of `CLAUDE.md`.
 | Crate | Layer | Bevy | Owns | Depends on |
 |-|-|-|-|-|
 | `mcrs_minecraft_item_stack` | 3, data | feature `bevy`: derives only | `ItemStack`, `PatchEntry`, `Kind`, `Count`, one type for each component type, the traits of section 4.1, the codecs of the spec section 6 | wire, NBT, SNBT, text, registry ids |
-| `mcrs_minecraft_item_table` | 3, data | feature `bevy`: one resource derive | `ItemTable`, `Prototype`, `ItemRegistry`; the bake from the data pack | `mcrs_minecraft_item_stack`, registries |
+| `mcrs_minecraft_item_table` | 3, data | feature `bevy`: one resource derive | `ItemTable`, `Prototype`; the bake from the data pack | `mcrs_minecraft_item_stack`, registries |
 | `mcrs_minecraft_inventory_plan` | 3, rules | none | the planner of an atomic request | nothing (`core` and `alloc`) |
 | `mcrs_minecraft_engine_item` | 4, engine | required | the entity form, hooks, commands, read tools, the request command, `Equipped` | the three crates above, `bevy_ecs`, `bevy_app`, `bevy_math` |
 | `mcrs_minecraft_item_behaviour` | 5, vanilla | none | what each item does (later specification) | layer 3 crates |
@@ -175,12 +175,10 @@ impl ItemTable {
     pub fn leak(prototypes: impl IntoIterator<Item = Vec<Builtin>>) -> Self;
     pub fn prototype(&self, kind: Kind) -> Option<&'static Prototype>;
 }
-pub struct ItemRegistry { /* private: one row of fn pointers for each component type */ }
-pub enum RowHashing { Included, Excluded }
 ```
 
-`ItemRegistry` is not generic. Each row holds `fn` pointers for equality, hash, clone and the
-conversion to and from the value form. It has no `dyn`.
+The table has no registry of component operations. The value form compares, hashes and clones a
+`PatchEntry` directly. The rows of `fn` pointers over the entity form belong to the engine crate.
 
 ## 4.3 `mcrs_minecraft_inventory_plan`
 
@@ -227,7 +225,11 @@ The caller owns `scratch` and uses it again for the next request.
 ## 4.4 `mcrs_minecraft_engine_item`
 
 ```rust
-pub struct ItemPlugin { pub table: ItemTable }
+pub struct ItemPlugin { pub table: ItemTable, /* private: the schedule */ }
+impl ItemPlugin {
+    pub fn new(table: ItemTable) -> Self;          // `ItemSet` in `FixedUpdate`
+    pub fn in_schedule(self, schedule: impl ScheduleLabel) -> Self;
+}
 pub struct ItemSet;                                // the set of the projection of `Equipped`
 pub trait ItemAppExt {                             // for `App`
     fn register_item_component<T: CustomComponent + Component>(&mut self)
@@ -408,7 +410,7 @@ impl CustomComponent for Soulbound {
     fn decode(bytes: &[u8]) -> Option<Self> { Some(Self(u64::from_le_bytes(bytes.try_into().ok()?))) }
 }
 
-app.add_plugins(ItemPlugin { table }).register_item_component::<Soulbound>()?;
+app.add_plugins(ItemPlugin::new(table)).register_item_component::<Soulbound>()?;
 
 let stack = ItemStack::new(kind, count).set(CustomName("Sting".into())).unset::<Lore>();
 let bytes = encode_wire(Some(&stack))?;            // the codec names come with the codec step
@@ -493,7 +495,9 @@ guarantees:
 6. The removal of `Slots` from a holder, and the despawn of a holder, despawn its stacks.
 7. The despawn of a stack clears its slot.
 
-Only the engine crate can construct `InSlot`, so no user code can break guarantee 1.
+Only the engine crate can construct `InSlot`. `Slots` has no method that writes a slot, but it is a
+mutable component: a user system that replaces the value of a `Slots` in place breaks guarantee 1.
+A holder gets new slots through an insert of `Slots`, never through an assignment.
 
 ## 7.3 What does not panic
 
@@ -699,7 +703,7 @@ leaves the item stack. Each target crate is a layer 3 data crate without Bevy.
   `mcrs_minecraft_registries` to the crate.
 - `mcrs_minecraft_item_key` does not depend on the stack: a user of the item ids does not pay for
   the stack.
-  `mcrs_minecraft_item_table` gives the conversion from `Item` to `Kind`.
+  The conversion from `Item` to `Kind` arrives in `mcrs_minecraft_item_table` with its first caller.
 - The trim materials and the trim patterns are one crate. One component reads the two registries
   together, and neither has a different user.
 - A text-bearing value of the old crate takes its text from the old template. Thus the four crates
@@ -725,9 +729,11 @@ Registry moves. The old crate depends on each new crate and imports from it.
   `-p mcrs_minecraft_decorated_pot_pattern -p mcrs_minecraft_game_registries`.
 - **4.6 Block transformer (K).** Move the two files and the test. Check:
   `-p mcrs_minecraft_block_transformer -p mcrs_minecraft_game_registries`.
-- **4.7 Discriminators (K).** Move the three files to `mcrs_minecraft_item_stack`. A test compares
-  `BuiltinKey` with the generated enum. Edit the imports of the 7 users. Check:
-  `-p mcrs_minecraft_item_stack` and the 7 users.
+- **4.7 Discriminators (K).** Deferred to step 11. The old crate has methods and trait
+  implementations on the three generated enums, and the flag table of a component type comes from
+  the old component list. A move before the old crate goes breaks the orphan rule. The move runs
+  in the pull request that deletes the old crate; the flag table is written again from the
+  specification in `mcrs_minecraft_item_stack`.
 - **4.8 to 4.11 Instrument, jukebox song, painting variant, trim.** One new crate for each
   sub-step, with the value type over `I` and no key file. Needs: none for the types; 4.18 for a
   codec of the description. Check: `-p` the new crate.
@@ -755,10 +761,9 @@ are in that file.
 
 The item table.
 
-- **5.1 Table.** New crate with `Prototype`, `ItemTable` and the conversion from `Item`. Needs:
+- **5.1 Table.** New crate with `Prototype` and `ItemTable`. Needs:
   4.1. Check: `-p mcrs_minecraft_item_table`.
-- **5.2 Registry.** `ItemRegistry` and `RowHashing`: one row of `fn` pointers for each built-in
-  type. Needs: 5.1. Check: as 5.1.
+- **5.2 Registry.** Removed: the engine crate holds the only rows of component operations.
 - **5.3 Bake.** Read `assets/mcrs/item_definition/` into typed shapes and build the table. A type
   with no codec yet is counted and skipped. Needs: 5.1, 4.14. Check: as 5.1.
 - **5.4 Complete bake.** A skipped type becomes a load error. Run the check of open point 9 against

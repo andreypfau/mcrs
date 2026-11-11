@@ -24,7 +24,7 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:banner_pattern",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_banner_pattern",
         value: ValueType::Defined("crate::BannerPattern"),
     },
     Owner {
@@ -69,8 +69,8 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:decorated_pot_pattern",
-        krate: "mcrs_minecraft_item",
-        value: ValueType::Defined("crate::decorated_pot_pattern::DecoratedPotPattern"),
+        krate: "mcrs_minecraft_decorated_pot_pattern",
+        value: ValueType::Defined("crate::DecoratedPotPattern"),
     },
     Owner {
         registry: "minecraft:dialog",
@@ -79,8 +79,8 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:block_transformer",
-        krate: "mcrs_minecraft_item",
-        value: ValueType::Defined("crate::block_transformer::BlockTransformer"),
+        krate: "mcrs_minecraft_block_transformer",
+        value: ValueType::Defined("crate::BlockTransformer"),
     },
     Owner {
         registry: "minecraft:enchantment",
@@ -454,12 +454,12 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:map_decoration_type",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_map_decoration",
         value: ValueType::Enum("MapDecorationType"),
     },
     Owner {
         registry: "minecraft:potion",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_potion",
         value: ValueType::Enum("Potion"),
     },
     Owner {
@@ -569,7 +569,7 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:item",
-        krate: "mcrs_minecraft_item",
+        krate: "mcrs_minecraft_item_key",
         value: ValueType::Enum("Item"),
     },
     Owner {
