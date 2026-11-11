@@ -591,10 +591,10 @@ from a request in this way:
 
    A result of no path includes each early stop of PATH-REQ-001, steps 1 and 2.
 2. If the result comes from a search, apply the cauldron rule to each node in order: when the
-   node is at a block of the tag `cauldrons`, compare its `y` with the `y` of the next node. Move
-   the node up by 1. When the old `y` is not less than the `y` of the next node, the next node also
-   takes the `y` of the moved node. A request that gives the current path (PATH-REQ-001, step 3)
-   skips this step.
+   node is at a block of the tag `cauldrons`, compare its old `y` with the `y` of the next node.
+   Move the node up by 1. When the old `y` is not less than the `y` of the next node, the next
+   node also takes the `y` of the moved node. A request that gives the current path
+   (PATH-REQ-001, step 3) skips this step.
 3. If the result is done (its next node index is the node count, also for 0 nodes), the navigation
    drops its path. Stop.
 4. The path changes when the navigation has no unfinished path, or when the node positions of the
@@ -692,7 +692,7 @@ A reset of the timeout clears the node of the last check and sets the timer and 
 The acceptance of a changed path (PATH-REQ-004) and a timeout reset it. Thus the timer counts the
 ticks with one next node, and a path times out only at a node that the mob does not reach in 3
 times its expected time. A slow mob on a long path keeps its path: in the scene of P4 each node
-takes about 50 ticks against a limit of about 310 ticks. PATH-DEV-008 records the reference.
+takes about 50 ticks, and 3 times the limit is about 310 ticks. PATH-DEV-008 records the reference.
 
 **PATH-FOL-005** (`source_suggested_black_box_confirmed`, semantic, confidence: medium). The wanted
 position is `(px, gy, pz)`, where `(px, py, pz)` is the point of the next node. `gy` is `py` when the
@@ -705,8 +705,15 @@ navigation: the start tick and the start position. Only three events write them:
 a changed path (PATH-REQ-004, step 4), an advance, and a stuck check. A request that gives the
 current path (PATH-REQ-001, step 3) writes no value of the follower. A recompute is a request, so
 it starts a window only when its path changes. The navigation compares node positions only for the
-result of a search, never in each tick. The follower can skip the ticks of a resting row (PATH-DET-006). This
-does not change a result: a path after a rest is a changed path, so its acceptance starts a window.
+result of a search, never in each tick. The follower can skip the ticks of a resting row
+(PATH-DET-006). This does not change a result: a path after a rest is a changed path, so its
+acceptance starts a window.
+
+The stuck state of AIT-VAN-012 is not a separate flag. It is the end reason of the last path: the
+reason is "stuck" after a failed stuck check, and the acceptance of a changed path clears the
+reason. A brain reads the reason when its walk ends. The acceptance is a function of the current
+path and the result. It gives one of three outcomes: changed, same or dropped. Only the outcome
+"changed" writes the stuck window and the timeout.
 
 ## 7. The move control and the jump control
 
@@ -795,7 +802,8 @@ recompute for a navigating mob. The trigger needs all these conditions:
    cannot update a path, the recompute waits. Stop. The follower tries it again in each tick
    (PATH-FOL-001).
 2. Else run a search to the stored target with the stored reach range and the speed modifier of
-   the navigation (PATH-REQ-001, steps 2 and 4). Accept the result as PATH-REQ-004 states for a
+   the navigation (PATH-REQ-001, steps 1, 2 and 4). Step 1 adjusts the stored target again, so a
+   block change below the target can move it. Accept the result as PATH-REQ-004 states for a
    request of a set of block targets: no path drops the path. The tick of the last recompute becomes
    the current tick. The recompute no longer waits.
 
@@ -1117,8 +1125,8 @@ only where the reference depends on an order that is not part of the world, or o
 - **Reference:** the timer is not reset at a new next node, so it counts the ticks of the whole
   path, and the limit of the current node ends the path. The reset node is the block position
   `(0, 0, 0)`; when that is the next node, the timer adds the time since the last check before the
-  reset. P4 shows the result: a piglin that walks through cobwebs stops for 1 or 2 ticks about each
-  316 ticks of one path.
+  reset, and the limit stays 0, so that node does not time out. P4 shows the result: a piglin
+  that walks through cobwebs stops for 1 or 2 ticks about each 316 ticks of one path.
 - **Visible to the client:** yes. A slow mob on a long path stops for 1 or 2 ticks at intervals.
 - **Test:** a differential test ignores a stop of 1 or 2 ticks that a timeout explains. P4 is the
   record of the reference.
@@ -1161,6 +1169,10 @@ This server keeps these behaviours of the reference. A test must not report them
   section 12.4 must confirm them.
 - **U4**: `physics-architecture.md`, section 15, question 65: the version of the path type table
   for each snapshot. Step G4 does not need it (PATH-PRF-002). Track A decides it.
+- **U5**: no rule states the sun rule of a ground navigation. A mob that avoids the sun, and that is
+  not under the open sky, cuts its path before the first node under the open sky. The reference
+  applies this rule at each request, as it does the cauldron rule (PATH-DEV-007). A goal sets the
+  flag. The rule and its place in PATH-REQ-004 need an experiment.
 
 ## 15. Experiments
 
@@ -1255,8 +1267,8 @@ The start of the melee goal took more than 12 s in some runs. That timing belong
 **P4**, the timeout. In the cobwebs the piglin moves `0.0196` blocks in each tick from tick 21. The
 move is 0 in the ticks 337 and 338, and in the tick 654: the timeout drops the path, and the melee
 goal asks for a new path. The intervals are 316 and 317 ticks of one path. A limit for each node
-would not end a path here, because each node takes about 50 ticks and the limit of a node is about
-310 ticks. On air, the piglin walks the 29 blocks in about 170 ticks with no stop.
+would not end a path here, because each node takes about 50 ticks and 3 times the limit of a node
+is about 310 ticks. On air, the piglin walks the 29 blocks in about 170 ticks with no stop.
 
 **E-V1**, 400 summons in the farm on the difficulty hard:
 

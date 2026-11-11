@@ -342,16 +342,18 @@ update a path (PATH-REQ-001, step 2).
    A failed check drops the path and marks the mob stuck.
    Without an earlier stop or restart, a motionless mob with positive mob speed drops its path
    101 follower ticks after the window starts.
-   A mob that advances within 100 follower ticks after each window start does not fail this check.
+   The advance comes before the check in the same tick. Thus a mob that advances at most 101
+   follower ticks after each window start does not fail this check.
 4. If an unfinished path remains, do the timeout check of PATH-FOL-004. The timer starts again at
    each new next node.
 5. If an unfinished path remains, give the move control its wanted position and speed modifier
    (PATH-FOL-005).
 
-The stuck state has no fixed expiry. The acceptance of a changed path, a timeout, or a later stuck
-check with enough movement clears it. A request that gives the current path, a stop, an advance and
-idle ticks do not clear it. `pathfinding.md`, PATH-DEV-006 to PATH-DEV-009, records where the
-reference differs.
+A failed stuck check sets the stuck state. The stuck state has no fixed expiry. Only the acceptance
+of a changed path clears it. A failed check always drops the path, so no other stuck check and no
+timeout runs before that acceptance. A request that gives the current path, a stop and idle ticks
+do not clear it. `pathfinding.md`, PATH-DEV-006 to PATH-DEV-009, records where the reference
+differs.
 
 **AIT-VAN-013** (`source_suggested`, semantic, confidence: medium). The move control, the look
 control and the jump control run in each tick, after the path follower and after the goals. A look

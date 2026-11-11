@@ -392,8 +392,8 @@ runs a path search to it with the reach range 0.
 
 The search does not change the navigation of the llama (PATH-REQ-001, step 4). In the reference,
 the search stores its target, and a later recompute goes to that target; `pathfinding.md`,
-PATH-DEV-006, records it. No vanilla rule sets the bred flag except the save key `Bred`. Thus the check acts only
-for a baby of `summon` or of a load with `Bred:1b`.
+PATH-DEV-006, records it. No vanilla rule sets the bred flag except the save key `Bred`. Thus the
+check acts only for a baby of `summon` or of a load with `Bred:1b`.
 
 **LLAMA-TICK-004** (`source_suggested`, semantic, fidelity: exact, confidence: medium). The fall
 damage of a llama follows DMG-FALL-002 with the attributes of LLAMA-TYPE-002. A llama takes the
