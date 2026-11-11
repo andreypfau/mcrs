@@ -31,6 +31,7 @@ use rayon::prelude::*;
 
 use crate::modern_carvers::climate_target_at;
 use crate::multi_noise_biomes::MultiNoiseBiomeTable;
+use crate::probe_lattice::ProbeLattice;
 use crate::stages::extent;
 use crate::{base_column, base_height, first_free_kind, heightmap_kind};
 use mcrs_minecraft_biome::Biome;
@@ -302,6 +303,7 @@ impl StructureIndex {
         View {
             index: self,
             ws: Workspace::new(),
+            lattice: ProbeLattice::default(),
             columns: HashMap::new(),
         }
     }
@@ -692,6 +694,7 @@ fn plane_admits(
 struct View<'a> {
     index: &'a StructureIndex,
     ws: Workspace,
+    lattice: ProbeLattice,
     columns: HashMap<(i32, i32), Vec<VoxelId>>,
 }
 
@@ -810,6 +813,7 @@ impl SiteWorld for View<'_> {
         base_height(
             &self.index.router,
             &mut self.ws,
+            &mut self.lattice,
             predicates,
             first_free_kind(heightmap),
             x,
@@ -826,6 +830,7 @@ impl SiteWorld for View<'_> {
             base_column(
                 &index.router,
                 &mut self.ws,
+                &mut self.lattice,
                 x,
                 z,
                 index.accessor_min_y,

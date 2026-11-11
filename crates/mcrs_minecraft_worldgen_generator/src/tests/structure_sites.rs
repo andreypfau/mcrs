@@ -1,3 +1,4 @@
+use crate::probe_lattice::ProbeLattice;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use mcrs_voxel::ColumnPos;
 use std::sync::{Arc, LazyLock};
@@ -241,12 +242,14 @@ fn assert_base_heights_match_the_oracle(dump: &[DumpSeed], dimensions: usize) {
         for (dimension_id, probes) in entry.heights.iter().take(dimensions) {
             let dimension = dimension(dimension_id);
             let router = build_settings_router(dimension.settings, entry.seed as u64);
+            let mut lattice = ProbeLattice::default();
             assert_eq!(probes.len(), 64);
             for probe in probes {
                 let mut height = |kind| {
                     base_height(
                         &router,
                         &mut ws,
+                        &mut lattice,
                         &predicates,
                         kind,
                         probe.x,

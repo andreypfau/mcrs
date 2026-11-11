@@ -849,6 +849,47 @@ times the memory; the 128 x 128 table is the one kept. What the table misses on 
 what another worker sampled, which is the question of how columns are given to workers and not
 of this table.
 
+## Height probes of the structure starts
+
+A structure start asks the unfilled terrain for the height of single block columns. Such a
+probe filled the density of one column, and that fill sampled the four lattice node columns
+around it every time. Scenario: the overworld structure index at seed 12345, `tile_starts` over
+4 x 4 tiles (4096 chunks) at four tile origins, one thread. Counted with temporary counters that
+are not in the tree.
+
+| tile origin | probes | probes per chunk | share of the time of the starts | one probe |
+|---|---|---|---|---|
+| 0, 0 | 1274 | 0.31 | 94% | 687 us |
+| 40, 0 | 481 | 0.12 | 82% | 722 us |
+| 0, 40 | 3694 | 0.90 | 98% | 623 us |
+| -60, 75 | 137 | 0.03 | 65% | 701 us |
+
+Of one probe, 556 to 624 us are the density fill and 33 to 144 us the fluid field and the
+blocks. Two ideas were measured before a change:
+
+- **A height cached by `(x, z)` does not pay.** 1214 of the 1274 probes at the first origin
+  stand on a column of their own, and 3592 of 3694 at the third. It is not built.
+- **The probes share their node columns.** The probes of the four origins need 583, 581, 846
+  and 229 distinct node columns, where one fill per probe samples 5096, 1924, 14 776 and 548.
+
+The view of a tile now keeps the node columns its probes sampled and pins the lattice of each
+probe from them (`ProbeLattice`). The starts are the same starts, start for start. The time of
+the 16 tiles, median of five runs and the range:
+
+| tile origin | before | after | change |
+|---|---|---|---|
+| 0, 0 | 821.7 ms (816.2 to 910.2) | 211.5 ms (193.9 to 234.1) | -74% |
+| 40, 0 | 373.0 ms (367.9 to 399.3) | 177.2 ms (168.6 to 200.1) | -52% |
+| 0, 40 | 2297.2 ms (2207.1 to 2345.2) | 287.5 ms (283.1 to 314.6) | -87% |
+| -60, 75 | 139.8 ms (129.8 to 149.9) | 95.4 ms (94.5 to 110.2) | -32% |
+
+Machine: AMD Ryzen AI 9 HX 370, the cores at their full frequency this time, release profile.
+Before is the commit of the surface levels above.
+
+Not done: a height probe still settles every block of its column, where a descent from the top
+could stop at the first block the heightmap takes. After this change the fluid field and the
+blocks are 30 to 143 us of a probe that costs 72 to 386 us.
+
 ## Server start
 
 Scenario: the release `mcrs` binary on the reference machine, started with no world folder (the
