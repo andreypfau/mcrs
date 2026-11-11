@@ -546,11 +546,11 @@ entities with `data get entity`. Record the clientbound packets of each client a
 | E7 | Place a chest with 64 `stone` and 1 `dirt`. Destroy it as in E6. | R7 |
 | E8 | Summon item entities with given fields at `P` and at given distances, with `NoGravity`. | R11, R14, R15 |
 | E9 | Set the selected slot of `P` to 2. Put 60 `stone` in the hotbar slots 0 and 2 and in the off-hand slot. Summon 4 `stone` at `P`. Repeat with the hotbar slot 2 empty. | R16 |
-| E10 | Fill 35 main slots of `P` with `dirt` and put 60 `stone` in the last one. Summon 10 `stone` at `P`. Wait 2 seconds. Clear the `dirt`. | R17 |
+| E10 | Put 60 `stone` in window 0 slot 35 of `P`. Fill the other 35 main slots with `dirt`. Summon 10 `stone` at `P`. Wait 2 seconds. Clear the `dirt`. | R17 |
 | E11 | Fill the 36 main slots of `P` with `dirt` in creative mode. Summon 10 `stone` at `P`. | R18 |
 | E12 | Summon pairs of `stone` item entities with `NoGravity` at the distances and with the fields of R19. Step 45 ticks. | R19 |
 | E13 | Summon item entities with the ages 5990 and -32768 and with the pickup delay 32767. Step 9 ticks, then 1 tick. | R13 |
-| E14 | Summon an item entity in water, in lava, in `fire`, in `soul_fire`, on a `cactus`, and with `Fire` 200. Step 1 tick at a time and read `Motion`, `Health` and if it exists. | R10, R20, R21 |
+| E14 | Summon an item entity with `Motion` `(0.1, 0, 0)` in water and in lava. Summon an item entity in `fire`, in `soul_fire`, on a `cactus`, and with `Fire` 200. Step 1 tick at a time and read `Motion`, `Health` and if it exists. | R10, R20, R21 |
 | E15 | Summon item entities at `y` -127.9 and -128.1. Step 1 tick. | R12 |
 | E16 | Summon `stone` and `nether_star` 1 to 7 blocks from a TNT with `fuse` 1. Step 3 ticks. | R22 |
 | E17 | Not run. Send a throw click, a click outside the menu and a creative drop. Close a menu with a cursor stack and a full inventory. Disconnect with a cursor stack. Read each item entity. | U3 |
