@@ -310,7 +310,7 @@ mod exhaustive {
                 chunk_z,
                 &self.y_sections,
                 &self.router,
-                &ColumnBiomes::new(Some(&self.biome_source), None).unwrap(),
+                &ColumnBiomes::new(Some(&self.biome_source), None, None).unwrap(),
                 &self.cancel,
             );
             let mut rng = crate::beta_surface_rng(chunk_x, chunk_z);

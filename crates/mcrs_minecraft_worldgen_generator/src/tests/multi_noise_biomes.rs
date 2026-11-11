@@ -253,16 +253,16 @@ fn a_fixed_or_beta_biome_beyond_the_narrow_width_is_refused_once() {
 
     for source in [BiomeSource::Fixed { biome: last }, beta(last)] {
         assert!(
-            ColumnBiomes::new(Some(&source), None).is_err(),
+            ColumnBiomes::new(Some(&source), None, None).is_err(),
             "{source:?}"
         );
     }
     assert!(matches!(
-        ColumnBiomes::new(Some(&BiomeSource::Fixed { biome: first }), None),
+        ColumnBiomes::new(Some(&BiomeSource::Fixed { biome: first }), None, None),
         Ok(ColumnBiomes::Fixed(0))
     ));
     assert!(matches!(
-        ColumnBiomes::new(Some(&beta(first)), None),
+        ColumnBiomes::new(Some(&beta(first)), None, None),
         Ok(ColumnBiomes::Beta(_))
     ));
 }

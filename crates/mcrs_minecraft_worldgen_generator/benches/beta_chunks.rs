@@ -96,7 +96,7 @@ fn generate_chunk(
         chunk_z,
         y_sections,
         router,
-        &ColumnBiomes::new(Some(biome_source), None).unwrap(),
+        &ColumnBiomes::new(Some(biome_source), None, None).unwrap(),
         None,
         cancel,
     )
@@ -190,7 +190,7 @@ fn report_content(y_sections: &[i32], seed: u64) {
         0,
         y_sections,
         &router,
-        &ColumnBiomes::new(Some(&biome_source), None).unwrap(),
+        &ColumnBiomes::new(Some(&biome_source), None, None).unwrap(),
         None,
         &cancel,
     )

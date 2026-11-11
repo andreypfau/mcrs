@@ -8,7 +8,7 @@ use crate::{ColumnBiomes, beta_biome_grid};
 fn every_cell_is_the_biome_its_climate_answers_and_a_ring_cell_is_the_neighbour_s() {
     let router = build_beta_router();
     let (source, _) = build_beta_biome_source();
-    let ColumnBiomes::Beta(beta) = ColumnBiomes::new(Some(&source), None).unwrap() else {
+    let ColumnBiomes::Beta(beta) = ColumnBiomes::new(Some(&source), None, None).unwrap() else {
         panic!("a Beta source narrows to Beta biomes");
     };
     let mut ws = Workspace::new();

@@ -524,7 +524,7 @@ pub fn fill_context(
         }
         _ => None,
     };
-    let biomes = crate::ColumnBiomes::new(Some(&source), multi_noise).unwrap();
+    let biomes = crate::ColumnBiomes::new(Some(&source), multi_noise, None).unwrap();
     crate::stages::FillContext {
         biome: Some(std::sync::Arc::new(source)),
         program: crate::stages::ColumnProgram {
