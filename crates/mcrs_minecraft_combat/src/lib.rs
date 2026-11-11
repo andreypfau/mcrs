@@ -1,5 +1,5 @@
 //! Combat, health, damage handling, hunger, status effects, experience,
-//! projectiles, equipment tracking and environmental effects as Bevy systems.
+//! projectiles, explosions, equipment tracking and environmental effects as Bevy systems.
 
 mod combat_plugin;
 mod death_drops;
@@ -8,6 +8,7 @@ mod environment;
 mod equipment;
 mod events;
 mod experience;
+mod explosions;
 mod health;
 mod hunger;
 mod life_cycle;
@@ -28,6 +29,9 @@ pub use events::{DamageDealt, DamageRequest, DeathEvent, RespawnRequest};
 pub use experience::{
     ExperienceGainedEvent, ExperienceOrb, PlayerExperience, pickup_experience_orbs, points_for_level,
     total_points_for_level,
+};
+pub use explosions::{
+    ExplosionOccurred, ExplosionRequest, PrimedTnt, process_explosions, tick_primed_tnt,
 };
 pub use health::{Armor, ArmorToughness, DamageCooldown, Health, KnockbackResistance};
 pub use hunger::FoodData;
