@@ -86,7 +86,7 @@ fn beta_surface_bedrock_matches_back2beta_oracle() {
         chunk_z,
         &y_sections,
         &router,
-        &ColumnBiomes::new(Some(&biome_source), None).unwrap(),
+        &ColumnBiomes::new(Some(&biome_source), None, None).unwrap(),
         &cancel,
     );
 
@@ -273,7 +273,7 @@ fn beta_terrain_height_matches_back2beta_oracle() {
                 cz,
                 &y_sections,
                 &router,
-                &ColumnBiomes::new(Some(&biome_source), None).unwrap(),
+                &ColumnBiomes::new(Some(&biome_source), None, None).unwrap(),
                 &cancel,
             )
         });
