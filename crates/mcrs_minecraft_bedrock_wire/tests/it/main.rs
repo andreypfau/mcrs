@@ -204,3 +204,61 @@ fn trailing_bytes_rejected() {
         Error::TrailingBytes
     );
 }
+
+#[derive(BedrockEncode, BedrockDecode, Debug, PartialEq)]
+struct NamedLists<'a> {
+    name: &'a str,
+    #[bedrock(count = u16)]
+    fixed: Vec<u8>,
+    varied: Vec<u8>,
+}
+
+#[test]
+fn derived_struct_borrows_and_counts_fields() {
+    let value = NamedLists {
+        name: "ab",
+        fixed: vec![7, 9],
+        varied: vec![1],
+    };
+    let bytes = [0x02, b'a', b'b', 0x02, 0x00, 7, 9, 0x01, 0x01];
+    assert_eq!(to_bytes(&value).unwrap(), bytes);
+    assert_eq!(from_slice::<NamedLists>(&bytes).unwrap(), value);
+}
+
+#[derive(BedrockEncode, BedrockDecode, Debug, PartialEq)]
+#[bedrock(id = 0x45)]
+struct Move {
+    x: i32,
+    on_ground: bool,
+}
+
+#[test]
+fn derived_packet_carries_its_id_in_the_header() {
+    let packet = Move {
+        x: -2,
+        on_ground: true,
+    };
+    let bytes = [0x45, 0xFE, 0xFF, 0xFF, 0xFF, 0x01];
+    let mut w = Vec::new();
+    encode_packet(&packet, &mut w).unwrap();
+    assert_eq!(w, bytes);
+    assert_eq!(decode_packet::<Move>(&mut &bytes[..]).unwrap(), packet);
+}
+
+#[derive(BedrockEncode, BedrockDecode, Debug, PartialEq)]
+#[bedrock(tag = VarI32)]
+enum Mode {
+    Survival = 0,
+    Creative = 1,
+    Spectator = 6,
+}
+
+#[test]
+fn derived_enum_writes_its_discriminant_as_the_tag() {
+    assert_eq!(to_bytes(&Mode::Spectator).unwrap(), [0x0C]);
+    assert_eq!(from_slice::<Mode>(&[0x02]).unwrap(), Mode::Creative);
+    assert_eq!(
+        from_slice::<Mode>(&[0x04]).unwrap_err(),
+        Error::UnknownEnumValue(2)
+    );
+}

@@ -90,6 +90,7 @@ mcrs_minecraft_wire_macros = { path = "crates/mcrs_minecraft_wire_macros" }
 mcrs_minecraft_protocol = { path = "crates/mcrs_minecraft_protocol" }
 mcrs_minecraft_protocol_game = { path = "crates/mcrs_minecraft_protocol_game" }
 mcrs_minecraft_bedrock_wire = { path = "crates/mcrs_minecraft_bedrock_wire" }
+mcrs_minecraft_bedrock_wire_macros = { path = "crates/mcrs_minecraft_bedrock_wire_macros" }
 mcrs_minecraft_bedrock_protocol = { path = "crates/mcrs_minecraft_bedrock_protocol" }
 mcrs_minecraft_bedrock_protocol_game = { path = "crates/mcrs_minecraft_bedrock_protocol_game" }
 mcrs_minecraft_nbt = { path = "crates/mcrs_minecraft_nbt" }

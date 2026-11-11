@@ -4067,6 +4067,16 @@ name = "mcrs_minecraft_bedrock_wire"
 version = "0.5.8"
 dependencies = [
  "glam",
+ "mcrs_minecraft_bedrock_wire_macros",
+]
+
+[[package]]
+name = "mcrs_minecraft_bedrock_wire_macros"
+version = "0.5.8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.115",
 ]
 
 [[package]]
