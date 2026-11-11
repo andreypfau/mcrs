@@ -29,21 +29,21 @@ hashbrown = "0.16.1"
 fancy-regex = "0.16"
 derive-where = "1.6.1"
 serde_path_to_error = "0.1.20"
-bevy_ecs = { version = "0.19.1", features = ["debug"] }
-bevy_app = { version = "0.19.1" }
-bevy_math = "0.19.1"
-glam = { version = "0.32.1", default-features = false, features = ["std"] }
-bevy_time = "0.19.1"
-bevy_tasks = "0.19.1"
-bevy_utils = "0.19.1"
+bevy_ecs = { version = "0.20.1", features = ["debug"] }
+bevy_app = { version = "0.20.1" }
+bevy_math = "0.20.1"
+glam = { version = "0.33.12", default-features = false, features = ["std", "all-types"] }
+bevy_time = "0.20.1"
+bevy_tasks = "0.20.1"
+bevy_utils = "0.20.1"
 # `file_watcher` cannot compile for wasm; the client re-enables it through
 # `bevy` for non-wasm targets, so a native build still hot-reloads.
-bevy_asset = { version = "0.19.1" }
-bevy_derive = "0.19.1"
-bevy_log = { version = "0.19.1" }
-bevy_reflect = "0.19.1"
-bevy_platform = "0.19.1"
-bevy_state = "0.19.1"
+bevy_asset = { version = "0.20.1" }
+bevy_derive = "0.20.1"
+bevy_log = { version = "0.20.1" }
+bevy_reflect = "0.20.1"
+bevy_platform = "0.20.1"
+bevy_state = "0.20.1"
 # Only a floor under bevy_asset's file reads: 0.2.4 can report EOF before the
 # last chunk of a file.
 piper = "0.2.5"
@@ -266,7 +266,7 @@ mcrs_minecraft_engine_server.workspace = true
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_vanilla_worldgen.workspace = true
-bevy_diagnostic = { version = "0.19.0-rc.3", optional = true }
+bevy_diagnostic = { version = "0.20.1", optional = true }
 
 [dev-dependencies]
 mcrs_minecraft_resource.workspace = true

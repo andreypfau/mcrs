@@ -14,5 +14,5 @@ workspace = true
 mcrs_minecraft_entity_key.workspace = true
 mcrs_voxel.workspace = true
 # The workspace entry enables std, which the wasm32v1-none build of this crate does not have.
-glam = { version = "0.32.1", default-features = false, features = ["nostd-libm"] }
+glam = { version = "0.33.12", default-features = false, features = ["nostd-libm", "all-types"] }
 libm.workspace = true

@@ -13,7 +13,7 @@ workspace = true
 [dependencies]
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_mesh.workspace = true
-bevy = { version = "0.19.1", default-features = false, features = [
+bevy = { version = "0.20.1", default-features = false, features = [
     "std",
     "bevy_asset",
     "bevy_log",

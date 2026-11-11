@@ -38,7 +38,7 @@ serde.workspace = true
 serde_json.workspace = true
 # Bevy gives no name to the texture data order a layered upload needs.
 wgpu = { version = "29", default-features = false }
-bevy = { version = "0.19.1", default-features = false, features = [
+bevy = { version = "0.20.1", default-features = false, features = [
     "std",
     "async_executor",
     "bevy_asset",
@@ -57,10 +57,10 @@ bevy = { version = "0.19.1", default-features = false, features = [
 ] }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
-bevy = { version = "0.19.1", default-features = false, features = ["multi_threaded"] }
+bevy = { version = "0.20.1", default-features = false, features = ["multi_threaded"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-bevy = { version = "0.19.1", default-features = false, features = ["web"] }
+bevy = { version = "0.20.1", default-features = false, features = ["web"] }
 # The rustflag in .cargo/config.toml picks the backend; without the crate feature of the same
 # name getrandom refuses to build at all.
 getrandom = { version = "0.4", features = ["wasm_js"] }

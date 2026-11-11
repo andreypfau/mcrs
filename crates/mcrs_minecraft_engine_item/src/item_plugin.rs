@@ -118,7 +118,7 @@ fn project_equipped(
 /// The second remover of [`Equipped`]: the removal of [`Selected`] is a temporal fact that a fixed
 /// step which does not run in the frames of the removal never sees.
 fn unequip_unselected(
-    unselected: On<Remove, Selected>,
+    unselected: On<Remove<Selected>>,
     mut commands: Commands,
     holders: Query<&Slots>,
     equipped: Query<(), With<Equipped>>,

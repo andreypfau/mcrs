@@ -163,7 +163,7 @@ fn update_index(
 
 /// A player that leaves before `update_index` ran is still in the set of its old dimension.
 fn forget_removed_player(
-    remove: On<Remove, InDimension>,
+    remove: On<Remove<InDimension>>,
     players: Query<(&InDimension, Option<&OldInDimension>), With<Player>>,
     mut dimensions: Query<&mut DimensionPlayers>,
 ) {

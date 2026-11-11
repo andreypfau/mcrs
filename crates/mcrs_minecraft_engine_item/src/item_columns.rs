@@ -7,11 +7,11 @@ use bevy_ecs::component::Components;
 use bevy_ecs::entity::Entities;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::query::FilteredAccess;
-use bevy_ecs::query::FilteredAccessSet;
 use bevy_ecs::storage::TableId;
 use bevy_ecs::storage::Tables;
 use bevy_ecs::system::ReadOnlySystemParam;
 use bevy_ecs::system::Res;
+use bevy_ecs::system::SystemAccess;
 use bevy_ecs::system::SystemMeta;
 use bevy_ecs::system::SystemParam;
 use bevy_ecs::system::SystemParamValidationError;
@@ -104,20 +104,20 @@ unsafe impl SystemParam for ItemColumns<'_, '_> {
     fn init_access(
         state: &ColumnsState,
         system_meta: &mut SystemMeta,
-        component_access_set: &mut FilteredAccessSet,
+        system_access: &mut SystemAccess,
         world: &mut World,
     ) {
         <Res<ItemComponents> as SystemParam>::init_access(
             &state.registry,
             system_meta,
-            component_access_set,
+            system_access,
             world,
         );
         let ids = state.rows.iter().map(Row::id);
         for id in ids.chain([state.removed.id()]) {
             let mut read = FilteredAccess::default();
             read.add_read(id);
-            if !component_access_set.get_conflicts_single(&read).is_empty() {
+            if !system_access.get_conflicts_single(&read).is_empty() {
                 #[expect(
                     clippy::panic,
                     reason = "the contract of `init_access` asks for a panic on a conflict"
@@ -130,7 +130,7 @@ unsafe impl SystemParam for ItemColumns<'_, '_> {
                     );
                 }
             }
-            component_access_set.add(read);
+            system_access.ensure_filtered_access(read);
         }
     }
 
