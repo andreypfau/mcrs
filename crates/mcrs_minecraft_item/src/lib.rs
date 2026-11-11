@@ -1,6 +1,4 @@
-pub mod block_transformer;
 pub mod component;
-pub mod decorated_pot_pattern;
 pub mod definition;
 pub mod dialog;
 #[cfg(feature = "bevy")]
@@ -9,19 +7,11 @@ pub mod dropped;
 pub mod effective;
 pub mod enchantment;
 #[rustfmt::skip]
-pub mod banner_pattern_keys;
-#[rustfmt::skip]
-pub mod banner_pattern_tag_keys;
-#[rustfmt::skip]
-pub mod block_transformer_keys;
-#[rustfmt::skip]
 pub mod consume_effect_type_keys;
 #[rustfmt::skip]
 pub mod data_component_predicate_type_keys;
 #[rustfmt::skip]
 pub mod data_component_type_keys;
-#[rustfmt::skip]
-pub mod decorated_pot_pattern_keys;
 #[rustfmt::skip]
 pub mod dialog_action_type_keys;
 #[rustfmt::skip]
@@ -43,21 +33,11 @@ pub mod instrument_keys;
 #[rustfmt::skip]
 pub mod instrument_tag_keys;
 #[rustfmt::skip]
-pub mod item_keys;
-#[rustfmt::skip]
-pub mod item_tag_keys;
-#[rustfmt::skip]
 pub mod jukebox_song_keys;
-#[rustfmt::skip]
-pub mod map_decoration_type_keys;
 #[rustfmt::skip]
 pub mod painting_variant_keys;
 #[rustfmt::skip]
 pub mod painting_variant_tag_keys;
-#[rustfmt::skip]
-pub mod potion_keys;
-#[rustfmt::skip]
-pub mod potion_tag_keys;
 #[rustfmt::skip]
 pub mod registry_keys;
 #[rustfmt::skip]
@@ -135,5 +115,3 @@ mod bevy {
 
     crate::for_each_data_component!(impl_component);
 }
-
-mcrs_minecraft_registries::resolve_as_is!(crate::decorated_pot_pattern::DecoratedPotPattern);

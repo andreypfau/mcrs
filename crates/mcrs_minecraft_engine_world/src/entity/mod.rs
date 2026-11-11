@@ -141,7 +141,7 @@ fn update_chunk_entities(
 }
 
 fn forget_removed_entity(
-    remove: On<Remove, InDimension>,
+    remove: On<Remove<InDimension>>,
     entities: Query<(
         &InDimension,
         Option<&OldInDimension>,

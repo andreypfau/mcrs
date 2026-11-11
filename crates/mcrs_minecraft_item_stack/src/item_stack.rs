@@ -40,12 +40,13 @@ impl ItemStack {
     /// has, it drops the entry of `T`.
     #[must_use]
     pub fn unset<T: ItemComponent>(mut self) -> Self {
-        self.put(T::patch_key(), T::removal());
+        self.put(T::patch_key(), T::builtin_key().map(PatchEntry::Removal));
         self
     }
 
-    /// The patch entries: the built-in types in the order of their type ids, then the custom
-    /// types in the order of their keys.
+    /// The patch entries: the built-in types in the order of their type ids, then the types that
+    /// this crate does not decode in the order of their identifiers, then those that a wire reader
+    /// kept in the order of their type ids, then the custom types in the order of their keys.
     #[must_use]
     pub fn patch(&self) -> &[PatchEntry] {
         &self.patch
@@ -57,21 +58,39 @@ impl ItemStack {
         self.kind == other.kind && self.patch == other.patch
     }
 
-    fn put(&mut self, key: PatchKey, entry: Option<PatchEntry>) {
+    /// Puts `entry` in the patch. It replaces the entry of the same type.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn with_entry(mut self, entry: PatchEntry) -> Self {
+        self.put_entry(entry);
+        self
+    }
+
+    pub(crate) fn put_entry(&mut self, entry: PatchEntry) {
         let found = self
             .patch
-            .binary_search_by(|present| present.key().cmp(&key));
-        match (found, entry) {
-            (Ok(index), Some(entry)) => {
+            .binary_search_by(|present| present.key().cmp(&entry.key()));
+        match found {
+            Ok(index) => {
                 if let Some(present) = self.patch.get_mut(index) {
                     *present = entry;
                 }
             }
-            (Ok(index), None) => {
-                self.patch.remove(index);
+            Err(index) => self.patch.insert(index, entry),
+        }
+    }
+
+    fn put(&mut self, key: PatchKey<'static>, entry: Option<PatchEntry>) {
+        match entry {
+            Some(entry) => self.put_entry(entry),
+            None => {
+                if let Ok(index) = self
+                    .patch
+                    .binary_search_by(|present| present.key().cmp(&key))
+                {
+                    self.patch.remove(index);
+                }
             }
-            (Err(index), Some(entry)) => self.patch.insert(index, entry),
-            (Err(_), None) => {}
         }
     }
 }

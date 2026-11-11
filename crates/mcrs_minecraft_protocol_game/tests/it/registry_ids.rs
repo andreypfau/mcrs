@@ -1,7 +1,6 @@
+use mcrs_minecraft_item::data_component_predicate_type_keys::DataComponentPredicateType;
 use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
-use mcrs_minecraft_item::{
-    data_component_predicate_type_keys::DataComponentPredicateType, item_keys::Item,
-};
+use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_particle::particle_type_keys::ParticleType;
 use mcrs_minecraft_protocol::{Decode, Encode};
 use mcrs_minecraft_protocol::{Result, VarInt};

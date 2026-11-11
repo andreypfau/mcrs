@@ -1,22 +1,14 @@
 use std::sync::Arc;
 
+use mcrs_minecraft_banner_pattern::BannerPattern;
 use mcrs_minecraft_registries::{Ref, Refs, Resolved, registry_value};
-use mcrs_minecraft_resource::{ResourceLocationBuf, rl};
+use mcrs_minecraft_resource::rl;
 use serde::{Deserialize, Serialize};
 
 use crate::component::enums::DyeColor;
 use crate::harness::Sample;
 use crate::harness::entry;
 use mcrs_minecraft_wire::{Decode, Encode};
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Encode, Decode)]
-#[serde(deny_unknown_fields)]
-pub struct BannerPattern {
-    pub asset_id: ResourceLocationBuf,
-    pub translation_key: String,
-}
-
-mcrs_minecraft_registries::resolve_as_is!(BannerPattern);
 
 #[registry_value]
 #[derive(

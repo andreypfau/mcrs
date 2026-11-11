@@ -22,7 +22,7 @@ pub struct LightVolumeRenderPlugin {
 
 impl Plugin for LightVolumeRenderPlugin {
     fn build(&self, app: &mut App) {
-        bevy::shader::load_shader_library!(app, "shaders/volume.wgsl");
+        bevy::shader::load_shader_library!(app, "shaders/volume.wesl");
         bevy::asset::embedded_asset!(app, "shaders/colour.wgsl");
         let queue = VolumeQueue::default();
         app.insert_resource(self.settings)

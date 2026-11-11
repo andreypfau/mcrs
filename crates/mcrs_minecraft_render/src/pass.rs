@@ -7,7 +7,7 @@ use bevy::render::diagnostic::RecordDiagnostics;
 use bevy::render::render_phase::{TrackedRenderPass, ViewBinnedRenderPhases};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice, ViewQuery};
-use bevy::render::view::{ExtractedView, ViewDepthTexture, ViewTarget, ViewUniformOffset};
+use bevy::render::view::{ExtractedView, ViewDepthStencilTexture, ViewTarget, ViewUniformOffset};
 
 use mcrs_minecraft_mesh::{STREAM_NAMES, STREAMS};
 use wgpu::ComputePassTimestampWrites;
@@ -194,7 +194,7 @@ pub(super) const GROUPS_PER_STEP: u32 = 2;
 const _: () =
     assert!(mcrs_minecraft_mesh::GROUP_QUADS <= CULL_THREADS as usize && CULL_THREADS <= 32);
 
-/// `cull.wgsl` strides over the group arena, so the dispatch is capped by the device instead of
+/// `cull.wesl` strides over the group arena, so the dispatch is capped by the device instead of
 /// sized by the world and a bigger render distance can no longer walk it into wgpu's 65535
 /// workgroups per dimension. wgpu reports no core count, so the cap is stated in invocations and
 /// clamped by the limits it does report; a workgroup left with no group exits at once, but not
@@ -258,7 +258,7 @@ pub(super) struct FrameParams<'w> {
 
 type WorldView = (
     &'static ViewTarget,
-    &'static ViewDepthTexture,
+    &'static ViewDepthStencilTexture,
     &'static ExtractedView,
     &'static ViewUniformOffset,
 );
@@ -455,7 +455,7 @@ fn gbuffer_pass<'a>(
     ctx: &'a mut RenderContext,
     label: &'static str,
     frame: &DeferredFrame,
-    depth: &ViewDepthTexture,
+    depth: &ViewDepthStencilTexture,
     clear: bool,
 ) -> TrackedRenderPass<'a> {
     let color_attachments = frame.targets.each_ref().map(|view| {
@@ -477,7 +477,7 @@ fn gbuffer_pass<'a>(
         label: Some(label),
         color_attachments: &color_attachments,
         depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
-            view: depth.view(),
+            view: depth.attachment.depth_stencil_views().attachment_view(),
             depth_ops: Some(Operations {
                 load: LoadOp::Load,
                 store: StoreOp::Store,

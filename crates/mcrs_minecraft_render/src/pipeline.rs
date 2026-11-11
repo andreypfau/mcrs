@@ -334,16 +334,10 @@ fn queue_pipelines(
     cache: &PipelineCache,
 ) {
     pipelines.tinted = tint_layout.is_some();
-    if !pipelines.tinted {
-        let stand_in: Handle<Shader> =
-            asset_server.load("embedded://mcrs_minecraft_render/shaders/include/untinted.wgsl");
-        // Never dropped, as `load_shader_library!` keeps a library.
-        core::mem::forget(stand_in);
-    }
     let lighting =
-        asset_server.load("embedded://mcrs_minecraft_render/shaders/core/lighting_pass.wgsl");
+        asset_server.load("embedded://mcrs_minecraft_render/shaders/core/lighting_pass.wesl");
     let show =
-        asset_server.load("embedded://mcrs_minecraft_render/shaders/core/gbuffer_views.wgsl");
+        asset_server.load("embedded://mcrs_minecraft_render/shaders/core/gbuffer_views.wesl");
     let layout: Vec<_> = [
         terrain.view_layout().clone(),
         terrain.draw_layout().clone(),
@@ -352,29 +346,30 @@ fn queue_pipelines(
     .into_iter()
     .chain(tint_layout.cloned())
     .collect();
-    let fullscreen_pipeline = |label: &str, shader: &Handle<Shader>, entry: &str, def: &str| {
-        let mut descriptor = RenderPipelineDescriptor {
-            vertex: fullscreen.to_vertex_state(),
-            ..common(
-                label.into(),
-                layout.clone(),
-                shader,
-                String::new(),
-                entry.into(),
-                view,
-                None,
-            )
+    let fullscreen_pipeline =
+        |label: &str, shader: &Handle<Shader>, entry: &str, def: &'static str| {
+            let mut descriptor = RenderPipelineDescriptor {
+                vertex: fullscreen.to_vertex_state(),
+                ..common(
+                    label.into(),
+                    layout.clone(),
+                    shader,
+                    String::new(),
+                    entry.into(),
+                    view,
+                    None,
+                )
+            };
+            if let Some(fragment) = descriptor.fragment.as_mut() {
+                if !def.is_empty() {
+                    fragment.shader_defs.push(def.into());
+                }
+                if tint_layout.is_some() {
+                    fragment.shader_defs.push("LIGHT_TINT".into());
+                }
+            }
+            cache.queue_render_pipeline(descriptor)
         };
-        if let Some(fragment) = descriptor.fragment.as_mut() {
-            if !def.is_empty() {
-                fragment.shader_defs.push(def.into());
-            }
-            if tint_layout.is_some() {
-                fragment.shader_defs.push("LIGHT_TINT".into());
-            }
-        }
-        cache.queue_render_pipeline(descriptor)
-    };
     pipelines.lighting = Some(fullscreen_pipeline(
         "deferred lighting",
         &lighting,

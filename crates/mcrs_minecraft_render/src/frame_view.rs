@@ -1,5 +1,5 @@
-use bevy::math::primitives::ViewFrustum;
 use bevy::prelude::*;
+use bevy::shape::ViewFrustum;
 
 use crate::frame::CameraOrigin;
 

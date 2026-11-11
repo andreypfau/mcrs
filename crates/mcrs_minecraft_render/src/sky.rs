@@ -154,7 +154,7 @@ pub struct SkyRenderPlugin;
 
 impl Plugin for SkyRenderPlugin {
     fn build(&self, app: &mut App) {
-        embedded_asset!(app, "shaders/sky.wgsl");
+        embedded_asset!(app, "shaders/sky.wesl");
 
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
@@ -225,7 +225,7 @@ fn init_sky(mut commands: Commands, asset_server: Res<AssetServer>, device: Res<
                 ),
             ),
         ),
-        shader: asset_server.load("embedded://mcrs_minecraft_render/shaders/sky.wgsl"),
+        shader: asset_server.load("embedded://mcrs_minecraft_render/shaders/sky.wesl"),
         uniform: uniform_buffer("sky", size_of::<SkyUniform>() as u64, &device),
         pipelines: None,
         textures: None,

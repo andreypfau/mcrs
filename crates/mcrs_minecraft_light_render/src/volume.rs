@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use bevy::platform::collections::{HashMap, HashSet};
 use bevy::prelude::*;
+use bevy::render::RenderApp;
 use bevy::render::extract_resource::ExtractResource;
 use bevy::render::render_resource::binding_types::{sampler, texture_3d, uniform_buffer_sized};
 use bevy::render::render_resource::*;
@@ -29,6 +30,7 @@ const ATLAS_HALF_SLOTS_PER_COLUMN: u32 = 19;
 const POOL_BRICKS_PER_COLUMN: u64 = 12;
 
 #[derive(Resource, Clone, Copy, PartialEq, Eq, Debug, ExtractResource)]
+#[extract_app(RenderApp)]
 pub struct VolumeSettings {
     pub radius: u8,
     pub view_distance: u8,

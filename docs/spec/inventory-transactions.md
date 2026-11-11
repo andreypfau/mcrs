@@ -188,7 +188,8 @@ with the reason that ITX-REJ-002 gives. The result changes the working state.
 **ITX-OP-004** (`design`, semantic). A `split` does not use the condition of STK-EQ-003. Two
 stacks with the same item and components can join when the capacity permits. Reason: a click of
 the reference joins such stacks (ITX-JAV-008). The difference shows only on a stack that strict
-validation rejects. See open question Q4 and experiment E3.
+validation rejects. STK-EQ-004 states which caller of the reference does the check. See
+experiment E3.
 
 ### 3.2 Merge
 
@@ -345,9 +346,11 @@ this order. The first check that fails ends the work on the packet.
 | 1 | The container id is the id of the menu that the player has open. | The server does nothing and sends nothing. |
 | 2 | The player is not a spectator and is not dead. | The server changes no slot. It sends each slot of the menu and the cursor stack. |
 | 3 | The menu is valid for the player. A later specification states this check. | The server does nothing and sends nothing. |
-| 4 | The slot index is -1, -999, or the index of a slot of the menu. | The server does nothing and sends nothing. |
+| 4 | The slot index is smaller than the number of slots of the menu. | The server does nothing and sends nothing. |
 
-See experiment E4.
+Check 4 passes for each negative slot index, not only for -1 and -999. A negative slot index
+other than -999 has the result of the slot index -1 in each click kind. In check 2, the server
+also sends the data values of the menu. See experiment E4.
 
 **ITX-JAV-002** (`source_suggested`, semantic). After the checks, the edge makes the request of
 the click kind (ITX-JAV-006) and the server applies it. A state id that is not the state id of
@@ -395,8 +398,8 @@ A click kind with a button that the table does not list gives an empty list. See
 
 **ITX-JAV-007** (`source_suggested`, semantic). Pick up and quick move with the slot index -999
 drop from the cursor. When `C` holds the empty stack, the list is empty. With button 0 the list
-is `drop(C, count(C))`. With button 1 the list is `drop(C, 1)`. Pick up and quick move with the
-slot index -1 give an empty list. See experiment E6.
+is `drop(C, count(C))`. With button 1 the list is `drop(C, 1)`. Pick up and quick move with each
+other negative slot index give an empty list. See experiment E6.
 
 **ITX-JAV-008** (`source_suggested`, semantic). Pick up on a slot of the menu gives the operation
 of the first row of this table whose condition is true. `k` is `count(C)` with button 0, and 1
@@ -484,7 +487,7 @@ conditions is true: `C` holds the empty stack, the slot index is 0 or more, `S` 
 `take(S)` is true, and the player can drop items. A later specification states the last
 condition. With button 0 the list is `drop(S, 1)`. With each other button the list is
 `drop(S, count(S))`. A later specification states the repeat of a throw for a slot that fills
-again (section 8). See experiment E13.
+again (section 8). That repeat occurs only with button 1. See experiment E13.
 
 ### 6.3 The drag
 
@@ -550,8 +553,16 @@ the slot index in the menu, smallest first. Reason: the result does not depend o
 a fixed order makes the request the same in each run.
 
 **ITX-JAV-020** (`source_suggested`, semantic). A drag of drag kind 2 with 2 or more slots makes
-items. Each slot of the set gets a count of up to `cap(X, C)`. No operation of this document
-states it (ITX-ATM-005). See open question Q1 and experiment E12.
+items. The server does this for each slot `X` of the set for which the conditions of ITX-JAV-017
+are true again:
+
+- `X` holds a stack with the item and the components of `C` and the count `cap(X, C)`;
+- `g(X)` is `cap(X, C)` minus the count that `X` held before.
+
+After the last slot, the count of the cursor is `count(C)` minus the sum of each `g(X)`. When
+that number is 0 or less, the cursor holds the empty stack. The click thus makes only the items
+that the cursor did not hold. No operation of this document states it (ITX-ATM-005). See open
+question Q1 and experiment E12.
 
 ## 7. Bedrock Edition: the stack request
 
@@ -624,8 +635,9 @@ connects.
 **D1.**
 
 - **Rule**: ITX-JAV-010 and ITX-JAV-017.
-- **Reference**: two clicks with the slot index -1 or -999 give an internal error in the
-  reference. They are the swap with a hotbar key and the stage 1 packet of a drag.
+- **Reference**: two clicks with a negative slot index give an internal error in the reference.
+  They are the swap with a hotbar key and the stage 1 packet of a drag. Each negative slot index
+  has this result, because check 4 of ITX-JAV-001 passes for it.
 - **Visible to the client**: no. The vanilla client sends these clicks only for a slot of the
   menu.
 - **Test**: a differential test must not send these two click kinds with a negative slot index.
@@ -668,10 +680,9 @@ For the owner:
   operation. It has the reason `Occupied`, which this document does not use. It does not have
   the reasons `same_slot`, `bad_count`, `not_enough`, `take_denied` and `place_denied`. It gives
   one maximum for each stack, and no slot limit and no filter. Which document changes?
-- **Q4**: ITX-OP-004. STK-EQ-004 states that the stack that receives must be able to stack
-  (STK-EQ-003). The click of ITX-JAV-008 does not use that condition. The quick move of
-  ITX-JAV-009 uses it for the stack that moves. Experiment E3 decides if STK-EQ-004 needs a
-  correction.
+- **Q4**: answered from the source. The click of ITX-JAV-008 does not use the condition of
+  STK-EQ-003. The quick move of ITX-JAV-009 uses it for the stack that moves. STK-EQ-004 now
+  states which caller does the check. ITX-OP-004 does not change. Experiment E3 confirms it.
 - **Q5**: ITX-BED-001. The public documentation gives the fields of each action and not its
   conditions. Does a `Take` to a slot that holds a different stack fail, and with which result?
   Does a `Swap` join two equal stacks? Experiment E16.
@@ -682,8 +693,8 @@ Not decided by an experiment yet:
 
 - **U1**: ITX-JAV-001. If the server sends a correction for a click on a menu that is not valid,
   and for a slot index out of range. Experiment E4.
-- **U2**: ITX-JAV-020. The count of the cursor after a creative drag over 2 or more slots.
-  Experiment E12.
+- **U2**: answered from the source. ITX-JAV-020 states the count of the cursor after a creative
+  drag over 2 or more slots. Experiment E12 confirms it.
 - **U3**: ITX-JAV-008, row 7. The result of a secondary click on a result slot. A later
   specification owns the answer. Experiment E8.
 

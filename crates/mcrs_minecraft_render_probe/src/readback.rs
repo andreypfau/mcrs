@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 
+use bevy::log::warn;
 use bevy::render::render_resource::{Buffer, MapMode};
 
 const IDLE: u8 = 0;
@@ -42,9 +43,10 @@ pub fn map(buffer: Buffer, owner: Arc<impl Reader>) {
         .slice(..)
         .map_async(MapMode::Read, move |result| {
             if result.is_ok() {
-                let view = buffer.slice(..).get_mapped_range();
-                owner.read(&view);
-                drop(view);
+                match buffer.slice(..).get_mapped_range() {
+                    Ok(view) => owner.read(&view),
+                    Err(error) => warn!("readback of a mapped buffer failed: {error}"),
+                }
                 buffer.unmap();
             }
             owner.gate().release();

@@ -5,3 +5,26 @@ pub enum ModifierOperation {
     AddMultipliedBase,
     AddMultipliedTotal,
 }
+
+impl ModifierOperation {
+    /// Each variant, in the order of the wire ids.
+    pub(crate) const ALL: [Self; 3] = [
+        Self::AddValue,
+        Self::AddMultipliedBase,
+        Self::AddMultipliedTotal,
+    ];
+
+    pub(crate) const fn name(self) -> &'static str {
+        match self {
+            Self::AddValue => "add_value",
+            Self::AddMultipliedBase => "add_multiplied_base",
+            Self::AddMultipliedTotal => "add_multiplied_total",
+        }
+    }
+
+    pub(crate) fn from_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|operation| operation.name() == name)
+    }
+}

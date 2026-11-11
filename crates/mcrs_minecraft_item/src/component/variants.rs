@@ -1,5 +1,5 @@
 use crate::component::registry_ref::registry_key_component;
-use crate::decorated_pot_pattern::DecoratedPotPattern;
+use mcrs_minecraft_decorated_pot_pattern::DecoratedPotPattern;
 use mcrs_minecraft_entity::villager_type_keys::VillagerType;
 use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
 

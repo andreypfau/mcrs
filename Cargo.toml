@@ -29,21 +29,21 @@ hashbrown = "0.16.1"
 fancy-regex = "0.16"
 derive-where = "1.6.1"
 serde_path_to_error = "0.1.20"
-bevy_ecs = { version = "0.19.1", features = ["debug"] }
-bevy_app = { version = "0.19.1" }
-bevy_math = "0.19.1"
-glam = { version = "0.32.1", default-features = false, features = ["std"] }
-bevy_time = "0.19.1"
-bevy_tasks = "0.19.1"
-bevy_utils = "0.19.1"
+bevy_ecs = { version = "0.20.1", features = ["debug"] }
+bevy_app = { version = "0.20.1" }
+bevy_math = "0.20.1"
+glam = { version = "0.33.12", default-features = false, features = ["std", "all-types"] }
+bevy_time = "0.20.1"
+bevy_tasks = "0.20.1"
+bevy_utils = "0.20.1"
 # `file_watcher` cannot compile for wasm; the client re-enables it through
 # `bevy` for non-wasm targets, so a native build still hot-reloads.
-bevy_asset = { version = "0.19.1" }
-bevy_derive = "0.19.1"
-bevy_log = { version = "0.19.1" }
-bevy_reflect = "0.19.1"
-bevy_platform = "0.19.1"
-bevy_state = "0.19.1"
+bevy_asset = { version = "0.20.1" }
+bevy_derive = "0.20.1"
+bevy_log = { version = "0.20.1" }
+bevy_reflect = "0.20.1"
+bevy_platform = "0.20.1"
+bevy_state = "0.20.1"
 # Only a floor under bevy_asset's file reads: 0.2.4 can report EOF before the
 # last chunk of a file.
 piper = "0.2.5"
@@ -82,8 +82,8 @@ proptest = "1.11.0"
 criterion = "0.7"
 bytemuck = "1"
 futures-lite = "2"
-naga = "29"
-wgpu = "29"
+naga = "30"
+wgpu = "30"
 
 mcrs_minecraft_wire = { path = "crates/mcrs_minecraft_wire" }
 mcrs_minecraft_wire_macros = { path = "crates/mcrs_minecraft_wire_macros" }
@@ -140,7 +140,17 @@ mcrs_minecraft_command_vanilla = { path = "crates/mcrs_minecraft_command_vanilla
 mcrs_minecraft_command_world = { path = "crates/mcrs_minecraft_command_world" }
 mcrs_minecraft_console = { path = "crates/mcrs_minecraft_console" }
 mcrs_minecraft_loot = { path = "crates/mcrs_minecraft_loot" }
+mcrs_minecraft_item_key = { path = "crates/mcrs_minecraft_item_key" }
+mcrs_minecraft_potion = { path = "crates/mcrs_minecraft_potion" }
+mcrs_minecraft_block_transformer = { path = "crates/mcrs_minecraft_block_transformer" }
+mcrs_minecraft_decorated_pot_pattern = { path = "crates/mcrs_minecraft_decorated_pot_pattern" }
+mcrs_minecraft_banner_pattern = { path = "crates/mcrs_minecraft_banner_pattern" }
+mcrs_minecraft_map_decoration = { path = "crates/mcrs_minecraft_map_decoration" }
 mcrs_minecraft_menu = { path = "crates/mcrs_minecraft_menu" }
+mcrs_minecraft_instrument = { path = "crates/mcrs_minecraft_instrument" }
+mcrs_minecraft_jukebox_song = { path = "crates/mcrs_minecraft_jukebox_song" }
+mcrs_minecraft_painting_variant = { path = "crates/mcrs_minecraft_painting_variant" }
+mcrs_minecraft_trim = { path = "crates/mcrs_minecraft_trim" }
 mcrs_minecraft_recipe = { path = "crates/mcrs_minecraft_recipe" }
 mcrs_minecraft_predicate = { path = "crates/mcrs_minecraft_predicate" }
 mcrs_minecraft_registry_catalog = { path = "crates/mcrs_minecraft_registry_catalog" }
@@ -177,6 +187,8 @@ mcrs_minecraft_dimension_environment = { path = "crates/mcrs_minecraft_dimension
 mcrs_minecraft_item = { path = "crates/mcrs_minecraft_item" }
 mcrs_minecraft_inventory_plan = { path = "crates/mcrs_minecraft_inventory_plan" }
 mcrs_minecraft_item_stack = { path = "crates/mcrs_minecraft_item_stack" }
+mcrs_minecraft_item_table = { path = "crates/mcrs_minecraft_item_table" }
+mcrs_minecraft_engine_item = { path = "crates/mcrs_minecraft_engine_item" }
 mcrs_minecraft_server = { path = "crates/mcrs_minecraft_server" }
 mcrs_minecraft_client = { path = "crates/mcrs_minecraft_client", default-features = false }
 mcrs_minecraft_client_world = { path = "crates/mcrs_minecraft_client_world" }
@@ -254,7 +266,7 @@ mcrs_minecraft_engine_server.workspace = true
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_vanilla_worldgen.workspace = true
-bevy_diagnostic = { version = "0.19.0-rc.3", optional = true }
+bevy_diagnostic = { version = "0.20.1", optional = true }
 
 [dev-dependencies]
 mcrs_minecraft_resource.workspace = true

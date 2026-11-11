@@ -9,7 +9,7 @@ How to read the status column: it comes from the header of the file. Only `cells
 | File | About | Status | Read if you |
 |---|---|---|---|
 | `clean-room.md` | who may read what, and what the repository may contain | authority | send any PR |
-| `spec/` (69 files) | behavior of the game as rules with IDs. Start with `spec/README.md` | authority for behavior | write or implement a specification |
+| `spec/` (70 files) | behavior of the game as rules with IDs. Start with `spec/README.md` | authority for behavior | write or implement a specification |
 | `minecraft-bevy-sharding-architecture.md` | architectural decisions for the Bevy server | authority (decisions 22 to 26 supersede parts of `cells.md`) | change the engine design |
 | `physics-architecture.md` | per-tick simulation of entities, block domain, movement checks | authority (supersedes parts of `cells.md`) | touch physics or entity ticking |
 | `cells.md` | cells, the Muxer and the data layer | working note | read it with its status block in hand |

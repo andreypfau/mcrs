@@ -1,6 +1,11 @@
+use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
+
 use crate::Builtin;
 use crate::BuiltinKey;
 use crate::CustomValue;
+use crate::UndecodedValue;
+use crate::UndecodedWireValue;
 use crate::patch_key::PatchKey;
 
 /// One entry of the component patch of a stack.
@@ -12,14 +17,43 @@ pub enum PatchEntry {
     Removal(BuiltinKey),
     /// The stack has this custom component.
     Custom(CustomValue),
+    /// The stack has this component, which this crate does not decode.
+    Undecoded(UndecodedValue),
+    /// The stack has no component of the type with this identifier. The type has no Rust type in
+    /// this crate.
+    UndecodedRemoval(ResourceLocationBuf),
+    /// The stack has this component, which this crate does not decode, in its wire form.
+    UndecodedWire(UndecodedWireValue),
 }
 
 impl PatchEntry {
-    pub(crate) fn key(&self) -> PatchKey {
+    pub(crate) fn key(&self) -> PatchKey<'_> {
         match self {
             Self::Value(value) => PatchKey::Builtin(value.key()),
             Self::Removal(key) => PatchKey::Builtin(*key),
             Self::Custom(value) => PatchKey::Custom(value.key),
+            Self::Undecoded(value) => undecoded_key(value.name.as_location()),
+            Self::UndecodedRemoval(name) => undecoded_key(name.as_location()),
+            Self::UndecodedWire(value) => value.key(),
         }
+    }
+
+    /// The built-in type whose place the entry takes, also when the entry holds it undecoded.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn builtin_key(&self) -> Option<BuiltinKey> {
+        match self.key() {
+            PatchKey::Builtin(key) => Some(key),
+            PatchKey::Undecoded(_) | PatchKey::UndecodedWire(_) | PatchKey::Custom(_) => None,
+        }
+    }
+}
+
+// An undecoded value of a built-in type takes the place of that type in the order, so the patch
+// never holds two entries for one type.
+fn undecoded_key(name: ResourceLocation<'_>) -> PatchKey<'_> {
+    match BuiltinKey::from_location(name) {
+        Some(key) => PatchKey::Builtin(key),
+        None => PatchKey::Undecoded(name),
     }
 }

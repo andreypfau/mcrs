@@ -60,7 +60,7 @@ struct SeesSpawn;
 impl Plugin for SeesSpawn {
     fn build(&self, app: &mut App) {
         app.init_resource::<DimensionsSeen>().add_observer(
-            |_: On<Add, Dimension>, mut seen: ResMut<DimensionsSeen>| {
+            |_: On<Add<Dimension>>, mut seen: ResMut<DimensionsSeen>| {
                 seen.0 += 1;
             },
         );

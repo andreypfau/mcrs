@@ -14,6 +14,8 @@ pub enum ModifierDisplay {
     Override(Text),
 }
 
+// chisle: the hash ignores the text of an override, so displays that differ only in that text
+// share a hash and cost one more equality check each. A `Hash` on `Text` lifts it.
 impl Hash for ModifierDisplay {
     fn hash<H: Hasher>(&self, state: &mut H) {
         mem::discriminant(self).hash(state);

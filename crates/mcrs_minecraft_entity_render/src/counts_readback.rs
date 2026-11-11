@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 
+use bevy::log::warn;
 use wgpu::{Buffer, BufferUsages, CommandEncoder, Device};
 
 use crate::entity_library::{MAX_ARRAYS, MAX_DEFINITIONS};
@@ -110,11 +111,13 @@ impl CountsReadback {
                 Stage::Mapping(state) => match state.load(Ordering::Acquire) {
                     MAP_PENDING => {}
                     MAP_DONE => {
-                        let counts = EntityFrameCounts::of(bytemuck::cast_slice(
-                            &buffer.slice(..).get_mapped_range(),
-                        ));
+                        match buffer.slice(..).get_mapped_range() {
+                            Ok(view) => {
+                                latest = Some(EntityFrameCounts::of(bytemuck::cast_slice(&view)));
+                            }
+                            Err(error) => warn!("readback of the entity counts failed: {error}"),
+                        }
                         buffer.unmap();
-                        latest = Some(counts);
                         *stage = Stage::Free;
                     }
                     _ => *stage = Stage::Free,

@@ -45,7 +45,7 @@ struct OnlinePlayers {
 }
 
 fn on_disconnect_handle(
-    trigger: On<Remove, ServerSideConnection>,
+    trigger: On<Remove<ServerSideConnection>>,
     mut players: ResMut<OnlinePlayers>,
 ) {
     let e = trigger.event().entity;

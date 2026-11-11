@@ -40,7 +40,7 @@ mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol_game.workspace = true
 uuid = { workspace = true, optional = true }
 mcrs_minecraft_client_gui.workspace = true
-bevy = { version = "0.19.1", default-features = false, features = [
+bevy = { version = "0.20.1", default-features = false, features = [
     "std",
     "async_executor",
     "bevy_asset",
@@ -70,11 +70,11 @@ mcrs_minecraft_game_registries.workspace = true
 mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_engine_world.workspace = true
 # Bevy gives no name to the query-set and pass-timestamp types, and timing a pass needs both.
-wgpu = { version = "29", default-features = false }
+wgpu = { version = "30", default-features = false }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 mcrs_minecraft_save.workspace = true
-bevy = { version = "0.19.1", default-features = false, features = ["file_watcher", "clipboard_image", "multi_threaded"] }
+bevy = { version = "0.20.1", default-features = false, features = ["file_watcher", "clipboard_image", "multi_threaded"] }
 # Singleplayer is a server of our own on a loopback port, as it is in vanilla.
 mcrs_minecraft_server = { workspace = true, optional = true }
 mcrs_minecraft_engine_server = { workspace = true, optional = true }
@@ -84,10 +84,10 @@ mcrs_minecraft_vanilla_worldgen = { workspace = true, optional = true }
 tracing-tracy = { version = "0.12", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-bevy = { version = "0.19.1", default-features = false, features = ["x11"] }
+bevy = { version = "0.20.1", default-features = false, features = ["x11"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-bevy = { version = "0.19.1", default-features = false, features = ["web", "webgpu", "bevy_clipboard"] }
+bevy = { version = "0.20.1", default-features = false, features = ["web", "webgpu", "bevy_clipboard"] }
 console_error_panic_hook = "0.1"
 wasm-bindgen-futures = "0.4"
 # The rustflag in .cargo/config.toml picks the backend; without the crate

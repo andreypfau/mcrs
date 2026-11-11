@@ -44,8 +44,8 @@ use mcrs_minecraft_engine_world::world::lifecycle::simulation::{
 use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_game_mode::GameMode;
-use mcrs_minecraft_item::item_keys::Item;
 use mcrs_minecraft_item::{ItemHoverMap, ItemStack};
+use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, Decode, Packet, VarInt};
 use mcrs_minecraft_protocol_game::chunk::{LightChunk, LightData};

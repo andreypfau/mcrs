@@ -188,7 +188,7 @@ fn wgsl_fields() -> String {
     let mut out = String::from(
         "// Generated from the field table in pack.rs. `cargo test -p \
 mcrs_minecraft_client`\n// checks it; `MCRS_BLESS=1 cargo test -p mcrs_minecraft_client` \
-rewrites it.\n#define_import_path mcrs_minecraft_client::fields\n",
+rewrites it.\n",
     );
     let mut group = "";
     for (name, field) in GROUPS.iter().flat_map(|(_, fields)| fields.iter()) {
@@ -232,7 +232,7 @@ mod tests {
     #[test]
     fn the_generated_field_header_matches_the_field_table() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../mcrs_minecraft_render/src/shaders/include/fields.wgsl");
+            .join("../mcrs_minecraft_render/src/shaders/include/fields.wesl");
         let generated = wgsl_fields();
         if std::env::var("MCRS_BLESS").is_ok() {
             std::fs::write(&path, &generated).expect("cannot rewrite the generated header");

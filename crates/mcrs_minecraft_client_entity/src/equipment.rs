@@ -2,8 +2,8 @@ use bevy_ecs::component::Component;
 use mcrs_minecraft_item::ProtoStack;
 use mcrs_minecraft_item::component::equippable::EquipmentSlot;
 use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
-use mcrs_minecraft_item::item_keys::Item;
 use mcrs_minecraft_item::kind::ItemComponentValue;
+use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_registries::{Wire, WireId};
 use mcrs_minecraft_resource::ResourceLocation;
 

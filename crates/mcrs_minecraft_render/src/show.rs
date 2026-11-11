@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use bevy::render::render_resource::binding_types::{texture_2d, texture_depth_2d};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice};
-use bevy::render::view::{ExtractedView, ViewDepthTexture, ViewTarget};
+use bevy::render::view::{ExtractedView, ViewDepthStencilTexture, ViewTarget};
 use bevy::shader::ShaderDefVal;
 
 use crate::pipeline::common;
@@ -20,7 +20,7 @@ pub struct DepthDisplay {
 }
 
 pub enum DepthSource<'a> {
-    Depth(&'a ViewDepthTexture),
+    Depth(&'a ViewDepthStencilTexture),
     /// The first level of the terrain's depth pyramid.
     Pyramid(&'a Terrain),
 }
@@ -38,7 +38,7 @@ impl DepthDisplay {
             DepthSource::Depth(depth) => (
                 self.depth,
                 &self.depth_layout,
-                depth.texture.create_view(&TextureViewDescriptor {
+                depth.texture().create_view(&TextureViewDescriptor {
                     label: Some("show depth"),
                     aspect: TextureAspect::DepthOnly,
                     ..default()
@@ -73,7 +73,7 @@ impl DepthDisplay {
 
 pub(crate) fn init_depth_display(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(DepthDisplay {
-        shader: asset_server.load("embedded://mcrs_minecraft_render/shaders/core/show.wgsl"),
+        shader: asset_server.load("embedded://mcrs_minecraft_render/shaders/core/show.wesl"),
         depth_layout: BindGroupLayoutDescriptor::new(
             "show depth",
             &BindGroupLayoutEntries::single(ShaderStages::FRAGMENT, texture_depth_2d()),

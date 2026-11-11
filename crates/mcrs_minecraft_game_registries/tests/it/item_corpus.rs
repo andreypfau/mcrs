@@ -5,12 +5,12 @@ use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
 use mcrs_minecraft_item::definition::CORPUS_DIRECTORY;
 use mcrs_minecraft_item::definition::schema::ItemDefinitionFile;
 use mcrs_minecraft_item::for_each_data_component;
-use mcrs_minecraft_item::item_keys::Item;
 use mcrs_minecraft_item::{
     AttackAnimation, AttributeModifiers, BreakSound, ComponentPatch, Enchantments,
     InteractAnimation, Lore, MaxStackSize, Rarity, RepairCost, SwingAnimation, TooltipDisplay,
     UseEffects,
 };
+use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_registries::Ref;
 use serde::Deserialize;
 use serde::de::IgnoredAny;

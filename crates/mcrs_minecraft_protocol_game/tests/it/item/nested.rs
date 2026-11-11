@@ -1,7 +1,8 @@
 use crate::item::harness::{WireCodec, decode_component, wire_kind};
 use mcrs_minecraft_fixtures::fixture;
 
-use mcrs_minecraft_item::{data_component_type_keys::DataComponentType, item_keys::Item};
+use mcrs_minecraft_item::data_component_type_keys::DataComponentType;
+use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_protocol::wire::MAX_NESTING;
 use mcrs_minecraft_protocol::{Encode, ErrorKind, VarInt};
 use mcrs_minecraft_protocol_game::item::{

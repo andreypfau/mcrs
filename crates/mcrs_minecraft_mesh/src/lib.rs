@@ -183,7 +183,7 @@ impl Sink {
     }
 }
 
-/// A box in blocks from a section's corner, grown to take in quads as `quad.wgsl` places them.
+/// A box in blocks from a section's corner, grown to take in quads as `quad.wesl` places them.
 struct Bounds {
     lo: [f32; 3],
     hi: [f32; 3],

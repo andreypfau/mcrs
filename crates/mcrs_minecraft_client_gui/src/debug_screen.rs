@@ -14,6 +14,7 @@ use crate::light_levels::LightLevels;
 /// so they run only while this says so, and one frame longer so a hidden panel gets extracted
 /// as hidden.
 #[derive(Resource, Clone, Copy, Default, ExtractResource)]
+#[extract_app(RenderApp)]
 pub struct UiNeeded {
     now: bool,
     before: bool,

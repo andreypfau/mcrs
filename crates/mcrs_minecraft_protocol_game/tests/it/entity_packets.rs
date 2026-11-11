@@ -6,7 +6,7 @@ use mcrs_minecraft_entity::{
     villager_profession_keys::VillagerProfession, villager_type_keys::VillagerType,
 };
 use mcrs_minecraft_item::PaintingVariantValue;
-use mcrs_minecraft_item::item_keys::Item;
+use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::block::BlockStateNumber;
 use mcrs_minecraft_protocol_game::clientbound::{

@@ -8,7 +8,7 @@ use std::io::Write;
 
 use mcrs_minecraft_core::codec::Validate;
 use mcrs_minecraft_item::component::trim::TrimPatternRef;
-use mcrs_minecraft_item::item_keys::Item;
+use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_registries::{FromWire, Refs, Resolved, Wire};
 use mcrs_minecraft_wire::{Decode, Encode};
 

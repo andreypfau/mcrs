@@ -12,8 +12,17 @@ workspace = true
 
 [dependencies]
 bevy_ecs = { workspace = true, optional = true }
+mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_text.workspace = true
+mcrs_minecraft_wire = { workspace = true, features = ["resource"] }
+serde.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_fixtures.workspace = true
+mcrs_minecraft_snbt.workspace = true
+mcrs_test_alloc.workspace = true
+serde_json.workspace = true
 
 [features]
 default = []
