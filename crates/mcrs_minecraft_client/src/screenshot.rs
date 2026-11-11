@@ -47,6 +47,7 @@ impl Plugin for ScreenshotPlugin {
             .add_systems(Update, capture);
         if let Some(path) = knobs.capture_path() {
             app.insert_resource(SceneCapture(path))
+                .add_message::<Unsettled>()
                 .add_systems(Update, capture_scene);
         }
     }

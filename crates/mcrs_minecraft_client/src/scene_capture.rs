@@ -59,6 +59,7 @@ impl Plugin for SceneCapturePlugin {
         })
         .init_resource::<Pending>()
         .add_message::<PlaceFrame>()
+        .add_message::<Unsettled>()
         .add_systems(PostStartup, aim_at_image)
         .add_systems(Update, (read_request, shoot_settled).chain());
         if let Some(path) = &self.record {
