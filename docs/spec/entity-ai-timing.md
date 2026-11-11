@@ -328,7 +328,8 @@ tick (step 4 of AIT-VAN-001). For walking mobs, it does the steps below in the o
 PATH-FOL-001. Steps 2-4 require an unfinished path that the mob can update.
 
 1. If a recompute waits (AIT-VAN-015), try it, even with a done or absent path.
-2. Advance the next node as PATH-FOL-002 states.
+2. Advance the next node as PATH-FOL-002 states. A mob that cannot update a path
+   (PATH-REQ-001, step 2) does only the air advance of PATH-FOL-001, step 4, and then step 5.
 3. Then do the stuck check of PATH-FOL-003.
    A usable path starts the window on acceptance if no path exists or its ordered node positions
    differ (PATH-REQ-004). The same path given again keeps it.
@@ -338,7 +339,7 @@ PATH-FOL-001. Steps 2-4 require an unfinished path that the mob can update.
    A failed check drops the path and marks the mob stuck.
    Without an earlier stop or restart, a motionless mob with positive mob speed drops its path
    101 follower ticks after the window starts.
-   A mob that advances at intervals of at most 100 follower ticks does not fail this check.
+   A mob that advances within 100 follower ticks after each window start does not fail this check.
 4. If an unfinished path remains, do the timeout check of PATH-FOL-004.
    Its total carries over a node change.
 5. If an unfinished path remains, give the move control its wanted position and speed modifier
