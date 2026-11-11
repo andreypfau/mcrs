@@ -42,8 +42,11 @@ document does not state.
 - **Viewer**: a player that tracks the item entity (`entity-tracking.md`, section 4).
 - **Hand form**: the start values of IEN-SPN-002.
 - **Default form**: the start values of IEN-SPN-008.
-- **Tick count**: the number of ticks that the item entity existed, from 0 at its spawn. A load sets
-  it to 0. It is not the age.
+- **Tick count**: a counter that is 0 at the spawn and increases by 1 at the start of each tick
+  (IEN-MOV-006, step 1). Thus the first tick reads 1. A load sets it to 0. It is not the age.
+- **Fluid box**: the box of the item entity, smaller by 0.001 on each side.
+- **Fluid update**: a step that reads the fluids in the fluid box. It finds the fluid height of each
+  fluid and applies the current (IEN-MOV-007). A tick has two fluid updates (IEN-MOV-006).
 
 ### 0.2 Provenance
 
@@ -155,11 +158,15 @@ absent. The age and the health start at their defaults, except where the table s
 `(x, y, z)` with the eye height `e` has the position `(x, y + e - 0.3F, z)`. It has one of two
 velocities:
 
-- look: `(-sin(yaw) × cos(pitch) × 0.3F + cos(θ) × q, -sin(pitch) × 0.3F + 0.1F + T(0, 0.1F),
-  cos(yaw) × cos(pitch) × 0.3F + sin(θ) × q)`, with `q = U(0, 0.02F)`;
-- scatter: `(-sin(θ) × p, 0.2F, cos(θ) × p)`, with `p = U(0, 0.5F)`.
+- look: `(-sinT(a) × cosT(b) × 0.3F + cos(θ) × q, -sinT(b) × 0.3F + 0.1F + T(0, 0.1F),
+  cosT(a) × cosT(b) × 0.3F + sin(θ) × q)`, with `q = U(0, 0.02F)`;
+- scatter: `(-sinT(θ) × p, 0.2F, cosT(θ) × p)`, with `p = U(0, 0.5F)`.
 
-The sine and the cosine take the angles in radians and give f32 values. Result R4 shows the look
+`a` and `b` are the yaw and the pitch in radians, as PHY-NUM-005 converts a yaw. `θ` and `q` are
+f32 values; `θ` is `U(0, f32(2π))`. `sinT` and `cosT` read the sine table of PHY-NUM-005 and give
+f32 values. `sin` and `cos` in the random part of the look velocity are the exact f64 functions.
+Thus the `x` and `z` parts of the look velocity are f64 sums, and the `y` part is an f32 value. The
+scatter velocity has f32 parts. Result R4 shows the look
 velocity in five directions: an up part from 0.0125 to 0.1901 and a horizontal random part of 0.0198
 or less. The up part of the look velocity is triangular, with the mean 0.1. Result R3 shows the
 vertical start velocity 0.2 of the scatter velocity.
@@ -211,14 +218,16 @@ it for the loot of a sheep.
 **IEN-SPN-009** (`source_suggested`, semantic, confidence medium). A player death drops the stacks only when the game
 rule `keep_inventory` is false. The server first destroys each stack whose enchantments prevent the
 drop of equipment, for example `vanishing_curse`. Then it drops each stack of the main slots, in
-the order of the slots, then each equipment slot. Result R3 shows a drop of the main slots, a
-helmet and the off-hand slot.
+the order of the slots. Then it drops each equipment slot in this order: off-hand, feet, legs,
+chest, head, body, saddle. The order of the drops gives the order of the network ids. Result R3
+shows a drop of the main slots, a helmet and the off-hand slot.
 
 ## 3. Motion and counters
 
 **IEN-MOV-001** (`source_suggested_black_box_confirmed`, semantic, confidence high). In each tick, an item entity
 moves as the row "item" of the table of PHY-ORD-005 states, with one change. When the item entity is
-in water and the water height at the item entity is more than 0.1, step `G` changes to this step:
+in water and the water height at the item entity is more than 0.1, step `G` changes to this step.
+The water height is the value of the first fluid update of the tick (IEN-MOV-006, step 3).
 
 - multiply `v.x` and `v.z` by 0.99F;
 - when `v.y < 0.06F`, add 5.0E-4F to `v.y`.
@@ -235,7 +244,11 @@ mark of TRK-UPD-001 in two cases:
 
 - the velocity at the end of the tick differs from the velocity at its start by a squared length of
   more than 0.01;
-- the item entity went into a fluid or out of it in this tick.
+- at the second fluid update of the tick (IEN-MOV-006, step 9), the item entity touches a fluid.
+
+An item entity touches a fluid when its fluid box overlaps a block with a fluid, and the surface of
+that fluid is at or above the bottom of the fluid box. Thus an item entity in a fluid gets the mark
+in each tick, not only when it goes into the fluid.
 
 **IEN-MOV-004** (`black_box_confirmed`, semantic, confidence high). When the `y` of an item entity is less than the
 minimum `y` of the dimension minus 64, the server removes the item entity. Result R12 shows the
@@ -243,8 +256,41 @@ removal at `y` -128.1 in the overworld, and no removal at `y` -127.9.
 
 **IEN-MOV-005** (`unresolved`, semantic). The motion of an item entity in lava. The reference
 suggests the step of IEN-MOV-001 with the factor 0.95F in place of 0.99F, when the lava height is
-more than 0.1. Result R10 does not agree: in lava, the first ticks show gravity and a factor of 0.75
-on each axis. See U1.
+more than 0.1. No captured result shows it. The lava part of result R10 shows the push of
+PHY-ORD-005 out of a solid block, not the motion in lava. See U1.
+
+**IEN-MOV-006** (`source_suggested`, semantic, confidence medium). The server does the steps of the
+tick of an item entity in this order:
+
+1. Add 1 to the tick count.
+2. When the stack is empty, remove the item entity, and stop.
+3. Do the first fluid update.
+4. Apply the burn of IEN-DMG-002 and the removal below the world of IEN-MOV-004.
+5. Decrease the pickup delay (IEN-MOV-002).
+6. Move the item entity (IEN-MOV-001). The block effects of the move apply in this step, for
+   example the damage of lava, `fire` and `cactus`.
+7. Look for merge partners (IEN-MRG-001). The merge reads the age before step 8.
+8. Increase the age (IEN-AGE-001).
+9. Do the second fluid update, and set the "needs sync" mark (IEN-MOV-003).
+10. When the age is 6000 or more, remove the item entity.
+
+A pickup is not a step of this tick. It occurs in the tick of the player (IEN-PCK-001). For
+example, an item entity with the age 5999 can merge in step 7 and is then removed in step 10.
+
+**IEN-MOV-007** (`source_suggested`, semantic, confidence medium). Each fluid update applies the
+current of each fluid that the item entity touches. Thus a tick applies the current two times.
+For one fluid:
+
+1. Let `S` be the sum of the flow vectors of the fluid blocks that the item entity touches. Before
+   a flow vector is added, multiply it by `h` when `h < 0.4`. `h` is the largest fluid height of
+   this fluid at the item entity up to that block.
+2. When `|S|²` is less than 1.0E-5F, the fluid adds no current.
+3. Otherwise the current of the fluid is `normalize(S) × s`. `s` is 0.014 for water. For lava, `s`
+   is 0.0023333333333333335, or 0.007 in a dimension with the attribute `fast_lava`.
+
+Let `I` be the sum of the currents of all fluids. When `(v.x + I.x)² + (v.z + I.z)²` is less than
+9.0E-6, and `|I|` is more than 1.0E-5F and less than 0.0045, scale `I` to the length 0.0045. Then
+add `I` to `v`. The flow vector of a fluid block is not stated here (section 9).
 
 ## 4. Age and the end of the lifetime
 
@@ -373,6 +419,10 @@ the item entity is destroyed: the server removes it, and IEN-DMG-005 applies. An
 invulnerability time: it can take damage in each tick. Result R20 shows an item entity with the
 health 2 on a cactus, removed one tick earlier than one with the health 5.
 
+Each damage that the item entity takes also sends `set_entity_motion` to each viewer at the end of
+the next tracker tick, as for a hurt subject (TRK-UPD-007). This applies also when the item entity
+is not destroyed.
+
 **IEN-DMG-002** (`black_box_confirmed`, semantic, confidence high). The table gives the damage of each block source
 and the tick of the removal of an item entity with the health 5, from the first tick of contact.
 
@@ -384,7 +434,8 @@ and the tick of the removal of an item entity with the health 5, from the first 
 | `cactus` | 1 | tick 5 | R20 |
 
 A burning item entity outside lava takes 1 damage in each tick in which its fire ticks are a
-multiple of 20. A fire block sets the fire ticks to 160 in each tick of contact. Result R21 shows an
+multiple of 20. In each tick of contact, a fire block raises the fire ticks to 160 when they are
+less than 160. It does not decrease a larger value. Result R21 shows an
 item entity with 200 fire ticks: 1 damage in the first tick, then none in the next 11 ticks.
 
 **IEN-DMG-003** (`source_suggested_black_box_confirmed`, semantic, confidence high). An explosion damages an item
@@ -405,9 +456,15 @@ in each of these cases:
 A player cannot attack an item entity.
 
 **IEN-DMG-005** (`source_suggested`, semantic, confidence medium). When an item entity is destroyed, the items inside
-its stack drop: the stacks of the `container` component and of the `bundle_contents` component.
-Each stack becomes one item entity with the default form at the position of the destroyed item
-entity, and the pickup delay 0.
+its stack drop. The kind of the item selects the component:
+
+- the item of a block: the stacks of the `container` component;
+- a bundle: the stacks of the `bundle_contents` component.
+
+The component alone does not cause a drop. For example, a data pack can give `bundle_contents` to
+an item that is not a bundle. The destruction of such an item drops nothing. Each stack becomes one
+item entity with the default form at the position of the destroyed item entity, and the pickup
+delay 0.
 
 ## 8. Packets
 
@@ -440,6 +497,7 @@ first.
 - The statistics and the advancements of a drop and a pickup.
 - The sounds of a pickup and of a burning item entity.
 - The client drawing of an item entity: its spin, its bob and the take animation.
+- The flow vector of a fluid block (IEN-MOV-007). A specification of the fluids states it.
 
 ## 10. Edition differences
 
@@ -519,9 +577,10 @@ For the owner:
 
 ### 11.3 Unresolved
 
-- **U1**: IEN-MOV-005. The motion in lava. Result R10 shows a factor of 0.75 on each axis and
-  gravity, not the expected step. The test summoned `netherite_ingot` into lava that flows.
-  Experiment E14 must repeat it in a lava source with no flow.
+- **U1**: IEN-MOV-005. The motion in lava has no captured result. In the lava part of result R10,
+  the item entity was in a solid block. The push of PHY-ORD-005 multiplied `v` by 0.75 and set
+  `v.z` to a random value from -0.3 to -0.1. The lava height was 0.1 or less, so gravity applied.
+  Experiment E18 must summon the item entity in a lava source, with no block in its box.
 - **U2**: IEN-DMG-004. The creeper case of `mob_griefing`. Result R22 shows no damage at 3 blocks
   from a creeper both with `mob_griefing` false and true, so the test did not prove an explosion.
 - **U3**: IEN-SPN-001. The rows with no result: the throw click, the click outside the menu, the
@@ -554,7 +613,7 @@ entities with `data get entity`. Record the clientbound packets of each client a
 | E15 | Summon item entities at `y` -127.9 and -128.1. Step 1 tick. | R12 |
 | E16 | Summon `stone` and `nether_star` 1 to 7 blocks from a TNT with `fuse` 1. Step 3 ticks. | R22 |
 | E17 | Not run. Send a throw click, a click outside the menu and a creative drop. Close a menu with a cursor stack and a full inventory. Disconnect with a cursor stack. Read each item entity. | U3 |
-| E18 | Not run. Repeat the lava part of E14 in a lava source with solid blocks on all sides. | U1 |
+| E18 | Not run. Make a lava source with solid blocks on the four sides and below. Summon an item entity with `Motion` `(0.1, 0, 0)` at the centre of the lava block, 0.5 above its bottom. Step 1 tick at a time and read `Motion`. | U1 |
 | E19 | Not run. Summon a creeper that explodes with certainty, with `mob_griefing` false and true. | U2 |
 | B1 | Not run. On a Bedrock server, measure the pickup reach, the merge range, the lifetime and the pickup delay of a drop of the hand. | ED2 |
 | B2 | Not run. On a Bedrock server, drop an item and try a pickup by another player at once and after the pickup delay. | ED3 |
@@ -632,6 +691,9 @@ no item entity after the command
 water, ticks 1 to 4:  v (0.097020, 0.000490, 0) (0.094129, 0.000970, 0) (0.091324, 0.001441, 0) (0.088602, 0.001902, 0)
 lava that flows, netherite_ingot, ticks 1 to 2:  v (0.0735, -0.0294, -0.1009) (0.0540, -0.0510, -0.1801)
 ```
+
+The lava values agree with the push out of a solid block: `0.1 × 0.75 × 0.98F = 0.0735` and
+`-0.04 × 0.75 × 0.98F = -0.0294`.
 
 **R11.** E8, a pickup delay of 5: no packet in the first 3 ticks, then `take_item_entity`,
 `container_set_slot` and `remove_entities`. E13: the pickup delay 32767 stays 32767 after 10 ticks.
