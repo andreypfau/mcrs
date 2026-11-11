@@ -50,10 +50,8 @@ fn owed(store: &StagingStore, v: ColumnPos, rungs: usize) -> Option<Owed> {
     store.neighbourhood_reached(v, stage).then_some(owed)
 }
 
-/// The side, as a power of two of chunks, of the squares whose owed fills share one pool
-/// task. A worker reuses the lattice planes and the surface levels of the columns it filled
-/// just before, and columns handed out one by one rarely reach the worker that filled their
-/// neighbours (`PERF.md`, "Fills in groups").
+/// The side, as a power of two of chunks, of the squares whose owed fills share one pool task:
+/// a worker reuses what it sampled for the columns beside one (`PERF.md`, "Fills in groups").
 const FILL_GROUP_SHIFT: u32 = 2;
 
 fn fill_group(col: ColumnPos) -> (i32, i32) {
@@ -66,9 +64,8 @@ struct GroupFill {
     end: TaskEnd<StageResult>,
 }
 
-/// The fills of a group that have not started. When the fill before them panics, they are
-/// dropped with it; they leave as cancelled fills, which the stage dispatches again, and
-/// not as fills that panicked.
+/// The fills of a group that have not started. Dropped by a panic of the fill before them,
+/// they leave as cancelled fills, which the stage dispatches again.
 struct Unstarted(std::vec::IntoIter<GroupFill>);
 
 impl Drop for Unstarted {
@@ -166,9 +163,8 @@ impl GenerationStage {
             .push(id, InFlightStage { col, cancel }, Some(task));
     }
 
-    /// Fills `group` in one pool task, west to east and north to south, so each column
-    /// finds the planes of the two neighbours it borrows from. Every column keeps its own
-    /// end and its own token: one that is cancelled drops out and the rest go on.
+    /// Fills `group` in one pool task, west to east and north to south, so each column finds
+    /// the planes it borrows. A cancelled column drops out and the rest go on.
     fn spawn_fill_group(
         &mut self,
         step: &mut Step<'_, Self>,
@@ -304,21 +300,14 @@ impl Dispatcher<'_, '_> {
         Pass::Going
     }
 
-    /// Hands the fills of the pass to the pool, one task for each group, the group of the
-    /// nearest column first.
-    ///
-    /// A group takes the other columns of its square that owe a fill with it, past the
-    /// budget of the pass: a pass on a busy pool has room for a few columns, and they
-    /// would otherwise go out one by one. The overshoot is under one square for each
-    /// group the pass starts.
-    ///
-    /// A group fills its columns one after the other, so the last of them waits for the
-    /// rest. While the pool has a thread for every fill, each fill is a task of its own.
+    /// Hands the fills of the pass to the pool, the group of the nearest column first. A group
+    /// takes the other owed columns of its square with it, past the budget of the pass.
     fn spawn_fills(&mut self, generation: &mut GenerationStage) {
         let rungs = self.ctx.rungs();
         let done = top_of_ladder(rungs);
         let side = 1 << FILL_GROUP_SHIFT;
         let mut fills = std::mem::take(&mut self.fills);
+        // A group fills one column after the other: with a thread for each fill, none waits.
         if generation.in_flight.len() + fills.len() <= generation.config.num_threads {
             for col in fills {
                 generation.spawn_fill_group(self.step, self.pool, self.ctx, vec![col]);

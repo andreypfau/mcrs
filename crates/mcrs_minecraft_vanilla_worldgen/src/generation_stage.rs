@@ -63,10 +63,8 @@ pub(crate) enum StageResult {
 /// Concurrency limits of a dimension's generation stage.
 #[derive(Clone, Debug)]
 pub(crate) struct SchedulerConfig {
-    /// Maximum number of concurrent stage tasks. A column's fill and the run
-    /// and merge of each of its rungs all share this budget, so it bounds the
-    /// pool, not the column count. A fill that takes the owed columns of its square
-    /// with it goes past this by less than one square.
+    /// Maximum number of concurrent stages, the fills, runs and merges together. A fill that
+    /// takes the owed columns of its square with it goes past this by less than one square.
     pub(crate) max_in_flight: usize,
     /// Maximum stages one dispatch pass hands to the pool, the columns a fill takes with it
     /// not counted. A pass runs in each step of the generation stage.

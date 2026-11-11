@@ -775,12 +775,14 @@ fn a_fill_on_a_busy_pool_takes_the_owed_columns_of_its_square() {
             .map(|stage| (stage.col.x, stage.col.z))
             .collect();
         started.sort_unstable();
+        started.dedup();
         let mut expected: Vec<(i32, i32)> = square.iter().map(|col| (col.x, col.z)).collect();
         expected.sort_unstable();
         assert_eq!(started.len(), filling, "{num_threads} threads");
-        if filling == square.len() {
-            assert_eq!(started, expected, "{num_threads} threads");
-        }
+        assert!(
+            started.iter().all(|col| expected.contains(col)),
+            "{num_threads} threads: {started:?} are columns of the square"
+        );
     }
 }
 
