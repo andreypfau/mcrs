@@ -325,15 +325,20 @@ The alert to other mobs of the same type is a pair action (AIT-VAN-024).
 
 **AIT-VAN-012** (`source_suggested`, semantic, confidence: medium). The path follower runs in each
 tick (step 4 of AIT-VAN-001). For walking mobs, it does the steps below in the order of
-PATH-FOL-001. Steps 2-4 require an unfinished path that the mob can update.
+PATH-FOL-001. Steps 2 to 5 require an unfinished path. Steps 3 and 4 also require a mob that can
+update a path (PATH-REQ-001, step 2).
 
 1. If a recompute waits (AIT-VAN-015), try it, even with a done or absent path.
-2. Advance the next node as PATH-FOL-002 states. A mob that cannot update a path
-   (PATH-REQ-001, step 2) does only the air advance of PATH-FOL-001, step 4, and then step 5.
+2. Advance the next node as PATH-FOL-002 states. A mob that cannot update a path does only the air
+   advance of PATH-FOL-001, step 4, and then step 5.
 3. Then do the stuck check of PATH-FOL-003.
    A usable path starts the window on acceptance if no path exists or its ordered node positions
    differ (PATH-REQ-004). The same path given again keeps it.
+   The current path holds its nodes after the cauldron rule of PATH-REQ-004, step 4. Thus a new
+   search for a route through a cauldron differs from the current path and starts the window.
+   A path from a recompute (PATH-RCP-002) does not start the window, also after a stop.
    Each advance and each check starts it again.
+   The follower counts its ticks also without a path.
    Check only after more than 100 follower ticks from the window start.
 
    A failed check drops the path and marks the mob stuck.
