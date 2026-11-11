@@ -180,7 +180,7 @@ pub fn fill_context(consumer: Consumer) -> Dimension {
     let program = match consumer {
         Consumer::BetaOre => ColumnProgram {
             generator: ColumnGenerator::Beta(Arc::new(BetaCaveBlockIds::resolve(&blocks().0))),
-            biomes: ColumnBiomes::new(source.as_deref(), None).unwrap(),
+            biomes: ColumnBiomes::new(source.as_deref(), None, None).unwrap(),
             carvers: source
                 .as_deref()
                 .map(|source| Arc::new(super::beta_carver_table(source))),
@@ -208,7 +208,7 @@ pub fn fill_context(consumer: Consumer) -> Dimension {
                     ),
                 )),
             },
-            biomes: ColumnBiomes::new(source.as_deref(), None).unwrap(),
+            biomes: ColumnBiomes::new(source.as_deref(), None, None).unwrap(),
             carvers: None,
             features: tables.as_ref().map(|tables| Arc::new(ore_program(tables))),
         },

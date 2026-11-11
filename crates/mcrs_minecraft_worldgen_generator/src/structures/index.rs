@@ -48,14 +48,47 @@ pub enum BiomeLookup {
     None,
 }
 
-/// The five biomes the end's biome source draws from, by registry id.
+/// The five biomes the end's biome source draws from, as registry ids of type `T`.
 #[derive(Clone, Copy, Debug)]
-pub struct EndBiomes {
-    pub end: u16,
-    pub highlands: u16,
-    pub midlands: u16,
-    pub islands: u16,
-    pub barrens: u16,
+pub struct EndBiomes<T = u16> {
+    pub end: T,
+    pub highlands: T,
+    pub midlands: T,
+    pub islands: T,
+    pub barrens: T,
+}
+
+impl<T: Copy> EndBiomes<T> {
+    /// The end biome of a chunk: the end itself within 64 chunks of the origin, elsewhere a pick
+    /// by `erosion`, read at the chunk's centre column.
+    pub(crate) fn pick(&self, chunk_x: i32, chunk_z: i32, erosion: impl FnOnce() -> f64) -> T {
+        if is_central_end_chunk(chunk_x, chunk_z) {
+            return self.end;
+        }
+        let erosion = erosion();
+        if erosion > 0.25 {
+            self.highlands
+        } else if erosion >= -0.0625 {
+            self.midlands
+        } else if erosion < -0.21875 {
+            self.islands
+        } else {
+            self.barrens
+        }
+    }
+
+    pub(crate) fn try_map<U, E>(
+        self,
+        mut map: impl FnMut(T) -> Result<U, E>,
+    ) -> Result<EndBiomes<U>, E> {
+        Ok(EndBiomes {
+            end: map(self.end)?,
+            highlands: map(self.highlands)?,
+            midlands: map(self.midlands)?,
+            islands: map(self.islands)?,
+            barrens: map(self.barrens)?,
+        })
+    }
 }
 
 impl EndBiomes {
@@ -77,32 +110,27 @@ impl EndBiomes {
         })
     }
 
-    /// The end biome at `quart`: the end itself within 64 chunks of the origin, elsewhere a pick by the erosion at the chunk's centre column.
-    fn at(&self, router: &NoiseRouter, ws: &mut Workspace, quart: IVec3) -> u16 {
+    /// The end biome at `quart`, by [`EndBiomes::pick`] at the height of the quart.
+    pub(crate) fn at(&self, router: &NoiseRouter, ws: &mut Workspace, quart: IVec3) -> u16 {
         let block: IVec3 = quart << 2;
         let chunk_x = block.x >> 4;
         let chunk_z = block.z >> 4;
-        if i64::from(chunk_x).pow(2) + i64::from(chunk_z).pow(2) <= 4096 {
-            return self.end;
-        }
-        let volume = SampleGrid::new(
-            IVec3::ONE,
-            IVec3::new((chunk_x * 2 + 1) * 8, block.y, (chunk_z * 2 + 1) * 8),
-            IVec3::ONE,
-        );
-        let mut erosion = [0.0f32];
-        router.fill_roots(ws, &volume, &[EROSION], &mut erosion);
-        let erosion = f64::from(erosion[0]);
-        if erosion > 0.25 {
-            self.highlands
-        } else if erosion >= -0.0625 {
-            self.midlands
-        } else if erosion < -0.21875 {
-            self.islands
-        } else {
-            self.barrens
-        }
+        self.pick(chunk_x, chunk_z, || {
+            let volume = SampleGrid::new(
+                IVec3::ONE,
+                IVec3::new((chunk_x * 2 + 1) * 8, block.y, (chunk_z * 2 + 1) * 8),
+                IVec3::ONE,
+            );
+            let mut erosion = [0.0f32];
+            router.fill_roots(ws, &volume, &[EROSION], &mut erosion);
+            f64::from(erosion[0])
+        })
     }
+}
+
+/// Whether a chunk lies within the 64 chunks around the origin that are the end biome itself.
+pub(crate) fn is_central_end_chunk(chunk_x: i32, chunk_z: i32) -> bool {
+    i64::from(chunk_x).pow(2) + i64::from(chunk_z).pow(2) <= 4096
 }
 
 pub(crate) const CLIMATE_ROOTS: [usize; 6] =

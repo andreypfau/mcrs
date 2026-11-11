@@ -173,7 +173,7 @@ fn run_pinned(
                 cz,
                 y_sections,
                 router,
-                &ColumnBiomes::new(Some(source), None).unwrap(),
+                &ColumnBiomes::new(Some(source), None, None).unwrap(),
                 None,
                 cancel,
             ) else {
@@ -315,7 +315,7 @@ fn natural(
     let table = MultiNoiseBiomeTable::of_preset(Preset::Overworld, biomes_of(registry))
         .expect("the overworld preset resolves");
     let natural_source = BiomeSource::MultiNoise(multi.clone());
-    let natural = ColumnBiomes::new(Some(&natural_source), Some(Arc::new(table))).unwrap();
+    let natural = ColumnBiomes::new(Some(&natural_source), Some(Arc::new(table)), None).unwrap();
 
     let mut column = ColumnBlocks::new(y_sections);
     let mut scratch = MaterialScratch::default();
@@ -382,7 +382,7 @@ fn natural(
                 cz,
                 y_sections,
                 router,
-                &ColumnBiomes::new(Some(&source), None).unwrap(),
+                &ColumnBiomes::new(Some(&source), None, None).unwrap(),
                 None,
                 cancel,
             )

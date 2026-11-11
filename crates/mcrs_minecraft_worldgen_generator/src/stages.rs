@@ -150,10 +150,11 @@ impl FillContext {
         let (router, material) = match setup {
             GeneratorSetup::Noise { router, material } => (router, material),
             GeneratorSetup::Flat(layers) => {
-                let biomes = ColumnBiomes::new(biome.as_deref(), None).unwrap_or_else(|error| {
-                    error!(%error, "the biome of a flat dimension does not fit the palette");
-                    ColumnBiomes::None
-                });
+                let biomes =
+                    ColumnBiomes::new(biome.as_deref(), None, None).unwrap_or_else(|error| {
+                        error!(%error, "the biome of a flat dimension does not fit the palette");
+                        ColumnBiomes::None
+                    });
                 return FillContext {
                     saved,
                     router: None,
@@ -224,10 +225,11 @@ impl FillContext {
                 )),
             },
         };
-        let biomes = ColumnBiomes::new(biome.as_deref(), multi_noise).unwrap_or_else(|error| {
-            error!(%error, "a biome of the source does not fit the palette");
-            ColumnBiomes::None
-        });
+        let biomes = ColumnBiomes::new(biome.as_deref(), multi_noise, Some(fill_ids.end))
+            .unwrap_or_else(|error| {
+                error!(%error, "a biome of the source does not fit the palette");
+                ColumnBiomes::None
+            });
         let program = ColumnProgram {
             generator,
             biomes,
@@ -1408,7 +1410,7 @@ mod tests {
                     generator: ColumnGenerator::Beta(Arc::new(BetaCaveBlockIds::resolve(
                         &blocks().0,
                     ))),
-                    biomes: ColumnBiomes::new(Some(&source), None).unwrap(),
+                    biomes: ColumnBiomes::new(Some(&source), None, None).unwrap(),
                     carvers: Some(Arc::new(beta_carver_table(&source))),
                     features: None,
                 },
