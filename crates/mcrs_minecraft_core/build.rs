@@ -16,7 +16,7 @@ use std::path::Path;
 
 use serde_json::Value;
 
-const VERSION_FILE: &str = "../../assets/minecraft/version.json";
+const VERSION_FILE: &str = "version.json";
 
 /// A struct literal of `name` with one field per key, so a key `Version` lacks,
 /// a field the file lacks and a value of the wrong type all fail to compile.

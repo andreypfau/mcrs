@@ -4,6 +4,7 @@ description = "The read and the write of stringified NBT as the game reads and w
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 
 [lib]
 doctest = false

@@ -1,7 +1,10 @@
 [package]
 name = "mcrs_minecraft_nbt"
+description = "Serde serializer and deserializer for the binary NBT format of Minecraft: Java and Bedrock Edition"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [lib]
 doctest = false
