@@ -10,7 +10,7 @@ workspace = true
 
 [dependencies]
 mcrs_minecraft_wire_macros.workspace = true
-glam = { workspace = true, optional = true }
+glam = { workspace = true, features = ["std"], optional = true }
 serde = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }
 mcrs_voxel = { workspace = true, optional = true }

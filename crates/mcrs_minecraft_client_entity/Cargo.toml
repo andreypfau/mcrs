@@ -13,7 +13,7 @@ workspace = true
 [dependencies]
 bevy_app.workspace = true
 bevy_ecs.workspace = true
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 mcrs_minecraft_client_world.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_item.workspace = true

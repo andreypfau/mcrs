@@ -12,7 +12,7 @@ doctest = false
 workspace = true
 
 [dependencies]
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 mcrs_minecraft_block.workspace = true
 serde.workspace = true
 serde_json.workspace = true

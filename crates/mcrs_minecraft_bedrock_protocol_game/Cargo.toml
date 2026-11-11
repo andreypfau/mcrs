@@ -14,5 +14,5 @@ workspace = true
 
 [dependencies]
 mcrs_minecraft_bedrock_wire = { workspace = true, features = ["glam"] }
-glam = { workspace = true }
+glam = { workspace = true, features = ["std"] }
 mcrs_minecraft_nbt = { workspace = true }

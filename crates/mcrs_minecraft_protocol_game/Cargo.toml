@@ -29,7 +29,7 @@ mcrs_minecraft_menu.workspace = true
 mcrs_minecraft_recipe.workspace = true
 mcrs_minecraft_chunk.workspace = true
 mcrs_minecraft_core.workspace = true
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_wire = { workspace = true, features = ["glam", "uuid", "serde"] }
 serde = { workspace = true, features = ["derive"] }

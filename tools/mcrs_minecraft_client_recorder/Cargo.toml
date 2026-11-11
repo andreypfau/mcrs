@@ -12,7 +12,7 @@ workspace = true
 anyhow.workspace = true
 bytes.workspace = true
 flate2.workspace = true
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 mcrs_minecraft_block.workspace = true
 mcrs_minecraft_client_ticks.workspace = true
 mcrs_minecraft_core.workspace = true

@@ -12,7 +12,7 @@ workspace = true
 
 # std: the table and its shapes live in Vec and Box
 [dependencies]
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 mcrs_minecraft_block.workspace = true
 mcrs_minecraft_physics.workspace = true
 mcrs_minecraft_registries.workspace = true

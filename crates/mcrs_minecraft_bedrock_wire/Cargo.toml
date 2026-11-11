@@ -17,4 +17,4 @@ glam = ["dep:glam"]
 
 [dependencies]
 mcrs_minecraft_bedrock_wire_macros.workspace = true
-glam = { version = "0.33.12", default-features = false, features = ["nostd-libm"], optional = true }
+glam = { workspace = true, features = ["nostd-libm"], optional = true }

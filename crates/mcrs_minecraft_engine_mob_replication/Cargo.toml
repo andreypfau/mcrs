@@ -26,7 +26,7 @@ rustc-hash.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 mcrs_minecraft_engine_physics = { workspace = true, features = ["testing"] }
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_protocol_game.workspace = true
