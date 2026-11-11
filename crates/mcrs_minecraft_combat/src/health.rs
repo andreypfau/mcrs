@@ -23,6 +23,11 @@ impl Health {
         self.current > 0.0
     }
 
+    #[must_use]
+    pub const fn is_dead(&self) -> bool {
+        self.current <= 0.0
+    }
+
     pub fn set_health(&mut self, health: f32) {
         self.current = health.clamp(0.0, self.max);
     }
