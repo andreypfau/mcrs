@@ -937,6 +937,22 @@ impl<'a> mcrs_minecraft_protocol::Decode<'a> for ClientboundPlayerInfoUpdate<'a>
         })
     }
 }
+
+#[derive(Clone, Debug, PartialEq, Encode, Decode)]
+pub struct ClientboundUpdateMobEffect {
+    pub entity_id: VarInt,
+    pub effect: VarInt,
+    pub amplifier: VarInt,
+    pub duration: VarInt,
+    pub flags: u8,
+}
+
+#[derive(Clone, Debug, PartialEq, Encode, Decode)]
+pub struct ClientboundRemoveMobEffect {
+    pub entity_id: VarInt,
+    pub effect: VarInt,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

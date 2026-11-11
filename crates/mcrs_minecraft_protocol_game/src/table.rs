@@ -43,6 +43,7 @@ mcrs_minecraft_protocol::extend_packet_table! {
         "recipe_book_remove" => ClientboundRecipeBookRemove,
         "recipe_book_settings" => ClientboundRecipeBookSettings,
         "remove_entities" => ClientboundRemoveEntities,
+        "remove_mob_effect" => ClientboundRemoveMobEffect,
         "respawn" => ClientboundRespawn,
         "rotate_head" => ClientboundRotateHead,
         "section_blocks_update" => ClientboundSectionBlocksUpdate<'a>,
@@ -67,6 +68,7 @@ mcrs_minecraft_protocol::extend_packet_table! {
         "ticking_step" => ClientboundTickingStep,
         "update_advancements" => ClientboundUpdateAdvancements,
         "update_attributes" => ClientboundUpdateAttributes<'a>,
+        "update_mob_effect" => ClientboundUpdateMobEffect,
         "update_recipes" => ClientboundUpdateRecipes,
         "update_tags" => ClientboundUpdateTags<'a>,
     }
