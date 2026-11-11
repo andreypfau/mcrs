@@ -23,7 +23,9 @@
 #[expect(dead_code, reason = "the test uses a part of the test support")]
 mod support;
 
-use glam::{Mat4, Vec2, Vec3};
+use glam::camera::rh::proj::directx;
+use glam::camera::rh::view;
+use glam::{Vec2, Vec3};
 use mcrs_minecraft_core::CardinalLight;
 use mcrs_minecraft_entity_animation::EntityQuery;
 use mcrs_minecraft_entity_render::{
@@ -304,8 +306,8 @@ fn camera(height: f32, distance: f32, elevation: f32, phase: [f32; 2]) -> FrameV
     let eye = target + Vec3::new(0.0, sine, cosine) * distance;
     let section = (eye / 16.0).floor().as_ivec3();
     let origin = section.as_vec3() * 16.0;
-    let projection = Mat4::perspective_infinite_reverse_rh(field_of_view(), 1.0, 0.05);
-    let view = Mat4::look_at_rh(eye - origin, target - origin, Vec3::Y);
+    let projection = directx::perspective_infinite_reverse(field_of_view(), 1.0, 0.05);
+    let view = view::look_at_mat4(eye - origin, target - origin, Vec3::Y);
     FrameView::new(
         projection,
         view,

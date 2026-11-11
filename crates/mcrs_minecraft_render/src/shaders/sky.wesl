@@ -1,7 +1,7 @@
-#import bevy_render::maths::{HALF_PI, PI}
-#import bevy_render::view::View
-#import mcrs_minecraft_client::quad::degenerate
-#import mcrs_minecraft_client::sky::Sky
+import bevy_render::maths::{HALF_PI, PI};
+import bevy_render::view::View;
+import package::shaders::include::quad::degenerate;
+import package::shaders::include::sky::Sky;
 
 @group(0) @binding(0) var<uniform> view: View;
 @group(0) @binding(1) var<uniform> sky: Sky;

@@ -71,7 +71,7 @@ use std::time::Duration;
 
 /// Gives each new connection its `OutboundQueue` and its layer 1 state, which the network crate
 /// cannot name.
-pub fn attach_outbound_queue(add: On<Add, ServerSideConnection>, mut commands: Commands) {
+pub fn attach_outbound_queue(add: On<Add<ServerSideConnection>>, mut commands: Commands) {
     commands
         .entity(add.entity)
         .insert((OutboundQueue::default(), Probes::default()));

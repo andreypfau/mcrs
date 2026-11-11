@@ -1,11 +1,9 @@
-#define_import_path mcrs_minecraft_client::surface
-
-#import mcrs_minecraft_client::fields::{BIOME_TINTS, FIXED_TINTS}
-#import mcrs_minecraft_client::frame::camera
-#import mcrs_minecraft_client::terrain_bindings::{
+import package::shaders::include::fields::{BIOME_TINTS, FIXED_TINTS};
+import package::shaders::include::frame::camera;
+import package::shaders::include::terrain_bindings::{
     STILL, animations, atlas0, atlas1, atlas2, atlas3, atlas_sampler, sprites, tint_sampler,
     tints,
-}
+};
 
 struct Surface {
     sprite: u32,

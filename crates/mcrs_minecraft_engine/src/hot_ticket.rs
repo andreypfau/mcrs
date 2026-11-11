@@ -170,7 +170,7 @@ pub(crate) fn move_remote_ticket(world: &mut World, holder: Entity, new: HotTick
 }
 
 pub(crate) fn raise_hot_ticket(
-    add: On<Add, HotTicket>,
+    add: On<Add<HotTicket>>,
     held: Query<&HotTicket>,
     owned: Option<Res<OwnedColumns>>,
     mut loading: Single<&mut ColumnLoading>,
@@ -188,7 +188,7 @@ pub(crate) fn raise_hot_ticket(
 /// Lowers a ticket that goes away. A player of a world with several cells that leaves it tells
 /// the other cells, which hold its ticket as a [`RemoteTicket`].
 pub(crate) fn release_hot_ticket(
-    discard: On<Discard, HotTicket>,
+    discard: On<Discard<HotTicket>>,
     held: Query<(&HotTicket, Option<&Owner>, Has<CellCrossing>)>,
     owned: Option<Res<OwnedColumns>>,
     mut mail: Option<ResMut<TicketMail>>,

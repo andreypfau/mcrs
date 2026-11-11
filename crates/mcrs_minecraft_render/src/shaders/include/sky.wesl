@@ -1,5 +1,3 @@
-#define_import_path mcrs_minecraft_client::sky
-
 struct Sky {
     disc: vec4<f32>,
     sunrise: vec4<f32>,

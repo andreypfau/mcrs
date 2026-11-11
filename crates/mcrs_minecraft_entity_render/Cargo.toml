@@ -12,7 +12,7 @@ doctest = false
 workspace = true
 
 [dependencies]
-bevy = { version = "0.19.1", default-features = false, features = [
+bevy = { version = "0.20.1", default-features = false, features = [
     "std",
     "bevy_asset",
     "bevy_log",
@@ -45,7 +45,7 @@ mcrs_molang.workspace = true
 mcrs_molang_wgsl.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-wgpu = { version = "29", default-features = false, features = ["wgsl"] }
+wgpu = { version = "30", default-features = false, features = ["wgsl"] }
 
 [dev-dependencies]
 naga = { workspace = true, features = ["wgsl-in"] }
@@ -55,7 +55,7 @@ futures-lite = "2"
 image = { version = "0.25", default-features = false, features = ["png"] }
 mcrs_minecraft_client_jar.workspace = true
 nv-flip = "0.1.2"
-wgpu = { version = "29", features = ["metal", "wgsl"] }
+wgpu = { version = "30", features = ["metal", "wgsl"] }
 
 [[bench]]
 name = "layers"

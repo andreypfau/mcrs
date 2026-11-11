@@ -541,7 +541,7 @@ fn run(gpu: &Gpu, source: &str, cases: &[Case]) -> Vec<f32> {
     gpu.queue.submit([encoder.finish()]);
     read.slice(..).map_async(MapMode::Read, |_| {});
     gpu.device.poll(PollType::wait_indefinitely()).unwrap();
-    let values = bytemuck::cast_slice(&read.slice(..).get_mapped_range()).to_vec();
+    let values = bytemuck::cast_slice(&read.slice(..).get_mapped_range().unwrap()).to_vec();
     read.unmap();
     values
 }

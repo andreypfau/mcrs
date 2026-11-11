@@ -53,6 +53,7 @@ fn reconstruct(relative_from_clip: Mat4, pixel: Vec2, viewport: Vec2, depth: f32
 #[cfg(test)]
 mod tests {
     use bevy::math::DVec3;
+    use bevy::math::proj;
     use mcrs_minecraft_mesh::SECTION_SIZE;
 
     use super::*;
@@ -71,7 +72,7 @@ mod tests {
     fn a_reconstructed_block_at_the_world_edge_is_the_block_drawn() {
         let eye = DVec3::new(30_000_000.5, 16_777_216.25, -30_000_000.5);
         let origin = CameraOrigin::of(eye);
-        let clip_from_view = Mat4::perspective_infinite_reverse_rh(1.4, 16.0 / 9.0, 0.05);
+        let clip_from_view = proj::perspective_infinite_reverse(1.4, 16.0 / 9.0, 0.05);
         let inside = DVec3::new(0.3, 0.7, 0.6);
         let eye_block = eye.floor().as_ivec3();
         let sections = 96 * SECTION_SIZE as i32;

@@ -1,7 +1,5 @@
-#define_import_path mcrs_minecraft_client::deferred
-
-#import mcrs_minecraft_client::gbuffer_encode::{GBuffer, octahedral_encode, sign_not_zero}
-#import mcrs_minecraft_client::lighting::lightmap
+import package::shaders::include::gbuffer_encode::{GBuffer, octahedral_encode, sign_not_zero};
+import package::shaders::include::lighting::lightmap;
 
 fn octahedral_decode(e: vec2<f32>) -> vec3<f32> {
     let z = 1.0 - abs(e.x) - abs(e.y);

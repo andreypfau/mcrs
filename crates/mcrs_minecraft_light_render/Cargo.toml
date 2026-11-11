@@ -19,7 +19,7 @@ mcrs_minecraft_chunk.workspace = true
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_light_color = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
-bevy = { version = "0.19.1", default-features = false, features = [
+bevy = { version = "0.20.1", default-features = false, features = [
     "std",
     "bevy_asset",
     "bevy_log",

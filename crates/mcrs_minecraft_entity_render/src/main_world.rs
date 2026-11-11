@@ -114,7 +114,7 @@ pub(crate) fn assign_slots(
 }
 
 pub(crate) fn release_slot(
-    removed: On<Remove, EntitySlot>,
+    removed: On<Remove<EntitySlot>>,
     slots: Query<&EntitySlot>,
     mut arena: ResMut<SlotArena>,
 ) {

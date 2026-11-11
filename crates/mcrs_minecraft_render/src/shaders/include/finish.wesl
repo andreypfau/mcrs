@@ -1,5 +1,3 @@
-#define_import_path mcrs_minecraft_client::finish
-
 /// Vanilla shades the bytes its textures are written with and hands the result to the screen
 /// unchanged. The view target encodes to sRGB as it is written, so the colour is decoded first
 /// and the target writes vanilla's bytes back out.
@@ -21,9 +19,8 @@ fn edge_pixels(quad_uv: vec2<f32>) -> f32 {
 }
 
 fn wireframe_discards(quad_uv: vec2<f32>) -> bool {
-#ifdef WIREFRAME
+    @if(WIREFRAME)
     return edge_pixels(quad_uv) > 1.0;
-#else
+    @else
     return false;
-#endif
 }

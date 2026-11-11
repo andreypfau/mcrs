@@ -1,5 +1,5 @@
 
-#import mcrs_minecraft_client::fields::{
+import package::shaders::include::fields::{
     MODEL_BLOCK_LIGHT_WORD, MODEL_BLOCK_LIGHT_SHIFT, MODEL_BLOCK_LIGHT_BITS,
     MODEL_SHADE_WORD, MODEL_SHADE_SHIFT, MODEL_SHADE_BITS,
     MODEL_SKY_LIGHT_WORD, MODEL_SKY_LIGHT_SHIFT, MODEL_SKY_LIGHT_BITS,
@@ -9,16 +9,16 @@
     MODEL_U_WORD, MODEL_U_SHIFT, MODEL_U_BITS,
     MODEL_V_WORD, MODEL_V_SHIFT, MODEL_V_BITS,
     MODEL_X_WORD, MODEL_Y_WORD, MODEL_Z_WORD,
-}
-#import mcrs_minecraft_client::frame::{camera, params}
-#import mcrs_minecraft_client::quad::{
+};
+import package::shaders::include::frame::{camera, params};
+import package::shaders::include::quad::{
     CORNERS_PER_QUAD, MODEL_WORDS_PER_VERTEX, corner_index, corner_uv, model_position, quad_of,
-}
-#import mcrs_minecraft_client::section::section_origin
-#import mcrs_minecraft_client::surface::{Surface, shade_surface}
-#import mcrs_minecraft_client::terrain_bindings::{
+};
+import package::shaders::include::section::section_origin;
+import package::shaders::include::surface::{Surface, shade_surface};
+import package::shaders::include::terrain_bindings::{
     model_field, sections, vertices, visible, visible_slot,
-}
+};
 
 
 struct ModelOut {
@@ -71,8 +71,8 @@ fn vertex_model(@builtin(vertex_index) vertex: u32) -> ModelOut {
     out.normal = model_quad_normal(entry.x);
     out.world_xz = world.xz;
     out.tint_kind = model_field(base, MODEL_TINT_WORD, MODEL_TINT_SHIFT, MODEL_TINT_BITS)
-        | model_field(base, MODEL_TINT_HIGH_WORD, MODEL_TINT_HIGH_SHIFT, MODEL_TINT_HIGH_BITS)
-            << MODEL_TINT_BITS;
+        | (model_field(base, MODEL_TINT_HIGH_WORD, MODEL_TINT_HIGH_SHIFT, MODEL_TINT_HIGH_BITS)
+            << MODEL_TINT_BITS);
     out.quad_uv = corner_uv(corner);
     return out;
 }
@@ -103,13 +103,13 @@ fn model_surface(in: ModelOut) -> Surface {
     return s;
 }
 
-fn model_gbuffer(in: ModelOut, albedo: vec3<f32>) -> mcrs_minecraft_client::gbuffer_encode::GBuffer {
-    return mcrs_minecraft_client::deferred::gbuffer(albedo, in.shade, in.normal, in.block_light, in.sky_light);
+fn model_gbuffer(in: ModelOut, albedo: vec3<f32>) -> package::shaders::include::gbuffer_encode::GBuffer {
+    return package::shaders::include::deferred::gbuffer(albedo, in.shade, in.normal, in.block_light, in.sky_light);
 }
 
 @fragment
-fn fragment_model_solid(in: ModelOut) -> mcrs_minecraft_client::gbuffer_encode::GBuffer {
-    let wireframe_discards = mcrs_minecraft_client::finish::wireframe_discards(in.quad_uv);
+fn fragment_model_solid(in: ModelOut) -> package::shaders::include::gbuffer_encode::GBuffer {
+    let wireframe_discards = package::shaders::include::finish::wireframe_discards(in.quad_uv);
     let color = shade_surface(model_surface(in));
     if (wireframe_discards) {
         discard;
@@ -118,8 +118,8 @@ fn fragment_model_solid(in: ModelOut) -> mcrs_minecraft_client::gbuffer_encode::
 }
 
 @fragment
-fn fragment_model_cutout(in: ModelOut) -> mcrs_minecraft_client::gbuffer_encode::GBuffer {
-    let wireframe_discards = mcrs_minecraft_client::finish::wireframe_discards(in.quad_uv);
+fn fragment_model_cutout(in: ModelOut) -> package::shaders::include::gbuffer_encode::GBuffer {
+    let wireframe_discards = package::shaders::include::finish::wireframe_discards(in.quad_uv);
     let color = shade_surface(model_surface(in));
     if (color.a < 0.5 || wireframe_discards) {
         discard;
@@ -129,11 +129,11 @@ fn fragment_model_cutout(in: ModelOut) -> mcrs_minecraft_client::gbuffer_encode:
 
 @fragment
 fn fragment_model_translucent(in: ModelOut) -> @location(0) vec4<f32> {
-    let wireframe_discards = mcrs_minecraft_client::finish::wireframe_discards(in.quad_uv);
+    let wireframe_discards = package::shaders::include::finish::wireframe_discards(in.quad_uv);
     let color = shade_surface(model_surface(in));
     if (wireframe_discards) {
         discard;
     }
-    let lit = mcrs_minecraft_client::deferred::shade(color.rgb, in.shade, in.block_light, in.sky_light);
-    return vec4<f32>(mcrs_minecraft_client::finish::to_target(lit), color.a);
+    let lit = package::shaders::include::deferred::shade(color.rgb, in.shade, in.block_light, in.sky_light);
+    return vec4<f32>(package::shaders::include::finish::to_target(lit), color.a);
 }

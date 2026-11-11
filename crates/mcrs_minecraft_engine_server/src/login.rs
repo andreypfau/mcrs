@@ -146,7 +146,7 @@ fn advance_server_ticks(mut ticks: ResMut<ServerTicks>) {
 }
 
 fn start_login_clock(
-    trigger: On<Add, ConnectionState>,
+    trigger: On<Add<ConnectionState>>,
     states: Query<&ConnectionState>,
     ticks: Res<ServerTicks>,
     mut commands: Commands,
@@ -484,7 +484,7 @@ pub fn handle_login_acknowledged(
 }
 
 pub fn on_login_accepted(
-    trigger: On<Insert, LoginState>,
+    trigger: On<Insert<LoginState>>,
     login_state: Query<(&LoginState, &GameProfile)>,
     mut session_counter: ResMut<PlayerSessionCounter>,
     mut commands: Commands,

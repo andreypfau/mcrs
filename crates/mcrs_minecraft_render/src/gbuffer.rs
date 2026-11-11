@@ -6,7 +6,7 @@ use bevy::render::render_resource::binding_types::{
 };
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
-use bevy::render::view::ViewDepthTexture;
+use bevy::render::view::ViewDepthStencilTexture;
 
 use crate::reconstruct::LIGHTING_UNIFORM_SIZE;
 use crate::uniform_buffer;
@@ -49,7 +49,7 @@ pub struct DeferredFrame {
 }
 
 impl DeferredFrame {
-    fn new(depth: &ViewDepthTexture, device: &RenderDevice, cache: &PipelineCache) -> Self {
+    fn new(depth: &ViewDepthStencilTexture, device: &RenderDevice, cache: &PipelineCache) -> Self {
         let size = size_of(depth);
         let targets = targets(size, device);
         let lighting = uniform_buffer("deferred lighting", LIGHTING_UNIFORM_SIZE, device);
@@ -59,26 +59,31 @@ impl DeferredFrame {
             lighting,
             bind_group,
             size,
-            depth: depth.texture.id(),
+            depth: depth.texture().id(),
         }
     }
 
-    fn fit(&mut self, depth: &ViewDepthTexture, device: &RenderDevice, cache: &PipelineCache) {
+    fn fit(
+        &mut self,
+        depth: &ViewDepthStencilTexture,
+        device: &RenderDevice,
+        cache: &PipelineCache,
+    ) {
         let size = size_of(depth);
         let rebuilt = size != self.size;
         if rebuilt {
             self.targets = targets(size, device);
             self.size = size;
         }
-        if rebuilt || self.depth != depth.texture.id() {
-            self.depth = depth.texture.id();
+        if rebuilt || self.depth != depth.texture().id() {
+            self.depth = depth.texture().id();
             self.bind_group = bind_group(&self.targets, &self.lighting, depth, device, cache);
         }
     }
 }
 
-fn size_of(depth: &ViewDepthTexture) -> UVec2 {
-    UVec2::new(depth.texture.width(), depth.texture.height())
+fn size_of(depth: &ViewDepthStencilTexture) -> UVec2 {
+    UVec2::new(depth.texture().width(), depth.texture().height())
 }
 
 fn targets(size: UVec2, device: &RenderDevice) -> [TextureView; 3] {
@@ -105,11 +110,11 @@ fn targets(size: UVec2, device: &RenderDevice) -> [TextureView; 3] {
 fn bind_group(
     targets: &[TextureView; 3],
     lighting: &Buffer,
-    depth: &ViewDepthTexture,
+    depth: &ViewDepthStencilTexture,
     device: &RenderDevice,
     cache: &PipelineCache,
 ) -> BindGroup {
-    let depth_view = depth.texture.create_view(&TextureViewDescriptor {
+    let depth_view = depth.texture().create_view(&TextureViewDescriptor {
         label: Some("gbuffer depth"),
         aspect: TextureAspect::DepthOnly,
         ..default()
@@ -130,7 +135,7 @@ fn bind_group(
 pub(crate) fn fit_deferred_frame(
     mut commands: Commands,
     frame: Option<ResMut<DeferredFrame>>,
-    views: Query<&ViewDepthTexture, With<Camera3d>>,
+    views: Query<&ViewDepthStencilTexture, With<Camera3d>>,
     device: Res<RenderDevice>,
     cache: Res<PipelineCache>,
 ) {

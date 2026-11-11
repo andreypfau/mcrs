@@ -303,7 +303,8 @@ impl Gpu {
         };
         t.read.slice(..).map_async(MapMode::Read, |_| {});
         self.device.poll(PollType::wait_indefinitely()).unwrap();
-        let ticks: [u64; 2] = bytemuck::cast_slice(&t.read.slice(..).get_mapped_range())[..2]
+        let ticks: [u64; 2] = bytemuck::cast_slice(&t.read.slice(..).get_mapped_range().unwrap())
+            [..2]
             .try_into()
             .unwrap();
         t.read.unmap();

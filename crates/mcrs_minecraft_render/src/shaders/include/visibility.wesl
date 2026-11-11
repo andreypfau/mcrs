@@ -1,5 +1,3 @@
-#define_import_path mcrs_minecraft_client::visibility
-
 // A frustum plane is `(normal, d)`, with the inside where `dot(normal, p) + d > 0`.
 
 fn box_outside(plane: vec4<f32>, mn: vec3<f32>, mx: vec3<f32>) -> bool {

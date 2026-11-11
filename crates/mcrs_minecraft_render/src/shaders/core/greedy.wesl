@@ -1,5 +1,5 @@
 
-#import mcrs_minecraft_client::fields::{
+import package::shaders::include::fields::{
     FACE_AO_WORD, FACE_AO_SHIFT, FACE_AO_BITS, FACE_AO_CORNER_BITS,
     FACE_BLOCK_LIGHT_WORD, FACE_BLOCK_LIGHT_SHIFT, FACE_BLOCK_LIGHT_BITS,
     FACE_LIGHT_CORNER_BITS,
@@ -14,15 +14,15 @@
     QUAD_H_WORD, QUAD_H_SHIFT, QUAD_H_BITS,
     QUAD_W_WORD, QUAD_W_SHIFT, QUAD_W_BITS,
     QUAD_WORDS,
-}
-#import mcrs_minecraft_client::frame::{camera, params}
-#import mcrs_minecraft_client::lighting::face_shade
-#import mcrs_minecraft_client::quad::{corner_index, face_normal, greedy_corner, quad_of}
-#import mcrs_minecraft_client::section::section_origin
-#import mcrs_minecraft_client::surface::{Surface, shade_surface}
-#import mcrs_minecraft_client::terrain_bindings::{
+};
+import package::shaders::include::frame::{camera, params};
+import package::shaders::include::lighting::face_shade;
+import package::shaders::include::quad::{corner_index, face_normal, greedy_corner, quad_of};
+import package::shaders::include::section::section_origin;
+import package::shaders::include::surface::{Surface, shade_surface};
+import package::shaders::include::terrain_bindings::{
     face_field, quad_field, quad_words, sections, visible, visible_slot,
-}
+};
 
 struct GreedyOut {
     @builtin(position) clip_position: vec4<f32>,
@@ -150,14 +150,14 @@ fn greedy_light(in: GreedyOut) -> vec3<f32> {
     return corners[0] + (corners[3] - corners[0]) * f.x + (corners[2] - corners[3]) * f.y;
 }
 
-fn greedy_gbuffer(in: GreedyOut, albedo: vec3<f32>) -> mcrs_minecraft_client::gbuffer_encode::GBuffer {
+fn greedy_gbuffer(in: GreedyOut, albedo: vec3<f32>) -> package::shaders::include::gbuffer_encode::GBuffer {
     let light = greedy_light(in);
-    return mcrs_minecraft_client::deferred::gbuffer(albedo, light.x, face_normal(in.face), light.y, light.z);
+    return package::shaders::include::deferred::gbuffer(albedo, light.x, face_normal(in.face), light.y, light.z);
 }
 
 @fragment
-fn fragment_greedy_solid(in: GreedyOut) -> mcrs_minecraft_client::gbuffer_encode::GBuffer {
-    let wireframe_discards = mcrs_minecraft_client::finish::wireframe_discards(in.quad_uv);
+fn fragment_greedy_solid(in: GreedyOut) -> package::shaders::include::gbuffer_encode::GBuffer {
+    let wireframe_discards = package::shaders::include::finish::wireframe_discards(in.quad_uv);
     let color = shade_surface(greedy_surface(in));
     if (wireframe_discards) {
         discard;
@@ -166,10 +166,10 @@ fn fragment_greedy_solid(in: GreedyOut) -> mcrs_minecraft_client::gbuffer_encode
 }
 
 @fragment
-fn fragment_greedy_cutout(in: GreedyOut) -> mcrs_minecraft_client::gbuffer_encode::GBuffer {
+fn fragment_greedy_cutout(in: GreedyOut) -> package::shaders::include::gbuffer_encode::GBuffer {
     // Taken before the test: behind a short-circuit the derivative inside would sit in
     // non-uniform control flow, which WebGPU rejects for the whole module.
-    let wireframe_discards = mcrs_minecraft_client::finish::wireframe_discards(in.quad_uv);
+    let wireframe_discards = package::shaders::include::finish::wireframe_discards(in.quad_uv);
     let color = shade_surface(greedy_surface(in));
     if (color.a < 0.5 || wireframe_discards) {
         discard;
@@ -179,12 +179,12 @@ fn fragment_greedy_cutout(in: GreedyOut) -> mcrs_minecraft_client::gbuffer_encod
 
 @fragment
 fn fragment_greedy_translucent(in: GreedyOut) -> @location(0) vec4<f32> {
-    let wireframe_discards = mcrs_minecraft_client::finish::wireframe_discards(in.quad_uv);
+    let wireframe_discards = package::shaders::include::finish::wireframe_discards(in.quad_uv);
     let color = shade_surface(greedy_surface(in));
     if (wireframe_discards) {
         discard;
     }
     let light = greedy_light(in);
-    let lit = mcrs_minecraft_client::deferred::shade(color.rgb, light.x, light.y, light.z);
-    return vec4<f32>(mcrs_minecraft_client::finish::to_target(lit), color.a);
+    let lit = package::shaders::include::deferred::shade(color.rgb, light.x, light.y, light.z);
+    return vec4<f32>(package::shaders::include::finish::to_target(lit), color.a);
 }

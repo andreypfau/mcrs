@@ -35,7 +35,9 @@ mod support;
 
 use std::time::Instant;
 
-use glam::{Mat4, Vec2, Vec3};
+use glam::camera::rh::proj::directx;
+use glam::camera::rh::view;
+use glam::{Vec2, Vec3};
 use mcrs_minecraft_core::CardinalLight;
 use mcrs_minecraft_entity_render::{
     CULL_VALID, Capacities, ComputePass, CullRecord, EntityFrameCounts, EntityGpu, EntityLibrary,
@@ -214,12 +216,12 @@ fn camera() -> FrameView {
     let eye = Vec3::new(0.0, 64.0 + 1.62, 0.0);
     let section = (eye / 16.0).floor().as_ivec3();
     let offset = eye - section.as_vec3() * 16.0;
-    let projection = Mat4::perspective_infinite_reverse_rh(
+    let projection = directx::perspective_infinite_reverse(
         70f32.to_radians(),
         WIDTH as f32 / HEIGHT as f32,
         0.05,
     );
-    let view = Mat4::look_to_rh(offset, Vec3::new(1.0, -0.05, 1.0).normalize(), Vec3::Y);
+    let view = view::look_to_mat4(offset, Vec3::new(1.0, -0.05, 1.0).normalize(), Vec3::Y);
     FrameView::new(
         projection,
         view,
