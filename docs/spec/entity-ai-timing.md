@@ -324,19 +324,36 @@ The alert to other mobs of the same type is a pair action (AIT-VAN-024).
 ### 1.3 Path search and path follower
 
 **AIT-VAN-012** (`source_suggested`, semantic, confidence: medium). The path follower runs in each
-tick (step 4 of AIT-VAN-001). It does these steps:
+tick (step 4 of AIT-VAN-001). For walking mobs, it does the steps below in the order of
+PATH-FOL-001. Steps 2 to 5 require an unfinished path. Steps 3 and 4 also require a mob that can
+update a path (PATH-REQ-001, step 2).
 
-1. If a recompute waits (AIT-VAN-015), try it.
-2. Advance the next node when the mob is close to it. Let `w` be the width of the mob. Close means a
-   horizontal distance less than `h` on each axis. `h` is `w / 2` when `w` is more than 0.75, else
-   `h` is `0.75 - w / 2`. The vertical distance must also be small. The follower can also skip a
-   node at a corner.
-3. Detect a stuck mob: each 100 ticks of the follower, compare the position with the position 100
-   ticks before. Let `s` be the speed of the mob, or `s²` when `s < 1`. When the mob moved less than
-   `25 × s` blocks, the follower stops the path.
-4. Detect a timeout. Let `d` be the distance to the next node when it became the next node. When the
-   mob stays more than `3 × (d / s) × 20` ticks with that node, stop the path.
-5. Give the next node to the move control as the wanted position.
+1. If a recompute waits (AIT-VAN-015), try it. The end of the path drops a waiting recompute
+   (PATH-RCP-002).
+2. Advance the next node as PATH-FOL-002 states. A mob that cannot update a path does only the air
+   advance of PATH-FOL-001, step 4, and then step 5.
+3. Then do the stuck check of PATH-FOL-003.
+   The acceptance of a changed path starts the window: the navigation has no unfinished path, or
+   the ordered node positions differ (PATH-REQ-004). The same path given again keeps it. A
+   recompute is a request, so the same rule applies to its path.
+   Each advance and each check starts it again.
+   Check only after more than 100 follower ticks from the window start.
+
+   A failed check drops the path and marks the mob stuck.
+   Without an earlier stop or restart, a motionless mob with positive mob speed drops its path
+   101 follower ticks after the window starts.
+   The advance comes before the check in the same tick. Thus a mob that advances at most 101
+   follower ticks after each window start does not fail this check.
+4. If an unfinished path remains, do the timeout check of PATH-FOL-004. The timer starts again at
+   each new next node.
+5. If an unfinished path remains, give the move control its wanted position and speed modifier
+   (PATH-FOL-005).
+
+A failed stuck check sets the stuck state. The stuck state has no fixed expiry. Only the acceptance
+of a changed path clears it. A failed check always drops the path, so no other stuck check and no
+timeout runs before that acceptance. A request that gives the current path, a stop and idle ticks
+do not clear it. `pathfinding.md`, PATH-DEV-006 to PATH-DEV-009, records where the reference
+differs.
 
 **AIT-VAN-013** (`source_suggested`, semantic, confidence: medium). The move control, the look
 control and the jump control run in each tick, after the path follower and after the goals. A look
@@ -1127,6 +1144,7 @@ each experiment that has a random part at least 200 times, and record the distri
 | E14 | Put five tamed wolves of one player near a zombie. Let the zombie hit one wolf. Record the tick in which each wolf gets the flag "aggressive". | AIT-VAN-024, AIT-CPL-004 |
 | E15 | Put ten cod in water. Record the leader of each cod for 600 ticks. | AIT-VAN-024 |
 | E16 | Put five villagers that slept near a bell, with no iron golem. Record the tick of each golem summon. | AIT-VAN-022 |
+| E17 | Use commands only, with no player or scripted client. Set `pause-when-empty-seconds=-1`, force-load the area, disable natural mob spawning, and freeze ticks. Clear the air around an ordinary ice floor from `(0, 63, 0)` through `(11, 63, 0)`, one block wide, above the flat world surface. Keep block light low. Put a cobweb at `(0, 64, 0)`. Summon a persistent husk with `NoAI:1b` at `(11.5, 64, 0.5)`; do not make it invulnerable. Summon a persistent snow golem at `(0.5, 64, 0.5)` with `OnGround:1b`, `Invulnerable:1b` and `Rotation:[-90.0f,0.0f]`. Run `/tick step 1` and record full-precision `Pos` of both mobs and the golem's `OnGround` after each tick. Record the first snowball with `data get entity`. Set `t0` to the first tick of eastward pursuit, not the summon tick. Keep the acceptance checks through `t0 + 110`: straight, grounded pursuit from near the initial block centre, with the target fixed, visible and more than 10 blocks away. Reject an ambiguous or ungrounded start, a block change, or displacement of at least `1.5625` blocks through `t0 + 101`. For the calibrated comparison, accept only a first snowball at `t0 + 20`; record other offsets as rejected runs. Record horizontal position on every tick through `t0 + 110`, and any later pauses and exit from the cobweb if continuing to `t0 + 320`. Repeat from a rebuilt scene. **Expected result:** `Pos[0]` at `t0 + 101` equals its value at `t0 + 100`, and increases again at `t0 + 102`. The contrasting prediction is an increase of about `0.003586` blocks at `t0 + 101`. | AIT-VAN-012, PATH-FOL-003 |
 
 ### 10.2 Tests for this server
 
@@ -1143,4 +1161,56 @@ each experiment that has a random part at least 200 times, and record the distri
 
 ## 11. Captured results
 
-None yet.
+### E17
+
+The vanilla server of `26.4-snapshot-7` ran without a player. The start log reports
+`26.4 Snapshot 7`. Ticks were frozen and stepped singly, natural mob spawning was disabled,
+and the route was force-loaded. Time stayed at 18000 with clear weather. Before each run, the
+mobs were killed and the scene rebuilt; no other mob was present.
+
+The scene used the proposed coordinates on a platform above the flat world's surface: ordinary
+ice at `(0, 63, 0)` through `(11, 63, 0)`, cobweb at `(0, 64, 0)`, husk at
+`(11.5, 64, 0.5)` and snow golem at `(0.5, 64, 0.5)`. Both mobs were persistent. The husk had
+`NoAI:1b`; the golem had `OnGround:1b`, `Invulnerable:1b` and `Rotation:[-90.0f,0.0f]`.
+The volume from `(-3, 62, -3)` through `(15, 70, 3)` was cleared before building.
+
+Seven runs reached `t0 + 320`. Runs 2, 3, 4, 6 and 7 were accepted. Here, `t0` and the first
+snowball are single-step counts after the summon. `x` is the golem's horizontal coordinate;
+`dx(+102)` is its change from `t0 + 101` to `t0 + 102`, in blocks.
+
+| Run | `t0` | First snowball | `x(+100) = x(+101)` | `dx(+102)` |
+|-----|------|----------------|---------------------|------------|
+| 1 | 1 | 21 | 1.0057772867504262 | 0.0035858782939612865 |
+| 2 | 3 | 23 | 0.8621737076900899 | 0.0035858782939612865 |
+| 3 | 21 | 41 | 0.8621737076900899 | 0.0035858782939612865 |
+| 4 | 6 | 26 | 0.8621737076900899 | 0.0035858782939612865 |
+| 5 | 3 | 22 | 0.8621737076900899 | 0.0035858782939612865 |
+| 6 | 4 | 24 | 0.8621737076900899 | 0.0035858782939612865 |
+| 7 | 18 | 38 | 0.8621737076900899 | 0.0035858782939612865 |
+
+The world game ticks at `t0` were 5870, 6193, 6534, 6860, 7183, 7507 and 7845, respectively.
+Run 1 was rejected: `OnGround` was `0b` at `t0`, although the feet stayed at height 64. Run 5
+was rejected: its first snowball was at `t0 + 19`, outside the required `+20` calibration.
+Every run saved `OnGround:0b` at summon step 1 and `1b` at every later step.
+The five accepted runs started pursuit after that first step, with no preceding movement.
+
+In every accepted run, the husk stayed exactly at `(11.5, 64, 0.5)`, and the golem stayed at
+`y = 64`, `z = 0.5`. Travel from the summon position through `t0 + 101` was
+`0.36217370769008994` blocks. The target remained more than 10.60 blocks away through
+`t0 + 110`. The route's ice, cobweb and air above it stayed unchanged in every run, including
+the continuations. The horizontal change from `t0 + 100` to `t0 + 101` was exactly zero in
+every run, accepted or rejected.
+
+The pause at `+101` lasted one tick. Later continuous rests began at `+229` in run 1 and at
+`+270` in runs 2 through 7: gaps of 128 and 169 ticks from the first pause. Those rests lasted
+through `+320`, at `x = 1.9892319575955655` and `x = 1.992649388587642`, respectively. By then
+the golem had left the web and was less than 10 blocks from the husk. These later rests do not
+measure another stuck window under the acceptance conditions.
+
+The accepted captures confirm the predicted motion pause at `+101`, with movement at `+100`
+and again at `+102`. This agrees with the stop boundary of AIT-VAN-012 for this slow pursuit
+and separates its prediction from a continued `0.003586`-block step at `+101`. The commands
+do not expose the path or the stuck state directly. Only `26.4-snapshot-7` was run; the older
+version was not measured. The window restart triggers, the displacement threshold and speed
+formula, height and liquid sampling, zero-speed case, stuck-state clearing, node timeout and
+wanted position rules remain unconfirmed.

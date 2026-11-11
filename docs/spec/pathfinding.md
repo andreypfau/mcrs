@@ -550,8 +550,9 @@ ground does these steps:
    on-ground flag is true, it is in a liquid, or it is a passenger.
 3. If the navigation has a path that is not done, and its target is in the set of targets, give
    that path.
-4. Else run the search in the search region (PATH-REQ-003). When the result is a path, the
-   navigation stores its target and the reach range, and resets the timeout of PATH-FOL-004.
+4. Else run the search in the search region (PATH-REQ-003). The result holds its target and the
+   reach range of the request. The search does not change the navigation; PATH-REQ-004 applies the
+   result. PATH-DEV-006 records the reference.
 
 A request for a point `(x, y, z)` uses the block position of the point and the reach range 1, unless
 the request names a reach range.
@@ -589,15 +590,22 @@ from a request in this way:
      path.
 
    A result of no path includes each early stop of PATH-REQ-001, steps 1 and 2.
-2. The path changes when its list of node positions differs from the current path.
-3. If the new path is done (its next node index is the node count, also for 0 nodes), stop.
-4. Apply the cauldron rule to each node in order: when the node is at a block of the tag
-   `cauldrons`, compare its old `y` with the `y` of the next node. Move the node up by 1. When the old
-   `y` is not less than the `y` of the next node, the next node also takes the `y` of the moved
-   node.
-5. Store the speed modifier. When the path changed, reset the stuck check of PATH-FOL-003.
+2. If the result comes from a search, apply the cauldron rule to each node in order: when the
+   node is at a block of the tag `cauldrons`, compare its old `y` with the `y` of the next node.
+   Move the node up by 1. When the old `y` is not less than the `y` of the next node, the next
+   node also takes the `y` of the moved node. A request that gives the current path
+   (PATH-REQ-001, step 3) skips this step.
+3. If the result is done (its next node index is the node count, also for 0 nodes), the navigation
+   drops its path. Stop.
+4. The path changes when the navigation has no unfinished path, or when the node positions of the
+   result differ from those of the current path. When the path changes, the result becomes the
+   path. Then reset the stuck check (PATH-FOL-003) and the timeout (PATH-FOL-004), and clear the
+   stuck state (AIT-VAN-012).
+5. Store the target and the reach range of the result, and the speed modifier.
 
-A request that gives the current path (step 3 of PATH-REQ-001) keeps the next node index.
+A request that gives the current path (step 3 of PATH-REQ-001) keeps the next node index. A search
+result with the node positions of the current unfinished path also keeps it. PATH-DEV-007 records
+the reference.
 
 A goal that follows an entity asks again on its own timer, so a failed request does not stop the
 mob on its current path. `mob-goals.md`, E-G3, shows a failed request for an entity: a summoned
@@ -609,7 +617,7 @@ search runs on the snapshot of the issue tick, and PATH-REQ-004 applies the resu
 application tick. A navigation has at most one pending request. A new request of a later issue
 tick replaces a pending request; the result of the replaced request is dropped. Until the
 application, the follower uses the current path. The storage of the target, the reach range and
-the timeout reset of PATH-REQ-001 step 4 occur at the application.
+the resets of PATH-REQ-004 occur at the application.
 
 ## 6. The path follower
 
@@ -665,31 +673,47 @@ advance. When the tick count of the follower minus the tick of the last check is
 
 A reset of the stuck check sets the tick of the last check to the current tick count and its
 position to the temporary position. An advance resets the check, so the check fires only after 101
-ticks with no advance. A zombified piglin with the mob speed 0.23 has `D = 1.3225`.
+ticks with no advance. A zombified piglin with the mob speed 0.23 has `D = 1.3225`. When `s` is 0,
+`D` is 0, and the check never drops the path.
 
 **PATH-FOL-004** (`source_suggested_black_box_confirmed`, semantic, confidence: high). The timeout check runs after
 the stuck check, while the path is not done. It uses the game time `T`:
 
 1. If the next node is the node of the last check, add `T` minus the time of the last check to the
    timer.
-2. Else the next node becomes the node of the last check. Let `d` be the distance, in f64, from the
-   temporary position to the bottom centre of that node. The limit becomes `d / s × 20` when the mob
-   speed `s` is more than 0, else 0.
+2. Else the next node becomes the node of the last check, and the timer becomes 0. Let `d` be the
+   distance, in f64, from the temporary position to the bottom centre of that node. The limit
+   becomes `d / s × 20` when the mob speed `s` is more than 0, else 0.
 3. If the limit is more than 0 and the timer is more than 3 times the limit, the navigation drops
    its path and resets the timeout.
 4. The time of the last check becomes `T`.
 
-A reset of the timeout sets the node of the last check to `(0, 0, 0)`, the timer to 0 and the limit
-to 0. Only a new path from a request and a timeout reset it. Thus the timer counts the ticks of the
-whole path, and a long path can time out at a node far from its start. This server keeps this
-reference behaviour. P4 confirms it: a piglin that walks through cobwebs loses its input for 1 or 2
-ticks about each 316 ticks of one path.
+A reset of the timeout clears the node of the last check and sets the timer and the limit to 0.
+The acceptance of a changed path (PATH-REQ-004) and a timeout reset it. Thus the timer counts the
+ticks with one next node, and a path times out only at a node that the mob does not reach in 3
+times its expected time. A slow mob on a long path keeps its path: in the scene of P4 each node
+takes about 50 ticks, and 3 times the limit is about 310 ticks. PATH-DEV-008 records the reference.
 
 **PATH-FOL-005** (`source_suggested_black_box_confirmed`, semantic, confidence: medium). The wanted
 position is `(px, gy, pz)`, where `(px, py, pz)` is the point of the next node. `gy` is `py` when the
 block below the block position of the point is air. Else `gy` is the floor level of that block
 position (PATH-NOD-002, without the fluid case). The follower gives the wanted position and the
 speed modifier of the navigation to the move control.
+
+**PATH-FOL-006** (`design`, semantic, confidence: medium). The stuck window is two values of the
+navigation: the start tick and the start position. Only three events write them: the acceptance of
+a changed path (PATH-REQ-004, step 4), an advance, and a stuck check. A request that gives the
+current path (PATH-REQ-001, step 3) writes no value of the follower. A recompute is a request, so
+it starts a window only when its path changes. The navigation compares node positions only for the
+result of a search, never in each tick. The follower can skip the ticks of a resting row
+(PATH-DET-006). This does not change a result: a path after a rest is a changed path, so its
+acceptance starts a window.
+
+The stuck state of AIT-VAN-012 is not a separate flag. It is the end reason of the last path: the
+reason is "stuck" after a failed stuck check, and the acceptance of a changed path clears the
+reason. A brain reads the reason when its walk ends. The acceptance is a function of the current
+path and the result. It gives one of three outcomes: changed, same or dropped. Only the outcome
+"changed" writes the stuck window and the timeout.
 
 ## 7. The move control and the jump control
 
@@ -777,12 +801,16 @@ recompute for a navigating mob. The trigger needs all these conditions:
 1. If the tick of the recompute minus the tick of the last recompute is 20 or less, or the mob
    cannot update a path, the recompute waits. Stop. The follower tries it again in each tick
    (PATH-FOL-001).
-2. Else, if the navigation has a stored target, drop the path. Request a new path to the stored
-   target with the stored reach range (PATH-REQ-001). The navigation takes the result, also when it
-   is no path. The tick of the last recompute becomes the current tick. The recompute no longer
-   waits.
+2. Else run a search to the stored target with the stored reach range and the speed modifier of
+   the navigation (PATH-REQ-001, steps 1, 2 and 4). Step 1 adjusts the stored target again, so a
+   block change below the target can move it. Accept the result as PATH-REQ-004 states for a
+   request of a set of block targets: no path drops the path. The tick of the last recompute becomes
+   the current tick. The recompute no longer waits.
 
 The tick of the last recompute starts at 0. Each tick of this section is the game time.
+
+The end of the path drops a waiting recompute: the path is done, the follower drops it, or a goal
+stops it. PATH-DEV-009 records the reference.
 
 **PATH-RCP-003** (`design`, semantic, confidence: medium). This server checks the trigger of
 PATH-RCP-001 for the block changes of tick `T` at tick `T + 1`. The block changes are the
@@ -1068,6 +1096,52 @@ only where the reference depends on an order that is not part of the world, or o
   block. A data pack that changes the tag changes the path types of this server only.
 - **Test:** a differential test uses the vanilla tag `fence_gates`.
 
+### PATH-DEV-006: A search does not change the navigation
+
+- **Rule:** PATH-REQ-001, step 4; PATH-REQ-004, step 4.
+- **Reference:** each search that gives a path stores its target and reach range, resets the
+  timeout and clears the stuck state, also when no request accepts the path. A goal that only tests
+  whether a path exists thus changes the running path: its timeout starts again, and a later
+  recompute goes to the target of the test.
+- **Visible to the client:** rarely. A mob can recompute toward a target that it did not walk to,
+  or keep a path past its vanilla timeout.
+- **Test:** a differential test does not run a goal that tests a path while another path runs.
+
+### PATH-DEV-007: The cauldron rule applies once to a search result
+
+- **Rule:** PATH-REQ-004, steps 2 to 4.
+- **Reference:** the rule changes the stored path at each request, also when the path does not
+  change. A node in a column of cauldrons moves up by 1 more block at each request. The stored path
+  holds the moved nodes, so a new search for the same route through a cauldron differs from it and
+  starts the stuck window again. A search with the node positions of a done current path keeps the
+  done path, so the mob does not walk it again.
+- **Visible to the client:** rarely, near cauldrons, or when a mob asks for the path that it just
+  finished.
+- **Test:** a differential test does not put cauldrons on a path.
+
+### PATH-DEV-008: The timeout counts the ticks of one node
+
+- **Rule:** PATH-FOL-004.
+- **Reference:** the timer is not reset at a new next node, so it counts the ticks of the whole
+  path, and the limit of the current node ends the path. The reset node is the block position
+  `(0, 0, 0)`; when that is the next node, the timer adds the time since the last check before the
+  reset, and the limit stays 0, so that node does not time out. P4 shows the result: a piglin
+  that walks through cobwebs stops for 1 or 2 ticks about each 316 ticks of one path.
+- **Visible to the client:** yes. A slow mob on a long path stops for 1 or 2 ticks at intervals.
+- **Test:** a differential test ignores a stop of 1 or 2 ticks that a timeout explains. P4 is the
+  record of the reference.
+
+### PATH-DEV-009: A recompute is a request of the running path
+
+- **Rule:** PATH-RCP-002.
+- **Reference:** the recompute assigns the search result as the path without the acceptance: no
+  cauldron rule, no reset of the stuck check. A waiting recompute also runs after the path is done
+  or dropped, and gives the mob a path again.
+- **Visible to the client:** rarely. A vanilla mob can walk again after its goal stopped it, when
+  a block changed near its path less than 20 ticks before.
+- **Test:** a differential test does not change blocks near a path in the 20 ticks before the path
+  ends.
+
 ### Known vanilla quirks
 
 This server keeps these behaviours of the reference. A test must not report them as defects.
@@ -1080,7 +1154,6 @@ This server keeps these behaviours of the reference. A test must not report them
   (PATH-SRC-003).
 - A fall that is too deep marks the node at the limit as `BLOCKED`, also when the search accepted
   that node from another side before (PATH-NOD-008).
-- The timeout timer counts the ticks of the whole path (PATH-FOL-004).
 - A mob that is not on the ground gets no path (PATH-REQ-001).
 
 ## 14. Unresolved
@@ -1096,6 +1169,10 @@ This server keeps these behaviours of the reference. A test must not report them
   section 12.4 must confirm them.
 - **U4**: `physics-architecture.md`, section 15, question 65: the version of the path type table
   for each snapshot. Step G4 does not need it (PATH-PRF-002). Track A decides it.
+- **U5**: no rule states the sun rule of a ground navigation. A mob that avoids the sun, and that is
+  not under the open sky, cuts its path before the first node under the open sky. The reference
+  applies this rule at each request, as it does the cauldron rule (PATH-DEV-007). A goal sets the
+  flag. The rule and its place in PATH-REQ-004 need an experiment.
 
 ## 15. Experiments
 
@@ -1190,8 +1267,8 @@ The start of the melee goal took more than 12 s in some runs. That timing belong
 **P4**, the timeout. In the cobwebs the piglin moves `0.0196` blocks in each tick from tick 21. The
 move is 0 in the ticks 337 and 338, and in the tick 654: the timeout drops the path, and the melee
 goal asks for a new path. The intervals are 316 and 317 ticks of one path. A limit for each node
-would not end a path here, because each node takes about 50 ticks and the limit of a node is about
-310 ticks. On air, the piglin walks the 29 blocks in about 170 ticks with no stop.
+would not end a path here, because each node takes about 50 ticks and 3 times the limit of a node
+is about 310 ticks. On air, the piglin walks the 29 blocks in about 170 ticks with no stop.
 
 **E-V1**, 400 summons in the farm on the difficulty hard:
 
