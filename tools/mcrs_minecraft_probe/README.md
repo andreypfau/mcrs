@@ -5,7 +5,8 @@ of a specification under `docs/spec/`, written as steps of scripted clients. A t
 each client observes at each step. The clients connect over TCP in offline mode.
 
 The library has the scenario type, the trace type and the driver `run`. The driver takes the
-scenario, the socket address of the server and a function that reads the player ban file. It does
+scenario, the socket address of the server, the quiet window and a function that reads the player
+ban file. It does
 not start a server, and it does not apply the `target` part of the scenario. The host of the
 server does that before it calls the driver.
 
@@ -50,8 +51,20 @@ A text component is stored with its structure: the translation key, the argument
 A ban entry has the fields `uuid`, `name`, `source`, `expires` and `reason`. The entries are in
 the order of their names. The trace has no times and no entity ids.
 
-A step is complete when no client gets a chat message, a disconnect or a close for 1 second. A
-command waits at most 10 seconds for the first of these.
+A step is complete when no client gets a chat message, a disconnect or a close for the quiet
+window. The caller of the driver gives the quiet window. The binary uses 1 second for each
+recording. A command and a leave wait at most 10 seconds for the first of these. A command that
+gets none has an empty `replies` list.
+
+The trace holds only the chat of the client that sends a command. It does not hold the chat that
+other clients get, or the chat of a `join` or a `leave` step.
+
+## Known differences
+
+The file `traces/<scenario>.mcrs.json` lists the steps where the mcrs server gives a result that is
+not in the trace. Each entry has the fields of a trace step with the result of mcrs, and a `reason`.
+A test of the mcrs server compares a step in the list with its entry, and each other step with the
+trace. Remove or change an entry when the result of mcrs changes.
 
 ## Record a trace
 

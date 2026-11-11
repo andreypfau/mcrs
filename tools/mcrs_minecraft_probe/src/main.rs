@@ -15,10 +15,13 @@ use std::net::SocketAddr;
 use std::net::TcpListener;
 use std::path::Path;
 use std::path::PathBuf;
+use std::time::Duration;
 use tokio::runtime::Runtime;
 use vanilla_server::VanillaServer;
 
 const PLAYER_BANS: &str = "banned-players.json";
+// Each recorded trace is made with this quiet window.
+const QUIET: Duration = Duration::from_secs(1);
 
 fn main() -> anyhow::Result<()> {
     let arguments: Vec<String> = env::args().skip(1).collect();
@@ -48,10 +51,11 @@ fn main() -> anyhow::Result<()> {
     let address = SocketAddr::from((Ipv4Addr::LOCALHOST, free_port()?));
     let server = VanillaServer::start(&jar, &directory, address.port())?;
 
-    let trace = Runtime::new()?.block_on(mcrs_minecraft_probe::run(&scenario, address, || {
-        let bans: Vec<PlayerBan> = serde_json::from_str(&fs::read_to_string(&bans_path)?)?;
-        Ok(bans)
-    }));
+    let trace =
+        Runtime::new()?.block_on(mcrs_minecraft_probe::run(&scenario, address, QUIET, || {
+            let bans: Vec<PlayerBan> = serde_json::from_str(&fs::read_to_string(&bans_path)?)?;
+            Ok(bans)
+        }));
     server.echo();
     server.stop()?;
 

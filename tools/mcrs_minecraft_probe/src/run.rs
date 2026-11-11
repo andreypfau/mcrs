@@ -13,26 +13,27 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::time;
 
-// A step is complete when no client reported a chat message, a disconnect or a close for
-// `QUIET`. A command first waits up to `FIRST_REPLY` for the first of them, so that a slow
-// server does not end the step before its reply.
-const QUIET: Duration = Duration::from_secs(1);
-const FIRST_REPLY: Duration = Duration::from_secs(10);
+// A command and a leave wait up to `FIRST_EVENT` for the first chat message, disconnect or close,
+// so that a slow server does not end the step before its answer.
+const FIRST_EVENT: Duration = Duration::from_secs(10);
 const JOIN_LIMIT: Duration = Duration::from_secs(60);
 
 struct Clients {
+    quiet: Duration,
     orders: BTreeMap<String, UnboundedSender<Order>>,
     events_in: UnboundedSender<Event>,
     events: UnboundedReceiver<Event>,
 }
 
 /// Runs the steps of `scenario` with clients that connect to `address`, and returns what they
-/// observed. `read_player_bans` returns the player ban file of the target as it is now.
+/// observed. A step is complete when no client reported a chat message, a disconnect or a close
+/// for `quiet`. `read_player_bans` returns the player ban file of the target as it is now.
 ///
 /// Does not apply `scenario.target`: the caller does that before the call.
 pub async fn run<B>(
     scenario: &Scenario,
     address: SocketAddr,
+    quiet: Duration,
     mut read_player_bans: B,
 ) -> anyhow::Result<Trace>
 where
@@ -40,6 +41,7 @@ where
 {
     let (events_in, events) = mpsc::unbounded_channel();
     let mut clients = Clients {
+        quiet,
         orders: BTreeMap::new(),
         events_in,
         events,
@@ -95,7 +97,7 @@ impl Clients {
             orders,
             self.events_in.clone(),
         ));
-        for event in self.settle(QUIET).await {
+        for event in self.settle(self.quiet).await {
             if event.client != name {
                 continue;
             }
@@ -114,7 +116,12 @@ impl Clients {
 
     async fn leave(&mut self, name: &str) -> anyhow::Result<Observed> {
         self.order(name, Order::Leave)?;
-        self.settle(QUIET).await;
+        let closed = self
+            .settle(FIRST_EVENT)
+            .await
+            .iter()
+            .any(|event| event.client == name && !matches!(event.signal, Signal::Chat(_)));
+        anyhow::ensure!(closed, "the connection of {name} did not close");
         Ok(Observed::Left)
     }
 
@@ -122,7 +129,7 @@ impl Clients {
         self.order(sender, Order::Command(line.to_owned()))?;
         let mut replies = Vec::new();
         let mut disconnects = Vec::new();
-        for event in self.settle(FIRST_REPLY).await {
+        for event in self.settle(FIRST_EVENT).await {
             match event.signal {
                 Signal::Chat(text) if event.client == sender => replies.push(text),
                 Signal::Disconnected(reason) => disconnects.push(Disconnect {
@@ -150,7 +157,7 @@ impl Clients {
             .with_context(|| format!("the connection of {name} ended"))
     }
 
-    /// Collects the events until none arrives for `QUIET`; the first has `first_limit` to arrive.
+    /// Collects the events until none arrives for `quiet`; the first has `first_limit` to arrive.
     async fn settle(&mut self, first_limit: Duration) -> Vec<Event> {
         let mut seen = Vec::new();
         let mut limit = first_limit;
@@ -159,7 +166,7 @@ impl Clients {
                 self.orders.remove(&event.client);
             }
             seen.push(event);
-            limit = QUIET;
+            limit = self.quiet;
         }
         seen
     }
