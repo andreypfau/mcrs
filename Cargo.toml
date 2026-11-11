@@ -2,7 +2,7 @@
 
 [package]
 name = "mcrs"
-version = "0.5.8"
+version = "0.6.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 
@@ -17,7 +17,7 @@ workspace = true
 members = ["crates/*", "tools/mcrs_minecraft_bench_support", "tools/mcrs_minecraft_block_entity_oracle", "tools/mcrs_minecraft_client_recorder", "tools/mcrs_minecraft_client_ticks", "tools/mcrs_minecraft_fixtures", "tools/mcrs_minecraft_hotspots", "tools/mcrs_minecraft_server_bench", "tools/mcrs_minecraft_update", "tools/mob-bench", "tools/molang-corpus", "xtask"]
 
 [workspace.package]
-version = "0.5.8"
+version = "0.6.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/andreypfau/mcrs"
