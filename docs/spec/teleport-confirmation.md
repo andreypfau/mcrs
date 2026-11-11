@@ -151,7 +151,9 @@ disconnect. The movement checks clamp it and then reject it (MVC-VAN-001, MVC-VA
 ### 3.3 A move while a teleport is pending
 
 **TP-CONFIRM-MOV-001** (`black_box_confirmed`, semantic). While a teleport is pending, the server
-does not apply a move. See results R3, R5, R6 and R11.
+does not apply the position of a move. See results R3, R5, R6 and R11. The server applies the
+rotation of a move packet (MVC-VAN-005 in `movement-checks.md`). The experiments did not read the
+rotation.
 
 **TP-CONFIRM-MOV-002** (`black_box_confirmed`, semantic). After an accept confirms the teleport, the
 server applies the next move. See results R5, R6 and R11.
@@ -189,6 +191,10 @@ These packets are move packets for this rule: `move_player_pos`, `move_player_po
 `move_player_rot`, `move_player_status_only` and `move_vehicle`. A resend has the position of the
 pending teleport, the current rotation of the player, zero velocity and no relative flags.
 
+The server ignores a `move_player_*` packet until the client has loaded (MVC-VAN-004 in
+`movement-checks.md`). This packet then does not cause a resend and does not set the tick. A
+`move_vehicle` packet has the effects of this rule also before the client has loaded.
+
 **TP-CONFIRM-ID-003** (`source_suggested`, semantic). When the next `teleport_id` is the largest
 value of a signed 32-bit integer, the server uses 0 in its place. Thus the ids go from
 2147483646 to 0.
@@ -217,7 +223,9 @@ it sent, in the order in which it sent them. When a `PlayerAuthInput` packet has
 `HandledTeleport` (37), the edge removes the first id from the queue and makes
 `TeleportAccepted` with that id, and with the position and the rotation of that `PlayerAuthInput`.
 When the queue is empty, the edge makes no event. Each `PlayerAuthInput` also makes
-`MoveReceived`.
+`MoveReceived`. When one `PlayerAuthInput` makes both events, the edge makes `TeleportAccepted`
+first. Reason: a client of Java Edition sends the accept before the move. In the other order, the
+move can cause a resend before the accept, and the client gets a teleport that it does not need.
 
 With one teleport in the queue, the id is the id of the pending teleport. With more teleports in the
 queue, the first flags give older ids, and TP-CONFIRM-ACC-002 applies to them as it does for Java
@@ -230,8 +238,9 @@ Entry U7 records what a Bedrock client does that the documentation does not stat
 **TP-CONFIRM-EVT-004** (`design`, semantic). The resend of TP-CONFIRM-RES-006 also serves a client
 of Bedrock Edition. A Bedrock client sends `PlayerAuthInput` each client tick, and each one makes
 `MoveReceived`. Thus, while a teleport is pending, the server sends a resend each 21 ticks, also to
-a Bedrock client that dropped or ignored a `MovePlayer` teleport, for example while it loads the
-world. The edge sends the resend as `MovePlayer` with the position mode `Teleport`, and puts its id
+a Bedrock client that dropped or ignored a `MovePlayer` teleport. The client-loaded condition of
+TP-CONFIRM-RES-006 applies to `MoveReceived` from `PlayerAuthInput`: before the client has loaded,
+it does not cause a resend. The edge sends the resend as `MovePlayer` with the position mode `Teleport`, and puts its id
 in the queue of TP-CONFIRM-EVT-003. Reason: issue 623.
 
 **TP-CONFIRM-EVT-005** (`design`, semantic). Before the edge of Bedrock Edition puts the id of a
@@ -239,11 +248,14 @@ resend or a correction in the queue of TP-CONFIRM-EVT-003, it removes all the id
 Thus the next `HandledTeleport` flag gives the id of the resend or the correction. Reason: a client
 that drops a teleport never sets a flag for it. Without this rule, each flag would give an older id,
 and the teleport would stay pending for all time. A resend has the position of the pending teleport,
-so a late flag for an older teleport confirms the resend at the correct destination. When the
-client reports another position, the movement checks of TP-CONFIRM-ACC-004 apply to it. Issue 623
+so a late flag for an older teleport confirms the resend at the correct destination. Issue 623
 says that the edge gives each flag the newest id. The queue gives the same result when the client
-sets one flag for each teleport, and it does not confirm a newer teleport with the position of an
-older one.
+sets one flag for each teleport.
+
+A flag for an older teleport can arrive after a resend has emptied the queue. Then the flag confirms
+the resend with the position of the older teleport. The movement checks of TP-CONFIRM-ACC-004 apply
+to this position. A client of Java Edition can also confirm a teleport with another position that
+passes these checks (TP-CONFIRM-ACC-003), so this case gives a client no new capability.
 
 ### 3.6 Riding
 
@@ -263,17 +275,22 @@ stack gets a teleport with the position of its seat, not the position of the com
 is a pending teleport of that player, and sections 3.1 to 3.4 apply to it:
 
 - the player confirms it with an accept, not the vehicle;
-- while it is pending, the server does not apply `move_vehicle` and `move_player_pos`, and each of
-  them can cause a resend with the seat position.
+- while it is pending, the server does not apply `move_vehicle` or the position of
+  `move_player_pos`, and each of them can cause a resend with the seat position.
 
 See results R19, R20 and R23 (case root).
 
 **TP-CONFIRM-RID-004** (`black_box_confirmed`, semantic). When a teleport moves a vehicle with a
-player to another dimension, the player goes with it and keeps riding. The player gets `respawn`
-for the new dimension, then teleports, then `add_entity` for the vehicle with a new entity id, and
-`set_passengers` that links the player to the vehicle again. In result R24 the player gets three
-teleports: one at the old position before `respawn`, and two in the new dimension. This rule rests
-on one observation.
+player to another dimension, the player goes with it and keeps riding. The player gets, in this
+order:
+
+1. `set_passengers` for the old vehicle without the player, and a teleport at the old position.
+2. `respawn` for the new dimension, and two teleports in the new dimension.
+3. `set_passengers` that links the player to the vehicle with a new entity id.
+4. `add_entity` for the vehicle with the new entity id, and `set_passengers` again, two times.
+
+The first `set_passengers` of step 3 names an entity that the client does not know yet. See result
+R24. This rule rests on one observation.
 
 **TP-CONFIRM-RID-005** (`design`, semantic). The edge of Bedrock Edition sends `SetActorLink` for
 each `set_passengers` of TP-CONFIRM-RID-002 to TP-CONFIRM-RID-004: the link type `None` (0) for a
