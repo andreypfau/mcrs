@@ -1,15 +1,16 @@
 use core::fmt::Debug;
 use core::num::ParseIntError;
 
-use glam::Vec3;
+use glam::{Vec2, Vec3};
 use mcrs_minecraft_bedrock_protocol_game::{
-    BlobCache, BlockLayer, ChunkColumn, DimensionId, MoveMode, MovePlayer, PlayerAuthInput,
-    SetTime, StartGame, SubChunkCount, TeleportCause, Text, TextContent, UpdateBlock,
-    UpdateBlockFlags,
+    BlobCache, BlockAction, BlockLayer, ChunkColumn, DimensionId, InputFlags, InputMode,
+    InteractPrediction, InteractionModel, ItemUseAction, ItemUseTransaction, ItemUseTrigger,
+    MoveMode, MovePlayer, PlayMode, PlayerAuthInput, SetTime, StartGame, SubChunkCount,
+    TargetedBlockAction, TeleportCause, Text, TextContent, UpdateBlock, UpdateBlockFlags,
 };
 use mcrs_minecraft_bedrock_wire::{
-    BedrockDecode, BedrockEncode, Error, NetworkBlockPos, NetworkChunkPos, Packet, VarI32, VarI64,
-    VarU32, VarU64, decode_packet, encode_packet,
+    BedrockDecode, BedrockEncode, Error, NetworkBlockPos, NetworkChunkPos, NetworkSignedBlockPos,
+    Packet, VarI32, VarI64, VarU32, VarU64, decode_packet, encode_packet,
 };
 
 fn hex(fixture: &str) -> Result<Vec<u8>, ParseIntError> {
@@ -226,25 +227,105 @@ fn start_game_round_trip() {
     assert!(r.is_empty());
 }
 
-#[test]
-fn player_auth_input_round_trip() {
-    let packet = PlayerAuthInput {
-        pitch: 10.0,
-        yaw: 45.0,
-        position: Vec3::new(1.0, 2.0, 3.0),
-        move_vec_x: 0.0,
-        move_vec_z: 1.0,
-        head_yaw: 45.0,
-        input_data: 0x01 | 0x04,
-        input_mode: VarU32(1),
-        play_mode: VarU32(0),
-        tick: VarU64(120),
-    };
-    let mut buf = Vec::new();
-    packet.encode(&mut buf).unwrap();
+fn idle_input(client_tick: u64) -> PlayerAuthInput<'static> {
+    PlayerAuthInput {
+        pitch: 0.0,
+        yaw: 0.0,
+        position: Vec3::ZERO,
+        move_vector: Vec2::ZERO,
+        head_yaw: 0.0,
+        input_flags: InputFlags::default(),
+        input_mode: InputMode::Mouse,
+        play_mode: PlayMode::Normal,
+        interaction_model: InteractionModel::Crosshair,
+        client_tick: VarU64(client_tick),
+        position_delta: Vec3::ZERO,
+        item_use_transaction: None,
+        item_stack_request: None,
+        block_actions: None,
+        client_predicted_vehicle: None,
+        analog_move_vector: Vec2::ZERO,
+    }
+}
 
-    let mut r = buf.as_slice();
-    let decoded = PlayerAuthInput::decode(&mut r).unwrap();
-    assert_eq!(decoded, packet);
-    assert!(r.is_empty());
+fn walk_forward() -> PlayerAuthInput<'static> {
+    PlayerAuthInput {
+        yaw: 90.0,
+        position: Vec3::new(0.5, 65.62, 0.5),
+        move_vector: Vec2::new(0.0, 1.0),
+        head_yaw: 90.0,
+        input_flags: InputFlags::UP,
+        analog_move_vector: Vec2::new(0.0, 1.0),
+        ..idle_input(5)
+    }
+}
+
+const WALK_FORWARD: &str = "90 01 00 00 00 00 00 00 b4 42 00 00 00 3f 71 3d 83 42 00 00 00 3f \
+    00 00 00 00 00 00 80 3f 00 00 b4 42 80 08 01 00 01 05 00 00 00 00 00 00 00 00 00 00 00 00 \
+    00 00 00 00 00 00 80 3f";
+
+#[test]
+fn player_auth_input_fixtures() {
+    let start_destroy = PlayerAuthInput {
+        block_actions: Some(vec![BlockAction::Targeted {
+            action: TargetedBlockAction::StartDestroy,
+            position: NetworkSignedBlockPos { x: 1, y: 64, z: -1 },
+            face: VarI32(1),
+        }]),
+        ..idle_input(6)
+    };
+    let click_block_empty_hand = PlayerAuthInput {
+        item_use_transaction: Some(ItemUseTransaction {
+            legacy_request: None,
+            actions: Vec::new(),
+            action_type: ItemUseAction::ClickBlock,
+            trigger_type: ItemUseTrigger::PlayerInput,
+            block_position: NetworkBlockPos { x: 1, y: 64, z: -1 },
+            block_face: VarI32(1),
+            hotbar_slot: VarI32(0),
+            held_item: None,
+            player_position: Vec3::ZERO,
+            click_position: Vec3::ZERO,
+            block_runtime_id: VarU32(0),
+            client_interact_prediction: InteractPrediction::Success,
+        }),
+        ..idle_input(7)
+    };
+    let zeros = |count| vec!["00"; count].join(" ");
+    let fixtures = [
+        (WALK_FORWARD.to_string(), walk_forward()),
+        (
+            format!(
+                "90 01 {} 80 80 80 80 80 01 01 00 01 06 {} 02 00 02 80 01 01 02 {}",
+                zeros(32),
+                zeros(12),
+                zeros(8)
+            ),
+            start_destroy,
+        ),
+        (
+            format!(
+                "90 01 {} 80 80 80 80 40 01 00 01 07 {} 00 00 00 01 02 40 01 02 00 00 {} 00 01 {}",
+                zeros(32),
+                zeros(12),
+                zeros(24),
+                zeros(8)
+            ),
+            click_block_empty_hand,
+        ),
+    ];
+    for (fixture, packet) in fixtures {
+        assert_fixture(packet, &hex(&fixture).unwrap());
+    }
+}
+
+#[test]
+fn player_auth_input_flags_follow_the_parts() {
+    let block_actions_flag_without_actions = PlayerAuthInput {
+        input_flags: InputFlags::from_bits(InputFlags::UP.bits() | 1 << 35),
+        ..walk_forward()
+    };
+    let mut encoded = Vec::new();
+    encode_packet(&block_actions_flag_without_actions, &mut encoded).unwrap();
+    assert_eq!(encoded, hex(WALK_FORWARD).unwrap());
 }

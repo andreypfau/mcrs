@@ -35,21 +35,25 @@ impl<'a> BedrockDecode<'a> for &'a [u8] {
     }
 }
 
-pub(crate) fn decode_items<'a, T: BedrockDecode<'a>>(
+/// Reads `count` items of `T`, reserving no more than the input can hold.
+pub fn decode_items<'a, T: BedrockDecode<'a>>(
     count: usize,
     r: &mut &'a [u8],
 ) -> Result<Vec<T>, Error> {
-    let mut items = Vec::with_capacity(cautious_capacity::<T>(count, r));
+    let mut items = Vec::with_capacity(bounded_capacity::<T>(count, r));
     for _ in 0..count {
         items.push(T::decode(r)?);
     }
     Ok(items)
 }
 
-// A declared count is untrusted: each item takes at least one byte of input, so the input
-// length bounds the count, and a fixed byte budget bounds large items.
-fn cautious_capacity<T>(declared: usize, r: &[u8]) -> usize {
+/// The capacity to reserve for `declared` items of `T` that the bytes of `remaining` hold.
+///
+/// A declared count is untrusted: each item takes at least one byte of input, so the input
+/// length bounds the count, and a fixed byte budget bounds large items.
+#[must_use]
+pub(crate) fn bounded_capacity<T>(declared: usize, remaining: &[u8]) -> usize {
     declared
-        .min(r.len())
+        .min(remaining.len())
         .min(MAX_PREALLOC_BYTES / mem::size_of::<T>().max(1))
 }

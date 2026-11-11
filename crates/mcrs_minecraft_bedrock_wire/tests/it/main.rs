@@ -1,8 +1,9 @@
 use core::fmt::Debug;
 
 use mcrs_minecraft_bedrock_wire::{
-    BedrockDecode, BedrockEncode, Error, NetworkBlockPos, NetworkChunkPos, Packet, PacketHeader,
-    VarI32, VarI64, VarU32, VarU64, decode_packet, encode_packet, from_slice, to_bytes,
+    BedrockDecode, BedrockEncode, Error, NetworkBlockPos, NetworkChunkPos, NetworkSignedBlockPos,
+    Packet, PacketHeader, VarI32, VarI64, VarU32, VarU64, decode_packet, encode_packet, from_slice,
+    to_bytes,
 };
 
 mod counting_allocator {
@@ -115,7 +116,7 @@ fn var_int_vectors() {
 struct Ping(u8);
 
 impl Packet for Ping {
-    const ID: u32 = 42;
+    const ID: u16 = 42;
 }
 
 impl BedrockEncode for Ping {
@@ -139,6 +140,21 @@ fn position_vectors() {
         &[0x00, 0xC0, 0xFF, 0xFF, 0xFF, 0x0F, 0x00],
     );
     assert_vector(NetworkChunkPos { x: 1, z: -1 }, &[0x02, 0x01]);
+    assert_vector(
+        NetworkSignedBlockPos {
+            x: 1,
+            y: -64,
+            z: -1,
+        },
+        &[0x02, 0x7F, 0x01],
+    );
+}
+
+#[test]
+fn optional_vectors() {
+    assert_vector(None::<bool>, &[0x00]);
+    assert_vector(Some(false), &[0x01, 0x00]);
+    assert_eq!(from_slice::<Option<bool>>(&[0x02, 0x02]), Ok(Some(true)));
 }
 
 #[test]
