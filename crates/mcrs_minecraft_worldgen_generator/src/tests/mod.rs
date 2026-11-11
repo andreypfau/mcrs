@@ -32,6 +32,8 @@ mod cell_fill;
 pub mod corpus_generators;
 pub mod corpus_ores;
 #[cfg(test)]
+mod end_columns;
+#[cfg(test)]
 mod flat;
 #[cfg(test)]
 mod footprint;

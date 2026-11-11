@@ -16,9 +16,11 @@
 
 use crate::biome_upscale::upscale_biomes;
 use crate::multi_noise_biomes::{BiomeGrid, MultiNoiseBiomeTable};
+use crate::structures::index::EndBiomes;
 use crate::task::CancellationToken;
 use glam::IVec3;
 use mcrs_minecraft_biome::climate::TargetPoint;
+use mcrs_minecraft_biome::registry_keys::BIOME;
 use mcrs_minecraft_biome::source::{BetaLandBiome, BiomeSource, beta_biome_from_climate};
 use mcrs_minecraft_biome::zoom::{FiddleCache, obfuscate_seed};
 use mcrs_minecraft_block::block_keys::Block;
@@ -293,7 +295,7 @@ pub struct FilledColumn<'a> {
     /// the strip holds none.
     pub tops: [i32; 256],
     /// Whether the material rules run for the column: a multi-noise source
-    /// with a table and a fixed source, never a Beta column.
+    /// with a table, a fixed source and an end source, never a Beta column.
     pub material_surface: bool,
     /// The fluid field over the column, for the stages after the fill that
     /// still ask it.
@@ -675,6 +677,7 @@ pub enum ColumnBiomes {
     MultiNoise(Arc<MultiNoiseBiomeTable>),
     Fixed(u8),
     Beta(BetaBiomes),
+    TheEnd(EndBiomes<u8>),
 }
 
 #[derive(Clone)]
@@ -692,10 +695,11 @@ impl BetaBiomes {
 
 impl ColumnBiomes {
     /// A multi-noise source answers through `multi_noise`, and with no table
-    /// it answers nothing.
+    /// it answers nothing. An end source answers through `end` the same way.
     pub fn new(
         source: Option<&BiomeSource>,
         multi_noise: Option<Arc<MultiNoiseBiomeTable>>,
+        end: Option<EndBiomes>,
     ) -> Result<Self, NarrowError> {
         Ok(match source {
             Some(BiomeSource::MultiNoise(_)) => multi_noise.map_or(Self::None, Self::MultiNoise),
@@ -713,9 +717,21 @@ impl ColumnBiomes {
                     lookup: Arc::clone(lookup),
                 })
             }
+            Some(BiomeSource::TheEnd) => match end {
+                Some(end) => Self::TheEnd(end.try_map(narrow_biome_number)?),
+                None => Self::None,
+            },
             _ => Self::None,
         })
     }
+}
+
+fn narrow_biome_number(number: u16) -> Result<u8, NarrowError> {
+    u8::try_from(number).map_err(|_| NarrowError {
+        registry: BIOME.location().to_string(),
+        id: number,
+        bits: u8::BITS,
+    })
 }
 
 /// One `BiomePalette` per section of the column, empty when no source can
@@ -742,6 +758,13 @@ fn column_biome_palettes(
         ColumnBiomes::Beta(beta) => {
             let grid = beta_biome_grid(noise_router, beta, block_x, block_z);
             (upscale_column(&grid, noise_router, y_sections), false)
+        }
+        ColumnBiomes::TheEnd(end) => {
+            let palettes = end_biome_grid(noise_router, end, block_x, block_z, y_sections)
+                .map_or_else(Vec::new, |grid| {
+                    upscale_column(&grid, noise_router, y_sections)
+                });
+            (palettes, true)
         }
         ColumnBiomes::None => (vec![BiomePalette::default(); y_sections.len()], false),
     }
@@ -1165,6 +1188,8 @@ fn beta_surface_blocks(
 }
 
 pub mod block_state;
+mod end_biome_grid;
+use end_biome_grid::end_biome_grid;
 pub mod column_blocks;
 pub mod saved;
 pub mod task;

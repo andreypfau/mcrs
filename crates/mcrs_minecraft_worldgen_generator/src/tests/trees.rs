@@ -122,7 +122,7 @@ pub(super) fn dimension_with(
     let source = Arc::new(BiomeSource::Fixed {
         biome: super::biome_id(&registry, biome),
     });
-    let biomes = ColumnBiomes::new(Some(&source), None).unwrap();
+    let biomes = ColumnBiomes::new(Some(&source), None, None).unwrap();
     let ctx = FillContext {
         blocks: blocks().0.clone(),
         biome: Some(source),

@@ -343,7 +343,7 @@ mod exhaustive {
                 *cz,
                 &y_sections,
                 &router,
-                &ColumnBiomes::new(Some(&biome_source), None).unwrap(),
+                &ColumnBiomes::new(Some(&biome_source), None, None).unwrap(),
                 &cancel,
             );
 
