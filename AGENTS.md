@@ -104,7 +104,8 @@ implement one.
   issues. Never decompile.
 - The reference is not in this repository. Each specification author keeps a
   local copy and never writes its location into a tracked file. Experiments
-  against the game run through `tools/vanilla-oracle` (see its README).
+  against the game run through the tools that `docs/spec/README.md` lists in
+  its section "Experiments".
 
 ## Version
 
