@@ -191,8 +191,8 @@ fn a_tick_without_a_change_writes_no_equipped() {
     let mut app = app();
     inventories(&mut app);
     app.init_resource::<Writes>()
-        .add_observer(|_: On<Insert, Equipped>, mut writes: ResMut<Writes>| writes.0 += 1)
-        .add_observer(|_: On<Remove, Equipped>, mut writes: ResMut<Writes>| writes.0 += 1);
+        .add_observer(|_: On<Insert<Equipped>>, mut writes: ResMut<Writes>| writes.0 += 1)
+        .add_observer(|_: On<Remove<Equipped>>, mut writes: ResMut<Writes>| writes.0 += 1);
 
     tick(&mut app);
     tick(&mut app);

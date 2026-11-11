@@ -47,7 +47,7 @@ pub use gbuffer::{DeferredFrame, GBUFFER_FORMATS};
 pub use layer::{LayerGroup, Shape};
 pub use pass::draw_layer_group;
 pub use pipeline::{TERRAIN_PIPELINES, stream_slot, terrain_slot};
-pub use shared_wgsl::{gbuffer_encode_wgsl, visibility_wgsl};
+pub use shared_wgsl::{GBUFFER_ENCODE_WGSL, VISIBILITY_WGSL};
 pub use show::{DepthDisplay, DepthSource};
 pub use stats::{DrawArgs, FrameCounts, VERTICES_PER_QUAD, args_reset};
 pub use terrain::Terrain;
@@ -131,6 +131,7 @@ pub struct SpriteEntry {
 }
 
 #[derive(Resource, Clone, Copy, ExtractResource)]
+#[extract_app(RenderApp)]
 pub struct DrawMask(pub u32);
 
 impl DrawMask {
@@ -150,6 +151,7 @@ impl Default for DrawMask {
 /// Whether terrain is tested against the last frame's depth pyramid; off, every group the
 /// frustum and the cave graph keep is drawn and the second pass does not exist.
 #[derive(Resource, Clone, Copy, ExtractResource)]
+#[extract_app(RenderApp)]
 pub struct Occlusion(pub bool);
 
 impl Default for Occlusion {
@@ -161,6 +163,7 @@ impl Default for Occlusion {
 /// Whether the cull tests each quad of a surviving group on its own; off, a group that survives
 /// is drawn whole, which is how a hole the quad tests leave is told from any other.
 #[derive(Resource, Clone, Copy, ExtractResource)]
+#[extract_app(RenderApp)]
 pub struct QuadCull(pub bool);
 
 impl Default for QuadCull {
@@ -171,6 +174,7 @@ impl Default for QuadCull {
 
 /// Vanilla's Brightness slider, from 0 (Moody) to 1 (Bright).
 #[derive(Resource, Clone, Copy, ExtractResource)]
+#[extract_app(RenderApp)]
 pub struct Brightness(pub f32);
 
 impl Default for Brightness {
@@ -181,6 +185,7 @@ impl Default for Brightness {
 
 /// The tick texture animation shows instead of following real time.
 #[derive(Resource, Clone, Copy, ExtractResource)]
+#[extract_app(RenderApp)]
 pub struct PinnedTick(pub i64);
 
 /// Group 3 of the lighting pass, from whoever tints block light.
@@ -195,26 +200,25 @@ struct TerrainBudget(Arc<Budget>);
 
 fn embed_shaders(app: &mut App) {
     use bevy::shader::load_shader_library;
-    load_shader_library!(app, "shaders/include/fields.wgsl");
-    load_shader_library!(app, "shaders/include/section.wgsl");
-    load_shader_library!(app, "shaders/include/frame.wgsl");
-    load_shader_library!(app, "shaders/include/sky.wgsl");
-    load_shader_library!(app, "shaders/include/quad.wgsl");
-    load_shader_library!(app, "shaders/include/lighting.wgsl");
-    load_shader_library!(app, "shaders/include/terrain_bindings.wgsl");
-    load_shader_library!(app, "shaders/include/surface.wgsl");
-    load_shader_library!(app, "shaders/include/finish.wgsl");
-    load_shader_library!(app, "shaders/include/gbuffer_encode.wgsl");
-    load_shader_library!(app, "shaders/include/visibility.wgsl");
-    load_shader_library!(app, "shaders/include/deferred.wgsl");
-    bevy::asset::embedded_asset!(app, "shaders/include/untinted.wgsl");
-    bevy::asset::embedded_asset!(app, "shaders/core/greedy.wgsl");
-    bevy::asset::embedded_asset!(app, "shaders/core/model.wgsl");
-    bevy::asset::embedded_asset!(app, "shaders/core/cull.wgsl");
+    load_shader_library!(app, "shaders/include/fields.wesl");
+    load_shader_library!(app, "shaders/include/section.wesl");
+    load_shader_library!(app, "shaders/include/frame.wesl");
+    load_shader_library!(app, "shaders/include/sky.wesl");
+    load_shader_library!(app, "shaders/include/quad.wesl");
+    load_shader_library!(app, "shaders/include/lighting.wesl");
+    load_shader_library!(app, "shaders/include/terrain_bindings.wesl");
+    load_shader_library!(app, "shaders/include/surface.wesl");
+    load_shader_library!(app, "shaders/include/finish.wesl");
+    load_shader_library!(app, "shaders/include/gbuffer_encode.wesl");
+    load_shader_library!(app, "shaders/include/visibility.wesl");
+    load_shader_library!(app, "shaders/include/deferred.wesl");
+    bevy::asset::embedded_asset!(app, "shaders/core/greedy.wesl");
+    bevy::asset::embedded_asset!(app, "shaders/core/model.wesl");
+    bevy::asset::embedded_asset!(app, "shaders/core/cull.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/hiz.wgsl");
-    bevy::asset::embedded_asset!(app, "shaders/core/show.wgsl");
-    bevy::asset::embedded_asset!(app, "shaders/core/lighting_pass.wgsl");
-    bevy::asset::embedded_asset!(app, "shaders/core/gbuffer_views.wgsl");
+    bevy::asset::embedded_asset!(app, "shaders/core/show.wesl");
+    bevy::asset::embedded_asset!(app, "shaders/core/lighting_pass.wesl");
+    bevy::asset::embedded_asset!(app, "shaders/core/gbuffer_views.wesl");
 }
 
 /// The stages the world is drawn in, in order. A system joins one with `.in_set`; systems sharing a

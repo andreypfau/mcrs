@@ -285,7 +285,7 @@ pub(crate) fn report_player_views(
 }
 
 fn close_player_view(
-    discard: On<Discard, SentChunkView>,
+    discard: On<Discard<SentChunkView>>,
     owners: Query<&Owner, Without<CellCrossing>>,
     mut views: MessageWriter<PlayerView>,
 ) {

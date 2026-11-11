@@ -1,4 +1,4 @@
-use mcrs_minecraft_render::{gbuffer_encode_wgsl, visibility_wgsl};
+use mcrs_minecraft_render::{GBUFFER_ENCODE_WGSL, VISIBILITY_WGSL};
 use wgpu::util::DeviceExt;
 use wgpu::{
     BindGroupEntry, BindGroupLayout, BindingResource, ComputePipeline, Device, RenderPipeline,
@@ -177,7 +177,7 @@ fn compute_header(library: &EntityLibrary) -> String {
         .collect();
     let variants_count = library.variants.len().max(1);
     COMMON.to_owned()
-        + visibility_wgsl()
+        + VISIBILITY_WGSL
         + &COMPUTE
             .replace("#{DEFINITIONS}", &definitions_count.to_string())
             .replace("#{ARRAYS}", &arrays_count.to_string())
@@ -196,6 +196,10 @@ fn compute_header(library: &EntityLibrary) -> String {
 }
 
 /// `source` with the constants of the impostor image sets.
+fn draw_source() -> String {
+    COMMON.to_owned() + GBUFFER_ENCODE_WGSL + SHADING + DRAW
+}
+
 pub(crate) fn impostor_constants(source: &str) -> String {
     source
         .replace("#{TILE}", &IMPOSTOR_TILE.to_string())
@@ -234,10 +238,7 @@ fn render_pipelines(
             source: wgpu::ShaderSource::Wgsl(source.into()),
         })
     };
-    let draw_module = module(
-        "entity draw",
-        &(COMMON.to_owned() + gbuffer_encode_wgsl() + SHADING + DRAW),
-    );
+    let draw_module = module("entity draw", &draw_source());
     let draw_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("entity draw"),
         bind_group_layouts: &[Some(&layouts.draw), Some(&layouts.texture)],
@@ -285,7 +286,7 @@ fn render_pipelines(
         depth_state(BAKE_DEPTH_FORMAT, wgpu::CompareFunction::GreaterEqual),
     );
     let impostor_source =
-        COMMON.to_owned() + gbuffer_encode_wgsl() + SHADING + &impostor_constants(IMPOSTOR);
+        COMMON.to_owned() + GBUFFER_ENCODE_WGSL + SHADING + &impostor_constants(IMPOSTOR);
     let impostor_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("entity impostor"),
         bind_group_layouts: &[Some(&layouts.impostor), Some(&layouts.impostor_textures)],
@@ -477,6 +478,11 @@ mod tests {
             naga::Expression::Literal(Literal::I32(value)) => Some(i64::from(value)),
             _ => None,
         }
+    }
+
+    #[test]
+    fn the_draw_shader_with_the_shared_gbuffer_include_is_valid_wgsl() {
+        naga::front::wgsl::parse_str(&draw_source()).unwrap();
     }
 
     #[test]

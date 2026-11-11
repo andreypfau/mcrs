@@ -151,7 +151,7 @@ fn cull_layout() -> BindGroupLayoutDescriptor {
 
 /// The cull that tests quads one by one reads the geometry, and keeps under eight storage buffers
 /// a stage by leaving out the batch counts only the ordered cull needs. The binding numbers are
-/// the ones `cull.wgsl` gives them.
+/// the ones `cull.wesl` gives them.
 fn quad_cull_layout() -> BindGroupLayoutDescriptor {
     BindGroupLayoutDescriptor::new(
         "terrain quad cull data",

@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::render::RenderApp;
 use bevy::render::extract_resource::ExtractResource;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -38,6 +39,7 @@ impl DebugViews {
 
 /// The view shown in place of final shading, or `None` for final shading.
 #[derive(Resource, Clone, Copy, Default, PartialEq, Eq, Debug, ExtractResource)]
+#[extract_app(RenderApp)]
 pub struct SelectedView(pub Option<DebugView>);
 
 /// A fullscreen program the lighting stage can run in place of the lit one.

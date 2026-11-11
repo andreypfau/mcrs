@@ -1,5 +1,3 @@
-#define_import_path mcrs_minecraft_client::frame
-
 struct Params {
     group_base: u32,
     group_count: u32,

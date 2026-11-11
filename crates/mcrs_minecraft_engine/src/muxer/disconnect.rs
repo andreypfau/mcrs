@@ -42,7 +42,7 @@ pub struct Departing {
     tracing::instrument(name = "disconnect::on_player_disconnect", skip_all)
 )]
 pub fn on_player_disconnect(
-    trigger: On<Remove, ServerSideConnection>,
+    trigger: On<Remove<ServerSideConnection>>,
     connection_refs: Query<&HostAnchorRef>,
     mut sessions: LeavingSessions,
     mut dim_channels: ResMut<DimInputs>,

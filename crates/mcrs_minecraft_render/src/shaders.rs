@@ -12,9 +12,9 @@ pub(super) struct Shaders {
 impl Shaders {
     pub fn load(asset_server: &AssetServer) -> Self {
         Self {
-            greedy: load(asset_server, "core/greedy.wgsl"),
-            model: load(asset_server, "core/model.wgsl"),
-            cull: load(asset_server, "core/cull.wgsl"),
+            greedy: load(asset_server, "core/greedy.wesl"),
+            model: load(asset_server, "core/model.wesl"),
+            cull: load(asset_server, "core/cull.wesl"),
         }
     }
 

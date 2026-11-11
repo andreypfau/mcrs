@@ -21,7 +21,7 @@ fn is_loopback(address: IpAddr) -> bool {
 }
 
 pub(crate) fn grant_loopback_ops(
-    profile: On<Insert, GameProfile>,
+    profile: On<Insert<GameProfile>>,
     policy: Res<LoopbackOps>,
     connections: Query<(&ServerSideConnection, &GameProfile)>,
     mut ops: ResMut<OpList>,

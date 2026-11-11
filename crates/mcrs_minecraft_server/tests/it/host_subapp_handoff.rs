@@ -462,7 +462,7 @@ fn every_registry_resource_of_the_host_reaches_every_dimension(app: &mut App) {
     let resource_names = |world: &World| -> Vec<String> {
         world
             .iter_resources()
-            .map(|(info, _)| info.name().to_string())
+            .map(|(_, info, _)| info.name().to_string())
             .collect()
     };
     let candidates: Vec<String> = resource_names(app.world())

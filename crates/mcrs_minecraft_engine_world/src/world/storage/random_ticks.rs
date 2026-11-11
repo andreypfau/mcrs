@@ -401,7 +401,7 @@ pub struct RandomListing {
 }
 
 fn start_random_ticks(
-    insert: On<Insert, EntityTicking>,
+    insert: On<Insert<EntityTicking>>,
     sections: Query<&SectionPos>,
     index: Option<ResMut<RandomTickIndex>>,
 ) {
@@ -411,7 +411,7 @@ fn start_random_ticks(
 }
 
 fn stop_random_ticks(
-    remove: On<Remove, EntityTicking>,
+    remove: On<Remove<EntityTicking>>,
     sections: Query<&SectionPos>,
     index: Option<ResMut<RandomTickIndex>>,
 ) {

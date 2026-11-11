@@ -27,7 +27,7 @@ impl Plugin for CoordinatorPlugin {
         app.init_resource::<DimDespawnQueue>();
         app.add_plugins(DimCellsPlugin);
         app.add_observer(
-            |trigger: On<Remove, DimSubAppHandle>, mut queue: ResMut<DimDespawnQueue>| {
+            |trigger: On<Remove<DimSubAppHandle>>, mut queue: ResMut<DimDespawnQueue>| {
                 queue.0.push(trigger.event().entity);
             },
         );

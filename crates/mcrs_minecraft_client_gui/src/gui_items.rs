@@ -11,7 +11,7 @@ use bevy::render::render_resource::binding_types::{
 };
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
-use bevy::render::view::{ExtractedView, ViewDepthTexture, ViewTarget};
+use bevy::render::view::{ExtractedView, ViewDepthStencilTexture, ViewTarget};
 use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 use bevy::shader::Shader;
 use mcrs_minecraft_render::{
@@ -339,7 +339,7 @@ pub(super) fn write_gui_buffers(
 pub fn draw_gui(
     view: ViewQuery<(
         &ViewTarget,
-        &ViewDepthTexture,
+        &ViewDepthStencilTexture,
         &ExtractedView,
         &ExtractedCamera,
     )>,
@@ -365,7 +365,7 @@ pub fn draw_gui(
         label: Some("gui"),
         color_attachments: &color_attachments,
         depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
-            view: depth.view(),
+            view: depth.attachment.depth_stencil_views().attachment_view(),
             depth_ops: Some(Operations {
                 load: LoadOp::Clear(0.0),
                 store: StoreOp::Store,

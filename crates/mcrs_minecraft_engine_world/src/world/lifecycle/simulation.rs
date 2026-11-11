@@ -377,7 +377,7 @@ fn follow(
 }
 
 pub(crate) fn raise_simulation_ticket(
-    add: On<Add, SimulationTicket>,
+    add: On<Add<SimulationTicket>>,
     held: Query<&SimulationTicket>,
     mut dims: Dimensions,
     owned: Option<Res<OwnedColumns>>,
@@ -397,7 +397,7 @@ pub(crate) fn raise_simulation_ticket(
 }
 
 pub(crate) fn release_simulation_ticket(
-    remove: On<Remove, SimulationTicket>,
+    remove: On<Remove<SimulationTicket>>,
     held: Query<&SimulationTicket>,
     mut dims: Dimensions,
     owned: Option<Res<OwnedColumns>>,

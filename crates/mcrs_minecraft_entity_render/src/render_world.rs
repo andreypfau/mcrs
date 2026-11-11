@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use bevy::render::MainWorld;
 use bevy::render::render_resource::{PipelineCache, TextureViewId};
 use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
-use bevy::render::view::ViewDepthTexture;
+use bevy::render::view::ViewDepthStencilTexture;
 use mcrs_minecraft_core::CardinalLight;
 use mcrs_minecraft_render::{
     DEPTH_COMPARE, DeferredFrame, FrameView, GBUFFER_FORMATS, Occlusion, PassSlot, PassTimestamps,
@@ -155,7 +155,7 @@ pub(crate) struct EntityFrameParams<'w> {
 /// The entity passes of a frame: the upload of the slots, the cull, the pose and the expand,
 /// then the draw of the face records into the gbuffer.
 pub(crate) fn draw_entities(
-    depth: ViewQuery<&ViewDepthTexture>,
+    depth: ViewQuery<&ViewDepthStencilTexture>,
     mut state: ResMut<EntityRenderState>,
     params: EntityFrameParams,
     mut ctx: RenderContext,
@@ -216,7 +216,7 @@ pub(crate) fn draw_entities(
         label: Some("entity gbuffer"),
         color_attachments: &color_attachments,
         depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-            view: depth.view(),
+            view: depth.attachment.depth_stencil_views().attachment_view(),
             depth_ops: Some(wgpu::Operations {
                 load: wgpu::LoadOp::Load,
                 store: wgpu::StoreOp::Store,

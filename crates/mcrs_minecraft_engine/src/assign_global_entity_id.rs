@@ -9,7 +9,7 @@ use crate::minecraft_entity::MinecraftEntity;
 /// Gives a new entity that is not a player a global id from the ranges of the cell. An entity
 /// that arrives from another cell brings its id and keeps it.
 pub(crate) fn assign_global_entity_id(
-    add: On<Add, MinecraftEntity>,
+    add: On<Add<MinecraftEntity>>,
     without_id: Query<(), (Without<Player>, Without<GlobalEntityId>)>,
     mut ids: ResMut<CellEntityIds>,
     mut commands: Commands,

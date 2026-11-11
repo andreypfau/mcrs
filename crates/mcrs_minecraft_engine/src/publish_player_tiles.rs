@@ -155,7 +155,7 @@ pub fn publish_player_tiles(
 
 /// Records the despawn of a player that leaves the world, or stops being published.
 pub fn publish_player_despawn(
-    remove: On<Remove, Replicated>,
+    remove: On<Remove<Replicated>>,
     players: Query<&Replicated, Without<CellCrossing>>,
     mut events: ResMut<TileEvents>,
 ) {
