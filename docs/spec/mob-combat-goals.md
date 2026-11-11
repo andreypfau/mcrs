@@ -103,7 +103,7 @@ Out of scope:
 | Teams, the game rule `pvp` and the ally relation of teams | hook |
 | The projectile of a ranged attack | the specification of each mob type |
 | The goals of a bow, a crossbow, a trident and a spear | a later specification |
-| The goals of mobs with a brain | a later specification |
+| The goals of mobs with a brain | `mob-brain.md` (BRAIN) |
 
 ### 0.6 Artefacts cited
 

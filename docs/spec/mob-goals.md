@@ -212,7 +212,7 @@ These subjects are out of scope:
 | The control of a ridden pig by its rider, and the boost of a carrot on a stick | ANIM, and a later specification of riders. GOAL-ANI-007 states only the AI side |
 | The leash, the mob that rides a mob (a chicken jockey), the mooshroom | hooks in section 6 |
 | The goals of hostile mobs | hooks in section 6 |
-| The AI of a mob with a brain, for example a villager, a goat or an axolotl | a later specification |
+| The AI of a mob with a brain, for example a villager, a goat or an axolotl | `mob-brain.md` (BRAIN) |
 
 ### 0.7 Artefacts cited
 

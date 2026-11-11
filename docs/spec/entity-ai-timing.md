@@ -47,8 +47,8 @@ this server. Section 10 gives the experiments.
 - **Full evaluation**: a tick in which the goal selection checks the start conditions and the
   continue conditions (AIT-VAN-002).
 - **Evaluation unit**: the interval between two full evaluations of a mob. It is 2 ticks.
-- **Brain**: the AI of a mob that uses memories, sensors and behaviours in place of goals, for
-  example a villager, a piglin or a goat.
+- **Brain**: the AI of a mob that uses memories, sensors and behaviours, for example a villager,
+  a piglin or a goat. Some mobs also run goals in the same AI step.
 - **Memory**: one value in the brain of a mob, with an optional expiry time. The registry
   `memory_module_type` names each kind.
 - **Sensor**: a part of the brain that scans the world and writes memories. The registry
@@ -298,7 +298,7 @@ searches water in 5 blocks. Else it searches a random position. Thus the panic s
 after the damage.
 
 A mob with a brain reads the damage from a sensor (AIT-VAN-016). It can start to panic up to 19
-ticks after the damage.
+brain updates after the damage.
 
 ### 1.2 Target selection
 
@@ -377,8 +377,8 @@ limits:
 - Same target: a request for the target of the current path returns the current path while that path
   is not done.
 
-**AIT-VAN-015** (`source_suggested`, semantic, confidence: medium). The path of a mob changes for
-these triggers:
+**AIT-VAN-015** (`source_suggested`, semantic, confidence: medium). The path of a mob
+changes for these triggers:
 
 - Block change: a block whose collision shape changes, and that is near the rest of the path. Near
   means that the distance from the block centre to a mid point is less than the number of nodes that
@@ -389,38 +389,49 @@ these triggers:
   of the melee attack. A brain asks for a new path when its walk target moved more than 2 blocks
   from the target of the current path. The squared distance must be more than 4. The brain checks
   this in each tick.
-- Stuck or timeout: the path follower stops the path (AIT-VAN-012). A brain then waits a random
-  number of 0 to 39 ticks before its next request.
+- Stuck or timeout: the path follower stops the path (AIT-VAN-012). Brain movement chooses a
+  retry pause only when it stops with an unreached walk target and stuck navigation. The pause
+  is a uniform integer from 0 to 39 eligible start attempts, not elapsed ticks. Ineligible
+  attempts do not spend it. A failed initial route search does not create that pause
+  (BRAIN-VAN-035 in `mob-brain.md`).
 - Done: the path ends when the mob reaches the last node.
 
 ### 1.4 Sensors and brain
 
-**AIT-VAN-016** (`source_suggested`, semantic, confidence: medium). Each sensor of a brain runs with
-its own period. When the server creates the brain, each sensor waits a random number of ticks from 0
-to `P - 1`, where `P` is its period. Then it runs one time in each `P` ticks. The periods are:
+**AIT-VAN-016** (`source_suggested`, semantic, confidence: medium). Each sensor of
+a brain runs with its own period. At brain creation, each sensor chooses an integer offset O
+uniformly from 0 to `P - 1`, where P is its period.
+Number brain updates from 1. The first run is at `max(1, O)`; later runs are P updates apart.
+Thus offsets 0 and 1 both give a first-update run. No brain update means no countdown advance.
+The offset choice has distribution fidelity. The periods are:
 
-| Sensor type | Period (ticks) |
+| Sensor type | Period (brain updates) |
 |-------------|----------------|
 | `armadillo_scare_detected` | 5 |
 | `secondary_pois` | 40 |
 | `golem_detected` | 200 |
 | each other sensor type | 20 |
 
-The sensor `hurt_by` has the period 20. Thus a mob with a brain sees its own damage up to 19 ticks
-late. A sensor reads the follow range of the mob for its range. The random wait comes from the
-random source of the dimension.
+The sensor `hurt_by` has the period 20. Thus a mob with a brain sees its own damage up to 19 brain updates
+late. A sensor whose query uses follow range must read the mob's current value.
+BRAIN-VAN-011 through BRAIN-VAN-020 in `mob-brain-sensors.md` define the individual query ranges.
+BRAIN-VAN-010 there states phase recreation and its first-run distribution.
 
-**AIT-VAN-017** (`source_suggested`, semantic, confidence: medium). The brain tick runs in each AI
-step. It does these steps:
+**AIT-VAN-017** (`source_suggested`, semantic, confidence: medium). The brain tick
+runs in each eligible AI step. It does these steps:
 
-1. Decrease the expiry of each memory, and erase each memory that expired.
-2. Tick each sensor (AIT-VAN-016).
-3. For each activity that is active, try to start each behaviour that does not run.
-4. Tick each behaviour that runs. A behaviour that timed out, or that can no longer run, stops.
+1. Erase each finite memory whose remaining expiry is already at most zero. Otherwise decrease
+   its finite expiry by one. A value that reaches zero remains present until the next update.
+2. Tick each sensor in the mob's declared order (AIT-VAN-016).
+3. Try to start stopped behaviours of active activities, in ascending numeric priority across
+   activities. At equal priority, use the activity and declaration order of BRAIN-VAN-027.
+4. Tick or stop behaviours that run, including newly started behaviours and old behaviours of
+   inactive activities, in that same order. Complete all starts before this running pass.
 
-When a behaviour starts, it takes a random duration from its minimum to its maximum duration. The
-random value comes from the random source of the dimension. Thus the start checks have a period of 1
-tick. Most of their inputs are memories that sensors write, with a period of 5 ticks or more.
+An ordinary timed start chooses an integer duration uniformly from inclusive minimum and maximum bounds.
+That choice has distribution fidelity. A one-shot or group has no generic duration.
+Start checks have a period of one brain update. Most inputs are memories that sensors write with periods of five updates or more.
+BRAIN-VAN-004 and BRAIN-VAN-028 through BRAIN-VAN-033 in `mob-brain.md` give exact boundaries.
 
 ### 1.5 Items, orbs and despawn
 
@@ -652,7 +663,7 @@ main pass (DMG-ORD-002, DMG-CRW-002).
 
 Then the hot tick sends a fact to the brain. The reaction is a decision: the revenge target, the
 panic and the alert. The reason: the health and the knockback are visible in the next update. The
-vanilla reaction already has a delay of 0 or 1 tick for goals, and up to 19 ticks for brains
+vanilla reaction already has a delay of 0 or 1 tick for goals, and up to 19 brain updates for brains
 (AIT-VAN-010).
 
 **AIT-RFX-007** (`design`, semantic, confidence: medium). The attraction of an experience orb is a
@@ -711,7 +722,7 @@ this table.
 
 **AIT-DEC-004** (`design`, semantic, confidence: low). A brain start check has the period 1 in the
 vanilla server (AIT-VAN-017). Its allowed delay is 2 for this reason. A start check changes its
-result only when an input changes. The inputs are memories from sensors, with a period of 5 ticks or
+result only when an input changes. The inputs are memories from sensors, with a period of 5 brain updates or
 more and a random phase. The other inputs are the results of other decisions.
 
 A delay of 2 ticks moves the phase of a sensor, and the vanilla phase is already random. The inputs
@@ -1032,9 +1043,8 @@ apply in each mode except the exact-parity mode. AIT-DEV-006 applies only when t
 
 - **Rule:** AIT-LAG-008, with the UUID of PHY-CMP-013. The stream of the AI stays separate from
   the stream of PHY-CMP-014.
-- **Reference:** the goals take random values from the random source of the mob. The brains, the
-  sensors and the point of interest take random values from the random source of the dimension. Thus
-  the values in the vanilla server depend on the order of the entities.
+- **Reference:** the goals take random values from the random source of the mob.
+  Section 9 of [mob-brain.md](mob-brain.md#9-parallelism-notes) gives the reference random sources for brain choices.
 - **Visible to the client:** no, as a distribution. Each chance and each range stays the same.
 - **Test:** a differential test compares distributions over many runs. It does not compare one
   sequence of random values.
