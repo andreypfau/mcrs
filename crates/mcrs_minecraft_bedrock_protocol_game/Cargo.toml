@@ -13,6 +13,5 @@ doctest = false
 workspace = true
 
 [dependencies]
-mcrs_minecraft_bedrock_wire = { workspace = true }
-mcrs_minecraft_bedrock_protocol = { workspace = true }
+mcrs_minecraft_bedrock_wire = { workspace = true, features = ["glam"] }
 glam = { workspace = true }

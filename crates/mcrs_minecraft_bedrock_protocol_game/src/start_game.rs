@@ -1,12 +1,10 @@
-//! StartGame packet initialization for Bedrock Edition clients.
+use alloc::string::String;
+use alloc::vec::Vec;
 
-use crate::packet_header::{read_packet_header, write_packet_header};
 use glam::Vec3;
 use mcrs_minecraft_bedrock_wire::{
-    BedrockDecode, BedrockEncode, Error, VarI32, VarI64, VarU32, VarU64,
+    BedrockDecode, BedrockEncode, Error, Packet, VarI32, VarI64, VarU32, VarU64,
 };
-
-use crate::packet_ids;
 
 /// Server packet initializing world state, player identity, and generation settings.
 #[derive(Clone, Debug, PartialEq)]
@@ -45,9 +43,12 @@ pub struct StartGame {
     pub world_name: String,
 }
 
+impl Packet for StartGame {
+    const ID: u32 = 0x0b;
+}
+
 impl BedrockEncode for StartGame {
     fn encode(&self, w: &mut Vec<u8>) -> Result<(), Error> {
-        write_packet_header(packet_ids::START_GAME, w)?;
         self.entity_id.encode(w)?;
         self.runtime_entity_id.encode(w)?;
         self.player_gamemode.encode(w)?;
@@ -72,7 +73,6 @@ impl BedrockEncode for StartGame {
 
 impl<'a> BedrockDecode<'a> for StartGame {
     fn decode(r: &mut &'a [u8]) -> Result<Self, Error> {
-        read_packet_header(r, packet_ids::START_GAME)?;
         let entity_id = VarI64::decode(r)?;
         let runtime_entity_id = VarU64::decode(r)?;
         let player_gamemode = VarI32::decode(r)?;

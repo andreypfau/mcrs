@@ -9,6 +9,8 @@ mod counted_list;
 mod error;
 #[cfg(feature = "glam")]
 mod glam;
+mod network_block_pos;
+mod network_chunk_pos;
 mod packet;
 mod packet_header;
 mod primitives;
@@ -23,6 +25,8 @@ pub use codec::{from_slice, to_bytes};
 pub use counted_list::{decode_counted_list, encode_counted_list};
 pub use error::Error;
 pub use mcrs_minecraft_bedrock_wire_macros::{BedrockDecode, BedrockEncode};
+pub use network_block_pos::NetworkBlockPos;
+pub use network_chunk_pos::NetworkChunkPos;
 pub use packet::{Packet, decode_packet, encode_packet};
 pub use packet_header::PacketHeader;
 pub use traits::{BedrockDecode, BedrockEncode};

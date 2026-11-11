@@ -1,8 +1,8 @@
 use core::fmt::Debug;
 
 use mcrs_minecraft_bedrock_wire::{
-    BedrockDecode, BedrockEncode, Error, Packet, PacketHeader, VarI32, VarI64, VarU32, VarU64,
-    decode_packet, encode_packet, from_slice, to_bytes,
+    BedrockDecode, BedrockEncode, Error, NetworkBlockPos, NetworkChunkPos, Packet, PacketHeader,
+    VarI32, VarI64, VarU32, VarU64, decode_packet, encode_packet, from_slice, to_bytes,
 };
 
 mod counting_allocator {
@@ -128,6 +128,17 @@ impl<'a> BedrockDecode<'a> for Ping {
     fn decode(r: &mut &'a [u8]) -> Result<Self, Error> {
         Ok(Self(u8::decode(r)?))
     }
+}
+
+#[test]
+fn position_vectors() {
+    let block = |x, y, z| NetworkBlockPos { x, y, z };
+    assert_vector(block(1, 64, -1), &[0x02, 0x40, 0x01]);
+    assert_vector(
+        block(0, -64, 0),
+        &[0x00, 0xC0, 0xFF, 0xFF, 0xFF, 0x0F, 0x00],
+    );
+    assert_vector(NetworkChunkPos { x: 1, z: -1 }, &[0x02, 0x01]);
 }
 
 #[test]

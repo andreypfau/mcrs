@@ -4059,7 +4059,6 @@ name = "mcrs_minecraft_bedrock_protocol_game"
 version = "0.5.8"
 dependencies = [
  "glam",
- "mcrs_minecraft_bedrock_protocol",
  "mcrs_minecraft_bedrock_wire",
 ]
 
