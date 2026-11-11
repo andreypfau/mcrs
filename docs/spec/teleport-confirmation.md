@@ -39,7 +39,7 @@ in the table. Results R18 to R24 come from `26.4-snapshot-7` (protocol `10737421
 - `black_box_confirmed`: shown by a captured result in section 7.
 - `source_suggested`: taken from the reference implementation, and consistent with the captured
   results. The rules that issue 623 adds with this label come from the reference of
-  `26.4-snapshot-8`.
+  `26.4-snapshot-7`.
 - `documentation`: publicly documented behaviour, for example the protocol documentation of Bedrock
   Edition.
 - `design`: an mcrs choice. The rule states the reason.
@@ -143,8 +143,10 @@ effect. An accept with any other id, also the id of an older teleport, changes n
 disconnect the client, whether a teleport is pending or not. This closes U6.
 
 **TP-CONFIRM-ACC-011** (`source_suggested`, semantic). When an accept has the newest id while a
-teleport is pending, and its `x`, `y`, `z`, `yaw` or `pitch` is not a finite number, the server
-disconnects the client with the translation key `multiplayer.disconnect.invalid_player_movement`.
+teleport is pending, and its `x`, `y` or `z` is NaN, or its `yaw` or `pitch` is NaN or infinite, the
+server disconnects the client with the translation key
+`multiplayer.disconnect.invalid_player_movement`. An infinite position does not cause this
+disconnect. The movement checks clamp it and then reject it (MVC-VAN-001, MVC-VAN-002).
 
 ### 3.3 A move while a teleport is pending
 
@@ -228,8 +230,20 @@ Entry U7 records what a Bedrock client does that the documentation does not stat
 **TP-CONFIRM-EVT-004** (`design`, semantic). The resend of TP-CONFIRM-RES-006 also serves a client
 of Bedrock Edition. A Bedrock client sends `PlayerAuthInput` each client tick, and each one makes
 `MoveReceived`. Thus, while a teleport is pending, the server sends a resend each 21 ticks, also to
-a Bedrock client that lost a `MovePlayer` teleport. The edge sends the resend as `MovePlayer` with
-the position mode `Teleport`, and puts its id in the queue of TP-CONFIRM-EVT-003. Reason: issue 623.
+a Bedrock client that dropped or ignored a `MovePlayer` teleport, for example while it loads the
+world. The edge sends the resend as `MovePlayer` with the position mode `Teleport`, and puts its id
+in the queue of TP-CONFIRM-EVT-003. Reason: issue 623.
+
+**TP-CONFIRM-EVT-005** (`design`, semantic). Before the edge of Bedrock Edition puts the id of a
+resend or a correction in the queue of TP-CONFIRM-EVT-003, it removes all the ids from the queue.
+Thus the next `HandledTeleport` flag gives the id of the resend or the correction. Reason: a client
+that drops a teleport never sets a flag for it. Without this rule, each flag would give an older id,
+and the teleport would stay pending for all time. A resend has the position of the pending teleport,
+so a late flag for an older teleport confirms the resend at the correct destination. When the
+client reports another position, the movement checks of TP-CONFIRM-ACC-004 apply to it. Issue 623
+says that the edge gives each flag the newest id. The queue gives the same result when the client
+sets one flag for each teleport, and it does not confirm a newer teleport with the position of an
+older one.
 
 ### 3.6 Riding
 
@@ -254,13 +268,6 @@ is a pending teleport of that player, and sections 3.1 to 3.4 apply to it:
 
 See results R19, R20 and R23 (case root).
 
-**TP-CONFIRM-RID-006** (`source_suggested`, semantic). When a player that rides an entity confirms a
-teleport, step 2 of TP-CONFIRM-ACC-009 takes only the yaw and the pitch of the accept. The position
-of the player stays the seat position, and the movement checks do not apply. While a teleport is
-pending, `move_vehicle` changes nothing. A `move_vehicle` with a value that is not a finite number
-disconnects the client with the translation key `multiplayer.disconnect.invalid_vehicle_movement`,
-also while a teleport is pending.
-
 **TP-CONFIRM-RID-004** (`black_box_confirmed`, semantic). When a teleport moves a vehicle with a
 player to another dimension, the player goes with it and keeps riding. The player gets `respawn`
 for the new dimension, then teleports, then `add_entity` for the vehicle with a new entity id, and
@@ -276,6 +283,13 @@ server links again. The player that rides gets the confirmation of TP-CONFIRM-RI
 confirmation and how passengers link again for Bedrock Edition. The public protocol documentation
 names `SetActorLink` and its link types. It does not state which link type a server sends for which
 seat (U8).
+
+**TP-CONFIRM-RID-006** (`source_suggested`, semantic). When a player that rides an entity confirms a
+teleport, step 2 of TP-CONFIRM-ACC-009 takes only the yaw and the pitch of the accept. The position
+of the player stays the seat position, and the movement checks do not apply. While a teleport is
+pending, `move_vehicle` changes nothing. A `move_vehicle` with NaN in `x`, `y` or `z`, or with NaN
+or an infinite value in `yaw` or `pitch`, disconnects the client with the translation key
+`multiplayer.disconnect.invalid_vehicle_movement`, also while a teleport is pending.
 
 ### 3.7 The collision check
 
@@ -300,10 +314,11 @@ the behaviour.
 
 **E-DIFF-1.**
 
-- **Rule**: TP-CONFIRM-EVT-003.
+- **Rule**: TP-CONFIRM-EVT-003, TP-CONFIRM-EVT-005.
 - **Java Edition**: an accept carries the `teleport_id`.
 - **Bedrock Edition**: `PlayerAuthInput` carries the flag `HandledTeleport` and no id.
-- **Decision**: the edge gives the flags the ids of its queue, in order.
+- **Decision**: the edge gives the flags the ids of its queue, in order. A resend or a correction
+  empties the queue first (TP-CONFIRM-EVT-005).
 - **Selected by**: the client edition of the connection.
 - **Visible to the client**: no.
 - **Prediction risk**: low, when a Bedrock client sets the flag one time for each teleport (U7).
@@ -343,7 +358,8 @@ the behaviour.
 
 ## 6. Experiments
 
-Use a vanilla server of the game version in the table at the top of this document. Set these
+For E1 to E17, use a vanilla server of the game version in the table at the top of this document.
+For E18 to E24, use `26.4-snapshot-7` (protocol `1073742169`). Set these
 properties: `online-mode=false`, `network-compression-threshold=-1`, `gamemode=creative`. Connect a
 scripted client that sends `player_loaded` when the play state starts. Answer each `keep_alive` and
 `ping`, and send `client_tick_end` each 50 ms. Read a position with the console command
