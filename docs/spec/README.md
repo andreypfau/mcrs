@@ -48,6 +48,71 @@ This file lists the rules that apply here and how this project adapts them.
 - When you count words, a code span, a number with its unit and a rule id each
   count as one word.
 
+## A rule needs an observer
+
+A specification is not a description of the reference. A behaviour has no rule until a
+specification states it. Write a rule only when one of these observers can see a difference:
+
+- the vanilla client: the bytes on the wire, or a result that the client predicts;
+- a player in normal play: a result in the world, in the GUI or in a message;
+- a data pack or a save file: a field, a default value or an error;
+- a user of the library: a public message or a plugin point.
+
+The text of the rule states what that observer sees. Do not write a rule for these:
+
+- the order of internal operations that no observer sees;
+- the method of a computation, when each method gives the same result to the observer;
+- a defect of the reference that a player does not meet in normal play;
+- each separate input that a vanilla client does not send. Write one rule for the class of such
+  input.
+
+Players build on some defects of the reference. Only the owner decides to keep such a defect. The
+rule then states the defect as the correct behaviour, and it cites the issue of that decision. The
+rule has the kind of its observer, and it has no entry in "Intentional deviations".
+
+## Questions before the reference
+
+1. Write the behaviour that a player expects. Use the public documentation, the data pack and
+   the artefacts of the game.
+2. List the questions that these sources do not answer.
+3. Read the reference only to answer a question of the list.
+
+A fact of the reference that answers no question of the list does not go into the specification.
+
+A new specification states the behaviour that one implementation issue needs. The next issue
+extends it.
+
+## Experiments
+
+An experiment is a sequence of steps that a tool or a script runs with no person. When a tool for
+the domain takes an input file, the experiment is such a file. Run each experiment that a tool can run
+before the implementation starts. The report of the author lists each experiment that did not run.
+These tools run an experiment against the game:
+
+- `tools/vanilla-oracle` calls the game with no server and writes its output as a fixture.
+- `tools/mcrs_minecraft_client_recorder` records a vanilla client that the input agent of
+  `tools/vanilla-client` plays.
+- `tools/vanilla-server` starts the vanilla server for a script.
+
+A capture records the game version. A capture of a different version than
+`assets/minecraft/version.json` does not confirm a rule.
+
+## Review of a specification
+
+A specification gets one review. A second review needs the word of the owner. The reviewer asks
+these questions for each rule:
+
+- Which observer sees the result?
+- Which artefact or experiment decides the rule?
+- Does the implementation become wrong for an observer when the rule is removed?
+
+The reviewer removes a rule that has no observer. The reviewer does not search the reference for
+behaviour that the specification does not state. An omission becomes known as a question of an
+implementer or as a failed experiment. The answer goes into the specification.
+
+A point that is not decided goes into the section "Unresolved" of the document. The label
+`unresolved` refers to that section.
+
 ## Semantics, not accidents
 
 The reference implementation and its libraries have defects. A specification states what the
