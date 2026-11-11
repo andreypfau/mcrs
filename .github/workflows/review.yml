@@ -1,0 +1,38 @@
+name: review
+
+on:
+  workflow_run:
+    workflows: [checks]
+    types: [completed]
+
+permissions: {}
+
+# CodeRabbit ignores a review request from github-actions[bot], so a user token posts it. This
+# workflow runs in the context of the base repository and never checks out the pull request, so a
+# pull request from a fork gets a review without access to the token.
+jobs:
+  request:
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: ask CodeRabbit to review the commit that passed the checks
+        env:
+          GH_TOKEN: ${{ secrets.CODERABBIT_TRIGGER_TOKEN }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "::error::the secret CODERABBIT_TRIGGER_TOKEN is not set"
+            exit 1
+          fi
+          # The run lists no pull request when the head is in a fork; find it by the head commit.
+          prs=$(gh pr list -R "${GITHUB_REPOSITORY}" --state open --search "${SHA}" \
+            --json number,headRefOid,isDraft \
+            --jq '.[] | select(.headRefOid == env.SHA and (.isDraft | not)) | .number')
+          if [ -z "${prs}" ]; then
+            echo "no open ready pull request has ${SHA} as its head"
+            exit 0
+          fi
+          for pr in ${prs}; do
+            gh pr comment "${pr}" -R "${GITHUB_REPOSITORY}" --body "@coderabbitai review"
+          done
