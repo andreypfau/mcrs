@@ -19,7 +19,7 @@ use std::time::Duration;
 
 /// Stops the server loop on the way out of the test, a failed one included, so its thread does
 /// not keep ticking beside the other tests of the binary.
-struct StopOnDrop(Arc<AtomicBool>);
+pub(crate) struct StopOnDrop(pub(crate) Arc<AtomicBool>);
 
 impl Drop for StopOnDrop {
     fn drop(&mut self) {

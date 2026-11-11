@@ -1,0 +1,74 @@
+[
+  {
+    "id": "ban_online_player",
+    "observed": {
+      "command": {
+        "replies": [
+          {
+            "translate": "commands.ban.success",
+            "with": [
+              "blonline",
+              {
+                "translate": "multiplayer.disconnect.banned.reason.default"
+              }
+            ]
+          },
+          {
+            "translate": "multiplayer.player.left",
+            "with": [
+              "blonline"
+            ],
+            "color": "yellow"
+          }
+        ],
+        "disconnects": [
+          {
+            "client": "blonline",
+            "reason": {
+              "translate": "multiplayer.disconnect.banned"
+            }
+          }
+        ]
+      }
+    },
+    "player_bans": [
+      {
+        "uuid": "ddd8a55f-eac1-37cf-8a26-56979bf91fbf",
+        "name": "blonline",
+        "source": "bloperator",
+        "expires": "forever"
+      }
+    ],
+    "reason": "The name in the leave message has no click event, hover event and insertion. No specification states the name component of a player yet."
+  },
+  {
+    "id": "ban_banned_player",
+    "observed": {
+      "command": {
+        "replies": [
+          {
+            "translate": "commands.ban.failed",
+            "color": "red"
+          }
+        ],
+        "disconnects": []
+      }
+    },
+    "reason": "The reference wraps the failure line in an empty text component. The client shows the same red line for both forms."
+  },
+  {
+    "id": "pardon_again",
+    "observed": {
+      "command": {
+        "replies": [
+          {
+            "translate": "commands.pardon.failed",
+            "color": "red"
+          }
+        ],
+        "disconnects": []
+      }
+    },
+    "reason": "The reference wraps the failure line in an empty text component. The client shows the same red line for both forms."
+  }
+]

@@ -1,0 +1,25 @@
+[package]
+name = "mcrs_minecraft_probe"
+description = "Runs one scenario file with scripted clients over TCP against a server and records what each client observes"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+# std: tokio for the TCP clients
+[dependencies]
+anyhow.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_network.workspace = true
+mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_protocol_game.workspace = true
+mcrs_minecraft_text.workspace = true
+md-5.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
