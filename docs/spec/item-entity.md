@@ -45,6 +45,9 @@ document does not state.
 - **Tick count**: a counter that is 0 at the spawn and increases by 1 at the start of each tick
   (IEN-MOV-006, step 1). Thus the first tick reads 1. A load sets it to 0. It is not the age.
 - **Fluid box**: the box of the item entity, smaller by 0.001 on each side.
+- **Fluid height**: for one fluid, the largest value of the fluid top minus the bottom of the box
+  of the item entity, over the blocks of that fluid that the item entity touches. The bottom is the
+  bottom of the box, not of the fluid box.
 - **Fluid update**: a step that reads the fluids in the fluid box. It finds the fluid height of each
   fluid and applies the current (IEN-MOV-007). A tick has two fluid updates (IEN-MOV-006).
 
@@ -194,7 +197,8 @@ destroyed, each stack of the container becomes item entities in this way:
    0.125)`, where `(x, y, z)` is the block position. One stack has one position.
 2. While the stack is not empty, take a part of `n` items, where `n` is a uniform integer in
    `10..30`, or the rest when it is smaller. Make one item entity with the part.
-3. Each item entity has the velocity `(T(0, 0.11485), T(0.2, 0.11485), T(0, 0.11485))`.
+3. Each item entity has the velocity `(T(0, s), T(0.2, s), T(0, s))`, with `s` the f64 value of
+   `0.11485F`, 0.11485000171139836.
 
 Result R7 shows 64 `stone` in four parts of 12, 15, 17 and 20, each with the pickup delay 0. The
 block item of the container itself is a block drop, with the pickup delay 10.
@@ -206,10 +210,11 @@ item entity with the values of the table. When the player leaves the server, the
 not go back: it becomes an item entity. The stacks of the craft grid of the player do the same.
 
 **IEN-SPN-007** (`source_suggested`, semantic, confidence medium). A creative drop is a `set_creative_mode_slot`
-packet with a negative slot number and a valid stack. The server keeps a counter for each
+packet with a negative slot number from a player in creative mode. The stack must be empty, or have a
+count of at most its maximum stack size. The server keeps a counter for each
 connection. Each creative drop adds 20, and each tick subtracts 1 while the counter is above 0. The
 server ignores a creative drop while the counter is 1480 or more. Thus a burst can have 74 creative
-drops.
+drops. A creative drop with the empty stack adds 20 to the counter and makes no item entity.
 
 **IEN-SPN-008** (`source_suggested_black_box_confirmed`, semantic, confidence high). The default form at a point
 `(x, y, z)` has that position and the velocity `(U(-0.1, 0.1), 0.2, U(-0.1, 0.1))`. Result R5 shows
@@ -226,7 +231,7 @@ shows a drop of the main slots, a helmet and the off-hand slot.
 
 **IEN-MOV-001** (`source_suggested_black_box_confirmed`, semantic, confidence high). In each tick, an item entity
 moves as the row "item" of the table of PHY-ORD-005 states, with one change. When the item entity is
-in water and the water height at the item entity is more than 0.1, step `G` changes to this step.
+in water and the fluid height of water is more than 0.1F, step `G` changes to this step.
 The water height is the value of the first fluid update of the tick (IEN-MOV-006, step 3).
 
 - multiply `v.x` and `v.z` by 0.99F;
@@ -242,8 +247,9 @@ shows a pickup delay of 5 that permits a pickup some ticks later, and the value 
 **IEN-MOV-003** (`source_suggested`, semantic, confidence medium). The server gives an item entity the "needs sync"
 mark of TRK-UPD-001 in two cases:
 
-- the velocity at the end of the tick differs from the velocity at its start by a squared length of
-  more than 0.01;
+- the velocity at the end of the tick differs from the velocity after step 5 of IEN-MOV-006 by a
+  squared length of more than 0.01. Thus the current of the first fluid update is not in the
+  difference, and the current of the second fluid update is in it;
 - at the second fluid update of the tick (IEN-MOV-006, step 9), the item entity touches a fluid.
 
 An item entity touches a fluid when its fluid box overlaps a block with a fluid, and the surface of
@@ -255,8 +261,8 @@ minimum `y` of the dimension minus 64, the server removes the item entity. Resul
 removal at `y` -128.1 in the overworld, and no removal at `y` -127.9.
 
 **IEN-MOV-005** (`unresolved`, semantic). The motion of an item entity in lava. The reference
-suggests the step of IEN-MOV-001 with the factor 0.95F in place of 0.99F, when the lava height is
-more than 0.1. No captured result shows it. The lava part of result R10 shows the push of
+suggests the step of IEN-MOV-001 with the factor 0.95F in place of 0.99F, when the fluid height of
+lava is more than 0.1F. No captured result shows it. The lava part of result R10 shows the push of
 PHY-ORD-005 out of a solid block, not the motion in lava. See U1.
 
 **IEN-MOV-006** (`source_suggested`, semantic, confidence medium). The server does the steps of the
@@ -264,7 +270,8 @@ tick of an item entity in this order:
 
 1. Add 1 to the tick count.
 2. When the stack is empty, remove the item entity, and stop.
-3. Do the first fluid update.
+3. Do the first fluid update. In this step, an item entity can also go through a portal
+   (section 9).
 4. Apply the burn of IEN-DMG-002 and the removal below the world of IEN-MOV-004.
 5. Decrease the pickup delay (IEN-MOV-002).
 6. Move the item entity (IEN-MOV-001). The block effects of the move apply in this step, for
@@ -281,16 +288,20 @@ example, an item entity with the age 5999 can merge in step 7 and is then remove
 current of each fluid that the item entity touches. Thus a tick applies the current two times.
 For one fluid:
 
-1. Let `S` be the sum of the flow vectors of the fluid blocks that the item entity touches. Before
-   a flow vector is added, multiply it by `h` when `h < 0.4`. `h` is the largest fluid height of
-   this fluid at the item entity up to that block.
+1. Visit the blocks that the fluid box overlaps in the order of `x`, then `y`, then `z`, each from
+   the smallest value. Let `S` be the sum of the flow vectors of the visited blocks of the fluid
+   that the item entity touches. Before a flow vector is added, multiply it by `h` when `h < 0.4`.
+   `h` is the fluid height of this fluid over the blocks visited up to and including that block.
 2. When `|S|²` is less than 1.0E-5F, the fluid adds no current.
 3. Otherwise the current of the fluid is `normalize(S) × s`. `s` is 0.014 for water. For lava, `s`
    is 0.0023333333333333335, or 0.007 in a dimension with the attribute `fast_lava`.
 
 Let `I` be the sum of the currents of all fluids. When `(v.x + I.x)² + (v.z + I.z)²` is less than
 9.0E-6, and `|I|` is more than 1.0E-5F and less than 0.0045, scale `I` to the length 0.0045. Then
-add `I` to `v`. The flow vector of a fluid block is not stated here (section 9).
+add `I` to `v`.
+
+When a chunk that holds a block of the fluid box, larger by 1 on `x` and `z`, is not loaded, the
+fluid update finds no fluid and applies no current. The flow vector of a fluid block is not stated here (section 9).
 
 ## 4. Age and the end of the lifetime
 
@@ -353,8 +364,8 @@ the server sends these packets:
 
 Result R16 shows this order.
 
-**IEN-PCK-005** (`black_box_confirmed`, semantic, confidence high). When the slots have room for only a part of the
-items, the part moves to the slots, and the rest stays in the item entity. No viewer gets
+**IEN-PCK-005** (`black_box_confirmed`, semantic, confidence high). When the collector is not in
+creative mode and the slots have room for only a part of the items, the part moves to the slots, and the rest stays in the item entity. No viewer gets
 `take_item_entity`. The server must send `set_entity_data` with the new stack to each viewer.
 Result R17 shows the reference, which sends no packet for the item entity (D1). A later pickup of
 the rest sends `take_item_entity` with the count of the rest.
@@ -371,8 +382,9 @@ entities.
 
 **IEN-MRG-001** (`source_suggested`, semantic, confidence medium). An item entity looks for merge partners in a tick
 when the tick count is a multiple of `k`. `k` is 2 when the block position of the item entity
-changed in this tick, and 40 in the other case. An item entity that changes its dimension looks for
-merge partners at once.
+changed in this tick, and 40 in the other case. An item entity that teleports looks for merge
+partners at once. This applies to a teleport in the same dimension, for example `tp` or an
+`end_gateway`, and to a change of the dimension.
 
 **IEN-MRG-002** (`source_suggested_black_box_confirmed`, semantic, confidence high). An item entity can merge when
 each of these conditions is true:
@@ -406,7 +418,8 @@ item entity with the larger count is the target. The target gets all items of th
 entity, and the other item entity is removed. The target keeps its position, its velocity, its
 owner and its thrower. Its pickup delay becomes the larger of the two pickup delays, and its age
 becomes the smaller of the two ages. Result R19 shows the target with 30 items and the age of the
-younger partner. When the counts are equal, the target is unspecified.
+younger partner. When the counts are equal, the partner that the item entity found is the target:
+the item entity that looks for partners gives its items. Result R19 shows `a 10, b 10 -> b 20`.
 
 **IEN-MRG-006** (`design`, semantic). An item entity merges with its partners one at a time. Each
 merge is a claim of PHY-CMP-017. Reason: the result must not depend on the order of the entities.
@@ -434,8 +447,10 @@ and the tick of the removal of an item entity with the health 5, from the first 
 | `cactus` | 1 | tick 5 | R20 |
 
 A burning item entity outside lava takes 1 damage in each tick in which its fire ticks are a
-multiple of 20. In each tick of contact, a fire block raises the fire ticks to 160 when they are
-less than 160. It does not decrease a larger value. Result R21 shows an
+multiple of 20. In each tick of contact, a fire block changes the fire ticks. When they are
+negative, it adds 1. Then, when they are 0 or more, it raises them to 160 when they are less than
+160. It does not decrease a larger value. A new item entity has the fire ticks -1, so the first tick
+of contact sets 160. Result R21 shows an
 item entity with 200 fire ticks: 1 damage in the first tick, then none in the next 11 ticks.
 
 **IEN-DMG-003** (`source_suggested_black_box_confirmed`, semantic, confidence high). An explosion damages an item
@@ -480,7 +495,8 @@ updates between the periodic ones.
 
 **IEN-NET-003** (`source_suggested_black_box_confirmed`, wire, confidence high). Each change of the stack of an item
 entity sends `set_entity_data` with the new stack to each viewer at the next update. A merge
-changes the stack of the target. A partial pickup changes it too (IEN-PCK-005).
+changes the stack of the target, and a merge of D2 changes the stack of the partner too. A partial
+pickup changes the stack (IEN-PCK-005).
 
 **IEN-NET-004** (`source_suggested_black_box_confirmed`, wire, confidence high). Each removal of an item entity sends
 `remove_entities` to each viewer (TRK-REM-001): the end of the lifetime, the destruction, the merge
@@ -498,6 +514,7 @@ first.
 - The sounds of a pickup and of a burning item entity.
 - The client drawing of an item entity: its spin, its bob and the take animation.
 - The flow vector of a fluid block (IEN-MOV-007). A specification of the fluids states it.
+- The travel of an item entity through a portal. It occurs in step 3 of IEN-MOV-006.
 
 ## 10. Edition differences
 
@@ -558,7 +575,9 @@ each Bedrock value comes from the public protocol documentation or is not known 
 
 - **Rule**: IEN-MRG-005.
 - **Reference**: a merge moves items only up to the count 64. For a stack with a maximum stack size
-  above 64, 50 and 40 items give a target of 64 and a partner of 26 items that both stay.
+  above 64, 50 and 40 items give a target of 64 and a partner of 26 items that both stay. The
+  viewers get `set_entity_data` for the target, but not for the partner. Each viewer shows the old
+  count of the partner until another change of its stack.
 - **Visible to the client**: yes, only for a stack whose maximum stack size is above 64.
 - **Test**: a differential test must not merge stacks with a maximum stack size above 64.
 
