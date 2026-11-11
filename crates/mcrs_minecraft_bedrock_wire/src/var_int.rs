@@ -1,218 +1,103 @@
-//! Variable-length integer implementations with Bedrock ZigZag encoding.
-
-use crate::error::Error;
 use alloc::vec::Vec;
 
-/// Unsigned 32-bit variable-length integer (LEB128).
-///
-/// Encodes in 1 to 5 bytes.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct VarU32(pub u32);
+use crate::error::Error;
+use crate::traits::{BedrockDecode, BedrockEncode};
 
-impl VarU32 {
-    /// Writes this unsigned varint into the output buffer.
-    pub fn write_to(self, w: &mut Vec<u8>) {
-        let mut val = self.0;
-        loop {
-            let mut byte = (val & 0x7F) as u8;
-            val >>= 7;
-            if val != 0 {
-                byte |= 0x80;
-                w.push(byte);
-            } else {
-                w.push(byte);
-                break;
+macro_rules! unsigned_var_int {
+    ($name:ident, $int:ty, $max_len:literal, $last_byte_mask:literal, $doc:literal) => {
+        #[doc = $doc]
+        #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name(pub $int);
+
+        impl BedrockEncode for $name {
+            fn encode(&self, w: &mut Vec<u8>) -> Result<(), Error> {
+                let mut bytes = [0u8; $max_len];
+                let mut value = self.0;
+                let mut len = 0;
+                for byte in &mut bytes {
+                    *byte = (value & 0x7F) as u8;
+                    value >>= 7;
+                    len += 1;
+                    if value == 0 {
+                        break;
+                    }
+                    *byte |= 0x80;
+                }
+                w.extend_from_slice(bytes.get(..len).unwrap_or(&bytes));
+                Ok(())
             }
         }
-    }
 
-    /// Reads an unsigned varint from the input slice, advancing the slice.
-    pub fn decode(r: &mut &[u8]) -> Result<Self, Error> {
-        let mut result = 0u32;
-        let mut shift = 0;
-        for i in 0..5 {
-            let Some((&byte, rest)) = r.split_first() else {
-                return Err(Error::UnexpectedEof);
-            };
-            *r = rest;
-
-            if i == 4 && (byte & 0xF0) != 0 {
-                return Err(Error::VarIntOverflow);
+        impl<'a> BedrockDecode<'a> for $name {
+            fn decode(r: &mut &'a [u8]) -> Result<Self, Error> {
+                let mut value: $int = 0;
+                for index in 0..$max_len {
+                    let Some((&byte, rest)) = r.split_first() else {
+                        return Err(Error::UnexpectedEof);
+                    };
+                    *r = rest;
+                    if index == $max_len - 1 && byte & $last_byte_mask != 0 {
+                        return Err(Error::VarIntOverflow);
+                    }
+                    value |= <$int>::from(byte & 0x7F) << (index * 7);
+                    if byte & 0x80 == 0 {
+                        return Ok(Self(value));
+                    }
+                }
+                Err(Error::VarIntOverflow)
             }
-
-            result |= ((byte & 0x7F) as u32) << shift;
-            if (byte & 0x80) == 0 {
-                return Ok(Self(result));
-            }
-            shift += 7;
         }
-        Err(Error::InvalidVarInt)
-    }
-
-    /// Returns the number of bytes this value takes when encoded.
-    #[must_use]
-    pub const fn encoded_len(self) -> usize {
-        let val = self.0;
-        if val < (1 << 7) {
-            1
-        } else if val < (1 << 14) {
-            2
-        } else if val < (1 << 21) {
-            3
-        } else if val < (1 << 28) {
-            4
-        } else {
-            5
-        }
-    }
+    };
 }
 
-/// Signed 32-bit variable-length integer with ZigZag encoding.
-///
-/// In Bedrock Edition, signed 32-bit integers use ZigZag encoding:
-/// `u = (n << 1) ^ (n >> 31)`, encoded as an unsigned varint.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct VarI32(pub i32);
+macro_rules! zigzag_var_int {
+    ($name:ident, $int:ty, $unsigned:ident, $doc:literal) => {
+        #[doc = $doc]
+        #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name(pub $int);
 
-impl VarI32 {
-    /// ZigZag encodes an `i32` to a `u32`.
-    #[must_use]
-    pub const fn zigzag_encode(val: i32) -> u32 {
-        ((val << 1) ^ (val >> 31)) as u32
-    }
-
-    /// ZigZag decodes a `u32` to an `i32`.
-    #[must_use]
-    pub const fn zigzag_decode(val: u32) -> i32 {
-        ((val >> 1) as i32) ^ (-((val & 1) as i32))
-    }
-
-    /// Writes this signed varint into the output buffer.
-    pub fn write_to(self, w: &mut Vec<u8>) {
-        VarU32(Self::zigzag_encode(self.0)).write_to(w);
-    }
-
-    /// Reads a signed varint from the input slice, advancing the slice.
-    pub fn decode(r: &mut &[u8]) -> Result<Self, Error> {
-        let unsigned = VarU32::decode(r)?;
-        Ok(Self(Self::zigzag_decode(unsigned.0)))
-    }
-
-    /// Returns the number of bytes this value takes when encoded.
-    #[must_use]
-    pub const fn encoded_len(self) -> usize {
-        VarU32(Self::zigzag_encode(self.0)).encoded_len()
-    }
-}
-
-/// Unsigned 64-bit variable-length integer (LEB128).
-///
-/// Encodes in 1 to 10 bytes.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct VarU64(pub u64);
-
-impl VarU64 {
-    /// Writes this unsigned varlong into the output buffer.
-    pub fn write_to(self, w: &mut Vec<u8>) {
-        let mut val = self.0;
-        loop {
-            let mut byte = (val & 0x7F) as u8;
-            val >>= 7;
-            if val != 0 {
-                byte |= 0x80;
-                w.push(byte);
-            } else {
-                w.push(byte);
-                break;
+        impl BedrockEncode for $name {
+            fn encode(&self, w: &mut Vec<u8>) -> Result<(), Error> {
+                let zigzag = (self.0 << 1) ^ (self.0 >> (<$int>::BITS - 1));
+                $unsigned(zigzag.cast_unsigned()).encode(w)
             }
         }
-    }
 
-    /// Reads an unsigned varlong from the input slice, advancing the slice.
-    pub fn decode(r: &mut &[u8]) -> Result<Self, Error> {
-        let mut result = 0u64;
-        let mut shift = 0;
-        for i in 0..10 {
-            let Some((&byte, rest)) = r.split_first() else {
-                return Err(Error::UnexpectedEof);
-            };
-            *r = rest;
-
-            if i == 9 && (byte & 0xFE) != 0 {
-                return Err(Error::VarIntOverflow);
+        impl<'a> BedrockDecode<'a> for $name {
+            fn decode(r: &mut &'a [u8]) -> Result<Self, Error> {
+                let $unsigned(zigzag) = $unsigned::decode(r)?;
+                Ok(Self(
+                    (zigzag >> 1).cast_signed() ^ -(zigzag & 1).cast_signed(),
+                ))
             }
-
-            result |= ((byte & 0x7F) as u64) << shift;
-            if (byte & 0x80) == 0 {
-                return Ok(Self(result));
-            }
-            shift += 7;
         }
-        Err(Error::InvalidVarInt)
-    }
-
-    /// Returns the number of bytes this value takes when encoded.
-    #[must_use]
-    pub const fn encoded_len(self) -> usize {
-        let val = self.0;
-        if val < (1 << 7) {
-            1
-        } else if val < (1 << 14) {
-            2
-        } else if val < (1 << 21) {
-            3
-        } else if val < (1 << 28) {
-            4
-        } else if val < (1 << 35) {
-            5
-        } else if val < (1 << 42) {
-            6
-        } else if val < (1 << 49) {
-            7
-        } else if val < (1 << 56) {
-            8
-        } else if val < (1 << 63) {
-            9
-        } else {
-            10
-        }
-    }
+    };
 }
 
-/// Signed 64-bit variable-length integer with ZigZag encoding.
-///
-/// In Bedrock Edition, signed 64-bit integers use ZigZag encoding:
-/// `u = (n << 1) ^ (n >> 63)`, encoded as an unsigned varint.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct VarI64(pub i64);
-
-impl VarI64 {
-    /// ZigZag encodes an `i64` to a `u64`.
-    #[must_use]
-    pub const fn zigzag_encode(val: i64) -> u64 {
-        ((val << 1) ^ (val >> 63)) as u64
-    }
-
-    /// ZigZag decodes a `u64` to an `i64`.
-    #[must_use]
-    pub const fn zigzag_decode(val: u64) -> i64 {
-        ((val >> 1) as i64) ^ (-((val & 1) as i64))
-    }
-
-    /// Writes this signed varlong into the output buffer.
-    pub fn write_to(self, w: &mut Vec<u8>) {
-        VarU64(Self::zigzag_encode(self.0)).write_to(w);
-    }
-
-    /// Reads a signed varlong from the input slice, advancing the slice.
-    pub fn decode(r: &mut &[u8]) -> Result<Self, Error> {
-        let unsigned = VarU64::decode(r)?;
-        Ok(Self(Self::zigzag_decode(unsigned.0)))
-    }
-
-    /// Returns the number of bytes this value takes when encoded.
-    #[must_use]
-    pub const fn encoded_len(self) -> usize {
-        VarU64(Self::zigzag_encode(self.0)).encoded_len()
-    }
-}
+// The last byte keeps only the bits that are left of the integer: 32 - 28 = 4, 64 - 63 = 1.
+unsigned_var_int!(
+    VarU32,
+    u32,
+    5,
+    0xF0,
+    "A `u32` in unsigned LEB128, 1 to 5 bytes."
+);
+unsigned_var_int!(
+    VarU64,
+    u64,
+    10,
+    0xFE,
+    "A `u64` in unsigned LEB128, 1 to 10 bytes."
+);
+zigzag_var_int!(
+    VarI32,
+    i32,
+    VarU32,
+    "An `i32` in zigzag LEB128, 1 to 5 bytes."
+);
+zigzag_var_int!(
+    VarI64,
+    i64,
+    VarU64,
+    "An `i64` in zigzag LEB128, 1 to 10 bytes."
+);

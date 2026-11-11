@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_bedrock_wire"
-description = "Bedrock Edition wire encoding: zigzag varints, little-endian primitives, and no_std alloc traits"
+description = "Bedrock Edition wire encoding: varints, little-endian primitives, byte arrays and the packet header"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,4 +12,8 @@ doctest = false
 [lints]
 workspace = true
 
+[features]
+glam = ["dep:glam"]
+
 [dependencies]
+glam = { version = "0.32.1", default-features = false, features = ["nostd-libm"], optional = true }

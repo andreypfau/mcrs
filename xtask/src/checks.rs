@@ -28,8 +28,9 @@ const WASM32_PACKAGES: [&str; 11] = [
     "mcrs_minecraft_biome_file",
 ];
 
-const NO_STD_PACKAGES: [&str; 10] = [
+const NO_STD_PACKAGES: [&str; 11] = [
     "mcrs_command",
+    "mcrs_minecraft_bedrock_wire",
     "mcrs_minecraft_brain",
     "mcrs_minecraft_chat",
     "mcrs_minecraft_entity_key",

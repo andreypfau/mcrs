@@ -4065,6 +4065,9 @@ dependencies = [
 [[package]]
 name = "mcrs_minecraft_bedrock_wire"
 version = "0.5.8"
+dependencies = [
+ "glam",
+]
 
 [[package]]
 name = "mcrs_minecraft_bench_support"

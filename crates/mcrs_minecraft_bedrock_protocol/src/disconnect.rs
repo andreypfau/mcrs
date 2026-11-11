@@ -16,7 +16,13 @@ impl BedrockEncode for Disconnect {
         write_packet_header(packet_ids::DISCONNECT, w)?;
         self.reason.encode(w)?;
         self.hide_disconnect_screen.encode(w)?;
-        self.message.encode(w)?;
+        match &self.message {
+            Some(message) => {
+                true.encode(w)?;
+                message.encode(w)?;
+            }
+            None => false.encode(w)?,
+        }
         Ok(())
     }
 }
@@ -26,7 +32,11 @@ impl<'a> BedrockDecode<'a> for Disconnect {
         read_packet_header(r, packet_ids::DISCONNECT)?;
         let reason = VarI32::decode(r)?;
         let hide_disconnect_screen = bool::decode(r)?;
-        let message = Option::<String>::decode(r)?;
+        let message = if bool::decode(r)? {
+            Some(String::decode(r)?)
+        } else {
+            None
+        };
         Ok(Self {
             reason,
             hide_disconnect_screen,

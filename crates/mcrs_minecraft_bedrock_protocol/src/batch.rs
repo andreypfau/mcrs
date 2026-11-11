@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 
 use flate2::read::DeflateDecoder;
 use flate2::write::DeflateEncoder;
-use mcrs_minecraft_bedrock_wire::{BedrockEncode, Error, VarU32};
+use mcrs_minecraft_bedrock_wire::{BedrockDecode, BedrockEncode, Error, VarU32};
 
 use crate::compression_algorithm::CompressionAlgorithm;
 use crate::error::ProtocolError;

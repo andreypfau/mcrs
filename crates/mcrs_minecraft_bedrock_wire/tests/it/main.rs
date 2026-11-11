@@ -1,120 +1,206 @@
-use mcrs_minecraft_bedrock_wire::{Error, VarI32, VarI64, VarU32, VarU64, from_slice, to_bytes};
+use core::fmt::Debug;
 
-#[test]
-fn var_u32_round_trip() {
-    let cases = [0, 1, 127, 128, 255, 256, 16383, 16384, 2097151, u32::MAX];
-    for val in cases {
-        let bytes = to_bytes(&VarU32(val)).unwrap();
-        assert_eq!(bytes.len(), VarU32(val).encoded_len());
-        let decoded: VarU32 = from_slice(&bytes).unwrap();
-        assert_eq!(decoded.0, val);
+use mcrs_minecraft_bedrock_wire::{
+    BedrockDecode, BedrockEncode, Error, Packet, PacketHeader, VarI32, VarI64, VarU32, VarU64,
+    decode_packet, encode_packet, from_slice, to_bytes,
+};
+
+mod counting_allocator {
+    use std::alloc::{GlobalAlloc, Layout, System};
+    use std::cell::Cell;
+
+    thread_local! {
+        static ALLOCATED: Cell<usize> = const { Cell::new(0) };
+    }
+
+    struct CountingAllocator;
+
+    // SAFETY: every call forwards the caller's layout contract unchanged to the system allocator.
+    unsafe impl GlobalAlloc for CountingAllocator {
+        unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+            let _ = ALLOCATED.try_with(|bytes| bytes.set(bytes.get() + layout.size()));
+            // SAFETY: the caller upholds the `GlobalAlloc::alloc` contract.
+            unsafe { System.alloc(layout) }
+        }
+
+        unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+            // SAFETY: the caller upholds the `GlobalAlloc::dealloc` contract.
+            unsafe { System.dealloc(ptr, layout) }
+        }
+    }
+
+    #[global_allocator]
+    static GLOBAL: CountingAllocator = CountingAllocator;
+
+    /// Returns the bytes that `run` allocates on this thread, with its result.
+    pub fn allocated_by<T>(run: impl FnOnce() -> T) -> (usize, T) {
+        let before = ALLOCATED.with(Cell::get);
+        let result = run();
+        (ALLOCATED.with(Cell::get) - before, result)
     }
 }
 
-#[test]
-fn var_i32_zigzag_encoding_values() {
-    assert_eq!(VarI32::zigzag_encode(0), 0);
-    assert_eq!(VarI32::zigzag_encode(-1), 1);
-    assert_eq!(VarI32::zigzag_encode(1), 2);
-    assert_eq!(VarI32::zigzag_encode(-2), 3);
-    assert_eq!(VarI32::zigzag_encode(2), 4);
-    assert_eq!(VarI32::zigzag_encode(i32::MAX), 0xFFFFFFFE);
-    assert_eq!(VarI32::zigzag_encode(i32::MIN), 0xFFFFFFFF);
+fn assert_vector<T>(value: T, bytes: &[u8])
+where
+    T: BedrockEncode + for<'a> BedrockDecode<'a> + PartialEq + Debug,
+{
+    assert_eq!(to_bytes(&value), Ok(bytes.to_vec()), "encode {value:?}");
+    assert_eq!(from_slice::<T>(bytes), Ok(value), "decode {bytes:02X?}");
 }
 
 #[test]
-fn var_i32_zigzag_round_trip() {
-    let cases = [
-        0,
-        -1,
-        1,
-        -2,
-        2,
-        -100,
-        100,
-        -32768,
-        32767,
-        i32::MIN,
-        i32::MAX,
-    ];
-    for val in cases {
-        let bytes = to_bytes(&VarI32(val)).unwrap();
-        assert_eq!(bytes.len(), VarI32(val).encoded_len());
-        let decoded: VarI32 = from_slice(&bytes).unwrap();
-        assert_eq!(decoded.0, val);
-    }
-}
-
-#[test]
-fn var_u64_round_trip() {
-    let cases = [0, 1, 127, 128, u64::MAX];
-    for val in cases {
-        let bytes = to_bytes(&VarU64(val)).unwrap();
-        assert_eq!(bytes.len(), VarU64(val).encoded_len());
-        let decoded: VarU64 = from_slice(&bytes).unwrap();
-        assert_eq!(decoded.0, val);
-    }
-}
-
-#[test]
-fn var_i64_zigzag_round_trip() {
-    let cases = [0, -1, 1, -2, 2, -1000000, 1000000, i64::MIN, i64::MAX];
-    for val in cases {
-        let bytes = to_bytes(&VarI64(val)).unwrap();
-        assert_eq!(bytes.len(), VarI64(val).encoded_len());
-        let decoded: VarI64 = from_slice(&bytes).unwrap();
-        assert_eq!(decoded.0, val);
-    }
-}
-
-#[test]
-fn var_u32_rejects_overflow_bits() {
-    // 5th byte with high bits set (0xF0)
-    let bad = [0x80, 0x80, 0x80, 0x80, 0xF0];
-    let err = from_slice::<VarU32>(&bad).unwrap_err();
-    assert_eq!(err, Error::VarIntOverflow);
-}
-
-#[test]
-fn little_endian_primitives_round_trip() {
-    assert_eq!(to_bytes(&0x1234u16).unwrap(), [0x34, 0x12]);
-    assert_eq!(to_bytes(&0x12345678u32).unwrap(), [0x78, 0x56, 0x34, 0x12]);
-    assert_eq!(
-        to_bytes(&0x123456789ABCDEF0u64).unwrap(),
-        [0xF0, 0xDE, 0xBC, 0x9A, 0x78, 0x56, 0x34, 0x12]
+fn var_int_vectors() {
+    assert_vector(VarU32(0), &[0x00]);
+    assert_vector(VarU32(127), &[0x7F]);
+    assert_vector(VarU32(128), &[0x80, 0x01]);
+    assert_vector(VarU32(300), &[0xAC, 0x02]);
+    assert_vector(VarU32(16_384), &[0x80, 0x80, 0x01]);
+    assert_vector(VarU32(u32::MAX), &[0xFF, 0xFF, 0xFF, 0xFF, 0x0F]);
+    assert_vector(
+        VarU64(1 << 63),
+        &[0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01],
+    );
+    assert_vector(
+        VarU64(u64::MAX),
+        &[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01],
+    );
+    assert_vector(VarI32(0), &[0x00]);
+    assert_vector(VarI32(-1), &[0x01]);
+    assert_vector(VarI32(1), &[0x02]);
+    assert_vector(VarI32(-64), &[0x7F]);
+    assert_vector(VarI32(64), &[0x80, 0x01]);
+    assert_vector(VarI32(i32::MAX), &[0xFE, 0xFF, 0xFF, 0xFF, 0x0F]);
+    assert_vector(VarI32(i32::MIN), &[0xFF, 0xFF, 0xFF, 0xFF, 0x0F]);
+    assert_vector(
+        VarI64(i64::MAX),
+        &[0xFE, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01],
+    );
+    assert_vector(
+        VarI64(i64::MIN),
+        &[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01],
     );
 
-    let val_f32 = core::f32::consts::PI;
-    let bytes_f32 = to_bytes(&val_f32).unwrap();
-    let decoded_f32: f32 = from_slice(&bytes_f32).unwrap();
-    assert_eq!(decoded_f32, val_f32);
+    let u32_errors: [(&[u8], Error); 3] = [
+        (&[0xFF, 0xFF, 0xFF, 0xFF, 0x10], Error::VarIntOverflow),
+        (&[0xFF, 0xFF, 0xFF, 0xFF, 0x80], Error::VarIntOverflow),
+        (&[0x80], Error::UnexpectedEof),
+    ];
+    for (bytes, error) in u32_errors {
+        assert_eq!(
+            from_slice::<VarU32>(bytes).unwrap_err(),
+            error,
+            "{bytes:02X?}"
+        );
+    }
+    let u64_errors: [(&[u8], Error); 2] = [
+        (
+            &[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x02],
+            Error::VarIntOverflow,
+        ),
+        (
+            &[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x80],
+            Error::VarIntOverflow,
+        ),
+    ];
+    for (bytes, error) in u64_errors {
+        assert_eq!(
+            from_slice::<VarU64>(bytes).unwrap_err(),
+            error,
+            "{bytes:02X?}"
+        );
+    }
+}
 
-    assert_eq!(to_bytes(&true).unwrap(), [1]);
-    assert_eq!(to_bytes(&false).unwrap(), [0]);
-    assert!(from_slice::<bool>(&[1]).unwrap());
-    assert!(!from_slice::<bool>(&[0]).unwrap());
-    assert_eq!(from_slice::<bool>(&[2]).unwrap_err(), Error::InvalidBool);
+#[derive(Debug, PartialEq)]
+struct Ping(u8);
+
+impl Packet for Ping {
+    const ID: u32 = 42;
+}
+
+impl BedrockEncode for Ping {
+    fn encode(&self, w: &mut Vec<u8>) -> Result<(), Error> {
+        self.0.encode(w)
+    }
+}
+
+impl<'a> BedrockDecode<'a> for Ping {
+    fn decode(r: &mut &'a [u8]) -> Result<Self, Error> {
+        Ok(Self(u8::decode(r)?))
+    }
 }
 
 #[test]
-fn bedrock_string_round_trip() {
-    let original = "Hello Bedrock 🌍!";
-    let bytes = to_bytes(&original.to_string()).unwrap();
-    let decoded: String = from_slice(&bytes).unwrap();
-    assert_eq!(decoded, original);
+fn packet_header_bit_layout() {
+    let header = |id, sender_sub_client, target_sub_client| PacketHeader {
+        id,
+        sender_sub_client,
+        target_sub_client,
+    };
+    // 42 | 1 << 10 | 2 << 12 = 9258; 1023 | 3 << 10 | 3 << 12 = 16383.
+    assert_vector(header(42, 1, 2), &[0xAA, 0x48]);
+    assert_vector(header(1023, 3, 3), &[0xFF, 0x7F]);
+    assert_vector(header(1, 0, 0), &[0x01]);
+    for overflowing in [header(1024, 0, 0), header(0, 4, 0), header(0, 0, 4)] {
+        assert_eq!(
+            to_bytes(&overflowing).unwrap_err(),
+            Error::PacketHeaderOverflow,
+            "{overflowing:?}"
+        );
+    }
+
+    let mut bytes = Vec::new();
+    encode_packet(&Ping(7), &mut bytes).unwrap();
+    assert_eq!(bytes, [42, 7]);
+    assert_eq!(
+        decode_packet::<Ping>(&mut &[0xAA, 0x48, 7][..]).unwrap(),
+        Ping(7)
+    );
+    assert_eq!(
+        decode_packet::<Ping>(&mut &[43, 7][..]).unwrap_err(),
+        Error::UnexpectedPacketId {
+            expected: 42,
+            actual: 43
+        }
+    );
 }
 
 #[test]
-fn vec_round_trip() {
-    let items = vec![10u32, 20u32, 30u32];
-    let bytes = to_bytes(&items).unwrap();
-    let decoded: Vec<u32> = from_slice(&bytes).unwrap();
-    assert_eq!(decoded, items);
+fn declared_count_does_not_preallocate_past_the_input() {
+    let bytes = [0xFF, 0xFF, 0xFF, 0xFF, 0x0F, 0x01, 0x02];
+    let (allocated, result) = counting_allocator::allocated_by(|| from_slice::<Vec<u64>>(&bytes));
+    assert_eq!(result.unwrap_err(), Error::UnexpectedEof);
+    assert!(
+        allocated <= 2 * size_of::<u64>(),
+        "allocated {allocated} bytes for 2 bytes of input"
+    );
+}
+
+#[test]
+fn byte_array_and_str_vectors() {
+    assert_eq!(to_bytes("h\u{e9}").unwrap(), [0x03, b'h', 0xC3, 0xA9]);
+    assert_eq!(
+        from_slice::<&str>(&[0x03, b'h', 0xC3, 0xA9]).unwrap(),
+        "h\u{e9}"
+    );
+    assert_eq!(
+        from_slice::<&str>(&[0x01, 0xFF]).unwrap_err(),
+        Error::InvalidUtf8
+    );
+    assert_eq!(
+        from_slice::<&[u8]>(&[0x03, 0x01]).unwrap_err(),
+        Error::UnexpectedEof
+    );
 }
 
 #[test]
 fn trailing_bytes_rejected() {
-    let bytes = [0x01, 0x02];
-    let err = from_slice::<u8>(&bytes).unwrap_err();
-    assert_eq!(err, Error::TrailingBytes);
+    assert_eq!(
+        from_slice::<u8>(&[0x01, 0x02]).unwrap_err(),
+        Error::TrailingBytes
+    );
+    assert_eq!(
+        decode_packet::<Ping>(&mut &[42, 7, 0][..]).unwrap_err(),
+        Error::TrailingBytes
+    );
 }

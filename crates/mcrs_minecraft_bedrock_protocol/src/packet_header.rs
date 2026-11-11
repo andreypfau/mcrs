@@ -1,4 +1,4 @@
-use mcrs_minecraft_bedrock_wire::{BedrockEncode, Error, VarU32};
+use mcrs_minecraft_bedrock_wire::{BedrockDecode, BedrockEncode, Error, VarU32};
 
 // The two sub-client ids sit above bit 10 of the header.
 const PACKET_ID_MASK: u32 = 0x3FF;
