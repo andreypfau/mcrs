@@ -191,8 +191,9 @@ These packets are move packets for this rule: `move_player_pos`, `move_player_po
 `move_player_rot`, `move_player_status_only` and `move_vehicle`. A resend has the position of the
 pending teleport, the current rotation of the player, zero velocity and no relative flags.
 
-The server ignores a `move_player_*` packet until the client has loaded (MVC-VAN-004 in
-`movement-checks.md`). This packet then does not cause a resend and does not set the tick. A
+The server ignores a `move_player_*` packet until the client has loaded, and while the player sees
+the end credits (MVC-VAN-004 in `movement-checks.md`). This packet then does not cause a resend and
+does not set the tick. A
 `move_vehicle` packet has the effects of this rule also before the client has loaded.
 
 **TP-CONFIRM-ID-003** (`source_suggested`, semantic). When the next `teleport_id` is the largest
@@ -235,12 +236,20 @@ protocol documentation names the flag `HandledTeleport` and gives no id field. T
 Bedrock Edition keeps the order of the packets, so the n-th flag belongs to the n-th teleport.
 Entry U7 records what a Bedrock client does that the documentation does not state.
 
+The position of a player in `MovePlayer` and in `PlayerAuthInput` is 1.62 blocks above the position
+of its feet. The edge adds 1.62 to the `y` of a teleport destination before it sends `MovePlayer`.
+It subtracts 1.62 from the `y` of a `PlayerAuthInput` before it makes `TeleportAccepted` or
+`MoveReceived`. Reason: the canonical events and the rules use the position of the feet. Without
+this change, each accept of a Bedrock client is 1.62 blocks too high, and TP-CONFIRM-ACC-003 accepts
+that position.
+
 **TP-CONFIRM-EVT-004** (`design`, semantic). The resend of TP-CONFIRM-RES-006 also serves a client
 of Bedrock Edition. A Bedrock client sends `PlayerAuthInput` each client tick, and each one makes
 `MoveReceived`. Thus, while a teleport is pending, the server sends a resend each 21 ticks, also to
 a Bedrock client that dropped or ignored a `MovePlayer` teleport. The client-loaded condition of
 TP-CONFIRM-RES-006 applies to `MoveReceived` from `PlayerAuthInput`: before the client has loaded,
-it does not cause a resend. The edge sends the resend as `MovePlayer` with the position mode `Teleport`, and puts its id
+it does not cause a resend. A Bedrock client has loaded after it sends
+`SetLocalPlayerAsInitialised`, as a Java client after it sends `player_loaded`. The edge sends the resend as `MovePlayer` with the position mode `Teleport`, and puts its id
 in the queue of TP-CONFIRM-EVT-003. Reason: issue 623.
 
 **TP-CONFIRM-EVT-005** (`design`, semantic). Before the edge of Bedrock Edition puts the id of a
@@ -255,7 +264,9 @@ sets one flag for each teleport.
 A flag for an older teleport can arrive after a resend has emptied the queue. Then the flag confirms
 the resend with the position of the older teleport. The movement checks of TP-CONFIRM-ACC-004 apply
 to this position. A client of Java Edition can also confirm a teleport with another position that
-passes these checks (TP-CONFIRM-ACC-003), so this case gives a client no new capability.
+passes these checks (TP-CONFIRM-ACC-003), so this case gives a client no new capability. A client
+that follows the protocol then reports its true position in the next `PlayerAuthInput`, and the
+movement checks apply to that move.
 
 ### 3.6 Riding
 
