@@ -25,3 +25,7 @@ bytemuck = { version = "1", features = ["derive"] }
 bitflags = "2"
 # Bevy gives no name to the query-set and pass-timestamp types, and timing a pass needs both.
 wgpu = { version = "30", default-features = false }
+
+[dev-dependencies]
+naga = { workspace = true, features = ["wgsl-in", "glsl-out"] }
+wesl.workspace = true

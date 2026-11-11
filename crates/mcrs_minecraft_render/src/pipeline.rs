@@ -1,19 +1,21 @@
 use bevy::core_pipeline::FullscreenShader;
 use bevy::core_pipeline::core_3d::CORE_3D_DEPTH_FORMAT;
+use bevy::mesh::VertexBufferLayout;
 use bevy::platform::collections::HashSet;
 use bevy::platform::time::Instant;
 use bevy::prelude::*;
 use bevy::render::render_resource::*;
 use bevy::render::view::ExtractedView;
-use bevy::shader::{ShaderCacheError, ShaderDefVal};
+use bevy::shader::ShaderCacheError;
 
 use mcrs_minecraft_mesh::block::Pass;
-use mcrs_minecraft_mesh::{STREAMS, stream_pass};
+use mcrs_minecraft_mesh::{Group, stream_pass};
 
 use super::LightTint;
 use super::binds::Bindings;
 use super::gbuffer::{DeferredFrame, GBUFFER_FORMATS, gbuffer_layout};
 use super::layer::{Shape, blend};
+use super::render_path::RenderPath;
 use super::shaders::Shaders;
 use super::terrain::Terrain;
 use super::views::Variant;
@@ -63,84 +65,17 @@ pub fn common(
     }
 }
 
-pub(super) struct Pipelines {
-    pub shaders: Shaders,
-    pub cull_sections: CachedComputePipelineId,
-    pub cull_groups: CachedComputePipelineId,
-    pub cull_quads: CachedComputePipelineId,
-    pub cull_count: CachedComputePipelineId,
-    pub cull_scan: CachedComputePipelineId,
-    pub cull_scatter: CachedComputePipelineId,
-    pub cull_groups_second: CachedComputePipelineId,
-    pub cull_quads_second: CachedComputePipelineId,
-}
-
-impl Pipelines {
-    pub fn new(
-        shaders: Shaders,
-        binds: &Bindings,
-        section_slots: usize,
-        max_workgroups: u32,
-        subgroups: bool,
-        pipeline_cache: &PipelineCache,
-    ) -> Self {
-        let layout = vec![binds.view_layout.clone(), binds.cull_layout.clone()];
-        let quad_layout = vec![binds.view_layout.clone(), binds.quad_cull_layout.clone()];
-        let mut shader_defs = vec![
-            ShaderDefVal::UInt("CULL_THREADS".into(), super::pass::CULL_THREADS),
-            ShaderDefVal::UInt("GROUP_THREADS".into(), super::pass::GROUP_THREADS),
-            ShaderDefVal::UInt("GROUPS_PER_STEP".into(), super::pass::GROUPS_PER_STEP),
-            ShaderDefVal::UInt("STREAMS".into(), STREAMS as u32),
-            ShaderDefVal::UInt("SECTION_SLOTS".into(), section_slots as u32),
-            ShaderDefVal::UInt("CAVE_WORDS".into(), section_slots.div_ceil(32) as u32),
-            ShaderDefVal::UInt("MAX_WORKGROUPS".into(), max_workgroups),
-            ShaderDefVal::Int("MODEL_BIAS_CONSTANT".into(), MODEL_DEPTH_BIAS.constant),
-            ShaderDefVal::UInt(
-                "MODEL_BIAS_SLOPE_BITS".into(),
-                MODEL_DEPTH_BIAS.slope_scale.to_bits(),
-            ),
-        ];
-        if subgroups {
-            shader_defs.push("SUBGROUPS".into());
-        }
-        let compute = |label: &str, layout: &Vec<BindGroupLayoutDescriptor>, entry: &str| {
-            pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
-                label: Some(label.to_owned().into()),
-                layout: layout.clone(),
-                shader: shaders.cull.clone(),
-                shader_defs: shader_defs.clone(),
-                entry_point: Some(entry.to_owned().into()),
-                // The cull reads its workgroup counters before it first writes them. Metal hands out
-                // zeroed workgroup memory; DX12 and Vulkan hand out garbage unless wgpu zeroes it.
-                zero_initialize_workgroup_memory: true,
-                ..default()
-            })
-        };
-        Self {
-            cull_sections: compute("terrain cull sections", &quad_layout, "cull_sections"),
-            cull_groups: compute("terrain cull groups", &quad_layout, "cull_groups"),
-            cull_quads: compute("terrain cull quads", &quad_layout, "cull_quads"),
-            cull_count: compute("terrain cull count", &layout, "count_ordered"),
-            cull_scan: compute("terrain cull scan", &layout, "scan_ordered"),
-            cull_scatter: compute("terrain cull scatter", &layout, "scatter_ordered"),
-            cull_groups_second: compute(
-                "terrain cull groups second",
-                &quad_layout,
-                "cull_groups_second",
-            ),
-            cull_quads_second: compute(
-                "terrain cull quads second",
-                &quad_layout,
-                "cull_quads_second",
-            ),
-            shaders,
-        }
-    }
-}
+/// The first quad, the quad count and the section of a group record, one record an instance.
+const GROUP_INSTANCE: [VertexAttribute; 1] = [VertexAttribute {
+    format: VertexFormat::Uint32x3,
+    offset: 0,
+    shader_location: 0,
+}];
 
 pub(crate) fn terrain_descriptor(
     binds: &Bindings,
     shaders: &Shaders,
+    path: RenderPath,
     layer: Pass,
     shape: Shape,
     wireframe: bool,
@@ -175,7 +110,16 @@ pub(crate) fn terrain_descriptor(
             blend(layer),
         )
     };
+    descriptor.vertex.shader_defs = path.shader_defs();
+    if !path.is_full() {
+        descriptor.vertex.buffers = vec![VertexBufferLayout {
+            array_stride: size_of::<Group>() as u64,
+            step_mode: VertexStepMode::Instance,
+            attributes: GROUP_INSTANCE.to_vec(),
+        }];
+    }
     if let Some(fragment) = descriptor.fragment.as_mut() {
+        fragment.shader_defs = path.shader_defs();
         if wireframe {
             fragment.shader_defs.push("WIREFRAME".into());
         }
@@ -196,7 +140,7 @@ pub(crate) fn terrain_descriptor(
 
 // Model quads sit flush against the greedy faces behind them, so without a nudge the two
 // fight for the same depth. The cull allows for the nudge when it tests a model quad.
-const MODEL_DEPTH_BIAS: DepthBiasState = DepthBiasState {
+pub(super) const MODEL_DEPTH_BIAS: DepthBiasState = DepthBiasState {
     constant: 2,
     slope_scale: 1.0,
     clamp: 0.0,
@@ -361,6 +305,7 @@ fn queue_pipelines(
                 )
             };
             if let Some(fragment) = descriptor.fragment.as_mut() {
+                fragment.shader_defs = terrain.path().shader_defs();
                 if !def.is_empty() {
                     fragment.shader_defs.push(def.into());
                 }
@@ -399,7 +344,8 @@ fn queue_pipelines(
     for (layer, shape, wireframe) in gbuffer_slots().chain(forward_slots()) {
         let descriptor = terrain_descriptor(
             &terrain.binds,
-            &terrain.pipelines.shaders,
+            &terrain.shaders,
+            terrain.path(),
             layer,
             shape,
             wireframe,

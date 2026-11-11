@@ -1,3 +1,5 @@
+@if(MINIMAL) import mcrs_minecraft_render::shaders::include::words::word_texel;
+
 struct GuiUniform {
     framebuffer: vec2<f32>,
     glint_offset: vec2<f32>,
@@ -9,7 +11,6 @@ struct AnimationFrame {
     layer: u32,
     next: u32,
     blend: f32,
-    _pad: u32,
 }
 
 struct SpriteEntry {
@@ -25,11 +26,49 @@ const STILL: u32 = 0xFFFFFFFFu;
 @group(0) @binding(3) var atlas2: texture_2d_array<f32>;
 @group(0) @binding(4) var atlas3: texture_2d_array<f32>;
 @group(0) @binding(5) var atlas_sampler: sampler;
-@group(0) @binding(6) var<storage, read> animations: array<AnimationFrame>;
-@group(0) @binding(7) var<storage, read> sprites: array<SpriteEntry>;
+// The terrain's sprite tables: storage buffers on the full path, integer textures on the minimal.
+@if(MINIMAL) @group(0) @binding(6) var animations: texture_2d_array<u32>;
+@else @group(0) @binding(6) var<storage, read> animations: array<u32>;
+@if(MINIMAL) @group(0) @binding(7) var sprites: texture_2d_array<u32>;
+@else @group(0) @binding(7) var<storage, read> sprites: array<u32>;
 @group(0) @binding(8) var gui_atlas: texture_2d<f32>;
 @group(0) @binding(9) var glint: texture_2d<f32>;
 @group(0) @binding(10) var glint_sampler: sampler;
+
+@if(MINIMAL)
+fn animation_word(index: u32) -> u32 {
+    let at = word_texel(index);
+    return textureLoad(animations, at.xy, at.z, 0).x;
+}
+@else
+fn animation_word(index: u32) -> u32 {
+    return animations[index];
+}
+
+@if(MINIMAL)
+fn sprite_word(index: u32) -> u32 {
+    let at = word_texel(index);
+    return textureLoad(sprites, at.xy, at.z, 0).x;
+}
+@else
+fn sprite_word(index: u32) -> u32 {
+    return sprites[index];
+}
+
+const ANIMATION_WORDS: u32 = 4u;
+
+fn animation_frame(animation: u32) -> AnimationFrame {
+    let base = animation * ANIMATION_WORDS;
+    return AnimationFrame(
+        animation_word(base),
+        animation_word(base + 1u),
+        bitcast<f32>(animation_word(base + 2u)),
+    );
+}
+
+fn sprite_entry(sprite: u32) -> SpriteEntry {
+    return SpriteEntry(sprite_word(sprite * 2u), sprite_word(sprite * 2u + 1u));
+}
 
 const GUI_ATLAS_BIT: u32 = 0x80000000u;
 const GLINT_BIT: u32 = 0x40000000u;
@@ -89,7 +128,7 @@ fn sample_sprite(entry: SpriteEntry, uv: vec2<f32>) -> vec4<f32> {
     if entry.animation == STILL {
         return sample_atlas(array, uv, entry.array_layer & 0xFFFFu);
     }
-    let frame = animations[entry.animation];
+    let frame = animation_frame(entry.animation);
     let color = sample_atlas(array, uv, frame.layer);
     if frame.blend == 0.0 {
         return color;
@@ -114,7 +153,7 @@ fn fs_gui(in: VertexOut) -> @location(0) vec4<f32> {
         let color = vec4<f32>(to_srgb(texel.rgb), texel.a) * in.color;
         return vec4<f32>(to_linear(color.rgb), color.a);
     }
-    let entry = sprites[in.sprite & 0xFFFFu];
+    let entry = sprite_entry(in.sprite & 0xFFFFu);
     let array = entry.array_layer >> 16u;
     // The terrain atlas already hands back the stored bytes.
     var color = sample_sprite(entry, in.uv) * in.color;

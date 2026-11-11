@@ -516,14 +516,32 @@ lost. The client meshes it in 160 s either way.
 
 ## Web
 
-Not measurable yet. `scripts/build-web.sh` produces a 40 MB single-file bundle that Chrome runs
-over WebGPU (`http://localhost:<port>/mcrs.html?stats=3`) and it draws the sky, but the start-up
-blocks the page's main thread: on the first load 87 s passed between the adapter log and the
-first asset log, the stats line was written for four frames reading zero everywhere, and after a
-reload the page answered nothing for more than eight minutes. The render world's start-up
-schedule also logged itself once per frame in those four frames, which on native runs once.
-Until the browser build reaches a steady frame there is no floor to state for it; the numbers
-that will count there are the CPU stages and the GPU pass timestamps, never the FPS line.
+`scripts/build-web.sh` writes `mcrs.html`, which Chrome runs over WebGPU, and with
+`BACKEND=webgl2` `mcrs-webgl2.html`, which the WebGPU page sends a browser to when it has no
+WebGPU adapter. Both join a server through `?server=<url>&cert=<hash>`, which it logs at start.
+
+Not measured on WebGPU yet: on an earlier build the start-up blocked the page's main thread (87 s
+between the adapter log and the first asset log on the first load, nothing for more than eight
+minutes after a reload, and the render world's start-up schedule logged once per frame), and the
+numbers that will count there are the CPU stages and the GPU pass timestamps, never the FPS line.
+
+### WebGL2
+
+Chrome on an Apple M3 Pro, ANGLE over Metal (`WebGL 2.0 (OpenGL ES 3.0 Chromium)`), terrain on
+the minimal path, joined over WebTransport to a server on the same machine, radius 4 (121
+columns, 908 of 1131 sections meshed, seven terrain draws a frame), 2412x2664 physical pixels.
+Four stats lines two seconds apart (`?stats=2`); a range is over the four.
+
+| figure | median | p99 |
+|---|---|---|
+| frame | 13.2 to 13.3 ms (74 fps) | 14.2 to 15.3 ms |
+| engine (frame without the acquire) | 12.9 to 13.1 ms | 14.0 to 14.6 ms |
+| CPU main | 12.2 to 12.7 ms | 13.1 to 13.6 ms |
+| CPU extract, prepare, render | 0.1 to 0.2, 0.2 to 0.4, 0.3 to 0.6 ms | |
+
+The frame is held at the display's interval, so it says the page keeps up at this radius and not
+what a frame costs. The device times no pass, so there is no GPU figure, and the minimal path
+culls nothing: every resident group is an instance of every frame.
 
 ## Hardening
 

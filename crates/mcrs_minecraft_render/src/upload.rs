@@ -15,6 +15,7 @@ use super::arenas::Arenas;
 use super::stats::FrameCounts;
 use super::terrain::Terrain;
 use super::texture::write_tint_square;
+use super::words::{Staged, TexelStaging, Words};
 use super::{SectionDesc, SpriteUpload, TerrainBudget};
 
 pub enum Upload {
@@ -70,14 +71,19 @@ impl Uploads {
 /// submit; `Queue::write_buffer` allocates a fresh staging buffer per call, which at the upload
 /// budget costs a millisecond per megabyte.
 #[derive(Resource)]
-pub(super) struct Staging(Mutex<StagingBelt>);
+pub(super) struct Staging(Mutex<Belts>);
+
+struct Belts {
+    belt: StagingBelt,
+    texels: TexelStaging,
+}
 
 impl Staging {
     pub fn new(device: &RenderDevice, upload: usize) -> Self {
-        Self(Mutex::new(StagingBelt::new(
-            device.wgpu_device().clone(),
-            upload as u64,
-        )))
+        Self(Mutex::new(Belts {
+            belt: StagingBelt::new(device.wgpu_device().clone(), upload as u64),
+            texels: TexelStaging::default(),
+        }))
     }
 }
 
@@ -87,6 +93,7 @@ pub(super) fn recall_staging(staging: Option<Res<Staging>>) {
             .0
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
+            .belt
             .recall();
     }
 }
@@ -98,20 +105,20 @@ pub(super) struct Pending {
 }
 
 impl Placement {
-    fn parts<'a>(&'a self, arenas: &'a Arenas) -> Vec<(&'a Buffer, u64, &'a [u8])> {
+    fn parts<'a>(&'a self, arenas: &'a Arenas) -> Vec<(&'a Words, u64, &'a [u8])> {
         let mut parts = vec![
             (
-                &arenas.quads.buffer,
+                &arenas.quads.words,
                 self.quads.0,
                 bytemuck::cast_slice(&self.quads.1),
             ),
             (
-                &arenas.vertices.buffer,
+                &arenas.vertices.words,
                 self.vertices.0,
                 bytemuck::cast_slice(&self.vertices.1),
             ),
             (
-                &arenas.faces.buffer,
+                &arenas.faces.words,
                 self.faces.0,
                 bytemuck::cast_slice(&self.faces.1),
             ),
@@ -123,7 +130,7 @@ impl Placement {
         ];
         parts.extend(self.groups.iter().map(|(offset, records)| {
             (
-                &arenas.groups.buffer,
+                &arenas.groups.words,
                 *offset,
                 bytemuck::cast_slice::<_, u8>(records),
             )
@@ -163,7 +170,15 @@ pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEnco
         return;
     };
     let terrain = terrain.as_mut();
-    let mut belt = staging.0.lock().unwrap_or_else(PoisonError::into_inner);
+    let mut belts = staging.0.lock().unwrap_or_else(PoisonError::into_inner);
+    let Belts { belt, texels } = &mut *belts;
+    texels.reset();
+    let mut staged = Staged {
+        encoder,
+        belt,
+        texels,
+        device,
+    };
     let limit = budget.upload;
     let mut budget = limit;
 
@@ -180,39 +195,26 @@ pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEnco
                 }
                 Some(Upload::Sprites(upload)) => {
                     let _adding = info_span!("upload sprites").entered();
-                    let (spent, rebound) =
-                        terrain.sprites.update(&upload, device, encoder, &mut belt);
+                    let (spent, rebound) = terrain.sprites.update(&upload, device, &mut staged);
                     if rebound {
-                        terrain.binds.rebuild_draw(
-                            &terrain.arenas,
-                            &terrain.frame,
-                            &terrain.sprites,
-                            device,
-                            pipeline_cache,
-                        );
+                        terrain.rebuild_draw(device, pipeline_cache);
                     }
                     budget = budget.saturating_sub(spent);
                     continue;
                 }
                 Some(Upload::Geometry(placement)) => {
-                    let rebind = terrain.arenas.fit(&placement, device, encoder);
-                    if rebind.draw {
-                        terrain.binds.rebuild_draw(
-                            &terrain.arenas,
-                            &terrain.frame,
-                            &terrain.sprites,
-                            device,
-                            pipeline_cache,
-                        );
+                    let grown = terrain.arenas.fit(&placement, device, staged.encoder);
+                    if grown.geometry {
+                        terrain.rebuild_draw(device, pipeline_cache);
                     }
-                    if rebind.cull || rebind.draw {
-                        terrain.binds.rebuild_cull(
-                            &terrain.arenas,
-                            &terrain.frame,
-                            &terrain.hiz.view,
-                            device,
-                            pipeline_cache,
-                        );
+                    if let Some(cull) = &mut terrain.cull {
+                        if grown.groups {
+                            let groups = terrain.arenas.group_slots();
+                            cull.fit_groups(groups, device, staged.encoder);
+                        }
+                        if grown.groups || grown.geometry {
+                            cull.rebind(&terrain.arenas, device, pipeline_cache);
+                        }
                     }
                     Pending {
                         placement,
@@ -225,7 +227,7 @@ pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEnco
         let parts = pending.placement.parts(&terrain.arenas);
         let copying = info_span!("upload copy").entered();
         while budget > 0
-            && let Some(&(buffer, offset, data)) = parts.get(pending.part)
+            && let Some(&(words, offset, data)) = parts.get(pending.part)
         {
             if data.is_empty() {
                 pending.part += 1;
@@ -240,14 +242,10 @@ pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEnco
                     break;
                 }
             }
-            let (Some(size), Some(chunk)) = (
-                BufferSize::new(take as u64),
-                data.get(pending.done..pending.done + take),
-            ) else {
+            let Some(chunk) = data.get(pending.done..pending.done + take) else {
                 break;
             };
-            belt.write_buffer(encoder, buffer, offset + pending.done as u64, size)
-                .copy_from_slice(chunk);
+            words.stage(offset + pending.done as u64, chunk, &mut staged);
             budget = budget.saturating_sub(take);
             pending.done += take;
             if pending.done == data.len() {
@@ -269,7 +267,7 @@ pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEnco
 
     {
         let _finishing = info_span!("upload finish").entered();
-        belt.finish();
+        staged.belt.finish();
     }
     counts.upload_bytes.store(
         (limit - budget).try_into().unwrap_or(u32::MAX),

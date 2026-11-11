@@ -17,11 +17,11 @@ import package::shaders::include::fields::{
 };
 import package::shaders::include::frame::{camera, params};
 import package::shaders::include::lighting::face_shade;
-import package::shaders::include::quad::{corner_index, face_normal, greedy_corner, quad_of};
+import package::shaders::include::quad::{corner_index, degenerate, face_normal, greedy_corner};
 import package::shaders::include::section::section_origin;
 import package::shaders::include::surface::{Surface, shade_surface};
 import package::shaders::include::terrain_bindings::{
-    face_field, quad_field, quad_words, sections, visible, visible_slot,
+    TerrainVertex, face_field, quad_field, quad_ref, quad_words, section_desc,
 };
 
 struct GreedyOut {
@@ -35,18 +35,22 @@ struct GreedyOut {
 };
 
 @vertex
-fn vertex_greedy(@builtin(vertex_index) vertex: u32) -> GreedyOut {
+fn vertex_greedy(in: TerrainVertex) -> GreedyOut {
     var out: GreedyOut;
-    let entry = visible[visible_slot(quad_of(vertex))];
-    let quad = entry.x * QUAD_WORDS;
+    let at = quad_ref(in);
+    if (!at.drawn) {
+        out.clip_position = degenerate();
+        return out;
+    }
+    let quad = at.quad * QUAD_WORDS;
 
-    let desc = sections[entry.y];
+    let desc = section_desc(at.section);
     let face = quad_field(quad, QUAD_FACE_WORD, QUAD_FACE_SHIFT, QUAD_FACE_BITS);
     let span = vec2<u32>(
         quad_field(quad, QUAD_W_WORD, QUAD_W_SHIFT, QUAD_W_BITS) + 1u,
         quad_field(quad, QUAD_H_WORD, QUAD_H_SHIFT, QUAD_H_BITS) + 1u,
     );
-    let corner = greedy_corner(quad_words(quad), section_origin(desc), f32(desc.scale), corner_index(vertex));
+    let corner = greedy_corner(quad_words(quad), section_origin(desc), f32(desc.scale), corner_index(in.index));
     let world = corner.world;
     let quad_uv = corner.quad_uv;
 

@@ -12,6 +12,7 @@ import package::shaders::include::fields::{
     QUAD_Y_WORD, QUAD_Y_SHIFT, QUAD_Y_BITS,
     QUAD_Z_WORD, QUAD_Z_SHIFT, QUAD_Z_BITS,
 };
+import package::shaders::include::words::bits;
 
 fn degenerate() -> vec4<f32> {
     return vec4<f32>(0.0, 0.0, 0.0, 1.0);
@@ -85,18 +86,18 @@ struct GreedyCorner {
 /// both place corners here, so a quad is tested exactly where it is drawn.
 fn greedy_corner(words: array<u32, QUAD_WORDS>, origin: vec3<f32>, scale: f32, corner: u32) -> GreedyCorner {
     let local = vec3<f32>(
-        f32(extractBits(words[QUAD_X_WORD], QUAD_X_SHIFT, QUAD_X_BITS)),
-        f32(extractBits(words[QUAD_Y_WORD], QUAD_Y_SHIFT, QUAD_Y_BITS)),
-        f32(extractBits(words[QUAD_Z_WORD], QUAD_Z_SHIFT, QUAD_Z_BITS)),
+        f32(bits(words[QUAD_X_WORD], QUAD_X_SHIFT, QUAD_X_BITS)),
+        f32(bits(words[QUAD_Y_WORD], QUAD_Y_SHIFT, QUAD_Y_BITS)),
+        f32(bits(words[QUAD_Z_WORD], QUAD_Z_SHIFT, QUAD_Z_BITS)),
     );
-    let face = extractBits(words[QUAD_FACE_WORD], QUAD_FACE_SHIFT, QUAD_FACE_BITS);
+    let face = bits(words[QUAD_FACE_WORD], QUAD_FACE_SHIFT, QUAD_FACE_BITS);
     let size = vec2<f32>(
-        f32(extractBits(words[QUAD_W_WORD], QUAD_W_SHIFT, QUAD_W_BITS) + 1u),
-        f32(extractBits(words[QUAD_H_WORD], QUAD_H_SHIFT, QUAD_H_BITS) + 1u),
+        f32(bits(words[QUAD_W_WORD], QUAD_W_SHIFT, QUAD_W_BITS) + 1u),
+        f32(bits(words[QUAD_H_WORD], QUAD_H_SHIFT, QUAD_H_BITS) + 1u),
     );
 
     // Fluids sit below the top of their block, so the surface drops and the sides shorten.
-    let drop = f32(extractBits(words[QUAD_DROP_WORD], QUAD_DROP_SHIFT, QUAD_DROP_BITS)) / MODEL_STEPS;
+    let drop = f32(bits(words[QUAD_DROP_WORD], QUAD_DROP_SHIFT, QUAD_DROP_BITS)) / MODEL_STEPS;
     var quad_uv = corner_uv(corner);
     if (face >= 2u) {
         quad_uv.y = max(quad_uv.y, drop / size.y);
@@ -107,7 +108,7 @@ fn greedy_corner(words: array<u32, QUAD_WORDS>, origin: vec3<f32>, scale: f32, c
         world.y -= drop;
     }
     // A fluid face shares a plane with the block face behind it, so it is pulled in slightly.
-    let fluid = extractBits(words[QUAD_FLUID_WORD], QUAD_FLUID_SHIFT, QUAD_FLUID_BITS);
+    let fluid = bits(words[QUAD_FLUID_WORD], QUAD_FLUID_SHIFT, QUAD_FLUID_BITS);
     world -= face_normal(face) * (FLUID_INSET * f32(fluid));
     return GreedyCorner(world, quad_uv);
 }
@@ -117,8 +118,8 @@ fn greedy_corner(words: array<u32, QUAD_WORDS>, origin: vec3<f32>, scale: f32, c
 /// overhang the mesher allowed for.
 fn model_position(x: u32, y: u32, z: u32) -> vec3<f32> {
     return vec3<f32>(
-        f32(extractBits(x, MODEL_X_SHIFT, MODEL_X_BITS)),
-        f32(extractBits(y, MODEL_Y_SHIFT, MODEL_Y_BITS)),
-        f32(extractBits(z, MODEL_Z_SHIFT, MODEL_Z_BITS)),
+        f32(bits(x, MODEL_X_SHIFT, MODEL_X_BITS)),
+        f32(bits(y, MODEL_Y_SHIFT, MODEL_Y_BITS)),
+        f32(bits(z, MODEL_Z_SHIFT, MODEL_Z_BITS)),
     ) / MODEL_STEPS - MODEL_OVERHANG;
 }

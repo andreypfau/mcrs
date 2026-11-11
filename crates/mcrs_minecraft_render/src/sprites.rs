@@ -2,11 +2,13 @@ use bevy::prelude::*;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 
+use super::render_path::RenderPath;
 use super::terrain::Terrain;
 use super::texture::{
     AtlasSlot, AtlasWriter, array_view, atlas_sampler, atlas_staging, blank_atlas, create_lightmap,
     create_tints,
 };
+use super::words::{Staged, Words};
 use super::{Animation, Budget, PinnedTick, SpriteEntry, SpriteUpload};
 use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
 
@@ -55,14 +57,18 @@ pub struct Sprites {
     pub(crate) lightmap: Texture,
     pub(crate) lightmap_view: TextureView,
     pub(crate) lightmap_sampler: Sampler,
-    pub frames: Buffer,
-    pub table: Buffer,
+    /// An [`AnimationFrame`] per animation, as words.
+    pub frames: Words,
+    /// A [`SpriteEntry`] per sprite, as words.
+    pub table: Words,
     animations: Vec<Animation>,
     written: Vec<AnimationFrame>,
 }
 
 impl Sprites {
-    pub(crate) fn new(budget: &Budget, device: &RenderDevice) -> Self {
+    pub(crate) fn new(path: RenderPath, budget: &Budget, device: &RenderDevice) -> Self {
+        // Sized once for every sprite an id can name, so neither table ever moves.
+        let table = |label, row: usize| Words::new(path, label, (MAX_SPRITES * row) as u64, device);
         let (tints, tint_sampler) = create_tints(budget, device);
         let (lightmap, lightmap_sampler) = create_lightmap(device);
         Self {
@@ -74,8 +80,8 @@ impl Sprites {
             lightmap_view: lightmap.create_view(&TextureViewDescriptor::default()),
             lightmap,
             lightmap_sampler,
-            frames: frame_buffer(device),
-            table: table_buffer(device),
+            frames: table("terrain animation frames", size_of::<AnimationFrame>()),
+            table: table("terrain sprite table", size_of::<SpriteEntry>()),
             animations: Vec::new(),
             written: Vec::new(),
         }
@@ -88,16 +94,15 @@ impl Sprites {
         &mut self,
         upload: &SpriteUpload,
         device: &RenderDevice,
-        encoder: &mut CommandEncoder,
-        belt: &mut wgpu::util::StagingBelt,
+        staged: &mut Staged,
     ) -> (usize, bool) {
         // Uploads come in a burst at load and rarely after, so the buffer is not kept between
         // them: holding the largest one ever made would pin tens of megabytes for good.
         let mut staging = atlas_staging(FIRST_STAGING_BYTES, device);
         let mut writer = AtlasWriter {
             device,
-            encoder,
-            belt,
+            encoder: &mut *staged.encoder,
+            belt: &mut *staged.belt,
             staging: &mut staging,
             used: 0,
         };
@@ -113,16 +118,9 @@ impl Sprites {
         }
         let mut spent = writer.used as usize;
         let bytes: &[u8] = bytemuck::cast_slice(table);
-        if let Some(size) = BufferSize::new(bytes.len() as u64) {
-            belt.write_buffer(
-                encoder,
-                &self.table,
-                u64::from(*table_from) * size_of::<SpriteEntry>() as u64,
-                size,
-            )
-            .copy_from_slice(bytes);
-            spent += bytes.len();
-        }
+        let offset = u64::from(*table_from) * size_of::<SpriteEntry>() as u64;
+        self.table.stage(offset, bytes, staged);
+        spent += bytes.len();
         info!(
             layers = ?atlases.iter().map(|u| (u.size, u.layers - u.first)).collect::<Vec<_>>(),
             sprites = table.len(),
@@ -162,25 +160,7 @@ pub(super) fn write_animation_frames(
         *written = frame;
     }
     if changed {
-        queue.write_buffer(&sprites.frames, 0, bytemuck::cast_slice(&sprites.written));
+        let frames = bytemuck::cast_slice(&sprites.written);
+        sprites.frames.write(0, frames, &queue);
     }
-}
-
-/// Sized once for every sprite an id can name, so neither table ever moves.
-fn frame_buffer(device: &RenderDevice) -> Buffer {
-    device.create_buffer(&BufferDescriptor {
-        label: Some("terrain animation frames"),
-        size: (MAX_SPRITES * size_of::<AnimationFrame>()) as u64,
-        usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
-        mapped_at_creation: false,
-    })
-}
-
-fn table_buffer(device: &RenderDevice) -> Buffer {
-    device.create_buffer(&BufferDescriptor {
-        label: Some("terrain sprite table"),
-        size: (MAX_SPRITES * size_of::<SpriteEntry>()) as u64,
-        usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
-        mapped_at_creation: false,
-    })
 }

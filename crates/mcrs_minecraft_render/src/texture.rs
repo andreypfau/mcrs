@@ -43,13 +43,17 @@ fn atlas_texture(index: usize, size: u32, capacity: u32, device: &RenderDevice) 
     })
 }
 
+/// wgpu's GL backend binds an array of one layer as a plain texture, which the shader's array
+/// sampler then rejects.
+const BLANK_LAYERS: u32 = 2;
+
 pub(super) fn blank_atlas(index: usize, device: &RenderDevice) -> AtlasSlot {
-    let texture = atlas_texture(index, 1, 1, device);
+    let texture = atlas_texture(index, 1, BLANK_LAYERS, device);
     AtlasSlot {
         view: array_view(&texture),
         texture,
         size: 1,
-        capacity: 1,
+        capacity: BLANK_LAYERS,
         layers: 0,
     }
 }

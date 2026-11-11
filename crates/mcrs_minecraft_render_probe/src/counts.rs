@@ -106,12 +106,12 @@ pub(super) fn init_args_readback(
     terrain: Option<Res<Terrain>>,
     device: Res<RenderDevice>,
 ) {
-    let Some(terrain) = terrain else {
+    let Some(args) = terrain.as_deref().and_then(Terrain::draw_args) else {
         return;
     };
     commands.insert_resource(ArgsReadback(device.create_buffer(&BufferDescriptor {
         label: Some("terrain draw args readback"),
-        size: terrain.draw_args().size(),
+        size: args.size(),
         usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
         mapped_at_creation: false,
     })));
@@ -123,10 +123,13 @@ pub(super) fn copy_args(
     triangles: &DrawnTriangles,
     encoder: &mut CommandEncoder,
 ) {
+    let Some(args) = terrain.draw_args() else {
+        return;
+    };
     if !triangles.0.gate.claim_copy() {
         return;
     }
-    encoder.copy_buffer_to_buffer(terrain.draw_args(), 0, &readback.0, 0, readback.0.size());
+    encoder.copy_buffer_to_buffer(args, 0, &readback.0, 0, readback.0.size());
 }
 
 pub(super) fn read_draw_args(readback: Option<Res<ArgsReadback>>, triangles: Res<DrawnTriangles>) {

@@ -199,3 +199,14 @@ One line each, with the numbers that justified it. Newest last.
   mean and the drain 0.66 to 0.02 ms, with 30 738 and 30 931 columns received and the first
   column after 2.4 and 2.2 s; at 100 bots together 111 582 and 111 951 columns, at least 1101
   a bot in both.
+- **A device without compute draws terrain on a minimal path.** WebGL2 has no compute pass, no
+  indirect draw and no storage buffer, so there the arrays a terrain shader indexes are `R32Uint`
+  texture arrays, each group record is one instance of 192 vertices, and nothing is culled before
+  the draw. In Chrome over ANGLE and Metal on an M3 Pro, at a radius of 4 columns (121 columns,
+  908 of 1131 sections meshed), the page holds 74 fps at 2412x2664 with an engine median of 12.9
+  to 13.1 ms (`PERF.md`, "WebGL2"); the device times no pass, so no GPU figure exists for it.
+  The entity passes, which need compute and the depth pyramid, are off on that path.
+- **The view depth is sampled through a nearest sampler, never loaded.** GLSL ES holds a depth
+  texture incomplete unless its filters are nearest, wgpu leaves a depth texture's filters at
+  their defaults, and a load from an incomplete texture reads zero: the lighting pass discarded
+  every pixel and WebGL2 showed sky over a gbuffer that held the terrain.

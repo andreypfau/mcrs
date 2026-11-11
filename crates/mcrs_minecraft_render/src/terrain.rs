@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use bevy::prelude::*;
 use bevy::render::render_resource::{
-    BindGroup, BindGroupLayoutDescriptor, Buffer, PipelineCache, WgpuFeatures,
+    BindGroup, BindGroupLayoutDescriptor, Buffer, PipelineCache, TextureView,
 };
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 
@@ -10,10 +10,10 @@ use crate::sky::ExtractedSky;
 
 use super::arenas::Arenas;
 use super::binds::Bindings;
+use super::cull::Cull;
 use super::draws::DrawList;
 use super::frame::Frame;
-use super::hiz::Hiz;
-use super::pipeline::Pipelines;
+use super::render_path::RenderPath;
 use super::shaders::Shaders;
 use super::sprites::Sprites;
 use super::texture;
@@ -22,19 +22,23 @@ use super::{Budget, TerrainBudget};
 
 #[derive(Resource)]
 pub struct Terrain {
+    pub(super) path: RenderPath,
     pub(super) budget: Arc<Budget>,
     pub(super) arenas: Arenas,
     pub(super) frame: Frame,
     pub sprites: Sprites,
     pub(super) binds: Bindings,
-    pub(super) pipelines: Pipelines,
+    pub(super) shaders: Shaders,
     pub(super) list: DrawList,
-    pub(super) cull_grid: u32,
-    pub(super) group_grid: u32,
-    pub(super) hiz: Hiz,
+    /// The GPU cull, which only the full path has.
+    pub(super) cull: Option<Cull>,
 }
 
 impl Terrain {
+    pub fn path(&self) -> RenderPath {
+        self.path
+    }
+
     pub fn view_layout(&self) -> &BindGroupLayoutDescriptor {
         &self.binds.view_layout
     }
@@ -51,9 +55,10 @@ impl Terrain {
         &self.binds.draw
     }
 
-    /// The depth pyramid that the second terrain pass builds from the depth of the full frame.
-    pub fn depth_pyramid(&self) -> &bevy::render::render_resource::TextureView {
-        &self.hiz.view
+    /// The depth pyramid that the second terrain pass builds from the depth of the full frame,
+    /// on the path that culls against one.
+    pub fn depth_pyramid(&self) -> Option<&TextureView> {
+        self.cull.as_ref().map(|cull| &cull.hiz.view)
     }
 
     /// The levels of the depth pyramid that a cull can read in this frame; 0 when the
@@ -63,28 +68,49 @@ impl Terrain {
         occlusion: &Occlusion,
         pipeline_cache: &PipelineCache,
     ) -> u32 {
-        if self.second_pass(occlusion, pipeline_cache) {
-            self.hiz.levels()
-        } else {
-            0
+        match &self.cull {
+            Some(cull) if self.second_pass(occlusion, pipeline_cache) => cull.hiz.levels(),
+            _ => 0,
         }
     }
 
-    pub fn draw_args(&self) -> &Buffer {
-        &self.frame.args
+    /// The levels the terrain's own cull tests against, which are the last frame's.
+    pub(super) fn hiz_levels(&self, occlusion: &Occlusion) -> u32 {
+        match &self.cull {
+            Some(cull) if occlusion.0 => cull.hiz.levels(),
+            _ => 0,
+        }
+    }
+
+    /// The indirect arguments of the terrain draws, on the path that draws indirectly.
+    pub fn draw_args(&self) -> Option<&Buffer> {
+        self.cull.as_ref().map(Cull::args)
     }
 
     /// Whether this frame has a second cull, and so a second set of draws after the first.
     pub fn second_pass(&self, occlusion: &Occlusion, pipeline_cache: &PipelineCache) -> bool {
         occlusion.0
-            && self.list.visible_entries != 0
-            && pipeline_cache
-                .get_compute_pipeline(self.pipelines.cull_groups_second)
-                .is_some()
+            && self
+                .cull
+                .as_ref()
+                .is_some_and(|cull| cull.second_pass(&self.list, pipeline_cache))
     }
 
+    /// Hands the cull the sections the cave walk reaches. The minimal path draws every section.
     pub fn write_cave_visibility(&self, queue: &RenderQueue, bits: &[u32]) {
-        queue.write_buffer(&self.frame.cave, 0, bytemuck::cast_slice(bits));
+        if let Some(cull) = &self.cull {
+            queue.write_buffer(cull.cave(), 0, bytemuck::cast_slice(bits));
+        }
+    }
+
+    pub(super) fn rebuild_draw(&mut self, device: &RenderDevice, pipeline_cache: &PipelineCache) {
+        self.binds.rebuild_draw(
+            &self.arenas,
+            self.cull.as_ref(),
+            &self.sprites,
+            device,
+            pipeline_cache,
+        );
     }
 
     /// Sizes the visible list to the draws as they stand and restates the
@@ -92,67 +118,64 @@ impl Terrain {
     /// than up to a share of a fixed list.
     pub(crate) fn rebuild_params(&mut self, device: &RenderDevice, pipeline_cache: &PipelineCache) {
         self.list.rebuild();
-        if self.arenas.grow_visible(self.list.visible_entries, device) {
-            self.binds.rebuild_cull(
-                &self.arenas,
-                &self.frame,
-                &self.hiz.view,
-                device,
-                pipeline_cache,
-            );
-            self.binds.rebuild_draw(
-                &self.arenas,
-                &self.frame,
-                &self.sprites,
-                device,
-                pipeline_cache,
-            );
-        }
+        let entries = self.list.visible_entries;
+        let Some(cull) = self
+            .cull
+            .as_mut()
+            .filter(|cull| !cull.holds_visible(entries))
+        else {
+            return;
+        };
+        cull.grow_visible(entries, device);
+        cull.rebind(&self.arenas, device, pipeline_cache);
+        self.rebuild_draw(device, pipeline_cache);
     }
 }
 
 pub(super) fn init_terrain(
     mut commands: Commands,
     budget: Res<TerrainBudget>,
+    path: Res<RenderPath>,
     device: Res<RenderDevice>,
     asset_server: Res<AssetServer>,
     pipeline_cache: Res<PipelineCache>,
 ) {
-    let budget = budget.0.clone();
-    let arenas = Arenas::new(&budget, &device);
-    let frame = Frame::new(&budget, &device);
-    let sprites = Sprites::new(&budget, &device);
-    let hiz = Hiz::new(&device, &asset_server, &pipeline_cache);
+    let (path, budget) = (*path, budget.0.clone());
+    info!(?path, "terrain is drawn on this path");
+    let arenas = Arenas::new(path, &budget, &device);
+    let frame = Frame::new(&device);
+    let sprites = Sprites::new(path, &budget, &device);
+    let cull = path.is_full().then(|| {
+        Cull::new(
+            &budget,
+            &arenas,
+            &super::binds::view_layout(),
+            &device,
+            &asset_server,
+            &pipeline_cache,
+        )
+    });
     let binds = Bindings::new(
-        &arenas,
+        path,
         &frame,
+        &arenas,
+        cull.as_ref(),
         &sprites,
-        &hiz.view,
         &device,
-        &pipeline_cache,
-    );
-    let pipelines = Pipelines::new(
-        Shaders::load(&asset_server),
-        &binds,
-        budget.sections,
-        device.limits().max_compute_workgroups_per_dimension,
-        device.features().contains(WgpuFeatures::SUBGROUP),
         &pipeline_cache,
     );
 
     commands.insert_resource(super::upload::Staging::new(&device, budget.upload));
     commands.insert_resource(Terrain {
-        cull_grid: super::pass::cull_grid(&device.limits(), super::pass::CULL_THREADS),
-        group_grid: super::pass::cull_grid(&device.limits(), super::pass::GROUP_THREADS),
-
+        path,
         list: DrawList::new(),
+        shaders: Shaders::load(&asset_server),
         budget,
         arenas,
         frame,
         sprites,
         binds,
-        pipelines,
-        hiz,
+        cull,
     });
 }
 

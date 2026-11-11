@@ -43,7 +43,7 @@ pub use frame_uniform::FrameUniform;
 pub use height_threshold::HeightThreshold;
 pub use impostor_frame::{IMPOSTOR_VIEWS, ImpostorFrames, ImpostorView};
 pub use main_world::{CpuAnimation, EntityClock, EntitySlot, RecordedClip, RecordedClips};
-pub use plugin::{EntityRenderPlugin, EntitySlotSystems};
+pub use plugin::{EntityPasses, EntityRenderPlugin, EntitySlotSystems, entity_passes};
 pub use pose_program::{EntryInputs, InputLayout, PoseProgram, PoseProgramError};
 pub use records::{
     CULL_VALID, ClipSlot, CullRecord, InputRecord, STATE_BABY, STATE_HIDDEN_SHIFT, ScatterEntry,

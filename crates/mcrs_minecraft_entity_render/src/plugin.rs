@@ -1,9 +1,11 @@
 use bevy::core_pipeline::schedule::Core3d;
 use bevy::prelude::*;
+use bevy::render::renderer::{RenderAdapter, RenderDevice};
 use bevy::render::{ExtractSchedule, Render, RenderApp, RenderSystems};
 use mcrs_minecraft_client_entity::ClientEntityTick;
-use mcrs_minecraft_render::WorldPass;
+use mcrs_minecraft_render::{RenderPath, WorldPass};
 
+use crate::gpu_layouts::passes_fit;
 use crate::main_world::{
     EntityClock, EntityVm, advance_clock, assign_slots, frame_clock, release_slot, server_ticks,
     write_inputs, write_layers, write_ticks,
@@ -15,9 +17,20 @@ use crate::slot_upload::SlotArena;
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EntitySlotSystems;
 
+/// Whether this device runs the entity passes, in the main world and the render world alike.
+#[derive(Resource, Clone, Copy, PartialEq, Eq, Debug)]
+pub struct EntityPasses(bool);
+
+/// A run condition: the device runs the entity passes.
+pub fn entity_passes(passes: Option<Res<EntityPasses>>) -> bool {
+    passes.is_some_and(|passes| passes.0)
+}
+
 /// Draws the client entities of the types that [`crate::EntityAssets`] holds with the entity
 /// passes. The embedder inserts [`crate::EntityAssets`] when its pack and registries are ready,
 /// and adds the terrain renderer, whose gbuffer and depth pyramid the passes use.
+// chisle: the passes need compute and more storage buffers a stage than a browser's WebGPU
+// grants, so without them the plugin draws nothing; `docs/entity-render.md`, section 6, lifts it.
 pub struct EntityRenderPlugin;
 
 impl Plugin for EntityRenderPlugin {
@@ -41,14 +54,48 @@ impl Plugin for EntityRenderPlugin {
                     .chain()
                     .in_set(EntitySlotSystems),
             )
+            .configure_sets(PostUpdate, EntitySlotSystems.run_if(entity_passes))
             .add_observer(release_slot);
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
         render_app
             .init_resource::<EntityRenderState>()
-            .add_systems(ExtractSchedule, extract_entities)
-            .add_systems(Render, prepare_entities.in_set(RenderSystems::Prepare))
-            .add_systems(Core3d, draw_entities.in_set(WorldPass::Entities));
+            .add_systems(ExtractSchedule, extract_entities.run_if(entity_passes))
+            .add_systems(
+                Render,
+                prepare_entities
+                    .in_set(RenderSystems::Prepare)
+                    .run_if(entity_passes),
+            )
+            .add_systems(
+                Core3d,
+                draw_entities
+                    .in_set(WorldPass::Entities)
+                    .run_if(entity_passes),
+            );
+    }
+
+    fn finish(&self, app: &mut App) {
+        let world = app.world();
+        let passes = match (
+            world.get_resource::<RenderDevice>(),
+            world.get_resource::<RenderAdapter>(),
+        ) {
+            (Some(device), Some(adapter)) => {
+                RenderPath::of(device, adapter).is_full() && passes_fit(&device.limits())
+            }
+            _ => {
+                warn!("the entity plugin finished before the renderer: entities are not drawn");
+                false
+            }
+        };
+        if !passes {
+            info!("this device draws no entity: it cannot bind the entity passes");
+        }
+        app.insert_resource(EntityPasses(passes));
+        if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
+            render_app.insert_resource(EntityPasses(passes));
+        }
     }
 }
