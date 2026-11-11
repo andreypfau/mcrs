@@ -22,7 +22,7 @@ mcrs_minecraft_block_predicate.workspace = true
 bevy_app = { workspace = true, optional = true }
 bevy_asset = { workspace = true, optional = true }
 bevy_ecs = { workspace = true, optional = true }
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 fixedbitset.workspace = true
 mcrs_minecraft_anvil.workspace = true
 mcrs_minecraft_biome.workspace = true

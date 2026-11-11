@@ -11,5 +11,5 @@ workspace = true
 
 [dependencies]
 rand_xoshiro.workspace = true
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 md-5.workspace = true

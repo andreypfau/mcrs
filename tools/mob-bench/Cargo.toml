@@ -24,7 +24,7 @@ workspace = true
 # std: tokio, process and Mach counters
 [dependencies]
 anyhow.workspace = true
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 libc.workspace = true
 mcrs_minecraft_bench_support.workspace = true
 mcrs_minecraft_core.workspace = true

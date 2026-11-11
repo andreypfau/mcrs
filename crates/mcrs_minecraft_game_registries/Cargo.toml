@@ -76,4 +76,4 @@ bytes.workspace = true
 tracing-subscriber = "0.3"
 mcrs_minecraft_worldgen_testing.workspace = true
 mcrs_minecraft_fixtures.workspace = true
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }

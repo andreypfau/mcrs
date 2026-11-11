@@ -20,7 +20,7 @@ bevy = { version = "0.20.1", default-features = false, features = [
     "bevy_core_pipeline",
 ] }
 bytemuck = { version = "1", features = ["derive"] }
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 half = "2"
 mcrs_minecraft_client_entity.workspace = true
 mcrs_minecraft_client_world.workspace = true

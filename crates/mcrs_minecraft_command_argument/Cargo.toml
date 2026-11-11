@@ -19,7 +19,7 @@ mcrs_minecraft_core.workspace = true
 mcrs_minecraft_numeric.workspace = true
 mcrs_minecraft_game_mode.workspace = true
 mcrs_minecraft_text.workspace = true
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 
 [dev-dependencies]
 mcrs_test_alloc.workspace = true

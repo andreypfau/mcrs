@@ -13,7 +13,7 @@ workspace = true
 
 [dependencies]
 bytemuck = { version = "1", features = ["derive"] }
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 mcrs_minecraft_pack_file.workspace = true
 
 [dev-dependencies]

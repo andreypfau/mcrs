@@ -16,7 +16,7 @@ mcrs_minecraft_entity_key.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_tasks.workspace = true
-glam.workspace = true
+glam = { workspace = true, features = ["std"] }
 mcrs_engine_muxer.workspace = true
 mcrs_minecraft_block.workspace = true
 mcrs_minecraft_collision_table.workspace = true
