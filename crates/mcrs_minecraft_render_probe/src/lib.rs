@@ -27,7 +27,7 @@ pub struct ProbePlugin {
 
 impl Plugin for ProbePlugin {
     fn build(&self, app: &mut App) {
-        bevy::asset::embedded_asset!(app, "shaders/heat.wgsl");
+        bevy::asset::embedded_asset!(app, "shaders/heat.wesl");
 
         let triangles = DrawnTriangles::default();
         let timings = GpuTimings::default();

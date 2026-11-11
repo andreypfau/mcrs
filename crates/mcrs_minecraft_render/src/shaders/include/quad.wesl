@@ -1,6 +1,4 @@
-#define_import_path mcrs_minecraft_client::quad
-
-#import mcrs_minecraft_client::fields::{
+import package::shaders::include::fields::{
     FLUID_INSET,
     MODEL_OVERHANG, MODEL_STEPS,
     MODEL_X_SHIFT, MODEL_X_BITS, MODEL_Y_SHIFT, MODEL_Y_BITS, MODEL_Z_SHIFT, MODEL_Z_BITS,
@@ -13,7 +11,7 @@
     QUAD_X_WORD, QUAD_X_SHIFT, QUAD_X_BITS,
     QUAD_Y_WORD, QUAD_Y_SHIFT, QUAD_Y_BITS,
     QUAD_Z_WORD, QUAD_Z_SHIFT, QUAD_Z_BITS,
-}
+};
 
 fn degenerate() -> vec4<f32> {
     return vec4<f32>(0.0, 0.0, 0.0, 1.0);

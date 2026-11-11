@@ -1,7 +1,5 @@
-#define_import_path mcrs_minecraft_client::volume
-
-#import mcrs_minecraft_client::frame::camera
-#import mcrs_minecraft_client::lighting::lightmap
+import mcrs_minecraft_render::shaders::include::frame::camera;
+import mcrs_minecraft_render::shaders::include::lighting::lightmap;
 
 struct VolumeTerms {
     ambient: vec4<f32>,

@@ -1,6 +1,4 @@
-#define_import_path mcrs_minecraft_client::lighting
-
-#import mcrs_minecraft_client::terrain_bindings::{lightmap_levels, lightmap_sampler}
+import package::shaders::include::terrain_bindings::{lightmap_levels, lightmap_sampler};
 
 /// Vanilla samples its lightmap bilinearly at sixteenths of a level, clamped to the texel centres.
 fn lightmap(block: f32, sky: f32) -> vec3<f32> {

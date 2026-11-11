@@ -334,16 +334,10 @@ fn queue_pipelines(
     cache: &PipelineCache,
 ) {
     pipelines.tinted = tint_layout.is_some();
-    if !pipelines.tinted {
-        let stand_in: Handle<Shader> =
-            asset_server.load("embedded://mcrs_minecraft_render/shaders/include/untinted.wgsl");
-        // Never dropped, as `load_shader_library!` keeps a library.
-        core::mem::forget(stand_in);
-    }
     let lighting =
-        asset_server.load("embedded://mcrs_minecraft_render/shaders/core/lighting_pass.wgsl");
+        asset_server.load("embedded://mcrs_minecraft_render/shaders/core/lighting_pass.wesl");
     let show =
-        asset_server.load("embedded://mcrs_minecraft_render/shaders/core/gbuffer_views.wgsl");
+        asset_server.load("embedded://mcrs_minecraft_render/shaders/core/gbuffer_views.wesl");
     let layout: Vec<_> = [
         terrain.view_layout().clone(),
         terrain.draw_layout().clone(),

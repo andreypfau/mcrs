@@ -1,5 +1,3 @@
-#define_import_path mcrs_minecraft_client::gbuffer_encode
-
 struct GBuffer {
     @location(0) albedo_ao: vec4<f32>,
     @location(1) normal_motion: vec4<f32>,

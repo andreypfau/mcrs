@@ -73,7 +73,7 @@ impl DepthDisplay {
 
 pub(crate) fn init_depth_display(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(DepthDisplay {
-        shader: asset_server.load("embedded://mcrs_minecraft_render/shaders/core/show.wgsl"),
+        shader: asset_server.load("embedded://mcrs_minecraft_render/shaders/core/show.wesl"),
         depth_layout: BindGroupLayoutDescriptor::new(
             "show depth",
             &BindGroupLayoutEntries::single(ShaderStages::FRAGMENT, texture_depth_2d()),

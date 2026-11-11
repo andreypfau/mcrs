@@ -1,11 +1,7 @@
-#import bevy_core_pipeline::fullscreen_vertex_shader::FullscreenVertexOutput
-#import mcrs_minecraft_client::deferred::octahedral_decode
-#import mcrs_minecraft_client::finish::to_target
-#ifdef LIGHT_TINT
-#import mcrs_minecraft_client::volume::{shade_tinted, volume_tint}
-#else
-#import mcrs_minecraft_client::deferred::shade
-#endif
+import bevy_core_pipeline::fullscreen_vertex_shader::FullscreenVertexOutput;
+import package::shaders::include::deferred::{octahedral_decode, shade};
+import package::shaders::include::finish::to_target;
+@if(LIGHT_TINT) import mcrs_minecraft_light_render::shaders::volume::{shade_tinted, volume_tint};
 
 struct Reconstruction {
     relative_from_clip: mat4x4<f32>,
@@ -33,22 +29,22 @@ fn lighting(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     if (d == 0.0) {
         discard;
     }
-#ifdef UNLIT
+    @if(UNLIT)
     return vec4<f32>(0.0, 0.0, 0.0, 1.0);
-#else
-    let a = textureLoad(albedo_ao, pixel, 0);
-    let l = textureLoad(light, pixel, 0);
-#ifdef LIGHTING_TERM
-    let albedo = vec3<f32>(1.0);
-#else
-    let albedo = a.rgb;
-#endif
-#ifdef LIGHT_TINT
-    let normal = octahedral_decode(textureLoad(normal_motion, pixel, 0).xy);
-    let tint = volume_tint(relative_position(pixel, d), normal);
-    return vec4<f32>(to_target(shade_tinted(albedo, a.a, l.g, l.b, tint)), 1.0);
-#else
-    return vec4<f32>(to_target(shade(albedo, a.a, l.g, l.b)), 1.0);
-#endif
-#endif
+    @else {
+        let a = textureLoad(albedo_ao, pixel, 0);
+        let l = textureLoad(light, pixel, 0);
+        @if(LIGHTING_TERM) {
+            let albedo = vec3<f32>(1.0);
+        } @else {
+            let albedo = a.rgb;
+        }
+        @if(LIGHT_TINT) {
+            let normal = octahedral_decode(textureLoad(normal_motion, pixel, 0).xy);
+            let tint = volume_tint(relative_position(pixel, d), normal);
+            return vec4<f32>(to_target(shade_tinted(albedo, a.a, l.g, l.b, tint)), 1.0);
+        } @else {
+            return vec4<f32>(to_target(shade(albedo, a.a, l.g, l.b)), 1.0);
+        }
+    }
 }

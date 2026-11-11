@@ -2,7 +2,7 @@
 // hazard tracking runs the heat between one frame's world pass and the next frame's cull.
 @group(0) @binding(0) var<storage, read_write> args: array<u32>;
 
-const HEAT_THREADS: u32 = #{HEAT_THREADS}u;
+const HEAT_THREADS: u32 = constants::HEAT_THREADS;
 const HEAT_STEPS: u32 = 4096u;
 const FIRST_VERTEX: u32 = 2u;
 

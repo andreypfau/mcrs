@@ -1,8 +1,6 @@
-#define_import_path mcrs_minecraft_client::terrain_bindings
-
-#import mcrs_minecraft_client::fields::QUAD_WORDS
-#import mcrs_minecraft_client::frame::params
-#import mcrs_minecraft_client::section::SectionDesc
+import package::shaders::include::fields::QUAD_WORDS;
+import package::shaders::include::frame::params;
+import package::shaders::include::section::SectionDesc;
 
 struct DrawArgs {
     vertex_count: u32,

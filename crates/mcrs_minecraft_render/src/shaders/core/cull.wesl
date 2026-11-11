@@ -1,19 +1,19 @@
 
-#import mcrs_minecraft_client::fields::{
+import package::shaders::include::fields::{
     SECTION_SIZE,
     BOUNDS_HI_X_SHIFT, BOUNDS_HI_X_BITS, BOUNDS_HI_Y_SHIFT, BOUNDS_HI_Y_BITS,
     BOUNDS_HI_Z_SHIFT, BOUNDS_HI_Z_BITS, BOUNDS_LO_X_SHIFT, BOUNDS_LO_X_BITS,
     BOUNDS_LO_Y_SHIFT, BOUNDS_LO_Y_BITS, BOUNDS_LO_Z_SHIFT, BOUNDS_LO_Z_BITS,
     FACE_NONE, MODEL_OVERHANG, MODEL_X_WORD, MODEL_Y_WORD, MODEL_Z_WORD, QUAD_WORDS,
-}
-#import mcrs_minecraft_client::frame::{PARAMS_MODEL, PARAMS_QUAD_CULL, camera, params}
-#import mcrs_minecraft_client::quad::{
+};
+import package::shaders::include::frame::{PARAMS_MODEL, PARAMS_QUAD_CULL, camera, params};
+import package::shaders::include::quad::{
     CORNERS_PER_QUAD, MODEL_WORDS_PER_VERTEX, face_normal, greedy_corner, model_position,
-}
-#import mcrs_minecraft_client::section::{SectionDesc, section_origin}
-#import mcrs_minecraft_client::visibility::{
+};
+import package::shaders::include::section::{SectionDesc, section_origin};
+import package::shaders::include::visibility::{
     Footprint, box_outside, cover, empty_footprint, occluded,
-}
+};
 
 struct Group {
     quad_base: u32,
@@ -53,14 +53,14 @@ const VERTICES_PER_QUAD: u32 = 6u;
 /// The dispatch does not scale with the world: a fixed grid of workgroups strides over the group
 /// arena a batch of `CULL_THREADS` groups at a time, so a resident world of any size is covered
 /// by the same command and the 65535-per-dimension cap on a dispatch can never be reached.
-const CULL_THREADS: u32 = #{CULL_THREADS}u;
-const GROUP_THREADS: u32 = #{GROUP_THREADS}u;
-const STREAMS: u32 = #{STREAMS}u;
-const CAVE_WORDS: u32 = #{CAVE_WORDS}u;
-const SECTION_SLOTS: u32 = #{SECTION_SLOTS}u;
+const CULL_THREADS: u32 = constants::CULL_THREADS;
+const GROUP_THREADS: u32 = constants::GROUP_THREADS;
+const STREAMS: u32 = constants::STREAMS;
+const CAVE_WORDS: u32 = constants::CAVE_WORDS;
+const SECTION_SLOTS: u32 = constants::SECTION_SLOTS;
 /// The most workgroups one dimension of a dispatch may ask for. A kernel reading a list strides
 /// over it, so a list longer than this still gets read whole.
-const MAX_WORKGROUPS: u32 = #{MAX_WORKGROUPS}u;
+const MAX_WORKGROUPS: u32 = constants::MAX_WORKGROUPS;
 const NO_SLOT: u32 = 0xffffffffu;
 
 
@@ -159,9 +159,9 @@ fn cull_sections(
     }
 }
 
-const MODEL_BIAS_CONSTANT: f32 = #{MODEL_BIAS_CONSTANT};
+const MODEL_BIAS_CONSTANT: f32 = constants::MODEL_BIAS_CONSTANT;
 /// A shader def holds no float, so the slope scale comes as its bits.
-const MODEL_BIAS_SLOPE_BITS: u32 = #{MODEL_BIAS_SLOPE_BITS}u;
+const MODEL_BIAS_SLOPE_BITS: u32 = constants::MODEL_BIAS_SLOPE_BITS;
 /// The spacing of f32 depths just below one, as a share of the depth: the unit of a depth bias
 /// and of the rounding between where the cull projects a corner and where the rasterizer puts it.
 const DEPTH_STEP: f32 = 1.0 / 8388608.0;
@@ -390,22 +390,22 @@ var<workgroup> found: array<atomic<u32>, 3>;
 /// workgroup has to call it. A subgroup sums its own lanes and takes its run with one atomic,
 /// where lanes going one at a time would queue on the counter.
 fn place(flag: bool, counter: u32) -> u32 {
-#ifdef SUBGROUPS
-    let below = subgroupExclusiveAdd(u32(flag));
-    let here = subgroupAdd(u32(flag));
-    // The first flagged lane takes the run; every other lane holds zero, so the max is its answer.
-    var base = 0u;
-    if (flag && below == 0u) {
-        base = atomicAdd(&found[counter], here);
+    @if(SUBGROUPS) {
+        let below = subgroupExclusiveAdd(u32(flag));
+        let here = subgroupAdd(u32(flag));
+        // The first flagged lane takes the run; every other lane holds zero, so the max is its answer.
+        var base = 0u;
+        if (flag && below == 0u) {
+            base = atomicAdd(&found[counter], here);
+        }
+        return subgroupMax(base) + below;
+    } @else {
+        var at = 0u;
+        if (flag) {
+            at = atomicAdd(&found[counter], 1u);
+        }
+        return at;
     }
-    return subgroupMax(base) + below;
-#else
-    var at = 0u;
-    if (flag) {
-        at = atomicAdd(&found[counter], 1u);
-    }
-    return at;
-#endif
 }
 
 
@@ -496,7 +496,7 @@ fn group_cull_second(workgroup: u32, grid: u32, local: u32) {
 
 /// Groups a quad workgroup takes at once, one to each run of `CULL_THREADS` lanes, so the draw's
 /// counter is contended once for this many groups.
-const GROUPS_PER_STEP: u32 = #{GROUPS_PER_STEP}u;
+const GROUPS_PER_STEP: u32 = constants::GROUPS_PER_STEP;
 const QUAD_THREADS: u32 = CULL_THREADS * GROUPS_PER_STEP;
 
 var<workgroup> step_left: array<atomic<u32>, GROUPS_PER_STEP>;

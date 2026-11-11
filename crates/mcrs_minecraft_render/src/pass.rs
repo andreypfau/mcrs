@@ -194,7 +194,7 @@ pub(super) const GROUPS_PER_STEP: u32 = 2;
 const _: () =
     assert!(mcrs_minecraft_mesh::GROUP_QUADS <= CULL_THREADS as usize && CULL_THREADS <= 32);
 
-/// `cull.wgsl` strides over the group arena, so the dispatch is capped by the device instead of
+/// `cull.wesl` strides over the group arena, so the dispatch is capped by the device instead of
 /// sized by the world and a bigger render distance can no longer walk it into wgpu's 65535
 /// workgroups per dimension. wgpu reports no core count, so the cap is stated in invocations and
 /// clamped by the limits it does report; a workgroup left with no group exits at once, but not

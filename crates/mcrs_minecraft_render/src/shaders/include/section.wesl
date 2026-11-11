@@ -1,7 +1,5 @@
-#define_import_path mcrs_minecraft_client::section
-
-#import mcrs_minecraft_client::fields::SECTION_SIZE
-#import mcrs_minecraft_client::frame::camera
+import package::shaders::include::fields::SECTION_SIZE;
+import package::shaders::include::frame::camera;
 
 
 struct SectionDesc {
