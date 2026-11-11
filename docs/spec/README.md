@@ -160,3 +160,11 @@ deviation entry.
 Tables, code blocks, JSON and NBT examples, and text quoted from the game keep
 their own form. Quoted text includes a translation, a log line and an error
 message. Headings, conventions and notes use the same rules as the body.
+
+## Related AI specifications
+
+- [Mob goals](mob-goals.md): the goal framework and shared controls.
+- [Entity AI timing](entity-ai-timing.md): cadence, reflexes and decisions.
+- [Mob brain](mob-brain.md): memories, activities, behaviours and experiments.
+- [Mob brain sensors](mob-brain-sensors.md): cadence, visibility and common scans.
+- [Mob brain experiments](mob-brain-experiments.md): procedures and captured results.
