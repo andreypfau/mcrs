@@ -66,6 +66,11 @@ Each rule states its kind, as `docs/spec/README.md` defines it. A rule with a ca
 states confidence high. A `source_suggested` rule states confidence medium. A `design` or
 `unresolved` rule states no confidence.
 
+The reference has defects and accidents. Each one that this document knows has one of two
+entries in section 11. A deviation (`D`) states that mcrs does not copy the accident. A kept quirk
+(`K`) states that mcrs copies the accident, and the reason. A rule that copies or corrects an
+accident names its entry.
+
 ### 0.3 Artefacts cited
 
 - `assets/mcrs/reports/registries.json`: the registry report. It gives the wire id 74 of the
@@ -148,6 +153,7 @@ absent. The age and the health start at their defaults, except where the table s
 | `drop` of a click: the throw click, a click outside the menu | hand form, look | 40 | the player | no value | none |
 | drop of the creative inventory (IEN-SPN-007) | hand form, look | 40 | the player | no value | none |
 | rest of the `give` command (IEN-SPN-004) | hand form, look | 0 | no value | the player | R2 |
+| rest of an item reward of an advancement | hand form, look | 0 | no value | the player | none |
 | death of a player | hand form, scatter | 40 | no value | no value | R3 |
 | the cursor stack and the craft grid when the player leaves | hand form, look | 40 | no value | no value | none |
 | the rest of the cursor stack at a menu close (IEN-SPN-006) | hand form, look | 40 | no value | no value | none |
@@ -156,6 +162,8 @@ absent. The age and the health start at their defaults, except where the table s
 | contents of a destroyed container block | IEN-SPN-005 | 0 | no value | no value | R7 |
 | contents of a destroyed item entity (IEN-DMG-005) | default form at the item entity | 0 | no value | no value | none |
 | `summon item` | the command position, velocity 0 | 0 | no value | no value | R8 |
+
+The table is not complete. Section 9 lists the causes that it does not state.
 
 **IEN-SPN-002** (`source_suggested_black_box_confirmed`, semantic, confidence high). The hand form of an entity at
 `(x, y, z)` with the eye height `e` has the position `(x, y + e - 0.3F, z)`. It has one of two
@@ -174,9 +182,9 @@ velocity in five directions: an up part from 0.0125 to 0.1901 and a horizontal r
 or less. The up part of the look velocity is triangular, with the mean 0.1. Result R3 shows the
 vertical start velocity 0.2 of the scatter velocity.
 
-**IEN-SPN-003** (`black_box_confirmed`, semantic, confidence high). The server does not limit the number of drops of
-the hand. Forty drops of 1 item in one burst give forty item entities. The previous inventory
-experiments (result R36 of the closed inventory specification) show this.
+**IEN-SPN-003** (`source_suggested`, semantic, confidence medium). The server does not limit the
+number of drops of the hand. Forty drops of 1 item in one burst give forty item entities.
+Experiment E22 checks this.
 
 **IEN-SPN-004** (`source_suggested_black_box_confirmed`, semantic, confidence high). The `give` command divides the
 count into parts of up to the maximum stack size. For each part, it inserts the part into the
@@ -189,6 +197,10 @@ inventory (IEN-PCK-003). Then:
   `remove_entities` for each viewer, also for 10 `stone`.
 - When some items found no room, the rest becomes one item entity with the values of the table row
   "rest of the `give` command".
+
+For a player in creative mode, the insertion of IEN-PCK-006 applies. The items that find no room
+are destroyed, and the server makes the display item entity. Thus no rest item entity exists. This
+is kept quirk K4. Experiment E21 checks it.
 
 **IEN-SPN-005** (`source_suggested_black_box_confirmed`, semantic, confidence high). When a container block is
 destroyed, each stack of the container becomes item entities in this way:
@@ -285,7 +297,10 @@ A pickup is not a step of this tick. It occurs in the tick of the player (IEN-PC
 example, an item entity with the age 5999 can merge in step 7 and is then removed in step 10.
 
 **IEN-MOV-007** (`source_suggested`, semantic, confidence medium). Each fluid update applies the
-current of each fluid that the item entity touches. Thus a tick applies the current two times.
+current of each fluid that the item entity touches. Thus a tick applies the current two times
+(K1). A fluid is one entry of the fluid registry. `minecraft:water` and `minecraft:flowing_water`
+are two fluids, and each has its own current and its own fluid height (K2). The fluid height of
+water in IEN-MOV-001 is the larger fluid height of the fluids in the fluid tag `minecraft:water`.
 For one fluid:
 
 1. Visit the blocks that the fluid box overlaps in the order of `x`, then `y`, then `z`, each from
@@ -314,6 +329,12 @@ with the age 5990 in the tenth tick, and the age -32768 that stays.
 **IEN-AGE-002** (`source_suggested`, semantic, confidence medium). Some causes set a special age: 5999 for the display
 item of IEN-SPN-004, and -6000 for the `nether_star` of a wither, which then exists for 12000 ticks.
 
+**IEN-AGE-003** (`design`, semantic). An item entity whose item is in the item tag
+`mcrs:item_never_despawns` is not removed at the end of its lifetime. Its age does not increase.
+The conditions on the age in IEN-MRG-002 do not apply to it. The tag is empty by default. Reason:
+a data pack gives the Bedrock lifetime of ED4 without a change of code. An item in the tag stays
+without a time limit, so the tag must stay small.
+
 ## 5. Pickup by a player
 
 **IEN-PCK-001** (`source_suggested_black_box_confirmed`, semantic, confidence high). In each tick of a player that is
@@ -324,18 +345,29 @@ pickup box. The pickup box is one of these:
 - when the player is a passenger of a vehicle that is not removed: the smallest box that contains
   the box of the player and the box of the vehicle, larger by 1 on `x` and `z`.
 
+In one server tick, the pickups occur after the ticks of all item entities in all dimensions
+(IEN-MOV-006). Thus an item entity whose pickup delay becomes 0 in its tick can be picked up in
+the same server tick. An item entity that is removed in its tick cannot be picked up. Provenance
+of this paragraph: `source_suggested`, confidence medium, experiment E23.
+
 The intersection is strict: boxes that only touch do not intersect. For a player of width 0.6 and an
 item entity, a horizontal distance of centres below 1.425 is in reach. Result R14 shows a pickup at
 1.40 and no pickup at 1.45. The bottom of the item entity must be below the top of the player plus
 0.5: result R14 shows a pickup at 2.15 above the feet of a standing player and no pickup at 2.3.
 
-**IEN-PCK-002** (`source_suggested_black_box_confirmed`, semantic, confidence high). A player can pick up an item
-entity when each of these conditions is true:
+**IEN-PCK-002** (`source_suggested_black_box_confirmed`, semantic, confidence high). A player
+inserts the stack of an item entity into the slots (IEN-PCK-003) when each of these conditions is
+true:
 
 1. The pickup delay is 0.
 2. The owner has no value, or the owner is this player.
-3. The insertion of IEN-PCK-003 moves 1 item or more, or the player is in creative mode
-   (IEN-PCK-006).
+
+The insertion has one of three results:
+
+- **Full pickup**: all items find room, or the player is in creative mode (IEN-PCK-006). IEN-PCK-004
+  applies.
+- **Partial pickup**: some items find room, and some items do not. IEN-PCK-005 applies.
+- **No pickup**: no item finds room. Nothing changes.
 
 The thrower has no effect. Result R15 shows that only the owner picks up an item entity with an
 owner, and that a player picks up an item entity that another player threw.
@@ -351,8 +383,7 @@ slot up to its room:
 
 A stack with a damage value above 0 goes only to the first empty main slot, as one stack. Result R16
 shows the pickup into the selected slot 2 before the hotbar slot 0 and the off-hand slot, and into
-the off-hand slot before the hotbar slot 0. This corrects the order of the closed inventory
-specification, whose pickup cases all had the selected slot 0.
+the off-hand slot before the hotbar slot 0.
 
 **IEN-PCK-004** (`source_suggested_black_box_confirmed`, wire, confidence high). After a pickup that takes all items,
 the server sends these packets:
@@ -364,11 +395,13 @@ the server sends these packets:
 
 Result R16 shows this order.
 
-**IEN-PCK-005** (`black_box_confirmed`, semantic, confidence high). When the collector is not in
-creative mode and the slots have room for only a part of the items, the part moves to the slots, and the rest stays in the item entity. No viewer gets
-`take_item_entity`. The server must send `set_entity_data` with the new stack to each viewer.
-Result R17 shows the reference, which sends no packet for the item entity (D1). A later pickup of
-the rest sends `take_item_entity` with the count of the rest.
+**IEN-PCK-005** (`black_box_confirmed`, client agreement, confidence high). In a partial pickup,
+the items that find room move to the slots, and the rest stays in the item entity. The server
+sends `take_item_entity` to each viewer, with the count of the items that moved. The vanilla
+client subtracts that count from the stack that it shows, and removes the item entity only when
+the stack is empty. The server also sends `set_entity_data` with the new stack (IEN-NET-003). It
+sends no `remove_entities`. Result R17 shows the reference, which sends no packet for the item
+entity (D1). A later full pickup of the rest sends `take_item_entity` with the count of the rest.
 
 **IEN-PCK-006** (`black_box_confirmed`, semantic, confidence high). For a collector in creative mode, the items that
 find no room are destroyed, and the pickup takes all items. Result R18 shows a pickup of 10 `stone`
@@ -419,7 +452,9 @@ entity, and the other item entity is removed. The target keeps its position, its
 owner and its thrower. Its pickup delay becomes the larger of the two pickup delays, and its age
 becomes the smaller of the two ages. Result R19 shows the target with 30 items and the age of the
 younger partner. When the counts are equal, the partner that the item entity found is the target:
-the item entity that looks for partners gives its items. Result R19 shows `a 10, b 10 -> b 20`.
+the item entity that looks for partners gives its items (K3). Result R19 shows
+`a 10, b 10 -> b 20`. A merge moves all items of the other item entity, also above the count 64
+(D2).
 
 **IEN-MRG-006** (`design`, semantic). An item entity merges with its partners one at a time. Each
 merge is a claim of PHY-CMP-017. Reason: the result must not depend on the order of the entities.
@@ -495,8 +530,7 @@ updates between the periodic ones.
 
 **IEN-NET-003** (`source_suggested_black_box_confirmed`, wire, confidence high). Each change of the stack of an item
 entity sends `set_entity_data` with the new stack to each viewer at the next update. A merge
-changes the stack of the target, and a merge of D2 changes the stack of the partner too. A partial
-pickup changes the stack (IEN-PCK-005).
+changes the stack of the target. A partial pickup changes the stack (IEN-PCK-005).
 
 **IEN-NET-004** (`source_suggested_black_box_confirmed`, wire, confidence high). Each removal of an item entity sends
 `remove_entities` to each viewer (TRK-REM-001): the end of the lifetime, the destruction, the merge
@@ -515,6 +549,8 @@ first.
 - The client drawing of an item entity: its spin, its bob and the take animation.
 - The flow vector of a fluid block (IEN-MOV-007). A specification of the fluids states it.
 - The travel of an item entity through a portal. It occurs in step 3 of IEN-MOV-006.
+- The start values of the causes that IEN-SPN-001 does not list, for example a dispenser, the
+  `loot` command, fishing, and the drops of block entities and of mob behaviour.
 
 ## 10. Edition differences
 
@@ -558,6 +594,18 @@ each Bedrock value comes from the public protocol documentation or is not known 
 - **Prediction risk**: none.
 - **Parity list or bug reference**: none.
 
+**ED4.**
+
+- **Rule**: IEN-AGE-003.
+- **Java**: each item entity with the age 0 is removed after 6000 ticks, also a `nether_star`.
+- **Bedrock**: a `nether_star` and a thrown `trident` stay.
+- **Decision**: the Java lifetime applies. The tag `mcrs:item_never_despawns` is empty by default.
+  A Bedrock flavour data pack fills it.
+- **Selected by**: data pack.
+- **Visible to the client**: yes.
+- **Prediction risk**: none.
+- **Parity list or bug reference**: MC-125027, closed as "works as intended" for Java.
+
 ## 11. Intentional deviations, open questions and unresolved items
 
 ### 11.1 Intentional deviations
@@ -565,23 +613,72 @@ each Bedrock value comes from the public protocol documentation or is not known 
 **D1.**
 
 - **Rule**: IEN-PCK-005.
-- **Reference**: after a partial pickup, the stack of the item entity has fewer items, but no viewer
-  gets `set_entity_data`. Each viewer shows the old count until another change of the stack.
-- **Visible to the client**: yes. The item entity shows the old count.
-- **Test**: a differential test compares the count of the saved form, not the `set_entity_data`
-  packets after a partial pickup.
+- **Reference**: a partial pickup moves the items, but the reference then treats the insertion as
+  a failure, because the last pass of the insertion found no room. Thus no viewer gets
+  `take_item_entity`, and the collector gets no statistic. The stack of the item entity changes
+  without a sync, so no viewer gets `set_entity_data`. Each viewer shows the old count until
+  another change of the stack. The client handles a `take_item_entity` with a count smaller than
+  the stack, so the protocol supports a partial pickup.
+- **Visible to the client**: yes. The item entity shows the old count, and the pickup has no sound
+  and no animation.
+- **Test**: a differential test compares the count of the saved form and the slots, not the
+  packets for the item entity after a partial pickup.
 
 **D2.**
 
 - **Rule**: IEN-MRG-005.
 - **Reference**: a merge moves items only up to the count 64. For a stack with a maximum stack size
-  above 64, 50 and 40 items give a target of 64 and a partner of 26 items that both stay. The
-  viewers get `set_entity_data` for the target, but not for the partner. Each viewer shows the old
-  count of the partner until another change of its stack.
+  above 64, 50 and 40 items give a target of 64 and a partner of 26 items that both stay. A target
+  with more than 64 items gives items back: 70 and 10 give a target of 64 and a partner of 16
+  (experiment E20). The viewers get `set_entity_data` for the target, but not for the partner. Each
+  viewer shows the old count of the partner until another change of its stack.
 - **Visible to the client**: yes, only for a stack whose maximum stack size is above 64.
 - **Test**: a differential test must not merge stacks with a maximum stack size above 64.
 
-### 11.2 Open questions
+### 11.2 Kept quirks
+
+A kept quirk is an accident of the reference that mcrs copies. Each entry has these parts:
+
+- **Rule**: the id of the rule that copies the accident.
+- **Reference**: the accident.
+- **Why kept**: the reason to copy it.
+- **Revisit when**: the condition that makes a deviation possible.
+
+**K1.**
+
+- **Rule**: IEN-MOV-006, IEN-MOV-007.
+- **Reference**: a tick applies the current of a fluid two times.
+- **Why kept**: the vanilla client also simulates the motion of an item entity. A different
+  current makes the client position drift from the server position between the updates.
+- **Revisit when**: never for a vanilla client.
+
+**K2.**
+
+- **Rule**: IEN-MOV-007.
+- **Reference**: a source block and a flowing block of one fluid give two currents. An item entity
+  on the boundary gets up to two times the current.
+- **Why kept**: as K1.
+- **Revisit when**: as K1.
+
+**K3.**
+
+- **Rule**: IEN-MRG-005.
+- **Reference**: of two partners with equal counts, the target is selected by the order of the
+  search, not by a property of the item entities.
+- **Why kept**: the count and the stack of the result are the same. Only the position of the
+  result and its network id change.
+- **Revisit when**: IEN-MRG-006 has a key that selects the target.
+
+**K4.**
+
+- **Rule**: IEN-SPN-004, IEN-PCK-006.
+- **Reference**: a player in creative mode loses the items that find no room, both for a pickup
+  and for `give`.
+- **Why kept**: a player in creative mode has infinite materials. A full inventory must not fill
+  the world with item entities.
+- **Revisit when**: the owner selects a different policy for creative mode.
+
+### 11.3 Open questions
 
 For the owner:
 
@@ -593,8 +690,14 @@ For the owner:
 - **Q3**: IEN-DAT-001. The model of `docs/item-design.md` keeps one entity for a stack. Does the
   item entity get a new network id when a stack goes from a slot to the world, as in the reference,
   or does the stack keep one id? The id that the client sees must be new for each `add_entity`.
+- **Q4**: IEN-MRG-006. In the reference, an item entity can take the items of one partner and then
+  give all its items to a second partner in the same tick. With claims, does a target of a merge
+  in a tick stay out of other merges until the next tick? The merge then can come 2 to 40 ticks
+  later than in the reference.
+- **Q5**: D1. Does a partial pickup count as a pickup for the statistics, the advancements and a
+  public pickup message, with the count of the items that moved?
 
-### 11.3 Unresolved
+### 11.4 Unresolved
 
 - **U1**: IEN-MOV-005. The motion in lava has no captured result. In the lava part of result R10,
   the item entity was in a solid block. The push of PHY-ORD-005 multiplied `v` by 0.75 and set
@@ -603,7 +706,7 @@ For the owner:
 - **U2**: IEN-DMG-004. The creeper case of `mob_griefing`. Result R22 shows no damage at 3 blocks
   from a creeper both with `mob_griefing` false and true, so the test did not prove an explosion.
 - **U3**: IEN-SPN-001. The rows with no result: the throw click, the click outside the menu, the
-  creative drop, the menu close and the leave of a player.
+  creative drop, the menu close, the leave of a player and the reward of an advancement.
 
 ## 12. Experiments
 
@@ -634,6 +737,10 @@ entities with `data get entity`. Record the clientbound packets of each client a
 | E17 | Not run. Send a throw click, a click outside the menu and a creative drop. Close a menu with a cursor stack and a full inventory. Disconnect with a cursor stack. Read each item entity. | U3 |
 | E18 | Not run. Make a lava source with solid blocks on the four sides and below. Summon an item entity with `Motion` `(0.1, 0, 0)` at the centre of the lava block, 0.5 above its bottom. Step 1 tick at a time and read `Motion`. | U1 |
 | E19 | Not run. Summon a creeper that explodes with certainty, with `mob_griefing` false and true. | U2 |
+| E20 | Not run. Summon `stone` with `max_stack_size` 99 and the counts 70 and 10 at one point, with `NoGravity`. Step 45 ticks. Read both counts. | D2 |
+| E21 | Not run. Fill the 36 main slots of `P` with `dirt` in creative mode. Run `give P stone 10`. Read the item entities and the packets. | IEN-SPN-004 |
+| E22 | Not run. Send 40 `player_action` packets with the status 4 in one tick. Count the item entities. | IEN-SPN-003 |
+| E23 | Not run. Summon `stone` at `P` with the pickup delay 1. Step 1 tick. Record the tick of `take_item_entity`. | IEN-PCK-001 |
 | B1 | Not run. On a Bedrock server, measure the pickup reach, the merge range, the lifetime and the pickup delay of a drop of the hand. | ED2 |
 | B2 | Not run. On a Bedrock server, drop an item and try a pickup by another player at once and after the pickup delay. | ED3 |
 
@@ -668,7 +775,7 @@ Motion x, z: (-0.0811, -0.0393) (-0.0089, 0.1888) (-0.0153, 0.0222) (0.0098, -0.
 The `y` velocity agrees with a start of 0.2 after two ticks of gravity and drag.
 
 **R4.** E4, the velocity of a drop of the hand. `look` is 0.3 times the unit vector of the look
-direction. 12 drops for each direction, from the closed inventory specification (its result R37).
+direction. 12 drops for each direction.
 
 ```text
 direction  y - look y          horizontal - look
