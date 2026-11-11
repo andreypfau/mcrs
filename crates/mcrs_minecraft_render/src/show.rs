@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use bevy::render::render_resource::binding_types::{texture_2d, texture_depth_2d};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice};
-use bevy::render::view::{ExtractedView, ViewDepthTexture, ViewTarget};
+use bevy::render::view::{ExtractedView, ViewDepthStencilTexture, ViewTarget};
 use bevy::shader::ShaderDefVal;
 
 use crate::pipeline::common;
@@ -20,7 +20,7 @@ pub struct DepthDisplay {
 }
 
 pub enum DepthSource<'a> {
-    Depth(&'a ViewDepthTexture),
+    Depth(&'a ViewDepthStencilTexture),
     /// The first level of the terrain's depth pyramid.
     Pyramid(&'a Terrain),
 }
@@ -38,7 +38,7 @@ impl DepthDisplay {
             DepthSource::Depth(depth) => (
                 self.depth,
                 &self.depth_layout,
-                depth.texture.create_view(&TextureViewDescriptor {
+                depth.texture().create_view(&TextureViewDescriptor {
                     label: Some("show depth"),
                     aspect: TextureAspect::DepthOnly,
                     ..default()

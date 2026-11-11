@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use bevy::prelude::*;
 use mcrs_minecraft_dimension::{Dimension, DimensionType};
 use mcrs_minecraft_network::client::close_connection_later;
@@ -109,10 +108,10 @@ fn on_set_entity_data(
         return;
     };
     let checked = match registries.as_deref() {
-        Some(registries) => data
-            .metadata
-            .check(registries)
-            .context("an id is not an entry of the session registries"),
+        Some(registries) => anyhow::Context::context(
+            data.metadata.check(registries),
+            "an id is not an entry of the session registries",
+        ),
         None => Err(anyhow::anyhow!(
             "an id is not an entry of the session registries"
         )),

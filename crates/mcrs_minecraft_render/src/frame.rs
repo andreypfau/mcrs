@@ -1,5 +1,6 @@
 use bevy::math::DVec3;
 use bevy::prelude::*;
+use bevy::render::RenderApp;
 use bevy::render::extract_resource::ExtractResource;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
@@ -19,6 +20,7 @@ use super::Budget;
 /// The camera split into the section it stands in and where it stands inside that section, so
 /// the terrain shaders never need an absolute world coordinate in f32.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, ExtractResource)]
+#[extract_app(RenderApp)]
 pub struct CameraOrigin {
     pub section: IVec3,
     pub offset: Vec3,
@@ -41,6 +43,7 @@ impl CameraOrigin {
 
 /// The directional shade table of the dimension the camera is in.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, ExtractResource)]
+#[extract_app(RenderApp)]
 pub struct TerrainShade(pub CardinalLight);
 
 impl TerrainShade {
@@ -196,6 +199,7 @@ pub(super) fn write_camera(
 
 #[cfg(test)]
 mod tests {
+    use bevy::math::proj;
     use bevy::math::{DMat4, DVec3};
 
     use super::*;
@@ -226,7 +230,7 @@ mod tests {
         let rotation =
             Quat::from_rotation_arc(Vec3::NEG_Z, (block.as_dvec3() - eye).normalize().as_vec3())
                 * Quat::from_rotation_y(0.3);
-        let clip_from_view = Mat4::perspective_infinite_reverse_rh(1.4, 16.0 / 9.0, 0.05);
+        let clip_from_view = proj::perspective_infinite_reverse(1.4, 16.0 / 9.0, 0.05);
 
         let truth = ndc((clip_from_view.as_dmat4()
             * DMat4::from_rotation_translation(rotation.as_dquat(), eye).inverse()

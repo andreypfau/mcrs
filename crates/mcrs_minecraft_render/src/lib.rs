@@ -131,6 +131,7 @@ pub struct SpriteEntry {
 }
 
 #[derive(Resource, Clone, Copy, ExtractResource)]
+#[extract_app(RenderApp)]
 pub struct DrawMask(pub u32);
 
 impl DrawMask {
@@ -150,6 +151,7 @@ impl Default for DrawMask {
 /// Whether terrain is tested against the last frame's depth pyramid; off, every group the
 /// frustum and the cave graph keep is drawn and the second pass does not exist.
 #[derive(Resource, Clone, Copy, ExtractResource)]
+#[extract_app(RenderApp)]
 pub struct Occlusion(pub bool);
 
 impl Default for Occlusion {
@@ -161,6 +163,7 @@ impl Default for Occlusion {
 /// Whether the cull tests each quad of a surviving group on its own; off, a group that survives
 /// is drawn whole, which is how a hole the quad tests leave is told from any other.
 #[derive(Resource, Clone, Copy, ExtractResource)]
+#[extract_app(RenderApp)]
 pub struct QuadCull(pub bool);
 
 impl Default for QuadCull {
@@ -171,6 +174,7 @@ impl Default for QuadCull {
 
 /// Vanilla's Brightness slider, from 0 (Moody) to 1 (Bright).
 #[derive(Resource, Clone, Copy, ExtractResource)]
+#[extract_app(RenderApp)]
 pub struct Brightness(pub f32);
 
 impl Default for Brightness {
@@ -181,6 +185,7 @@ impl Default for Brightness {
 
 /// The tick texture animation shows instead of following real time.
 #[derive(Resource, Clone, Copy, ExtractResource)]
+#[extract_app(RenderApp)]
 pub struct PinnedTick(pub i64);
 
 /// Group 3 of the lighting pass, from whoever tints block light.

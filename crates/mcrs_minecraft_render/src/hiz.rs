@@ -4,7 +4,7 @@ use bevy::render::render_resource::binding_types::{
 };
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
-use bevy::render::view::ViewDepthTexture;
+use bevy::render::view::ViewDepthStencilTexture;
 use wgpu::ComputePassTimestampWrites;
 
 const THREADS: u32 = 8;
@@ -92,12 +92,12 @@ impl Hiz {
     /// has to be bound again.
     pub fn fit(
         &mut self,
-        depth: &ViewDepthTexture,
+        depth: &ViewDepthStencilTexture,
         device: &RenderDevice,
         pipeline_cache: &PipelineCache,
     ) -> bool {
         let wanted =
-            UVec2::new(depth.texture.width(), depth.texture.height()).max(UVec2::splat(2)) / 2;
+            UVec2::new(depth.texture().width(), depth.texture().height()).max(UVec2::splat(2)) / 2;
         let size = UVec2::new(self.texture.width(), self.texture.height());
         let rebuilt = wanted != size;
         if rebuilt {
@@ -106,9 +106,9 @@ impl Hiz {
             self.view = view;
             self.levels = levels;
         }
-        if rebuilt || self.depth != Some(depth.texture.id()) {
-            self.depth = Some(depth.texture.id());
-            let depth_view = depth.texture.create_view(&TextureViewDescriptor {
+        if rebuilt || self.depth != Some(depth.texture().id()) {
+            self.depth = Some(depth.texture().id());
+            let depth_view = depth.texture().create_view(&TextureViewDescriptor {
                 label: Some("hiz depth"),
                 aspect: TextureAspect::DepthOnly,
                 ..default()

@@ -22,7 +22,9 @@ use bevy::asset::RenderAssetUsages;
 use bevy::color::LinearRgba;
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::image::ImageSampler;
-use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseScrollUnit};
+use bevy::input::mouse::{
+    AccumulatedMouseMotion, AccumulatedMouseScroll, MouseScrollPixelsPerLine,
+};
 use bevy::prelude::*;
 use bevy::render::mesh::{Indices, PrimitiveTopology, VertexAttributeValues};
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
@@ -378,6 +380,7 @@ fn orbit(
     buttons: Res<ButtonInput<MouseButton>>,
     motion: Res<AccumulatedMouseMotion>,
     scroll: Res<AccumulatedMouseScroll>,
+    pixels_per_line: Res<MouseScrollPixelsPerLine>,
     camera: Single<(&mut Orbit, &mut Transform)>,
 ) {
     let (mut orbit, mut transform) = camera.into_inner();
@@ -385,10 +388,7 @@ fn orbit(
         orbit.yaw -= motion.delta.x * 0.005;
         orbit.pitch = (orbit.pitch - motion.delta.y * 0.005).clamp(-1.54, 1.54);
     }
-    let zoom = match scroll.unit {
-        MouseScrollUnit::Line => scroll.delta.y,
-        MouseScrollUnit::Pixel => scroll.delta.y / MouseScrollUnit::SCROLL_UNIT_CONVERSION_FACTOR,
-    };
+    let zoom = scroll.to_lines(&pixels_per_line).delta.y;
     orbit.radius = (orbit.radius - zoom * 0.4).clamp(1.2, 20.0);
 
     let target = Vec3::splat(0.5);

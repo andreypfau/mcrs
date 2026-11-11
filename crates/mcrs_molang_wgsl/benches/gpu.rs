@@ -317,7 +317,7 @@ impl Bench {
         timer.read.slice(..).map_async(MapMode::Read, |_| {});
         self.gpu.device.poll(PollType::wait_indefinitely()).unwrap();
         let ticks: Vec<u64> =
-            bytemuck::cast_slice(&timer.read.slice(..).get_mapped_range()).to_vec();
+            bytemuck::cast_slice(&timer.read.slice(..).get_mapped_range().unwrap()).to_vec();
         timer.read.unmap();
         let gpu = if ticks[1] > ticks[0] {
             (ticks[1] - ticks[0]) as f64 * timer.period * 1e-6

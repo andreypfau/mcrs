@@ -6,6 +6,7 @@ use bevy::ecs::resource::IsResource;
 use bevy::ecs::world::EntityRef;
 use bevy::math::{IRect, IVec2, Rect, UVec2};
 use bevy::prelude::*;
+use bevy::render::RenderApp;
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::time::Real;
 use bevy::window::PrimaryWindow;
@@ -154,6 +155,7 @@ pub struct GuiAtlasData {
 }
 
 #[derive(Resource, Clone, ExtractResource)]
+#[extract_app(RenderApp)]
 pub struct GuiAtlas(pub Arc<GuiAtlasData>);
 
 impl GuiAtlasData {
@@ -326,6 +328,7 @@ pub struct GuiDraw {
 /// The scene flattened to what the pass draws: triangle-list vertices in GUI units
 /// and the draws over them, one per item element.
 #[derive(Resource, Clone, Default, ExtractResource)]
+#[extract_app(RenderApp)]
 pub struct GuiBatch {
     pub vertices: Vec<GuiVertex>,
     pub draws: Vec<GuiDraw>,
