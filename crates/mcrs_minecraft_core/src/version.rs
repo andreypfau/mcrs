@@ -27,7 +27,7 @@ pub struct Version<S = &'static str> {
     pub use_editor: bool,
 }
 
-pub const VERSION_JSON: &str = include_str!("../../../assets/minecraft/version.json");
+pub const VERSION_JSON: &str = include_str!("../version.json");
 
 pub const VERSION: Version = include!(concat!(env!("OUT_DIR"), "/version.rs"));
 

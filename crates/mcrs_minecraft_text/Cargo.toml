@@ -3,6 +3,8 @@ name = "mcrs_minecraft_text"
 description = "Text components: content, style, click and hover events, JSON and NBT codecs"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [lib]
 doctest = false

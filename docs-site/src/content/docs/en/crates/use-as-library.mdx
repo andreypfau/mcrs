@@ -1,6 +1,6 @@
 ---
 title: Use the crates in your project
-description: Depend on an mcrs crate through git with a pinned rev and a nightly compiler. Publishing to crates.io does not work yet.
+description: Take the crates at the bottom of the graph from crates.io. Depend on the other mcrs crates through git with a pinned rev and a nightly compiler.
 sidebar:
   order: 3
 kind: how-to
@@ -10,8 +10,8 @@ tracking: [321, 287, 288]
 sources:
   - rust-toolchain.toml
   - xtask/src/checks.rs
-  - crates/mcrs_minecraft_core/src/version.rs
-  - crates/mcrs_minecraft_game_rule/src/lib.rs
+  - crates/mcrs_minecraft_core/Cargo.toml
+  - crates/mcrs_minecraft_client_world/src/registries.rs
   - issue:321
   - issue:287
   - issue:288
@@ -25,10 +25,10 @@ import { fact } from '~/lib/facts.mjs';
 import { Aside } from '@astrojs/starlight/components';
 import Status from '~/components/Status.astro';
 
-You can use an mcrs crate in your own Rust project today through a git dependency with a pinned commit and a nightly compiler. The crates are not on crates.io. Nobody has checked this route outside the repository on a clean machine yet, so read this page as the plan and its known limits.
+Nine crates at the bottom of the graph are on crates.io and build on stable Rust. The list is in [What does not work yet](#what-does-not-work-yet). For any other mcrs crate, use a git dependency with a pinned commit and a nightly compiler. Nobody has checked the git route outside the repository on a clean machine yet, so read this page as the plan and its known limits.
 
 <Aside type="caution" title="WIP">
-Publishing the protocol, network and game data crates waits for a decision.[^321] The question is whether publishing and stable Rust are goals at all while the project follows one game snapshot at a time. Library examples, each with a test of its dependency tree, are planned.[^287][^288]
+Publishing the protocol, network and game data crates waits for the blockers below.[^321] Library examples, each with a test of its dependency tree, are planned.[^287][^288]
 </Aside>
 
 ## 1. Add a git dependency with a pinned rev
@@ -46,7 +46,7 @@ Do not write `branch = "main"`. The `main` branch moves to the next game snapsho
 
 The repository pins `nightly-2026-09-02` in [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml). Cargo reads that file only in the directory where you run it, so the pin does not follow a git dependency. Install a nightly yourself and pin it in your project, ideally the same date.
 
-Nobody has checked whether the lower layers also build on stable. The stated goal is that the protocol, network and game data crates build on stable, which means that today they do not all do it.[^321]
+The nine crates on crates.io build on stable. The stated goal is that the protocol, network and game data crates build on stable too. Today they do not all do it.[^321]
 
 ## 3. Leave Bevy out
 
@@ -68,7 +68,9 @@ If Bevy shows up for a crate from the no-Bevy list, that is a bug in mcrs, so pl
 
 ## What does not work yet
 
-You cannot publish or package the crates. `cargo package` fails for a crate that reads files outside its own folder at build time. Two known cases are `crates/mcrs_minecraft_core/src/version.rs`, which reads `assets/minecraft/version.json`, and `crates/mcrs_minecraft_game_rule/src/lib.rs`, which reads a file from `assets/mcrs/`. A git dependency works because Cargo checks out the whole repository. This blocks publishing.[^321]
+Only the crates at the bottom of the graph are on crates.io: `mcrs_minecraft_resource`, `mcrs_voxel`, `mcrs_minecraft_wire_macros`, `mcrs_minecraft_wire`, `mcrs_minecraft_nbt`, `mcrs_minecraft_snbt`, `mcrs_minecraft_core`, `mcrs_minecraft_profile` and `mcrs_minecraft_text`. They build on stable Rust. For the other crates, use a git dependency.
+
+`cargo package` fails for a crate that reads files outside its own folder at build time. A known case is `crates/mcrs_minecraft_client_world/src/registries.rs`, which embeds `assets/mcrs/reports/datapack.json`. A git dependency works because Cargo checks out the whole repository.[^321]
 
 The same issue lists error types as the second blocker. The public API of the protocol and network crates returns `anyhow` errors in several places, so a caller cannot tell an incomplete frame from a broken one without matching on the text.
 
