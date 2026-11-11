@@ -1,4 +1,13 @@
+mod bedrock_name_policy;
+mod bedrock_uuid_scheme;
+mod player_identity;
 mod wire;
+mod xuid;
+
+pub use bedrock_name_policy::{BedrockNameError, BedrockNamePolicy};
+pub use bedrock_uuid_scheme::BedrockUuidScheme;
+pub use player_identity::{BedrockIdentity, PlayerIdentity};
+pub use xuid::Xuid;
 
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::fmt;
@@ -65,7 +74,7 @@ pub struct SkinPatch {
     pub model: Option<PlayerModelType>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GameProfileValue {
     pub id: Uuid,
     pub name: PlayerName,
