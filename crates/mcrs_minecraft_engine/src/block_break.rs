@@ -1,6 +1,6 @@
 use crate::ability::PlayerGameMode;
 use crate::block_action_ack::BlockActionAck;
-use crate::bus::{OutboundPlayerPacket, PacketPayload, PacketPriority, to};
+use crate::bus::{OutboundPlayerPacket, PacketPayload, to};
 use crate::column_change::ColumnChange;
 use crate::movement::process_movement;
 use crate::network_id::player_network_id;
@@ -122,7 +122,6 @@ fn eye_position(player: DVec3) -> DVec3 {
 fn observed(pos: BlockPos, payload: PacketPayload, except: Option<PlayerSession>) -> ColumnChange {
     ColumnChange {
         column: ColumnPos::from(pos),
-        priority: PacketPriority::Normal,
         payload,
         except,
     }

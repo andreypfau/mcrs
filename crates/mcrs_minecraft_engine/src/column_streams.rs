@@ -38,7 +38,7 @@ use mcrs_voxel::{ColumnPos, SectionPos};
 use rustc_hash::{FxHashMap, FxHashSet};
 use tracing::warn;
 
-use crate::bus::{PacketPayload, PacketPriority};
+use crate::bus::PacketPayload;
 use crate::column_change::ColumnChange;
 use crate::column_packet::{DirectBits, StoredLight, encode_stored_column};
 use crate::column_production::ColumnProduction;
@@ -309,9 +309,6 @@ fn stored_light(light_gated: bool, has_sky_light: bool) -> StoredLight {
 fn light_change(column: ColumnPos, light_data: LightData<'static>) -> ColumnChange {
     ColumnChange {
         column,
-        // A column's light is sent in full exactly once, so a shed delta is never re-sent;
-        // Normal is the class `dispatch_encode` drops first.
-        priority: PacketPriority::High,
         payload: PacketPayload::LightUpdate(ClientboundLightUpdate {
             x: VarInt(column.x),
             z: VarInt(column.z),

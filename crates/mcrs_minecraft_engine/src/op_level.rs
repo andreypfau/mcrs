@@ -63,5 +63,4 @@ pub(crate) fn op_level_packet(
             entity_status: op_level.entity_status(),
         }),
     )
-    .critical()
 }

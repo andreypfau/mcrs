@@ -29,9 +29,7 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::prelude::World;
 use bevy_ecs::system::{IntoSystem, System};
 use bevy_math::DVec3;
-use mcrs_minecraft_engine::bus::{
-    OutboundPlayerPacket, PacketPayload, PacketPriority, PacketTarget,
-};
+use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
 use mcrs_minecraft_engine::muxer::bridge::bridge_outbound;
 use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle};
@@ -181,7 +179,6 @@ pub fn run_profile_ticks(
                     .resource_mut::<Messages<OutboundPlayerPacket>>()
                     .write(OutboundPlayerPacket {
                         target: PacketTarget::AllInDim(*dim),
-                        priority: PacketPriority::Normal,
                         data: PacketPayload::EntityPosSync(ClientboundEntityPositionSync {
                             entity_id: VarInt(index as i32),
                             position: PositionPath::Linear(DVec3::new(
@@ -206,7 +203,6 @@ pub fn run_profile_ticks(
                     .resource_mut::<Messages<OutboundPlayerPacket>>()
                     .write(OutboundPlayerPacket {
                         target: PacketTarget::SinglePlayer(*session),
-                        priority: PacketPriority::Normal,
                         data: PacketPayload::BlockUpdate(ClientboundBlockUpdate {
                             block_pos: mcrs_voxel::BlockPos::new(0, 64, 0),
                             block_state_id: BlockStateNumber(1),

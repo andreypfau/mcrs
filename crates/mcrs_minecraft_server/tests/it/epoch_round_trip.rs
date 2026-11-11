@@ -18,7 +18,7 @@ use crate::mock_connection;
 
 use bevy_ecs::message::Messages;
 use bevy_ecs::world::World;
-use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPriority};
+use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::muxer::bridge::bridge_outbound;
 use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine_world::session::{PlayerSession, SessionPlacement};
@@ -42,7 +42,7 @@ fn epoch_round_trip() {
     register_session(&mut world, session, socket, 0);
 
     // --- Emit an epoch-0 packet (in-flight clientbound from the first A visit) ---
-    write_packet_stamped(&mut world, session, 0, PacketPriority::Normal, 1);
+    write_packet_stamped(&mut world, session, 0, 1);
 
     // --- Bump the session epoch to 1 (simulating Nether entry / dim B transition).
     //
@@ -70,7 +70,7 @@ fn epoch_round_trip() {
     );
 
     // --- Emit an epoch-1 packet (clientbound from the return-to-A visit) ---
-    write_packet_stamped(&mut world, session, 1, PacketPriority::Normal, 2);
+    write_packet_stamped(&mut world, session, 1, 2);
     run_system(&mut world, bridge_outbound);
 
     let packets = drain_queue(&mut world, socket);

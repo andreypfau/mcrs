@@ -106,15 +106,12 @@ pub(crate) fn send_game_mode(
         listed.0 = mode.0;
         let abilities = abilities(mode.0, *flying);
         flying.set_if_neq(PlayerFlying(abilities.flying));
-        writer.write(
-            to(
-                session,
-                PacketPayload::GameEvent(ClientboundGameEvent {
-                    game_event: GameEventKind::ChangeGameMode(mode.0),
-                }),
-            )
-            .critical(),
-        );
-        writer.write(to(session, PacketPayload::PlayerAbilities(abilities)).critical());
+        writer.write(to(
+            session,
+            PacketPayload::GameEvent(ClientboundGameEvent {
+                game_event: GameEventKind::ChangeGameMode(mode.0),
+            }),
+        ));
+        writer.write(to(session, PacketPayload::PlayerAbilities(abilities)));
     }
 }

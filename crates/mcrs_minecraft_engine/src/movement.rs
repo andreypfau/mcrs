@@ -178,7 +178,6 @@ fn position(owner: &Owner, teleport_id: i32, teleport: &Teleport) -> OutboundPla
         owner.0,
         PacketPayload::PlayerPosition(position_packet(teleport_id, teleport)),
     )
-    .critical()
 }
 
 fn teleport(
@@ -194,13 +193,10 @@ fn teleport(
         let teleport = teleport_to(known, *transform);
         let destination = landing(known, &teleport);
         let teleport_id = state.sent(destination, *time);
-        packet_writer.write(
-            to(
-                owner.0,
-                PacketPayload::PlayerPosition(position_packet(teleport_id, &teleport)),
-            )
-            .critical(),
-        );
+        packet_writer.write(to(
+            owner.0,
+            PacketPayload::PlayerPosition(position_packet(teleport_id, &teleport)),
+        ));
     }
 }
 

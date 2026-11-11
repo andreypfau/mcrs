@@ -59,8 +59,10 @@ use std::mem;
 use tracing::{trace, warn};
 
 use crate::bus::{InboundPlayerPacket, OutboundPlayerAttached, OutboundPlayerPacket};
-use crate::bus::{PacketPayload, PacketPriority, PacketTarget};
-use crate::muxer::bridge_queue::{EncodedPacket, Need, OutboundQueue, Queued, QueuedPacket};
+use crate::bus::{PacketPayload, PacketTarget};
+use crate::muxer::bridge_queue::{
+    EncodedPacket, OutboundQueue, QueuedPacket, payload_changes_prediction,
+};
 use crate::muxer::dim_inputs::DimInputs;
 use crate::muxer::probes::Probes;
 use crate::muxer::session::{HostAnchorRef, PendingInbound, SessionConnection};
@@ -127,18 +129,10 @@ pub fn bridge_outbound(
                 &mut telemetry,
                 &mut pending,
                 connection,
-                msg.priority,
                 packet.clone(),
             );
         }
-        push_to_connection(
-            &mut queues,
-            &mut telemetry,
-            &mut pending,
-            last,
-            msg.priority,
-            packet,
-        );
+        push_to_connection(&mut queues, &mut telemetry, &mut pending, last, packet);
     }
 }
 
@@ -206,7 +200,7 @@ fn encode_once(
         return Ok(queued);
     };
     let kind = payload.kind();
-    let need = Need::of(&payload);
+    let changes_prediction = payload_changes_prediction(&payload);
     if let Err(error) = write_payload(buffer, payload) {
         buffer.0.clear();
         return Err(error);
@@ -214,7 +208,7 @@ fn encode_once(
     telemetry.encode_calls_total = telemetry.encode_calls_total.saturating_add(1);
     Ok(QueuedPacket::Encoded(EncodedPacket {
         kind,
-        need,
+        changes_prediction,
         packet: buffer.0.split().freeze(),
     }))
 }
@@ -238,7 +232,6 @@ fn push_to_connection(
     telemetry: &mut BridgeTelemetry,
     pending: &mut PendingConnections,
     connection: Entity,
-    priority: PacketPriority,
     packet: QueuedPacket,
 ) {
     let Ok(mut queue) = queues.get_mut(connection) else {
@@ -250,7 +243,7 @@ fn push_to_connection(
     if queue.total_len() == 0 {
         pending.connections.push(connection);
     }
-    queue.push_queued(priority, packet);
+    queue.push_queued(packet);
 }
 
 /// The connections that the flush writes to, with their probes when the server checks their
@@ -274,11 +267,6 @@ enum Flush {
     BetweenTicks,
 }
 
-/// The queued packets past which a connection sheds its Normal packets.
-pub const DEPTH_LIMIT: usize = 256;
-/// The queued packets that the shedding leaves.
-pub const DEPTH_DRAIN_TARGET: usize = 192;
-
 /// Sixteen batches at the socket's cap.
 const STALLED_WRITER_BYTES: usize = 16 * mcrs_minecraft_network::MAX_QUEUED_BYTES_PER_SOCKET;
 
@@ -291,8 +279,8 @@ const STALLED_WRITER_TIME: Duration = Duration::from_secs(30);
 /// that one client holds on the server.
 const MAX_UNSENT_BYTES: usize = 256 * 1024 * 1024;
 
-/// Hands queued outbound packets to every active connection's writer, enforces the
-/// shedding policy, and kicks connections whose writer is dead or has stalled.
+/// Hands queued outbound packets to every active connection's writer, and kicks connections
+/// whose writer is dead or has stalled.
 ///
 /// Execution order: runs in `OutboundFlush`, after `bridge_outbound` filled
 /// queues; in FixedPostUpdate that flush runs before `bridge_inbound` reads.
@@ -378,12 +366,12 @@ fn dispatch_listed(
     flush: Flush,
 ) {
     // A shared packet is framed once only when more than one connection sends it, so the count
-    // comes after the kicks and the shedding.
+    // comes after the kicks.
     listed.retain(|&entity| {
-        let Ok((entity, mut queue, mut conn, ..)) = players.get_mut(entity) else {
+        let Ok((entity, queue, mut conn, ..)) = players.get_mut(entity) else {
             return false;
         };
-        let writable = ready_to_write(entity, &mut queue, &mut conn, commands, telemetry, wakes);
+        let writable = ready_to_write(entity, &mut conn, commands, telemetry, wakes);
         if writable {
             count_recipients(&queue, frames);
         }
@@ -432,17 +420,16 @@ fn dispatch_listed(
 /// more than one connection costs a frame on this thread.
 fn count_recipients(queue: &OutboundQueue, frames: &mut SharedFrames) {
     for queued in queue.iter() {
-        if let QueuedPacket::Encoded(encoded) = &queued.packet {
+        if let QueuedPacket::Encoded(encoded) = queued {
             frames.add_recipient(&encoded.packet);
         }
     }
 }
 
-/// Kicks a connection whose writer is dead or has stalled, and sheds the oldest packets of a
-/// queue that is too deep. Answers whether the connection is still to be written.
+/// Kicks a connection whose writer is dead or has stalled. Answers whether the connection is
+/// still to be written.
 fn ready_to_write(
     entity: Entity,
-    queue: &mut OutboundQueue,
     conn: &mut ServerSideConnection,
     commands: &mut Commands,
     telemetry: &mut BridgeTelemetry,
@@ -478,13 +465,6 @@ fn ready_to_write(
         telemetry.kick_overflow_total += 1;
         return false;
     }
-
-    // Past DEPTH_LIMIT, drain down to DEPTH_DRAIN_TARGET so the queue stays below the limit
-    // for a few ticks before it refills. Only the packets that the client may miss go.
-    if queue.total_len() > DEPTH_LIMIT {
-        let dropped = queue.shed_to(DEPTH_DRAIN_TARGET);
-        telemetry.drop_normal_total = telemetry.drop_normal_total.saturating_add(dropped as u64);
-    }
     true
 }
 
@@ -506,12 +486,10 @@ fn write_queue(
     frames: &mut SharedFrames,
     mut layer_one: Option<LayerOne<'_>>,
 ) {
-    let last_change = layer_one.as_ref().and_then(|_| {
-        queue
-            .iter()
-            .rposition(|queued| queued.packet.changes_prediction())
-    });
-    for (index, Queued { packet: queued, .. }) in queue.drain().enumerate() {
+    let last_change = layer_one
+        .as_ref()
+        .and_then(|_| queue.iter().rposition(|queued| queued.changes_prediction()));
+    for (index, queued) in queue.drain().enumerate() {
         trace!(
             target: "mcrs_minecraft_engine::bridge",
             conn = ?entity,

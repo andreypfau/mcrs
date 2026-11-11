@@ -114,37 +114,31 @@ pub(crate) fn consume_inbound_player_spawn(
             "emit_play_login: emitting play ClientboundLogin for newly-materialized in-dim entity"
         );
 
-        packet_writer.write(
-            to(
-                session,
-                login_packet(
-                    spawn,
-                    wire_id,
-                    PlayerSpawnInfo::new(dimension_type.0, dim_key.clone(), default_game_mode.0),
-                    view_distance.distance,
-                    simulation_distance.horizontal,
-                ),
-            )
-            .critical(),
-        );
+        packet_writer.write(to(
+            session,
+            login_packet(
+                spawn,
+                wire_id,
+                PlayerSpawnInfo::new(dimension_type.0, dim_key.clone(), default_game_mode.0),
+                view_distance.distance,
+                simulation_distance.horizontal,
+            ),
+        ));
         // The client derives the local player's game mode (and therefore
         // spectator noclip) from its own player-list entry, not the login
         // packet. Without this the client treats itself as non-spectator and
         // keeps block collisions even though login set the spectator mode.
-        packet_writer.write(
-            to(
-                session,
-                PacketPayload::PlayerInfoUpdate {
-                    entries: vec![PlayerInfoEntry {
-                        player_uuid: spawn.snapshot.uuid,
-                        username: spawn.snapshot.username.clone(),
-                        game_mode: default_game_mode.0,
-                        listed: true,
-                    }],
-                },
-            )
-            .critical(),
-        );
+        packet_writer.write(to(
+            session,
+            PacketPayload::PlayerInfoUpdate {
+                entries: vec![PlayerInfoEntry {
+                    player_uuid: spawn.snapshot.uuid,
+                    username: spawn.snapshot.username.clone(),
+                    game_mode: default_game_mode.0,
+                    listed: true,
+                }],
+            },
+        ));
         enter_level_packets(
             session,
             op_level,

@@ -136,9 +136,9 @@ pub fn teleport(
         .map(|mut state| state.sent(arrival.transform, now))
         .ok_or(DimensionChangeError::NoArrivalState)?;
     let position = arrival.position_packet(teleport_id);
-    world.write_message(bus::to(session, PacketPayload::PlayerPosition(position)).critical());
+    world.write_message(bus::to(session, PacketPayload::PlayerPosition(position)));
     if let Some(look_at) = arrival.look_at {
-        world.write_message(bus::to(session, PacketPayload::PlayerLookAt(look_at)).critical());
+        world.write_message(bus::to(session, PacketPayload::PlayerLookAt(look_at)));
     }
     Ok(())
 }

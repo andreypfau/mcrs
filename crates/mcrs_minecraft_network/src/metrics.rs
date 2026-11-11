@@ -17,10 +17,9 @@ use tracing::trace;
 
 use crate::event::{Trigger, Triggers};
 
-/// What the bridge has shed, kicked and routed since the server started.
+/// What the bridge has kicked and routed since the server started.
 #[derive(Resource, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct BridgeTelemetry {
-    pub drop_normal_total: u64,
     pub kick_overflow_total: u64,
     pub kick_flood_total: u64,
     pub outbound_messages_consumed_total: u64,

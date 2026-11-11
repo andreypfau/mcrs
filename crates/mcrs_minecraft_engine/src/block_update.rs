@@ -21,7 +21,7 @@ use mcrs_minecraft_volume::{BlockVolume, SectionBlocks};
 use mcrs_voxel::{BlockPos, ColumnPos, LocalPos, SectionPos};
 use rustc_hash::FxHashMap;
 
-use crate::bus::{PacketPayload, PacketPriority};
+use crate::bus::PacketPayload;
 use crate::column_change::ColumnChange;
 use crate::column_streams::ColumnStreams;
 
@@ -89,7 +89,6 @@ impl BroadcastMarks {
             };
             changes.write(ColumnChange {
                 column,
-                priority: PacketPriority::Normal,
                 payload,
                 except: None,
             });

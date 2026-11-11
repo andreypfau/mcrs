@@ -22,15 +22,12 @@ pub(crate) fn enter_level_packets(
     mut push: impl FnMut(OutboundPlayerPacket),
 ) {
     push(op_level_packet(session, op_level));
-    push(to(session, PacketPayload::PlayerPosition(position)).critical());
-    push(to(session, PacketPayload::PlayerAbilities(abilities)).critical());
-    push(
-        to(
-            session,
-            PacketPayload::GameEvent(ClientboundGameEvent {
-                game_event: GameEventKind::LevelChunksLoadStart,
-            }),
-        )
-        .critical(),
-    );
+    push(to(session, PacketPayload::PlayerPosition(position)));
+    push(to(session, PacketPayload::PlayerAbilities(abilities)));
+    push(to(
+        session,
+        PacketPayload::GameEvent(ClientboundGameEvent {
+            game_event: GameEventKind::LevelChunksLoadStart,
+        }),
+    ));
 }
