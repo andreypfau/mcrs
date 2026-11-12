@@ -1,5 +1,6 @@
 //! [`Color`] and related data structures.
 
+use std::cmp::Ordering;
 use std::fmt;
 use std::hash::Hash;
 
@@ -8,7 +9,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
 
 /// Text color
-#[derive(Debug, PartialOrd, Eq, Ord, Clone, Copy)]
+#[derive(Debug, Eq, Clone, Copy)]
 pub enum Color {
     /// RGB Color
     Rgb(RgbColor),
@@ -182,6 +183,22 @@ impl PartialEq for Color {
     }
 }
 
+impl PartialOrd for Color {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Color {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let rgb = |color: &Self| match color {
+            Self::Rgb(rgb) => *rgb,
+            Self::Named(named) => RgbColor::from(*named),
+        };
+        rgb(self).cmp(&rgb(other))
+    }
+}
+
 impl Hash for Color {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
@@ -339,6 +356,21 @@ impl fmt::Display for NamedColor {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn equal_named_and_rgb_colors_share_an_ordered_set_entry() {
+        use std::collections::BTreeSet;
+
+        for named in [NamedColor::Black, NamedColor::Red, NamedColor::White] {
+            let rgb = Color::Rgb(named.into());
+            let named = Color::Named(named);
+            assert_eq!(named, rgb);
+            assert_eq!(named.cmp(&rgb), std::cmp::Ordering::Equal);
+            assert_eq!(named.partial_cmp(&rgb), Some(std::cmp::Ordering::Equal));
+            let colors = BTreeSet::from([named, rgb]);
+            assert_eq!(colors.len(), 1);
+        }
+    }
 
     #[test]
     fn colors() {
