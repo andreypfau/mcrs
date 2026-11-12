@@ -5178,6 +5178,7 @@ dependencies = [
  "bevy_ecs",
  "bevy_tasks",
  "glam",
+ "mcrs_minecraft_damage",
  "mcrs_minecraft_entity_key",
  "mcrs_minecraft_physics",
  "mcrs_voxel",

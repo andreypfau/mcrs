@@ -126,6 +126,85 @@ fn cmp_019_the_cap_keeps_pairs_symmetric() {
     }
 }
 
+fn bits(vector: DVec3) -> [u64; 3] {
+    vector.to_array().map(f64::to_bits)
+}
+
+#[test]
+fn cmp_027_a_pair_that_is_too_near_gets_the_push_of_the_earlier_entity() {
+    let rules = PushRules::default();
+    let stood = TestFixture::mob(0, 0.5, 0.5);
+    let came = GridRow {
+        previous: DVec3::new(0.2, 0.0, 0.5),
+        ..TestFixture::mob(1, 0.5, 0.5)
+    };
+    let before = GridRow {
+        position: came.previous,
+        ..came
+    };
+    let expected = push_vector(&stood, &before);
+    assert!(expected.is_some(), "the two were 0.3 apart");
+    let rows = [stood, came];
+    let (on_stood, outcome) = pushed(&rows, &stood, &rules);
+    assert!(outcome.pushed);
+    assert_eq!(Some(bits(on_stood)), expected.map(bits));
+    assert_eq!(
+        Some(pushed(&rows, &came, &rules).0),
+        expected.map(|push| -push),
+        "the later entity adds the negative"
+    );
+
+    // The earlier entity moved first, onto the later one that still stood there.
+    let came_first = GridRow {
+        previous: DVec3::new(0.2, 0.0, 0.5),
+        ..stood
+    };
+    let stood_later = TestFixture::mob(1, 0.5, 0.5);
+    // The later entity came from a place where the two boxes did not intersect.
+    let from_far = GridRow {
+        previous: DVec3::new(5.0, 0.0, 0.5),
+        ..TestFixture::mob(1, 0.5, 0.5)
+    };
+    for rows in [[came_first, stood_later], [stood, from_far]] {
+        for row in &rows {
+            let (velocity, outcome) = pushed(&rows, row, &rules);
+            assert_eq!(velocity, DVec3::ZERO);
+            assert!(!outcome.pushed);
+        }
+    }
+}
+
+#[test]
+fn cmp_027_the_pushes_of_a_stack_cancel_in_any_row_order() {
+    let mut rng = TestRng(27);
+    let rules = PushRules::default();
+    for _ in 0..CASES / 10 {
+        let rows: Vec<GridRow> = (0..20)
+            .map(|index| GridRow {
+                previous: DVec3::new(rng.range(0.0, 1.0), 0.0, rng.range(0.0, 1.0)),
+                ..TestFixture::mob(index, 0.5, 0.5)
+            })
+            .collect();
+        let mut shuffled = rows.clone();
+        for index in (1..shuffled.len()).rev() {
+            shuffled.swap(index, rng.below(index + 1));
+        }
+        let mut total = DVec3::ZERO;
+        let mut moved = 0;
+        for row in &rows {
+            let (velocity, _) = pushed(&rows, row, &rules);
+            assert_eq!(bits(velocity), bits(pushed(&shuffled, row, &rules).0));
+            total += velocity;
+            moved += usize::from(velocity != DVec3::ZERO);
+        }
+        assert!(moved > rows.len() / 2, "{moved} of the stack get a push");
+        assert!(
+            total.abs().max_element() < 1.0e-12,
+            "the pushes of the stack do not cancel: {total}"
+        );
+    }
+}
+
 #[test]
 fn psh_007_crowd_damage_draws_one_in_four_from_the_keyed_stream() {
     let rows: Vec<GridRow> = (0..30)

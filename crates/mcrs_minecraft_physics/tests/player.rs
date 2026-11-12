@@ -343,6 +343,7 @@ fn cmp_023_the_server_copy_decays_before_the_cutoff() {
     let mut state = settled(&mut fixture);
     let row = GridRow {
         position: state.body.position,
+        previous: state.body.position,
         height: 1.8,
         flags: GridFlags::PUSHABLE | GridFlags::PLAYER,
         ..TestFixture::mob(0, 0.0, 0.0)

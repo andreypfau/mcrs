@@ -12,6 +12,9 @@ use crate::TeamSlot;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GridRow {
     pub position: DVec3,
+    /// The position at the start of the last tick of the entity (PHY-CMP-027); `position` when
+    /// that tick did not move it, or when something else placed it since.
+    pub previous: DVec3,
     /// `f32(width / 2)`.
     pub half_width: f32,
     pub height: f32,

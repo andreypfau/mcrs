@@ -64,6 +64,7 @@ impl TestFixture {
         let id = EntityId(u64::from(index) + 1);
         GridRow {
             position: DVec3::new(x, 0.0, z),
+            previous: DVec3::new(x, 0.0, z),
             half_width: 0.3,
             height: 1.95,
             key: EntityKey(u128::from(index)),

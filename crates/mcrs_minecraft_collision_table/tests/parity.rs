@@ -113,6 +113,7 @@ fn grid_row(entity: &Simulated<'_>, index: usize) -> Option<GridRow> {
         let width = entity.row.dimensions.width;
         GridRow {
             position: entity.state.body.position,
+            previous: entity.state.body.position,
             half_width: width / 2.0,
             height: entity.row.dimensions.height,
             key: EntityKey(u128::from(index as u32)),

@@ -37,6 +37,8 @@ pub struct TestScene<M = ()> {
     pub grid: BodyGrid,
     pub tick: u64,
     pub push: PushRules,
+    /// The network id of the damage type of the crowd hit; `None` gives no crowd damage.
+    pub crowd_damage_type: Option<u32>,
 }
 
 impl<M: Send> TestScene<M> {
@@ -113,6 +115,7 @@ impl<M: Send> TestScene<M> {
             grid: BodyGrid::default(),
             tick: 0,
             push: PushRules::default(),
+            crowd_damage_type: None,
         }
     }
 
@@ -128,6 +131,7 @@ impl<M: Send> TestScene<M> {
             tables: &self.tables,
             tick: self.tick,
             push: self.push,
+            crowd_damage_type: self.crowd_damage_type,
             tiles_per_task,
         };
         self.rows.tick(&pass, pool, &self.grid);

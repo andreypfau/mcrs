@@ -602,8 +602,9 @@ and the shared `Orientation`, and players and server entities use the same `Tile
 ### 6.5 The grid row and the position table
 
 ```rust
-pub struct GridRow {                        // 80 bytes; bodies only
+pub struct GridRow {                        // 104 bytes; bodies only
     pub position: DVec3,
+    pub previous: DVec3,                    // at the start of the last tick (PHY-CMP-027)
     pub half_width: f32,
     pub height: f32,
     pub key: EntityKey,
@@ -1117,7 +1118,8 @@ pub fn tick_entity<W: CollisionWorld, B: BodyView>(
 ) -> TickOutcome;
 /// PHY-CMP-012: the push of the neighbours from the start-of-tick grid, added to `velocity` in
 /// the order of their UUIDs; the crowd draw of PHY-CMP-014 comes from `stream`; with
-/// `max_entity_cramming` 0 only mutual `cap`-nearest pairs push (PHY-CMP-019).
+/// `max_entity_cramming` 0 only mutual `cap`-nearest pairs push (PHY-CMP-019); a pair that is
+/// too near gets the push of the entity with the lower key (PHY-CMP-027).
 pub fn push_entity<B: BodyView>(
     bodies: &B, of: &GridRow, rules: &PushRules, stream: &KeyedStream, velocity: &mut DVec3,
     scratch: &mut Scratch,

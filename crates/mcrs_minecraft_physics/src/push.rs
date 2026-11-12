@@ -44,6 +44,8 @@ pub struct PushOutcome {
     pub crowd_damage: bool,
     /// The number of candidates that the entity can push: the count of the crowd rule.
     pub candidates: u32,
+    /// The candidates that are not passengers, when the entity drew the crowd damage; else 0.
+    pub free_candidates: u32,
 }
 
 /// The push of one direction: the vector that the pusher adds; the candidate adds its negative.
@@ -111,10 +113,33 @@ fn takes_push(row: &GridRow) -> bool {
     !row.flags.contains(GridFlags::CARRIES_PASSENGER) && row.flags.contains(GridFlags::PUSHABLE)
 }
 
+/// The push of a pair that is nearer than `0.01F` at the start of the tick (PHY-CMP-027): the
+/// push that the entity with the lower key made in its last tick after its own move, on the
+/// other one where it stood before its move of that tick. Gives the vector that `of` adds; the
+/// other entity adds its negative.
+fn staggered_push(of: &GridRow, other: &GridRow) -> Option<DVec3> {
+    let offset = of.position - other.position;
+    if offset.x.abs().max(offset.z.abs()) >= f64::from(MIN_PUSH_DISTANCE) {
+        return None;
+    }
+    let first = of.key < other.key;
+    let (earlier, later) = if first { (of, other) } else { (other, of) };
+    let before = GridRow {
+        position: later.previous,
+        ..*later
+    };
+    if !pushes(earlier, &before) || !before.bounds().intersects(&earlier.bounds()) {
+        return None;
+    }
+    let push = push_vector(earlier, &before)?;
+    Some(if first { push } else { -push })
+}
+
 /// The push of the neighbours on `of`, from the start of the tick, added to `velocity` in the
 /// order of the UUIDs of the neighbours: for each neighbour, the push of the neighbour
-/// first, then the push of the entity on it. The crowd draw comes from `stream`, so the result
-/// does not depend on the order of the rows or on the task split.
+/// first, then the push of the entity on it, or the one push of a pair that is too near for
+/// both. The crowd draw comes from `stream`, so the result does not depend on the order of the
+/// rows or on the task split.
 pub fn push_entity<B: BodyView>(
     bodies: &B,
     of: &GridRow,
@@ -139,7 +164,8 @@ pub fn push_entity<B: BodyView>(
             .iter()
             .filter(|other| pushes(of, other) && !other.flags.contains(GridFlags::IS_PASSENGER))
             .count();
-        outcome.crowd_damage = i64::try_from(free).unwrap_or(i64::MAX) > i64::from(limit) - 1;
+        outcome.free_candidates = u32::try_from(free).unwrap_or(u32::MAX);
+        outcome.crowd_damage = i64::from(outcome.free_candidates) > i64::from(limit) - 1;
     }
     let capped = limit == 0;
     for index in 0..neighbours.len() {
@@ -171,6 +197,11 @@ pub fn push_entity<B: BodyView>(
         if pushes(of, &other)
             && takes_push(of)
             && let Some(push) = push_vector(of, &other)
+        {
+            add(push, &mut outcome);
+        }
+        if takes_push(of)
+            && let Some(push) = staggered_push(of, &other)
         {
             add(push, &mut outcome);
         }

@@ -46,9 +46,9 @@ const LEFT_HANDED: f64 = 0.05;
 #[derive(Resource, Debug, Default)]
 pub struct PendingSpawns(pub VecDeque<MobSpawnRequest>);
 
-/// What happened to the mobs in this tick outside the rows: their spawns, the rows that a
-/// command changed and the hits. The publish of the tick reads them, and the end of the tick
-/// clears them.
+/// What happened to the mobs in this tick beside their moves: their spawns, the rows that a
+/// command or a hit changed and the hits. The publish of the tick reads them, and the end of the
+/// tick clears them.
 #[derive(Resource, Debug, Default)]
 pub struct MobChanges {
     pub(crate) spawned: Vec<Spawned>,
@@ -63,7 +63,7 @@ impl MobChanges {
         &self.spawned
     }
 
-    /// The rows that a command changed outside the pass, in the order of the changes.
+    /// The rows that a command or a crowd hit changed, in the order of the changes.
     #[must_use]
     pub fn touched(&self) -> &[Placed] {
         &self.touched

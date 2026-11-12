@@ -58,20 +58,33 @@ impl BodyView for FrontGrid<'_> {
     }
 }
 
-/// The grid row of a living row: every living entity is a body that pushes and can be pushed.
+/// The grid row of a living row: every living entity is a body that pushes, and one that is
+/// alive can be pushed (PHY-ORD-012, DMG-DTH-004). The previous position is the start of the
+/// path of its last tick, while the row still stands at the end of that path.
 #[must_use]
 pub(crate) fn grid_row(state: &EntityState, motion: &MotionRow, id: EntityId) -> Option<GridRow> {
     let living = state.living?;
     let dimensions = motion.dimensions.scaled(living.attributes.scale as f32);
+    let position = state.body.position;
+    let previous = if state.last_path.end == position {
+        state.last_path.start
+    } else {
+        position
+    };
     Some(GridRow {
-        position: state.body.position,
+        position,
+        previous,
         half_width: dimensions.width / 2.0,
         height: dimensions.height,
         key: state.key,
         id,
         root_vehicle: id,
         team: TeamSlot::default(),
-        flags: GridFlags::PUSHABLE,
+        flags: if living.is_alive() {
+            GridFlags::PUSHABLE
+        } else {
+            GridFlags::empty()
+        },
         push_targets: PushTargets::Each,
     })
 }

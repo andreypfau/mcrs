@@ -830,11 +830,12 @@ the one of the honey row of DMG-FALL-004. The magma hit on a pig sent `entity.pi
 - `crates/mcrs_minecraft_engine_physics/src/entity_pass.rs`, `tick_tile`: the pass calls
   `actions.clear()` after `tick_entity`. Thus it drops each `BlockAction::Step` and
   `BlockAction::Fall` that the kernel gives.
-- The same function ignores `PushOutcome::crowd_damage` of `push_entity`. It uses the count only
-  to wake the entity.
+- The crowd fix-up of DMG-CRW-002 applies the crowd hit after the main pass, in
+  `crates/mcrs_minecraft_entity_rows/src/pass.rs`. Only a crowd hit counts as a death of the
+  tick, because the pass applies no fall hit and no step hit yet.
 - The pass uses `PushRules::default()`, so `max_entity_cramming` is always 24.
-- No row has a health, a damage cooldown, a hurt time or a death time. The grid flag `PUSHABLE`
-  does not test the alive state.
+- The row holds the health, the damage cooldown, the hurt time and the death time in `Living`
+  (DMG-DTH-005).
 - `max_entity_cramming` has no runtime value: `mcrs_minecraft_game_rule` holds only definitions,
   and the save reads only `advance_time`.
 - The muxer `EntityEvent` has no event for `damage_event` or `entity_event`.

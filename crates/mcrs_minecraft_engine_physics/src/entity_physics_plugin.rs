@@ -33,6 +33,8 @@ use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::BlockPlaced;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
+use mcrs_minecraft_entity::damage_type_keys;
+use mcrs_minecraft_entity::registry_keys::DAMAGE_TYPE;
 use mcrs_minecraft_entity_key::BirthSource;
 use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_entity_key::TileKey;
@@ -53,6 +55,7 @@ use mcrs_voxel::BlockPos;
 
 use crate::EntityWrites;
 use crate::block_world::BlockWorld;
+use crate::mob_damage::report_crowd_hits;
 use crate::mob_life::MobChanges;
 use crate::mob_life::PendingSpawns;
 use crate::mob_life::end_mob_changes;
@@ -108,6 +111,11 @@ impl PhysicsTables {
 #[derive(Resource, Debug, Default)]
 pub(crate) struct Bodies(pub(crate) BodyGrid);
 
+/// The network id of the damage type of the crowd hit (DMG-CRW-001), from the registries of the
+/// world; `None` while they hold no such type.
+#[derive(Resource, Clone, Copy, Debug, Default)]
+pub(crate) struct CrowdDamageType(pub(crate) Option<u32>);
+
 /// The stack of each item row.
 #[derive(Resource, Debug, Default)]
 pub struct ItemStacks(pub BTreeMap<EntityId, ItemStack>);
@@ -122,6 +130,7 @@ impl<M: Send + Sync + 'static> Plugin for EntityPhysicsPlugin<M> {
         app.init_resource::<Mobs>();
         app.init_resource::<MobUuids>();
         app.init_resource::<MobChanges>();
+        app.init_resource::<CrowdDamageType>();
         app.init_resource::<PendingSpawns>();
         app.add_message::<MobSpawnRequest>();
         app.add_message::<ItemDropped>();
@@ -133,6 +142,7 @@ impl<M: Send + Sync + 'static> Plugin for EntityPhysicsPlugin<M> {
                     resource_exists::<Blocks>
                         .and_then(resource_exists_and_changed::<CurrentRegistries>),
                 ),
+                find_crowd_damage_type.run_if(resource_exists_and_changed::<CurrentRegistries>),
                 apply_writes::<M>,
                 spawn_dropped_items::<M>,
                 spawn_mobs::<M>,
@@ -170,6 +180,18 @@ fn build_tables(mut commands: Commands, blocks: Res<Blocks>, registries: Res<Cur
         return;
     };
     commands.insert_resource(PhysicsTables(Tables::new(collision_table(&blocks, &tags))));
+}
+
+fn find_crowd_damage_type(mut found: ResMut<CrowdDamageType>, registries: Res<CurrentRegistries>) {
+    found.0 = registries
+        .id_of(
+            DAMAGE_TYPE.location(),
+            damage_type_keys::CRAMMING.location(),
+        )
+        .map(u32::from);
+    if found.0.is_none() {
+        tracing::error!("the registries hold no damage type `cramming`; crowds take no damage");
+    }
 }
 
 fn apply_writes<M: Send + Sync + 'static>(
@@ -252,6 +274,8 @@ fn entity_tick<M: Send + Sync + 'static>(
     mut rows: ResMut<RowStore<M>>,
     bodies: Res<Bodies>,
     mut stacks: ResMut<ItemStacks>,
+    mut changes: ResMut<MobChanges>,
+    crowd: Res<CrowdDamageType>,
     rules: Option<Res<GameRules>>,
 ) {
     let Some(blocks) = world.get(*dimension) else {
@@ -271,10 +295,14 @@ fn entity_tick<M: Send + Sync + 'static>(
             }),
             ..PushRules::default()
         },
+        crowd_damage_type: crowd.0,
         tiles_per_task: tiles_per_task(pool, rows.tile_count()),
     };
     for id in rows.tick(&pass, pool, &bodies.0) {
         stacks.0.remove(&id);
+    }
+    if let Some(damage_type) = crowd.0 {
+        report_crowd_hits(&rows, &mut changes, damage_type);
     }
 }
 
