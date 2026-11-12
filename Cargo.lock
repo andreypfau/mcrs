@@ -6730,6 +6730,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_raknet"
+version = "0.5.8"
+dependencies = [
+ "bytes",
+ "mcrs_test_alloc",
+ "tokio",
+]
+
+[[package]]
 name = "mcrs_test_alloc"
 version = "0.5.8"
 

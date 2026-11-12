@@ -1,0 +1,24 @@
+[package]
+name = "mcrs_raknet"
+description = "Sans-IO RakNet transport implementation with an optional tokio UDP driver"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bytes = { workspace = true, default-features = false }
+tokio = { workspace = true, optional = true, default-features = false, features = ["net", "rt", "sync", "time"] }
+
+[features]
+default = []
+std = ["bytes/std"]
+tokio = ["dep:tokio", "std"]
+
+[dev-dependencies]
+mcrs_test_alloc = { workspace = true }
