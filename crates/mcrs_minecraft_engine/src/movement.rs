@@ -7,6 +7,7 @@ use bevy_ecs::prelude::{
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_math::DVec3;
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
+use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::VoxelUpdateSet;
 use mcrs_minecraft_network::event::Received;
@@ -36,6 +37,9 @@ impl Plugin for MovementPlugin {
         app.add_observer(handle_move_vehicle);
         app.add_observer(handle_accept_teleportation);
         app.add_message::<PlayerMovement>();
+        if let Err(error) = app.try_register_required_components::<Player, ClientOnGround>() {
+            tracing::error!("a player does not require its on-ground flag: {error}");
+        }
         app.add_systems(FixedUpdate, process_movement.in_set(TickSet::ClientInput));
         app.add_systems(
             FixedPostUpdate,

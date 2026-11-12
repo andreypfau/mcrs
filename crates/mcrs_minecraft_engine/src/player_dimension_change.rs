@@ -13,8 +13,6 @@ use mcrs_minecraft_replication::PlayerData;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 
 use crate::ability::OpLevelAnnounced;
-use crate::break_session::BreakSession;
-use crate::client_on_ground::ClientOnGround;
 use crate::departure::{CarriedPlayer, Departure, PlayerTransfer};
 use crate::dimension_change::{Arrival, DimensionChangeError};
 use crate::game_mode::ListedGameMode;
@@ -182,8 +180,6 @@ pub(crate) fn place(
         Owner(session),
         Player,
         view,
-        ClientOnGround::default(),
-        BreakSession::default(),
     ));
     carried.insert_into(&mut player);
     Ok(player.id())

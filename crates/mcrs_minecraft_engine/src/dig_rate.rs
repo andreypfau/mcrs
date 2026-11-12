@@ -28,6 +28,8 @@ pub(crate) fn dig_rate(
     rate(data.hardness, &miner)
 }
 
+// chisle: an eye above the water surface inside the top water block still counts as in water; a
+// rule from the specification author for the fluid top at a point lifts it.
 fn eyes_in_water(blocks: &BlockDefinitions, world: &impl BlockVolume, eye: DVec3) -> bool {
     world.block(BlockPos::from(eye)).is_ok_and(|state| {
         blocks

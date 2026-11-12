@@ -24,6 +24,7 @@ use mcrs_minecraft_block_break::{Dig, Finish};
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_engine_world::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::VoxelUpdateSet;
@@ -70,6 +71,9 @@ impl Plugin for BlockBreakPlugin {
         app.add_message::<BlockActionAck>();
         app.add_observer(handle_player_action);
         app.init_resource::<Diggers>();
+        if let Err(error) = app.try_register_required_components::<Player, BreakSession>() {
+            tracing::error!("a player does not require its dig session: {error}");
+        }
         app.add_systems(
             FixedUpdate,
             (

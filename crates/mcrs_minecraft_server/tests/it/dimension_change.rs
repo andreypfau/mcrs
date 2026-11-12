@@ -3,6 +3,7 @@ use bevy_ecs::message::Messages;
 use bevy_math::DVec3;
 use mcrs_engine_link::Placement;
 use mcrs_minecraft_chat_server::ChatPlugin;
+use mcrs_minecraft_core::Look;
 use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode};
 use mcrs_minecraft_engine::between_ticks::take_dim_outputs;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget, to};
@@ -17,10 +18,14 @@ use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_protocol::setting::ChatMode;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Decode, Packet, VarInt};
+use mcrs_minecraft_protocol_game::MoveFlags;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundAddEntity, ClientboundChunkCacheRadius,
 };
 use mcrs_minecraft_protocol_game::game_event::GameEventKind;
+use mcrs_minecraft_protocol_game::serverbound::{
+    ServerboundAcceptTeleportation, ServerboundMovePlayerPos,
+};
 use mcrs_minecraft_protocol_game::text::TextContent;
 use mcrs_minecraft_replication::LIST_INTERVAL_TICKS;
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
@@ -550,4 +555,39 @@ fn the_chat_mode_a_player_chose_holds_after_a_dimension_change() {
             .any(|packet| matches!(packet.target, PacketTarget::AllPlayers)),
         "a hidden chat broadcasts nothing"
     );
+}
+
+#[test]
+fn a_move_of_a_player_that_changed_dimension_is_applied() {
+    let (mut server, anchor, overworld, end) = walker_in_the_overworld();
+    request_the_end(&mut server, overworld, anchor);
+    let arrival = server.ticks(anchor, 3);
+    let teleport = arrival
+        .iter()
+        .rev()
+        .find_map(|packet| match packet {
+            PacketPayload::PlayerPosition(position) => Some(position),
+            _ => None,
+        })
+        .unwrap();
+    server.send(
+        anchor,
+        &ServerboundAcceptTeleportation {
+            teleport_id: teleport.teleport_id,
+            position: teleport.position.into(),
+            look: Look::default(),
+        },
+    );
+
+    let to = teleport.position + DVec3::X;
+    server.send(
+        anchor,
+        &ServerboundMovePlayerPos {
+            position: to.into(),
+            flags: MoveFlags::new().with_on_ground(true),
+        },
+    );
+
+    let (_, at) = player_in(&mut server, end, anchor).unwrap();
+    assert_eq!(at.translation, to);
 }
