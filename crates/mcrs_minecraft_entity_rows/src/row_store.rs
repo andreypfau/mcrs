@@ -15,6 +15,7 @@ use rustc_hash::FxHashMap;
 use crate::BodyGrid;
 use crate::Changes;
 use crate::Crossing;
+use crate::CrowdHit;
 use crate::Executor;
 use crate::Keyed;
 use crate::MobIntent;
@@ -50,6 +51,8 @@ pub struct RowStore<M> {
     /// The living rows whose visible state changed in the last pass, with their tile in it.
     pub(crate) moved: Vec<Placed>,
     pub(crate) changes: Changes,
+    /// The crowd hits of the last pass that their rows did not reject, in the order of the keys.
+    pub(crate) crowd_hits: Vec<CrowdHit>,
     /// The largest half width of a body that the grid ever held.
     pub(crate) reach: f32,
 }
@@ -83,6 +86,7 @@ impl<M> Default for RowStore<M> {
             leaving: Vec::new(),
             moved: Vec::new(),
             changes: Changes::default(),
+            crowd_hits: Vec::new(),
             reach: 0.0,
         }
     }
@@ -217,6 +221,13 @@ impl<M> RowStore<M> {
     #[must_use]
     pub fn moved(&self) -> &[Placed] {
         &self.moved
+    }
+
+    /// The crowd hits of the last pass that their rows did not reject (DMG-CRW-001), in the
+    /// order of the keys of the rows, each with the tile of its row after the pass.
+    #[must_use]
+    pub fn crowd_hits(&self) -> &[CrowdHit] {
+        &self.crowd_hits
     }
 
     /// Marks that a block changed in `tile`, so the rows that rest near it wake.

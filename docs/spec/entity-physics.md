@@ -1982,7 +1982,8 @@ limits apply:
 rules of PHY-SKIP-001 and PHY-SKIP-002:
 
 - An entity that gets a push in a tick is not at a fixed point in that tick. It gets a push when,
-  for a neighbour of PHY-CMP-012, a direction applies and `m ≥ 0.01F` (PHY-PSH-004).
+  for a neighbour of PHY-CMP-012, a direction applies and `m ≥ 0.01F` (PHY-PSH-004), or when
+  PHY-CMP-027 gives a push for a pair with `m < 0.01F`.
 - An entity at rest must wake when an entity enters or leaves the push zone of PHY-RCH-006. It
   must also wake when a value of PHY-RCH-006 changes for an entity in that zone.
 - An entity at rest must wake when the count of PHY-PSH-007 is more than `n - 1`, because crowd
@@ -1990,7 +1991,8 @@ rules of PHY-SKIP-001 and PHY-SKIP-002:
 
 Thus the exact skip condition with the push is: the entity gets no push, and the count of its
 neighbours is not more than `n - 1`. Two entities whose boxes intersect with `m < 0.01F` get no
-push. They can rest.
+push when the previous position of each is equal to its position (PHY-CMP-027). They can then
+rest.
 
 **PHY-SKIP-007** (`source_suggested`, semantic, confidence: medium). For PHY-SKIP-002, an input
 counts as zero when the squared length of the input vector is less than `1.0E-7`. An idle mob
@@ -2609,7 +2611,8 @@ between server-simulated entities. An implementation can compute the push in thi
 
 Each entity writes only its own velocity and its own health. The fixed order of step 4 makes the
 f64 sum independent of the order of the ticks. PHY-DEV-004 records this relaxation. The own player
-is not in this rule (PHY-PSH-008, PHY-PSH-010).
+is not in this rule (PHY-PSH-008, PHY-PSH-010). PHY-CMP-027 adds the push of a pair that step 3 of
+PHY-PSH-004 stops.
 
 **PHY-CMP-013** (`source_suggested`, semantic, confidence: medium). The order key of each
 order-independent rule is the UUID of the entity. The rule compares two UUIDs as unsigned integers
@@ -2894,6 +2897,31 @@ stack. The value is the stack of the item, in the optional item stack form, with
 The server sends it in `set_entity_data` after the `add_entity` of the item. It sends it again when
 the stack changes. The client shows an item entity with an empty stack as nothing.
 
+**PHY-CMP-027** (`design`, semantic, confidence: medium). Policy `semantic`: the push of a pair
+that is too near. Two entities whose distance `m` of PHY-PSH-004 is less than `0.01F` at the start
+of the tick get no push from PHY-CMP-012. In the reference such a pair still separates when it
+moves, because the entities move one after the other (PHY-PSH-006): the earlier entity pushes
+after its own move, when the later entity still stands where it was before its move. E55 shows it:
+a stack of 65 pigs at one point spreads over 100 ticks until no box overlaps another. Without this
+rule the stack moves as one body and never spreads, because each entity of it gets the same
+pushes.
+
+The rule keeps that one push of the reference. The grid row of each entity holds its position at
+the start of its last tick, the previous position. It is equal to the position when that tick did
+not move the entity, and when a write placed the entity after that tick. For a pair with
+`m < 0.01F`, let `A` be the entity with the lower order key (PHY-CMP-013) and `B` the other one:
+
+1. `A` is the pusher and `B` is the candidate. The conditions of PHY-PSH-002 and PHY-PSH-003 must
+   hold. The box of `A` must intersect the box of `B` at the previous position of `B`.
+2. The push is PHY-PSH-004 with the position of `A` and the previous position of `B`.
+3. Each of the two adds its part in step 4 of PHY-CMP-012, in the place of the two pushes of the
+   pair. The parts are equal and opposite, bit for bit (PHY-PSH-005).
+
+The order key stands for the order of the ticks of the reference, which the pass does not have.
+`B` adds its part one tick later than in the reference, as PHY-DEV-004 states. A pair at rest has
+equal positions and previous positions, so the rule adds no push and wakes no entity
+(PHY-SKIP-006). The limit of PHY-CMP-019 applies to the pair as to each other pair.
+
 ## 12. Out of scope
 
 Each subject below has a hook in this model. This document does not state the model behind the
@@ -2985,9 +3013,14 @@ the deviations of this section for server-simulated entities. An implementation 
   - In a mob farm, the paths of single mobs differ, but the mean flow of the mobs stays the same.
   - The crowd damage uses the same count rule and the same chance of 1 in 4. Only the tick in which an
     entity takes damage can differ, because the count uses the boxes from the start of the tick.
+  - A stack of entities at one point spreads as in the reference, with the one push that
+    PHY-CMP-027 keeps. In E55 the reference has 65 different positions from tick 10 and a median
+    distance of 6.03 at tick 100. The pass has them from tick 2 and a median distance of 8.10. In
+    both, no box overlaps another at tick 100.
 - **Test:** a differential test compares one pair with a tolerance of `0.1` per tick for the
   velocity. For a crowd, it compares the distribution of the positions and the rate of the crowd
-  damage. It does not compare each position.
+  damage. It does not compare each position. For E55, it tests that no box overlaps another at the
+  end.
 
 ### PHY-DEV-005: Writes to other entities at the next tick
 
@@ -3217,6 +3250,7 @@ values are f64 values. Compare them bit for bit with the model.
 | E52 | Read the velocity that the server expects for a player that stands in a crowd of pigs and on a slime block. | PHY-CMP-023 |
 | E53 | From the server console, summon an item with `Motion` `[0.1, 0, 0.07]` and `Age` -32768 on stone, ice and a slime block. Read `Motion` and `Pos` after each of the first 400 ticks, then after each 1000 ticks up to 12,000 ticks. | PHY-ORD-005, PHY-SKIP-003, PHY-DEV-014 |
 | E54 | From the server console, with the tick frozen, put dirt in the air and destroy it with `/setblock … air destroy`. Read `Pos` and `Motion` of the item, then remove it. Do this 1000 times. | PHY-CMP-025 |
+| E55 | Set `max_entity_cramming` to 100. With the tick frozen, summon 64 pigs with the base `movement_speed` 0 at one point on a flat floor, then one more at the offset `(-0.0442, +0.0442)`. Step 200 ticks and read `Pos` of each. | PHY-PSH-006, PHY-CMP-027, PHY-DEV-004 |
 
 The experiment of a supported rule also covers each `source_suggested` rule without a row above:
 
@@ -3256,3 +3290,21 @@ the block position.
 
 The five bins of 0.1 of offset `x` hold 179, 204, 221, 197 and 199 drops. This agrees with a
 uniform distribution on `[0.25, 0.75)`.
+
+**E55**, 64 pigs at `(0.5, -60, 0.5)` and one at `(0.4558, -60, 0.5442)`. The distance is the
+horizontal distance from `(0.5, 0.5)`. No pig takes damage.
+
+| Tick | Different positions | Pairs of boxes that overlap | Median distance | Largest distance |
+|------|---------------------|-----------------------------|-----------------|------------------|
+| 0 | 2 | 2080 | 0 | 0.063 |
+| 1 | 2 | 2080 | 0 | 1.014 |
+| 2 | 7 | 2016 | 0.012 | 9.572 |
+| 5 | 17 | 1336 | 0.009 | 23.933 |
+| 10 | 65 | 318 | 3.154 | 26.590 |
+| 20 | 65 | 139 | 5.509 | 26.719 |
+| 50 | 65 | 5 | 6.036 | 26.719 |
+| 100 | 65 | 0 | 6.034 | 26.719 |
+| 200 | 65 | 0 | 6.034 | 26.719 |
+
+The pigs that were at one point get different positions only after the first of them moves: the
+pig that the server summoned last pushes the 64, and they leave the point one after the other.

@@ -22,7 +22,8 @@ pub struct EntityState {
     pub phase: u8,
     pub rest: Rest,
     /// The path of the last tick that moved the entity. A resting item applies the blocks inside
-    /// its box along this path.
+    /// its box along this path. For a living entity the pass keeps the path of its last tick, of
+    /// no length when that tick did not move it (PHY-CMP-027).
     pub last_path: MovePath,
 }
 

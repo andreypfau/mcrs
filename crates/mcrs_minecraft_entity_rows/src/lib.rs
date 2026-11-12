@@ -32,6 +32,7 @@ pub use keyed::Keyed;
 pub use mob_intent::MobIntent;
 pub use mob_rows::MobRow;
 pub use mob_rows::MobRows;
+pub use pass::CrowdHit;
 pub use pass::Pass;
 pub use placed::Placed;
 pub use row_store::RowStore;

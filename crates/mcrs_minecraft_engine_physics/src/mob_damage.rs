@@ -29,3 +29,17 @@ pub fn hurt_mob<M>(
     changes.touched.push(at);
     Some(outcome)
 }
+
+/// Queues what the viewers see of the crowd hits of the last pass of `rows`, which have the
+/// damage type `damage_type` (DMG-CRW-001).
+pub(crate) fn report_crowd_hits<M>(rows: &RowStore<M>, changes: &mut MobChanges, damage_type: u32) {
+    for hit in rows.crowd_hits() {
+        changes.strikes.push(Struck {
+            at: hit.at,
+            damage_type,
+            outcome: hit.outcome,
+            died: hit.died,
+        });
+        changes.touched.push(hit.at);
+    }
+}

@@ -115,6 +115,7 @@ fn cmp_015_017_bins_apply_in_key_order_whatever_task_made_them() {
 fn grid_row(x: f64) -> GridRow {
     GridRow {
         position: DVec3::new(x, 0.0, 0.0),
+        previous: DVec3::new(x, 0.0, 0.0),
         half_width: 0.3,
         height: 1.8,
         key: key(0),
@@ -201,6 +202,7 @@ fn the_store_follows_the_tile_of_a_living_row_that_crosses_dies_and_leaves() {
         tables: &tables,
         tick: 0,
         push: PushRules::default(),
+        crowd_damage_type: None,
         tiles_per_task: 1,
     };
     let mut grid = BodyGrid::default();

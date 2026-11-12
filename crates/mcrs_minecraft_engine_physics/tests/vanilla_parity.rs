@@ -47,6 +47,7 @@ fn scene_of(fixture: &Fixture) -> TestScene {
         grid: BodyGrid::default(),
         tick: 1,
         push: PushRules::default(),
+        crowd_damage_type: None,
     };
     let [ox, oy, oz] = fixture.origin.map(|value| value.div_euclid(16));
     for y in -AREA..=AREA {
