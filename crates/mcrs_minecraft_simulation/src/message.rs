@@ -66,6 +66,11 @@ pub enum MessageBody<K: Kinds> {
         flags: BlockUpdateFlags,
         limit: u16,
     },
+    Destroy {
+        pos: BlockPos,
+        drops: bool,
+        limit: u16,
+    },
     BlockTick {
         pos: BlockPos,
         block: K::Block,
@@ -86,6 +91,7 @@ impl<K: Kinds> Message<K> {
     pub fn section(&self) -> SectionPos {
         let pos = match &self.body {
             MessageBody::Set { pos, .. }
+            | MessageBody::Destroy { pos, .. }
             | MessageBody::BlockTick { pos, .. }
             | MessageBody::FluidTick { pos, .. } => *pos,
             MessageBody::Event(event) => event.pos,

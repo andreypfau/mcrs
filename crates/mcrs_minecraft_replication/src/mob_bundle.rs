@@ -7,7 +7,7 @@ use mcrs_minecraft_protocol_game::clientbound::{
 };
 use mcrs_minecraft_protocol_game::entity::{MetaDataValue, Metadata, MetadataEntry, Pose};
 use mcrs_minecraft_protocol_game::entity_data_index::{
-    HEALTH, MOB_FLAG_LEFT_HANDED, MOB_FLAG_NO_AI, MOB_FLAGS, POSE,
+    HEALTH, MOB_FLAG_LEFT_HANDED, MOB_FLAG_NO_AI, MOB_FLAGS, POSE, SHARED_FLAGS,
 };
 
 use crate::encode::record;
@@ -25,6 +25,8 @@ pub(crate) struct LivingEntries {
     pub(crate) health: f32,
     /// The pose is `dying`.
     pub(crate) dying: bool,
+    /// The shared flags have the on-fire bit.
+    pub(crate) on_fire: bool,
 }
 
 impl LivingEntries {
@@ -32,6 +34,7 @@ impl LivingEntries {
         Self {
             health: state.health,
             dying: state.dying,
+            on_fire: state.on_fire,
         }
     }
 }
@@ -39,7 +42,9 @@ impl LivingEntries {
 impl PartialEq for LivingEntries {
     /// Compares the bits of the health, as the entry on the wire does.
     fn eq(&self, other: &Self) -> bool {
-        self.health.to_bits() == other.health.to_bits() && self.dying == other.dying
+        self.health.to_bits() == other.health.to_bits()
+            && self.dying == other.dying
+            && self.on_fire == other.on_fire
     }
 }
 
@@ -57,6 +62,9 @@ impl Entries {
         match self {
             Self::Living(living) => {
                 let mut entries = Vec::new();
+                if living.on_fire {
+                    entries.push(shared_flags_entry());
+                }
                 if living.dying {
                     entries.push(pose_entry());
                 }
@@ -72,6 +80,9 @@ impl Entries {
         match (self, sent) {
             (Self::Living(now), Self::Living(sent)) => {
                 let mut changed = Vec::new();
+                if now.on_fire != sent.on_fire {
+                    changed.push(shared_flags_entry());
+                }
                 if now.dying != sent.dying {
                     changed.push(pose_entry());
                 }
@@ -89,7 +100,10 @@ impl Entries {
 /// (TRK-DATA-002, TRK-DATA-006): its pose, its health, its mob flags and the entries of its type.
 #[must_use]
 pub(crate) fn spawn_data(looks: &MobLooks, living: LivingEntries) -> Metadata<'static> {
-    let mut entries = Vec::with_capacity(3 + looks.type_entries.len());
+    let mut entries = Vec::with_capacity(4 + looks.type_entries.len());
+    if living.on_fire {
+        entries.push(shared_flags_entry());
+    }
     if living.dying {
         entries.push(pose_entry());
     }
@@ -108,6 +122,13 @@ pub(crate) fn spawn_data(looks: &MobLooks, living: LivingEntries) -> Metadata<'s
     }
     entries.extend(looks.type_entries.iter().cloned());
     Metadata(entries)
+}
+
+pub(crate) fn shared_flags_entry() -> MetadataEntry<'static> {
+    MetadataEntry {
+        index: SHARED_FLAGS,
+        value: MetaDataValue::Byte(1),
+    }
 }
 
 pub(crate) fn pose_entry() -> MetadataEntry<'static> {

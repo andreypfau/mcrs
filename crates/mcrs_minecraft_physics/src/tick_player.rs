@@ -9,6 +9,7 @@ use crate::CollisionWorld;
 use crate::Dimensions;
 use crate::Keys;
 use crate::MotionAttributes;
+use crate::MotionEffects;
 use crate::MoveInput;
 use crate::MovePath;
 use crate::Mover;
@@ -100,7 +101,7 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
         attributes: &attributes,
         effects: &out.effects,
         input: move_input,
-        speed: movement_speed(&attributes, sprint),
+        speed: movement_speed(&attributes, sprint, &out.effects),
         air_speed,
         yaw,
         jump: keys.jump,
@@ -263,10 +264,16 @@ pub fn dimensions_of(pose: Pose, attributes: &MotionAttributes) -> Dimensions {
 }
 
 /// `f32(movement_speed)`, with the sprint modifier when the sprint state is on.
-fn movement_speed(attributes: &MotionAttributes, sprint: bool) -> f32 {
+fn movement_speed(attributes: &MotionAttributes, sprint: bool, effects: &MotionEffects) -> f32 {
     let mut value = attributes.movement_speed;
     if sprint {
         value *= 1.0 + f64::from(SPRINT_BOOST);
+    }
+    if let Some(level) = effects.speed {
+        value *= 1.0 + 0.2 * f64::from(level.saturating_add(1));
+    }
+    if let Some(level) = effects.slowness {
+        value *= (1.0 - 0.15 * f64::from(level.saturating_add(1))).max(0.0);
     }
     value.clamp(0.0, 1024.0) as f32
 }

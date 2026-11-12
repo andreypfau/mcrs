@@ -75,6 +75,8 @@ pub fn set_attribute(attributes: &mut MotionAttributes, attribute: &Attribute, s
 /// Sets the effect that a recorded event names: `level` is `None` when the effect ends.
 pub fn set_effect(effects: &mut MotionEffects, name: &str, level: Option<u8>) {
     match name {
+        "minecraft:speed" => effects.speed = level,
+        "minecraft:slowness" => effects.slowness = level,
         "minecraft:slow_falling" => effects.slow_falling = level.is_some(),
         "minecraft:levitation" => effects.levitation = level,
         "minecraft:jump_boost" => effects.jump_boost = level,

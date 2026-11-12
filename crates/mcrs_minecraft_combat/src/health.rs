@@ -78,3 +78,13 @@ pub struct ArmorToughness(pub f32);
 /// The knockback resistance factor of an entity, between 0.0 and 1.0.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct KnockbackResistance(pub f64);
+
+/// The melee attack damage of an entity, including its held item (DMG-ATT-002).
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+pub struct AttackDamage(pub f32);
+
+impl Default for AttackDamage {
+    fn default() -> Self {
+        Self(1.0)
+    }
+}

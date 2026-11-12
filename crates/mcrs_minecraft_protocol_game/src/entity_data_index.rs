@@ -3,6 +3,7 @@
 //! its variant, are in the type table of `mcrs_minecraft_entity`.
 
 pub const SHARED_FLAGS: u8 = 0;
+pub const AIR_SUPPLY: u8 = 1;
 pub const CUSTOM_NAME: u8 = 2;
 pub const NAME_VISIBLE: u8 = 3;
 pub const POSE: u8 = 6;

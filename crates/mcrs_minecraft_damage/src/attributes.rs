@@ -24,7 +24,11 @@ pub struct AttributeModifier {
 impl AttributeModifier {
     #[must_use]
     pub fn new(id: ResourceLocationBuf, amount: f64, operation: AttributeOperation) -> Self {
-        Self { id, amount, operation }
+        Self {
+            id,
+            amount,
+            operation,
+        }
     }
 }
 
@@ -104,15 +108,27 @@ mod tests {
         assert_eq!(inst.value(), 20.0);
 
         // Add 4 HP (AddValue)
-        inst.add_modifier(AttributeModifier::new(rl("test:add"), 4.0, AttributeOperation::AddValue));
+        inst.add_modifier(AttributeModifier::new(
+            rl("test:add"),
+            4.0,
+            AttributeOperation::AddValue,
+        ));
         assert_eq!(inst.value(), 24.0);
 
         // Add 50% of base (AddMultipliedBase): 24 + 24 * 0.5 = 36
-        inst.add_modifier(AttributeModifier::new(rl("test:mult_base"), 0.5, AttributeOperation::AddMultipliedBase));
+        inst.add_modifier(AttributeModifier::new(
+            rl("test:mult_base"),
+            0.5,
+            AttributeOperation::AddMultipliedBase,
+        ));
         assert_eq!(inst.value(), 36.0);
 
         // Multiply total by +100% (AddMultipliedTotal): 36 * 2.0 = 72
-        inst.add_modifier(AttributeModifier::new(rl("test:mult_total"), 1.0, AttributeOperation::AddMultipliedTotal));
+        inst.add_modifier(AttributeModifier::new(
+            rl("test:mult_total"),
+            1.0,
+            AttributeOperation::AddMultipliedTotal,
+        ));
         assert_eq!(inst.value(), 72.0);
     }
 
@@ -120,11 +136,19 @@ mod tests {
     fn attribute_clamps_to_definition_limits() {
         // Armor has min 0.0, max 30.0
         let mut inst = AttributeInstance::new(Attribute::Armor, 10.0);
-        inst.add_modifier(AttributeModifier::new(rl("test:huge"), 100.0, AttributeOperation::AddValue));
+        inst.add_modifier(AttributeModifier::new(
+            rl("test:huge"),
+            100.0,
+            AttributeOperation::AddValue,
+        ));
         assert_eq!(inst.value(), 30.0);
 
         inst.modifiers.clear();
-        inst.add_modifier(AttributeModifier::new(rl("test:negative"), -50.0, AttributeOperation::AddValue));
+        inst.add_modifier(AttributeModifier::new(
+            rl("test:negative"),
+            -50.0,
+            AttributeOperation::AddValue,
+        ));
         assert_eq!(inst.value(), 0.0);
     }
 }

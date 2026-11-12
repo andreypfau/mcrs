@@ -52,3 +52,4 @@ pub mod text;
 mod texture_tile;
 pub mod tooltip;
 mod video_settings_screen;
+pub mod vitals;

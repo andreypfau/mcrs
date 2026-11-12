@@ -11,17 +11,38 @@ use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::ClientConnection;
 use mcrs_minecraft_protocol::{VarInt, WritePacket};
 use mcrs_minecraft_protocol_game::player::PlayerAction;
-use mcrs_minecraft_protocol_game::serverbound::{ServerboundPlayerAction, ServerboundPunch};
+use mcrs_minecraft_protocol_game::serverbound::{
+    ServerboundAttack, ServerboundPlayerAction, ServerboundPunch,
+};
 use mcrs_minecraft_volume::BlockVolume;
 use mcrs_voxel::{BlockPos, BlockStateId};
 
 use crate::attack_input::AttackInput;
 use crate::block_prediction::BlockPredictions;
-use crate::block_target::{BlockHit, Reach, block_target};
+use crate::block_target::{BlockHit, Reach, block_target, entity_target};
 use crate::columns::{AIR, ColumnStore};
 use crate::game_mode::{LocalGameMode, PermissionLevel};
 use crate::local_player::LocalPlayerTick;
 use crate::player::{Player, look_direction};
+
+/// The box of one client entity that the attack ray tests.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct AttackCandidate {
+    pub entity: Entity,
+    pub network_id: i32,
+    pub position: DVec3,
+    pub width: f64,
+    pub height: f64,
+}
+
+/// The client entities that the next attack ray tests. The client entity plugin fills it before
+/// the attack input takes its tick.
+#[derive(Resource, Clone, Debug, Default, PartialEq)]
+pub struct AttackCandidates(pub Vec<AttackCandidate>);
+
+/// The systems that fill [`AttackCandidates`] run in this set.
+#[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct AttackCandidatesSet;
 
 /// The ticks between two start actions of a creative hold, less the tick of the start.
 const BREAK_DELAY: u8 = 5;
@@ -46,8 +67,12 @@ pub struct BlockBreakingPlugin;
 impl Plugin for BlockBreakingPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<AttackInput>()
+            .init_resource::<AttackCandidates>()
             .init_resource::<Attack>()
-            .add_systems(FixedUpdate, attack.before(LocalPlayerTick));
+            .add_systems(
+                FixedUpdate,
+                attack.after(AttackCandidatesSet).before(LocalPlayerTick),
+            );
     }
 }
 
@@ -60,6 +85,9 @@ pub enum Outgoing {
         sequence: i32,
     },
     Punch,
+    Attack {
+        entity_id: i32,
+    },
 }
 
 /// The world that the attack input acts on.
@@ -103,6 +131,33 @@ impl Attack {
                 self.hold(target, mode, world);
             }
         } else {
+            self.miss_cooldown = 0;
+        }
+        self.miss_cooldown = self.miss_cooldown.saturating_sub(1);
+    }
+
+    /// One tick of the attack input against an entity target. An entity hides the block, so a
+    /// press only attacks it, and a hold does not break a block behind it.
+    pub fn tick_entity<W: BreakWorld>(
+        &mut self,
+        input: AttackInput,
+        entity_id: Option<i32>,
+        mode: GameMode,
+        world: &mut W,
+    ) {
+        if input.screen_open {
+            self.miss_cooldown = SCREEN_MISS_COOLDOWN;
+            return;
+        }
+        if let Some(entity_id) = entity_id {
+            for _ in 0..input.presses {
+                if mode != GameMode::Spectator {
+                    world.send(Outgoing::Attack { entity_id });
+                }
+                world.send(Outgoing::Punch);
+            }
+        }
+        if !input.down {
             self.miss_cooldown = 0;
         }
         self.miss_cooldown = self.miss_cooldown.saturating_sub(1);
@@ -218,10 +273,19 @@ impl BreakWorld for ClientWorld<'_> {
                 sequence: VarInt(sequence),
             }),
             Outgoing::Punch => self.connection.write_packet(&ServerboundPunch),
+            Outgoing::Attack { entity_id } => {
+                self.connection.write_packet(&ServerboundAttack {
+                    entity_id: VarInt(entity_id),
+                });
+            }
         }
     }
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: the input, the connection, the world and the entity candidates are separate parameters"
+)]
 fn attack(
     mut input: ResMut<AttackInput>,
     mut attack: ResMut<Attack>,
@@ -237,6 +301,7 @@ fn attack(
     blocks: Option<Res<Blocks>>,
     store: Option<ResMut<ColumnStore>>,
     predictions: Option<ResMut<BlockPredictions>>,
+    candidates: Res<AttackCandidates>,
 ) {
     let input = input.take();
     let (transform, mode, permission) = player.into_inner();
@@ -254,9 +319,29 @@ fn attack(
     let direction = look_direction(rotation.yaw(), rotation.pitch())
         .as_dvec3()
         .normalize();
-    let target = block_target(eye, direction, Reach::of(mode.current), |pos| {
+    let reach = Reach::of(mode.current);
+    let block = block_target(eye, direction, reach, |pos| {
         let state = store.block(pos).unwrap_or(AIR);
         blocks.shape(blocks.state(state).selection_shape)
+    });
+    let entity = entity_target(
+        eye,
+        direction,
+        reach,
+        candidates.0.iter().map(|candidate| {
+            (
+                candidate.entity,
+                candidate.network_id,
+                candidate.position,
+                candidate.width,
+                candidate.height,
+            )
+        }),
+    );
+    let entity_is_closer = entity.is_some_and(|entity| {
+        block.is_none_or(|block| {
+            entity.point.distance_squared(eye) < block.point.distance_squared(eye)
+        })
     });
     let mut world = ClientWorld {
         store: &mut store,
@@ -265,7 +350,16 @@ fn attack(
         connection: &mut connection,
         permission: permission.copied().unwrap_or_default(),
     };
-    attack.tick(input, target, mode.current, &mut world);
+    if entity_is_closer {
+        attack.tick_entity(
+            input,
+            entity.map(|hit| hit.network_id),
+            mode.current,
+            &mut world,
+        );
+    } else {
+        attack.tick(input, block, mode.current, &mut world);
+    }
 }
 
 #[cfg(test)]
@@ -394,6 +488,39 @@ mod tests {
             [start(STONE, 1), Outgoing::Punch, Outgoing::Punch],
             "the hold of the same tick swings again"
         );
+    }
+
+    #[test]
+    fn cbk_tgt_009_an_entity_press_attacks_it_before_the_punch() {
+        let mut attack = Attack::default();
+        let mut world = Fake::with(&[], false);
+        attack.tick_entity(
+            AttackInput {
+                presses: 1,
+                down: true,
+                ..AttackInput::default()
+            },
+            Some(42),
+            GameMode::Survival,
+            &mut world,
+        );
+        assert_eq!(
+            world.sent,
+            [Outgoing::Attack { entity_id: 42 }, Outgoing::Punch]
+        );
+
+        world.sent.clear();
+        attack.tick_entity(
+            AttackInput {
+                presses: 0,
+                down: true,
+                ..AttackInput::default()
+            },
+            Some(42),
+            GameMode::Survival,
+            &mut world,
+        );
+        assert!(world.sent.is_empty(), "a hold sends no second attack");
     }
 
     #[test]

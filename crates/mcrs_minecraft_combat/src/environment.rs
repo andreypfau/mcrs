@@ -21,7 +21,10 @@ impl Default for AirSupply {
 impl AirSupply {
     #[must_use]
     pub const fn new(max_air: i32) -> Self {
-        Self { air: max_air, max_air }
+        Self {
+            air: max_air,
+            max_air,
+        }
     }
 
     /// Advances one tick under water, returning whether to deal drowning damage (2.0 HP).
@@ -139,8 +142,7 @@ impl WorldBorderState {
 
         let dist_past_safe = dist_past_border - self.safe_zone;
         if dist_past_safe > 0.0 {
-            let dmg = dist_past_safe * self.damage_per_block;
-            (dmg as f32).max(1.0)
+            (dist_past_safe * self.damage_per_block).max(1.0) as f32
         } else {
             0.0
         }
@@ -155,13 +157,20 @@ pub fn is_in_void(y: f64, min_y: f64) -> bool {
 
 /// Computes fall damage from fall distance and safe fall distance (DMG-FALL-002).
 #[must_use]
-pub fn compute_fall_damage(fall_distance: f64, safe_fall_distance: f64, fall_multiplier: f32) -> f32 {
-    let excess = fall_distance - safe_fall_distance;
-    if excess <= 0.0 {
-        0.0
-    } else {
-        (excess.ceil() as f32 * fall_multiplier).max(0.0)
+pub fn compute_fall_damage(
+    fall_distance: f64,
+    safe_fall_distance: f64,
+    fall_multiplier: f32,
+) -> f32 {
+    let excess = fall_distance + 1.0e-6 - safe_fall_distance;
+    if !excess.is_finite() || excess <= 0.0 {
+        return 0.0;
     }
+    let damage = excess * f64::from(fall_multiplier);
+    if !damage.is_finite() || damage <= 0.0 {
+        return 0.0;
+    }
+    damage.floor().min(f64::from(i32::MAX)) as f32
 }
 
 #[cfg(test)]
@@ -223,7 +232,7 @@ mod tests {
         let border = WorldBorderState {
             center_x: 0.0,
             center_z: 0.0,
-            size: 100.0, // boundary at +/- 50.0
+            size: 100.0,    // boundary at +/- 50.0
             safe_zone: 5.0, // safe zone extends to +/- 55.0
             damage_per_block: 0.2,
         };
@@ -233,6 +242,9 @@ mod tests {
 
         // Position 60.0 is 10 blocks past border, 5 blocks past safe zone -> 5 * 0.2 = 1.0 damage
         assert_eq!(border.compute_damage(DVec3::new(60.0, 64.0, 0.0)), 1.0);
+
+        // Position 56.0 is 6 blocks past border, 1 block past safe zone -> 0.2, raised to 1.0
+        assert_eq!(border.compute_damage(DVec3::new(56.0, 64.0, 0.0)), 1.0);
     }
 
     #[test]
@@ -248,7 +260,11 @@ mod tests {
         assert_eq!(compute_fall_damage(4.0, 3.0, 1.0), 1.0);
         // Fall of 2.5 blocks -> 0.0 damage
         assert_eq!(compute_fall_damage(2.5, 3.0, 1.0), 0.0);
-        // Fall of 10.2 blocks with safe 3.0 -> ceil(7.2) = 8.0 damage
-        assert_eq!(compute_fall_damage(10.2, 3.0, 1.0), 8.0);
+        // Fall of 10.2 blocks with safe 3.0 -> floor(7.2) = 7.0 damage
+        assert_eq!(compute_fall_damage(10.2, 3.0, 1.0), 7.0);
+        // Honey multiplies the fall by 0.2: 78 blocks are 15.0 damage.
+        assert_eq!(compute_fall_damage(78.0, 3.0, 0.2), 15.0);
+        // A multiplier of zero is no damage at all.
+        assert_eq!(compute_fall_damage(78.0, 3.0, 0.0), 0.0);
     }
 }

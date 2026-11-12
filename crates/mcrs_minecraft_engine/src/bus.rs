@@ -9,14 +9,18 @@ use mcrs_minecraft_network::event::Trigger;
 use mcrs_minecraft_network::metrics::PacketKind;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundBlockChangedAck, ClientboundBlockDestruction, ClientboundBlockEvent,
-    ClientboundBlockUpdate, ClientboundChunkBatchFinished, ClientboundChunkBatchStart,
-    ClientboundChunkCacheRadius, ClientboundCommandSuggestions, ClientboundEntityEvent,
-    ClientboundEntityPositionSync, ClientboundForgetLevelChunk, ClientboundGameEvent,
+    ClientboundAddEntity, ClientboundBlockChangedAck, ClientboundBlockDestruction,
+    ClientboundBlockEvent, ClientboundBlockUpdate, ClientboundChunkBatchFinished,
+    ClientboundChunkBatchStart, ClientboundChunkCacheRadius, ClientboundCommandSuggestions,
+    ClientboundDamageEvent, ClientboundEntityEvent, ClientboundEntityPositionSync,
+    ClientboundForgetLevelChunk, ClientboundGameEvent, ClientboundHurtAnimation,
     ClientboundLevelEvent, ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerAbilities,
-    ClientboundPlayerLookAt, ClientboundPlayerPosition, ClientboundRespawn,
-    ClientboundSectionBlocksUpdate, ClientboundSetChunkCacheCenter, ClientboundSetTime,
-    ClientboundSystemChatPacket, ClientboundTabList,
+    ClientboundPlayerCombatKill, ClientboundPlayerLookAt, ClientboundPlayerPosition,
+    ClientboundRemoveEntities, ClientboundRemoveMobEffect, ClientboundRespawn,
+    ClientboundSectionBlocksUpdate, ClientboundSetChunkCacheCenter, ClientboundSetEntityData,
+    ClientboundSetEntityMotion, ClientboundSetEquipment, ClientboundSetExperience,
+    ClientboundSetHealth, ClientboundSetTime, ClientboundSystemChatPacket, ClientboundTabList,
+    ClientboundUpdateAttributes, ClientboundUpdateMobEffect,
 };
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_minecraft_text::Text;
@@ -94,6 +98,10 @@ pub fn to_target(target: PacketTarget, data: PacketPayload) -> OutboundPlayerPac
 
 #[derive(Clone, Debug)]
 pub enum PacketPayload {
+    /// Adds an entity that is not a mob row to every viewer of its dimension.
+    AddEntity(ClientboundAddEntity),
+    /// Removes entities from every viewer of their dimension.
+    RemoveEntities(ClientboundRemoveEntities),
     LightUpdate(ClientboundLightUpdate<'static>),
     BlockUpdate(ClientboundBlockUpdate),
     /// The changes of more than one block of one section in one broadcast.
@@ -127,6 +135,8 @@ pub enum PacketPayload {
     Respawn(ClientboundRespawn),
     /// The `ClientboundEntityEvent` that tells a client its own operator level.
     OpLevelEntityEvent(ClientboundEntityEvent),
+    /// An entity event about any entity, such as a death.
+    EntityEvent(ClientboundEntityEvent),
     /// Sets the client's chunk-load origin. A vanilla 26.1.2 client will not
     /// render any chunks until this packet is received.
     SetChunkCacheCenter(ClientboundSetChunkCacheCenter),
@@ -150,6 +160,17 @@ pub enum PacketPayload {
     Commands(Bytes),
     CommandSuggestions(ClientboundCommandSuggestions<'static>),
     SetTime(ClientboundSetTime),
+    SetHealth(ClientboundSetHealth),
+    SetEntityData(ClientboundSetEntityData<'static>),
+    SetEntityMotion(ClientboundSetEntityMotion),
+    SetExperience(ClientboundSetExperience),
+    UpdateAttributes(ClientboundUpdateAttributes<'static>),
+    UpdateMobEffect(ClientboundUpdateMobEffect),
+    RemoveMobEffect(ClientboundRemoveMobEffect),
+    HurtAnimation(ClientboundHurtAnimation),
+    DamageEvent(ClientboundDamageEvent),
+    SetEquipment(ClientboundSetEquipment),
+    PlayerCombatKill(ClientboundPlayerCombatKill<'static>),
 }
 
 impl PacketPayload {

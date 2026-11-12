@@ -23,6 +23,16 @@ pub struct Living {
     pub steering: Option<Steering>,
     /// The health, from 0 to the max health.
     pub health: f32,
+    pub fire_immune: bool,
+    pub fall_damage_immune: bool,
+    /// Whether the entity is drawn on fire.
+    pub on_fire: bool,
+    /// The remaining fire ticks; the entity burns while this is positive.
+    pub fire_ticks: i32,
+    /// The remaining air ticks underwater; damage is dealt at `-20`.
+    pub air: i32,
+    /// The ticks in powder snow, from 0 to `140` and above when the damage starts.
+    pub frozen_ticks: i32,
     /// The amount of the last full or partial hit, which the damage cooldown compares against.
     pub last_damage: f32,
     pub damage_cooldown: u8,
@@ -62,6 +72,7 @@ impl Living {
     pub fn of(row: &MotionRow) -> Self {
         let mut living = Self::default();
         living.attributes.step_height = row.step_height;
+        living.air = 300;
         living
     }
 

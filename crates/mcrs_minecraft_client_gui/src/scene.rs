@@ -122,9 +122,72 @@ const SWITCHER_HEIGHT: u32 = 75;
 const BLANK: &str = "blank";
 const MISSING: &str = "missing";
 
-const GUI_TEXTURES: [&str; 19] = [
+const EFFECT_TEXTURES: [&str; 41] = [
+    "mob_effect/speed",
+    "mob_effect/slowness",
+    "mob_effect/haste",
+    "mob_effect/mining_fatigue",
+    "mob_effect/strength",
+    "mob_effect/instant_health",
+    "mob_effect/instant_damage",
+    "mob_effect/jump_boost",
+    "mob_effect/nausea",
+    "mob_effect/regeneration",
+    "mob_effect/resistance",
+    "mob_effect/fire_resistance",
+    "mob_effect/water_breathing",
+    "mob_effect/invisibility",
+    "mob_effect/blindness",
+    "mob_effect/night_vision",
+    "mob_effect/hunger",
+    "mob_effect/weakness",
+    "mob_effect/poison",
+    "mob_effect/wither",
+    "mob_effect/health_boost",
+    "mob_effect/absorption",
+    "mob_effect/saturation",
+    "mob_effect/glowing",
+    "mob_effect/levitation",
+    "mob_effect/luck",
+    "mob_effect/unluck",
+    "mob_effect/slow_falling",
+    "mob_effect/conduit_power",
+    "mob_effect/dolphins_grace",
+    "mob_effect/bad_omen",
+    "mob_effect/hero_of_the_village",
+    "mob_effect/darkness",
+    "mob_effect/trial_omen",
+    "mob_effect/raid_omen",
+    "mob_effect/wind_charged",
+    "mob_effect/weaving",
+    "mob_effect/oozing",
+    "mob_effect/infested",
+    "mob_effect/breath_of_the_nautilus",
+    "mob_effect/freezing",
+];
+
+const GUI_TEXTURES: [&str; 40] = [
     "hud/hotbar",
     "hud/hotbar_selection",
+    "hud/heart/container",
+    "hud/heart/full",
+    "hud/heart/half",
+    "hud/heart/poisoned_full",
+    "hud/heart/poisoned_half",
+    "hud/heart/withered_full",
+    "hud/heart/withered_half",
+    "hud/heart/absorbing_full",
+    "hud/heart/absorbing_half",
+    "hud/air_empty",
+    "hud/air",
+    "hud/armor_empty",
+    "hud/armor_full",
+    "hud/armor_half",
+    "hud/food_empty",
+    "hud/food_full",
+    "hud/food_half",
+    "hud/experience_bar_background",
+    "hud/experience_bar_progress",
     "hud/hotbar_offhand_left",
     "container/slot_highlight_back",
     "container/slot_highlight_front",
@@ -142,6 +205,8 @@ const GUI_TEXTURES: [&str; 19] = [
     "font/ascii",
     "misc/enchanted_glint_item",
     "icon/chat_modified",
+    "hud/effect_background",
+    "hud/effect_background_ambient",
 ];
 
 fn texture_path(name: &str) -> String {
@@ -150,6 +215,7 @@ fn texture_path(name: &str) -> String {
             format!("minecraft/textures/gui/{name}.png")
         }
         "font/ascii" | "misc/enchanted_glint_item" => format!("minecraft/textures/{name}.png"),
+        _ if name.starts_with("mob_effect/") => format!("minecraft/textures/{name}.png"),
         _ => format!("minecraft/textures/gui/sprites/{name}.png"),
     }
 }
@@ -180,7 +246,7 @@ impl GuiAtlasData {
         let mut glint = None;
         let mut font = None;
         let sprite_scalings = load_widget_images(pack, &mut images);
-        for name in GUI_TEXTURES {
+        for name in GUI_TEXTURES.into_iter().chain(EFFECT_TEXTURES) {
             let path = texture_path(name);
             let (pixels, width, height) =
                 decode_png(pack.read(&path).map_err(|error| error.to_string())?, &path)
@@ -484,13 +550,29 @@ fn draw_tooltip(atlas: Option<Res<GuiAtlas>>, mut scene: ResMut<GuiScene>) {
 
 fn draw_screens(
     screen: Res<Screen>,
-    player: Query<(&SlotTable, &SelectedHotbarSlot), With<Player>>,
+    player: Query<
+        (
+            &SlotTable,
+            &SelectedHotbarSlot,
+            &mcrs_minecraft_client_world::vitals::LocalVitals,
+        ),
+        With<Player>,
+    >,
+    language: Option<Res<ClientLanguage>>,
+    game_time: Option<Res<mcrs_minecraft_client_world::clock_sync::ClientGameTime>>,
     mut scene: ResMut<GuiScene>,
 ) {
     let scene = &mut *scene;
-    let Ok((slots, selected)) = player.single() else {
+    let Ok((slots, selected, vitals)) = player.single() else {
         return;
     };
+    crate::vitals::vitals(
+        scene.size,
+        vitals,
+        game_time.as_deref().and_then(|time| time.0),
+        &mut scene.quads,
+    );
+    crate::vitals::death(scene.size, vitals, language.as_deref(), &mut scene.quads);
     hotbar(scene.size, selected.0, slots, &mut scene.quads);
     if *screen == Screen::Inventory {
         inventory_screen(scene.size, scene.cursor, slots, &mut scene.quads);
@@ -718,6 +800,7 @@ impl Plugin for GuiPlugin {
             .init_resource::<GuiBatch>()
             .add_plugins(ExtractResourcePlugin::<GuiBatch>::default())
             .add_plugins(ExtractResourcePlugin::<GuiAtlas>::default())
+            .add_systems(Update, crate::vitals::respawn_button)
             .add_systems(
                 PostUpdate,
                 (

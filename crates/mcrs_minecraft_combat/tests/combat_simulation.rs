@@ -7,6 +7,7 @@ use mcrs_minecraft_combat::{
     FoodData, Health, MobEffect, PlayerExperience, Projectile, ProjectileHitEvent,
 };
 use mcrs_minecraft_damage::{DamageSource, Hit};
+use mcrs_minecraft_protocol_game::Difficulty;
 
 #[test]
 fn integration_combat_damage_flow_and_death() {
@@ -26,9 +27,7 @@ fn integration_combat_damage_flow_and_death() {
         .id();
 
     // Send damage request of 10.0
-    let mut damage_writer = app
-        .world_mut()
-        .resource_mut::<Messages<DamageRequest>>();
+    let mut damage_writer = app.world_mut().resource_mut::<Messages<DamageRequest>>();
     damage_writer.write(DamageRequest::new(
         entity,
         Hit::from_source(10.0, DamageSource::new(0)),
@@ -45,9 +44,7 @@ fn integration_combat_damage_flow_and_death() {
     assert_eq!(dealt_messages.len(), 1);
 
     // Immediate second hit of smaller amount is rejected due to 10-tick invulnerability
-    let mut damage_writer = app
-        .world_mut()
-        .resource_mut::<Messages<DamageRequest>>();
+    let mut damage_writer = app.world_mut().resource_mut::<Messages<DamageRequest>>();
     damage_writer.write(DamageRequest::new(
         entity,
         Hit::from_source(2.0, DamageSource::new(0)),
@@ -60,9 +57,7 @@ fn integration_combat_damage_flow_and_death() {
     assert_eq!(dealt_messages.len(), 1);
 
     // Fatal blow of 1000.0 damage
-    let mut damage_writer = app
-        .world_mut()
-        .resource_mut::<Messages<DamageRequest>>();
+    let mut damage_writer = app.world_mut().resource_mut::<Messages<DamageRequest>>();
     damage_writer.write(DamageRequest::new(
         entity,
         Hit::from_source(1000.0, DamageSource::new(0)),
@@ -86,12 +81,12 @@ fn integration_hunger_exhaustion_and_healing() {
 
     // Fast regeneration with full food and saturation: heals every 10 ticks
     for _ in 0..9 {
-        let (heal, _) = food.tick(health.current, health.max);
+        let (heal, _) = food.tick(health.current, health.max, true, Difficulty::Normal);
         health.heal(heal);
         assert_eq!(health.current, 10.0);
     }
     // 10th tick heals
-    let (heal, _) = food.tick(health.current, health.max);
+    let (heal, _) = food.tick(health.current, health.max, true, Difficulty::Normal);
     health.heal(heal);
     assert!(health.current > 10.0);
 }
@@ -108,10 +103,7 @@ fn integration_status_effects_application_and_ticking() {
     let mut health = Health::new(20.0);
     health.current = 15.0;
 
-    let entity = app
-        .world_mut()
-        .spawn((effects, health))
-        .id();
+    let entity = app.world_mut().spawn((effects, health)).id();
 
     app.world_mut().run_schedule(FixedUpdate);
 
@@ -168,7 +160,7 @@ fn integration_projectile_hit_detection() {
         .world_mut()
         .spawn((
             Projectile::arrow(None, Vec3::new(1.0, 0.0, 0.0)),
-            CombatPosition::from_coords(4.5, 64.0, 0.0),
+            CombatPosition::from_coords(4.5, 64.9, 0.0),
         ))
         .id();
 

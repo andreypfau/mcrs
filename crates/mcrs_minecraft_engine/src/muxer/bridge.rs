@@ -603,6 +603,8 @@ fn append_encoded(
 /// Writes a packet that is not serialized yet; a serialized one is an error.
 fn write_payload<W: WritePacket>(sink: &mut W, data: PacketPayload) -> anyhow::Result<()> {
     match data {
+        PacketPayload::AddEntity(p) => sink.write_packet_fallible(&p),
+        PacketPayload::RemoveEntities(p) => sink.write_packet_fallible(&p),
         PacketPayload::LightUpdate(p) => sink.write_packet_fallible(&p),
         PacketPayload::BlockUpdate(p) => sink.write_packet_fallible(&p),
         PacketPayload::SectionBlocksUpdate(p) => sink.write_packet_fallible(&p),
@@ -655,6 +657,18 @@ fn write_payload<W: WritePacket>(sink: &mut W, data: PacketPayload) -> anyhow::R
         PacketPayload::SystemChat(p) => sink.write_packet_fallible(&p),
         PacketPayload::CommandSuggestions(p) => sink.write_packet_fallible(&p),
         PacketPayload::SetTime(p) => sink.write_packet_fallible(&p),
+        PacketPayload::SetHealth(p) => sink.write_packet_fallible(&p),
+        PacketPayload::SetEntityData(p) => sink.write_packet_fallible(&p),
+        PacketPayload::SetEntityMotion(p) => sink.write_packet_fallible(&p),
+        PacketPayload::SetExperience(p) => sink.write_packet_fallible(&p),
+        PacketPayload::UpdateAttributes(p) => sink.write_packet_fallible(&p),
+        PacketPayload::UpdateMobEffect(p) => sink.write_packet_fallible(&p),
+        PacketPayload::RemoveMobEffect(p) => sink.write_packet_fallible(&p),
+        PacketPayload::HurtAnimation(p) => sink.write_packet_fallible(&p),
+        PacketPayload::DamageEvent(p) => sink.write_packet_fallible(&p),
+        PacketPayload::SetEquipment(p) => sink.write_packet_fallible(&p),
+        PacketPayload::EntityEvent(p) => sink.write_packet_fallible(&p),
+        PacketPayload::PlayerCombatKill(p) => sink.write_packet_fallible(&p),
     }
 }
 

@@ -65,7 +65,7 @@ mod movement;
 pub mod muxer;
 pub mod network_id;
 mod op_level;
-mod persistence;
+pub mod persistence;
 mod player_bundle;
 mod player_dimension_change;
 pub mod player_order;

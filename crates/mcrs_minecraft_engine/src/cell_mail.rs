@@ -11,12 +11,14 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Res, ResMut};
 use bevy_ecs::world::World;
-use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
+use mcrs_minecraft_engine_world::block_update::{
+    BlockDestroyRequest, BlockPlaced, BlockSetRequest,
+};
 use mcrs_minecraft_engine_world::entity::add_entity_to_chunk;
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::{
-    self, BlockChange, CellBlockWrite, HaloBlockChanges, VoxelUpdateSet,
+    self, BlockChange, CellBlockDestroy, CellBlockWrite, HaloBlockChanges, VoxelUpdateSet,
 };
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldViewMut;
@@ -46,6 +48,8 @@ pub struct CellMail {
     pub(crate) halo: Vec<BlockChange>,
     /// The writes of a cell into the columns that another cell owns.
     pub(crate) writes: Vec<CellBlockWrite>,
+    /// The destroys of a cell into the columns that another cell owns.
+    pub(crate) destroys: Vec<CellBlockDestroy>,
     /// The players of a cell that walked into a column of another cell.
     pub(crate) crossings: Vec<Crossing>,
     /// The writes, ticks, events and updates of the block kernels, each for the cell that owns
@@ -70,6 +74,7 @@ impl CellMail {
         self.tickets.is_empty()
             && self.halo.is_empty()
             && self.writes.is_empty()
+            && self.destroys.is_empty()
             && self.crossings.is_empty()
             && self.messages.is_empty()
             && self.ledgers.is_empty()
@@ -84,6 +89,7 @@ impl CellMail {
         self.tickets.append(&mut other.tickets);
         self.halo.append(&mut other.halo);
         self.writes.append(&mut other.writes);
+        self.destroys.append(&mut other.destroys);
         self.crossings.append(&mut other.crossings);
         self.messages.append(&mut other.messages);
         self.ledgers.append(&mut other.ledgers);
@@ -154,6 +160,7 @@ fn receive_cell_mail(world: &mut World) {
         tickets,
         halo,
         writes,
+        destroys,
         crossings,
         mut messages,
         mut ledgers,
@@ -205,6 +212,15 @@ fn receive_cell_mail(world: &mut World) {
             new_state: write.new_state,
             flags: write.flags,
             recursion_left: write.recursion_left,
+        }));
+    }
+    if let Some(dimension) = dimension
+        && let Some(mut requests) = world.get_resource_mut::<Messages<BlockDestroyRequest>>()
+    {
+        requests.write_batch(destroys.into_iter().map(|destroy| BlockDestroyRequest {
+            dimension,
+            pos: destroy.pos,
+            drops: destroy.drops,
         }));
     }
     for crossing in crossings {

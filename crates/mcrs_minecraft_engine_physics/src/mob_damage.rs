@@ -1,5 +1,6 @@
 use mcrs_minecraft_damage::Hit;
 use mcrs_minecraft_damage::HitOutcome;
+use mcrs_minecraft_damage::compute_knockback;
 use mcrs_minecraft_entity_rows::Placed;
 use mcrs_minecraft_entity_rows::RowStore;
 
@@ -16,9 +17,25 @@ pub fn hurt_mob<M>(
 ) -> Option<HitOutcome> {
     let state = rows.state_mut(at)?;
     let living = state.living.as_mut()?;
+    if (hit.flags.is_fire && living.fire_immune) || (hit.flags.is_fall && living.fall_damage_immune)
+    {
+        return Some(HitOutcome::Rejected);
+    }
     let outcome = mcrs_minecraft_damage::hurt(living, &mut state.hits, hit, tick);
     if outcome == HitOutcome::Rejected {
         return Some(outcome);
+    }
+    if !hit.flags.no_knockback
+        && let Some(attacker) = hit.source.source_position
+    {
+        let target = state.body.position;
+        state.body.velocity = compute_knockback(
+            target,
+            attacker,
+            f64::from(hit.knockback),
+            0.0,
+            state.body.velocity,
+        );
     }
     changes.strikes.push(Struck {
         at,
@@ -41,5 +58,72 @@ pub(crate) fn report_crowd_hits<M>(rows: &RowStore<M>, changes: &mut MobChanges,
             died: hit.died,
         });
         changes.touched.push(hit.at);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy_ecs::resource::Resource;
+    use glam::DVec3;
+    use mcrs_engine_muxer::EntityId;
+    use mcrs_minecraft_damage::Hit;
+    use mcrs_minecraft_entity::EntityTypeData;
+    use mcrs_minecraft_entity_key::EntityKey;
+    use mcrs_minecraft_entity_rows::RowStore;
+
+    use super::*;
+    use crate::mob_life::{mob_body, mob_row};
+
+    #[derive(Resource)]
+    struct Marker;
+
+    fn spawn_row(kind: &'static EntityTypeData) -> (RowStore<Marker>, Placed) {
+        let mut rows = RowStore::<Marker>::default();
+        let row = mob_row(kind);
+        rows.spawn(
+            EntityId(2),
+            mob_body(kind, &row, EntityKey(2), DVec3::new(0.5, 0.0, 0.5)),
+            row,
+        );
+        let at = rows.living_rows().next().expect("the mob row exists").0;
+        (rows, at)
+    }
+
+    #[test]
+    fn dmg_hit_001_a_fire_immune_mob_rejects_fire_damage() {
+        let (mut rows, at) = spawn_row(&EntityTypeData::ZOMBIFIED_PIGLIN);
+        let outcome = hurt_mob(
+            &mut rows,
+            &mut MobChanges::default(),
+            at,
+            Hit::new(5.0, mcrs_minecraft_damage::damage_types::IN_FIRE),
+            0,
+        );
+        assert_eq!(outcome, Some(HitOutcome::Rejected));
+        assert_eq!(
+            rows.state_of(at)
+                .and_then(|state| state.living)
+                .map(|l| l.health),
+            Some(20.0)
+        );
+    }
+
+    #[test]
+    fn dmg_hit_001_a_fall_immune_mob_rejects_fall_damage() {
+        let (mut rows, at) = spawn_row(&EntityTypeData::CHICKEN);
+        let outcome = hurt_mob(
+            &mut rows,
+            &mut MobChanges::default(),
+            at,
+            Hit::new(5.0, mcrs_minecraft_damage::damage_types::FALL),
+            0,
+        );
+        assert_eq!(outcome, Some(HitOutcome::Rejected));
+        assert_eq!(
+            rows.state_of(at)
+                .and_then(|state| state.living)
+                .map(|l| l.health),
+            Some(4.0)
+        );
     }
 }

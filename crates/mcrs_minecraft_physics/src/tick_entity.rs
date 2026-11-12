@@ -169,6 +169,12 @@ fn tick_living<W: CollisionWorld, B: BodyView>(
         living.jump_delay = JUMP_DELAY;
     }
     let effects = living.effects;
+    let effect_speed = effects
+        .speed
+        .map_or(1.0, |level| 1.0 + 0.2 * f32::from(level.saturating_add(1)))
+        * effects.slowness.map_or(1.0, |level| {
+            (1.0 - 0.15 * f32::from(level.saturating_add(1))).max(0.0)
+        });
     if effects.slow_falling || effects.levitation.is_some() {
         body.fall_distance = 0.0;
     }
@@ -185,8 +191,8 @@ fn tick_living<W: CollisionWorld, B: BodyView>(
             attributes: &attributes,
             effects: &effects,
             input: living.input,
-            speed: living.speed,
-            air_speed: AIR_SPEED,
+            speed: living.speed * effect_speed,
+            air_speed: AIR_SPEED * effect_speed,
             yaw: living.orientation.yaw,
             jump: living.jump,
             omnidirectional,

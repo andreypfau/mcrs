@@ -6,14 +6,14 @@ use mcrs_minecraft_item::component::equippable::EquipmentSlot;
 #[derive(Component, Clone, Debug, PartialEq, Eq)]
 pub struct EntityEquipment {
     slots: [Option<u32>; EquipmentSlot::ALL.len()],
-    changed: bool,
+    changed: [bool; EquipmentSlot::ALL.len()],
 }
 
 impl Default for EntityEquipment {
     fn default() -> Self {
         Self {
             slots: [None; EquipmentSlot::ALL.len()],
-            changed: false,
+            changed: [false; EquipmentSlot::ALL.len()],
         }
     }
 }
@@ -23,7 +23,7 @@ impl EntityEquipment {
     pub const fn new() -> Self {
         Self {
             slots: [None; EquipmentSlot::ALL.len()],
-            changed: false,
+            changed: [false; EquipmentSlot::ALL.len()],
         }
     }
 
@@ -33,7 +33,9 @@ impl EntityEquipment {
             && *target_slot != item_id
         {
             *target_slot = item_id;
-            self.changed = true;
+            if let Some(changed) = self.changed.get_mut(idx) {
+                *changed = true;
+            }
         }
     }
 
@@ -44,16 +46,28 @@ impl EntityEquipment {
     }
 
     #[must_use]
-    pub const fn has_changed(&self) -> bool {
-        self.changed
+    pub fn has_changed(&self) -> bool {
+        self.changed.iter().any(|changed| *changed)
     }
 
     pub fn clear_changed(&mut self) {
-        self.changed = false;
+        self.changed.fill(false);
+    }
+
+    pub fn changed(&self) -> impl Iterator<Item = (EquipmentSlot, Option<u32>)> + '_ {
+        EquipmentSlot::ALL
+            .iter()
+            .copied()
+            .zip(self.changed.iter().copied())
+            .filter(move |(_, changed)| *changed)
+            .map(move |(slot, _)| (slot, self.get(slot)))
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (EquipmentSlot, Option<u32>)> + '_ {
-        EquipmentSlot::ALL.iter().copied().map(move |slot| (slot, self.get(slot)))
+        EquipmentSlot::ALL
+            .iter()
+            .copied()
+            .map(move |slot| (slot, self.get(slot)))
     }
 }
 
@@ -72,7 +86,7 @@ pub fn track_equipment_changes(
 ) {
     for (entity, mut equip) in &mut query {
         if equip.has_changed() {
-            for (slot, item) in equip.iter() {
+            for (slot, item) in equip.changed() {
                 events.write(EquipmentChangedEvent {
                     entity,
                     slot,

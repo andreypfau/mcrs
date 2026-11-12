@@ -5,14 +5,17 @@ use mcrs_minecraft_engine_world::entity::physics::{
 };
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::ClientConnection;
+use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_physics::{Orientation, PlayerState, Relative, Teleport, apply_teleport};
 use mcrs_minecraft_protocol::{VarInt, WritePacket};
 use mcrs_minecraft_protocol_game::MoveFlags;
+use mcrs_minecraft_protocol_game::clientbound::ClientboundSetEntityMotion;
 use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundAcceptTeleportation, ServerboundClientTickEnd, ServerboundMovePlayerPos,
     ServerboundMovePlayerPosRot, ServerboundMovePlayerRot,
 };
 
+use crate::joined_game::JoinedGame;
 use crate::movement_input::MovementInput;
 use crate::player::Player;
 use crate::player_view::{PendingTeleports, PlayerViewPlugin, ServerTeleport};
@@ -99,14 +102,19 @@ impl Plugin for LocalPlayerPlugin {
         if !app.is_plugin_added::<PlayerViewPlugin>() {
             app.add_plugins(PlayerViewPlugin);
         }
-        app.init_resource::<MovementInput>().add_systems(
-            FixedUpdate,
-            (
-                accept_teleports.before(LocalPlayerTick),
-                (capture_old_transform, fly).chain().in_set(LocalPlayerTick),
-                send_movement.after(LocalPlayerTick),
-            ),
-        );
+        if !app.is_plugin_added::<crate::vitals::VitalsPlugin>() {
+            app.add_plugins(crate::vitals::VitalsPlugin);
+        }
+        app.init_resource::<MovementInput>()
+            .add_observer(on_motion)
+            .add_systems(
+                FixedUpdate,
+                (
+                    accept_teleports.before(LocalPlayerTick),
+                    (capture_old_transform, fly).chain().in_set(LocalPlayerTick),
+                    send_movement.after(LocalPlayerTick),
+                ),
+            );
     }
 }
 
@@ -208,23 +216,63 @@ fn capture_old_transform(player: Single<(&PhysicsTransform, &mut OldTransform), 
     old_transform.0 = *transform;
 }
 
+fn on_motion(
+    event: On<Received<ClientboundSetEntityMotion>>,
+    connections: Query<&JoinedGame>,
+    mut players: Query<&mut Velocity, With<Player>>,
+) {
+    let Some(packet) = event.packet() else {
+        return;
+    };
+    let Ok(joined) = connections.get(event.entity) else {
+        return;
+    };
+    if joined.player_id != packet.entity_id.0 {
+        return;
+    }
+    if let Ok(mut velocity) = players.single_mut() {
+        velocity.0 += packet.velocity.0;
+    }
+}
+
 fn fly(
     input: Res<MovementInput>,
     player: Single<
-        (&mut Sprint, &mut PhysicsTransform, &FlyingSpeed),
+        (
+            &mut Sprint,
+            &mut PhysicsTransform,
+            &FlyingSpeed,
+            &mut Velocity,
+            Option<&crate::vitals::LocalVitals>,
+        ),
         (With<Player>, With<Flying>),
     >,
 ) {
-    let (mut sprint, mut transform, flying_speed) = player.into_inner();
+    let (mut sprint, mut transform, flying_speed, mut velocity, vitals) = player.into_inner();
     let yaw = transform.rotation.yaw();
-    transform.translation += tick(&mut sprint, *flying_speed, yaw, *input);
+    let food = vitals.map_or(20, |vitals| vitals.food);
+    let mut displacement = tick(&mut sprint, *flying_speed, yaw, *input, food);
+    if velocity.0.length_squared() > 1.0e-6 {
+        displacement += velocity.0;
+        velocity.0 *= 0.5;
+        if velocity.0.length_squared() < 1.0e-4 {
+            velocity.0 = DVec3::ZERO;
+        }
+    }
+    transform.translation += displacement;
 }
 
 /// The displacement of one tick: the pressed direction turned by the yaw, with
 /// no inertia and no friction.
-fn tick(sprint: &mut Sprint, flying_speed: FlyingSpeed, yaw: f32, input: MovementInput) -> DVec3 {
+fn tick(
+    sprint: &mut Sprint,
+    flying_speed: FlyingSpeed,
+    yaw: f32,
+    input: MovementInput,
+    food: i32,
+) -> DVec3 {
     let move_vector = input.move_vector();
-    sprint.active = input.sprint && move_vector.y > 0.0;
+    sprint.active = input.sprint && move_vector.y > 0.0 && food > 6;
     let speed = if sprint.active {
         flying_speed.0 * SPRINT_SPEED_MULTIPLIER
     } else {
@@ -270,13 +318,29 @@ mod tests {
     }
 
     #[test]
+    fn a_hungry_player_cannot_sprint() {
+        let forward = MovementInput {
+            forward: true,
+            sprint: true,
+            ..MovementInput::EMPTY
+        };
+        let mut sprint = Sprint::default();
+        let moved = tick(&mut sprint, FlyingSpeed(1.0), 0.0, forward, 6);
+        assert!(!sprint.active);
+        assert_eq!(moved.length(), 1.0);
+        let moved = tick(&mut sprint, FlyingSpeed(1.0), 0.0, forward, 7);
+        assert!(sprint.active);
+        assert_eq!(moved.length(), 2.0);
+    }
+
+    #[test]
     fn forward_moves_along_the_horizontal_look_direction() {
         let forward = MovementInput {
             forward: true,
             ..MovementInput::EMPTY
         };
         for yaw in [0.0, 90.0, -139.9493, 180.0] {
-            let moved = tick(&mut Sprint::default(), FlyingSpeed(1.0), yaw, forward);
+            let moved = tick(&mut Sprint::default(), FlyingSpeed(1.0), yaw, forward, 20);
             let look = look_direction(yaw, 0.0).as_dvec3();
             assert!(
                 moved.abs_diff_eq(look, 1e-6),

@@ -210,6 +210,14 @@ mod tests {
         "bones": [{"name": "head", "parent": "body", "pivot": [0, 1, 0], "cubes": [{"origin": [0, 1, 0], "size": [1, 1, 1], "uv": [0, 0]}]}]}}"#;
 
     #[test]
+    fn the_repository_pack_draws_arrows_and_experience_orbs() {
+        let pack = EntityPack::repository();
+        assert!(pack.diagnostics.is_empty(), "{:?}", pack.diagnostics);
+        assert!(pack.entity("minecraft:arrow").is_some());
+        assert!(pack.entity("minecraft:experience_orb").is_some());
+    }
+
+    #[test]
     fn a_legacy_geometry_resolves_a_parent_of_another_file() {
         let pack = EntityPack::load([
             ("geometry/child.geo.json", CHILD),

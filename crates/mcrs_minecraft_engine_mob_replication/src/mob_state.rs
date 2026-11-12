@@ -22,5 +22,6 @@ pub(crate) fn mob_state(state: &EntityState) -> MobState {
         on_ground: state.body.flags.on_ground,
         health: living.health,
         dying: !living.is_alive(),
+        on_fire: living.on_fire,
     }
 }

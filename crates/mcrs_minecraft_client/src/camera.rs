@@ -7,6 +7,7 @@ use bevy::render::view::Msaa;
 use mcrs_minecraft_client_options::ClientOptions;
 use mcrs_minecraft_client_world::local_player::{Flying, LocalPlayerTick, Sprint};
 use mcrs_minecraft_client_world::player::{Player, look_direction};
+use mcrs_minecraft_client_world::vitals::LocalVitals;
 use mcrs_minecraft_engine_world::entity::physics::{
     OldTransform, Rotation, Transform as PhysicsTransform,
 };
@@ -171,6 +172,15 @@ fn orientation(yaw: f32, pitch: f32) -> Quat {
 
 /// The stored yaws are wrapped, so the turn between them is taken the short way round.
 #[must_use]
+fn hurt_roll(hurt_time: i32) -> Quat {
+    if hurt_time <= 0 {
+        return Quat::IDENTITY;
+    }
+    let fraction = (hurt_time as f32 / 10.0).min(1.0);
+    let angle = (fraction.powi(4) * std::f32::consts::PI).sin() * 14.0_f32.to_radians();
+    Quat::from_rotation_z(angle)
+}
+
 fn frame_rotation(previous: Rotation, current: Rotation, partial_tick: f32) -> Quat {
     let turn = (current.yaw() - previous.yaw() + 180.0).rem_euclid(360.0) - 180.0;
     let yaw = previous.yaw() + turn * partial_tick;
@@ -230,6 +240,7 @@ fn place_camera(
             &OldTransform,
             Has<Flying>,
             &Sprint,
+            Option<&LocalVitals>,
             &mut Transform,
         ),
         With<Player>,
@@ -240,7 +251,7 @@ fn place_camera(
     >,
     origin: Option<ResMut<CameraOrigin>>,
 ) {
-    let (current, previous, flying, sprint, mut body) = player.into_inner();
+    let (current, previous, flying, sprint, vitals, mut body) = player.into_inner();
     let (mut filters, mut camera, mut projection) = camera.into_inner();
     let motion = Motion {
         flying,
@@ -258,7 +269,8 @@ fn place_camera(
     let eye = frame_position + DVec3::Y * f64::from(filters.eye.at(partial_tick));
     let placed = Transform {
         translation: eye.as_vec3(),
-        rotation: frame_rotation(previous.rotation, current.rotation, partial_tick),
+        rotation: frame_rotation(previous.rotation, current.rotation, partial_tick)
+            * hurt_roll(vitals.map_or(0, |vitals| vitals.hurt_time)),
         ..Transform::IDENTITY
     };
     camera.set_if_neq(placed);
@@ -309,6 +321,13 @@ mod tests {
             (between - 87.918_36).abs() < 1e-3,
             "a quarter of the way from 87.828125 to 88.18906 is {between}"
         );
+    }
+
+    #[test]
+    fn the_hurt_tilt_peaks_at_the_middle_of_the_hurt_time() {
+        assert_eq!(hurt_roll(0), Quat::IDENTITY);
+        assert!(hurt_roll(10).angle_between(Quat::IDENTITY) < 1e-3);
+        assert!(hurt_roll(5).angle_between(Quat::IDENTITY) > 0.04);
     }
 
     #[test]

@@ -20,6 +20,8 @@ pub struct EntityTypeData {
     /// The tracker ticks between two periodic position updates.
     pub update_interval: u32,
     pub fire_immune: bool,
+    /// Whether falls of any distance leave the type unhurt.
+    pub fall_damage_immune: bool,
     /// The size of a baby relative to the adult, which the renderer applies; `None` for a type
     /// with no baby form or with no uniform baby scale in its mob document.
     pub baby_scale: Option<f32>,
@@ -40,6 +42,7 @@ const MOB_DEFAULTS: EntityTypeData = EntityTypeData {
     tracking_range: 10,
     update_interval: EntityTypeData::DEFAULT_UPDATE_INTERVAL,
     fire_immune: false,
+    fall_damage_immune: false,
     baby_scale: None,
     // client-entities.md, CENTS-WALK-001, item 3.
     walk_target_factor: 4.0,
@@ -109,6 +112,7 @@ impl EntityTypeData {
         width: 0.4,
         height: 0.7,
         eye_height: 0.644,
+        fall_damage_immune: true,
         life: ANIMAL,
         base_attributes: Some(BaseAttributes {
             max_health: 4.0,

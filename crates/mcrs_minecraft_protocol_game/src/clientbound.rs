@@ -241,6 +241,13 @@ impl mcrs_minecraft_protocol::Decode<'_> for ParticleRandomization {
     }
 }
 
+/// Tells a player that it died, with the message of the death screen.
+#[derive(Clone, Debug, PartialEq, Encode, Decode)]
+pub struct ClientboundPlayerCombatKill<'a> {
+    pub player_id: VarInt,
+    pub message: RawText<'a>,
+}
+
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub struct ClientboundHurtAnimation {
     pub entity_id: VarInt,

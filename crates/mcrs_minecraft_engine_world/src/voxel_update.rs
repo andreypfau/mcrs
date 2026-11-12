@@ -22,6 +22,22 @@ pub struct BlockSetRequest {
     pub recursion_left: i16,
 }
 
+/// A public request to destroy a block: its drop and its experience go through the rules of the
+/// dimension, and the block disappears in the same tick as the request.
+#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BlockDestroyRequest {
+    pub dimension: Entity,
+    pub pos: BlockPos,
+    pub drops: bool,
+}
+
+/// A block destroy that one cell of a world hands another.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CellBlockDestroy {
+    pub pos: BlockPos,
+    pub drops: bool,
+}
+
 /// A block write that one cell of a world hands another, into a column of the other cell.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CellBlockWrite {

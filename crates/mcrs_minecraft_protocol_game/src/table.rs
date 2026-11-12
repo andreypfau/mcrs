@@ -35,6 +35,7 @@ mcrs_minecraft_protocol::extend_packet_table! {
         "ping" => ClientboundPing,
         "player_abilities" => ClientboundPlayerAbilities,
         "player_chat" => ClientboundPlayerChat<'a>,
+        "player_combat_kill" => ClientboundPlayerCombatKill<'a>,
         "player_info_remove" => ClientboundPlayerInfoRemove,
         "player_info_update" => ClientboundPlayerInfoUpdate<'a>,
         "player_look_at" => ClientboundPlayerLookAt,

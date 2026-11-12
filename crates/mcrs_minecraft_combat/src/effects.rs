@@ -2,6 +2,7 @@ use bevy_ecs::message::{Message, MessageReader, MessageWriter};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_damage::{DamageSource, Hit};
 
+use crate::damage_types;
 use crate::events::DamageRequest;
 use crate::health::Health;
 use crate::hunger::FoodData;
@@ -222,9 +223,14 @@ impl ActiveEffects {
     /// If an effect of the same type already exists, it is replaced if the new
     /// amplifier is higher, or if the amplifier is identical and the new duration is longer.
     pub fn add(&mut self, new_effect: ActiveEffect) -> bool {
-        if let Some(existing) = self.effects.iter_mut().find(|e| e.effect == new_effect.effect) {
+        if let Some(existing) = self
+            .effects
+            .iter_mut()
+            .find(|e| e.effect == new_effect.effect)
+        {
             if new_effect.amplifier > existing.amplifier
-                || (new_effect.amplifier == existing.amplifier && new_effect.duration > existing.duration)
+                || (new_effect.amplifier == existing.amplifier
+                    && new_effect.duration > existing.duration)
             {
                 *existing = new_effect;
                 true
@@ -254,6 +260,48 @@ impl ActiveEffects {
     #[must_use]
     pub fn has(&self, effect: MobEffect) -> bool {
         self.effects.iter().any(|e| e.effect == effect)
+    }
+
+    /// The amplifier of `effect`, or `None` when it is not active.
+    #[must_use]
+    pub fn amplifier(&self, effect: MobEffect) -> Option<u8> {
+        self.get(effect).map(|active| active.amplifier)
+    }
+
+    /// The motion changes of the movement effects, in the form that the physics and the client
+    /// movement use.
+    #[must_use]
+    pub fn movement_effects(&self) -> mcrs_minecraft_physics::MotionEffects {
+        mcrs_minecraft_physics::MotionEffects {
+            speed: self.amplifier(MobEffect::Speed),
+            slowness: self.amplifier(MobEffect::Slowness),
+            slow_falling: self.has(MobEffect::SlowFalling),
+            levitation: self.amplifier(MobEffect::Levitation),
+            jump_boost: self.amplifier(MobEffect::JumpBoost),
+            weaving: self.has(MobEffect::Weaving),
+            blindness: self.has(MobEffect::Blindness),
+        }
+    }
+
+    /// The flat attack-damage bonus of strength and weakness, as vanilla adds it before the
+    /// item's modifiers.
+    #[must_use]
+    pub fn attack_damage_bonus(&self) -> f32 {
+        let strength = self
+            .amplifier(MobEffect::Strength)
+            .map_or(0.0, |level| 3.0 * f32::from(level.saturating_add(1)));
+        let weakness = self
+            .amplifier(MobEffect::Weakness)
+            .map_or(0.0, |level| 4.0 * f32::from(level.saturating_add(1)));
+        strength - weakness
+    }
+
+    /// The fraction of incoming damage that resistance removes.
+    #[must_use]
+    pub fn damage_resistance(&self) -> f32 {
+        self.amplifier(MobEffect::Resistance).map_or(0.0, |level| {
+            (0.2 * f32::from(level.saturating_add(1))).min(1.0)
+        })
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &ActiveEffect> {
@@ -304,6 +352,7 @@ fn apply_single_effect_tick(
             let interval = (50 >> amplifier).max(1);
             if duration.is_multiple_of(interval)
                 && let Some(ref mut h) = health
+                && h.is_alive()
             {
                 h.heal(1.0);
             }
@@ -316,7 +365,7 @@ fn apply_single_effect_tick(
             {
                 damage_events.write(DamageRequest::new(
                     entity,
-                    Hit::from_source(1.0, DamageSource::new(0)),
+                    Hit::from_source(1.0, DamageSource::new(damage_types::MAGIC)),
                 ));
             }
         }
@@ -325,7 +374,7 @@ fn apply_single_effect_tick(
             if duration.is_multiple_of(interval) {
                 damage_events.write(DamageRequest::new(
                     entity,
-                    Hit::from_source(1.0, DamageSource::new(0)),
+                    Hit::from_source(1.0, DamageSource::new(damage_types::WITHER)),
                 ));
             }
         }
@@ -380,6 +429,19 @@ pub fn tick_active_effects(
                 entity,
                 effect: removed,
             });
+            if let Some(ref mut health) = health_opt {
+                match removed {
+                    MobEffect::Absorption => health.absorption = 0.0,
+                    MobEffect::HealthBoost => {
+                        let bonus = active
+                            .amplifier(MobEffect::HealthBoost)
+                            .map_or(0.0, |level| 4.0 * f32::from(level.saturating_add(1)));
+                        health.max = 20.0 + bonus;
+                        health.current = health.current.min(health.max);
+                    }
+                    _ => {}
+                }
+            }
         }
     }
 }
@@ -398,11 +460,25 @@ pub fn handle_apply_effect_events(
                     let amount = 4.0 * f32::from(1u16 << amp_shift);
                     health.heal(amount);
                 }
+                MobEffect::Absorption => {
+                    if let Some(mut effects) = effects_opt {
+                        effects.add(ev.effect);
+                    }
+                    let amount = 4.0 * f32::from(ev.effect.amplifier.saturating_add(1));
+                    health.absorption = health.absorption.max(amount);
+                }
+                MobEffect::HealthBoost => {
+                    if let Some(mut effects) = effects_opt {
+                        effects.add(ev.effect);
+                    }
+                    let bonus = 4.0 * f32::from(ev.effect.amplifier.saturating_add(1));
+                    health.max = (20.0 + bonus).max(health.max);
+                }
                 MobEffect::InstantDamage => {
                     let amount = 6.0 * f32::from(1u16 << amp_shift);
                     damage_events.write(DamageRequest::new(
                         ev.entity,
-                        Hit::from_source(amount, DamageSource::new(0)),
+                        Hit::from_source(amount, DamageSource::new(damage_types::MAGIC)),
                     ));
                 }
                 _ => {
@@ -452,15 +528,51 @@ mod tests {
         let mut health = Health::new(20.0);
         health.current = 10.0;
 
-        let entity = app
-            .world_mut()
-            .spawn((effects, health))
-            .id();
+        let entity = app.world_mut().spawn((effects, health)).id();
 
         app.update();
 
         let health = app.world().get::<Health>(entity).unwrap();
         // Since duration 50 % 50 == 0, regeneration heals 1.0!
         assert_eq!(health.current, 11.0);
+    }
+
+    #[test]
+    fn strength_and_weakness_change_attack_damage() {
+        let mut effects = ActiveEffects::new();
+        effects.add(ActiveEffect::new(MobEffect::Strength, 1, 100));
+        assert_eq!(effects.attack_damage_bonus(), 6.0);
+        effects.add(ActiveEffect::new(MobEffect::Weakness, 0, 100));
+        assert_eq!(effects.attack_damage_bonus(), 2.0);
+    }
+
+    #[test]
+    fn resistance_removes_a_fifth_per_level_up_to_all_damage() {
+        let mut effects = ActiveEffects::new();
+        effects.add(ActiveEffect::new(MobEffect::Resistance, 0, 100));
+        assert!((effects.damage_resistance() - 0.2).abs() < 1.0e-6);
+        effects.add(ActiveEffect::new(MobEffect::Resistance, 9, 100));
+        assert!((effects.damage_resistance() - 1.0).abs() < 1.0e-6);
+    }
+
+    #[test]
+    fn absorption_expiry_clears_the_shield_and_health_boost_restores_the_max() {
+        let mut app = App::new();
+        app.add_message::<DamageRequest>();
+        app.add_message::<RemoveEffectEvent>();
+        app.add_systems(Update, tick_active_effects);
+        let mut effects = ActiveEffects::new();
+        effects.add(ActiveEffect::new(MobEffect::Absorption, 0, 1));
+        effects.add(ActiveEffect::new(MobEffect::HealthBoost, 1, 1));
+        let mut health = Health::new(20.0);
+        health.max = 28.0;
+        health.current = 28.0;
+        health.absorption = 4.0;
+        let entity = app.world_mut().spawn((effects, health)).id();
+        app.update();
+        let health = app.world().get::<Health>(entity).unwrap();
+        assert_eq!(health.absorption, 0.0);
+        assert_eq!(health.max, 20.0);
+        assert_eq!(health.current, 20.0);
     }
 }

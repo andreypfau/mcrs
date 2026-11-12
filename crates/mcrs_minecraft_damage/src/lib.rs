@@ -4,6 +4,8 @@
 //! command and tells the viewers what the [`HitOutcome`] says.
 
 mod attributes;
+mod damage_rules;
+pub mod damage_types;
 mod hit;
 mod hit_outcome;
 mod hurt;
@@ -12,6 +14,7 @@ mod reduction;
 mod source;
 
 pub use attributes::{AttributeInstance, AttributeModifier, AttributeOperation};
+pub use damage_rules::{DamageTypeFlags, DamageTypeRules};
 pub use hit::Hit;
 pub use hit_outcome::HitOutcome;
 pub use hurt::hurt;

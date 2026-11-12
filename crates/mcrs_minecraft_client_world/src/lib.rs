@@ -25,3 +25,4 @@ mod pong;
 mod received;
 pub mod registries;
 pub mod screen;
+pub mod vitals;

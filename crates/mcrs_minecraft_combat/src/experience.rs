@@ -148,17 +148,31 @@ pub struct ExperienceGainedEvent {
 pub fn pickup_experience_orbs(
     mut commands: Commands,
     mut players: Query<(Entity, &mut PlayerExperience, &CombatPosition)>,
-    mut orbs: Query<(Entity, &mut ExperienceOrb, &CombatPosition)>,
+    mut orbs: Query<(Entity, &mut ExperienceOrb, &mut CombatPosition), Without<PlayerExperience>>,
     mut events: MessageWriter<ExperienceGainedEvent>,
 ) {
     const PICKUP_RADIUS_SQ: f64 = 1.25 * 1.25;
 
-    for (orb_entity, mut orb, orb_pos) in &mut orbs {
+    for (orb_entity, mut orb, mut orb_pos) in &mut orbs {
         orb.age_ticks = orb.age_ticks.saturating_add(1);
-        // Orbs despawn after 6000 ticks (5 minutes)
         if orb.age_ticks >= 6000 {
             commands.entity(orb_entity).despawn();
             continue;
+        }
+
+        let nearest = players
+            .iter()
+            .map(|(_, _, position)| position.0)
+            .filter(|position| position.distance_squared(orb_pos.0) <= 64.0)
+            .min_by(|left, right| {
+                left.distance_squared(orb_pos.0)
+                    .total_cmp(&right.distance_squared(orb_pos.0))
+            });
+        if let Some(target) = nearest {
+            let direction = target - orb_pos.0;
+            if direction.length_squared() > 1.0e-9 {
+                orb_pos.0 += direction.normalize() * 0.1;
+            }
         }
 
         for (player_entity, mut player_exp, player_pos) in &mut players {
