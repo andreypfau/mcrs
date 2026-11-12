@@ -1,4 +1,5 @@
 use crate::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
+use crate::client_on_ground::ClientOnGround;
 use crate::game_mode::ListedGameMode;
 use crate::op_level::AnnouncedOpLevel;
 use crate::teleport::TeleportState;
@@ -12,6 +13,7 @@ pub struct PlayerBundle {
     pub view_distance: PlayerViewDistance,
     pub game_mode: PlayerGameMode,
     pub flying: PlayerFlying,
+    pub on_ground: ClientOnGround,
     pub op_level: PlayerOpLevel,
     pub listed_game_mode: ListedGameMode,
     pub announced_op_level: AnnouncedOpLevel,

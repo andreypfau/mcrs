@@ -21,6 +21,7 @@ mod cell_mail;
 mod cell_volume;
 pub mod channel_types;
 pub mod client_info;
+pub mod client_on_ground;
 mod cold_columns;
 pub mod cold_light_edit;
 mod column_asks;
