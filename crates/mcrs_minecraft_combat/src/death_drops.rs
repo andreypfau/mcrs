@@ -48,16 +48,35 @@ pub fn drop_dead_inventories(
         let Ok(held) = slots.get(drop.entity) else {
             continue;
         };
-        for stack in held.occupied() {
-            commands.entity(stack).drop_at(drop.death_position);
+        for (index, stack) in held.occupied().enumerate() {
+            commands
+                .entity(stack)
+                .drop_at(drop.death_position + scatter_offset(index));
         }
     }
+}
+
+fn scatter_offset(index: usize) -> DVec3 {
+    let angle = index as f64 * 2.399_963_229_728_653 + 0.5;
+    let radius = 0.15 + (index % 3) as f64 * 0.05;
+    DVec3::new(angle.cos() * radius, 0.1, angle.sin() * radius)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use bevy_app::{App, Update};
+
+    #[test]
+    fn dmg_death_002_dropped_stacks_scatter() {
+        let first = scatter_offset(0);
+        let second = scatter_offset(1);
+        let third = scatter_offset(2);
+        assert_ne!(first, second);
+        assert_ne!(second, third);
+        assert_ne!(first, third);
+        assert!(first.x != 0.0 && first.z != 0.0);
+    }
 
     #[test]
     fn test_death_drops_honors_keep_inventory() {
