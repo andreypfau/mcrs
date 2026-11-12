@@ -1,4 +1,5 @@
 use crate::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
+use crate::break_session::BreakSession;
 use crate::client_on_ground::ClientOnGround;
 use crate::game_mode::ListedGameMode;
 use crate::op_level::AnnouncedOpLevel;
@@ -14,6 +15,7 @@ pub struct PlayerBundle {
     pub game_mode: PlayerGameMode,
     pub flying: PlayerFlying,
     pub on_ground: ClientOnGround,
+    pub break_session: BreakSession,
     pub op_level: PlayerOpLevel,
     pub listed_game_mode: ListedGameMode,
     pub announced_op_level: AnnouncedOpLevel,
