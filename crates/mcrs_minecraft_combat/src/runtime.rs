@@ -2430,8 +2430,7 @@ mod tests {
         let level = mcrs_minecraft_save::RespawnData {
             dimension: dimension_key("minecraft:overworld"),
             pos: [0, 64, 0],
-            yaw: 0.0,
-            pitch: 0.0,
+            ..Default::default()
         };
         let (target, position, rotation) = respawn_choice(
             Some(&bed),
@@ -2451,7 +2450,7 @@ mod tests {
             dimension: dimension_key("minecraft:overworld"),
             pos: [8, 80, -8],
             yaw: 180.0,
-            pitch: 0.0,
+            ..Default::default()
         };
         let (target, position, _) = respawn_choice(
             None,
