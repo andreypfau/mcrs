@@ -1246,16 +1246,13 @@ fn sync_player_environment_metadata(
                 value: MetaDataValue::VarInt(VarInt(freeze.ticks_frozen)),
             },
         ]);
-        packets.write(
-            to_target(
-                PacketTarget::AllInDim(dimension.0),
-                PacketPayload::SetEntityData(ClientboundSetEntityData {
-                    entity_id: VarInt(player_network_id(owner.0)),
-                    metadata,
-                }),
-            )
-            .critical(),
-        );
+        packets.write(to_target(
+            PacketTarget::AllInDim(dimension.0),
+            PacketPayload::SetEntityData(ClientboundSetEntityData {
+                entity_id: VarInt(player_network_id(owner.0)),
+                metadata,
+            }),
+        ));
     }
 }
 
@@ -1390,17 +1387,14 @@ fn sync_player_combat(
         if health_changed || food_changed {
             sync.health = Some(health.current);
             sync.food = Some((food.food_level, food.saturation));
-            packets.write(
-                to(
-                    owner.0,
-                    PacketPayload::SetHealth(ClientboundSetHealth {
-                        health: health.current,
-                        food: VarInt(food.food_level as i32),
-                        saturation: food.saturation,
-                    }),
-                )
-                .critical(),
-            );
+            packets.write(to(
+                owner.0,
+                PacketPayload::SetHealth(ClientboundSetHealth {
+                    health: health.current,
+                    food: VarInt(food.food_level as i32),
+                    saturation: food.saturation,
+                }),
+            ));
         }
 
         let xp = (
@@ -1410,17 +1404,14 @@ fn sync_player_combat(
         );
         if sync.experience != Some(xp) {
             sync.experience = Some(xp);
-            packets.write(
-                to(
-                    owner.0,
-                    PacketPayload::SetExperience(ClientboundSetExperience {
-                        experience_progress: experience.progress,
-                        total_experience: VarInt(experience.total_experience),
-                        experience_level: VarInt(experience.level),
-                    }),
-                )
-                .critical(),
-            );
+            packets.write(to(
+                owner.0,
+                PacketPayload::SetExperience(ClientboundSetExperience {
+                    experience_progress: experience.progress,
+                    total_experience: VarInt(experience.total_experience),
+                    experience_level: VarInt(experience.level),
+                }),
+            ));
         }
 
         let active: Vec<(MobEffect, u8, u32, u8)> = effects
@@ -1499,16 +1490,13 @@ fn announce_player_deaths(
             continue;
         };
         let player_id = (owner.0.0 as u32 * 2 + 1) as i32;
-        packets.write(
-            to(
-                owner.0,
-                PacketPayload::EntityEvent(ClientboundEntityEvent {
-                    entity_id: player_id,
-                    entity_status: ClientboundEntityEvent::DIED,
-                }),
-            )
-            .critical(),
-        );
+        packets.write(to(
+            owner.0,
+            PacketPayload::EntityEvent(ClientboundEntityEvent {
+                entity_id: player_id,
+                entity_status: ClientboundEntityEvent::DIED,
+            }),
+        ));
         let key = format!(
             "death.attack.{}",
             damage_types::message_id(death.damage_type)
@@ -1544,16 +1532,13 @@ fn announce_player_deaths(
         }
         let message = Text::translate(key, args);
         if let Ok(message) = RawText::from_text(&message) {
-            packets.write(
-                to(
-                    owner.0,
-                    PacketPayload::PlayerCombatKill(ClientboundPlayerCombatKill {
-                        player_id: VarInt(player_id),
-                        message,
-                    }),
-                )
-                .critical(),
-            );
+            packets.write(to(
+                owner.0,
+                PacketPayload::PlayerCombatKill(ClientboundPlayerCombatKill {
+                    player_id: VarInt(player_id),
+                    message,
+                }),
+            ));
         }
     }
 }
@@ -1762,25 +1747,19 @@ fn respawn_players(
         let game_mode = game_modes
             .get(request.player)
             .map_or(GameMode::Survival, |mode| mode.0);
-        packets.write(
-            to(
-                owner.0,
-                PacketPayload::Respawn(ClientboundRespawn {
-                    player_spawn_info: PlayerSpawnInfo::new(dimension_type.0, target, game_mode),
-                    data_to_keep: 0,
-                }),
-            )
-            .critical(),
-        );
+        packets.write(to(
+            owner.0,
+            PacketPayload::Respawn(ClientboundRespawn {
+                player_spawn_info: PlayerSpawnInfo::new(dimension_type.0, target, game_mode),
+                data_to_keep: 0,
+            }),
+        ));
         let teleport_id = teleport.sent(destination, *time);
         let telegram = teleport_to(known, destination);
-        packets.write(
-            to(
-                owner.0,
-                PacketPayload::PlayerPosition(position_packet(teleport_id, &telegram)),
-            )
-            .critical(),
-        );
+        packets.write(to(
+            owner.0,
+            PacketPayload::PlayerPosition(position_packet(teleport_id, &telegram)),
+        ));
         *transform = destination;
     }
 }
