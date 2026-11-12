@@ -182,6 +182,7 @@ mcrs_minecraft_save = { path = "crates/mcrs_minecraft_save" }
 mcrs_minecraft_engine_registries = { path = "crates/mcrs_minecraft_engine_registries" }
 mcrs_minecraft_environment = { path = "crates/mcrs_minecraft_environment" }
 mcrs_minecraft_block = { path = "crates/mcrs_minecraft_block" }
+mcrs_minecraft_block_break = { path = "crates/mcrs_minecraft_block_break" }
 mcrs_molang = { path = "crates/mcrs_molang" }
 mcrs_molang_wgsl = { path = "crates/mcrs_molang_wgsl" }
 mcrs_minecraft_entity_animation = { path = "crates/mcrs_minecraft_entity_animation" }

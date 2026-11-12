@@ -1,0 +1,11 @@
+[package]
+name = "mcrs_minecraft_block_break"
+description = "The survival dig kernel: the rate of one tick, the progress sum, the crack stage and what a finish action does"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
