@@ -2,6 +2,7 @@ use std::future::Future;
 
 use bevy_tasks::TaskPool;
 use mcrs_engine_link::Step;
+use mcrs_engine_link::TaskEnd;
 use mcrs_minecraft_worldgen_generator::stages::{
     FillContext, fill_pooled, merge_column, run_region,
 };
@@ -49,6 +50,32 @@ fn owed(store: &StagingStore, v: ColumnPos, rungs: usize) -> Option<Owed> {
     store.neighbourhood_reached(v, stage).then_some(owed)
 }
 
+/// The side, as a power of two of chunks, of the squares whose owed fills share one pool task:
+/// a worker reuses what it sampled for the columns beside one (`PERF.md`, "Fills in groups").
+const FILL_GROUP_SHIFT: u32 = 2;
+
+fn fill_group(col: ColumnPos) -> (i32, i32) {
+    (col.x >> FILL_GROUP_SHIFT, col.z >> FILL_GROUP_SHIFT)
+}
+
+struct GroupFill {
+    col: ColumnPos,
+    cancel: CancellationToken,
+    end: TaskEnd<StageResult>,
+}
+
+/// The fills of a group that have not started. Dropped by a panic of the fill before them,
+/// they leave as cancelled fills, which the stage dispatches again.
+struct Unstarted(std::vec::IntoIter<GroupFill>);
+
+impl Drop for Unstarted {
+    fn drop(&mut self) {
+        for fill in self.0.by_ref() {
+            fill.cancel.cancel();
+        }
+    }
+}
+
 /// Whether a dispatch pass may go on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Pass {
@@ -88,10 +115,12 @@ impl GenerationStage {
             pool,
             ctx: &ctx,
             step,
+            fills: Vec::new(),
         };
         if dispatcher.continue_ladders(self, &mut remaining) == Pass::Going {
             dispatcher.walk_fresh(self, &mut remaining);
         }
+        dispatcher.spawn_fills(self);
         if remaining < budget {
             trace!(
                 dispatched = budget - remaining,
@@ -130,7 +159,48 @@ impl GenerationStage {
             }
         });
         self.store.set_stage(col, stage);
-        self.in_flight.push(id, InFlightStage { col, cancel }, task);
+        self.in_flight
+            .push(id, InFlightStage { col, cancel }, Some(task));
+    }
+
+    /// Fills `group` in one pool task, west to east and north to south, so each column finds
+    /// the planes it borrows. A cancelled column drops out and the rest go on.
+    fn spawn_fill_group(
+        &mut self,
+        step: &mut Step<'_, Self>,
+        pool: &TaskPool,
+        ctx: &FillContext,
+        mut group: Vec<ColumnPos>,
+    ) {
+        group.sort_unstable_by_key(|col| (col.x, col.z));
+        let mut fills = Vec::with_capacity(group.len());
+        let mut stages = Vec::with_capacity(group.len());
+        for col in group {
+            let cancel = CancellationToken::new();
+            let end = step.begin_task();
+            let stage = InFlightStage {
+                col,
+                cancel: cancel.clone(),
+            };
+            stages.push((end.id(), stage));
+            fills.push(GroupFill { col, cancel, end });
+        }
+        let ctx = ctx.clone();
+        let mut task = Some(pool.spawn(async move {
+            let mut unstarted = Unstarted(fills.into_iter());
+            for fill in unstarted.0.by_ref() {
+                if let Some(snapshot) = fill_pooled(&ctx, fill.col, &fill.cancel) {
+                    fill.end.finish(StageResult::Filled(Box::new(snapshot)));
+                }
+            }
+        }));
+        let last = stages.len().saturating_sub(1);
+        for (at, (id, stage)) in stages.into_iter().enumerate() {
+            // The entry of the fill that ends last holds the task, so no entry that retires
+            // while the group still fills drops it.
+            let handle = if at == last { task.take() } else { None };
+            self.in_flight.push(id, stage, handle);
+        }
     }
 }
 
@@ -138,6 +208,8 @@ struct Dispatcher<'a, 'step> {
     pool: &'a TaskPool,
     ctx: &'a FillContext,
     step: &'a mut Step<'step, GenerationStage>,
+    /// The fills this pass found owed, in the order it found them: nearest first.
+    fills: Vec<ColumnPos>,
 }
 
 impl Dispatcher<'_, '_> {
@@ -228,6 +300,43 @@ impl Dispatcher<'_, '_> {
         Pass::Going
     }
 
+    /// Hands the fills of the pass to the pool, the group of the nearest column first. A group
+    /// takes the other owed columns of its square with it, past the budget of the pass.
+    fn spawn_fills(&mut self, generation: &mut GenerationStage) {
+        let rungs = self.ctx.rungs();
+        let done = top_of_ladder(rungs);
+        let side = 1 << FILL_GROUP_SHIFT;
+        let mut fills = std::mem::take(&mut self.fills);
+        // A group fills one column after the other: with a thread for each fill, none waits.
+        if generation.in_flight.len() + fills.len() <= generation.config.num_threads {
+            for col in fills {
+                generation.spawn_fill_group(self.step, self.pool, self.ctx, vec![col]);
+            }
+            return;
+        }
+        while let Some(&nearest) = fills.first() {
+            let (group_x, group_z) = fill_group(nearest);
+            let mut group: Vec<ColumnPos> = fills
+                .extract_if(.., |col| fill_group(*col) == (group_x, group_z))
+                .collect();
+            for x in 0..side {
+                for z in 0..side {
+                    let col = ColumnPos::new(
+                        (group_x << FILL_GROUP_SHIFT) + x,
+                        (group_z << FILL_GROUP_SHIFT) + z,
+                    );
+                    if owed(&generation.store, col, rungs) == Some(Owed::Fill)
+                        && generation.wanted_within(col, Owed::Fill.reach(rungs), done)
+                    {
+                        generation.store.set_stage(col, Stage::Filling);
+                        group.push(col);
+                    }
+                }
+            }
+            generation.spawn_fill_group(self.step, self.pool, self.ctx, group);
+        }
+    }
+
     fn dispatch(
         &mut self,
         generation: &mut GenerationStage,
@@ -238,17 +347,8 @@ impl Dispatcher<'_, '_> {
         let ctx = self.ctx;
         match owed {
             Owed::Fill => {
-                let ctx = ctx.clone();
-                generation.spawn(
-                    self.step,
-                    self.pool,
-                    v,
-                    Stage::Filling,
-                    |cancel| async move {
-                        fill_pooled(&ctx, v, &cancel)
-                            .map(|snapshot| StageResult::Filled(Box::new(snapshot)))
-                    },
-                );
+                generation.store.set_stage(v, Stage::Filling);
+                self.fills.push(v);
             }
             Owed::Run(rung) => {
                 let Some(region) = generation.store.region(v, rung) else {
