@@ -87,7 +87,7 @@ tracing-tracy = { version = "0.12", optional = true }
 bevy = { version = "0.20.1", default-features = false, features = ["x11"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-bevy = { version = "0.20.1", default-features = false, features = ["web", "webgpu", "bevy_clipboard"] }
+bevy = { version = "0.20.1", default-features = false, features = ["web", "bevy_clipboard"] }
 console_error_panic_hook = "0.1"
 wasm-bindgen-futures = "0.4"
 # The rustflag in .cargo/config.toml picks the backend; without the crate
@@ -100,6 +100,10 @@ web-sys = { version = "0.3", features = ["Window", "Location", "UrlSearchParams"
 default = ["singleplayer", "dev"]
 singleplayer = ["dep:mcrs_minecraft_server", "dep:mcrs_minecraft_engine_server", "dep:mcrs_minecraft_engine", "dep:mcrs_minecraft_server_settings", "dep:mcrs_minecraft_vanilla_worldgen"]
 dev = []
+# The graphics API of the browser build; `scripts/build-web.sh` picks one. `webgl2` wins nothing
+# when both are on: Bevy then builds for WebGPU alone.
+webgpu = ["bevy/webgpu"]
+webgl2 = ["bevy/webgl2"]
 # The frame-capture harness: an off-screen client that writes the frames a test requests and
 # replays the entities of a vanilla record. The shipped client leaves it out.
 scene = ["dep:uuid"]

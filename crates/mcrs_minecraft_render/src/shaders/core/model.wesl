@@ -12,12 +12,12 @@ import package::shaders::include::fields::{
 };
 import package::shaders::include::frame::{camera, params};
 import package::shaders::include::quad::{
-    CORNERS_PER_QUAD, MODEL_WORDS_PER_VERTEX, corner_index, corner_uv, model_position, quad_of,
+    CORNERS_PER_QUAD, MODEL_WORDS_PER_VERTEX, corner_index, corner_uv, degenerate, model_position,
 };
 import package::shaders::include::section::section_origin;
 import package::shaders::include::surface::{Surface, shade_surface};
 import package::shaders::include::terrain_bindings::{
-    model_field, sections, vertices, visible, visible_slot,
+    TerrainVertex, model_field, model_word, quad_ref, section_desc,
 };
 
 
@@ -36,21 +36,25 @@ struct ModelOut {
 
 fn model_local(base: u32) -> vec3<f32> {
     return model_position(
-        vertices[base + MODEL_X_WORD],
-        vertices[base + MODEL_Y_WORD],
-        vertices[base + MODEL_Z_WORD],
+        model_word(base + MODEL_X_WORD),
+        model_word(base + MODEL_Y_WORD),
+        model_word(base + MODEL_Z_WORD),
     );
 }
 
 @vertex
-fn vertex_model(@builtin(vertex_index) vertex: u32) -> ModelOut {
+fn vertex_model(in: TerrainVertex) -> ModelOut {
     var out: ModelOut;
-    let entry = visible[visible_slot(quad_of(vertex))];
-    let corner = corner_index(vertex);
-    let base = (entry.x * CORNERS_PER_QUAD + corner) * MODEL_WORDS_PER_VERTEX;
+    let at = quad_ref(in);
+    if (!at.drawn) {
+        out.clip_position = degenerate();
+        return out;
+    }
+    let corner = corner_index(in.index);
+    let base = (at.quad * CORNERS_PER_QUAD + corner) * MODEL_WORDS_PER_VERTEX;
 
     let local = model_local(base);
-    let desc = sections[entry.y];
+    let desc = section_desc(at.section);
     let world = section_origin(desc) + local * f32(desc.scale);
 
     let uv_scale = f32((1u << MODEL_U_BITS) - 1u);
@@ -68,7 +72,7 @@ fn vertex_model(@builtin(vertex_index) vertex: u32) -> ModelOut {
     out.block_light = block_light;
     out.sky_light = sky_light;
     out.shade = shade;
-    out.normal = model_quad_normal(entry.x);
+    out.normal = model_quad_normal(at.quad);
     out.world_xz = world.xz;
     out.tint_kind = model_field(base, MODEL_TINT_WORD, MODEL_TINT_SHIFT, MODEL_TINT_BITS)
         | (model_field(base, MODEL_TINT_HIGH_WORD, MODEL_TINT_HIGH_SHIFT, MODEL_TINT_HIGH_BITS)

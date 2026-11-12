@@ -30,7 +30,7 @@ pub(super) fn init_heat(
     asset_server: Res<AssetServer>,
     pipeline_cache: Res<PipelineCache>,
 ) {
-    let Some(terrain) = terrain else {
+    let Some(args) = terrain.as_deref().and_then(Terrain::draw_args) else {
         return;
     };
     let workgroups = workgroups
@@ -43,7 +43,7 @@ pub(super) fn init_heat(
     let bind = device.create_bind_group(
         "gpu heat",
         &pipeline_cache.get_bind_group_layout(&layout),
-        &BindGroupEntries::single(terrain.draw_args().as_entire_buffer_binding()),
+        &BindGroupEntries::single(args.as_entire_buffer_binding()),
     );
     let pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
         label: Some("gpu heat".into()),

@@ -516,14 +516,32 @@ lost. The client meshes it in 160 s either way.
 
 ## Web
 
-Not measurable yet. `scripts/build-web.sh` produces a 40 MB single-file bundle that Chrome runs
-over WebGPU (`http://localhost:<port>/mcrs.html?stats=3`) and it draws the sky, but the start-up
-blocks the page's main thread: on the first load 87 s passed between the adapter log and the
-first asset log, the stats line was written for four frames reading zero everywhere, and after a
-reload the page answered nothing for more than eight minutes. The render world's start-up
-schedule also logged itself once per frame in those four frames, which on native runs once.
-Until the browser build reaches a steady frame there is no floor to state for it; the numbers
-that will count there are the CPU stages and the GPU pass timestamps, never the FPS line.
+`scripts/build-web.sh` writes `mcrs.html`, which Chrome runs over WebGPU, and with
+`BACKEND=webgl2` `mcrs-webgl2.html`, which the WebGPU page sends a browser to when it has no
+WebGPU adapter. Both join a server through `?server=<url>&cert=<hash>`, which it logs at start.
+
+Not measured on WebGPU yet: on an earlier build the start-up blocked the page's main thread (87 s
+between the adapter log and the first asset log on the first load, nothing for more than eight
+minutes after a reload, and the render world's start-up schedule logged once per frame), and the
+numbers that will count there are the CPU stages and the GPU pass timestamps, never the FPS line.
+
+### WebGL2
+
+Chrome on an Apple M3 Pro, ANGLE over Metal (`WebGL 2.0 (OpenGL ES 3.0 Chromium)`), terrain on
+the minimal path, joined over WebTransport to a server on the same machine, radius 4 (121
+columns, 908 of 1131 sections meshed, seven terrain draws a frame), 2412x2664 physical pixels.
+Four stats lines two seconds apart (`?stats=2`); a range is over the four.
+
+| figure | median | p99 |
+|---|---|---|
+| frame | 13.2 to 13.3 ms (74 fps) | 14.2 to 15.3 ms |
+| engine (frame without the acquire) | 12.9 to 13.1 ms | 14.0 to 14.6 ms |
+| CPU main | 12.2 to 12.7 ms | 13.1 to 13.6 ms |
+| CPU extract, prepare, render | 0.1 to 0.2, 0.2 to 0.4, 0.3 to 0.6 ms | |
+
+The frame is held at the display's interval, so it says the page keeps up at this radius and not
+what a frame costs. The device times no pass, so there is no GPU figure, and the minimal path
+culls nothing: every resident group is an instance of every frame.
 
 ## Hardening
 
@@ -889,6 +907,47 @@ Before is the commit of the surface levels above.
 Not done: a height probe still settles every block of its column, where a descent from the top
 could stop at the first block the heightmap takes. After this change the fluid field and the
 blocks are 30 to 143 us of a probe that costs 72 to 386 us.
+
+## Fills in groups
+
+A worker keeps the lattice planes and the surface levels of the columns it filled, for the
+columns beside them. The pool took one task for each fill, so a column rarely reached the
+worker that filled its neighbours. Scenario: a client with its integrated server, seed 12345,
+view distance 32, 12 pool threads, read at the 7000th fill with temporary counters that are not
+in the tree.
+
+| fills in one task | fills that borrow both planes | surface samples per fill | time to 7000 fills | the fill stage, per column |
+|---|---|---|---|---|
+| one column | 2.6% | 132 | 17.2 s | 25.2 ms |
+| the owed columns of a 2 x 2 square | 29.7% | 74 | 14.1 s | 20.9 ms |
+| the owed columns of a 4 x 4 square | 54.4% | 46 | 12.0 s | 17.4 ms |
+
+What a square can give at most, from `generate_column` on one thread over 256 columns of the
+overworld router at seed 845, in squares 40 chunks apart and row by row inside a square:
+
+| square | per column |
+|---|---|
+| 1 x 1 | 5.18 ms |
+| 2 x 2 | 4.05 ms |
+| 4 x 4 | 3.33 ms |
+| 8 x 8 | 3.09 ms |
+| 16 x 16 | 2.80 ms |
+
+The dispatcher now hands the owed fills of a 4 x 4 square to the pool as one task, west to east
+and north to south. A fill that a pass dispatches takes the other owed columns of its square
+with it: on a busy pool a pass has room for a few columns, and a first version that grouped
+only the fills of one pass left the planes at 3.0% and the time at 18.1 s. A square of 8 x 8
+is not measured on the server; on one thread it gives 7% over 4 x 4, and a task of 64 fills
+holds its worker for 64 columns.
+
+A group fills its columns one after the other, so its last column waits for the rest. While the
+pool has a thread for every fill of a pass, each fill stays a task of its own.
+
+The fill stage takes three to five times longer per column on the server than the fill does
+on one thread. That is not looked into here.
+
+Machine: AMD Ryzen AI 9 HX 370, 24 logical CPUs, the cores at their full frequency, release
+profile. One run for each row of the first table.
 
 ## Server start
 

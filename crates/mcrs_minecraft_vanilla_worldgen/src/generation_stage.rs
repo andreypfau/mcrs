@@ -63,12 +63,11 @@ pub(crate) enum StageResult {
 /// Concurrency limits of a dimension's generation stage.
 #[derive(Clone, Debug)]
 pub(crate) struct SchedulerConfig {
-    /// Maximum number of concurrent stage tasks. A column's fill and the run
-    /// and merge of each of its rungs all share this budget, so it bounds the
-    /// pool, not the column count.
+    /// Maximum number of concurrent stages, the fills, runs and merges together. A fill that
+    /// takes the owed columns of its square with it goes past this by less than one square.
     pub(crate) max_in_flight: usize,
-    /// Maximum stages one dispatch pass hands to the pool. A pass runs in each step of the
-    /// generation stage.
+    /// Maximum stages one dispatch pass hands to the pool, the columns a fill takes with it
+    /// not counted. A pass runs in each step of the generation stage.
     pub(crate) max_dispatch_per_pass: usize,
     /// Number of threads in the chunk generation thread pool.
     pub(crate) num_threads: usize,
@@ -102,7 +101,8 @@ pub(crate) struct GenerationStage {
     /// The section rows of the dimension, which a generated column carries.
     rows: Range<i32>,
     pub(crate) priority_index: FxHashMap<ColumnPos, ColumnKey>,
-    pub(crate) in_flight: InFlight<InFlightStage, Task<()>>,
+    /// A fill shares its pool task with the fills of its group, and one of them holds it.
+    pub(crate) in_flight: InFlight<InFlightStage, Option<Task<()>>>,
     /// Columns whose stage changed since the last dispatch: they and their 3×3 may owe a
     /// stage now.
     pub(crate) touched: Vec<ColumnPos>,

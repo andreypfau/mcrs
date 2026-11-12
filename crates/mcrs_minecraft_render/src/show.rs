@@ -1,11 +1,12 @@
 use bevy::core_pipeline::FullscreenShader;
 use bevy::prelude::*;
-use bevy::render::render_resource::binding_types::{texture_2d, texture_depth_2d};
+use bevy::render::render_resource::binding_types::{sampler, texture_2d};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice};
 use bevy::render::view::{ExtractedView, ViewDepthStencilTexture, ViewTarget};
 use bevy::shader::ShaderDefVal;
 
+use crate::gbuffer::nearest_sampler;
 use crate::pipeline::common;
 use crate::terrain::Terrain;
 
@@ -13,8 +14,10 @@ use crate::terrain::Terrain;
 #[derive(Resource)]
 pub struct DepthDisplay {
     shader: Handle<Shader>,
-    depth_layout: BindGroupLayoutDescriptor,
-    pyramid_layout: BindGroupLayoutDescriptor,
+    /// The view depth and the pyramid level alike, as a float texture, and the sampler that reads
+    /// the depth (`depth.wesl`).
+    layout: BindGroupLayoutDescriptor,
+    nearest: Sampler,
     depth: Option<CachedRenderPipelineId>,
     pyramid: Option<CachedRenderPipelineId>,
 }
@@ -34,27 +37,29 @@ impl DepthDisplay {
         cache: &PipelineCache,
         device: &RenderDevice,
     ) {
-        let (pipeline, layout, texture) = match source {
+        let (pipeline, texture) = match source {
+            DepthSource::Pyramid(terrain) => {
+                let Some(pyramid) = terrain.depth_pyramid() else {
+                    return;
+                };
+                (self.pyramid, pyramid.clone())
+            }
             DepthSource::Depth(depth) => (
                 self.depth,
-                &self.depth_layout,
                 depth.texture().create_view(&TextureViewDescriptor {
                     label: Some("show depth"),
                     aspect: TextureAspect::DepthOnly,
                     ..default()
                 }),
             ),
-            DepthSource::Pyramid(terrain) => {
-                (self.pyramid, &self.pyramid_layout, terrain.hiz.view.clone())
-            }
         };
         let Some(pipeline) = pipeline.and_then(|id| cache.get_render_pipeline(id)) else {
             return;
         };
         let bind_group = device.create_bind_group(
             "show depth",
-            &cache.get_bind_group_layout(layout),
-            &BindGroupEntries::single(&texture),
+            &cache.get_bind_group_layout(&self.layout),
+            &BindGroupEntries::sequential((&texture, &self.nearest)),
         );
         let color_attachments = [Some(target.get_color_attachment())];
         let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
@@ -71,20 +76,24 @@ impl DepthDisplay {
     }
 }
 
-pub(crate) fn init_depth_display(mut commands: Commands, asset_server: Res<AssetServer>) {
+pub(crate) fn init_depth_display(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    device: Res<RenderDevice>,
+) {
     commands.insert_resource(DepthDisplay {
         shader: asset_server.load("embedded://mcrs_minecraft_render/shaders/core/show.wesl"),
-        depth_layout: BindGroupLayoutDescriptor::new(
+        layout: BindGroupLayoutDescriptor::new(
             "show depth",
-            &BindGroupLayoutEntries::single(ShaderStages::FRAGMENT, texture_depth_2d()),
-        ),
-        pyramid_layout: BindGroupLayoutDescriptor::new(
-            "show depth pyramid",
-            &BindGroupLayoutEntries::single(
+            &BindGroupLayoutEntries::sequential(
                 ShaderStages::FRAGMENT,
-                texture_2d(TextureSampleType::Float { filterable: false }),
+                (
+                    texture_2d(TextureSampleType::Float { filterable: false }),
+                    sampler(SamplerBindingType::NonFiltering),
+                ),
             ),
         ),
+        nearest: nearest_sampler(&device),
         depth: None,
         pyramid: None,
     });
@@ -102,12 +111,12 @@ pub(crate) fn prepare_depth_display(
     let Some(view) = views.iter().next() else {
         return;
     };
-    let queue = |label: &str, layout: &BindGroupLayoutDescriptor, defs: Vec<ShaderDefVal>| {
+    let queue = |label: &str, defs: Vec<ShaderDefVal>| {
         let mut descriptor = RenderPipelineDescriptor {
             vertex: fullscreen.to_vertex_state(),
             ..common(
                 label.into(),
-                vec![layout.clone()],
+                vec![display.layout.clone()],
                 &display.shader,
                 String::new(),
                 "show".into(),
@@ -120,12 +129,8 @@ pub(crate) fn prepare_depth_display(
         }
         cache.queue_render_pipeline(descriptor)
     };
-    let depth = queue("show depth", &display.depth_layout, Vec::new());
-    let pyramid = queue(
-        "show depth pyramid",
-        &display.pyramid_layout,
-        vec!["PYRAMID".into()],
-    );
+    let depth = queue("show depth", Vec::new());
+    let pyramid = queue("show depth pyramid", vec!["PYRAMID".into()]);
     display.depth = Some(depth);
     display.pyramid = Some(pyramid);
 }

@@ -4,45 +4,59 @@ use bevy::render::renderer::RenderDevice;
 use mcrs_minecraft_mesh::Group;
 use mcrs_minecraft_mesh::pack::QUAD_WORDS;
 
+use super::render_path::RenderPath;
 use super::upload::{Pending, Placement};
-use super::{Budget, SECTION_BYTES, VISIBLE_BYTES};
+use super::words::Words;
+use super::{Budget, SECTION_BYTES};
 
-/// Entries the visible list starts at, and the granularity it grows in.
-const VISIBLE_STEP: usize = 1 << 20;
-
-/// Room left above what a growth was asked for, so a list that creeps up by a
+/// Room left above what a growth was asked for, so an arena that creeps up by a
 /// group at a time is not reallocated every frame. Rounding to the next power
 /// of two would leave up to twice the entries unused, and at a full render
 /// distance one entry over sixty-seven million costs another half gigabyte.
-const VISIBLE_HEADROOM: usize = 4;
+pub(super) const HEADROOM: usize = 4;
 
 /// Bytes a geometry arena starts at, and the granularity it grows in. The allocator packs blocks
-/// towards offset zero, so what is written stays near what is resident and the buffer only
+/// towards offset zero, so what is written stays near what is resident and the arena only
 /// has to reach the highest byte a placement touches, not the budget the allocator may use.
 const GEOMETRY_STEP: u64 = 16 << 20;
 
 pub(super) struct Geometry {
-    pub buffer: Buffer,
+    pub words: Words,
     label: &'static str,
     limit: u64,
 }
 
 impl Geometry {
-    fn new(label: &'static str, limit: u64, device: &RenderDevice) -> Self {
+    /// An arena of words a shader reads by index.
+    pub fn words(path: RenderPath, label: &'static str, limit: u64, device: &RenderDevice) -> Self {
         Self {
-            buffer: geometry_buffer(label, GEOMETRY_STEP.min(limit), device),
+            words: Words::new(path, label, GEOMETRY_STEP.min(limit), device),
             label,
             limit,
         }
     }
 
-    /// Grows the buffer to hold `end` bytes, carrying what it held across with a copy recorded
+    /// An arena of records bound as `usage`, a buffer on either path.
+    pub fn records(
+        label: &'static str,
+        limit: u64,
+        usage: BufferUsages,
+        device: &RenderDevice,
+    ) -> Self {
+        Self {
+            words: Words::records(label, GEOMETRY_STEP.min(limit), usage, device),
+            label,
+            limit,
+        }
+    }
+
+    /// Grows the arena to hold `end` bytes, carrying what it held across with a copy recorded
     /// ahead of the writes that follow in the same encoder, and answers whether it had to.
-    fn fit(&mut self, end: u64, device: &RenderDevice, encoder: &mut CommandEncoder) -> bool {
-        if end <= self.buffer.size() {
+    pub fn fit(&mut self, end: u64, device: &RenderDevice, encoder: &mut CommandEncoder) -> bool {
+        if end <= self.words.bytes() {
             return false;
         }
-        let size = (end + end / VISIBLE_HEADROOM as u64)
+        let size = (end + end / HEADROOM as u64)
             .next_multiple_of(GEOMETRY_STEP)
             .min(self.limit.max(end));
         bevy::log::info!(
@@ -50,113 +64,68 @@ impl Geometry {
             mb = size >> 20,
             "growing a terrain arena"
         );
-        let grown = geometry_buffer(self.label, size, device);
-        encoder.copy_buffer_to_buffer(&self.buffer, 0, &grown, 0, self.buffer.size());
-        self.buffer = grown;
+        self.words = self.words.grown(self.label, size, device, encoder);
         true
     }
 }
 
-pub(super) struct Rebind {
-    pub draw: bool,
-    pub cull: bool,
+/// Which arenas a placement made grow, and so which bind groups name an array that was replaced.
+pub(super) struct Grown {
+    /// The quads, the model vertices or the faces, which the draw and the quad cull read.
+    pub geometry: bool,
+    pub groups: bool,
 }
 
-fn batch_bytes(groups: usize) -> u64 {
-    (groups.div_ceil(super::pass::CULL_THREADS as usize) * 4) as u64
-}
-
-fn candidate_bytes(groups: usize) -> u64 {
-    (groups * 12) as u64
-}
-
-fn geometry_buffer(label: &str, size: u64, device: &RenderDevice) -> Buffer {
-    device.create_buffer(&BufferDescriptor {
-        label: Some(label),
-        size: size.next_multiple_of(COPY_BUFFER_ALIGNMENT),
-        usage: BufferUsages::STORAGE | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
-        mapped_at_creation: false,
-    })
-}
-
+/// The geometry both paths draw from. The words reach a shader by index; the group records are a
+/// storage buffer the cull reads on the full path and the instances of a draw on the minimal one.
 pub(super) struct Arenas {
     pub quads: Geometry,
     pub vertices: Geometry,
     pub faces: Geometry,
     pub groups: Geometry,
-    pub sections: Buffer,
-    pub visible: Buffer,
-    /// One count per batch of `CULL_THREADS` groups, which the ordered cull turns into where
-    /// each batch's survivors start.
-    pub batches: Geometry,
-    /// Three words per group: the quads the first cull pass left to the second, a place in the
-    /// list of groups a pass's group cull kept, and one in the list of groups the first pass left
-    /// quads of.
-    pub candidates: Geometry,
+    pub sections: Words,
     pub pending: Option<Pending>,
 }
 
-fn arena(label: &str, bytes: u64, device: &RenderDevice) -> Buffer {
-    device.create_buffer(&BufferDescriptor {
-        label: Some(label),
-        size: bytes.max(size_of::<[u32; QUAD_WORDS]>() as u64),
-        usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
-        mapped_at_creation: false,
-    })
-}
-
-fn visible_list(entries: usize, device: &RenderDevice) -> Buffer {
-    arena(
-        "terrain visible list",
-        (entries * VISIBLE_BYTES) as u64,
-        device,
-    )
-}
-
 impl Arenas {
-    pub fn new(budget: &Budget, device: &RenderDevice) -> Self {
-        let arena = |label, bytes| arena(label, bytes, device);
+    pub fn new(path: RenderPath, budget: &Budget, device: &RenderDevice) -> Self {
+        let words = |label, limit: usize| Geometry::words(path, label, limit as u64, device);
+        let records = match path {
+            RenderPath::Full => BufferUsages::STORAGE,
+            RenderPath::Minimal => BufferUsages::VERTEX,
+        };
         Self {
-            quads: Geometry::new(
-                "terrain quads",
-                (budget.quads * QUAD_WORDS * 4) as u64,
-                device,
-            ),
-            vertices: Geometry::new(
-                "terrain vertices",
-                (budget.models * super::MODEL_BYTES) as u64,
-                device,
-            ),
-            faces: Geometry::new(
-                "terrain faces",
-                (budget.faces * super::FACE_BYTES) as u64,
-                device,
-            ),
-            groups: Geometry::new(
+            quads: words("terrain quads", budget.quads * QUAD_WORDS * 4),
+            vertices: words("terrain vertices", budget.models * super::MODEL_BYTES),
+            faces: words("terrain faces", budget.faces * super::FACE_BYTES),
+            groups: Geometry::records(
                 "terrain groups",
                 (budget.groups * size_of::<Group>()) as u64,
+                records,
                 device,
             ),
-            sections: arena("terrain sections", (budget.sections * SECTION_BYTES) as u64),
-            visible: visible_list(VISIBLE_STEP, device),
-            batches: Geometry::new("terrain cull batches", batch_bytes(budget.groups), device),
-            candidates: Geometry::new(
-                "terrain cull candidates",
-                candidate_bytes(budget.groups),
+            sections: Words::new(
+                path,
+                "terrain sections",
+                (budget.sections * SECTION_BYTES) as u64,
                 device,
             ),
             pending: None,
         }
     }
 
-    /// Grows the arenas to reach the end of each write in `placement`, answering which of the
-    /// draw and cull bind groups name a buffer that was replaced.
+    /// Records the group arena holds.
+    pub fn group_slots(&self) -> usize {
+        self.groups.words.bytes() as usize / size_of::<Group>()
+    }
+
+    /// Grows the arenas to reach the end of each write in `placement`.
     pub fn fit(
         &mut self,
         placement: &Placement,
         device: &RenderDevice,
         encoder: &mut CommandEncoder,
-    ) -> Rebind {
+    ) -> Grown {
         fn end<T>((offset, data): &(u64, Vec<T>)) -> u64 {
             offset + size_of_val(&data[..]) as u64
         }
@@ -169,36 +138,9 @@ impl Arenas {
             .map(|(offset, records)| offset + size_of_val(&records[..]) as u64)
             .max()
             .unwrap_or(0);
-        let mut cull = self.groups.fit(groups_end, device, encoder);
-        if cull {
-            let groups = self.groups.buffer.size() as usize / size_of::<Group>();
-            self.batches.fit(batch_bytes(groups), device, encoder);
-            self.candidates
-                .fit(candidate_bytes(groups), device, encoder);
-            cull = true;
+        Grown {
+            geometry: quads | vertices | faces,
+            groups: self.groups.fit(groups_end, device, encoder),
         }
-        Rebind {
-            draw: quads | vertices | faces,
-            cull,
-        }
-    }
-
-    /// Grows the visible list to hold `entries`, answering whether it had to —
-    /// a new buffer is a new binding, so the caller rebuilds the bind groups
-    /// that name it.
-    ///
-    /// The list is never shared out or clamped: a draw that does not fit would
-    /// lose quads by their place in the arena, which reads as terrain blinking
-    /// out rather than as a budget being spent.
-    pub fn grow_visible(&mut self, entries: usize, device: &RenderDevice) -> bool {
-        if (entries * VISIBLE_BYTES) as u64 <= self.visible.size() {
-            return false;
-        }
-        let entries = (entries + entries / VISIBLE_HEADROOM)
-            .next_multiple_of(VISIBLE_STEP)
-            .max(VISIBLE_STEP);
-        bevy::log::info!(entries, "growing the visible list");
-        self.visible = visible_list(entries, device);
-        true
     }
 }

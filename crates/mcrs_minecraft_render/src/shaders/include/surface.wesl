@@ -1,8 +1,8 @@
 import package::shaders::include::fields::{BIOME_TINTS, FIXED_TINTS};
 import package::shaders::include::frame::camera;
 import package::shaders::include::terrain_bindings::{
-    STILL, animations, atlas0, atlas1, atlas2, atlas3, atlas_sampler, sprites, tint_sampler,
-    tints,
+    STILL, animation_frame, atlas0, atlas1, atlas2, atlas3, atlas_sampler, sprite_entry,
+    tint_sampler, tints,
 };
 
 struct Surface {
@@ -27,12 +27,12 @@ fn sample_atlas(array: u32, uv: vec2<f32>, layer: u32, ddx: vec2<f32>, ddy: vec2
 }
 
 fn sprite_color(sprite: u32, uv: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> vec4<f32> {
-    let entry = sprites[sprite];
+    let entry = sprite_entry(sprite);
     let array = entry.array_layer >> 16u;
     if (entry.animation == STILL) {
         return sample_atlas(array, uv, entry.array_layer & 0xFFFFu, ddx, ddy);
     }
-    let frame = animations[entry.animation];
+    let frame = animation_frame(entry.animation);
     let color = sample_atlas(array, uv, frame.layer, ddx, ddy);
     if (frame.blend == 0.0) {
         return color;

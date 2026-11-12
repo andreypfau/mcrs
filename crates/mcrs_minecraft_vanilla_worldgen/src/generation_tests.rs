@@ -740,6 +740,52 @@ fn the_ladder_generates_the_filled_column(placement: Placement) {
     }
 }
 
+/// On a pool with no thread to spare, a pass with room for two fills starts the fill of every
+/// wanted column of their square, each once. With a thread for each fill, it starts the two.
+#[test]
+fn a_fill_on_a_busy_pool_takes_the_owed_columns_of_its_square() {
+    use mcrs_minecraft_worldgen_generator::tests::{bare_fill_context, build_beta_router};
+
+    CHUNK_TASK_POOL.get_or_init(|| TaskPoolBuilder::new().num_threads(4).build());
+    let ctx = bare_fill_context(Arc::new(build_beta_router()));
+    let square: Vec<ColumnPos> = (4..8)
+        .flat_map(|x| (-8..-4).map(move |z| ColumnPos::new(x, z)))
+        .collect();
+    for (num_threads, filling) in [(1, 16), (64, 2)] {
+        let mut end = InlineEnd::new(GenerationStage::new(
+            SchedulerConfig {
+                max_in_flight: 2,
+                max_dispatch_per_pass: 2,
+                num_threads,
+            },
+            all_rows(&ctx.y_sections),
+        ));
+        end.receive(GenerationInput::Context(Box::new(ctx.clone())));
+        for &col in &square {
+            end.receive(GenerationInput::Want(col));
+        }
+        // A wanted column outside the square stays where it is.
+        end.receive(GenerationInput::Want(ColumnPos::new(8, -8)));
+        assert_eq!(end.step().count(), 0, "no column is generated yet");
+
+        let mut started: Vec<(i32, i32)> = end
+            .stage()
+            .in_flight
+            .iter()
+            .map(|stage| (stage.col.x, stage.col.z))
+            .collect();
+        started.sort_unstable();
+        started.dedup();
+        let mut expected: Vec<(i32, i32)> = square.iter().map(|col| (col.x, col.z)).collect();
+        expected.sort_unstable();
+        assert_eq!(started.len(), filling, "{num_threads} threads");
+        assert!(
+            started.iter().all(|col| expected.contains(col)),
+            "{num_threads} threads: {started:?} are columns of the square"
+        );
+    }
+}
+
 #[test]
 fn a_column_that_left_every_view_is_abandoned() {
     let mut link = Link::new(

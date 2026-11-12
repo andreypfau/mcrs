@@ -102,7 +102,9 @@ pub(crate) fn prepare_entities(
     let Some(terrain) = terrain else {
         return;
     };
-    let pyramid = terrain.depth_pyramid();
+    let Some(pyramid) = terrain.depth_pyramid() else {
+        return;
+    };
     if let Some(library) = state.library.take() {
         let capacities = Capacities::for_cap(&library, FULL_RIG_CAP);
         let slots = state.pending.slot_capacity.max(1024);
