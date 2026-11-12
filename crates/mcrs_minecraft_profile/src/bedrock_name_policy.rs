@@ -79,15 +79,13 @@ impl BedrockNamePolicy {
         if !online.contains(&base) {
             return Ok(base);
         }
-        // One cut for every suffix keeps the candidates distinct, so one of
-        // online.len() + 1 of them is free.
-        let last = online.len() + 1;
-        let keep = max_length.saturating_sub(last.to_string().len());
-        if keep == 0 {
-            return Err(BedrockNameError::NoFreeName);
-        }
-        full.truncate(keep);
-        for suffix in 1..=last {
+        for suffix in 1..=usize::MAX {
+            let suffix = suffix.to_string();
+            let keep = max_length.saturating_sub(suffix.len());
+            if keep == 0 {
+                return Err(BedrockNameError::NoFreeName);
+            }
+            full.truncate(keep);
             let candidate = name(&format!("{full}{suffix}"))?;
             if !online.contains(&candidate) {
                 return Ok(candidate);
