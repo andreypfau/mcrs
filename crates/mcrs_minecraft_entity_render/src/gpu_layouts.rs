@@ -6,6 +6,42 @@ use wgpu::{
 
 use crate::frame_uniform::FrameUniform;
 
+/// The storage buffers of the compute layout by binding, each with whether it is read only.
+const COMPUTE_STORAGE: [(u32, bool); 22] = [
+    (1, false),
+    (2, false),
+    (3, false),
+    (4, true),
+    (5, true),
+    (6, true),
+    (8, true),
+    (9, true),
+    (10, true),
+    (11, false),
+    (12, false),
+    (13, false),
+    (14, false),
+    (15, false),
+    (17, true),
+    (19, true),
+    (20, true),
+    (21, false),
+    (22, true),
+    (23, true),
+    (24, false),
+    (25, true),
+];
+
+/// The storage buffers the vertex stage of the draw reads, by binding.
+const DRAW_STORAGE: [u32; 8] = [5, 8, 10, 11, 12, 13, 14, 19];
+
+/// Whether a device with `limits` binds every layout of the entity passes. A pipeline holds one of
+/// them at a time, so the widest decides.
+pub(crate) fn passes_fit(limits: &wgpu::Limits) -> bool {
+    let widest = COMPUTE_STORAGE.len().max(DRAW_STORAGE.len());
+    usize::try_from(limits.max_storage_buffers_per_shader_stage).is_ok_and(|limit| limit >= widest)
+}
+
 /// The bind group layouts of the entity passes.
 pub(crate) struct Layouts {
     /// The compute passes, with each buffer but the indirect arguments.
@@ -24,30 +60,7 @@ impl Layouts {
     pub(crate) fn new(device: &Device) -> Self {
         let compute = ShaderStages::COMPUTE;
         let mut compute_entries = vec![uniform_entry(0, compute)];
-        for (binding, read_only) in [
-            (1, false),
-            (2, false),
-            (3, false),
-            (4, true),
-            (5, true),
-            (6, true),
-            (8, true),
-            (9, true),
-            (10, true),
-            (11, false),
-            (12, false),
-            (13, false),
-            (14, false),
-            (15, false),
-            (17, true),
-            (19, true),
-            (20, true),
-            (21, false),
-            (22, true),
-            (23, true),
-            (24, false),
-            (25, true),
-        ] {
+        for (binding, read_only) in COMPUTE_STORAGE {
             compute_entries.push(storage_entry(binding, read_only, compute));
         }
         compute_entries.push(BindGroupLayoutEntry {
@@ -74,7 +87,7 @@ impl Layouts {
         });
         let vertex = ShaderStages::VERTEX;
         let mut draw_entries = vec![uniform_entry(0, ShaderStages::VERTEX_FRAGMENT)];
-        for binding in [5, 8, 10, 11, 12, 13, 14, 19] {
+        for binding in DRAW_STORAGE {
             draw_entries.push(storage_entry(binding, true, vertex));
         }
         let draw_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {

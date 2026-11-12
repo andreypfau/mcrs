@@ -1,9 +1,7 @@
 use std::num::NonZeroU64;
 
 use bevy::prelude::*;
-use bevy::render::render_resource::binding_types::{
-    texture_2d, texture_depth_2d, uniform_buffer_sized,
-};
+use bevy::render::render_resource::binding_types::{sampler, texture_2d, uniform_buffer_sized};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::view::ViewDepthStencilTexture;
@@ -29,8 +27,9 @@ pub(crate) fn gbuffer_layout() -> BindGroupLayoutDescriptor {
                 texture_2d(TextureSampleType::Float { filterable: false }),
                 texture_2d(TextureSampleType::Float { filterable: false }),
                 texture_2d(TextureSampleType::Float { filterable: false }),
-                texture_depth_2d(),
+                texture_2d(TextureSampleType::Float { filterable: false }),
                 uniform_buffer_sized(false, NonZeroU64::new(LIGHTING_UNIFORM_SIZE)),
+                sampler(SamplerBindingType::NonFiltering),
             ),
         ),
     )
@@ -43,6 +42,8 @@ pub struct DeferredFrame {
     /// Albedo and occlusion, normal and motion, then the light, in [`GBUFFER_FORMATS`].
     pub targets: [TextureView; 3],
     pub(crate) lighting: Buffer,
+    /// Reads the depth, which a shader samples rather than loads (`depth.wesl`).
+    nearest: Sampler,
     pub(crate) bind_group: BindGroup,
     size: UVec2,
     depth: TextureId,
@@ -53,10 +54,12 @@ impl DeferredFrame {
         let size = size_of(depth);
         let targets = targets(size, device);
         let lighting = uniform_buffer("deferred lighting", LIGHTING_UNIFORM_SIZE, device);
-        let bind_group = bind_group(&targets, &lighting, depth, device, cache);
+        let nearest = nearest_sampler(device);
+        let bind_group = bind_group(&targets, &lighting, &nearest, depth, device, cache);
         Self {
             targets,
             lighting,
+            nearest,
             bind_group,
             size,
             depth: depth.texture().id(),
@@ -77,7 +80,14 @@ impl DeferredFrame {
         }
         if rebuilt || self.depth != depth.texture().id() {
             self.depth = depth.texture().id();
-            self.bind_group = bind_group(&self.targets, &self.lighting, depth, device, cache);
+            self.bind_group = bind_group(
+                &self.targets,
+                &self.lighting,
+                &self.nearest,
+                depth,
+                device,
+                cache,
+            );
         }
     }
 }
@@ -107,9 +117,18 @@ fn targets(size: UVec2, device: &RenderDevice) -> [TextureView; 3] {
     })
 }
 
+/// Nearest in every direction, which is what a sampler reading depth has to be.
+pub(crate) fn nearest_sampler(device: &RenderDevice) -> Sampler {
+    device.create_sampler(&SamplerDescriptor {
+        label: Some("depth"),
+        ..SamplerDescriptor::default()
+    })
+}
+
 fn bind_group(
     targets: &[TextureView; 3],
     lighting: &Buffer,
+    nearest: &Sampler,
     depth: &ViewDepthStencilTexture,
     device: &RenderDevice,
     cache: &PipelineCache,
@@ -128,6 +147,7 @@ fn bind_group(
             &targets[2],
             &depth_view,
             lighting.as_entire_binding(),
+            nearest,
         )),
     )
 }

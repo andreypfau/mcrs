@@ -6,7 +6,6 @@ use super::layer::Shape;
 pub(super) struct Shaders {
     pub greedy: Handle<Shader>,
     pub model: Handle<Shader>,
-    pub cull: Handle<Shader>,
 }
 
 impl Shaders {
@@ -14,7 +13,6 @@ impl Shaders {
         Self {
             greedy: load(asset_server, "core/greedy.wesl"),
             model: load(asset_server, "core/model.wesl"),
-            cull: load(asset_server, "core/cull.wesl"),
         }
     }
 

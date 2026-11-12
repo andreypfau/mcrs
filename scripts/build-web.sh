@@ -4,13 +4,24 @@
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
-out=${1:-$root/target/bundle/mcrs.html}
 profile=${PROFILE:-web}
+# BACKEND=webgl2 builds the page for a browser without WebGPU, which the WebGPU page sends such
+# a browser to when the two are served side by side.
+backend=${BACKEND:-webgpu}
+case $backend in
+webgpu) page=mcrs.html ;;
+webgl2) page=mcrs-webgl2.html ;;
+*)
+    echo "BACKEND is webgpu or webgl2, not $backend" >&2
+    exit 2
+    ;;
+esac
+out=${1:-$root/target/bundle/$page}
 work=$root/target/bundle/bindgen
 
 cargo build --manifest-path "$root/Cargo.toml" \
     --config 'resolver.feature-unification="selected"' \
-    -p mcrs_minecraft_client --bin mcrs_minecraft_client \
+    -p mcrs_minecraft_client --bin mcrs_minecraft_client --features "$backend" \
     --target wasm32-unknown-unknown --profile "$profile"
 
 case $profile in
@@ -42,7 +53,7 @@ else
 fi
 
 mkdir -p "$(dirname "$out")"
-GLUE=$work/mcrs.js WASM=$work/mcrs_bg.wasm OUT=$out python3 - <<'PY'
+GLUE=$work/mcrs.js WASM=$work/mcrs_bg.wasm OUT=$out BACKEND=$backend python3 - <<'PY'
 import base64, os
 
 glue = open(os.environ["GLUE"], encoding="utf-8").read()
@@ -69,15 +80,15 @@ html = """<!doctype html>
 <div id="boot">downloading…</div>
 <canvas id="mcrs"></canvas>
 <div id="perf" hidden></div>
-<script>@@GLUE@@</script>
+@@BACKEND@@<script>@@GLUE@@</script>
 <script type="application/wasm" id="wasm">@@WASM@@</script>
 <script>
   // Base64 kept out of a JS string literal: V8 scanning a 44 MB literal costs about a second.
   const base64 = document.getElementById("wasm").textContent;
   document.getElementById("boot").textContent = "starting…";
-  wasm_bindgen({ module_or_path: Uint8Array.fromBase64
+  usable.then(ok => ok && wasm_bindgen({ module_or_path: Uint8Array.fromBase64
       ? Uint8Array.fromBase64(base64)
-      : fetch("data:application/wasm;base64," + base64) })
+      : fetch("data:application/wasm;base64," + base64) }))
     .then(() => document.getElementById("boot").remove())
     .catch(err => {
       // winit unwinds out of its event loop on wasm; that is not a failure.
@@ -154,7 +165,16 @@ html = """<!doctype html>
   }
 </script>
 """
-html = html.replace("@@GLUE@@", glue).replace("@@WASM@@", wasm)
+# Whether the page can start. A browser without WebGPU, or whose WebGPU hands out no adapter,
+# goes to the WebGL2 page instead.
+backend = """<script>
+  const usable = navigator.gpu
+    ? navigator.gpu.requestAdapter().then(adapter => adapter !== null, () => false)
+    : Promise.resolve(false);
+  usable.then(ok => ok || location.replace("mcrs-webgl2.html" + location.search + location.hash));
+</script>
+""" if os.environ["BACKEND"] == "webgpu" else "<script>const usable = Promise.resolve(true);</script>\n"
+html = html.replace("@@BACKEND@@", backend).replace("@@GLUE@@", glue).replace("@@WASM@@", wasm)
 
 open(os.environ["OUT"], "w", encoding="utf-8").write(html)
 print(os.environ["OUT"], round(len(html) / 1e6, 1), "MB")

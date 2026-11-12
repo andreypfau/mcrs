@@ -1,5 +1,6 @@
 import bevy_core_pipeline::fullscreen_vertex_shader::FullscreenVertexOutput;
 import package::shaders::include::deferred::{octahedral_decode, shade};
+import package::shaders::include::depth::depth_at;
 import package::shaders::include::finish::to_target;
 @if(LIGHT_TINT) import mcrs_minecraft_light_render::shaders::volume::{shade_tinted, volume_tint};
 
@@ -11,8 +12,11 @@ struct Reconstruction {
 @group(2) @binding(0) var albedo_ao: texture_2d<f32>;
 @group(2) @binding(1) var normal_motion: texture_2d<f32>;
 @group(2) @binding(2) var light: texture_2d<f32>;
-@group(2) @binding(3) var depth: texture_depth_2d;
+// Read as a float texture rather than a depth one: GLSL, which WebGL2 speaks, loads no texel
+// of a depth texture.
+@group(2) @binding(3) var depth: texture_2d<f32>;
 @group(2) @binding(4) var<uniform> reconstruction: Reconstruction;
+@group(2) @binding(5) var nearest: sampler;
 
 /// Against the origin of the camera's section, as terrain is drawn.
 fn relative_position(pixel: vec2<i32>, depth: f32) -> vec3<f32> {
@@ -25,7 +29,7 @@ fn relative_position(pixel: vec2<i32>, depth: f32) -> vec3<f32> {
 @fragment
 fn lighting(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let pixel = vec2<i32>(in.position.xy);
-    let d = textureLoad(depth, pixel, 0);
+    let d = depth_at(depth, nearest, pixel);
     if (d == 0.0) {
         discard;
     }

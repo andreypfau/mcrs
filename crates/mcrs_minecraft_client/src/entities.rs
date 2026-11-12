@@ -17,7 +17,9 @@ impl Plugin for ClientEntityRenderPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(EntityRenderPlugin).add_systems(
             Update,
-            build_entity_assets.run_if(resource_exists::<CurrentRegistries>),
+            build_entity_assets
+                .run_if(resource_exists::<CurrentRegistries>)
+                .run_if(mcrs_minecraft_entity_render::entity_passes),
         );
     }
 }

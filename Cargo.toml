@@ -85,6 +85,7 @@ bytemuck = "1"
 futures-lite = "2"
 naga = "30"
 wgpu = "30"
+wesl = "0.6"
 
 mcrs_minecraft_wire = { path = "crates/mcrs_minecraft_wire" }
 mcrs_minecraft_wire_macros = { path = "crates/mcrs_minecraft_wire_macros" }

@@ -7,7 +7,7 @@ use bevy::mesh::VertexBufferLayout;
 use bevy::prelude::*;
 use bevy::render::camera::ExtractedCamera;
 use bevy::render::render_resource::binding_types::{
-    sampler, storage_buffer_read_only_sized, texture_2d, texture_2d_array, uniform_buffer_sized,
+    sampler, texture_2d, texture_2d_array, uniform_buffer_sized,
 };
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
@@ -15,7 +15,7 @@ use bevy::render::view::{ExtractedView, ViewDepthStencilTexture, ViewTarget};
 use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 use bevy::shader::Shader;
 use mcrs_minecraft_render::{
-    DEPTH_COMPARE, Terrain, WorldPass, pipeline_descriptor, uniform_buffer,
+    DEPTH_COMPARE, RenderPath, Terrain, Words, WorldPass, pipeline_descriptor, uniform_buffer,
 };
 
 use crate::scene::{GLINT_ALPHA, GuiAtlas, GuiBatch};
@@ -24,7 +24,7 @@ pub struct GuiItemsPlugin;
 
 impl Plugin for GuiItemsPlugin {
     fn build(&self, app: &mut App) {
-        bevy::asset::embedded_asset!(app, "gui_items.wgsl");
+        bevy::asset::embedded_asset!(app, "gui_items.wesl");
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
@@ -81,6 +81,7 @@ pub(super) fn init_gui_pass(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     device: Res<RenderDevice>,
+    path: Res<RenderPath>,
 ) {
     commands.insert_resource(GuiPass {
         layout: BindGroupLayoutDescriptor::new(
@@ -94,15 +95,15 @@ pub(super) fn init_gui_pass(
                     texture_2d_array(TextureSampleType::Float { filterable: true }),
                     texture_2d_array(TextureSampleType::Float { filterable: true }),
                     sampler(SamplerBindingType::Filtering),
-                    storage_buffer_read_only_sized(false, None),
-                    storage_buffer_read_only_sized(false, None),
+                    Words::layout(*path),
+                    Words::layout(*path),
                     texture_2d(TextureSampleType::Float { filterable: true }),
                     texture_2d(TextureSampleType::Float { filterable: true }),
                     sampler(SamplerBindingType::Filtering),
                 ),
             ),
         ),
-        shader: asset_server.load("embedded://mcrs_minecraft_client_gui/gui_items.wgsl"),
+        shader: asset_server.load("embedded://mcrs_minecraft_client_gui/gui_items.wesl"),
         uniform: uniform_buffer("gui items", size_of::<GuiUniform>() as u64, &device),
         vertices: None,
         pipelines: None,
@@ -208,6 +209,10 @@ pub(super) fn prepare_gui_pass(
                 view,
                 Some(BlendState::ALPHA_BLENDING),
             );
+            descriptor.vertex.shader_defs = terrain.path().shader_defs();
+            if let Some(fragment) = descriptor.fragment.as_mut() {
+                fragment.shader_defs = terrain.path().shader_defs();
+            }
             descriptor.vertex.buffers = vec![VertexBufferLayout::from_vertex_formats(
                 VertexStepMode::Vertex,
                 [
@@ -262,8 +267,8 @@ pub(super) fn prepare_gui_pass(
                 &sprites.atlases[2].view,
                 &sprites.atlases[3].view,
                 &sprites.atlas_sampler,
-                sprites.frames.as_entire_buffer_binding(),
-                sprites.table.as_entire_buffer_binding(),
+                sprites.frames.binding(),
+                sprites.table.binding(),
                 &textures.atlas_view,
                 &textures.glint_view,
                 &textures.glint_sampler,

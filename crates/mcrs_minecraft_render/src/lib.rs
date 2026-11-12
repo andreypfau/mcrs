@@ -4,6 +4,7 @@
 
 mod arenas;
 mod binds;
+mod cull;
 mod draws;
 mod frame;
 mod frame_view;
@@ -13,6 +14,7 @@ mod layer;
 mod pass;
 mod pipeline;
 mod reconstruct;
+mod render_path;
 mod shaders;
 mod shared_wgsl;
 mod show;
@@ -24,6 +26,7 @@ mod texture;
 mod timestamps;
 mod upload;
 mod views;
+mod words;
 
 use std::sync::Arc;
 
@@ -37,7 +40,10 @@ use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::render::render_resource::{
     BindGroup, BindGroupLayoutDescriptor, CompareFunction, TextureFormat,
 };
+use bevy::render::renderer::{RenderAdapter, RenderDevice};
 use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
+
+use render_path::full_path;
 
 use mcrs_minecraft_mesh::STREAMS;
 
@@ -47,6 +53,7 @@ pub use gbuffer::{DeferredFrame, GBUFFER_FORMATS};
 pub use layer::{LayerGroup, Shape};
 pub use pass::draw_layer_group;
 pub use pipeline::{TERRAIN_PIPELINES, stream_slot, terrain_slot};
+pub use render_path::RenderPath;
 pub use shared_wgsl::{GBUFFER_ENCODE_WGSL, VISIBILITY_WGSL};
 pub use show::{DepthDisplay, DepthSource};
 pub use stats::{DrawArgs, FrameCounts, VERTICES_PER_QUAD, args_reset};
@@ -54,6 +61,7 @@ pub use terrain::Terrain;
 pub use timestamps::{PassSlot, PassTimestamps};
 pub use upload::{Placement, Upload, Uploads};
 pub use views::{DebugView, DebugViews, SelectedView};
+pub use words::Words;
 
 pub use frame::uniform as uniform_buffer;
 pub use pipeline::common as pipeline_descriptor;
@@ -67,7 +75,7 @@ pub const QUAD_BYTES: usize = mcrs_minecraft_mesh::pack::QUAD_WORDS * 4;
 pub const MODEL_BYTES: usize = 4 * 3 * 4;
 pub const FACE_BYTES: usize = mcrs_minecraft_mesh::pack::FACE_WORDS * 4;
 pub(crate) const SECTION_BYTES: usize = size_of::<SectionDesc>();
-const VISIBLE_BYTES: usize = 8;
+pub(crate) const VISIBLE_BYTES: usize = 8;
 
 pub struct Budget {
     pub quads: usize,
@@ -201,6 +209,7 @@ struct TerrainBudget(Arc<Budget>);
 fn embed_shaders(app: &mut App) {
     use bevy::shader::load_shader_library;
     load_shader_library!(app, "shaders/include/fields.wesl");
+    load_shader_library!(app, "shaders/include/words.wesl");
     load_shader_library!(app, "shaders/include/section.wesl");
     load_shader_library!(app, "shaders/include/frame.wesl");
     load_shader_library!(app, "shaders/include/sky.wesl");
@@ -210,6 +219,7 @@ fn embed_shaders(app: &mut App) {
     load_shader_library!(app, "shaders/include/surface.wesl");
     load_shader_library!(app, "shaders/include/finish.wesl");
     load_shader_library!(app, "shaders/include/gbuffer_encode.wesl");
+    load_shader_library!(app, "shaders/include/depth.wesl");
     load_shader_library!(app, "shaders/include/visibility.wesl");
     load_shader_library!(app, "shaders/include/deferred.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/greedy.wesl");
@@ -320,16 +330,19 @@ impl Plugin for TerrainPlugin {
                     pass::upload_frame.in_set(WorldPass::Upload),
                     pass::cull_frame
                         .in_set(WorldPass::Cull)
-                        .run_if(pipeline::frame_ready),
+                        .run_if(pipeline::frame_ready)
+                        .run_if(full_path),
                     pass::draw_gbuffer
                         .in_set(WorldPass::Opaque)
                         .run_if(pipeline::frame_ready),
                     pass::build_occlusion
                         .in_set(WorldPass::Occlusion)
-                        .run_if(pipeline::frame_ready),
+                        .run_if(pipeline::frame_ready)
+                        .run_if(full_path),
                     pass::draw_gbuffer_second
                         .in_set(WorldPass::OpaqueSecond)
-                        .run_if(pipeline::frame_ready),
+                        .run_if(pipeline::frame_ready)
+                        .run_if(full_path),
                     pass::draw_lighting
                         .in_set(WorldPass::Lighting)
                         .run_if(pipeline::frame_ready),
@@ -351,11 +364,25 @@ impl Plugin for TerrainPlugin {
     }
 
     fn finish(&self, app: &mut App) {
-        let occlusion = app.world().resource::<Occlusion>().0;
+        let world = app.world();
+        let path = match (
+            world.get_resource::<RenderDevice>(),
+            world.get_resource::<RenderAdapter>(),
+        ) {
+            (Some(device), Some(adapter)) => RenderPath::of(device, adapter),
+            _ => {
+                warn!(
+                    "the terrain plugin finished before the renderer: drawing on the minimal path"
+                );
+                RenderPath::Minimal
+            }
+        };
+        let occlusion = world.resource::<Occlusion>().0 && path.is_full();
+        app.insert_resource(path);
         let mut views = app.world_mut().resource_mut::<DebugViews>();
         let deferred = views::DeferredViews::register(&mut views, occlusion);
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
-            render_app.insert_resource(deferred);
+            render_app.insert_resource(path).insert_resource(deferred);
         }
     }
 }
