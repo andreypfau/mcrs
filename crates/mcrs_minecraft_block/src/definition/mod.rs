@@ -363,7 +363,10 @@ impl BlockDefinitions {
             .iter()
             .map(|s| size_of::<Box<[Aabb]>>() + s.len() * size_of::<Aabb>())
             .sum();
-        states + shapes
+        let support = (self.filter_of.capacity() + self.support_of.capacity())
+            * size_of::<(BlockStateId, u32)>()
+            + self.filters.capacity() * size_of::<PlacementFilter>();
+        states + shapes + support
     }
 }
 

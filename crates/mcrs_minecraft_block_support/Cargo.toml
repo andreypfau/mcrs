@@ -11,12 +11,16 @@ doctest = false
 workspace = true
 
 [dependencies]
+bevy_ecs = { workspace = true, optional = true }
 fixedbitset.workspace = true
 mcrs_minecraft_block.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_resource.workspace = true
 mcrs_voxel.workspace = true
+
+[features]
+bevy = ["dep:bevy_ecs"]
 
 [dev-dependencies]
 glam.workspace = true

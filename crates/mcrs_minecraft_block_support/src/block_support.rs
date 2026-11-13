@@ -5,7 +5,6 @@ use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::placement_filter::{
     FaceShape, PlacementCondition, PlacementRule, StateMatch, SupportPredicate, ValueMatch,
 };
-use mcrs_minecraft_block::definition::schema::PropertyValue;
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry, BlockStateFlags};
 use mcrs_minecraft_block::fluid_keys::Fluid;
 use mcrs_minecraft_core::Direction;
@@ -18,6 +17,7 @@ use crate::face_test;
 
 /// The support of each block state, baked from the block definitions and the tags of a data pack.
 #[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "bevy", derive(bevy_ecs::resource::Resource))]
 pub struct BlockSupport {
     subjects: Box<[Option<Subject>]>,
     programs: Vec<Program>,
@@ -67,6 +67,7 @@ pub enum Missing {
     Block(ResourceLocationBuf),
     BlockTag(ResourceLocationBuf),
     Fluid(ResourceLocationBuf),
+    FluidTag(ResourceLocationBuf),
 }
 
 impl fmt::Display for SupportIssue {
@@ -75,6 +76,7 @@ impl fmt::Display for SupportIssue {
             Missing::Block(name) => ("block", name),
             Missing::BlockTag(name) => ("block tag", name),
             Missing::Fluid(name) => ("fluid", name),
+            Missing::FluidTag(name) => ("fluid tag", name),
         };
         write!(
             f,
@@ -421,23 +423,35 @@ impl Baker<'_> {
     }
 
     fn fluids(&mut self, entries: &[TagEntry]) -> usize {
-        let mut members: Vec<u16> = Vec::new();
+        let mut members: Vec<Id<Fluid>> = Vec::new();
+        let registries = self.registries;
         for entry in entries {
-            let fluid = self
-                .registries
+            if entry.tag {
+                let tags = registries.tags::<Fluid>();
+                let tag = tags
+                    .as_ref()
+                    .and_then(|tags| tags.id(TagKey::new(entry.id.as_location())));
+                match (&tags, tag) {
+                    (Some(tags), Some(tag)) => members.extend(tags.members(tag)),
+                    _ => self.miss(Missing::FluidTag(entry.id.clone())),
+                }
+                continue;
+            }
+            let fluid = registries
                 .entries::<Fluid>()
                 .and_then(|fluids| fluids.by_name(entry.id.as_location()));
             match fluid {
-                Some(fluid) if !entry.tag => members.push(fluid.number()),
-                _ => self.miss(Missing::Fluid(entry.id.clone())),
+                Some(fluid) => members.push(fluid),
+                None => self.miss(Missing::Fluid(entry.id.clone())),
             }
         }
         let definitions = self.definitions;
         self.states(|state| {
-            definitions
+            let fluid = definitions
                 .state(state)
                 .fluid
-                .is_some_and(|fluid| members.contains(&fluid.fluid.number()))
+                .map_or(Fluid::Empty.id(), |fluid| fluid.fluid);
+            members.contains(&fluid)
         })
     }
 
@@ -472,24 +486,26 @@ fn matches_state(entry: &BlockEntry, state: BlockStateId, matcher: &StateMatch) 
         match wanted {
             ValueMatch::Exact(text) => value.renders_to(text),
             ValueMatch::Range { min, max } => {
-                let at_least = |bound: &Option<String>, sign: i32| {
+                let Some(values) = entry
+                    .properties
+                    .0
+                    .iter()
+                    .find(|declared| &*declared.name == property)
+                    .map(|declared| &declared.values)
+                else {
+                    return false;
+                };
+                let rank = |text: &str| values.iter().position(|value| value.renders_to(text));
+                let Some(at) = values.iter().position(|candidate| candidate == value) else {
+                    return false;
+                };
+                let within = |bound: &Option<String>, inside: fn(usize, usize) -> bool| {
                     bound
                         .as_deref()
-                        .is_none_or(|bound| compare(value, bound) * sign >= 0)
+                        .is_none_or(|bound| rank(bound).is_some_and(|bound| inside(at, bound)))
                 };
-                at_least(min, 1) && at_least(max, -1)
+                within(min, |at, bound| at >= bound) && within(max, |at, bound| at <= bound)
             }
         }
     })
-}
-
-/// The order of a value against the text of a bound: as numbers when both are numbers, as text
-/// otherwise.
-fn compare(value: &PropertyValue, bound: &str) -> i32 {
-    let text = value.to_text();
-    let order = match (text.parse::<i64>(), bound.parse::<i64>()) {
-        (Ok(value), Ok(bound)) => value.cmp(&bound),
-        _ => text.as_str().cmp(bound),
-    };
-    order as i32
 }

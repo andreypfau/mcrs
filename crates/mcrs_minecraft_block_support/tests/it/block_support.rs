@@ -62,6 +62,32 @@ static WORLD: LazyLock<(BlockDefinitions, BlockSupport, Vec<SupportIssue>)> = La
             ]}}}),
         ),
         (
+            "minecraft:lily_pad",
+            json!({"minecraft:placement_filter": below(
+                json!({"type": "minecraft:matching_fluids", "offset": [0, -1, 0], "fluids": "#minecraft:water"}),
+            )}),
+        ),
+        (
+            "minecraft:dead_bush",
+            json!({"minecraft:placement_filter": below(
+                json!({"type": "minecraft:matching_fluids", "offset": [0, -1, 0], "fluids": "minecraft:empty"}),
+            )}),
+        ),
+        (
+            "minecraft:cactus_flower",
+            json!({"minecraft:placement_filter": below(
+                json!({"type": "minecraft:matching_blocks", "offset": [0, -1, 0], "blocks": "minecraft:snow",
+                "state": {"layers": {"min": "3", "max": "5"}}}),
+            )}),
+        ),
+        (
+            "minecraft:frogspawn",
+            json!({"minecraft:placement_filter": below(
+                json!({"type": "minecraft:matching_blocks", "offset": [0, -1, 0], "blocks": "minecraft:snow",
+                "state": {"layers": {"max": "not-a-value"}}}),
+            )}),
+        ),
+        (
             "minecraft:oak_leaves",
             json!({"minecraft:support": {"boxes": []}}),
         ),
@@ -232,6 +258,13 @@ fn a_subject_stays_on_the_bases_its_predicate_accepts() {
         ("oak_sign", &[(Down, "snow[layers=8]")], true),
         ("oak_wall_sign[facing=east]", &[(West, "oak_fence")], true),
         ("oak_wall_sign[facing=east]", &[(Down, "stone")], false),
+        ("lily_pad", &[(Down, "water")], true),
+        ("lily_pad", &[(Down, "stone")], false),
+        ("dead_bush", &[(Down, "stone")], true),
+        ("dead_bush", &[(Down, "water")], false),
+        ("cactus_flower", &[(Down, "snow[layers=4]")], true),
+        ("cactus_flower", &[(Down, "snow[layers=2]")], false),
+        ("frogspawn", &[(Down, "snow[layers=1]")], false),
         ("stone", &[], true),
     ];
     for (subject, blocks, expected) in cases {

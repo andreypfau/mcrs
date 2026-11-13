@@ -28,11 +28,8 @@ pub fn passes(shape: &[Aabb], direction: Direction, test: FaceTest) -> bool {
 
 fn face_rect(aabb: &Aabb, direction: Direction) -> Option<Rect> {
     let axis = direction.axis() as usize;
-    let touches = if direction.is_positive() {
-        aabb.max[axis] >= 1.0 - EPSILON
-    } else {
-        aabb.min[axis] <= EPSILON
-    };
+    let plane = if direction.is_positive() { 1.0 } else { 0.0 };
+    let touches = aabb.min[axis] <= plane + EPSILON && aabb.max[axis] >= plane - EPSILON;
     let (u, v) = match axis {
         0 => (1, 2),
         1 => (0, 2),
@@ -92,16 +89,18 @@ mod tests {
         let cube = [sixteenths([0.0; 3], [16.0; 3])];
         let bottom_slab = [sixteenths([0.0; 3], [16.0, 8.0, 16.0])];
         let fence_post = [sixteenths([6.0, 0.0, 6.0], [10.0, 24.0, 10.0])];
+        let above = [sixteenths([0.0, 18.0, 0.0], [16.0, 24.0, 16.0])];
         let plate_ring = [
             sixteenths([0.0, 0.0, 0.0], [16.0, 16.0, 2.0]),
             sixteenths([0.0, 0.0, 14.0], [16.0, 16.0, 16.0]),
             sixteenths([0.0, 0.0, 2.0], [2.0, 16.0, 14.0]),
             sixteenths([14.0, 0.0, 2.0], [16.0, 16.0, 14.0]),
         ];
-        let cases: [(&[Aabb], [bool; 3]); 5] = [
+        let cases: [(&[Aabb], [bool; 3]); 6] = [
             (&cube, [true, true, true]),
             (&bottom_slab, [false, false, false]),
             (&fence_post, [false, true, false]),
+            (&above, [false, false, false]),
             (&plate_ring, [false, false, true]),
             (&[], [false, false, false]),
         ];

@@ -17,7 +17,7 @@ use mcrs_voxel::{BlockPos, BlockStateId};
 
 /// The vanilla rules of the blocks in every dimension world: the drops from the block tables of
 /// the loaded data pack (`block-loot.md`) and the removal of a block without support
-/// (`block-support.md`).
+/// (`block-support.md`), whose [`BlockSupport`] the placement of a block also reads.
 pub struct VanillaBlocksPlugin;
 
 impl Plugin for VanillaBlocksPlugin {
@@ -120,10 +120,11 @@ fn add_loot_rules(sub_app: &mut SubApp) {
     }
     let rules = VanillaBlocks {
         loot,
-        support,
+        support: support.clone(),
         air: blocks.default_state_of(Block::Air.id()),
         void_air: blocks.default_state_of(Block::VoidAir.id()),
         blocks: blocks.clone(),
     };
+    sub_app.world_mut().insert_resource(support);
     sub_app.add_plugins(BlockSimulationPlugin::new(rules));
 }
