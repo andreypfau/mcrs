@@ -85,6 +85,7 @@ pub mod teleport;
 pub mod tile_events;
 pub mod to_coordinator;
 pub mod to_muxer;
+pub mod use_item_on_request;
 pub mod view_radius;
 mod wanted_column;
 pub mod whitelist;
@@ -106,6 +107,7 @@ impl Plugin for EnginePlugin {
     }
 }
 
+pub use block_break::{eye_position, in_reach, reach};
 pub use persistence::{
     AutosaveCadence, AutosavePlugin, PlayerPersistencePlugin, UnreadablePlayerDat,
     apply_join_snapshot, load_player, write_player,
