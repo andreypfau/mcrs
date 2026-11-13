@@ -31,9 +31,6 @@ pub struct CombatPlugin;
 
 impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
-        if !app.is_plugin_added::<crate::persistence::CombatPersistencePlugin>() {
-            app.add_plugins(crate::persistence::CombatPersistencePlugin);
-        }
         app.init_resource::<mcrs_minecraft_engine::tile_events::TileEvents>();
         app.init_resource::<RowHits>();
         app.add_message::<RowDamaged>();

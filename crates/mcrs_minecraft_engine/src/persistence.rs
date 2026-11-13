@@ -60,10 +60,7 @@ impl Plugin for PlayerPersistencePlugin {
     fn build(&self, app: &mut App) {
         app.register_persisted_codec(POSE_KEYS, PersistScope::Persisted, capture_pose, apply_pose)
             .register_persisted_codec(UUID_KEYS, PersistScope::Persisted, capture_uuid, apply_uuid)
-            .register_persisted_fallback::<PlayerFileState>(
-                player_state_keys(),
-                PersistScope::Persisted,
-            )
+            .register_persisted::<PlayerFileState>(player_state_keys(), PersistScope::Persisted)
             .register_persisted_as::<PlayerGameMode, GameType>(
                 GAME_TYPE_KEYS,
                 PersistScope::Persisted,

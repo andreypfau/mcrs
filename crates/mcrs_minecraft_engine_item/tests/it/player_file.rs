@@ -387,17 +387,7 @@ fn a_player_file_with_every_key_writes_back_as_the_same_compound() {
     assert!(world.get::<UnreadablePlayerDat>(player).is_none());
     assert_eq!(world.get::<PlayerFileState>(player).unwrap().score, 12);
     assert_eq!(world.get::<Selected>(player), Some(&Selected(0)));
-    let slots = world.get::<Slots>(player).unwrap();
-    assert_eq!(slots.len(), 41);
-    assert_eq!(slots.occupied().count(), 5);
-    assert!(
-        slots.get(38).is_some(),
-        "the chest slot holds the saved chestplate"
-    );
-    assert!(
-        slots.get(40).is_some(),
-        "the offhand slot holds the saved shield"
-    );
+    assert_eq!(world.get::<Slots>(player).unwrap().occupied().count(), 3);
     assert_eq!(world.get::<EnderItems>(player).unwrap().0.len(), 1);
     let worn = world.get::<WornEquipment>(player).unwrap();
     assert!(worn.chest.is_some() && worn.offhand.is_some() && worn.mainhand.is_none());

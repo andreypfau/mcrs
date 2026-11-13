@@ -122,8 +122,7 @@ pub struct VanillaCombatPlugin;
 
 impl Plugin for VanillaCombatPlugin {
     fn build(&self, app: &mut App) {
-        app.add_persistence_plugin(mcrs_minecraft_combat::CombatPersistencePlugin)
-            .add_dimension_plugin(mcrs_minecraft_combat::CombatPlugin);
+        app.add_dimension_plugin(mcrs_minecraft_combat::CombatPlugin);
     }
 }
 

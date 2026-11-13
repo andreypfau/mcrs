@@ -82,7 +82,7 @@ pub fn handle_apply_effect_events(
         if !matches!(kind, MobEffect::InstantHealth | MobEffect::InstantDamage)
             && let Some(hidden) = hidden.as_deref_mut()
         {
-            crate::persistence::merge_hidden(previous, ev.effect, hidden);
+            crate::hidden::merge_hidden(previous, ev.effect, hidden);
         }
         let _ = armor;
     }
@@ -112,7 +112,7 @@ pub fn tick_active_effects(
         actions.clear();
         let previous_boost = effects.0.health_boost();
         if let Some(hidden) = hidden.as_deref_mut() {
-            crate::persistence::tick_hidden(hidden);
+            crate::hidden::tick_hidden(hidden);
         }
         let removed = effects
             .0
@@ -151,7 +151,7 @@ pub fn tick_active_effects(
         }
         for effect in removed {
             let promoted = hidden.as_deref_mut().and_then(|hidden| {
-                crate::persistence::promote_hidden(hidden, effect)
+                crate::hidden::promote_hidden(hidden, effect)
                     .filter(|promoted| promoted.duration > 0)
             });
             if let Some(promoted) = promoted {

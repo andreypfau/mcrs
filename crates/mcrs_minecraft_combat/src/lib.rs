@@ -9,8 +9,8 @@ mod effects;
 mod equipment;
 mod events;
 mod experience;
+mod hidden;
 mod life_cycle;
-mod persistence;
 mod runtime;
 
 pub use combat_plugin::{CombatPlugin, CombatSet};
@@ -36,4 +36,3 @@ pub use mcrs_minecraft_damage::{
     points_for_level, total_points_for_level,
 };
 pub use mcrs_minecraft_physics::{HitRecord, Vitals};
-pub use persistence::CombatPersistencePlugin;

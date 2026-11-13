@@ -126,40 +126,16 @@ impl PersistedSnapshot {
         match keys {
             [] => None,
             [key] => self.fields.get(key).cloned(),
-            keys => self.joined_compound(keys),
-        }
-    }
-
-    fn joined_compound(&self, keys: &[&'static str]) -> Option<NbtTag> {
-        let mut compound = NbtCompound::new();
-        for key in keys {
-            if let Some(tag) = self.fields.get(key) {
-                compound.put(key, tag.clone());
+            keys => {
+                let mut compound = NbtCompound::new();
+                for key in keys {
+                    if let Some(tag) = self.fields.get(key) {
+                        compound.put(key, tag.clone());
+                    }
+                }
+                (!compound.child_tags.is_empty()).then_some(NbtTag::Compound(compound))
             }
         }
-        (!compound.child_tags.is_empty()).then_some(NbtTag::Compound(compound))
-    }
-}
-
-fn filter_tag(keys: &[&'static str], tag: NbtTag) -> Result<NbtTag, PersistedError> {
-    let NbtTag::Compound(compound) = tag else {
-        return Err(PersistedError::NotACompound(keys.join(",")));
-    };
-    let mut filtered = NbtCompound::new();
-    for (name, tag) in compound.child_tags {
-        if keys.contains(&name.as_str()) {
-            filtered.put(&name, tag);
-        }
-    }
-    match keys {
-        [] => Ok(NbtTag::Compound(filtered)),
-        [key] => filtered
-            .child_tags
-            .iter()
-            .find(|(name, _)| name == key)
-            .map(|(_, tag)| tag.clone())
-            .map_or_else(|| Ok(NbtTag::Compound(filtered)), Ok),
-        _ => Ok(NbtTag::Compound(filtered)),
     }
 }
 
@@ -182,7 +158,6 @@ type Apply = fn(&mut World, Entity, &NbtTag) -> Result<(), PersistedError>;
 struct PersistedCodec {
     keys: &'static [&'static str],
     scope: PersistScope,
-    fallback: bool,
     capture: Capture,
     apply: Apply,
 }
@@ -213,87 +188,23 @@ impl PersistedRegistry {
         capture: Capture,
         apply: Apply,
     ) -> Result<(), PersistedError> {
-        self.register_with_fallback(keys, scope, false, capture, apply)
-    }
-
-    /// Registers a codec that owns the keys no other codec claims. A later codec over any of its
-    /// keys takes those keys over, so one component can hold the keys of the file that no
-    /// component of the game simulates yet.
-    ///
-    /// # Errors
-    ///
-    /// [`PersistedError::OverlappingKeys`] when another fallback codec is registered.
-    pub fn register_fallback<T>(
-        &mut self,
-        keys: &'static [&'static str],
-        scope: PersistScope,
-    ) -> Result<(), PersistedError>
-    where
-        T: Component + Serialize + DeserializeOwned,
-    {
-        self.register_with_fallback(
-            keys,
-            scope,
-            true,
-            capture_component::<T>,
-            apply_component::<T>,
-        )
-    }
-
-    fn register_with_fallback(
-        &mut self,
-        keys: &'static [&'static str],
-        scope: PersistScope,
-        fallback: bool,
-        capture: Capture,
-        apply: Apply,
-    ) -> Result<(), PersistedError> {
         for codec in &self.codecs {
             let overlaps = codec.keys.iter().any(|key| keys.contains(key));
-            if fallback && codec.fallback && overlaps {
-                return Err(PersistedError::OverlappingKeys {
-                    keys,
-                    existing: codec.keys,
-                });
-            }
-            if !fallback && !codec.fallback && overlaps && codec.keys != keys {
+            if overlaps && codec.keys != keys {
                 return Err(PersistedError::OverlappingKeys {
                     keys,
                     existing: codec.keys,
                 });
             }
         }
-        self.codecs
-            .retain(|codec| codec.fallback != fallback || codec.keys != keys);
+        self.codecs.retain(|codec| codec.keys != keys);
         self.codecs.push(PersistedCodec {
             keys,
             scope,
-            fallback,
             capture,
             apply,
         });
         Ok(())
-    }
-
-    fn specific_keys(&self) -> impl Iterator<Item = &'static str> + '_ {
-        self.codecs
-            .iter()
-            .filter(|codec| !codec.fallback)
-            .flat_map(|codec| codec.keys.iter().copied())
-    }
-
-    fn available_keys(&self, codec: &PersistedCodec) -> Vec<&'static str> {
-        if codec.fallback {
-            let claimed: Vec<_> = self.specific_keys().collect();
-            codec
-                .keys
-                .iter()
-                .copied()
-                .filter(|key| !claimed.contains(key))
-                .collect()
-        } else {
-            codec.keys.to_vec()
-        }
     }
 
     /// See [`Self::register_codec`] for the errors.
@@ -326,7 +237,7 @@ impl PersistedRegistry {
         self.codecs
             .iter()
             .filter(|codec| codec.scope == PersistScope::Persisted)
-            .flat_map(|codec| self.available_keys(codec))
+            .flat_map(|codec| codec.keys.iter().copied())
     }
 
     pub fn file_key(&self, key: &str) -> Option<&'static str> {
@@ -359,17 +270,8 @@ impl PersistedRegistry {
     ) -> Result<PersistedSnapshot, PersistedError> {
         let mut snapshot = PersistedSnapshot::new();
         for codec in self.codecs.iter().filter(|codec| wanted(codec.scope)) {
-            let keys = self.available_keys(codec);
-            if keys.is_empty() {
-                continue;
-            }
             if let Some(tag) = (codec.capture)(world, entity)? {
-                let tag = if codec.fallback {
-                    filter_tag(&keys, tag)?
-                } else {
-                    tag
-                };
-                snapshot.put_tag(&keys, tag)?;
+                snapshot.put_tag(codec.keys, tag)?;
             }
         }
         Ok(snapshot)
@@ -382,22 +284,12 @@ impl PersistedRegistry {
         snapshot: &PersistedSnapshot,
     ) -> Result<(), PersistedError> {
         for key in snapshot.fields.keys() {
-            if !self
-                .codecs
-                .iter()
-                .any(|codec| self.available_keys(codec).contains(key))
-            {
+            if !self.codecs.iter().any(|codec| codec.keys.contains(key)) {
                 return Err(PersistedError::UnknownKey((*key).to_owned()));
             }
         }
         for codec in &self.codecs {
-            let keys = self.available_keys(codec);
-            let tag = if codec.fallback {
-                snapshot.joined_compound(&keys)
-            } else {
-                snapshot.joined(&keys)
-            };
-            let Some(tag) = tag else {
+            let Some(tag) = snapshot.joined(codec.keys) else {
                 continue;
             };
             (codec.apply)(world, entity, &tag)?;
@@ -414,14 +306,6 @@ impl PersistedRegistry {
 /// file as unclaimed. Call the registry directly to handle the error.
 pub trait PersistedAppExt {
     fn register_persisted<T>(
-        &mut self,
-        keys: &'static [&'static str],
-        scope: PersistScope,
-    ) -> &mut Self
-    where
-        T: Component + Serialize + DeserializeOwned;
-
-    fn register_persisted_fallback<T>(
         &mut self,
         keys: &'static [&'static str],
         scope: PersistScope,
@@ -462,21 +346,6 @@ impl PersistedAppExt for App {
         self.world_mut()
             .get_resource_or_init::<PersistedRegistry>()
             .register::<T>(keys, scope)
-            .unwrap_or_else(|err| tracing::error!("persisted codec not registered: {err}"));
-        self
-    }
-
-    fn register_persisted_fallback<T>(
-        &mut self,
-        keys: &'static [&'static str],
-        scope: PersistScope,
-    ) -> &mut Self
-    where
-        T: Component + Serialize + DeserializeOwned,
-    {
-        self.world_mut()
-            .get_resource_or_init::<PersistedRegistry>()
-            .register_fallback::<T>(keys, scope)
             .unwrap_or_else(|err| tracing::error!("persisted codec not registered: {err}"));
         self
     }
@@ -709,22 +578,6 @@ mod tests {
     }
 
     #[test]
-    fn an_unknown_snapshot_key_is_an_error_even_with_a_fallback() {
-        let mut world = World::new();
-        let entity = world.spawn_empty().id();
-        let mut registry = PersistedRegistry::new();
-        registry
-            .register_fallback::<Fallback>(&["X", "Y"], PersistScope::Persisted)
-            .unwrap();
-        let mut snapshot = PersistedSnapshot::new();
-        snapshot.insert("Z", NbtTag::Int(1));
-
-        let error = registry.apply(&mut world, entity, &snapshot).unwrap_err();
-
-        assert!(matches!(error, PersistedError::UnknownKey(key) if key == "Z"));
-    }
-
-    #[test]
     fn a_component_over_two_keys_is_stored_under_each_key() {
         let mut world = World::new();
         let entity = world.spawn(Spot { x: 1, y: 2 }).id();
@@ -740,72 +593,6 @@ mod tests {
         let other = world.spawn_empty().id();
         registry.apply(&mut world, other, &snapshot).unwrap();
         assert_eq!(world.get::<Spot>(other), Some(&Spot { x: 1, y: 2 }));
-    }
-
-    #[derive(Component, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-    #[serde(default)]
-    struct Fallback {
-        #[serde(rename = "X")]
-        x: i32,
-        #[serde(rename = "Y")]
-        y: i32,
-    }
-
-    #[test]
-    fn a_fallback_keeps_only_the_keys_no_other_codec_claims() {
-        let mut world = World::new();
-        let entity = world.spawn((Counter(1), Fallback { x: 2, y: 3 })).id();
-        let mut registry = PersistedRegistry::new();
-        registry
-            .register_fallback::<Fallback>(&["X", "Y"], PersistScope::Persisted)
-            .unwrap();
-        registry
-            .register::<Counter>(&["X"], PersistScope::Persisted)
-            .unwrap();
-
-        let snapshot = registry.capture(&mut world, entity).unwrap();
-        assert_eq!(snapshot.get("X"), Some(&NbtTag::Int(1)));
-        assert_eq!(snapshot.get("Y"), Some(&NbtTag::Int(3)));
-        assert_eq!(registry.file_keys().collect::<Vec<_>>(), ["Y", "X"]);
-
-        let other = world.spawn_empty().id();
-        registry.apply(&mut world, other, &snapshot).unwrap();
-        assert_eq!(world.get::<Counter>(other), Some(&Counter(1)));
-        assert_eq!(world.get::<Fallback>(other), Some(&Fallback { x: 0, y: 3 }));
-    }
-
-    #[test]
-    fn a_fallback_with_no_keys_left_does_not_write_its_component() {
-        let mut world = World::new();
-        let entity = world.spawn((Counter(1), Fallback { x: 2, y: 3 })).id();
-        let mut registry = PersistedRegistry::new();
-        registry
-            .register_fallback::<Fallback>(&["X"], PersistScope::Persisted)
-            .unwrap();
-        registry
-            .register::<Counter>(&["X"], PersistScope::Persisted)
-            .unwrap();
-
-        let snapshot = registry.capture(&mut world, entity).unwrap();
-        assert!(snapshot.get("X").is_some());
-        assert_eq!(registry.file_keys().collect::<Vec<_>>(), ["X"]);
-    }
-
-    #[test]
-    fn two_fallbacks_over_the_same_key_are_refused() {
-        let mut registry = PersistedRegistry::new();
-        registry
-            .register_fallback::<Counter>(&["X"], PersistScope::Persisted)
-            .unwrap();
-        let refused = registry.register_fallback::<Counter>(&["X"], PersistScope::Persisted);
-
-        assert!(matches!(
-            refused,
-            Err(PersistedError::OverlappingKeys {
-                keys: ["X"],
-                existing: ["X"]
-            })
-        ));
     }
 
     #[test]
