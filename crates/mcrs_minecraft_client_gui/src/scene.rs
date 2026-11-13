@@ -241,12 +241,16 @@ pub struct GuiAtlas(pub Arc<GuiAtlasData>);
 impl GuiAtlasData {
     /// Shelf-packs the GUI textures the screens blit, which are not square and so
     /// bypass the sprite arrays; the glint stays separate because it repeats.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one pass decodes, shelves and binds every texture of the atlas"
+    )]
     pub fn load(pack: &ResourceSet) -> Result<Self, String> {
         let mut images = Vec::new();
         let mut glint = None;
         let mut font = None;
         let sprite_scalings = load_widget_images(pack, &mut images);
-        for name in GUI_TEXTURES.into_iter().chain(EFFECT_TEXTURES) {
+        for name in GUI_TEXTURES {
             let path = texture_path(name);
             let (pixels, width, height) =
                 decode_png(pack.read(&path).map_err(|error| error.to_string())?, &path)
@@ -269,6 +273,16 @@ impl GuiAtlasData {
                     images.push((name, pixels, width, height));
                 }
             }
+        }
+        for name in EFFECT_TEXTURES {
+            let path = texture_path(name);
+            let Ok(bytes) = pack.read(&path) else {
+                continue;
+            };
+            let Ok((pixels, width, height)) = decode_png(bytes, &path) else {
+                continue;
+            };
+            images.push((name, pixels, width, height));
         }
         images.push((BLANK, vec![255; 16], 2, 2));
         images.push((MISSING, missing_pixels(), MISSING_SIZE, MISSING_SIZE));
