@@ -38,6 +38,8 @@ pub struct SkyUniform {
     pub sky_light: [f32; 4],
     pub block_light: [f32; 4],
     pub ambient: [f32; 4],
+    /// The two elevations in degrees over which the occluder fades in, then 1 when the frame has
+    /// a sky occluder and 0 when it has none.
     pub occluder: [f32; 4],
 }
 
