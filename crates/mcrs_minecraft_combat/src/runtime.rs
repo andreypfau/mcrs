@@ -17,10 +17,12 @@ use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketTarget, to, to_target,
 };
 use mcrs_minecraft_engine::coordinator::clock::GameTime;
+use mcrs_minecraft_engine::dim_mail::edit_server;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine::player_entity_id;
 use mcrs_minecraft_engine::player_state::PlayerFileState;
+use mcrs_minecraft_engine::server_edit::ServerEdit;
 use mcrs_minecraft_engine::teleport::{TeleportState, position_packet, teleport_to};
 use mcrs_minecraft_engine::tile_events::TileEvents;
 use mcrs_minecraft_engine_brain::EntityRows;
@@ -235,7 +237,7 @@ fn on_client_command(
 fn on_change_difficulty(
     on: On<Received<ServerboundChangeDifficulty>>,
     op_levels: Query<&PlayerOpLevel>,
-    mut difficulty: ResMut<Difficulty>,
+    mut commands: Commands,
 ) {
     let Some(packet) = on.packet() else {
         return;
@@ -243,7 +245,10 @@ fn on_change_difficulty(
     if !op_levels.get(on.entity).is_ok_and(|level| level.0 >= 2) {
         return;
     }
-    difficulty.0 = packet.difficulty.into();
+    let difficulty = packet.difficulty.into();
+    commands.queue(move |world: &mut World| {
+        edit_server(world, ServerEdit::Difficulty(difficulty));
+    });
 }
 
 fn on_player_input(
@@ -1583,10 +1588,6 @@ pub(crate) fn build(app: &mut App) {
         });
     app.insert_resource(DamageTypeRulesResource(rules));
     app.init_resource::<WorldSpawn>();
-    app.init_resource::<WorldBorderSettings>();
-    app.init_resource::<Difficulty>();
-    app.init_resource::<GameRules>();
-    app.init_resource::<GameTime>();
     app.add_observer(note_ground_pos);
     app.add_observer(note_ground_pos_rot);
     app.add_observer(note_ground_rot);

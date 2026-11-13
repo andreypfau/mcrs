@@ -15,9 +15,18 @@ use mcrs_minecraft_engine::player_state::{
 use mcrs_minecraft_engine::{PlayerPersistencePlugin, apply_join_snapshot};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::{ChangeDimensionRequest, Player};
+use mcrs_minecraft_engine_world::game_rules::GameRules;
+use mcrs_minecraft_engine_world::world_settings::{Difficulty, WorldBorderSettings};
 use mcrs_minecraft_nbt::tag_serializer::to_nbt_tag;
 use mcrs_minecraft_save::PlayerDat;
 use std::path::Path;
+
+fn init_globals(app: &mut App) {
+    app.init_resource::<GameRules>();
+    app.init_resource::<GameTime>();
+    app.init_resource::<Difficulty>();
+    app.init_resource::<WorldBorderSettings>();
+}
 
 #[test]
 fn integration_combat_damage_flow_and_death() {
@@ -25,7 +34,7 @@ fn integration_combat_damage_flow_and_death() {
     app.add_plugins(CombatPlugin);
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<ChangeDimensionRequest>();
-    app.init_resource::<GameTime>();
+    init_globals(&mut app);
 
     // Entity with 20 HP, 10 Armor, 4 Toughness
     let entity = app
@@ -92,7 +101,7 @@ fn integration_hunger_exhaustion_and_healing() {
     app.add_plugins(CombatPlugin);
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<ChangeDimensionRequest>();
-    app.init_resource::<GameTime>();
+    init_globals(&mut app);
 
     let mut health = Health::new(20.0, 20.0);
     health.health = 10.0;
@@ -120,7 +129,7 @@ fn integration_status_effects_application_and_ticking() {
     app.add_plugins(CombatPlugin);
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<ChangeDimensionRequest>();
-    app.init_resource::<GameTime>();
+    init_globals(&mut app);
 
     let mut effects = PlayerEffects::new();
     effects.add(ActiveEffect::new(MobEffect::Regeneration, 0, 50));
@@ -149,7 +158,7 @@ fn player_file_state_loads_and_saves_combat_state() {
     app.add_plugins((PlayerPersistencePlugin, CombatPlugin));
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<ChangeDimensionRequest>();
-    app.init_resource::<GameTime>();
+    init_globals(&mut app);
 
     let file = PlayerFileState {
         health: 7.5,

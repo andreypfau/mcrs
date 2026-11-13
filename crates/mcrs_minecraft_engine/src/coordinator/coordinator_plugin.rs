@@ -6,6 +6,7 @@ use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
 use mcrs_minecraft_engine_world::world::sub_app::{
     DimDespawnQueue, DimSpawnEnqueue, DimSpawnQueue, DimSpawnRequest, DimensionPlugins,
 };
+use mcrs_minecraft_engine_world::world_settings::{Difficulty, WorldBorderSettings};
 use tracing::{debug, info, warn};
 
 use crate::banlist::BanListHostPlugin;
@@ -26,6 +27,8 @@ impl Plugin for CoordinatorPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DimSpawnQueue>();
         app.init_resource::<DimDespawnQueue>();
+        app.init_resource::<Difficulty>();
+        app.init_resource::<WorldBorderSettings>();
         app.add_plugins(DimCellsPlugin);
         app.add_observer(
             |trigger: On<Remove<DimSubAppHandle>>, mut queue: ResMut<DimDespawnQueue>| {

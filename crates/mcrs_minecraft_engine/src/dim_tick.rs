@@ -46,6 +46,7 @@ use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::entity_ids::{CellEntityIds, EntityIdRange};
 use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_engine_world::tick_pace::TickPace;
+use mcrs_minecraft_engine_world::world_settings::{Difficulty, WorldBorderSettings};
 
 /// The host schedule that ticks the dimension worlds, right after `Last`: each world takes
 /// in what the host sent during the update.
@@ -80,6 +81,8 @@ pub struct DimInput {
     pub(crate) whitelist: Option<Whitelist>,
     pub(crate) bans: Option<BanList>,
     pub(crate) game_rules: Option<GameRules>,
+    pub(crate) difficulty: Option<Difficulty>,
+    pub(crate) world_border: Option<WorldBorderSettings>,
     pub(crate) tick_pace: Option<TickPace>,
     pub(crate) registries: Option<Versioned<RegistrySnapshot>>,
     pub(crate) dimensions: Option<RunningDimensions>,
@@ -218,6 +221,12 @@ fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
     }
     if let Some(game_rules) = input.game_rules {
         world.insert_resource(game_rules);
+    }
+    if let Some(difficulty) = input.difficulty {
+        world.insert_resource(difficulty);
+    }
+    if let Some(world_border) = input.world_border {
+        world.insert_resource(world_border);
     }
     if let Some(tick_pace) = input.tick_pace {
         world.insert_resource(tick_pace);
@@ -380,6 +389,8 @@ mod tests {
             whitelist: None,
             bans: None,
             game_rules: None,
+            difficulty: None,
+            world_border: None,
             tick_pace: None,
             registries: None,
             dimensions: None,

@@ -5,6 +5,7 @@
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use mcrs_minecraft_engine_world::tick_pace::TickPace;
+use mcrs_minecraft_engine_world::world_settings::{Difficulty, EntityDifficulty};
 use mcrs_minecraft_environment::AdvanceTime;
 use mcrs_minecraft_game_rule::GameRule;
 
@@ -15,6 +16,8 @@ use mcrs_minecraft_engine_world::game_rules::GameRules;
 pub enum ServerEdit {
     /// Sets a game rule.
     GameRule { rule: GameRule, value: i32 },
+    /// Sets the difficulty of the server.
+    Difficulty(EntityDifficulty),
     /// Clears the weather for `ticks` ticks.
     ClearWeather { ticks: u32 },
     /// Starts a sprint of `ticks` ticks, in place of a sprint that runs.
@@ -40,6 +43,11 @@ pub fn apply_edit(world: &mut World, edit: ServerEdit) {
         ServerEdit::GameRule { rule, value } => {
             if let Some(mut rules) = world.get_resource_mut::<GameRules>() {
                 rules.set(rule, value);
+            }
+        }
+        ServerEdit::Difficulty(difficulty) => {
+            if let Some(mut saved) = world.get_resource_mut::<Difficulty>() {
+                saved.0 = difficulty;
             }
         }
         ServerEdit::ClearWeather { ticks } => {

@@ -50,6 +50,7 @@ use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::entity_ids::EntityIdRange;
 use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_engine_world::tick_pace::TickPace;
+use mcrs_minecraft_engine_world::world_settings::{Difficulty, WorldBorderSettings};
 
 /// Ticks the dimension worlds once in every host update, in lockstep.
 pub struct DimCellsPlugin;
@@ -795,6 +796,8 @@ struct Globals {
     whitelist: Option<Whitelist>,
     bans: Option<BanList>,
     game_rules: Option<GameRules>,
+    difficulty: Option<Difficulty>,
+    world_border: Option<WorldBorderSettings>,
     tick_pace: Option<TickPace>,
     registries: Option<Versioned<RegistrySnapshot>>,
     dimensions: Option<RunningDimensions>,
@@ -813,6 +816,8 @@ impl Globals {
             whitelist: changed(host),
             bans: changed(host),
             game_rules: changed(host),
+            difficulty: changed(host),
+            world_border: changed(host),
             tick_pace: changed(host),
             registries: changed(host),
             dimensions: changed(host),
@@ -844,6 +849,8 @@ impl Globals {
             whitelist: self.whitelist.clone(),
             bans: self.bans.clone(),
             game_rules: self.game_rules.clone(),
+            difficulty: self.difficulty,
+            world_border: self.world_border,
             tick_pace: self.tick_pace.clone(),
             registries: self.registries.clone(),
             dimensions: self.dimensions.clone(),

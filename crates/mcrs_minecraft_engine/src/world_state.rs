@@ -5,13 +5,14 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemParam;
 use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
+use mcrs_minecraft_engine_world::world_settings::{Difficulty, EntityDifficulty};
 use mcrs_minecraft_environment::{AdvanceTime, WorldClock, WorldClocks};
 use mcrs_minecraft_game_rule::GameRule;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_save::{
-    LevelDat, RespawnData, SaveError, WeatherData, WorldClockStates, read_game_rules,
-    read_level_dat, read_weather, read_world_clocks, write_birth_clock, write_game_rules,
-    write_level_dat, write_weather, write_world_clocks,
+    Difficulty as SaveDifficulty, LevelDat, RespawnData, SaveError, WeatherData, WorldClockStates,
+    read_game_rules, read_level_dat, read_weather, read_world_clocks, write_birth_clock,
+    write_game_rules, write_level_dat, write_weather, write_world_clocks,
 };
 use std::path::PathBuf;
 use tracing::error;
@@ -47,6 +48,24 @@ impl Plugin for WorldStatePlugin {
     }
 }
 
+fn world_difficulty(value: SaveDifficulty) -> EntityDifficulty {
+    match value {
+        SaveDifficulty::Peaceful => EntityDifficulty::Peaceful,
+        SaveDifficulty::Easy => EntityDifficulty::Easy,
+        SaveDifficulty::Normal => EntityDifficulty::Normal,
+        SaveDifficulty::Hard => EntityDifficulty::Hard,
+    }
+}
+
+fn saved_difficulty(value: Difficulty) -> SaveDifficulty {
+    match value.0 {
+        EntityDifficulty::Peaceful => SaveDifficulty::Peaceful,
+        EntityDifficulty::Easy => SaveDifficulty::Easy,
+        EntityDifficulty::Normal => SaveDifficulty::Normal,
+        EntityDifficulty::Hard => SaveDifficulty::Hard,
+    }
+}
+
 /// The spawn point that `level.dat` held when the server started.
 #[derive(Resource, Debug, Clone)]
 pub struct SavedSpawn(pub RespawnData);
@@ -63,6 +82,7 @@ fn load_world_state(
     mut rules: ResMut<GameRules>,
     mut advance: ResMut<AdvanceTime>,
     mut clocks: ResMut<WorldClocks>,
+    mut difficulty: Option<ResMut<Difficulty>>,
     registries: Option<Res<CurrentRegistries>>,
 ) {
     let Some(save) = save else {
@@ -71,6 +91,9 @@ fn load_world_state(
     if let Some(level) = Loaded::read(read_level_dat(&save.0), "level.dat").present() {
         time.0 = level.time;
         commands.insert_resource(SavedSpawn(level.spawn));
+        if let Some(difficulty) = &mut difficulty {
+            difficulty.0 = world_difficulty(level.difficulty_settings.difficulty);
+        }
     }
     if let Some(saved) = Loaded::read(read_weather(&save.0), "weather").present() {
         weather.clear_ticks = saved.clear_weather_time.max(0).cast_unsigned();
@@ -147,6 +170,7 @@ pub struct WorldStateWrite {
     weather: Option<WeatherData>,
     rules: Option<mcrs_minecraft_save::GameRules>,
     clocks: Option<WorldClockStates>,
+    difficulty: Option<SaveDifficulty>,
     birth_clock: Option<u64>,
 }
 
@@ -166,6 +190,7 @@ impl WorldStateWrite {
         self.weather = newer.weather.or(self.weather.take());
         self.rules = newer.rules.or(self.rules.take());
         self.clocks = newer.clocks.or(self.clocks.take());
+        self.difficulty = newer.difficulty.or(self.difficulty);
         self.birth_clock = newer.birth_clock.or(self.birth_clock);
     }
 
@@ -188,6 +213,9 @@ impl WorldStateWrite {
                 })
         {
             level.time = time;
+            if let Some(difficulty) = self.difficulty {
+                level.difficulty_settings.difficulty = difficulty;
+            }
             report("level.dat", write_level_dat(dir, &level));
         }
         if let Some(weather) = &self.weather
@@ -266,6 +294,7 @@ pub struct WorldStateSources<'w> {
     weather: Option<Res<'w, Weather>>,
     rules: Option<Res<'w, GameRules>>,
     clocks: Option<Res<'w, WorldClocks>>,
+    difficulty: Option<Res<'w, Difficulty>>,
     registries: Option<Res<'w, CurrentRegistries>>,
 }
 
@@ -308,6 +337,10 @@ impl WorldStateSources<'_> {
             weather,
             rules,
             clocks,
+            difficulty: self
+                .difficulty
+                .as_deref()
+                .map(|difficulty| saved_difficulty(*difficulty)),
             birth_clock: None,
         })
     }
@@ -346,6 +379,7 @@ mod tests {
         world.init_resource::<GameRules>();
         world.init_resource::<AdvanceTime>();
         world.init_resource::<WorldClocks>();
+        world.init_resource::<Difficulty>();
         world.init_resource::<WorldStateWriter>();
         world
     }
@@ -398,6 +432,41 @@ mod tests {
         assert_eq!(read.level_name, "kept");
         assert_eq!(read.last_played, 9);
         assert!(!mcrs_minecraft_save::read_weather(&dir).unwrap().raining);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_difficulty_loads_and_saves_without_touching_its_lock() {
+        let dir = temp_dir("difficulty");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let level = LevelDat {
+            difficulty_settings: mcrs_minecraft_save::DifficultySettings {
+                difficulty: SaveDifficulty::Hard,
+                hardcore: true,
+                locked: true,
+            },
+            ..LevelDat::default()
+        };
+        write_level_dat(&dir, &level).unwrap();
+
+        let mut world = world(&dir);
+        world.run_system_once(load_world_state).unwrap();
+        assert_eq!(
+            world.resource::<Difficulty>().0,
+            EntityDifficulty::Hard,
+            "the loaded world reads its difficulty from level.dat"
+        );
+
+        world.resource_mut::<Difficulty>().0 = EntityDifficulty::Peaceful;
+        world.run_system_once(autosave_world_state).unwrap();
+        let read = mcrs_minecraft_save::read_level_dat(&dir).unwrap();
+        assert_eq!(
+            read.difficulty_settings.difficulty,
+            SaveDifficulty::Peaceful
+        );
+        assert!(read.difficulty_settings.hardcore);
+        assert!(read.difficulty_settings.locked);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

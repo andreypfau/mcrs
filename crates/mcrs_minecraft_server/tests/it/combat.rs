@@ -7,13 +7,17 @@ use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::coordinator::clock::GameTime;
 use mcrs_minecraft_engine::network_id::player_network_id;
+use mcrs_minecraft_engine::server_edit::ServerStateHostPlugin;
 use mcrs_minecraft_engine_brain::EntityRows;
+use mcrs_minecraft_engine_world::world_settings::{Difficulty, EntityDifficulty};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, Decode, Packet, VarInt};
+use mcrs_minecraft_protocol_game::Difficulty as PacketDifficulty;
 use mcrs_minecraft_protocol_game::clientbound::{ClientboundDamageEvent, ClientboundEntityEvent};
 use mcrs_minecraft_protocol_game::serverbound::{
-    ClientCommandAction, ServerboundAttack, ServerboundChatCommand, ServerboundClientCommand,
+    ClientCommandAction, ServerboundAttack, ServerboundChangeDifficulty, ServerboundChatCommand,
+    ServerboundClientCommand,
 };
 use mcrs_minecraft_server::{VanillaCombatPlugin, VanillaEntityPhysicsPlugin};
 
@@ -29,6 +33,8 @@ fn start() -> PlayServer {
     app.add_plugins(VanillaEntityPhysicsPlugin);
     app.add_plugins(CommandPlugin::<VanillaCommands>::new());
     app.add_plugins(VanillaCommandsPlugin);
+    app.add_plugins(ServerStateHostPlugin);
+    app.insert_resource(Difficulty(EntityDifficulty::Normal));
     PlayServer::start(app, &[(PLAYER, 4)], 0)
 }
 
@@ -637,5 +643,50 @@ fn dmg_net_011_experience_points_change_the_level_on_the_wire() {
                     && (experience.experience_progress - 1.0 / 3.0).abs() < 1.0e-5
         )),
         "the client sees the level and the progress"
+    );
+}
+
+/// DMG-DIFF-001: the difficulty has one owner in the host, and only an operator changes it.
+#[test]
+fn dmg_diff_001_only_an_operator_changes_the_difficulty_for_every_world() {
+    let mut server = start();
+    let (anchor, _) = server.join(PLAYER, "difficulty");
+    let player = server.player(anchor);
+    server
+        .world()
+        .entity_mut(player)
+        .insert(mcrs_minecraft_engine::ability::PlayerOpLevel(0));
+    server.send(
+        anchor,
+        &ServerboundChangeDifficulty {
+            difficulty: PacketDifficulty::Hard,
+        },
+    );
+    assert_eq!(
+        server.world().resource::<Difficulty>().0,
+        EntityDifficulty::Normal,
+        "a player without permission changes nothing"
+    );
+
+    let player = server.player(anchor);
+    server
+        .world()
+        .entity_mut(player)
+        .insert(mcrs_minecraft_engine::ability::PlayerOpLevel(2));
+    server.send(
+        anchor,
+        &ServerboundChangeDifficulty {
+            difficulty: PacketDifficulty::Hard,
+        },
+    );
+    assert_eq!(
+        server.app.world().resource::<Difficulty>().0,
+        EntityDifficulty::Hard,
+        "the host owns the new difficulty"
+    );
+    assert_eq!(
+        server.world().resource::<Difficulty>().0,
+        EntityDifficulty::Hard,
+        "the dimension reads the host's difficulty"
     );
 }
