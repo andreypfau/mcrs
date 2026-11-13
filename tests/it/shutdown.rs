@@ -28,6 +28,9 @@ fn scratch_world() -> PathBuf {
         &WorldGenSettings {
             seed: 0,
             dimensions: normal.dimensions.clone(),
+            bonus_chest: false,
+            generate_structures: true,
+            legacy_custom_options: None,
         },
         test_registries(),
     )

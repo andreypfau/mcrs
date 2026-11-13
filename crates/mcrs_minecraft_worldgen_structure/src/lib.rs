@@ -5,8 +5,6 @@ pub mod pool_alias_binding_keys;
 #[rustfmt::skip]
 pub mod registry_keys;
 #[rustfmt::skip]
-pub mod structure_piece_keys;
-#[rustfmt::skip]
 pub mod structure_placement_keys;
 #[rustfmt::skip]
 pub mod structure_set_keys;
@@ -23,6 +21,7 @@ pub mod placement;
 pub mod site;
 pub mod spawn_condition;
 
+pub use mcrs_minecraft_anvil::piece::{OceanTemperature, PortalPlacement};
 use serde::{Deserialize, Serialize};
 
 use mcrs_minecraft_worldgen_feature::pool::LiquidSettings;
@@ -285,13 +284,6 @@ pub enum MineshaftType {
     Mesa,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum OceanTemperature {
-    Warm,
-    Cold,
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RuinedPortalSetup {
@@ -303,17 +295,6 @@ pub struct RuinedPortalSetup {
     pub can_be_cold: bool,
     pub replace_with_blackstone: bool,
     pub weight: PositiveFloat,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum PortalPlacement {
-    OnLandSurface,
-    PartlyBuried,
-    OnOceanFloor,
-    InMountain,
-    Underground,
-    InNether,
 }
 
 // Flatten target: no `deny_unknown_fields`.
