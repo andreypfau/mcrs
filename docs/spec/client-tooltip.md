@@ -90,7 +90,8 @@ narration of tooltips.
   3. A request with no lines has no effect. A request with one empty line is not a request
      with no lines: it draws a tooltip with `w` = 0.
   4. When the screen already has a request, a new request has no effect. The first request
-     of the frame stays.
+     of the frame stays. A new request replaces the first request only when a rule states
+     it. `client-widget.md`, WID-TIP-005, states it for a focused widget.
   5. After the screen draws all its content, it makes the request of the hovered text style
      (TIP-HOVER-001). Step 4 applies to it.
   6. Then the screen draws the tooltip of the request, if there is one. The tooltip is above
@@ -98,12 +99,16 @@ narration of tooltips.
   7. At the end of the frame, the screen discards the request.
 - **Postconditions:**
   - A frame draws zero tooltips or one tooltip.
-  - A tooltip shows in the first frame in which its source asks for it. There is no delay
-    and no fade.
-  - A tooltip follows the mouse position in each frame.
+  - A tooltip shows in the frame of its request. It has no fade.
+  - A source makes its request with no delay. The tooltip of a widget is the exception: it
+    has the delay of `client-widget.md`, WID-TIP-001.
+  - A tooltip has the position of TIP-POS-001, so it follows the mouse position in each
+    frame. The tooltip of a widget has the positions of `client-widget.md`, WID-TIP-003 and
+    WID-TIP-004.
   - A hover event shows only when no other part of the screen made a request in that frame.
-- **Edge cases:** a tooltip is a function of the mouse position only. A key never makes a
-  tooltip request by itself.
+- **Edge cases:** a key never makes a tooltip request by itself. The exception is the focus
+  of a widget (`client-widget.md`, WID-TIP-001 and WID-TIP-005). Except for the tooltip of a
+  widget, a tooltip is a function of the mouse position only.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: in the open chat,
 put the mouse on a suggestion row with a tooltip, above a chat line with a `show_text` hover
@@ -310,4 +315,4 @@ No deviation is recorded.
 - The lines and the image of an item tooltip need a separate specification. TIP-HOVER-001 for
   `show_item` depends on it.
 - The tooltip of a widget, for example a button, uses the same background with a delay and
-  other positions. A separate rule set can state it.
+  other positions. `client-widget.md`, section 6, states it.

@@ -4447,6 +4447,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_client_widget"
+version = "0.5.8"
+dependencies = [
+ "libm",
+]
+
+[[package]]
 name = "mcrs_minecraft_client_world"
 version = "0.5.8"
 dependencies = [
