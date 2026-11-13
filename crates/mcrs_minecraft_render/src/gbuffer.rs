@@ -4,12 +4,15 @@ use bevy::prelude::*;
 use bevy::render::render_resource::binding_types::{sampler, texture_2d, uniform_buffer_sized};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
-use bevy::render::view::ViewDepthStencilTexture;
+use bevy::render::view::{ExtractedView, ViewDepthStencilTexture};
 
+use crate::ImprovedTransparency;
 use crate::reconstruct::LIGHTING_UNIFORM_SIZE;
+use crate::transparency_targets::TransparencyTargets;
 use crate::uniform_buffer;
 
-/// Albedo and occlusion, normal and motion, then emissive, block light, sky light and roughness.
+/// Albedo and occlusion, normal and motion, then emissive, block light, sky light and the mark of
+/// a terrain pixel.
 /// Albedo stays in the bytes vanilla shades, so it is never an sRGB format: the lighting pass
 /// encodes for the target once.
 pub const GBUFFER_FORMATS: [TextureFormat; 3] = [
@@ -45,6 +48,8 @@ pub struct DeferredFrame {
     /// Reads the depth, which a shader samples rather than loads (`depth.wesl`).
     nearest: Sampler,
     pub(crate) bind_group: BindGroup,
+    /// Present while Improved Transparency is on, in the format of the view target.
+    pub(crate) transparency: Option<TransparencyTargets>,
     size: UVec2,
     depth: TextureId,
 }
@@ -61,14 +66,17 @@ impl DeferredFrame {
             lighting,
             nearest,
             bind_group,
+            transparency: None,
             size,
             depth: depth.texture().id(),
         }
     }
 
+    /// `transparency` is the format of the view target while Improved Transparency is on.
     fn fit(
         &mut self,
         depth: &ViewDepthStencilTexture,
+        transparency: Option<TextureFormat>,
         device: &RenderDevice,
         cache: &PipelineCache,
     ) {
@@ -78,7 +86,8 @@ impl DeferredFrame {
             self.targets = targets(size, device);
             self.size = size;
         }
-        if rebuilt || self.depth != depth.texture().id() {
+        let rebound = rebuilt || self.depth != depth.texture().id();
+        if rebound {
             self.depth = depth.texture().id();
             self.bind_group = bind_group(
                 &self.targets,
@@ -89,6 +98,26 @@ impl DeferredFrame {
                 cache,
             );
         }
+        let Some(format) = transparency else {
+            self.transparency = None;
+            return;
+        };
+        if rebound
+            || self
+                .transparency
+                .as_ref()
+                .is_none_or(|targets| targets.format != format)
+        {
+            self.transparency = Some(TransparencyTargets::new(
+                format,
+                &self.targets,
+                &self.lighting,
+                &self.nearest,
+                depth,
+                device,
+                cache,
+            ));
+        }
     }
 }
 
@@ -97,23 +126,39 @@ fn size_of(depth: &ViewDepthStencilTexture) -> UVec2 {
 }
 
 fn targets(size: UVec2, device: &RenderDevice) -> [TextureView; 3] {
-    GBUFFER_FORMATS.map(|format| {
-        device
-            .create_texture(&TextureDescriptor {
-                label: Some("gbuffer"),
-                size: Extent3d {
-                    width: size.x,
-                    height: size.y,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: TextureDimension::D2,
-                format,
-                usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
-                view_formats: &[],
-            })
-            .create_view(&TextureViewDescriptor::default())
+    GBUFFER_FORMATS
+        .map(|format| attachment("gbuffer", size, format, device).create_view(&default()))
+}
+
+/// A texture that a pass draws into and a later pass reads.
+pub(crate) fn attachment(
+    label: &'static str,
+    size: UVec2,
+    format: TextureFormat,
+    device: &RenderDevice,
+) -> Texture {
+    device.create_texture(&TextureDescriptor {
+        label: Some(label),
+        size: Extent3d {
+            width: size.x,
+            height: size.y,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: TextureDimension::D2,
+        format,
+        usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+        view_formats: &[],
+    })
+}
+
+/// The depth of `depth` read as a float texture, which is how `depth.wesl` takes it.
+pub(crate) fn depth_view(depth: &Texture) -> TextureView {
+    depth.create_view(&TextureViewDescriptor {
+        label: Some("gbuffer depth"),
+        aspect: TextureAspect::DepthOnly,
+        ..default()
     })
 }
 
@@ -133,11 +178,7 @@ fn bind_group(
     device: &RenderDevice,
     cache: &PipelineCache,
 ) -> BindGroup {
-    let depth_view = depth.texture().create_view(&TextureViewDescriptor {
-        label: Some("gbuffer depth"),
-        aspect: TextureAspect::DepthOnly,
-        ..default()
-    });
+    let depth_view = depth_view(depth.texture());
     device.create_bind_group(
         "deferred gbuffer",
         &cache.get_bind_group_layout(&gbuffer_layout()),
@@ -155,15 +196,19 @@ fn bind_group(
 pub(crate) fn fit_deferred_frame(
     mut commands: Commands,
     frame: Option<ResMut<DeferredFrame>>,
-    views: Query<&ViewDepthStencilTexture, With<Camera3d>>,
+    views: Query<(&ViewDepthStencilTexture, &ExtractedView), With<Camera3d>>,
+    improved: Option<Res<ImprovedTransparency>>,
     device: Res<RenderDevice>,
     cache: Res<PipelineCache>,
 ) {
-    let Some(depth) = views.iter().next() else {
+    let Some((depth, view)) = views.iter().next() else {
         return;
     };
+    let transparency = improved
+        .is_some_and(|improved| improved.0)
+        .then_some(view.target_format);
     match frame {
-        Some(mut frame) => frame.fit(depth, &device, &cache),
+        Some(mut frame) => frame.fit(depth, transparency, &device, &cache),
         None => commands.insert_resource(DeferredFrame::new(depth, &device, &cache)),
     }
 }

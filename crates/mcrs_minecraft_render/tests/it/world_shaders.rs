@@ -26,6 +26,13 @@ const BEVY_VIEW: &str = "struct View {
     world_position: vec3<f32>,
 };";
 
+/// The light volume module, which imports this crate by name. The resolver keys a module on its
+/// path, and a package import never reaches the absolute origin of this crate's own modules, so the
+/// volume module is served beside them and imports them through `package`.
+const LIGHT_VOLUME_IMPORT: &str = "mcrs_minecraft_light_render::shaders::volume";
+const LIGHT_VOLUME_LOCAL_IMPORT: &str = "package::light_volume";
+const LIGHT_VOLUME: &str = "light_volume";
+
 /// The crate's shader files by module path, Bevy's fullscreen module, and the `constants` module
 /// Bevy writes from the pipeline's shader defs.
 struct Sources {
@@ -48,6 +55,12 @@ impl Resolver for Sources {
                     _ => {}
                 }
             }
+            PathOrigin::Absolute if path.components == [LIGHT_VOLUME] => {
+                return Ok(Cow::Owned(
+                    include_str!("../../../mcrs_minecraft_light_render/src/shaders/volume.wesl")
+                        .replace("mcrs_minecraft_render::", "package::"),
+                ));
+            }
             _ => {}
         }
         let file = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -55,7 +68,9 @@ impl Resolver for Sources {
             .join(path.components.join("/"))
             .with_extension("wesl");
         std::fs::read_to_string(&file)
-            .map(Cow::Owned)
+            .map(|source| {
+                Cow::Owned(source.replace(LIGHT_VOLUME_IMPORT, LIGHT_VOLUME_LOCAL_IMPORT))
+            })
             .map_err(|error| ResolveError::ModuleNotFound(path.clone(), error.to_string()))
     }
 }
@@ -126,24 +141,35 @@ const ES_310_BUILTINS: [&str; 6] = [
     "findMSB",
 ];
 
-/// Each shader the minimal path draws with, and the defs of a pipeline that uses it beside those
-/// of the path.
-const PIPELINES: [(&str, &[&str]); 9] = [
-    ("greedy", &[]),
-    ("greedy", &["WIREFRAME"]),
-    ("model", &[]),
-    ("model", &["WIREFRAME"]),
-    ("lighting_pass", &[]),
-    ("lighting_pass", &["LIGHTING_TERM"]),
-    ("gbuffer_views", &["SHOW_GRID"]),
-    ("show", &[]),
-    ("show", &["PYRAMID"]),
+const BOTH: &[RenderPath] = &[RenderPath::Full, RenderPath::Minimal];
+const FULL: &[RenderPath] = &[RenderPath::Full];
+
+/// Each shader the minimal path draws with, the defs of a pipeline that uses it beside those of
+/// the path, and the paths that build that pipeline.
+const PIPELINES: [(&str, &[&str], &[RenderPath]); 14] = [
+    ("greedy", &[], BOTH),
+    ("greedy", &["WIREFRAME"], BOTH),
+    ("greedy", &["IMPROVED"], BOTH),
+    ("model", &[], BOTH),
+    ("model", &["WIREFRAME"], BOTH),
+    ("model", &["IMPROVED"], BOTH),
+    ("lighting_pass", &[], BOTH),
+    ("lighting_pass", &["LIGHTING_TERM"], BOTH),
+    ("lighting_pass", &["IMPROVED"], BOTH),
+    ("lighting_pass", &["LIGHT_TINT"], BOTH),
+    ("lighting_pass", &["IMPROVED", "LIGHT_TINT"], FULL),
+    ("gbuffer_views", &["SHOW_GRID"], BOTH),
+    ("show", &[], BOTH),
+    ("show", &["PYRAMID"], BOTH),
 ];
+
+/// The sampled textures a fragment stage of WebGL2 may bind.
+const WEBGL2_FRAGMENT_TEXTURES: usize = 16;
 
 #[test]
 fn the_world_shaders_compile_for_both_paths_and_the_minimal_one_for_webgl2() {
-    for (shader, extra) in PIPELINES {
-        for path in [RenderPath::Full, RenderPath::Minimal] {
+    for (shader, extra, paths) in PIPELINES {
+        for &path in paths {
             let mut defs = path.shader_defs();
             defs.extend(extra.iter().map(|&name| ShaderDefVal::from(name)));
             let module = compile(shader, defs);
@@ -151,10 +177,45 @@ fn the_world_shaders_compile_for_both_paths_and_the_minimal_one_for_webgl2() {
                 .validate(&module)
                 .unwrap_or_else(|error| panic!("{shader} {extra:?} on {path:?}: {error:?}"));
             if !path.is_full() {
-                assert_writes_for_webgl2(&format!("{shader} {extra:?}"), &module, &info);
+                let label = format!("{shader} {extra:?}");
+                assert_writes_for_webgl2(&label, &module, &info);
+                let textures = fragment_textures(&module, &info);
+                assert!(
+                    textures <= WEBGL2_FRAGMENT_TEXTURES,
+                    "{label} samples {textures} textures in a fragment stage"
+                );
             }
         }
     }
+}
+
+/// The most sampled textures that one fragment entry point of `module` reads.
+fn fragment_textures(module: &naga::Module, info: &naga::valid::ModuleInfo) -> usize {
+    module
+        .entry_points
+        .iter()
+        .enumerate()
+        .filter(|(_, entry)| entry.stage == naga::ShaderStage::Fragment)
+        .map(|(index, _)| {
+            let used = info.get_entry_point(index);
+            module
+                .global_variables
+                .iter()
+                .filter(|&(handle, variable)| {
+                    !used[handle].is_empty()
+                        && matches!(
+                            module.types[variable.ty].inner,
+                            naga::TypeInner::Image {
+                                class: naga::ImageClass::Sampled { .. }
+                                    | naga::ImageClass::Depth { .. },
+                                ..
+                            }
+                        )
+                })
+                .count()
+        })
+        .max()
+        .unwrap_or(0)
 }
 
 #[test]
@@ -170,6 +231,8 @@ fn the_sky_shader_compiles_with_each_entry_point_for_webgl2() {
         "fragment_occluder",
         "vertex_disc",
         "fragment_disc",
+        "fragment_clouds",
+        "fragment_cloud_image",
     ] {
         assert!(
             module.entry_points.iter().any(|entry| entry.name == name),

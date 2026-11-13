@@ -7,6 +7,13 @@ fn to_target(raw: vec3<f32>) -> vec3<f32> {
     return select(high, low, raw <= vec3<f32>(0.04045));
 }
 
+/// The inverse of `to_target`: the image value of a colour the target stores.
+fn from_target(stored: vec3<f32>) -> vec3<f32> {
+    let low = stored * 12.92;
+    let high = 1.055 * pow(stored, vec3<f32>(1.0 / 2.4)) - 0.055;
+    return select(high, low, stored <= vec3<f32>(0.0031308));
+}
+
 fn edge_pixels(quad_uv: vec2<f32>) -> f32 {
     let width = max(fwidth(quad_uv), vec2<f32>(1e-6));
     let border = min(
