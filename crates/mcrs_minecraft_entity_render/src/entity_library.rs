@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::Range;
 
 use bytemuck::{Pod, Zeroable};
 use glam::Vec3;
@@ -132,6 +133,8 @@ pub struct EntityLibrary {
     pub arrays: Vec<TextureArray>,
     /// The variant of each texture identifier.
     pub textures: HashMap<String, u16>,
+    /// The variants whose texels a frame can write: the skin layers. They have no impostor.
+    pub skin_variants: Range<u16>,
     /// The diagnostics of the build.
     pub diagnostics: Vec<String>,
 }

@@ -14,6 +14,7 @@ use serde::Deserialize;
 use crate::entity_assets::{EntityAssets, MISSING_TEXTURE, texture_identifier};
 use crate::entity_library::{EntityLibrary, TextureImage};
 use crate::entity_pack::EntityPack;
+use crate::player_skin::{SKIN_SLOTS, skin_identifier, skin_texture_hashes, skin_textures};
 use crate::variant_source::VARIANT_REGISTRIES;
 
 /// The texture array layers that one array holds at most.
@@ -42,15 +43,43 @@ impl EntityAssets {
             );
         }
         let textures = textures(resources, identifiers);
-        add_kinds(&pack, &mut assets);
-        assets.library = EntityLibrary::build(
+        assets.add_pack(pack, textures, array_layers);
+        assets
+    }
+
+    /// Builds the library of `pack` with `textures` and the skin layers, and indexes it.
+    pub(crate) fn add_pack(
+        &mut self,
+        pack: EntityPack,
+        mut textures: Vec<TextureImage>,
+        array_layers: u32,
+    ) {
+        textures.extend(skin_textures());
+        add_kinds(&pack, self);
+        self.library = EntityLibrary::build(
             &pack.sources(),
             &textures,
             array_layers.min(MAX_ARRAY_LAYERS),
         );
-        assets.pack = pack;
-        assets.index_textures();
-        assets
+        self.library.skin_variants = skin_variants(&self.library);
+        self.skin_textures = skin_texture_hashes();
+        self.pack = pack;
+        self.index_textures();
+    }
+}
+
+/// The variants of the skin layers, which the library adds last and in slot order, or none when
+/// a layer did not fit in the texture arrays.
+fn skin_variants(library: &EntityLibrary) -> std::ops::Range<u16> {
+    let variant = |slot: u16| library.textures.get(&skin_identifier(slot)).copied();
+    match (variant(0), variant(SKIN_SLOTS - 1)) {
+        (Some(first), Some(last)) if last.checked_sub(first) == Some(SKIN_SLOTS - 1) => {
+            first..last + 1
+        }
+        _ => {
+            warn!("the skin layers do not fit in the entity textures; players draw default skins");
+            0..0
+        }
     }
 }
 

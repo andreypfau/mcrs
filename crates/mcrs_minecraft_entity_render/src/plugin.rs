@@ -10,6 +10,7 @@ use crate::main_world::{
     EntityClock, EntityVm, advance_clock, assign_slots, frame_clock, release_slot, server_ticks,
     write_inputs, write_layers, write_ticks,
 };
+use crate::player_skin::{SkinSlots, assign_skins, release_skin};
 use crate::render_world::{EntityRenderState, draw_entities, extract_entities, prepare_entities};
 use crate::slot_upload::SlotArena;
 
@@ -19,7 +20,7 @@ pub struct EntitySlotSystems;
 
 /// Whether this device runs the entity passes, in the main world and the render world alike.
 #[derive(Resource, Clone, Copy, PartialEq, Eq, Debug)]
-pub struct EntityPasses(bool);
+pub struct EntityPasses(pub(crate) bool);
 
 /// A run condition: the device runs the entity passes.
 pub fn entity_passes(passes: Option<Res<EntityPasses>>) -> bool {
@@ -38,6 +39,7 @@ impl Plugin for EntityRenderPlugin {
         app.init_resource::<SlotArena>()
             .init_resource::<EntityClock>()
             .init_resource::<EntityVm>()
+            .init_resource::<SkinSlots>()
             .add_systems(
                 FixedUpdate,
                 advance_clock.before(ClientEntityTick).run_if(server_ticks),
@@ -47,6 +49,7 @@ impl Plugin for EntityRenderPlugin {
                 (
                     frame_clock,
                     assign_slots,
+                    assign_skins,
                     write_ticks,
                     write_layers,
                     write_inputs,
@@ -55,7 +58,8 @@ impl Plugin for EntityRenderPlugin {
                     .in_set(EntitySlotSystems),
             )
             .configure_sets(PostUpdate, EntitySlotSystems.run_if(entity_passes))
-            .add_observer(release_slot);
+            .add_observer(release_slot)
+            .add_observer(release_skin);
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };

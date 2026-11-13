@@ -1,0 +1,311 @@
+{
+  "format_version": "1.12.0",
+  "minecraft:geometry": [
+    {
+      "description": {
+        "identifier": "geometry.player",
+        "texture_width": 64.0,
+        "texture_height": 64.0
+      },
+      "bones": [
+        {
+          "name": "body",
+          "pivot": [0.0, 24.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-4.0, 12.0, -2.0],
+              "size": [8.0, 12.0, 4.0],
+              "uv": [16.0, 16.0]
+            }
+          ]
+        },
+        {
+          "name": "jacket",
+          "parent": "body",
+          "pivot": [0.0, 24.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-4.0, 12.0, -2.0],
+              "size": [8.0, 12.0, 4.0],
+              "inflate": 0.25,
+              "uv": [16.0, 32.0]
+            }
+          ]
+        },
+        {
+          "name": "head",
+          "pivot": [0.0, 24.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-4.0, 24.0, -4.0],
+              "size": [8.0, 8.0, 8.0],
+              "uv": [0.0, 0.0]
+            }
+          ]
+        },
+        {
+          "name": "hat",
+          "parent": "head",
+          "pivot": [0.0, 24.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-4.0, 24.0, -4.0],
+              "size": [8.0, 8.0, 8.0],
+              "inflate": 0.5,
+              "uv": [32.0, 0.0]
+            }
+          ]
+        },
+        {
+          "name": "left_arm",
+          "pivot": [5.0, 22.0, 0.0],
+          "cubes": [
+            {
+              "origin": [4.0, 12.0, -2.0],
+              "size": [4.0, 12.0, 4.0],
+              "uv": [32.0, 48.0]
+            }
+          ]
+        },
+        {
+          "name": "left_sleeve",
+          "parent": "left_arm",
+          "pivot": [5.0, 22.0, 0.0],
+          "cubes": [
+            {
+              "origin": [4.0, 12.0, -2.0],
+              "size": [4.0, 12.0, 4.0],
+              "inflate": 0.25,
+              "uv": [48.0, 48.0]
+            }
+          ]
+        },
+        {
+          "name": "left_leg",
+          "pivot": [1.9, 12.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-0.1, 0.0, -2.0],
+              "size": [4.0, 12.0, 4.0],
+              "uv": [16.0, 48.0]
+            }
+          ]
+        },
+        {
+          "name": "left_pants",
+          "parent": "left_leg",
+          "pivot": [1.9, 12.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-0.1, 0.0, -2.0],
+              "size": [4.0, 12.0, 4.0],
+              "inflate": 0.25,
+              "uv": [0.0, 48.0]
+            }
+          ]
+        },
+        {
+          "name": "right_arm",
+          "pivot": [-5.0, 22.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-8.0, 12.0, -2.0],
+              "size": [4.0, 12.0, 4.0],
+              "uv": [40.0, 16.0]
+            }
+          ]
+        },
+        {
+          "name": "right_sleeve",
+          "parent": "right_arm",
+          "pivot": [-5.0, 22.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-8.0, 12.0, -2.0],
+              "size": [4.0, 12.0, 4.0],
+              "inflate": 0.25,
+              "uv": [40.0, 32.0]
+            }
+          ]
+        },
+        {
+          "name": "right_leg",
+          "pivot": [-1.9, 12.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-3.9, 0.0, -2.0],
+              "size": [4.0, 12.0, 4.0],
+              "uv": [0.0, 16.0]
+            }
+          ]
+        },
+        {
+          "name": "right_pants",
+          "parent": "right_leg",
+          "pivot": [-1.9, 12.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-3.9, 0.0, -2.0],
+              "size": [4.0, 12.0, 4.0],
+              "inflate": 0.25,
+              "uv": [0.0, 32.0]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "description": {
+        "identifier": "geometry.player.slim",
+        "texture_width": 64.0,
+        "texture_height": 64.0
+      },
+      "bones": [
+        {
+          "name": "body",
+          "pivot": [0.0, 24.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-4.0, 12.0, -2.0],
+              "size": [8.0, 12.0, 4.0],
+              "uv": [16.0, 16.0]
+            }
+          ]
+        },
+        {
+          "name": "jacket",
+          "parent": "body",
+          "pivot": [0.0, 24.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-4.0, 12.0, -2.0],
+              "size": [8.0, 12.0, 4.0],
+              "inflate": 0.25,
+              "uv": [16.0, 32.0]
+            }
+          ]
+        },
+        {
+          "name": "head",
+          "pivot": [0.0, 24.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-4.0, 24.0, -4.0],
+              "size": [8.0, 8.0, 8.0],
+              "uv": [0.0, 0.0]
+            }
+          ]
+        },
+        {
+          "name": "hat",
+          "parent": "head",
+          "pivot": [0.0, 24.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-4.0, 24.0, -4.0],
+              "size": [8.0, 8.0, 8.0],
+              "inflate": 0.5,
+              "uv": [32.0, 0.0]
+            }
+          ]
+        },
+        {
+          "name": "left_arm",
+          "pivot": [5.0, 22.0, 0.0],
+          "cubes": [
+            {
+              "origin": [4.0, 12.0, -2.0],
+              "size": [3.0, 12.0, 4.0],
+              "uv": [32.0, 48.0]
+            }
+          ]
+        },
+        {
+          "name": "left_sleeve",
+          "parent": "left_arm",
+          "pivot": [5.0, 22.0, 0.0],
+          "cubes": [
+            {
+              "origin": [4.0, 12.0, -2.0],
+              "size": [3.0, 12.0, 4.0],
+              "inflate": 0.25,
+              "uv": [48.0, 48.0]
+            }
+          ]
+        },
+        {
+          "name": "left_leg",
+          "pivot": [1.9, 12.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-0.1, 0.0, -2.0],
+              "size": [4.0, 12.0, 4.0],
+              "uv": [16.0, 48.0]
+            }
+          ]
+        },
+        {
+          "name": "left_pants",
+          "parent": "left_leg",
+          "pivot": [1.9, 12.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-0.1, 0.0, -2.0],
+              "size": [4.0, 12.0, 4.0],
+              "inflate": 0.25,
+              "uv": [0.0, 48.0]
+            }
+          ]
+        },
+        {
+          "name": "right_arm",
+          "pivot": [-5.0, 22.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-7.0, 12.0, -2.0],
+              "size": [3.0, 12.0, 4.0],
+              "uv": [40.0, 16.0]
+            }
+          ]
+        },
+        {
+          "name": "right_sleeve",
+          "parent": "right_arm",
+          "pivot": [-5.0, 22.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-7.0, 12.0, -2.0],
+              "size": [3.0, 12.0, 4.0],
+              "inflate": 0.25,
+              "uv": [40.0, 32.0]
+            }
+          ]
+        },
+        {
+          "name": "right_leg",
+          "pivot": [-1.9, 12.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-3.9, 0.0, -2.0],
+              "size": [4.0, 12.0, 4.0],
+              "uv": [0.0, 16.0]
+            }
+          ]
+        },
+        {
+          "name": "right_pants",
+          "parent": "right_leg",
+          "pivot": [-1.9, 12.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-3.9, 0.0, -2.0],
+              "size": [4.0, 12.0, 4.0],
+              "inflate": 0.25,
+              "uv": [0.0, 32.0]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

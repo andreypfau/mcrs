@@ -14,6 +14,7 @@ sources:
   - docs/entity-render-budget.md
   - crates/mcrs_minecraft_render/src/arenas.rs
   - crates/mcrs_minecraft_entity_render/src/lib.rs
+  - docs/spec/client-player-render.md
   - issue:330
   - issue:337
   - issue:344
@@ -71,6 +72,8 @@ The web build itself does not reach a steady frame.[^344]
 ## Far mobs are flat images
 
 A mob that is far away does not need its full rig, the set of bones that poses the model. For each pair of a model and a texture, the renderer bakes a small set of views. A set has 16 yaws and 9 elevations at 64 by 64 texels and takes about 4.7 MB. A far mob is then drawn as an impostor, which is one quad that shows the nearest view. The renderer bakes a set lazily, when a model and a texture first appear on an active mob. Full rigs have a cap, and impostors have none. The note records the cost of each step and the choices that did not help.
+
+A player draws through the same passes. Its skin is a layer of the entity textures that the renderer writes when the skin arrives, so a new skin needs no rebuild. A player with a skin keeps the full rig at each distance, because a baked view would keep an old skin. A program with no server, such as a world viewer, adds a player with `host_living_entity`, moves it with `move_entity` and gives it a skin with the `PlayerSkin` component. The rules are in `docs/spec/client-player-render.md`.
 
 ## Where the rules and the numbers are
 

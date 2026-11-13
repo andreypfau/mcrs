@@ -1,6 +1,7 @@
 //! The GPU side of the entity rendering: the slot records of each mob, the static tables of the
 //! models, the pose programs, the entity cull, pose, expand and draw passes, and the impostors
-//! of small mobs, and the assets they draw from the entity pack of the repository.
+//! of small mobs, the skins of players, and the assets they draw from the entity pack of the
+//! repository.
 // wgpu's `Buffer: Sync` proof chain is deeper than the default 128 frames.
 #![recursion_limit = "256"]
 
@@ -22,11 +23,13 @@ mod height_threshold;
 mod impostor_atlas;
 mod impostor_frame;
 mod main_world;
+mod player_skin;
 mod plugin;
 mod pose_program;
 mod records;
 mod render_world;
 mod repository_pack;
+mod skin_image;
 mod slot_upload;
 mod variant_source;
 
@@ -43,6 +46,7 @@ pub use frame_uniform::FrameUniform;
 pub use height_threshold::HeightThreshold;
 pub use impostor_frame::{IMPOSTOR_VIEWS, ImpostorFrames, ImpostorView};
 pub use main_world::{CpuAnimation, EntityClock, EntitySlot, RecordedClip, RecordedClips};
+pub use player_skin::{PlayerSkin, SKIN_SLOTS};
 pub use plugin::{EntityPasses, EntityRenderPlugin, EntitySlotSystems, entity_passes};
 pub use pose_program::{EntryInputs, InputLayout, PoseProgram, PoseProgramError};
 pub use records::{
@@ -50,4 +54,5 @@ pub use records::{
     StateRecord, TickRecord, f16_up,
 };
 pub use render_world::FULL_RIG_CAP;
+pub use skin_image::{SKIN_SIDE, SkinError, SkinImage};
 pub use slot_upload::{RecordRange, SlotArena, SlotUpload};

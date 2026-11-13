@@ -387,7 +387,7 @@ pub(crate) fn texture_arrays(
     queue: &wgpu::Queue,
     library: &EntityLibrary,
     texture_layout: &BindGroupLayout,
-) -> Vec<wgpu::BindGroup> {
+) -> Vec<(wgpu::Texture, wgpu::BindGroup)> {
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
         label: Some("entity textures"),
         ..Default::default()
@@ -411,7 +411,7 @@ pub(crate) fn texture_arrays(
                     sample_count: 1,
                     dimension: wgpu::TextureDimension::D2,
                     format: TextureFormat::Rgba8Unorm,
-                    usage: wgpu::TextureUsages::TEXTURE_BINDING,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
                     view_formats: &[],
                 },
                 wgpu::util::TextureDataOrder::LayerMajor,
@@ -421,7 +421,7 @@ pub(crate) fn texture_arrays(
                 dimension: Some(wgpu::TextureViewDimension::D2Array),
                 ..Default::default()
             });
-            device.create_bind_group(&wgpu::BindGroupDescriptor {
+            let bind = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("entity texture array"),
                 layout: texture_layout,
                 entries: &[
@@ -434,7 +434,8 @@ pub(crate) fn texture_arrays(
                         resource: BindingResource::Sampler(&sampler),
                     },
                 ],
-            })
+            });
+            (texture, bind)
         })
         .collect()
 }

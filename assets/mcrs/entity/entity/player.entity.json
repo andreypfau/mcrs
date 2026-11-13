@@ -1,0 +1,26 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "minecraft:player",
+      "materials": { "default": "entity_alphatest" },
+      "textures": {
+        "default": "textures/entity/player/wide/steve",
+        "slim": "textures/entity/player/slim/alex"
+      },
+      "geometry": {
+        "default": "geometry.player",
+        "slim": "geometry.player.slim"
+      },
+      "animations": {
+        "walk": "animation.player.walk",
+        "look_at_target": "animation.player.look_at_target",
+        "sneak": "animation.player.sneak"
+      },
+      "scripts": {
+        "animate": ["walk", "look_at_target", { "sneak": "q.pose == 'crouching'" }]
+      },
+      "render_controllers": ["controller.render.player"]
+    }
+  }
+}

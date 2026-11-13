@@ -1,0 +1,12 @@
+{
+  "format_version": "1.8.0",
+  "render_controllers": {
+    "controller.render.player": {
+      "geometry": "q.variant_model == 'slim' ? Geometry.slim : Geometry.default",
+      "materials": [{ "*": "Material.default" }],
+      "textures": [
+        "q.variant_asset != '' ? q.variant_asset : (q.variant_model == 'slim' ? 'minecraft:entity/player/slim/alex' : 'minecraft:entity/player/wide/steve')"
+      ]
+    }
+  }
+}

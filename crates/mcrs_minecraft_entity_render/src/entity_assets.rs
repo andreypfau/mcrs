@@ -60,6 +60,8 @@ pub struct EntityAssets {
     pub default_variants: HashMap<EntityType, u16>,
     /// The texture identifier of each equipment asset and layer type.
     pub equipment_textures: HashMap<(String, String), String>,
+    /// The `string_hash` of the texture identifier of each skin layer.
+    pub skin_textures: Vec<u64>,
     /// The cull radius of each definition at the scale 1, in blocks.
     pub radii: Vec<f32>,
     /// The variant of each texture identifier by its `string_hash`.

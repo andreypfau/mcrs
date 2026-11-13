@@ -15,7 +15,8 @@ use mcrs_voxel::BlockPos;
 
 use crate::cpu_inputs::input_record;
 use crate::entity_assets::{EntityAssets, texture_identifier};
-use crate::frame_queries::{FrameQueries, pose_name};
+use crate::frame_queries::{FrameQueries, VariantEntry, pose_name};
+use crate::player_skin::{PlayerSkin, SkinSlot, skin_entry};
 use crate::records::{
     CULL_FULL_RIG_ONLY, CULL_VALID, CullRecord, MAX_LAYERS, STATE_BABY, STATE_DYING,
     STATE_HIDDEN_SHIFT, TickRecord, f16_up,
@@ -299,11 +300,12 @@ fn equipment_asset(
     }
 }
 
-/// The value of a query of a render controller, from the tick state of an entity.
+/// The value of a query of a render controller, from the tick state of an entity and its
+/// variant entry.
 fn render_query(
     query: &RenderQuery,
     assets: &EntityAssets,
-    client: &ClientEntity,
+    variant: Option<VariantEntry>,
     data: &SyncedData,
     equipment: Option<&Equipment>,
     items: Option<&Items>,
@@ -311,9 +313,6 @@ fn render_query(
     let flag = |value: bool| Value::Number(if value { 1.0 } else { 0.0 });
     let text = |value: &str| Value::String(string_hash(value));
     let empty = || Value::String(string_hash(""));
-    let variant = assets
-        .variant(client.kind, data.variant)
-        .map(|variant| variant.entry(data.baby));
     Some(match query {
         RenderQuery::Entity(EntityQuery::IsBaby) => flag(data.baby),
         RenderQuery::Entity(EntityQuery::Variant) => {
@@ -346,6 +345,15 @@ fn render_query(
     })
 }
 
+type LayerInputs = (
+    &'static EntitySlot,
+    &'static ClientEntity,
+    &'static SyncedData,
+    Option<&'static Equipment>,
+    Option<&'static PlayerSkin>,
+    Option<&'static SkinSlot>,
+);
+
 /// Evaluates the render controllers of each entity whose tick state changed and writes the
 /// layers of its state record.
 pub(crate) fn write_layers(
@@ -355,10 +363,16 @@ pub(crate) fn write_layers(
     mut arena: ResMut<SlotArena>,
     mut last_generation: Local<Option<u32>>,
     changed: Query<
-        (&EntitySlot, &ClientEntity, &SyncedData, Option<&Equipment>),
-        Or<(Changed<SyncedData>, Changed<Equipment>, Added<EntitySlot>)>,
+        LayerInputs,
+        Or<(
+            Changed<SyncedData>,
+            Changed<Equipment>,
+            Added<EntitySlot>,
+            Changed<PlayerSkin>,
+            Changed<SkinSlot>,
+        )>,
     >,
-    all: Query<(&EntitySlot, &ClientEntity, &SyncedData, Option<&Equipment>)>,
+    all: Query<LayerInputs>,
 ) {
     let Some(assets) = assets else {
         return;
@@ -366,11 +380,13 @@ pub(crate) fn write_layers(
     let rebuilt = *last_generation != Some(assets.generation);
     *last_generation = Some(assets.generation);
     let items = items.as_deref();
-    let mut write = |(slot, client, data, equipment): (
+    let mut write = |(slot, client, data, equipment, skin, skin_slot): (
         &EntitySlot,
         &ClientEntity,
         &SyncedData,
         Option<&Equipment>,
+        Option<&PlayerSkin>,
+        Option<&SkinSlot>,
     )| {
         let (Some(entity), Some(tables)) = (
             assets.pack.entities.get(usize::from(slot.definition)),
@@ -378,8 +394,14 @@ pub(crate) fn write_layers(
         ) else {
             return;
         };
+        let variant = match skin {
+            Some(skin) => Some(skin_entry(skin, skin_slot, &assets)),
+            None => assets
+                .variant(client.kind, data.variant)
+                .map(|variant| variant.entry(data.baby)),
+        };
         let choices = entity.controllers.evaluate(&mut vm.0, |query| {
-            render_query(query, &assets, client, data, equipment, items)
+            render_query(query, &assets, variant, data, equipment, items)
         });
         let Some(mut state) = arena.state(slot.slot).copied() else {
             return;

@@ -47,6 +47,19 @@ const FROG: [Source; 1] = [Source {
     layer: "main",
 }];
 
+const PLAYER: [Source; 2] = [
+    Source {
+        identifier: "geometry.player",
+        model: "minecraft:player",
+        layer: "main",
+    },
+    Source {
+        identifier: "geometry.player.slim",
+        model: "minecraft:player_slim",
+        layer: "main",
+    },
+];
+
 fn geometry_file(artefact: &ModelArtefact, sources: &[Source]) -> String {
     let geometries = sources
         .iter()
@@ -69,6 +82,10 @@ fn generate() -> BTreeMap<PathBuf, String> {
     BTreeMap::from([
         (directory.join("pig.json"), geometry_file(&artefact, &PIG)),
         (directory.join("frog.json"), geometry_file(&artefact, &FROG)),
+        (
+            directory.join("player.json"),
+            geometry_file(&artefact, &PLAYER),
+        ),
     ])
 }
 
