@@ -16,6 +16,7 @@ use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_voxel::{BlockPos, ColumnPos, LocalPos, SectionPos};
 
 use crate::cave::{CaveCull, NO_SLOT};
+use crate::drawn_columns::{DrawnColumn, DrawnColumns};
 use crate::tint::{self, BiomeTints};
 use crate::vanilla::VanillaAssets;
 use mcrs_minecraft_client_world::joined_game::CurrentDimension;
@@ -76,6 +77,7 @@ impl Plugin for StreamPlugin {
             .insert_resource(self.pacing)
             .init_resource::<LightOptions>()
             .init_resource::<TerrainShade>()
+            .add_message::<DrawnColumn>()
             .add_systems(
                 Update,
                 apply_dimension_shade
@@ -93,6 +95,7 @@ impl Plugin for StreamPlugin {
                     place_meshes,
                     flush_streams,
                     admit_meshing,
+                    publish_drawn_columns,
                 )
                     .chain()
                     .in_set(ClientTerrainSet::Build)
@@ -333,6 +336,10 @@ impl Loader {
             #[cfg(feature = "dev")]
             trace: Vec::new(),
         }
+    }
+
+    pub(crate) fn drawn_columns(&self) -> impl Iterator<Item = ColumnPos> {
+        self.sections.columns.drawn()
     }
 
     fn distance(&self, section: [i32; 3]) -> f32 {
@@ -604,6 +611,7 @@ impl Loader {
                         self.sections.depart(at);
                         self.evict(at, cave);
                     }
+                    self.sections.columns.depart(pos);
                 }
                 ColumnChange::Arrived(pos, column) => {
                     #[cfg(feature = "dev")]
@@ -614,18 +622,24 @@ impl Loader {
                     // The column the change carries, not the one the store holds now: a column
                     // the server took back before this drain is already gone from the store,
                     // and its departure counts the sections this arrival has to have counted.
+                    let mut stored = 0;
                     for (_, section) in column.sections() {
                         let Some(section) = section else { continue };
                         self.sections_total += 1;
+                        stored += 1;
                         for &state in &section.states {
                             catalog.owe(state.number());
                         }
                     }
+                    self.sections.columns.arrive(pos, stored);
                     if let Some(extent) = extent {
                         self.enqueue_around(pos, extent, store);
                     }
                 }
-                ColumnChange::Filled(_) => self.sections_total += 1,
+                ColumnChange::Filled(section) => {
+                    self.sections_total += 1;
+                    self.sections.columns.fill(ColumnPos::from(section));
+                }
                 ColumnChange::Signed(_) => {}
                 ColumnChange::Reblocked(at, state) => {
                     catalog.owe(state.number());
@@ -1225,6 +1239,7 @@ struct Sections {
     states: HashMap<[i32; 3], Section>,
     queue: MeshQueue,
     tally: Tally,
+    columns: DrawnColumns,
 }
 
 #[derive(Default)]
@@ -1319,6 +1334,7 @@ impl Sections {
             states,
             queue,
             tally,
+            ..
         } = self;
         let at = queue.pop_nearest(camera, tally.queued, |at| {
             states
@@ -1347,6 +1363,7 @@ impl Sections {
         let replaced = self.states.entry(at).or_default().resident.replace(held);
         if replaced.is_none() {
             self.tally.residents += 1;
+            self.columns.place(ColumnPos::new(at[0], at[2]));
         }
         replaced
     }
@@ -1361,6 +1378,7 @@ impl Sections {
     fn take_resident(&mut self, at: [i32; 3]) -> Option<Resident> {
         let held = self.states.get_mut(&at)?.resident.take()?;
         self.tally.residents -= 1;
+        self.columns.unplace(ColumnPos::new(at[0], at[2]));
         self.prune(at);
         Some(held)
     }
@@ -1648,6 +1666,10 @@ fn place_meshes(
 pub(crate) fn flush_streams(mut loader: ResMut<Loader>, uploads: Res<Uploads>) {
     let _flushing = info_span!("stream flush").entered();
     loader.flush_to(&uploads);
+}
+
+fn publish_drawn_columns(mut loader: ResMut<Loader>, mut drawn: MessageWriter<DrawnColumn>) {
+    drawn.write_batch(loader.sections.columns.drain());
 }
 
 /// The directional shade table follows the `cardinal_light` of the dimension type the player
@@ -2312,6 +2334,15 @@ mod tests {
             land_mesh(&mut loader, at, &mut cave);
         }
         gpu.flush(&mut loader, |_| {});
+        let column = ColumnPos::new(relit[0], relit[2]);
+        assert!(
+            loader
+                .sections
+                .columns
+                .drain()
+                .any(|change| change == DrawnColumn::Drawn(column)),
+            "the column of the placed mesh is drawn"
+        );
 
         // The first relight finds the arena full and evicts the far section, whose room the
         // new mesh takes; the second finds the room the first gave back, and leaves the stream
@@ -2342,6 +2373,14 @@ mod tests {
             assert!(
                 loader.free_slots.contains(&old),
                 "and the old mesh gives its slot back"
+            );
+            assert!(
+                !loader
+                    .sections
+                    .columns
+                    .drain()
+                    .any(|change| change == DrawnColumn::Hidden(column)),
+                "a section meshed again over its old mesh leaves its column drawn"
             );
         }
         assert!(!gpu.drawn_sections().contains(&far));
