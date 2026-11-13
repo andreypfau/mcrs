@@ -20,6 +20,8 @@ use mcrs_minecraft_item_stack::ItemStack;
 use crate::InSlot;
 use crate::Rejected;
 use crate::Request;
+use crate::RequestDrop;
+use crate::RequestId;
 use crate::RequestResult;
 use crate::SlotRef;
 use crate::Slots;
@@ -32,18 +34,25 @@ use crate::request_scratch::RequestScratch;
 use crate::spawn_stack::spawn_stack;
 
 /// What an applied request does to the entities: the stack of each changed slot that is not
-/// empty after it, and the stacks that end.
+/// empty after it, the dropped stacks in the order of the operations, and the stacks that end.
 #[derive(Default)]
 pub(crate) struct Settlement {
     placed: Vec<Placed>,
+    dropped: Vec<Taken>,
     despawned: Vec<Entity>,
 }
 
 impl Settlement {
     fn clear(&mut self) {
         self.placed.clear();
+        self.dropped.clear();
         self.despawned.clear();
     }
+}
+
+struct Taken {
+    source: Source,
+    count: u8,
 }
 
 struct Placed {
@@ -61,18 +70,19 @@ enum Source {
     CopyOf(Entity),
 }
 
-/// Plans `request` and, when it applies, changes the stacks to its result. Writes and triggers
-/// [`RequestResult`] for `holder`.
+/// Plans `request` and, when it applies, changes the stacks to its result. Writes a
+/// [`RequestDrop`] for each dropped stack, then writes and triggers [`RequestResult`] for `holder`.
 pub(crate) fn commit(world: &mut World, holder: Entity, request: &Request) {
     let Ok(outcome) = world.run_system_cached_with(plan_request, request) else {
         return;
     };
+    let id = request.id();
     if outcome.is_ok() {
-        apply(world);
+        apply(world, holder, id);
     }
     let result = RequestResult {
         holder,
-        id: request.id(),
+        id,
         outcome,
     };
     world.write_message(result);
@@ -168,6 +178,20 @@ fn settle(plan: &Plan<SlotRef, Entity>, settlement: &mut Settlement) {
             count: after.count,
         });
     }
+    for dropped in plan.dropped() {
+        let ending = settlement
+            .despawned
+            .iter()
+            .position(|&stack| stack == dropped.stack);
+        let source = match ending {
+            Some(index) => Source::Same(settlement.despawned.swap_remove(index)),
+            None => Source::CopyOf(dropped.stack),
+        };
+        settlement.dropped.push(Taken {
+            source,
+            count: dropped.count,
+        });
+    }
 }
 
 fn holds(stack: Option<Planned<Entity>>, entity: Entity) -> bool {
@@ -186,7 +210,7 @@ fn claimant(plan: &Plan<SlotRef, Entity>, stack: Entity) -> Option<usize> {
     plan.changes().position(|entry| holds(entry.after, stack))
 }
 
-fn apply(world: &mut World) {
+fn apply(world: &mut World, holder: Entity, id: RequestId) {
     let Some(mut scratch) = world.get_resource_mut::<RequestScratch>() else {
         return;
     };
@@ -213,26 +237,47 @@ fn apply(world: &mut World) {
             placed.source = Source::Same(stack);
         }
     }
+    for dropped in &mut settlement.dropped {
+        if let Source::CopyOf(original) = dropped.source
+            && let Some(copy) = spawn_copy(world, original, dropped.count)
+        {
+            dropped.source = Source::Same(copy);
+        }
+    }
     for &stack in &settlement.despawned {
         if let Ok(entity) = world.get_entity_mut(stack) {
             entity.despawn();
         }
     }
+    for dropped in &settlement.dropped {
+        let Source::Same(stack) = dropped.source else {
+            continue;
+        };
+        set_count(world, stack, dropped.count);
+        Placement::Nowhere.apply(world, stack);
+    }
     for placed in &settlement.placed {
         let Source::Same(stack) = placed.source else {
             continue;
         };
-        if let (Some(count), Some(mut current)) =
-            (Count::new(placed.count), world.get_mut::<Count>(stack))
-        {
-            current.set_if_neq(count);
-        }
+        set_count(world, stack, placed.count);
         let slot = InSlot::new(placed.slot.holder, placed.slot.index);
         Placement::Slot(slot).apply(world, stack);
+    }
+    for dropped in &settlement.dropped {
+        if let Source::Same(stack) = dropped.source {
+            world.write_message(RequestDrop { holder, id, stack });
+        }
     }
     settlement.clear();
     if let Some(mut scratch) = world.get_resource_mut::<RequestScratch>() {
         scratch.settlement = settlement;
+    }
+}
+
+fn set_count(world: &mut World, stack: Entity, count: u8) {
+    if let (Some(count), Some(mut current)) = (Count::new(count), world.get_mut::<Count>(stack)) {
+        current.set_if_neq(count);
     }
 }
 

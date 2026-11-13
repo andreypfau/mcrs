@@ -9,6 +9,7 @@ use mcrs_minecraft_engine_item::InSlot;
 use mcrs_minecraft_engine_item::Reason;
 use mcrs_minecraft_engine_item::Rejected;
 use mcrs_minecraft_engine_item::Request;
+use mcrs_minecraft_engine_item::RequestDrop;
 use mcrs_minecraft_engine_item::RequestId;
 use mcrs_minecraft_engine_item::RequestResult;
 use mcrs_minecraft_engine_item::SlotRef;
@@ -121,9 +122,8 @@ fn rejected(op: usize, reason: Reason) -> Rejected {
     Rejected { op, reason }
 }
 
-#[test]
-fn a_rejected_request_changes_nothing_and_reports_its_reason() {
-    let cases = [
+fn rejected_cases() -> [Case; 10] {
+    [
         Case {
             name: "more than 128 operations",
             request: |at| {
@@ -198,8 +198,22 @@ fn a_rejected_request_changes_nothing_and_reports_its_reason() {
             requester: Requester::Player,
             rejected: rejected(0, Reason::NoRoom),
         },
-    ];
-    for case in cases {
+        Case {
+            name: "a drop, before an invalid operation",
+            request: |at| {
+                Request::new(ID)
+                    .drop(at.slot(0), 4)
+                    .merge(at.slot(3), at.slot(0))
+            },
+            requester: Requester::Player,
+            rejected: rejected(1, Reason::EmptySource),
+        },
+    ]
+}
+
+#[test]
+fn a_rejected_request_changes_nothing_and_reports_its_reason() {
+    for case in rejected_cases() {
         let mut app = app();
         let world = app.world_mut();
         let player = world.spawn(Slots::new(4)).id();
@@ -223,6 +237,11 @@ fn a_rejected_request_changes_nothing_and_reports_its_reason() {
             outcome: Err(case.rejected),
         };
         assert_eq!(results, [expected], "{}", case.name);
+        let drops = world
+            .resource_mut::<Messages<RequestDrop>>()
+            .drain()
+            .count();
+        assert_eq!(drops, 0, "{}", case.name);
     }
 }
 
@@ -361,4 +380,69 @@ fn a_set_puts_an_unplaced_stack_copies_a_placed_one_with_its_count_and_ends_the_
     assert!(world.get_entity(replaced).is_err(), "a replaced stack ends");
     assert!(world.get_entity(emptied).is_err(), "an emptied stack ends");
     assert_eq!(world.query::<&Kind>().iter(world).count(), 3);
+}
+
+#[derive(Debug, PartialEq)]
+enum DroppedEntity {
+    Source,
+    New,
+}
+
+#[test]
+fn a_drop_takes_its_items_out_of_the_slot_as_one_stack_without_placement() {
+    struct DropCase {
+        count: u8,
+        slot_after: Option<u8>,
+        entity: DroppedEntity,
+    }
+    let cases = [
+        DropCase {
+            count: 4,
+            slot_after: Some(6),
+            entity: DroppedEntity::New,
+        },
+        DropCase {
+            count: 10,
+            slot_after: None,
+            entity: DroppedEntity::Source,
+        },
+    ];
+    for case in cases {
+        let mut app = app();
+        let world = app.world_mut();
+        let player = world.spawn(Slots::new(1)).id();
+        let source = place(world, rare(10), player, 0);
+        let at = SlotRef {
+            holder: player,
+            index: 0,
+        };
+
+        let results = request(world, player, Request::new(ID).drop(at, case.count));
+
+        assert_eq!(results.len(), 1, "{}", case.count);
+        assert_eq!(results[0].outcome, Ok(()), "{}", case.count);
+        let drops: Vec<RequestDrop> = world
+            .resource_mut::<Messages<RequestDrop>>()
+            .drain()
+            .collect();
+        let [drop] = drops[..] else {
+            panic!("drops of {}: {drops:?}", case.count);
+        };
+        assert_eq!((drop.holder, drop.id), (player, ID), "{}", case.count);
+        let entity = if drop.stack == source {
+            DroppedEntity::Source
+        } else {
+            DroppedEntity::New
+        };
+        assert_eq!(entity, case.entity, "{}", case.count);
+        assert_eq!(
+            value(world, drop.stack),
+            Some(rare(case.count)),
+            "{}",
+            case.count
+        );
+        assert_eq!(world.get::<InSlot>(drop.stack), None, "{}", case.count);
+        let slot_after = slots(world, player)[0].and_then(|stack| items(world, stack));
+        assert_eq!(slot_after, case.slot_after, "{}", case.count);
+    }
 }

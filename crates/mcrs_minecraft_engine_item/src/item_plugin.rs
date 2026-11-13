@@ -23,6 +23,7 @@ use crate::Equipped;
 use crate::Given;
 use crate::InSlot;
 use crate::ItemSet;
+use crate::RequestDrop;
 use crate::RequestResult;
 use crate::Selected;
 use crate::Slots;
@@ -76,6 +77,7 @@ impl Plugin for ItemPlugin {
         app.insert_resource(self.table)
             .add_plugins(ItemPersistencePlugin)
             .add_message::<Given>()
+            .add_message::<RequestDrop>()
             .add_message::<RequestResult>()
             .add_systems(
                 self.schedule,

@@ -44,6 +44,14 @@ impl Request {
         self.with(Op::Swap { left, right })
     }
 
+    /// Takes exactly `count` items out of `from` as one stack entity with no placement, which
+    /// [`RequestDrop`](crate::RequestDrop) gives to the requester. A drop of the whole stack gives
+    /// its own entity.
+    #[must_use]
+    pub fn drop(self, from: SlotRef, count: u8) -> Self {
+        self.with(Op::Drop { from, count })
+    }
+
     /// Puts the stack entity `stack` with the count `count` in `slot`, or the empty stack for
     /// `None` or the count 0, past every filter and slot limit; the stack that `slot` held ends.
     /// A stack that has no place moves to the slot; the slot gets a copy of each other stack. An
