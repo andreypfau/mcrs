@@ -107,7 +107,7 @@ impl Plugin for EnginePlugin {
     }
 }
 
-pub use block_break::{eye_position, in_reach, reach};
+pub use block_break::{BlockBreakSet, eye_position, in_reach, reach};
 pub use persistence::{
     AutosaveCadence, AutosavePlugin, PlayerPersistencePlugin, UnreadablePlayerDat,
     apply_join_snapshot, load_player, write_player,

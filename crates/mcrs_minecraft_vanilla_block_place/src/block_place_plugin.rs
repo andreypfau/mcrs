@@ -11,7 +11,7 @@ use mcrs_minecraft_engine::ability::{PlayerGameMode, PlayerOpLevel};
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, to};
 use mcrs_minecraft_engine::teleport::TeleportState;
 use mcrs_minecraft_engine::use_item_on_request::UseItemOnRequest;
-use mcrs_minecraft_engine::{eye_position, in_reach, reach};
+use mcrs_minecraft_engine::{BlockBreakSet, eye_position, in_reach, reach};
 use mcrs_minecraft_engine_item::{Selected, Slots};
 use mcrs_minecraft_engine_world::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -47,7 +47,12 @@ pub struct BlockPlacePlugin;
 
 impl Plugin for BlockPlacePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(FixedUpdate, place_blocks.in_set(TickSet::ClientInput));
+        app.add_systems(
+            FixedUpdate,
+            place_blocks
+                .in_set(TickSet::ClientInput)
+                .after(BlockBreakSet),
+        );
     }
 }
 

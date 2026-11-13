@@ -14,7 +14,7 @@ use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageReader, MessageWriter};
 use bevy_ecs::observer::On;
-use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::{Local, Query, Res, ResMut};
 use bevy_math::{DVec3, IVec3};
 use mcrs_minecraft_block::block_keys::Block;
@@ -67,6 +67,10 @@ pub struct BlockActionRequest {
     pub sequence: VarInt,
 }
 
+/// The systems that break blocks for the block actions of the tick, after the moves of the tick.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BlockBreakSet;
+
 impl Plugin for BlockBreakPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<BlockActionRequest>();
@@ -86,7 +90,8 @@ impl Plugin for BlockBreakPlugin {
                 advance_digs.run_if(any_digger),
             )
                 .chain()
-                .in_set(TickSet::ClientInput),
+                .in_set(TickSet::ClientInput)
+                .in_set(BlockBreakSet),
         );
         app.add_systems(
             FixedPostUpdate,
