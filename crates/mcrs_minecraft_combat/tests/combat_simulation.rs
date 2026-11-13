@@ -43,9 +43,7 @@ fn integration_combat_damage_flow_and_death() {
     app.world_mut().run_schedule(FixedUpdate);
 
     let health = app.world().get::<Health>(entity).unwrap();
-    // With armor 10 and toughness 4, damage is significantly reduced (below 10.0)
-    assert!(health.health < 20.0);
-    assert!(health.health > 10.0);
+    assert_eq!(health.health, 12.666_666);
 
     let dealt_messages = app.world().resource::<Messages<DamageDealt>>();
     assert_eq!(dealt_messages.len(), 1);
@@ -93,7 +91,7 @@ fn integration_hunger_exhaustion_and_healing() {
     }
     let tick = food.0.tick(&health.0, true, Difficulty::Normal, 9);
     health.heal(tick.heal);
-    assert!(health.health > 10.0);
+    assert_eq!(health.health, 10.833_333);
 }
 
 #[test]
