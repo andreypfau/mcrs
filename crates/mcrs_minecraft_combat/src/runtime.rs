@@ -302,7 +302,7 @@ fn tick_player_hunger(
     mut players: Query<(Entity, &mut Health, &mut FoodData), (With<Player>, Without<DeathState>)>,
     rules: Res<GameRules>,
     difficulty: Res<Difficulty>,
-    type_rules: Option<Res<DamageTypeRulesResource>>,
+    type_rules: Res<DamageTypeRulesResource>,
     time: Res<GameTime>,
     mut damage: MessageWriter<DamageRequest>,
 ) {
@@ -317,7 +317,7 @@ fn tick_player_hunger(
         }
         if food_tick.starve
             && health.is_alive()
-            && let Some(hit) = hit_of(type_rules.as_deref(), "starve", 1.0)
+            && let Some(hit) = hit_of(&type_rules, "starve", 1.0)
         {
             damage.write(DamageRequest::player(entity, hit));
         }
@@ -351,7 +351,7 @@ fn tick_player_environment(
     dimensions: Query<&DimensionTypeConfig>,
     rules: Res<GameRules>,
     border: Res<WorldBorderSettings>,
-    type_rules: Option<Res<DamageTypeRulesResource>>,
+    type_rules: Res<DamageTypeRulesResource>,
     time: Res<GameTime>,
     mut damage: MessageWriter<DamageRequest>,
 ) {
@@ -462,7 +462,7 @@ fn tick_player_environment(
                 let multiplier = fall_multiplier(view.as_ref(), tables.as_deref(), below);
                 let fall = compute_fall_damage(timers.fall_distance, 3.0, multiplier);
                 if fall > 0.0
-                    && let Some(hit) = hit_of(type_rules.as_deref(), "fall", fall)
+                    && let Some(hit) = hit_of(&type_rules, "fall", fall)
                 {
                     damage.write(DamageRequest::player(entity, hit));
                 }
@@ -479,7 +479,7 @@ fn tick_player_environment(
         }
         if let Ok(config) = dimensions.get(in_dimension.0)
             && is_in_void(position.y, f64::from(config.min_y))
-            && let Some(hit) = hit_of(type_rules.as_deref(), "out_of_world", 4.0)
+            && let Some(hit) = hit_of(&type_rules, "out_of_world", 4.0)
         {
             damage.write(DamageRequest::player(entity, hit));
         }
@@ -493,13 +493,13 @@ fn tick_player_environment(
             eye_in_water && !water_breathing,
             !eye_in_water,
         ) && drowning_damage
-            && let Some(hit) = hit_of(type_rules.as_deref(), "drown", 2.0)
+            && let Some(hit) = hit_of(&type_rules, "drown", 2.0)
         {
             damage.write(DamageRequest::player(entity, hit));
         }
         if in_lava {
             ignite(&mut health.0, 300, fire_resistant);
-            if !fire_resistant && let Some(hit) = hit_of(type_rules.as_deref(), "lava", 4.0) {
+            if !fire_resistant && let Some(hit) = hit_of(&type_rules, "lava", 4.0) {
                 damage.write(DamageRequest::player(entity, hit));
             }
         }
@@ -508,39 +508,39 @@ fn tick_player_environment(
         }
         if fire_damage
             && tick_fire(&mut health.0, fire_resistant, in_lava)
-            && let Some(hit) = hit_of(type_rules.as_deref(), "on_fire", 1.0)
+            && let Some(hit) = hit_of(&type_rules, "on_fire", 1.0)
         {
             damage.write(DamageRequest::player(entity, hit));
         }
         if freeze_damage
             && tick_freeze(&mut health.0, in_powder_snow, true, false, age)
-            && let Some(hit) = hit_of(type_rules.as_deref(), "freeze", 1.0)
+            && let Some(hit) = hit_of(&type_rules, "freeze", 1.0)
         {
             damage.write(DamageRequest::player(entity, hit));
         }
-        if in_cactus && let Some(hit) = hit_of(type_rules.as_deref(), "cactus", 1.0) {
+        if in_cactus && let Some(hit) = hit_of(&type_rules, "cactus", 1.0) {
             damage.write(DamageRequest::player(entity, hit));
         }
-        if in_wall && let Some(hit) = hit_of(type_rules.as_deref(), "in_wall", 1.0) {
+        if in_wall && let Some(hit) = hit_of(&type_rules, "in_wall", 1.0) {
             damage.write(DamageRequest::player(entity, hit));
         }
         if in_berry_bush
             && velocity.is_some_and(|velocity| {
                 velocity.0.x * velocity.0.x + velocity.0.z * velocity.0.z > 0.003
             })
-            && let Some(hit) = hit_of(type_rules.as_deref(), "sweet_berry_bush", 1.0)
+            && let Some(hit) = hit_of(&type_rules, "sweet_berry_bush", 1.0)
         {
             damage.write(DamageRequest::player(entity, hit));
         }
         if on_magma
             && !input.is_some_and(|input| input.sneaking)
-            && let Some(hit) = hit_of(type_rules.as_deref(), "hot_floor", 1.0)
+            && let Some(hit) = hit_of(&type_rules, "hot_floor", 1.0)
         {
             damage.write(DamageRequest::player(entity, hit));
         }
         let amount = border_damage(&border.0, position, 0.6, 1.8);
         if amount > 0.0
-            && let Some(hit) = hit_of(type_rules.as_deref(), "outside_border", amount)
+            && let Some(hit) = hit_of(&type_rules, "outside_border", amount)
         {
             damage.write(DamageRequest::player(entity, hit));
         }
@@ -564,7 +564,7 @@ fn tick_mob_environment(
     definitions: Option<Res<Blocks>>,
     tables: Option<Res<PhysicsTables>>,
     rules: Res<GameRules>,
-    type_rules: Option<Res<DamageTypeRulesResource>>,
+    type_rules: Res<DamageTypeRulesResource>,
     mut damage: MessageWriter<DamageRequest>,
 ) {
     let Some(mut rows) = rows else {
@@ -682,19 +682,19 @@ fn tick_mob_environment(
         }
         if fire_damage
             && tick_fire(&mut living.vitals, living.fire_immune, in_lava)
-            && let Some(hit) = hit_of(type_rules.as_deref(), "on_fire", 1.0)
+            && let Some(hit) = hit_of(&type_rules, "on_fire", 1.0)
         {
             hits.push((at, hit));
         }
         if in_lava
             && !living.fire_immune
-            && let Some(hit) = hit_of(type_rules.as_deref(), "lava", 4.0)
+            && let Some(hit) = hit_of(&type_rules, "lava", 4.0)
         {
             hits.push((at, hit));
         }
         if tick_air(&mut living.vitals, 300, eye_in_water, !eye_in_water)
             && drowning_damage
-            && let Some(hit) = hit_of(type_rules.as_deref(), "drown", 2.0)
+            && let Some(hit) = hit_of(&type_rules, "drown", 2.0)
         {
             hits.push((at, hit));
         }
@@ -706,42 +706,42 @@ fn tick_mob_environment(
                 false,
                 tick.max(0) as u64,
             )
-            && let Some(hit) = hit_of(type_rules.as_deref(), "freeze", 1.0)
+            && let Some(hit) = hit_of(&type_rules, "freeze", 1.0)
         {
             hits.push((at, hit));
         }
         if touched.cactus
-            && let Some(hit) = hit_of(type_rules.as_deref(), "cactus", 1.0)
+            && let Some(hit) = hit_of(&type_rules, "cactus", 1.0)
         {
             hits.push((at, hit));
         }
         if touched.hot_floor
-            && let Some(hit) = hit_of(type_rules.as_deref(), "hot_floor", 1.0)
+            && let Some(hit) = hit_of(&type_rules, "hot_floor", 1.0)
         {
             hits.push((at, hit));
         }
         if touched.fall > 3.0
             && let Some(hit) = hit_of(
-                type_rules.as_deref(),
+                &type_rules,
                 "fall",
                 compute_fall_damage(touched.fall, 3.0, 1.0),
             )
         {
             hits.push((at, hit));
         }
-        if in_wall && let Some(hit) = hit_of(type_rules.as_deref(), "in_wall", 1.0) {
+        if in_wall && let Some(hit) = hit_of(&type_rules, "in_wall", 1.0) {
             hits.push((at, hit));
         }
         if touched.berry
             && state.body.velocity.x * state.body.velocity.x
                 + state.body.velocity.z * state.body.velocity.z
                 > 0.003
-            && let Some(hit) = hit_of(type_rules.as_deref(), "sweet_berry_bush", 1.0)
+            && let Some(hit) = hit_of(&type_rules, "sweet_berry_bush", 1.0)
         {
             hits.push((at, hit));
         }
         if is_in_void(position.y, min_y)
-            && let Some(hit) = hit_of(type_rules.as_deref(), "out_of_world", 4.0)
+            && let Some(hit) = hit_of(&type_rules, "out_of_world", 4.0)
         {
             hits.push((at, hit));
         }
@@ -751,8 +751,8 @@ fn tick_mob_environment(
     }
 }
 
-fn hit_of(rules: Option<&DamageTypeRulesResource>, path: &str, amount: f32) -> Option<Hit> {
-    let damage_type = rules?.0.id_path(path)?;
+fn hit_of(rules: &DamageTypeRulesResource, path: &str, amount: f32) -> Option<Hit> {
+    let damage_type = rules.0.id_path(path)?;
     Some(Hit::new(amount, damage_type))
 }
 
@@ -1160,7 +1160,7 @@ fn announce_player_deaths(
     mut deaths: MessageReader<DeathEvent>,
     players: Query<(&Owner, &InDimension, &EntityUuid, Option<&GameProfile>), With<Player>>,
     mobs: Option<Res<Mobs>>,
-    type_rules: Option<Res<DamageTypeRulesResource>>,
+    type_rules: Res<DamageTypeRulesResource>,
     viewers: Query<(&Owner, &InDimension)>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
@@ -1182,8 +1182,8 @@ fn announce_player_deaths(
         let key = format!(
             "death.attack.{}",
             type_rules
-                .as_deref()
-                .and_then(|rules| rules.0.message_id(death.source.damage_type))
+                .0
+                .message_id(death.source.damage_type)
                 .unwrap_or("generic")
         );
         let name = profile
@@ -1265,7 +1265,7 @@ fn send_player_damage(
     mut dealt: MessageReader<DamageDealt>,
     players: Query<(&Owner, &InDimension, &EntityUuid, Option<&Transform>), With<Player>>,
     entities: Query<(&EntityUuid, Option<&GlobalEntityId>)>,
-    type_rules: Option<Res<DamageTypeRulesResource>>,
+    type_rules: Res<DamageTypeRulesResource>,
     viewers: Query<(&Owner, &InDimension)>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
@@ -1306,9 +1306,7 @@ fn send_player_damage(
                 source_position: event.hit.source.source_position,
             }),
         ));
-        let no_knockback = type_rules
-            .as_deref()
-            .is_some_and(|rules| rules.0.flags(event.hit.damage_type).no_knockback);
+        let no_knockback = type_rules.0.flags(event.hit.damage_type).no_knockback;
         if event.hit.knockback > 0.0 && !no_knockback && event.hit.source.source_position.is_some()
         {
             packets.write(to_target(
@@ -1621,7 +1619,7 @@ fn on_player_attack(
     targets: Query<(Entity, &Transform, &Owner, Option<&Health>, &InDimension), With<Player>>,
     rows: Res<EntityRows>,
     mut damage: MessageWriter<DamageRequest>,
-    rules: Option<Res<DamageTypeRulesResource>>,
+    rules: Res<DamageTypeRulesResource>,
 ) {
     let Some(packet) = event.packet() else {
         return;
@@ -1636,10 +1634,7 @@ fn on_player_attack(
         return;
     }
     let reach = AttackReach::of(transform, mode);
-    let damage_type = rules
-        .as_deref()
-        .and_then(|rules| rules.0.id_path("player_attack"))
-        .unwrap_or(0);
+    let damage_type = rules.0.id_path("player_attack").unwrap_or(0);
     let mut source = DamageSource::new(damage_type);
     if let Some(uuid) = uuid {
         let key = EntityKey(uuid.0.as_u128());
@@ -1866,6 +1861,7 @@ mod tests {
         app.add_message::<DamageDealt>();
         app.add_message::<OutboundPlayerPacket>();
         app.init_resource::<SeenPackets>();
+        app.insert_resource(DamageTypeRulesResource::default());
         app.add_systems(Update, (send_player_damage, record_packets).chain());
         let target = app
             .world_mut()
