@@ -13,9 +13,11 @@ use mcrs_minecraft_protocol_game::{ByteAngle, LpVec3, position_delta};
 use uuid::Uuid;
 
 use crate::delta_base::all_or_nothing;
-use crate::mob_bundle::{LivingEntries, health_entry, pose_entry};
+use crate::mob_bundle::{Entries, LivingEntries};
 use crate::mob_state::MobState;
 use crate::move_choice::{Due, MOVED, MoveChoice, POSITION_REFRESH, Resync, UPDATES_PER_SYNC};
+use mcrs_minecraft_protocol_game::ProtoStack;
+use mcrs_minecraft_registries::Wire;
 
 /// The squared change of the velocity, in blocks per tick, from which it is sent (TRK-UPD-007).
 const VELOCITY_CHANGE: f64 = 1.0e-7;
@@ -30,6 +32,8 @@ pub(crate) struct MobTracker {
     /// The tick of the last tracker tick that ran.
     last: u64,
     latest: MobState,
+    /// The latest entity data entries.
+    entries: Entries,
     sent: Sent,
     /// The updates since the last `entity_position_sync`.
     since_sync: u32,
@@ -38,7 +42,7 @@ pub(crate) struct MobTracker {
 }
 
 /// The state of a mob that its viewers last received.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 struct Sent {
     /// The position base.
     position: DVec3,
@@ -47,11 +51,11 @@ struct Sent {
     pitch: ByteAngle,
     head_yaw: ByteAngle,
     on_ground: bool,
-    entries: LivingEntries,
+    entries: Entries,
 }
 
 impl Sent {
-    fn of(state: &MobState) -> Self {
+    fn of(state: &MobState, entries: &Entries) -> Self {
         Self {
             position: state.position,
             velocity: state.velocity,
@@ -59,20 +63,22 @@ impl Sent {
             pitch: ByteAngle::from_degrees(state.pitch),
             head_yaw: ByteAngle::from_degrees(state.head_yaw),
             on_ground: state.on_ground,
-            entries: LivingEntries::of(state),
+            entries: entries.clone(),
         }
     }
 }
 
 impl MobTracker {
-    /// The tracker of a mob that `state` shows, whose first tracker tick is `tick`.
-    pub(crate) fn new(state: MobState, interval: u32, tick: u64) -> Self {
+    /// The tracker of an entity that `state` and `entries` show, whose first tracker tick is
+    /// `tick`.
+    pub(crate) fn new(state: MobState, entries: Entries, interval: u32, tick: u64) -> Self {
         Self {
             interval: u64::from(interval.max(1)),
             start: tick,
             last: tick.wrapping_sub(1),
             latest: state,
-            sent: Sent::of(&state),
+            sent: Sent::of(&state, &entries),
+            entries,
             since_sync: 0,
             open: 0,
         }
@@ -82,13 +88,24 @@ impl MobTracker {
         &self.latest
     }
 
-    /// The health and the dying state that the viewers last received.
-    pub(crate) fn sent_entries(&self) -> LivingEntries {
-        self.sent.entries
+    /// The entity data entries that the viewers last received.
+    pub(crate) fn sent_entries(&self) -> &Entries {
+        &self.sent.entries
     }
 
+    /// Records `state`; the living entries follow its health and its dying state.
     pub(crate) fn record(&mut self, state: MobState) {
         self.latest = state;
+        if let Entries::Living(living) = &mut self.entries {
+            *living = LivingEntries::of(&state);
+        }
+    }
+
+    /// Records the stack of an item entity.
+    pub(crate) fn record_stack(&mut self, stack: ProtoStack<Wire>) {
+        if let Entries::Item(item) = &mut self.entries {
+            *item = stack;
+        }
     }
 
     /// Whether the tracker skipped a tracker tick before `tick`: no client held the mob, so
@@ -100,14 +117,14 @@ impl MobTracker {
     /// Makes the latest state the state that the viewers last received, for the first viewer of
     /// a mob that no client held.
     pub(crate) fn restart(&mut self) {
-        self.sent = Sent::of(&self.latest);
+        self.sent = Sent::of(&self.latest, &self.entries);
         self.since_sync = 0;
         self.open = 0;
     }
 
     /// Whether an entity data entry changed after the tracker last sent it (TRK-DATA-005).
     fn dirty(&self) -> bool {
-        LivingEntries::of(&self.latest) != self.sent.entries
+        self.entries != self.sent.entries
     }
 
     /// The `add_entity` of the spawn bundle: the base and the last sent velocity and angles.
@@ -193,23 +210,15 @@ impl MobTracker {
         } else {
             self.since_sync.saturating_add(1)
         };
-        let entries = LivingEntries::of(&state);
-        if entries != self.sent.entries {
-            let mut changed = Vec::new();
-            if entries.dying != self.sent.entries.dying {
-                changed.push(pose_entry());
-            }
-            if entries.health.to_bits() != self.sent.entries.health.to_bits() {
-                changed.push(health_entry(entries.health));
-            }
+        if self.entries != self.sent.entries {
             write_record(
                 bytes,
                 &ClientboundSetEntityData {
                     entity_id: id,
-                    metadata: Metadata(changed),
+                    metadata: Metadata(self.entries.changed_from(&self.sent.entries)),
                 },
             )?;
-            self.sent.entries = entries;
+            self.sent.entries = self.entries.clone();
         }
         let head_yaw = ByteAngle::from_degrees(state.head_yaw);
         if head_yaw != self.sent.head_yaw {
@@ -258,16 +267,11 @@ impl MobTracker {
                     y_head_rot: sent.head_yaw,
                 },
             )?;
-            let mut entries = Vec::new();
-            if sent.entries.dying {
-                entries.push(pose_entry());
-            }
-            entries.push(health_entry(sent.entries.health));
             write_record(
                 bytes,
                 &ClientboundSetEntityData {
                     entity_id: id,
-                    metadata: Metadata(entries),
+                    metadata: Metadata(sent.entries.all()),
                 },
             )
         })
@@ -329,6 +333,8 @@ mod tests {
     use super::*;
     use crate::encode::record;
     use mcrs_minecraft_protocol_game::clientbound::ClientboundMoveEntityPos;
+    use mcrs_minecraft_protocol_game::entity::{MetaDataValue, MetadataEntry};
+    use mcrs_minecraft_wire::Decode;
 
     const ID: VarInt = VarInt(51);
     const FLOOR: f64 = -60.0;
@@ -389,7 +395,12 @@ mod tests {
     #[test]
     fn trk_upd_a_falling_mob_updates_each_three_ticks_and_syncs_at_the_landing() {
         let states = fall(70);
-        let mut tracker = MobTracker::new(states[0], 3, 0);
+        let mut tracker = MobTracker::new(
+            states[0],
+            Entries::Living(LivingEntries::of(&states[0])),
+            3,
+            0,
+        );
         let mut updates: Vec<(u64, Bytes)> = Vec::new();
         for (tick, state) in (0..).zip(&states) {
             tracker.record(*state);
@@ -457,5 +468,43 @@ mod tests {
             Some(&(60, moved(step(3, 0), true))),
             "a mob at rest sends a zero step each 60 tracker ticks"
         );
+    }
+
+    /// A stack of `count` items of the item with the wire id 1 and an empty patch.
+    fn stack(count: u8) -> ProtoStack<Wire> {
+        ProtoStack::decode(&mut &[count, 1, 0, 0][..]).unwrap()
+    }
+
+    #[test]
+    fn ien_net_003_a_new_stack_sends_its_entity_data_at_the_next_tracker_tick() {
+        let state = MobState {
+            position: DVec3::new(0.5, FLOOR, 4.5),
+            on_ground: true,
+            ..MobState::default()
+        };
+        let mut tracker = MobTracker::new(state, Entries::Item(stack(3)), 20, 0);
+        let mut out = BytesMut::new();
+        tracker.tick(ID, 0, &mut out).unwrap();
+        out.clear();
+
+        tracker.record_stack(stack(5));
+        tracker.tick(ID, 1, &mut out).unwrap();
+
+        let expected = record(&ClientboundSetEntityData {
+            entity_id: ID,
+            metadata: Metadata(vec![MetadataEntry {
+                index: 8,
+                value: MetaDataValue::Slot(stack(5)),
+            }]),
+        })
+        .unwrap();
+        assert_eq!(
+            out.freeze(),
+            expected,
+            "between two periodic updates, the change sends only the new stack"
+        );
+        let mut out = BytesMut::new();
+        tracker.tick(ID, 2, &mut out).unwrap();
+        assert!(out.is_empty(), "the stack goes once");
     }
 }

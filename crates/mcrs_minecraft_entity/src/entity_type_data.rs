@@ -158,8 +158,19 @@ impl EntityTypeData {
         ..MOB_DEFAULTS
     };
 
+    pub const ITEM: Self = Self {
+        entity_type: EntityType::Item,
+        width: 0.25,
+        height: 0.25,
+        eye_height: 0.2125,
+        tracking_range: 6,
+        update_interval: 20,
+        life: Life::Lifeless,
+        ..MOB_DEFAULTS
+    };
+
     /// Every row of the table.
-    pub const ALL: [&'static Self; 7] = [
+    pub const ALL: [&'static Self; 8] = [
         &Self::PIG,
         &Self::COW,
         &Self::SHEEP,
@@ -167,6 +178,7 @@ impl EntityTypeData {
         &Self::ZOMBIFIED_PIGLIN,
         &Self::FROG,
         &Self::PLAYER,
+        &Self::ITEM,
     ];
 
     /// The type data of `entity_type`, or `None` for a type that the table does not list yet.
@@ -180,6 +192,7 @@ impl EntityTypeData {
             EntityType::ZombifiedPiglin => Some(&Self::ZOMBIFIED_PIGLIN),
             EntityType::Frog => Some(&Self::FROG),
             EntityType::Player => Some(&Self::PLAYER),
+            EntityType::Item => Some(&Self::ITEM),
             _ => None,
         }
     }
@@ -194,7 +207,7 @@ impl EntityTypeData {
     pub const fn mob(&self) -> Option<&MobData> {
         match &self.life {
             Life::Mob(mob) => Some(mob),
-            Life::Living => None,
+            Life::Living | Life::Lifeless => None,
         }
     }
 

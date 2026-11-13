@@ -20,6 +20,7 @@ use mcrs_minecraft_replication::MobSignal;
 use mcrs_minecraft_replication::MobSpawn;
 use mcrs_minecraft_replication::MobState;
 use mcrs_minecraft_replication::ReplicationData;
+use mcrs_minecraft_replication::SpawnLook;
 use rustc_hash::FxHashSet;
 use uuid::Uuid;
 
@@ -56,7 +57,7 @@ pub(crate) fn publish_mobs<M: Send + Sync + 'static>(
                     kind: mob.kind,
                     uuid: Uuid::from_u128(mob.uuid),
                     state: start,
-                    looks: mob.looks.clone(),
+                    look: SpawnLook::Mob(mob.looks.clone()),
                 })
                 .into(),
             ),

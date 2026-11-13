@@ -169,6 +169,9 @@ impl EntityCodec {
                 EntityEvent::Move(ReplicationData::Mob(MobReport::Move(state))) => {
                     self.mobs.record(subject, *state);
                 }
+                EntityEvent::Data(ReplicationData::Mob(MobReport::Stack(stack))) => {
+                    self.mobs.record_stack(subject, stack);
+                }
                 EntityEvent::Enter { .. } | EntityEvent::Despawn if self.mobs.contains(subject) => {
                     if matches!(event, EntityEvent::Despawn) {
                         self.mobs.despawn(subject, &mut self.holds);
@@ -462,4 +465,133 @@ fn add_player(id: VarInt, uuid: Uuid, base: &DeltaBase) -> Result<Bytes> {
         head_yaw: base.yaw,
         data: VarInt(0),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use mcrs_engine_muxer::TileKey;
+    use mcrs_minecraft_entity::EntityTypeData;
+    use mcrs_minecraft_protocol_game::ProtoStack;
+    use mcrs_minecraft_protocol_game::clientbound::{
+        ClientboundSetEntityData, ClientboundTakeItemEntity,
+    };
+    use mcrs_minecraft_protocol_game::entity::{MetaDataValue, Metadata, MetadataEntry};
+    use mcrs_minecraft_registries::Wire;
+    use mcrs_minecraft_wire::Decode;
+
+    use super::*;
+    use crate::mob_signal::MobSignal;
+    use crate::mob_spawn::MobSpawn;
+    use crate::mob_state::MobState;
+    use crate::spawn_look::SpawnLook;
+
+    const ITEM: EntityId = EntityId(7);
+    const PLAYER: EntityId = EntityId(3);
+    const VIEWER: ViewerId = ViewerId(1);
+
+    fn stack(count: u8) -> ProtoStack<Wire> {
+        ProtoStack::decode(&mut &[count, 1, 0, 0][..]).unwrap()
+    }
+
+    fn apply(codec: &mut EntityCodec, tick: u64, events: Vec<EntityEvent<ReplicationData>>) {
+        let delta = TileDelta {
+            tile: TileKey::new(0, 0, 0),
+            events: events
+                .into_iter()
+                .map(|event| SubjectEvent {
+                    subject: ITEM,
+                    event,
+                })
+                .collect(),
+        };
+        codec.apply(tick, &delta);
+    }
+
+    #[test]
+    fn ien_net_001_004_an_item_spawns_with_its_stack_and_a_pickup_takes_it_before_the_removal() {
+        let mut codec = EntityCodec::default();
+        let state = MobState {
+            position: DVec3::new(0.5, -60.0, 0.5),
+            on_ground: true,
+            ..MobState::default()
+        };
+        apply(
+            &mut codec,
+            0,
+            vec![EntityEvent::Spawn(
+                MobReport::Spawn(MobSpawn {
+                    kind: &EntityTypeData::ITEM,
+                    uuid: Uuid::nil(),
+                    state,
+                    look: SpawnLook::Item(stack(3)),
+                })
+                .into(),
+            )],
+        );
+
+        let mut spawn = Vec::new();
+        codec.hold(
+            VIEWER,
+            Hold::Gain {
+                subject: ITEM,
+                tier: Tier::NEAREST,
+            },
+            &mut spawn,
+        );
+        let id = wire_id(ITEM);
+        let add = record(&ClientboundAddEntity {
+            id,
+            uuid: Uuid::nil(),
+            kind: EntityType::Item,
+            pos: state.position,
+            movement: LpVec3(DVec3::ZERO),
+            pitch: Default::default(),
+            yaw: Default::default(),
+            head_yaw: Default::default(),
+            data: VarInt(0),
+        })
+        .unwrap();
+        let data = record(&ClientboundSetEntityData {
+            entity_id: id,
+            metadata: Metadata(vec![MetadataEntry {
+                index: 8,
+                value: MetaDataValue::Slot(stack(3)),
+            }]),
+        })
+        .unwrap();
+        assert_eq!(
+            spawn[1..3],
+            [add, data],
+            "the bundle holds add_entity of the type item, then the entity data of the stack"
+        );
+        assert_eq!(codec.tracking_range(ITEM), Some(6 * 16), "IEN-NET-002");
+
+        apply(
+            &mut codec,
+            1,
+            vec![
+                EntityEvent::Data(
+                    MobReport::Signal(MobSignal::Taken {
+                        collector: PLAYER,
+                        amount: 3,
+                    })
+                    .into(),
+                ),
+                EntityEvent::Despawn,
+            ],
+        );
+        let mut removal = Vec::new();
+        codec.hold(VIEWER, Hold::Lose { subjects: &[ITEM] }, &mut removal);
+        let take = record(&ClientboundTakeItemEntity {
+            item_id: id,
+            player_id: wire_id(PLAYER),
+            amount: VarInt(3),
+        })
+        .unwrap();
+        let remove = record(&ClientboundRemoveEntities {
+            entity_ids: vec![id],
+        })
+        .unwrap();
+        assert_eq!(removal, [take, remove], "take_item_entity goes first");
+    }
 }

@@ -8,4 +8,6 @@ pub enum Life {
     Living,
     /// A mob: its body follows its head.
     Mob(MobData),
+    /// An entity that is not living, such as an item entity.
+    Lifeless,
 }

@@ -17,20 +17,27 @@ mcrs_minecraft_command_vanilla.workspace = true
 mcrs_minecraft_command_world.workspace = true
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_engine_brain.workspace = true
+mcrs_minecraft_engine_item.workspace = true
 mcrs_minecraft_engine_mob_replication.workspace = true
 mcrs_minecraft_engine_physics.workspace = true
 mcrs_minecraft_engine_server.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_key.workspace = true
+mcrs_minecraft_game_mode.workspace = true
 mcrs_minecraft_goals.workspace = true
 mcrs_minecraft_item.workspace = true
+mcrs_minecraft_item_table = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_physics.workspace = true
 mcrs_minecraft_text.workspace = true
+mcrs_minecraft_vanilla_item_entity.workspace = true
 mcrs_minecraft_vanilla_light.workspace = true
 mcrs_minecraft_vanilla_worldgen.workspace = true
 mcrs_minecraft_worldgen_builtin.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
 smallvec.workspace = true
+tracing.workspace = true
 
 # Without this a build of the server alone runs every schedule and `par_iter` on one thread.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
