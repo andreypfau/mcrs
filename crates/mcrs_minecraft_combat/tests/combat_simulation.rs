@@ -8,8 +8,7 @@ use mcrs_minecraft_combat::{
 use mcrs_minecraft_damage::{DamageSource, Hit};
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::coordinator::clock::GameTime;
-use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
-use mcrs_minecraft_entity::Difficulty;
+use mcrs_minecraft_engine_world::entity::player::{ChangeDimensionRequest, Player};
 
 #[test]
 fn integration_combat_damage_flow_and_death() {
@@ -80,18 +79,30 @@ fn integration_combat_damage_flow_and_death() {
 
 #[test]
 fn integration_hunger_exhaustion_and_healing() {
-    let mut food = FoodData::default();
+    let mut app = App::new();
+    app.add_plugins(CombatPlugin);
+    app.add_message::<OutboundPlayerPacket>();
+    app.add_message::<ChangeDimensionRequest>();
+    app.init_resource::<GameTime>();
+
     let mut health = Health::new(20.0, 20.0);
     health.health = 10.0;
+    let entity = app
+        .world_mut()
+        .spawn((Player, health, FoodData::default()))
+        .id();
 
     for age in 0..9 {
-        let tick = food.0.tick(&health.0, true, Difficulty::Normal, age);
-        health.heal(tick.heal);
-        assert_eq!(health.health, 10.0);
+        app.world_mut().resource_mut::<GameTime>().0 = age;
+        app.world_mut().run_schedule(FixedUpdate);
+        assert_eq!(app.world().get::<Health>(entity).unwrap().health, 10.0);
     }
-    let tick = food.0.tick(&health.0, true, Difficulty::Normal, 9);
-    health.heal(tick.heal);
-    assert_eq!(health.health, 10.833_333);
+    app.world_mut().resource_mut::<GameTime>().0 = 9;
+    app.world_mut().run_schedule(FixedUpdate);
+    assert_eq!(
+        app.world().get::<Health>(entity).unwrap().health,
+        10.833_333
+    );
 }
 
 #[test]
