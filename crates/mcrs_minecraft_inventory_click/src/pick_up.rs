@@ -64,7 +64,7 @@ pub(crate) fn pick_up<M: Menu<Slot = S::Slot>, S: Slots>(
     }
 }
 
-fn on_entry<M: Menu<Slot = S::Slot>, S: Slots>(
+pub(crate) fn on_entry<M: Menu<Slot = S::Slot>, S: Slots>(
     view: &View<'_, M, S>,
     index: u16,
     button: MouseButton,

@@ -1,10 +1,13 @@
-//! The operations of one Java Edition menu click, for each click kind except the drag. The
-//! kernel reads the slots through the caller and writes the request into a caller-owned buffer.
+//! The operations of one Java Edition menu click. The kernel reads the slots through the caller,
+//! moves the drag state that the caller keeps, and writes the request into a caller-owned buffer.
 #![no_std]
 
 mod click;
 mod click_error;
 mod clone;
+mod drag;
+mod drag_click;
+mod drag_kind;
 mod menu;
 mod operations;
 mod pick_up;
@@ -22,6 +25,8 @@ pub use click::ClickKind;
 pub use click::ClickPlayer;
 pub use click::Clicked;
 pub use click_error::ClickError;
+pub use drag::Drag;
+pub use drag_kind::DragKind;
 pub use menu::Menu;
 pub use operations::Operations;
 pub use request::request;

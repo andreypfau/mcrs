@@ -3,6 +3,7 @@ use mcrs_minecraft_inventory_click::ClickError;
 use mcrs_minecraft_inventory_click::ClickKind;
 use mcrs_minecraft_inventory_click::ClickPlayer;
 use mcrs_minecraft_inventory_click::Clicked;
+use mcrs_minecraft_inventory_click::Drag;
 use mcrs_minecraft_inventory_click::Menu;
 use mcrs_minecraft_inventory_click::Operations;
 use mcrs_minecraft_inventory_click::Slots;
@@ -252,12 +253,27 @@ impl Menu for Window<'_> {
     fn permits_pick_up_all(&self, index: u16) -> bool {
         InventoryMenu::permits_pick_up_all(index)
     }
+
+    fn permits_drag(&self, index: u16) -> bool {
+        InventoryMenu::permits_drag(index)
+    }
 }
 
 /// The operations of `kind` with `button` on `clicked`. Panics when the request that the click
 /// gives does not apply, because a request of a click applies by construction (ITX-JAV-003).
 pub fn click(
     player: &Player,
+    kind: ClickKind,
+    button: u8,
+    clicked: Clicked,
+) -> Result<Vec<Operation>, ClickError> {
+    send(player, &mut Drag::new(), kind, button, clicked)
+}
+
+/// [`click`] with the drag state `drag` of the menu.
+pub fn send(
+    player: &Player,
+    drag: &mut Drag,
     kind: ClickKind,
     button: u8,
     clicked: Clicked,
@@ -272,7 +288,14 @@ pub fn click(
         mode: player.mode,
         selected: player.selected,
     };
-    mcrs_minecraft_inventory_click::request(input, clicker, &Window(player), player, &mut ops)?;
+    mcrs_minecraft_inventory_click::request(
+        input,
+        clicker,
+        &Window(player),
+        player,
+        drag,
+        &mut ops,
+    )?;
     let ops: Vec<Operation> = ops.iter().collect();
     apply(player, &ops);
     Ok(ops)

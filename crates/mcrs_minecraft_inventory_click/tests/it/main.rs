@@ -6,6 +6,7 @@
 )]
 
 mod clone;
+mod drag;
 mod fixture;
 mod pick_up;
 mod pick_up_all;
