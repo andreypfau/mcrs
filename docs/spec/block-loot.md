@@ -437,9 +437,10 @@ of the evaluation.
 - **U1**: the context of the part of a door or a bed that drops when the break hits the other part
   (LOOT-SRC-006). The reference suggests the empty stack and no `this_entity`. No current block
   table of a door or a bed reads the tool or the entity, so no experiment can show it.
-- **U2**: the components of a block entity (LOOT-MOD-007). The server does not yet store components
-  for each block entity. Until it does, `copy_components` does nothing, and a named chest drops a
-  chest without a name.
+- **U2**: the full list of components of a block entity for LOOT-MOD-007. The required result does
+  not depend on this item: LOOT-MOD-006 and result L7 apply. A server that does not store the
+  components of a block entity does not conform to LOOT-MOD-006. For example, its named chest drops
+  a chest without a name.
 
 ## 10. Experiments
 
