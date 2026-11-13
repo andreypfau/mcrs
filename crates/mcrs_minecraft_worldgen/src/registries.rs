@@ -20,7 +20,8 @@ use mcrs_minecraft_worldgen_surface::proto::{MaterialConditionHolder, MaterialRu
 const STATIC_REGISTRIES: [&[(
     mcrs_minecraft_resource::ResourceLocation<'static>,
     &[mcrs_minecraft_resource::ResourceLocation<'static>],
-)]; 5] = [
+)]; 6] = [
+    mcrs_minecraft_anvil::registry_keys::STATIC_REGISTRIES,
     mcrs_minecraft_worldgen_carver::registry_keys::STATIC_REGISTRIES,
     mcrs_minecraft_worldgen_density::registry_keys::STATIC_REGISTRIES,
     mcrs_minecraft_worldgen_feature::registry_keys::STATIC_REGISTRIES,

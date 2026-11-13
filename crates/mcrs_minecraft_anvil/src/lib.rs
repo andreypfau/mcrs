@@ -1,9 +1,16 @@
+mod atomic;
 mod chunk;
 #[cfg(any(test, feature = "bench-helpers"))]
 pub mod fixture;
 mod palette;
+pub mod piece;
+#[rustfmt::skip]
+pub mod registry_keys;
+mod record;
 mod region;
 mod retrogen;
+#[rustfmt::skip]
+pub mod structure_piece_keys;
 mod structures;
 mod ticks;
 mod write;
@@ -13,13 +20,16 @@ mod tests;
 #[cfg(test)]
 mod vanilla_files;
 
+pub use atomic::write_atomic;
 pub use chunk::{Chunk, ChunkDecodeReport, LIGHT_BYTES, Light, Section, parse as parse_chunk};
 pub use mcrs_minecraft_chunk::chunk_status_keys::ChunkStatus;
 pub use palette::{PaletteLookup, Properties};
+pub use piece::SavedPiece;
+pub use record::{BlendingData, Heightmaps, UpgradeData};
 pub use region::{REGION_SIDE, RegionFile, SECTOR_BYTES};
 pub use retrogen::RetroGen;
 pub use structures::{ChunkStructures, DroppedStructure, StructureStart};
-pub use ticks::{DroppedFluidTick, SavedFluidTick};
+pub use ticks::{SavedBlockTick, SavedFluidTick, SavedTick};
 pub use write::{PaletteId, PaletteNames, write_chunk};
 
 use std::path::PathBuf;
@@ -87,6 +97,10 @@ pub enum ErrorKind {
     DataVersion { found: i32, expected: i32 },
     #[error("no DataVersion, expected {expected}")]
     MissingDataVersion { expected: i32 },
+    #[error("the chunk has no status")]
+    MissingStatus,
+    #[error("a block entity has no valid `{key}`")]
+    BlockEntityKey { key: &'static str },
     #[error("`{name}` is not a block state this registry knows")]
     UnknownPaletteEntry { name: String },
     #[error("section {y}: `{field}` palette is empty")]
@@ -145,6 +159,4 @@ pub enum ErrorKind {
     UnnamedPaletteId { y: i8, field: &'static str, id: u16 },
     #[error("region {x},{z} cannot be written under another region's file name")]
     OtherRegionName { x: i32, z: i32 },
-    #[error("refusing to replace {source_path}, the file the region was read from")]
-    WriteOntoSource { source_path: PathBuf },
 }

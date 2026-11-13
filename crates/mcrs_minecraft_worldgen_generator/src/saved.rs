@@ -133,9 +133,6 @@ impl SavedColumns {
                 }
             };
         let report = &chunk.decode_report;
-        if !report.dropped_fluid_ticks.is_empty() {
-            error!(?pos, dropped = ?report.dropped_fluid_ticks, "dropping saved fluid ticks that do not load");
-        }
         if !report.dropped_structures.is_empty() {
             error!(?pos, dropped = ?report.dropped_structures, "dropping saved structure starts and references that do not load");
         }

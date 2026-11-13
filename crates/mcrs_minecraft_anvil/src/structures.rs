@@ -2,8 +2,7 @@ use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
-use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_nbt::tag::NbtTag;
+use crate::piece::SavedPiece;
 use mcrs_voxel::ColumnPos;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -21,7 +20,7 @@ pub struct ChunkStructures {
 pub struct StructureStart {
     pub references: i32,
     /// The saved pieces, each typed by its own `id`; never empty once loaded.
-    pub pieces: Vec<NbtCompound>,
+    pub pieces: Vec<SavedPiece>,
 }
 
 /// A saved structure entry that did not load. The rest of the chunk loads
@@ -78,80 +77,63 @@ fn pack(pos: ColumnPos) -> i64 {
     (i64::from(pos.x) & 0xFFFF_FFFF) | (i64::from(pos.z) << 32)
 }
 
-fn compound(tag: NbtTag) -> NbtCompound {
-    match tag {
-        NbtTag::Compound(compound) => compound,
-        _ => NbtCompound::new(),
-    }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReadStart {
+    #[serde(rename = "ChunkX", default)]
+    _chunk_x: i32,
+    #[serde(rename = "ChunkZ", default)]
+    _chunk_z: i32,
+    #[serde(default)]
+    references: i32,
+    #[serde(rename = "Children", default)]
+    children: Vec<SavedPiece>,
 }
 
-fn start(tag: NbtTag) -> StructureStart {
-    let mut start = StructureStart {
-        references: 0,
-        pieces: Vec::new(),
-    };
-    for (key, value) in compound(tag).child_tags {
-        match (key.as_str(), value) {
-            ("references", NbtTag::Int(references)) => start.references = references,
-            ("Children", NbtTag::List(children)) => {
-                start.pieces = children
-                    .into_iter()
-                    .filter_map(|piece| match piece {
-                        NbtTag::Compound(piece) => Some(piece),
-                        _ => None,
-                    })
-                    .collect();
-            }
-            _ => {}
-        }
-    }
-    start
-}
-
-fn decode(tag: NbtTag) -> Structures<'static> {
-    let mut kept = ChunkStructures::default();
-    let mut dropped = Vec::new();
-    for (key, value) in compound(tag).child_tags {
-        match key.as_str() {
-            "starts" => {
-                for (id, value) in compound(value).child_tags {
-                    let Ok(structure) = ResourceLocationBuf::read(&id) else {
-                        dropped.push(DroppedStructure::StartId(id));
-                        continue;
-                    };
-                    let start = start(value);
-                    if start.pieces.is_empty() {
-                        dropped.push(DroppedStructure::StartWithoutPieces(structure));
-                    } else {
-                        kept.starts.insert(structure, start);
-                    }
-                }
-            }
-            "References" => {
-                for (id, value) in compound(value).child_tags {
-                    let Ok(structure) = ResourceLocationBuf::read(&id) else {
-                        dropped.push(DroppedStructure::ReferenceId(id));
-                        continue;
-                    };
-                    if let NbtTag::LongArray(chunks) = value {
-                        kept.references
-                            .insert(structure, chunks.into_iter().map(unpack).collect());
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    Structures {
-        pos: ColumnPos::default(),
-        kept: Cow::Owned(kept),
-        dropped,
-    }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReadStructures {
+    #[serde(default)]
+    starts: BTreeMap<String, ReadStart>,
+    #[serde(rename = "References", default)]
+    references: BTreeMap<String, Vec<i64>>,
 }
 
 impl<'de> Deserialize<'de> for Structures<'_> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        <NbtTag as Deserialize>::deserialize(d).map(decode)
+        let raw = ReadStructures::deserialize(d)?;
+        let mut kept = ChunkStructures::default();
+        let mut dropped = Vec::new();
+        for (id, start) in raw.starts {
+            let Ok(structure) = ResourceLocationBuf::read(&id) else {
+                dropped.push(DroppedStructure::StartId(id));
+                continue;
+            };
+            if start.children.is_empty() {
+                dropped.push(DroppedStructure::StartWithoutPieces(structure));
+            } else {
+                kept.starts.insert(
+                    structure,
+                    StructureStart {
+                        references: start.references,
+                        pieces: start.children,
+                    },
+                );
+            }
+        }
+        for (id, chunks) in raw.references {
+            let Ok(structure) = ResourceLocationBuf::read(&id) else {
+                dropped.push(DroppedStructure::ReferenceId(id));
+                continue;
+            };
+            kept.references
+                .insert(structure, chunks.into_iter().map(unpack).collect());
+        }
+        Ok(Structures {
+            pos: ColumnPos::default(),
+            kept: Cow::Owned(kept),
+            dropped,
+        })
     }
 }
 
@@ -163,7 +145,7 @@ struct RawStart<'a> {
     chunk_z: i32,
     references: i32,
     #[serde(rename = "Children")]
-    children: &'a [NbtCompound],
+    children: &'a [SavedPiece],
 }
 
 struct Starts<'a>(&'a Structures<'a>);
