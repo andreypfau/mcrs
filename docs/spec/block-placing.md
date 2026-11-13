@@ -594,7 +594,7 @@ Each item names the experiment that decides it. A closed item keeps its number, 
 used again. The same applies to experiments.
 
 - **U2**: the support rule of each block. Experiment E41. Part 1 of `block-support.md` states the support
-  test of the blocks of its section 3.
+  test of the blocks of its section 5.
 - **U3**: the state of each block family, the hinge of a door with another `facing`, and the block
   families that this document does not test. This includes the rows of PLC-STA-004 that result R36 does
   not show. A block that attaches to a neighbour, such as a lantern or a torch, can try other directions

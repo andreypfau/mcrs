@@ -144,8 +144,8 @@ These subjects are out of scope:
   `pathfinding/sticky`, `pathfinding/avoid_in_air`, `pathfinding/damage_cautious`, `fire`,
   `campfires`, `fences`, `walls`, `doors`, `cauldrons` and `air`. In `26.4-snapshot-7`,
   `pathfinding/drop_down` holds `#trapdoors`, `lily_pad` and `big_dripleaf`.
-- The corpus does not give the flag "pathfindable on land", the door kind or the legacy solid flag
-  of a state. Section 12.3 states the component that the corpus must add.
+- The corpus does not give the flag "pathfindable on land", the door kind or the solid value
+  of a state. Section 12.3 states the components that the corpus must add.
 
 ## 1. Path types
 
@@ -567,9 +567,9 @@ block target `p` in this way, unless the mob can path to targets below the surfa
    above the lowest `y`, the target is the block above it. Stop.
 2. Else (all air down to the lowest `y`), go up from `p.y + 1` while the block is air, up to the
    highest `y`. Let `p` be the first position that is not air.
-3. If `p` does not have the legacy solid flag (section 12.3), the target is `p`.
-4. Else go up from `p.y + 1` while the block has the legacy solid flag. The target is the first
-   position without it.
+3. If `p` is not solid (`block-support.md`, SUP-SOLID-001), the target is `p`.
+4. Else go up from `p.y + 1` while the block is solid. The target is the first
+   position that is not solid.
 
 **PATH-REQ-003** (`source_suggested`, semantic, confidence: medium). The search region of a request
 is the set of block columns of the chunks that intersect the square from `s - r` to `s + r` on the
@@ -927,8 +927,9 @@ Each step from one node to the next is a neighbour of PATH-NOD-004.
 
 ### 12.1 Order of work
 
-1. Corpus: add the component `mcrs:navigation` of section 12.3 to the block definition dumper of
-   `tools/vanilla-oracle`, add it to the corpus schema, and recapture the corpus with
+1. Corpus: add the component `mcrs:navigation` of section 12.3 and the component `mcrs:solid`
+   (`block-support.md`, SUP-DATA-004) to the block definition dumper of
+   `tools/vanilla-oracle`, add them to the corpus schema, and recapture the corpus with
    `mcrs_minecraft_update`. `Components` in `schema.rs` denies unknown fields, so the schema change
    and the recaptured corpus land in one commit. Add the dump P2 in the same step.
 2. Kernel: a new crate `mcrs_minecraft_pathfind`, without Bevy. It holds the `PathTypeTable`
@@ -991,18 +992,19 @@ tolerance of PHY-DEV-001. The search of the first tick also must give the node l
 | path types, numbers and default maluses | PATH-TYP-001 | a constant table |
 | the tags of PATH-TYP-002 and PATH-MOV-002 | the data pack; keys in `mcrs_minecraft_block::block_tag_keys` | the keys exist |
 | collision shapes, fluids, the properties `open`, `lit` and `facing` | block definition corpus | exists |
-| pathfindable on land, door kind, legacy solid flag | new corpus component `mcrs:navigation` | see below |
+| pathfindable on land, door kind | new corpus component `mcrs:navigation` | see below |
+| solid value | new corpus component `mcrs:solid` | `block-support.md`, SUP-SOLID-001 and SUP-DATA-004 |
 | malus table of each entity type | PATH-MAL-001 | data of the entity type |
 | dimensions, step height, `movement_speed`, `follow_range` | the entity type table and the attributes (step G1) | the follow range of a spawned mob also needs the spawn bonuses of `natural-spawning.md` |
 | `m` of PATH-SRC-001 for each entity type | AIT-VAN-014 | 16 for a zombified piglin |
 | the state path type of each state with the vanilla tags | dump P2 | test data only |
 
-The component `mcrs:navigation` is a JSON object with three fields. The dumper writes it for each
+The component `mcrs:navigation` is a JSON object with two fields. The dumper writes it for each
 state, with its real values. Like the other components, it is in the components of the block when
 all states have the same value, else in the permutations.
 
 ```json
-"mcrs:navigation": {"pathfindable_land": true, "door": "none", "legacy_solid": false}
+"mcrs:navigation": {"pathfindable_land": true, "door": "none"}
 ```
 
 - `pathfindable_land`: the value of the reference for the computation type `LAND`, for the state,
@@ -1011,7 +1013,6 @@ all states have the same value, else in the permutations.
   value does not depend on the position.
 - `door`: `"none"`, `"by_hand"` or `"not_by_hand"`. Only a door block has a value other than
   `"none"`. In `26.4-snapshot-7`, only `iron_door` is `"not_by_hand"`.
-- `legacy_solid`: the legacy solid flag of the state.
 
 The flags for water and for air have no consumer in step G4, so the component does not hold them.
 A fence gate uses the existing flag `FENCE_GATE` of `CollisionTable`, which the tag `fence_gates`
