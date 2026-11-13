@@ -2,6 +2,7 @@
 //! systems.
 
 mod combat_plugin;
+mod components;
 mod damage_rules;
 mod death_drops;
 mod effects;
@@ -9,32 +10,31 @@ mod environment;
 mod equipment;
 mod events;
 mod experience;
-mod health;
-mod hunger;
 mod life_cycle;
-mod position;
 mod runtime;
 
 pub use combat_plugin::{CombatPlugin, CombatSet};
+pub use components::{
+    Armor, ArmorToughness, AttackDamage, CombatPosition, Dying, KnockbackResistance,
+    PlayerEffects, PlayerExperience, PlayerFood, PlayerHitRecord, PlayerVitals, RespawnPoint,
+};
 pub use damage_rules::DamageTypeRulesResource;
 pub use death_drops::{DropInventoryOnDeathEvent, handle_death_drops};
 pub use effects::{
-    ActiveEffect, ActiveEffects, ApplyEffectEvent, MobEffect, RemoveEffectEvent,
+    ActiveEffect, ActiveEffects, ApplyEffectEvent, EffectKey, MobEffect, RemoveEffectEvent,
     handle_apply_effect_events, tick_active_effects,
 };
-pub use environment::{
-    AirSupply, FireState, FreezeState, WorldBorderState, compute_fall_damage, is_in_void,
-};
+pub use environment::WorldBorderState;
 pub use equipment::{EntityEquipment, EquipmentChangedEvent, track_equipment_changes};
-pub use events::{DamageDealt, DamageRequest, DeathEvent, RespawnRequest};
-pub use experience::{
-    ExperienceGainedEvent, PlayerExperience, points_for_level, total_points_for_level,
+pub use events::{
+    DamageDealt, DamageRequest, DamageTarget, DeathEvent, KnockbackRequest, RespawnRequest,
 };
-pub use health::{
-    Armor, ArmorToughness, AttackDamage, DamageCooldown, Health, KnockbackResistance,
+pub use experience::ExperienceGainedEvent;
+pub use life_cycle::{
+    apply_knockback, process_damage_requests, tick_death, tick_player_cooldowns,
 };
-pub use hunger::FoodData;
-pub use life_cycle::{DeathState, process_damage_requests, tick_cooldowns, tick_death};
-pub use mcrs_minecraft_damage::damage_types;
-pub use mcrs_minecraft_damage::{DamageSource, DamageTypeFlags, DamageTypeRules, Hit};
-pub use position::CombatPosition;
+pub use mcrs_minecraft_damage::{
+    DamageSource, DamageTypeFlags, DamageTypeRules, Effects, Experience, Food, Hit,
+    points_for_level, total_points_for_level,
+};
+pub use mcrs_minecraft_physics::{HitRecord, Vitals};

@@ -1,10 +1,10 @@
 use bevy::prelude::*;
-use mcrs_minecraft_entity::attribute_instance::{AttributeOperation, fold_attribute};
+use mcrs_minecraft_entity::attribute_instance::fold_attribute;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_item::ItemHoverMap;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::clientbound::{
-    AttributeOperation as WireOperation, ClientboundHurtAnimation, ClientboundPlayerCombatKill,
+    ClientboundHurtAnimation, ClientboundPlayerCombatKill,
     ClientboundRemoveMobEffect, ClientboundRespawn, ClientboundSetEntityData,
     ClientboundSetExperience, ClientboundSetHealth, ClientboundUpdateAttributes,
     ClientboundUpdateMobEffect,
@@ -178,14 +178,10 @@ fn on_attributes(
     for snapshot in &packet.attributes {
         let value = fold_attribute(
             snapshot.base,
-            snapshot.modifiers.iter().map(|modifier| {
-                let operation = match modifier.operation {
-                    WireOperation::AddValue => AttributeOperation::AddValue,
-                    WireOperation::AddMultipliedBase => AttributeOperation::AddMultipliedBase,
-                    WireOperation::AddMultipliedTotal => AttributeOperation::AddMultipliedTotal,
-                };
-                (operation, modifier.amount)
-            }),
+            snapshot
+                .modifiers
+                .iter()
+                .map(|modifier| (modifier.operation.into(), modifier.amount)),
         );
         if snapshot.attribute == Attribute::MaxHealth {
             local.max_health = (value as f32).max(1.0);

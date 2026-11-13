@@ -124,6 +124,7 @@ impl Run {
                     &mut changes,
                     at,
                     Hit::new(1.0, CACTUS),
+                    &mcrs_minecraft_damage::Defence::default(),
                     tick,
                 );
             }

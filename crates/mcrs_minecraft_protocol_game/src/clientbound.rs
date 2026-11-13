@@ -693,6 +693,18 @@ pub enum AttributeOperation {
     AddMultipliedTotal,
 }
 
+impl From<AttributeOperation>
+    for mcrs_minecraft_entity::attribute_instance::AttributeOperation
+{
+    fn from(operation: AttributeOperation) -> Self {
+        match operation {
+            AttributeOperation::AddValue => Self::AddValue,
+            AttributeOperation::AddMultipliedBase => Self::AddMultipliedBase,
+            AttributeOperation::AddMultipliedTotal => Self::AddMultipliedTotal,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub struct AttributeModifier<'a> {
     pub id: ResourceLocation<'a>,

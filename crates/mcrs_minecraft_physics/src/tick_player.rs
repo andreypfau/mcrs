@@ -269,13 +269,7 @@ fn movement_speed(attributes: &MotionAttributes, sprint: bool, effects: &MotionE
     if sprint {
         value *= 1.0 + f64::from(SPRINT_BOOST);
     }
-    if let Some(level) = effects.speed {
-        value *= 1.0 + 0.2 * f64::from(level.saturating_add(1));
-    }
-    if let Some(level) = effects.slowness {
-        value *= (1.0 - 0.15 * f64::from(level.saturating_add(1))).max(0.0);
-    }
-    value.clamp(0.0, 1024.0) as f32
+    effects.speed_with_effects(value) as f32
 }
 
 /// The input vector from the keys, all in f32.

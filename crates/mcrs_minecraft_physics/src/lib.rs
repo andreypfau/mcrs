@@ -123,7 +123,7 @@ pub use inside_shape::BoxRange;
 pub use inside_shape::InsideBoxes;
 pub use inside_shape::InsideShape;
 pub use keys::Keys;
-pub use living::Living;
+pub use living::{Living, Vitals};
 pub use living::MoveInput;
 pub use living::Steering;
 pub use living::Travel;

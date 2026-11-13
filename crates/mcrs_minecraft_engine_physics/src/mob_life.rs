@@ -117,7 +117,7 @@ pub fn mob_body(
     living.fall_damage_immune = kind.fall_damage_immune;
     if let Some(base) = kind.base_attributes {
         living.attributes.movement_speed = base.movement_speed;
-        living.health = base.max_health;
+        living.vitals.health = base.max_health;
     }
     let body = Body {
         position,

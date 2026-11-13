@@ -392,11 +392,11 @@ fn dmg_env_002_a_mob_in_fire_burns_and_loses_health() {
             .expect("the pig still lives");
         let living = state.living.expect("living");
         (
-            living.health,
+            living.vitals.health,
             state.body.position,
-            living.on_fire,
-            living.fire_ticks,
-            living.air,
+            living.on_fire(),
+            living.vitals.fire_ticks,
+            living.vitals.air,
         )
     };
     assert!(

@@ -21,24 +21,48 @@ pub struct Living {
     pub walks_on_powder_snow: bool,
     /// The new input of the AI in this tick, if it sets one.
     pub steering: Option<Steering>,
-    /// The health, from 0 to the max health.
-    pub health: f32,
+    pub vitals: Vitals,
     pub fire_immune: bool,
     pub fall_damage_immune: bool,
-    /// Whether the entity is drawn on fire.
-    pub on_fire: bool,
-    /// The remaining fire ticks; the entity burns while this is positive.
-    pub fire_ticks: i32,
-    /// The remaining air ticks underwater; damage is dealt at `-20`.
-    pub air: i32,
-    /// The ticks in powder snow, from 0 to `140` and above when the damage starts.
-    pub frozen_ticks: i32,
+}
+
+/// The state of a living entity that a hit, the fire, the air and the powder snow change
+/// (DMG-ATT-001, DMG-HIT-003, DMG-PLR-002).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Vitals {
+    /// The health, from 0 to `max_health`.
+    pub health: f32,
+    pub max_health: f32,
+    pub absorption: f32,
     /// The amount of the last full or partial hit, which the damage cooldown compares against.
     pub last_damage: f32,
     pub damage_cooldown: u8,
     pub hurt_time: u8,
     /// The ticks since the death; `None` while the entity is alive.
     pub death_time: Option<u8>,
+    /// The remaining fire ticks; the entity burns while this is positive.
+    pub fire_ticks: i32,
+    /// The remaining air ticks underwater; damage is dealt at `-20`.
+    pub air: i32,
+    /// The ticks in powder snow, from 0 to `140` and above when the damage starts.
+    pub frozen_ticks: i32,
+}
+
+impl Default for Vitals {
+    fn default() -> Self {
+        Self {
+            health: 0.0,
+            max_health: 20.0,
+            absorption: 0.0,
+            last_damage: 0.0,
+            damage_cooldown: 0,
+            hurt_time: 0,
+            death_time: None,
+            fire_ticks: 0,
+            air: 300,
+            frozen_ticks: 0,
+        }
+    }
 }
 
 /// The movement intent of a living entity in its own frame, as f32 values.
@@ -72,14 +96,19 @@ impl Living {
     pub fn of(row: &MotionRow) -> Self {
         let mut living = Self::default();
         living.attributes.step_height = row.step_height;
-        living.air = 300;
         living
     }
 
     /// Whether the entity is alive: not in the dying state.
     #[must_use]
     pub fn is_alive(&self) -> bool {
-        self.death_time.is_none()
+        self.vitals.death_time.is_none()
+    }
+
+    /// Whether the entity is drawn on fire.
+    #[must_use]
+    pub fn on_fire(&self) -> bool {
+        self.vitals.fire_ticks > 0
     }
 }
 

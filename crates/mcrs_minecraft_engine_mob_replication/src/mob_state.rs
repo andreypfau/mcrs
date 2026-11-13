@@ -20,8 +20,8 @@ pub(crate) fn mob_state(state: &EntityState) -> MobState {
         pitch: living.orientation.pitch,
         head_yaw: living.orientation.head_yaw,
         on_ground: state.body.flags.on_ground,
-        health: living.health,
+        health: living.vitals.health,
         dying: !living.is_alive(),
-        on_fire: living.on_fire,
+        on_fire: living.on_fire(),
     }
 }

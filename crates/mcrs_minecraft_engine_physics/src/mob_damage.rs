@@ -1,4 +1,4 @@
-use mcrs_minecraft_damage::Hit;
+use mcrs_minecraft_damage::{Defence, Hit};
 use mcrs_minecraft_damage::HitOutcome;
 use mcrs_minecraft_damage::compute_knockback;
 use mcrs_minecraft_entity_rows::Placed;
@@ -13,19 +13,21 @@ pub fn hurt_mob<M>(
     changes: &mut MobChanges,
     at: Placed,
     hit: Hit,
+    defence: &Defence,
     tick: u64,
 ) -> Option<HitOutcome> {
     let state = rows.state_mut(at)?;
     let living = state.living.as_mut()?;
-    if (hit.flags.is_fire && living.fire_immune) || (hit.flags.is_fall && living.fall_damage_immune)
-    {
-        return Some(HitOutcome::Rejected);
-    }
-    let outcome = mcrs_minecraft_damage::hurt(living, &mut state.hits, hit, tick);
+    let defence = Defence {
+        fire_immune: living.fire_immune,
+        fall_immune: living.fall_damage_immune,
+        ..*defence
+    };
+    let outcome = mcrs_minecraft_damage::hurt(&mut living.vitals, &mut state.hits, &defence, hit, tick);
     if outcome == HitOutcome::Rejected {
         return Some(outcome);
     }
-    if !hit.flags.no_knockback
+    if !defence.flags.no_knockback
         && let Some(attacker) = hit.source.source_position
     {
         let target = state.body.position;
@@ -66,7 +68,7 @@ mod tests {
     use bevy_ecs::resource::Resource;
     use glam::DVec3;
     use mcrs_engine_muxer::EntityId;
-    use mcrs_minecraft_damage::Hit;
+    use mcrs_minecraft_damage::{Defence, Hit};
     use mcrs_minecraft_entity::EntityTypeData;
     use mcrs_minecraft_entity_key::EntityKey;
     use mcrs_minecraft_entity_rows::RowStore;
@@ -96,14 +98,15 @@ mod tests {
             &mut rows,
             &mut MobChanges::default(),
             at,
-            Hit::new(5.0, mcrs_minecraft_damage::damage_types::IN_FIRE),
+            Hit::new(5.0, 0),
+            &Defence::default(),
             0,
         );
         assert_eq!(outcome, Some(HitOutcome::Rejected));
         assert_eq!(
             rows.state_of(at)
                 .and_then(|state| state.living)
-                .map(|l| l.health),
+                .map(|l| l.vitals.health),
             Some(20.0)
         );
     }
@@ -115,14 +118,15 @@ mod tests {
             &mut rows,
             &mut MobChanges::default(),
             at,
-            Hit::new(5.0, mcrs_minecraft_damage::damage_types::FALL),
+            Hit::new(5.0, 0),
+            &Defence::default(),
             0,
         );
         assert_eq!(outcome, Some(HitOutcome::Rejected));
         assert_eq!(
             rows.state_of(at)
                 .and_then(|state| state.living)
-                .map(|l| l.health),
+                .map(|l| l.vitals.health),
             Some(4.0)
         );
     }

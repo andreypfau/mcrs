@@ -73,20 +73,18 @@ use mcrs_minecraft_volume::BlockVolume;
 use mcrs_voxel::{BlockPos, BlockStateId};
 
 use crate::damage_rules::DamageTypeRulesResource;
-use crate::damage_types;
-use crate::effects::{ActiveEffects, MobEffect};
+use crate::components::{PlayerEffects as ActiveEffects, PlayerFood, PlayerVitals as Health};
+use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 use crate::environment::{
-    AirSupply, FireState, FreezeState, WorldBorderState, compute_fall_damage, is_in_void,
+    AirSupply, CombatDifficulty, FireState, FreezeState, WorldBorderState, compute_fall_damage,
+    is_in_void,
 };
 use crate::equipment::{EntityEquipment, EquipmentChangedEvent};
 use crate::events::{DamageDealt, DamageRequest, DeathEvent, RespawnRequest};
-use crate::experience::PlayerExperience;
-use crate::health::{
-    Armor, ArmorToughness, AttackDamage, DamageCooldown, Health, KnockbackResistance,
+use crate::components::{
+    Armor, ArmorToughness, AttackDamage, CombatPosition, KnockbackResistance, PlayerExperience,
 };
-use crate::hunger::{CombatDifficulty, FoodData};
-use crate::life_cycle::DeathState;
-use crate::position::CombatPosition;
+use crate::life_cycle::Dying as DeathState;
 
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 struct CombatVitals {

@@ -218,7 +218,12 @@ impl<M: Send> RowStore<M> {
             let Some(living) = state.living.as_mut() else {
                 continue;
             };
-            let outcome = hurt(living, &mut state.hits, hit, tick);
+            let defence = mcrs_minecraft_damage::Defence {
+                fire_immune: living.fire_immune,
+                fall_immune: living.fall_damage_immune,
+                ..mcrs_minecraft_damage::Defence::default()
+            };
+            let outcome = hurt(&mut living.vitals, &mut state.hits, &defence, hit, tick);
             if outcome == HitOutcome::Rejected {
                 continue;
             }
@@ -386,9 +391,9 @@ fn tick_tile<W: CollisionWorld, B: BodyView, M>(
 /// The damage counters and the death time of one tick (DMG-HIT-006, DMG-DTH-003). Gives true
 /// when the death time reaches its end and the entity leaves the world.
 fn count_down(living: &mut Living) -> bool {
-    living.hurt_time = living.hurt_time.saturating_sub(1);
-    living.damage_cooldown = living.damage_cooldown.saturating_sub(1);
-    let Some(death_time) = living.death_time.as_mut() else {
+    living.vitals.hurt_time = living.vitals.hurt_time.saturating_sub(1);
+    living.vitals.damage_cooldown = living.vitals.damage_cooldown.saturating_sub(1);
+    let Some(death_time) = living.vitals.death_time.as_mut() else {
         return false;
     };
     *death_time = death_time.saturating_add(1);

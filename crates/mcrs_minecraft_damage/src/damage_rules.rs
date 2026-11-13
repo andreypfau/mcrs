@@ -1,9 +1,7 @@
-use mcrs_minecraft_entity::damage_type::DamageType;
+use mcrs_minecraft_entity::damage_type::{DamageScaling, DamageType};
 use mcrs_minecraft_entity::damage_type_tag_keys;
 use mcrs_minecraft_registries::{Registries, Tags};
-use mcrs_minecraft_resource::TagKey;
-
-use crate::damage_types;
+use mcrs_minecraft_resource::{ResourceKey, ResourceLocation, TagKey};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DamageTypeFlags {
@@ -12,93 +10,21 @@ pub struct DamageTypeFlags {
     pub bypasses_invulnerability: bool,
     pub bypasses_effects: bool,
     pub bypasses_cooldown: bool,
+    pub bypasses_enchantments: bool,
     pub is_fire: bool,
     pub is_fall: bool,
     pub is_drowning: bool,
     pub is_freezing: bool,
+    pub no_impact: bool,
     pub no_knockback: bool,
-}
-
-impl DamageTypeFlags {
-    #[must_use]
-    pub const fn builtin_for(damage_type: u32) -> Self {
-        let mut flags = Self {
-            bypasses_armor: false,
-            bypasses_resistance: false,
-            bypasses_invulnerability: false,
-            bypasses_effects: false,
-            bypasses_cooldown: false,
-            is_fire: false,
-            is_fall: false,
-            is_drowning: false,
-            is_freezing: false,
-            no_knockback: false,
-        };
-        match damage_type {
-            damage_types::OUT_OF_WORLD | damage_types::GENERIC_KILL => {
-                flags.bypasses_armor = true;
-                flags.bypasses_resistance = true;
-                flags.bypasses_invulnerability = true;
-                flags.bypasses_effects = true;
-                flags.bypasses_cooldown = true;
-            }
-            damage_types::FALL => {
-                flags.bypasses_armor = true;
-                flags.is_fall = true;
-                flags.no_knockback = true;
-            }
-            damage_types::DROWN => {
-                flags.bypasses_armor = true;
-                flags.is_drowning = true;
-                flags.no_knockback = true;
-            }
-            damage_types::FREEZE => {
-                flags.bypasses_armor = true;
-                flags.is_freezing = true;
-                flags.no_knockback = true;
-            }
-            damage_types::IN_FIRE
-            | damage_types::ON_FIRE
-            | damage_types::LAVA
-            | damage_types::HOT_FLOOR
-            | damage_types::CAMPFIRE
-            | damage_types::FIREBALL
-            | damage_types::UNATTRIBUTED_FIREBALL => {
-                flags.is_fire = true;
-            }
-            damage_types::IN_WALL | damage_types::STARVE => {
-                flags.bypasses_armor = true;
-                flags.no_knockback = true;
-            }
-            damage_types::OUTSIDE_BORDER => {
-                flags.bypasses_armor = true;
-                flags.bypasses_cooldown = true;
-                flags.no_knockback = true;
-            }
-            damage_types::GENERIC | damage_types::FLY_INTO_WALL => {
-                flags.bypasses_armor = true;
-            }
-            _ => {}
-        }
-        flags
-    }
-
-    fn merge(&mut self, other: Self) {
-        self.bypasses_armor |= other.bypasses_armor;
-        self.bypasses_resistance |= other.bypasses_resistance;
-        self.bypasses_invulnerability |= other.bypasses_invulnerability;
-        self.bypasses_effects |= other.bypasses_effects;
-        self.bypasses_cooldown |= other.bypasses_cooldown;
-        self.is_fire |= other.is_fire;
-        self.is_fall |= other.is_fall;
-        self.is_drowning |= other.is_drowning;
-        self.is_freezing |= other.is_freezing;
-        self.no_knockback |= other.no_knockback;
-    }
+    pub no_hurt_sound: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct DamageTypeRules {
+    names: Vec<mcrs_minecraft_resource::ResourceLocationBuf>,
+    message_ids: Vec<String>,
+    scalings: Vec<DamageScaling>,
     flags: Vec<DamageTypeFlags>,
     exhaustion: Vec<f32>,
 }
@@ -106,28 +32,28 @@ pub struct DamageTypeRules {
 impl DamageTypeRules {
     #[must_use]
     pub fn from_registries(registries: &Registries) -> Self {
-        let Some(entries) = registries.entries::<DamageType>() else {
-            return Self::builtin();
+        let Some(registry) = registries.registry::<DamageType>() else {
+            return Self::default();
         };
         let mut rules = Self {
-            flags: vec![DamageTypeFlags::default(); entries.len()],
-            exhaustion: (0..entries.len())
-                .map(|id| Self::builtin_exhaustion(id as u32))
-                .collect(),
+            names: Vec::with_capacity(registry.len()),
+            message_ids: Vec::with_capacity(registry.len()),
+            scalings: Vec::with_capacity(registry.len()),
+            flags: vec![DamageTypeFlags::default(); registry.len()],
+            exhaustion: Vec::with_capacity(registry.len()),
         };
-        if let Some(registry) = registries.registry::<DamageType>() {
-            for (at, value) in registry.values().iter().enumerate() {
-                if let Some(exhaustion) = rules.exhaustion.get_mut(at) {
-                    *exhaustion = value.exhaustion;
-                }
-            }
+        for (_, name, value) in registry.iter() {
+            rules.names.push(name.clone());
+            rules.message_ids.push(value.message_id.clone());
+            rules.scalings.push(value.scaling);
+            rules.exhaustion.push(value.exhaustion);
         }
         if let Some(tags) = registries.tags::<DamageType>() {
             rules.mark(&tags, damage_type_tag_keys::BYPASSES_ARMOR, |flags| {
                 flags.bypasses_armor = true;
             });
             rules.mark(&tags, damage_type_tag_keys::BYPASSES_RESISTANCE, |flags| {
-                flags.bypasses_resistance = true
+                flags.bypasses_resistance = true;
             });
             rules.mark(
                 &tags,
@@ -135,11 +61,16 @@ impl DamageTypeRules {
                 |flags| flags.bypasses_invulnerability = true,
             );
             rules.mark(&tags, damage_type_tag_keys::BYPASSES_EFFECTS, |flags| {
-                flags.bypasses_effects = true
+                flags.bypasses_effects = true;
             });
             rules.mark(&tags, damage_type_tag_keys::BYPASSES_COOLDOWN, |flags| {
-                flags.bypasses_cooldown = true
+                flags.bypasses_cooldown = true;
             });
+            rules.mark(
+                &tags,
+                damage_type_tag_keys::BYPASSES_ENCHANTMENTS,
+                |flags| flags.bypasses_enchantments = true,
+            );
             rules.mark(&tags, damage_type_tag_keys::IS_FIRE, |flags| {
                 flags.is_fire = true;
             });
@@ -152,46 +83,63 @@ impl DamageTypeRules {
             rules.mark(&tags, damage_type_tag_keys::IS_FREEZING, |flags| {
                 flags.is_freezing = true;
             });
+            rules.mark(&tags, damage_type_tag_keys::NO_IMPACT, |flags| {
+                flags.no_impact = true;
+            });
             rules.mark(&tags, damage_type_tag_keys::NO_KNOCKBACK, |flags| {
                 flags.no_knockback = true;
             });
-        }
-        for (id, flags) in rules.flags.iter_mut().enumerate() {
-            flags.merge(DamageTypeFlags::builtin_for(id as u32));
-        }
-        for id in [damage_types::OUT_OF_WORLD, damage_types::OUTSIDE_BORDER] {
-            if let Some(flags) = rules.flags.get_mut(id as usize) {
-                flags.bypasses_cooldown = true;
-            }
+            rules.mark(&tags, damage_type_tag_keys::NO_HURT_SOUND, |flags| {
+                flags.no_hurt_sound = true;
+            });
         }
         rules
     }
 
     #[must_use]
-    pub fn builtin() -> Self {
-        Self {
-            flags: (0..64).map(DamageTypeFlags::builtin_for).collect(),
-            exhaustion: (0..64).map(Self::builtin_exhaustion).collect(),
-        }
+    pub fn id(&self, key: ResourceKey<'_, DamageType>) -> Option<u32> {
+        self.names
+            .iter()
+            .position(|name| name == key.location())
+            .and_then(|index| u32::try_from(index).ok())
     }
 
     #[must_use]
-    pub const fn builtin_exhaustion(damage_type: u32) -> f32 {
-        match damage_type {
-            damage_types::GENERIC
-            | damage_types::GENERIC_KILL
-            | damage_types::OUT_OF_WORLD
-            | damage_types::FALL
-            | damage_types::STARVE
-            | damage_types::DROWN
-            | damage_types::FREEZE
-            | damage_types::IN_WALL
-            | damage_types::CRAMMING
-            | damage_types::MAGIC
-            | damage_types::INDIRECT_MAGIC
-            | damage_types::WITHER => 0.0,
-            _ => 0.1,
-        }
+    pub fn id_path(&self, path: &str) -> Option<u32> {
+        self.names
+            .iter()
+            .position(|held| held.path() == path && held.namespace() == "minecraft")
+            .and_then(|index| u32::try_from(index).ok())
+    }
+
+    #[must_use]
+    pub fn id_of(&self, name: ResourceLocation<'_>) -> Option<u32> {
+        self.names
+            .iter()
+            .position(|held| held.as_location() == name)
+            .and_then(|index| u32::try_from(index).ok())
+    }
+
+    #[must_use]
+    pub fn name(&self, damage_type: u32) -> Option<ResourceLocation<'_>> {
+        self.names
+            .get(damage_type as usize)
+            .map(mcrs_minecraft_resource::ResourceLocationBuf::as_location)
+    }
+
+    #[must_use]
+    pub fn message_id(&self, damage_type: u32) -> Option<&str> {
+        self.message_ids
+            .get(damage_type as usize)
+            .map(String::as_str)
+    }
+
+    #[must_use]
+    pub fn scaling(&self, damage_type: u32) -> DamageScaling {
+        self.scalings
+            .get(damage_type as usize)
+            .copied()
+            .unwrap_or(DamageScaling::Never)
     }
 
     #[must_use]
@@ -199,7 +147,7 @@ impl DamageTypeRules {
         self.flags
             .get(damage_type as usize)
             .copied()
-            .unwrap_or_else(|| DamageTypeFlags::builtin_for(damage_type))
+            .unwrap_or_default()
     }
 
     #[must_use]
@@ -207,7 +155,7 @@ impl DamageTypeRules {
         self.exhaustion
             .get(damage_type as usize)
             .copied()
-            .unwrap_or_else(|| Self::builtin_exhaustion(damage_type))
+            .unwrap_or(0.0)
     }
 
     fn mark(
@@ -223,38 +171,5 @@ impl DamageTypeRules {
                 }
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::damage_types;
-
-    #[test]
-    fn the_builtin_rules_cover_environmental_damage() {
-        let rules = DamageTypeRules::builtin();
-        assert!(rules.flags(damage_types::FALL).is_fall);
-        assert!(rules.flags(damage_types::FALL).bypasses_armor);
-        assert!(rules.flags(damage_types::DROWN).is_drowning);
-        assert!(rules.flags(damage_types::FREEZE).is_freezing);
-        assert!(rules.flags(damage_types::IN_FIRE).is_fire);
-        assert!(rules.flags(damage_types::LAVA).is_fire);
-        assert!(
-            rules
-                .flags(damage_types::OUT_OF_WORLD)
-                .bypasses_invulnerability
-        );
-        assert!(rules.flags(damage_types::OUT_OF_WORLD).bypasses_cooldown);
-        assert!(!rules.flags(damage_types::PLAYER_ATTACK).is_fire);
-    }
-
-    #[test]
-    fn the_builtin_exhaustion_follows_the_damage_type() {
-        let rules = DamageTypeRules::builtin();
-        assert_eq!(rules.exhaustion(damage_types::PLAYER_ATTACK), 0.1);
-        assert_eq!(rules.exhaustion(damage_types::FALL), 0.0);
-        assert_eq!(rules.exhaustion(damage_types::STARVE), 0.0);
-        assert_eq!(rules.exhaustion(10_000), 0.1);
     }
 }
