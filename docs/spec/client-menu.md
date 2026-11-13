@@ -1604,16 +1604,20 @@ Decides: MENU-VAL-011, MENU-DISP-003, MENU-DISP-005.
 
   6. Each other change of the stored options acts in the same way. An example is a change of
      Fullscreen by the system (MENU-DISP-003, step 6).
-  7. In the play state, after each change of the stored options, the client makes its client
-     information from the stored options. The left button and a write that runs do not delay
-     this.
-  8. The client compares that information with the last `client_information` that it sent, in
-     the configuration state or in the play state. When they differ, the client sends
-     `client_information` (play, serverbound 14).
-  9. In the play state, the client sends `client_information` at no other moment. A write of the
-     options file, the removal of a screen and the stop of the client send nothing. The first
-     change in the play state sends nothing when no field differs.
-  10. Steps 1 and 4 of MENU-DIST-002 apply to mcrs.
+  7. In the play state, the client sends `client_information` (play, serverbound 14) in each
+     frame in which the client information made from the stored options differs from the last
+     `client_information` that the client sent, in the configuration state or in the play state.
+     The left button and a write that runs do not delay this.
+  8. Step 7 applies from the first frame of the play state. Thus, when the stored options change
+     while the connection is not in the play state, the client sends one `client_information`
+     with the current value in the first frame of the play state. When a value changes and then
+     becomes equal to the value of the last `client_information` again before the play state
+     starts, the client sends nothing.
+  9. When the client information is equal to the last `client_information`, the client sends
+     nothing. This applies to the start of the play state, a write of the options file, the
+     removal of a screen and the stop of the client.
+  10. Steps 1 and 4 of MENU-DIST-002 apply to mcrs. Step 1 states what the client sends in the
+      configuration state.
   11. Render Distance is the only option of mcrs in the client information. Its slider waits, so
       a pending value does not go. Thus each wait of the slider sends at most one
       `client_information`.
@@ -1629,6 +1633,10 @@ Decides: MENU-VAL-011, MENU-DISP-003, MENU-DISP-005.
     information.
   - In a local world, when the host raises `o`, the new columns arrive after the end of the wait
     (MENU-DIST-004). The screen can still be open.
+  - A change of Render Distance while the connection is not in the play state sends one
+    `client_information` with the stored value in the first frame of the play state. When the
+    stored value is equal to the value of the last `client_information` at that frame, nothing
+    goes.
   - After a drag of FOV, the write starts at the release. The close of the options screen then
     writes nothing.
   - A change by the Ctrl wheel writes the options file at once.
@@ -1643,8 +1651,12 @@ Decides: MENU-VAL-011, MENU-DISP-003, MENU-DISP-005.
   - A server gets `client_information` at the end of the wait of Render Distance, while the
     screen is still open. The reference sends it at the next moment of MENU-SAVE-001, for
     example at "Done". Thus in mcrs, the view of the player changes before the close.
-  - A server gets no `client_information` in the play state until a change of Render Distance.
-    The reference sends one at the first moment of MENU-SAVE-001 in the play state.
+  - A server gets no `client_information` in the play state while the stored options are equal
+    to the last `client_information`. The reference sends one at the first moment of
+    MENU-SAVE-001 in the play state.
+  - After a change of Render Distance outside the play state, a server gets the new value in the
+    first frame of the play state. The reference sends it at the first moment of MENU-SAVE-001
+    in the play state.
 - **Test:** a differential test does not compare the time of the options file. It does not
   compare the moments of `client_information` in the play state (MENU-EXP-08, MENU-EXP-11,
   MENU-EXP-12). It compares the values in the file after the left button is up and each write
