@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_menu"
-description = "The keys of the menu registry"
+description = "The keys of the menu registry and the layout of the inventory menu: entries, quick-move destinations, swap buttons"
 version.workspace = true
 edition.workspace = true
 
@@ -11,5 +11,6 @@ doctest = false
 workspace = true
 
 [dependencies]
+mcrs_minecraft_player_slots.workspace = true
 mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_registries.workspace = true

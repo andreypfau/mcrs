@@ -1,6 +1,7 @@
 use mcrs_minecraft_inventory_plan::Filter;
 use mcrs_minecraft_player_slots::ArmourLock;
 use mcrs_minecraft_player_slots::ArmourSlot;
+use mcrs_minecraft_player_slots::EquipSlot;
 use mcrs_minecraft_player_slots::Holder;
 use mcrs_minecraft_player_slots::OffHandRule;
 use mcrs_minecraft_player_slots::OffHandTag;
@@ -58,7 +59,7 @@ fn inv_slt_001_002_the_holders_their_slots_and_slot_limits() {
 fn inv_slt_003_005_006_the_place_filters() {
     let plain = Offer::default();
     let helmet = Offer {
-        wear: Some(ArmourSlot::Head),
+        wear: Some(EquipSlot::Armour(ArmourSlot::Head)),
         ..Offer::default()
     };
     let tagged = Offer {
