@@ -6105,6 +6105,7 @@ dependencies = [
  "bitflags 2.10.0",
  "bytemuck",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_fog",
  "mcrs_minecraft_mesh",
  "naga",
  "wesl",

@@ -107,12 +107,13 @@ const ES_310_BUILTINS: [&str; 6] = [
 
 /// Each shader the minimal path draws with, and the defs of a pipeline that uses it beside those
 /// of the path.
-const PIPELINES: [(&str, &[&str]); 8] = [
+const PIPELINES: [(&str, &[&str]); 9] = [
     ("greedy", &[]),
     ("greedy", &["WIREFRAME"]),
     ("model", &[]),
     ("model", &["WIREFRAME"]),
     ("lighting_pass", &[]),
+    ("lighting_pass", &["LIGHTING_TERM"]),
     ("gbuffer_views", &["SHOW_GRID"]),
     ("show", &[]),
     ("show", &["PYRAMID"]),

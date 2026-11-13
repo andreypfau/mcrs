@@ -2,6 +2,8 @@ import bevy_core_pipeline::fullscreen_vertex_shader::FullscreenVertexOutput;
 import package::shaders::include::deferred::{octahedral_decode, shade};
 import package::shaders::include::depth::depth_at;
 import package::shaders::include::finish::to_target;
+import package::shaders::include::fog::{fog_mix, fog_value};
+import package::shaders::include::frame::camera;
 @if(LIGHT_TINT) import mcrs_minecraft_light_render::shaders::volume::{shade_tinted, volume_tint};
 
 struct Reconstruction {
@@ -43,12 +45,19 @@ fn lighting(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
         } @else {
             let albedo = a.rgb;
         }
+        let relative = relative_position(pixel, d);
         @if(LIGHT_TINT) {
             let normal = octahedral_decode(textureLoad(normal_motion, pixel, 0).xy);
-            let tint = volume_tint(relative_position(pixel, d), normal);
-            return vec4<f32>(to_target(shade_tinted(albedo, a.a, l.g, l.b, tint)), 1.0);
+            let tint = volume_tint(relative, normal);
+            let lit = shade_tinted(albedo, a.a, l.g, l.b, tint);
         } @else {
-            return vec4<f32>(to_target(shade(albedo, a.a, l.g, l.b)), 1.0);
+            let lit = shade(albedo, a.a, l.g, l.b);
+        }
+        @if(LIGHTING_TERM) {
+            return vec4<f32>(to_target(lit), 1.0);
+        } @else {
+            let fog = fog_value(relative - camera.offset, camera.fog_environmental, camera.fog_render_distance);
+            return vec4<f32>(to_target(fog_mix(lit, fog, camera.fog_color)), 1.0);
         }
     }
 }
