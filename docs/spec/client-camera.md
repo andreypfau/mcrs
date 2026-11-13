@@ -357,8 +357,9 @@ Milestone: 1.
   3. The options file stores the line `fov:<x>` with `x = (O − 70) / 40` as a decimal number. A
      reader sets `O = trunc(x · 40 + 70)`.
   4. The options file stores the line `fovEffectScale:<k>`.
-  5. The slider of the effect scale shows `√k` as a percentage. A position `q` of the slider
-     sets `k = q²`.
+  5. The caption of the slider of the effect scale shows `k` as a percentage, and its handle is
+     at the position `√k`. A position `q` of the slider sets `k = q²` (`client-menu.md`,
+     MENU-VAL-002).
 - **Postconditions:** the defaults give `m* = 1.1` for a player that flies and does not sprint.
 
 Provenance: `source_suggested`. Kind: client agreement for items 3 and 4, semantic for the
