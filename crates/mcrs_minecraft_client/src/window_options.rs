@@ -14,13 +14,11 @@ pub(crate) const FULLSCREEN_GRACE: Duration = Duration::from_secs(2);
 #[derive(Resource, Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) struct WindowFullscreen(pub(crate) bool);
 
-/// How long the fullscreen state of the window can still change without a message.
+/// Whether a switch that the option asked for still waits for the window.
 #[derive(Resource, Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub(crate) enum FullscreenWatch {
     #[default]
     Idle,
-    /// The window changed: until `until`, a new state reaches the option at once.
-    Window { until: Duration },
     /// The option asked for `to`; the state of the window reaches the option only at `until`.
     Switch { to: bool, until: Duration },
 }
@@ -128,15 +126,15 @@ pub(crate) fn reconcile_fullscreen(
                 FullscreenWatch::Idle
             }
         }
-        _ if options.fullscreen != real.0 && !real.is_changed() => FullscreenWatch::Switch {
-            to: options.fullscreen,
-            until,
-        },
-        _ if window_changed => FullscreenWatch::Window { until },
-        FullscreenWatch::Window { until: end } if now < end => return,
-        _ => FullscreenWatch::Idle,
+        FullscreenWatch::Idle if options.fullscreen != real.0 && !real.is_changed() => {
+            FullscreenWatch::Switch {
+                to: options.fullscreen,
+                until,
+            }
+        }
+        FullscreenWatch::Idle => FullscreenWatch::Idle,
     };
-    if !matches!(next, FullscreenWatch::Switch { .. }) && options.fullscreen != real.0 {
+    if next == FullscreenWatch::Idle && options.fullscreen != real.0 {
         options.fullscreen = real.0;
     }
     watch.set_if_neq(next);

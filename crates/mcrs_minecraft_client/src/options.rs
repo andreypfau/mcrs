@@ -37,26 +37,25 @@ impl Plugin for ClientOptionsPlugin {
             );
         #[cfg(not(target_family = "wasm"))]
         {
-            use bevy::window::{PrimaryWindow, WindowResized};
+            use bevy::window::PrimaryWindow;
 
             use crate::window_options::{
                 FullscreenWatch, WindowFullscreen, project_window_options, read_window_fullscreen,
                 reconcile_fullscreen,
             };
 
-            let watched = || not(resource_equals(FullscreenWatch::Idle));
             app.insert_resource(WindowFullscreen(self.options.fullscreen))
                 .init_resource::<FullscreenWatch>()
                 .add_systems(
                     PreUpdate,
                     (
-                        read_window_fullscreen.run_if(watched()),
+                        // Ungated: winit has no message for a change of fullscreen by the system.
+                        read_window_fullscreen,
                         reconcile_fullscreen.run_if(
                             any_with_component::<PrimaryWindow>.and_then(
-                                on_message::<WindowResized>
-                                    .or_else(resource_changed::<ClientOptions>)
+                                resource_changed::<ClientOptions>
                                     .or_else(resource_changed::<WindowFullscreen>)
-                                    .or_else(watched()),
+                                    .or_else(not(resource_equals(FullscreenWatch::Idle))),
                             ),
                         ),
                         project_window_options.run_if(resource_changed::<ClientOptions>),
@@ -210,19 +209,27 @@ mod tests {
     fn idle_app(fullscreen: bool) -> App {
         let mut options = ClientOptions::default();
         options.fullscreen = fullscreen;
-        let mut app = app_with(options, None);
-        run_frames(&mut app, grace_frames());
-        app
+        app_with(options, None)
     }
 
     #[test]
-    fn a_change_of_the_window_by_the_system_reaches_the_option_in_that_frame() {
+    fn a_change_of_the_window_by_the_system_reaches_the_option_once_and_a_toggle_then_inverts_it() {
         for system_fullscreen in [true, false] {
             let mut app = idle_app(!system_fullscreen);
             set_window_fullscreen(&mut app, system_fullscreen);
             run_frames(&mut app, 1);
             assert_eq!(option_fullscreen(&app), system_fullscreen);
             assert_rests_at(&mut app, system_fullscreen);
+
+            let mut options = app.world_mut().resource_mut::<ClientOptions>();
+            options.fullscreen = !options.fullscreen;
+            run_frames(&mut app, 1);
+            assert_eq!(
+                primary_window(app.world()).mode,
+                window_mode(!system_fullscreen)
+            );
+            set_window_fullscreen(&mut app, !system_fullscreen);
+            assert_rests_at(&mut app, !system_fullscreen);
         }
     }
 
