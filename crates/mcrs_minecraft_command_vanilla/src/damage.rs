@@ -9,7 +9,8 @@ use mcrs_minecraft_command_argument_entity::EntityArgument;
 use mcrs_minecraft_command_engine::{
     Call, CommandFailure, CommandOutput, CommandRegistrar, CommandResult, EffectQueue, Feedback,
 };
-use mcrs_minecraft_damage::{Hit, HitOutcome, preview};
+use mcrs_minecraft_damage::{Defence, Hit, HitOutcome, preview};
+use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_resource::{ResourceLocation, rl};
 use mcrs_minecraft_text::Text;
@@ -85,6 +86,7 @@ pub(crate) fn run(
     context: VanillaContext,
     mut output: CommandOutput,
     mut hits: ResMut<EffectQueue<HitMob>>,
+    clock: Option<Res<BirthClock>>,
     mut found: Local<SelectionBuffers>,
 ) -> CommandResult {
     let command = call.command;
@@ -111,7 +113,14 @@ pub(crate) fn run(
                 hit: Hit::new(amount, damage_type),
             },
         );
-        if preview(&living, amount) == HitOutcome::Rejected {
+        let tick = clock.as_deref().map_or(0, |clock| clock.0.max(0) as u64);
+        if preview(
+            &living.vitals,
+            &Defence::default(),
+            Hit::new(amount, damage_type),
+            tick,
+        ) == HitOutcome::Rejected
+        {
             return Err(CommandFailure::translate(
                 "commands.damage.invulnerable",
                 vec![],

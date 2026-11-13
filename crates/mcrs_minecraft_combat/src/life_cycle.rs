@@ -24,6 +24,7 @@ use crate::events::{
     reason = "a Bevy system: each component of a damaged player is a separate query term"
 )]
 pub fn process_damage_requests(
+    mut commands: Commands,
     mut requests: MessageReader<DamageRequest>,
     mut damage_dealt: MessageWriter<DamageDealt>,
     mut death_events: MessageWriter<DeathEvent>,
@@ -138,7 +139,8 @@ pub fn process_damage_requests(
                 });
             }
         }
-        if vitals.0.death_time.is_some() {
+        if vitals.0.death_time == Some(0) {
+            commands.entity(entity).insert(Dying);
             death_events.write(DeathEvent {
                 target: req.target,
                 source: req.hit.source,

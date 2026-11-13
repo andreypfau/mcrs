@@ -1,7 +1,7 @@
 //! A player takes damage, dies and respawns through the dimension combat runtime.
 
 use bevy_ecs::prelude::*;
-use mcrs_minecraft_combat::{DamageRequest, DamageSource, Health, Hit};
+use mcrs_minecraft_combat::{DamageRequest, DamageSource, Hit, PlayerVitals as Health};
 use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_engine::bus::PacketPayload;
@@ -37,12 +37,12 @@ fn health_of(server: &mut PlayServer, anchor: Entity) -> f32 {
         .world()
         .get::<Health>(player)
         .expect("the player is combat attached")
-        .current
+        .health
 }
 
 fn hurt(server: &mut PlayServer, anchor: Entity, amount: f32) {
     let player = server.player(anchor);
-    server.world().write_message(DamageRequest::new(
+    server.world().write_message(DamageRequest::player(
         player,
         Hit::from_source(amount, DamageSource::new(10)),
     ));
@@ -143,7 +143,7 @@ fn a_damaged_player_sees_health_dies_and_respawns() {
     assert!(
         server
             .world()
-            .get::<mcrs_minecraft_combat::DeathState>(player)
+            .get::<mcrs_minecraft_combat::Dying>(player)
             .is_none(),
         "the respawn clears the death state"
     );
@@ -194,12 +194,12 @@ fn dmg_death_002_death_drops_the_inventory() {
 
     server
         .world()
-        .write_message(mcrs_minecraft_combat::DamageRequest::new(
+        .write_message(mcrs_minecraft_combat::DamageRequest::player(
             player,
             mcrs_minecraft_combat::Hit::from_source(
                 1000.0,
                 mcrs_minecraft_combat::DamageSource::new(
-                    mcrs_minecraft_combat::damage_types::GENERIC,
+                    10,
                 ),
             ),
         ));
@@ -241,13 +241,15 @@ fn dmg_env_003_a_player_outside_the_world_border_takes_damage() {
     }
     server
         .world()
-        .insert_resource(mcrs_minecraft_combat::WorldBorderState {
-            center_x: 0.0,
-            center_z: 0.0,
-            size: 10.0,
-            safe_zone: 0.0,
-            damage_per_block: 0.2,
-        });
+        .insert_resource(mcrs_minecraft_combat::WorldBorderState(
+            mcrs_minecraft_entity::WorldBorderSettings {
+                center_x: 0.0,
+                center_z: 0.0,
+                size: 10.0,
+                safe_zone: 0.0,
+                damage_per_block: 0.2,
+            },
+        ));
     server.ticks(anchor, 10);
     let health = health_of(&mut server, anchor);
     assert_eq!(
@@ -269,7 +271,7 @@ fn summoned_mob(server: &mut PlayServer, x: f64) -> (u64, f32) {
     let rows = server.world().resource::<EntityRows>();
     rows.living_rows()
         .find(|(_, state)| (state.body.position.x - x).abs() < 1.0)
-        .map(|(at, state)| (at.id.0, state.living.expect("the summon is living").health))
+        .map(|(at, state)| (at.id.0, state.living.expect("the summon is living").vitals.health))
         .expect("the summon has a row")
 }
 
@@ -279,7 +281,7 @@ fn mob_health(server: &mut PlayServer, id: u64) -> f32 {
         .find(|(at, _)| at.id.0 == id)
         .and_then(|(_, state)| state.living)
         .expect("the mob is alive")
-        .health
+        .vitals.health
 }
 
 /// DMG-SRC-002: a bare-hand player attack reaches a mob within the survival entity range, and
@@ -707,7 +709,7 @@ fn dmg_net_010_an_effect_is_applied_and_removed_on_the_wire() {
     let player = server.player(anchor);
     server
         .world()
-        .get_mut::<mcrs_minecraft_combat::ActiveEffects>(player)
+        .get_mut::<mcrs_minecraft_combat::PlayerEffects>(player)
         .expect("the player has effects")
         .add(mcrs_minecraft_combat::ActiveEffect::new(
             mcrs_minecraft_combat::MobEffect::Speed,
@@ -719,14 +721,14 @@ fn dmg_net_010_an_effect_is_applied_and_removed_on_the_wire() {
         applied.iter().any(|packet| matches!(
             &packet.data,
             PacketPayload::UpdateMobEffect(effect)
-                if effect.effect.0 == mcrs_minecraft_combat::MobEffect::Speed.id() as i32
+                if effect.effect.0 == mcrs_minecraft_combat::MobEffect::Speed.id().number() as i32
                     && (1..=100).contains(&effect.duration.0)
         )),
         "the effect reaches the client with its duration"
     );
     server
         .world()
-        .get_mut::<mcrs_minecraft_combat::ActiveEffects>(player)
+        .get_mut::<mcrs_minecraft_combat::PlayerEffects>(player)
         .expect("the player has effects")
         .remove(mcrs_minecraft_combat::MobEffect::Speed);
     let removed = server.ticks_all(1);
@@ -734,7 +736,7 @@ fn dmg_net_010_an_effect_is_applied_and_removed_on_the_wire() {
         removed.iter().any(|packet| matches!(
             &packet.data,
             PacketPayload::RemoveMobEffect(effect)
-                if effect.effect.0 == mcrs_minecraft_combat::MobEffect::Speed.id() as i32
+                if effect.effect.0 == mcrs_minecraft_combat::MobEffect::Speed.id().number() as i32
         )),
         "the removed effect reaches the client"
     );
@@ -750,7 +752,7 @@ fn dmg_net_011_experience_points_change_the_level_on_the_wire() {
         .world()
         .get_mut::<mcrs_minecraft_combat::PlayerExperience>(player)
         .expect("the player has experience")
-        .add_experience(10);
+        .add_points(10);
     let packets = server.ticks_all(1);
     assert!(
         packets.iter().any(|packet| matches!(

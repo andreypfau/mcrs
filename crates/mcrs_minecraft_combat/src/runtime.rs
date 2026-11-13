@@ -85,6 +85,7 @@ use crate::equipment::{EntityEquipment, EquipmentChangedEvent};
 use crate::events::{DamageDealt, DamageRequest, DamageTarget, DeathEvent, RespawnRequest};
 use crate::components::{
     Armor, ArmorToughness, AttackDamage, CombatPosition, KnockbackResistance, PlayerExperience,
+    PlayerHitRecord,
 };
 use crate::components::Dying as DeathState;
 
@@ -150,7 +151,7 @@ impl Default for CombatDifficulty {
 }
 
 #[derive(Resource, Clone, Copy, Debug, PartialEq)]
-struct WorldBorderState(WorldBorderSettings);
+pub struct WorldBorderState(pub WorldBorderSettings);
 
 impl Default for WorldBorderState {
     fn default() -> Self {
@@ -836,6 +837,7 @@ fn attach_player_combat(
             Health::new(20.0, 20.0),
             FoodData::default(),
             PlayerExperience::default(),
+            PlayerHitRecord::default(),
             ActiveEffects::new(),
             CombatPosition(transform.translation),
             vitals,
@@ -847,7 +849,7 @@ fn attach_player_combat(
             Armor::default(),
             ArmorToughness::default(),
             KnockbackResistance(0.0),
-            AttackDamage::default(),
+            AttackDamage(1.0),
             CombatSync::default(),
             EnvironmentSync::default(),
         ));

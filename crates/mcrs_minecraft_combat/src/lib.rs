@@ -29,6 +29,7 @@ pub use events::{
     DamageDealt, DamageRequest, DamageTarget, DeathEvent, KnockbackRequest, RespawnRequest,
 };
 pub use experience::ExperienceGainedEvent;
+pub use runtime::WorldBorderState;
 pub use life_cycle::{
     apply_knockback, process_damage_requests, tick_death, tick_player_cooldowns,
 };
