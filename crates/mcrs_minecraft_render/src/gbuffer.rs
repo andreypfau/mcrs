@@ -6,11 +6,13 @@ use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::view::ViewDepthStencilTexture;
 
-use crate::ImprovedTransparency;
+use crate::pipeline::DeferredPipelines;
 use crate::present::present_bind_group;
 use crate::reconstruct::LIGHTING_UNIFORM_SIZE;
+use crate::terrain::Terrain;
 use crate::transparency_targets::TransparencyTargets;
 use crate::uniform_buffer;
+use crate::{ImprovedTransparency, LightTint};
 
 /// Albedo and occlusion, normal and motion, then emissive, block light, sky light and the mark of
 /// a terrain pixel.
@@ -204,18 +206,27 @@ fn bind_group(
     )
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy render system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 pub(crate) fn fit_deferred_frame(
     mut commands: Commands,
     frame: Option<ResMut<DeferredFrame>>,
     views: Query<&ViewDepthStencilTexture, With<Camera3d>>,
     improved: Option<Res<ImprovedTransparency>>,
+    pipelines: Res<DeferredPipelines>,
+    terrain: Option<Res<Terrain>>,
+    tint: Option<Res<LightTint>>,
     device: Res<RenderDevice>,
     cache: Res<PipelineCache>,
 ) {
     let Some(depth) = views.iter().next() else {
         return;
     };
-    let improved = improved.is_some_and(|improved| improved.0);
+    let improved = improved.is_some_and(|improved| improved.0)
+        && terrain
+            .is_some_and(|terrain| pipelines.transparency_supported(&terrain, tint.as_deref()));
     match frame {
         Some(mut frame) => frame.fit(depth, improved, &device, &cache),
         None => commands.insert_resource(DeferredFrame::new(depth, &device, &cache)),
