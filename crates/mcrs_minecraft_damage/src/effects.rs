@@ -90,6 +90,18 @@ impl Effects {
         }
     }
 
+    pub fn insert(&mut self, effect: ActiveEffect) {
+        if let Some(existing) = self
+            .effects
+            .iter_mut()
+            .find(|existing| existing.effect == effect.effect)
+        {
+            *existing = effect;
+        } else {
+            self.effects.push(effect);
+        }
+    }
+
     pub fn remove(&mut self, effect: MobEffect) -> Option<ActiveEffect> {
         let at = self
             .effects

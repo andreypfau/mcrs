@@ -47,4 +47,5 @@ mcrs_minecraft_text.workspace = true
 mcrs_minecraft_volume.workspace = true
 mcrs_minecraft_wire.workspace = true
 mcrs_voxel.workspace = true
+serde.workspace = true
 tracing.workspace = true

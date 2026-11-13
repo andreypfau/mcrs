@@ -4570,6 +4570,7 @@ dependencies = [
  "mcrs_minecraft_volume",
  "mcrs_minecraft_wire",
  "mcrs_voxel",
+ "serde",
  "tracing",
 ]
 

@@ -15,8 +15,9 @@ mod runtime;
 
 pub use combat_plugin::{CombatPlugin, CombatSet};
 pub use components::{
-    Armor, ArmorToughness, AttackDamage, BaseMaxHealth, Dying, KnockbackResistance, PlayerEffects,
-    PlayerExperience, PlayerFood, PlayerHitRecord, PlayerVitals, RespawnPoint,
+    Armor, ArmorToughness, AttackDamage, BaseMaxHealth, Dying, KnockbackResistance,
+    PlayerAttributes, PlayerEffects, PlayerEffectsHidden, PlayerEnvironment, PlayerExperience,
+    PlayerFood, PlayerHitRecord, PlayerVitals, RespawnPoint,
 };
 pub use damage_rules::DamageTypeRulesResource;
 pub use death_drops::{DropInventoryOnDeathEvent, handle_death_drops};
@@ -35,3 +36,4 @@ pub use mcrs_minecraft_damage::{
     points_for_level, total_points_for_level,
 };
 pub use mcrs_minecraft_physics::{HitRecord, Vitals};
+pub use persistence::CombatPersistencePlugin;

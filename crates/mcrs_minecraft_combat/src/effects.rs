@@ -5,7 +5,9 @@ pub use mcrs_minecraft_damage::ActiveEffect;
 use mcrs_minecraft_damage::{DamageSource, EffectAction, Hit};
 pub use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 
-use crate::components::{Armor, BaseMaxHealth, Dying, PlayerEffects, PlayerFood, PlayerVitals};
+use crate::components::{
+    Armor, BaseMaxHealth, Dying, PlayerEffects, PlayerEffectsHidden, PlayerFood, PlayerVitals,
+};
 use crate::damage_rules::DamageTypeRulesResource;
 use crate::events::DamageRequest;
 
@@ -29,6 +31,7 @@ pub fn handle_apply_effect_events(
     mut query: Query<(
         &mut PlayerVitals,
         &mut PlayerEffects,
+        Option<&mut PlayerEffectsHidden>,
         Option<&BaseMaxHealth>,
         Option<&Armor>,
         Option<&Dying>,
@@ -37,14 +40,18 @@ pub fn handle_apply_effect_events(
     mut damage_events: MessageWriter<DamageRequest>,
 ) {
     for ev in events.read() {
-        let Ok((mut vitals, mut effects, base, armor, dying)) = query.get_mut(ev.entity) else {
+        let Ok((mut vitals, mut effects, mut hidden, base, armor, dying)) =
+            query.get_mut(ev.entity)
+        else {
             continue;
         };
         if dying.is_some() {
             continue;
         }
         let amplifier = ev.effect.amplifier;
-        match ev.effect.effect {
+        let kind = ev.effect.effect;
+        let previous = effects.0.get(kind).copied();
+        match kind {
             MobEffect::InstantHealth => {
                 let amount = 4.0 * f32::from(1u16 << amplifier.min(15));
                 vitals.0.health = (vitals.0.health + amount).min(vitals.0.max_health);
@@ -72,6 +79,11 @@ pub fn handle_apply_effect_events(
                 effects.0.add(ev.effect);
             }
         }
+        if !matches!(kind, MobEffect::InstantHealth | MobEffect::InstantDamage)
+            && let Some(hidden) = hidden.as_deref_mut()
+        {
+            crate::persistence::merge_hidden(previous, ev.effect, hidden);
+        }
         let _ = armor;
     }
 }
@@ -82,6 +94,7 @@ pub fn tick_active_effects(
         Entity,
         &mut PlayerVitals,
         &mut PlayerEffects,
+        Option<&mut PlayerEffectsHidden>,
         Option<&mut PlayerFood>,
         Option<&BaseMaxHealth>,
         Option<&Armor>,
@@ -92,12 +105,15 @@ pub fn tick_active_effects(
     mut remove_events: MessageWriter<RemoveEffectEvent>,
 ) {
     let mut actions = Vec::new();
-    for (entity, mut vitals, mut effects, mut food, base, _armor, dying) in &mut query {
+    for (entity, mut vitals, mut effects, mut hidden, mut food, base, _armor, dying) in &mut query {
         if dying.is_some() {
             continue;
         }
         actions.clear();
         let previous_boost = effects.0.health_boost();
+        if let Some(hidden) = hidden.as_deref_mut() {
+            crate::persistence::tick_hidden(hidden);
+        }
         let removed = effects
             .0
             .tick(false, vitals.0.health, vitals.0.absorption, |action| {
@@ -134,6 +150,13 @@ pub fn tick_active_effects(
             }
         }
         for effect in removed {
+            if let Some(hidden) = hidden.as_deref_mut()
+                && let Some(promoted) = crate::persistence::promote_hidden(hidden, effect)
+                && promoted.duration > 0
+            {
+                effects.0.insert(promoted);
+                continue;
+            }
             remove_events.write(RemoveEffectEvent { entity, effect });
             match effect {
                 MobEffect::Absorption => vitals.0.absorption = 0.0,

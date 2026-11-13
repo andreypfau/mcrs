@@ -348,7 +348,9 @@ fn is_default_icon(icon: &LocatorBarIcon) -> bool {
     *icon == LocatorBarIcon::default()
 }
 
-/// The values of the player file that no other component of the player owns. Every field has the
+/// The values of the player file that no other component of the player owns. The registry
+/// registers this type as the fallback codec: a key that another registered component claims is
+/// read and written by that component, and this type holds the remaining keys. Every field has the
 /// default of the file layout, and the `skip_serializing_if` fields are the ones the file holds
 /// only when they are set.
 #[derive(Component, Clone, Debug, PartialEq, Serialize, Deserialize)]

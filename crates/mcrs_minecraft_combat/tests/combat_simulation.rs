@@ -8,11 +8,16 @@ use mcrs_minecraft_combat::{
 use mcrs_minecraft_damage::{DamageSource, Hit};
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::coordinator::clock::GameTime;
+use mcrs_minecraft_engine::persisted_registry::{PersistedRegistry, PersistedSnapshot};
 use mcrs_minecraft_engine::player_state::{
-    Attribute as SavedAttribute, Effect as SavedEffect, PlayerFileState,
+    Attribute as SavedAttribute, Effect as SavedEffect, EffectData, PlayerFileState,
 };
+use mcrs_minecraft_engine::{PlayerPersistencePlugin, apply_join_snapshot};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::{ChangeDimensionRequest, Player};
+use mcrs_minecraft_nbt::tag_serializer::to_nbt_tag;
+use mcrs_minecraft_save::PlayerDat;
+use std::path::Path;
 
 #[test]
 fn integration_combat_damage_flow_and_death() {
@@ -135,14 +140,18 @@ fn integration_status_effects_application_and_ticking() {
 }
 
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the test covers the whole player file round trip"
+)]
 fn player_file_state_loads_and_saves_combat_state() {
     let mut app = App::new();
-    app.add_plugins(CombatPlugin);
+    app.add_plugins((PlayerPersistencePlugin, CombatPlugin));
     app.add_message::<OutboundPlayerPacket>();
     app.add_message::<ChangeDimensionRequest>();
     app.init_resource::<GameTime>();
 
-    let mut file = PlayerFileState {
+    let file = PlayerFileState {
         health: 7.5,
         absorption_amount: 2.0,
         hurt_time: 3,
@@ -166,7 +175,14 @@ fn player_file_state_loads_and_saves_combat_state() {
             ambient: true,
             show_particles: false,
             show_icon: Some(true),
-            hidden_effect: None,
+            hidden_effect: Some(Box::new(EffectData {
+                amplifier: 0,
+                duration: 60,
+                ambient: false,
+                show_particles: true,
+                show_icon: Some(true),
+                hidden_effect: None,
+            })),
         }],
         attributes: vec![SavedAttribute {
             id: "minecraft:max_health".to_owned(),
@@ -175,10 +191,17 @@ fn player_file_state_loads_and_saves_combat_state() {
         }],
         ..PlayerFileState::default()
     };
-    let entity = app
-        .world_mut()
-        .spawn((Player, Transform::default(), file.clone()))
-        .id();
+    let root = match to_nbt_tag(&file).unwrap() {
+        mcrs_minecraft_nbt::tag::NbtTag::Compound(root) => root,
+        _ => panic!("a player file is a compound"),
+    };
+    let dat = PlayerDat::new(mcrs_minecraft_core::VERSION.world_version, root);
+    let snapshot = {
+        let registry = app.world().resource::<PersistedRegistry>();
+        PersistedSnapshot::from_dat(&dat, registry, Path::new("test.dat")).unwrap()
+    };
+    let entity = app.world_mut().spawn((Player, Transform::default())).id();
+    apply_join_snapshot(app.world_mut(), entity, &snapshot);
 
     app.world_mut().run_schedule(FixedUpdate);
     app.world_mut().run_schedule(FixedUpdate);
@@ -209,12 +232,24 @@ fn player_file_state_loads_and_saves_combat_state() {
             .has(MobEffect::Speed)
     );
 
-    file = app.world().get::<PlayerFileState>(entity).unwrap().clone();
-    assert_eq!(file.health, 7.5);
-    assert_eq!(file.food_level, 0);
-    assert_eq!(file.xp_level, 5);
-    assert_eq!(file.active_effects.len(), 1);
-    assert_eq!(file.active_effects[0].id, "minecraft:speed");
+    let saved = capture(&mut app, entity).unwrap();
+    assert_eq!(saved.get("Health").unwrap().extract_float().unwrap(), 7.5);
+    assert_eq!(saved.get("foodLevel").unwrap().extract_int().unwrap(), 0);
+    assert_eq!(saved.get("XpLevel").unwrap().extract_int().unwrap(), 5);
+    let effects = saved.get("active_effects").unwrap().extract_list().unwrap();
+    assert_eq!(effects.len(), 1);
+    let effect = effects[0].extract_compound().unwrap();
+    assert_eq!(
+        effect.get("id").unwrap().extract_string().unwrap(),
+        "minecraft:speed"
+    );
+    let hidden = effect
+        .get("hidden_effect")
+        .unwrap()
+        .extract_compound()
+        .unwrap();
+    assert_eq!(hidden.get("amplifier").unwrap().extract_byte().unwrap(), 0);
+    assert_eq!(hidden.get("duration").unwrap().extract_int().unwrap(), 58);
 
     app.world_mut().get_mut::<Health>(entity).unwrap().health = 3.0;
     app.world_mut()
@@ -233,17 +268,31 @@ fn player_file_state_loads_and_saves_combat_state() {
 
     app.world_mut().run_schedule(FixedUpdate);
 
-    let file = app.world().get::<PlayerFileState>(entity).unwrap();
-    assert_eq!(file.health, 3.0);
-    assert_eq!(file.food_level, 4);
-    assert_eq!(file.xp_level, 9);
-    assert!(file.active_effects.is_empty());
+    let saved = capture(&mut app, entity).unwrap();
+    assert_eq!(saved.get("Health").unwrap().extract_float().unwrap(), 3.0);
+    assert_eq!(saved.get("foodLevel").unwrap().extract_int().unwrap(), 4);
+    assert_eq!(saved.get("XpLevel").unwrap().extract_int().unwrap(), 9);
+    assert!(saved.get("active_effects").is_none());
+    let attributes = saved.get("attributes").unwrap().extract_list().unwrap();
+    let max_health = attributes
+        .iter()
+        .filter_map(|attribute| attribute.extract_compound())
+        .find(|attribute| {
+            attribute
+                .get("id")
+                .and_then(mcrs_minecraft_nbt::tag::NbtTag::extract_string)
+                == Some("minecraft:max_health")
+        })
+        .unwrap();
     assert_eq!(
-        file.attributes
-            .iter()
-            .find(|attribute| attribute.id == "minecraft:max_health")
-            .unwrap()
-            .base,
+        max_health.get("base").unwrap().extract_double().unwrap(),
         24.0
     );
+}
+
+fn capture(app: &mut App, entity: bevy_ecs::entity::Entity) -> Option<PersistedSnapshot> {
+    let registry = app.world_mut().remove_resource::<PersistedRegistry>()?;
+    let snapshot = registry.capture_file(app.world_mut(), entity).ok();
+    app.world_mut().insert_resource(registry);
+    snapshot
 }

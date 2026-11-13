@@ -1,10 +1,14 @@
 use bevy_ecs::component::Component;
 use core::ops::{Deref, DerefMut};
 use mcrs_minecraft_damage::{Effects, Experience, Food};
+use mcrs_minecraft_engine::player_state::{Attribute, EffectData};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 use mcrs_minecraft_physics::HitRecord;
 use mcrs_minecraft_physics::Vitals;
 use mcrs_minecraft_resource::ResourceKeyBuf;
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// The health, the air, the fire and the freeze state of a player (DMG-ATT-001).
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
@@ -142,7 +146,50 @@ pub struct PlayerHitRecord(pub HitRecord);
 pub struct RespawnPoint {
     pub dimension: ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>,
     pub position: Transform,
+    pub forced: bool,
 }
+
+/// The fall distance and the ground flag of a player (DMG-ENV-001).
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
+pub struct PlayerEnvironment {
+    pub fall_distance: f64,
+    pub on_ground: bool,
+}
+
+/// The attributes of a player, as the player file holds them.
+#[derive(Component, Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct PlayerAttributes(pub Vec<Attribute>);
+
+impl PlayerAttributes {
+    #[must_use]
+    pub fn max_health_base(&self) -> f32 {
+        self.0
+            .iter()
+            .find(|attribute| {
+                attribute.id == "minecraft:max_health" || attribute.id == "max_health"
+            })
+            .map_or(20.0, |attribute| attribute.base as f32)
+    }
+
+    pub fn set_max_health_base(&mut self, base: f32) {
+        if let Some(attribute) = self.0.iter_mut().find(|attribute| {
+            attribute.id == "minecraft:max_health" || attribute.id == "max_health"
+        }) {
+            attribute.base = f64::from(base);
+        } else {
+            self.0.push(Attribute {
+                id: "minecraft:max_health".to_owned(),
+                base: f64::from(base),
+                modifiers: Vec::new(),
+            });
+        }
+    }
+}
+
+/// The hidden effects of the active effects, which the player file keeps below each effect.
+#[derive(Component, Clone, Debug, Default, PartialEq)]
+pub struct PlayerEffectsHidden(pub BTreeMap<MobEffect, EffectData>);
 
 /// The marker of a player in its dying state (DMG-DTH-001).
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]

@@ -87,8 +87,8 @@ use mcrs_voxel::{BlockPos, BlockStateId};
 
 use crate::components::Dying as DeathState;
 use crate::components::{
-    Armor, ArmorToughness, AttackDamage, BaseMaxHealth, KnockbackResistance, PlayerExperience,
-    PlayerHitRecord,
+    Armor, ArmorToughness, AttackDamage, BaseMaxHealth, KnockbackResistance, PlayerAttributes,
+    PlayerEffectsHidden, PlayerEnvironment, PlayerExperience, PlayerHitRecord, RespawnPoint,
 };
 use crate::components::{
     PlayerEffects as ActiveEffects, PlayerFood as FoodData, PlayerVitals as Health,
@@ -101,8 +101,6 @@ use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub(crate) struct EnvironmentTimers {
     pub(crate) last_position: DVec3,
-    pub(crate) fall_distance: f64,
-    pub(crate) on_ground: bool,
     pub(crate) jumping: bool,
     pub(crate) respawn_at: Transform,
 }
@@ -116,13 +114,8 @@ struct Touched {
     fall: f64,
 }
 
-#[derive(Component, Clone, Debug, PartialEq)]
-struct PlayerRespawnPoint {
-    dimension: ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>,
-    position: DVec3,
-    yaw: f32,
-    pitch: f32,
-}
+#[derive(Component)]
+struct CombatAttached;
 
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct PlayerInputState {
@@ -135,8 +128,6 @@ impl EnvironmentTimers {
     fn at(transform: Transform) -> Self {
         Self {
             last_position: transform.translation,
-            fall_distance: 0.0,
-            on_ground: false,
             jumping: false,
             respawn_at: transform,
         }
@@ -187,45 +178,45 @@ fn slot_group_applies(group: SlotGroup, slot: EquipmentSlot) -> bool {
 
 fn note_ground_pos(
     on: On<Received<ServerboundMovePlayerPos>>,
-    mut players: Query<&mut EnvironmentTimers>,
+    mut players: Query<&mut PlayerEnvironment>,
 ) {
     if let Some(packet) = on.packet()
-        && let Ok(mut vitals) = players.get_mut(on.entity)
+        && let Ok(mut environment) = players.get_mut(on.entity)
     {
-        vitals.on_ground = packet.flags.on_ground();
+        environment.on_ground = packet.flags.on_ground();
     }
 }
 
 fn note_ground_pos_rot(
     on: On<Received<ServerboundMovePlayerPosRot>>,
-    mut players: Query<&mut EnvironmentTimers>,
+    mut players: Query<&mut PlayerEnvironment>,
 ) {
     if let Some(packet) = on.packet()
-        && let Ok(mut vitals) = players.get_mut(on.entity)
+        && let Ok(mut environment) = players.get_mut(on.entity)
     {
-        vitals.on_ground = packet.flags.on_ground();
+        environment.on_ground = packet.flags.on_ground();
     }
 }
 
 fn note_ground_rot(
     on: On<Received<ServerboundMovePlayerRot>>,
-    mut players: Query<&mut EnvironmentTimers>,
+    mut players: Query<&mut PlayerEnvironment>,
 ) {
     if let Some(packet) = on.packet()
-        && let Ok(mut vitals) = players.get_mut(on.entity)
+        && let Ok(mut environment) = players.get_mut(on.entity)
     {
-        vitals.on_ground = packet.flags.on_ground();
+        environment.on_ground = packet.flags.on_ground();
     }
 }
 
 fn note_ground_status(
     on: On<Received<ServerboundMovePlayerStatusOnly>>,
-    mut players: Query<&mut EnvironmentTimers>,
+    mut players: Query<&mut PlayerEnvironment>,
 ) {
     if let Some(packet) = on.packet()
-        && let Ok(mut vitals) = players.get_mut(on.entity)
+        && let Ok(mut environment) = players.get_mut(on.entity)
     {
-        vitals.on_ground = packet.flags.on_ground();
+        environment.on_ground = packet.flags.on_ground();
     }
 }
 
@@ -354,6 +345,7 @@ fn tick_player_environment(
             &mut Health,
             &mut FoodData,
             &mut EnvironmentTimers,
+            &mut PlayerEnvironment,
         ),
         (With<Player>, Without<DeathState>),
     >,
@@ -386,6 +378,7 @@ fn tick_player_environment(
         mut health,
         mut food,
         mut timers,
+        mut environment,
     ) in &mut players
     {
         if !health.is_alive() {
@@ -458,7 +451,7 @@ fn tick_player_environment(
             }
         }
         let jumping = input.is_some_and(|input| input.jumping);
-        if jumping && !timers.jumping && timers.on_ground {
+        if jumping && !timers.jumping && environment.on_ground {
             food.add_exhaustion(if sprinting { 0.2 } else { 0.05 });
         }
         timers.jumping = jumping;
@@ -466,23 +459,26 @@ fn tick_player_environment(
         if vulnerable && fall_damage && !flying.is_some_and(|flying| flying.0) {
             let dy = position.y - timers.last_position.y;
             if dy.abs() > 8.0 {
-                timers.fall_distance = 0.0;
+                environment.fall_distance = 0.0;
             } else if dy < 0.0 && !in_water && !in_lava && !in_powder_snow {
-                timers.fall_distance += -dy;
+                environment.fall_distance += -dy;
             }
-            if timers.on_ground {
+            if environment.on_ground {
                 let multiplier = fall_multiplier(view.as_ref(), tables.as_deref(), below);
-                let fall =
-                    compute_fall_damage(timers.fall_distance, FALL_DAMAGE_THRESHOLD, multiplier);
+                let fall = compute_fall_damage(
+                    environment.fall_distance,
+                    FALL_DAMAGE_THRESHOLD,
+                    multiplier,
+                );
                 if fall > 0.0
                     && let Some(hit) = hit_of(&type_rules, "fall", fall)
                 {
                     damage.write(DamageRequest::player(entity, hit));
                 }
-                timers.fall_distance = 0.0;
+                environment.fall_distance = 0.0;
             }
         } else {
-            timers.fall_distance = 0.0;
+            environment.fall_distance = 0.0;
         }
         timers.last_position = position;
 
@@ -827,24 +823,60 @@ fn block_flags(view: &DimensionView<'_>, tables: &PhysicsTables, at: BlockPos) -
 
 fn attach_player_combat(
     mut commands: Commands,
-    players: Query<(Entity, &Transform, Option<&PlayerFileState>), (With<Player>, Without<Health>)>,
+    players: Query<
+        (
+            Entity,
+            &Transform,
+            Option<&PlayerFileState>,
+            Option<&Health>,
+            Option<&BaseMaxHealth>,
+            Option<&FoodData>,
+            Option<&PlayerExperience>,
+            Option<&ActiveEffects>,
+            Option<&PlayerEffectsHidden>,
+            Option<&PlayerAttributes>,
+            Option<&PlayerEnvironment>,
+        ),
+        (With<Player>, Without<CombatAttached>),
+    >,
 ) {
-    for (entity, transform, file) in &players {
+    for (
+        entity,
+        transform,
+        file,
+        health,
+        base,
+        food,
+        experience,
+        effects,
+        hidden,
+        attributes,
+        environment,
+    ) in &players
+    {
+        let attributes = attributes
+            .cloned()
+            .or_else(|| file.map(|file| PlayerAttributes(file.attributes.clone())))
+            .unwrap_or_default();
+        let base = base
+            .copied()
+            .unwrap_or(BaseMaxHealth(attributes.max_health_base()));
+        let mut health = health.copied().unwrap_or_else(|| {
+            let health = file.map_or(20.0, |file| file.health);
+            Health::new(health, base.0)
+        });
+        let effects = effects.cloned().unwrap_or_default();
+        health.0.max_health = base.0 + effects.health_boost();
+        health.0.health = health.0.health.clamp(0.0, health.0.max_health);
+        let environment = environment.copied().unwrap_or_else(|| PlayerEnvironment {
+            fall_distance: file.map_or(0.0, |file| file.fall_distance.max(0.0)),
+            on_ground: file.is_none_or(|file| file.on_ground),
+        });
         let mut timers = EnvironmentTimers::at(*transform);
-        timers.on_ground = true;
-        let (health, base, food, experience, effects) = if let Some(file) = file {
-            timers.on_ground = file.on_ground;
-            timers.fall_distance = file.fall_distance.max(0.0);
-            crate::persistence::load(file)
-        } else {
-            (
-                Health::new(20.0, 20.0),
-                BaseMaxHealth::default(),
-                FoodData::default(),
-                PlayerExperience::default(),
-                ActiveEffects::new(),
-            )
-        };
+        timers.jumping = false;
+        let food = food.copied().unwrap_or_default();
+        let experience = experience.copied().unwrap_or_default();
+        let hidden = hidden.cloned().unwrap_or_default();
         commands.entity(entity).insert((
             health,
             base,
@@ -852,7 +884,11 @@ fn attach_player_combat(
             experience,
             PlayerHitRecord::default(),
             effects,
+            hidden,
+            attributes,
+            environment,
             timers,
+            CombatAttached,
         ));
         commands
             .entity(entity)
@@ -1362,7 +1398,9 @@ struct RespawnPlayer {
     in_dimension: &'static InDimension,
     environment_sync: &'static mut EnvironmentSync,
     effects: Option<&'static mut ActiveEffects>,
-    respawn_point: Option<&'static PlayerRespawnPoint>,
+    hidden: Option<&'static mut PlayerEffectsHidden>,
+    environment: &'static mut PlayerEnvironment,
+    respawn_point: Option<&'static RespawnPoint>,
     velocity: Option<&'static mut Velocity>,
 }
 
@@ -1402,6 +1440,8 @@ fn respawn_players(
             in_dimension,
             mut environment_sync,
             effects,
+            hidden,
+            mut environment,
             respawn_point,
             velocity,
         }) = players.get_mut(request.player)
@@ -1439,6 +1479,9 @@ fn respawn_players(
         if let Some(mut effects) = effects {
             effects.clear();
         }
+        if let Some(mut hidden) = hidden {
+            hidden.0.clear();
+        }
         if let Some(mut velocity) = velocity {
             velocity.0 = DVec3::ZERO;
         }
@@ -1450,8 +1493,8 @@ fn respawn_players(
         sync.effects.clear();
         vitals.last_position = spawn;
         vitals.jumping = false;
-        vitals.fall_distance = 0.0;
-        vitals.on_ground = true;
+        environment.fall_distance = 0.0;
+        environment.on_ground = true;
         commands.entity(request.player).remove::<DeathState>();
 
         if target != *dimension_key {
@@ -1484,7 +1527,7 @@ fn respawn_players(
 }
 
 fn respawn_destination(
-    bed: Option<&PlayerRespawnPoint>,
+    bed: Option<&RespawnPoint>,
     level: Option<mcrs_minecraft_save::RespawnData>,
     current: ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>,
     fallback: Transform,
@@ -1500,7 +1543,7 @@ fn respawn_destination(
 }
 
 fn respawn_choice(
-    bed: Option<&PlayerRespawnPoint>,
+    bed: Option<&RespawnPoint>,
     level: Option<mcrs_minecraft_save::RespawnData>,
     current: ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>,
     fallback: Transform,
@@ -1512,8 +1555,8 @@ fn respawn_choice(
     if let Some(point) = bed {
         return (
             point.dimension.clone(),
-            point.position,
-            Rotation::new(point.yaw, point.pitch),
+            point.position.translation,
+            point.position.rotation,
         );
     }
     if let Some(spawn) = level {
@@ -1573,8 +1616,8 @@ pub(crate) fn build(app: &mut App) {
         (
             load_world_spawn,
             respawn_players,
+            sync_player_attributes,
             sync_player_combat,
-            store_player_file_state,
         )
             .chain()
             .in_set(CombatSet::Post),
@@ -1593,22 +1636,13 @@ pub(crate) fn build(app: &mut App) {
     );
 }
 
-fn store_player_file_state(
-    mut players: Query<
-        (
-            &Health,
-            &BaseMaxHealth,
-            &FoodData,
-            &PlayerExperience,
-            &ActiveEffects,
-            &EnvironmentTimers,
-            &mut PlayerFileState,
-        ),
-        With<Player>,
-    >,
+fn sync_player_attributes(
+    mut players: Query<(&BaseMaxHealth, &mut PlayerAttributes), Changed<BaseMaxHealth>>,
 ) {
-    for (health, base, food, experience, effects, timers, mut file) in &mut players {
-        crate::persistence::store(&mut file, health, base, food, experience, effects, timers);
+    for (base, mut attributes) in &mut players {
+        if attributes.max_health_base() != base.0 {
+            attributes.set_max_health_base(base.0);
+        }
     }
 }
 
@@ -1948,6 +1982,7 @@ mod tests {
         app.add_message::<OutboundPlayerPacket>();
         app.init_resource::<SeenPackets>();
         app.insert_resource(DamageTypeRulesResource::default());
+        app.init_resource::<TileEvents>();
         app.add_systems(Update, (send_player_damage, record_packets).chain());
         let target = app
             .world_mut()
@@ -1956,6 +1991,7 @@ mod tests {
                 Owner(PlayerSession(1)),
                 InDimension(Entity::PLACEHOLDER),
                 EntityUuid(mcrs_minecraft_protocol::uuid::Uuid::from_u128(7)),
+                Transform::default(),
             ))
             .id();
         let mut source = DamageSource::new(0);
@@ -2034,11 +2070,11 @@ mod tests {
 
     #[test]
     fn a_bed_in_another_dimension_wins_over_the_level_spawn() {
-        let bed = PlayerRespawnPoint {
+        let bed = RespawnPoint {
             dimension: dimension_key("minecraft:the_nether"),
-            position: DVec3::new(4.5, 70.0, -2.5),
-            yaw: 45.0,
-            pitch: 5.0,
+            position: Transform::from_translation(DVec3::new(4.5, 70.0, -2.5))
+                .with_rotation(Rotation::new(45.0, 5.0)),
+            forced: false,
         };
         let level = mcrs_minecraft_save::RespawnData {
             dimension: dimension_key("minecraft:overworld"),
