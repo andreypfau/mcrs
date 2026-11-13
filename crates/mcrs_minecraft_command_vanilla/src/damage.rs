@@ -113,7 +113,7 @@ pub(crate) fn run(
                 hit: Hit::new(amount, damage_type),
             },
         );
-        let tick = clock.as_deref().map_or(0, |clock| clock.0.max(0) as u64);
+        let tick = clock.as_deref().map_or(0, |clock| clock.0);
         if preview(
             &living.vitals,
             &Defence::default(),
