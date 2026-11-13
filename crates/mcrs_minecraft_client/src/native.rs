@@ -109,8 +109,8 @@ fn scene_dir(_: &Knobs) -> Option<PathBuf> {
 pub fn run() -> AppExit {
     #[cfg(target_os = "macos")]
     mcrs_minecraft_client::app_nap::decline();
-    let knobs = knobs();
     let world = world_folder();
+    let knobs = knobs(world.as_deref());
     let save_data = world.as_deref().map(load_save).unwrap_or_default();
     let frozen_at = knobs.frozen_time();
     let resolution = knobs.resolution();
@@ -484,12 +484,13 @@ fn server_address(knobs: &Knobs) -> Option<SocketAddr> {
     }
 }
 
-/// The `MCRS_` variables of the process environment, and whether Metal's HUD times encoders.
+/// The `MCRS_` variables of the process environment, and whether Metal's HUD times encoders. The
+/// options file is `options.json` of the world folder, unless `MCRS_OPTIONS` names another.
 #[expect(
     clippy::disallowed_methods,
     reason = "the client binary reads its settings from the environment"
 )]
-fn knobs() -> Knobs {
+fn knobs(world: Option<&Path>) -> Knobs {
     let variables = std::env::vars_os().filter_map(|(name, value)| {
         let name = name.into_string().ok()?;
         // Windows matches variable names in any case, as `std::env::var` does there.
@@ -503,6 +504,7 @@ fn knobs() -> Knobs {
     Knobs::new(
         variables,
         std::env::var("MTL_HUD_ENCODER_TIMING_ENABLED").is_ok_and(|on| on != "0"),
+        world.map(|world| world.join("options.json")),
     )
 }
 

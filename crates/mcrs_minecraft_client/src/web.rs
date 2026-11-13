@@ -93,7 +93,7 @@ fn query_knobs() -> Knobs {
         let lowercase = !name.bytes().any(|byte| byte.is_ascii_uppercase());
         (lowercase && !value.is_empty()).then(|| (name.to_ascii_uppercase(), value))
     });
-    Knobs::new(knobs, false)
+    Knobs::new(knobs, false, None)
 }
 
 #[derive(Resource)]

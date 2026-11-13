@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 #[cfg(all(feature = "singleplayer", not(target_family = "wasm")))]
@@ -71,22 +71,31 @@ pub const MAX_VIEW_DISTANCE: u8 = *VIEW_DISTANCE_RANGE.end();
 pub struct Knobs {
     values: Arc<HashMap<String, String>>,
     options: ClientOptions,
+    options_file: Option<PathBuf>,
     overlay_times_encoders: bool,
 }
 
 impl Knobs {
     /// `overlay_times_encoders` is set while the system's profiling overlay times every encoder.
+    /// `default_options_file` is the options file of a run without `OPTIONS`; until a save writes
+    /// it, the options take their defaults.
     pub fn new(
         values: impl IntoIterator<Item = (String, String)>,
         overlay_times_encoders: bool,
+        default_options_file: Option<PathBuf>,
     ) -> Self {
         let mut map = HashMap::new();
         for (name, value) in values {
             map.entry(name).or_insert(value);
         }
+        let options_file = map
+            .get("OPTIONS")
+            .map(PathBuf::from)
+            .or(default_options_file);
         let mut knobs = Self {
             values: Arc::new(map),
             options: ClientOptions::default(),
+            options_file,
             overlay_times_encoders,
         };
         knobs.options = knobs.start_options();
@@ -95,13 +104,7 @@ impl Knobs {
 
     /// The options of the file, with the knobs `VIEW`, `VSYNC` and `FULLSCREEN` over them.
     fn start_options(&self) -> ClientOptions {
-        let mut options = self
-            .knob("OPTIONS")
-            .and_then(|path| match options::read(Path::new(path)) {
-                Ok(options) => Some(options),
-                Err(error) => reject("OPTIONS", path, error),
-            })
-            .unwrap_or_default();
+        let mut options = self.file_options();
         options.view_distance = self
             .parsed(
                 "VIEW",
@@ -113,6 +116,19 @@ impl Knobs {
         options.fullscreen =
             self.flag("FULLSCREEN", options.fullscreen) && self.resolution().is_none();
         options
+    }
+
+    fn file_options(&self) -> ClientOptions {
+        let Some(path) = &self.options_file else {
+            return ClientOptions::default();
+        };
+        if self.knob("OPTIONS").is_none() && matches!(path.try_exists(), Ok(false)) {
+            return ClientOptions::default();
+        }
+        match options::read(path) {
+            Ok(options) => options,
+            Err(error) => reject("OPTIONS", &path.display().to_string(), error).unwrap_or_default(),
+        }
     }
 
     pub(crate) fn of(app: &App) -> Self {
@@ -295,15 +311,15 @@ impl Knobs {
         self.knob("SCREENSHOT_DIR").map(std::path::PathBuf::from)
     }
 
-    /// The options at start: those of the file that `MCRS_OPTIONS=<file>` names, with the knobs
-    /// `VIEW`, `VSYNC` and `FULLSCREEN` over them.
+    /// The options at start: those of the options file, with the knobs `VIEW`, `VSYNC` and
+    /// `FULLSCREEN` over them.
     pub fn options(&self) -> ClientOptions {
         self.options
     }
 
-    /// `OPTIONS=<file>` is where the video options are read from and saved to.
-    pub fn options_file(&self) -> Option<std::path::PathBuf> {
-        self.knob("OPTIONS").map(std::path::PathBuf::from)
+    /// `OPTIONS=<file>` is where the options are read from and saved to, over the default file.
+    pub fn options_file(&self) -> Option<PathBuf> {
+        self.options_file.clone()
     }
 
     /// `OCCLUSION=0` draws every group the frustum and the cave graph keep, without the depth
@@ -511,5 +527,22 @@ mod tests {
         let opened = integrated_bind_address(true);
         assert_eq!(opened, "0.0.0.0:0".parse().unwrap());
         assert!(opened.ip().is_unspecified());
+    }
+
+    #[test]
+    fn a_missing_default_options_file_gives_the_defaults_and_a_knob_wins_over_a_written_one() {
+        let path =
+            std::env::temp_dir().join(format!("mcrs-default-options-{}.json", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let missing = Knobs::new([], false, Some(path.clone()));
+        assert_eq!(missing.options(), ClientOptions::default());
+        assert_eq!(missing.options_file(), Some(path.clone()));
+
+        std::fs::write(&path, r#"{"fov": 80, "vsync": false}"#).unwrap();
+        let knobs = [("VSYNC".to_owned(), "1".to_owned())];
+        let written = Knobs::new(knobs, false, Some(path.clone()));
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(written.options().fov, 80);
+        assert!(written.vsync());
     }
 }
