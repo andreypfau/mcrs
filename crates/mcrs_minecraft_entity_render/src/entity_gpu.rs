@@ -10,7 +10,7 @@ use crate::frame_uniform::FrameUniform;
 use crate::gpu_buffers::{
     COUNTERS, FrameBuffers, SlotBuffers, StaticBuffers, impostor_draws, impostor_list,
 };
-use crate::gpu_layouts::Layouts;
+use crate::gpu_layouts::{ARGS, CULL, DRAW, EXPAND, Layouts, POSE, PREPARE, SCATTER, Slot};
 use crate::gpu_pipelines::{Pipelines, texture_arrays};
 use crate::impostor_atlas::{BakeResources, ImpostorAtlas};
 use crate::records::{CullRecord, InputRecord, ScatterEntry, StateRecord};
@@ -96,10 +96,7 @@ pub struct EntityGpu {
     hiz: wgpu::TextureView,
     atlas: ImpostorAtlas,
     readback: CountsReadback,
-    compute_bind: BindGroup,
-    args_bind: BindGroup,
-    draw_bind: BindGroup,
-    impostor_bind: BindGroup,
+    binds: Binds,
     cull_grid: u32,
     scatter_count: u32,
 }
@@ -143,12 +140,10 @@ impl EntityGpu {
             .min(limits.max_compute_workgroups_per_dimension)
             .max(1);
         let atlas = ImpostorAtlas::new(device, library, &layouts.impostor_textures);
-        let mut gpu = Self {
+        let binds = Binds::new(device, &layouts, &slots, &statics, &frame, &atlas, &hiz);
+        Self {
             capacities,
-            compute_bind: placeholder_bind(device, &layouts.args, &frame),
-            args_bind: placeholder_bind(device, &layouts.args, &frame),
-            draw_bind: placeholder_bind(device, &layouts.args, &frame),
-            impostor_bind: placeholder_bind(device, &layouts.args, &frame),
+            binds,
             atlas,
             readback: CountsReadback::new(device),
             layouts,
@@ -160,83 +155,19 @@ impl EntityGpu {
             hiz,
             cull_grid,
             scatter_count: 0,
-        };
-        gpu.rebind(device);
-        gpu
+        }
     }
 
     fn rebind(&mut self, device: &Device) {
-        let s = &self.slots;
-        let st = &self.statics;
-        let f = &self.frame;
-        let atlas = &self.atlas;
-        let buffers: [(u32, &Buffer); 24] = [
-            (0, &f.uniform),
-            (1, &s.ticks),
-            (2, &s.previous_ticks),
-            (3, &s.tick_of_record),
-            (4, &s.culls),
-            (5, &s.states),
-            (6, &s.inputs),
-            (8, &st.models),
-            (9, &st.bones),
-            (10, &st.cuboids),
-            (11, &f.visible),
-            (12, &f.bone_matrices),
-            (13, &f.instances),
-            (14, &f.faces),
-            (15, &f.counters),
-            (16, &f.indirect),
-            (17, &f.scatter),
-            (19, &st.variants),
-            (20, &st.cutout),
-            (21, &f.impostors),
-            (22, &atlas.pairs),
-            (23, &atlas.frame_table),
-            (24, &f.impostor_draws),
-            (25, &atlas.covers),
-        ];
-        let entries_of = |bindings: &[u32]| -> Vec<BindGroupEntry<'_>> {
-            bindings
-                .iter()
-                .filter_map(|binding| {
-                    buffers
-                        .iter()
-                        .find(|(at, _)| at == binding)
-                        .map(|(at, buffer)| BindGroupEntry {
-                            binding: *at,
-                            resource: buffer.as_entire_binding(),
-                        })
-                })
-                .collect()
-        };
-        let mut compute = entries_of(&[
-            0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 17, 19, 20, 21, 22, 23, 24, 25,
-        ]);
-        compute.push(BindGroupEntry {
-            binding: 18,
-            resource: BindingResource::TextureView(&self.hiz),
-        });
-        self.compute_bind = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("entity compute"),
-            layout: &self.layouts.compute,
-            entries: &compute,
-        });
-        self.args_bind = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("entity args"),
-            layout: &self.layouts.args,
-            entries: &entries_of(&[0, 15, 16]),
-        });
-        self.draw_bind = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("entity draw"),
-            layout: &self.layouts.draw,
-            entries: &entries_of(&[0, 5, 8, 10, 11, 12, 13, 14, 19]),
-        });
-        self.impostor_bind = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("entity impostor"),
-            layout: &self.layouts.impostor,
-            entries: &entries_of(&[0, 24]),
-        });
+        self.binds = Binds::new(
+            device,
+            &self.layouts,
+            &self.slots,
+            &self.statics,
+            &self.frame,
+            &self.atlas,
+            &self.hiz,
+        );
     }
 
     /// Replaces the depth pyramid that the cull reads.
@@ -414,7 +345,7 @@ impl EntityGpu {
             });
             if self.scatter_count > 0 {
                 pass.set_pipeline(&self.pipelines.scatter);
-                pass.set_bind_group(0, &self.compute_bind, &[]);
+                pass.set_bind_group(0, &self.binds.scatter, &[]);
                 pass.dispatch_workgroups(self.scatter_count.div_ceil(64), 1, 1);
             }
         }
@@ -424,10 +355,10 @@ impl EntityGpu {
                 timestamp_writes: writes(ComputePass::Cull),
             });
             pass.set_pipeline(&self.pipelines.cull);
-            pass.set_bind_group(0, &self.compute_bind, &[]);
+            pass.set_bind_group(0, &self.binds.cull, &[]);
             pass.dispatch_workgroups(self.slots.capacity.div_ceil(64).min(self.cull_grid), 1, 1);
             pass.set_pipeline(&self.pipelines.dispatch_args);
-            pass.set_bind_group(0, &self.args_bind, &[]);
+            pass.set_bind_group(0, &self.binds.args, &[]);
             pass.dispatch_workgroups(1, 1, 1);
         }
         {
@@ -435,7 +366,7 @@ impl EntityGpu {
                 label: Some(ComputePass::Pose.name()),
                 timestamp_writes: writes(ComputePass::Pose),
             });
-            pass.set_bind_group(0, &self.compute_bind, &[]);
+            pass.set_bind_group(0, &self.binds.pose, &[]);
             for (index, definition) in self.pipelines.definitions.iter().enumerate() {
                 if let Some(pose) = &definition.pose {
                     pass.set_pipeline(pose);
@@ -448,7 +379,7 @@ impl EntityGpu {
                 label: Some(ComputePass::Expand.name()),
                 timestamp_writes: writes(ComputePass::Expand),
             });
-            pass.set_bind_group(0, &self.compute_bind, &[]);
+            pass.set_bind_group(0, &self.binds.expand, &[]);
             let expand_base =
                 MAX_DEFINITIONS.min(self.pipelines.definitions.len().max(1)) as u64 * 12;
             for (index, definition) in self.pipelines.definitions.iter().enumerate() {
@@ -461,7 +392,7 @@ impl EntityGpu {
                 }
             }
             pass.set_pipeline(&self.pipelines.draw_args);
-            pass.set_bind_group(0, &self.args_bind, &[]);
+            pass.set_bind_group(0, &self.binds.args, &[]);
             pass.dispatch_workgroups(1, 1, 1);
         }
         {
@@ -470,10 +401,10 @@ impl EntityGpu {
                 timestamp_writes: None,
             });
             pass.set_pipeline(&self.pipelines.impostor_prepare);
-            pass.set_bind_group(0, &self.compute_bind, &[]);
+            pass.set_bind_group(0, &self.binds.prepare, &[]);
             pass.dispatch_workgroups_indirect(&self.frame.indirect, self.impostor_args() + 16);
             pass.set_pipeline(&self.pipelines.impostor_draw_args);
-            pass.set_bind_group(0, &self.args_bind, &[]);
+            pass.set_bind_group(0, &self.binds.args, &[]);
             pass.dispatch_workgroups(1, 1, 1);
         }
         self.readback.encode(&self.frame.counters, encoder);
@@ -490,7 +421,7 @@ impl EntityGpu {
     /// the faces with no cutout texel, then the others.
     pub fn encode_draw_full_rigs(&self, pass: &mut RenderPass<'_>) {
         pass.set_pipeline(&self.pipelines.draw_opaque);
-        pass.set_bind_group(0, &self.draw_bind, &[]);
+        pass.set_bind_group(0, &self.binds.draw, &[]);
         for (index, array) in self.arrays.iter().enumerate() {
             pass.set_bind_group(1, array, &[]);
             pass.draw_indirect(&self.frame.indirect, self.draw_base() + index as u64 * 16);
@@ -506,7 +437,7 @@ impl EntityGpu {
     /// Draws the impostors into the render pass of the gbuffer.
     pub fn encode_draw_impostors(&self, pass: &mut RenderPass<'_>) {
         pass.set_pipeline(&self.pipelines.impostor);
-        pass.set_bind_group(0, &self.impostor_bind, &[]);
+        pass.set_bind_group(0, &self.binds.impostor, &[]);
         pass.set_bind_group(1, &self.atlas.images, &[]);
         pass.draw_indirect(&self.frame.indirect, self.impostor_args());
         pass.set_pipeline(&self.pipelines.impostor_small);
@@ -525,23 +456,86 @@ impl EntityGpu {
     }
 }
 
-fn placeholder_bind(device: &Device, layout: &BindGroupLayout, frame: &FrameBuffers) -> BindGroup {
-    device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("entity placeholder"),
-        layout,
-        entries: &[
-            BindGroupEntry {
-                binding: 0,
-                resource: frame.uniform.as_entire_binding(),
-            },
-            BindGroupEntry {
-                binding: 15,
-                resource: frame.counters.as_entire_binding(),
-            },
-            BindGroupEntry {
-                binding: 16,
-                resource: frame.indirect.as_entire_binding(),
-            },
-        ],
-    })
+/// The bind group of each pass.
+struct Binds {
+    scatter: BindGroup,
+    cull: BindGroup,
+    pose: BindGroup,
+    expand: BindGroup,
+    prepare: BindGroup,
+    args: BindGroup,
+    draw: BindGroup,
+    impostor: BindGroup,
+}
+
+impl Binds {
+    fn new(
+        device: &Device,
+        layouts: &Layouts,
+        s: &SlotBuffers,
+        st: &StaticBuffers,
+        f: &FrameBuffers,
+        atlas: &ImpostorAtlas,
+        hiz: &wgpu::TextureView,
+    ) -> Self {
+        let buffers: [(u32, &Buffer); 22] = [
+            (0, &f.uniform),
+            (1, &s.ticks),
+            (3, &s.tick_of_record),
+            (4, &s.culls),
+            (5, &s.states),
+            (6, &s.inputs),
+            (8, &st.models),
+            (9, &st.bones),
+            (10, &st.cuboids),
+            (11, &f.visible),
+            (12, &f.bone_matrices),
+            (13, &f.instances),
+            (14, &f.faces),
+            (15, &f.counters),
+            (16, &f.indirect),
+            (17, &f.scatter),
+            (19, &st.variants),
+            (20, &st.cutout),
+            (21, &f.impostors),
+            (22, &atlas.pairs),
+            (24, &f.impostor_draws),
+            (25, &atlas.covers),
+        ];
+        let bind = |label: &str, layout: &BindGroupLayout, bindings: &[(u32, Slot)]| {
+            let entries: Vec<BindGroupEntry<'_>> = bindings
+                .iter()
+                .filter_map(|&(binding, slot)| {
+                    let resource = match slot {
+                        Slot::Pyramid => BindingResource::TextureView(hiz),
+                        _ => buffers
+                            .iter()
+                            .find(|(at, _)| *at == binding)?
+                            .1
+                            .as_entire_binding(),
+                    };
+                    Some(BindGroupEntry { binding, resource })
+                })
+                .collect();
+            device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some(label),
+                layout,
+                entries: &entries,
+            })
+        };
+        Self {
+            scatter: bind("entity scatter", &layouts.scatter, &SCATTER),
+            cull: bind("entity cull", &layouts.cull, &CULL),
+            pose: bind("entity pose", &layouts.pose, &POSE),
+            expand: bind("entity expand", &layouts.expand, &EXPAND),
+            prepare: bind("entity impostor prepare", &layouts.prepare, &PREPARE),
+            args: bind("entity args", &layouts.args, &ARGS),
+            draw: bind("entity draw", &layouts.draw, &DRAW),
+            impostor: bind(
+                "entity impostor",
+                &layouts.impostor,
+                &[(0, Slot::Frame), (24, Slot::Storage { read_only: true })],
+            ),
+        }
+    }
 }

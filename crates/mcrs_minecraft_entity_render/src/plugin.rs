@@ -29,8 +29,8 @@ pub fn entity_passes(passes: Option<Res<EntityPasses>>) -> bool {
 /// Draws the client entities of the types that [`crate::EntityAssets`] holds with the entity
 /// passes. The embedder inserts [`crate::EntityAssets`] when its pack and registries are ready,
 /// and adds the terrain renderer, whose gbuffer and depth pyramid the passes use.
-// chisle: the passes need compute and more storage buffers a stage than a browser's WebGPU
-// grants, so without them the plugin draws nothing; `docs/entity-render.md`, section 6, lifts it.
+// chisle: the passes need compute and storage buffers in the vertex stage, so on WebGL2 and in
+// WebGPU compatibility mode the plugin draws nothing; `docs/entity-render.md`, section 6, lifts it.
 pub struct EntityRenderPlugin;
 
 impl Plugin for EntityRenderPlugin {
