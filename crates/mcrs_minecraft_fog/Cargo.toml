@@ -1,0 +1,14 @@
+[package]
+name = "mcrs_minecraft_fog"
+description = "The fog parameters of one frame of the client: the fog colour and the fog distances"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+libm.workspace = true
+
+[lints]
+workspace = true
