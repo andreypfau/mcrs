@@ -2,6 +2,7 @@ use crate::generation_input::GenerationInput;
 use crate::generation_stage::{CHUNK_TASK_POOL, GenerationStage, SchedulerConfig};
 use bevy_tasks::{TaskPoolBuilder, block_on};
 use mcrs_engine_link::{InlineEnd, Link, Placement, Stage as _};
+use mcrs_minecraft_anvil::{ChunkStructures, SavedPiece};
 use mcrs_minecraft_biome::Biome;
 use mcrs_minecraft_biome::source::MultiNoiseBiomeSource;
 use mcrs_minecraft_chunk::VoxelId;
@@ -24,7 +25,7 @@ use mcrs_minecraft_worldgen_generator::tests::surface::{
     fill_context as surface_fill_context, overworld_biome_registry, overworld_material_router,
 };
 use mcrs_voxel::ColumnPos;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -977,4 +978,165 @@ mod exhaustive {
             assert_region_agrees(consumer, 3, &small_drives());
         }
     }
+}
+
+#[test]
+fn a_generated_mineshaft_leaves_its_cave_spider_spawner_in_a_stored_column() {
+    use mcrs_minecraft_block_entity::GeneratedBlockEntity;
+
+    let dim = fill_context(MINESHAFT);
+    CHUNK_TASK_POOL.get_or_init(|| TaskPoolBuilder::new().num_threads(4).build());
+    let mut link = Link::new(
+        GenerationStage::new(SchedulerConfig::default(), all_rows(&dim.ctx.y_sections)),
+        Placement::Inline,
+    );
+    link.send(GenerationInput::Context(Box::new(dim.ctx.clone())));
+    let wanted: Vec<ColumnPos> = region_columns(1)
+        .into_iter()
+        .map(|col| ColumnPos::new(col.x + dim.centre.x, col.z + dim.centre.z))
+        .collect();
+    for col in &wanted {
+        want(&mut link, *col);
+    }
+    block_on(link.answered());
+
+    let stored: Vec<_> = link.outputs().filter_map(|answer| answer.stored).collect();
+    assert_eq!(stored.len(), wanted.len(), "a wanted column was not stored");
+    assert!(
+        stored
+            .iter()
+            .any(|column| column.block_entities.iter().any(|entity| matches!(
+                entity,
+                GeneratedBlockEntity::MobSpawner { spawn_data: Some(data), .. }
+                    if data.entity.get_string("id") == Some("minecraft:cave_spider")
+            ))),
+        "the mineshaft's spawner did not reach any stored column"
+    );
+}
+
+fn generated_monument_column() -> (Dimension, GenerationAnswer) {
+    let dim = fill_context(MONUMENT);
+    CHUNK_TASK_POOL.get_or_init(|| TaskPoolBuilder::new().num_threads(4).build());
+    let mut link = Link::new(
+        GenerationStage::new(SchedulerConfig::default(), all_rows(&dim.ctx.y_sections)),
+        Placement::Inline,
+    );
+    link.send(GenerationInput::Context(Box::new(dim.ctx.clone())));
+    want(&mut link, dim.centre);
+    block_on(link.answered());
+    let answer = link.outputs().next().expect("the column was answered");
+    (dim, answer)
+}
+
+fn without_rooms(structures: &ChunkStructures) -> ChunkStructures {
+    let mut cleared = structures.clone();
+    for start in cleared.starts.values_mut() {
+        for piece in &mut start.pieces {
+            if let SavedPiece::OceanMonumentBuilding(tag) = piece {
+                tag.rooms.clear();
+                tag.children.clear();
+            }
+        }
+    }
+    cleared
+}
+
+#[test]
+fn a_generated_monument_start_and_references_are_saved_with_the_column() {
+    let (dim, answer) = generated_monument_column();
+    let start_column = answer.column;
+    let structures = answer.stored.expect("the column was stored").structures;
+    let id = ResourceLocationBuf::minecraft("monument").unwrap();
+    assert_eq!(
+        structures.starts.get(&id).map(|start| start.references),
+        Some(0)
+    );
+    assert_eq!(
+        structures.references.get(&id),
+        Some(&BTreeSet::from([start_column]))
+    );
+
+    let neighbour = ColumnPos::new(start_column.x + 1, start_column.z);
+    CHUNK_TASK_POOL.get_or_init(|| TaskPoolBuilder::new().num_threads(4).build());
+    let mut link = Link::new(
+        GenerationStage::new(SchedulerConfig::default(), all_rows(&dim.ctx.y_sections)),
+        Placement::Inline,
+    );
+    link.send(GenerationInput::Context(Box::new(dim.ctx.clone())));
+    want(&mut link, neighbour);
+    block_on(link.answered());
+    let touched = link
+        .outputs()
+        .find(|answer| answer.column == neighbour)
+        .and_then(|answer| answer.stored)
+        .expect("the neighbour was stored")
+        .structures;
+    assert!(touched.starts.is_empty());
+    assert_eq!(
+        touched.references.get(&id),
+        Some(&BTreeSet::from([start_column]))
+    );
+}
+
+#[test]
+fn a_saved_monument_without_its_rooms_gets_the_generated_graph_from_the_seed() {
+    use crate::saved_monuments::rebuild_rooms;
+
+    let (dim, answer) = generated_monument_column();
+    let column = answer.column;
+    let generated = answer.stored.expect("the column was stored").structures;
+    let monument = |structures: &ChunkStructures| {
+        structures
+            .starts
+            .values()
+            .flat_map(|start| start.pieces.iter())
+            .find_map(|piece| match piece {
+                SavedPiece::OceanMonumentBuilding(tag) => Some(tag.clone()),
+                _ => None,
+            })
+    };
+    let expected = monument(&generated).expect("the start column holds the monument");
+    assert!(!expected.rooms.is_empty() && !expected.children.is_empty());
+
+    let mut saved = without_rooms(&generated);
+    let seed = dim.ctx.router.as_ref().unwrap().world_seed as i64;
+    assert!(rebuild_rooms(&mut saved, column, seed));
+    assert_eq!(monument(&saved), Some(expected));
+    assert!(!rebuild_rooms(&mut saved, column, seed));
+}
+
+#[test]
+fn a_rebuilt_monument_marks_its_column_changed_once() {
+    use crate::saved_monuments::rebuild_saved_monument_rooms;
+    use bevy_ecs::system::RunSystemOnce;
+    use bevy_ecs::world::World;
+    use mcrs_minecraft_engine::stored_column::{
+        ColumnRecord, ColumnStructures, PendingColumnFacts, SectionChanged, TakenFromStore,
+    };
+    use mcrs_minecraft_engine_world::world_seed::WorldSeed;
+    use mcrs_voxel::SectionPos;
+
+    let (dim, answer) = generated_monument_column();
+    let column = answer.column;
+    let structures = without_rooms(&answer.stored.expect("the column was stored").structures);
+
+    let mut world = World::new();
+    world.insert_resource(WorldSeed(dim.ctx.router.as_ref().unwrap().world_seed as _));
+    let owner = world.spawn_empty().id();
+    let section = world
+        .spawn((SectionPos::new(column.x, 0, column.z), TakenFromStore))
+        .id();
+    let mut pending = PendingColumnFacts::default();
+    pending.0.insert(
+        (owner, column),
+        (ColumnStructures(structures), ColumnRecord::default()),
+    );
+    world.insert_resource(pending);
+
+    world.run_system_once(rebuild_saved_monument_rooms).unwrap();
+    assert!(world.entity(section).contains::<SectionChanged>());
+
+    world.entity_mut(section).remove::<SectionChanged>();
+    world.run_system_once(rebuild_saved_monument_rooms).unwrap();
+    assert!(!world.entity(section).contains::<SectionChanged>());
 }

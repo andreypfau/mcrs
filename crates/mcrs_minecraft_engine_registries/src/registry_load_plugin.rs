@@ -1,22 +1,16 @@
 use crate::asset_reader_packs::AssetReaderPacks;
-use crate::item_definitions::load_item_definitions;
+use crate::item_definitions::load_items;
 use crate::loading_state::{check_registry_assets_ready, start_loading_data_pack};
 use crate::log_diagnostics::log_diagnostics;
-use crate::registry_names::RegistryNames;
-use crate::registry_snapshot::install_registries;
+use crate::registry_snapshot::{install_item_table, install_registries};
 use bevy_app::{App, AppExit, Plugin, PostStartup, Update};
 use bevy_asset::AssetServer;
-use bevy_asset::io::AssetSourceId;
 use bevy_ecs::prelude::*;
 use bevy_state::prelude::*;
 use mcrs_minecraft_assets::packs::PACK_FILES;
 use mcrs_minecraft_assets::{AppState, LoadedRegistryAssets};
 use mcrs_minecraft_game_registries::registry_load::load_registries;
-use mcrs_minecraft_item_table::DefinitionFile;
-use mcrs_minecraft_item_table::ItemTable;
-use mcrs_minecraft_item_table::bake;
 use mcrs_minecraft_registries::NetworkSnapshot;
-use mcrs_minecraft_registries::Registries;
 
 /// What the configuration phase sends of the installed registries, encoded once per load.
 #[derive(Resource)]
@@ -95,11 +89,10 @@ fn install(world: &mut World) -> Result<(), String> {
         })
         .map_err(|key| format!("the block sound set {key} is not loaded"))?;
     let definitions = std::sync::Arc::new(definitions);
-    let items = load_item_definitions(&asset_server, &registries, &definitions)
-        .map_err(|error| error.to_string())?;
+    let loaded =
+        load_items(&asset_server, &registries, &definitions).map_err(|error| error.to_string())?;
+    let (items, item_table) = (loaded.definitions, loaded.table);
     tracing::info!(items = items.len(), "loaded item definitions");
-    let table = bake_item_table(&asset_server, &registries)?;
-    world.insert_resource(table);
     world.insert_resource(sound_sets);
     world.insert_resource(SyncedRegistries(synced));
     install_registries(
@@ -108,37 +101,8 @@ fn install(world: &mut World) -> Result<(), String> {
         mcrs_minecraft_block::definition::Blocks(definitions),
         mcrs_minecraft_item::Items(std::sync::Arc::new(items)),
     );
+    install_item_table(world, item_table).map_err(|error| error.to_string())?;
     Ok(())
-}
-
-/// The item table of the stacks as entities, from the item definitions of the default asset
-/// source and the names of `registries`.
-fn bake_item_table(
-    asset_server: &AssetServer,
-    registries: &Registries,
-) -> Result<ItemTable, String> {
-    let source = asset_server
-        .get_source(AssetSourceId::Default)
-        .map_err(|error| format!("the default asset source: {error}"))?;
-    let files = mcrs_minecraft_assets::asset::read_json_corpus(
-        source.reader(),
-        mcrs_minecraft_item::definition::CORPUS_DIRECTORY,
-    )
-    .map_err(|error| error.to_string())?;
-    let baked = bake(
-        files
-            .iter()
-            .map(|(name, bytes)| DefinitionFile { name, bytes }),
-        &RegistryNames::new(registries),
-    )
-    .map_err(|error| format!("the item table: {error}"))?;
-    let skipped: usize = baked.skipped.iter().map(|skipped| skipped.prototypes).sum();
-    tracing::info!(
-        types = baked.skipped.len(),
-        components = skipped,
-        "baked the item table without the component types it has no type for"
-    );
-    Ok(baked.table)
 }
 
 /// Enters `AppState::Playing`.

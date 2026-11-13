@@ -8,12 +8,6 @@ impl Registered for crate::pool_alias_binding_keys::PoolAliasBindingType {
     const REGISTRY: RegistryKey<Self> = POOL_ALIAS_BINDING;
 }
 
-pub const STRUCTURE_PIECE: RegistryKey<crate::structure_piece_keys::StructurePieceType> =
-    RegistryKey::new(rl!("minecraft:worldgen/structure_piece"));
-impl Registered for crate::structure_piece_keys::StructurePieceType {
-    const REGISTRY: RegistryKey<Self> = STRUCTURE_PIECE;
-}
-
 pub const STRUCTURE_PLACEMENT: RegistryKey<
     crate::structure_placement_keys::StructurePlacementType,
 > = RegistryKey::new(rl!("minecraft:worldgen/structure_placement"));
@@ -38,10 +32,6 @@ pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'s
     (
         STRUCTURE_PLACEMENT.location(),
         crate::structure_placement_keys::StructurePlacementType::ENTRIES,
-    ),
-    (
-        STRUCTURE_PIECE.location(),
-        crate::structure_piece_keys::StructurePieceType::ENTRIES,
     ),
     (
         STRUCTURE_TYPE.location(),

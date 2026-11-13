@@ -24,6 +24,15 @@ impl ColumnHeights {
         }
     }
 
+    pub fn from_raw(height: u32, min_y: i32, longs: &[i64]) -> Option<Self> {
+        let mut heights = Self::new(height, min_y);
+        if longs.len() != heights.longs.len() {
+            return None;
+        }
+        heights.longs = longs.iter().map(|&long| long as u64).collect();
+        Some(heights)
+    }
+
     pub fn height(&self) -> u32 {
         self.height
     }

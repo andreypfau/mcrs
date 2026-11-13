@@ -3,6 +3,7 @@
 
 use std::borrow::Cow;
 
+use crate::support::saved_block_entities;
 use bevy_app::{App, FixedUpdate};
 use bevy_ecs::prelude::Entity;
 use bevy_ecs::world::World;
@@ -27,7 +28,6 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::{Decode, Encode};
 use mcrs_minecraft_protocol_game::chunk::{ChunkData, ChunkDataBlockEntity};
-use mcrs_minecraft_worldgen_generator::saved::saved_block_entities;
 use mcrs_voxel::SectionPos;
 
 fn section_pos() -> SectionPos {
@@ -90,7 +90,9 @@ impl<V> PaletteLookup<V> for NoPalette {
     }
 }
 
-fn saved_column(block_entities: Vec<NbtCompound>) -> mcrs_minecraft_anvil::Chunk {
+fn try_saved_column(
+    block_entities: Vec<NbtCompound>,
+) -> Result<mcrs_minecraft_anvil::Chunk, mcrs_minecraft_anvil::ErrorKind> {
     let mut root = NbtCompound::new();
     root.put_int("DataVersion", VERSION.world_version);
     root.put_int("xPos", 2);
@@ -105,7 +107,20 @@ fn saved_column(block_entities: Vec<NbtCompound>) -> mcrs_minecraft_anvil::Chunk
             .collect::<Vec<_>>(),
     );
     let bytes = Nbt::new(String::new(), root).write().unwrap();
-    parse_chunk(&bytes, &NoPalette, &NoPalette).expect("the saved column parses")
+    parse_chunk(&bytes, &NoPalette, &NoPalette)
+}
+
+fn saved_column(block_entities: Vec<NbtCompound>) -> mcrs_minecraft_anvil::Chunk {
+    try_saved_column(block_entities).expect("the saved column parses")
+}
+
+fn positioned(id: &str) -> NbtCompound {
+    let mut compound = NbtCompound::new();
+    compound.put_string("id", id.to_string());
+    compound.put_int("x", 35);
+    compound.put_int("y", 71);
+    compound.put_int("z", -14);
+    compound
 }
 
 fn read_back_through_anvil(entries: &[GeneratedBlockEntity]) -> Vec<GeneratedBlockEntity> {
@@ -119,18 +134,21 @@ fn read_back_through_anvil(entries: &[GeneratedBlockEntity]) -> Vec<GeneratedBlo
 
 /// A jukebox is a kind this build does not read and is dropped; a beehive it
 /// does read but cannot parse is an error, so a generated entity never goes
-/// missing without a word.
+/// missing without a word. A compound without its coordinates is refused when
+/// the column is read.
 #[test]
 fn an_unknown_kind_is_dropped_and_a_broken_known_kind_is_an_error() {
-    let mut jukebox = NbtCompound::new();
-    jukebox.put_string("id", "minecraft:jukebox".to_string());
+    let jukebox = positioned("minecraft:jukebox");
     let read = saved_block_entities(&saved_column(vec![jukebox])).expect("a jukebox is skipped");
     assert!(read.is_empty());
 
-    let mut broken = NbtCompound::new();
-    broken.put_string("id", "minecraft:beehive".to_string());
-    broken.put_string("x", "not a number".to_string());
+    let mut broken = positioned("minecraft:beehive");
+    broken.put_string("bees", "not a list".to_string());
     assert!(saved_block_entities(&saved_column(vec![broken])).is_err());
+
+    let mut no_coordinates = NbtCompound::new();
+    no_coordinates.put_string("id", "minecraft:beehive".to_string());
+    assert!(try_saved_column(vec![no_coordinates]).is_err());
 
     for entry in every_kind().iter().map(|(entry, _)| entry) {
         let compound = mcrs_minecraft_nbt::to_nbt_compound(entry).expect("serialises");

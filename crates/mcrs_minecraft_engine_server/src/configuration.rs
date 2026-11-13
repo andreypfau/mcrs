@@ -6,19 +6,24 @@ use bevy_ecs::prelude::{Changed, Commands, Entity, On, Query, Resource, Without,
 use bevy_ecs::schedule::{IntoScheduleConfigs, ScheduleConfigs};
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ScheduleSystem;
-use bevy_math::{DVec3, Vec2};
+use bevy_math::DVec3;
 use bevy_state::prelude::in_state;
 use mcrs_minecraft_assets::AppState;
-use mcrs_minecraft_engine::bus::PlayerTransferSnapshot;
+use mcrs_minecraft_engine::SavedSpawn;
 use mcrs_minecraft_engine::client_info::ClientInfo;
 use mcrs_minecraft_engine::coordinator::join::place_joining_players;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
 use mcrs_minecraft_engine::muxer::join::admit_placed_players;
 use mcrs_minecraft_engine::muxer::session::HostAnchorRef;
+use mcrs_minecraft_engine::persisted_registry::{
+    PersistedError, PersistedRegistry, PersistedSnapshot,
+};
 use mcrs_minecraft_engine::to_coordinator::JoinRequested;
 use mcrs_minecraft_engine::to_muxer::JoinPlaced;
 use mcrs_minecraft_engine_registries::SyncedRegistries;
+use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
+use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
 use mcrs_minecraft_network::event::Received;
@@ -39,7 +44,7 @@ use mcrs_minecraft_protocol::packets::game::serverbound::ServerboundConfiguratio
 use mcrs_minecraft_protocol::resource_pack::KnownPack;
 use mcrs_minecraft_protocol::{EncodedBody, WritePacket};
 use mcrs_minecraft_registries::{CurrentRegistries, Registries};
-use mcrs_minecraft_save::read_player_dat;
+use mcrs_minecraft_save::{RespawnData, player_dat_path, read_player_dat};
 use tracing::{debug, info};
 
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
@@ -72,6 +77,34 @@ impl Plugin for ConfigurationStatePlugin {
                 .before(mcrs_minecraft_engine::muxer::bridge::bridge_inbound_to_channel),
         );
     }
+}
+
+/// Where a joining player stands: the position and the rotation of its file, else the level
+/// spawn, else a fixed point above the origin.
+// chisle: no spawn search, so a missing `Pos` is the block of the level spawn as it is, possibly
+// inside terrain; the search of the default position in SAVE-PLAYER-001 replaces this.
+fn join_placement(
+    snapshot: &PersistedSnapshot,
+    spawn: Option<&RespawnData>,
+) -> Result<Transform, PersistedError> {
+    let pos = snapshot.pos()?;
+    let rotation = snapshot.rotation()?;
+    let (spawn_pos, spawn_rotation) =
+        spawn.map_or((DVec3::new(0.0, 128.0, 0.0), [0.0; 2]), |spawn| {
+            (
+                DVec3::new(
+                    f64::from(spawn.pos[0]),
+                    f64::from(spawn.pos[1]),
+                    f64::from(spawn.pos[2]),
+                ),
+                [spawn.yaw, spawn.pitch],
+            )
+        });
+    let [yaw, pitch] = rotation.unwrap_or(spawn_rotation);
+    Ok(Transform {
+        translation: pos.unwrap_or(spawn_pos),
+        rotation: Rotation::new(yaw, pitch),
+    })
 }
 
 /// Step 1 of the Configuration handshake: detect entry into
@@ -268,6 +301,8 @@ pub fn request_initial_player_spawn(
     sessions: Query<(&Session, &SessionPlacement, &GameProfile)>,
     dim_inputs: Res<DimInputs>,
     save: Option<Res<WorldSave>>,
+    saved_spawn: Option<Res<SavedSpawn>>,
+    registry: Res<PersistedRegistry>,
     mut requests: MessageWriter<JoinRequested>,
 ) {
     if dim_inputs.is_empty() {
@@ -284,24 +319,116 @@ pub fn request_initial_player_spawn(
         if placement.place() != Place::Unplaced {
             continue;
         }
-        let saved = save
-            .as_ref()
-            .and_then(|save| read_player_dat(&save.0, profile.id).ok().flatten());
-        let snapshot = PlayerTransferSnapshot {
-            uuid: profile.id,
-            username: profile.username.clone(),
-            position: saved.as_ref().map_or(DVec3::new(0.0, 128.0, 0.0), |dat| {
-                DVec3::from_array(dat.pos)
-            }),
-            rotation: saved
-                .as_ref()
-                .map_or(Vec2::ZERO, |dat| Vec2::from_array(dat.rotation)),
-            client_info: info.cloned(),
+        let (saved_dimension, mut snapshot) = match save.as_ref() {
+            None => (None, PersistedSnapshot::default()),
+            Some(save) => match read_player_dat(&save.0, profile.id) {
+                Ok(None) => (None, PersistedSnapshot::default()),
+                Ok(Some(dat)) => {
+                    let path = player_dat_path(&save.0, profile.id);
+                    let snapshot = PersistedSnapshot::from_dat(&dat, &registry, &path)
+                        .unwrap_or_else(|err| {
+                            tracing::error!("player data not loaded, never saving it: {err}");
+                            PersistedSnapshot::unreadable()
+                        });
+                    (dat.dimension(), snapshot)
+                }
+                Err(err) => {
+                    tracing::error!(uuid = %profile.id, "player data unreadable, joining empty and never saved: {err}");
+                    (None, PersistedSnapshot::unreadable())
+                }
+            },
         };
+        snapshot.insert_profile(profile);
+        let spawn = saved_spawn.as_deref().map(|spawn| &spawn.0);
+        let placement = match join_placement(&snapshot, spawn) {
+            Ok(placement) => placement,
+            Err(err) => {
+                tracing::error!(uuid = %profile.id, "player pose not loaded, never saving it: {err}");
+                snapshot = PersistedSnapshot::unreadable();
+                snapshot.insert_profile(profile);
+                join_placement(&snapshot, spawn).unwrap_or_default()
+            }
+        };
+        snapshot.insert_transform(placement);
+        if let Some(info) = info {
+            snapshot.insert_client_info(info);
+            snapshot.insert_view_distance(PlayerViewDistance {
+                distance: info.view_distance,
+                vert_distance: PlayerViewDistance::default().vert_distance,
+            });
+        }
         requests.write(JoinRequested {
             session: session.0,
-            saved_dimension: saved.map(|dat| dat.dimension),
+            saved_dimension: saved_dimension.or_else(|| spawn.map(|spawn| spawn.dimension.clone())),
             snapshot,
         });
+    }
+}
+
+#[cfg(test)]
+mod join_placement_tests {
+    use super::*;
+
+    fn spawn() -> RespawnData {
+        RespawnData {
+            pos: [100, 64, -50],
+            yaw: 30.0,
+            pitch: -5.0,
+            ..RespawnData::default()
+        }
+    }
+
+    fn pose_snapshot(at: DVec3, rotation: Option<[f32; 2]>) -> PersistedSnapshot {
+        let [yaw, pitch] = rotation.unwrap_or_default();
+        let mut snapshot = PersistedSnapshot::default();
+        snapshot.insert_transform(Transform {
+            translation: at,
+            rotation: Rotation::new(yaw, pitch),
+        });
+        if rotation.is_none() {
+            snapshot.remove("Rotation");
+        }
+        snapshot
+    }
+
+    #[test]
+    fn a_malformed_pos_fails_the_placement_instead_of_taking_the_spawn() {
+        let mut snapshot = PersistedSnapshot::default();
+        snapshot.put(&["Pos"], &"here").unwrap();
+
+        assert!(join_placement(&snapshot, Some(&spawn())).is_err());
+    }
+
+    #[test]
+    fn a_file_without_pos_and_rotation_joins_at_the_level_spawn() {
+        let placed = join_placement(&PersistedSnapshot::default(), Some(&spawn())).unwrap();
+
+        assert_eq!(placed.translation, DVec3::new(100.0, 64.0, -50.0));
+        assert_eq!(
+            [placed.rotation.yaw(), placed.rotation.pitch()],
+            [30.0, -5.0]
+        );
+    }
+
+    #[test]
+    fn the_pos_and_the_rotation_of_a_file_come_before_the_spawn() {
+        let at = DVec3::new(1.0, 2.0, 3.0);
+        let placed =
+            join_placement(&pose_snapshot(at, Some([90.0, 10.0])), Some(&spawn())).unwrap();
+
+        assert_eq!(placed.translation, at);
+        assert_eq!(
+            [placed.rotation.yaw(), placed.rotation.pitch()],
+            [90.0, 10.0]
+        );
+    }
+
+    #[test]
+    fn a_rotation_missing_from_a_file_with_a_pos_takes_the_spawn_rotation() {
+        let at = DVec3::new(1.0, 2.0, 3.0);
+        let placed = join_placement(&pose_snapshot(at, None), Some(&spawn())).unwrap();
+
+        assert_eq!(placed.translation, at);
+        assert_eq!(placed.rotation.yaw(), 30.0);
     }
 }

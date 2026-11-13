@@ -38,7 +38,6 @@ use crate::modern_carvers::{
     CarverBiomeTable, ModernCarverBlockIds, TerrainCarving, carve_unsurfaced, modern_carving_mask,
 };
 use crate::multi_noise_biomes::PresetBiomeTables;
-use crate::saved::{SavedColumns, column_sections, saved_block_entities};
 use crate::staging::{
     ColumnDelta, FilledSnapshot, RegionSnapshots, TerrainHeightmaps, cell_index, rank,
     region_column, region_slot,
@@ -73,8 +72,7 @@ pub struct FillContext {
     /// dispatch.
     pub y_sections: Arc<[i32]>,
     pub biome: Option<Arc<BiomeSource>>,
-    pub predicates: Option<HeightmapPredicates>,
-    pub saved: Option<SavedColumns>,
+    pub predicates: HeightmapPredicates,
     pub program: ColumnProgram,
     pub structures: Option<Arc<StructureIndex>>,
 }
@@ -139,8 +137,7 @@ impl FillContext {
         y_sections: Arc<[i32]>,
         biome: Option<Arc<BiomeSource>>,
         preset_tables: &PresetBiomeTables,
-        predicates: Option<HeightmapPredicates>,
-        saved: Option<SavedColumns>,
+        predicates: HeightmapPredicates,
         carver_biomes: Option<Arc<CarverBiomeTable>>,
         surface_ids: Arc<SurfaceIds>,
         fill_ids: &FillIds,
@@ -156,7 +153,6 @@ impl FillContext {
                         ColumnBiomes::None
                     });
                 return FillContext {
-                    saved,
                     router: None,
                     material: None,
                     blocks,
@@ -199,7 +195,7 @@ impl FillContext {
                 router.world_seed as i64,
                 Arc::clone(&router),
                 biome_lookup,
-                predicates.clone(),
+                Some(predicates.clone()),
                 features
                     .as_ref()
                     .map_or_else(Default::default, |program| Arc::clone(&program.world)),
@@ -237,7 +233,6 @@ impl FillContext {
             features,
         };
         FillContext {
-            saved,
             router: Some(router),
             material,
             blocks,
@@ -320,10 +315,8 @@ pub fn build_terrain_heightmaps(
 }
 
 fn terrain_maps(ctx: &FillContext, column: &ColumnBlocks) -> Option<TerrainHeightmaps> {
-    ctx.predicates.as_ref().and_then(|p| {
-        let _span = info_span!("world::column_terrain_maps").entered();
-        build_terrain_heightmaps(column, p)
-    })
+    let _span = info_span!("world::column_terrain_maps").entered();
+    build_terrain_heightmaps(column, &ctx.predicates)
 }
 
 /// `Filled`: the terrain of one column, its packed palettes and its maps.
@@ -344,45 +337,6 @@ pub fn fill_column(
 ) -> Option<FilledSnapshot> {
     let _span = info_span!("world::column_load").entered();
     let y_sections = &ctx.y_sections;
-
-    let loaded = ctx.saved.as_ref().and_then(|saved| {
-        let chunk = {
-            let _read = info_span!("world::column_read_saved").entered();
-            saved.read(col, &ctx.blocks)?
-        };
-        let _decode = info_span!("world::column_decode_saved").entered();
-        match saved_block_entities(&chunk) {
-            Ok(entities) => Some((column_sections(chunk.sections, y_sections), entities)),
-            Err(err) => {
-                error!(%err, x = col.x, z = col.z, "decoding a saved column");
-                None
-            }
-        }
-    });
-
-    if let Some((sections, block_entities)) = loaded {
-        let maps = ctx
-            .predicates
-            .as_ref()
-            .and_then(|p| build_column_heightmaps(&sections, y_sections, p));
-        // A save holds no terrain maps, so the maps it arrives with stand in
-        // for the pair.
-        let terrain = maps.as_ref().map(|maps| TerrainHeightmaps {
-            surface: maps.surface.0.clone(),
-            solid: maps.solid.0.clone(),
-        });
-        return Some(FilledSnapshot {
-            col,
-            y_sections: y_sections.clone(),
-            sections,
-            terrain,
-            maps,
-            source: ColumnSource::Saved,
-            block_entities,
-            entities: Vec::new(),
-            ticks: Vec::new(),
-        });
-    }
 
     if let ColumnGenerator::Flat(layers) = &ctx.program.generator {
         return Some(flat_column(ctx, col, column, layers));
@@ -527,10 +481,7 @@ fn pack(
     terrain: Option<TerrainHeightmaps>,
 ) -> FilledSnapshot {
     let sections = column.into_sections(biomes);
-    let maps = ctx
-        .predicates
-        .as_ref()
-        .and_then(|p| build_column_heightmaps(&sections, &ctx.y_sections, p));
+    let maps = build_column_heightmaps(&sections, &ctx.y_sections, &ctx.predicates);
     FilledSnapshot {
         col,
         y_sections: ctx.y_sections.clone(),
@@ -819,7 +770,8 @@ impl VoxelStoreMut for ColumnRegion<'_> {
             .unwrap_or_default();
         self.blocks.set(lx as i32, p.y, lz as i32, state);
         self.own.push((cell, state));
-        if let (Some(predicates), Some(maps)) = (&self.ctx.predicates, self.maps.as_mut()) {
+        if let Some(maps) = self.maps.as_mut() {
+            let predicates = &self.ctx.predicates;
             let kinds = predicates.get(state);
             let read = |at: i32| {
                 self.blocks
@@ -1027,7 +979,7 @@ pub(crate) fn decoration_seed(world_seed: i64, origin_x: i32, origin_z: i32) -> 
 pub fn merge_column(
     snapshot: &FilledSnapshot,
     deltas: &[Arc<ColumnDelta>],
-    predicates: Option<&HeightmapPredicates>,
+    predicates: &HeightmapPredicates,
     has_block_entity: Option<&StateMask>,
 ) -> FilledSnapshot {
     let _span = info_span!("world::column_merge").entered();
@@ -1067,8 +1019,7 @@ pub fn merge_column(
                 );
             }
         }
-        merged.maps = predicates
-            .and_then(|p| build_column_heightmaps(&merged.sections, &merged.y_sections, p));
+        merged.maps = build_column_heightmaps(&merged.sections, &merged.y_sections, predicates);
     }
     merged.block_entities = settle_block_entities(
         snapshot
@@ -1183,7 +1134,12 @@ mod tests {
     use super::*;
 
     use crate::staging::StagingStore;
-    use crate::tests::{bare_fill_context, build_beta_router};
+    use crate::tests::{bare_fill_context, block_tags, blocks, build_beta_router};
+    use mcrs_minecraft_heightmap::heightmap_predicates;
+
+    fn predicates() -> HeightmapPredicates {
+        heightmap_predicates(blocks(), block_tags())
+    }
 
     fn flat_snapshot(col: ColumnPos, y_sections: &Arc<[i32]>, fill: VoxelId) -> FilledSnapshot {
         crate::tests::flat_snapshot(col, y_sections, |_| Some(fill), None)
@@ -1294,7 +1250,7 @@ mod tests {
                 entities: of(west).entities.clone(),
                 ticks: Vec::new(),
             })],
-            None,
+            &predicates(),
             None,
         );
         assert_eq!(merged.entities, vec![neighbour]);
@@ -1328,7 +1284,7 @@ mod tests {
                 },
             );
         }
-        let merged = merge_column(&snapshot, &store.deltas(col, 0), None, None);
+        let merged = merge_column(&snapshot, &store.deltas(col, 0), &predicates(), None);
         let (palette, _) = merged.sections[0].as_ref().expect("the section survives");
         assert_eq!(
             palette.0.get(5, 6, 7),
@@ -1357,7 +1313,7 @@ mod tests {
             bees: Vec::new(),
         }];
 
-        let merged = merge_column(&snapshot, &[], None, None);
+        let merged = merge_column(&snapshot, &[], &predicates(), None);
         assert_eq!(
             merged.block_entities, snapshot.block_entities,
             "a saved column's block entities reach its delivery"
@@ -1374,7 +1330,7 @@ mod tests {
             entities: Vec::new(),
             ticks: Vec::new(),
         });
-        let merged = merge_column(&snapshot, std::slice::from_ref(&delta), None, None);
+        let merged = merge_column(&snapshot, std::slice::from_ref(&delta), &predicates(), None);
         assert_eq!(
             merged.block_entities.len(),
             2,
@@ -1394,8 +1350,7 @@ mod tests {
             reason = "compares the terrain maps and the final maps of each column of the chunk with a loop per axis, so a mismatch names its cell"
         )]
         fn the_terrain_maps_are_taken_after_the_carvers() {
-            use crate::tests::{beta_carver_table, block_tags, blocks};
-            use mcrs_minecraft_heightmap::heightmap_predicates;
+            use crate::tests::beta_carver_table;
 
             let router = Arc::new(build_beta_router());
             let (source, _) = crate::tests::beta_surface::build_beta_biome_source();
@@ -1404,8 +1359,7 @@ mod tests {
                 y_sections: dimension_y_sections(&router, -64, 24),
                 blocks: blocks().0.clone(),
                 biome: Some(Arc::clone(&source)),
-                predicates: Some(heightmap_predicates(blocks(), block_tags())),
-                saved: None,
+                predicates: heightmap_predicates(blocks(), block_tags()),
                 program: ColumnProgram {
                     generator: ColumnGenerator::Beta(Arc::new(BetaCaveBlockIds::resolve(
                         &blocks().0,
@@ -1480,7 +1434,7 @@ mod tests {
         let merged = merge_column(
             &snapshot,
             std::slice::from_ref(&placed),
-            None,
+            &predicates(),
             Some(&has_block_entity),
         );
         assert_eq!(merged.block_entities, vec![entity(1)], "the chest stands");
@@ -1495,7 +1449,7 @@ mod tests {
         let merged = merge_column(
             &snapshot,
             &[Arc::clone(&placed), replaced],
-            None,
+            &predicates(),
             Some(&has_block_entity),
         );
         assert_eq!(
@@ -1511,7 +1465,12 @@ mod tests {
             entities: Vec::new(),
             ticks: Vec::new(),
         });
-        let merged = merge_column(&snapshot, &[placed, buried], None, Some(&has_block_entity));
+        let merged = merge_column(
+            &snapshot,
+            &[placed, buried],
+            &predicates(),
+            Some(&has_block_entity),
+        );
         assert!(
             merged.block_entities.is_empty(),
             "a block without an entity buries the one written before it"

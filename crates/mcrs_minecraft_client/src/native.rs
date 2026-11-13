@@ -560,11 +560,10 @@ fn load_save(world: &Path) -> SaveData {
 
     let (position, yaw, pitch) = match level.singleplayer_uuid {
         Some(uuid) => match save::read_player_dat(world, uuid) {
-            Ok(Some(player)) => (
-                DVec3::from_array(player.pos),
-                player.rotation[0],
-                player.rotation[1],
-            ),
+            Ok(Some(player)) => match (player.pos(), player.rotation()) {
+                (Some(pos), Some(rotation)) => (DVec3::from_array(pos), rotation[0], rotation[1]),
+                _ => spawn_fallback(&level.spawn),
+            },
             Ok(None) => spawn_fallback(&level.spawn),
             Err(err) => fatal(err),
         },
@@ -574,7 +573,9 @@ fn load_save(world: &Path) -> SaveData {
     SaveData {
         world_clocks,
         player_uuid: level.singleplayer_uuid,
-        advance_time: game_rules.advance_time,
+        advance_time: game_rules
+            .get(mcrs_minecraft_game_rule::GameRule::AdvanceTime)
+            .is_none_or(|value| value != 0),
         weather: WeatherLevel {
             rain: if weather.raining { 1.0 } else { 0.0 },
             thunder: if weather.thundering { 1.0 } else { 0.0 },

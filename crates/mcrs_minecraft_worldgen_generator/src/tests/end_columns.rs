@@ -112,8 +112,7 @@ fn the_end_spikes_stand_around_the_origin() {
     let ctx = FillContext {
         blocks: blocks().0.clone(),
         biome: Some(Arc::new(source.clone())),
-        predicates: Some(heightmap_predicates(blocks(), block_tags())),
-        saved: None,
+        predicates: heightmap_predicates(blocks(), block_tags()),
         program: ColumnProgram {
             generator: ColumnGenerator::Modern {
                 surface: Some((

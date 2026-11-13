@@ -10,6 +10,7 @@ use crate::player::read_player_dat;
 use mcrs_minecraft_game_registries::dimension::Dimensions;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_game_registries::worldgen::world_preset::WorldPreset;
+use mcrs_minecraft_game_rule::{GameRule, GameRuleValueType};
 
 const OBSERVED_UUID_INTS: [i32; 4] = [-1495452199, -11581732, -1243709312, 65080886];
 const OBSERVED_UUID_FILE_NAME: &str = "a6dd35d9-ff4f-46dc-b5de-808003e10e36";
@@ -179,6 +180,265 @@ fn level_dat_reads_the_fields_we_consume() {
     );
 }
 
+fn sorted(tag: &NbtTag) -> NbtTag {
+    match tag {
+        NbtTag::Compound(compound) => NbtTag::Compound(sorted_compound(compound)),
+        NbtTag::List(items) => NbtTag::List(items.iter().map(sorted).collect()),
+        other => other.clone(),
+    }
+}
+
+fn sorted_compound(compound: &NbtCompound) -> NbtCompound {
+    let mut entries: Vec<(String, NbtTag)> = compound
+        .child_tags
+        .iter()
+        .map(|(key, value)| (key.clone(), sorted(value)))
+        .collect();
+    entries.sort_by(|a, b| a.0.cmp(&b.0));
+    NbtCompound {
+        child_tags: entries,
+    }
+}
+
+fn strings(values: &[&str]) -> NbtTag {
+    NbtTag::List(
+        values
+            .iter()
+            .map(|value| NbtTag::String((*value).to_owned()))
+            .collect(),
+    )
+}
+
+fn level_data_all_keys() -> NbtCompound {
+    let mut version = NbtCompound::new();
+    version.put_string("Name", "26.4 Snapshot 7".to_owned());
+    version.put_int("Id", VERSION.world_version);
+    version.put_bool("Snapshot", true);
+    version.put_string("Series", "main".to_owned());
+    let mut difficulty = NbtCompound::new();
+    difficulty.put_string("difficulty", "hard".to_owned());
+    difficulty.put_bool("hardcore", true);
+    difficulty.put_bool("locked", false);
+    let mut packs = NbtCompound::new();
+    packs.put("Enabled", strings(&["vanilla", "file/extra"]));
+    packs.put("Disabled", strings(&["bundle"]));
+    let mut spawn = spawn_compound();
+    spawn.put_float("yaw", -90.5);
+    spawn.put_float("pitch", 12.0);
+
+    let mut data = NbtCompound::new();
+    data.put_int("DataVersion", VERSION.world_version);
+    data.put_component("Version", version);
+    data.put(
+        "version_history",
+        NbtTag::List(vec![NbtTag::Int(4000), NbtTag::Int(VERSION.world_version)]),
+    );
+    data.put_string("LevelName", "New World".to_owned());
+    data.put_long("Time", 25);
+    data.put_long("LastPlayed", 1_700_000_000_000);
+    data.put_int("GameType", 1);
+    data.put_component("spawn", spawn);
+    data.put_component("difficulty_settings", difficulty);
+    data.put_bool("allowCommands", false);
+    data.put_bool("initialized", false);
+    data.put_int("version", 19133);
+    data.put_component("DataPacks", packs);
+    data.put(
+        "enabled_features",
+        strings(&["minecraft:vanilla", "minecraft:bundle"]),
+    );
+    data.put_bool("WasModded", true);
+    data.put("ServerBrands", strings(&["vanilla"]));
+    data.put("removed_features", strings(&["minecraft:trade_rebalance"]));
+    data.put(
+        "singleplayer_uuid",
+        NbtTag::IntArray(OBSERVED_UUID_INTS.to_vec()),
+    );
+    data
+}
+
+#[test]
+fn level_dat_with_every_key_loads_and_writes_the_same_compound() {
+    let mut root = NbtCompound::new();
+    root.put_component("Data", level_data_all_keys());
+    let level = parse_level_dat(&gzip(root.clone()), path()).unwrap();
+    let written = mcrs_minecraft_nbt::to_nbt_compound(&LevelDatFile::from(&level)).unwrap();
+    assert_eq!(sorted_compound(&written), sorted_compound(&root));
+}
+
+#[test]
+fn level_dat_with_only_its_required_key_reads_the_defaults() {
+    let mut data = NbtCompound::new();
+    data.put_int("DataVersion", VERSION.world_version);
+    data.put_int("GameType", 1);
+    let mut root = NbtCompound::new();
+    root.put_component("Data", data);
+    let level = parse_level_dat(&gzip(root), path()).unwrap();
+    assert_eq!(
+        level,
+        LevelDat {
+            game_type: 1,
+            allow_commands: true,
+            ..LevelDat::default()
+        }
+    );
+}
+
+#[test]
+fn an_unknown_key_fails_every_file_kind_by_name() {
+    let unknown = |mut compound: NbtCompound| {
+        compound.put_int("mcrs_unknown_key", 1);
+        compound
+    };
+    let mut level = NbtCompound::new();
+    level.put_component("Data", unknown(level_data_all_keys()));
+    let mut spawn_level = level_data_all_keys();
+    spawn_level.put_component("spawn", unknown(spawn_compound()));
+    let mut nested = NbtCompound::new();
+    nested.put_component("Data", spawn_level);
+
+    let errors = [
+        parse_level_dat(&gzip(level), path())
+            .unwrap_err()
+            .to_string(),
+        parse_level_dat(&gzip(nested), path())
+            .unwrap_err()
+            .to_string(),
+        parse_weather(
+            &saved_data(VERSION.world_version, unknown(weather_payload())),
+            path(),
+        )
+        .unwrap_err()
+        .to_string(),
+        parse_game_rules(
+            &saved_data(VERSION.world_version, unknown(game_rules_all_keys())),
+            path(),
+        )
+        .unwrap_err()
+        .to_string(),
+        parse_world_clocks(
+            &saved_data(VERSION.world_version, {
+                let mut clocks = world_clocks_payload();
+                clocks.put_component("minecraft:overworld", unknown(clocks_overworld()));
+                clocks
+            }),
+            path(),
+        )
+        .unwrap_err()
+        .to_string(),
+        parse_world_gen_settings(
+            &saved_data(VERSION.world_version, unknown(world_gen_settings_payload())),
+            path(),
+            registries(),
+        )
+        .unwrap_err()
+        .to_string(),
+        parse_saved_data::<BirthClockData>(
+            &saved_data(VERSION.world_version, unknown(birth_clock_payload())),
+            path(),
+        )
+        .unwrap_err()
+        .to_string(),
+    ];
+    for error in errors {
+        assert!(
+            error.contains("mcrs_unknown_key") && error.contains("fixture.dat"),
+            "{error}"
+        );
+    }
+}
+
+fn game_rules_all_keys() -> NbtCompound {
+    let mut payload = NbtCompound::new();
+    for &rule in GameRule::ALL {
+        match rule.definition().value {
+            GameRuleValueType::Bool { default } => payload.put_bool(rule.as_static_str(), !default),
+            GameRuleValueType::Int { default, .. } => {
+                payload.put_int(rule.as_static_str(), default)
+            }
+        }
+    }
+    payload
+}
+
+fn clocks_overworld() -> NbtCompound {
+    let mut overworld = NbtCompound::new();
+    overworld.put_long("total_ticks", 1757);
+    overworld.put_float("partial_tick", 0.25);
+    overworld.put_float("rate", 2.0);
+    overworld.put_bool("paused", true);
+    overworld
+}
+
+fn birth_clock_payload() -> NbtCompound {
+    let mut payload = NbtCompound::new();
+    payload.put_long("tick", 99);
+    payload
+}
+
+fn saved_file_compound<T: Serialize>(data: T) -> NbtCompound {
+    mcrs_minecraft_nbt::to_nbt_compound(&SavedDataFile {
+        data,
+        data_version: VERSION.world_version,
+    })
+    .unwrap()
+}
+
+#[test]
+fn every_saved_data_file_with_every_key_loads_and_writes_the_same_compound() {
+    let reread = |payload: NbtCompound| {
+        let mut root = NbtCompound::new();
+        root.put_component("data", payload);
+        root.put_int("DataVersion", VERSION.world_version);
+        sorted_compound(&root)
+    };
+
+    let payload = weather_payload();
+    let weather =
+        parse_weather(&saved_data(VERSION.world_version, payload.clone()), path()).unwrap();
+    assert_eq!(
+        sorted_compound(&saved_file_compound(weather)),
+        reread(payload)
+    );
+
+    let payload = game_rules_all_keys();
+    let rules =
+        parse_game_rules(&saved_data(VERSION.world_version, payload.clone()), path()).unwrap();
+    assert_eq!(
+        sorted_compound(&saved_file_compound(rules)),
+        reread(payload)
+    );
+
+    let payload = world_clocks_payload();
+    let mut payload_all = payload.clone();
+    payload_all.put_component("minecraft:the_end", clocks_overworld());
+    let clocks = parse_world_clocks(
+        &saved_data(VERSION.world_version, payload_all.clone()),
+        path(),
+    )
+    .unwrap();
+    assert_eq!(
+        sorted_compound(&saved_file_compound(clocks)),
+        reread(payload_all)
+    );
+
+    let mut payload = world_gen_settings_payload();
+    payload.put_string("legacy_custom_options", "flat".to_owned());
+    let settings = parse_world_gen_settings(
+        &saved_data(VERSION.world_version, payload.clone()),
+        path(),
+        registries(),
+    )
+    .unwrap();
+    let written = saved_file_compound(settings.name(registries()).unwrap());
+    assert_eq!(sorted_compound(&written), reread(payload));
+
+    let payload = birth_clock_payload();
+    let tick: BirthClockData =
+        parse_saved_data(&saved_data(VERSION.world_version, payload.clone()), path()).unwrap();
+    assert_eq!(sorted_compound(&saved_file_compound(tick)), reread(payload));
+}
+
 #[test]
 fn omitted_clock_fields_take_the_codec_defaults() {
     let clocks = parse_world_clocks(
@@ -317,28 +577,21 @@ fn weather_reads_all_five_fields() {
 }
 
 #[test]
-fn advance_time_defaults_to_true_and_unrelated_rules_are_ignored() {
+fn a_game_rule_that_the_file_does_not_set_is_absent() {
     let rules = parse_game_rules(
         &saved_data(VERSION.world_version, game_rules_payload(None)),
         path(),
     )
     .unwrap();
-    assert!(rules.advance_time);
+    assert_eq!(rules.get(GameRule::AdvanceTime), None);
+    assert_eq!(rules.get(GameRule::RandomTickSpeed), Some(3));
 
     let rules = parse_game_rules(
         &saved_data(VERSION.world_version, game_rules_payload(Some(false))),
         path(),
     )
     .unwrap();
-    assert!(!rules.advance_time);
-}
-
-#[test]
-fn an_unnamespaced_advance_time_key_is_not_the_rule() {
-    let mut payload = NbtCompound::new();
-    payload.put_bool("advance_time", false);
-    let rules = parse_game_rules(&saved_data(VERSION.world_version, payload), path()).unwrap();
-    assert!(rules.advance_time);
+    assert_eq!(rules.get(GameRule::AdvanceTime), Some(0));
 }
 
 #[test]
@@ -375,6 +628,9 @@ fn world_gen_settings_payload() -> NbtCompound {
     let settings = WorldGenSettings {
         seed: 2,
         dimensions: normal_dimensions(),
+        bonus_chest: false,
+        generate_structures: true,
+        legacy_custom_options: None,
     };
     let named = settings.name(registries()).unwrap();
     let dimensions = mcrs_minecraft_nbt::to_nbt_compound(&named.dimensions).unwrap();
@@ -483,6 +739,9 @@ fn world_gen_settings_reads_the_seed_past_the_fields_we_ignore() {
         WorldGenSettings {
             seed: 2,
             dimensions: normal_dimensions(),
+            bonus_chest: false,
+            generate_structures: true,
+            legacy_custom_options: None,
         }
     );
 }
@@ -517,6 +776,9 @@ fn world_gen_settings_keep_their_dimensions() {
     let settings = WorldGenSettings {
         seed: -7,
         dimensions,
+        bonus_chest: false,
+        generate_structures: true,
+        legacy_custom_options: None,
     };
 
     write_world_gen_settings(&world, &settings, set).unwrap();
@@ -556,7 +818,10 @@ fn player_file(dimension: Option<&str>) -> Vec<u8> {
 fn a_saved_dimension_keeps_its_text() {
     let written = player_file(Some("minecraft:the_nether"));
     let dat = player::parse_player_dat(&written, path()).unwrap();
-    assert_eq!(dat.dimension.as_str(), "minecraft:the_nether");
+    assert_eq!(
+        dat.dimension().as_ref().unwrap().as_str(),
+        "minecraft:the_nether"
+    );
 
     let rewritten = mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec(&dat).unwrap();
     assert_eq!(rewritten, written);
@@ -568,20 +833,42 @@ fn a_saved_dimension_keeps_its_text() {
 }
 
 #[test]
-fn a_player_save_without_a_dimension_reads_as_the_overworld() {
+fn a_player_save_without_a_dimension_has_none() {
     let dat = player::parse_player_dat(&player_file(None), path()).unwrap();
-    assert_eq!(dat.dimension.as_str(), "minecraft:overworld");
-    assert_eq!(dat.pos, [1.5, 64.0, -2.5]);
+    assert_eq!(dat.dimension(), None);
+    assert_eq!(dat.pos(), Some([1.5, 64.0, -2.5]));
 }
 
 #[test]
-fn a_birth_key_of_an_older_save_is_dropped_at_the_read() {
-    let mut dat = player::PlayerDat::default();
-    dat.rest.put("mcrs:birth", NbtTag::Long(7));
-    let written = mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec(&dat).unwrap();
-    let read = player::parse_player_dat(&written, path()).unwrap();
-    assert!(
-        read.rest.child_tags.is_empty(),
-        "the order key is the UUID, so the old key is not kept"
-    );
+fn game_rules_read_integers_and_booleans_from_a_self_describing_format() {
+    use serde::de::value::{Error, MapDeserializer};
+    let rules = GameRules::deserialize(MapDeserializer::<_, Error>::new(
+        [("minecraft:random_tick_speed", 3i64)].into_iter(),
+    ))
+    .unwrap();
+    assert_eq!(rules.get(GameRule::RandomTickSpeed), Some(3));
+
+    let flag = GameRule::ALL
+        .iter()
+        .copied()
+        .find(|rule| matches!(rule.definition().value, GameRuleValueType::Bool { .. }))
+        .unwrap();
+    let rules = GameRules::deserialize(MapDeserializer::<_, Error>::new(
+        [(flag.as_static_str(), true)].into_iter(),
+    ))
+    .unwrap();
+    assert_eq!(rules.get(flag), Some(1));
+}
+
+#[test]
+fn a_set_game_rule_value_round_trips() {
+    let mut rules = GameRules::default();
+    rules.set(GameRule::AdvanceTime, 2);
+    rules.set(GameRule::RandomTickSpeed, i32::MIN);
+    let min = match GameRule::RandomTickSpeed.definition().value {
+        GameRuleValueType::Int { min, .. } => min,
+        GameRuleValueType::Bool { .. } => i32::MIN,
+    };
+    assert_eq!(rules.get(GameRule::AdvanceTime), Some(1));
+    assert_eq!(rules.get(GameRule::RandomTickSpeed), Some(min));
 }

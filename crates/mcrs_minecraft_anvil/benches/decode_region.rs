@@ -32,6 +32,10 @@ impl PaletteLookup<u8> for Names {
     }
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "the workspace fixture must parse; a broken fixture invalidates every measurement"
+)]
 fn bench_decode(c: &mut Criterion) {
     let chunks: Vec<_> = fixture::region_chunks().collect();
 

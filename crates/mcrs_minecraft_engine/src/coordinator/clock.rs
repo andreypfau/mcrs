@@ -18,7 +18,9 @@ pub struct EditClock {
 }
 
 /// The tick counter that every dimension reads as its game time.
-#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(
+    Resource, Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize,
+)]
 pub struct GameTime(pub i64);
 
 /// The host side of the world clocks: the game time, and the clock changes that dimensions

@@ -3,15 +3,19 @@ use serde::{Deserialize, Serialize};
 /// The state of one clock: whole ticks, the fraction of the next tick, the clock ticks one
 /// game tick advances it by, and whether it stands still.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct ClockTime {
     pub total_ticks: i64,
-    #[serde(skip_serializing_if = "is_zero")]
+    #[serde(default, skip_serializing_if = "is_zero")]
     pub partial_tick: f32,
-    #[serde(skip_serializing_if = "is_one")]
+    #[serde(default = "default_rate", skip_serializing_if = "is_one")]
     pub rate: f32,
-    #[serde(skip_serializing_if = "is_false")]
+    #[serde(default, skip_serializing_if = "is_false")]
     pub paused: bool,
+}
+
+fn default_rate() -> f32 {
+    1.0
 }
 
 fn is_zero(value: &f32) -> bool {

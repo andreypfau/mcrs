@@ -366,12 +366,16 @@ mod tests {
     #[test]
     fn a_write_that_cannot_finish_leaves_the_file_as_it_was() {
         let path = temp_file("unfinished");
-        std::fs::write(&path, "[]").unwrap();
-        std::fs::create_dir_all(path.with_file_name("unfinished.tmp")).unwrap();
+        std::fs::create_dir_all(&path).unwrap();
+        std::fs::write(path.join("keep"), "[]").unwrap();
 
         assert!(Whitelist::new([wa()]).save(&path).is_err());
 
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), "[]");
+        assert_eq!(std::fs::read_to_string(path.join("keep")).unwrap(), "[]");
+        assert_eq!(
+            std::fs::read_dir(path.parent().unwrap()).unwrap().count(),
+            1
+        );
     }
 
     #[test]
