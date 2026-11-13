@@ -17,6 +17,7 @@ use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_vanilla_item_entity::ItemEntityCommandsExt;
 
 use crate::PlayerHolders;
+use crate::close_inventory_menu::apply_close_moves;
 use crate::close_inventory_menu::close_inventory_menu;
 use crate::hand_launch::hand_launch;
 use crate::player_stacks::CRAFT_GRID_SLOTS;
@@ -44,20 +45,17 @@ pub(crate) fn capture_holders(
     mut stacks: Stacks,
 ) -> Option<PlayerStacks> {
     let (slots, selected, player_holders, transform, profile) = players.get(player).ok()?;
-    let mut values = PlayerStacks::empty();
-    values.selected = selected.map_or(0, |selected| selected.0);
-    read_slots(&mut stacks, slots, &mut values.inventory);
-    if let Some(player_holders) = player_holders {
-        if let Ok(cursor) = holders.get(player_holders.cursor) {
-            values.cursor = cursor.get(0).and_then(|stack| stacks.to_value(stack));
-        }
-        if let Ok(craft_grid) = holders.get(player_holders.craft_grid) {
-            read_slots(&mut stacks, craft_grid, &mut values.craft_grid);
-        }
-    }
+    let mut values = PlayerStacks::from_holders(
+        slots,
+        selected.map_or(0, |selected| selected.0),
+        player_holders,
+        &holders,
+        &mut stacks,
+    );
     let closes = matches!(cause, CaptureCause::Leave | CaptureCause::DimensionChange);
     if closes && values.has_carried() {
-        let rests = close_inventory_menu(&mut values, &table);
+        let moves = close_inventory_menu(&values, &table);
+        let rests = apply_close_moves(&mut values, &moves);
         let player_holders = player_holders.copied();
         let transform = transform.copied().unwrap_or(Transform::IDENTITY);
         let source = profile.map_or(0, |profile| profile.id.as_u128());
@@ -65,12 +63,6 @@ pub(crate) fn capture_holders(
         drop_rests(&mut commands, rests, transform, source);
     }
     Some(values)
-}
-
-fn read_slots(stacks: &mut Stacks, slots: &Slots, values: &mut [Option<ItemStack>]) {
-    for (value, stack) in values.iter_mut().zip(slots.iter()) {
-        *value = stack.and_then(|stack| stacks.to_value(stack));
-    }
 }
 
 /// Makes the holders of the player hold what the close gave: the player inventory with the

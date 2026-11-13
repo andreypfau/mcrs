@@ -2,6 +2,8 @@
 
 mod capture;
 mod click;
+mod close;
+mod creative;
 mod fixture;
 mod full_state;
 mod hand;

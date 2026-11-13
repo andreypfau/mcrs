@@ -11,7 +11,9 @@ mod click_backlog;
 mod click_drag;
 mod click_menu;
 mod click_slots;
+mod close_container;
 mod close_inventory_menu;
+mod creative_drops;
 mod decode_click;
 mod forget_rejected_swap;
 mod full_sends;
@@ -36,6 +38,7 @@ mod saved_stack;
 mod send_full_state;
 mod sent_stack;
 mod set_carried_item;
+mod set_creative_mode_slot;
 mod sync_menus;
 mod vanilla_inventory_plugin;
 

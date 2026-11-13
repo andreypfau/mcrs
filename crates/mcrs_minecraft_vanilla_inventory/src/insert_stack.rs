@@ -1,4 +1,3 @@
-use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::MaxStackSize;
@@ -9,53 +8,47 @@ use mcrs_minecraft_player_slots::Stacking;
 /// The largest value of the component `max_stack_size`.
 const LARGEST_STACK: i32 = 99;
 
-/// Puts the items of `stack` into `inventory`, whose selected hotbar slot is `selected`, by the
-/// insert rule (INV-INS-001). Gives the items that found no room.
+/// Gives `moved` each slot of `inventory`, whose selected hotbar slot is `selected`, that takes
+/// items of `stack` by the insert rule, with the number of items, in the order of the rule
+/// (INV-INS-001). Changes no slot. Gives the number of items that found no room.
 pub(crate) fn insert_stack(
-    inventory: &mut [Option<ItemStack>],
+    inventory: &[Option<ItemStack>],
     selected: u8,
-    stack: ItemStack,
+    stack: &ItemStack,
     table: &ItemTable,
-) -> Option<ItemStack> {
-    let max = table
-        .effective::<MaxStackSize>(&stack)
-        .map_or(1, |max| max.0.clamp(1, LARGEST_STACK));
-    let max = u8::try_from(max).unwrap_or(1);
+    mut moved: impl FnMut(u16, u8),
+) -> u8 {
+    let max = max_stack_size(stack, table);
     let stacking = if table
-        .effective::<Damage>(&stack)
+        .effective::<Damage>(stack)
         .is_some_and(|damage| damage.0 > 0)
     {
         Stacking::Alone
     } else {
         Stacking::Stacks
     };
-    let mut merges = Vec::new();
     let end = mcrs_minecraft_player_slots::insert(
         stack.count.get(),
         max,
         stacking,
         selected,
-        |index| slot(inventory, &stack, max, index),
-        |index, moved| merges.push((index, moved)),
+        |index| slot(inventory, stack, max, index),
+        &mut moved,
     );
-    for (index, moved) in merges {
-        if let Some(Some(held)) = inventory.get_mut(usize::from(index))
-            && let Some(count) = held.count.get().checked_add(moved).and_then(Count::new)
-        {
-            held.count = count;
-        }
-    }
-    if let (Some(index), Some(filled)) = (end.empty, Count::new(end.filled))
-        && let Some(empty) = inventory.get_mut(usize::from(index))
+    if let Some(index) = end.empty
+        && end.filled > 0
     {
-        let mut placed = stack.clone();
-        placed.count = filled;
-        *empty = Some(placed);
+        moved(index, end.filled);
     }
-    let rest = Count::new(end.rest)?;
-    let mut rest_stack = stack;
-    rest_stack.count = rest;
-    Some(rest_stack)
+    end.rest
+}
+
+/// The maximum stack size of `stack`, in the range `1..=99`.
+pub(crate) fn max_stack_size(stack: &ItemStack, table: &ItemTable) -> u8 {
+    let max = table
+        .effective::<MaxStackSize>(stack)
+        .map_or(1, |max| max.0.clamp(1, LARGEST_STACK));
+    u8::try_from(max).unwrap_or(1)
 }
 
 fn slot(inventory: &[Option<ItemStack>], stack: &ItemStack, max: u8, index: u16) -> Slot {

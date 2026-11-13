@@ -8,6 +8,7 @@ use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine_item::Given;
 use mcrs_minecraft_engine_item::RequestDrop;
 use mcrs_minecraft_engine_item::RequestResult;
+use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::tick::TickSet;
 
 use crate::InventoryClick;
@@ -15,6 +16,7 @@ use crate::InventorySet;
 use crate::apply_clicks::apply_clicks;
 use crate::click_backlog::ClickBacklog;
 use crate::click_backlog::any_backlog;
+use crate::close_container::close_container;
 use crate::decode_click::decode_click;
 use crate::forget_rejected_swap::forget_rejected_swap;
 use crate::full_sends::FullSends;
@@ -26,6 +28,7 @@ use crate::menu_queue::any_queued;
 use crate::restore_holders::hold_new_player;
 use crate::send_full_state::send_full_state;
 use crate::set_carried_item::set_carried_item;
+use crate::set_creative_mode_slot::set_creative_mode_slot;
 use crate::sync_menus::sync_menus;
 
 /// Gives each new player its four holders (INV-SLT-002). After each apply of the holders, the
@@ -37,7 +40,9 @@ use crate::sync_menus::sync_menus;
 /// [`InventorySet::Sync`] then sends each stack of the inventory menu that the client does not
 /// hold (INV-SYN-003, INV-SYN-004). The drop keys and the hand swap of the `player_action`
 /// packet are requests too (INV-SEL-004, INV-SEL-005), and each stack that a drop takes out of a
-/// holder of a player becomes an item entity.
+/// holder of a player becomes an item entity. The `container_close` packet closes the inventory
+/// menu by a request (INV-CLS-001), and the `set_creative_mode_slot` packet sets an entry or
+/// throws a stack (INV-CRE-003, INV-CRE-004).
 ///
 /// Add it to each dimension world, beside
 /// [`ItemPlugin`](mcrs_minecraft_engine_item::ItemPlugin), which it needs. The player file and a
@@ -52,6 +57,7 @@ impl Plugin for VanillaInventoryPlugin {
             .init_resource::<FullSends>()
             .init_resource::<ClickBacklog>()
             .init_resource::<MenuQueue>()
+            .init_resource::<BirthClock>()
             .configure_sets(
                 FixedUpdate,
                 (InventorySet::Input, InventorySet::Sync)
@@ -84,6 +90,8 @@ impl Plugin for VanillaInventoryPlugin {
             .add_observer(set_carried_item)
             .add_observer(decode_click)
             .add_observer(hand_action)
+            .add_observer(close_container)
+            .add_observer(set_creative_mode_slot)
             .add_observer(forget_rejected_swap);
     }
 }

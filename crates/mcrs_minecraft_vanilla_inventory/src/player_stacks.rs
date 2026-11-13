@@ -1,3 +1,6 @@
+use bevy_ecs::system::Query;
+use mcrs_minecraft_engine_item::Slots;
+use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -8,6 +11,7 @@ use mcrs_minecraft_player_slots::INVENTORY_SLOTS;
 use mcrs_minecraft_player_slots::MAIN;
 use mcrs_minecraft_player_slots::OFF_HAND;
 
+use crate::PlayerHolders;
 use crate::player_file::PlayerFile;
 use crate::saved_stack;
 
@@ -46,6 +50,29 @@ impl PlayerStacks {
             craft_grid: Default::default(),
             selected: 0,
         }
+    }
+
+    /// The stacks that the holders of a player hold now: `inventory` and, with `holders`, the
+    /// cursor and the craft grid.
+    pub(crate) fn from_holders(
+        inventory: &Slots,
+        selected: u8,
+        holders: Option<&PlayerHolders>,
+        holder_slots: &Query<&Slots>,
+        stacks: &mut Stacks,
+    ) -> Self {
+        let mut values = Self::empty();
+        values.selected = selected;
+        read_slots(stacks, inventory, &mut values.inventory);
+        if let Some(holders) = holders {
+            if let Ok(cursor) = holder_slots.get(holders.cursor) {
+                values.cursor = cursor.get(0).and_then(|stack| stacks.to_value(stack));
+            }
+            if let Ok(craft_grid) = holder_slots.get(holders.craft_grid) {
+                read_slots(stacks, craft_grid, &mut values.craft_grid);
+            }
+        }
+        values
     }
 
     /// The stacks that `file` gives, with no filter and no slot limit (INV-SAV-001, INV-SAV-002).
@@ -153,4 +180,10 @@ impl PlayerStacks {
 /// True when `key` of `equipment` holds a slot of the player inventory.
 pub(crate) fn is_slot_key(key: &str) -> bool {
     EQUIPMENT.iter().any(|(slot_key, _)| *slot_key == key)
+}
+
+fn read_slots(stacks: &mut Stacks, slots: &Slots, values: &mut [Option<ItemStack>]) {
+    for (value, stack) in values.iter_mut().zip(slots.iter()) {
+        *value = stack.and_then(|stack| stacks.to_value(stack));
+    }
 }
