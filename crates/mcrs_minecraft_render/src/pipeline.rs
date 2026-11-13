@@ -212,6 +212,12 @@ impl TransparencyPipelines {
 }
 
 impl DeferredPipelines {
+    // chisle: on the minimal path the tinted lighting of the option samples 18 textures and
+    // WebGL2 allows 16, so the option stays off; fewer sampled textures in its layout lift it.
+    pub fn transparency_supported(&self, terrain: &Terrain, tint: Option<&LightTint>) -> bool {
+        terrain.path() != RenderPath::Minimal || !self.tinted || tint.is_none()
+    }
+
     fn tint_ready(&self, tint: Option<&LightTint>) -> bool {
         !self.tinted || tint.is_some_and(|tint| tint.bind_group.is_some())
     }
@@ -300,11 +306,8 @@ pub(crate) fn prepare_deferred_pipelines(
             .as_deref()
             .map(|tint| &tint.layout)
             .filter(|_| pipelines.tinted);
-        // chisle: on the minimal path the tinted lighting of the option samples 18 textures and
-        // WebGL2 allows 16, so the option stays off; fewer sampled textures in its layout lift it.
-        let supported = terrain.path() != RenderPath::Minimal || tint_layout.is_none();
         if pipelines.transparency.is_none()
-            && supported
+            && pipelines.transparency_supported(terrain, tint.as_deref())
             && improved.is_some_and(|improved| improved.0)
         {
             pipelines.transparency = Some(queue_transparency(
