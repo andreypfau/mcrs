@@ -226,7 +226,9 @@ fn screen_menu(
                     max_gui_scale(&source.window),
                 )?,
             )?,
-            Vec::new(),
+            vec![video_settings_screen::improved_transparency_tooltip(
+                language,
+            )],
         ),
         Screen::AccessibilitySettings => (
             widgets_of(
@@ -683,6 +685,7 @@ mod tests {
                 ("Render Distance: 96 Chunks", GuiRect::new(58, 166, 150, 20)),
                 ("Smooth Lighting: ON", GuiRect::new(58, 191, 150, 20)),
                 ("Clouds: Fancy", GuiRect::new(218, 191, 150, 20)),
+                ("Improved Transparency: OFF", GuiRect::new(58, 216, 150, 20)),
                 ("Done", GuiRect::new(113, 214, 200, 20)),
                 ("", GuiRect::new(0, 33, 427, 174)),
                 ("Controls...", GuiRect::new(58, 37, 150, 20)),
@@ -700,7 +703,7 @@ mod tests {
             .map(|(caption, rect)| (caption.to_owned(), rect));
             assert_eq!(placed, expected);
             let video_thumb = video[1].scrollbar().map(|scrollbar| scrollbar.thumb);
-            assert_eq!(video_thumb, Some(GuiRect::new(376, 33, 6, 165)));
+            assert_eq!(video_thumb, Some(GuiRect::new(376, 33, 6, 145)));
         }
 
         const VIDEO_BUTTON: (i32, i32) = (100, 100);
@@ -896,6 +899,23 @@ mod tests {
                 let options = *app.world().resource::<ClientOptions>();
                 assert_eq!((options, caption(&app, widget).as_str()), (expected, shown));
             }
+        }
+
+        #[test]
+        fn improved_transparency_shows_after_the_list_scrolls_and_a_press_turns_it_on() {
+            let mut app = game_app();
+            open_sub_screen(&mut app, VIDEO);
+            wheel(&mut app, -10.0);
+            click(&mut app, 100, 190);
+            assert_eq!(
+                (
+                    app.world()
+                        .resource::<ClientOptions>()
+                        .improved_transparency,
+                    caption(&app, video_settings_screen::IMPROVED_TRANSPARENCY).as_str(),
+                ),
+                (true, "Improved Transparency: ON")
+            );
         }
 
         const RENDER_DISTANCE_LEFT: (i32, i32) = (58, 171);

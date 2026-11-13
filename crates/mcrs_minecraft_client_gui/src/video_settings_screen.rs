@@ -4,11 +4,13 @@ use mcrs_minecraft_client_options::{
 };
 use mcrs_minecraft_client_widget::{
     BUTTON_HEIGHT, CycleButton, DONE_BUTTON_WIDTH, GuiExtent, GuiRect, KeyModifiers, Slider,
-    Widget, WidgetId, WidgetKind,
+    TooltipDelay, Widget, WidgetId, WidgetKind,
 };
 
 use crate::font::{Font, Span};
+use crate::item_decorations::WHITE;
 use crate::language::ClientLanguage;
+use crate::menu::WidgetTooltip;
 use crate::option_caption::option_caption;
 use crate::option_sub_screen::{OptionList, option_sub_screen};
 
@@ -22,6 +24,7 @@ pub(crate) const MAX_FRAMERATE: WidgetId = WidgetId(9);
 pub(crate) const VSYNC: WidgetId = WidgetId(10);
 pub(crate) const FULLSCREEN: WidgetId = WidgetId(11);
 pub(crate) const RENDER_DISTANCE: WidgetId = WidgetId(12);
+pub(crate) const IMPROVED_TRANSPARENCY: WidgetId = WidgetId(13);
 
 /// The "Video Settings" screen on a screen of the size `screen` with the values of `options`,
 /// where `max_gui_scale` is the scale of Auto (MENU-VID-002).
@@ -31,7 +34,7 @@ pub(crate) fn video_settings_screen(
     font: &Font,
     options: &ClientOptions,
     max_gui_scale: u32,
-) -> Option<[Widget; 13]> {
+) -> Option<[Widget; 14]> {
     let [title, done] = option_sub_screen(
         screen,
         language,
@@ -107,6 +110,13 @@ pub(crate) fn video_settings_screen(
             WidgetKind::CycleButton(CycleButton::new(2, usize::from(options.clouds))?),
         ),
     ])?;
+    let mut improved_transparency = boolean_button(
+        IMPROVED_TRANSPARENCY,
+        "options.improvedTransparency",
+        options.improved_transparency,
+    );
+    improved_transparency.tooltip = Some(TooltipDelay::default());
+    let [improved_transparency] = list.option_row([improved_transparency])?;
     Some([
         title,
         list.into_widget(),
@@ -120,13 +130,25 @@ pub(crate) fn video_settings_screen(
         render_distance,
         smooth_lighting,
         clouds,
+        improved_transparency,
         done,
     ])
 }
 
+/// The tooltip of Improved Transparency (MENU-VAL-012, step 2).
+pub(crate) fn improved_transparency_tooltip(language: &ClientLanguage) -> WidgetTooltip {
+    WidgetTooltip {
+        widget: IMPROVED_TRANSPARENCY,
+        text: vec![Span::new(
+            language.get("options.improvedTransparency.oitWithImprovedFog.tooltip"),
+            WHITE,
+        )],
+    }
+}
+
 /// Stores the value of `widget` after its change. A cycle button steps from the stored value,
 /// with `max_gui_scale` and `modifiers` of the moment of the activation (MENU-VAL-003 to
-/// MENU-VAL-007, MENU-VAL-009 to MENU-VAL-011, MENU-SCALE-002).
+/// MENU-VAL-007, MENU-VAL-009 to MENU-VAL-012, MENU-SCALE-002).
 pub(crate) fn write_option(
     options: &mut ClientOptions,
     widget: &Widget,
@@ -160,6 +182,9 @@ pub(crate) fn write_option(
             options.smooth_light = !options.smooth_light;
         }
         (CLOUDS, WidgetKind::CycleButton(_)) => options.clouds = !options.clouds,
+        (IMPROVED_TRANSPARENCY, WidgetKind::CycleButton(_)) => {
+            options.improved_transparency = !options.improved_transparency;
+        }
         (GUI_SCALE, WidgetKind::CycleButton(_)) => {
             options.gui_scale = activated_gui_scale(options.gui_scale, max_gui_scale, modifiers);
         }
