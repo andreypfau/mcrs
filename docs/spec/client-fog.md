@@ -415,8 +415,10 @@ Milestone: later.
       - Where `√(dx² + dz²)` is the larger at each point of the face, `dc` differs by at most
         `1 / (4 · h)` blocks, where `h` is the smallest `√(dx² + dz²)` of the face. Thus `vr`
         differs by less than `1/255` when `h · (re − rs) ≥ 64`.
-      - Where the face crosses `|dy| = √(dx² + dz²)`, `dc` differs by up to about `1/2` block at
-        each distance, and `vr` by up to `1 / (2 · (re − rs))`.
+      - Where the face crosses `|dy| = √(dx² + dz²)`, `dc` differs by up to `√2 / 2` blocks,
+        about 0.71, and `vr` by up to `√2 / (2 · (re − rs))`. A horizontal face just below or
+        above the camera comes near these values. On a face with `h ≥ 16`, `dc` differs by up to
+        about `1/2` block, and `vr` by up to about `1 / (2 · (re − rs))`.
     - `v` differs by less than `1/255` when `ve` and `vr` both do. The condition of one ramp
       does not bound the other ramp. Example with `ve = ramp(ds, 0, 1024)` and
       `vr = ramp(dc, 28, 32)`, the ramps of the vanilla data in the overworld at `r = 2`: a
@@ -935,8 +937,8 @@ be of `26.4-snapshot-7`.
   postcondition. With a short ramp from a data pack, the vanilla client shows too much fog on a
   near face: with `es = 0` and `ee = 1`, a face of one block at 0.1 blocks in front of the
   camera has `ds = 0.1` at its centre and about 0.714 at its corners. With the vanilla data, the
-  render-distance fog shows a difference of up to `1 / (2 · L)` on a face that crosses
-  `|dy| = √(dx² + dz²)`.
+  render-distance fog shows a difference of up to about `1 / (2 · (re − rs))` on a face that
+  crosses `|dy| = √(dx² + dz²)`.
 - **Test:** a differential test compares only the pixels of faces that meet the conditions of
   CFOG-MIX-001, the second postcondition.
 
