@@ -18,6 +18,9 @@ mcrs_minecraft_engine_item.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_entity_key.workspace = true
+mcrs_minecraft_game_mode.workspace = true
+mcrs_minecraft_inventory_click.workspace = true
+mcrs_minecraft_inventory_plan.workspace = true
 mcrs_minecraft_inventory_view.workspace = true
 mcrs_minecraft_item_entity.workspace = true
 mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }

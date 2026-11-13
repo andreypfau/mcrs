@@ -12,6 +12,7 @@ use mcrs_minecraft_engine_world::entity::player::Player;
 
 use crate::InventoryMenuSync;
 use crate::PlayerHolders;
+use crate::click_drag::ClickDrag;
 use crate::full_sends::FullSends;
 use crate::player_stacks::PlayerStacks;
 
@@ -31,7 +32,7 @@ pub(crate) fn restore_holders(
         .entity(player)
         .load_inventory(stacks.inventory)
         .insert(Selected(stacks.selected))
-        .insert_if_new(InventoryMenuSync::default());
+        .insert_if_new((InventoryMenuSync::default(), ClickDrag::default()));
     commands
         .entity(holders.cursor)
         .load_inventory(vec![stacks.cursor]);

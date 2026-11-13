@@ -1,16 +1,28 @@
 //! The four holders of each player (INV-SLT-002): built from the player file and the carried
-//! values at each apply, and written back at each capture.
+//! values at each apply, written back at each capture, changed by the clicks of the inventory
+//! menu, and kept in agreement with the client.
 // std: mcrs_minecraft_engine
 
+mod apply_clicks;
 mod capture_holders;
 mod carried_codec;
+mod claimed_slot;
+mod click_backlog;
+mod click_drag;
+mod click_menu;
+mod click_slots;
 mod close_inventory_menu;
+mod decode_click;
 mod full_sends;
+mod holder_slots;
 mod insert_stack;
+mod inventory_click;
 mod inventory_menu_sync;
 mod inventory_persistence_plugin;
 mod inventory_set;
 mod kept_equipment;
+mod menu_content;
+mod menu_queue;
 mod player_file;
 mod player_file_codec;
 mod player_holders;
@@ -18,9 +30,13 @@ mod player_stacks;
 mod restore_holders;
 mod saved_stack;
 mod send_full_state;
+mod sent_stack;
 mod set_carried_item;
+mod sync_menus;
 mod vanilla_inventory_plugin;
 
+pub use claimed_slot::ClaimedSlot;
+pub use inventory_click::InventoryClick;
 pub use inventory_menu_sync::InventoryMenuSync;
 pub use inventory_persistence_plugin::InventoryPersistencePlugin;
 pub use inventory_set::InventorySet;

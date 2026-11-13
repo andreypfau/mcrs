@@ -11,12 +11,12 @@ use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundBlockChangedAck, ClientboundBlockDestruction, ClientboundBlockEvent,
     ClientboundBlockUpdate, ClientboundChunkBatchFinished, ClientboundChunkBatchStart,
     ClientboundChunkCacheRadius, ClientboundCommandSuggestions, ClientboundContainerSetContent,
-    ClientboundEntityEvent, ClientboundEntityPositionSync, ClientboundForgetLevelChunk,
-    ClientboundGameEvent, ClientboundLevelEvent, ClientboundLightUpdate, ClientboundLogin,
-    ClientboundPlayerAbilities, ClientboundPlayerLookAt, ClientboundPlayerPosition,
-    ClientboundRespawn, ClientboundSectionBlocksUpdate, ClientboundSetChunkCacheCenter,
-    ClientboundSetCursorItem, ClientboundSetHeldSlot, ClientboundSetTime,
-    ClientboundSystemChatPacket, ClientboundTabList,
+    ClientboundContainerSetSlot, ClientboundEntityEvent, ClientboundEntityPositionSync,
+    ClientboundForgetLevelChunk, ClientboundGameEvent, ClientboundLevelEvent,
+    ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerAbilities, ClientboundPlayerLookAt,
+    ClientboundPlayerPosition, ClientboundRespawn, ClientboundSectionBlocksUpdate,
+    ClientboundSetChunkCacheCenter, ClientboundSetCursorItem, ClientboundSetHeldSlot,
+    ClientboundSetTime, ClientboundSystemChatPacket, ClientboundTabList,
 };
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_minecraft_text::Text;
@@ -152,6 +152,7 @@ pub enum PacketPayload {
     SetTime(ClientboundSetTime),
     SetHeldSlot(ClientboundSetHeldSlot),
     ContainerSetContent(ClientboundContainerSetContent),
+    ContainerSetSlot(ClientboundContainerSetSlot),
     SetCursorItem(ClientboundSetCursorItem),
 }
 
