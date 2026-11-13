@@ -15,8 +15,33 @@ to $1 in a new agent and $8 to $19 in an agent that already holds 600k tokens.
 - A brief that contains "and then" is two briefs.
 - A job that builds, runs and measures in a loop is three jobs: the code path, the check, the
   tuning. Each one starts from the commit of the earlier one.
-- Mechanical work (a rename, a file move, a list of fixes that is already written) goes to a
-  smaller model.
+- Mechanical work (a rename, a file move, a list of fixes that is already written) goes to
+  Sonnet. See the next section.
+
+## Model and effort
+
+Raise the effort before you change the model. Above `high`, one more effort level costs as much
+as a larger model: use the next model at `medium` instead of `xhigh` or `max`.
+
+| Job | Model | Effort |
+| - | - | - |
+| Main session: design, crate map, briefs, verification of review findings | Opus | `medium` |
+| Main session: a large migration, a layer split, a long run without the owner | Fable | `medium` |
+| `spec-author` | Opus; Fable for a large domain | `high` |
+| `implementer` | Opus | `medium`, then `high` |
+| `reviewer` | Opus | `medium` |
+| `Explore`, `log-reader` | Haiku | default |
+| Mechanical work, `mcrs-update-docs`, CI watch in `ship` | Sonnet | `medium` |
+
+- Set the model of one job with the `model` parameter of the agent call. Do not edit the agent
+  file for one job.
+- A small model gets only work with an output that is easy to check. A code edit with written
+  steps (a rename, a file move, a written list of fixes) goes to Sonnet. A code edit that needs
+  a decision stays on Opus or Fable. Measured on one issue: Sonnet as `implementer` used as many tokens as
+  Opus, left a path unfixed and wrote a test that passed without the fix.
+- When an agent fails twice on the same item at `medium`, start a new agent with the same
+  model at `high`. When that agent fails too, start one with the next model at `medium`. Do not
+  raise the effort of a model above `high`.
 
 ## Start a new agent, do not continue one
 
