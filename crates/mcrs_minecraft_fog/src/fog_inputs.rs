@@ -22,6 +22,8 @@ pub struct FogInputs {
     pub cloud_fog_end_distance: f32,
     /// The render distance of the client, in chunks.
     pub render_distance: u8,
+    /// The end of the render-distance fog, which follows the drawn columns.
+    pub render_fog_end: f32,
     /// The option Cloud Distance, in chunks.
     pub cloud_distance: u8,
     /// The east part of the unit view direction of the camera.
