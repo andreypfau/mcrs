@@ -20,6 +20,7 @@ mod ban;
 mod block_break;
 mod block_entities;
 mod block_loot_addressing;
+mod block_place;
 mod bridge_dispatch;
 mod bridge_inbound;
 mod bridge_outbound;

@@ -9,11 +9,12 @@ use crate::dig_rate::{dig_rate, harvests};
 use crate::diggers::Diggers;
 use crate::movement::process_movement;
 use crate::network_id::player_network_id;
+use crate::use_item_on_request::{UseItemOnRequest, handle_use_item_on};
 use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageReader, MessageWriter};
 use bevy_ecs::observer::On;
-use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::{Local, Query, Res, ResMut};
 use bevy_math::{DVec3, IVec3};
 use mcrs_minecraft_block::block_keys::Block;
@@ -66,12 +67,18 @@ pub struct BlockActionRequest {
     pub sequence: VarInt,
 }
 
+/// The systems that break blocks for the block actions of the tick, after the moves of the tick.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BlockBreakSet;
+
 impl Plugin for BlockBreakPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<BlockActionRequest>();
+        app.add_message::<UseItemOnRequest>();
         app.add_message::<BlockActionAck>();
         app.add_message::<BlockBroken>();
         app.add_observer(handle_player_action);
+        app.add_observer(handle_use_item_on);
         app.init_resource::<Diggers>();
         if let Err(error) = app.try_register_required_components::<Player, BreakSession>() {
             tracing::error!("a player does not require its dig session: {error}");
@@ -83,7 +90,8 @@ impl Plugin for BlockBreakPlugin {
                 advance_digs.run_if(any_digger),
             )
                 .chain()
-                .in_set(TickSet::ClientInput),
+                .in_set(TickSet::ClientInput)
+                .in_set(BlockBreakSet),
         );
         app.add_systems(
             FixedPostUpdate,
@@ -94,16 +102,24 @@ impl Plugin for BlockBreakPlugin {
 
 fn send_acks(
     mut requests: MessageReader<BlockActionRequest>,
+    mut uses: MessageReader<UseItemOnRequest>,
     owners: Query<&Owner>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
     mut acks: MessageWriter<BlockActionAck>,
     mut highest: Local<FxHashMap<PlayerSession, i32>>,
 ) {
-    for request in requests.read() {
-        let Ok(&Owner(session)) = owners.get(request.entity) else {
+    let sequences = (requests
+        .read()
+        .map(|request| (request.entity, request.sequence)))
+    .chain(
+        uses.read()
+            .map(|request| (request.entity, request.sequence)),
+    );
+    for (entity, sequence) in sequences {
+        let Ok(&Owner(session)) = owners.get(entity) else {
             continue;
         };
-        let value = request.sequence.0;
+        let value = sequence.0;
         if value < 0 {
             packets.write(to(
                 session,
@@ -123,7 +139,7 @@ fn send_acks(
     );
 }
 
-fn reach(mode: GameMode) -> f64 {
+pub fn reach(mode: GameMode) -> f64 {
     if mode == GameMode::Creative {
         CREATIVE_REACH
     } else {
@@ -131,7 +147,7 @@ fn reach(mode: GameMode) -> f64 {
     }
 }
 
-fn in_reach(eye: DVec3, block: BlockPos, limit: f64) -> bool {
+pub fn in_reach(eye: DVec3, block: BlockPos, limit: f64) -> bool {
     let min = block.as_dvec3();
     let max = min + DVec3::ONE;
     let nearest = eye.clamp(min, max);
@@ -139,7 +155,7 @@ fn in_reach(eye: DVec3, block: BlockPos, limit: f64) -> bool {
     eye.distance_squared(nearest) < limit * limit
 }
 
-pub(crate) fn eye_position(player: DVec3) -> DVec3 {
+pub fn eye_position(player: DVec3) -> DVec3 {
     player + DVec3::new(0.0, STANDING_EYE_HEIGHT, 0.0)
 }
 
