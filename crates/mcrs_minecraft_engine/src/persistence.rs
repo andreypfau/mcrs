@@ -1,6 +1,6 @@
 use bevy_app::{App, FixedFirst, Plugin};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Component, ResMut, Resource, With};
+use bevy_ecs::prelude::{Component, Res, ResMut, Resource, With};
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -45,6 +45,10 @@ impl AutosaveCadence {
 
 pub(crate) fn advance_autosave_cadence(mut cadence: ResMut<AutosaveCadence>) {
     cadence.advance();
+}
+
+pub(crate) fn autosave_due(cadence: Res<AutosaveCadence>) -> bool {
+    cadence.is_due()
 }
 
 /// Runs the [`AutosaveCadence`]. A plugin that saves on the cadence adds it when it is missing.
