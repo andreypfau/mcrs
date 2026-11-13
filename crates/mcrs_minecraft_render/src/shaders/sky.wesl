@@ -227,7 +227,7 @@ fn ramp_smooth(low: f32, high: f32, x: f32) -> f32 {
 fn fragment_occluder(in: OccluderVertex) -> @location(0) vec4<f32> {
     let direction = normalize(in.world - view.world_position.xyz);
     let elevation = degrees(asin(clamp(direction.y, -1.0, 1.0)));
-    let alpha = ramp_smooth(sky.occluder.x, sky.occluder.y, elevation);
+    let alpha = ramp_smooth(sky.occluder.x, sky.occluder.y, elevation) * sky.occluder.z;
     return vec4<f32>(to_target(sky.fog.rgb), alpha);
 }
 

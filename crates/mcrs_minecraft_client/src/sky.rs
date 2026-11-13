@@ -220,7 +220,12 @@ impl SkyEnvironment {
             ),
             block_light: raw(color(SkyField::BlockLightTint), BLOCK_LIGHT_FACTOR),
             ambient: raw(color(SkyField::AmbientLightColor), 0.0),
-            occluder: [occluder_low, occluder_high, 0.0, 0.0],
+            occluder: [
+                occluder_low,
+                occluder_high,
+                self.scalar(frame, SkyField::HasSkyOccluder),
+                0.0,
+            ],
         }
     }
 
@@ -727,9 +732,9 @@ mod sky_regression {
 
     #[test]
     fn the_occluder_rises_above_the_horizon_only_from_below_the_lowest_block() {
-        for (eye_y, angles) in [(-64.0, [-1.0, -8.0]), (-64.5, [15.0, 10.0])] {
-            let occluder = packed(6000, Vec3::new(0.0, eye_y, 0.0)).occluder;
-            assert_eq!(occluder[..2], angles, "eye at {eye_y}");
+        for (eye_y, occluder) in [(-64.0, [-1.0, -8.0, 1.0]), (-64.5, [15.0, 10.0, 1.0])] {
+            let packed = packed(6000, Vec3::new(0.0, eye_y, 0.0)).occluder;
+            assert_eq!(packed[..3], occluder, "eye at {eye_y}");
         }
     }
 

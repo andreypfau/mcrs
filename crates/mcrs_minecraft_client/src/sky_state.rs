@@ -35,10 +35,11 @@ pub enum SkyField {
     SkyFogEndDistance,
     WaterFogEndDistance,
     WaterFogStartDistance,
+    HasSkyOccluder,
 }
 
 impl SkyField {
-    pub const ALL: [SkyField; 22] = [
+    pub const ALL: [SkyField; 23] = [
         SkyField::SkyColor,
         SkyField::FogColor,
         SkyField::CloudColor,
@@ -61,6 +62,7 @@ impl SkyField {
         SkyField::SkyFogEndDistance,
         SkyField::WaterFogEndDistance,
         SkyField::WaterFogStartDistance,
+        SkyField::HasSkyOccluder,
     ];
 
     pub fn attribute(self) -> EnvironmentAttribute {
@@ -88,6 +90,7 @@ impl SkyField {
             SkyField::SkyFogEndDistance => A::VisualSkyFogEndDistance,
             SkyField::WaterFogEndDistance => A::VisualWaterFogEndDistance,
             SkyField::WaterFogStartDistance => A::VisualWaterFogStartDistance,
+            SkyField::HasSkyOccluder => A::VisualHasSkyOccluder,
         }
     }
 }
@@ -127,6 +130,7 @@ fn sky_value(value: &AttributeValue) -> SkyValue {
         AttributeValue::Float(v) => SkyValue::Scalar(*v),
         AttributeValue::Integer(v) => SkyValue::Scalar(*v as f32),
         AttributeValue::MoonPhase(phase) => SkyValue::Scalar(phase.index() as f32),
+        AttributeValue::Boolean(v) => SkyValue::Scalar(if *v { 1.0 } else { 0.0 }),
         _ => SkyValue::Scalar(0.0),
     }
 }
@@ -255,8 +259,6 @@ fn effects(
     if clouds {
         effects |= SkyEffects::CLOUDS;
     }
-    // chisle: a tracked `has_sky_occluder` keeps the occluder for the whole dimension; its
-    // value of the frame in the uniform lifts that.
     let occluder = attributes
         .stack(EnvironmentAttribute::VisualHasSkyOccluder)
         .is_some_and(|stack| {
@@ -480,8 +482,8 @@ mod tests {
         assert_eq!(frame.len(), 11, "{frame:?}");
         assert_eq!(
             constant.len(),
-            11,
-            "the 13 constants less the two particle payloads"
+            12,
+            "the 14 constants less the two particle payloads"
         );
 
         for field in [
