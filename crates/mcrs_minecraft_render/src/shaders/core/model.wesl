@@ -146,8 +146,8 @@ fn fragment_model_translucent(in: ModelOut) -> @location(0) vec4<f32> {
         let values = fog_values(in.world - camera.offset, camera.fog_environmental, camera.fog_render_distance);
         let pixel = vec2<i32>(in.clip_position.xy);
         let fogged = transparent_fog(lit, pixel, in.clip_position.z, values, camera.fog_color);
-        return vec4<f32>(package::shaders::include::finish::to_target(fogged), color.a);
+        return vec4<f32>(fogged, color.a);
     }
     let fog = fog_value(in.world - camera.offset, camera.fog_environmental, camera.fog_render_distance);
-    return vec4<f32>(package::shaders::include::finish::to_target(fog_mix(lit, fog, camera.fog_color)), color.a);
+    return vec4<f32>(fog_mix(lit, fog, camera.fog_color), color.a);
 }

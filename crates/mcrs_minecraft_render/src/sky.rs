@@ -18,13 +18,13 @@ use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 use bevy::shader::Shader;
 use bitflags::bitflags;
 
+use crate::gbuffer::WORLD_IMAGE_FORMAT;
+use crate::pipeline::descriptor;
 use crate::transparency_targets::CLOUD_IMAGE_FORMAT;
-use crate::{
-    DEPTH_COMPARE, FrameCounts, ImprovedTransparency, pipeline_descriptor, uniform_buffer,
-};
+use crate::{DEPTH_COMPARE, FrameCounts, ImprovedTransparency, uniform_buffer};
 
-/// The per-frame GPU block. Its colours are in the linear space the render target expects, but
-/// `disc` and `fog`, which are image values that the shader mixes before it encodes them.
+/// The per-frame GPU block. Its colours are in linear light, but `disc` and `fog`, which are image
+/// values; the shader turns the linear ones into image values before the world image blends them.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct SkyUniform {
@@ -268,11 +268,11 @@ fn prepare_sky(
     improved: Option<Res<ImprovedTransparency>>,
     pipeline_cache: Res<PipelineCache>,
 ) {
-    let (Some(mut sky), Some(extracted), Some(view)) = (sky, extracted, views.iter().next()) else {
+    let (Some(mut sky), Some(extracted), Some(_)) = (sky, extracted, views.iter().next()) else {
         return;
     };
     if sky.cloud_image.is_none() && improved.is_some_and(|improved| improved.0) {
-        let mut descriptor = sky_pipeline(&sky, &SKY_DRAWS[CLOUDS], view);
+        let mut descriptor = sky_pipeline(&sky, &SKY_DRAWS[CLOUDS]);
         descriptor.label = Some("cloud image".into());
         if let Some(fragment) = descriptor.fragment.as_mut() {
             fragment.entry_point = Some("fragment_cloud_image".into());
@@ -293,13 +293,13 @@ fn prepare_sky(
         extracted
             .effects
             .contains(draw.effect)
-            .then(|| pipeline_cache.queue_render_pipeline(sky_pipeline(&sky, draw, view)))
+            .then(|| pipeline_cache.queue_render_pipeline(sky_pipeline(&sky, draw)))
     });
     info!(?extracted.effects, "queued the sky pipelines");
     sky.pipelines = Some((extracted.effects, queued));
 }
 
-fn sky_pipeline(sky: &Sky, draw: &SkyDraw, view: &ExtractedView) -> RenderPipelineDescriptor {
+fn sky_pipeline(sky: &Sky, draw: &SkyDraw) -> RenderPipelineDescriptor {
     RenderPipelineDescriptor {
         primitive: PrimitiveState {
             topology: PrimitiveTopology::TriangleList,
@@ -318,13 +318,13 @@ fn sky_pipeline(sky: &Sky, draw: &SkyDraw, view: &ExtractedView) -> RenderPipeli
             stencil: default(),
             bias: default(),
         }),
-        ..pipeline_descriptor(
+        ..descriptor(
             draw.label.into(),
             vec![sky.view_layout.clone(), sky.texture_layout.clone()],
             &sky.shader,
             draw.vertex.into(),
             draw.fragment.into(),
-            view,
+            WORLD_IMAGE_FORMAT,
             draw.blend,
         )
     }

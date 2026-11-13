@@ -7,7 +7,7 @@ use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::view::ViewDepthStencilTexture;
 
-use crate::gbuffer::{attachment, depth_view};
+use crate::gbuffer::{WORLD_IMAGE_FORMAT, attachment, depth_view};
 use crate::reconstruct::LIGHTING_UNIFORM_SIZE;
 
 /// `cl` and `ca` of the clouds, blended as the target blends.
@@ -60,18 +60,16 @@ pub(crate) fn transparent_gbuffer_layout() -> BindGroupLayoutDescriptor {
 /// What a frame with Improved Transparency draws beside the gbuffer, at the size of the view.
 /// Built when the option turns on or the view changes, dropped when it turns off.
 pub(crate) struct TransparencyTargets {
-    /// In the format of the view target, which the sky pipelines draw to.
+    /// In image values, as the world image, which the sky pipelines draw to.
     pub sky: TextureView,
     pub clouds: TextureView,
     pub cloud_depth: TextureView,
     pub lighting: BindGroup,
     pub forward: BindGroup,
-    pub format: TextureFormat,
 }
 
 impl TransparencyTargets {
     pub(crate) fn new(
-        format: TextureFormat,
         gbuffer: &[TextureView; 3],
         lighting: &Buffer,
         nearest: &Sampler,
@@ -80,7 +78,7 @@ impl TransparencyTargets {
         cache: &PipelineCache,
     ) -> Self {
         let size = UVec2::new(depth.texture().width(), depth.texture().height());
-        let sky = attachment("sky image", size, format, device).create_view(&default());
+        let sky = attachment("sky image", size, WORLD_IMAGE_FORMAT, device).create_view(&default());
         let clouds =
             attachment("cloud image", size, CLOUD_IMAGE_FORMAT, device).create_view(&default());
         let cloud_depth_texture = attachment("cloud depth", size, CORE_3D_DEPTH_FORMAT, device);
@@ -119,7 +117,6 @@ impl TransparencyTargets {
             cloud_depth,
             lighting,
             forward,
-            format,
         }
     }
 }

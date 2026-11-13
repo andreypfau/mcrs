@@ -4,9 +4,10 @@ use bevy::prelude::*;
 use bevy::render::render_resource::binding_types::{sampler, texture_2d, uniform_buffer_sized};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
-use bevy::render::view::{ExtractedView, ViewDepthStencilTexture};
+use bevy::render::view::ViewDepthStencilTexture;
 
 use crate::ImprovedTransparency;
+use crate::present::present_bind_group;
 use crate::reconstruct::LIGHTING_UNIFORM_SIZE;
 use crate::transparency_targets::TransparencyTargets;
 use crate::uniform_buffer;
@@ -20,6 +21,10 @@ pub const GBUFFER_FORMATS: [TextureFormat; 3] = [
     TextureFormat::Rgba16Float,
     TextureFormat::Rgba16Float,
 ];
+
+/// The world is drawn and blended in image values, and the present pass encodes it once for the
+/// view target.
+pub(crate) const WORLD_IMAGE_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
 
 pub(crate) fn gbuffer_layout() -> BindGroupLayoutDescriptor {
     BindGroupLayoutDescriptor::new(
@@ -44,11 +49,14 @@ pub(crate) fn gbuffer_layout() -> BindGroupLayoutDescriptor {
 pub struct DeferredFrame {
     /// Albedo and occlusion, normal and motion, then the light, in [`GBUFFER_FORMATS`].
     pub targets: [TextureView; 3],
+    /// What the world passes draw into, in [`WORLD_IMAGE_FORMAT`].
+    pub(crate) world: TextureView,
+    pub(crate) present: BindGroup,
     pub(crate) lighting: Buffer,
     /// Reads the depth, which a shader samples rather than loads (`depth.wesl`).
     nearest: Sampler,
     pub(crate) bind_group: BindGroup,
-    /// Present while Improved Transparency is on, in the format of the view target.
+    /// Present while Improved Transparency is on.
     pub(crate) transparency: Option<TransparencyTargets>,
     size: UVec2,
     depth: TextureId,
@@ -58,11 +66,15 @@ impl DeferredFrame {
     fn new(depth: &ViewDepthStencilTexture, device: &RenderDevice, cache: &PipelineCache) -> Self {
         let size = size_of(depth);
         let targets = targets(size, device);
+        let world = world_image(size, device);
+        let present = present_bind_group(&world, device, cache);
         let lighting = uniform_buffer("deferred lighting", LIGHTING_UNIFORM_SIZE, device);
         let nearest = nearest_sampler(device);
         let bind_group = bind_group(&targets, &lighting, &nearest, depth, device, cache);
         Self {
             targets,
+            world,
+            present,
             lighting,
             nearest,
             bind_group,
@@ -72,11 +84,10 @@ impl DeferredFrame {
         }
     }
 
-    /// `transparency` is the format of the view target while Improved Transparency is on.
     fn fit(
         &mut self,
         depth: &ViewDepthStencilTexture,
-        transparency: Option<TextureFormat>,
+        improved: bool,
         device: &RenderDevice,
         cache: &PipelineCache,
     ) {
@@ -84,6 +95,8 @@ impl DeferredFrame {
         let rebuilt = size != self.size;
         if rebuilt {
             self.targets = targets(size, device);
+            self.world = world_image(size, device);
+            self.present = present_bind_group(&self.world, device, cache);
             self.size = size;
         }
         let rebound = rebuilt || self.depth != depth.texture().id();
@@ -98,18 +111,12 @@ impl DeferredFrame {
                 cache,
             );
         }
-        let Some(format) = transparency else {
+        if !improved {
             self.transparency = None;
             return;
-        };
-        if rebound
-            || self
-                .transparency
-                .as_ref()
-                .is_none_or(|targets| targets.format != format)
-        {
+        }
+        if rebound || self.transparency.is_none() {
             self.transparency = Some(TransparencyTargets::new(
-                format,
                 &self.targets,
                 &self.lighting,
                 &self.nearest,
@@ -128,6 +135,10 @@ fn size_of(depth: &ViewDepthStencilTexture) -> UVec2 {
 fn targets(size: UVec2, device: &RenderDevice) -> [TextureView; 3] {
     GBUFFER_FORMATS
         .map(|format| attachment("gbuffer", size, format, device).create_view(&default()))
+}
+
+fn world_image(size: UVec2, device: &RenderDevice) -> TextureView {
+    attachment("world image", size, WORLD_IMAGE_FORMAT, device).create_view(&default())
 }
 
 /// A texture that a pass draws into and a later pass reads.
@@ -196,19 +207,17 @@ fn bind_group(
 pub(crate) fn fit_deferred_frame(
     mut commands: Commands,
     frame: Option<ResMut<DeferredFrame>>,
-    views: Query<(&ViewDepthStencilTexture, &ExtractedView), With<Camera3d>>,
+    views: Query<&ViewDepthStencilTexture, With<Camera3d>>,
     improved: Option<Res<ImprovedTransparency>>,
     device: Res<RenderDevice>,
     cache: Res<PipelineCache>,
 ) {
-    let Some((depth, view)) = views.iter().next() else {
+    let Some(depth) = views.iter().next() else {
         return;
     };
-    let transparency = improved
-        .is_some_and(|improved| improved.0)
-        .then_some(view.target_format);
+    let improved = improved.is_some_and(|improved| improved.0);
     match frame {
-        Some(mut frame) => frame.fit(depth, transparency, &device, &cache),
+        Some(mut frame) => frame.fit(depth, improved, &device, &cache),
         None => commands.insert_resource(DeferredFrame::new(depth, &device, &cache)),
     }
 }
