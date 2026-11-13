@@ -3,6 +3,7 @@ use crate::select::{SelectionBuffers, select};
 use crate::set::{VanillaCommands, VanillaContext};
 use bevy_ecs::prelude::*;
 use mcrs_command::{ArgumentHandle, BuildError, FloatArgument, NodeId};
+use mcrs_minecraft_combat::DamageTypeRulesResource;
 use mcrs_minecraft_command::{CommandLevel, PermissionCheck};
 use mcrs_minecraft_command_argument::ResourceArgument;
 use mcrs_minecraft_command_argument_entity::EntityArgument;
@@ -87,6 +88,7 @@ pub(crate) fn run(
     mut output: CommandOutput,
     mut hits: ResMut<EffectQueue<HitMob>>,
     clock: Option<Res<BirthClock>>,
+    rules: Option<Res<DamageTypeRulesResource>>,
     mut found: Local<SelectionBuffers>,
 ) -> CommandResult {
     let command = call.command;
@@ -114,9 +116,12 @@ pub(crate) fn run(
             },
         );
         let tick = clock.as_deref().map_or(0, |clock| clock.0);
+        let flags = rules
+            .as_deref()
+            .map_or_else(Default::default, |rules| rules.0.flags(damage_type));
         if preview(
             &living.vitals,
-            &Defence::default(),
+            &Defence::new(flags),
             Hit::new(amount, damage_type),
             tick,
         ) == HitOutcome::Rejected

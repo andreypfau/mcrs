@@ -1,4 +1,5 @@
 use bevy_app::{App, FixedUpdate};
+use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use mcrs_minecraft_combat::{
     ActiveEffect, Armor, ArmorToughness, CombatPlugin, DamageDealt, DamageRequest, DamageTarget,
@@ -10,6 +11,7 @@ use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::coordinator::clock::GameTime;
 use mcrs_minecraft_engine_world::entity::player::{ChangeDimensionRequest, Player};
 use mcrs_minecraft_engine_world::game_rules::GameRules;
+use mcrs_minecraft_engine_world::world::sub_app::DimensionLabel;
 use mcrs_minecraft_engine_world::world_settings::{Difficulty, WorldBorderSettings};
 
 fn init_globals(app: &mut App) {
@@ -17,6 +19,7 @@ fn init_globals(app: &mut App) {
     app.init_resource::<GameTime>();
     app.init_resource::<Difficulty>();
     app.init_resource::<WorldBorderSettings>();
+    app.insert_resource(DimensionLabel(Entity::PLACEHOLDER));
 }
 
 #[test]

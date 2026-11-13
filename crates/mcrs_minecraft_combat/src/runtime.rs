@@ -39,6 +39,7 @@ use mcrs_minecraft_engine_world::world::dimension::{
     Dimension, DimensionTypeConfig, DimensionTypeId, InDimension,
 };
 use mcrs_minecraft_engine_world::world::storage::view::{DimensionView, WorldView};
+use mcrs_minecraft_engine_world::world::sub_app::DimensionLabel;
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
 use mcrs_minecraft_engine_world::world_settings::{Difficulty, WorldBorderSettings};
 use mcrs_minecraft_entity::attribute_instance::{AttributeOperation, fold_attribute};
@@ -461,6 +462,10 @@ fn tick_player_environment(
         }
         timers.jumping = jumping;
 
+        if in_water || in_lava || in_powder_snow {
+            environment.fall_distance = 0.0;
+        }
+
         if vulnerable && fall_damage && !flying.is_some_and(|flying| flying.0) {
             let dy = position.y - timers.last_position.y;
             if dy.abs() > 8.0 {
@@ -577,6 +582,7 @@ fn tick_mob_environment(
     dimension_types: Query<&DimensionTypeConfig>,
     definitions: Option<Res<Blocks>>,
     tables: Option<Res<PhysicsTables>>,
+    mobs: Option<Res<Mobs>>,
     rules: Res<GameRules>,
     type_rules: Res<DamageTypeRulesResource>,
     mut damage: MessageWriter<DamageRequest>,
@@ -657,9 +663,13 @@ fn tick_mob_environment(
             position.y.floor() as i32,
             position.z.floor() as i32,
         );
+        let eye_height = mobs
+            .as_deref()
+            .and_then(|mobs| mobs.0.get(&at.id))
+            .map_or(1.62, |mob| f64::from(mob.kind.eye_height));
         let eye = BlockPos::new(
             position.x.floor() as i32,
-            (position.y + 1.62).floor() as i32,
+            (position.y + eye_height).floor() as i32,
             position.z.floor() as i32,
         );
         let feet_in_water = is_water(&view, definitions, feet);
@@ -998,6 +1008,9 @@ fn sync_player_combat_state(
         if armor.armor != next_armor {
             armor.armor = next_armor;
         }
+        if armor.toughness != next_toughness {
+            armor.toughness = next_toughness;
+        }
         if toughness.0 != next_toughness {
             toughness.0 = next_toughness;
         }
@@ -1014,7 +1027,6 @@ fn sync_player_environment_metadata(
     mut players: Query<
         (
             &Owner,
-            &InDimension,
             &Health,
             &mut EnvironmentSync,
             Option<&PlayerInputState>,
@@ -1023,9 +1035,10 @@ fn sync_player_environment_metadata(
         ),
         With<Player>,
     >,
+    dimension_label: Res<DimensionLabel>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
-    for (owner, dimension, health, mut sync, input, effects, flying) in &mut players {
+    for (owner, health, mut sync, input, effects, flying) in &mut players {
         let on_fire = health.fire_ticks > 0;
         let mut flags = 0;
         if on_fire {
@@ -1069,7 +1082,7 @@ fn sync_player_environment_metadata(
             },
         ]);
         packets.write(to_target(
-            PacketTarget::AllInDim(dimension.0),
+            PacketTarget::AllInDim(dimension_label.0),
             PacketPayload::SetEntityData(ClientboundSetEntityData {
                 entity_id: VarInt(player_network_id(owner.0)),
                 metadata,
@@ -1680,6 +1693,7 @@ fn on_player_attack(
             Option<&ActiveEffects>,
             Option<&PlayerGameMode>,
             Option<&mut FoodData>,
+            Option<&Health>,
             &InDimension,
             Option<&mut AttackRate>,
         ),
@@ -1694,11 +1708,14 @@ fn on_player_attack(
     let Some(packet) = event.packet() else {
         return;
     };
-    let Ok((transform, uuid, attack, effects, mode, food, dimension, rate)) =
+    let Ok((transform, uuid, attack, effects, mode, food, health, dimension, rate)) =
         players.get_mut(event.entity)
     else {
         return;
     };
+    if health.is_some_and(|health| !health.is_alive()) {
+        return;
+    }
     let mode = mode.map_or(GameMode::Survival, |mode| mode.0);
     if mode == GameMode::Spectator {
         return;
@@ -1895,6 +1912,7 @@ mod tests {
         let mut app = App::new();
         app.add_message::<OutboundPlayerPacket>();
         app.init_resource::<SeenPackets>();
+        app.insert_resource(DimensionLabel(Entity::PLACEHOLDER));
         app.add_systems(
             Update,
             (sync_player_environment_metadata, record_packets).chain(),
@@ -1926,6 +1944,7 @@ mod tests {
         let mut app = App::new();
         app.add_message::<OutboundPlayerPacket>();
         app.init_resource::<SeenPackets>();
+        app.insert_resource(DimensionLabel(Entity::PLACEHOLDER));
         app.add_systems(
             Update,
             (sync_player_environment_metadata, record_packets).chain(),
@@ -1985,6 +2004,7 @@ mod tests {
         let mut app = App::new();
         app.add_message::<OutboundPlayerPacket>();
         app.init_resource::<SeenPackets>();
+        app.insert_resource(DimensionLabel(Entity::PLACEHOLDER));
         app.add_systems(Update, (send_equipment_snapshots, record_packets).chain());
         let mut equipment = EntityEquipment::new();
         equipment.set(
@@ -2043,6 +2063,7 @@ mod tests {
         app.add_message::<DamageDealt>();
         app.add_message::<OutboundPlayerPacket>();
         app.init_resource::<SeenPackets>();
+        app.insert_resource(DimensionLabel(Entity::PLACEHOLDER));
         app.insert_resource(DamageTypeRulesResource::default());
         app.init_resource::<TileEvents>();
         app.add_systems(Update, (send_player_damage, record_packets).chain());

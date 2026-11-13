@@ -3,6 +3,7 @@ use mcrs_minecraft_damage::compute_knockback;
 use mcrs_minecraft_damage::{Defence, Hit};
 use mcrs_minecraft_entity_rows::Placed;
 use mcrs_minecraft_entity_rows::RowStore;
+use mcrs_minecraft_physics::Rest;
 
 use crate::mob_life::MobChanges;
 use crate::mob_life::Struck;
@@ -37,8 +38,10 @@ pub fn hurt_mob<M>(
             attacker,
             f64::from(hit.knockback),
             0.0,
+            state.body.flags.on_ground,
             state.body.velocity,
         );
+        state.rest = Rest::Awake;
     }
     changes.strikes.push(Struck {
         at,

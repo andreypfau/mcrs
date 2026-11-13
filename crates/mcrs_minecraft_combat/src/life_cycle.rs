@@ -1,19 +1,21 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::*;
+use glam::DVec3;
 use mcrs_minecraft_damage::{Defence, HitOutcome, hurt};
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::coordinator::clock::GameTime;
 use mcrs_minecraft_engine_brain::EntityRows;
 use mcrs_minecraft_engine_physics::{RowDamaged, RowDied, RowHit, RowHits};
-use mcrs_minecraft_engine_world::entity::physics::Velocity;
+use mcrs_minecraft_engine_world::entity::physics::{Transform, Velocity};
 use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_rule::GameRule;
 
 use crate::components::{
-    Armor, Dying, KnockbackResistance, PlayerEffects, PlayerFood, PlayerHitRecord, PlayerVitals,
+    Armor, Dying, KnockbackResistance, PlayerEffects, PlayerEnvironment, PlayerFood,
+    PlayerHitRecord, PlayerVitals,
 };
 use crate::damage_rules::DamageTypeRulesResource;
 use crate::events::{DamageDealt, DamageRequest, DamageTarget, DeathEvent, KnockbackRequest};
@@ -52,6 +54,7 @@ pub fn process_damage_requests(
         Option<&KnockbackResistance>,
         Option<&PlayerGameMode>,
         Option<&Dying>,
+        Option<&Transform>,
     )>,
 ) {
     for req in requests.read() {
@@ -78,8 +81,18 @@ pub fn process_damage_requests(
         let DamageTarget::Player(entity) = req.target else {
             continue;
         };
-        let Ok((_, mut vitals, mut record, mut food, effects, armor, resistance, mode, dying)) =
-            query.get_mut(entity)
+        let Ok((
+            _,
+            mut vitals,
+            mut record,
+            mut food,
+            effects,
+            armor,
+            resistance,
+            mode,
+            dying,
+            transform,
+        )) = query.get_mut(entity)
         else {
             continue;
         };
@@ -134,16 +147,36 @@ pub fn process_damage_requests(
             outcome,
             damage,
         });
-        if outcome == HitOutcome::Full {
+        if outcome == HitOutcome::Full && !flags.no_knockback {
             let strength = req.hit.knockback
                 * (1.0
                     - resistance
                         .map_or(0.0, |resistance| resistance.0 as f32)
                         .clamp(0.0, 1.0));
             if strength > 0.0 {
+                let target_position =
+                    transform.map_or(DVec3::ZERO, |transform| transform.translation);
+                let direction =
+                    req.hit
+                        .source
+                        .source_position
+                        .map_or(bevy_math::Vec3::Z, |source| {
+                            let mut dx = (target_position.x - source.x) as f32;
+                            let mut dz = (target_position.z - source.z) as f32;
+                            let length_squared = dx * dx + dz * dz;
+                            if length_squared < 1.0e-4 {
+                                dx = 0.0;
+                                dz = 1.0;
+                            } else {
+                                let length = length_squared.sqrt();
+                                dx /= length;
+                                dz /= length;
+                            }
+                            bevy_math::Vec3::new(dx, 0.0, dz)
+                        });
                 knockbacks.write(KnockbackRequest {
                     target: entity,
-                    direction: bevy_math::Vec3::Z,
+                    direction,
                     strength,
                 });
             }
@@ -158,17 +191,13 @@ pub fn process_damage_requests(
     }
 }
 
-/// Counts the death time of a player and removes the dying marker after twenty ticks
-/// (DMG-DTH-001).
-pub fn tick_death(mut commands: Commands, mut query: Query<(Entity, &mut PlayerVitals, &Dying)>) {
-    for (entity, mut vitals, _) in &mut query {
+/// Counts the death time of a player (DMG-DTH-001, PLD-DTH-002).
+pub fn tick_death(mut query: Query<(&mut PlayerVitals, &Dying)>) {
+    for (mut vitals, _) in &mut query {
         let Some(time) = vitals.0.death_time.as_mut() else {
             continue;
         };
         *time = time.saturating_add(1);
-        if *time >= 20 {
-            commands.entity(entity).remove::<Dying>();
-        }
     }
 }
 
@@ -183,13 +212,16 @@ pub fn tick_player_cooldowns(mut query: Query<&mut PlayerVitals>) {
 /// Pushes a player along the horizontal direction of a hit (DMG-KB-001).
 pub fn apply_knockback(
     mut requests: MessageReader<KnockbackRequest>,
-    mut query: Query<&mut Velocity>,
+    mut query: Query<(&mut Velocity, Option<&PlayerEnvironment>)>,
 ) {
     for request in requests.read() {
-        if let Ok(mut velocity) = query.get_mut(request.target) {
-            velocity.0.x += f64::from(request.direction.x) * f64::from(request.strength);
-            velocity.0.z += f64::from(request.direction.z) * f64::from(request.strength);
-            velocity.0.y = velocity.0.y.max(f64::from(request.strength) * 0.4);
+        if let Ok((mut velocity, environment)) = query.get_mut(request.target) {
+            let power = f64::from(request.strength);
+            velocity.0.x = velocity.0.x / 2.0 + f64::from(request.direction.x) * power;
+            velocity.0.z = velocity.0.z / 2.0 + f64::from(request.direction.z) * power;
+            if environment.is_none_or(|environment| environment.on_ground) {
+                velocity.0.y = (velocity.0.y / 2.0 + power).min(0.4);
+            }
         }
     }
 }

@@ -60,8 +60,12 @@ pub(crate) fn merge_hidden(
             hidden
                 .0
                 .insert(previous.effect, data_from_active(&previous, nested));
-        } else {
-            hidden.0.remove(&previous.effect);
+        } else if let Some(existing) = hidden.0.remove(&previous.effect) {
+            if is_shorter(added.duration, duration_from_file(existing.duration)) {
+                hidden.0.insert(previous.effect, existing);
+            } else if let Some(nested) = existing.hidden_effect {
+                hidden.0.insert(previous.effect, *nested);
+            }
         }
     } else if is_shorter(previous.duration, added.duration) && previous.amplifier != added.amplifier
     {
@@ -79,8 +83,11 @@ fn merge_into_data(existing: &mut EffectData, added: &ActiveEffect) {
     let existing_active = active_from_data(added.effect, existing);
     if added.amplifier > existing_active.amplifier {
         let previous_hidden = existing.hidden_effect.take().map(|nested| *nested);
-        let nested = is_shorter(added.duration, existing_active.duration)
-            .then(|| data_from_active(&existing_active, previous_hidden));
+        let nested = if is_shorter(added.duration, existing_active.duration) {
+            Some(data_from_active(&existing_active, previous_hidden))
+        } else {
+            previous_hidden
+        };
         *existing = data_from_active(added, nested);
     } else if is_shorter(existing_active.duration, added.duration)
         && existing_active.amplifier != added.amplifier
@@ -117,4 +124,25 @@ pub(crate) fn promote_hidden(
         hidden.0.insert(effect, *nested);
     }
     Some(active_from_data(effect, &data))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_hidden_effect_outliving_a_stronger_replacement_stays() {
+        let first = ActiveEffect::new(MobEffect::Speed, 0, 1000);
+        let second = ActiveEffect::new(MobEffect::Speed, 1, 100);
+        let third = ActiveEffect::new(MobEffect::Speed, 2, 200);
+        let mut hidden = PlayerEffectsHidden::default();
+
+        merge_hidden(Some(first), second, &mut hidden);
+        merge_hidden(Some(second), third, &mut hidden);
+
+        let data = hidden.0.get(&MobEffect::Speed).unwrap();
+        assert_eq!(data.amplifier, 0);
+        assert_eq!(data.duration, 1000);
+        assert!(data.hidden_effect.is_none());
+    }
 }

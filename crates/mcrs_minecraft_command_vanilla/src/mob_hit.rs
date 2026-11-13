@@ -1,5 +1,6 @@
 use bevy_ecs::change_detection::Mut;
 use bevy_ecs::world::World;
+use mcrs_minecraft_combat::DamageTypeRulesResource;
 use mcrs_minecraft_command_engine::Worlds;
 use mcrs_minecraft_damage::{Defence, Hit};
 use mcrs_minecraft_engine_brain::EntityRows;
@@ -19,10 +20,14 @@ pub(crate) fn apply(worlds: &mut Worlds, HitMob { at, hit }: HitMob) {
     let tick = world
         .get_resource::<BirthClock>()
         .map_or(0, |clock| clock.0);
+    let flags = world
+        .get_resource::<DamageTypeRulesResource>()
+        .map_or_else(Default::default, |rules| rules.0.flags(hit.damage_type));
+    let defence = Defence::new(flags);
     let outcome = world
         .try_resource_scope(|world, mut rows: Mut<EntityRows>| {
             let mut changes = world.get_resource_mut::<MobChanges>()?;
-            hurt_mob(&mut rows, &mut changes, at, hit, &Defence::default(), tick)
+            hurt_mob(&mut rows, &mut changes, at, hit, &defence, tick)
         })
         .flatten();
     if outcome.is_none() {
