@@ -36,6 +36,7 @@ mcrs_minecraft_client_jar.workspace = true
 mcrs_minecraft_client_world.workspace = true
 mcrs_minecraft_client_entity.workspace = true
 mcrs_minecraft_entity_render.workspace = true
+mcrs_minecraft_profile.workspace = true
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol_game.workspace = true
 uuid = { workspace = true, optional = true }
@@ -76,6 +77,7 @@ wgpu = { version = "30", default-features = false }
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 mcrs_minecraft_save.workspace = true
 mcrs_minecraft_game_rule.workspace = true
+ureq = "3.4"
 bevy = { version = "0.20.1", default-features = false, features = ["file_watcher", "clipboard_image", "multi_threaded"] }
 # Singleplayer is a server of our own on a loopback port, as it is in vanilla.
 mcrs_minecraft_server = { workspace = true, optional = true }

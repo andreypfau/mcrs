@@ -4321,6 +4321,7 @@ dependencies = [
  "mcrs_minecraft_model_file",
  "mcrs_minecraft_network",
  "mcrs_minecraft_noise",
+ "mcrs_minecraft_profile",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_random",
@@ -4340,6 +4341,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing-tracy",
+ "ureq",
  "uuid",
  "wasm-bindgen-futures",
  "web-sys",
@@ -5197,6 +5199,7 @@ dependencies = [
  "mcrs_minecraft_model",
  "mcrs_minecraft_model_file",
  "mcrs_minecraft_pack_file",
+ "mcrs_minecraft_profile",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_render",
@@ -5881,11 +5884,13 @@ name = "mcrs_minecraft_profile"
 version = "0.5.8"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "bevy_ecs",
  "mcrs_minecraft_core",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_wire",
  "serde",
+ "serde_json",
  "uuid",
 ]
 
