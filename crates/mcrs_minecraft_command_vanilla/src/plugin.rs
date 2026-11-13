@@ -22,6 +22,7 @@ impl Plugin for VanillaCommandsPlugin {
             .add_command_effect(ban::apply)
             .add_command_effect(op::apply)
             .add_command_effect(summon::apply)
+            .add_command_effect(summon::apply_item)
             .add_command_effect(mob_hit::apply);
         report(
             "execute",

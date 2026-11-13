@@ -46,6 +46,7 @@ bevy_asset = { workspace = true, features = ["multi_threaded"] }
 
 [dev-dependencies]
 mcrs_minecraft_probe.workspace = true
+mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_lang.workspace = true
 mcrs_minecraft_text_flatten.workspace = true
 mcrs_engine_link.workspace = true

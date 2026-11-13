@@ -23,6 +23,7 @@ use mcrs_minecraft_physics::block_at;
 
 use crate::Form;
 use crate::item_row::ItemRow;
+use crate::item_spawn_request::FixedKey;
 use crate::launch::Launching;
 
 /// The motion row of an item entity: the plugin, not the pass, ends it (IEN-AGE-001).
@@ -37,13 +38,16 @@ pub(crate) fn motion_row() -> MotionRow {
 /// rest. A stack dropped without a launch gets the default values (IEN-DAT-002).
 pub(crate) fn spawn_rows<M: Send + Sync + 'static>(
     mut commands: Commands,
-    mut pending: Query<(Entity, &mut Dropped, Option<&Launching>), (With<Kind>, Without<ItemRow>)>,
+    mut pending: Query<
+        (Entity, &mut Dropped, Option<&Launching>, Option<&FixedKey>),
+        (With<Kind>, Without<ItemRow>),
+    >,
     births: EntityBirths,
     mut sequences: Local<BirthSequences>,
     mut ids: ResMut<CellEntityIds>,
     mut rows: ResMut<RowStore<M>>,
 ) {
-    for (stack, mut dropped, launching) in &mut pending {
+    for (stack, mut dropped, launching, fixed) in &mut pending {
         let Some(id) = ids.allocate() else {
             tracing::warn!(?stack, "the cell has no entity id left; the item waits");
             continue;
@@ -58,7 +62,10 @@ pub(crate) fn spawn_rows<M: Send + Sync + 'static>(
                 }),
             ),
         };
-        let key = births.born(&source, sequences.next(births.tick(), &source));
+        let key = match fixed {
+            Some(fixed) => fixed.0,
+            None => births.born(&source, sequences.next(births.tick(), &source)),
+        };
         let start = form.start(&KeyedStream::new(&key, births.tick()));
         let body = Body {
             position: start.position,
@@ -73,7 +80,7 @@ pub(crate) fn spawn_rows<M: Send + Sync + 'static>(
         }
         commands
             .entity(stack)
-            .remove::<Launching>()
+            .remove::<(Launching, FixedKey)>()
             .insert(ItemRow { id, key })
             .insert_if_new(ItemEntity::default());
     }
