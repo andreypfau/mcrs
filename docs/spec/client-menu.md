@@ -704,7 +704,7 @@ Confidence: medium. Experiment: MENU-EXP-11.
   1. The widget is an option slider over the integer range [5, `hi`] (WID-SLD-005). The step
      of a key in change mode is 1. The default is 12.
   2. In vanilla, `hi` is 32 or 16, with the condition of MENU-VAL-007, step 2.
-  3. In mcrs, `hi` is 32 (section 10, item 1).
+  3. In mcrs, `hi` is 32 on each client (MENU-DEV-008).
   4. The caption is `options.generic_value` with `options.simulationDistance`, "Simulation
      Distance", and the value text `options.chunks`, "%s Chunks", with the number.
   5. The slider has no tooltip.
@@ -713,8 +713,9 @@ Confidence: medium. Experiment: MENU-EXP-11.
 - **Postconditions:** the captions are "Simulation Distance: 5 Chunks" and "Simulation
   Distance: 12 Chunks".
 
-Provenance: `source_suggested`; `black_box_confirmed` for the English texts. `unresolved` for
-step 3. Kind: semantic. Confidence: medium. Experiment: MENU-EXP-12.
+Provenance: `source_suggested`; `black_box_confirmed` for the English texts. `design` for step
+3: on 2026-11-13, the owner decided to keep the vanilla value of a client with a large heap.
+Kind: semantic. Confidence: medium. Experiment: MENU-EXP-12.
 
 ### MENU-VAL-009: Max Framerate
 
@@ -1513,16 +1514,18 @@ Decides: MENU-VAL-011, MENU-DISP-003, MENU-DISP-005.
 
 ### MENU-DEV-008: The range and the default of Render Distance
 
-- **Rule:** MENU-VAL-007, step 3, and the edge case of MENU-DIST-004.
+- **Rule:** MENU-VAL-007, step 3; MENU-VAL-008, step 3; the edge case of MENU-DIST-004.
 - **Reference:** the range is [2, 32], or [2, 16] with a small heap of the Java runtime. The
-  default is 12. Each vanilla server clamps its server view distance to [2, 32].
+  default is 12. Each vanilla server clamps its server view distance to [2, 32]. The largest
+  Simulation Distance is 32, or 16 with a small heap.
 - **mcrs:**
   1. The range is [2, 96]. The default is 96.
   2. The server of mcrs clamps its server view distance to [2, 96]. In a local world, the view
-     of a player can thus reach 96 columns.
+     of a player can thus reach 96 columns. The load level from player tickets uses the same
+     clamp (`block-simulation.md`, B.4, DEV-10).
   3. The largest Simulation Distance is 32 on each client (MENU-VAL-008, step 3).
-- **Reason:** the owner decided the range and the default on 2026-11-13. mcrs does not run in a
-  Java runtime, so no condition on a heap applies.
+- **Reason:** the owner decided the range, the default and the largest Simulation Distance on
+  2026-11-13. mcrs does not run in a Java runtime, so no condition on a heap applies.
 - **Visible to the client:** yes. The slider of mcrs goes to 96, and a new client starts with
   96. A vanilla server clamps the request of 96 to its own server view distance
   (MENU-DIST-003).
@@ -1559,10 +1562,4 @@ Decides: MENU-VAL-011, MENU-DISP-003, MENU-DISP-005.
 
 ## 10. Unresolved
 
-1. The largest Simulation Distance of mcrs. MENU-VAL-008 takes 32, the vanilla value for a
-   client with a large heap. The owner decides if mcrs keeps 32, or takes another value, for
-   example 96 as Render Distance.
-2. The load tickets of a server view distance above 32. SIM-TICK-005 clamps the view distance
-   `V` to 2–32 for the load level. With MENU-DEV-008, the server of mcrs has a `V` up to 96.
-   The owner decides which clamp the load level of mcrs uses. `block-simulation.md` then
-   states it.
+No point of this document is open.
