@@ -10,6 +10,10 @@ use mcrs_minecraft_protocol_game::serverbound::ServerboundContainerClose;
 use mcrs_minecraft_wire::Encode;
 use mcrs_minecraft_wire::VarInt;
 
+use crate::click::HOTBAR_0;
+use crate::click::Packet;
+use crate::click::claim;
+use crate::click::click;
 use crate::click::joined;
 use crate::click::sent;
 use crate::fixture::DIRT;
@@ -94,4 +98,24 @@ fn inv_cls_001_a_close_drops_what_finds_no_room() {
     assert_eq!(stacks(world, holders.cursor), []);
     assert_eq!(stacks(world, holders.craft_grid), []);
     assert_eq!(dropped(world), [(STONE, 6, 40), (DIRT, 1, 40)]);
+}
+
+/// ITX-MOD-005, INV-CLS-001: a close that follows a pick up in one tick reads the cursor stack
+/// that the pick up left, and folds it back into the inventory.
+#[test]
+fn itx_mod_005_a_close_after_a_click_in_one_tick_folds_the_picked_stack() {
+    let mut app = app();
+    let world = app.world_mut();
+    let player = joined(world);
+
+    click(
+        world,
+        player,
+        Packet::pick_up(1, HOTBAR_0).claiming(vec![(HOTBAR_0, None)], claim(STONE, 5)),
+    );
+    close(world, player);
+
+    assert_eq!(stacks(world, player), [(0, STONE, 5)]);
+    assert_eq!(stacks(world, holders(world, player).cursor), []);
+    assert_eq!(dropped(world), []);
 }

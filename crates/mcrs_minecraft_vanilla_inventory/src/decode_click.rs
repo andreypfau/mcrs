@@ -1,5 +1,6 @@
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::observer::On;
+use bevy_ecs::system::Local;
 use bevy_ecs::system::Res;
 use mcrs_minecraft_inventory_click::Click;
 use mcrs_minecraft_inventory_click::ClickKind;
@@ -14,25 +15,26 @@ use mcrs_minecraft_protocol_game::serverbound::ServerboundContainerClick;
 use mcrs_minecraft_wire::Encode;
 
 use crate::ClaimedSlot;
-use crate::InventoryClick;
+use crate::InventoryInput;
 
-/// Writes the [`InventoryClick`] of each `container_click` packet.
+/// Writes the [`InventoryInput::Click`] of each `container_click` packet.
 pub(crate) fn decode_click(
     received: On<Received<ServerboundContainerClick>>,
     table: Res<ItemTable>,
-    mut clicks: MessageWriter<InventoryClick>,
+    mut inputs: MessageWriter<InventoryInput>,
+    mut bytes: Local<Vec<u8>>,
 ) {
     let Some(packet) = received.packet() else {
         return;
     };
-    let mut bytes = Vec::new();
+    let bytes = &mut *bytes;
     let changed = (packet.changed_slots.iter())
         .map(|(index, stack)| ClaimedSlot {
             index: *index,
-            view: claimed_view(stack.as_ref(), &table, &mut bytes),
+            view: claimed_view(stack.as_ref(), &table, bytes),
         })
         .collect();
-    clicks.write(InventoryClick {
+    inputs.write(InventoryInput::Click {
         player: received.entity,
         container_id: packet.container_id.0,
         state_id: packet.state_seqno.0,
@@ -42,7 +44,7 @@ pub(crate) fn decode_click(
             clicked: Clicked::from(packet.slot_index),
         },
         changed,
-        carried: claimed_view(packet.carried_item.as_ref(), &table, &mut bytes),
+        carried: claimed_view(packet.carried_item.as_ref(), &table, bytes),
     });
 }
 

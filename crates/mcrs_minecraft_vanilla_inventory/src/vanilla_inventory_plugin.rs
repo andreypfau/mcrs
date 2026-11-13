@@ -11,17 +11,15 @@ use mcrs_minecraft_engine_item::RequestResult;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::tick::TickSet;
 
-use crate::InventoryClick;
+use crate::InventoryInput;
 use crate::InventorySet;
-use crate::apply_clicks::apply_clicks;
-use crate::click_backlog::ClickBacklog;
-use crate::click_backlog::any_backlog;
+use crate::apply_inventory_input::apply_inventory_input;
 use crate::close_container::close_container;
 use crate::decode_click::decode_click;
 use crate::forget_rejected_swap::forget_rejected_swap;
 use crate::full_sends::FullSends;
 use crate::full_sends::any_full_send;
-use crate::hand_action::hand_action;
+use crate::hand_action::decode_hand_action;
 use crate::launch_drops::launch_drops;
 use crate::menu_queue::MenuQueue;
 use crate::menu_queue::any_queued;
@@ -35,14 +33,14 @@ use crate::sync_menus::sync_menus;
 /// next tick sends the player its selected slot and its inventory menu (INV-SEL-003,
 /// INV-SYN-005); the `set_carried_item` packet sets the selected slot (INV-SEL-002).
 ///
-/// Each `container_click` packet becomes an [`InventoryClick`], which
-/// [`InventorySet::Input`] turns into a request of the engine (ITX-JAV-001 to ITX-JAV-005).
-/// [`InventorySet::Sync`] then sends each stack of the inventory menu that the client does not
-/// hold (INV-SYN-003, INV-SYN-004). The drop keys and the hand swap of the `player_action`
-/// packet are requests too (INV-SEL-004, INV-SEL-005), and each stack that a drop takes out of a
-/// holder of a player becomes an item entity. The `container_close` packet closes the inventory
+/// Each inventory packet becomes an [`InventoryInput`], which [`InventorySet::Input`] applies in
+/// the order of arrival (ITX-JAV-003): a `container_click` packet becomes a request of the engine
+/// (ITX-JAV-001 to ITX-JAV-005), the drop keys and the hand swap of the `player_action` packet
+/// are requests too (INV-SEL-004, INV-SEL-005), the `container_close` packet closes the inventory
 /// menu by a request (INV-CLS-001), and the `set_creative_mode_slot` packet sets an entry or
-/// throws a stack (INV-CRE-003, INV-CRE-004).
+/// throws a stack (INV-CRE-003, INV-CRE-004). [`InventorySet::Sync`] then sends each stack of the
+/// inventory menu that the client does not hold (INV-SYN-003, INV-SYN-004), and each stack that a
+/// drop takes out of a holder of a player becomes an item entity.
 ///
 /// Add it to each dimension world, beside
 /// [`ItemPlugin`](mcrs_minecraft_engine_item::ItemPlugin), which it needs. The player file and a
@@ -53,9 +51,8 @@ pub struct VanillaInventoryPlugin;
 impl Plugin for VanillaInventoryPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<OutboundPlayerPacket>()
-            .add_message::<InventoryClick>()
+            .add_message::<InventoryInput>()
             .init_resource::<FullSends>()
-            .init_resource::<ClickBacklog>()
             .init_resource::<MenuQueue>()
             .init_resource::<BirthClock>()
             .configure_sets(
@@ -68,8 +65,8 @@ impl Plugin for VanillaInventoryPlugin {
             .add_systems(
                 FixedUpdate,
                 (
-                    apply_clicks
-                        .run_if(on_message::<InventoryClick>.or_eager(any_backlog))
+                    apply_inventory_input
+                        .run_if(on_message::<InventoryInput>)
                         .in_set(InventorySet::Input),
                     launch_drops
                         .run_if(on_message::<RequestDrop>)
@@ -89,7 +86,7 @@ impl Plugin for VanillaInventoryPlugin {
             .add_observer(hold_new_player)
             .add_observer(set_carried_item)
             .add_observer(decode_click)
-            .add_observer(hand_action)
+            .add_observer(decode_hand_action)
             .add_observer(close_container)
             .add_observer(set_creative_mode_slot)
             .add_observer(forget_rejected_swap);

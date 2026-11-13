@@ -3,11 +3,11 @@
 //! menu, and kept in agreement with the client.
 // std: mcrs_minecraft_engine
 
-mod apply_clicks;
+mod apply_click;
+mod apply_inventory_input;
 mod capture_holders;
 mod carried_codec;
 mod claimed_slot;
-mod click_backlog;
 mod click_drag;
 mod click_menu;
 mod click_slots;
@@ -21,7 +21,7 @@ mod hand_action;
 mod hand_launch;
 mod holder_slots;
 mod insert_stack;
-mod inventory_click;
+mod inventory_input;
 mod inventory_menu_sync;
 mod inventory_persistence_plugin;
 mod inventory_set;
@@ -43,7 +43,8 @@ mod sync_menus;
 mod vanilla_inventory_plugin;
 
 pub use claimed_slot::ClaimedSlot;
-pub use inventory_click::InventoryClick;
+pub use hand_action::HandAction;
+pub use inventory_input::InventoryInput;
 pub use inventory_menu_sync::InventoryMenuSync;
 pub use inventory_persistence_plugin::InventoryPersistencePlugin;
 pub use inventory_set::InventorySet;

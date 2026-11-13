@@ -6,7 +6,8 @@ use bevy_ecs::schedule::SystemSet;
 /// `Sync`.
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum InventorySet {
-    /// Turns each [`InventoryClick`](crate::InventoryClick) into a request of the engine.
+    /// Applies each [`InventoryInput`](crate::InventoryInput) in the order of arrival, each request
+    /// committed before the next input reads the slots.
     Input,
     /// Sends the stacks that the client does not hold, and keeps the client view and the state
     /// id of the inventory menu.

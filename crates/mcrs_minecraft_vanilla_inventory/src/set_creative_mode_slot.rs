@@ -1,5 +1,8 @@
+use bevy_ecs::message::MessageWriter;
 use bevy_ecs::observer::On;
 use bevy_ecs::system::Commands;
+use bevy_ecs::system::InRef;
+use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
@@ -24,6 +27,7 @@ use mcrs_minecraft_player_slots::Holder;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundSetCreativeModeSlot;
 use mcrs_minecraft_wire::Encode;
 
+use crate::InventoryInput;
 use crate::InventoryMenuSync;
 use crate::PlayerHolders;
 use crate::creative_drops::CreativeDrops;
@@ -33,15 +37,41 @@ use crate::menu_queue::MenuQueue;
 
 const CREATIVE_REQUEST: RequestId = RequestId(4);
 
-/// Applies each `set_creative_mode_slot` packet that passes the checks of INV-CRE-003: a set of
-/// an entry of the inventory menu (INV-CRE-004), or a creative drop (IEN-SPN-007). A packet that
-/// fails a check is a claim of the client for its entry (INV-CRE-006).
+/// Writes the [`InventoryInput::CreativeSet`] of each `set_creative_mode_slot` packet whose stack
+/// decodes.
+pub(crate) fn set_creative_mode_slot(
+    received: On<Received<ServerboundSetCreativeModeSlot>>,
+    table: Res<ItemTable>,
+    mut inputs: MessageWriter<InventoryInput>,
+    mut bytes: Local<Vec<u8>>,
+) {
+    let Some(packet) = received.packet() else {
+        return;
+    };
+    bytes.clear();
+    if packet.item.encode(&mut *bytes).is_err() {
+        return;
+    }
+    // STK-NET-009: a stack without a saved form is a decode error of the packet.
+    let Ok(stack) = read_wire_with_length(&mut bytes.as_slice(), &*table) else {
+        return;
+    };
+    inputs.write(InventoryInput::CreativeSet {
+        player: received.entity,
+        slot: packet.slot,
+        stack,
+    });
+}
+
+/// Applies a creative set that passes the checks of INV-CRE-003: a set of an entry of the
+/// inventory menu (INV-CRE-004), or a creative drop (IEN-SPN-007). A set that fails a check is a
+/// claim of the client for its entry (INV-CRE-006).
 #[expect(
     clippy::type_complexity,
     reason = "one query reads each part of the player that the packet needs"
 )]
-pub(crate) fn set_creative_mode_slot(
-    received: On<Received<ServerboundSetCreativeModeSlot>>,
+pub(crate) fn apply_creative_set(
+    InRef(input): InRef<InventoryInput>,
     mut players: Query<(
         &PlayerHolders,
         &mut InventoryMenuSync,
@@ -55,35 +85,31 @@ pub(crate) fn set_creative_mode_slot(
     mut queue: ResMut<MenuQueue>,
     mut commands: Commands,
 ) {
-    let Some(packet) = received.packet() else {
+    let &InventoryInput::CreativeSet {
+        player,
+        slot,
+        ref stack,
+    } = input
+    else {
         return;
     };
-    let player = received.entity;
     let Ok((holders, mut sync, game_mode, drops, transform, profile)) = players.get_mut(player)
     else {
         return;
     };
-    let mut bytes = Vec::new();
-    if packet.item.encode(&mut bytes).is_err() {
-        return;
-    }
-    // STK-NET-009: a stack without a saved form is a decode error of the packet.
-    let Ok(stack) = read_wire_with_length(&mut bytes.as_slice(), &*table) else {
-        return;
-    };
+    let stack = stack.as_ref();
     let creative = game_mode.is_some_and(|game_mode| game_mode.0 == GameMode::Creative);
-    let fits =
-        (stack.as_ref()).is_none_or(|stack| stack.count.get() <= max_stack_size(stack, &table));
-    let entry = u16::try_from(packet.slot)
+    let fits = stack.is_none_or(|stack| stack.count.get() <= max_stack_size(stack, &table));
+    let entry = u16::try_from(slot)
         .ok()
         .filter(|index| (1..InventoryMenu::LEN).contains(index))
         .and_then(InventoryMenu::slot);
-    if creative && fits && packet.slot < 0 {
+    if creative && fits && slot < 0 {
         let mut drops = drops.copied().unwrap_or_default();
         let thrown = drops.try_drop(clock.0);
         commands.entity(player).insert(drops);
         if thrown && let Some(stack) = stack {
-            let mut entity = commands.spawn_stack(stack);
+            let mut entity = commands.spawn_stack(stack.clone());
             launch_from_player(&mut entity, transform, profile, Cause::Throw);
         }
         return;
@@ -98,37 +124,37 @@ pub(crate) fn set_creative_mode_slot(
             Holder::CraftGrid => holders.craft_grid,
             Holder::CraftResult => holders.craft_result,
         };
-        let slot = SlotRef {
+        let target = SlotRef {
             holder,
             index: entry.index,
         };
         let request = Request::new(CREATIVE_REQUEST);
-        let request = match &stack {
+        let request = match stack {
             Some(stack) => {
                 let count = stack.count.get();
                 let stack = commands.spawn_stack(stack.clone()).id();
-                request.set(slot, Some(stack), count)
+                request.set(target, Some(stack), count)
             }
-            None => request.set(slot, None, 0),
+            None => request.set(target, None, 0),
         };
         commands.entity(player).request(request);
-        set_view(&mut sync, packet.slot, stack);
+        set_view(&mut sync, slot, stack);
         return;
     }
-    if set_view(&mut sync, packet.slot, stack) {
+    if set_view(&mut sync, slot, stack) {
         queue.compare.push(player);
     }
 }
 
 /// Makes `stack` the client view of the entry `slot`. Gives false when the inventory menu has no
 /// such entry.
-fn set_view(sync: &mut InventoryMenuSync, slot: i16, stack: Option<ItemStack>) -> bool {
+fn set_view(sync: &mut InventoryMenuSync, slot: i16, stack: Option<&ItemStack>) -> bool {
     let view = usize::try_from(slot)
         .ok()
         .and_then(|index| sync.view.entry_mut(index));
     let Some(view) = view else {
         return false;
     };
-    *view = SlotView::Stack(stack);
+    *view = SlotView::Stack(stack.cloned());
     true
 }

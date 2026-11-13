@@ -37,7 +37,7 @@ use crate::fixture::stacks;
 
 const SESSION: PlayerSession = PlayerSession(3);
 /// The menu index of `P[0]`, which holds five stone after the join.
-const HOTBAR_0: u16 = 36;
+pub(crate) const HOTBAR_0: u16 = 36;
 const HOTBAR_1: u16 = 37;
 
 /// A player with five stone in `P[0]`, after the send of its full state under the state id 1.
@@ -55,7 +55,7 @@ pub(crate) fn joined(world: &mut World) -> Entity {
     player
 }
 
-fn claim(kind: Kind, count: i32) -> Option<HashedStack> {
+pub(crate) fn claim(kind: Kind, count: i32) -> Option<HashedStack> {
     let hashed = mcrs_minecraft_item_stack::HashedStack {
         kind,
         count,
@@ -67,7 +67,7 @@ fn claim(kind: Kind, count: i32) -> Option<HashedStack> {
     Option::<HashedStack>::decode(&mut bytes.as_slice()).expect("the hashed stack decodes")
 }
 
-struct Packet {
+pub(crate) struct Packet {
     state_id: i32,
     slot: i16,
     input: ContainerInput,
@@ -78,7 +78,7 @@ struct Packet {
 
 impl Packet {
     /// A pick up with button 0 on `slot`.
-    fn pick_up(state_id: i32, slot: u16) -> Self {
+    pub(crate) fn pick_up(state_id: i32, slot: u16) -> Self {
         Self {
             state_id,
             slot: i16::try_from(slot).expect("a menu index"),
@@ -89,7 +89,7 @@ impl Packet {
         }
     }
 
-    fn claiming(
+    pub(crate) fn claiming(
         mut self,
         changed: Vec<(u16, Option<HashedStack>)>,
         carried: Option<HashedStack>,
@@ -100,7 +100,7 @@ impl Packet {
     }
 }
 
-fn click(world: &mut World, player: Entity, packet: Packet) {
+pub(crate) fn click(world: &mut World, player: Entity, packet: Packet) {
     let packet = ServerboundContainerClick {
         container_id: VarInt(0),
         state_seqno: VarInt(packet.state_id),
@@ -292,9 +292,47 @@ fn itx_jav_003_each_click_reads_the_result_of_the_click_before_it() {
         Packet::pick_up(1, HOTBAR_1).claiming(vec![(HOTBAR_1, claim(STONE, 5))], None),
     );
     world.run_schedule(FixedUpdate);
-    world.run_schedule(FixedUpdate);
 
     assert_eq!(stacks(world, player), [(1, STONE, 5)]);
+    assert_eq!(sent(world), Vec::<String>::new());
+}
+
+/// ITX-JAV-003, ITX-MOD-005: a drag that follows a click in one tick applies in that tick, on
+/// the cursor stack that the click left.
+#[test]
+fn itx_mod_005_a_drag_after_a_click_applies_in_the_same_tick() {
+    let mut app = app();
+    let world = app.world_mut();
+    let player = joined(world);
+    let drag = |slot: i16, button: u8, changed: Vec<(u16, Option<HashedStack>)>, carried: i32| {
+        Packet {
+            slot,
+            input: ContainerInput::QuickCraft,
+            button,
+            ..Packet::pick_up(1, HOTBAR_0)
+        }
+        .claiming(changed, claim(STONE, carried))
+    };
+
+    click(
+        world,
+        player,
+        Packet::pick_up(1, HOTBAR_0).claiming(vec![(HOTBAR_0, None)], claim(STONE, 5)),
+    );
+    click(world, player, drag(-999, 0, vec![], 5));
+    for slot in [37, 38, 39] {
+        click(world, player, drag(slot, 1, vec![], 5));
+    }
+    let spread = [37, 38, 39].map(|slot| (slot, claim(STONE, 1)));
+    click(world, player, drag(-999, 2, spread.to_vec(), 2));
+    world.run_schedule(FixedUpdate);
+
+    let cursor = holders(world, player).cursor;
+    assert_eq!(
+        stacks(world, player),
+        [(1, STONE, 1), (2, STONE, 1), (3, STONE, 1)]
+    );
+    assert_eq!(stacks(world, cursor), [(0, STONE, 2)]);
     assert_eq!(sent(world), Vec::<String>::new());
 }
 

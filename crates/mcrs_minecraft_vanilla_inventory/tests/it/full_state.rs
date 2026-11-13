@@ -72,6 +72,7 @@ fn inv_sel_002_set_carried_item_selects_a_hotbar_slot_and_ignores_other_values()
             body.into(),
         ));
         world.flush();
+        world.run_schedule(FixedUpdate);
 
         assert_eq!(
             world.get::<Selected>(player),
