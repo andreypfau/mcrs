@@ -316,3 +316,49 @@ fn a_request_on_a_despawned_holder_does_nothing() {
 
     assert_eq!(results, []);
 }
+
+// INV-CRE-001
+#[test]
+fn a_set_puts_an_unplaced_stack_copies_a_placed_one_with_its_count_and_ends_the_stacks_it_replaces()
+{
+    let mut app = app();
+    let world = app.world_mut();
+    let player = world.spawn(Slots::new(4)).id();
+    let replaced = place(world, rare(10), player, 0);
+    let held = place(world, ItemStack::new(LORED, count(5)), player, 2);
+    let emptied = place(world, rare(3), player, 3);
+    let unplaced = spawn(world, rare(40));
+    let at = |index| SlotRef {
+        holder: player,
+        index,
+    };
+
+    let results = request(
+        world,
+        player,
+        Request::new(ID)
+            .set(at(0), Some(unplaced), 12)
+            .set(at(1), Some(held), 64)
+            .set(at(3), None, 0),
+    );
+
+    assert_eq!(
+        results,
+        [RequestResult {
+            holder: player,
+            id: ID,
+            outcome: Ok(()),
+        }]
+    );
+    let [Some(first), Some(copy), Some(kept), None] = slots(world, player)[..] else {
+        panic!("slots of the player: {:?}", slots(world, player));
+    };
+    assert_eq!((first, kept), (unplaced, held));
+    assert_ne!(copy, held, "a stack in a slot is copied");
+    assert_eq!(value(world, copy), Some(ItemStack::new(LORED, count(64))));
+    assert_eq!(value(world, held), Some(ItemStack::new(LORED, count(5))));
+    assert_eq!(value(world, first), Some(rare(12)));
+    assert!(world.get_entity(replaced).is_err(), "a replaced stack ends");
+    assert!(world.get_entity(emptied).is_err(), "an emptied stack ends");
+    assert_eq!(world.query::<&Kind>().iter(world).count(), 3);
+}
