@@ -38,4 +38,3 @@ pub use life_cycle::{DeathState, process_damage_requests, tick_cooldowns, tick_d
 pub use mcrs_minecraft_damage::damage_types;
 pub use mcrs_minecraft_damage::{DamageSource, DamageTypeFlags, DamageTypeRules, Hit};
 pub use position::CombatPosition;
-pub use runtime::CombatRuntimePlugin;

@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use bevy_app::{App, FixedUpdate, Plugin};
+use bevy_app::{App, FixedUpdate};
 use bevy_ecs::prelude::*;
 use bevy_ecs::query::QueryData;
 use bevy_math::DVec3;
@@ -1583,62 +1583,57 @@ fn respawn_choice(
 
 /// The combat state of a player: saved health, hunger and experience, the HUD packets that
 /// carry them to the client, and the death and respawn life cycle.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct CombatRuntimePlugin;
-
-impl Plugin for CombatRuntimePlugin {
-    fn build(&self, app: &mut App) {
-        let rules = app
-            .world()
-            .get_resource::<CurrentRegistries>()
-            .map_or_else(DamageTypeRules::builtin, |registries| {
-                DamageTypeRules::from_registries(registries)
-            });
-        app.insert_resource(DamageTypeRulesResource(rules));
-        app.init_resource::<WorldSpawn>();
-        app.init_resource::<WorldBorderState>();
-        app.add_observer(note_ground_pos);
-        app.add_observer(note_ground_pos_rot);
-        app.add_observer(note_ground_rot);
-        app.add_observer(note_ground_status);
-        app.add_observer(on_client_command)
-            .add_observer(on_player_attack)
-            .add_observer(on_change_difficulty)
-            .add_observer(on_player_input)
-            .add_observer(on_player_action)
-            .add_observer(on_set_carried_item);
-        app.add_systems(
-            FixedUpdate,
-            (
-                attach_player_combat,
-                sync_player_combat_state,
-                tick_player_hunger,
-                tick_player_environment,
-                tick_mob_environment,
-                sync_player_environment_metadata,
-            )
-                .chain()
-                .in_set(CombatSet::Pre),
-        );
-        app.add_systems(
-            FixedUpdate,
-            (load_world_spawn, respawn_players, sync_player_combat)
-                .chain()
-                .in_set(CombatSet::Post),
-        );
-        app.add_systems(
-            FixedUpdate,
-            (
-                send_equipment_changes,
-                send_equipment_snapshots,
-                send_player_damage,
-                send_player_knockback,
-                announce_player_deaths,
-            )
-                .chain()
-                .in_set(CombatSet::Send),
-        );
-    }
+pub(crate) fn build(app: &mut App) {
+    let rules = app
+        .world()
+        .get_resource::<CurrentRegistries>()
+        .map_or_else(DamageTypeRules::builtin, |registries| {
+            DamageTypeRules::from_registries(registries)
+        });
+    app.insert_resource(DamageTypeRulesResource(rules));
+    app.init_resource::<WorldSpawn>();
+    app.init_resource::<WorldBorderState>();
+    app.add_observer(note_ground_pos);
+    app.add_observer(note_ground_pos_rot);
+    app.add_observer(note_ground_rot);
+    app.add_observer(note_ground_status);
+    app.add_observer(on_client_command)
+        .add_observer(on_player_attack)
+        .add_observer(on_change_difficulty)
+        .add_observer(on_player_input)
+        .add_observer(on_player_action)
+        .add_observer(on_set_carried_item);
+    app.add_systems(
+        FixedUpdate,
+        (
+            attach_player_combat,
+            sync_player_combat_state,
+            tick_player_hunger,
+            tick_player_environment,
+            tick_mob_environment,
+            sync_player_environment_metadata,
+        )
+            .chain()
+            .in_set(CombatSet::Pre),
+    );
+    app.add_systems(
+        FixedUpdate,
+        (load_world_spawn, respawn_players, sync_player_combat)
+            .chain()
+            .in_set(CombatSet::Post),
+    );
+    app.add_systems(
+        FixedUpdate,
+        (
+            send_equipment_changes,
+            send_equipment_snapshots,
+            send_player_damage,
+            send_player_knockback,
+            announce_player_deaths,
+        )
+            .chain()
+            .in_set(CombatSet::Send),
+    );
 }
 
 #[derive(Clone, Copy)]

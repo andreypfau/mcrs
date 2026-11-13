@@ -30,6 +30,7 @@ pub struct CombatPlugin;
 impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
         // Register events / messages
+        crate::runtime::build(app);
         app.add_message::<DamageRequest>();
         app.add_message::<DamageDealt>();
         app.add_message::<DeathEvent>();
