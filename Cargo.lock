@@ -4869,6 +4869,7 @@ dependencies = [
  "mcrs_engine_link",
  "mcrs_engine_muxer",
  "mcrs_engine_store",
+ "mcrs_minecraft_anvil",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block",
@@ -4894,6 +4895,7 @@ dependencies = [
  "mcrs_minecraft_physics",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
+ "mcrs_minecraft_region_disk",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_replication",
  "mcrs_minecraft_resource",
@@ -5928,6 +5930,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_region_disk"
+version = "0.5.8"
+dependencies = [
+ "mcrs_engine_store",
+ "mcrs_minecraft_anvil",
+ "mcrs_minecraft_biome_file",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_block_entity",
+ "mcrs_minecraft_chunk",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_dimension",
+ "mcrs_minecraft_engine_registries",
+ "mcrs_minecraft_game_registries",
+ "mcrs_minecraft_heightmap",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+ "mcrs_minecraft_simulation",
+ "mcrs_voxel",
+ "rustc-hash 2.1.1",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
 name = "mcrs_minecraft_registries"
 version = "0.5.8"
 dependencies = [
@@ -6089,6 +6116,7 @@ dependencies = [
  "mcrs_command",
  "mcrs_engine_link",
  "mcrs_engine_muxer",
+ "mcrs_engine_store",
  "mcrs_minecraft_anvil",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_biome_file",
@@ -6132,6 +6160,7 @@ dependencies = [
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_random",
+ "mcrs_minecraft_region_disk",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_replication",
  "mcrs_minecraft_resource",
@@ -6145,6 +6174,7 @@ dependencies = [
  "mcrs_minecraft_worldgen_builtin",
  "mcrs_minecraft_worldgen_density",
  "mcrs_minecraft_worldgen_generator",
+ "mcrs_minecraft_worldgen_structure",
  "mcrs_voxel",
  "rustc-hash 2.1.1",
  "serde_json",
@@ -6323,6 +6353,7 @@ dependencies = [
  "fixedbitset",
  "mcrs_engine_cell",
  "mcrs_engine_link",
+ "mcrs_minecraft_anvil",
  "mcrs_minecraft_assets",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_biome_file",
@@ -6340,6 +6371,7 @@ dependencies = [
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_heightmap",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_region_disk",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_simulation",

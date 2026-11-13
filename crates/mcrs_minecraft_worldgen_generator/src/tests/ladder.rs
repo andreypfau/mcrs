@@ -13,8 +13,8 @@ use super::{
     corpus_climate, corpus_features, one_step, test_registries,
 };
 use crate::modern_carvers::ModernCarverBlockIds;
-use crate::saved::SectionData;
 use crate::stages::{ColumnGenerator, ColumnProgram, FillContext, dimension_y_sections};
+use crate::staging::SectionData;
 use crate::structures::index::{BiomeLookup, StructureIndex};
 use crate::structures::live_sets;
 use crate::{BetaCaveBlockIds, ColumnBiomes, ColumnBlocks, SurfaceStates};
@@ -127,7 +127,7 @@ pub(super) fn structure_dimension(structure: &str, biome_id: &str) -> Dimension 
         seed as i64,
         Arc::clone(ctx.router.as_ref().expect("a noise context")),
         BiomeLookup::Fixed(biome.number()),
-        ctx.predicates.clone(),
+        Some(ctx.predicates.clone()),
         Arc::clone(&ctx.features().expect("the dimension has a program").world),
         Arc::clone(corpus_climate()),
         -64,
@@ -218,8 +218,7 @@ pub fn fill_context(consumer: Consumer) -> Dimension {
         biome: source.clone(),
         // The modern vein probes `OCEAN_FLOOR_WG`, which is a terrain map, so
         // without the table it would place nothing at all.
-        predicates: Some(heightmap_predicates(blocks(), block_tags())),
-        saved: None,
+        predicates: heightmap_predicates(blocks(), block_tags()),
         program,
         router: Some(router),
         material: None,

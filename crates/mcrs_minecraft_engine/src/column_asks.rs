@@ -16,7 +16,7 @@ use rustc_hash::FxHashSet;
 
 use crate::column_snapshot::ColumnSnapshots;
 use crate::column_store::ColumnStoreLink;
-use crate::stored_column::StoredColumn;
+use mcrs_minecraft_region_disk::stored_column::StoredColumn;
 
 /// A cell asks the owner of `column` for it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

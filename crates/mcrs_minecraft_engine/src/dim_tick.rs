@@ -70,6 +70,7 @@ pub type DimWorld = SubAppWorld<DimInput, DimOutput>;
 /// What the host hands a dimension world for one tick. A copy of a host resource comes only
 /// when the host changed it since the last tick; a new world gets every copy when it spawns.
 pub struct DimInput {
+    pub(crate) save: Option<crate::cold_columns::SaveRequest>,
     pub(crate) game_time: GameTime,
     pub(crate) birth_clock: BirthClock,
     pub(crate) clocks: Option<WorldClocks>,
@@ -188,6 +189,9 @@ fn is_idle(world: &mut World) -> bool {
 }
 
 fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
+    if let Some(request) = input.save {
+        world.insert_resource(request);
+    }
     if let Some(mut time) = world.get_resource_mut::<GameTime>() {
         time.set_if_neq(input.game_time);
     }
@@ -248,6 +252,7 @@ fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
 
 fn take_output(world: &mut World) -> DimOutput {
     let mut output = DimOutput::default();
+    world.remove_resource::<crate::cold_columns::SaveRequest>();
     // After every schedule of the tick, so the player is in no system's view once it leaves.
     player_dimension_change::depart_players(world, &mut output.departures);
     cell_mail::take_cell_mail(world, &mut output.cell_mail);
@@ -341,4 +346,43 @@ pub(crate) fn drain_dim_inbox(
 
 pub(crate) fn inbox_holds_messages(inbox: Res<DimInbox>) -> bool {
     !inbox.is_empty()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cold_columns::SaveRequest;
+
+    fn input(save: Option<SaveRequest>) -> DimInput {
+        DimInput {
+            save,
+            game_time: GameTime(0),
+            birth_clock: BirthClock(0),
+            clocks: None,
+            ops: None,
+            whitelist: None,
+            bans: None,
+            game_rules: None,
+            tick_pace: None,
+            registries: None,
+            dimensions: None,
+            players: None,
+            control: Vec::new(),
+            serverbound: Vec::new(),
+            entity_id_grant: None,
+            column_requests: Vec::new(),
+            cell_mail: CellMail::default(),
+            store_answers: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn a_save_request_lasts_one_tick_in_a_world_without_a_column_store() {
+        let mut world = World::new();
+        apply_input(&mut world, Tick::default(), input(Some(SaveRequest::Dirty)));
+        assert!(world.contains_resource::<SaveRequest>());
+
+        take_output(&mut world);
+        assert!(!world.contains_resource::<SaveRequest>());
+    }
 }

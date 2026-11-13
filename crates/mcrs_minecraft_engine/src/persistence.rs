@@ -1,5 +1,6 @@
+use bevy_app::{App, FixedFirst, Plugin};
 use bevy_ecs::entity::Entity;
-use bevy_ecs::prelude::{Component, With};
+use bevy_ecs::prelude::{Component, ResMut, Resource, With};
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -19,6 +20,42 @@ use mcrs_minecraft_engine_world::world::world_save::WorldSave;
 
 /// Vanilla's own autosave cadence, in ticks.
 pub const AUTOSAVE_INTERVAL: u32 = 6000;
+
+/// The one autosave clock. The host advances it at the start of every tick, and every saver
+/// reads it: the host files, the data layer of each dimension and the players of each
+/// dimension, which get the signal through their input.
+#[derive(Resource, Default, Debug)]
+pub struct AutosaveCadence {
+    ticks: u32,
+    due: bool,
+}
+
+impl AutosaveCadence {
+    /// Whether this tick is an autosave tick. The first tick of a run is not.
+    #[must_use]
+    pub fn is_due(&self) -> bool {
+        self.due
+    }
+
+    fn advance(&mut self) {
+        self.ticks = (self.ticks + 1) % AUTOSAVE_INTERVAL;
+        self.due = self.ticks == 0;
+    }
+}
+
+pub(crate) fn advance_autosave_cadence(mut cadence: ResMut<AutosaveCadence>) {
+    cadence.advance();
+}
+
+/// Runs the [`AutosaveCadence`]. A plugin that saves on the cadence adds it when it is missing.
+pub struct AutosavePlugin;
+
+impl Plugin for AutosavePlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<AutosaveCadence>();
+        app.add_systems(FixedFirst, advance_autosave_cadence);
+    }
+}
 
 /// The parts of the loaded file mcrs does not simulate, written back unchanged.
 #[derive(Component, Default, Debug, Clone)]
@@ -107,5 +144,23 @@ pub fn autosave_players(world: &mut World) {
         .collect();
     for player in players {
         write_player(world, player);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn autosave_ticks_come_every_interval_and_never_on_the_first() {
+        let mut cadence = AutosaveCadence::default();
+        let mut due = Vec::new();
+        for tick in 1..=2 * AUTOSAVE_INTERVAL {
+            cadence.advance();
+            if cadence.is_due() {
+                due.push(tick);
+            }
+        }
+        assert_eq!(due, [AUTOSAVE_INTERVAL, 2 * AUTOSAVE_INTERVAL]);
     }
 }
