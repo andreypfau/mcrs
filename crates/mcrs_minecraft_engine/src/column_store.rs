@@ -3,8 +3,9 @@ use std::vec;
 use bevy_app::{App, FixedUpdate, Last, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::Resource;
+use bevy_ecs::prelude::resource_exists;
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
-use mcrs_engine_store::{ChunkVersion, NoDisk, StoreInput, StoreOutput, VersionedChunk};
+use mcrs_engine_store::{ChunkVersion, StoreInput, StoreOutput, VersionedChunk};
 use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::lifecycle::ticket::{
@@ -12,11 +13,14 @@ use mcrs_minecraft_engine_world::world::lifecycle::ticket::{
 };
 use mcrs_minecraft_engine_world::world::storage::column::ColumnLifecycleSet;
 use mcrs_voxel::ColumnPos;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 
 use crate::advance_production::advance_production;
 use crate::cell_mail::CellMail;
-use crate::cold_columns::{mark_changed_sections, mark_final_light, write_cold_columns};
+use crate::cold_columns::{
+    SaveRequest, mark_changed_block_entities, mark_changed_sections, mark_final_light,
+    save_all_loaded_columns, save_dirty_loaded_columns, write_cold_columns,
+};
 use crate::column_asks::{
     ColumnAnswer, ColumnAsk, ColumnHold, ColumnOrigin, Hold, OtherColumns, OwnerReply,
     answer_column_asks,
@@ -26,11 +30,10 @@ use crate::column_production::ColumnProduction;
 use crate::column_streams::{ColumnStreamSet, land_viewed_columns, report_player_views};
 use crate::heightmap::update_column_heightmaps;
 use crate::hot_ticket::{raise_hot_ticket, release_hot_ticket, track_hot_tickets};
-use crate::stored_column::StoredColumn;
-use crate::stored_columns_landing::{fetch_loading_columns, land_stored_columns};
-
-/// The disk under the data layer of a dimension. The data layer lives in memory only for now.
-pub type ColumnDisk = NoDisk<ColumnPos, StoredColumn>;
+use crate::stored_columns_landing::{
+    PendingColumnFacts, attach_column_facts, fetch_loading_columns, land_stored_columns,
+};
+use mcrs_minecraft_region_disk::stored_column::StoredColumn;
 
 /// What a cell asks of the data layer of its world.
 pub type ColumnStoreInput = StoreInput<ColumnPos, StoredColumn>;
@@ -73,9 +76,6 @@ pub struct ColumnStoreLink {
     /// so the writes are the only changed columns it holds, and a request for another column of
     /// this cell is not worth a round trip.
     written_columns: FxHashMap<ColumnPos, ChunkVersion>,
-    /// The columns whose version the disk did not read. The world plays a generated column in
-    /// their place, but never writes over the version on the disk, which may still be repaired.
-    unreadable: FxHashSet<ColumnPos>,
     /// The columns of the other cells of the world that this cell can read.
     others: OtherColumns,
     /// The asks of the other cells for columns of this cell, until the owner answers them.
@@ -293,20 +293,7 @@ impl ColumnStoreLink {
         self.answers.extend(answers);
     }
 
-    /// Keeps the disk version of `column` safe from every later write.
-    pub(crate) fn mark_unreadable(&mut self, column: ColumnPos) {
-        self.unreadable.insert(column);
-    }
-
-    /// Whether the world may write `column`: not when the disk holds a version it did not read.
-    pub(crate) fn is_writable(&self, column: ColumnPos) -> bool {
-        !self.unreadable.contains(&column)
-    }
-
     pub(crate) fn put(&mut self, column: ColumnPos, chunk: StoredColumn) {
-        if !self.is_writable(column) {
-            return;
-        }
         self.written = self.written.next();
         self.written_columns.insert(column, self.written);
         self.report(ColumnHold {
@@ -331,15 +318,12 @@ impl ColumnStoreLink {
     /// Keeps the final light of a version the data layer already holds, or of a generated
     /// column at version zero. A later version that the world wrote meanwhile stays.
     pub(crate) fn put_lit(&mut self, column: ColumnPos, chunk: VersionedChunk<StoredColumn>) {
-        if !self.is_writable(column) {
-            return;
-        }
         self.sent.push(StoreInput::Put { key: column, chunk });
     }
 
-    /// The read of `column`, sent to its owner when the owner holds it hot, to the generation of
-    /// the world when no cell wrote it and the cell generates through its world, and to the data
-    /// layer otherwise.
+    /// The read of `column`, sent to its owner when the owner holds it hot and to the data layer
+    /// otherwise. The world generates a column only after the data layer answers that it has
+    /// none, so a save on disk always gets the first chance.
     fn read(&mut self, column: ColumnPos) -> &mut ColumnRead {
         let origin = self.origin(column);
         self.reads.entry(column).or_insert_with(|| {
@@ -350,10 +334,6 @@ impl ColumnStoreLink {
                         column,
                     });
                     ReadFrom::Store
-                }
-                (_, ColumnOrigin::Generation, Generation::World) => {
-                    self.generation_asks.push(column);
-                    ReadFrom::Generation
                 }
                 _ => {
                     self.sent.push(StoreInput::Get { key: column });
@@ -401,6 +381,7 @@ impl Plugin for ColumnStorePlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(ColumnStoreLink::new(self.owned));
         app.init_resource::<ColumnProduction>();
+        app.init_resource::<PendingColumnFacts>();
         app.configure_sets(
             FixedUpdate,
             ColdStageLandSet
@@ -415,12 +396,21 @@ impl Plugin for ColumnStorePlugin {
                 land_stored_columns
                     .in_set(TickSet::DomainInput)
                     .in_set(StoredColumnLandSet),
-                (mark_changed_sections, write_cold_columns)
+                (
+                    mark_changed_sections,
+                    mark_changed_block_entities,
+                    write_cold_columns,
+                )
                     .chain()
                     .in_set(ColumnCoolSet),
                 fetch_loading_columns
                     .in_set(ChunkSpawnSet)
                     .after(SectionEntitySet),
+                attach_column_facts
+                    .in_set(TickSet::Project)
+                    .after(ColumnLifecycleSet)
+                    .before(ColumnCoolSet)
+                    .before(ColumnStreamSet),
                 mark_final_light
                     .in_set(TickSet::Project)
                     .after(ColumnLifecycleSet)
@@ -438,5 +428,36 @@ impl Plugin for ColumnStorePlugin {
         if self.owned.is_some() {
             app.add_systems(Last, answer_column_asks.after(update_column_heightmaps));
         }
+        app.add_systems(
+            Last,
+            (
+                save_dirty_loaded_columns.run_if(resource_exists::<SaveRequest>),
+                save_all_loaded_columns.run_if(resource_exists::<SaveRequest>),
+            )
+                .chain()
+                .after(update_column_heightmaps),
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy_ecs::entity::Entity;
+
+    #[test]
+    fn a_column_never_written_here_asks_the_disk_before_the_world_generator() {
+        let mut link = ColumnStoreLink::new(None);
+        link.generate_through_world();
+        let column = ColumnPos::new(3, 4);
+        link.take(column, Entity::PLACEHOLDER);
+
+        let mut asks = Vec::new();
+        link.take_generation_asks(&mut asks);
+        assert!(asks.is_empty(), "the generator waits for a missing answer");
+        assert!(
+            matches!(link.sent.first(), Some(StoreInput::Get { key }) if *key == column),
+            "the data layer is asked first"
+        );
     }
 }

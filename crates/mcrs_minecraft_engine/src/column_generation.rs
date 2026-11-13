@@ -9,7 +9,7 @@ use mcrs_engine_store::{ChunkVersion, StoreOutput, VersionedChunk};
 use mcrs_voxel::ColumnPos;
 
 use crate::column_store::ColumnStoreOutput;
-use crate::stored_column::StoredColumn;
+use mcrs_minecraft_region_disk::stored_column::StoredColumn;
 
 /// A cell of the world of `label` asks the generation of the world for `column`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

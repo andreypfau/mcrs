@@ -12,21 +12,25 @@ use bevy_math::DVec3;
 use bevy_platform::cell::SyncCell;
 use bevy_tasks::block_on;
 use mcrs_engine_cell::{BoxPartition, CellId, CellIndex, Cells, Placement, Tick};
+use mcrs_engine_store::{DiskStore, MemoryDisk, VersionedChunk};
 use mcrs_engine_store::{SharedStore, StoreInput};
 use mcrs_minecraft_core::Versioned;
 use mcrs_minecraft_engine_registries::RegistrySnapshot;
 use mcrs_minecraft_engine_world::owned_columns::{HALO, column_key};
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_environment::WorldClocks;
+use mcrs_minecraft_region_disk::stored_column::StoredColumn;
+use mcrs_minecraft_region_disk::{RegionDisk, RegionDiskError};
 use mcrs_voxel::ColumnPos;
 use rustc_hash::FxHashMap;
 
 use crate::banlist::BanList;
 use crate::cell_mail::CellMail;
 use crate::channel_types::ToDim;
+use crate::cold_columns::SaveRequest;
 use crate::column_generation::{GenerationAnswer, GenerationAsk};
 use crate::column_request::ColumnRequest;
-use crate::column_store::{ColumnDisk, ColumnStoreOutput};
+use crate::column_store::ColumnStoreOutput;
 use crate::command_handoff::CommandHandoff;
 use crate::coordinator::clock::GameTime;
 use crate::coordinator::entity_id_ranges::EntityIdRanges;
@@ -36,6 +40,7 @@ use crate::coordinator::running_dimensions::RunningDimensions;
 use crate::departure::PlayerTransfer;
 use crate::dim_tick;
 use crate::dim_tick::{DimInput, DimOutput, DimWorld, TickDimensions, TickDimensionsSet};
+use crate::persistence::{AutosaveCadence, AutosavePlugin};
 use crate::player_roster::RosterRow;
 use crate::player_view::PlayerView;
 use crate::to_coordinator::RoutedInput;
@@ -51,6 +56,9 @@ pub struct DimCellsPlugin;
 
 impl Plugin for DimCellsPlugin {
     fn build(&self, app: &mut App) {
+        if !app.is_plugin_added::<AutosavePlugin>() {
+            app.add_plugins(AutosavePlugin);
+        }
         app.init_resource::<DimCells>();
         app.init_resource::<EntityIdRanges>();
         app.init_resource::<PlayerRoster>();
@@ -85,6 +93,19 @@ pub struct DimCells {
     sessions: FxHashMap<PlayerSession, CellId>,
     tick: Tick,
     outputs: Vec<DimTicked>,
+    save: SavePhase,
+    /// A column failed to reach the disk since the last request of a save-all.
+    save_failed: bool,
+}
+
+/// How far the save-all of the shutdown has come.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SavePhase {
+    /// No save-all is asked for, or the last one is not waiting.
+    Idle,
+    /// The next tick asks every dimension to write all of its columns.
+    Requested,
+    Complete,
 }
 
 /// A view of a player that a cell of the world of `label` reported.
@@ -101,6 +122,43 @@ struct Dim {
     /// The division of the columns over the cells, for a dimension of more than one cell.
     partition: Option<BoxPartition>,
     store: SharedStore<ColumnDisk, CellId>,
+}
+
+/// The disk under the data layer of a dimension: the anvil files of its save, or memory only
+/// while the world has no save.
+pub(crate) enum ColumnDisk {
+    Memory(MemoryDisk<ColumnPos, StoredColumn, RegionDiskError>),
+    Region(Box<RegionDisk>),
+}
+
+impl DiskStore for ColumnDisk {
+    type Key = ColumnPos;
+    type Chunk = StoredColumn;
+    type Error = RegionDiskError;
+
+    fn read(
+        &mut self,
+        key: ColumnPos,
+    ) -> Result<Option<VersionedChunk<StoredColumn>>, RegionDiskError> {
+        match self {
+            Self::Memory(disk) => disk.read(key),
+            Self::Region(disk) => disk.read(key),
+        }
+    }
+
+    fn write(&mut self, key: ColumnPos, chunk: VersionedChunk<StoredColumn>) {
+        match self {
+            Self::Memory(disk) => disk.write(key, chunk),
+            Self::Region(disk) => disk.write(key, chunk),
+        }
+    }
+
+    fn flush(&mut self) -> Result<(), RegionDiskError> {
+        match self {
+            Self::Memory(disk) => disk.flush(),
+            Self::Region(disk) => disk.flush(),
+        }
+    }
 }
 
 /// The place of a cell in its dimension, and what the other cells, the data layer and the
@@ -122,6 +180,8 @@ impl Default for DimCells {
             sessions: FxHashMap::default(),
             tick: Tick::default(),
             outputs: Vec::new(),
+            save: SavePhase::Idle,
+            save_failed: false,
         }
     }
 }
@@ -131,7 +191,7 @@ impl Dim {
         Self {
             cells: Vec::new(),
             partition: None,
-            store: SharedStore::new(ColumnDisk::new(), Placement::Thread),
+            store: SharedStore::new(ColumnDisk::Memory(MemoryDisk::new()), Placement::Thread),
         }
     }
 
@@ -213,6 +273,13 @@ impl DimCells {
     /// Divides the dimension of `label` over its cells by `partition`.
     pub(crate) fn divide(&mut self, label: Entity, partition: BoxPartition) {
         self.dims.entry(label).or_insert_with(Dim::new).partition = Some(partition);
+    }
+
+    /// Replaces the data layer of `label` before any cell reads it.
+    pub(crate) fn set_disk(&mut self, label: Entity, disk: ColumnDisk) {
+        if let Some(dim) = self.dims.get_mut(&label) {
+            dim.store = SharedStore::new(disk, Placement::Thread);
+        }
     }
 
     /// Stops every world of `label`. Returns `false` when no world has that label.
@@ -303,6 +370,26 @@ impl DimCells {
         for dim in self.dims.values_mut() {
             dim.store.answered().await;
         }
+    }
+
+    /// Asks every dimension to write all of its loaded columns on its next tick, and waits for
+    /// the data layer before [`Self::save_complete`] turns true.
+    pub fn request_save_all(&mut self) {
+        self.save = SavePhase::Requested;
+        self.save_failed = false;
+    }
+
+    /// Whether every requested save has reached the disk.
+    #[must_use]
+    pub fn save_complete(&self) -> bool {
+        matches!(self.save, SavePhase::Idle | SavePhase::Complete)
+    }
+
+    /// Whether the data layer answered the requested save without making every column durable,
+    /// .
+    #[must_use]
+    pub fn save_failed(&self) -> bool {
+        self.save_failed
     }
 
     /// The columns that each cell asked the generation of its world for in the last tick, in
@@ -556,7 +643,17 @@ impl DimCells {
         self.sessions.remove(&session);
     }
 
-    fn tick(&mut self, mut input: impl FnMut(CellId) -> DimInput) {
+    fn tick(
+        &mut self,
+        autosave: bool,
+        mut input: impl FnMut(CellId, Option<SaveRequest>) -> DimInput,
+    ) {
+        let save_all = self.save == SavePhase::Requested;
+        let request = if save_all {
+            Some(SaveRequest::All)
+        } else {
+            autosave.then_some(SaveRequest::Dirty)
+        };
         for dim in self.dims.values_mut() {
             for answer in dim.store.answers() {
                 if let Some(cell) = self.cells.get_mut(&answer.to) {
@@ -571,7 +668,7 @@ impl DimCells {
         }
         let cells = &mut self.cells;
         let ticked = block_on(worlds.cells.tick(self.tick, |cell| {
-            let mut input = input(cell);
+            let mut input = input(cell, request);
             if let Some(cell) = cells.get_mut(&cell) {
                 input.cell_mail = mem::take(&mut cell.inbox);
                 input.store_answers = mem::take(&mut cell.store_answers);
@@ -598,6 +695,25 @@ impl DimCells {
             });
         }
         self.send_to_stores();
+        if save_all {
+            self.flush_stores_and_wait();
+        } else if autosave {
+            for dim in self.dims.values_mut() {
+                dim.store.request_flush();
+            }
+        }
+    }
+
+    fn flush_stores_and_wait(&mut self) {
+        for dim in self.dims.values_mut() {
+            dim.store.request_flush();
+        }
+        let mut ok = true;
+        for dim in self.dims.values_mut() {
+            ok &= block_on(dim.store.flushed());
+        }
+        self.save = SavePhase::Complete;
+        self.save_failed |= !ok;
     }
 
     /// Sends the requests of the cells of this tick to the data layer of their dimension: the
@@ -704,6 +820,7 @@ impl Globals {
         routed: Option<RoutedInput>,
         players: Option<Vec<RosterRow>>,
         entity_id_grant: Option<EntityIdRange>,
+        save: Option<SaveRequest>,
     ) -> DimInput {
         let (control, serverbound, column_requests) = match routed {
             Some(RoutedInput {
@@ -715,6 +832,7 @@ impl Globals {
             None => Default::default(),
         };
         DimInput {
+            save,
             game_time: self.game_time,
             birth_clock: self.birth_clock,
             clocks: self.clocks.clone(),
@@ -774,12 +892,16 @@ pub fn tick_dimensions(world: &mut World) {
                 .collect()
         })
         .unwrap_or_default();
+    let autosave = world
+        .get_resource::<AutosaveCadence>()
+        .is_some_and(AutosaveCadence::is_due);
     if let Some(mut cells) = world.get_resource_mut::<DimCells>() {
-        cells.tick(|cell| {
+        cells.tick(autosave, |cell, save| {
             globals.input(
                 split.remove(&cell),
                 players.remove(&cell),
                 granted.remove(&cell),
+                save,
             )
         });
     }

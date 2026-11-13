@@ -1,22 +1,24 @@
 use std::sync::Arc;
 
-use bevy_app::SubApp;
+use bevy_app::{FixedUpdate, SubApp};
+use bevy_ecs::prelude::Res;
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::world::World;
 use mcrs_engine_cell::CellIndex;
 use mcrs_minecraft_biome::source::{BiomeSource, MultiNoiseBiomeSource};
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_engine::column_store::ColumnStoreLink;
+use mcrs_minecraft_engine::column_store::{ColumnStoreLink, StoredColumnLandSet};
 use mcrs_minecraft_engine::heightmap::BlockHeightmapPredicates;
+use mcrs_minecraft_engine::stored_column::PendingColumnFacts;
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
+use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension_builders::DimensionBuild;
 use mcrs_minecraft_engine_world::world::dimension_list::DimensionList;
-use mcrs_minecraft_engine_world::world::world_save::WorldSave;
 use mcrs_minecraft_game_registries::worldgen::chunk_generator::ChunkGenerator;
-use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Registries};
+use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics};
 use mcrs_minecraft_worldgen_generator::SurfaceIds;
 use mcrs_minecraft_worldgen_generator::ids::FillIds;
 use mcrs_minecraft_worldgen_generator::multi_noise_biomes::PresetBiomeTables;
-use mcrs_minecraft_worldgen_generator::saved::SavedColumns;
 use mcrs_minecraft_worldgen_generator::stages::{
     FillContext, GeneratorSetup, dimension_y_sections, flat_y_sections,
 };
@@ -26,6 +28,7 @@ use crate::features::DimensionFeaturePrograms;
 use crate::flat_world::{flat_biome, flat_layers};
 use crate::modern_carvers::DimensionCarverBiomes;
 use crate::routers::DimensionRouters;
+use crate::saved_monuments::rebuild_saved_monument_rooms;
 use crate::structures::DimensionStructures;
 use mcrs_minecraft_engine::dimension_generators::DimensionGenerators;
 
@@ -48,6 +51,15 @@ pub(crate) fn build_dimension_world(
     if let Some(mut store) = sub_app.world_mut().get_resource_mut::<ColumnStoreLink>() {
         store.generate_through_world();
     }
+    sub_app.add_systems(
+        FixedUpdate,
+        rebuild_saved_monument_rooms
+            .in_set(TickSet::DomainInput)
+            .after(StoredColumnLandSet)
+            .run_if(|landed: Option<Res<PendingColumnFacts>>| {
+                landed.is_some_and(|landed| !landed.0.is_empty())
+            }),
+    );
     sub_app.insert_resource(
         host.get_resource::<DimensionStructures>()
             .cloned()
@@ -112,6 +124,13 @@ fn insert_fill_context(host: &World, build: &DimensionBuild<'_>, sub_app: &mut S
         error!(%dimension, %diagnostics, "the registries lack a name worldgen needs; it will generate nothing");
         return;
     };
+    let Some(predicates) = host
+        .get_resource::<BlockHeightmapPredicates>()
+        .map(|predicates| predicates.0.clone())
+    else {
+        error!(%dimension, "no heightmap predicates for this dimension; it will generate nothing");
+        return;
+    };
     let features = match setup {
         GeneratorSetup::Noise { .. } => {
             let features = host
@@ -125,19 +144,13 @@ fn insert_fill_context(host: &World, build: &DimensionBuild<'_>, sub_app: &mut S
         }
         GeneratorSetup::Flat(_) => None,
     };
-    let saved = host.get_resource::<WorldSave>().and_then(|save| {
-        let registries = Registries::clone(sub_app.world().resource::<CurrentRegistries>());
-        SavedColumns::open(&save.0, build.dimension, registries)
-    });
     let fill = FillContext::build(
         setup,
         blocks,
         y_sections,
         biome_source,
         &preset_tables,
-        host.get_resource::<BlockHeightmapPredicates>()
-            .map(|predicates| predicates.0.clone()),
-        saved,
+        predicates,
         host.get_resource::<DimensionCarverBiomes>()
             .and_then(|carvers| carvers.0.get(dimension))
             .map(Arc::clone),

@@ -3,6 +3,7 @@
 
 use std::borrow::Cow;
 
+use crate::support::saved_block_entities;
 use bevy_app::{App, FixedUpdate};
 use bevy_ecs::prelude::Entity;
 use bevy_ecs::world::World;
@@ -27,7 +28,6 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::{Decode, Encode};
 use mcrs_minecraft_protocol_game::chunk::{ChunkData, ChunkDataBlockEntity};
-use mcrs_minecraft_worldgen_generator::saved::saved_block_entities;
 use mcrs_voxel::SectionPos;
 
 fn section_pos() -> SectionPos {
