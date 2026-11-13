@@ -3,6 +3,7 @@ use bevy::math::IVec2;
 use bevy::prelude::*;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::vitals::LocalVitals;
+use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::client::ClientConnection;
 use mcrs_minecraft_protocol::WritePacket;
 use mcrs_minecraft_protocol_game::serverbound::ClientCommandAction;
@@ -28,8 +29,30 @@ const EFFECT_BACKGROUND_AMBIENT: &str = "hud/effect_background_ambient";
 
 use crate::scene::EFFECT_TEXTURES as EFFECT_ICONS;
 
-pub fn vitals(size: GuiSize, vitals: &LocalVitals, game_time: Option<i64>, out: &mut Vec<GuiQuad>) {
+pub fn vitals(
+    size: GuiSize,
+    vitals: &LocalVitals,
+    game_time: Option<i64>,
+    game_mode: GameMode,
+    out: &mut Vec<GuiQuad>,
+) {
     environment(size, vitals, out);
+    if shows_status_bars(game_mode) {
+        status_bars(size, vitals, game_time, out);
+    }
+    effects(size, vitals, out);
+}
+
+fn shows_status_bars(game_mode: GameMode) -> bool {
+    matches!(game_mode, GameMode::Survival | GameMode::Adventure)
+}
+
+fn status_bars(
+    size: GuiSize,
+    vitals: &LocalVitals,
+    game_time: Option<i64>,
+    out: &mut Vec<GuiQuad>,
+) {
     experience_bar(size, vitals, out);
     let (cx, h) = (size.width / 2, size.height);
     let heart = if vitals.has(19) {
@@ -109,8 +132,6 @@ pub fn vitals(size: GuiSize, vitals: &LocalVitals, game_time: Option<i64>, out: 
         };
         out.push(sprite(at, IVec2::new(9, 9), region));
     }
-
-    effects(size, vitals, out);
 }
 
 fn experience_bar(size: GuiSize, vitals: &LocalVitals, out: &mut Vec<GuiQuad>) {
@@ -360,7 +381,7 @@ mod tests {
             ..LocalVitals::default()
         };
         let mut out = Vec::new();
-        vitals(size(), &state, Some(0), &mut out);
+        vitals(size(), &state, Some(0), GameMode::Survival, &mut out);
         let empty = sprite_at(&out, ARMOR).expect("empty armor icon");
         let full = sprite_at(&out, ARMOR_FULL).expect("full armor icon");
         assert_eq!(empty.min, IVec2::new(69, 191));
@@ -380,7 +401,7 @@ mod tests {
             ..LocalVitals::default()
         };
         let mut out = Vec::new();
-        vitals(size(), &state, Some(0), &mut out);
+        vitals(size(), &state, Some(0), GameMode::Survival, &mut out);
         let hearts: Vec<IRect> = out
             .iter()
             .filter_map(|quad| match quad {
@@ -403,17 +424,43 @@ mod tests {
             ..LocalVitals::default()
         };
         let mut out = Vec::new();
-        vitals(size(), &state, Some(1), &mut out);
+        vitals(size(), &state, Some(1), GameMode::Survival, &mut out);
         assert_eq!(
             sprite_at(&out, FOOD).expect("food").min,
             IVec2::new(242, 201)
         );
         let mut out = Vec::new();
-        vitals(size(), &state, Some(0), &mut out);
+        vitals(size(), &state, Some(0), GameMode::Survival, &mut out);
         assert_eq!(
             sprite_at(&out, FOOD).expect("food").min,
             IVec2::new(242, 200)
         );
+    }
+
+    #[test]
+    fn status_bars_follow_the_game_mode() {
+        let state = LocalVitals {
+            armor: 20.0,
+            air: 10,
+            experience_progress: 0.5,
+            ..LocalVitals::default()
+        };
+        for (mode, shown) in [
+            (GameMode::Survival, true),
+            (GameMode::Creative, false),
+            (GameMode::Adventure, true),
+            (GameMode::Spectator, false),
+        ] {
+            let mut out = Vec::new();
+            vitals(size(), &state, Some(0), mode, &mut out);
+            for region in [HEART, FOOD, ARMOR, AIR, XP_BACKGROUND] {
+                assert_eq!(
+                    sprite_at(&out, region).is_some(),
+                    shown,
+                    "{region} for {mode:?}"
+                );
+            }
+        }
     }
 
     #[test]
@@ -423,7 +470,7 @@ mod tests {
             ..LocalVitals::default()
         };
         let mut out = Vec::new();
-        vitals(size(), &state, Some(0), &mut out);
+        vitals(size(), &state, Some(0), GameMode::Survival, &mut out);
         let progress = out
             .iter()
             .find_map(|quad| match quad {

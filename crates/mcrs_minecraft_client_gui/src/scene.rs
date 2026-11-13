@@ -25,8 +25,10 @@ use crate::item_resolve::{GuiVertex, ItemRenderLayers};
 use crate::language::ClientLanguage;
 use crate::sprite::{GuiSprite, Scaling};
 use crate::tooltip::Tooltip;
+use mcrs_minecraft_client_world::game_mode::LocalGameMode;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
+use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_model::atlas::{MISSING_SIZE, decode_png, missing_pixels, rgba};
 use mcrs_minecraft_model::resource_set::ResourceSet;
 
@@ -569,6 +571,7 @@ fn draw_screens(
             &SlotTable,
             &SelectedHotbarSlot,
             &mcrs_minecraft_client_world::vitals::LocalVitals,
+            Option<&LocalGameMode>,
         ),
         With<Player>,
     >,
@@ -577,13 +580,15 @@ fn draw_screens(
     mut scene: ResMut<GuiScene>,
 ) {
     let scene = &mut *scene;
-    let Ok((slots, selected, vitals)) = player.single() else {
+    let Ok((slots, selected, vitals, game_mode)) = player.single() else {
         return;
     };
+    let game_mode = game_mode.map_or(GameMode::Survival, |mode| mode.current);
     crate::vitals::vitals(
         scene.size,
         vitals,
         game_time.as_deref().and_then(|time| time.0),
+        game_mode,
         &mut scene.quads,
     );
     crate::vitals::death(scene.size, vitals, language.as_deref(), &mut scene.quads);
