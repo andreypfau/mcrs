@@ -920,11 +920,14 @@ Provenance: `source_suggested`. Kind: wire. Confidence: medium. Experiment: MENU
      `1 / L` seconds passed since the end of the previous wait.
   2. When `L` = 260, the client does not wait.
   3. An open screen, the pause screen and a loss of the window focus do not change `L`.
-  4. VSync (MENU-DISP-002) and `L` both apply.
+  4. VSync (MENU-DISP-002) applies together with the wait of step 1. When `L` = 260, only VSync
+     applies.
 - **Postconditions:**
   - With `L` = 60 and VSync OFF, the client draws 60 frames or fewer in each second.
-  - With VSync ON, the frame rate is not above the lower of `L` and the refresh rate of the
-    monitor.
+  - With VSync ON and `L` < 260, the frame rate is not above the lower of `L` and the refresh
+    rate of the monitor.
+  - With VSync ON and `L` = 260, only the refresh rate of the monitor limits the frame rate. On a
+    monitor of 360 Hz, the frame rate can be above 260.
 - **Edge cases:** the frame limits of "Reduce FPS When" for a minimised window and for an
   inactive player are out of scope.
 
@@ -1646,13 +1649,17 @@ Decides: MENU-VAL-011, MENU-DISP-003, MENU-DISP-005.
     writes nothing.
   - A change by the Ctrl wheel writes the options file at once.
 - **Reason:** the owner decided this on 2026-11-13. The stored options are one state. The options
-  file and the server follow that state, with work in proportion to the change. A crash of the
-  client loses less. The wait of the slider and the comparison with the last
-  `client_information` put a limit on the traffic to the server.
+  file and the server follow that state, with work in proportion to the change. A write does not
+  wait for the removal of a screen. The reference writes a change of a slider only at the removal
+  of a screen. After a crash or a kill of the process, the options file holds the options of the
+  last write that came to its end. A change that still waited (steps 2 and 3) is lost. The wait of
+  the slider and the comparison with the last `client_information` put a limit on the traffic to
+  the server.
 - **Visible to the client:** yes.
   - The time of the options file differs. A crash or a kill of the process can occur while the
-    options screen or an option sub-screen is open. Then mcrs starts with each change up to the
-    last release of the left button. The reference starts with the values of its last write.
+    options screen or an option sub-screen is open. Then mcrs starts with the options of the last
+    write that came to its end. A change that still waited for the release of the left button or
+    for a write that ran is lost. The reference starts with the values of its last write.
   - A server gets `client_information` at the end of the wait of Render Distance, while the
     screen is still open. The reference sends it at the next moment of MENU-SAVE-001, for
     example at "Done". Thus in mcrs, the view of the player changes before the close.
