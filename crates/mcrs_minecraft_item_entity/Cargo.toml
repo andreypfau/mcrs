@@ -1,0 +1,23 @@
+[package]
+name = "mcrs_minecraft_item_entity"
+description = "The rules of an item entity: its counters, its start values, its pickup and its merge"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+# std: mcrs_minecraft_physics, for its boxes
+[dependencies]
+bevy_ecs = { workspace = true, optional = true }
+glam.workspace = true
+mcrs_minecraft_entity_key.workspace = true
+mcrs_minecraft_numeric.workspace = true
+mcrs_minecraft_physics.workspace = true
+
+[features]
+default = []
+bevy = ["dep:bevy_ecs"]

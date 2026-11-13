@@ -192,6 +192,8 @@ mcrs_minecraft_biome = { path = "crates/mcrs_minecraft_biome" }
 mcrs_minecraft_dimension = { path = "crates/mcrs_minecraft_dimension" }
 mcrs_minecraft_dimension_environment = { path = "crates/mcrs_minecraft_dimension_environment" }
 mcrs_minecraft_item = { path = "crates/mcrs_minecraft_item" }
+mcrs_minecraft_item_entity = { path = "crates/mcrs_minecraft_item_entity" }
+mcrs_minecraft_vanilla_item_entity = { path = "crates/mcrs_minecraft_vanilla_item_entity" }
 mcrs_minecraft_inventory_plan = { path = "crates/mcrs_minecraft_inventory_plan" }
 mcrs_minecraft_item_stack = { path = "crates/mcrs_minecraft_item_stack" }
 mcrs_minecraft_item_table = { path = "crates/mcrs_minecraft_item_table" }

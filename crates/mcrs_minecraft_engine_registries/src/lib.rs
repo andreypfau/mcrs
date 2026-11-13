@@ -5,6 +5,7 @@ mod item_definitions;
 mod loading_state;
 mod log_diagnostics;
 mod registry_load_plugin;
+mod registry_names;
 mod registry_snapshot;
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
 mod test_corpus;

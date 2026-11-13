@@ -95,6 +95,11 @@ impl<M> Default for EntityPhysicsPlugin<M> {
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct MobPublish;
 
+/// The entity pass in `Simulate`. After it, and before the tile moves of `Project`, each row is
+/// still in the tile of its position at the start of the tick.
+#[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct EntityPass;
+
 /// The tables of the kernel, from the block definitions and tags of the world.
 #[derive(Resource, Debug)]
 pub struct PhysicsTables(pub(crate) Tables);
@@ -152,11 +157,12 @@ impl<M: Send + Sync + 'static> Plugin for EntityPhysicsPlugin<M> {
                 .chain()
                 .in_set(TickSet::DomainInput),
         );
+        app.configure_sets(FixedUpdate, EntityPass.in_set(TickSet::Simulate));
         app.add_systems(
             FixedUpdate,
             entity_tick::<M>
                 .run_if(resource_exists::<PhysicsTables>)
-                .in_set(TickSet::Simulate),
+                .in_set(EntityPass),
         );
         app.configure_sets(
             FixedUpdate,

@@ -4,21 +4,26 @@ use bytes::{Bytes, BytesMut};
 use mcrs_engine_muxer::{EntityId, ViewerId};
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_protocol::{Result, VarInt};
-use mcrs_minecraft_protocol_game::clientbound::{ClientboundDamageEvent, ClientboundEntityEvent};
+use mcrs_minecraft_protocol_game::clientbound::{
+    ClientboundDamageEvent, ClientboundEntityEvent, ClientboundTakeItemEntity,
+};
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
 
 use crate::delivery::Delivery;
 use crate::encode::record;
 use crate::hold_set::HoldSet;
-use crate::mob_bundle::spawn_extras;
+use crate::mob_bundle::{Entries, LivingEntries, spawn_extras};
 use crate::mob_signal::MobSignal;
 use crate::mob_spawn::MobSpawn;
 use crate::mob_state::MobState;
 use crate::mob_tracker::MobTracker;
 use crate::player_input::Backlog;
+use crate::spawn_look::SpawnLook;
 use crate::wire_id::wire_id;
+use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_protocol_game::entity::MobLooks;
+use mcrs_minecraft_registries::Wire;
 
 const BLOCKS_PER_COLUMN: u32 = 16;
 
@@ -58,13 +63,20 @@ impl MobTrackers {
     }
 
     pub(crate) fn spawn(&mut self, subject: EntityId, spawn: &MobSpawn, tick: u64) {
+        let (looks, entries) = match &spawn.look {
+            SpawnLook::Mob(looks) => (
+                looks.clone(),
+                Entries::Living(LivingEntries::of(&spawn.state)),
+            ),
+            SpawnLook::Item(stack) => (MobLooks::default(), Entries::Item(stack.clone())),
+        };
         self.mobs.insert(
             subject,
             Mob {
                 kind: spawn.kind,
                 uuid: spawn.uuid,
-                looks: spawn.looks.clone(),
-                tracker: MobTracker::new(spawn.state, spawn.kind.update_interval, tick),
+                looks,
+                tracker: MobTracker::new(spawn.state, entries, spawn.kind.update_interval, tick),
             },
         );
     }
@@ -109,6 +121,11 @@ impl MobTrackers {
             }
             MobSignal::Died => event(ClientboundEntityEvent::DIED)?,
             MobSignal::Removed => event(ClientboundEntityEvent::REMOVED)?,
+            MobSignal::Taken { collector, amount } => record(&ClientboundTakeItemEntity {
+                item_id: entity_id,
+                player_id: wire_id(collector),
+                amount: VarInt(amount),
+            })?,
         };
         self.signals.push((subject, packet));
         Ok(())
@@ -136,6 +153,12 @@ impl MobTrackers {
     pub(crate) fn record(&mut self, subject: EntityId, state: MobState) {
         if let Some(mob) = self.mobs.get_mut(&subject) {
             mob.tracker.record(state);
+        }
+    }
+
+    pub(crate) fn record_stack(&mut self, subject: EntityId, stack: &ProtoStack<Wire>) {
+        if let Some(mob) = self.mobs.get_mut(&subject) {
+            mob.tracker.record_stack(stack.clone());
         }
     }
 
@@ -340,7 +363,7 @@ mod tests {
                 kind: &EntityTypeData::PIG,
                 uuid: Uuid::nil(),
                 state,
-                looks: MobLooks::default(),
+                look: SpawnLook::Mob(MobLooks::default()),
             };
             world.mobs.spawn(MOB, &spawn, 0);
             world

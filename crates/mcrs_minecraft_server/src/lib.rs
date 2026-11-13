@@ -1,3 +1,4 @@
+mod item_entities;
 pub mod operator_broadcast;
 mod vanilla_brains;
 
@@ -14,6 +15,8 @@ use mcrs_minecraft_engine_server::{DimensionWorldsPlugin, ServerCorePlugin, Serv
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_entity::damage_type_tag_keys::PANIC_CAUSES;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
+
+pub use item_entities::VanillaItemEntityPlugin;
 use mcrs_minecraft_vanilla_worldgen::{WorldGenPlugin, WorldgenRegistriesPlugin};
 
 /// The vanilla server: the engine's server plugins with every vanilla member, each one a
@@ -69,6 +72,7 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(self.worlds)
             .add(VanillaChatPlugin)
             .add(VanillaEntityPhysicsPlugin)
+            .add(VanillaItemEntityPlugin)
             .add(VanillaMobBrainPlugin)
             .add(self.world_gen)
             .add(LightingPlugin)

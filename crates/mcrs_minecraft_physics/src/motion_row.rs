@@ -3,6 +3,9 @@ use crate::Dimensions;
 use crate::InsideEffect;
 use crate::StuckIgnore;
 
+/// The tick count at which an item or an experience orb despawns (IEN-AGE-001).
+const LIFETIME: u32 = 6000;
+
 /// The motion data of one entity type.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MotionRow {
@@ -16,6 +19,9 @@ pub struct MotionRow {
     pub block_bounce_factor: f32,
     /// The default of the `step_height` attribute of a living type.
     pub step_height: f64,
+    /// The tick count at which the entity pass removes the row; `None` when the row ends only
+    /// by death or by its host.
+    pub lifetime: Option<u32>,
 }
 
 impl MotionRow {
@@ -31,6 +37,7 @@ impl MotionRow {
             powder_snow_solid: false,
             block_bounce_factor: 1.0,
             step_height: 0.6,
+            lifetime: None,
         }
     }
 
@@ -46,6 +53,7 @@ impl MotionRow {
             powder_snow_solid: false,
             block_bounce_factor: 0.8,
             step_height: 0.0,
+            lifetime: None,
         }
     }
 
@@ -69,13 +77,17 @@ impl MotionRow {
         }
     }
 
+    /// An item that the pass removes at the tick count 6000.
     #[must_use]
     pub fn item() -> Self {
-        Self::other(
-            Category::Item,
-            Dimensions::scalable(0.25, 0.25).with_eye_height(0.2125),
-            0.04,
-        )
+        Self {
+            lifetime: Some(LIFETIME),
+            ..Self::other(
+                Category::Item,
+                Dimensions::scalable(0.25, 0.25).with_eye_height(0.2125),
+                0.04,
+            )
+        }
     }
 
     #[must_use]
@@ -99,12 +111,16 @@ impl MotionRow {
         )
     }
 
+    /// An experience orb that the pass removes at the tick count 6000.
     #[must_use]
     pub fn experience_orb() -> Self {
-        Self::other(
-            Category::ExperienceOrb,
-            Dimensions::scalable(0.5, 0.5),
-            0.03,
-        )
+        Self {
+            lifetime: Some(LIFETIME),
+            ..Self::other(
+                Category::ExperienceOrb,
+                Dimensions::scalable(0.5, 0.5),
+                0.03,
+            )
+        }
     }
 }
