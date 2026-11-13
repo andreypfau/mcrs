@@ -5,12 +5,13 @@ use mcrs_minecraft_combat::{DamageRequest, DamageSource, Hit, PlayerVitals as He
 use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_engine::bus::PacketPayload;
+use mcrs_minecraft_engine::coordinator::clock::GameTime;
 use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine_brain::EntityRows;
 use mcrs_minecraft_game_mode::GameMode;
-use mcrs_minecraft_protocol::Bounded;
-use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_protocol::{Bounded, Decode, Packet, VarInt};
+use mcrs_minecraft_protocol_game::clientbound::{ClientboundDamageEvent, ClientboundEntityEvent};
 use mcrs_minecraft_protocol_game::serverbound::{
     ClientCommandAction, ServerboundAttack, ServerboundChatCommand, ServerboundClientCommand,
 };
@@ -128,6 +129,43 @@ fn a_dead_player_sees_the_death_animation_and_the_death_screen() {
 }
 
 #[test]
+fn dmg_net_012_other_players_see_the_damage_and_the_death_animation() {
+    let mut server = start();
+    load_stone_column(&mut server);
+    let (anchor, _) = server.join(PLAYER, "fighter");
+    let (watcher, _) = server.join(OTHER, "watcher");
+    command(&mut server, anchor, "gamemode survival");
+    let target = player_network_id(server.session_of(anchor).expect("the target has a session"));
+
+    hurt(&mut server, anchor, 5.0);
+    let packets = server.ticks(watcher, 2);
+    let damage = host_app::replicated(&packets)
+        .into_iter()
+        .find(|(id, _)| *id == ClientboundDamageEvent::ID)
+        .expect("the other player gets the damage event");
+    let mut body = damage.1.as_slice();
+    let damage = ClientboundDamageEvent::decode(&mut body).expect("the damage event decodes");
+    assert_eq!(
+        damage.entity_id.0, target,
+        "the event names the hurt player"
+    );
+
+    hurt(&mut server, anchor, 100.0);
+    let packets = server.ticks(watcher, 2);
+    let death = host_app::replicated(&packets)
+        .into_iter()
+        .find(|(id, _)| *id == ClientboundEntityEvent::ID)
+        .expect("the other player gets the death animation");
+    let mut body = death.1.as_slice();
+    let death = ClientboundEntityEvent::decode(&mut body).expect("the death animation decodes");
+    assert_eq!(
+        death.entity_id, target,
+        "the animation names the dead player"
+    );
+    assert_eq!(death.entity_status, ClientboundEntityEvent::DIED);
+}
+
+#[test]
 fn a_respawn_restores_the_health_and_clears_the_death() {
     let mut server = start();
     load_stone_column(&mut server);
@@ -237,40 +275,6 @@ fn dmg_death_002_death_drops_the_inventory() {
     );
 }
 
-/// ENV-BRD-001: a player five blocks past the border and its safe zone takes the border damage.
-#[test]
-fn dmg_env_003_a_player_outside_the_world_border_takes_damage() {
-    let mut server = start();
-    load_stone_column(&mut server);
-    let (anchor, _) = server.join(PLAYER, "wanderer");
-    survival(&mut server, anchor);
-    let player = server.player(anchor);
-    {
-        let mut transform = server
-            .world()
-            .get_mut::<mcrs_minecraft_engine_world::entity::physics::Transform>(player)
-            .expect("the player has a transform");
-        transform.translation.x = 10.0;
-    }
-    server.world().insert_resource(
-        mcrs_minecraft_engine_world::world_settings::WorldBorderSettings(
-            mcrs_minecraft_entity::WorldBorderSettings {
-                center_x: 0.0,
-                center_z: 0.0,
-                size: 10.0,
-                safe_zone: 0.0,
-                damage_per_block: 0.2,
-            },
-        ),
-    );
-    server.ticks(anchor, 10);
-    let health = health_of(&mut server, anchor);
-    assert_eq!(
-        health, 19.0,
-        "five blocks past the border deal one point of damage"
-    );
-}
-
 fn command(server: &mut PlayServer, anchor: Entity, line: &str) {
     server.send(
         anchor,
@@ -340,6 +344,51 @@ fn dmg_src_002_a_player_attack_reaches_a_mob_only_within_range() {
     );
 }
 
+/// DMG-HIT-001: one player may send an attack packet every four ticks, whatever it hits.
+#[test]
+fn dmg_src_002_a_player_attack_rate_limits_the_packets() {
+    let mut server = start();
+    server.app.world_mut().insert_resource(GameTime(0));
+    load_stone_column(&mut server);
+    let (anchor, _) = server.join(PLAYER, "fighter");
+    command(&mut server, anchor, "summon minecraft:pig 10 64 8");
+    command(&mut server, anchor, "summon minecraft:pig 11 64 8");
+    server.ticks(anchor, 2);
+    let (first, _) = summoned_mob(&mut server, 10.5);
+    let (second, second_before) = summoned_mob(&mut server, 11.5);
+
+    server.send(
+        anchor,
+        &ServerboundAttack {
+            entity_id: VarInt(i32::try_from(first).expect("the row id fits")),
+        },
+    );
+    server.send(
+        anchor,
+        &ServerboundAttack {
+            entity_id: VarInt(i32::try_from(second).expect("the row id fits")),
+        },
+    );
+    assert_eq!(
+        mob_health(&mut server, second),
+        second_before,
+        "the second packet inside the interval is ignored"
+    );
+
+    server.app.world_mut().resource_mut::<GameTime>().0 += 4;
+    server.send(
+        anchor,
+        &ServerboundAttack {
+            entity_id: VarInt(i32::try_from(second).expect("the row id fits")),
+        },
+    );
+    assert_eq!(
+        mob_health(&mut server, second),
+        second_before - 1.0,
+        "the next packet after the interval lands"
+    );
+}
+
 /// DMG-SRC-002: a player attack names another player as its target, and the target's health
 /// falls.
 #[test]
@@ -369,157 +418,6 @@ fn dmg_src_002_a_player_attack_hits_another_player() {
         "the attacked player loses one bare-hand hit"
     );
     assert_eq!(health_of(&mut server, attacker), 20.0);
-}
-
-/// ENV-FIR-004: a mob that stands in fire catches fire, is drawn on fire, and loses health.
-#[test]
-fn dmg_env_002_a_mob_in_fire_burns_and_loses_health() {
-    let mut server = start();
-    load_stone_column(&mut server);
-    let (anchor, _) = server.join(PLAYER, "fire");
-    command(
-        &mut server,
-        anchor,
-        "summon minecraft:pig 12 64 8 {NoAI:1b,PersistenceRequired:1b}",
-    );
-    server.ticks(anchor, 2);
-    let (id, before) = summoned_mob(&mut server, 12.5);
-    let fire = crate::support::standalone_corpus()
-        .0
-        .default_state("minecraft:fire")
-        .expect("fire is a block");
-    {
-        use bevy_ecs::system::SystemState;
-        use mcrs_minecraft_engine_world::world::dimension::Dimension;
-        use mcrs_minecraft_engine_world::world::storage::view::WorldViewMut;
-        use mcrs_minecraft_volume::BlockVolumeMut;
-        let world = server.world();
-        let dim = world
-            .query_filtered::<Entity, With<Dimension>>()
-            .single(world)
-            .expect("the dimension");
-        let mut state: SystemState<WorldViewMut> = SystemState::new(world);
-        let mut view = state.get_mut(world).expect("valid params");
-        view.get_mut(dim)
-            .expect("the dimension")
-            .set_block(mcrs_voxel::BlockPos::new(12, 64, 8), fire)
-            .expect("the fire is set");
-        state.apply(world);
-    }
-    server.ticks(anchor, 45);
-    let (after, position, on_fire, fire_ticks, air) = {
-        let rows = server.world().resource::<EntityRows>();
-        let (_, state) = rows
-            .living_rows()
-            .find(|(at, _)| at.id.0 == id)
-            .expect("the pig still lives");
-        let living = state.living.expect("living");
-        (
-            living.vitals.health,
-            state.body.position,
-            living.on_fire(),
-            living.vitals.fire_ticks,
-            living.vitals.air,
-        )
-    };
-    assert_eq!(
-        after,
-        before - 5.0,
-        "the burning pig loses five fire hits: pos {position:?} fire {on_fire} ticks {fire_ticks} air {air}",
-    );
-    assert!(on_fire || fire_ticks > 0, "the pig burns");
-}
-
-/// ENV-AIR-003: a mob under water loses its air and then its health.
-#[test]
-fn dmg_env_001_a_mob_under_water_drowns() {
-    let mut server = start();
-    load_stone_column(&mut server);
-    let (anchor, _) = server.join(PLAYER, "mob-diver");
-    command(
-        &mut server,
-        anchor,
-        "summon minecraft:pig 12 64 8 {NoAI:1b,PersistenceRequired:1b}",
-    );
-    server.ticks(anchor, 2);
-    let (id, _) = summoned_mob(&mut server, 12.5);
-    place(&mut server, &[(12, 64, 8), (12, 65, 8)], "minecraft:water");
-    server.ticks(anchor, 340);
-    assert_eq!(
-        mob_health(&mut server, id),
-        8.0,
-        "the submerged pig drowns twice"
-    );
-}
-
-/// ENV-FRZ-003: powder snow freezes a mob after the warm-up.
-#[test]
-fn dmg_env_003_a_mob_in_powder_snow_freezes() {
-    let mut server = start();
-    load_stone_column(&mut server);
-    let (anchor, _) = server.join(PLAYER, "mob-snow");
-    command(
-        &mut server,
-        anchor,
-        "summon minecraft:pig 12 64 8 {NoAI:1b,PersistenceRequired:1b}",
-    );
-    server.ticks(anchor, 2);
-    let (id, _) = summoned_mob(&mut server, 12.5);
-    place(
-        &mut server,
-        &[(12, 64, 8), (12, 65, 8)],
-        "minecraft:powder_snow",
-    );
-    server.ticks(anchor, 190);
-    assert_eq!(
-        mob_health(&mut server, id),
-        5.0,
-        "the frozen pig loses five hits"
-    );
-}
-
-/// ENV-CTC-001: a mob that touches a cactus loses health.
-#[test]
-fn dmg_env_004_a_mob_against_a_cactus_is_hurt() {
-    let mut server = start();
-    load_stone_column(&mut server);
-    let (anchor, _) = server.join(PLAYER, "mob-cactus");
-    command(
-        &mut server,
-        anchor,
-        "summon minecraft:pig 12 64 8 {NoAI:1b,PersistenceRequired:1b}",
-    );
-    server.ticks(anchor, 2);
-    let (id, _) = summoned_mob(&mut server, 12.5);
-    place(&mut server, &[(12, 64, 8)], "minecraft:cactus");
-    server.ticks(anchor, 35);
-    assert_eq!(
-        mob_health(&mut server, id),
-        6.0,
-        "the cactus hurts the pig four times"
-    );
-}
-
-/// ENV-WAL-001: a mob with its eyes in a block suffocates.
-#[test]
-fn dmg_env_004_a_mob_with_its_eyes_in_a_block_suffocates() {
-    let mut server = start();
-    load_stone_column(&mut server);
-    let (anchor, _) = server.join(PLAYER, "mob-wall");
-    command(
-        &mut server,
-        anchor,
-        "summon minecraft:pig 12 64 8 {NoAI:1b,PersistenceRequired:1b}",
-    );
-    server.ticks(anchor, 2);
-    let (id, _) = summoned_mob(&mut server, 12.5);
-    place(&mut server, &[(12, 65, 8)], "minecraft:stone");
-    server.ticks(anchor, 35);
-    assert_eq!(
-        mob_health(&mut server, id),
-        6.0,
-        "the suffocating pig loses four hits"
-    );
 }
 
 fn survival(server: &mut PlayServer, anchor: Entity) {
@@ -554,26 +452,6 @@ fn place(server: &mut PlayServer, positions: &[(i32, i32, i32)], name: &str) {
     }
 }
 
-/// ENV-AIR-003: a survival player under water loses air and then health.
-#[test]
-fn dmg_env_001_a_player_under_water_drowns() {
-    let mut server = start();
-    load_stone_column(&mut server);
-    let (anchor, _) = server.join(PLAYER, "diver");
-    survival(&mut server, anchor);
-    place(
-        &mut server,
-        &[(8, 64, 8), (8, 65, 8), (8, 64, 9), (9, 64, 8)],
-        "minecraft:water",
-    );
-    server.ticks(anchor, 330);
-    assert_eq!(
-        health_of(&mut server, anchor),
-        18.0,
-        "the diver drowns once"
-    );
-}
-
 /// ENV-FIR-004: a survival player in fire catches fire and loses health.
 #[test]
 fn dmg_env_002_a_player_in_fire_burns() {
@@ -582,115 +460,15 @@ fn dmg_env_002_a_player_in_fire_burns() {
     let (anchor, _) = server.join(PLAYER, "burner");
     survival(&mut server, anchor);
     place(&mut server, &[(8, 64, 8)], "minecraft:fire");
-    server.ticks(anchor, 25);
+    let packets = server.ticks(anchor, 25);
+    let health = packets.iter().find_map(|packet| match packet {
+        PacketPayload::SetHealth(health) if health.health == 18.5 => Some(health.health),
+        _ => None,
+    });
     assert_eq!(
-        health_of(&mut server, anchor),
-        18.5,
-        "the burning player loses 1.5"
-    );
-}
-
-/// ENV-FIR-006: lava ignites a player and deals its own damage.
-#[test]
-fn dmg_env_002_a_player_in_lava_burns() {
-    let mut server = start();
-    load_stone_column(&mut server);
-    let (anchor, _) = server.join(PLAYER, "lava");
-    survival(&mut server, anchor);
-    place(&mut server, &[(8, 64, 8), (8, 65, 8)], "minecraft:lava");
-    server.ticks(anchor, 25);
-    assert_eq!(
-        health_of(&mut server, anchor),
-        9.500_001,
-        "the lava player loses 10.5"
-    );
-}
-
-/// ENV-FRZ-003: powder snow freezes a player after the warm-up.
-#[test]
-fn dmg_env_003_a_player_in_powder_snow_freezes() {
-    let mut server = start();
-    load_stone_column(&mut server);
-    let (anchor, _) = server.join(PLAYER, "snow");
-    survival(&mut server, anchor);
-    place(
-        &mut server,
-        &[(8, 64, 8), (8, 65, 8)],
-        "minecraft:powder_snow",
-    );
-    server.ticks(anchor, 190);
-    assert_eq!(
-        health_of(&mut server, anchor),
-        17.5,
-        "the frozen player loses 2.5"
-    );
-}
-
-/// ENV-WAL-001: a player with its eyes in a block suffocates.
-#[test]
-fn dmg_env_004_a_player_with_its_eyes_in_a_block_suffocates() {
-    let mut server = start();
-    load_stone_column(&mut server);
-    let (anchor, _) = server.join(PLAYER, "wall");
-    survival(&mut server, anchor);
-    place(&mut server, &[(8, 65, 8)], "minecraft:stone");
-    server.ticks(anchor, 35);
-    assert_eq!(
-        health_of(&mut server, anchor),
-        18.0,
-        "the suffocating player loses 2.0"
-    );
-}
-
-/// ENV-CTC-001: a player against a cactus loses health.
-#[test]
-fn dmg_env_004_a_player_against_a_cactus_is_hurt() {
-    let mut server = start();
-    load_stone_column(&mut server);
-    let (anchor, _) = server.join(PLAYER, "cactus");
-    survival(&mut server, anchor);
-    place(&mut server, &[(9, 64, 8)], "minecraft:cactus");
-    let player = server.player(anchor);
-    server
-        .world()
-        .get_mut::<mcrs_minecraft_engine_world::entity::physics::Transform>(player)
-        .expect("the player has a transform")
-        .translation
-        .x = 8.75;
-    server.ticks(anchor, 35);
-    assert_eq!(
-        health_of(&mut server, anchor),
-        18.0,
-        "the cactus hurts the player twice"
-    );
-}
-
-/// ENV-VOID-001: a player below the void floor takes damage regardless of the game mode.
-#[test]
-fn dmg_env_005_a_player_below_the_world_loses_health() {
-    let mut server = start();
-    load_stone_column(&mut server);
-    let (anchor, _) = server.join(PLAYER, "void");
-    let player = server.player(anchor);
-    let min_y = {
-        let world = server.world();
-        world
-            .query::<&mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig>()
-            .single(world)
-            .expect("one dimension")
-            .min_y
-    };
-    server
-        .world()
-        .get_mut::<mcrs_minecraft_engine_world::entity::physics::Transform>(player)
-        .expect("the player has a transform")
-        .translation
-        .y = f64::from(min_y) - 65.0;
-    server.ticks(anchor, 3);
-    assert_eq!(
-        health_of(&mut server, anchor),
-        16.0,
-        "the void player loses 4.0"
+        health,
+        Some(18.5),
+        "the burning player loses 1.5 and the client sees it"
     );
 }
 

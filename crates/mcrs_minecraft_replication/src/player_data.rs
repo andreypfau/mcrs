@@ -18,4 +18,7 @@ pub enum PlayerData {
     /// A message that the player left, as a record. It goes to every viewer that holds the
     /// player at that event.
     Left(Bytes),
+    /// Any other record about the player. It goes to every other viewer that holds the player at
+    /// that event.
+    Packet(Bytes),
 }

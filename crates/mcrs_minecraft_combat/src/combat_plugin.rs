@@ -31,6 +31,7 @@ pub struct CombatPlugin;
 impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
         // Register events / messages
+        app.init_resource::<mcrs_minecraft_engine::tile_events::TileEvents>();
         crate::runtime::build(app);
         app.add_message::<DamageRequest>();
         app.add_message::<DamageDealt>();

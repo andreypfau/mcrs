@@ -4,6 +4,7 @@ use bevy_app::{App, FixedUpdate};
 use bevy_ecs::prelude::*;
 use bevy_ecs::query::QueryData;
 use bevy_math::DVec3;
+use mcrs_engine_muxer::{EntityEvent, TileKey};
 use mcrs_minecraft_block::definition::BlockStateFlags;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::fluid_keys::Fluid;
@@ -18,7 +19,9 @@ use mcrs_minecraft_engine::bus::{
 use mcrs_minecraft_engine::coordinator::clock::GameTime;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::network_id::player_network_id;
+use mcrs_minecraft_engine::player_entity_id;
 use mcrs_minecraft_engine::teleport::{TeleportState, position_packet, teleport_to};
+use mcrs_minecraft_engine::tile_events::TileEvents;
 use mcrs_minecraft_engine_brain::EntityRows;
 use mcrs_minecraft_engine_item::{Selected, Slots, Stacks};
 use mcrs_minecraft_engine_physics::{Mob, Mobs, PhysicsTables};
@@ -53,10 +56,11 @@ use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundPlayerInput, ServerboundSetCarriedItem,
 };
 use mcrs_minecraft_registries::{CurrentRegistries, Wire, WireId};
+use mcrs_minecraft_replication::{PlayerData, ReplicationData};
 
 use crate::CombatSet;
 
-use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol::{Encode, Packet, VarInt};
 use mcrs_minecraft_protocol_game::LpVec3;
 use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_protocol_game::clientbound::{
@@ -467,7 +471,8 @@ fn tick_player_environment(
             }
             if timers.on_ground {
                 let multiplier = fall_multiplier(view.as_ref(), tables.as_deref(), below);
-                let fall = compute_fall_damage(timers.fall_distance, 3.0, multiplier);
+                let fall =
+                    compute_fall_damage(timers.fall_distance, FALL_DAMAGE_THRESHOLD, multiplier);
                 if fall > 0.0
                     && let Some(hit) = hit_of(&type_rules, "fall", fall)
                 {
@@ -486,7 +491,7 @@ fn tick_player_environment(
         }
         if let Ok(config) = dimensions.get(in_dimension.0)
             && is_in_void(position.y, f64::from(config.min_y))
-            && let Some(hit) = hit_of(&type_rules, "out_of_world", 4.0)
+            && let Some(hit) = hit_of(&type_rules, "out_of_world", OUT_OF_WORLD_DAMAGE)
         {
             damage.write(DamageRequest::player(entity, hit));
         }
@@ -500,13 +505,13 @@ fn tick_player_environment(
             eye_in_water && !water_breathing,
             !eye_in_water,
         ) && drowning_damage
-            && let Some(hit) = hit_of(&type_rules, "drown", 2.0)
+            && let Some(hit) = hit_of(&type_rules, "drown", DROWN_DAMAGE)
         {
             damage.write(DamageRequest::player(entity, hit));
         }
         if in_lava {
             ignite(&mut health.0, 300, fire_resistant);
-            if !fire_resistant && let Some(hit) = hit_of(&type_rules, "lava", 4.0) {
+            if !fire_resistant && let Some(hit) = hit_of(&type_rules, "lava", LAVA_DAMAGE) {
                 damage.write(DamageRequest::player(entity, hit));
             }
         }
@@ -515,33 +520,33 @@ fn tick_player_environment(
         }
         if fire_damage
             && tick_fire(&mut health.0, fire_resistant, in_lava)
-            && let Some(hit) = hit_of(&type_rules, "on_fire", 1.0)
+            && let Some(hit) = hit_of(&type_rules, "on_fire", FIRE_DAMAGE)
         {
             damage.write(DamageRequest::player(entity, hit));
         }
         if freeze_damage
             && tick_freeze(&mut health.0, in_powder_snow, true, false, age)
-            && let Some(hit) = hit_of(&type_rules, "freeze", 1.0)
+            && let Some(hit) = hit_of(&type_rules, "freeze", FREEZE_DAMAGE)
         {
             damage.write(DamageRequest::player(entity, hit));
         }
-        if in_cactus && let Some(hit) = hit_of(&type_rules, "cactus", 1.0) {
+        if in_cactus && let Some(hit) = hit_of(&type_rules, "cactus", CACTUS_DAMAGE) {
             damage.write(DamageRequest::player(entity, hit));
         }
-        if in_wall && let Some(hit) = hit_of(&type_rules, "in_wall", 1.0) {
+        if in_wall && let Some(hit) = hit_of(&type_rules, "in_wall", IN_WALL_DAMAGE) {
             damage.write(DamageRequest::player(entity, hit));
         }
         if in_berry_bush
             && velocity.is_some_and(|velocity| {
                 velocity.0.x * velocity.0.x + velocity.0.z * velocity.0.z > 0.003
             })
-            && let Some(hit) = hit_of(&type_rules, "sweet_berry_bush", 1.0)
+            && let Some(hit) = hit_of(&type_rules, "sweet_berry_bush", SWEET_BERRY_BUSH_DAMAGE)
         {
             damage.write(DamageRequest::player(entity, hit));
         }
         if on_magma
             && !input.is_some_and(|input| input.sneaking)
-            && let Some(hit) = hit_of(&type_rules, "hot_floor", 1.0)
+            && let Some(hit) = hit_of(&type_rules, "hot_floor", HOT_FLOOR_DAMAGE)
         {
             damage.write(DamageRequest::player(entity, hit));
         }
@@ -594,14 +599,8 @@ fn tick_mob_environment(
         .map(|config| f64::from(config.min_y))
         .unwrap_or(-64.0);
     let tick = clock.as_deref().map_or(0, |clock| clock.0);
-    let places: Vec<Placed> = rows
-        .living_rows()
-        .filter(|(_, state)| state.living.is_some_and(|living| living.is_alive()))
-        .map(|(at, _)| at)
-        .collect();
-    let actions: Vec<_> = rows.actions().to_vec();
     let mut touched: std::collections::BTreeMap<u64, Touched> = std::collections::BTreeMap::new();
-    for action in actions {
+    for action in rows.actions().iter().copied() {
         let block = match action.action {
             BlockAction::Step(at) => block_state_bits(Some(&view), tables.as_deref(), at),
             BlockAction::Inside(at) => block_state_bits(Some(&view), tables.as_deref(), at),
@@ -637,7 +636,11 @@ fn tick_mob_environment(
             BlockAction::Bounce(_) => {}
         }
     }
-    let mut hits: Vec<(Placed, Hit)> = Vec::new();
+    let places: Vec<Placed> = rows
+        .living_rows()
+        .filter(|(_, state)| state.living.is_some_and(|living| living.is_alive()))
+        .map(|(at, _)| at)
+        .collect();
     for at in places {
         let mut touched = touched.remove(&at.id.0).unwrap_or_default();
         let Some(state) = rows.state_mut(at) else {
@@ -689,68 +692,76 @@ fn tick_mob_environment(
         }
         if fire_damage
             && tick_fire(&mut living.vitals, living.fire_immune, in_lava)
-            && let Some(hit) = hit_of(&type_rules, "on_fire", 1.0)
+            && let Some(hit) = hit_of(&type_rules, "on_fire", FIRE_DAMAGE)
         {
-            hits.push((at, hit));
+            damage.write(DamageRequest::row(at.id, hit));
         }
         if in_lava
             && !living.fire_immune
-            && let Some(hit) = hit_of(&type_rules, "lava", 4.0)
+            && let Some(hit) = hit_of(&type_rules, "lava", LAVA_DAMAGE)
         {
-            hits.push((at, hit));
+            damage.write(DamageRequest::row(at.id, hit));
         }
         if tick_air(&mut living.vitals, 300, eye_in_water, !eye_in_water)
             && drowning_damage
-            && let Some(hit) = hit_of(&type_rules, "drown", 2.0)
+            && let Some(hit) = hit_of(&type_rules, "drown", DROWN_DAMAGE)
         {
-            hits.push((at, hit));
+            damage.write(DamageRequest::row(at.id, hit));
         }
         if freeze_damage
             && tick_freeze(&mut living.vitals, in_powder_snow, true, false, tick)
-            && let Some(hit) = hit_of(&type_rules, "freeze", 1.0)
+            && let Some(hit) = hit_of(&type_rules, "freeze", FREEZE_DAMAGE)
         {
-            hits.push((at, hit));
+            damage.write(DamageRequest::row(at.id, hit));
         }
         if touched.cactus
-            && let Some(hit) = hit_of(&type_rules, "cactus", 1.0)
+            && let Some(hit) = hit_of(&type_rules, "cactus", CACTUS_DAMAGE)
         {
-            hits.push((at, hit));
+            damage.write(DamageRequest::row(at.id, hit));
         }
         if touched.hot_floor
-            && let Some(hit) = hit_of(&type_rules, "hot_floor", 1.0)
+            && let Some(hit) = hit_of(&type_rules, "hot_floor", HOT_FLOOR_DAMAGE)
         {
-            hits.push((at, hit));
+            damage.write(DamageRequest::row(at.id, hit));
         }
-        if touched.fall > 3.0
+        if touched.fall > FALL_DAMAGE_THRESHOLD
             && let Some(hit) = hit_of(
                 &type_rules,
                 "fall",
-                compute_fall_damage(touched.fall, 3.0, 1.0),
+                compute_fall_damage(touched.fall, FALL_DAMAGE_THRESHOLD, 1.0),
             )
         {
-            hits.push((at, hit));
+            damage.write(DamageRequest::row(at.id, hit));
         }
-        if in_wall && let Some(hit) = hit_of(&type_rules, "in_wall", 1.0) {
-            hits.push((at, hit));
+        if in_wall && let Some(hit) = hit_of(&type_rules, "in_wall", IN_WALL_DAMAGE) {
+            damage.write(DamageRequest::row(at.id, hit));
         }
         if touched.berry
             && state.body.velocity.x * state.body.velocity.x
                 + state.body.velocity.z * state.body.velocity.z
                 > 0.003
-            && let Some(hit) = hit_of(&type_rules, "sweet_berry_bush", 1.0)
+            && let Some(hit) = hit_of(&type_rules, "sweet_berry_bush", SWEET_BERRY_BUSH_DAMAGE)
         {
-            hits.push((at, hit));
+            damage.write(DamageRequest::row(at.id, hit));
         }
         if is_in_void(position.y, min_y)
-            && let Some(hit) = hit_of(&type_rules, "out_of_world", 4.0)
+            && let Some(hit) = hit_of(&type_rules, "out_of_world", OUT_OF_WORLD_DAMAGE)
         {
-            hits.push((at, hit));
+            damage.write(DamageRequest::row(at.id, hit));
         }
     }
-    for (at, hit) in hits {
-        damage.write(DamageRequest::row(at.id, hit));
-    }
 }
+
+const OUT_OF_WORLD_DAMAGE: f32 = 4.0;
+const DROWN_DAMAGE: f32 = 2.0;
+const LAVA_DAMAGE: f32 = 4.0;
+const FIRE_DAMAGE: f32 = 1.0;
+const FREEZE_DAMAGE: f32 = 1.0;
+const CACTUS_DAMAGE: f32 = 1.0;
+const IN_WALL_DAMAGE: f32 = 1.0;
+const SWEET_BERRY_BUSH_DAMAGE: f32 = 1.0;
+const HOT_FLOOR_DAMAGE: f32 = 1.0;
+const FALL_DAMAGE_THRESHOLD: f64 = 3.0;
 
 fn hit_of(rules: &DamageTypeRulesResource, path: &str, amount: f32) -> Option<Hit> {
     let damage_type = rules.0.id_path(path)?;
@@ -836,6 +847,7 @@ fn attach_player_combat(
         commands.entity(entity).insert_if_new(Selected(0));
         commands.entity(entity).insert((
             PlayerInputState::default(),
+            AttackRate::default(),
             EntityEquipment::new(),
             Armor::default(),
             ArmorToughness::default(),
@@ -1166,27 +1178,26 @@ fn mob_name(mob: &Mob) -> Text<mcrs_minecraft_text::ItemHover> {
 
 fn announce_player_deaths(
     mut deaths: MessageReader<DeathEvent>,
-    players: Query<(&Owner, &InDimension, &EntityUuid, Option<&GameProfile>), With<Player>>,
+    players: Query<(&Owner, &EntityUuid, Option<&GameProfile>, &Transform), With<Player>>,
     mobs: Option<Res<Mobs>>,
     type_rules: Res<DamageTypeRulesResource>,
-    viewers: Query<(&Owner, &InDimension)>,
+    mut events: ResMut<TileEvents>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
     for death in deaths.read() {
         let DamageTarget::Player(target) = death.target else {
             continue;
         };
-        let Ok((owner, dimension, _, profile)) = players.get(target) else {
+        let Ok((owner, _, profile, transform)) = players.get(target) else {
             continue;
         };
         let player_id = player_network_id(owner.0);
-        packets.write(to_target(
-            players_in_dimension(&viewers, dimension.0),
-            PacketPayload::EntityEvent(ClientboundEntityEvent {
-                entity_id: player_id,
-                entity_status: ClientboundEntityEvent::DIED,
-            }),
-        ));
+        let died = ClientboundEntityEvent {
+            entity_id: player_id,
+            entity_status: ClientboundEntityEvent::DIED,
+        };
+        packets.write(to(owner.0, PacketPayload::EntityEvent(died.clone())));
+        push_player_record(&mut events, owner, transform, &died);
         let key = format!(
             "death.attack.{}",
             type_rules
@@ -1205,8 +1216,8 @@ fn announce_player_deaths(
             .and_then(|key| {
                 players
                     .iter()
-                    .find(|(_, _, uuid, _)| EntityKey(uuid.0.as_u128()) == key)
-                    .and_then(|(_, _, _, profile)| profile.cloned())
+                    .find(|(_, uuid, _, _)| EntityKey(uuid.0.as_u128()) == key)
+                    .and_then(|(_, _, profile, _)| profile.cloned())
                     .map(|profile| Text::text(profile.username))
                     .or_else(|| {
                         mobs.as_deref()
@@ -1249,19 +1260,6 @@ fn send_player_knockback(
     }
 }
 
-fn players_in_dimension(
-    viewers: &Query<(&Owner, &InDimension)>,
-    dimension: Entity,
-) -> PacketTarget {
-    PacketTarget::PlayerSet(
-        viewers
-            .iter()
-            .filter(|(_, in_dimension)| in_dimension.0 == dimension)
-            .map(|(owner, _)| owner.0)
-            .collect(),
-    )
-}
-
 fn hurt_yaw(target: DVec3, source: Option<DVec3>) -> f32 {
     source.map_or(0.0, |source| {
         let offset = source - target;
@@ -1274,14 +1272,14 @@ fn send_player_damage(
     players: Query<(&Owner, &InDimension, &EntityUuid, Option<&Transform>), With<Player>>,
     entities: Query<(&EntityUuid, Option<&GlobalEntityId>)>,
     type_rules: Res<DamageTypeRulesResource>,
-    viewers: Query<(&Owner, &InDimension)>,
+    mut events: ResMut<TileEvents>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
     for event in dealt.read() {
         let DamageTarget::Player(target) = event.target else {
             continue;
         };
-        let Ok((owner, dimension, _, transform)) = players.get(target) else {
+        let Ok((owner, _dimension, _, Some(transform))) = players.get(target) else {
             continue;
         };
         let player_id = player_network_id(owner.0);
@@ -1304,29 +1302,24 @@ fn send_player_damage(
         if event.outcome != mcrs_minecraft_damage::HitOutcome::Full {
             continue;
         }
-        packets.write(to_target(
-            players_in_dimension(&viewers, dimension.0),
-            PacketPayload::DamageEvent(ClientboundDamageEvent {
-                entity_id: VarInt(player_id),
-                damage_type: VarInt(event.hit.damage_type as i32),
-                cause_entity_id: VarInt(network_id(event.hit.source.cause.causing)),
-                direct_entity_id: VarInt(network_id(event.hit.source.cause.direct)),
-                source_position: event.hit.source.source_position,
-            }),
-        ));
+        let damage = ClientboundDamageEvent {
+            entity_id: VarInt(player_id),
+            damage_type: VarInt(event.hit.damage_type as i32),
+            cause_entity_id: VarInt(network_id(event.hit.source.cause.causing)),
+            direct_entity_id: VarInt(network_id(event.hit.source.cause.direct)),
+            source_position: event.hit.source.source_position,
+        };
+        packets.write(to(owner.0, PacketPayload::DamageEvent(damage.clone())));
+        push_player_record(&mut events, owner, transform, &damage);
         let no_knockback = type_rules.0.flags(event.hit.damage_type).no_knockback;
         if event.hit.knockback > 0.0 && !no_knockback && event.hit.source.source_position.is_some()
         {
-            packets.write(to_target(
-                players_in_dimension(&viewers, dimension.0),
-                PacketPayload::HurtAnimation(ClientboundHurtAnimation {
-                    entity_id: VarInt(player_id),
-                    yaw: hurt_yaw(
-                        transform.map_or(DVec3::ZERO, |transform| transform.translation),
-                        event.hit.source.source_position,
-                    ),
-                }),
-            ));
+            let animation = ClientboundHurtAnimation {
+                entity_id: VarInt(player_id),
+                yaw: hurt_yaw(transform.translation, event.hit.source.source_position),
+            };
+            packets.write(to(owner.0, PacketPayload::HurtAnimation(animation.clone())));
+            push_player_record(&mut events, owner, transform, &animation);
         }
     }
 }
@@ -1617,18 +1610,20 @@ fn on_player_attack(
             Option<&PlayerGameMode>,
             Option<&mut FoodData>,
             &InDimension,
+            Option<&mut AttackRate>,
         ),
         With<Player>,
     >,
     targets: Query<(Entity, &Transform, &Owner, Option<&Health>, &InDimension), With<Player>>,
     rows: Res<EntityRows>,
+    time: Res<GameTime>,
     mut damage: MessageWriter<DamageRequest>,
     rules: Res<DamageTypeRulesResource>,
 ) {
     let Some(packet) = event.packet() else {
         return;
     };
-    let Ok((transform, uuid, attack, effects, mode, food, dimension)) =
+    let Ok((transform, uuid, attack, effects, mode, food, dimension, rate)) =
         players.get_mut(event.entity)
     else {
         return;
@@ -1637,6 +1632,17 @@ fn on_player_attack(
     if mode == GameMode::Spectator {
         return;
     }
+    let tick = time.0.max(0) as u64;
+    let Some(mut rate) = rate else {
+        return;
+    };
+    if rate
+        .0
+        .is_some_and(|last| tick.saturating_sub(last) < ATTACK_INTERVAL)
+    {
+        return;
+    }
+    rate.0 = Some(tick);
     let reach = AttackReach::of(transform, mode);
     let damage_type = rules.0.id_path("player_attack").unwrap_or(0);
     let mut source = DamageSource::new(damage_type);
@@ -1703,6 +1709,29 @@ fn wire_stack(value: &ItemStack, table: &ItemTable) -> Option<ProtoStack<Wire>> 
         count: i32::from(value.count.get()),
         components: Default::default(),
     })
+}
+
+/// The shortest gap in ticks between two attack packets of one player.
+const ATTACK_INTERVAL: u64 = 4;
+
+/// The tick of the last attack packet of a player (DMG-HIT-001 rate limit).
+#[derive(Component, Default)]
+struct AttackRate(Option<u64>);
+
+fn push_player_record<P: Packet + Encode>(
+    events: &mut TileEvents,
+    owner: &Owner,
+    transform: &Transform,
+    packet: &P,
+) {
+    let Ok(bytes) = mcrs_minecraft_replication::record(packet) else {
+        return;
+    };
+    events.push(
+        TileKey::at(transform.translation),
+        player_entity_id(owner.0),
+        EntityEvent::Data(ReplicationData::Player(PlayerData::Packet(bytes))),
+    );
 }
 
 fn equipment_packet(owner: &Owner, equipment: &EntityEquipment) -> PacketPayload {
@@ -2039,5 +2068,22 @@ mod tests {
             (hurt_yaw(DVec3::ZERO, Some(DVec3::new(0.0, 0.0, -1.0))).abs() - 180.0).abs() < 1.0e-4
         );
         assert!((hurt_yaw(DVec3::ZERO, Some(DVec3::new(1.0, 0.0, 0.0))) + 90.0).abs() < 1.0e-4);
+    }
+
+    #[test]
+    fn env_damage_table_matches_the_verified_totals() {
+        for (source, amount, expected) in [
+            ("out_of_world", OUT_OF_WORLD_DAMAGE, 4.0),
+            ("drown", DROWN_DAMAGE, 2.0),
+            ("lava", LAVA_DAMAGE, 4.0),
+            ("on_fire", FIRE_DAMAGE, 1.0),
+            ("freeze", FREEZE_DAMAGE, 1.0),
+            ("cactus", CACTUS_DAMAGE, 1.0),
+            ("in_wall", IN_WALL_DAMAGE, 1.0),
+            ("sweet_berry_bush", SWEET_BERRY_BUSH_DAMAGE, 1.0),
+            ("hot_floor", HOT_FLOOR_DAMAGE, 1.0),
+        ] {
+            assert_eq!(amount, expected, "{source}");
+        }
     }
 }

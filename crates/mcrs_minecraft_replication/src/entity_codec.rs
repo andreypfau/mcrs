@@ -196,6 +196,11 @@ impl EntityCodec {
                         self.delivery.owe(viewer, packet.clone());
                     }
                 }
+                EntityEvent::Data(ReplicationData::Player(PlayerData::Packet(packet))) => {
+                    for &viewer in self.holds.holders(subject) {
+                        self.delivery.owe(viewer, packet.clone());
+                    }
+                }
                 EntityEvent::Enter { .. } => {
                     self.generation = self.generation.wrapping_add(1);
                     entered.push(subject);

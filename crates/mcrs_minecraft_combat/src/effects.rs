@@ -91,18 +91,19 @@ pub fn tick_active_effects(
     mut damage_events: MessageWriter<DamageRequest>,
     mut remove_events: MessageWriter<RemoveEffectEvent>,
 ) {
+    let mut actions = Vec::new();
     for (entity, mut vitals, mut effects, mut food, base, _armor, dying) in &mut query {
         if dying.is_some() {
             continue;
         }
-        let mut actions = Vec::new();
+        actions.clear();
         let previous_boost = effects.0.health_boost();
         let removed = effects
             .0
             .tick(false, vitals.0.health, vitals.0.absorption, |action| {
                 actions.push(action)
             });
-        for action in actions {
+        for action in actions.drain(..) {
             match action {
                 EffectAction::Heal(amount) => {
                     vitals.0.health = (vitals.0.health + amount).min(vitals.0.max_health);
