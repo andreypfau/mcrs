@@ -18,15 +18,17 @@ mcrs_minecraft_engine_item.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_entity_key.workspace = true
+mcrs_minecraft_inventory_view.workspace = true
 mcrs_minecraft_item_entity.workspace = true
 mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item_table = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_menu.workspace = true
 mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_player_slots.workspace = true
-mcrs_minecraft_vanilla_item_entity.workspace = true
-serde.workspace = true
-tracing.workspace = true
-
-[dev-dependencies]
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_vanilla_item_entity.workspace = true
+mcrs_minecraft_wire.workspace = true
+serde.workspace = true
+tracing.workspace = true

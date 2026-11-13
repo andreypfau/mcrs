@@ -2,4 +2,5 @@
 
 mod capture;
 mod fixture;
+mod full_state;
 mod player_file;

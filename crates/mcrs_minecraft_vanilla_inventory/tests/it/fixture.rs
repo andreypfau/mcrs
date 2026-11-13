@@ -72,12 +72,16 @@ pub fn saved(name: &str, count: i32) -> ItemStackValue<Named> {
 /// Spawns a player and applies `snapshot` to it, as the engine does at a join or an arrival.
 pub fn restore(world: &mut World, snapshot: &PersistedSnapshot) -> Entity {
     let player = world.spawn(Player).id();
+    apply(world, player, snapshot);
+    player
+}
+
+pub fn apply(world: &mut World, player: Entity, snapshot: &PersistedSnapshot) {
     world
         .resource_scope(|world, registry: Mut<PersistedRegistry>| {
             registry.apply(world, player, snapshot)
         })
         .expect("the snapshot applies");
-    player
 }
 
 /// What a handover of `player` carries to another world.
