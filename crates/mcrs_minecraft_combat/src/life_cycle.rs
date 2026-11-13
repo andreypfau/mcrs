@@ -1,7 +1,7 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::prelude::*;
-use mcrs_minecraft_damage::{DamageTypeFlags, Defence, HitOutcome, hurt};
+use mcrs_minecraft_damage::{Defence, HitOutcome, hurt};
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::coordinator::clock::GameTime;
 use mcrs_minecraft_engine_brain::EntityRows;
@@ -29,8 +29,8 @@ pub fn process_damage_requests(
     mut damage_dealt: MessageWriter<DamageDealt>,
     mut death_events: MessageWriter<DeathEvent>,
     mut knockbacks: MessageWriter<KnockbackRequest>,
-    rules: Option<Res<DamageTypeRulesResource>>,
-    game_rules: Option<Res<GameRules>>,
+    rules: Res<DamageTypeRulesResource>,
+    game_rules: Res<GameRules>,
     time: Res<GameTime>,
     mut rows: Option<ResMut<EntityRows>>,
     mut changes: Option<ResMut<MobChanges>>,
@@ -55,11 +55,7 @@ pub fn process_damage_requests(
             let Some(at) = rows.placed(id) else {
                 continue;
             };
-            let flags = rules
-                .as_deref()
-                .map_or(DamageTypeFlags::default(), |rules| {
-                    rules.0.flags(req.hit.damage_type)
-                });
+            let flags = rules.0.flags(req.hit.damage_type);
             let before = rows
                 .state_of(at)
                 .and_then(|state| state.living)
@@ -114,25 +110,19 @@ pub fn process_damage_requests(
         if dying.is_some() {
             continue;
         }
-        let flags = rules
-            .as_deref()
-            .map_or(DamageTypeFlags::default(), |rules| {
-                rules.0.flags(req.hit.damage_type)
-            });
+        let flags = rules.0.flags(req.hit.damage_type);
         if let Some(mode) = mode
             && matches!(mode.0, GameMode::Creative | GameMode::Spectator)
             && !flags.bypasses_invulnerability
         {
             continue;
         }
-        if let Some(game_rules) = game_rules.as_deref() {
-            if flags.is_fall && !game_rules.is_on(GameRule::FallDamage)
-                || flags.is_fire && !game_rules.is_on(GameRule::FireDamage)
-                || flags.is_drowning && !game_rules.is_on(GameRule::DrowningDamage)
-                || flags.is_freezing && !game_rules.is_on(GameRule::FreezeDamage)
-            {
-                continue;
-            }
+        if flags.is_fall && !game_rules.is_on(GameRule::FallDamage)
+            || flags.is_fire && !game_rules.is_on(GameRule::FireDamage)
+            || flags.is_drowning && !game_rules.is_on(GameRule::DrowningDamage)
+            || flags.is_freezing && !game_rules.is_on(GameRule::FreezeDamage)
+        {
+            continue;
         }
         let fire_resistance = effects.is_some_and(|effects| {
             effects.0.has(MobEffect::FireResistance) && !flags.bypasses_effects
@@ -159,11 +149,8 @@ pub fn process_damage_requests(
         if let Some(ref mut food) = food
             && vitals.0.health < health_before
         {
-            food.0.add_exhaustion(
-                rules
-                    .as_deref()
-                    .map_or(0.0, |rules| rules.0.exhaustion(req.hit.damage_type)),
-            );
+            food.0
+                .add_exhaustion(rules.0.exhaustion(req.hit.damage_type));
         }
         damage_dealt.write(DamageDealt {
             target: req.target,
