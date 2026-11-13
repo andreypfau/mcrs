@@ -41,6 +41,7 @@ use uuid::Uuid;
 pub struct EntityCodec {
     list: PlayerList,
     subjects: BTreeMap<EntityId, Subject>,
+    pending_snapshots: BTreeMap<EntityId, Bytes>,
     /// The own subject of each viewer.
     owners: BTreeMap<ViewerId, EntityId>,
     holds: HoldSet,
@@ -63,6 +64,7 @@ struct Subject {
     properties: Vec<Property>,
     motion: Motion,
     game_mode: GameMode,
+    snapshot: Option<Bytes>,
 }
 
 impl Subject {
@@ -106,6 +108,7 @@ impl EntityCodec {
                 properties: spawn.properties.clone(),
                 motion: Motion::new(&spawn.pose, self.tick),
                 game_mode: spawn.game_mode,
+                snapshot: self.pending_snapshots.remove(&subject),
             },
         );
     }
@@ -201,6 +204,13 @@ impl EntityCodec {
                         self.delivery.owe(viewer, packet.clone());
                     }
                 }
+                EntityEvent::Data(ReplicationData::Player(PlayerData::Snapshot(packet))) => {
+                    if let Some(state) = self.subjects.get_mut(&subject) {
+                        state.snapshot = Some(packet.clone());
+                    } else {
+                        self.pending_snapshots.insert(subject, packet.clone());
+                    }
+                }
                 EntityEvent::Enter { .. } => {
                     self.generation = self.generation.wrapping_add(1);
                     entered.push(subject);
@@ -275,6 +285,7 @@ impl EntityCodec {
             return Ok(());
         };
         let uuid = state.uuid;
+        let snapshot = state.snapshot.clone();
         let Some(add_player) = state
             .motion
             .spawn(tier, |base| add_player(wire_id(subject), uuid, base))?
@@ -298,6 +309,9 @@ impl EntityCodec {
         chunks.push(delimiter.clone());
         chunks.extend(profile);
         chunks.push(add_player);
+        if let Some(snapshot) = snapshot {
+            chunks.push(snapshot);
+        }
         chunks.push(delimiter);
         self.holds.insert(viewer, subject);
         Ok(())
@@ -475,6 +489,7 @@ fn add_player(id: VarInt, uuid: Uuid, base: &DeltaBase) -> Result<Bytes> {
 #[cfg(test)]
 mod tests {
     use mcrs_engine_muxer::TileKey;
+    use mcrs_minecraft_core::Look;
     use mcrs_minecraft_entity::EntityTypeData;
     use mcrs_minecraft_protocol_game::ProtoStack;
     use mcrs_minecraft_protocol_game::clientbound::{
@@ -485,6 +500,7 @@ mod tests {
     use mcrs_minecraft_wire::Decode;
 
     use super::*;
+    use crate::delta_base::Pose;
     use crate::mob_signal::MobSignal;
     use crate::mob_spawn::MobSpawn;
     use crate::mob_state::MobState;
@@ -510,6 +526,63 @@ mod tests {
                 .collect(),
         };
         codec.apply(tick, &delta);
+    }
+
+    #[test]
+    fn a_snapshot_follows_the_spawn_of_a_viewer_that_gains_the_player_later() {
+        let mut codec = EntityCodec::default();
+        let player = EntityId(5);
+        let snapshot = record(&ClientboundSetEntityData {
+            entity_id: wire_id(player),
+            metadata: Metadata(vec![MetadataEntry {
+                index: 0,
+                value: MetaDataValue::Byte(0x20),
+            }]),
+        })
+        .unwrap();
+        let delta = TileDelta {
+            tile: TileKey::new(0, 0, 0),
+            events: vec![
+                SubjectEvent {
+                    subject: player,
+                    event: EntityEvent::Data(ReplicationData::Player(PlayerData::Snapshot(
+                        snapshot.clone(),
+                    ))),
+                },
+                SubjectEvent {
+                    subject: player,
+                    event: EntityEvent::Spawn(ReplicationData::Player(PlayerData::Spawn(
+                        PlayerSpawn {
+                            viewer: ViewerId(4),
+                            uuid: Uuid::nil(),
+                            username: "later".to_owned(),
+                            properties: Vec::new(),
+                            pose: Pose {
+                                position: DVec3::ZERO,
+                                look: Look::default(),
+                            },
+                            game_mode: GameMode::Survival,
+                        },
+                    ))),
+                },
+            ],
+        };
+        codec.apply(0, &delta);
+
+        let mut spawn = Vec::new();
+        codec.hold(
+            VIEWER,
+            Hold::Gain {
+                subject: player,
+                tier: Tier::NEAREST,
+            },
+            &mut spawn,
+        );
+        assert_eq!(
+            spawn.get(3),
+            Some(&snapshot),
+            "the spawn bundle ends with the entity data that the new viewer missed"
+        );
     }
 
     #[test]

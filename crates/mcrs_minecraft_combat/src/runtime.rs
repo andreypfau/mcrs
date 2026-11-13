@@ -4,6 +4,7 @@ use bevy_app::{App, FixedUpdate};
 use bevy_ecs::prelude::*;
 use bevy_ecs::query::QueryData;
 use bevy_math::DVec3;
+use bytes::Bytes;
 use mcrs_engine_muxer::{EntityEvent, TileKey};
 use mcrs_minecraft_block::definition::BlockStateFlags;
 use mcrs_minecraft_block::definition::Blocks;
@@ -1027,6 +1028,7 @@ fn sync_player_environment_metadata(
     mut players: Query<
         (
             &Owner,
+            &Transform,
             &Health,
             &mut EnvironmentSync,
             Option<&PlayerInputState>,
@@ -1037,8 +1039,9 @@ fn sync_player_environment_metadata(
     >,
     dimension_label: Res<DimensionLabel>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
+    mut events: ResMut<TileEvents>,
 ) {
-    for (owner, health, mut sync, input, effects, flying) in &mut players {
+    for (owner, transform, health, mut sync, input, effects, flying) in &mut players {
         let on_fire = health.fire_ticks > 0;
         let mut flags = 0;
         if on_fire {
@@ -1081,13 +1084,15 @@ fn sync_player_environment_metadata(
                 value: MetaDataValue::VarInt(VarInt(health.frozen_ticks)),
             },
         ]);
+        let packet = ClientboundSetEntityData {
+            entity_id: VarInt(player_network_id(owner.0)),
+            metadata,
+        };
         packets.write(to_target(
             PacketTarget::AllInDim(dimension_label.0),
-            PacketPayload::SetEntityData(ClientboundSetEntityData {
-                entity_id: VarInt(player_network_id(owner.0)),
-                metadata,
-            }),
+            PacketPayload::SetEntityData(packet.clone()),
         ));
+        push_player_snapshot(&mut events, owner, transform, &packet);
     }
 }
 
@@ -1812,13 +1817,32 @@ fn push_player_record<P: Packet + Encode>(
     transform: &Transform,
     packet: &P,
 ) {
+    push_player_data(events, owner, transform, packet, PlayerData::Packet);
+}
+
+fn push_player_snapshot<P: Packet + Encode>(
+    events: &mut TileEvents,
+    owner: &Owner,
+    transform: &Transform,
+    packet: &P,
+) {
+    push_player_data(events, owner, transform, packet, PlayerData::Snapshot);
+}
+
+fn push_player_data<P: Packet + Encode>(
+    events: &mut TileEvents,
+    owner: &Owner,
+    transform: &Transform,
+    packet: &P,
+    data: fn(Bytes) -> PlayerData,
+) {
     let Ok(bytes) = mcrs_minecraft_replication::record(packet) else {
         return;
     };
     events.push(
         TileKey::at(transform.translation),
         player_entity_id(owner.0),
-        EntityEvent::Data(ReplicationData::Player(PlayerData::Packet(bytes))),
+        EntityEvent::Data(ReplicationData::Player(data(bytes))),
     );
 }
 
@@ -1912,6 +1936,7 @@ mod tests {
         let mut app = App::new();
         app.add_message::<OutboundPlayerPacket>();
         app.init_resource::<SeenPackets>();
+        app.init_resource::<TileEvents>();
         app.insert_resource(DimensionLabel(Entity::PLACEHOLDER));
         app.add_systems(
             Update,
@@ -1921,6 +1946,7 @@ mod tests {
             Player,
             Owner(PlayerSession(1)),
             InDimension(Entity::PLACEHOLDER),
+            Transform::default(),
             Health::new(20.0, 20.0),
             EnvironmentSync::default(),
             PlayerInputState {
@@ -1944,6 +1970,7 @@ mod tests {
         let mut app = App::new();
         app.add_message::<OutboundPlayerPacket>();
         app.init_resource::<SeenPackets>();
+        app.init_resource::<TileEvents>();
         app.insert_resource(DimensionLabel(Entity::PLACEHOLDER));
         app.add_systems(
             Update,
@@ -1955,6 +1982,7 @@ mod tests {
                 Player,
                 Owner(PlayerSession(1)),
                 InDimension(Entity::PLACEHOLDER),
+                Transform::default(),
                 Health::new(20.0, 20.0),
                 EnvironmentSync::default(),
             ))
