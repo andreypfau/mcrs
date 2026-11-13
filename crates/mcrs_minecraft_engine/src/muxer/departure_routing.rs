@@ -80,9 +80,7 @@ fn announce(host: &mut World, anchor: Entity, destination: Destination, departur
     }
     let session = departure.session;
     let carried = &mut departure.carried;
-    let teleport_id = carried
-        .teleport
-        .sent(departure.arrival.transform, carried.departed_at);
+    let teleport_id = carried.send_teleport(departure.arrival.transform);
     dim_outputs::deliver(
         host,
         bus::to(
@@ -91,7 +89,7 @@ fn announce(host: &mut World, anchor: Entity, destination: Destination, departur
                 player_spawn_info: PlayerSpawnInfo::new(
                     destination.dimension_type,
                     destination.key,
-                    carried.game_mode.0,
+                    carried.game_mode(),
                 ),
                 data_to_keep: KEEP_ATTRIBUTES_AND_DATA,
             }),
@@ -99,9 +97,9 @@ fn announce(host: &mut World, anchor: Entity, destination: Destination, departur
     );
     enter_level_packets(
         session,
-        carried.op_level,
+        carried.op_level(),
         departure.arrival.position_packet(teleport_id),
-        game_mode::abilities(carried.game_mode.0, carried.flying),
+        game_mode::abilities(carried.game_mode(), carried.flying()),
         |packet| dim_outputs::deliver(host, packet),
     );
     if let Some(look_at) = departure.arrival.look_at.clone() {

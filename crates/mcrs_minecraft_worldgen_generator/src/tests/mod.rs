@@ -49,7 +49,6 @@ mod multi_noise_biomes;
 #[cfg(test)]
 mod rungs;
 #[cfg(test)]
-mod saved_regions;
 #[cfg(test)]
 mod stored_biomes;
 #[cfg(test)]
@@ -257,8 +256,7 @@ pub fn fill_context_with(
         material: None,
         blocks: blocks().0.clone(),
         biome: None,
-        predicates: None,
-        saved: None,
+        predicates: mcrs_minecraft_heightmap::heightmap_predicates(blocks(), block_tags()),
         program: crate::stages::ColumnProgram::modern(features),
         structures: None,
     }
@@ -403,7 +401,7 @@ pub fn generate_region(
             let merged = merge_column(
                 &base,
                 &deltas,
-                ctx.predicates.as_ref(),
+                &ctx.predicates,
                 ctx.features()
                     .map(|program| &program.world.has_block_entity),
             );

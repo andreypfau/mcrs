@@ -61,7 +61,7 @@ import { Aside } from '@astrojs/starlight/components';
 | `World` и `createWorld` для мини-игр | Миры измерений фиксируются на старте | <Status issue={546} /> | Создание и удаление мира во время работы запланировано |
 | `Instance` из Minestom | Мир измерения (sub-app) | <Status issue={280} /> | Плагины добавляйте через `add_dimension_plugin`, а не через `add_plugins` |
 | `ChunkGenerator` | Заменяемый источник чанков | <Status issue={281} /> | Сегодня генератор ванильный |
-| Сохранение мира, `world.save()` | Нет. Чтение Anvil работает, запись - нет | <Status issue={78} /> | Сервер не сохраняет чанки |
+| Сохранение мира, `world.save()` | Вызова нет. Сервер записывает измененные чанки в файлы регионов при автосохранении каждые 6000 тиков и при штатном выключении | <Status state="works" /> | Сохранение - не метод, который вызывает плагин |
 | Boss bar | Нет | <Status issue={247} /> | |
 | Scoreboard | Нет. Scoreboard упоминает только запланированный владелец глобального состояния | <Status issue={154} /> | Issue про scoreboard нет, и кода мы не нашли |
 
@@ -80,7 +80,7 @@ import { Aside } from '@astrojs/starlight/components';
 | JVM | mcrs | Состояние | Заметки |
 |---|---|---|---|
 | `config.yml`, `saveDefaultConfig()` | Поля структуры плагина. Бинарник читает переменные окружения `MCRS_*` | <Status state="partial" /> | Настройка идет только через плагин (<Status issue={278} />). Настройки бинарника описаны в [server_settings.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server_settings/src/server_settings.rs). Формата конфигурационного файла для плагина пока нет |
-| `PersistentDataContainer` | Собственный компонент плюс реестр сохраняемых компонентов | <Status issue={159} /> | Нужно сохранение мира, <Status issue={78} /> |
+| `PersistentDataContainer` | Собственный компонент плюс реестр сохраняемых компонентов | <Status issue={159} /> | Реестра сохраняемых компонентов пока нет |
 
 ## Сеть и прокси
 

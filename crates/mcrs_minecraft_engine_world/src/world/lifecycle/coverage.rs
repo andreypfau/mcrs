@@ -24,6 +24,10 @@ impl<P: Copy + Eq + Hash> Coverage<P> {
         self.counts.contains_key(&pos)
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = P> + '_ {
+        self.counts.keys().copied()
+    }
+
     /// Covers each of `positions` once more, and passes on those it covers for the first time.
     pub fn raise(&mut self, positions: impl IntoIterator<Item = P>, mut entered: impl FnMut(P)) {
         for pos in positions {

@@ -6,7 +6,7 @@ sidebar:
 kind: reference
 audience: [jvm]
 stability: changing
-tracking: [283, 285, 281, 546, 78, 82, 296, 321, 537, 266, 159, 154]
+tracking: [283, 285, 281, 546, 82, 296, 321, 537, 266, 159, 154]
 sources:
   - src/main.rs
   - crates/mcrs_minecraft_server/src/lib.rs
@@ -81,7 +81,7 @@ No row is a drop-in replacement, because mcrs has no Bukkit-like API, as [This i
 | `World` and `createWorld` for mini games | Dimension worlds are fixed at start | <Status issue={546} /> | Creating and removing a world at run time is planned |
 | Minestom `Instance` | A dimension world (a sub-app) | <Status issue={280} /> | Add plugins with `add_dimension_plugin`, not `add_plugins` |
 | `ChunkGenerator` | A replaceable chunk source | <Status issue={281} /> | Today the generator is the vanilla one |
-| Saving the world, `world.save()` | None. Reading Anvil works, writing does not | <Status issue={78} /> | The server does not save chunks |
+| Saving the world, `world.save()` | No call. The server writes changed chunks to the region files on an autosave every 6000 ticks and on a clean shutdown | <Status state="works" /> | Saving is not a method that a plugin calls |
 | Boss bar | None | <Status issue={247} /> | |
 | Scoreboard | None. Only the planned owner of global state names scoreboards | <Status issue={154} /> | There is no scoreboard issue, and we found no code |
 
@@ -100,7 +100,7 @@ No row is a drop-in replacement, because mcrs has no Bukkit-like API, as [This i
 | JVM | mcrs | State | Notes |
 |---|---|---|---|
 | `config.yml`, `saveDefaultConfig()` | Fields on the plugin struct. The binary reads `MCRS_*` environment variables | <Status state="partial" /> | Configuration comes only through the plugin (<Status issue={278} />). The settings of the binary are in [server_settings.rs](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server_settings/src/server_settings.rs). There is no config file format for a plugin yet |
-| `PersistentDataContainer` | Your own component plus a registry of persisted components | <Status issue={159} /> | Needs world saving, <Status issue={78} /> |
+| `PersistentDataContainer` | Your own component plus a registry of persisted components | <Status issue={159} /> | The registry of persisted components does not exist yet |
 
 ## Network and proxy
 

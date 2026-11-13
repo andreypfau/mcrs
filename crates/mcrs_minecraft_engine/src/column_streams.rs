@@ -50,7 +50,7 @@ use crate::held_light::{HeldLight, RelitSections};
 use crate::hot_ticket::CellCrossing;
 use crate::light_codec::{build_delta_light_data, build_stored_light_data};
 use crate::player_view::{PlayerView, ViewerPosition};
-use crate::stored_column::StoredColumn;
+use mcrs_minecraft_region_disk::stored_column::StoredColumn;
 
 /// The version stream of each column of a dimension that the muxer subscribes to: the dimension
 /// publishes a version of a column when the muxer wants one, and each change of a subscribed

@@ -56,7 +56,6 @@ This list follows section 11 of `docs/cells.md`, "Where the code is today", chec
 - A muxer stage runs on a link from the host. The host talks to each dimension over a link, with one input and one output per tick.
 - An in-memory data layer serves cold columns, with generation and light stages on a thread.
 - A player moves to another cell at the end of the tick in which it stands in a column of that cell. There is no hysteresis yet, and no entity other than a player crosses.
-- There is no disk under the data layer, because the server does not write chunks to disk yet.[^78]
 
 ## What is still design
 
@@ -74,7 +73,6 @@ Next: [Roadmap](/docs/en/project/roadmap/).
 
 [^181]: <Status issue={181} /> The direction: one dimension on many nodes for thousands of players.
 [^351]: <Status issue={351} /> The decision that ten thousand players are spread over one dimension.
-[^78]: <Status issue={78} /> Tracks saving changed chunks back to region files.
 [^160]: <Status issue={160} /> Shards form, merge and split, and run in parallel.
 [^162]: <Status issue={162} /> The first distribution task: an opt-in plugin group behind a link trait.
 [^167]: <Status issue={167} /> The last distribution task: a coordinator with an ownership map and load balancing.

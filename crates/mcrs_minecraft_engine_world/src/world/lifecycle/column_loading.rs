@@ -100,6 +100,11 @@ impl ColumnLoading {
         self.covered.contains(column)
     }
 
+    /// Every column a ticket loads.
+    pub fn loaded_columns(&self) -> impl Iterator<Item = ColumnPos> + '_ {
+        self.covered.iter()
+    }
+
     /// Whether a ticket within one column of `column` loads it and the eight around it, so the
     /// dimension lights it from the blocks of its neighbours. The outer ring of the columns that
     /// a ticket loads is loaded but not lit this way.
