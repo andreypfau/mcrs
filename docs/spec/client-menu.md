@@ -820,7 +820,8 @@ Kind: semantic. Confidence: medium. Experiment: MENU-EXP-06.
      a point. The fog distance of the point is `max(√(dx² + dz²), |dy|)`.
   6. The fog value is 0 at the start or nearer, 1 at the end or farther, and linear between.
      The end is `16 · r` blocks. The start is `16 · r − clamp(16 · r / 10, 4, 64)` blocks. The
-     client computes the start, the end and the value in `f32`, not in integers.
+     client computes the start, the end and the value in `f32`, not in integers. In mcrs the
+     end is the drawn end `e` in place of `16 · r` (`client-fog.md`, CFOG-MCRS-004).
   7. The fog of a point is the larger of this value and the value of the environmental fog
      (`client-fog.md`, CFOG-MIX-001). The environmental fog uses the spherical distance.
   8. The client keeps each column that it got until `forget_level_chunk` for that column
