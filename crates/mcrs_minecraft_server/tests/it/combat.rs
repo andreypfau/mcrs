@@ -49,7 +49,7 @@ fn hurt(server: &mut PlayServer, anchor: Entity, amount: f32) {
 }
 
 #[test]
-fn a_damaged_player_sees_health_dies_and_respawns() {
+fn a_damaged_player_sees_the_health_and_the_attributes() {
     let mut server = start();
     load_stone_column(&mut server);
     let (anchor, joined) = server.join(PLAYER, "fighter");
@@ -100,8 +100,14 @@ fn a_damaged_player_sees_health_dies_and_respawns() {
         )),
         "the client sees the new health"
     );
+}
 
-    server.ticks(anchor, 25);
+#[test]
+fn a_dead_player_sees_the_death_animation_and_the_death_screen() {
+    let mut server = start();
+    load_stone_column(&mut server);
+    let (anchor, _) = server.join(PLAYER, "slain");
+    command(&mut server, anchor, "gamemode survival");
     hurt(&mut server, anchor, 100.0);
     let packets = server.ticks(anchor, 2);
     assert_eq!(health_of(&mut server, anchor), 0.0);
@@ -119,7 +125,16 @@ fn a_damaged_player_sees_health_dies_and_respawns() {
             .any(|packet| matches!(packet, PacketPayload::PlayerCombatKill(_))),
         "the death screen reaches the client"
     );
+}
 
+#[test]
+fn a_respawn_restores_the_health_and_clears_the_death() {
+    let mut server = start();
+    load_stone_column(&mut server);
+    let (anchor, _) = server.join(PLAYER, "returning");
+    command(&mut server, anchor, "gamemode survival");
+    hurt(&mut server, anchor, 100.0);
+    server.ticks(anchor, 2);
     let packets = server.send(
         anchor,
         &ServerboundClientCommand {
