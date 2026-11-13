@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use mcrs_minecraft_engine_world::entity::physics::{OldTransform, Transform as PhysicsTransform};
 
+use mcrs_minecraft_client_gui::menu_screens_plugin::MenuScreensPlugin;
 use mcrs_minecraft_client_world::attack_input::AttackInput;
 use mcrs_minecraft_client_world::local_player::{FlyingSpeed, LocalPlayerTick};
 use mcrs_minecraft_client_world::movement_input::MovementInput;
@@ -29,15 +30,16 @@ impl Plugin for ClientInputPlugin {
             .add_systems(
                 Update,
                 (
-                    (
-                        release_cursor_on_escape,
-                        apply_mouse_look,
-                        grab_cursor_on_click,
-                    )
-                        .chain(),
+                    (apply_mouse_look, grab_cursor_on_click).chain(),
                     read_fly_speed_wheel,
                 ),
             );
+    }
+
+    fn finish(&self, app: &mut App) {
+        if !app.is_plugin_added::<MenuScreensPlugin>() {
+            app.add_systems(Update, release_cursor_on_escape.before(apply_mouse_look));
+        }
     }
 }
 
@@ -109,7 +111,7 @@ fn grab_cursor_on_click(
     }
 }
 
-/// With a screen open, Escape closes the screen instead.
+/// Without the menu screens, Escape frees the pointer; with a screen open, it closes the screen.
 fn release_cursor_on_escape(
     keys: Res<ButtonInput<KeyCode>>,
     screen: Option<Res<Screen>>,

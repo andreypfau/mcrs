@@ -6,10 +6,11 @@ use std::sync::Arc;
 use std::net::{Ipv4Addr, SocketAddr};
 
 use crate::cave::CaveCull;
-use crate::options::{ClientOptions, VIEW_DISTANCE_RANGE};
+use crate::options;
 use bevy::app::App;
 use bevy::ecs::resource::Resource;
 use mcrs_minecraft_client_gui::scene::{GuiConfig, GuiPlugin};
+use mcrs_minecraft_client_options::{ClientOptions, VIEW_DISTANCE_RANGE};
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_render::{Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, Uploads};
 
@@ -62,7 +63,7 @@ const MESH_IN_FLIGHT: usize = 128;
 const MESH_PER_FRAME: usize = 32;
 
 const VIEW_DISTANCE: u8 = 96;
-pub const MAX_VIEW_DISTANCE: u8 = 96;
+pub const MAX_VIEW_DISTANCE: u8 = *VIEW_DISTANCE_RANGE.end();
 
 /// The `MCRS_` settings of a run, named without the prefix; with none set, every setting takes
 /// its default. Where a name repeats, the first value counts.
@@ -85,7 +86,7 @@ impl Knobs {
         }
         let options = map
             .get("OPTIONS")
-            .and_then(|path| match ClientOptions::read(Path::new(path)) {
+            .and_then(|path| match options::read(Path::new(path)) {
                 Ok(options) => Some(options),
                 Err(error) => reject("OPTIONS", path, error),
             })
@@ -289,6 +290,11 @@ impl Knobs {
         self.options
     }
 
+    /// `OPTIONS=<file>` is where the video options are read from and saved to.
+    pub fn options_file(&self) -> Option<std::path::PathBuf> {
+        self.knob("OPTIONS").map(std::path::PathBuf::from)
+    }
+
     /// `OCCLUSION=0` draws every group the frustum and the cave graph keep, without the depth
     /// pyramid test and its second pass.
     pub fn occlusion(&self) -> bool {
@@ -352,35 +358,41 @@ impl Knobs {
         self.parsed("TIME", |_| true, "expected a tick count")
     }
 
-    /// `GUI_SCALE=<n>` pins the GUI scale; `0` or unset picks the largest scale
-    /// that keeps 320x240 GUI units on screen, as vanilla's auto setting does.
-    pub fn gui_scale(&self) -> u32 {
+    /// `GUI_SCALE=<n>` is the GUI scale of the run, over the one of the options, and is never
+    /// saved; `0` picks the largest scale that keeps 320x240 GUI units on screen, as vanilla's auto
+    /// setting does.
+    pub fn gui_scale(&self) -> Option<u32> {
         self.parsed("GUI_SCALE", |_| true, "expected a whole GUI scale")
-            .unwrap_or(0)
     }
 
     pub fn gui(&self) -> GuiPlugin {
         GuiPlugin {
             config: GuiConfig {
-                scale: self.gui_scale(),
+                // The client options project the scale before the first frame draws.
+                scale: 0,
                 cursor: self.gui_cursor(),
                 frozen_ticks: self.frozen_time(),
                 advanced_tooltips: false,
             },
-            screen: if self.opens_inventory() {
-                Screen::Inventory
-            } else {
-                Screen::None
-            },
+            screen: self.start_screen(),
         }
     }
 
-    /// `SCREEN=inventory` opens that screen at start, so a capture is deterministic.
-    pub fn opens_inventory(&self) -> bool {
+    /// `SCREEN=<name>` opens that screen at start, so a capture is deterministic.
+    pub fn start_screen(&self) -> Screen {
         match self.knob("SCREEN") {
-            None | Some("none") => false,
-            Some("inventory") => true,
-            Some(other) => reject("SCREEN", other, "expected none or inventory").unwrap_or(false),
+            None | Some("none") => Screen::None,
+            Some("inventory") => Screen::Inventory,
+            Some("pause") => Screen::Pause,
+            Some("options") => Screen::Options,
+            Some("video") => Screen::VideoSettings,
+            Some("accessibility") => Screen::AccessibilitySettings,
+            Some(other) => reject(
+                "SCREEN",
+                other,
+                "expected none, inventory, pause, options, video or accessibility",
+            )
+            .unwrap_or_default(),
         }
     }
 

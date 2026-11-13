@@ -1,0 +1,23 @@
+[package]
+name = "mcrs_minecraft_client_options"
+description = "The options a user sets on the client, with their ranges and their JSON form"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { workspace = true, default-features = false }
+thiserror = { workspace = true, default-features = false }
+bevy_ecs = { workspace = true, optional = true }
+
+[features]
+default = []
+bevy = ["dep:bevy_ecs"]
+
+[dev-dependencies]
+serde_json.workspace = true
