@@ -4,4 +4,5 @@ mod capture;
 mod click;
 mod fixture;
 mod full_state;
+mod hand;
 mod player_file;

@@ -6,6 +6,7 @@ use bevy_ecs::schedule::SystemCondition;
 use bevy_ecs::schedule::common_conditions::on_message;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine_item::Given;
+use mcrs_minecraft_engine_item::RequestDrop;
 use mcrs_minecraft_engine_item::RequestResult;
 use mcrs_minecraft_engine_world::tick::TickSet;
 
@@ -15,8 +16,11 @@ use crate::apply_clicks::apply_clicks;
 use crate::click_backlog::ClickBacklog;
 use crate::click_backlog::any_backlog;
 use crate::decode_click::decode_click;
+use crate::forget_rejected_swap::forget_rejected_swap;
 use crate::full_sends::FullSends;
 use crate::full_sends::any_full_send;
+use crate::hand_action::hand_action;
+use crate::launch_drops::launch_drops;
 use crate::menu_queue::MenuQueue;
 use crate::menu_queue::any_queued;
 use crate::restore_holders::hold_new_player;
@@ -31,7 +35,9 @@ use crate::sync_menus::sync_menus;
 /// Each `container_click` packet becomes an [`InventoryClick`], which
 /// [`InventorySet::Input`] turns into a request of the engine (ITX-JAV-001 to ITX-JAV-005).
 /// [`InventorySet::Sync`] then sends each stack of the inventory menu that the client does not
-/// hold (INV-SYN-003, INV-SYN-004).
+/// hold (INV-SYN-003, INV-SYN-004). The drop keys and the hand swap of the `player_action`
+/// packet are requests too (INV-SEL-004, INV-SEL-005), and each stack that a drop takes out of a
+/// holder of a player becomes an item entity.
 ///
 /// Add it to each dimension world, beside
 /// [`ItemPlugin`](mcrs_minecraft_engine_item::ItemPlugin), which it needs. The player file and a
@@ -59,6 +65,9 @@ impl Plugin for VanillaInventoryPlugin {
                     apply_clicks
                         .run_if(on_message::<InventoryClick>.or_eager(any_backlog))
                         .in_set(InventorySet::Input),
+                    launch_drops
+                        .run_if(on_message::<RequestDrop>)
+                        .in_set(InventorySet::Sync),
                     (
                         send_full_state.run_if(any_full_send),
                         sync_menus.run_if(
@@ -73,6 +82,8 @@ impl Plugin for VanillaInventoryPlugin {
             )
             .add_observer(hold_new_player)
             .add_observer(set_carried_item)
-            .add_observer(decode_click);
+            .add_observer(decode_click)
+            .add_observer(hand_action)
+            .add_observer(forget_rejected_swap);
     }
 }

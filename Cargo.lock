@@ -6466,6 +6466,7 @@ dependencies = [
  "mcrs_minecraft_registries",
  "mcrs_minecraft_vanilla_item_entity",
  "mcrs_minecraft_wire",
+ "mcrs_voxel",
  "serde",
  "tracing",
 ]

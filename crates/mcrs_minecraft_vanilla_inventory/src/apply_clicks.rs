@@ -136,10 +136,7 @@ pub(crate) fn apply_clicks(
     }
 }
 
-/// The request of `ops`, or `None` when it changes nothing or holds a `drop`.
-// chisle: the engine request has no `drop`, so a throw and a drop from the cursor apply nothing
-// and the comparison corrects the client; a `drop` of the engine request that spawns the item
-// entity of IEN-SPN-001 lifts it.
+/// The request of `ops`, or `None` when it changes nothing.
 fn engine_request(slots: &ClickSlots, ops: &Operations<MenuSlot, StackHandle>) -> Option<Request> {
     if ops.is_empty() {
         return None;
@@ -157,7 +154,7 @@ fn engine_request(slots: &ClickSlots, ops: &Operations<MenuSlot, StackHandle>) -
                 stack.map(|stack| stack.stack.entity),
                 count,
             ),
-            Op::Drop { .. } => return None,
+            Op::Drop { from, count } => request.drop(slots.slot_ref(from), count),
         };
     }
     Some(request)

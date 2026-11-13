@@ -30,6 +30,7 @@ use mcrs_minecraft_wire::VarInt;
 use crate::fixture::STONE;
 use crate::fixture::app;
 use crate::fixture::apply;
+use crate::fixture::dropped;
 use crate::fixture::holders;
 use crate::fixture::saved;
 use crate::fixture::stacks;
@@ -40,7 +41,7 @@ const HOTBAR_0: u16 = 36;
 const HOTBAR_1: u16 = 37;
 
 /// A player with five stone in `P[0]`, after the send of its full state under the state id 1.
-fn joined(world: &mut World) -> Entity {
+pub(crate) fn joined(world: &mut World) -> Entity {
     let inventory = vec![ItemStackWithSlot {
         slot: 0,
         stack: saved("stone", 5),
@@ -127,7 +128,7 @@ fn summary(stack: &ProtoStack<Wire>) -> String {
 }
 
 /// Each inventory packet that the tick sent, as text.
-fn sent(world: &mut World) -> Vec<String> {
+pub(crate) fn sent(world: &mut World) -> Vec<String> {
     let packets: Vec<OutboundPlayerPacket> = world
         .resource_mut::<Messages<OutboundPlayerPacket>>()
         .drain()
@@ -241,6 +242,22 @@ fn itx_jav_005_a_click_that_does_not_apply_is_corrected() {
     let mut app = app();
     let world = app.world_mut();
     let player = joined(world);
+    let empty_pick_up = Packet::pick_up(1, HOTBAR_1).claiming(vec![(HOTBAR_0, None)], None);
+
+    click(world, player, empty_pick_up);
+    world.run_schedule(FixedUpdate);
+
+    assert_eq!(stacks(world, player), [(0, STONE, 5)]);
+    assert_eq!(sent(world), ["slot 36 1x5 state 2"]);
+}
+
+/// INV-MNU-006, IEN-SPN-001: a throw click drops the stack through the engine as an item entity
+/// with the pickup delay of a throw.
+#[test]
+fn ien_spn_001_a_throw_click_drops_an_item_entity() {
+    let mut app = app();
+    let world = app.world_mut();
+    let player = joined(world);
     let throw = Packet {
         input: ContainerInput::Throw,
         button: 1,
@@ -251,8 +268,9 @@ fn itx_jav_005_a_click_that_does_not_apply_is_corrected() {
     click(world, player, throw);
     world.run_schedule(FixedUpdate);
 
-    assert_eq!(stacks(world, player), [(0, STONE, 5)]);
-    assert_eq!(sent(world), ["slot 36 1x5 state 2"]);
+    assert_eq!(stacks(world, player), []);
+    assert_eq!(dropped(world), [(STONE, 5, 40)]);
+    assert_eq!(sent(world), Vec::<String>::new());
 }
 
 /// ITX-JAV-003, ITX-MOD-005: the second click of one tick reads the slots that the request of the

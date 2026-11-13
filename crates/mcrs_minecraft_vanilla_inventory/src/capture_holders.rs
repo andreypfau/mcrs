@@ -11,20 +11,14 @@ use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
-use mcrs_minecraft_entity::EntityTypeData;
-use mcrs_minecraft_entity_key::BirthSource;
-use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_item_entity::Cause;
-use mcrs_minecraft_item_entity::HandVelocity;
-use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_table::ItemTable;
-use mcrs_minecraft_vanilla_item_entity::Form;
 use mcrs_minecraft_vanilla_item_entity::ItemEntityCommandsExt;
-use mcrs_minecraft_vanilla_item_entity::Launch;
 
 use crate::PlayerHolders;
 use crate::close_inventory_menu::close_inventory_menu;
+use crate::hand_launch::hand_launch;
 use crate::player_stacks::CRAFT_GRID_SLOTS;
 use crate::player_stacks::PlayerStacks;
 
@@ -105,17 +99,8 @@ fn apply_close(
 /// Throws each rest from the player as one item entity (IEN-SPN-001, IEN-SPN-006).
 fn drop_rests(commands: &mut Commands, rests: Vec<ItemStack>, transform: Transform, source: u128) {
     for rest in rests {
-        commands.spawn_stack(rest).launch(Launch {
-            source: BirthSource::Entity(EntityKey(source)),
-            form: Form::Hand {
-                feet: transform.translation,
-                eye_height: EntityTypeData::PLAYER.eye_height,
-                velocity: HandVelocity::Look {
-                    yaw: transform.rotation.yaw(),
-                    pitch: transform.rotation.pitch(),
-                },
-            },
-            values: ItemEntity::with_pickup_delay(Cause::MenuRest.pickup_delay()),
-        });
+        commands
+            .spawn_stack(rest)
+            .launch(hand_launch(transform, source, Cause::MenuRest));
     }
 }
