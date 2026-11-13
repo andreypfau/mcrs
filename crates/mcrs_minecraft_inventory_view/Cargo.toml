@@ -1,0 +1,18 @@
+[package]
+name = "mcrs_minecraft_inventory_view"
+description = "The state id of a menu and the server's view of the stacks that the client holds, with the comparison that finds the slots to send again"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_item_stack.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_resource.workspace = true
+mcrs_test_alloc.workspace = true

@@ -5389,6 +5389,15 @@ name = "mcrs_minecraft_inventory_plan"
 version = "0.5.8"
 
 [[package]]
+name = "mcrs_minecraft_inventory_view"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_item_stack",
+ "mcrs_minecraft_resource",
+ "mcrs_test_alloc",
+]
+
+[[package]]
 name = "mcrs_minecraft_item"
 version = "0.5.8"
 dependencies = [
