@@ -27,6 +27,8 @@ lists the support families of the parts that follow.
   4, defines them.
 - **Support shape**: as SIM-FIRE-003 defines it. It is the collision shape of a state, with the
   exceptions of the table of SIM-FIRE-003.
+- **Directions**: `W`, `E`, `N`, `S`, `D` and `U` are west, east, north, south, down and up, as
+  `block-simulation.md`, section 0.3, defines them. P + D is the position below P.
 - **Subject**: a block of section 3, at the position P.
 - **Supporting position**: the position whose state decides if the subject can stay. For a block on a
   floor, it is P + D. For a block on a wall, it is the neighbour of P on the side opposite to the
@@ -127,7 +129,7 @@ was not tested.
 ## 2. When the test runs, and what occurs
 
 **SUP-RUN-001** (`black_box_confirmed`, semantic, confidence high). The shape function of a subject
-(SIM-SHP-001 step 3) has this result:
+(SIM-SHP-001 step 3) must give this result:
 
 1. If the shape update comes from a direction that the family of the subject does not test (section 3),
    the result is the state of the subject. Nothing changes.
@@ -144,13 +146,14 @@ The destroy is SIM-SET-004 with these results for an observer:
 - The destroy is a set with flags 3. Thus it makes neighbour updates and shape updates around P. A
   subject that stands on the removed subject is tested in the same tick, and so on up the chain (R5).
 
-A shape update that carries *keep-shape* does not run (SIM-SHP-001). A subject that loses its support
-through such a set stays in its position until a later shape update reaches it (R4, the column "none").
+A set with *keep-shape* makes no shape updates (SIM-SHP-001). A player sees a subject that lost its
+support through such a set stay in its position. It goes at the next shape update from a tested
+direction (R4, the column "none").
 
 **SUP-RUN-002** (`source_suggested`, semantic, confidence medium). The support test of section 3 is also
 the support test of PLC-SUP-001. A placement of a subject where the subject cannot stay is refused. The
-results of PLC-PRT-004 for tall grass and the sunflower agree with SUP-VEG-001. Section 6 (U1) states
-what remains unknown.
+results of PLC-PRT-004 for tall grass and the sunflower agree with SUP-VEG-001. Section 6 (U1 and U3)
+states what remains unknown.
 
 ## 3. Support families of part 1
 
@@ -164,7 +167,9 @@ side" means a shape update whose neighbour position is the supporting position o
 the block at P + D is in the block tag of the plant. The test runs for a shape update from any direction
 (R4). The block definition corpus states the tag of each plant in the component
 `minecraft:placement_filter` (`assets/mcrs/block_definition/README.md`). This table gives the plants of
-part 1. Result R1 confirms the tag of `short_grass` for each state of the survey.
+part 1. Result R1 confirms the tag of `short_grass` for each state of the survey. R4 tests the directions
+for `short_grass`, `oak_sapling`, `poppy` and `pink_petals`. The directions of the other plants are
+`source_suggested`.
 
 | Tag | Plants |
 |-----|--------|
@@ -184,11 +189,12 @@ property `half`. The parts are at P (`lower`) and P + U (`upper`). These blocks 
 - The upper part can stay when P + D holds the lower part of the same block.
 
 The removal for support of one part removes the other part in the same tick, through the chain of
-SUP-RUN-001 (R5). Only one part drops items. When the lower part goes first, the lower part drops. When the
-upper part goes first, the lower part still drops, because the lower part is then the part that cannot
-stay (R6). When the lower part is set to air directly, the upper part drops nothing. LOOT-SRC-006 states
-the tables. The test runs for a shape update from any direction (`source_suggested`; R4 tests only
-plants with one part).
+SUP-RUN-001 (R5). Each removed part drops the items of its own block table (SUP-RUN-001). The tables
+decide which part gives items, and LOOT-SRC-006 states them. For `sunflower`, one item drops when the
+base goes and when the upper part goes first. Nothing drops when the lower part is set to air directly
+(R6). The tables of `tall_grass` and `large_fern` give `wheat_seeds` by chance, or nothing. R5 and R6 test
+`sunflower`, `tall_grass` and `large_fern`. The other tall plants are `source_suggested`. The test runs for
+a shape update from any direction (`source_suggested`; R4 tests only plants with one part).
 
 **SUP-VEG-003** (`black_box_confirmed`, semantic, confidence high). `brown_mushroom` and `red_mushroom`
 can stay when the supporting face at P + D passes the center test, or when the block at P + D is in
@@ -239,7 +245,7 @@ in this family (section 5).
 **SUP-PLATE-001** (`black_box_confirmed`, semantic, confidence high). A pressure plate can stay when the
 supporting face at P + D passes the rigid test or the center test. The test runs only for a shape update
 from down (R4). These blocks are pressure plates: each block of `#minecraft:pressure_plates`. The survey
-(R1) and R4 test `stone_pressure_plate`.
+(R1) and R4 test `stone_pressure_plate`. The other plates are `source_suggested`.
 
 ### 3.4 Signs
 
@@ -257,8 +263,8 @@ block types that hold a sign on a floor (R3).
 
 | Rule | Family | Support test | Directions | Drop with the empty stack (R6) |
 |------|--------|--------------|------------|-------------------------------|
-| SUP-VEG-001 | plants on a base | block tag at P + D | any | its item; `short_grass` and `fern` drop `wheat_seeds` by chance |
-| SUP-VEG-002 | tall plants | each part needs the other part | any | one time, from the lower part |
+| SUP-VEG-001 | plants on a base | block tag at P + D | any | its item (`oak_sapling`, `poppy`, `pink_petals`); `short_grass` and `fern`: `wheat_seeds` by chance, or nothing |
+| SUP-VEG-002 | tall plants | each part needs the other part | any | its block tables: `sunflower` one item; `tall_grass` and `large_fern` `wheat_seeds` by chance, or nothing |
 | SUP-VEG-003 | mushrooms | center, or a tag | any | its item |
 | SUP-VEG-004 | leaf litter | full | any | its item, one for each segment |
 | SUP-TORCH-001 | torches on a floor | center | down | its item |
@@ -288,8 +294,10 @@ Each item names the experiment that decides it. A closed item keeps its number.
 - **U1**: the placement test of a mushroom. SUP-VEG-003 shows that a shape update does not read the
   light. A placement can still refuse a mushroom in light on a block that is not in
   `#minecraft:overrides_mushroom_light_requirement`. Experiment E8.
-- **U2**: the directions of the test for the tall plants of SUP-VEG-002, and for the torches and pressure
-  plates that R4 does not test. Experiment E4 with these blocks.
+- **U2**: the directions of the test for the tall plants of SUP-VEG-002, for `soul_torch`, `copper_torch`,
+  `redstone_torch` and their wall forms, and for the pressure plates other than `stone_pressure_plate`.
+  Experiment E4 with these blocks.
+- **U3**: the placement test of the other subjects (SUP-RUN-002). Experiment E9.
 
 ## 7. Experiments
 
@@ -313,6 +321,7 @@ its bedrock roof (`y` 200): the light there is 0 at each position.
 | E6 | For each subject, remove the supporting block with `setblock`. Wait one second. List the item entities with `execute as @e[type=item] run data get entity @s Item`. | R6 |
 | E7 | In the overworld under the open sky, put `brown_mushroom` on stone, and change a neighbour. In the nether, put `glowstone` next to P, wait 3 seconds, put `brown_mushroom` on stone at P, and change a neighbour. | R7 |
 | E8 | With a client in survival mode, place `brown_mushroom` on stone under the open sky and in the dark. | not run |
+| E9 | With a client, place one subject of each family of section 3 on a base that holds it, and on a base that does not hold it. | not run |
 
 ## 8. Captured results
 
@@ -338,9 +347,11 @@ number of states that hold each subject:
 | `oak_sign` | 2,022 |
 | `oak_wall_sign[facing=east]` | 2,022 |
 
-The states that hold `brown_mushroom` at light 0 are the states that hold `torch`. The states that do not
-hold a carpet are rails, redstone wire, fire and soul fire on air. These blocks remove themselves when
-they are set on air, and the carpet then stands on air.
+The states that hold `brown_mushroom` at light 0 are the states that hold `torch`. Five states do not
+hold `white_carpet`: `activator_rail`, `detector_rail`, `powered_rail`, `redstone_wire` and `soul_fire`,
+each on air. These blocks remove themselves when they are set on air, and the carpet then stands on air.
+`moss_carpet` also fails on `fire`. Fire next to `white_carpet` stays, because wool is fuel
+(SIM-FIRE-003). `moss_carpet` is not fuel, so the fire removes itself.
 
 **R2.** E2 found no difference for `short_grass`, `leaf_litter`, `torch`, `wall_torch`, `snow` and
 `stone_pressure_plate`, for each of the 2,374 states.
