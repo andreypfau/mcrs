@@ -19,13 +19,11 @@ pub struct DropInventoryOnDeathEvent {
 /// Handles death events, scattering the entity's inventory at death unless `keep_inventory` is enabled.
 pub fn handle_death_drops(
     mut death_events: MessageReader<DeathEvent>,
-    rules_opt: Option<Res<GameRules>>,
+    rules: Res<GameRules>,
     positions: Query<&Transform>,
     mut drop_events: MessageWriter<DropInventoryOnDeathEvent>,
 ) {
-    let keep_inventory = rules_opt
-        .map(|r| r.is_on(GameRule::KeepInventory))
-        .unwrap_or(false);
+    let keep_inventory = rules.is_on(GameRule::KeepInventory);
 
     for ev in death_events.read() {
         let DamageTarget::Player(entity) = ev.target else {

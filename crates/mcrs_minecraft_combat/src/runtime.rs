@@ -300,25 +300,18 @@ fn on_set_carried_item(
 
 fn tick_player_hunger(
     mut players: Query<(Entity, &mut Health, &mut FoodData), (With<Player>, Without<DeathState>)>,
-    rules: Option<Res<GameRules>>,
-    difficulty: Option<Res<Difficulty>>,
+    rules: Res<GameRules>,
+    difficulty: Res<Difficulty>,
     type_rules: Option<Res<DamageTypeRulesResource>>,
-    time: Option<Res<GameTime>>,
+    time: Res<GameTime>,
     mut damage: MessageWriter<DamageRequest>,
 ) {
-    let natural_regeneration = rules
-        .as_deref()
-        .is_none_or(|rules| rules.is_on(GameRule::NaturalHealthRegeneration));
-    let age = time.as_deref().map_or(0, |time| time.0.max(0) as u64);
+    let natural_regeneration = rules.is_on(GameRule::NaturalHealthRegeneration);
+    let age = time.0.max(0) as u64;
     for (entity, mut health, mut food) in &mut players {
-        let food_tick = food.0.tick(
-            &health.0,
-            natural_regeneration,
-            difficulty
-                .as_deref()
-                .map_or(Difficulty::default().0, |value| value.0),
-            age,
-        );
+        let food_tick = food
+            .0
+            .tick(&health.0, natural_regeneration, difficulty.0, age);
         if food_tick.heal > 0.0 {
             health.heal(food_tick.heal);
         }
@@ -356,25 +349,17 @@ fn tick_player_environment(
     definitions: Option<Res<Blocks>>,
     tables: Option<Res<PhysicsTables>>,
     dimensions: Query<&DimensionTypeConfig>,
-    rules: Option<Res<GameRules>>,
-    border: Option<Res<WorldBorderSettings>>,
+    rules: Res<GameRules>,
+    border: Res<WorldBorderSettings>,
     type_rules: Option<Res<DamageTypeRulesResource>>,
-    time: Option<Res<GameTime>>,
+    time: Res<GameTime>,
     mut damage: MessageWriter<DamageRequest>,
 ) {
-    let fall_damage = rules
-        .as_deref()
-        .is_none_or(|rules| rules.is_on(GameRule::FallDamage));
-    let fire_damage = rules
-        .as_deref()
-        .is_none_or(|rules| rules.is_on(GameRule::FireDamage));
-    let drowning_damage = rules
-        .as_deref()
-        .is_none_or(|rules| rules.is_on(GameRule::DrowningDamage));
-    let freeze_damage = rules
-        .as_deref()
-        .is_none_or(|rules| rules.is_on(GameRule::FreezeDamage));
-    let age = time.as_deref().map_or(0, |time| time.0.max(0) as u64);
+    let fall_damage = rules.is_on(GameRule::FallDamage);
+    let fire_damage = rules.is_on(GameRule::FireDamage);
+    let drowning_damage = rules.is_on(GameRule::DrowningDamage);
+    let freeze_damage = rules.is_on(GameRule::FreezeDamage);
+    let age = time.0.max(0) as u64;
     let dimensions = &dimensions;
 
     for (
@@ -553,13 +538,11 @@ fn tick_player_environment(
         {
             damage.write(DamageRequest::player(entity, hit));
         }
-        if let Some(border) = border.as_deref() {
-            let amount = border_damage(&border.0, position, 0.6, 1.8);
-            if amount > 0.0
-                && let Some(hit) = hit_of(type_rules.as_deref(), "outside_border", amount)
-            {
-                damage.write(DamageRequest::player(entity, hit));
-            }
+        let amount = border_damage(&border.0, position, 0.6, 1.8);
+        if amount > 0.0
+            && let Some(hit) = hit_of(type_rules.as_deref(), "outside_border", amount)
+        {
+            damage.write(DamageRequest::player(entity, hit));
         }
     }
 }
@@ -580,7 +563,7 @@ fn tick_mob_environment(
     dimension_types: Query<&DimensionTypeConfig>,
     definitions: Option<Res<Blocks>>,
     tables: Option<Res<PhysicsTables>>,
-    rules: Option<Res<GameRules>>,
+    rules: Res<GameRules>,
     type_rules: Option<Res<DamageTypeRulesResource>>,
     mut damage: MessageWriter<DamageRequest>,
 ) {
@@ -596,15 +579,9 @@ fn tick_mob_environment(
     let Some(definitions) = definitions.as_deref() else {
         return;
     };
-    let fire_damage = rules
-        .as_deref()
-        .is_none_or(|rules| rules.is_on(GameRule::FireDamage));
-    let drowning_damage = rules
-        .as_deref()
-        .is_none_or(|rules| rules.is_on(GameRule::DrowningDamage));
-    let freeze_damage = rules
-        .as_deref()
-        .is_none_or(|rules| rules.is_on(GameRule::FreezeDamage));
+    let fire_damage = rules.is_on(GameRule::FireDamage);
+    let drowning_damage = rules.is_on(GameRule::DrowningDamage);
+    let freeze_damage = rules.is_on(GameRule::FreezeDamage);
     let min_y = dimension_types
         .get(dimension)
         .map(|config| f64::from(config.min_y))
@@ -1390,7 +1367,7 @@ fn respawn_players(
         &ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>,
     )>,
     game_modes: Query<&PlayerGameMode>,
-    rules: Option<Res<GameRules>>,
+    rules: Res<GameRules>,
     world_spawn: Res<WorldSpawn>,
     time: Res<GameTime>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
@@ -1430,9 +1407,7 @@ fn respawn_players(
             vitals.respawn_at,
         );
         let spawn = destination.translation;
-        let keep_inventory = rules
-            .as_deref()
-            .is_some_and(|rules| rules.is_on(GameRule::KeepInventory));
+        let keep_inventory = rules.is_on(GameRule::KeepInventory);
         health.0 = Vitals {
             health: 20.0,
             max_health: 20.0,
@@ -1556,6 +1531,8 @@ pub(crate) fn build(app: &mut App) {
     app.init_resource::<WorldSpawn>();
     app.init_resource::<WorldBorderSettings>();
     app.init_resource::<Difficulty>();
+    app.init_resource::<GameRules>();
+    app.init_resource::<GameTime>();
     app.add_observer(note_ground_pos);
     app.add_observer(note_ground_pos_rot);
     app.add_observer(note_ground_rot);
