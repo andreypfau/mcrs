@@ -84,5 +84,11 @@ fn a_shutdown_request_saves_the_player_and_the_server_exits_by_itself() {
     server_thread.join().unwrap();
 
     assert!(player_file.exists(), "{} is missing", player_file.display());
+    let level = mcrs_minecraft_save::read_level_dat(&world)
+        .expect("the shutdown writes the level the next run reads");
+    assert!(level.time >= 0);
+    mcrs_minecraft_save::read_weather(&world).expect("the shutdown writes the weather");
+    mcrs_minecraft_save::read_game_rules(&world).expect("the shutdown writes the game rules");
+    mcrs_minecraft_save::read_world_clocks(&world).expect("the shutdown writes the clocks");
     std::fs::remove_dir_all(world).unwrap();
 }

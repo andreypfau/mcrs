@@ -5034,6 +5034,7 @@ dependencies = [
  "bevy_ecs",
  "bevy_math",
  "bevy_state",
+ "bevy_tasks",
  "bevy_time",
  "bytes",
  "mcrs_engine_link",
