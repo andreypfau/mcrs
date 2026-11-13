@@ -44,7 +44,7 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol_game::player::PlayerAction;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundPlayerAction;
 use mcrs_minecraft_server::{
-    VanillaBlockLootPlugin, VanillaEntityPhysicsPlugin, VanillaItemEntityPlugin,
+    VanillaBlocksPlugin, VanillaEntityPhysicsPlugin, VanillaItemEntityPlugin,
 };
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, LocalPos, SectionPos};
@@ -1604,7 +1604,7 @@ fn looting_server() -> PlayServer {
     let mut app = host_app::make_host_app();
     install_item_table(app.world_mut(), test_item_table()).unwrap();
     app.add_plugins((
-        VanillaBlockLootPlugin,
+        VanillaBlocksPlugin,
         VanillaEntityPhysicsPlugin,
         VanillaItemEntityPlugin,
     ));
@@ -1656,6 +1656,37 @@ fn loot_src_006_a_peony_broken_at_its_upper_part_drops_one_peony() {
     send(&mut server, &breaker, &start_action(above, 5));
 
     assert_eq!(item_entities(&mut server), one(Item::Peony));
+}
+
+/// LOOT-SRC-006, SUP-VEG-002: a break of the lower part of a peony drops one peony, and the upper
+/// part that loses its support drops nothing.
+#[test]
+fn loot_src_006_a_peony_broken_at_its_lower_part_drops_one_peony() {
+    let mut server = looting_server();
+    let lower = part_state(&mut server, "minecraft:peony", &[("half", "lower")]);
+    let upper = part_state(&mut server, "minecraft:peony", &[("half", "upper")]);
+    let breaker = breaker_at(&mut server, GameMode::Survival, lower, NEAR);
+    place(&mut server, &breaker, NEAR + IVec3::Y, upper);
+
+    send(&mut server, &breaker, &start_action(NEAR, 5));
+
+    assert_eq!(item_entities(&mut server), one(Item::Peony));
+}
+
+/// BRK-PRT-003, SUP-VEG-002: a creative break of the upper part of a peony drops nothing, also
+/// from the lower part.
+#[test]
+fn brk_prt_003_a_creative_break_of_the_upper_part_of_a_peony_drops_nothing() {
+    let mut server = looting_server();
+    let lower = part_state(&mut server, "minecraft:peony", &[("half", "lower")]);
+    let upper = part_state(&mut server, "minecraft:peony", &[("half", "upper")]);
+    let above = NEAR + IVec3::Y;
+    let breaker = breaker_at(&mut server, GameMode::Creative, lower, NEAR);
+    place(&mut server, &breaker, above, upper);
+
+    send(&mut server, &breaker, &start_action(above, 5));
+
+    assert_eq!(item_entities(&mut server), []);
 }
 
 /// BRK-DRP-001: a creative break drops nothing.

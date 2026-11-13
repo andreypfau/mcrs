@@ -1,0 +1,24 @@
+[package]
+name = "mcrs_minecraft_block_support"
+description = "Block support: the support predicates of the block definitions, baked and evaluated, and the shape function that removes a block without support"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+fixedbitset.workspace = true
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_resource.workspace = true
+mcrs_voxel.workspace = true
+
+[dev-dependencies]
+glam.workspace = true
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
+serde_json.workspace = true

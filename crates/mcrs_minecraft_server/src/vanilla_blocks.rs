@@ -1,5 +1,8 @@
 use bevy_app::{App, Plugin, SubApp};
+use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_block_support::BlockSupport;
+use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_engine::block_simulation::{
     BlockSimulationPlugin, DimensionBlockRules, InertBlocks,
 };
@@ -9,29 +12,51 @@ use mcrs_minecraft_item::ItemStack;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_loot_table::{BlockLoot, LootCause, LootContext, LootSeed, Tool};
 use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_simulation::BlockBehaviour;
+use mcrs_minecraft_simulation::{BlockBehaviour, BlockFacts, Cx, SimulationVolume};
 use mcrs_voxel::{BlockPos, BlockStateId};
 
-/// The drops of the blocks in every dimension world, from the block tables of the loaded data
-/// pack. No block reacts otherwise, as under [`InertBlocks`].
-pub struct VanillaBlockLootPlugin;
+/// The vanilla rules of the blocks in every dimension world: the drops from the block tables of
+/// the loaded data pack (`block-loot.md`) and the removal of a block without support
+/// (`block-support.md`).
+pub struct VanillaBlocksPlugin;
 
-impl Plugin for VanillaBlockLootPlugin {
+impl Plugin for VanillaBlocksPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(DimensionBlockRules(add_loot_rules));
     }
 }
 
-/// Block rules whose drops are the block tables (`block-loot.md`).
+/// Block rules whose drops are the block tables (`block-loot.md`) and whose shape function
+/// removes a block that lost its support (SUP-RUN-001).
 #[derive(Clone, Debug)]
-pub struct LootBlocks {
+pub struct VanillaBlocks {
     loot: BlockLoot,
+    support: BlockSupport,
     blocks: Blocks,
+    air: BlockStateId,
+    void_air: BlockStateId,
 }
 
-impl BlockBehaviour<WorldKinds> for LootBlocks {}
+impl BlockBehaviour<WorldKinds> for VanillaBlocks {
+    fn update_shape<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+        &self,
+        cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+        at: BlockPos,
+        state: BlockStateId,
+        from: Direction,
+        _neighbour: BlockPos,
+        _neighbour_state: BlockStateId,
+    ) -> BlockStateId {
+        let read = |pos| cx.state(pos).unwrap_or(self.void_air);
+        if self.support.stays_after_update(state, at, from, read) {
+            state
+        } else {
+            self.air
+        }
+    }
+}
 
-impl BlockDrops for LootBlocks {
+impl BlockDrops for VanillaBlocks {
     fn drops(
         &self,
         block: &DroppingBlock,
@@ -89,8 +114,15 @@ fn add_loot_rules(sub_app: &mut SubApp) {
     for issue in &issues {
         tracing::warn!("{issue}");
     }
-    let rules = LootBlocks {
+    let (support, issues) = BlockSupport::bake(blocks, registries);
+    for issue in &issues {
+        tracing::warn!("{issue}");
+    }
+    let rules = VanillaBlocks {
         loot,
+        support,
+        air: blocks.default_state_of(Block::Air.id()),
+        void_air: blocks.default_state_of(Block::VoidAir.id()),
         blocks: blocks.clone(),
     };
     sub_app.add_plugins(BlockSimulationPlugin::new(rules));

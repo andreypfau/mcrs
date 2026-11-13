@@ -1,6 +1,6 @@
-mod block_loot;
 mod item_entities;
 pub mod operator_broadcast;
+mod vanilla_blocks;
 mod vanilla_brains;
 
 use bevy_app::{App, Plugin, PluginGroup, PluginGroupBuilder};
@@ -20,9 +20,9 @@ use mcrs_minecraft_entity::damage_type_tag_keys::PANIC_CAUSES;
 use mcrs_minecraft_vanilla_block_place::BlockPlacePlugin;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 
-pub use block_loot::{LootBlocks, VanillaBlockLootPlugin};
 pub use item_entities::VanillaItemEntityPlugin;
 use mcrs_minecraft_vanilla_worldgen::{WorldGenPlugin, WorldgenRegistriesPlugin};
+pub use vanilla_blocks::{VanillaBlocks, VanillaBlocksPlugin};
 
 /// The vanilla server: the engine's server plugins with every vanilla member, each one a
 /// member that can be disabled or replaced through [`PluginGroup::build`]. A member that needs
@@ -78,7 +78,7 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(VanillaChatPlugin)
             .add(VanillaEntityPhysicsPlugin)
             .add(VanillaItemEntityPlugin)
-            .add(VanillaBlockLootPlugin)
+            .add(VanillaBlocksPlugin)
             .add(VanillaMobBrainPlugin)
             .add(VanillaItemPlugin)
             .add(VanillaBlockPlacePlugin)

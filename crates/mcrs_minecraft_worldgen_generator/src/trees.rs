@@ -7,8 +7,8 @@ use std::sync::Arc;
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::block_tag_keys;
-use mcrs_minecraft_block::definition::schema::PlacementFilter;
 use mcrs_minecraft_block::definition::schema::PropertyValue;
+use mcrs_minecraft_block::definition::schema::{PlacementCondition, PlacementRule};
 use mcrs_minecraft_block::definition::{BlockDefinitions, BlockEntry};
 use mcrs_minecraft_block::fluid_tag_keys;
 use mcrs_minecraft_block_predicate::provider::{
@@ -40,6 +40,7 @@ use mcrs_minecraft_worldgen_feature_place::tree::root::{AboveRootPlacement, Mang
 use mcrs_minecraft_worldgen_feature_place::tree::survive::{SurviveFamily, SurviveRule, family_of};
 use mcrs_minecraft_worldgen_feature_place::tree::trunk::{TreeStates, Trunk};
 use mcrs_minecraft_worldgen_feature_place::tree::{CompiledTree, LeafDistances, TreeTables};
+use mcrs_voxel::BlockStateId;
 
 use super::feature_program::{Resolver, missing, set, union_masks};
 
@@ -274,8 +275,9 @@ pub(crate) fn survive_rules(resolver: &Resolver<'_>) -> Compiled<HashMap<Id<Bloc
         let Some(block) = blocks.block_index(entry.default_state_id) else {
             continue;
         };
-        if let Some(filter) = &entry.placement_filter {
-            let rule = placement_rule(resolver, filter).map_err(|e| e.within(&entry.identifier))?;
+        if let Some(conditions) = short_form(blocks, entry.default_state_id) {
+            let rule =
+                placement_rule(resolver, conditions).map_err(|e| e.within(&entry.identifier))?;
             rules.insert(block, rule);
             continue;
         }
@@ -300,11 +302,26 @@ pub(crate) fn survive_rules(resolver: &Resolver<'_>) -> Compiled<HashMap<Id<Bloc
 
 /// One condition against one vertical face is the only shape the placement
 /// filter is read in; anything else is refused at load rather than approximated.
-fn placement_rule(resolver: &Resolver<'_>, filter: &PlacementFilter) -> Compiled<SurviveRule> {
+/// The placement filter of `state` in the short form; a block whose filter has the predicate
+/// form keeps the rule of its family.
+pub(crate) fn short_form(
+    blocks: &BlockDefinitions,
+    state: BlockStateId,
+) -> Option<&[PlacementCondition]> {
+    match &blocks.placement_filter(state)?.rule {
+        PlacementRule::Conditions(conditions) => Some(conditions),
+        PlacementRule::Predicate(_) => None,
+    }
+}
+
+fn placement_rule(
+    resolver: &Resolver<'_>,
+    conditions: &[PlacementCondition],
+) -> Compiled<SurviveRule> {
     let unsupported = |what: &str| {
         FeatureCompileError::Unsupported(format!("minecraft:placement_filter: {what}"))
     };
-    let [condition] = filter.conditions.as_slice() else {
+    let [condition] = conditions else {
         return Err(unsupported("exactly one condition is read"));
     };
     let offset_y = match condition.allowed_faces.as_slice() {
