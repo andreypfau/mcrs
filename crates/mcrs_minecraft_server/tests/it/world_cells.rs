@@ -32,7 +32,7 @@ use mcrs_minecraft_engine::muxer::muxer_link::MuxerLink;
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
 use mcrs_minecraft_engine_brain::EntityRows;
 use mcrs_minecraft_engine_physics::ItemStacks;
-use mcrs_minecraft_engine_world::block_drops::{BlockDrops, ItemDropped};
+use mcrs_minecraft_engine_world::block_drops::{BlockDrops, DroppingBlock, ItemDropped};
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::tick::TickSet;
@@ -1273,8 +1273,13 @@ impl BlockBehaviour<WorldKinds> for Fragile {
 }
 
 impl BlockDrops for Fragile {
-    fn drops(&self, _at: BlockPos, state: BlockStateId, drops: &mut Vec<ItemStack>) {
-        if state == self.note {
+    fn drops(
+        &self,
+        block: &DroppingBlock,
+        _block_at: impl Fn(BlockPos) -> Option<BlockStateId>,
+        drops: &mut Vec<ItemStack>,
+    ) {
+        if block.state == self.note {
             drops.push(ItemStack::new(Item::NoteBlock.id(), 1));
         }
     }

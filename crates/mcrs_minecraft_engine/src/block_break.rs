@@ -5,7 +5,7 @@ use crate::break_session::{ActiveDig, BreakSession, Crack, DelayedBreak};
 use crate::bus::{OutboundPlayerPacket, PacketPayload, to};
 use crate::client_on_ground::ClientOnGround;
 use crate::column_change::ColumnChange;
-use crate::dig_rate::dig_rate;
+use crate::dig_rate::{dig_rate, harvests};
 use crate::diggers::Diggers;
 use crate::movement::process_movement;
 use crate::network_id::player_network_id;
@@ -22,6 +22,7 @@ use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags, Blocks
 use mcrs_minecraft_block::fluid_keys::Fluid;
 use mcrs_minecraft_block_break::{Dig, Finish};
 use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_engine_world::block_drops::BlockBroken;
 use mcrs_minecraft_engine_world::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
@@ -69,6 +70,7 @@ impl Plugin for BlockBreakPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<BlockActionRequest>();
         app.add_message::<BlockActionAck>();
+        app.add_message::<BlockBroken>();
         app.add_observer(handle_player_action);
         app.init_resource::<Diggers>();
         if let Err(error) = app.try_register_required_components::<Player, BreakSession>() {
@@ -326,6 +328,31 @@ pub(crate) fn break_block(
     new_states
 }
 
+/// The drops of a survival break of `hit` that changed `new_states`. The hit part drops when the
+/// empty main hand harvests it (BRK-LOOT-001); the other part of a block of two parts is a
+/// removal, which drops either way (LOOT-SRC-006).
+pub(crate) fn harvest(
+    definitions: &BlockDefinitions,
+    hit: &Hit,
+    new_states: &[(BlockPos, BlockStateId)],
+    block_at: impl Fn(BlockPos) -> Option<BlockStateId>,
+    player: Entity,
+) -> Option<BlockBroken> {
+    let &(_, left) = new_states.iter().find(|(at, _)| *at == hit.pos)?;
+    let other = new_states
+        .iter()
+        .find(|(at, _)| *at != hit.pos)
+        .and_then(|&(at, _)| Some((at, block_at(at)?)));
+    Some(BlockBroken {
+        at: hit.pos,
+        state: hit.state,
+        left,
+        other,
+        harvests: harvests(definitions, hit.state),
+        breaker: player,
+    })
+}
+
 /// Handles the block actions of the tick: a creative start breaks its block, and a survival
 /// action starts, changes or ends the dig of its player. A block in a column of another cell
 /// changes one tick later, when its owner applies the write.
@@ -352,6 +379,7 @@ fn break_blocks(
     world: WorldView,
     definitions: Option<Res<Blocks>>,
     mut blocks: MessageWriter<BlockSetRequest>,
+    mut broken_blocks: MessageWriter<BlockBroken>,
     mut diggers: ResMut<Diggers>,
     mut broken: Local<FxHashMap<BlockPos, BlockStateId>>,
 ) {
@@ -484,6 +512,15 @@ fn break_blocks(
             &mut changes,
             &mut blocks,
         );
+        if mode.0 == GameMode::Survival {
+            broken_blocks.write_batch(harvest(
+                &definitions,
+                &hit,
+                &new_states,
+                |pos| block_at(pos).ok(),
+                request.entity,
+            ));
+        }
         broken.extend(new_states);
     }
 }

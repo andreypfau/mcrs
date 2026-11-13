@@ -32,6 +32,7 @@ use mcrs_minecraft_item::dialog::Dialog;
 use mcrs_minecraft_item::{
     InstrumentValue, JukeboxSong, PaintingVariantValue, TrimMaterial, TrimPattern,
 };
+use mcrs_minecraft_loot_table::{ConditionFile, LootTableFile};
 use mcrs_minecraft_registries::{Declaration, Stage};
 use mcrs_minecraft_sound::BlockSoundSet;
 use serde::Deserialize;
@@ -107,6 +108,8 @@ fn typed_declarations() -> Vec<Declaration> {
         Declaration::data::<DimensionEntry>().into(),
         Declaration::data::<MultiNoiseBiomeSourceParameterList>().into(),
         Declaration::data::<WorldPreset>().into(),
+        Declaration::data::<LootTableFile>().into(),
+        Declaration::data::<ConditionFile>().into(),
     ];
     declarations.extend(spawning_variants!(
         WolfVariantFile as WolfVariant,
