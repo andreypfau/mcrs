@@ -6,6 +6,7 @@ mod effective_state;
 mod equipped;
 mod fixture;
 mod placement;
+mod player_file;
 mod request;
 mod round_trip;
 mod usage;
