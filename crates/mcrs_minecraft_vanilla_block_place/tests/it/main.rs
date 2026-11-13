@@ -126,6 +126,10 @@ fn plc_sta_005_only_a_water_source_makes_the_placed_state_hold_water() {
         Some(state("oak_slab", &[("waterlogged", "true")]))
     );
     assert_eq!(in_water("4"), Some(state("oak_slab", &[])));
+    assert_eq!(
+        placed("conduit", up(0.0)),
+        Some(state("conduit", &[("waterlogged", "false")]))
+    );
 }
 
 #[test]

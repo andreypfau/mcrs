@@ -43,9 +43,7 @@ pub fn placed_state(
         .state(replaced)
         .fluid
         .is_some_and(|fluid| fluid.source && fluid.fluid == Fluid::Water.id());
-    if water_source {
-        set("waterlogged", "true");
-    }
+    set("waterlogged", if water_source { "true" } else { "false" });
     Some(state)
 }
 

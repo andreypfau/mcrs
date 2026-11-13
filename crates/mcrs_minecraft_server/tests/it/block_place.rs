@@ -15,7 +15,7 @@ use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarg
 use mcrs_minecraft_engine::column_change::ColumnChange;
 use mcrs_minecraft_engine::column_streams::ColumnStreams;
 use mcrs_minecraft_engine::teleport::TeleportState;
-use mcrs_minecraft_engine_item::HolderCommandsExt;
+use mcrs_minecraft_engine_item::{HolderCommandsExt, Slots};
 use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::palette::air_section;
@@ -384,4 +384,28 @@ fn plc_tel_001_an_open_teleport_refuses_with_a_refresh() {
     let answer = send(&mut server, &placer, &use_on(ground, Direction::Up, 11));
 
     assert_refused_with_a_refresh(&answer, stone, 11);
+}
+
+#[test]
+fn plc_inv_006_a_survival_placer_spends_its_last_block_once() {
+    let (mut server, placer, ground) = placer_beside(on_the_ground);
+    let stone = stone(&mut server).number();
+    let world = server.world();
+    world.get_mut::<PlayerGameMode>(placer.player).unwrap().0 = GameMode::Survival;
+    let stack = world.get::<Slots>(placer.player).unwrap().get(0).unwrap();
+    world.entity_mut(stack).insert(Count::new(1).unwrap());
+    let above = ground + IVec3::Y;
+    server.queue(placer.anchor, &use_on(ground, Direction::Up, 1));
+
+    let answer = send(&mut server, &placer, &use_on(above, Direction::Up, 2));
+
+    assert_eq!(
+        answer.watcher,
+        [format!("block_update 65 {stone}")],
+        "only the first request places"
+    );
+    assert_eq!(
+        server.world().get::<Slots>(placer.player).unwrap().get(0),
+        None
+    );
 }

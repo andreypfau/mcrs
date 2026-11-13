@@ -3,7 +3,7 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::query::With;
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_ecs::system::{Local, Query, Res};
+use bevy_ecs::system::{Commands, Local, Query, Res};
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks};
 use mcrs_minecraft_core::Direction;
@@ -12,7 +12,7 @@ use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, to};
 use mcrs_minecraft_engine::teleport::TeleportState;
 use mcrs_minecraft_engine::use_item_on_request::UseItemOnRequest;
 use mcrs_minecraft_engine::{BlockBreakSet, eye_position, in_reach, reach};
-use mcrs_minecraft_engine_item::{Selected, Slots};
+use mcrs_minecraft_engine_item::{Selected, Slots, StackCommandsExt};
 use mcrs_minecraft_engine_world::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
@@ -23,7 +23,7 @@ use mcrs_minecraft_engine_world::world::storage::view::WorldView;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item::Items;
-use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_item_stack::{Count, Kind};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_player_slots::OFF_HAND;
@@ -90,19 +90,22 @@ fn place_blocks(
     mut requests: MessageReader<UseItemOnRequest>,
     placers: Query<PlacerItem>,
     bodies: Query<(&Transform, &PlayerGameMode), With<Player>>,
-    kinds: Query<&Kind>,
+    stacks: Query<(&Kind, &Count)>,
     world: WorldView,
     definitions: Option<Res<Blocks>>,
     items: Option<Res<Items>>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
     mut blocks: MessageWriter<BlockSetRequest>,
     mut placed: Local<FxHashMap<BlockPos, BlockStateId>>,
+    mut spent: Local<FxHashMap<Entity, u8>>,
+    mut commands: Commands,
 ) {
     let (Some(definitions), Some(items)) = (definitions, items) else {
         requests.clear();
         return;
     };
     placed.clear();
+    spent.clear();
     for request in requests.read() {
         if request.sequence.0 < 0 {
             continue;
@@ -143,18 +146,21 @@ fn place_blocks(
                 },
             };
         let adjacent = clicked + request.face.normal();
-        let (Some(clicked_state), Some(adjacent_state)) =
-            (block_at(&placed, clicked), block_at(&placed, adjacent))
-        else {
+        let Some(clicked_state) = block_at(&placed, clicked) else {
             continue;
         };
+        let adjacent_state = block_at(&placed, adjacent);
         let held = match request.hand {
             Hand::Main => selected.map(|selected| usize::from(selected.0)),
             Hand::Off => Some(usize::from(OFF_HAND)),
         }
-        .and_then(|slot| block_item(&definitions, &items, &kinds, slots?.get(slot)?));
+        .and_then(|slot| slots?.get(slot))
+        .and_then(|stack| {
+            let (block, count) = block_item(&definitions, &items, &stacks, stack)?;
+            (spent.get(&stack).copied().unwrap_or(0) < count).then_some((stack, block))
+        });
         let teleporting = teleport.is_some_and(|teleport| teleport.pending().is_some());
-        let placement = held.filter(|_| !teleporting).and_then(|held| {
+        let placement = held.filter(|_| !teleporting).and_then(|(_, held)| {
             let placer = Placer {
                 mode: mode.0,
                 op_level: op_level.map_or(0, |level| level.clamped()),
@@ -171,18 +177,17 @@ fn place_blocks(
                 .iter()
                 .filter(|(_, mode)| mode.0 != GameMode::Spectator)
                 .map(|(transform, _)| body_of(transform));
-            let spots = [(clicked, clicked_state), (adjacent, adjacent_state)];
+            let spots = ((clicked, clicked_state), (adjacent, adjacent_state));
             place(&definitions, &placer, &click, spots, others, heights)
         });
-        let at_limit = match request.face {
-            Direction::Up => clicked.y >= heights.1,
-            Direction::Down => clicked.y <= heights.0,
-            _ => false,
-        };
-        if placement.is_none() && held.is_some() && at_limit {
+        if placement.is_none() && held.is_some() && at_limit(request.face, clicked.y, heights) {
             packets.write_batch(height_message(session, request.face, heights));
         }
-        if let Some((pos, new_state)) = placement {
+        if let (Some((pos, new_state)), Some((stack, _))) = (placement, held) {
+            if mode.0 != GameMode::Creative {
+                commands.entity(stack).consume(1);
+                *spent.entry(stack).or_default() += 1;
+            }
             placed.insert(pos, new_state);
             blocks.write(BlockSetRequest {
                 new_state,
@@ -220,7 +225,7 @@ fn place(
     definitions: &BlockDefinitions,
     placer: &Placer,
     click: &Click,
-    [clicked, adjacent]: [(BlockPos, BlockStateId); 2],
+    (clicked, adjacent): ((BlockPos, BlockStateId), (BlockPos, Option<BlockStateId>)),
     mut others: impl Iterator<Item = Aabb>,
     (lowest, highest): (i32, i32),
 ) -> Option<(BlockPos, BlockStateId)> {
@@ -230,7 +235,7 @@ fn place(
     let (target, replaced) = if replaceable(definitions, clicked.1, placer.held, Spot::Clicked) {
         clicked
     } else {
-        adjacent
+        (adjacent.0, adjacent.1?)
     };
     if !replaceable(definitions, replaced, placer.held, Spot::Adjacent) {
         return None;
@@ -261,22 +266,30 @@ fn place(
         .then_some((target, state))
 }
 
+fn at_limit(face: Direction, y: i32, (lowest, highest): (i32, i32)) -> bool {
+    match face {
+        Direction::Up => y >= highest,
+        Direction::Down => y <= lowest,
+        _ => false,
+    }
+}
+
 fn cursor_in_range(cursor: [f32; 3]) -> bool {
     cursor
         .iter()
         .all(|value| (LOWEST_CURSOR..=HIGHEST_CURSOR).contains(value))
 }
 
-/// The block of the item of `stack`, when it is a block item.
+/// The block of the item of `stack` and the count of `stack`, when it is a block item.
 fn block_item(
     definitions: &BlockDefinitions,
     items: &Items,
-    kinds: &Query<&Kind>,
+    stacks: &Query<(&Kind, &Count)>,
     stack: Entity,
-) -> Option<Id<Block>> {
-    let kind = kinds.get(stack).ok()?;
+) -> Option<(Id<Block>, u8)> {
+    let (kind, count) = stacks.get(stack).ok()?;
     let state = items.get(Id::checked(kind.0, items.len())?)?.block_placer?;
-    definitions.block_index(state)
+    Some((definitions.block_index(state)?, count.get()))
 }
 
 /// The message of the upper height limit for `side` up, and of the lower one otherwise
