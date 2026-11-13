@@ -4,14 +4,18 @@
 |-------|-------|
 | Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
 | Protocol version | `1073742169` |
+| Packets | CONFIGURATION, serverbound: `client_information` 0. PLAY, serverbound: `chunk_batch_received` 11, `client_information` 14. PLAY, clientbound: `chunk_batch_finished` 11, `chunk_batch_start` 12, `forget_level_chunk` 38, `level_chunk_with_light` 46, `login` 50, `set_chunk_cache_center` 96, `set_chunk_cache_radius` 97, `set_simulation_distance` 113 |
 
-Source of these values: `assets/minecraft/version.json`.
+Source of these values: `assets/minecraft/version.json`, and `assets/mcrs/reports/packets.json`
+for the packet ids.
 
 This document states the pause screen and the options screens of the vanilla client. It also
 states the mcrs subset of each screen: the widgets that mcrs shows, and their positions. It
-states the six options that mcrs applies: FOV, FOV Effects, Brightness, Smooth Lighting, Clouds
-and GUI Scale. It uses the terms of `client-widget.md` and `client-list.md` and cites their
-rules for each widget, layout and background. The document does not prescribe an architecture.
+states each option that mcrs applies (section 4), except Sensitivity (`client-controls.md`,
+CTRL-VAL-001), and the packets that Render Distance and
+Simulation Distance cause. It uses the terms of `client-widget.md` and `client-list.md` and cites
+their rules for each widget, layout and background. The document does not prescribe an
+architecture.
 
 ## 0. Conventions
 
@@ -33,8 +37,9 @@ rules for each widget, layout and background. The document does not prescribe an
   the window, or activates a button that closes the client (MENU-PAUSE-006, step 5). A crash and
   a kill of the process are not a stop of the client.
 - **Options screen**: the screen with the title "Options" (section 2).
-- **Option sub-screen**: a screen that the options screen opens and that shows an option list
-  (section 3).
+- **Option sub-screen**: a screen that the options screen or an option sub-screen opens, and
+  that shows an option list (section 3). For example, "Mouse Settings" opens from "Controls"
+  (`client-controls.md`, CTRL-MOUSE-001).
 - **Pending value**: a value of an option slider that waits and is not stored yet
   (`client-widget.md`, WID-SLD-007, step 2).
 - **Local world**: a world that the client runs in its own process. A singleplayer world is a
@@ -48,6 +53,11 @@ rules for each widget, layout and background. The document does not prescribe an
 - **mcrs subset**: the widgets of a vanilla screen that mcrs shows. A screen of mcrs shows only
   the widgets whose function mcrs has. The title of each rule for an mcrs subset ends with
   "(mcrs subset)".
+- **Host**: the player whose client runs a local world.
+- **Server view distance** (`V`): the largest view distance that a server gives to a player, in
+  columns (MENU-DIST-004).
+- **Render distance of the client** (`r`): the radius in columns in which the client draws the
+  world (MENU-DIST-001).
 
 ### 0.2 Provenance, confidence and observer
 
@@ -77,7 +87,9 @@ Each example uses W = 427 and H = 240, as in the setup of `client-widget.md`, se
 | `MENU-SUB` | the common rules of an option sub-screen |
 | `MENU-VID` | the "Video Settings" screen |
 | `MENU-ACC` | the "Accessibility Settings" screen |
-| `MENU-VAL` | the six options: widget, values, caption, tooltip and effect |
+| `MENU-VAL` | the options of mcrs: widget, values, caption, tooltip and effect |
+| `MENU-DIST` | the effect of Render Distance and Simulation Distance: the client, the packets and the server |
+| `MENU-DISP` | the frame limit, VSync, the fullscreen window and the key "Toggle Fullscreen" |
 | `MENU-SCALE` | the GUI scale: its computation, its values and the Ctrl wheel |
 | `MENU-SAVE` | the moments when the client writes the options file, and a write that fails |
 | `MENU-PROP` | the properties of each screen that `client-widget.md` leaves open |
@@ -92,7 +104,10 @@ In scope:
 - the options screen;
 - the option sub-screens "Video Settings" and "Accessibility Settings", for the order of their
   rows;
-- the six options of mcrs;
+- the options of mcrs (section 4);
+- the packets that a change of Render Distance or Simulation Distance causes, on a server and
+  in a local world;
+- the key "Toggle Fullscreen";
 - the moment when the client writes the options file, and what a write that fails leaves in it;
 - the points that `client-widget.md`, section 16, items 5 and 6, hand to this document.
 
@@ -102,8 +117,13 @@ Out of scope:
 - the pause screen with no menu (F3 + Escape), and the pause on a loss of the window focus;
 - the title screen;
 - the form of the options file;
-- the option "Render Distance";
 - the other vanilla options. This document names them only where an order needs them;
+- the frame limits of "Reduce FPS When", and the frame limit outside a world;
+- "Exclusive Fullscreen", "Exclusive Fullscreen Mode" and the video modes of a monitor;
+- the colour of the fog, and the environmental fog;
+- the size of a batch and the rate of the chunk send, and the change of the view when a player
+  moves to another column;
+- the use of the simulation distance in the client;
 - the screens that the other buttons open, for example the statistics screen;
 - the narrator, the restart message of "Video Settings" and the check for a draft player
   report.
@@ -128,6 +148,18 @@ Out of scope:
 | Clouds: vanilla default | Fancy | MENU-VAL-005 |
 | Cloud cell, height of a fancy cloud | 12 × 12 blocks, 4 blocks | MENU-VAL-005 |
 | GUI Scale: default | 0 (Auto) | MENU-VAL-006 |
+| Render Distance: vanilla range, default | [2, 32], or [2, 16] with a heap below 1 000 000 000 bytes; 12 | MENU-VAL-007 |
+| Render Distance: mcrs range, default | [2, 96], 96 | MENU-VAL-007 |
+| Simulation Distance: vanilla range, default | [5, 32], or [5, 16] with a heap below 1 000 000 000 bytes; 12 | MENU-VAL-008 |
+| Simulation Distance: mcrs range | [5, 32] | MENU-VAL-008 |
+| Max Framerate: values, default, value with no limit | 10 to 260 in steps of 10, 120, 260 | MENU-VAL-009 |
+| VSync: vanilla default, mcrs default | ON, OFF | MENU-VAL-010 |
+| Fullscreen: default | OFF | MENU-VAL-011 |
+| Draw test of the client: margin | 1 column | MENU-DIST-001 |
+| Render-distance fog: end, length | `16 · r` blocks, `clamp(16 · r / 10, 4, 64)` blocks | MENU-DIST-001 |
+| View of a player on the server: margin | 2 columns | MENU-DIST-003 |
+| Server view distance: vanilla clamp, mcrs clamp | [2, 32], [2, 96] | MENU-DIST-004 |
+| "Toggle Fullscreen": default key | F11 | MENU-DISP-005 |
 | GUI scale: smallest W and H for a scale above 1 | 320, 240 | MENU-SCALE-001 |
 
 ---
@@ -342,18 +374,23 @@ Confidence: medium. Experiment: MENU-EXP-02.
 - **Behavior:**
   1. The screen keeps the parts, the column, the row, the grid and the cells of MENU-OPT-002.
   2. The row of the header holds only the FOV slider.
-  3. The grid holds only "Video Settings..." and "Accessibility Settings...", in that order.
-     WID-LAY-005 puts them in row 0, at the columns 0 and 1.
-  4. The footer holds "Done", 200 × 20. Escape and "Done" act as MENU-OPT-001 states.
+  3. The grid holds only "Video Settings...", "Controls..." and "Accessibility Settings...", in
+     that order. WID-LAY-005 puts the first two in row 0, at the columns 0 and 1. It puts
+     "Accessibility Settings..." in row 1, at the column 0.
+  4. "Controls..." opens the "Controls" screen of `client-controls.md` (CTRL-SCR-001). The
+     options screen is its parent screen.
+  5. The footer holds "Done", 200 × 20. Escape and "Done" act as MENU-OPT-001 states.
 - **Postconditions:** at W = 427 and H = 240, with a title not wider than 150:
   - The column is 150 × 37 at (138, 12). The FOV slider is at (138, 29).
-  - The grid is 316 × 24. The top of the content is `min(61 + 30, 240 − 33 − 24)` = 91. The
+  - The grid is 316 × 48. The top of the content is `min(61 + 30, 240 − 33 − 48)` = 91. The
     grid is at (55, 91).
-  - "Video Settings..." is at (59, 91). "Accessibility Settings..." is at (217, 91).
+  - "Video Settings..." is at (59, 91). "Controls..." is at (217, 91). "Accessibility
+    Settings..." is at (59, 115). The right half of row 1 is empty.
   - "Done" is at (113, 214).
 
-Provenance: `design` for the set of widgets, as MENU-PAUSE-006 states. `source_suggested` for
-the positions. Kind: layout. Confidence: medium. Experiment: MENU-EXP-02.
+Provenance: `design` for the set of widgets, as MENU-PAUSE-006 states. The owner decided on
+2026-11-13 that "Controls..." is in the set. `source_suggested` for the positions. Kind: layout.
+Confidence: medium. Experiment: MENU-EXP-02.
 
 ---
 
@@ -406,13 +443,17 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 
 | Section label | Wide row | Flat list of options, in order |
 |---------------|----------|--------------------------------|
-| `options.video.display.header` "Display" | Exclusive Fullscreen Mode | Max Framerate, VSync, Reduce FPS When, **GUI Scale**, Fullscreen, Exclusive Fullscreen, **Brightness**, Graphics API; then "Prefer DXGI Present" on Windows, or "Menu/Dock Visibility" on macOS |
-| `options.video.quality.header` "Quality & Performance" | Preset | Biome Blend, Render Distance, Chunk Builder, Simulation Distance, **Smooth Lighting**, **Clouds**, Particles, Mipmap Levels, Entity Shadows, Entity Distance, Menu Background Blur, Cloud Distance, See-Through Leaves, Improved Transparency, Texture Filtering, Anisotropic Filtering, Weather Effect Radius |
+| `options.video.display.header` "Display" | Exclusive Fullscreen Mode | **Max Framerate**, **VSync**, Reduce FPS When, **GUI Scale**, **Fullscreen**, Exclusive Fullscreen, **Brightness**, Graphics API; then "Prefer DXGI Present" on Windows, or "Menu/Dock Visibility" on macOS |
+| `options.video.quality.header` "Quality & Performance" | Preset | Biome Blend, **Render Distance**, Chunk Builder, **Simulation Distance**, **Smooth Lighting**, **Clouds**, Particles, Mipmap Levels, Entity Shadows, Entity Distance, Menu Background Blur, Cloud Distance, See-Through Leaves, Improved Transparency, Texture Filtering, Anisotropic Filtering, Weather Effect Radius |
 | `options.video.preferences.header` "Preferences" | none | Autosave Indicator, Show Vignette, Attack Indicator, Chunk Fade Time |
 
-- **Postconditions:** "GUI Scale" is at the index 1 of the second row of "Display".
-  "Brightness" is at the index 0 of the fourth row. "Smooth Lighting" and "Clouds" share the
-  third row of "Quality & Performance".
+- **Postconditions:**
+  - "Max Framerate" and "VSync" share the first row of "Display". "GUI Scale" is at the index 1
+    of the second row. "Fullscreen" is at the index 0 of the third row. "Brightness" is at the
+    index 0 of the fourth row.
+  - "Render Distance" is at the index 1 of the first row of "Quality & Performance".
+    "Simulation Distance" is at the index 1 of the second row. "Smooth Lighting" and "Clouds"
+    share the third row.
 - **Edge cases:** the Ctrl wheel on this screen changes the GUI scale (MENU-SCALE-003).
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts. Kind: layout.
@@ -428,17 +469,23 @@ Confidence: medium. Experiment: MENU-EXP-03.
   3. A wide row shows only when its option is an option of mcrs. No wide row shows.
   4. A section label row shows only when its section holds an option of mcrs.
   5. The Ctrl wheel acts as MENU-SCALE-003 states.
-- **Postconditions:** the list holds these four rows. At W = 427 and H = 240 with the scroll
+- **Postconditions:** the list holds these seven rows. At W = 427 and H = 240 with the scroll
   offset 0:
 
 | Row | Content | Row top | Height | Widgets |
 |-----|---------|---------|--------|---------|
 | 0 | label "Display" | 35 | 18 | label box top 37 |
-| 1 | "GUI Scale", "Brightness" | 53 | 25 | (58, 55) and (218, 55) |
-| 2 | label "Quality & Performance" | 78 | 36 | label box top 98 |
-| 3 | "Smooth Lighting", "Clouds" | 114 | 25 | (58, 116) and (218, 116) |
+| 1 | "Max Framerate", "VSync" | 53 | 25 | (58, 55) and (218, 55) |
+| 2 | "GUI Scale", "Fullscreen" | 78 | 25 | (58, 80) and (218, 80) |
+| 3 | "Brightness" | 103 | 25 | (58, 105) |
+| 4 | label "Quality & Performance" | 128 | 36 | label box top 148 |
+| 5 | "Render Distance", "Simulation Distance" | 164 | 25 | (58, 166) and (218, 166) |
+| 6 | "Smooth Lighting", "Clouds" | 189 | 25 | (58, 191) and (218, 191) |
 
-  The content height is 108. The list is 174 high, so it does not scroll.
+  - The content height is 183. The list is 174 high, so it scrolls with `M` = 9
+    (`client-list.md`, SCRL-AREA-001).
+  - At the scroll offset 0, the bottom of row 6 is below the bottom of the list at y = 207.
+  - The scrollbar shows at x = 376 (SCRL-BAR-001). Its thumb is 165 high (SCRL-BAR-002).
 
 Provenance: `design` for the set of rows, as MENU-PAUSE-006 states. `source_suggested` for the
 positions. Kind: layout. Confidence: medium. Experiment: MENU-EXP-03.
@@ -448,7 +495,9 @@ positions. Kind: layout. Confidence: medium. Experiment: MENU-EXP-03.
 - **Behavior:**
   1. The title is `options.accessibility.title`, "Accessibility Settings". The screen has the
      form of MENU-SUB-001, but with another footer (step 4).
-  2. The first row holds "Narrator", then the button "Controls...".
+  2. The first row holds "Narrator", then the button `options.controls`, "Controls...",
+     150 × 20. The button opens the "Controls" screen (`client-controls.md`, CTRL-SCR-001), with
+     "Accessibility Settings" as its parent screen.
   3. A flat list of options fills the next rows, two in each row, as MENU-VID-001, step 3,
      states. In order: Closed Captions, High Contrast, Menu Background Blur, Text Background
      Opacity, Text Background, Chat Text Opacity, Line Spacing, Chat Delay, Notification Time,
@@ -468,21 +517,25 @@ Confidence: medium. Experiment: MENU-EXP-04.
 
 - **Behavior:**
   1. The screen keeps the title, the form and the order of MENU-ACC-001.
-  2. The list holds one row: "FOV Effects" alone, at the index 0.
-  3. The row of the footer (WID-LAY-006) holds only "Done". "Done" keeps its vanilla size,
+  2. The list holds two rows. Row 0 holds "Controls..." alone, at the index 0. "Narrator" does
+     not show. Row 1 holds "FOV Effects" alone, at the index 0.
+  3. "Controls..." keeps the caption, the size and the action of MENU-ACC-001, step 2.
+  4. The row of the footer (WID-LAY-006) holds only "Done". "Done" keeps its vanilla size,
      150 × 20. The footer frame places the row with its one child (WID-LAY-011). Escape and
      "Done" act as MENU-SUB-002 states.
-- **Postconditions:** at W = 427 and H = 240, "FOV Effects" is at (58, 37) and "Done" is at
-  (138, 214).
+- **Postconditions:** at W = 427 and H = 240:
+  - "Controls..." is at (58, 37). "FOV Effects" is at (58, 62). "Done" is at (138, 214).
+  - The content height is 54, so the list does not scroll.
 
-Provenance: `design` for the set of widgets, as MENU-PAUSE-006 states. `source_suggested` for
-the positions. Kind: layout. Confidence: medium. Experiment: MENU-EXP-04.
+Provenance: `design` for the set of widgets, as MENU-PAUSE-006 states. "Controls..." is in the
+set because mcrs has the "Controls" screen (MENU-DEV-002). `source_suggested` for the
+positions. Kind: layout. Confidence: medium. Experiment: MENU-EXP-04.
 
 ---
 
-## 4. The six options
+## 4. The options of mcrs
 
-The six options of mcrs are on these screens:
+The options of mcrs are on these screens:
 
 | Option | Screen | Rule |
 |--------|--------|------|
@@ -492,6 +545,15 @@ The six options of mcrs are on these screens:
 | Smooth Lighting | "Video Settings", section "Quality & Performance" | MENU-VAL-004 |
 | Clouds | "Video Settings", section "Quality & Performance" | MENU-VAL-005 |
 | GUI Scale | "Video Settings", section "Display" | MENU-VAL-006 |
+| Render Distance | "Video Settings", section "Quality & Performance" | MENU-VAL-007 |
+| Simulation Distance | "Video Settings", section "Quality & Performance" | MENU-VAL-008 |
+| Max Framerate | "Video Settings", section "Display" | MENU-VAL-009 |
+| VSync | "Video Settings", section "Display" | MENU-VAL-010 |
+| Fullscreen | "Video Settings", section "Display" | MENU-VAL-011 |
+
+The rules MENU-DIST-001 to MENU-DIST-005 state the effect of Render Distance and Simulation
+Distance. The rules MENU-DISP-001 to MENU-DISP-005 state the effect of Max Framerate, VSync and
+Fullscreen. `client-controls.md`, CTRL-VAL-001, states the option Sensitivity.
 
 ### MENU-VAL-001: FOV
 
@@ -616,6 +678,320 @@ Provenance: `source_suggested`; `black_box_confirmed` for the English texts and 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts. Kind: semantic.
 Confidence: medium. Experiment: MENU-EXP-07.
 
+### MENU-VAL-007: Render Distance
+
+- **Behavior:**
+  1. The widget is an option slider over the integer range [2, `hi`] (WID-SLD-005). The step
+     of a key in change mode is 1.
+  2. In vanilla, `hi` is 32 when the Java runtime of the client has a maximum heap of at least
+     1 000 000 000 bytes. Else `hi` is 16. The default is 12.
+  3. In mcrs, the range is [2, 96] and the default is 96 (MENU-DEV-008).
+  4. The caption is `options.generic_value` with `options.renderDistance`, "Render Distance",
+     and the value text `options.chunks`, "%s Chunks", with the number.
+  5. The slider has no tooltip.
+  6. The slider waits (WID-SLD-007, step 2).
+  7. The stored value is the option `o` of MENU-DIST-001 to MENU-DIST-004.
+- **Postconditions:** the captions are "Render Distance: 2 Chunks" and "Render Distance: 12
+  Chunks". In mcrs, the right end shows "Render Distance: 96 Chunks".
+
+Provenance: `source_suggested`; `black_box_confirmed` for the English texts. `design` for step
+3: the owner decided the range and the default of mcrs on 2026-11-13. Kind: semantic.
+Confidence: medium. Experiment: MENU-EXP-11.
+
+### MENU-VAL-008: Simulation Distance
+
+- **Behavior:**
+  1. The widget is an option slider over the integer range [5, `hi`] (WID-SLD-005). The step
+     of a key in change mode is 1. The default is 12.
+  2. In vanilla, `hi` is 32 or 16, with the condition of MENU-VAL-007, step 2.
+  3. In mcrs, `hi` is 32 (section 10, item 1).
+  4. The caption is `options.generic_value` with `options.simulationDistance`, "Simulation
+     Distance", and the value text `options.chunks`, "%s Chunks", with the number.
+  5. The slider has no tooltip.
+  6. The slider waits (WID-SLD-007, step 2).
+  7. The stored value is the option `m` of MENU-DIST-005.
+- **Postconditions:** the captions are "Simulation Distance: 5 Chunks" and "Simulation
+  Distance: 12 Chunks".
+
+Provenance: `source_suggested`; `black_box_confirmed` for the English texts. `unresolved` for
+step 3. Kind: semantic. Confidence: medium. Experiment: MENU-EXP-12.
+
+### MENU-VAL-009: Max Framerate
+
+- **Behavior:**
+  1. The widget is an option slider over the integer range [1, 26] (WID-SLD-005). The value of
+     the option is 10 times the integer of the slider: 10, 20, …, 260.
+  2. The step of a key in change mode is 1 on the slider. Thus it is 10 on the value.
+  3. The default is 120.
+  4. The caption is `options.generic_value` with `options.framerateLimit`, "Max Framerate",
+     and a value text:
+     - 260: `options.framerateLimit.max`, "Unlimited";
+     - else `options.framerate`, "%s FPS", with the value.
+  5. The slider has no tooltip.
+  6. The option applies at once (WID-SLD-007, step 1).
+  7. The value is the frame limit `L` of MENU-DISP-001.
+- **Postconditions:** the captions are "Max Framerate: 10 FPS", "Max Framerate: 120 FPS" and
+  "Max Framerate: Unlimited".
+
+Provenance: `source_suggested`; `black_box_confirmed` for the English texts. Kind: semantic.
+Confidence: medium. Experiment: MENU-EXP-13.
+
+### MENU-VAL-010: VSync
+
+- **Behavior:**
+  1. The widget is a Boolean cycle button (WID-CYC-001, step 4), with the caption form "name
+     and value". Its name is `options.vsync`, "VSync". In vanilla, the default is ON.
+  2. In mcrs, the default is OFF (MENU-DEV-010).
+  3. The button has no tooltip.
+  4. Each change applies from the next frame (MENU-DISP-002).
+  5. Each change writes the options file (MENU-SAVE-001).
+- **Postconditions:** the captions are "VSync: ON" and "VSync: OFF".
+
+Provenance: `source_suggested`; `black_box_confirmed` for the English texts. `design` for step
+2: the owner decided the default of mcrs on 2026-11-13. Kind: semantic. Confidence: medium.
+Experiment: MENU-EXP-13.
+
+### MENU-VAL-011: Fullscreen
+
+- **Behavior:**
+  1. The widget is a Boolean cycle button (WID-CYC-001, step 4), with the caption form "name
+     and value". Its name is `options.fullscreen`, "Fullscreen". The default is OFF.
+  2. The button has no tooltip.
+  3. Each change applies at the next frame (MENU-DISP-003, MENU-DISP-004).
+  4. Each change writes the options file (MENU-SAVE-001).
+  5. The key "Toggle Fullscreen" also changes the option (MENU-DISP-005).
+- **Postconditions:** the captions are "Fullscreen: ON" and "Fullscreen: OFF".
+
+Provenance: `source_suggested`; `black_box_confirmed` for the English texts. Kind: semantic.
+Confidence: medium. Experiment: MENU-EXP-14.
+
+### MENU-DIST-001: The render distance of the client
+
+- **Inputs:** the stored value `o` of Render Distance, and the server radius `v`. `v` is the
+  chunk radius of `login`, or the radius of the last `set_chunk_cache_radius` after it.
+- **Behavior:**
+  1. When `v` > 0, the render distance of the client is `r = min(o, v)`. Else `r = o`.
+  2. A change of `o` or of `v` changes `r` from the next frame.
+  3. Let (`cx`, `cz`) be the column of the camera. The client draws the sections of the column
+     (`x`, `z`) only when `max(0, |x − cx| − 1)² + max(0, |z − cz| − 1)² < r²`.
+  4. The far plane uses `r` (`client-camera.md`, CCAM-PROJ-001).
+  5. The render-distance fog uses `r`. Let (`dx`, `dy`, `dz`) be the offset from the camera to
+     a point. The fog distance of the point is `max(√(dx² + dz²), |dy|)`.
+  6. The fog value is 0 at the start or nearer, 1 at the end or farther, and linear between.
+     The end is `16 · r` blocks. The start is `16 · r − clamp(16 · r / 10, 4, 64)` blocks.
+  7. The fog of a point is the larger of this value and the value of the environmental fog.
+  8. The client keeps each column that it got until `forget_level_chunk` for that column
+     arrives. A change of `r` removes no column.
+- **Postconditions:**
+  - With `o` = 12 on a server with `v` = 10, `r` = 10.
+  - A lower `o` makes the drawn world smaller in the next frame. A higher `o` shows more columns
+    only after the server sends them (MENU-DIST-003).
+  - With `r` = 12, the fog starts at 172.8 blocks and ends at 192 blocks. With `r` = 2, it
+    starts at 28 blocks and ends at 32 blocks.
+- **Edge cases:** the client can drop a column outside the square of the radius `max(2, v) + 3`
+  around the column of the last `set_chunk_cache_center`. A vanilla server sends no column
+  outside that square.
+
+Provenance: `source_suggested`; `black_box_confirmed` for the form of the fog of steps 5 to 7 in
+`assets/minecraft/shaders/include/fog.glsl` of the client jar. Kind: semantic. Confidence:
+medium. Experiment: MENU-EXP-11.
+
+### MENU-DIST-002: The view distance that the client sends
+
+- **Observer:** the server, on the wire.
+- **Inputs:** the stored value `o` of Render Distance, and the moments of MENU-SAVE-001 and
+  MENU-SAVE-002.
+- **Behavior:**
+  1. In the configuration state, the client sends `client_information` (configuration,
+     serverbound 0) one time, at the start of the state.
+  2. In the play state, at each moment of MENU-SAVE-001 and MENU-SAVE-002, the client makes its
+     client information from the current options. This occurs also when the write of the
+     options file fails.
+  3. When that information differs from the last `client_information` that the client sent in
+     the play state, the client sends `client_information` (play, serverbound 14). The first
+     moment in the play state always sends it.
+  4. The field "view distance" holds `o`, not `r`. The other fields are out of scope.
+  5. The client sends `client_information` at no other moment.
+- **Postconditions:**
+  - A move of the Render Distance slider sends nothing. "Done" sends one `client_information`
+    with the new value, because the close stores the pending value first (MENU-SUB-002).
+  - A press of a cycle button sends the stored value of Render Distance when it differs from
+    the value that the client sent last. A pending value is not stored, so it does not go.
+  - In mcrs, `o` can be up to 96. A vanilla server clamps it (MENU-DIST-003).
+
+Provenance: `source_suggested`. Kind: wire. Confidence: medium. Experiment: MENU-EXP-11.
+
+### MENU-DIST-003: The view of a player on the server
+
+- **Observer:** the client of the player, on the wire.
+- **Inputs:** the view distance `q` of the last `client_information` of the player, the server
+  view distance `V` (MENU-DIST-004), and the column (`cx`, `cz`) of the player.
+- **Behavior:**
+  1. The view distance of the player is `d = clamp(q, 2, V)`.
+  2. The view of the player holds the column (`x`, `z`) when
+     `max(0, |x − cx| − 2)² + max(0, |z − cz| − 2)² < d²`.
+  3. When `client_information` arrives, the server stores `q`. At its next tick, the server
+     computes `d` again.
+  4. When `d` changes, the server first sends `forget_level_chunk` for each column that left
+     the view and that the client got.
+  5. A column that left the view before the server sent it gets no packet.
+  6. Then the server sends the columns that entered the view, in the batches of the chunk send:
+     `chunk_batch_start`, one `level_chunk_with_light` for each column, then
+     `chunk_batch_finished`. The client answers each batch with `chunk_batch_received`.
+  7. The columns nearest to the player go first.
+  8. A change of `q` sends no `set_chunk_cache_radius`.
+- **Postconditions:**
+  - With `V` = 10, a change of `q` from 20 to 30 sends nothing.
+  - With `V` = 10, a change of `q` from 12 to 6 sends `forget_level_chunk` for each column of
+    the view of `d` = 10 that is not in the view of `d` = 6.
+- **Edge cases:**
+  - The load tickets of the player use `V`, not `d` (`block-simulation.md`, SIM-TICK-005).
+  - The tracking range of entities uses `d` (`entity-tracking.md`, TRK-RNG-001). The server
+    tests it at the times of TRK-RNG-003.
+  - A dimension change keeps `d` (`dimension-change.md`, DIM-CHG-007).
+
+Provenance: `source_suggested`. Kind: wire for the packets, semantic for the order of the
+columns. Confidence: medium. Experiment: MENU-EXP-11.
+
+### MENU-DIST-004: Render Distance in a local world
+
+- **Observer:** the client of each player of a local world, on the wire.
+- **Inputs:** the stored value `o` of Render Distance of the host. A pending value is not an
+  input.
+- **Behavior:**
+  1. At the end of each tick that it runs, the server of a local world compares `max(2, o)`
+     with its server radius `v`.
+  2. When they differ, the server sets `v` to `max(2, o)`. It sends `set_chunk_cache_radius`
+     with `v` to each player: the host and each player that joined over LAN.
+  3. Then the server view distance becomes `V = clamp(v, 2, 32)`. The server computes the view
+     of each player again at once (MENU-DIST-003).
+  4. The `login` of a player carries the current `v` as its chunk radius.
+  5. While the server of a local world runs no tick, a change of `o` waits. The pause of a
+     local world is out of scope (section 0.5).
+  6. A server that the client does not run takes `V` from its own configuration. A vanilla
+     dedicated server clamps its property `view-distance` to [2, 32].
+- **Postconditions:**
+  - A player that joined over LAN has `d = clamp(q, 2, V)` with its own `q`. Its client draws
+    with `r = min(o', v)`, where `o'` is its own option (MENU-DIST-001).
+  - When the host lowers `o`, its client draws the smaller world in the next frame. The server
+    lowers `V` at the end of its next tick.
+  - When the host raises `o`, the host keeps `d = clamp(q, 2, V)` with its old `q`. The new
+    columns arrive only after the next `client_information` of the host (MENU-DIST-002), for
+    example at "Done".
+- **Edge cases:** in mcrs, `V = clamp(v, 2, 96)` (MENU-DEV-008).
+
+Provenance: `source_suggested`. `design` for the edge case: the server of mcrs accepts the range
+of Render Distance of mcrs (MENU-VAL-007, step 3). Kind: wire. Confidence: medium. Experiment:
+MENU-EXP-12.
+
+### MENU-DIST-005: Simulation Distance in a local world
+
+- **Observer:** the client of each player of a local world, on the wire, and a player who sees
+  the blocks and the entities of the world.
+- **Inputs:** the stored value `m` of Simulation Distance of the host.
+- **Behavior:**
+  1. At the end of each tick that it runs, the server of a local world compares `max(2, m)`
+     with the value that it took last.
+  2. At the first tick that runs, and when the two values differ, the server takes `max(2, m)`
+     as its simulation distance `S`. It sends `set_simulation_distance` with `S` to each player.
+  3. `S` is the simulation distance of `block-simulation.md`, SIM-TICK-005, in each dimension.
+  4. The `login` of a player that joins over LAN carries the current `S`.
+  5. On a server that the client does not run, the option has no effect. `client_information`
+     has no field for it.
+- **Postconditions:** with `m` = 5, the simulation level of a column at the Chebyshev distance
+  `d` from a player is `26 + d` (SIM-TICK-005).
+- **Edge cases:** the client keeps the value of `login` and of the last
+  `set_simulation_distance`. The use of that value in the client is out of scope.
+
+Provenance: `source_suggested`. Kind: wire. Confidence: medium. Experiment: MENU-EXP-12.
+
+### MENU-DISP-001: The frame limit
+
+- **Inputs:** the value `L` of Max Framerate, in a world.
+- **Behavior:**
+  1. When `L` < 260, the client waits after the present of each frame. The wait ends when
+     `1 / L` seconds passed since the end of the previous wait.
+  2. When `L` = 260, the client does not wait.
+  3. An open screen, the pause screen and a loss of the window focus do not change `L`.
+  4. VSync (MENU-DISP-002) and `L` both apply.
+- **Postconditions:**
+  - With `L` = 60 and VSync OFF, the client draws 60 frames or fewer in each second.
+  - With VSync ON, the frame rate is not above the lower of `L` and the refresh rate of the
+    monitor.
+- **Edge cases:** the frame limits of "Reduce FPS When" for a minimised window and for an
+  inactive player are out of scope.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: MENU-EXP-13.
+
+### MENU-DISP-002: VSync and the present
+
+- **Inputs:** the value of VSync.
+- **Behavior:**
+  1. With VSync ON, each present waits for the vertical blank of the monitor. This is the
+     present mode FIFO of the graphics API.
+  2. With VSync OFF, a present does not wait for the vertical blank. The present mode is
+     Immediate when the surface supports it, else Mailbox, else FIFO.
+  3. A change applies from the next frame.
+- **Postconditions:**
+  - With VSync ON and Max Framerate "Unlimited", the frame rate is not above the refresh rate
+    of the monitor.
+  - With VSync OFF on a surface that supports only FIFO, the result is the same as with VSync
+    ON.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: MENU-EXP-13.
+
+### MENU-DISP-003: Fullscreen in vanilla
+
+- **Inputs:** the value of Fullscreen, and the vanilla option "Exclusive Fullscreen".
+- **Behavior:**
+  1. A change applies at the next frame.
+  2. ON with "Exclusive Fullscreen" OFF, the default: the window becomes a borderless window
+     over the bounds of the monitor that holds the window.
+  3. ON with "Exclusive Fullscreen" ON: the window takes an exclusive video mode of that
+     monitor. This case is out of scope.
+  4. OFF: the window gets back the position and the size that it had before fullscreen.
+  5. When the switch fails, the option takes the real state of the window. The client then
+     writes the options file.
+  6. When the system changes the fullscreen state of the window, the option takes the new
+     state. The client writes the options file. The Fullscreen button of an open "Video
+     Settings" shows the new value.
+- **Postconditions:** the window pixels change. MENU-SCALE-001, step 4, computes the GUI scale
+  again, and the open screen re-arranges.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: MENU-EXP-14.
+
+### MENU-DISP-004: Fullscreen (mcrs subset)
+
+- **Behavior:**
+  1. ON: the window becomes a borderless window that covers the primary monitor of the system.
+  2. mcrs has no exclusive video mode and no list of video modes. "Exclusive Fullscreen" and
+     "Exclusive Fullscreen Mode" are not options of mcrs.
+  3. Steps 1, 4, 5 and 6 of MENU-DISP-003 apply.
+- **Postconditions:** for a window on a second monitor, ON moves the window to the primary
+  monitor. OFF puts it back at its old position on the second monitor.
+
+Provenance: `design`: the owner decided on 2026-11-13 that fullscreen in mcrs is a borderless
+window on the primary monitor. `source_suggested` for step 3. Kind: semantic. Confidence:
+medium. Experiment: MENU-EXP-14. mcrs deviates: MENU-DEV-009.
+
+### MENU-DISP-005: The key "Toggle Fullscreen"
+
+- **Inputs:** a press of the key of `key.fullscreen`, "Toggle Fullscreen". The default key is
+  F11. The player can bind the action to another key or to a mouse button.
+- **Behavior:**
+  1. A press inverts the option Fullscreen. A repeat of a held key does nothing.
+  2. While the key of `key.debug.modifier`, "Debug Modifier Key", is down, the press does
+     nothing. The default of that key is F3.
+  3. The key acts in a world with no screen and with each screen of this document open. It
+     also acts while an edit box captures the keyboard (`client-edit-box.md`, EDIT-KEY-005).
+  4. The new value applies as MENU-DISP-003 and MENU-DISP-004 state.
+  5. The client writes the options file (MENU-SAVE-001, step 3).
+  6. The Fullscreen button of an open "Video Settings" shows the new value.
+- **Postconditions:** two presses put the window back at its old position and size.
+
+Provenance: `source_suggested`; `black_box_confirmed` for the English texts. Kind: semantic.
+Confidence: medium. Experiment: MENU-EXP-14.
+
 ---
 
 ## 5. GUI scale
@@ -698,11 +1074,15 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Observer:** the options file, as the client reads it at the next start.
 - **Behavior:** the client writes the options file at these moments:
   1. after each change of the value of an option cycle button by an activation. Smooth
-     Lighting, Clouds and GUI Scale are such buttons;
+     Lighting, Clouds, GUI Scale, VSync and Fullscreen are such buttons;
   2. each time that the options screen or an option sub-screen is removed: it closes, or
      another screen replaces it. For example, the options screen is removed when a sub-screen
-     opens.
+     opens;
+  3. after each change of Fullscreen by the key "Toggle Fullscreen", by a switch of the window
+     that fails, or by the system (MENU-DISP-003, MENU-DISP-005).
 - **Postconditions:**
+  - Each moment of this rule also sends `client_information` when its content changed
+    (MENU-DIST-002).
   - A change of a slider writes nothing at once. The write of step 2 includes it.
   - A change of the GUI scale by the Ctrl wheel (MENU-SCALE-003) writes nothing at once. The
     write of step 2 includes it.
@@ -726,7 +1106,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
     for MENU-SAVE-001, step 2. Examples: a change of a slider, and a change by the Ctrl wheel.
   - With no such screen open, the stop writes nothing. The pause screen is not such a screen.
     Thus the last button of the pause screen (MENU-PAUSE-006, step 5) writes nothing.
-  - After a stop of the client, the file holds the last value of each of the six options.
+  - After a stop of the client, the file holds the last value of each option of section 4.
     MENU-SAVE-003 states the exception.
 - **Edge cases:** the client removes only the screen that is open. When an option sub-screen is
   open, the options screen was removed when the sub-screen opened. Thus a stop writes the file
@@ -803,7 +1183,7 @@ content after a loss of power. Experiment: MENU-EXP-10. mcrs deviates: MENU-DEV-
 |--------|----------------|----------------|------------|--------------------------|-----------------|-------------------|
 | Pause screen | no | no | none | builds its widgets again | 0 | none |
 | Options screen | no | no | none | keeps its widgets | 0 | none |
-| "Video Settings" | no | no | of the list (LIST-BG-002) | keeps its widgets | 0 | vanilla: Biome Blend, Render Distance, Simulation Distance; mcrs: none |
+| "Video Settings" | no | no | of the list (LIST-BG-002) | keeps its widgets | 0 | vanilla: Biome Blend, Render Distance, Simulation Distance; mcrs: Render Distance, Simulation Distance |
 | "Accessibility Settings" | no | no | of the list (LIST-BG-002) | keeps its widgets | 0 | none |
 
 - **Postconditions:**
@@ -811,7 +1191,8 @@ content after a loss of power. Experiment: MENU-EXP-10. mcrs deviates: MENU-DEV-
     is the blur of WID-SCR-005 and then the texture `inworld_menu_background.png`.
   - The pause screen and the options screen draw no separators of WID-SCR-006.
   - No screen of this document names an initial widget (WID-FOC-002, step 1).
-  - None of the six options waits 600 ms. Each one applies at once.
+  - Of the options of mcrs, only Render Distance and Simulation Distance wait 600 ms
+    (WID-SLD-007, step 2). Each other option applies at once.
 
 Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: MENU-EXP-03.
 
@@ -860,8 +1241,11 @@ MENU-VID-002.
 
 ### MENU-EXP-04: "Accessibility Settings"
 
-1. Open "Accessibility Settings...". Record the row of "FOV Effects" and the footer bounds.
-2. Press "Done". Record the screen that shows.
+1. Open "Accessibility Settings...". Record the first row, the row of "FOV Effects" and the
+   footer bounds.
+2. Press "Controls..." in the first row. Record the screen that shows. Press Escape. Record the
+   screen that shows.
+3. Press "Done". Record the screen that shows.
 
 Decides: MENU-ACC-001, and the positions of MENU-ACC-002.
 
@@ -931,9 +1315,84 @@ Decides: MENU-SAVE-002.
    directory during the press.
 9. Repeat step 7 with a tracer that ends the process at the first write call on `options.txt`.
    Record the size and the content of the file.
-10. Start the client. Record the value of each of the six options.
+10. Start the client. Record the value of each option of section 4.
 
 Decides: MENU-SAVE-003 and MENU-SAVE-004.
+
+### MENU-EXP-11: Render Distance on a server
+
+Start the vanilla server with `tools/vanilla-server`, with `view-distance=10` and a flat world.
+The client joins through the proxy of `tools/mcrs_minecraft_client_recorder`. The proxy records
+each packet with its time.
+
+1. Join the server. Record the chunk radius of `login` and the view distance of each
+   `client_information`.
+2. Open "Video Settings". Record the caption at the default and at each end of Render Distance
+   and of Simulation Distance.
+3. Drag Render Distance to 6. Wait 1 second. Record the packets and a screenshot.
+4. Press "Done". Record `client_information` and the packets of the next 5 seconds.
+5. Set Render Distance to 20 and press "Done". Record the packets of the next 10 seconds.
+6. Set Render Distance to 30 and press "Done". Record each packet of the next 10 seconds.
+7. Open "Video Settings". Drag Render Distance to 8, and press "Clouds" within 300 ms. Record
+   each `client_information`.
+8. Wait 1 second and press "Clouds" again. Record each `client_information`.
+9. In clear weather, set Render Distance to 2, then to 10. Record a screenshot toward the
+   horizon at each value. Measure the distances where the fog starts and ends.
+
+Decides: MENU-VAL-007, MENU-DIST-001, MENU-DIST-002, MENU-DIST-003.
+
+### MENU-EXP-12: A local world and LAN
+
+1. Open a new singleplayer world with the default options. Open it to LAN.
+2. Start a second vanilla client with `tools/vanilla-client`. Join the LAN world through the
+   proxy. Record the chunk radius and the simulation distance of its `login`.
+3. On the host, open "Video Settings" and drag Render Distance to 6. Record the time of each
+   `set_chunk_cache_radius` at the second client.
+4. On the host, drag Render Distance to 20. Do not press "Done". After 5 seconds, record a
+   screenshot of the host and the packets of the second client.
+5. Press "Done" on the host. After 10 seconds, record a screenshot of the host.
+6. On the host, drag Simulation Distance to 5. Record each `set_simulation_distance` at the
+   second client.
+7. Open a singleplayer world that is not open to LAN. Open the pause screen and change Render
+   Distance.
+8. Return to the game. Record the new log lines of the game and their times.
+
+Decides: MENU-VAL-008, MENU-DIST-004, MENU-DIST-005.
+
+### MENU-EXP-13: Max Framerate and VSync
+
+Keep the window open and not minimised. The debug screen shows the frame rate.
+
+1. In a world with no screen open, set VSync to OFF.
+2. Set Max Framerate to 30, 60, 120 and "Unlimited". At each value, record the frame rate for
+   10 seconds.
+3. Set Max Framerate to 60. Open the pause screen and record the frame rate. Move the focus to
+   another window and record the frame rate.
+4. Set VSync to ON and Max Framerate to "Unlimited". Record the frame rate and the refresh rate
+   of the monitor.
+5. Record the caption of Max Framerate at each end, and one key step from each end.
+6. Record the file time after a move of Max Framerate, and after a press of "VSync".
+
+Decides: MENU-VAL-009, MENU-VAL-010, MENU-DISP-001, MENU-DISP-002.
+
+### MENU-EXP-14: Fullscreen and the key "Toggle Fullscreen"
+
+1. Put a window of 854 × 480 at a known position on the primary monitor. Open "Video
+   Settings".
+2. Press "Fullscreen". Record the window bounds, the monitor bounds, the window pixels, the GUI
+   scale, the caption and the file time.
+3. Press "Fullscreen" again. Record the window bounds.
+4. Close the screens. Press F11 with no screen open, then on the pause screen, then in the chat
+   box. After each press, record the state of the window and the file time.
+5. Open "Video Settings" and press F11. Record the caption of "Fullscreen".
+6. Hold F3 and press F11. Record the state of the window.
+7. Hold F11 for 2 seconds. Record the number of changes of the window state.
+8. On macOS, press the green button of the window. Record the caption of "Fullscreen" and its
+   value in `options.txt`.
+9. Connect a second monitor and move the window to it. Press "Fullscreen". Record the monitor
+   that the window covers.
+
+Decides: MENU-VAL-011, MENU-DISP-003, MENU-DISP-005.
 
 ---
 
@@ -1052,8 +1511,58 @@ Decides: MENU-SAVE-003 and MENU-SAVE-004.
   writable directory can let a write succeed. A test of MENU-SAVE-003 against mcrs makes the
   directory read-only in place of the file.
 
+### MENU-DEV-008: The range and the default of Render Distance
+
+- **Rule:** MENU-VAL-007, step 3, and the edge case of MENU-DIST-004.
+- **Reference:** the range is [2, 32], or [2, 16] with a small heap of the Java runtime. The
+  default is 12. Each vanilla server clamps its server view distance to [2, 32].
+- **mcrs:**
+  1. The range is [2, 96]. The default is 96.
+  2. The server of mcrs clamps its server view distance to [2, 96]. In a local world, the view
+     of a player can thus reach 96 columns.
+  3. The largest Simulation Distance is 32 on each client (MENU-VAL-008, step 3).
+- **Reason:** the owner decided the range and the default on 2026-11-13. mcrs does not run in a
+  Java runtime, so no condition on a heap applies.
+- **Visible to the client:** yes. The slider of mcrs goes to 96, and a new client starts with
+  96. A vanilla server clamps the request of 96 to its own server view distance
+  (MENU-DIST-003).
+- **Test:** a differential test does not compare the range, the default, or a view with a
+  distance above 32.
+
+### MENU-DEV-009: Fullscreen covers the primary monitor
+
+- **Rule:** MENU-DISP-004.
+- **Reference:** the borderless window covers the monitor that holds the window. With
+  "Exclusive Fullscreen" ON, the window takes an exclusive video mode.
+- **mcrs:** the borderless window always covers the primary monitor. mcrs has no exclusive
+  fullscreen.
+- **Reason:** the owner decided this on 2026-11-13. `DECISIONS.md` records that the window
+  system of mcrs did not find the monitor that holds the window.
+- **Visible to the client:** yes, only with more than one monitor, when the window is not on the
+  primary monitor.
+- **Test:** a differential test uses one monitor, or it does not compare the monitor that the
+  window covers.
+
+### MENU-DEV-010: VSync is OFF by default
+
+- **Rule:** MENU-VAL-010, step 2.
+- **Reference:** the default of VSync is ON.
+- **mcrs:** the default is OFF. A client with no options file, or with no value of VSync in
+  it, starts with VSync OFF.
+- **Reason:** the owner decided this on 2026-11-13.
+- **Visible to the client:** yes, at the first start of the client. The frame rate is not bound
+  to the refresh rate of the monitor, and the image can tear (MENU-DISP-002).
+- **Test:** a differential test writes the value of VSync into the options file before it
+  compares. It does not compare the default.
+
 ---
 
 ## 10. Unresolved
 
-No point is open.
+1. The largest Simulation Distance of mcrs. MENU-VAL-008 takes 32, the vanilla value for a
+   client with a large heap. The owner decides if mcrs keeps 32, or takes another value, for
+   example 96 as Render Distance.
+2. The load tickets of a server view distance above 32. SIM-TICK-005 clamps the view distance
+   `V` to 2–32 for the load level. With MENU-DEV-008, the server of mcrs has a `V` up to 96.
+   The owner decides which clamp the load level of mcrs uses. `block-simulation.md` then
+   states it.
