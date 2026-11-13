@@ -22,6 +22,9 @@ struct Camera {
     viewport: vec2<f32>,
     shade_table: u32,
     render_distance: u32,
+    fog_color: vec3<f32>,
+    fog_environmental: vec2<f32>,
+    fog_render_distance: vec2<f32>,
 }
 
 @group(0) @binding(0) var<uniform> params: Params;

@@ -27,6 +27,7 @@ mod timestamps;
 mod upload;
 mod views;
 mod words;
+mod world_fog;
 pub mod world_text;
 
 use std::sync::Arc;
@@ -63,6 +64,7 @@ pub use timestamps::{PassSlot, PassTimestamps};
 pub use upload::{Placement, Upload, Uploads};
 pub use views::{DebugView, DebugViews, SelectedView};
 pub use words::Words;
+pub use world_fog::WorldFog;
 
 pub use frame::uniform as uniform_buffer;
 pub use pipeline::common as pipeline_descriptor;
@@ -226,6 +228,7 @@ fn embed_shaders(app: &mut App) {
     load_shader_library!(app, "shaders/include/words.wesl");
     load_shader_library!(app, "shaders/include/section.wesl");
     load_shader_library!(app, "shaders/include/frame.wesl");
+    load_shader_library!(app, "shaders/include/fog.wesl");
     load_shader_library!(app, "shaders/include/sky.wesl");
     load_shader_library!(app, "shaders/include/quad.wesl");
     load_shader_library!(app, "shaders/include/lighting.wesl");
@@ -295,6 +298,7 @@ impl Plugin for TerrainPlugin {
             .init_resource::<Occlusion>()
             .init_resource::<QuadCull>()
             .init_resource::<RenderDistance>()
+            .init_resource::<WorldFog>()
             .init_resource::<Brightness>()
             .init_resource::<DrawMask>()
             .init_resource::<DebugViews>()
@@ -305,6 +309,7 @@ impl Plugin for TerrainPlugin {
             .add_plugins(ExtractResourcePlugin::<Occlusion>::default())
             .add_plugins(ExtractResourcePlugin::<QuadCull>::default())
             .add_plugins(ExtractResourcePlugin::<RenderDistance>::default())
+            .add_plugins(ExtractResourcePlugin::<WorldFog>::default())
             .add_plugins(ExtractResourcePlugin::<Brightness>::default())
             .add_plugins(ExtractResourcePlugin::<DrawMask>::default())
             .add_plugins(ExtractResourcePlugin::<PinnedTick>::default())

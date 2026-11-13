@@ -14,7 +14,7 @@ const CAVE_WORDS: usize = 2;
 /// Slots between two columns of a run, so a run reaches the second word of the bitset.
 const COLUMN_STRIDE: usize = 4;
 /// Word places in the `Camera` uniform of `frame.wesl`.
-const CAMERA_WORDS: usize = 56;
+const CAMERA_WORDS: usize = 64;
 const FRUSTUM_WORD: usize = 16;
 const FRUSTUM_PLANES: usize = 5;
 const SECTION_WORD: usize = 36;
@@ -85,6 +85,48 @@ const RUNS: [Run; 3] = [
         ],
     },
 ];
+
+/// A point of CFOG-TEST-001 or an edge of the ramp: its offset from the camera, the environmental
+/// and the render-distance ramps, and its fog value.
+struct FogCase {
+    offset: [f32; 3],
+    environmental: [f32; 2],
+    render_distance: [f32; 2],
+    value: f32,
+}
+
+const NOON: [[f32; 2]; 2] = [[0.0, 1024.0], [172.8, 192.0]];
+const NO_FOG: [f32; 2] = [f32::MAX, f32::MAX];
+
+const fn fog_case(offset: [f32; 3], ramps: [[f32; 2]; 2], value: f32) -> FogCase {
+    FogCase {
+        offset,
+        environmental: ramps[0],
+        render_distance: ramps[1],
+        value,
+    }
+}
+
+const FOG_CASES: [FogCase; 7] = [
+    fog_case([180.0, 0.0, 0.0], NOON, 0.375),
+    fog_case([100.0, -20.0, 50.0], NOON, 0.110916),
+    fog_case([150.0, -100.0, 0.0], NOON, 0.176052),
+    fog_case([0.0, -200.0, 0.0], NOON, 1.0),
+    fog_case([1.0e6, 3.0e5, -2.0e6], [NO_FOG, NO_FOG], 0.0),
+    fog_case([0.0, 0.0, 10.0], [NO_FOG, [10.0, 10.0]], 0.0),
+    fog_case([0.0, 0.0, 10.5], [NO_FOG, [10.0, 4.0]], 1.0),
+];
+
+const FOG_KERNEL: &str = "
+@group(0) @binding(0) var<storage, read> cases: array<vec4<f32>>;
+@group(0) @binding(1) var<storage, read_write> values: array<f32>;
+
+@compute @workgroup_size(1)
+fn fog_values(@builtin(global_invocation_id) id: vec3<u32>) {
+    let ramps = cases[id.x * 2u + 1u];
+    values[id.x] = fog_value(cases[id.x * 2u].xyz, ramps.xy, ramps.zw);
+}
+";
 
 struct Gpu {
     device: Device,
@@ -213,6 +255,87 @@ impl Gpu {
         read.unmap();
         u64::from(words[CAVE_WORDS]) | (u64::from(words[CAVE_WORDS + 1]) << 32)
     }
+
+    fn fog_values(&self) -> Vec<f32> {
+        let source = format!(
+            "{}{FOG_KERNEL}",
+            include_str!("../../src/shaders/include/fog.wesl")
+        );
+        let module = self.device.create_shader_module(ShaderModuleDescriptor {
+            label: None,
+            source: ShaderSource::Wgsl(source.into()),
+        });
+        let pipeline = self
+            .device
+            .create_compute_pipeline(&ComputePipelineDescriptor {
+                label: None,
+                layout: None,
+                module: &module,
+                entry_point: Some("fog_values"),
+                compilation_options: PipelineCompilationOptions::default(),
+                cache: None,
+            });
+        let cases: Vec<f32> = FOG_CASES
+            .iter()
+            .flat_map(|case| {
+                [
+                    case.offset[0],
+                    case.offset[1],
+                    case.offset[2],
+                    0.0,
+                    case.environmental[0],
+                    case.environmental[1],
+                    case.render_distance[0],
+                    case.render_distance[1],
+                ]
+            })
+            .collect();
+        let cases = self.buffer(bytemuck::cast_slice(&cases), BufferUsages::STORAGE);
+        let values = self.buffer(
+            &[0; FOG_CASES.len() * 4],
+            BufferUsages::STORAGE | BufferUsages::COPY_SRC,
+        );
+        let read = self.device.create_buffer(&BufferDescriptor {
+            label: None,
+            size: values.size(),
+            usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let group = self.bind(&pipeline, 0, &[(0, &cases), (1, &values)]);
+        let mut encoder = self.device.create_command_encoder(&Default::default());
+        {
+            let mut pass = encoder.begin_compute_pass(&Default::default());
+            pass.set_pipeline(&pipeline);
+            pass.set_bind_group(0, &group, &[]);
+            pass.dispatch_workgroups(FOG_CASES.len() as u32, 1, 1);
+        }
+        encoder.copy_buffer_to_buffer(&values, 0, &read, 0, values.size());
+        self.queue.submit([encoder.finish()]);
+        read.slice(..).map_async(MapMode::Read, |_| {});
+        self.device.poll(PollType::wait_indefinitely()).unwrap();
+        let values: Vec<f32> =
+            bytemuck::cast_slice(&read.slice(..).get_mapped_range().unwrap()).to_vec();
+        read.unmap();
+        values
+    }
+}
+
+#[test]
+fn the_fog_value_of_an_offset_is_the_larger_of_its_two_ramps() {
+    let Some(gpu) = Gpu::new() else {
+        panic!("no adapter");
+    };
+    let values = gpu.fog_values();
+    let wrong: Vec<([f32; 3], f32, f32)> = FOG_CASES
+        .iter()
+        .zip(values)
+        .filter(|(case, value)| (value - case.value).abs() > 1e-5)
+        .map(|(case, value)| (case.offset, case.value, value))
+        .collect();
+    assert!(
+        wrong.is_empty(),
+        "(offset, fog value of the rule, fog value of the shader): {wrong:?}"
+    );
 }
 
 #[test]
