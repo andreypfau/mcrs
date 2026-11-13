@@ -18,6 +18,8 @@ pub enum ClickKind {
     Swap,
     Clone,
     Throw,
+    /// One packet of a drag (quick craft). The button holds the stage and the drag kind.
+    Drag,
     PickUpAll,
 }
 

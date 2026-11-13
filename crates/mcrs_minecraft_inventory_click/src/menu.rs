@@ -15,4 +15,7 @@ pub trait Menu {
 
     /// Whether pick up all can take from the entry `index`.
     fn permits_pick_up_all(&self, index: u16) -> bool;
+
+    /// Whether a drag can place into the entry `index`.
+    fn permits_drag(&self, index: u16) -> bool;
 }

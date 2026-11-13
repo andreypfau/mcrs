@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_inventory_click"
-description = "The operations of a Java Edition menu click: pick up, quick move, swap with a hotbar key, clone, throw and pick up all"
+description = "The operations of a Java Edition menu click: pick up, quick move, swap with a hotbar key, clone, throw, drag and pick up all"
 version.workspace = true
 edition.workspace = true
 
