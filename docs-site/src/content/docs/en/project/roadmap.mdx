@@ -15,8 +15,8 @@ sources:
   - issue:437
 verified:
   snapshot: 26.4-snapshot-7
-  commit: 3540f457b
-  date: 2026-11-10
+  commit: b191f42fb
+  date: 2026-11-13
 ---
 import { fact } from '~/lib/facts.mjs';
 
@@ -37,7 +37,7 @@ The project has no tracking epics in the usual sense. Four open issues with the 
 
 A proxy, a bot, a lobby, a minigame, a world map and a full server need different prefixes of the same layers, and none of them should pay for a layer it does not use.[^180] The issue defines seven layers, and each layer depends only on the layers below it. From the bottom they are data and wire, network, game data, engine, vanilla, rendering and applications. Every `pub` item in layers 1 to 4 is a commitment to users.
 
-Today the repository has {fact('crates')} crates. In CI, {fact('crates_no_bevy')} of them build without Bevy, {fact('crates_no_std')} build without `std` and {fact('crates_wasm32')} build for `wasm32`. The lists are in `xtask/src/checks.rs`. The crates are not published yet, and the examples of the library are still open in the milestone "Library examples".[^321]
+Today the repository has {fact('crates')} crates. In CI, {fact('crates_no_bevy')} of them build without Bevy, {fact('crates_no_std')} build without `std` and {fact('crates_wasm32')} build for `wasm32`. The lists are in `xtask/src/checks.rs`. The crates are not published yet, and the examples of the library are still open under the label `topic:library-examples`.[^321]
 
 There is no facade or API crate and none is planned. The public surface is the vocabulary crates, the plugins with their system sets, and the components, resources and messages that those plugins own.[^437] A loader for plugins that are not compiled into the server, such as a jar, wasm or scripts, has no decision yet.
 
@@ -47,23 +47,36 @@ The target is ten thousand players in one dimension with the unmodified vanilla 
 
 Today worlds tick as parallel cells behind a muxer thread with a shared data layer, on one machine.[^pr646] A setup across more than one machine does not exist, and no player count has been measured. Redstone is not built.
 
+The work across processes and machines is the milestone "Multi-node". It starts after "Alpha core", because a handover can only be tested on real gameplay.
+
 ### Vanilla gameplay and behavior tests on that architecture
 
 Vanilla behavior is the largest body of work.[^182] The issue builds it as removable plugins over the engine. It wants each mechanic proved by a behavior test, and the expected result of that test must come from a vanilla test server and not from our own reading of code. Exact behavior, which covers the protocol, saves, player movement and world generation, is compared tick for tick. Semantic behavior, which covers redstone, fluids and neighbor updates, is compared on the outcome.
 
-What exists today is in [Status](/docs/en/start/status/). The gameplay milestones from "Redstone" to "Advancements and statistics" (17 of them) have no closed issue.
+What exists today is in [Status](/docs/en/start/status/). The first gameplay milestone is "Alpha core", and the next is "Beta 1.7.3 content". The section below gives the order.
 
 ### Library code without shared ownership, locks, trait objects or hot-path allocation
 
 The library crates should run in a proxy, a bot, a web client and a test without an engine.[^566] The issue sets a target for layers 1 to 4. They should have no `Arc` or `Rc`, no `Mutex`, `RwLock`, `RefCell` or `Cell` in data types, no `dyn` or `Any`, and no allocation on hot paths. When the issue was written, `Arc` appeared in 119 source files. The README line "no Arc, no Mutex" states this goal, and the code does not meet it yet.
 
-## Milestones give a rough map
+## Milestones are the timeline
 
-The milestones live on the [GitHub milestones page](https://github.com/andreypfau/mcrs/milestones), with live counts of open and closed issues. A closed issue is not always "done", and an open issue is not always "no code", so read the counts as a rough map.
+Each open milestone is one step of the timeline. Like the rest of this page, the timeline is a direction, not a commitment, and it has no dates.
+
+| Order | Milestone | Goal |
+| - | - | - |
+| 1 | Alpha core[^m55] | A player can join, walk, break and place blocks, pick up drops, craft, smelt, eat, take damage and meet mobs that spawn and attack. Every change is saved. The mechanics are those of the targeted version. The engine seams for scale and the measurement under bot load are in this milestone, so each mechanic is built on them and measured. |
+| 2 | Beta 1.7.3 content[^m56] | The content of Beta 1.7.3 on the mechanics of the targeted version: the Nether, redstone with pistons, minecarts and boats, beds, weather and the other blocks and mobs of that release. |
+| 2, in parallel | Multi-node[^m57] | One dimension runs on several processes and machines behind one edge. |
+
+After these milestones, the next milestones follow the releases of the game in their order. An open issue without a milestone is in the backlog. The topic of an issue is a label `topic:*`, for example `topic:redstone`. Use it as a filter.
+
+The [GitHub milestones page](https://github.com/andreypfau/mcrs/milestones) shows live counts of open and closed issues. The closed topic milestones keep the issues that were closed before the timeline. A closed issue is not always "done", and an open issue is not always "no code", so read the counts as a rough map.
 
 ## How to follow the work
 
 - Watch the four direction issues above.
+- Watch the open milestones.
 - Read the [News](/docs/en/project/news/) page after each tag.
 - Filter issues by label: `decision` for decisions, `needs-decision` for open ones.
 
@@ -76,3 +89,6 @@ This page is refreshed by hand when a tag is cut.
 [^pr646]: <Status pr={646} state="works" /> Worlds tick as parallel cells behind a muxer and a shared data layer.
 [^182]: <Status issue={182} /> The direction for vanilla gameplay and behavior tests on the scaling architecture.
 [^566]: <Status issue={566} /> The direction for library code without shared ownership, locks, trait objects or hot-path allocation.
+[^m55]: The milestone [Alpha core](https://github.com/andreypfau/mcrs/milestone/55).
+[^m56]: The milestone [Beta 1.7.3 content](https://github.com/andreypfau/mcrs/milestone/56).
+[^m57]: The milestone [Multi-node](https://github.com/andreypfau/mcrs/milestone/57).
