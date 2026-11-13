@@ -1,7 +1,8 @@
 ---
 name: implementer
 description: Implements one scoped change in mcrs from a specification or an issue - code and tests in one crate or a few named files, one commit. Use for each implementation step of a plan. Give it one item, the files, the check and the stop condition.
-model: inherit
+model: opus
+effort: medium
 skills:
   - rust-style
   - efficient-testing
