@@ -40,11 +40,11 @@ In a plugin you write the query as a system parameter, for example `Query<(&Game
 
 `GameProfile` is the profile that the client logged in with:
 
-<Example file="crates/mcrs_minecraft_engine/src/game_profile.rs" from={"#[derive(Debug, Clone, Component)]\npub struct GameProfile"} title="GameProfile" />
+<Example file="crates/mcrs_minecraft_engine/src/game_profile.rs" from={"#[derive(Debug, Clone, Component, serde::Serialize, serde::Deserialize)]\npub struct GameProfile"} title="GameProfile" />
 
 The game mode, the flight state and the operator level are in one file:
 
-<Example file="crates/mcrs_minecraft_engine/src/ability.rs" from={"#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut)]\npub struct PlayerGameMode"} to="pub struct PlayerFlying" title="PlayerGameMode and PlayerFlying" />
+<Example file="crates/mcrs_minecraft_engine/src/ability.rs" from={"/// The game mode of a player.\n#[derive("} to="pub struct PlayerFlying" title="PlayerGameMode and PlayerFlying" />
 
 `PlayerOpLevel` in the same file holds the operator level, which goes from 0 for a player who is not an operator up to 4. The test harness reads a game mode like this:
 

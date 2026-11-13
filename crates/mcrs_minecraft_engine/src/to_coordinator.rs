@@ -11,9 +11,10 @@ use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundChatCommand, ServerboundCommandSuggestion,
 };
 
-use crate::bus::{InboundPlayerPacket, PlayerTransferSnapshot};
+use crate::bus::InboundPlayerPacket;
 use crate::channel_types::ToDim;
 use crate::column_request::ColumnRequest;
+use crate::persisted_registry::PersistedSnapshot;
 
 /// The input that the muxer routed to the dimension `dim` during the update, for its next tick.
 /// Each class keeps the order it was sent in.
@@ -63,5 +64,5 @@ pub struct JoinRequested {
     pub session: PlayerSession,
     /// The dimension that the save of the player names.
     pub saved_dimension: Option<ResourceKeyBuf<DimensionKey>>,
-    pub snapshot: PlayerTransferSnapshot,
+    pub snapshot: PersistedSnapshot,
 }

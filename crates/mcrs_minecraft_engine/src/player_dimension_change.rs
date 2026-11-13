@@ -121,7 +121,7 @@ pub(crate) fn receive_transfers(world: &mut World) {
                 }
             }
             PlayerTransfer::Return(departure) => {
-                let transform = departure.carried.transform;
+                let transform = departure.carried.transform();
                 if let Err(error) = place(
                     world,
                     departure.session,
@@ -145,7 +145,7 @@ fn arrive(world: &mut World, departure: Departure) -> Result<Entity, DimensionCh
         carried,
         ..
     } = departure;
-    let level = carried.op_level;
+    let level = carried.op_level();
     let arrived = place(
         world,
         session,
@@ -170,19 +170,21 @@ pub(crate) fn place(
     view: SentChunkView,
 ) -> Result<Entity, DimensionChangeError> {
     let dimension = own_dimension(world)?;
-    let mut player = world.spawn((
-        EntityBundle {
-            minecraft_entity: Default::default(),
-            dimension: InDimension(dimension),
-            transform,
-            uuid: carried.uuid,
-        },
-        Owner(session),
-        Player,
-        view,
-    ));
-    carried.insert_into(&mut player);
-    Ok(player.id())
+    let player = world
+        .spawn((
+            EntityBundle {
+                minecraft_entity: Default::default(),
+                dimension: InDimension(dimension),
+                transform,
+                uuid: carried.uuid(),
+            },
+            Owner(session),
+            Player,
+            view,
+        ))
+        .id();
+    carried.insert_into(world, player);
+    Ok(player)
 }
 
 /// The dimension entity of this world.

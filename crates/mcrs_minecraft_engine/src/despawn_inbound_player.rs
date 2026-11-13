@@ -13,7 +13,8 @@ use mcrs_minecraft_engine_world::session::DimPlayerIndex;
 /// Per-dim consumer that despawns the in-dim player entity when an
 /// `InboundPlayerDespawn` arrives for its session on a disconnect, so the
 /// dimension stops streaming chunks toward that connection. The players near it hear that it
-/// left.
+/// left. The player file is queued for the I/O pool, and the host hears of the release once the
+/// file is on disk.
 pub fn despawn_inbound_player(
     mut reader: MessageReader<InboundPlayerDespawn>,
     index: Res<DimPlayerIndex>,
@@ -30,15 +31,16 @@ pub fn despawn_inbound_player(
             {
                 publish_leave_message(events, replicated, profile);
             }
+            let session = msg.session;
             commands.queue(move |world: &mut World| {
-                persistence::write_player(world, entity);
+                persistence::queue_player_save(world, entity, Some(session));
                 world.despawn(entity);
             });
+        } else {
+            let session = msg.session;
+            commands.queue(move |world: &mut World| {
+                world.write_message(OutboundPlayerReleased { session });
+            });
         }
-        // Queued after the save so the host never learns of the release before the file is written.
-        let session = msg.session;
-        commands.queue(move |world: &mut World| {
-            world.write_message(OutboundPlayerReleased { session });
-        });
     }
 }

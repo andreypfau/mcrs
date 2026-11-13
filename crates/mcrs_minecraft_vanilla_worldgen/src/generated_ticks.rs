@@ -1,7 +1,7 @@
 use std::hash::Hash;
 
 use mcrs_minecraft_block::definition::BlockDefinitions;
-use mcrs_minecraft_engine::column_ticks::{ColumnTicks, StoredTick};
+use mcrs_minecraft_region_disk::column_ticks::{ColumnTicks, StoredTick};
 use mcrs_minecraft_simulation::{PendingTick, TickPriority};
 use mcrs_minecraft_worldgen_feature::placer::GenerationKinds;
 use mcrs_voxel::BlockPos;

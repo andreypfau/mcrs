@@ -2,7 +2,6 @@
     clippy::expect_used,
     clippy::indexing_slicing,
     clippy::panic,
-    clippy::unwrap_used,
     reason = "the panics in this crate are not yet replaced by errors or by code that cannot panic"
 )]
 #![cfg_attr(
@@ -1200,7 +1199,6 @@ pub mod block_state;
 mod end_biome_grid;
 use end_biome_grid::end_biome_grid;
 pub mod column_blocks;
-pub mod saved;
 pub mod task;
 pub use column_blocks::ColumnBlocks;
 pub mod beta_caves;

@@ -2,6 +2,7 @@
 //! worlds between ticks.
 
 use std::num::NonZeroU32;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use bevy_app::{App, PluginGroup};
@@ -42,6 +43,7 @@ pub struct WorldServer {
     pub worlds: Placement,
     pub cells: u32,
     pub rules: DimensionBlockRules,
+    pub save: Option<PathBuf>,
 }
 
 impl Default for WorldServer {
@@ -50,6 +52,7 @@ impl Default for WorldServer {
             worlds: Placement::Inline,
             cells: 1,
             rules: DimensionBlockRules::default(),
+            save: None,
         }
     }
 }
@@ -67,6 +70,7 @@ impl WorldServer {
         plugins.network.announce_on_lan = false;
         plugins.worlds.seed = 4;
         plugins.worlds.preset = "beta".to_owned();
+        plugins.worlds.world = self.save;
         let mut app = App::new();
         app.add_plugins(plugins.build());
         app.insert_resource(self.rules);

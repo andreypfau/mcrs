@@ -6,13 +6,12 @@ sidebar:
 kind: tutorial
 audience: [jvm, admin, contributor, player]
 stability: wip
-tracking: [78, 82]
+tracking: [82]
 sources:
   - README.md
   - crates/mcrs_minecraft_server_settings/src/server_settings.rs
   - crates/mcrs_minecraft_engine_server/src/server_network_plugin.rs
   - PERF.md
-  - issue:78
   - issue:82
 verified:
   snapshot: 26.4-snapshot-7
@@ -58,13 +57,11 @@ Use a vanilla client of the same snapshot, {fact('snapshot')}. The server announ
 
 The server reads its settings from environment variables, for example `MCRS_PORT`, `MCRS_WORLD_SEED`, `MCRS_WORLD_PRESET` (`normal` or `flat`) and `MCRS_DEFAULT_GAMEMODE`. The full list is in [`server_settings.rs`](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server_settings/src/server_settings.rs).
 
-## Blocks you change are not saved
+## Blocks you change are saved
 
-The server does not write changed chunks to disk, so every block you break is lost when the server stops.[^78] Players are saved on a clean shutdown.[^pr624] A clean shutdown does not save the world yet.[^169]
+The server writes changed chunks back to the region files of the world folder every 6000 ticks, so a block you break survives a restart. A clean shutdown, the first Ctrl+C, saves the world and the players before the server exits.[^pr624] Without a world folder nothing reaches the disk.
 
 The expected console output and a first-run checklist are not written yet. For those details, read the README.
 
 [^388]: <Status issue={388} /> The decision that saves are read at exactly the targeted data version, with no datafixers.
-[^78]: <Status issue={78} /> Tracks saving changed chunks back to region files.
 [^pr624]: <Status pr={624} state="works" /> The server disconnects and saves every player before a shutdown exits.
-[^169]: <Status issue={169} /> Tracks a clean shutdown that saves players and the world.
