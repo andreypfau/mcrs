@@ -67,7 +67,8 @@ pub(super) struct CameraUniform {
     quad_cull: u32,
     viewport: [f32; 2],
     shade_table: u32,
-    _pad_end: [u32; 3],
+    render_distance: u32,
+    _pad_end: [u32; 2],
 }
 
 pub(super) const CAMERA_SIZE: u64 = size_of::<CameraUniform>() as u64;
@@ -125,6 +126,7 @@ pub(super) fn write_camera(
     frame_view: Option<Res<FrameView>>,
     occlusion: Res<Occlusion>,
     quad_cull: Res<super::QuadCull>,
+    render_distance: Res<super::RenderDistance>,
     shade: Res<TerrainShade>,
     queue: Res<RenderQueue>,
 ) {
@@ -155,6 +157,9 @@ pub(super) fn write_camera(
             viewport: frame_view.viewport.to_array(),
             quad_cull: quad_cull.0 as u32,
             shade_table: face_shade::shader_index(shade.0),
+            // chisle: only the section cull of the full path reads it; the minimal path draws
+            // each held column. A test of the section in its vertex stage lifts this.
+            render_distance: u32::from(render_distance.0),
             ..default()
         }),
     );
@@ -162,6 +167,8 @@ pub(super) fn write_camera(
 
 #[cfg(test)]
 mod tests {
+    use std::mem;
+
     use bevy::math::proj;
     use bevy::math::{DMat4, DVec3};
 
@@ -169,6 +176,45 @@ mod tests {
 
     fn ndc(clip: Vec4) -> Vec2 {
         clip.xy() / clip.w
+    }
+
+    #[test]
+    fn the_camera_uniform_has_the_layout_of_the_shader_camera() {
+        let module =
+            naga::front::wgsl::parse_str(include_str!("shaders/include/frame.wesl")).unwrap();
+        let Some(naga::TypeInner::Struct { members, span }) = module
+            .types
+            .iter()
+            .find(|(_, ty)| ty.name.as_deref() == Some("Camera"))
+            .map(|(_, ty)| &ty.inner)
+        else {
+            panic!("frame.wesl declares the struct Camera");
+        };
+        let rust = [
+            (
+                "clip_from_relative",
+                mem::offset_of!(CameraUniform, clip_from_relative),
+            ),
+            ("frustum", mem::offset_of!(CameraUniform, frustum)),
+            ("section", mem::offset_of!(CameraUniform, section)),
+            ("offset", mem::offset_of!(CameraUniform, offset)),
+            ("tint_origin", mem::offset_of!(CameraUniform, tint_origin)),
+            ("tint_scale", mem::offset_of!(CameraUniform, tint_scale)),
+            ("hiz_levels", mem::offset_of!(CameraUniform, hiz_levels)),
+            ("quad_cull", mem::offset_of!(CameraUniform, quad_cull)),
+            ("viewport", mem::offset_of!(CameraUniform, viewport)),
+            ("shade_table", mem::offset_of!(CameraUniform, shade_table)),
+            (
+                "render_distance",
+                mem::offset_of!(CameraUniform, render_distance),
+            ),
+        ];
+        let shader: Vec<(&str, usize)> = members
+            .iter()
+            .map(|member| (member.name.as_deref().unwrap_or(""), member.offset as usize))
+            .collect();
+        assert_eq!(shader, rust);
+        assert_eq!(*span as usize, size_of::<CameraUniform>());
     }
 
     #[test]

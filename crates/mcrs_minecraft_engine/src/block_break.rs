@@ -5,15 +5,16 @@ use crate::break_session::{ActiveDig, BreakSession, Crack, DelayedBreak};
 use crate::bus::{OutboundPlayerPacket, PacketPayload, to};
 use crate::client_on_ground::ClientOnGround;
 use crate::column_change::ColumnChange;
-use crate::dig_rate::dig_rate;
+use crate::dig_rate::{dig_rate, harvests};
 use crate::diggers::Diggers;
 use crate::movement::process_movement;
 use crate::network_id::player_network_id;
+use crate::use_item_on_request::{UseItemOnRequest, handle_use_item_on};
 use bevy_app::{App, FixedPostUpdate, FixedUpdate, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageReader, MessageWriter};
 use bevy_ecs::observer::On;
-use bevy_ecs::schedule::IntoScheduleConfigs;
+use bevy_ecs::schedule::{IntoScheduleConfigs, SystemSet};
 use bevy_ecs::system::{Local, Query, Res, ResMut};
 use bevy_math::{DVec3, IVec3};
 use mcrs_minecraft_block::block_keys::Block;
@@ -22,6 +23,7 @@ use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags, Blocks
 use mcrs_minecraft_block::fluid_keys::Fluid;
 use mcrs_minecraft_block_break::{Dig, Finish};
 use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_engine_world::block_drops::BlockBroken;
 use mcrs_minecraft_engine_world::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
@@ -65,11 +67,18 @@ pub struct BlockActionRequest {
     pub sequence: VarInt,
 }
 
+/// The systems that break blocks for the block actions of the tick, after the moves of the tick.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BlockBreakSet;
+
 impl Plugin for BlockBreakPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<BlockActionRequest>();
+        app.add_message::<UseItemOnRequest>();
         app.add_message::<BlockActionAck>();
+        app.add_message::<BlockBroken>();
         app.add_observer(handle_player_action);
+        app.add_observer(handle_use_item_on);
         app.init_resource::<Diggers>();
         if let Err(error) = app.try_register_required_components::<Player, BreakSession>() {
             tracing::error!("a player does not require its dig session: {error}");
@@ -81,7 +90,8 @@ impl Plugin for BlockBreakPlugin {
                 advance_digs.run_if(any_digger),
             )
                 .chain()
-                .in_set(TickSet::ClientInput),
+                .in_set(TickSet::ClientInput)
+                .in_set(BlockBreakSet),
         );
         app.add_systems(
             FixedPostUpdate,
@@ -92,16 +102,24 @@ impl Plugin for BlockBreakPlugin {
 
 fn send_acks(
     mut requests: MessageReader<BlockActionRequest>,
+    mut uses: MessageReader<UseItemOnRequest>,
     owners: Query<&Owner>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
     mut acks: MessageWriter<BlockActionAck>,
     mut highest: Local<FxHashMap<PlayerSession, i32>>,
 ) {
-    for request in requests.read() {
-        let Ok(&Owner(session)) = owners.get(request.entity) else {
+    let sequences = (requests
+        .read()
+        .map(|request| (request.entity, request.sequence)))
+    .chain(
+        uses.read()
+            .map(|request| (request.entity, request.sequence)),
+    );
+    for (entity, sequence) in sequences {
+        let Ok(&Owner(session)) = owners.get(entity) else {
             continue;
         };
-        let value = request.sequence.0;
+        let value = sequence.0;
         if value < 0 {
             packets.write(to(
                 session,
@@ -121,7 +139,7 @@ fn send_acks(
     );
 }
 
-fn reach(mode: GameMode) -> f64 {
+pub fn reach(mode: GameMode) -> f64 {
     if mode == GameMode::Creative {
         CREATIVE_REACH
     } else {
@@ -129,7 +147,7 @@ fn reach(mode: GameMode) -> f64 {
     }
 }
 
-fn in_reach(eye: DVec3, block: BlockPos, limit: f64) -> bool {
+pub fn in_reach(eye: DVec3, block: BlockPos, limit: f64) -> bool {
     let min = block.as_dvec3();
     let max = min + DVec3::ONE;
     let nearest = eye.clamp(min, max);
@@ -137,7 +155,7 @@ fn in_reach(eye: DVec3, block: BlockPos, limit: f64) -> bool {
     eye.distance_squared(nearest) < limit * limit
 }
 
-pub(crate) fn eye_position(player: DVec3) -> DVec3 {
+pub fn eye_position(player: DVec3) -> DVec3 {
     player + DVec3::new(0.0, STANDING_EYE_HEIGHT, 0.0)
 }
 
@@ -326,6 +344,31 @@ pub(crate) fn break_block(
     new_states
 }
 
+/// The drops of a survival break of `hit` that changed `new_states`. The hit part drops when the
+/// empty main hand harvests it (BRK-LOOT-001); the other part of a block of two parts is a
+/// removal, which drops either way (LOOT-SRC-006).
+pub(crate) fn harvest(
+    definitions: &BlockDefinitions,
+    hit: &Hit,
+    new_states: &[(BlockPos, BlockStateId)],
+    block_at: impl Fn(BlockPos) -> Option<BlockStateId>,
+    player: Entity,
+) -> Option<BlockBroken> {
+    let &(_, left) = new_states.iter().find(|(at, _)| *at == hit.pos)?;
+    let other = new_states
+        .iter()
+        .find(|(at, _)| *at != hit.pos)
+        .and_then(|&(at, _)| Some((at, block_at(at)?)));
+    Some(BlockBroken {
+        at: hit.pos,
+        state: hit.state,
+        left,
+        other,
+        harvests: harvests(definitions, hit.state),
+        breaker: player,
+    })
+}
+
 /// Handles the block actions of the tick: a creative start breaks its block, and a survival
 /// action starts, changes or ends the dig of its player. A block in a column of another cell
 /// changes one tick later, when its owner applies the write.
@@ -352,6 +395,7 @@ fn break_blocks(
     world: WorldView,
     definitions: Option<Res<Blocks>>,
     mut blocks: MessageWriter<BlockSetRequest>,
+    mut broken_blocks: MessageWriter<BlockBroken>,
     mut diggers: ResMut<Diggers>,
     mut broken: Local<FxHashMap<BlockPos, BlockStateId>>,
 ) {
@@ -484,6 +528,15 @@ fn break_blocks(
             &mut changes,
             &mut blocks,
         );
+        if mode.0 == GameMode::Survival {
+            broken_blocks.write_batch(harvest(
+                &definitions,
+                &hit,
+                &new_states,
+                |pos| block_at(pos).ok(),
+                request.entity,
+            ));
+        }
         broken.extend(new_states);
     }
 }

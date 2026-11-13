@@ -1,3 +1,4 @@
+mod block_loot;
 mod item_entities;
 pub mod operator_broadcast;
 mod vanilla_brains;
@@ -16,8 +17,10 @@ use mcrs_minecraft_engine_physics::EntityPhysicsPlugin;
 use mcrs_minecraft_engine_server::{DimensionWorldsPlugin, ServerCorePlugin, ServerNetworkPlugin};
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_entity::damage_type_tag_keys::PANIC_CAUSES;
+use mcrs_minecraft_vanilla_block_place::BlockPlacePlugin;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 
+pub use block_loot::{LootBlocks, VanillaBlockLootPlugin};
 pub use item_entities::VanillaItemEntityPlugin;
 use mcrs_minecraft_vanilla_worldgen::{WorldGenPlugin, WorldgenRegistriesPlugin};
 
@@ -75,8 +78,10 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(VanillaChatPlugin)
             .add(VanillaEntityPhysicsPlugin)
             .add(VanillaItemEntityPlugin)
+            .add(VanillaBlockLootPlugin)
             .add(VanillaMobBrainPlugin)
             .add(VanillaItemPlugin)
+            .add(VanillaBlockPlacePlugin)
             .add(self.world_gen)
             .add(LightingPlugin)
             .add(self.network)
@@ -113,6 +118,16 @@ pub struct VanillaItemPlugin;
 impl Plugin for VanillaItemPlugin {
     fn build(&self, app: &mut App) {
         app.add_persistence_plugin(ItemPersistencePlugin);
+    }
+}
+
+/// Block placing in every dimension world. It reads the held item from the slots that
+/// [`VanillaItemEntityPlugin`] gives each player.
+pub struct VanillaBlockPlacePlugin;
+
+impl Plugin for VanillaBlockPlacePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_dimension_plugin(BlockPlacePlugin);
     }
 }
 

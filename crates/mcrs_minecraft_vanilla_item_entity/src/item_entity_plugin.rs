@@ -9,12 +9,16 @@ use bevy_ecs::schedule::common_conditions::any_with_component;
 use mcrs_minecraft_engine::tile_events::TileEvents;
 use mcrs_minecraft_engine_physics::EntityPass;
 use mcrs_minecraft_engine_physics::MobPublish;
+use mcrs_minecraft_engine_world::block_drops::ItemDropped;
 use mcrs_minecraft_engine_world::tick::TickSet;
 
 use crate::ItemCollector;
 use crate::PickedUp;
+use crate::block_drops::launch_block_drops;
 use crate::collect_items::Claimed;
 use crate::collect_items::collect_items;
+use crate::item_spawn_request::ItemSpawnRequest;
+use crate::item_spawn_request::spawn_requested;
 use crate::merge_items::Merged;
 use crate::merge_items::merge_items;
 use crate::publish_items::Released;
@@ -55,6 +59,7 @@ impl<M: Send + Sync + 'static> Plugin for ItemEntityPlugin<M> {
             .init_resource::<Claimed>()
             .init_resource::<Merged>()
             .add_message::<PickedUp>()
+            .add_message::<ItemSpawnRequest>()
             .configure_sets(
                 FixedUpdate,
                 ItemEntitySet.in_set(TickSet::Simulate).after(EntityPass),
@@ -70,9 +75,13 @@ impl<M: Send + Sync + 'static> Plugin for ItemEntityPlugin<M> {
                     .chain()
                     .in_set(ItemEntitySet),
             )
+            .add_message::<ItemDropped>()
             .add_systems(
                 FixedUpdate,
-                spawn_rows::<M>.in_set(TickSet::Simulate).before(EntityPass),
+                (launch_block_drops, spawn_requested, spawn_rows::<M>)
+                    .chain()
+                    .in_set(TickSet::Simulate)
+                    .before(EntityPass),
             )
             .add_systems(
                 FixedUpdate,

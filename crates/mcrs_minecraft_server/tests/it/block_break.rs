@@ -6,6 +6,7 @@
 use bevy_app::Last;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, Messages};
+use bevy_ecs::query::With;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::ResMut;
 use bevy_math::{DVec3, IVec3};
@@ -20,8 +21,11 @@ use mcrs_minecraft_engine::column_change::ColumnChange;
 use mcrs_minecraft_engine::column_streams::ColumnStreams;
 use mcrs_minecraft_engine::muxer::session::SessionConnection;
 use mcrs_minecraft_engine::network_id::player_network_id;
+use mcrs_minecraft_engine_item::Dropped;
+use mcrs_minecraft_engine_registries::{install_item_table, test_item_table};
 use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_engine_world::palette::air_section;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
@@ -31,11 +35,17 @@ use mcrs_minecraft_engine_world::world::storage::block_entity::{
 use mcrs_minecraft_engine_world::world::storage::random_ticks::RandomTickIndex;
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_rule::GameRule;
+use mcrs_minecraft_item_key::item_keys::Item;
+use mcrs_minecraft_item_stack::{Count, Kind};
 use mcrs_minecraft_network::ServerSideConnection;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol_game::player::PlayerAction;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundPlayerAction;
+use mcrs_minecraft_server::{
+    VanillaBlockLootPlugin, VanillaEntityPhysicsPlugin, VanillaItemEntityPlugin,
+};
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, LocalPos, SectionPos};
 
@@ -1587,4 +1597,89 @@ fn brk_srv_016_an_abort_out_of_reach_ends_the_dig() {
 
     assert_eq!(aborted(&mut server, &breaker, NEAR), [(NEAR, -1)]);
     assert_eq!(aborted(&mut server, &breaker, NEAR), [], "with no dig");
+}
+
+/// A server whose dimensions drop the items of the block tables as item entities.
+fn looting_server() -> PlayServer {
+    let mut app = host_app::make_host_app();
+    install_item_table(app.world_mut(), test_item_table()).unwrap();
+    app.add_plugins((
+        VanillaBlockLootPlugin,
+        VanillaEntityPhysicsPlugin,
+        VanillaItemEntityPlugin,
+    ));
+    let mut server = PlayServer::start(app, &[], 0);
+    let sub_app = host_app::sub_app(&mut server.app, server.dim);
+    sub_app.init_resource::<Captured>();
+    sub_app.add_systems(Last, capture);
+    server
+}
+
+/// The kind and the count of each item entity, after the tick that spawns their rows.
+fn item_entities(server: &mut PlayServer) -> Vec<(Kind, u8)> {
+    ticks(server, 1);
+    let world = server.world();
+    let mut items = world.query_filtered::<(&Kind, &Count), With<Dropped>>();
+    items
+        .iter(world)
+        .map(|(&kind, count)| (kind, count.get()))
+        .collect()
+}
+
+fn one(item: Item) -> [(Kind, u8); 1] {
+    [(Kind(item.id().number()), 1)]
+}
+
+/// BRK-LOOT-001, LOOT-OUT-002: a survival break with a harvest drops the stacks of the block
+/// table, each as an item entity.
+#[test]
+fn brk_loot_001_a_survival_break_drops_its_block_table_as_item_entities() {
+    let mut server = looting_server();
+    let dandelion = default_state(&mut server, "minecraft:dandelion");
+
+    break_at(&mut server, GameMode::Survival, dandelion, NEAR);
+
+    assert_eq!(item_entities(&mut server), one(Item::Dandelion));
+}
+
+/// BRK-LOOT-001, LOOT-SRC-006: a break of the upper part of a peony drops one peony, from the
+/// lower part that the break removes.
+#[test]
+fn loot_src_006_a_peony_broken_at_its_upper_part_drops_one_peony() {
+    let mut server = looting_server();
+    let lower = part_state(&mut server, "minecraft:peony", &[("half", "lower")]);
+    let upper = part_state(&mut server, "minecraft:peony", &[("half", "upper")]);
+    let above = NEAR + IVec3::Y;
+    let breaker = breaker_at(&mut server, GameMode::Survival, lower, NEAR);
+    place(&mut server, &breaker, above, upper);
+
+    send(&mut server, &breaker, &start_action(above, 5));
+
+    assert_eq!(item_entities(&mut server), one(Item::Peony));
+}
+
+/// BRK-DRP-001: a creative break drops nothing.
+#[test]
+fn brk_drp_001_a_creative_break_drops_nothing() {
+    let mut server = looting_server();
+    let dandelion = default_state(&mut server, "minecraft:dandelion");
+
+    break_at(&mut server, GameMode::Creative, dandelion, NEAR);
+
+    assert_eq!(item_entities(&mut server), []);
+}
+
+/// LOOT-OUT-003, BRK-LOOT-005: with the game rule `block_drops` off, a break drops nothing.
+#[test]
+fn loot_out_003_no_item_entity_appears_while_block_drops_is_off() {
+    let mut server = looting_server();
+    server
+        .world()
+        .resource_mut::<GameRules>()
+        .set(GameRule::BlockDrops, 0);
+    let dandelion = default_state(&mut server, "minecraft:dandelion");
+
+    break_at(&mut server, GameMode::Survival, dandelion, NEAR);
+
+    assert_eq!(item_entities(&mut server), []);
 }

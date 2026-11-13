@@ -56,6 +56,8 @@ pub mod tint;
 pub mod vanilla;
 #[cfg(target_family = "wasm")]
 pub mod web;
+#[cfg(not(target_family = "wasm"))]
+pub mod window_options;
 
 /// A plugin still has work a scripted capture must wait for.
 #[derive(Message)]
@@ -75,9 +77,7 @@ impl PluginGroup for ClientPlugins {
                 file: self.0.options_file(),
                 gui_scale: self.0.gui_scale(),
             })
-            .add(camera::CameraPlugin {
-                render_distance: self.0.view_distance(),
-            })
+            .add(camera::CameraPlugin)
             .add(mcrs_minecraft_client_gui::debug_screen::DebugScreenPlugin {
                 stats_interval: self.0.stats_interval(),
                 always_time_passes: self.0.always_time_passes(),

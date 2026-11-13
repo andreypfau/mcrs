@@ -16,7 +16,6 @@ mod test_scene;
 
 pub use entity_physics_plugin::EntityPass;
 pub use entity_physics_plugin::EntityPhysicsPlugin;
-pub use entity_physics_plugin::ItemStacks;
 pub use entity_physics_plugin::MobPublish;
 pub use entity_physics_plugin::PhysicsTables;
 pub use entity_writes::EntityWrites;

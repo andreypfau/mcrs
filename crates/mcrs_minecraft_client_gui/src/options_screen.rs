@@ -14,6 +14,7 @@ pub(crate) const FOV: WidgetId = WidgetId(1);
 pub(crate) const VIDEO: WidgetId = WidgetId(2);
 pub(crate) const ACCESSIBILITY: WidgetId = WidgetId(3);
 pub(crate) const DONE: WidgetId = WidgetId(4);
+pub(crate) const CONTROLS: WidgetId = WidgetId(5);
 
 const HEADER_HEIGHT: i32 = 61;
 const NORMAL_FOV: u8 = 70;
@@ -25,7 +26,7 @@ pub(crate) fn options_screen(
     language: &ClientLanguage,
     font: &Font,
     fov: u8,
-) -> Option<[Widget; 5]> {
+) -> Option<[Widget; 6]> {
     let slider = Slider::range(
         i32::from(*FOV_RANGE.start()),
         i32::from(*FOV_RANGE.end()),
@@ -58,6 +59,7 @@ pub(crate) fn options_screen(
     };
     let mut rows = RowFill::new(2);
     let grid_children = [
+        rows.add(Child::new(button, grid_cell), 1),
         rows.add(Child::new(button, grid_cell), 1),
         rows.add(Child::new(button, grid_cell), 1),
     ];
@@ -106,6 +108,7 @@ pub(crate) fn options_screen(
             WidgetKind::Slider(slider),
         ),
         button(VIDEO, grid_rects.next()?, "options.video"),
+        button(CONTROLS, grid_rects.next()?, "options.controls"),
         button(ACCESSIBILITY, grid_rects.next()?, "options.accessibility"),
         button(DONE, done_at, "gui.done"),
     ])

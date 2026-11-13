@@ -405,7 +405,7 @@ rules now. Without an inventory, the main-hand item is empty.
 | BRK-SRV-001 to BRK-SRV-016, BRK-PRG-001, BRK-PRG-002 for an empty hand | nothing more |
 | The item speed and the correct tool in BRK-PRG-002 and BRK-PRG-003, BRK-ITM-002, BRK-DMG-001 to BRK-DMG-003 | the player inventory, issue #521 |
 | The effects and the attributes in BRK-PRG-002 | the effects and the attributes of a player |
-| BRK-LOOT-001, BRK-LOOT-003 to BRK-LOOT-006 | the item entities, issue #522, the loot tables, issue #72, and the block drops, issue #77 |
+| BRK-LOOT-001, BRK-LOOT-003 to BRK-LOOT-006 | the item entities, issue #522, the loot tables of `block-loot.md`, issue #72, and the block drops, issue #77 |
 | BRK-LOOT-002 | the food of a player |
 
 ### 7.2 The dig
