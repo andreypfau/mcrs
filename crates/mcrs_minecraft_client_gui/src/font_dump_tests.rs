@@ -78,7 +78,7 @@ struct Run {
 }
 
 static DUMP: LazyLock<Dump> = LazyLock::new(|| {
-    serde_json::from_str(include_str!("../tests/fixtures/vanilla/font.json")).unwrap()
+    serde_json::from_str(&mcrs_minecraft_fixtures::fixture("font").text()).unwrap()
 });
 
 static FONTS: LazyLock<[Font; 3]> = LazyLock::new(|| {
