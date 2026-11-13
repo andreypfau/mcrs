@@ -322,7 +322,7 @@ Experiment E44.
 
 **PLC-SUP-001** (`black_box_confirmed`, semantic). Some blocks need support from a neighbour. Result R27
 lists the tested pairs. The rule of each block is block data, and section 11 (U2) states what remains
-unknown.
+unknown. `block-support.md` states the support test of some blocks (SUP-RUN-002).
 
 **PLC-ENT-001** (`source_suggested`, semantic). A placement is refused when the collision shape of the
 placed state overlaps the bounding box of a blocker. Contact alone is not an overlap. A spectator is never
@@ -593,7 +593,8 @@ checks the sequence, so BRK-SEQ-005 breaks the block. Experiment E46.
 Each item names the experiment that decides it. A closed item keeps its number, and the number is not
 used again. The same applies to experiments.
 
-- **U2**: the support rule of each block. Experiment E41.
+- **U2**: the support rule of each block. Experiment E41. Part 1 of `block-support.md` states the support
+  test of the blocks of its section 5.
 - **U3**: the state of each block family, the hinge of a door with another `facing`, and the block
   families that this document does not test. This includes the rows of PLC-STA-004 that result R36 does
   not show. A block that attaches to a neighbour, such as a lantern or a torch, can try other directions
