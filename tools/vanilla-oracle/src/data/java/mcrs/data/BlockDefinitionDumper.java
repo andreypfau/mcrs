@@ -9,15 +9,11 @@ import com.google.gson.JsonPrimitive;
 import com.mojang.serialization.JsonOps;
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.BitSet;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -28,7 +24,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import net.minecraft.SharedConstants;
@@ -40,7 +35,6 @@ import net.minecraft.core.LayeredRegistryAccess;
 import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.RegistryDataLoader;
 import net.minecraft.server.Bootstrap;
@@ -59,14 +53,12 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.EmptyBlockGetter;
-import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.DropExperienceBlock;
 import net.minecraft.world.level.block.DropExperienceEntityBlock;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
@@ -118,7 +110,7 @@ public final class BlockDefinitionDumper {
             )) {
             LayeredRegistryAccess<RegistryLayer> layers = RegistryLayer.createRegistryAccess();
             RegistryAccess.Frozen loaded = loadWorldRegistries(resources, layers);
-            Map<Block, TagKey<Block>> placementFilters = derivePlacementFilters();
+            SupportDeriver.Result placementFilters = SupportDeriver.derive();
             RegistryAccess.Frozen access = layers.replaceFrom(RegistryLayer.WORLD, loaded).compositeAccess();
             BuiltInRegistries.DATA_COMPONENT_INITIALIZERS.build(access).forEach(pending -> pending.apply());
 
@@ -148,7 +140,7 @@ public final class BlockDefinitionDumper {
         return loaded;
     }
 
-    private static List<String> dump(final Path root, final Map<Block, TagKey<Block>> placementFilters) throws IOException {
+    private static List<String> dump(final Path root, final SupportDeriver.Result placementFilters) throws IOException {
         Files.createDirectories(root);
         BlockGetter level = EmptyBlockGetter.INSTANCE;
 
@@ -161,7 +153,7 @@ public final class BlockDefinitionDumper {
                 List<BlockState> states = block.getStateDefinition().getPossibleStates();
                 List<Map<String, JsonElement>> perState = new ArrayList<>(states.size());
                 for (BlockState state : states) {
-                    perState.add(componentsOf(state, level, PROBE_POS, placementFilters.get(block)));
+                    perState.add(componentsOf(state, level, PROBE_POS, placementFilters.filters().get(state)));
                 }
 
                 int baseStateId = Block.getId(states.get(0));
@@ -340,7 +332,7 @@ public final class BlockDefinitionDumper {
     }
 
     private static Map<String, JsonElement> componentsOf(
-        BlockState state, BlockGetter level, BlockPos pos, TagKey<Block> placementFilter
+        BlockState state, BlockGetter level, BlockPos pos, JsonObject placementFilter
     ) {
         Map<String, JsonElement> components = new LinkedHashMap<>();
         Block block = state.getBlock();
@@ -388,7 +380,15 @@ public final class BlockDefinitionDumper {
         }
 
         if (placementFilter != null) {
-            components.put("minecraft:placement_filter", placementFilterOf(placementFilter));
+            components.put("minecraft:placement_filter", placementFilter);
+        }
+        JsonObject support = SupportDeriver.supportShape(state, level, pos, BlockDefinitionDumper::boxes);
+        if (support != null) {
+            components.put("minecraft:support", support);
+        }
+        JsonPrimitive solid = SupportDeriver.solidValue(state, level, pos);
+        if (solid != null) {
+            components.put("mcrs:solid", solid);
         }
 
         components.put("mcrs:use_shape_for_light_occlusion", new JsonPrimitive(state.useShapeForLightOcclusion()));
@@ -427,192 +427,6 @@ public final class BlockDefinitionDumper {
         } catch (ReflectiveOperationException failure) {
             throw new IllegalStateException(BuiltInRegistries.BLOCK.getKey(block) + " has no readable xpRange", failure);
         }
-    }
-
-    private static JsonObject placementFilterOf(TagKey<Block> tag) {
-        JsonArray faces = new JsonArray();
-        faces.add("up");
-        JsonArray blocks = new JsonArray();
-        blocks.add("#" + tag.location());
-        JsonObject condition = new JsonObject();
-        condition.add("allowed_faces", faces);
-        condition.add("block_filter", blocks);
-        JsonArray conditions = new JsonArray();
-        conditions.add(condition);
-        JsonObject filter = new JsonObject();
-        filter.add("conditions", conditions);
-        return filter;
-    }
-
-    private record Group(List<TagKey<Block>> tags, List<Block> blocks) {}
-
-    private static final class LevelRead extends RuntimeException {
-        LevelRead() {
-            super(null, null, false, false);
-        }
-    }
-
-    private static final class SupportProbe implements InvocationHandler {
-        private final BlockPos support = PROBE_POS.below();
-        private final LevelReader level = (LevelReader) Proxy.newProxyInstance(
-            LevelReader.class.getClassLoader(), new Class<?>[] {LevelReader.class}, this
-        );
-        private BlockState supporting;
-
-        boolean survives(BlockState subject, BlockState supporting) {
-            this.supporting = supporting;
-            return subject.canSurvive(level, PROBE_POS);
-        }
-
-        @Override
-        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-            if (method.getDeclaringClass() == Object.class) {
-                return switch (method.getName()) {
-                    case "hashCode" -> System.identityHashCode(proxy);
-                    case "equals" -> proxy == args[0];
-                    default -> "support probe level";
-                };
-            }
-            if (method.getName().equals("getBlockState") && support.equals(args[0])) {
-                return supporting;
-            }
-            if (method.isDefault()) {
-                return InvocationHandler.invokeDefault(proxy, method, args);
-            }
-            throw new LevelRead();
-        }
-    }
-
-    private static Map<Block, TagKey<Block>> derivePlacementFilters() {
-        List<Block> blocks = BuiltInRegistries.BLOCK.stream().toList();
-        Map<TagKey<Block>, List<Holder<Block>>> resolved = new TreeMap<>(Comparator.comparing(tag -> tag.location().toString()));
-        BuiltInRegistries.BLOCK.getTags().forEach(named -> resolved.put(named.key(), named.stream().toList()));
-        Map<TagKey<Block>, Set<Block>> originalMembers = new HashMap<>();
-        resolved.keySet().forEach(tag -> originalMembers.put(tag, liveMembers(tag)));
-
-        Map<Set<Block>, List<TagKey<Block>>> tagsByMembers = new HashMap<>();
-        resolved.keySet().forEach(tag -> tagsByMembers.computeIfAbsent(originalMembers.get(tag), members -> new ArrayList<>()).add(tag));
-
-        SupportProbe probe = new SupportProbe();
-        Map<String, Group> groups = new TreeMap<>();
-        int overriding = 0;
-        int readsLevel = 0;
-        int matchesNoTag = 0;
-        for (Block block : blocks) {
-            if (!overridesSurvivalTest(block)) {
-                continue;
-            }
-            overriding++;
-            Set<Block> accepted;
-            try {
-                accepted = acceptedSupports(probe, block, blocks);
-            } catch (LevelRead read) {
-                readsLevel++;
-                continue;
-            }
-            List<TagKey<Block>> candidates = accepted.isEmpty() ? null : tagsByMembers.get(accepted);
-            if (candidates == null) {
-                matchesNoTag++;
-                continue;
-            }
-            groups.computeIfAbsent(candidates.toString(), key -> new Group(candidates, new ArrayList<>())).blocks().add(block);
-        }
-
-        Map<Block, TagKey<Block>> named = new HashMap<>();
-        try {
-            for (Group group : groups.values()) {
-                Set<Block> members = originalMembers.get(group.tags().get(0));
-                List<Block> markers = blocks.stream().filter(block -> !members.contains(block)).limit(group.tags().size()).toList();
-                if (markers.size() != group.tags().size()) {
-                    throw new IllegalStateException("not enough marker blocks for " + group.tags());
-                }
-                Map<TagKey<Block>, List<Holder<Block>>> overlay = new HashMap<>(resolved);
-                for (int i = 0; i < markers.size(); i++) {
-                    List<Holder<Block>> widened = new ArrayList<>(resolved.get(group.tags().get(i)));
-                    widened.add(BuiltInRegistries.BLOCK.wrapAsHolder(markers.get(i)));
-                    overlay.put(group.tags().get(i), widened);
-                }
-                rebindBlockTags(overlay);
-
-                List<Block> candidates = blocks.stream().filter(block -> members.contains(block) || markers.contains(block)).toList();
-                for (Block block : group.blocks()) {
-                    Set<Block> accepted;
-                    try {
-                        accepted = acceptedSupports(probe, block, candidates);
-                    } catch (LevelRead read) {
-                        matchesNoTag++;
-                        continue;
-                    }
-                    List<TagKey<Block>> matching = group.tags().stream().filter(tag -> liveMembers(tag).equals(accepted)).toList();
-                    if (matching.size() > 1) {
-                        throw new IllegalStateException(BuiltInRegistries.BLOCK.getKey(block) + " matches " + matching + " under the marker overlay");
-                    }
-                    if (matching.isEmpty()) {
-                        matchesNoTag++;
-                    } else {
-                        named.put(block, matching.get(0));
-                    }
-                }
-                System.out.println("placement filter group " + group.tags().stream().map(tag -> tag.location().toString()).toList()
-                    + " markers " + markers.stream().map(marker -> BuiltInRegistries.BLOCK.getKey(marker).toString()).toList());
-                group.blocks().forEach(block -> System.out.println(
-                    "  " + BuiltInRegistries.BLOCK.getKey(block) + " -> " + (named.containsKey(block) ? named.get(block).location() : "none")));
-            }
-        } finally {
-            rebindBlockTags(resolved);
-        }
-        resolved.keySet().forEach(tag -> {
-            if (!liveMembers(tag).equals(originalMembers.get(tag))) {
-                throw new IllegalStateException("block tag " + tag.location() + " was not restored after the marker probe");
-            }
-        });
-
-        System.out.println(
-            "placement filters: " + named.size() + " blocks carry one, " + overriding + " override the survival test, "
-                + readsLevel + " read the level, " + matchesNoTag + " accept no tag's members"
-        );
-        return named;
-    }
-
-    private static boolean overridesSurvivalTest(Block block) {
-        for (Class<?> type = block.getClass(); type != BlockBehaviour.class; type = type.getSuperclass()) {
-            try {
-                type.getDeclaredMethod("canSurvive", BlockState.class, LevelReader.class, BlockPos.class);
-                return true;
-            } catch (NoSuchMethodException none) {
-            }
-        }
-        return false;
-    }
-
-    private static Set<Block> acceptedSupports(SupportProbe probe, Block subject, List<Block> candidates) {
-        BlockState state = subject.defaultBlockState();
-        Set<Block> accepted = new HashSet<>();
-        for (Block candidate : candidates) {
-            boolean everyState = true;
-            for (BlockState supporting : candidate.getStateDefinition().getPossibleStates()) {
-                if (!probe.survives(state, supporting)) {
-                    everyState = false;
-                    break;
-                }
-            }
-            if (everyState) {
-                accepted.add(candidate);
-            }
-        }
-        return accepted;
-    }
-
-    private static Set<Block> liveMembers(TagKey<Block> tag) {
-        Set<Block> members = new HashSet<>();
-        for (Holder<Block> holder : BuiltInRegistries.BLOCK.getTagOrEmpty(tag)) {
-            members.add(holder.value());
-        }
-        return members;
-    }
-
-    private static void rebindBlockTags(Map<TagKey<Block>, List<Holder<Block>>> tags) {
-        BuiltInRegistries.BLOCK.prepareTagReload(new TagLoader.LoadResult<>(Registries.BLOCK, tags)).apply();
     }
 
     private static JsonObject movable(BlockState state) {
@@ -781,13 +595,15 @@ public final class BlockDefinitionDumper {
         return Util.getPropertyName((Property) property, value);
     }
 
-    private static String readme(Map<Block, TagKey<Block>> placementFilters) {
+    private static String readme(SupportDeriver.Result placementFilters) {
         StringBuilder carriers = new StringBuilder();
-        placementFilters.entrySet().stream()
-            .sorted(Comparator.comparing(entry -> BuiltInRegistries.BLOCK.getKey(entry.getKey()).toString()))
-            .forEach(entry -> carriers
-                .append("| `").append(BuiltInRegistries.BLOCK.getKey(entry.getKey()))
-                .append("` | `#").append(entry.getValue().location()).append("` |\n"));
+        placementFilters.carriers().forEach((block, rows) -> rows.forEach((predicate, variants) -> {
+            List<String> faces = variants.stream().map(variant -> variant.substring(0, variant.indexOf('|'))).distinct().toList();
+            List<String> tested = variants.stream().map(variant -> variant.substring(variant.indexOf('|') + 1)).distinct().toList();
+            carriers.append("| `").append(block).append("` | ").append(predicate)
+                .append(" | ").append(String.join("; ", faces))
+                .append(" | ").append(String.join("; ", tested)).append(" |\n");
+        }));
         return README.replace("{placement_filter_carriers}", carriers.toString());
     }
 
@@ -844,7 +660,8 @@ public final class BlockDefinitionDumper {
             | `minecraft:flammable` | `lava_flammable` when lava can set the state on fire; absent otherwise |
             | `minecraft:block_entity` | present when the state has a block entity, with `container.slot_count` when the block entity is a container |
             | `minecraft:loot` | the loot table of the block, absent when the block has none |
-            | `minecraft:placement_filter` | the supporting blocks that let the block stay, see below |
+            | `minecraft:placement_filter` | where the neighbours must be for the block to stay, see below |
+            | `minecraft:support` | the support shape, when it is not the collision shape, see below |
 
             A producer whose power lives in its block entity (comparator, sculk sensor)
             reports `power: 0`, which is what it emits with no block entity present.
@@ -860,33 +677,72 @@ public final class BlockDefinitionDumper {
 
             ## Placement filter
 
-            `minecraft:placement_filter` states which supporting blocks let a block stay
-            where it is: one condition whose `allowed_faces` is `up` and whose
-            `block_filter` is one block tag. It is derived by asking the game, never
-            written by hand.
+            `minecraft:placement_filter` holds the support predicate of a block: where its
+            neighbours must be for the block to stay (`docs/spec/block-support.md`). It is
+            derived by asking the game, never written by hand.
 
-            For each block with its own survival test, the dump runs the test on the
-            default state with a stand-in level that answers one question, the state of the
-            block directly below, and tries every state of every block there. The blocks it
-            accepts are the accepted set. A block whose survival test asks the level
-            anything else (a fluid, the light, a neighbour, the block above) gets no
-            component, and neither does a block whose accepted set is no tag's members;
-            nothing is answered with a made-up value. Only the survival test says what the
-            game accepts.
+            For each state of each block with its own survival test, the dump runs the test
+            with a stand-in level. The level answers the state of the block itself and of
+            its six neighbours, air at five of them, and says that no neighbour has a block
+            entity. The dump puts each state of each block at the sixth neighbour, for each
+            of the six. The states that let the block stay are the accepted sets of that
+            state. A state whose test asks the level anything else (the light, a fluid
+            further away, a block two steps away) gets no component. Nothing is answered
+            with a made-up value.
 
-            Several block tags can hold the same members, and equal members do not say
-            which tag the game tests. The dump groups the block tags by members on every
-            run and probes each group: it rebinds the block tags with one distinct marker
-            block added to each tag of the group, asks the game again, and names the one tag
-            whose members under that overlay equal the accepted set under it. The tags are
-            rebound unchanged before anything else reads them. When no tag matches, the
-            block gets no component.
+            The dump then tries the candidate predicates of section 5 of the specification,
+            in its order, and writes the first one whose result at each neighbour is the
+            accepted set: a block tag below; the `center` face test, then the `full` face
+            test, on each side; the snow layer predicate; not a block tag below; the `ring`
+            or `center` face test on each side; `solid` on each side. A state that can never
+            stay, a state that always stays, and a state that no candidate matches get no
+            component. The face tests and `solid` are asked of the game for each state.
 
-            The blocks that carry the component:
+            A candidate that reads a tag can match several tags, because several tags can
+            hold the same members and a tag can differ only in blocks the rest of the
+            predicate decides. The dump probes each tag it could write: it adds one marker
+            block to that tag alone, picked so that the candidate would answer differently
+            for it, rebinds the block tags, asks the game again, and keeps the tag only when
+            the game follows it. The tags are rebound unchanged before anything else reads
+            them. A carpet follows no tag at all: it tests that the block below is not air.
+            The dump then writes `#minecraft:air`, the tag that the specification names for
+            air, when its members are exactly the blocks the game reports as air. Any other
+            choice that stays open gives no component.
 
-            | Block | Tag |
-            | --- | --- |
+            `tested_directions` is derived as well: for each matched state, with every
+            neighbour air, the dump sends a shape update from each of the six directions and
+            records which ones remove the block. The field is written only when that set
+            differs from the directions of the offsets that the predicate reads. A block
+            that no shape update removes gets no component.
+
+            Plants keep the short form of Bedrock, one condition whose `allowed_faces` is
+            `up` and whose `block_filter` is one block tag. Every other block has the
+            predicate form, a block predicate of the data pack under `predicate`. A
+            component in `permutations` gives the predicate of the states it selects, so a
+            block on a wall names its supporting side for each `facing`, and the upper half
+            of a tall plant or a door carries none.
+
+            The blocks that carry the component. The supporting position is the side of the
+            block that the predicate reads, one entry for each state that differs:
+
+            | Block | Predicate | Supporting position | Tested directions |
+            | --- | --- | --- | --- |
             {placement_filter_carriers}
+
+            ## Support shape and solid
+
+            `minecraft:support` holds the support shape of a state under `boxes`, in the
+            form of `minecraft:selection_box`: the shape whose faces the face tests of a
+            placement filter read. It is written only for a state whose support shape is
+            not its collision shape, for example leaves (empty), snow layers, fence gates
+            and hanging signs. The shape is asked of the game with no block entity, so a
+            shulker box has its closed shape.
+
+            `mcrs:solid` is written only for a state whose solid value is not the one that
+            its collision shape gives: not solid when the shape is empty; solid when the
+            mean of the three sizes of its bounds is `0.7291666666666666` or more, or its
+            height is a full block; not solid otherwise. A loader computes the value from
+            `minecraft:collision_box` with exactly that rule.
 
             ## What the loader recomputes
 
@@ -915,6 +771,7 @@ public final class BlockDefinitionDumper {
             | `mcrs:occlusion_shade` | the factor by which the state darkens the corners of the faces next to it | Bedrock has no per-state value for the darkening of corners. Written only when the value differs from 0.2 for a full collision box and 1.0 otherwise |
             | `mcrs:fluid_state` | the fluid in the state | `liquid_detection.can_contain_liquid` states that a block *can* be waterlogged. It carries no level, no source flag, and `liquid_type` accepts only water, so lava and flowing water have nowhere to go |
             | `mcrs:experience_drop` | the experience range that breaking the block drops | Bedrock has no experience component at all; its ores drop experience from the loot table's `minecraft:furnace_smelt`-era behaviour rather than a declared range. The value is an int provider, so a constant is a bare integer and anything else is the dispatched object. Absent for a block without a range: the spawner and the creaking heart compute their amount in code |
+            | `mcrs:solid` | the solid value, when the collision shape does not give it, see below | Bedrock has no solid flag; the value is the one that the data pack predicate `minecraft:solid` and the placement filters read |
             | `mcrs:block_sound_set` | The key of the state's entry in the `minecraft:block_sound_set` registry | `minecraft:sound` names a Bedrock sound group, and Java's sound set names are not Bedrock's. Absent for a block with no sound set: water, lava and bubble column |
 
             ## Java block properties this corpus does not write
