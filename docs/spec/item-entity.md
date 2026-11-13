@@ -156,8 +156,7 @@ absent. The age and the health start at their defaults, except where the table s
 | rest of the `give` command (IEN-SPN-004) | hand form, look | 0 | no value | the player | R2 |
 | rest of an item reward of an advancement | hand form, look | 0 | no value | the player | none |
 | death of a player | hand form, scatter | 40 | no value | no value | R3 |
-| the cursor stack and the craft grid when the player leaves | hand form, look | 40 | no value | no value | none |
-| the rest of the cursor stack at a menu close (IEN-SPN-006) | hand form, look | 40 | no value | no value | none |
+| the rest of the cursor stack and of the craft grid at a menu close or a leave (IEN-SPN-006) | hand form, look | 40 | no value | no value | none |
 | loot of a mob death, drop of a mob | default form at the feet | 10 | no value | no value | R5 |
 | drop of a block (`block_drops` true) | PHY-CMP-025 | 10 | no value | no value | R6 |
 | contents of a destroyed container block | IEN-SPN-005 | 0 | no value | no value | R7 |
@@ -220,8 +219,8 @@ block item of the container itself is a block drop, with the pickup delay 10.
 **IEN-SPN-006** (`source_suggested`, semantic, confidence medium). When a player closes a menu, the cursor stack goes
 back into the inventory. The server inserts it into the slots that hold an alike stack with room,
 then into the empty main slots, in the order of IEN-PCK-003. The rest that finds no room becomes an
-item entity with the values of the table. When the player leaves the server, the cursor stack does
-not go back: it becomes an item entity. The stacks of the craft grid of the player do the same.
+item entity with the values of the table. The stacks of the craft grid of the player do the same.
+A leave of the player has the same result (`inventory.md`, INV-CLS-003).
 
 **IEN-SPN-007** (`source_suggested`, semantic, confidence medium). A creative drop is a `set_creative_mode_slot`
 packet with a negative slot number from a player in creative mode. The stack must be empty, or have a
@@ -386,15 +385,8 @@ The thrower has no effect. Result R15 shows that only the owner picks up an item
 owner, and that a player picks up an item entity that another player threw.
 
 **IEN-PCK-003** (`source_suggested_black_box_confirmed`, semantic, confidence high). A pickup and the `give` command
-insert the items with the same rule. The server puts the items into the slots in this order, each
-slot up to its room:
-
-1. the selected slot, when it holds an alike stack;
-2. the off-hand slot, when it holds an alike stack;
-3. the main slots that hold an alike stack, from 0 to 35;
-4. the empty main slots, from 0 to 35.
-
-A stack with a damage value above 0 goes only to the first empty main slot, as one stack. Result R16
+insert the items with the insert rule of the player inventory. `inventory.md` states that rule
+(INV-INS-001). Result R16
 shows the pickup into the selected slot 2 before the hotbar slot 0 and the off-hand slot, and into
 the off-hand slot before the hotbar slot 0.
 
@@ -700,9 +692,8 @@ None. The motion of an item entity on land and in air keeps the quirks of `entit
 
 For the owner:
 
-- **Q2**: IEN-PCK-003. `inventory-transactions.md`, section 8, gives the insert rule of the player
-  inventory to a later specification. This document states it for the pickup and for `give`. Does
-  the rule move to the specification of the player inventory (issue #521) when it exists?
+- **Q2**: answered. `inventory.md` owns the insert rule of the player inventory (INV-INS-001).
+  IEN-PCK-003 refers to it.
 - **Q3**: IEN-DAT-001. The model of `docs/item-design.md` keeps one entity for a stack. Does the
   item entity get a new network id when a stack goes from a slot to the world, as in the reference,
   or does the stack keep one id? The id that the client sees must be new for each `add_entity`.

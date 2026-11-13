@@ -34,8 +34,9 @@ each animal type, for example its attributes, its food items, its love state and
   **follow range**, **reflex**, **decision**, **issue tick**, **snapshot**, **application**,
   **pair action**, **proposal**, **grant**, **player table**: as
   `entity-ai-timing.md`, section 0.1, defines them.
-- **Request**, **reach range**, **speed modifier**, **done**, **mob path type**, **malus**,
-  **legacy solid flag**: as `pathfinding.md`, section 0.1 and PATH-REQ-001, define them.
+- **Request**, **reach range**, **speed modifier**, **done**, **mob path type**, **malus**:
+  as `pathfinding.md`, section 0.1 and PATH-REQ-001, define them.
+- **Solid**: as `block-support.md`, SUP-SOLID-001, defines it.
 - **Order key**: the UUID of an entity, compared as PHY-CMP-013 states.
 - **Feet point**: the position of an entity.
 - **Eye point**: the point `(x, y + e, z)` of an entity at position `(x, y, z)`, where `e` is the
@@ -570,7 +571,7 @@ search `L(h, v)` makes 10 tries. Each try does steps 1 to 3 of GOAL-POS-002, and
 
 1. Reject the candidate when its `y` is outside the build height, when it fails the home test, or
    when it is not a stable floor.
-2. While the block at the candidate has the legacy solid flag, and the `y` is not more than the
+2. While the block at the candidate is solid, and the `y` is not more than the
    highest `y` of the dimension, move the candidate up by 1.
 3. Reject the candidate when its block has water, or when the malus of its mob path type for this
    mob is not 0.
@@ -612,8 +613,8 @@ both rules.
 
 On a superflat world with a grass surface and no roof, each accepted candidate on the floor of a pen
 is above `grass_block`. Only a candidate on top of a fence or a wall can have the
-value 0.5. The search also needs the solid render property and the legacy solid flag of each state
-of the world (PATH section 12.3). For the benchmark these are `air`, `bedrock`, `dirt`,
+value 0.5. The search also needs the solid render property and the solid value of each state
+of the world (SUP-SOLID-001). For the benchmark these are `air`, `bedrock`, `dirt`,
 `grass_block` and the block of the pen.
 
 ## 4. The goals
@@ -1456,7 +1457,7 @@ the state of AIT-LAG-001.
 | breed | decision, with a pair action | love state, position, box, path state | same-type entities: position, box, love state, in-panic state, alive, spectator, invisibility, armor count, `mob_visibility` items | look target; path request; love count; flags `move`, `look`; breed proposal | `Q-PARTNER` |
 | tempt | decision | position, calm-down | player table: position, alive, spectator, held items in both hands, sneak, invisibility, armor count, `mob_visibility` items; the attribute `tempt_range` | look target; path request or path clear; calm-down; flags `move`, `look` | `Q-TEMPT` |
 | follow an adult | decision | age, position, box, path timer | same-type entities: position, box, age, alive | path request; path timer | `Q-ADULT` |
-| stroll | decision | idle time, the passenger that controls the mob, in-water flag, position, home, path state | blocks: solid render, legacy solid flag, water, malus inputs, light | path request or path clear; flag `move` | `L(15, 7)`, `L(10, 7)`, `D(10, 7)` |
+| stroll | decision | idle time, the passenger that controls the mob, in-water flag, position, home, path state | blocks: solid render, solid, water, malus inputs, light | path request or path clear; flag `move` | `L(15, 7)`, `L(10, 7)`, `D(10, 7)` |
 | look at a player | decision | position, eye height, look count | player table: position, eye height, alive, spectator, sneak, invisibility, armor count, `mob_visibility` items, vehicle chain; blocks for one ray to each candidate | look target; look count; flag `look` | `Q-LOOK` |
 | look around | start: decision; tick: reflex (guidance) | position, eye height, direction, look time | none | look target in each tick; flags `move`, `look` | none |
 | eat grass | start: decision; eat: reflex (due event) | age, block position, eat timer | blocks at the own position and below; the game rule `mob_griefing` | event 10; path clear; eat timer; block write at the eat; the eat of ANIM | none |
@@ -1532,7 +1533,7 @@ These notes follow from the table:
 - **U2**: partly resolved. GOAL-POS-006 gives a walk value without light. It is exact on a world with
   full sky light at each candidate that is not above grass. Deferred: the block light, the sky light
   below a roof, the sky darkness of the time and the weather, and the ambient light. These need a light engine of the server side, which no specification states yet. The block
-  corpus must still give the solid render property and the legacy solid flag (PATH section 12.3).
+  corpus must still give the solid render property and the solid value (SUP-DATA-004).
 - **U3**: partly resolved. GOAL-QRY-005 states the player table. Deferred: the invisibility of a
   player, its armor count, the items with `mob_visibility`, and the clamp of the factor to
   `[0, 10]`. These need the effects and the equipment of a player.

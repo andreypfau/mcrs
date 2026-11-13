@@ -1,7 +1,8 @@
 ---
 name: reviewer
 description: Reviews one branch or diff of mcrs once, before its pull request - correctness, less code, tests, style, clean room. Read-only; returns findings, not fixes. Use once for each pull request after its last commit.
-model: sonnet
+model: opus
+effort: medium
 tools: Read, Grep, Glob, Bash, Skill
 skills:
   - rust-style

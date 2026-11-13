@@ -1,7 +1,8 @@
 ---
 name: spec-author
 description: Writes or corrects one specification under docs/spec/ in mcrs - rules with ids, observable results, provenance, experiments. Use when a behaviour has no specification, when an implementer reports a gap, or when a specification must be checked against the game. It writes no implementation code.
-model: inherit
+model: opus
+effort: high
 autoCompactWindow: 250000
 ---
 

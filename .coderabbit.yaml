@@ -1,8 +1,12 @@
 reviews:
   high_level_summary_in_walkthrough: true
-  # The workflow review.yml asks for a review once the checks of a commit pass.
-  auto_review:
-    enabled: false
+  in_progress_fortune: false
+  sequence_diagrams: false
+  estimate_code_review_effort: false
+  related_issues: false
+  related_prs: false
+  suggested_labels: false
+  suggested_reviewers: false
   path_filters:
     - "!crates/*/src/*_keys.rs"
     - "!crates/mcrs_minecraft_keys/src/**"

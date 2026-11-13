@@ -15,7 +15,7 @@ architecture. Most rules come from a vanilla server in offline mode, with script
 the experiments, and section 13 gives the captured results.
 
 Scope: creative mode, and the refusals that other game modes cause. This document does not state the
-inventory (`inventory.md`, not yet written), a full table of block states or the use of an item that is
+inventory (`inventory.md`), a full table of block states or the use of an item that is
 not a block item.
 
 ## 0. Conventions
@@ -322,7 +322,7 @@ Experiment E44.
 
 **PLC-SUP-001** (`black_box_confirmed`, semantic). Some blocks need support from a neighbour. Result R27
 lists the tested pairs. The rule of each block is block data, and section 11 (U2) states what remains
-unknown.
+unknown. `block-support.md` states the support test of some blocks (SUP-RUN-002).
 
 **PLC-ENT-001** (`source_suggested`, semantic). A placement is refused when the collision shape of the
 placed state overlaps the bounding box of a blocker. Contact alone is not an overlap. A spectator is never
@@ -436,8 +436,8 @@ components go to the block entity of the placed block. See result R34.
 
 **PLC-INV-006** (`black_box_confirmed`, semantic). Outside creative mode, the count of the stack falls by
 one. The placer gets `container_set_slot` before the acknowledgement. An observer gets `set_equipment`
-after the block state. See result R9. This document states only this observation. `inventory.md` will own
-this rule.
+after the block state. See result R9. This document states only this observation. A later specification
+of the use of an item owns this rule.
 
 **PLC-INV-007** (`black_box_confirmed`, semantic). The block of an item can have another name. `redstone`
 places `redstone_wire`, and `string` places `tripwire`. See results R27 and R35.
@@ -593,7 +593,8 @@ checks the sequence, so BRK-SEQ-005 breaks the block. Experiment E46.
 Each item names the experiment that decides it. A closed item keeps its number, and the number is not
 used again. The same applies to experiments.
 
-- **U2**: the support rule of each block. Experiment E41.
+- **U2**: the support rule of each block. Experiment E41. Part 1 of `block-support.md` states the support
+  test of the blocks of its section 5.
 - **U3**: the state of each block family, the hinge of a door with another `facing`, and the block
   families that this document does not test. This includes the rows of PLC-STA-004 that result R36 does
   not show. A block that attaches to a neighbour, such as a lantern or a torch, can try other directions
@@ -605,8 +606,8 @@ used again. The same applies to experiments.
 - **U7**: the player inventory (issue 521). Each placement needs the held item, and so do sections 3, 5,
   6, 7 and 8. Without it, a server
   can state only the refusals of sections 4.1 to 4.4, the refresh and the acknowledgement of section 9.
-  `inventory.md` must state what `set_creative_mode_slot` accepts. This document tests only the slots 36
-  and 45, and a stack with no components.
+  `inventory.md` states what `set_creative_mode_slot` accepts (INV-CRE-003, INV-CRE-004). This document
+  tests only the slots 36 and 45, and a stack with no components.
 - **U9**: the box of a player that sneaks, swims or has another pose. All experiments used a player that
   stands. Experiment E47.
 - **U10**: can_place_on when the clicked block is replaceable. Result R26 tests only stone. Experiment
