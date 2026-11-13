@@ -11,8 +11,8 @@ doctest = false
 workspace = true
 
 [dependencies]
-serde = { workspace = true, default-features = false }
-thiserror = { workspace = true, default-features = false }
+serde.workspace = true
+thiserror.workspace = true
 bevy_ecs = { workspace = true, optional = true }
 
 [features]
