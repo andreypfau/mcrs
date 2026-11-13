@@ -20,7 +20,8 @@ use bitflags::bitflags;
 
 use crate::{DEPTH_COMPARE, FrameCounts, pipeline_descriptor, uniform_buffer};
 
-/// The per-frame GPU block, in the linear space the render target expects.
+/// The per-frame GPU block. Its colours are in the linear space the render target expects, but
+/// `disc` and `fog`, which are image values that the shader mixes before it encodes them.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct SkyUniform {
@@ -34,6 +35,7 @@ pub struct SkyUniform {
     pub sky_light: [f32; 4],
     pub block_light: [f32; 4],
     pub ambient: [f32; 4],
+    pub occluder: [f32; 4],
 }
 
 bitflags! {
@@ -46,6 +48,7 @@ bitflags! {
         const CELESTIAL = 1 << 2;
         const STARS = 1 << 3;
         const CLOUDS = 1 << 4;
+        const OCCLUDER = 1 << 5;
     }
 }
 
@@ -95,14 +98,14 @@ struct SkyDraw {
     visible: fn(&SkyUniform) -> bool,
 }
 
-const SKY_DRAWS: [SkyDraw; 5] = [
+const SKY_DRAWS: [SkyDraw; 6] = [
     SkyDraw {
         label: "sky disc",
         effect: SkyEffects::DISC,
         vertex: "vertex_disc",
         fragment: "fragment_disc",
         blend: None,
-        vertices: 48,
+        vertices: 24,
         writes_depth: false,
         visible: |_| true,
     },
@@ -137,6 +140,16 @@ const SKY_DRAWS: [SkyDraw; 5] = [
         visible: |sky| sky.angles[3] > 0.0,
     },
     SkyDraw {
+        label: "sky occluder",
+        effect: SkyEffects::OCCLUDER,
+        vertex: "vertex_occluder",
+        fragment: "fragment_occluder",
+        blend: Some(BlendState::ALPHA_BLENDING),
+        vertices: 3,
+        writes_depth: false,
+        visible: |_| true,
+    },
+    SkyDraw {
         label: "sky clouds",
         effect: SkyEffects::CLOUDS,
         vertex: "vertex_clouds",
@@ -148,7 +161,7 @@ const SKY_DRAWS: [SkyDraw; 5] = [
     },
 ];
 
-const CLOUDS: usize = 4;
+const CLOUDS: usize = 5;
 
 pub struct SkyRenderPlugin;
 

@@ -6,6 +6,7 @@ use mcrs_minecraft_dimension_environment::environment::{
 };
 use mcrs_minecraft_environment::AttributeValue;
 use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
+use mcrs_minecraft_fog::{FogInputs, FogParameters};
 
 use mcrs_minecraft_render::sky::SkyEffects;
 
@@ -91,18 +92,18 @@ impl SkyField {
     }
 }
 
-/// One field's value: a scalar, or a packed `0xAARRGGBB` colour.
+/// One field's value: a scalar, or a colour as red, green, blue and alpha in `[0, 1]`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SkyValue {
     Scalar(f32),
-    Color(u32),
+    Color([f32; 4]),
 }
 
 impl SkyValue {
-    pub fn color(self) -> u32 {
+    pub fn color(self) -> [f32; 4] {
         match self {
-            SkyValue::Color(packed) => packed,
-            SkyValue::Scalar(value) => value as u32,
+            SkyValue::Color(channels) => channels,
+            SkyValue::Scalar(_) => [0.0; 4],
         }
     }
 }
@@ -120,10 +121,9 @@ fn stack_value(
 }
 
 fn sky_value(value: &AttributeValue) -> SkyValue {
-    if let Some(packed) = value.packed_argb() {
-        return SkyValue::Color(packed);
-    }
     match value {
+        AttributeValue::Rgb([red, green, blue]) => SkyValue::Color([*red, *green, *blue, 1.0]),
+        AttributeValue::Argb(channels) => SkyValue::Color(*channels),
         AttributeValue::Float(v) => SkyValue::Scalar(*v),
         AttributeValue::Integer(v) => SkyValue::Scalar(*v as f32),
         AttributeValue::MoonPhase(phase) => SkyValue::Scalar(phase.index() as f32),
@@ -249,22 +249,46 @@ fn effects(
         let clouds = attributes
             .stack(SkyField::CloudColor.attribute())
             .is_some_and(|stack| {
-                stack.is_dynamic() || sky_value(&stack.evaluate(ctx)).color() >> 24 != 0
+                stack.is_dynamic() || sky_value(&stack.evaluate(ctx)).color()[3] > 0.0
             });
         if clouds {
             effects |= SkyEffects::CLOUDS;
+        }
+        // chisle: a tracked `has_sky_occluder` keeps the occluder for the whole dimension; its
+        // value of the frame in the uniform lifts that.
+        let occluder = attributes
+            .stack(EnvironmentAttribute::VisualHasSkyOccluder)
+            .is_some_and(|stack| {
+                stack.is_dynamic() || matches!(stack.evaluate(ctx), AttributeValue::Boolean(true))
+            });
+        if occluder {
+            effects |= SkyEffects::OCCLUDER;
         }
     }
     effects
 }
 
 /// The per-frame uniform: one write, no allocation, no memoized value.
-#[derive(Resource, Debug, Clone, Default, PartialEq)]
+#[derive(Resource, Debug, Clone, PartialEq)]
 pub struct SkyFrame {
     pub camera: [f32; 3],
     pub rain: f32,
     pub thunder: f32,
     pub values: Vec<SkyValue>,
+    /// The fog of the frame, which the clear colour, the world and the sky read.
+    pub fog: FogParameters,
+}
+
+impl Default for SkyFrame {
+    fn default() -> Self {
+        Self {
+            camera: [0.0; 3],
+            rain: 0.0,
+            thunder: 0.0,
+            values: Vec::new(),
+            fog: FogParameters::from_inputs(&FogInputs::default()),
+        }
+    }
 }
 
 impl SkyFrame {
@@ -552,7 +576,7 @@ mod tests {
         let constants = layout.constants(&attributes, &context(&ticks));
         assert_eq!(constants.key.skybox, Skybox::Overworld);
         assert_eq!(constants.key.effects, SkyEffects::all());
-        assert_eq!(constants.key.draws(), 5);
+        assert_eq!(constants.key.draws(), 6);
         assert_eq!(
             constants.get(SkyField::CloudHeight),
             Some(SkyValue::Scalar(192.33))
@@ -583,7 +607,7 @@ mod tests {
                 .key
                 .draws()
         };
-        assert_eq!(overworld_draws - constants.key.draws(), 4);
+        assert_eq!(overworld_draws - constants.key.draws(), 5);
 
         for id in [
             EnvironmentAttribute::VisualSunAngle,

@@ -1,5 +1,6 @@
 import bevy_render::maths::{HALF_PI, PI};
 import bevy_render::view::View;
+import package::shaders::include::finish::to_target;
 import package::shaders::include::quad::degenerate;
 import package::shaders::include::sky::Sky;
 
@@ -11,8 +12,7 @@ import package::shaders::include::sky::Sky;
 @group(1) @binding(2) var clouds: texture_2d<f32>;
 
 const SKY_DISC_Y: f32 = 16.0;
-const DARK_DISC_Y: f32 = -4.0;
-const DISC_VERTICES: u32 = 24u;
+const SKY_DISC_RADIUS: f32 = 512.0;
 
 const SUNRISE_STEPS: u32 = 16u;
 const SUNRISE_RADIUS: f32 = 120.0;
@@ -68,33 +68,22 @@ fn celestial_frame(local: vec3<f32>, angle: f32) -> vec3<f32> {
     return rotate_y(rotate_x(local, angle), -HALF_PI);
 }
 
-fn disc_corner(index: u32, y: f32) -> vec3<f32> {
+fn disc_corner(index: u32) -> vec3<f32> {
     let corner = index % 3u;
     if corner == 0u {
-        return vec3<f32>(0.0, y, 0.0);
+        return vec3<f32>(0.0, SKY_DISC_Y, 0.0);
     }
     let step = index / 3u + corner - 1u;
     let angle = radians(-180.0 + f32(step) * 45.0);
-    let radius = sky.fog.a;
-    return vec3<f32>(sign(y) * radius * cos(angle), y, radius * sin(angle));
+    return vec3<f32>(SKY_DISC_RADIUS * cos(angle), SKY_DISC_Y, SKY_DISC_RADIUS * sin(angle));
 }
 
 @vertex
 fn vertex_disc(@builtin(vertex_index) index: u32) -> SkyVertex {
+    let local = disc_corner(index);
     var out: SkyVertex;
-    var local = vec3<f32>(0.0);
-    if index < DISC_VERTICES {
-        local = disc_corner(index, SKY_DISC_Y);
-        out.color = vec4<f32>(sky.disc.rgb, 1.0);
-        out.clip_position = to_clip(local);
-    } else if sky.disc.a > 0.5 {
-        local = disc_corner(index - DISC_VERTICES, DARK_DISC_Y);
-        out.color = vec4<f32>(0.0, 0.0, 0.0, 1.0);
-        out.clip_position = to_clip(local);
-    } else {
-        out.color = vec4<f32>(0.0);
-        out.clip_position = degenerate();
-    }
+    out.color = vec4<f32>(sky.disc.rgb, 1.0);
+    out.clip_position = to_clip(local);
     out.fog = length(local) / sky.fog.a;
     return out;
 }
@@ -210,7 +199,36 @@ fn fragment_flat(in: SkyVertex) -> @location(0) vec4<f32> {
 
 @fragment
 fn fragment_disc(in: SkyVertex) -> @location(0) vec4<f32> {
-    return vec4<f32>(mix(in.color.rgb, sky.fog.rgb, clamp(in.fog, 0.0, 1.0)), in.color.a);
+    return vec4<f32>(to_target(mix(in.color.rgb, sky.fog.rgb, min(in.fog, 1.0))), 1.0);
+}
+
+struct OccluderVertex {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) world: vec3<f32>,
+};
+
+@vertex
+fn vertex_occluder(@builtin(vertex_index) index: u32) -> OccluderVertex {
+    let ndc = vec2<f32>(f32((index << 1u) & 2u), f32(index & 2u)) * 2.0 - 1.0;
+    let near = view.world_from_clip * vec4<f32>(ndc, 1.0, 1.0);
+    var out: OccluderVertex;
+    out.world = near.xyz / near.w;
+    out.clip_position = vec4<f32>(ndc, 1.0, 1.0);
+    return out;
+}
+
+/// `smoothstep` of WGSL leaves `low > high` undefined, and the occluder ramps downward.
+fn ramp_smooth(low: f32, high: f32, x: f32) -> f32 {
+    let t = clamp((x - low) / (high - low), 0.0, 1.0);
+    return t * t * (3.0 - 2.0 * t);
+}
+
+@fragment
+fn fragment_occluder(in: OccluderVertex) -> @location(0) vec4<f32> {
+    let direction = normalize(in.world - view.world_position.xyz);
+    let elevation = degrees(asin(clamp(direction.y, -1.0, 1.0)));
+    let alpha = ramp_smooth(sky.occluder.x, sky.occluder.y, elevation);
+    return vec4<f32>(to_target(sky.fog.rgb), alpha);
 }
 
 @fragment
