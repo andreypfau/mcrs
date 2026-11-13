@@ -15,10 +15,9 @@ use mcrs_minecraft_engine::bus::{
 use mcrs_minecraft_engine::coordinator::clock::GameTime;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::network_id::player_network_id;
-use mcrs_minecraft_engine::persistence::LoadedPlayerDat;
 use mcrs_minecraft_engine::teleport::{TeleportState, position_packet, teleport_to};
 use mcrs_minecraft_engine_brain::EntityRows;
-use mcrs_minecraft_engine_item::{HolderCommandsExt, Selected, Slots};
+use mcrs_minecraft_engine_item::{Selected, Slots};
 use mcrs_minecraft_engine_physics::{Mob, MobChanges, Mobs, hurt_mob};
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::entity::EntityUuid;
@@ -37,15 +36,10 @@ use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_rows::Placed;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_rule::GameRule;
+use mcrs_minecraft_item::ProtoStack;
 use mcrs_minecraft_item::component::equippable::EquipmentSlot;
-use mcrs_minecraft_item::inventory::slots;
-use mcrs_minecraft_item::{Items, ProtoStack};
 use mcrs_minecraft_item_key::item_keys::Item;
-use mcrs_minecraft_item_stack::{
-    AttributeModifiers, Count, ItemStack as EngineStack, Kind, ModifierOperation, NameLookup,
-    NameTable, SlotGroup,
-};
-use mcrs_minecraft_item_table::ItemTable;
+use mcrs_minecraft_item_stack::{AttributeModifiers, Kind, ModifierOperation, SlotGroup};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundAttack, ServerboundChangeDifficulty, ServerboundPlayerAction,
@@ -55,8 +49,6 @@ use mcrs_minecraft_registries::{CurrentRegistries, WireId};
 
 use crate::CombatSet;
 
-use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::LpVec3;
 use mcrs_minecraft_protocol_game::clientbound::{
@@ -68,7 +60,6 @@ use mcrs_minecraft_protocol_game::clientbound::{
 };
 use mcrs_minecraft_protocol_game::entity::{MetaDataValue, Metadata, MetadataEntry};
 use mcrs_minecraft_protocol_game::entity_data_index;
-use mcrs_minecraft_protocol_game::item::ItemStackValue;
 use mcrs_minecraft_protocol_game::player::{PlayerAction, PlayerSpawnInfo};
 use mcrs_minecraft_protocol_game::serverbound::{
     ClientCommandAction, ServerboundClientCommand, ServerboundMovePlayerPos,
@@ -82,7 +73,7 @@ use mcrs_voxel::{BlockPos, BlockStateId};
 
 use crate::damage_rules::DamageTypeRulesResource;
 use crate::damage_types;
-use crate::effects::{ActiveEffect, ActiveEffects, MobEffect};
+use crate::effects::{ActiveEffects, MobEffect};
 use crate::environment::{
     AirSupply, FireState, FreezeState, WorldBorderState, compute_fall_damage, is_in_void,
 };
@@ -173,32 +164,6 @@ struct CombatModifier {
     slot: SlotGroup,
 }
 
-fn loaded_inventory_values(
-    loaded: &LoadedPlayerDat,
-    table: Option<&ItemTable>,
-) -> Vec<Option<EngineStack>> {
-    let mut values = vec![None; usize::from(slots::CARRIED) + 1];
-    let Some(table) = table else {
-        return values;
-    };
-    for entry in &loaded.inventory {
-        let Some(slot) = values.get_mut(usize::from(entry.slot)) else {
-            continue;
-        };
-        let Some(id) = table.id(NameTable::Item, entry.stack.item.location().into()) else {
-            continue;
-        };
-        let Ok(count) = u8::try_from(entry.stack.count.0) else {
-            continue;
-        };
-        let Some(count) = Count::new(count) else {
-            continue;
-        };
-        *slot = Some(EngineStack::new(Kind(id), count));
-    }
-    values
-}
-
 fn slot_group_applies(group: SlotGroup, slot: EquipmentSlot) -> bool {
     match group {
         SlotGroup::Any => true,
@@ -216,12 +181,6 @@ fn slot_group_applies(group: SlotGroup, slot: EquipmentSlot) -> bool {
         SlotGroup::Body => slot == EquipmentSlot::Body,
         SlotGroup::Saddle => slot == EquipmentSlot::Saddle,
     }
-}
-
-fn mob_effect_by_name(name: &str) -> Option<MobEffect> {
-    (0..=40)
-        .filter_map(MobEffect::from_id)
-        .find(|effect| effect.as_str() == name)
 }
 
 fn note_ground_pos(
@@ -328,17 +287,15 @@ fn on_player_action(
 
 fn on_set_carried_item(
     on: On<Received<ServerboundSetCarriedItem>>,
-    mut players: Query<(&mut Selected, &mut LoadedPlayerDat)>,
+    mut players: Query<&mut Selected>,
 ) {
     let Some(packet) = on.packet() else {
         return;
     };
-    let Ok((mut selected, mut loaded)) = players.get_mut(on.entity) else {
+    let Ok(mut selected) = players.get_mut(on.entity) else {
         return;
     };
-    let slot = u8::try_from(packet.slot).unwrap_or(0).min(8);
-    selected.0 = slot;
-    loaded.selected_item_slot = i32::from(slot);
+    selected.0 = u8::try_from(packet.slot).unwrap_or(0).min(8);
 }
 
 fn tick_player_hunger(
@@ -898,138 +855,27 @@ fn touches_cactus(view: &DimensionView<'_>, blocks: &Blocks, position: bevy_math
     false
 }
 
-#[expect(
-    clippy::too_many_lines,
-    reason = "the loaded player data of one joined player is decoded in one place"
-)]
 fn attach_player_combat(
     mut commands: Commands,
-    mut players: Query<
-        (Entity, &Transform, Option<&LoadedPlayerDat>),
-        (With<Player>, Without<Health>),
-    >,
-    table: Option<Res<ItemTable>>,
+    players: Query<(Entity, &Transform), (With<Player>, Without<Health>)>,
 ) {
-    for (entity, transform, loaded) in &mut players {
-        let loaded = loaded.cloned().unwrap_or_default();
-        commands
-            .entity(entity)
-            .load_inventory(loaded_inventory_values(&loaded, table.as_deref()));
-        let selected = u8::try_from(loaded.selected_item_slot).unwrap_or(0).min(8);
-        let rest = &loaded.rest;
-        let health_value = rest
-            .get("Health")
-            .and_then(number_float)
-            .filter(|health| health.is_finite())
-            .unwrap_or(20.0)
-            .max(0.0);
-        let food_level = number_int(rest, "foodLevel").unwrap_or(20).clamp(0, 20) as u32;
-        let saturation: f32 = rest
-            .get("foodSaturationLevel")
-            .and_then(number_float)
-            .unwrap_or(5.0)
-            .max(0.0);
-        let exhaustion: f32 = rest
-            .get("foodExhaustionLevel")
-            .and_then(number_float)
-            .unwrap_or(0.0)
-            .clamp(0.0, 40.0);
-        let level = number_int(rest, "XpLevel").unwrap_or(0).max(0);
-        let progress: f32 = rest
-            .get("XpP")
-            .and_then(number_float)
-            .unwrap_or(0.0)
-            .clamp(0.0, 1.0);
-        let total = number_int(rest, "XpTotal").unwrap_or(0).max(0);
-        let air = number_int(rest, "Air").unwrap_or(300).max(0);
-        let fire = number_int(rest, "Fire").unwrap_or(0).max(0);
-        let frozen = number_int(rest, "TicksFrozen").unwrap_or(0).max(0);
-        let hurt = number_int(rest, "HurtTime").unwrap_or(0).clamp(0, 255) as u8;
-        let death = number_int(rest, "DeathTime").unwrap_or(0).clamp(0, 20) as u8;
-        let mut effects = ActiveEffects::new();
-        if let Some(list) = rest.get_list("active_effects") {
-            for tag in list {
-                let Some(compound) = tag.extract_compound() else {
-                    continue;
-                };
-                let Some(name) = compound.get_string("id") else {
-                    continue;
-                };
-                let Some(effect) = mob_effect_by_name(name) else {
-                    continue;
-                };
-                let amplifier = number_int(compound, "amplifier")
-                    .unwrap_or(0)
-                    .clamp(0, i32::from(u8::MAX)) as u8;
-                let duration = number_int(compound, "duration")
-                    .unwrap_or(0)
-                    .max(0)
-                    .unsigned_abs();
-                if duration == 0 {
-                    continue;
-                }
-                effects.add(
-                    ActiveEffect::new(effect, amplifier, duration)
-                        .with_ambient(
-                            compound
-                                .get("ambient")
-                                .and_then(NbtTag::extract_bool)
-                                .unwrap_or(false),
-                        )
-                        .with_particles(
-                            compound
-                                .get("show_particles")
-                                .and_then(NbtTag::extract_bool)
-                                .unwrap_or(true),
-                        )
-                        .with_icon(
-                            compound
-                                .get("show_icon")
-                                .and_then(NbtTag::extract_bool)
-                                .unwrap_or(true),
-                        ),
-                );
-            }
-        }
-        let max_health = 20.0
-            + effects
-                .amplifier(MobEffect::HealthBoost)
-                .map_or(0.0, |level| 4.0 * f32::from(level.saturating_add(1)));
-        let mut health = Health::new(max_health);
-        health.current = health_value.min(max_health);
-        health.absorption = rest
-            .get("AbsorptionAmount")
-            .and_then(number_float)
-            .unwrap_or(0.0)
-            .max(0.0);
-        let mut food = FoodData::new(food_level, saturation);
-        food.exhaustion = exhaustion;
-        food.tick_timer = number_int(rest, "foodTickTimer").unwrap_or(0).max(0) as u32;
-        let experience = PlayerExperience::new(level, progress, total);
+    for (entity, transform) in &players {
         let mut vitals = CombatVitals::at(*transform);
         vitals.on_ground = true;
-        let cooldown = DamageCooldown {
-            hurt_time: hurt,
-            ..DamageCooldown::default()
-        };
         commands.entity(entity).insert((
-            health,
-            food,
-            experience,
-            AirSupply { air, max_air: 300 },
-            FireState {
-                remaining_fire_ticks: fire,
-            },
-            FreezeState {
-                ticks_frozen: frozen,
-            },
-            effects,
-            cooldown,
+            Health::new(20.0),
+            FoodData::default(),
+            PlayerExperience::default(),
+            AirSupply::default(),
+            FireState::default(),
+            FreezeState::default(),
+            ActiveEffects::new(),
+            DamageCooldown::default(),
             CombatPosition(transform.translation),
             vitals,
         ));
         commands.entity(entity).insert((
-            Selected(selected),
+            Selected(0),
             PlayerInputState::default(),
             EntityEquipment::new(),
             Armor::default(),
@@ -1039,14 +885,6 @@ fn attach_player_combat(
             CombatSync::default(),
             EnvironmentSync::default(),
         ));
-        if death > 0 {
-            commands
-                .entity(entity)
-                .insert(DeathState { death_time: death });
-        }
-        if let Some(point) = respawn_point(rest) {
-            commands.entity(entity).insert(point);
-        }
     }
 }
 
@@ -1232,73 +1070,6 @@ fn sync_player_environment_metadata(
                 metadata,
             }),
         ));
-    }
-}
-
-fn save_player_combat(
-    mut players: Query<
-        (
-            &Health,
-            &FoodData,
-            &PlayerExperience,
-            &AirSupply,
-            &FireState,
-            &FreezeState,
-            Option<&ActiveEffects>,
-            Option<&DeathState>,
-            Option<&DamageCooldown>,
-            &mut LoadedPlayerDat,
-        ),
-        With<Player>,
-    >,
-) {
-    for (health, food, experience, air, fire, freeze, effects, death, cooldown, mut loaded) in
-        &mut players
-    {
-        let rest = &mut loaded.rest;
-        rest.put_float("Health", health.current);
-        rest.put_float("AbsorptionAmount", health.absorption);
-        rest.put_int("foodLevel", food.food_level as i32);
-        rest.put_float("foodSaturationLevel", food.saturation);
-        rest.put_float("foodExhaustionLevel", food.exhaustion);
-        rest.put_int("XpLevel", experience.level);
-        rest.put_float("XpP", experience.progress);
-        rest.put_int("XpTotal", experience.total_experience);
-        rest.put_short(
-            "Air",
-            air.air.clamp(i32::from(i16::MIN), i32::from(i16::MAX)) as i16,
-        );
-        rest.put_short(
-            "Fire",
-            fire.remaining_fire_ticks
-                .clamp(i32::from(i16::MIN), i32::from(i16::MAX)) as i16,
-        );
-        rest.put_int("TicksFrozen", freeze.ticks_frozen);
-        rest.put_short(
-            "DeathTime",
-            i16::from(death.map_or(0, |death| death.death_time)),
-        );
-        rest.put_short(
-            "HurtTime",
-            i16::from(cooldown.map_or(0, |cooldown| cooldown.hurt_time)),
-        );
-
-        let saved_effects: Vec<NbtTag> = effects
-            .into_iter()
-            .flat_map(|effects| effects.iter())
-            .filter(|effect| effect.duration > 0)
-            .map(|effect| {
-                let mut compound = NbtCompound::new();
-                compound.put_string("id", effect.effect.as_str().to_owned());
-                compound.put_byte("amplifier", effect.amplifier.min(i8::MAX as u8) as i8);
-                compound.put_int("duration", effect.duration.min(i32::MAX as u32) as i32);
-                compound.put_bool("ambient", effect.ambient);
-                compound.put_bool("show_particles", effect.show_particles);
-                compound.put_bool("show_icon", effect.show_icon);
-                NbtTag::Compound(compound)
-            })
-            .collect();
-        rest.put_list("active_effects", saved_effects);
     }
 }
 
@@ -1639,7 +1410,6 @@ struct RespawnPlayer {
     environment_sync: &'static mut EnvironmentSync,
     effects: Option<&'static mut ActiveEffects>,
     respawn_point: Option<&'static PlayerRespawnPoint>,
-    loaded: Option<&'static mut LoadedPlayerDat>,
     cooldown: Option<&'static mut DamageCooldown>,
     velocity: Option<&'static mut Velocity>,
 }
@@ -1684,7 +1454,6 @@ fn respawn_players(
             mut environment_sync,
             effects,
             respawn_point,
-            loaded,
             cooldown,
             velocity,
         }) = players.get_mut(request.player)
@@ -1734,10 +1503,6 @@ fn respawn_players(
         vitals.fall_distance = 0.0;
         vitals.on_ground = true;
         commands.entity(request.player).remove::<DeathState>();
-
-        if let Some(mut loaded) = loaded {
-            write_combat_reset(&mut loaded.rest, keep_inventory);
-        }
 
         if target != *dimension_key {
             changes.write(ChangeDimensionRequest {
@@ -1815,65 +1580,6 @@ fn respawn_choice(
     (current, fallback.translation, fallback.rotation)
 }
 
-fn write_combat_reset(rest: &mut NbtCompound, keep_inventory: bool) {
-    rest.put_float("Health", 20.0);
-    rest.put_float("AbsorptionAmount", 0.0);
-    rest.put_int("foodLevel", 20);
-    rest.put_float("foodSaturationLevel", 5.0);
-    rest.put_float("foodExhaustionLevel", 0.0);
-    rest.put_short("Air", 300);
-    rest.put_short("Fire", 0);
-    rest.put_int("TicksFrozen", 0);
-    rest.put_short("DeathTime", 0);
-    rest.put_short("HurtTime", 0);
-    rest.put_list("active_effects", Vec::new());
-    if !keep_inventory {
-        rest.put_int("XpLevel", 0);
-        rest.put_float("XpP", 0.0);
-        rest.put_int("XpTotal", 0);
-    }
-}
-
-fn number_int(rest: &NbtCompound, key: &str) -> Option<i32> {
-    let tag = rest.get(key)?;
-    tag.extract_int()
-        .or_else(|| tag.extract_byte().map(i32::from))
-        .or_else(|| tag.extract_short().map(i32::from))
-        .or_else(|| {
-            tag.extract_long()
-                .and_then(|value| i32::try_from(value).ok())
-        })
-        .or_else(|| tag.extract_float().map(|value| value as i32))
-}
-
-fn number_float(tag: &NbtTag) -> Option<f32> {
-    tag.extract_float()
-        .or_else(|| tag.extract_double().map(|value| value as f32))
-        .or_else(|| tag.extract_int().map(|value| value as f32))
-        .or_else(|| tag.extract_long().map(|value| value as f32))
-}
-
-fn respawn_point(rest: &NbtCompound) -> Option<PlayerRespawnPoint> {
-    let respawn = rest.get("respawn")?.extract_compound()?;
-    let dimension = respawn.get_string("dimension")?;
-    let dimension = mcrs_minecraft_resource::ResourceLocationBuf::read(dimension).ok()?;
-    let position = respawn
-        .get_int_array("pos")
-        .and_then(|pos| <[i32; 3]>::try_from(pos).ok())?;
-    let yaw = respawn.get("yaw").and_then(number_float).unwrap_or(0.0);
-    let pitch = respawn.get("pitch").and_then(number_float).unwrap_or(0.0);
-    Some(PlayerRespawnPoint {
-        dimension: ResourceKeyBuf::from_location(dimension),
-        position: DVec3::new(
-            f64::from(position[0]) + 0.5,
-            f64::from(position[1]),
-            f64::from(position[2]) + 0.5,
-        ),
-        yaw,
-        pitch,
-    })
-}
-
 /// The combat state of a player: saved health, hunger and experience, the HUD packets that
 /// carry them to the client, and the death and respawn life cycle.
 #[derive(Clone, Copy, Debug, Default)]
@@ -1915,14 +1621,7 @@ impl Plugin for CombatRuntimePlugin {
         );
         app.add_systems(
             FixedUpdate,
-            (
-                load_world_spawn,
-                clear_loaded_inventory_on_death,
-                respawn_players,
-                sync_player_combat,
-                save_player_inventory,
-                save_player_combat,
-            )
+            (load_world_spawn, respawn_players, sync_player_combat)
                 .chain()
                 .in_set(CombatSet::Post),
         );
@@ -2055,62 +1754,6 @@ fn on_player_attack(
         let hit = Hit::from_source(amount, source).with_flags(hit_flags);
         damage.write(DamageRequest::new(target, hit));
         return;
-    }
-}
-
-fn clear_loaded_inventory_on_death(
-    mut events: MessageReader<crate::death_drops::DropInventoryOnDeathEvent>,
-    mut players: Query<&mut LoadedPlayerDat>,
-) {
-    for event in events.read() {
-        let Ok(mut loaded) = players.get_mut(event.entity) else {
-            continue;
-        };
-        loaded.inventory.clear();
-        loaded.equipment.clear();
-    }
-}
-
-fn save_player_inventory(
-    mut players: Query<(&Slots, &mut LoadedPlayerDat, Option<&DeathState>), With<Player>>,
-    stacks: Query<(&Kind, &Count)>,
-    items: Option<Res<Items>>,
-) {
-    let Some(items) = items else {
-        return;
-    };
-    for (slots, mut loaded, death) in &mut players {
-        if death.is_some() {
-            continue;
-        }
-        loaded.inventory.clear();
-        for (index, stack) in slots.iter().enumerate() {
-            if index > usize::from(slots::OFFHAND) {
-                continue;
-            }
-            let Some((kind, count)) = stack.and_then(|stack| stacks.get(stack).ok()) else {
-                continue;
-            };
-            let Some(id) = mcrs_minecraft_resource::Id::<Item>::checked(kind.0, items.len()) else {
-                continue;
-            };
-            let Some(entry) = items.get(id) else {
-                continue;
-            };
-            let Ok(slot) = u8::try_from(index) else {
-                continue;
-            };
-            loaded
-                .inventory
-                .push(mcrs_minecraft_protocol_game::item::ItemStackWithSlot {
-                    slot,
-                    stack: ItemStackValue {
-                        item: ResourceKeyBuf::from_location(entry.identifier.clone()),
-                        count: i32::from(count.get()).into(),
-                        components: Default::default(),
-                    },
-                });
-        }
     }
 }
 
@@ -2377,156 +2020,6 @@ mod tests {
     }
 
     #[test]
-    fn a_loaded_player_keeps_its_health_and_hunger() {
-        let mut app = App::new();
-        app.add_plugins(crate::CombatPlugin);
-        app.add_plugins(CombatRuntimePlugin);
-        app.add_message::<OutboundPlayerPacket>();
-        app.add_message::<ChangeDimensionRequest>();
-        app.insert_resource(GameTime(0));
-
-        let mut loaded = LoadedPlayerDat::default();
-        loaded.rest.put_float("Health", 7.0);
-        loaded.rest.put_int("foodLevel", 10);
-        loaded.rest.put_float("foodSaturationLevel", 0.0);
-        loaded.rest.put_int("XpLevel", 4);
-        let entity = app
-            .world_mut()
-            .spawn((
-                Player,
-                Owner(PlayerSession(1)),
-                Transform::from_xyz(0.0, 64.0, 0.0),
-                loaded,
-            ))
-            .id();
-
-        app.world_mut().run_schedule(FixedUpdate);
-        app.world_mut().run_schedule(FixedUpdate);
-
-        let health = app.world().get::<Health>(entity).expect("health");
-        assert_eq!(health.current, 7.0);
-        let food = app.world().get::<FoodData>(entity).expect("food");
-        assert_eq!(food.food_level, 10);
-        let experience = app
-            .world()
-            .get::<PlayerExperience>(entity)
-            .expect("experience");
-        assert_eq!(experience.level, 4);
-
-        app.world_mut().get_mut::<Health>(entity).unwrap().current = 5.0;
-        app.world_mut().run_schedule(FixedUpdate);
-        let loaded = app
-            .world()
-            .get::<LoadedPlayerDat>(entity)
-            .expect("saved state");
-        assert_eq!(
-            loaded.rest.get("Health").and_then(NbtTag::extract_float),
-            Some(5.0)
-        );
-        assert_eq!(number_int(&loaded.rest, "foodLevel"), Some(10));
-    }
-
-    #[test]
-    fn dmg_save_001_hurt_death_air_and_fire_survive_a_reload() {
-        let mut app = App::new();
-        app.add_plugins(crate::CombatPlugin);
-        app.add_plugins(CombatRuntimePlugin);
-        app.add_message::<OutboundPlayerPacket>();
-        app.add_message::<ChangeDimensionRequest>();
-        app.insert_resource(GameTime(0));
-
-        let mut loaded = LoadedPlayerDat::default();
-        loaded.rest.put_short("HurtTime", 5);
-        loaded.rest.put_short("DeathTime", 3);
-        loaded.rest.put_short("Air", 120);
-        loaded.rest.put_short("Fire", 40);
-        let entity = app
-            .world_mut()
-            .spawn((
-                Player,
-                Owner(PlayerSession(1)),
-                Transform::from_xyz(0.0, 64.0, 0.0),
-                loaded,
-            ))
-            .id();
-
-        app.world_mut().run_schedule(FixedUpdate);
-
-        assert_eq!(
-            app.world().get::<DamageCooldown>(entity).unwrap().hurt_time,
-            4
-        );
-        assert_eq!(app.world().get::<DeathState>(entity).unwrap().death_time, 4);
-        assert_eq!(app.world().get::<AirSupply>(entity).unwrap().air, 120);
-        assert!(
-            app.world()
-                .get::<FireState>(entity)
-                .unwrap()
-                .remaining_fire_ticks
-                > 0
-        );
-
-        let loaded = app.world().get::<LoadedPlayerDat>(entity).unwrap();
-        assert_eq!(
-            loaded.rest.get("HurtTime").and_then(NbtTag::extract_short),
-            Some(4)
-        );
-        assert_eq!(
-            loaded.rest.get("Air").and_then(NbtTag::extract_short),
-            Some(120)
-        );
-        assert!(
-            loaded
-                .rest
-                .get("Fire")
-                .and_then(NbtTag::extract_short)
-                .unwrap_or(0)
-                > 0
-        );
-        assert!(
-            loaded
-                .rest
-                .get("DeathTime")
-                .and_then(NbtTag::extract_short)
-                .unwrap_or(0)
-                >= 4
-        );
-    }
-
-    #[test]
-    fn a_loaded_health_boost_effect_restores_the_maximum_before_the_health() {
-        let mut app = App::new();
-        app.add_plugins(crate::CombatPlugin);
-        app.add_plugins(CombatRuntimePlugin);
-        app.add_message::<OutboundPlayerPacket>();
-        app.add_message::<ChangeDimensionRequest>();
-        app.insert_resource(GameTime(0));
-
-        let mut effect = mcrs_minecraft_nbt::compound::NbtCompound::new();
-        effect.put_string("id", "minecraft:health_boost".to_owned());
-        effect.put_int("duration", 200);
-        effect.put_byte("amplifier", 1);
-        let mut loaded = LoadedPlayerDat::default();
-        loaded.rest.put_float("Health", 24.0);
-        loaded.rest.put_list("active_effects", vec![effect.into()]);
-        let entity = app
-            .world_mut()
-            .spawn((
-                Player,
-                Owner(PlayerSession(1)),
-                Transform::from_xyz(0.0, 64.0, 0.0),
-                loaded,
-            ))
-            .id();
-
-        app.world_mut().run_schedule(FixedUpdate);
-
-        let health = app.world().get::<Health>(entity).expect("health");
-        assert_eq!(health.max, 28.0);
-        assert_eq!(health.current, 24.0);
-    }
-
-    #[test]
     fn a_bed_in_another_dimension_wins_over_the_level_spawn() {
         let bed = PlayerRespawnPoint {
             dimension: dimension_key("minecraft:the_nether"),
@@ -2599,28 +2092,5 @@ mod tests {
             (hurt_yaw(DVec3::ZERO, Some(DVec3::new(0.0, 0.0, -1.0))).abs() - 180.0).abs() < 1.0e-4
         );
         assert!((hurt_yaw(DVec3::ZERO, Some(DVec3::new(1.0, 0.0, 0.0))) + 90.0).abs() < 1.0e-4);
-    }
-
-    #[test]
-    fn a_legacy_short_fire_tag_is_read() {
-        let mut rest = NbtCompound::new();
-        rest.put_short("Fire", 120);
-        assert_eq!(number_int(&rest, "Fire"), Some(120));
-    }
-
-    #[test]
-    fn a_saved_respawn_point_is_read_from_player_data() {
-        let mut rest = NbtCompound::new();
-        let mut respawn = NbtCompound::new();
-        respawn.put_string("dimension", "minecraft:overworld".to_owned());
-        respawn.put("pos", NbtTag::IntArray(vec![12, 64, -4]));
-        respawn.put_float("yaw", 90.0);
-        respawn.put_float("pitch", 10.0);
-        rest.put_component("respawn", respawn);
-        let point = respawn_point(&rest).expect("respawn point");
-        assert_eq!(point.dimension.as_str(), "minecraft:overworld");
-        assert_eq!(point.position, DVec3::new(12.5, 64.0, -3.5));
-        assert_eq!(point.yaw, 90.0);
-        assert_eq!(point.pitch, 10.0);
     }
 }
