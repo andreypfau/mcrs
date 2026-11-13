@@ -122,7 +122,7 @@ const SWITCHER_HEIGHT: u32 = 75;
 const BLANK: &str = "blank";
 const MISSING: &str = "missing";
 
-const EFFECT_TEXTURES: [&str; 41] = [
+pub(crate) const EFFECT_TEXTURES: [&str; 41] = [
     "mob_effect/speed",
     "mob_effect/slowness",
     "mob_effect/haste",

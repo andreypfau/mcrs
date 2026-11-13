@@ -26,49 +26,7 @@ const ARMOR_HALF: &str = "hud/armor_half";
 const EFFECT_BACKGROUND: &str = "hud/effect_background";
 const EFFECT_BACKGROUND_AMBIENT: &str = "hud/effect_background_ambient";
 
-const EFFECT_ICONS: [&str; 41] = [
-    "mob_effect/speed",
-    "mob_effect/slowness",
-    "mob_effect/haste",
-    "mob_effect/mining_fatigue",
-    "mob_effect/strength",
-    "mob_effect/instant_health",
-    "mob_effect/instant_damage",
-    "mob_effect/jump_boost",
-    "mob_effect/nausea",
-    "mob_effect/regeneration",
-    "mob_effect/resistance",
-    "mob_effect/fire_resistance",
-    "mob_effect/water_breathing",
-    "mob_effect/invisibility",
-    "mob_effect/blindness",
-    "mob_effect/night_vision",
-    "mob_effect/hunger",
-    "mob_effect/weakness",
-    "mob_effect/poison",
-    "mob_effect/wither",
-    "mob_effect/health_boost",
-    "mob_effect/absorption",
-    "mob_effect/saturation",
-    "mob_effect/glowing",
-    "mob_effect/levitation",
-    "mob_effect/luck",
-    "mob_effect/unluck",
-    "mob_effect/slow_falling",
-    "mob_effect/conduit_power",
-    "mob_effect/dolphins_grace",
-    "mob_effect/bad_omen",
-    "mob_effect/hero_of_the_village",
-    "mob_effect/darkness",
-    "mob_effect/trial_omen",
-    "mob_effect/raid_omen",
-    "mob_effect/wind_charged",
-    "mob_effect/weaving",
-    "mob_effect/oozing",
-    "mob_effect/infested",
-    "mob_effect/breath_of_the_nautilus",
-    "mob_effect/freezing",
-];
+use crate::scene::EFFECT_TEXTURES as EFFECT_ICONS;
 
 pub fn vitals(size: GuiSize, vitals: &LocalVitals, game_time: Option<i64>, out: &mut Vec<GuiQuad>) {
     environment(size, vitals, out);
