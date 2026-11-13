@@ -33,6 +33,8 @@ use crate::coordinator::running_dimensions::RunningDimensions;
 use crate::departure::{Departure, PlayerTransfer};
 use crate::dim_mail::DimMail;
 use crate::hot_ticket::RemoteTicket;
+use crate::persistence;
+use crate::persistence::PlayerSaveQueue;
 use crate::player_dimension_change;
 use crate::player_order::OrderedPlayer;
 use crate::player_roster::{ForeignPlayers, OwnPlayers, RosterRow};
@@ -123,6 +125,8 @@ pub struct DimOutput {
     pub(crate) store_inputs: Vec<ColumnStoreInput>,
     /// The columns that the tick asks the generation of the world for.
     pub(crate) generation_asks: Vec<ColumnPos>,
+    /// Whether a player file failed to reach the disk since the last tick.
+    pub(crate) player_save_failed: bool,
 }
 
 impl DimOutput {
@@ -137,6 +141,7 @@ impl DimOutput {
         self.ban_edits.extend(other.ban_edits);
         self.ops_edits.extend(other.ops_edits);
         self.server_edits.extend(other.server_edits);
+        self.player_save_failed |= other.player_save_failed;
     }
 }
 
@@ -186,6 +191,9 @@ fn is_idle(world: &mut World) -> bool {
         && world
             .get_resource::<ColumnProduction>()
             .is_none_or(ColumnProduction::is_idle)
+        && world
+            .get_resource::<PlayerSaveQueue>()
+            .is_none_or(PlayerSaveQueue::is_idle)
 }
 
 fn apply_input(world: &mut World, _tick: Tick, input: DimInput) {
@@ -256,6 +264,12 @@ fn take_output(world: &mut World) -> DimOutput {
     // After every schedule of the tick, so the player is in no system's view once it leaves.
     player_dimension_change::depart_players(world, &mut output.departures);
     cell_mail::take_cell_mail(world, &mut output.cell_mail);
+    // The world the player arrives in writes the same file and starts its own writer, so a
+    // write of this world that is still running must land first, or it would overwrite the
+    // newer file.
+    if !output.departures.is_empty() || !output.cell_mail.crossings.is_empty() {
+        persistence::flush_player_saves(world);
+    }
     drain_into(world, &mut output.client.packets);
     if let Some(mut released) = world.get_resource_mut::<Messages<OutboundPlayerReleased>>() {
         output
@@ -264,6 +278,9 @@ fn take_output(world: &mut World) -> DimOutput {
             .extend(released.drain().map(|released| released.session));
     }
     drain_into(world, &mut output.client.attached);
+    output.player_save_failed = world
+        .get_resource_mut::<PlayerSaveQueue>()
+        .is_some_and(|mut queue| queue.take_failed());
     if let Some(log) = world.get_resource::<ColumnTraceLog>() {
         output.traces.extend(log.drain());
     }
@@ -384,5 +401,55 @@ mod tests {
 
         take_output(&mut world);
         assert!(!world.contains_resource::<SaveRequest>());
+    }
+
+    #[test]
+    fn a_departing_player_waits_for_the_running_write_of_its_file() {
+        use crate::persistence::tests::{app, profile, temp_world};
+        use mcrs_minecraft_engine_world::entity::EntityUuid;
+        use mcrs_minecraft_engine_world::entity::physics::Transform;
+        use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
+        use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let dir = temp_world();
+        let mut app = app(&dir);
+        app.add_message::<ChangeDimensionRequest>();
+        let world = app.world_mut();
+        let player = world
+            .spawn((
+                Player,
+                Owner(PlayerSession(1)),
+                EntityUuid(profile().id),
+                Transform::default(),
+                crate::ability::PlayerGameMode::default(),
+                crate::ability::PlayerFlying(false),
+                crate::ability::PlayerOpLevel(0),
+                crate::teleport::TeleportState::default(),
+                profile(),
+            ))
+            .id();
+        world.write_message(ChangeDimensionRequest {
+            player,
+            to: mcrs_minecraft_resource::ResourceKeyBuf::from_location(
+                mcrs_minecraft_resource::ResourceLocationBuf::new("minecraft", "the_nether")
+                    .unwrap(),
+            ),
+            transform: Transform::default(),
+        });
+        let (open, gate) = std::sync::mpsc::channel();
+        let done = Arc::new(AtomicBool::new(false));
+        world.insert_resource(PlayerSaveQueue::gated(gate, done.clone()));
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            let _ = open.send(());
+        });
+
+        let output = take_output(world);
+
+        assert_eq!(output.departures.len(), 1);
+        assert!(done.load(Ordering::SeqCst), "the write finished first");
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

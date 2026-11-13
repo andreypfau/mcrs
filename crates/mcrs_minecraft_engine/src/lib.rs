@@ -66,11 +66,13 @@ mod movement;
 pub mod muxer;
 pub mod network_id;
 mod op_level;
+pub mod persisted_registry;
 mod persistence;
 mod player_bundle;
 mod player_dimension_change;
 pub mod player_order;
 pub mod player_roster;
+pub mod player_state;
 mod player_tracker;
 mod player_view;
 mod publish_player_tiles;
@@ -97,12 +99,16 @@ pub struct EnginePlugin;
 
 impl Plugin for EnginePlugin {
     fn build(&self, app: &mut App) {
+        if !app.is_plugin_added::<persistence::PlayerPersistencePlugin>() {
+            app.add_plugins(persistence::PlayerPersistencePlugin);
+        }
         app.add_plugins((CoordinatorPlugin, MuxerPlugin));
     }
 }
 
 pub use persistence::{
-    AutosaveCadence, AutosavePlugin, UnreadablePlayerDat, load_player, write_player,
+    AutosaveCadence, AutosavePlugin, PlayerPersistencePlugin, UnreadablePlayerDat,
+    apply_join_snapshot, load_player, write_player,
 };
 pub use world_state::{
     SavedSpawn, WorldStatePlugin, WorldStateSources, WorldStateWrite, WorldStateWriter,

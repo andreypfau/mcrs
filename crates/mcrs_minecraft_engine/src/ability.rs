@@ -9,7 +9,18 @@ use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
 
 /// The game mode of a player.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut)]
+#[derive(
+    Component,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Deref,
+    DerefMut,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 pub struct PlayerGameMode(pub GameMode);
 
 impl Default for PlayerGameMode {
@@ -19,11 +30,35 @@ impl Default for PlayerGameMode {
 }
 
 /// Whether the player flies, as its client reports it and its game mode allows.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut, Default)]
+#[derive(
+    Component,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Deref,
+    DerefMut,
+    Default,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 pub struct PlayerFlying(pub bool);
 
 /// The operator permission level of a player, from 0 for a player who is no operator.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut, Default)]
+#[derive(
+    Component,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Deref,
+    DerefMut,
+    Default,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 pub struct PlayerOpLevel(pub u8);
 
 impl PlayerOpLevel {
