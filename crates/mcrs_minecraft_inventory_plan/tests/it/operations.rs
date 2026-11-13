@@ -1,8 +1,9 @@
 use mcrs_minecraft_inventory_plan::Entry;
-use mcrs_minecraft_inventory_plan::Op;
 use mcrs_minecraft_inventory_plan::Plan;
 use mcrs_minecraft_inventory_plan::Planned;
 
+use crate::holder::Operation;
+use crate::holder::STONE_HANDLE;
 use crate::holder::Slot;
 use crate::holder::Stack;
 use crate::holder::dirt;
@@ -13,8 +14,10 @@ use crate::holder::merge;
 use crate::holder::more_stone;
 use crate::holder::open;
 use crate::holder::pearl;
+use crate::holder::refusing;
 use crate::holder::request;
 use crate::holder::request_in;
+use crate::holder::set;
 use crate::holder::split;
 use crate::holder::stone;
 use crate::holder::swap;
@@ -22,7 +25,7 @@ use crate::holder::swap;
 struct Case {
     name: &'static str,
     slots: Vec<Slot>,
-    ops: Vec<Op<usize>>,
+    ops: Vec<Operation>,
     after: Vec<Stack>,
     dropped: Vec<Stack>,
 }
@@ -150,6 +153,38 @@ fn cases() -> Vec<Case> {
             ops: vec![drop_from(1, 2), drop_from(0, 1), drop_from(1, 3)],
             after: vec![stone(9), None],
             dropped: vec![dirt(2), stone(1), dirt(3)],
+        },
+        Case {
+            // INV-CRE-001
+            name: "set puts a stack with its count past every filter and limit, replaces a stack and empties a slot",
+            slots: vec![
+                refusing(
+                    Slot {
+                        limit: 4,
+                        ..locked(None)
+                    },
+                    STONE_HANDLE,
+                ),
+                open(dirt(5)),
+                open(stone(2)),
+                open(dirt(7)),
+            ],
+            ops: vec![
+                set(0, stone(10), 10),
+                set(1, pearl(3), 16),
+                set(2, None, 0),
+                set(3, stone(4), 0),
+            ],
+            after: vec![stone(10), pearl(16), None, None],
+            dropped: vec![],
+        },
+        Case {
+            // INV-CRE-001
+            name: "a later operation uses the stack that a set put",
+            slots: vec![open(None), open(None)],
+            ops: vec![set(0, stone(10), 10), split(0, 1, 4)],
+            after: vec![stone(6), stone(4)],
+            dropped: vec![],
         },
         Case {
             name: "a later operation uses the stack that an earlier operation moved",

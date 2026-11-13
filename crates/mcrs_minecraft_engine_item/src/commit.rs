@@ -10,6 +10,7 @@ use bevy_ecs::system::ResMut;
 use bevy_ecs::world::World;
 use mcrs_minecraft_inventory_plan::Filter;
 use mcrs_minecraft_inventory_plan::Loaded;
+use mcrs_minecraft_inventory_plan::Op;
 use mcrs_minecraft_inventory_plan::Plan;
 use mcrs_minecraft_inventory_plan::Planned;
 use mcrs_minecraft_inventory_plan::plan;
@@ -55,7 +56,8 @@ struct Placed {
 enum Source {
     /// The entity itself goes to the slot.
     Same(Entity),
-    /// A new entity with the item and the components of this one goes to the slot.
+    /// A new entity with the item and the components of this one goes to the slot. A stack with
+    /// no place goes to the first such slot itself, so that a set does not leave it behind.
     CopyOf(Entity),
 }
 
@@ -85,6 +87,10 @@ fn plan_request(
     mut scratch: ResMut<RequestScratch>,
 ) -> Result<(), Rejected> {
     let scratch = &mut *scratch;
+    scratch.ops.clear();
+    for op in request.ops() {
+        scratch.ops.push(resolve(op, &mut stacks));
+    }
     let load = |slot: SlotRef| {
         let slots = holders.get(slot.holder).ok()?;
         let index = usize::from(slot.index);
@@ -100,12 +106,32 @@ fn plan_request(
     };
     let permits = |_, _| Filter::Permits;
     let equal = |left, right| rows.mergeable(left, right);
-    let outcome = plan(request.ops(), &mut scratch.plan, load, permits, equal);
+    let outcome = plan(
+        scratch.ops.iter().copied(),
+        &mut scratch.plan,
+        load,
+        permits,
+        equal,
+    );
     scratch.settlement.clear();
     if outcome.is_ok() {
         settle(&scratch.plan, &mut scratch.settlement);
     }
     outcome
+}
+
+fn resolve(op: Op<SlotRef, Entity>, stacks: &mut Stacks) -> Op<SlotRef, Planned<Entity>> {
+    match op {
+        Op::Split { from, to, count } => Op::Split { from, to, count },
+        Op::Merge { from, to } => Op::Merge { from, to },
+        Op::Swap { left, right } => Op::Swap { left, right },
+        Op::Drop { from, count } => Op::Drop { from, count },
+        Op::Set { slot, stack, count } => Op::Set {
+            slot,
+            stack: stack.and_then(|stack| planned(stacks, stack)),
+            count,
+        },
+    }
 }
 
 fn planned(stacks: &mut Stacks, stack: Entity) -> Option<Planned<Entity>> {
@@ -165,11 +191,26 @@ fn apply(world: &mut World) {
         return;
     };
     let mut settlement = mem::take(&mut scratch.settlement);
-    for placed in &mut settlement.placed {
-        if let Source::CopyOf(original) = placed.source
-            && let Some(copy) = spawn_copy(world, original, placed.count)
-        {
-            placed.source = Source::Same(copy);
+    for index in 0..settlement.placed.len() {
+        let Some(&Placed {
+            source: Source::CopyOf(original),
+            count,
+            ..
+        }) = settlement.placed.get(index)
+        else {
+            continue;
+        };
+        let mut earlier = settlement.placed.iter().take(index);
+        let unplaced = Placement::of(world, original) == Some(Placement::Nowhere)
+            && !earlier
+                .any(|placed| matches!(placed.source, Source::Same(same) if same == original));
+        let stack = if unplaced {
+            Some(original)
+        } else {
+            spawn_copy(world, original, count)
+        };
+        if let (Some(stack), Some(placed)) = (stack, settlement.placed.get_mut(index)) {
+            placed.source = Source::Same(stack);
         }
     }
     for &stack in &settlement.despawned {

@@ -7,6 +7,8 @@ use mcrs_minecraft_inventory_plan::Rejected;
 
 pub type Stack = Option<Planned<u16>>;
 
+pub type Operation = Op<usize, Planned<u16>>;
+
 pub const STONE: u16 = 1;
 pub const DIRT: u16 = 2;
 pub const PEARL: u16 = 3;
@@ -89,20 +91,24 @@ pub fn refusing(slot: Slot, handle: u16) -> Slot {
 pub const STONE_HANDLE: u16 = 10;
 pub const DIRT_HANDLE: u16 = 20;
 
-pub fn split(from: usize, to: usize, count: u8) -> Op<usize> {
+pub fn split(from: usize, to: usize, count: u8) -> Operation {
     Op::Split { from, to, count }
 }
 
-pub fn merge(from: usize, to: usize) -> Op<usize> {
+pub fn merge(from: usize, to: usize) -> Operation {
     Op::Merge { from, to }
 }
 
-pub fn swap(left: usize, right: usize) -> Op<usize> {
+pub fn swap(left: usize, right: usize) -> Operation {
     Op::Swap { left, right }
 }
 
-pub fn drop_from(from: usize, count: u8) -> Op<usize> {
+pub fn drop_from(from: usize, count: u8) -> Operation {
     Op::Drop { from, count }
+}
+
+pub fn set(slot: usize, stack: Stack, count: u8) -> Operation {
+    Op::Set { slot, stack, count }
 }
 
 #[derive(Debug)]
@@ -117,7 +123,7 @@ pub struct Outcome {
 pub fn request_in(
     scratch: &mut Plan<usize, u16>,
     slots: &[Slot],
-    ops: impl IntoIterator<Item = Op<usize>>,
+    ops: impl IntoIterator<Item = Operation>,
 ) -> Outcome {
     let result = mcrs_minecraft_inventory_plan::plan(
         ops,
@@ -154,6 +160,6 @@ pub fn request_in(
     }
 }
 
-pub fn request(slots: &[Slot], ops: &[Op<usize>]) -> Outcome {
+pub fn request(slots: &[Slot], ops: &[Operation]) -> Outcome {
     request_in(&mut Plan::new(), slots, ops.iter().copied())
 }
