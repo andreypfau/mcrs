@@ -84,18 +84,35 @@ impl Knobs {
         for (name, value) in values {
             map.entry(name).or_insert(value);
         }
-        let options = map
-            .get("OPTIONS")
+        let mut knobs = Self {
+            values: Arc::new(map),
+            options: ClientOptions::default(),
+            overlay_times_encoders,
+        };
+        knobs.options = knobs.start_options();
+        knobs
+    }
+
+    /// The options of the file, with the knobs `VIEW`, `VSYNC` and `FULLSCREEN` over them.
+    fn start_options(&self) -> ClientOptions {
+        let mut options = self
+            .knob("OPTIONS")
             .and_then(|path| match options::read(Path::new(path)) {
                 Ok(options) => Some(options),
                 Err(error) => reject("OPTIONS", path, error),
             })
             .unwrap_or_default();
-        Self {
-            values: Arc::new(map),
-            options,
-            overlay_times_encoders,
-        }
+        options.view_distance = self
+            .parsed(
+                "VIEW",
+                |columns| VIEW_DISTANCE_RANGE.contains(columns),
+                format_args!("expected a render distance from 2 to {MAX_VIEW_DISTANCE} columns"),
+            )
+            .or(options.view_distance);
+        options.vsync = self.flag("VSYNC", options.vsync);
+        options.fullscreen =
+            self.flag("FULLSCREEN", options.fullscreen) && self.resolution().is_none();
+        options
     }
 
     pub(crate) fn of(app: &App) -> Self {
@@ -109,15 +126,9 @@ impl Knobs {
         self.values.get(name).map(String::as_str)
     }
 
-    /// `VIEW=<columns>` is the render distance the client asks the server for.
+    /// The render distance the client asks the server for at start; `VIEW=<columns>` sets it.
     pub fn view_distance(&self) -> u8 {
-        self.parsed(
-            "VIEW",
-            |columns| VIEW_DISTANCE_RANGE.contains(columns),
-            format_args!("expected a render distance from 2 to {MAX_VIEW_DISTANCE} columns"),
-        )
-        .or(self.options.view_distance)
-        .unwrap_or(VIEW_DISTANCE)
+        self.options.view_distance.unwrap_or(VIEW_DISTANCE)
     }
 
     pub fn username(&self) -> String {
@@ -171,10 +182,9 @@ impl Knobs {
         }
     }
 
-    /// `FULLSCREEN=1` takes over a whole display; a plain window is the default, so
-    /// a run never seizes the screen the work is being done on.
+    /// Fullscreen at start; `FULLSCREEN=1` sets it, and `RESOLUTION` clears it.
     pub fn fullscreen(&self) -> bool {
-        self.flag("FULLSCREEN", false)
+        self.options.fullscreen
     }
 
     /// `OPEN_TO_LAN=1` makes the integrated server listen on every interface and announce itself on
@@ -226,10 +236,10 @@ impl Knobs {
         self.pair("RESOLUTION", 'x', "expected <width>x<height> in pixels")
     }
 
-    /// Off by default so a frame time is readable: with vsync the frame reports the
-    /// refresh interval no matter what the renderer costs.
+    /// VSync at start; `VSYNC=1` sets it. Off by default so a frame time is readable: with vsync
+    /// the frame reports the refresh interval no matter what the renderer costs.
     pub fn vsync(&self) -> bool {
-        self.flag("VSYNC", false)
+        self.options.vsync
     }
 
     pub fn chunk_map(&self) -> bool {
@@ -285,7 +295,8 @@ impl Knobs {
         self.knob("SCREENSHOT_DIR").map(std::path::PathBuf::from)
     }
 
-    /// The video options that `MCRS_OPTIONS=<file>` names.
+    /// The options at start: those of the file that `MCRS_OPTIONS=<file>` names, with the knobs
+    /// `VIEW`, `VSYNC` and `FULLSCREEN` over them.
     pub fn options(&self) -> ClientOptions {
         self.options
     }

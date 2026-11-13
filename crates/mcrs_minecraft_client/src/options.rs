@@ -12,8 +12,9 @@ use crate::sky::Clouds;
 use crate::stream::LightOptions;
 
 /// Keeps the client options as the one resource that the field of view, the terrain light, the
-/// clouds, the brightness and the GUI scale follow, and writes them to `file` as JSON each time
-/// they change after start-up. The web has no file, so there `file` is ignored.
+/// clouds, the brightness, the GUI scale and, on a native client, the window mode, the present
+/// mode and the frame limit follow, and writes them to `file` as JSON each time they change after
+/// start-up. The web has no file, so there `file` is ignored.
 pub struct ClientOptionsPlugin {
     pub options: ClientOptions,
     pub file: Option<PathBuf>,
@@ -34,6 +35,13 @@ impl Plugin for ClientOptionsPlugin {
                     .after(MenuOptionsSystems)
                     .run_if(resource_changed::<ClientOptions>),
             );
+        #[cfg(not(target_family = "wasm"))]
+        app.add_systems(
+            PreUpdate,
+            crate::window_options::project_window_options
+                .after(MenuOptionsSystems)
+                .run_if(resource_changed::<ClientOptions>),
+        );
         #[cfg(not(target_family = "wasm"))]
         if let Some(path) = &self.file {
             crate::options_file::save_options_to(app, path.clone());
@@ -89,7 +97,25 @@ fn project_options(
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
+    use bevy::window::{MonitorSelection, PresentMode, PrimaryWindow, WindowMode};
+    use bevy::winit::{UpdateMode, WinitSettings};
+
     use super::*;
+
+    fn primary_window(world: &World) -> &Window {
+        world
+            .try_query_filtered::<&Window, With<PrimaryWindow>>()
+            .and_then(|mut windows| windows.single(world).ok())
+            .unwrap()
+    }
+
+    fn frame_limit(world: &World) -> UpdateMode {
+        let settings = world.resource::<WinitSettings>();
+        assert_eq!(settings.focused_mode, settings.unfocused_mode);
+        settings.focused_mode
+    }
 
     fn app_with(options: ClientOptions, gui_scale: Option<u32>) -> App {
         let mut app = App::new();
@@ -103,11 +129,13 @@ mod tests {
                 frozen_ticks: None,
                 advanced_tooltips: false,
             })
+            .init_resource::<WinitSettings>()
             .add_plugins(ClientOptionsPlugin {
                 options,
                 file: None,
                 gui_scale,
             });
+        app.world_mut().spawn((Window::default(), PrimaryWindow));
         app.update();
         app
     }
@@ -118,8 +146,12 @@ mod tests {
         options.fov = 80;
         let mut app = app_with(options, None);
         assert_eq!(app.world().resource::<FovOptions>().fov, 80);
+        assert_eq!(
+            primary_window(app.world()).present_mode,
+            PresentMode::AutoNoVsync
+        );
 
-        let cases: [(fn(&mut ClientOptions), fn(&World) -> bool); 5] = [
+        let cases: [(fn(&mut ClientOptions), fn(&World) -> bool); 9] = [
             (
                 |options| options.fov = 90,
                 |world| world.resource::<FovOptions>().fov == 90,
@@ -139,6 +171,33 @@ mod tests {
             (
                 |options| options.clouds = false,
                 |world| *world.resource::<Clouds>() == Clouds::Off,
+            ),
+            (
+                |options| options.vsync = true,
+                |world| primary_window(world).present_mode == PresentMode::Fifo,
+            ),
+            (
+                |options| options.fullscreen = true,
+                |world| {
+                    primary_window(world).mode
+                        == WindowMode::BorderlessFullscreen(MonitorSelection::Primary)
+                },
+            ),
+            (
+                |options| options.max_framerate = 60,
+                |world| {
+                    frame_limit(world)
+                        == UpdateMode::Reactive {
+                            wait: Duration::from_secs(1) / 60,
+                            react_to_device_events: false,
+                            react_to_user_events: false,
+                            react_to_window_events: false,
+                        }
+                },
+            ),
+            (
+                |options| options.max_framerate = 260,
+                |world| frame_limit(world) == UpdateMode::Continuous,
             ),
         ];
         for (index, (change, projected)) in cases.into_iter().enumerate() {

@@ -55,6 +55,8 @@ pub mod tint;
 pub mod vanilla;
 #[cfg(target_family = "wasm")]
 pub mod web;
+#[cfg(not(target_family = "wasm"))]
+pub mod window_options;
 
 /// A plugin still has work a scripted capture must wait for.
 #[derive(Message)]
