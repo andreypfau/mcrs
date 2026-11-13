@@ -1,7 +1,5 @@
-use bevy_ecs::message::{Message, MessageWriter};
+use bevy_ecs::message::Message;
 use bevy_ecs::prelude::*;
-
-use crate::position::CombatPosition;
 
 /// Calculates the experience points needed to advance from `level` to `level + 1`.
 #[must_use]
@@ -118,23 +116,6 @@ impl PlayerExperience {
     }
 }
 
-/// An experience orb in the world.
-#[derive(Component, Clone, Copy, Debug, PartialEq)]
-pub struct ExperienceOrb {
-    pub value: i32,
-    pub age_ticks: u32,
-}
-
-impl ExperienceOrb {
-    #[must_use]
-    pub const fn new(value: i32) -> Self {
-        Self {
-            value,
-            age_ticks: 0,
-        }
-    }
-}
-
 /// Message emitted when a player gains experience.
 #[derive(Message, Clone, Copy, Debug, PartialEq)]
 pub struct ExperienceGainedEvent {
@@ -142,54 +123,6 @@ pub struct ExperienceGainedEvent {
     pub amount: i32,
     pub new_level: i32,
     pub new_progress: f32,
-}
-
-/// Ticks experience orbs, aging them and picking them up when within 1.25 blocks of a player.
-pub fn pickup_experience_orbs(
-    mut commands: Commands,
-    mut players: Query<(Entity, &mut PlayerExperience, &CombatPosition)>,
-    mut orbs: Query<(Entity, &mut ExperienceOrb, &mut CombatPosition), Without<PlayerExperience>>,
-    mut events: MessageWriter<ExperienceGainedEvent>,
-) {
-    const PICKUP_RADIUS_SQ: f64 = 1.25 * 1.25;
-
-    for (orb_entity, mut orb, mut orb_pos) in &mut orbs {
-        orb.age_ticks = orb.age_ticks.saturating_add(1);
-        if orb.age_ticks >= 6000 {
-            commands.entity(orb_entity).despawn();
-            continue;
-        }
-
-        let nearest = players
-            .iter()
-            .map(|(_, _, position)| position.0)
-            .filter(|position| position.distance_squared(orb_pos.0) <= 64.0)
-            .min_by(|left, right| {
-                left.distance_squared(orb_pos.0)
-                    .total_cmp(&right.distance_squared(orb_pos.0))
-            });
-        if let Some(target) = nearest {
-            let direction = target - orb_pos.0;
-            if direction.length_squared() > 1.0e-9 {
-                orb_pos.0 += direction.normalize() * 0.1;
-            }
-        }
-
-        for (player_entity, mut player_exp, player_pos) in &mut players {
-            if player_pos.0.distance_squared(orb_pos.0) <= PICKUP_RADIUS_SQ {
-                let amount = orb.value;
-                player_exp.add_experience(amount);
-                events.write(ExperienceGainedEvent {
-                    player: player_entity,
-                    amount,
-                    new_level: player_exp.level,
-                    new_progress: player_exp.progress,
-                });
-                commands.entity(orb_entity).despawn();
-                break;
-            }
-        }
-    }
 }
 
 #[cfg(test)]

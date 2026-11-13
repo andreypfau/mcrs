@@ -11,8 +11,8 @@ use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::block::BlockStateNumber;
 use mcrs_minecraft_protocol_game::clientbound::{
     AttributeModifier, AttributeOperation, AttributeSnapshot, ClientboundAddEntity,
-    ClientboundSetEntityData, ClientboundSetEquipment, ClientboundSetPassengers,
-    ClientboundUpdateAttributes,
+    ClientboundSetEntityData, ClientboundSetEquipment, ClientboundSetExperience,
+    ClientboundSetPassengers, ClientboundUpdateAttributes,
 };
 use mcrs_minecraft_protocol_game::entity::{
     DyeColor, EquipmentSlot, MetaDataValue, Metadata, MetadataEntry, OptionalBlockState,
@@ -307,4 +307,16 @@ fn a_player_info_update_reads_the_list_order_and_hat_actions_from_the_top_two_bi
         panic!("{:?}", update.entries);
     };
     assert_eq!((entry.list_order, entry.show_hat), (5, true));
+}
+
+#[test]
+fn set_experience_writes_progress_level_total() {
+    let packet = ClientboundSetExperience {
+        experience_progress: 0.5,
+        experience_level: VarInt(7),
+        total_experience: VarInt(300),
+    };
+    let mut buf = Vec::new();
+    let bytes = round_trip(&packet, &mut buf);
+    assert_eq!(bytes, [0x3f, 0x00, 0x00, 0x00, 0x07, 0xac, 0x02]);
 }

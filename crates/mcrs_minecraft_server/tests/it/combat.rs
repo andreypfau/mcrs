@@ -13,7 +13,6 @@ use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol_game::serverbound::{
     ClientCommandAction, ServerboundAttack, ServerboundChatCommand, ServerboundClientCommand,
-    ServerboundUseItemOn,
 };
 use mcrs_minecraft_server::{VanillaCombatPlugin, VanillaEntityPhysicsPlugin};
 
@@ -23,123 +22,13 @@ use crate::host_app::{self, PlayServer};
 const PLAYER: Uuid = Uuid::from_u128(7);
 const OTHER: Uuid = Uuid::from_u128(8);
 
-#[derive(Resource, Default)]
-struct SeenExperience(Vec<i32>);
-
-#[derive(Resource, Default)]
-struct SeenBlocks(Vec<(mcrs_voxel::BlockPos, mcrs_voxel::BlockStateId)>);
-
-#[derive(Resource, Default)]
-struct SeenExplosions(Vec<mcrs_minecraft_combat::ExplosionOccurred>);
-
-#[derive(Resource, Default)]
-struct SeenDestroys(Vec<mcrs_voxel::BlockPos>);
-
-fn record_destroys(
-    mut destroys: MessageReader<mcrs_minecraft_engine_world::block_update::BlockDestroyRequest>,
-    mut seen: ResMut<SeenDestroys>,
-) {
-    seen.0.extend(destroys.read().map(|destroy| destroy.pos));
-}
-
-fn record_explosions(
-    mut exploded: MessageReader<mcrs_minecraft_combat::ExplosionOccurred>,
-    mut seen: ResMut<SeenExplosions>,
-) {
-    seen.0.extend(exploded.read());
-}
-
-fn record_blocks(
-    mut placed: MessageReader<mcrs_minecraft_engine_world::block_update::BlockPlaced>,
-    mut seen: ResMut<SeenBlocks>,
-) {
-    seen.0.extend(
-        placed
-            .read()
-            .map(|block| (block.block_pos, block.new_state)),
-    );
-}
-
-fn record_experience(
-    mut dropped: MessageReader<mcrs_minecraft_engine_world::block_drops::ExperienceDropped>,
-    mut seen: ResMut<SeenExperience>,
-) {
-    seen.0.extend(dropped.read().map(|drop| drop.amount));
-}
-
-#[derive(Clone, Copy)]
-struct BreakOre {
-    ore: mcrs_voxel::BlockStateId,
-}
-
-impl mcrs_minecraft_simulation::BlockBehaviour<mcrs_minecraft_engine::world_kinds::WorldKinds>
-    for BreakOre
-{
-    fn update_shape<
-        V: mcrs_minecraft_simulation::SimulationVolume,
-        F: mcrs_minecraft_simulation::BlockFacts<mcrs_minecraft_engine::world_kinds::WorldKinds>,
-    >(
-        &self,
-        _cx: &mut mcrs_minecraft_simulation::Cx<
-            '_,
-            mcrs_minecraft_engine::world_kinds::WorldKinds,
-            V,
-            F,
-            Self,
-        >,
-        _at: mcrs_voxel::BlockPos,
-        state: mcrs_voxel::BlockStateId,
-        _from: mcrs_minecraft_core::Direction,
-        _neighbour: mcrs_voxel::BlockPos,
-        _neighbour_state: mcrs_voxel::BlockStateId,
-    ) -> mcrs_voxel::BlockStateId {
-        if state == self.ore {
-            mcrs_voxel::BlockStateId::AIR
-        } else {
-            state
-        }
-    }
-}
-
-impl mcrs_minecraft_engine_world::block_drops::BlockDrops for BreakOre {}
-
-fn install_break_ore(sub_app: &mut bevy_app::SubApp) {
-    let ore = sub_app
-        .world()
-        .resource::<mcrs_minecraft_block::definition::Blocks>()
-        .default_state("minecraft:redstone_ore")
-        .expect("redstone ore");
-    sub_app.add_plugins(
-        mcrs_minecraft_engine::block_simulation::BlockSimulationPlugin::new(BreakOre { ore }),
-    );
-}
-
 fn start() -> PlayServer {
     let mut app = host_app::make_host_app();
     app.add_plugins(VanillaCombatPlugin);
     app.add_plugins(VanillaEntityPhysicsPlugin);
     app.add_plugins(CommandPlugin::<VanillaCommands>::new());
     app.add_plugins(VanillaCommandsPlugin);
-    app.insert_resource(
-        mcrs_minecraft_engine::block_simulation::DimensionBlockRules(install_break_ore),
-    );
-    let mut server = PlayServer::start(app, &[(PLAYER, 4)], 0);
-    let dim = server.dim;
-    let sub_app = host_app::sub_app(&mut server.app, dim);
-    sub_app.init_resource::<SeenExperience>();
-    sub_app.init_resource::<SeenBlocks>();
-    sub_app.init_resource::<SeenExplosions>();
-    sub_app.init_resource::<SeenDestroys>();
-    sub_app.add_systems(
-        bevy_app::FixedUpdate,
-        (
-            record_experience,
-            record_blocks,
-            record_explosions,
-            record_destroys,
-        ),
-    );
-    server
+    PlayServer::start(app, &[(PLAYER, 4)], 0)
 }
 
 fn health_of(server: &mut PlayServer, anchor: Entity) -> f32 {
@@ -260,240 +149,6 @@ fn a_damaged_player_sees_health_dies_and_respawns() {
     );
 }
 
-fn set_block(server: &mut PlayServer, at: mcrs_voxel::BlockPos, state: mcrs_voxel::BlockStateId) {
-    use mcrs_minecraft_engine_world::voxel_update::BlockSetRequest;
-    use mcrs_minecraft_engine_world::world::dimension::Dimension;
-    use mcrs_minecraft_simulation::BlockUpdateFlags;
-    let world = server.world();
-    let dimension = world
-        .query_filtered::<Entity, With<Dimension>>()
-        .single(world)
-        .expect("one dimension");
-    world.write_message(BlockSetRequest {
-        dimension,
-        pos: at,
-        new_state: state,
-        flags: BlockUpdateFlags::ALL,
-        recursion_left: 1,
-    });
-}
-
-#[test]
-fn exp_blk_001_an_explosion_destroys_the_blocks_on_its_rays() {
-    let mut server = start();
-    load_stone_column(&mut server);
-    let (anchor, _) = server.join(PLAYER, "bomber");
-    let stone = crate::support::standalone_corpus()
-        .0
-        .default_state("minecraft:stone")
-        .expect("stone");
-    let at = mcrs_voxel::BlockPos::new(8, 64, 8);
-    set_block(&mut server, at, stone);
-    server.ticks(anchor, 2);
-    assert!(
-        server
-            .world()
-            .resource::<SeenBlocks>()
-            .0
-            .iter()
-            .any(|&(pos, state)| pos == at && state == stone),
-        "the fixture block is in the world before the explosion"
-    );
-
-    assert!(
-        server
-            .world()
-            .contains_resource::<bevy_ecs::message::Messages<
-                mcrs_minecraft_engine_world::block_update::BlockDestroyRequest,
-            >>(),
-        "the block destroy message is registered"
-    );
-    assert!(
-        server
-            .world()
-            .contains_resource::<mcrs_minecraft_block::definition::Blocks>(),
-        "the block table is present"
-    );
-    server
-        .world()
-        .write_message(mcrs_minecraft_combat::ExplosionRequest::new(
-            bevy_math::DVec3::new(8.5, 64.5, 8.5),
-            4.0,
-            None,
-        ));
-    server.ticks(anchor, 2);
-
-    assert!(
-        !server.world().resource::<SeenExplosions>().0.is_empty(),
-        "the explosion system sees the request"
-    );
-    assert!(
-        !server.world().resource::<SeenDestroys>().0.is_empty(),
-        "the explosion names the blocks on its rays"
-    );
-    let seen = server.world().resource::<SeenBlocks>().0.clone();
-    assert!(
-        seen.iter()
-            .any(|&(pos, state)| pos == at && state == mcrs_voxel::BlockStateId::AIR),
-        "the explosion leaves air where the block was"
-    );
-}
-
-/// EXP-TNT-002: an explosion that reaches a TNT block primes it with a chain fuse.
-#[test]
-fn exp_tnt_002_an_explosion_primes_a_tnt_block() {
-    let mut server = start();
-    load_stone_column(&mut server);
-    let (anchor, _) = server.join(PLAYER, "chain");
-    let tnt = crate::support::standalone_corpus()
-        .0
-        .default_state("minecraft:tnt")
-        .expect("the corpus has tnt");
-    let at = mcrs_voxel::BlockPos::new(8, 64, 8);
-    set_block(&mut server, at, tnt);
-    server.ticks(anchor, 2);
-    server
-        .world()
-        .write_message(mcrs_minecraft_combat::ExplosionRequest::new(
-            bevy_math::DVec3::new(8.5, 64.5, 8.5),
-            4.0,
-            None,
-        ));
-    let packets = server.ticks_all(2);
-    assert!(
-        packets.iter().any(|packet| matches!(
-            &packet.data,
-            PacketPayload::AddEntity(add)
-                if add.kind == mcrs_minecraft_entity::entity_type_keys::EntityType::Tnt
-        )),
-        "the primed tnt is announced to the dimension"
-    );
-    let fuses: Vec<i32> = server
-        .world()
-        .query::<&mcrs_minecraft_combat::PrimedTnt>()
-        .iter(server.world())
-        .map(|tnt| tnt.fuse_ticks)
-        .collect();
-    assert!(
-        fuses.iter().any(|fuse| (8..=28).contains(fuse)),
-        "the block becomes primed tnt with a chain fuse, got {fuses:?}"
-    );
-}
-
-#[test]
-fn breaking_a_block_drops_experience_that_the_player_picks_up() {
-    let mut server = start();
-    load_stone_column(&mut server);
-    let (anchor, _) = server.join(PLAYER, "miner");
-
-    let corpus = crate::support::standalone_corpus();
-    let ore = corpus
-        .0
-        .default_state("minecraft:redstone_ore")
-        .expect("the corpus has redstone ore");
-    assert!(
-        corpus.0.state(ore).experience.is_some(),
-        "redstone ore declares its experience"
-    );
-    let at = mcrs_voxel::BlockPos::new(8, 64, 8);
-    let dimension = server.dim;
-    server.world().entity_mut(dimension).insert(
-        mcrs_minecraft_engine::column_streams::ColumnStreams::subscribed_to([
-            mcrs_voxel::ColumnPos::from(at),
-        ]),
-    );
-    set_block(&mut server, at, ore);
-    server.ticks(anchor, 2);
-    let stone = crate::support::standalone_corpus()
-        .0
-        .default_state("minecraft:stone")
-        .expect("stone");
-    set_block(&mut server, mcrs_voxel::BlockPos::new(8, 64, 9), stone);
-    server.ticks(anchor, 3);
-
-    let seen = server.world().resource::<SeenExperience>().0.clone();
-    assert!(!seen.is_empty(), "the destroyed block leaves experience");
-    let player = server.player(anchor);
-    let experience = server
-        .world()
-        .get::<mcrs_minecraft_combat::PlayerExperience>(player)
-        .expect("the player has experience");
-    assert!(
-        experience.total_experience > 0,
-        "the block experience reaches the player"
-    );
-}
-
-/// DMG-NET-008: a projectile is announced, moves through the position packet and is removed.
-#[test]
-fn dmg_net_008_a_projectile_is_announced_and_synchronised() {
-    let mut server = start();
-    load_stone_column(&mut server);
-    let _ = server.join(PLAYER, "arrow-watcher");
-    let position = bevy_math::DVec3::new(20.5, 65.0, 8.5);
-    let arrow = server
-        .world()
-        .spawn((
-            mcrs_minecraft_combat::Projectile::arrow(None, bevy_math::Vec3::ZERO),
-            mcrs_minecraft_combat::CombatPosition(position),
-            mcrs_minecraft_engine_world::entity::physics::Transform::from_translation(position),
-        ))
-        .id();
-    let announced = server.ticks_all(4);
-    let network_id = announced
-        .iter()
-        .find_map(|packet| match &packet.data {
-            PacketPayload::AddEntity(add)
-                if add.kind == mcrs_minecraft_entity::entity_type_keys::EntityType::Arrow =>
-            {
-                Some(add.id.0)
-            }
-            _ => None,
-        })
-        .expect("the arrow is announced");
-    let moved = server.ticks_all(2);
-    assert!(
-        moved.iter().any(|packet| matches!(
-            &packet.data,
-            PacketPayload::EntityPosSync(sync) if sync.entity_id.0 == network_id
-        )),
-        "the flying arrow sends its position"
-    );
-    server.world().despawn(arrow);
-    let removed = server.ticks_all(1);
-    assert!(
-        removed.iter().any(|packet| matches!(
-            &packet.data,
-            PacketPayload::RemoveEntities(remove)
-                if remove.entity_ids.iter().any(|id| id.0 == network_id)
-        )),
-        "the arrow is removed"
-    );
-}
-
-/// DMG-NET-007: an experience orb that combat spawns is announced to the dimension's viewers.
-#[test]
-fn dmg_net_007_an_experience_orb_is_announced_to_the_dimension() {
-    let mut server = start();
-    load_stone_column(&mut server);
-    let (_anchor, _) = server.join(PLAYER, "orb-watcher");
-    let position = bevy_math::DVec3::new(20.5, 64.0, 8.5);
-    server.world().spawn((
-        mcrs_minecraft_combat::ExperienceOrb::new(3),
-        mcrs_minecraft_combat::CombatPosition(position),
-        mcrs_minecraft_engine_world::entity::physics::Transform::from_translation(position),
-    ));
-    let packets = server.ticks_all(4);
-    assert!(
-        packets.iter().any(|packet| matches!(
-            &packet.data,
-            PacketPayload::AddEntity(add)
-                if add.kind == mcrs_minecraft_entity::entity_type_keys::EntityType::ExperienceOrb
-        )),
-        "the orb is announced"
-    );
-}
-
 /// DMG-DEATH-002: a dead survival player scatters the inventory, including the armour slots.
 #[test]
 fn dmg_death_002_death_drops_the_inventory() {
@@ -566,89 +221,6 @@ fn dmg_death_002_death_drops_the_inventory() {
             .occupied()
             .count(),
         0
-    );
-}
-
-/// EXP-TNT-004: using flint and steel on a TNT block lights it with the default fuse.
-#[test]
-fn exp_tnt_004_flint_and_steel_lights_a_tnt_block() {
-    use mcrs_minecraft_engine_item::HolderCommandsExt;
-    use mcrs_minecraft_item_stack::{Count, ItemStack, Kind};
-
-    let mut server = start();
-    load_stone_column(&mut server);
-    let (anchor, _) = server.join(PLAYER, "igniter");
-    survival(&mut server, anchor);
-    let player = server.player(anchor);
-    let flint = server
-        .world()
-        .resource::<mcrs_minecraft_item::Items>()
-        .id_of("minecraft:flint_and_steel")
-        .expect("the corpus has flint and steel");
-    let flint = flint.narrow::<u16>().expect("the item id fits");
-    server
-        .world()
-        .insert_resource(mcrs_minecraft_item_table::ItemTable::leak(vec![
-            Vec::new();
-            usize::from(
-                flint
-            ) + 1
-        ]));
-    let mut values = vec![None; 47];
-    values[0] = Some(ItemStack::new(
-        Kind(flint),
-        Count::new(1).expect("one item"),
-    ));
-    server
-        .world()
-        .commands()
-        .entity(player)
-        .load_inventory(values);
-    let tnt = crate::support::standalone_corpus()
-        .0
-        .default_state("minecraft:tnt")
-        .expect("the corpus has tnt");
-    let at = mcrs_voxel::BlockPos::new(8, 64, 8);
-    set_block(&mut server, at, tnt);
-    server.ticks(anchor, 2);
-
-    server.queue(
-        anchor,
-        &ServerboundUseItemOn {
-            hand: mcrs_minecraft_protocol_game::Hand::Main,
-            block_pos: at,
-            face: mcrs_minecraft_core::Direction::Up,
-            cursor_x: 0.5,
-            cursor_y: 0.5,
-            cursor_z: 0.5,
-            inside_block: false,
-            world_border_hit: false,
-            sequence: VarInt(1),
-        },
-    );
-    let packets = server.ticks_all(2);
-
-    assert!(
-        server.world().resource::<SeenDestroys>().0.contains(&at),
-        "lighting removes the TNT block"
-    );
-    let fuses: Vec<i32> = server
-        .world()
-        .query::<&mcrs_minecraft_combat::PrimedTnt>()
-        .iter(server.world())
-        .map(|tnt| tnt.fuse_ticks)
-        .collect();
-    assert!(
-        fuses.iter().any(|fuse| (60..=80).contains(fuse)),
-        "the lit TNT starts with the eighty tick fuse, got {fuses:?}"
-    );
-    assert!(
-        packets.iter().any(|packet| matches!(
-            &packet.data,
-            PacketPayload::AddEntity(add)
-                if add.kind == mcrs_minecraft_entity::entity_type_keys::EntityType::Tnt
-        )),
-        "the primed tnt is announced to the dimension"
     );
 }
 
@@ -924,6 +496,24 @@ fn dmg_env_004_a_mob_with_its_eyes_in_a_block_suffocates() {
 
 fn survival(server: &mut PlayServer, anchor: Entity) {
     command(server, anchor, "gamemode survival");
+}
+
+fn set_block(server: &mut PlayServer, at: mcrs_voxel::BlockPos, state: mcrs_voxel::BlockStateId) {
+    use mcrs_minecraft_engine_world::voxel_update::BlockSetRequest;
+    use mcrs_minecraft_engine_world::world::dimension::Dimension;
+    use mcrs_minecraft_simulation::BlockUpdateFlags;
+    let world = server.world();
+    let dimension = world
+        .query_filtered::<Entity, With<Dimension>>()
+        .single(world)
+        .expect("one dimension");
+    world.write_message(BlockSetRequest {
+        dimension,
+        pos: at,
+        new_state: state,
+        flags: BlockUpdateFlags::ALL,
+        recursion_left: 1,
+    });
 }
 
 fn place(server: &mut PlayServer, positions: &[(i32, i32, i32)], name: &str) {

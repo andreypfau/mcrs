@@ -1,7 +1,7 @@
 use bevy_ecs::component::Component;
 use glam::{DVec3, Vec3};
 
-/// World position of an entity for combat, drops, projectiles and experience.
+/// World position of an entity for combat and drops.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct CombatPosition(pub DVec3);
 

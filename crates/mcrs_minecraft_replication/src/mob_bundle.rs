@@ -63,7 +63,7 @@ impl Entries {
             Self::Living(living) => {
                 let mut entries = Vec::new();
                 if living.on_fire {
-                    entries.push(shared_flags_entry());
+                    entries.push(shared_flags_entry(living.on_fire));
                 }
                 if living.dying {
                     entries.push(pose_entry());
@@ -81,7 +81,7 @@ impl Entries {
             (Self::Living(now), Self::Living(sent)) => {
                 let mut changed = Vec::new();
                 if now.on_fire != sent.on_fire {
-                    changed.push(shared_flags_entry());
+                    changed.push(shared_flags_entry(now.on_fire));
                 }
                 if now.dying != sent.dying {
                     changed.push(pose_entry());
@@ -102,7 +102,7 @@ impl Entries {
 pub(crate) fn spawn_data(looks: &MobLooks, living: LivingEntries) -> Metadata<'static> {
     let mut entries = Vec::with_capacity(4 + looks.type_entries.len());
     if living.on_fire {
-        entries.push(shared_flags_entry());
+        entries.push(shared_flags_entry(true));
     }
     if living.dying {
         entries.push(pose_entry());
@@ -124,10 +124,10 @@ pub(crate) fn spawn_data(looks: &MobLooks, living: LivingEntries) -> Metadata<'s
     Metadata(entries)
 }
 
-pub(crate) fn shared_flags_entry() -> MetadataEntry<'static> {
+pub(crate) fn shared_flags_entry(on_fire: bool) -> MetadataEntry<'static> {
     MetadataEntry {
         index: SHARED_FLAGS,
-        value: MetaDataValue::Byte(1),
+        value: MetaDataValue::Byte(if on_fire { 1 } else { 0 }),
     }
 }
 
@@ -196,4 +196,15 @@ pub(crate) fn spawn_extras(
         },
     )?;
     Ok(bytes.freeze())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_cleared_fire_flag_reaches_the_client_as_zero() {
+        assert_eq!(shared_flags_entry(false).value, MetaDataValue::Byte(0));
+        assert_eq!(shared_flags_entry(true).value, MetaDataValue::Byte(1));
+    }
 }

@@ -25,9 +25,7 @@ use bevy_tasks::{ComputeTaskPool, ParallelSliceMut, TaskPool};
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
-use mcrs_minecraft_engine_world::block_update::{
-    BlockDestroyRequest, BlockPlaced, BlockSetRequest,
-};
+use mcrs_minecraft_engine_world::block_update::{BlockPlaced, BlockSetRequest};
 use mcrs_minecraft_engine_world::owned_columns::{self, OwnedColumns};
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::{self, CellBlockWrite, VoxelUpdateSet};
@@ -63,9 +61,8 @@ use crate::column_ticks::{ColumnTicks, LandedTicks, StoredTick};
 use crate::coordinator::clock::GameTime;
 use crate::random_tick_speed::RandomTickSpeed;
 use crate::world_kinds::{WorldFacts, WorldKinds};
-use mcrs_minecraft_engine_world::block_drops::{BlockDrops, ExperienceDropped, ItemDropped};
+use mcrs_minecraft_engine_world::block_drops::{BlockDrops, ItemDropped};
 use mcrs_minecraft_engine_world::world_seed::WorldSeed;
-use mcrs_voxel::BlockPos;
 
 /// Rules under which no block reacts: no block has a behaviour that a specification states yet.
 /// Writes, neighbour and shape updates, scheduled ticks and block events still run, and a tick
@@ -117,8 +114,6 @@ impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
         app.init_resource::<LandedTicks>();
         app.init_resource::<BroadcastMarks>();
         app.add_message::<ItemDropped>();
-        app.add_message::<ExperienceDropped>();
-        app.add_message::<BlockDestroyRequest>();
         app.add_plugins(RandomTickIndexPlugin);
         app.add_systems(
             FixedUpdate,
@@ -348,7 +343,6 @@ struct StepOutlets<'w, 's> {
     streams: Query<'w, 's, &'static ColumnStreams>,
     changes: MessageWriter<'w, ColumnChange>,
     dropped: MessageWriter<'w, ItemDropped>,
-    experience: MessageWriter<'w, ExperienceDropped>,
 }
 
 #[expect(
@@ -361,7 +355,6 @@ struct StepOutlets<'w, 's> {
 )]
 fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'static>(
     mut requests: MessageReader<BlockSetRequest>,
-    mut destroys: MessageReader<BlockDestroyRequest>,
     mut blocks: WorldViewMut,
     mut placed: MessageWriter<BlockPlaced>,
     ticking: Query<(), With<BlockTicking>>,
@@ -431,37 +424,6 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
                 state: request.new_state,
                 flags: request.flags,
                 limit: u16::try_from(request.recursion_left).unwrap_or(0),
-            },
-        });
-    }
-    for request in destroys.read() {
-        if request.dimension != dimension {
-            tracing::warn!(
-                target: "voxel_update",
-                dimension = ?request.dimension,
-                pos = ?request.pos,
-                "a block destroy names another dimension; dropping",
-            );
-            continue;
-        }
-        if !owned_columns::owns(owned, ColumnPos::from(request.pos)) {
-            if let Some(outbox) = links.outbox.as_mut() {
-                outbox.0.destroys.push(voxel_update::CellBlockDestroy {
-                    pos: request.pos,
-                    drops: request.drops,
-                });
-            }
-            continue;
-        }
-        let stamp = SubTick::runtime(now, counter);
-        counter = counter.saturating_add(1);
-        inbound.push(Message {
-            stamp,
-            origin: ChainOrigin { stamp, partition },
-            body: MessageBody::Destroy {
-                pos: request.pos,
-                drops: request.drops,
-                limit: 512,
             },
         });
     }
@@ -599,20 +561,6 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
                 stack,
             });
         }
-        if let Some(experience) = definitions.state(block.state).experience
-            && let Some(provider) = definitions.experience_drop(experience)
-        {
-            let (min, max) = provider.bounds();
-            if max > 0 {
-                let amount = experience_amount(min, max, block.pos);
-                if amount > 0 {
-                    outlets.experience.write(ExperienceDropped {
-                        at: block.pos,
-                        amount,
-                    });
-                }
-            }
-        }
     }
     if let Some(outbox) = links.outbox.as_mut() {
         outbox.0.messages.append(&mut out.outbound);
@@ -624,23 +572,6 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     simulation.inbound = inbound;
     ledgers.clear();
     simulation.ledgers = ledgers;
-}
-
-fn experience_amount(min: i32, max: i32, at: BlockPos) -> i32 {
-    let low = min.max(0);
-    let high = max.max(low);
-    if high == low {
-        return low;
-    }
-    let mut hash = u64::from(at.x as u32)
-        .wrapping_mul(0x9E37_79B9_7F4A_7C15)
-        .wrapping_add(u64::from(at.y as u32).wrapping_mul(0xC2B2_AE3D_27D4_EB4F))
-        .wrapping_add(u64::from(at.z as u32).wrapping_mul(0x1656_67B1_9E37_79F9));
-    hash ^= hash >> 33;
-    hash = hash.wrapping_mul(0xFF51_AFD7_ED55_8CCD);
-    hash ^= hash >> 33;
-    let span = u64::try_from(i64::from(high) - i64::from(low) + 1).unwrap_or(1);
-    low + i32::try_from(hash % span).unwrap_or(0)
 }
 
 /// Lists the positions that tick randomly in each loaded section once the block table landed.

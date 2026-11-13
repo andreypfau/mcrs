@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::prelude::*;
 use bevy_ecs::query::QueryData;
@@ -6,7 +8,7 @@ use mcrs_minecraft_block::definition::BlockStateFlags;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::fluid_keys::Fluid;
 use mcrs_minecraft_damage::{DamageSource, DamageTypeFlags, DamageTypeRules, Hit};
-use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode};
+use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketTarget, to, to_target,
 };
@@ -19,7 +21,6 @@ use mcrs_minecraft_engine_brain::EntityRows;
 use mcrs_minecraft_engine_item::{HolderCommandsExt, Selected, Slots};
 use mcrs_minecraft_engine_physics::{Mob, MobChanges, Mobs, hurt_mob};
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
-use mcrs_minecraft_engine_world::block_drops::ExperienceDropped;
 use mcrs_minecraft_engine_world::entity::EntityUuid;
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform, Velocity};
 use mcrs_minecraft_engine_world::entity::player::{ChangeDimensionRequest, Player};
@@ -48,7 +49,7 @@ use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundAttack, ServerboundChangeDifficulty, ServerboundPlayerAction,
-    ServerboundPlayerInput, ServerboundSetCarriedItem, ServerboundUseItemOn,
+    ServerboundPlayerInput, ServerboundSetCarriedItem,
 };
 use mcrs_minecraft_registries::{CurrentRegistries, WireId};
 
@@ -87,15 +88,13 @@ use crate::environment::{
 };
 use crate::equipment::{EntityEquipment, EquipmentChangedEvent};
 use crate::events::{DamageDealt, DamageRequest, DeathEvent, RespawnRequest};
-use crate::experience::{ExperienceOrb, PlayerExperience};
-use crate::explosions::IgniteTntRequest;
+use crate::experience::PlayerExperience;
 use crate::health::{
     Armor, ArmorToughness, AttackDamage, DamageCooldown, Health, KnockbackResistance,
 };
 use crate::hunger::{CombatDifficulty, FoodData};
 use crate::life_cycle::DeathState;
 use crate::position::CombatPosition;
-use crate::projectiles::{Projectile, ProjectileKind};
 
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 struct CombatVitals {
@@ -143,11 +142,18 @@ impl CombatVitals {
     }
 }
 
+#[derive(Resource, Default)]
+struct WorldSpawn {
+    value: Option<mcrs_minecraft_save::RespawnData>,
+    loaded: bool,
+}
+
 #[derive(Component, Debug, Default)]
 struct EnvironmentSync {
     air: Option<i32>,
     fire: Option<bool>,
     frozen: Option<i32>,
+    flags: Option<i8>,
 }
 
 #[derive(Component, Debug, Default)]
@@ -276,11 +282,15 @@ fn on_client_command(
 
 fn on_change_difficulty(
     on: On<Received<ServerboundChangeDifficulty>>,
+    op_levels: Query<&PlayerOpLevel>,
     mut difficulty: ResMut<CombatDifficulty>,
 ) {
     let Some(packet) = on.packet() else {
         return;
     };
+    if !op_levels.get(on.entity).is_ok_and(|level| level.0 >= 2) {
+        return;
+    }
     difficulty.0 = packet.difficulty;
 }
 
@@ -329,63 +339,6 @@ fn on_set_carried_item(
     let slot = u8::try_from(packet.slot).unwrap_or(0).min(8);
     selected.0 = slot;
     loaded.selected_item_slot = i32::from(slot);
-}
-
-fn on_player_use_item_on(
-    on: On<Received<ServerboundUseItemOn>>,
-    players: Query<(Entity, &InDimension, &Slots, &Selected)>,
-    stacks: Query<&Kind>,
-    items: Option<Res<Items>>,
-    mut ignite: MessageWriter<IgniteTntRequest>,
-) {
-    let Some(packet) = on.packet() else {
-        return;
-    };
-    let Ok((player, dimension, slots, selected)) = players.get(on.entity) else {
-        return;
-    };
-    let Some(items) = items else {
-        return;
-    };
-    let slot = match packet.hand {
-        mcrs_minecraft_protocol_game::Hand::Main => usize::from(selected.0),
-        mcrs_minecraft_protocol_game::Hand::Off => usize::from(slots::OFFHAND),
-    };
-    let Some(kind) = slots
-        .get(slot)
-        .and_then(|stack| stacks.get(stack).ok())
-        .map(|kind| kind.0)
-    else {
-        return;
-    };
-    let Some(id) = mcrs_minecraft_resource::Id::<Item>::checked(kind, items.len()) else {
-        return;
-    };
-    let Some(entry) = items.get(id) else {
-        return;
-    };
-    if !matches!(
-        entry.identifier.as_str(),
-        "minecraft:flint_and_steel" | "minecraft:fire_charge"
-    ) {
-        return;
-    }
-    ignite.write(IgniteTntRequest {
-        dimension: dimension.0,
-        pos: packet.block_pos,
-        owner: Some(player),
-    });
-}
-
-fn spawn_block_experience(mut commands: Commands, mut dropped: MessageReader<ExperienceDropped>) {
-    for drop in dropped.read() {
-        let position = drop.at.as_dvec3() + DVec3::splat(0.5);
-        commands.spawn((
-            ExperienceOrb::new(drop.amount),
-            CombatPosition(position),
-            Transform::from_translation(position),
-        ));
-    }
 }
 
 fn tick_player_hunger(
@@ -502,6 +455,7 @@ fn tick_player_environment(
         );
         let below = BlockPos::new(feet.x, feet.y.saturating_sub(1), feet.z);
 
+        let mut eye_in_water = false;
         let mut in_water = false;
         let mut in_lava = false;
         let mut in_fire = false;
@@ -512,7 +466,8 @@ fn tick_player_environment(
         let mut on_magma = false;
         let view = world.get(in_dimension.0);
         if let (Some(definitions), Some(view)) = (definitions.as_deref(), view.as_ref()) {
-            in_water = is_water(view, definitions, feet) || is_water(view, definitions, eye);
+            eye_in_water = is_water(view, definitions, eye);
+            in_water = is_water(view, definitions, feet);
             in_lava = is_lava(view, definitions, feet) || is_lava(view, definitions, eye);
             in_fire = is_block(view, definitions, feet, "minecraft:fire")
                 || is_block(view, definitions, feet, "minecraft:soul_fire");
@@ -583,7 +538,7 @@ fn tick_player_environment(
             vitals.lava_ticks = 0;
             continue;
         }
-        if in_water && !effects.is_some_and(|effects| effects.has(MobEffect::WaterBreathing)) {
+        if eye_in_water && !effects.is_some_and(|effects| effects.has(MobEffect::WaterBreathing)) {
             if drowning_damage && air.tick_underwater() {
                 damage.write(DamageRequest::new(
                     entity,
@@ -770,7 +725,8 @@ fn tick_mob_environment(
             (position.y + 1.62).floor() as i32,
             position.z.floor() as i32,
         );
-        let in_water = is_water(&view, definitions, feet) || is_water(&view, definitions, eye);
+        let feet_in_water = is_water(&view, definitions, feet);
+        let eye_in_water = is_water(&view, definitions, eye);
         let in_lava = is_lava(&view, definitions, feet) || is_lava(&view, definitions, eye);
         let in_fire = is_block(&view, definitions, feet, "minecraft:fire")
             || is_block(&view, definitions, feet, "minecraft:soul_fire");
@@ -786,8 +742,10 @@ fn tick_mob_environment(
                 && definitions.state(state).fluid.is_none()
         });
 
-        if in_water {
+        if feet_in_water {
             living.fire_ticks = 0;
+        }
+        if eye_in_water {
             living.air -= 1;
             if in_lava {
                 living.fire_ticks = 300;
@@ -822,7 +780,7 @@ fn tick_mob_environment(
                     .with_flags(flags(damage_types::LAVA)),
             ));
         }
-        if in_water && living.air <= -20 {
+        if eye_in_water && living.air <= -20 {
             living.air = 0;
             if drowning_damage {
                 hits.push((
@@ -1216,26 +1174,47 @@ fn sync_player_environment_metadata(
             &FireState,
             &FreezeState,
             &mut EnvironmentSync,
+            Option<&PlayerInputState>,
+            Option<&ActiveEffects>,
+            Option<&PlayerFlying>,
         ),
         With<Player>,
     >,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
-    for (owner, dimension, air, fire, freeze, mut sync) in &mut players {
+    for (owner, dimension, air, fire, freeze, mut sync, input, effects, flying) in &mut players {
         let on_fire = fire.remaining_fire_ticks > 0;
+        let mut flags = 0;
+        if on_fire {
+            flags |= entity_data_index::SHARED_FLAG_ON_FIRE;
+        }
+        if input.is_some_and(|input| input.sneaking) {
+            flags |= entity_data_index::SHARED_FLAG_CROUCHING;
+        }
+        if input.is_some_and(|input| input.sprinting) {
+            flags |= entity_data_index::SHARED_FLAG_SPRINTING;
+        }
+        if effects.is_some_and(|effects| effects.has(MobEffect::Invisibility)) {
+            flags |= entity_data_index::SHARED_FLAG_INVISIBLE;
+        }
+        if flying.is_some_and(|flying| flying.0) {
+            flags |= entity_data_index::SHARED_FLAG_FLYING;
+        }
         if sync.air == Some(air.air)
             && sync.fire == Some(on_fire)
             && sync.frozen == Some(freeze.ticks_frozen)
+            && sync.flags == Some(flags)
         {
             continue;
         }
         sync.air = Some(air.air);
         sync.fire = Some(on_fire);
         sync.frozen = Some(freeze.ticks_frozen);
+        sync.flags = Some(flags);
         let metadata = Metadata(vec![
             MetadataEntry {
                 index: entity_data_index::SHARED_FLAGS,
-                value: MetaDataValue::Byte(if on_fire { 1 } else { 0 }),
+                value: MetaDataValue::Byte(flags),
             },
             MetadataEntry {
                 index: entity_data_index::AIR_SUPPLY,
@@ -1474,24 +1453,20 @@ fn mob_name(mob: &Mob) -> Text<mcrs_minecraft_text::ItemHover> {
     }
 }
 
-fn projectile_name(kind: ProjectileKind) -> Text<mcrs_minecraft_text::ItemHover> {
-    Text::translate(kind.display_key(), Vec::new())
-}
-
 fn announce_player_deaths(
     mut deaths: MessageReader<DeathEvent>,
-    players: Query<(&Owner, &EntityUuid, Option<&GameProfile>), With<Player>>,
+    players: Query<(&Owner, &InDimension, &EntityUuid, Option<&GameProfile>), With<Player>>,
     mobs: Option<Res<Mobs>>,
-    projectiles: Query<(&EntityUuid, &Projectile)>,
+    viewers: Query<(&Owner, &InDimension)>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
     for death in deaths.read() {
-        let Ok((owner, _, profile)) = players.get(death.entity) else {
+        let Ok((owner, dimension, _, profile)) = players.get(death.entity) else {
             continue;
         };
         let player_id = (owner.0.0 as u32 * 2 + 1) as i32;
-        packets.write(to(
-            owner.0,
+        packets.write(to_target(
+            players_in_dimension(&viewers, dimension.0),
             PacketPayload::EntityEvent(ClientboundEntityEvent {
                 entity_id: player_id,
                 entity_status: ClientboundEntityEvent::DIED,
@@ -1511,19 +1486,13 @@ fn announce_player_deaths(
             .and_then(|key| {
                 players
                     .iter()
-                    .find(|(_, uuid, _)| EntityKey(uuid.0.as_u128()) == key)
-                    .and_then(|(_, _, profile)| profile.cloned())
+                    .find(|(_, _, uuid, _)| EntityKey(uuid.0.as_u128()) == key)
+                    .and_then(|(_, _, _, profile)| profile.cloned())
                     .map(|profile| Text::text(profile.username))
                     .or_else(|| {
                         mobs.as_deref()
                             .and_then(|mobs| mobs.0.values().find(|mob| mob.uuid == key.0))
                             .map(mob_name)
-                    })
-                    .or_else(|| {
-                        projectiles
-                            .iter()
-                            .find(|(uuid, _)| EntityKey(uuid.0.as_u128()) == key)
-                            .map(|(_, projectile)| projectile_name(projectile.kind))
                     })
             });
         let mut args = vec![name];
@@ -1562,6 +1531,19 @@ fn send_player_knockback(
     }
 }
 
+fn players_in_dimension(
+    viewers: &Query<(&Owner, &InDimension)>,
+    dimension: Entity,
+) -> PacketTarget {
+    PacketTarget::PlayerSet(
+        viewers
+            .iter()
+            .filter(|(_, in_dimension)| in_dimension.0 == dimension)
+            .map(|(owner, _)| owner.0)
+            .collect(),
+    )
+}
+
 fn hurt_yaw(target: DVec3, source: Option<DVec3>) -> f32 {
     source.map_or(0.0, |source| {
         let offset = source - target;
@@ -1571,12 +1553,13 @@ fn hurt_yaw(target: DVec3, source: Option<DVec3>) -> f32 {
 
 fn send_player_damage(
     mut dealt: MessageReader<DamageDealt>,
-    players: Query<(&Owner, &EntityUuid, Option<&Transform>), With<Player>>,
+    players: Query<(&Owner, &InDimension, &EntityUuid, Option<&Transform>), With<Player>>,
     entities: Query<(&EntityUuid, Option<&GlobalEntityId>)>,
+    viewers: Query<(&Owner, &InDimension)>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
     for event in dealt.read() {
-        let Ok((owner, _, transform)) = players.get(event.target) else {
+        let Ok((owner, dimension, _, transform)) = players.get(event.target) else {
             continue;
         };
         let player_id = (owner.0.0 as u32 * 2 + 1) as i32;
@@ -1584,8 +1567,8 @@ fn send_player_damage(
             key.and_then(|key| {
                 players
                     .iter()
-                    .find(|(_, uuid, _)| EntityKey(uuid.0.as_u128()) == key)
-                    .map(|(owner, _, _)| player_network_id(owner.0))
+                    .find(|(_, _, uuid, _)| EntityKey(uuid.0.as_u128()) == key)
+                    .map(|(owner, _, _, _)| player_network_id(owner.0))
                     .or_else(|| {
                         entities.iter().find_map(|(uuid, global)| {
                             (EntityKey(uuid.0.as_u128()) == key)
@@ -1599,8 +1582,8 @@ fn send_player_damage(
         if event.outcome != mcrs_minecraft_damage::HitOutcome::Full {
             continue;
         }
-        packets.write(to(
-            owner.0,
+        packets.write(to_target(
+            players_in_dimension(&viewers, dimension.0),
             PacketPayload::DamageEvent(ClientboundDamageEvent {
                 entity_id: VarInt(player_id),
                 damage_type: VarInt(event.hit.damage_type as i32),
@@ -1613,8 +1596,8 @@ fn send_player_damage(
             && !event.hit.flags.no_knockback
             && event.hit.source.source_position.is_some()
         {
-            packets.write(to(
-                owner.0,
+            packets.write(to_target(
+                players_in_dimension(&viewers, dimension.0),
                 PacketPayload::HurtAnimation(ClientboundHurtAnimation {
                     entity_id: VarInt(player_id),
                     yaw: hurt_yaw(
@@ -1625,6 +1608,17 @@ fn send_player_damage(
             ));
         }
     }
+}
+
+fn load_world_spawn(save: Option<Res<WorldSave>>, mut world_spawn: ResMut<WorldSpawn>) {
+    if world_spawn.loaded {
+        return;
+    }
+    let Some(save) = save else {
+        return;
+    };
+    world_spawn.value = read_level_dat(&save.0).ok().map(|level| level.spawn);
+    world_spawn.loaded = true;
 }
 
 #[derive(QueryData)]
@@ -1646,6 +1640,8 @@ struct RespawnPlayer {
     effects: Option<&'static mut ActiveEffects>,
     respawn_point: Option<&'static PlayerRespawnPoint>,
     loaded: Option<&'static mut LoadedPlayerDat>,
+    cooldown: Option<&'static mut DamageCooldown>,
+    velocity: Option<&'static mut Velocity>,
 }
 
 #[expect(
@@ -1662,12 +1658,16 @@ fn respawn_players(
     )>,
     game_modes: Query<&PlayerGameMode>,
     rules: Option<Res<GameRules>>,
-    save: Option<Res<WorldSave>>,
+    world_spawn: Res<WorldSpawn>,
     time: Res<GameTime>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
     mut changes: MessageWriter<ChangeDimensionRequest>,
 ) {
+    let mut seen = HashSet::new();
     for request in requests.read() {
+        if !seen.insert(request.player) {
+            continue;
+        }
         let Ok(RespawnPlayerItem {
             owner,
             mut health,
@@ -1685,6 +1685,8 @@ fn respawn_players(
             effects,
             respawn_point,
             loaded,
+            cooldown,
+            velocity,
         }) = players.get_mut(request.player)
         else {
             continue;
@@ -1692,18 +1694,14 @@ fn respawn_players(
         let Ok((dimension_type, dimension_key)) = dimensions.get(in_dimension.0) else {
             continue;
         };
-        let level = save
-            .as_deref()
-            .and_then(|save| read_level_dat(&save.0).ok())
-            .map(|level| level.spawn);
-        let (target, spawn, rotation) = respawn_choice(
+        let known = *transform;
+        let (target, destination) = respawn_destination(
             respawn_point,
-            level,
+            world_spawn.value.clone(),
             (*dimension_key).clone(),
             vitals.respawn_at,
         );
-        let known = *transform;
-        let destination = Transform::from_translation(spawn).with_rotation(rotation);
+        let spawn = destination.translation;
         let keep_inventory = rules
             .as_deref()
             .is_some_and(|rules| rules.is_on(GameRule::KeepInventory));
@@ -1718,6 +1716,12 @@ fn respawn_players(
             effects.clear();
         }
         *air = AirSupply::default();
+        if let Some(mut cooldown) = cooldown {
+            *cooldown = DamageCooldown::default();
+        }
+        if let Some(mut velocity) = velocity {
+            velocity.0 = DVec3::ZERO;
+        }
         fire.remaining_fire_ticks = 0;
         freeze.ticks_frozen = 0;
         *environment_sync = EnvironmentSync::default();
@@ -1762,6 +1766,22 @@ fn respawn_players(
         ));
         *transform = destination;
     }
+}
+
+fn respawn_destination(
+    bed: Option<&PlayerRespawnPoint>,
+    level: Option<mcrs_minecraft_save::RespawnData>,
+    current: ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>,
+    fallback: Transform,
+) -> (
+    ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>,
+    Transform,
+) {
+    let (target, spawn, rotation) = respawn_choice(bed, level, current, fallback);
+    (
+        target,
+        Transform::from_translation(spawn).with_rotation(rotation),
+    )
 }
 
 fn respawn_choice(
@@ -1868,8 +1888,8 @@ impl Plugin for CombatRuntimePlugin {
                 DamageTypeRules::from_registries(registries)
             });
         app.insert_resource(DamageTypeRulesResource(rules));
+        app.init_resource::<WorldSpawn>();
         app.init_resource::<WorldBorderState>();
-        app.add_message::<ExperienceDropped>();
         app.add_observer(note_ground_pos);
         app.add_observer(note_ground_pos_rot);
         app.add_observer(note_ground_rot);
@@ -1879,8 +1899,7 @@ impl Plugin for CombatRuntimePlugin {
             .add_observer(on_change_difficulty)
             .add_observer(on_player_input)
             .add_observer(on_player_action)
-            .add_observer(on_set_carried_item)
-            .add_observer(on_player_use_item_on);
+            .add_observer(on_set_carried_item);
         app.add_systems(
             FixedUpdate,
             (
@@ -1890,7 +1909,6 @@ impl Plugin for CombatRuntimePlugin {
                 tick_player_environment,
                 tick_mob_environment,
                 sync_player_environment_metadata,
-                spawn_block_experience,
             )
                 .chain()
                 .in_set(CombatSet::Pre),
@@ -1898,6 +1916,7 @@ impl Plugin for CombatRuntimePlugin {
         app.add_systems(
             FixedUpdate,
             (
+                load_world_spawn,
                 clear_loaded_inventory_on_death,
                 respawn_players,
                 sync_player_combat,
@@ -1910,8 +1929,8 @@ impl Plugin for CombatRuntimePlugin {
         app.add_systems(
             FixedUpdate,
             (
-                send_equipment_snapshot,
                 send_equipment_changes,
+                send_equipment_snapshots,
                 send_player_damage,
                 send_player_knockback,
                 announce_player_deaths,
@@ -2095,25 +2114,38 @@ fn save_player_inventory(
     }
 }
 
-fn send_equipment_snapshot(
-    players: Query<(&Owner, &InDimension, &EntityEquipment), With<Player>>,
-    viewers: Query<(&Owner, &InDimension), With<Player>>,
+fn send_equipment_snapshots(
+    targets: Query<
+        (&Owner, &InDimension, &EntityEquipment),
+        (
+            With<Player>,
+            Or<(Added<EntityEquipment>, Added<Owner>, Added<InDimension>)>,
+        ),
+    >,
+    viewers: Query<(&Owner, &InDimension)>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
-    for (owner, dimension, equipment) in &players {
+    for (owner, dimension, equipment) in &targets {
         let slots: Vec<_> = equipment
             .iter()
-            .map(|(slot, item)| {
-                let stack = item.map_or_else(ProtoStack::default, |item| ProtoStack {
-                    id: WireId::<Item>::new(u16::try_from(item).unwrap_or(u16::MAX)),
-                    count: 1,
-                    components: Default::default(),
-                });
-                (slot, stack)
+            .filter_map(|(slot, item)| {
+                item.map(|item| {
+                    (
+                        slot,
+                        ProtoStack {
+                            id: WireId::<Item>::new(u16::try_from(item).unwrap_or(u16::MAX)),
+                            count: 1,
+                            components: Default::default(),
+                        },
+                    )
+                })
             })
             .collect();
-        for (&Owner(session), seen) in &viewers {
-            if seen.0 != dimension.0 {
+        if slots.is_empty() {
+            continue;
+        }
+        for (&Owner(session), &InDimension(viewer_dimension)) in &viewers {
+            if viewer_dimension != dimension.0 {
                 continue;
             }
             packets.write(to(
@@ -2183,6 +2215,80 @@ mod tests {
     }
 
     #[test]
+    fn shared_flags_keep_crouch_and_sprint_when_fire_is_off() {
+        let mut app = App::new();
+        app.add_message::<OutboundPlayerPacket>();
+        app.init_resource::<SeenPackets>();
+        app.add_systems(
+            Update,
+            (sync_player_environment_metadata, record_packets).chain(),
+        );
+        app.world_mut().spawn((
+            Player,
+            Owner(PlayerSession(1)),
+            InDimension(Entity::PLACEHOLDER),
+            AirSupply::default(),
+            FireState::default(),
+            FreezeState::default(),
+            EnvironmentSync::default(),
+            PlayerInputState {
+                sneaking: true,
+                sprinting: true,
+                jumping: false,
+            },
+        ));
+        app.update();
+        let packets = &app.world().resource::<SeenPackets>().0;
+        let flags = packets.iter().find_map(|packet| match packet {
+            PacketPayload::SetEntityData(packet) => packet
+                .metadata
+                .0
+                .iter()
+                .find(|entry| entry.index == entity_data_index::SHARED_FLAGS)
+                .and_then(|entry| match entry.value {
+                    MetaDataValue::Byte(flags) => Some(flags),
+                    _ => None,
+                }),
+            _ => None,
+        });
+        assert_eq!(
+            flags,
+            Some(
+                entity_data_index::SHARED_FLAG_CROUCHING | entity_data_index::SHARED_FLAG_SPRINTING
+            )
+        );
+    }
+
+    #[test]
+    fn equipment_snapshots_are_not_resent_every_tick() {
+        let mut app = App::new();
+        app.add_message::<OutboundPlayerPacket>();
+        app.init_resource::<SeenPackets>();
+        app.add_systems(Update, (send_equipment_snapshots, record_packets).chain());
+        let mut equipment = EntityEquipment::new();
+        equipment.set(
+            mcrs_minecraft_item::component::equippable::EquipmentSlot::MainHand,
+            Some(1),
+        );
+        app.world_mut().spawn((
+            Player,
+            Owner(PlayerSession(1)),
+            InDimension(Entity::PLACEHOLDER),
+            equipment,
+        ));
+        app.world_mut().spawn((
+            Player,
+            Owner(PlayerSession(2)),
+            InDimension(Entity::PLACEHOLDER),
+        ));
+        app.update();
+        assert_eq!(app.world().resource::<SeenPackets>().0.len(), 2);
+        app.world_mut().resource_mut::<SeenPackets>().0.clear();
+        app.update();
+        assert!(app.world().resource::<SeenPackets>().0.is_empty());
+    }
+
+    #[test]
     fn dmg_net_001_and_dmg_net_006_only_full_knockback_hits_reach_the_client() {
         let mut app = App::new();
         app.add_message::<DamageDealt>();
@@ -2194,6 +2300,7 @@ mod tests {
             .spawn((
                 Player,
                 Owner(PlayerSession(1)),
+                InDimension(Entity::PLACEHOLDER),
                 EntityUuid(mcrs_minecraft_protocol::uuid::Uuid::from_u128(7)),
             ))
             .id();

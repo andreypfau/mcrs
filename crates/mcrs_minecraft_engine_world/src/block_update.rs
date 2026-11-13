@@ -1,19 +1,7 @@
-pub use crate::voxel_update::{BlockDestroyRequest, BlockPlaced, BlockSetRequest};
+pub use crate::voxel_update::{BlockPlaced, BlockSetRequest};
 use bevy_ecs::entity::Entity;
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 use mcrs_voxel::{BlockPos, BlockStateId};
-
-pub fn destroy_block<P: Into<BlockPos>>(
-    dimension: Entity,
-    pos: P,
-    drops: bool,
-) -> BlockDestroyRequest {
-    BlockDestroyRequest {
-        dimension,
-        pos: pos.into(),
-        drops,
-    }
-}
 
 pub fn remove_block<P: Into<BlockPos>>(dimension: Entity, pos: P) -> BlockSetRequest {
     BlockSetRequest {

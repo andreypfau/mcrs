@@ -18,11 +18,3 @@ pub struct ItemDropped {
     pub at: BlockPos,
     pub stack: ItemStack,
 }
-
-/// The experience that a block left at `at` when the block simulation destroyed it with its
-/// drops, in the dimension world of the block.
-#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ExperienceDropped {
-    pub at: BlockPos,
-    pub amount: i32,
-}

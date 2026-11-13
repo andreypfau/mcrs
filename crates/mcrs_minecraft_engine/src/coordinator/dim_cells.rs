@@ -486,7 +486,6 @@ impl DimCells {
             tickets,
             halo,
             writes,
-            destroys,
             crossings,
             messages,
             ledgers,
@@ -526,11 +525,6 @@ impl DimCells {
         for write in writes {
             if let Some(inbox) = inbox(cells, dim.owner(ColumnPos::from(write.pos))) {
                 inbox.writes.push(write);
-            }
-        }
-        for destroy in destroys {
-            if let Some(inbox) = inbox(cells, dim.owner(ColumnPos::from(destroy.pos))) {
-                inbox.destroys.push(destroy);
             }
         }
         for message in messages {

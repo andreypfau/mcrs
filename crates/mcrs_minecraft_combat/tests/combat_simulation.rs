@@ -1,10 +1,8 @@
 use bevy_app::{App, FixedUpdate};
 use bevy_ecs::message::Messages;
-use glam::Vec3;
 use mcrs_minecraft_combat::{
     ActiveEffect, ActiveEffects, Armor, ArmorToughness, CombatPlugin, CombatPosition,
-    DamageCooldown, DamageDealt, DamageRequest, DeathEvent, ExperienceGainedEvent, ExperienceOrb,
-    FoodData, Health, MobEffect, PlayerExperience, Projectile, ProjectileHitEvent,
+    DamageCooldown, DamageDealt, DamageRequest, DeathEvent, FoodData, Health, MobEffect,
 };
 use mcrs_minecraft_damage::{DamageSource, Hit};
 use mcrs_minecraft_protocol_game::Difficulty;
@@ -110,65 +108,4 @@ fn integration_status_effects_application_and_ticking() {
     let health = app.world().get::<Health>(entity).unwrap();
     // At duration 50, regeneration tick triggered healing 1.0 -> 16.0
     assert_eq!(health.current, 16.0);
-}
-
-#[test]
-fn integration_experience_leveling_and_pickup() {
-    let mut app = App::new();
-    app.add_plugins(CombatPlugin);
-
-    let player = app
-        .world_mut()
-        .spawn((
-            PlayerExperience::default(),
-            CombatPosition::from_coords(0.0, 64.0, 0.0),
-        ))
-        .id();
-
-    // Spawn an experience orb right at player position (value 50)
-    app.world_mut().spawn((
-        ExperienceOrb::new(50),
-        CombatPosition::from_coords(0.0, 64.0, 0.0),
-    ));
-
-    app.world_mut().run_schedule(FixedUpdate);
-
-    let exp = app.world().get::<PlayerExperience>(player).unwrap();
-    assert!(exp.level > 0);
-    assert_eq!(exp.total_experience, 50);
-
-    let exp_events = app.world().resource::<Messages<ExperienceGainedEvent>>();
-    assert_eq!(exp_events.len(), 1);
-}
-
-#[test]
-fn integration_projectile_hit_detection() {
-    let mut app = App::new();
-    app.add_plugins(CombatPlugin);
-
-    // Target at (5.0, 64.0, 0.0)
-    let _target = app
-        .world_mut()
-        .spawn((
-            Health::new(20.0),
-            CombatPosition::from_coords(5.0, 64.0, 0.0),
-        ))
-        .id();
-
-    // Projectile flying towards target at (4.5, 64.0, 0.0) with speed 1.0 along +X
-    let proj = app
-        .world_mut()
-        .spawn((
-            Projectile::arrow(None, Vec3::new(1.0, 0.0, 0.0)),
-            CombatPosition::from_coords(4.5, 64.9, 0.0),
-        ))
-        .id();
-
-    app.world_mut().run_schedule(FixedUpdate);
-
-    let hit_events = app.world().resource::<Messages<ProjectileHitEvent>>();
-    assert_eq!(hit_events.len(), 1);
-
-    let proj_state = app.world().get::<Projectile>(proj).unwrap();
-    assert!(proj_state.in_ground);
 }

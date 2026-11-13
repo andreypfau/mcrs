@@ -5,7 +5,7 @@ use bevy_ecs::system::Res;
 use bevy_ecs::system::{Commands, Query};
 
 use mcrs_minecraft_damage::{
-    DamageTypeRules, HitOutcome, apply_absorption_and_health, reduce_by_armor,
+    DamageTypeRules, HitOutcome, apply_absorption_and_health, reduce_by_armor, reduce_by_resistance,
 };
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine_world::game_rules::GameRules;
@@ -129,10 +129,14 @@ pub fn process_damage_requests(
         } else {
             reduce_by_armor(damage_to_apply, armor_val, toughness_val)
         };
-        let reduced = if flags.bypasses_resistance {
+        let reduced = if flags.bypasses_resistance || flags.bypasses_effects {
             after_armor
+        } else if let Some(resistance) =
+            effects.and_then(|effects| effects.amplifier(MobEffect::Resistance))
+        {
+            reduce_by_resistance(after_armor, resistance)
         } else {
-            after_armor * (1.0 - effects.map_or(0.0, ActiveEffects::damage_resistance))
+            after_armor
         };
 
         let (new_health, new_absorption) =
@@ -358,6 +362,36 @@ mod tests {
             .id();
         hit(&mut app, target, Hit::new(10.0, damage_types::FALL));
         assert_eq!(app.world().get::<Health>(target).unwrap().current, 10.0);
+    }
+
+    #[test]
+    fn dmg_red_002_resistance_uses_the_float_formula() {
+        let mut app = app();
+        let mut effects = ActiveEffects::new();
+        effects.add(ActiveEffect::new(MobEffect::Resistance, 1, 200));
+        let target = app
+            .world_mut()
+            .spawn((Health::new(20.0), DamageCooldown::default(), effects))
+            .id();
+        hit(
+            &mut app,
+            target,
+            Hit::new(10.0, damage_types::PLAYER_ATTACK),
+        );
+        assert_eq!(app.world().get::<Health>(target).unwrap().current, 14.0);
+    }
+
+    #[test]
+    fn dmg_red_002_bypasses_effects_skips_resistance() {
+        let mut app = app();
+        let mut effects = ActiveEffects::new();
+        effects.add(ActiveEffect::new(MobEffect::Resistance, 4, 200));
+        let target = app
+            .world_mut()
+            .spawn((Health::new(20.0), DamageCooldown::default(), effects))
+            .id();
+        hit(&mut app, target, Hit::new(4.0, damage_types::OUT_OF_WORLD));
+        assert_eq!(app.world().get::<Health>(target).unwrap().current, 16.0);
     }
 
     #[test]

@@ -3,6 +3,14 @@
 //! its variant, are in the type table of `mcrs_minecraft_entity`.
 
 pub const SHARED_FLAGS: u8 = 0;
+pub const SHARED_FLAG_ON_FIRE: i8 = 1 << 0;
+pub const SHARED_FLAG_CROUCHING: i8 = 1 << 1;
+pub const SHARED_FLAG_SPRINTING: i8 = 1 << 2;
+pub const SHARED_FLAG_SWIMMING: i8 = 1 << 3;
+pub const SHARED_FLAG_INVISIBLE: i8 = 1 << 4;
+pub const SHARED_FLAG_GLOWING: i8 = 1 << 5;
+pub const SHARED_FLAG_FLYING: i8 = 1 << 6;
+pub const SHARED_FLAG_USING_ITEM: i8 = 1 << 7;
 pub const AIR_SUPPLY: u8 = 1;
 pub const CUSTOM_NAME: u8 = 2;
 pub const NAME_VISIBLE: u8 = 3;

@@ -627,8 +627,8 @@ impl mcrs_minecraft_protocol::Decode<'_> for ClientboundSetEquipment {
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub struct ClientboundSetExperience {
     pub experience_progress: f32,
-    pub total_experience: VarInt,
     pub experience_level: VarInt,
+    pub total_experience: VarInt,
 }
 
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]

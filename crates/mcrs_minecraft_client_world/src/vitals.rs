@@ -139,7 +139,7 @@ fn on_health(
     let Ok(mut local) = vitals.single_mut() else {
         return;
     };
-    local.health = packet.health.clamp(0.0, local.max_health);
+    local.health = packet.health.max(0.0);
     local.food = packet.food.0.clamp(0, 20);
     local.saturation = packet.saturation.max(0.0);
     local.dead = local.health <= 0.0;
@@ -313,8 +313,42 @@ fn on_respawn(
 #[cfg(test)]
 mod tests {
     use bevy::prelude::{App, Update};
+    use mcrs_minecraft_network::ConnectionState;
+    use mcrs_minecraft_network::metrics::PacketDispatcher;
+    use mcrs_minecraft_protocol::{Encode, Packet, VarInt};
 
     use super::*;
+
+    const PLAYER_ID: i32 = 7;
+
+    fn app() -> (App, Entity) {
+        let mut app = App::new();
+        app.add_plugins(VitalsPlugin);
+        let connection = app
+            .world_mut()
+            .spawn((
+                ConnectionState::Game,
+                JoinedGame {
+                    player_id: PLAYER_ID,
+                    dimensions: Vec::new(),
+                },
+            ))
+            .id();
+        app.world_mut().spawn((Player, LocalVitals::default()));
+        (app, connection)
+    }
+
+    fn receive<P: Packet + Encode>(app: &mut App, connection: Entity, packet: P) {
+        let mut data = Vec::new();
+        packet.encode(&mut data).unwrap();
+        let trigger = PacketDispatcher::clientbound()
+            .with_play(crate::game_packets::GAME_CLIENTBOUND)
+            .dispatch(P::STATE, P::ID, &data)
+            .unwrap()
+            .unwrap();
+        trigger.raise(&mut app.world_mut().commands(), connection, data.into());
+        app.world_mut().flush();
+    }
 
     fn effect(duration: i32) -> VisibleEffect {
         VisibleEffect {
@@ -325,6 +359,50 @@ mod tests {
             show_particles: true,
             show_icon: true,
         }
+    }
+
+    #[test]
+    fn dmg_net_004_health_above_the_default_maximum_is_not_clamped() {
+        let (mut app, connection) = app();
+        receive(
+            &mut app,
+            connection,
+            ClientboundSetHealth {
+                health: 30.0,
+                food: VarInt(18),
+                saturation: 2.5,
+            },
+        );
+        let local = app
+            .world_mut()
+            .query_filtered::<&LocalVitals, With<Player>>()
+            .single(app.world())
+            .unwrap();
+        assert_eq!(local.health, 30.0);
+        assert_eq!(local.food, 18);
+        assert_eq!(local.saturation, 2.5);
+    }
+
+    #[test]
+    fn dmg_net_004_experience_reads_progress_level_and_total_in_order() {
+        let (mut app, connection) = app();
+        receive(
+            &mut app,
+            connection,
+            ClientboundSetExperience {
+                experience_progress: 0.5,
+                experience_level: VarInt(3),
+                total_experience: VarInt(25),
+            },
+        );
+        let local = app
+            .world_mut()
+            .query_filtered::<&LocalVitals, With<Player>>()
+            .single(app.world())
+            .unwrap();
+        assert_eq!(local.experience_progress, 0.5);
+        assert_eq!(local.experience_level, 3);
+        assert_eq!(local.total_experience, 25);
     }
 
     #[test]

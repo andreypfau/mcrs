@@ -9,14 +9,8 @@ use crate::effects::{
 };
 use crate::equipment::{EquipmentChangedEvent, track_equipment_changes};
 use crate::events::{DamageDealt, DamageRequest, DeathEvent, KnockbackRequest, RespawnRequest};
-use crate::experience::{ExperienceGainedEvent, pickup_experience_orbs};
-use crate::explosions::{
-    ExplosionOccurred, ExplosionRequest, IgniteTntRequest, destroy_explosion_blocks,
-    ignite_tnt_blocks, process_explosions, tick_primed_tnt,
-};
+use crate::experience::ExperienceGainedEvent;
 use crate::life_cycle::{apply_knockback, process_damage_requests, tick_cooldowns, tick_death};
-use crate::projectiles::{ProjectileHitEvent, tick_projectiles};
-use crate::wire::{WireRegistry, attach_wire_entities, forget_wire_entities, sync_wire_entities};
 
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CombatSet {
@@ -28,8 +22,8 @@ pub enum CombatSet {
     Send,
 }
 
-/// The Bevy plugin providing health, combat, status effects, experience,
-/// projectiles, explosions, equipment and entity life cycle.
+/// The Bevy plugin providing health, combat, status effects, experience, equipment and the
+/// entity life cycle.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct CombatPlugin;
 
@@ -42,16 +36,11 @@ impl Plugin for CombatPlugin {
         app.add_message::<RespawnRequest>();
         app.add_message::<KnockbackRequest>();
         app.init_resource::<crate::hunger::CombatDifficulty>();
-        app.init_resource::<WireRegistry>();
         app.add_message::<ApplyEffectEvent>();
         app.add_message::<RemoveEffectEvent>();
         app.add_message::<DropInventoryOnDeathEvent>();
         app.add_message::<EquipmentChangedEvent>();
         app.add_message::<ExperienceGainedEvent>();
-        app.add_message::<ProjectileHitEvent>();
-        app.add_message::<ExplosionRequest>();
-        app.add_message::<ExplosionOccurred>();
-        app.add_message::<IgniteTntRequest>();
 
         app.configure_sets(
             FixedUpdate,
@@ -69,15 +58,7 @@ impl Plugin for CombatPlugin {
         );
         app.add_systems(
             FixedUpdate,
-            (
-                ignite_tnt_blocks,
-                tick_primed_tnt,
-                process_explosions,
-                destroy_explosion_blocks,
-                tick_projectiles,
-                handle_apply_effect_events,
-                tick_active_effects,
-            )
+            (handle_apply_effect_events, tick_active_effects)
                 .chain()
                 .in_set(CombatSet::World),
         );
@@ -96,19 +77,7 @@ impl Plugin for CombatPlugin {
         );
         app.add_systems(
             FixedUpdate,
-            (pickup_experience_orbs, track_equipment_changes)
-                .chain()
-                .in_set(CombatSet::Progress),
-        );
-        app.add_systems(
-            FixedUpdate,
-            (
-                attach_wire_entities,
-                sync_wire_entities,
-                forget_wire_entities,
-            )
-                .chain()
-                .in_set(CombatSet::Send),
+            track_equipment_changes.in_set(CombatSet::Progress),
         );
     }
 }
