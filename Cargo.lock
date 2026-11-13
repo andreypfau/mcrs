@@ -6262,6 +6262,7 @@ dependencies = [
  "mcrs_minecraft_text",
  "mcrs_minecraft_text_flatten",
  "mcrs_minecraft_vanilla_block_place",
+ "mcrs_minecraft_vanilla_inventory",
  "mcrs_minecraft_vanilla_item_entity",
  "mcrs_minecraft_vanilla_light",
  "mcrs_minecraft_vanilla_worldgen",
@@ -6437,6 +6438,29 @@ dependencies = [
  "mcrs_minecraft_volume",
  "mcrs_voxel",
  "rustc-hash 2.1.1",
+]
+
+[[package]]
+name = "mcrs_minecraft_vanilla_inventory"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_item",
+ "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_key",
+ "mcrs_minecraft_item_entity",
+ "mcrs_minecraft_item_stack",
+ "mcrs_minecraft_item_table",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_player_slots",
+ "mcrs_minecraft_protocol_game",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_vanilla_item_entity",
+ "serde",
+ "tracing",
 ]
 
 [[package]]

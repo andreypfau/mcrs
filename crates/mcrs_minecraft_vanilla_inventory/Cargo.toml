@@ -1,0 +1,32 @@
+[package]
+name = "mcrs_minecraft_vanilla_inventory"
+description = "The four holders of each player: built from the player file and the carried values, written back at each capture"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_item.workspace = true
+mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_key.workspace = true
+mcrs_minecraft_item_entity.workspace = true
+mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_item_table = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_player_slots.workspace = true
+mcrs_minecraft_vanilla_item_entity.workspace = true
+serde.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_protocol_game.workspace = true
+mcrs_minecraft_registries.workspace = true

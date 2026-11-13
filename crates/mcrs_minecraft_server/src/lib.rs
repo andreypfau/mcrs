@@ -12,13 +12,13 @@ use mcrs_minecraft_engine::persisted_registry::PersistedAppExt;
 use mcrs_minecraft_engine_brain::MobBrainPlugin;
 use mcrs_minecraft_engine_brain::MobColumn;
 use mcrs_minecraft_engine_item::ItemPersistencePlugin;
-use mcrs_minecraft_engine_item::PlayerItemFilePlugin;
 use mcrs_minecraft_engine_mob_replication::MobReplicationPlugin;
 use mcrs_minecraft_engine_physics::EntityPhysicsPlugin;
 use mcrs_minecraft_engine_server::{DimensionWorldsPlugin, ServerCorePlugin, ServerNetworkPlugin};
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_entity::damage_type_tag_keys::PANIC_CAUSES;
 use mcrs_minecraft_vanilla_block_place::BlockPlacePlugin;
+use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 
 pub use block_loot::{LootBlocks, VanillaBlockLootPlugin};
@@ -119,7 +119,7 @@ pub struct VanillaItemPlugin;
 impl Plugin for VanillaItemPlugin {
     fn build(&self, app: &mut App) {
         app.add_persistence_plugin(ItemPersistencePlugin)
-            .add_persistence_plugin(PlayerItemFilePlugin);
+            .add_persistence_plugin(InventoryPersistencePlugin);
     }
 }
 
