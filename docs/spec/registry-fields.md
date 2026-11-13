@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
-| World version (`DataVersion`) | `5124` |
-| Data pack format | `124.0` |
+| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
+| Protocol version | `1073742169` |
+| World version (`DataVersion`) | `5127` |
+| Data pack format | `126.0` |
 
 Source of these values: `assets/minecraft/version.json`.
 
