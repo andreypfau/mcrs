@@ -11,7 +11,7 @@ use mcrs_minecraft_client_world::player_view::{ChunkCacheRadius, RequestedViewDi
 use mcrs_minecraft_engine_world::entity::physics::{
     OldTransform, Rotation, Transform as PhysicsTransform,
 };
-use mcrs_minecraft_render::CameraOrigin;
+use mcrs_minecraft_render::{CameraOrigin, RenderDistance};
 
 const STANDING_EYE_HEIGHT: f32 = 1.62;
 const DEFAULT_WALKING_SPEED: f32 = 0.1;
@@ -29,13 +29,14 @@ const CLOUD_RANGE: u8 = 128;
 const BLOCKS_PER_CHUNK_OF_CLOUD_RANGE: f32 = 16.0;
 
 /// Places the first-person camera of the local player in each frame, filters its eye height and
-/// zoom in each tick, and keeps its far plane at the render distance. Without a
-/// [`RequestedViewDistance`] the far plane stays at that of the default render distance.
+/// zoom in each tick, and keeps [`RenderDistance`] and the far plane at the render distance.
+/// Without a [`RequestedViewDistance`] both stay at the default render distance.
 pub struct CameraPlugin;
 
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<FovOptions>()
+            .insert_resource(RenderDistance(VIEW_DISTANCE_DEFAULT))
             .register_required_components::<Player, Transform>()
             .add_systems(Startup, spawn_camera)
             .add_systems(FixedUpdate, tick_camera.before(LocalPlayerTick))
@@ -43,10 +44,11 @@ impl Plugin for CameraPlugin {
                 PostUpdate,
                 (
                     place_camera,
-                    follow_render_distance.run_if(
+                    project_render_distance.run_if(
                         resource_exists_and_changed::<RequestedViewDistance>
                             .or_else(any_match_filter::<Changed<ChunkCacheRadius>>),
                     ),
+                    follow_render_distance.run_if(resource_changed::<RenderDistance>),
                 )
                     .chain()
                     .before(TransformSystems::Propagate)
@@ -185,9 +187,8 @@ fn frame_rotation(previous: Rotation, current: Rotation, partial_tick: f32) -> Q
 }
 
 /// The distance the options ask for, capped by the server radius once that is above 0.
-// chisle: only the far plane follows it; each held column is drawn and there is no
-// render-distance fog (MENU-DIST-001 steps 3, 5 to 7). A draw test and a fog that read it
-// lift this.
+// chisle: there is no render-distance fog (MENU-DIST-001 steps 5 to 7). A fog that reads it
+// lifts this.
 #[must_use]
 fn render_distance(requested: u8, server_radius: i32) -> u8 {
     match u8::try_from(server_radius) {
@@ -229,18 +230,25 @@ fn spawn_camera(mut commands: Commands) {
     ));
 }
 
-fn follow_render_distance(
+fn project_render_distance(
     requested: Option<Res<RequestedViewDistance>>,
     server: Option<Single<&ChunkCacheRadius>>,
-    mut projection: Single<&mut Projection, With<PlayerCamera>>,
+    mut distance: ResMut<RenderDistance>,
 ) {
     let Some(requested) = requested else {
         return;
     };
-    let far = far_plane(render_distance(
+    distance.set_if_neq(RenderDistance(render_distance(
         requested.0,
         server.map_or(0, |radius| radius.0),
-    ));
+    )));
+}
+
+fn follow_render_distance(
+    distance: Res<RenderDistance>,
+    mut projection: Single<&mut Projection, With<PlayerCamera>>,
+) {
+    let far = far_plane(distance.0);
     if let Projection::Perspective(perspective) = projection.as_ref()
         && perspective.far != far
         && let Projection::Perspective(perspective) = projection.as_mut()
@@ -335,8 +343,12 @@ mod tests {
         }
     }
 
+    fn render_distance_of(app: &App) -> u8 {
+        app.world().resource::<RenderDistance>().0
+    }
+
     #[test]
-    fn the_far_plane_follows_the_option_capped_by_the_server_radius_from_the_next_frame() {
+    fn the_render_distance_and_the_far_plane_follow_the_option_capped_by_the_server_radius() {
         enum Change {
             Requested(u8),
             ServerRadius(i32),
@@ -354,18 +366,19 @@ mod tests {
         ));
         let connection = app.world_mut().spawn(ChunkCacheRadius(10)).id();
         app.update();
+        assert_eq!(render_distance_of(&app), 10, "o = 12 with v = 10");
         assert_eq!(
             camera_far(&mut app),
             2048.0,
-            "o = 12 with v = 10 gives r = 10, inside the cloud range"
+            "r = 10 is inside the cloud range"
         );
 
-        for (change, far) in [
-            (Change::Requested(96), 2048.0),
-            (Change::ServerRadius(0), 6144.0),
-            (Change::Requested(40), 2560.0),
-            (Change::ServerRadius(36), 2304.0),
-            (Change::Requested(2), 2048.0),
+        for (change, distance, far) in [
+            (Change::Requested(96), 10, 2048.0),
+            (Change::ServerRadius(0), 96, 6144.0),
+            (Change::Requested(40), 40, 2560.0),
+            (Change::ServerRadius(36), 36, 2304.0),
+            (Change::Requested(2), 2, 2048.0),
         ] {
             match change {
                 Change::Requested(columns) => {
@@ -380,16 +393,18 @@ mod tests {
                 }
             }
             app.update();
+            assert_eq!(render_distance_of(&app), distance);
             assert_eq!(camera_far(&mut app), far);
         }
     }
 
     #[test]
-    fn without_client_options_the_far_plane_keeps_that_of_the_spawn() {
+    fn without_client_options_the_render_distance_and_the_far_plane_keep_the_default() {
         let mut app = App::new();
         app.init_resource::<Time<Fixed>>().add_plugins(CameraPlugin);
         app.world_mut().spawn(ChunkCacheRadius(4));
         app.update();
+        assert_eq!(render_distance_of(&app), VIEW_DISTANCE_DEFAULT);
         assert_eq!(
             camera_far(&mut app),
             6144.0,
