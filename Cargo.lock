@@ -4014,6 +4014,7 @@ dependencies = [
  "mcrs_minecraft_core",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_nbt",
+ "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
  "mcrs_voxel",
  "serde",
@@ -4310,6 +4311,7 @@ dependencies = [
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_game_registries",
+ "mcrs_minecraft_game_rule",
  "mcrs_minecraft_item",
  "mcrs_minecraft_light_color",
  "mcrs_minecraft_light_engine",
@@ -6093,11 +6095,13 @@ dependencies = [
 name = "mcrs_minecraft_save"
 version = "0.5.8"
 dependencies = [
+ "mcrs_minecraft_anvil",
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_registries",
+ "mcrs_minecraft_game_rule",
  "mcrs_minecraft_item",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol_game",
@@ -6470,6 +6474,7 @@ version = "0.5.8"
 dependencies = [
  "bytes",
  "glam",
+ "mcrs_minecraft_anvil",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block",
@@ -6574,6 +6579,7 @@ dependencies = [
  "bytes",
  "fixedbitset",
  "glam",
+ "mcrs_minecraft_anvil",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_block",
  "mcrs_minecraft_block_entity",
@@ -6697,6 +6703,7 @@ dependencies = [
  "fixedbitset",
  "glam",
  "hashbrown 0.16.1",
+ "mcrs_minecraft_anvil",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_block",
  "mcrs_minecraft_block_entity",

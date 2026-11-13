@@ -8,9 +8,11 @@ use mcrs_minecraft_chunk::section::{Biomes, Blocks, NoiseBiomes};
 use mcrs_minecraft_chunk::{PalettedContainer, SectionKind, VoxelId};
 use mcrs_minecraft_core::VERSION;
 
+use crate::ChunkStatus;
 use crate::ErrorKind;
 use crate::chunk::{Chunk, PackedData, RawChunk, RawLight, RawPalettedContainer, RawSection};
 use crate::palette::{BlockStateList, PaletteLookup, Properties};
+use crate::record::NoEntities;
 use crate::structures::Structures;
 use crate::ticks::FluidTicks;
 
@@ -139,9 +141,6 @@ impl<V: PaletteId> PaletteLookup<V> for PaletteNames<V> {
 
 /// The chunk as NBT, uncompressed, at the current `DataVersion`, with the
 /// lowest section of its dimension as `yPos`.
-// Block ticks, post-processing and blending data are not in
-// `Chunk`, so a written chunk drops them and a vanilla server reads their
-// absence; carrying them in `Chunk` lifts this.
 pub fn write_chunk(
     chunk: &Chunk,
     min_section_y: i32,
@@ -180,7 +179,7 @@ pub fn write_chunk(
         x_pos: chunk.pos.x,
         z_pos: chunk.pos.z,
         y_pos: min_section_y,
-        status: chunk.status,
+        status: Some(chunk.status),
         sections,
         heightmaps: chunk.heightmaps.clone(),
         is_light_on: chunk.is_light_on,
@@ -188,9 +187,15 @@ pub fn write_chunk(
         inhabited_time: chunk.inhabited_time,
         last_update: chunk.last_update,
         retrogen: chunk.retrogen.clone(),
+        entities: (chunk.status != ChunkStatus::Full).then_some(NoEntities),
+        post_processing: chunk.post_processing.clone(),
+        upgrade_data: chunk.upgrade_data.clone(),
+        blending_data: chunk.blending_data.clone(),
         fluid_ticks: FluidTicks {
             ticks: Cow::Borrowed(&chunk.fluid_ticks),
-            dropped: Vec::new(),
+        },
+        block_ticks: crate::ticks::BlockTicks {
+            ticks: Cow::Borrowed(&chunk.block_ticks),
         },
         structures: Structures {
             pos: chunk.pos,

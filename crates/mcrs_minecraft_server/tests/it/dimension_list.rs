@@ -47,6 +47,9 @@ fn a_save_supplies_the_dimension_list_whatever_the_preset_names_and_startup_buil
         &WorldGenSettings {
             seed: 3,
             dimensions,
+            bonus_chest: false,
+            generate_structures: true,
+            legacy_custom_options: None,
         },
         test_registries(),
     )
