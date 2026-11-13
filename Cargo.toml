@@ -195,6 +195,7 @@ mcrs_minecraft_item = { path = "crates/mcrs_minecraft_item" }
 mcrs_minecraft_item_entity = { path = "crates/mcrs_minecraft_item_entity" }
 mcrs_minecraft_vanilla_item_entity = { path = "crates/mcrs_minecraft_vanilla_item_entity" }
 mcrs_minecraft_inventory_plan = { path = "crates/mcrs_minecraft_inventory_plan" }
+mcrs_minecraft_player_slots = { path = "crates/mcrs_minecraft_player_slots" }
 mcrs_minecraft_item_stack = { path = "crates/mcrs_minecraft_item_stack" }
 mcrs_minecraft_item_table = { path = "crates/mcrs_minecraft_item_table" }
 mcrs_minecraft_engine_item = { path = "crates/mcrs_minecraft_engine_item" }
