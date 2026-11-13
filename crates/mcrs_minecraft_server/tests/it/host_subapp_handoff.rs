@@ -11,7 +11,7 @@ use bevy_math::{DVec3, Vec2};
 use bevy_state::prelude::NextState;
 use mcrs_minecraft_assets::AppState;
 use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
-use mcrs_minecraft_engine::bus::{InboundPlayerSpawn, PlayerTransferSnapshot};
+use mcrs_minecraft_engine::bus::InboundPlayerSpawn;
 use mcrs_minecraft_engine::channel_types::ToDim;
 use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
 use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
@@ -20,6 +20,7 @@ use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::muxer::bridge::{bridge_inbound_to_channel, bridge_player_attach};
 use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
 use mcrs_minecraft_engine::muxer::session::HostAnchorRef;
+use mcrs_minecraft_engine::persisted_registry::PersistedSnapshot;
 use mcrs_minecraft_engine::to_coordinator::RoutedInput;
 use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState};
 use mcrs_minecraft_engine_world::session::PlayerSession;
@@ -228,14 +229,11 @@ fn join_with_live_nether_end_and_overworld(
         .expect("profile")
         .id;
     if let Some(dimension) = &saved {
-        write_player_dat(
-            &save,
-            uuid,
-            &PlayerDat {
-                dimension: dimension.clone(),
-                ..PlayerDat::default()
-            },
-        )
+        write_player_dat(&save, uuid, &{
+            let mut dat = PlayerDat::default();
+            dat.root.put_string("Dimension", dimension.to_string());
+            dat
+        })
         .unwrap();
     }
 
@@ -358,13 +356,13 @@ fn no_duplicate_spawn_on_reread() {
         dim_label,
         InboundPlayerSpawn {
             session: PlayerSession(1),
-            snapshot: PlayerTransferSnapshot {
-                uuid: Uuid::new_v4(),
-                username: "cursor_test".into(),
-                position: DVec3::new(0.0, 64.0, 0.0),
-                rotation: Vec2::ZERO,
-                client_info: Some(crate::support::client_info_with_view_distance(12)),
-            },
+            snapshot: PersistedSnapshot::joining_player(
+                Uuid::new_v4(),
+                "cursor_test".into(),
+                DVec3::new(0.0, 64.0, 0.0),
+                Vec2::ZERO,
+                Some(crate::support::client_info_with_view_distance(12)),
+            ),
             dimensions: Vec::new().into(),
         },
     );
@@ -560,13 +558,13 @@ fn a_registry_resource_is_not_changed_on_the_second_tick(app: &mut App) {
         overworld,
         InboundPlayerSpawn {
             session: PlayerSession(1),
-            snapshot: PlayerTransferSnapshot {
-                uuid: Uuid::new_v4(),
-                username: "second_tick".into(),
-                position: DVec3::new(0.0, 64.0, 0.0),
-                rotation: Vec2::ZERO,
-                client_info: Some(crate::support::client_info_with_view_distance(12)),
-            },
+            snapshot: PersistedSnapshot::joining_player(
+                Uuid::new_v4(),
+                "second_tick".into(),
+                DVec3::new(0.0, 64.0, 0.0),
+                Vec2::ZERO,
+                Some(crate::support::client_info_with_view_distance(12)),
+            ),
             dimensions: Vec::new().into(),
         },
     );

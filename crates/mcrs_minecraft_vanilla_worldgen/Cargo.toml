@@ -23,6 +23,7 @@ mcrs_minecraft_heightmap.workspace = true
 mcrs_minecraft_block_predicate.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_region_disk.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
@@ -31,6 +32,7 @@ mcrs_minecraft_game_registries.workspace = true
 mcrs_minecraft_worldgen = { workspace = true, features = ["fast"] }
 mcrs_minecraft_worldgen_builtin.workspace = true
 mcrs_minecraft_datapack.workspace = true
+mcrs_minecraft_anvil.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_worldgen_carver = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_worldgen_density = { workspace = true, features = ["bevy"] }

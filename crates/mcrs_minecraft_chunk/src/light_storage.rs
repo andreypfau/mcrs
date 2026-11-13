@@ -52,6 +52,32 @@ impl LightStorage {
         }
     }
 
+    pub fn to_nibbles(&self) -> SectionNibbles {
+        match self {
+            LightStorage::Empty => SectionNibbles::zeros(),
+            LightStorage::Uniform(value) => SectionNibbles::filled(*value),
+            LightStorage::Dense(packed) => (**packed).clone(),
+        }
+    }
+
+    pub fn from_nibbles(nibbles: &SectionNibbles) -> Self {
+        let Some(&first) = nibbles.0.first() else {
+            return LightStorage::Empty;
+        };
+        let first = first & 0x0F;
+        if nibbles
+            .0
+            .iter()
+            .all(|byte| byte & 0x0F == first && byte >> 4 == first)
+        {
+            return match first {
+                0 => LightStorage::Empty,
+                value => LightStorage::Uniform(value),
+            };
+        }
+        LightStorage::Dense(Arc::new(nibbles.clone()))
+    }
+
     pub fn write_field(&self, cells: &mut [u8; SectionPos::VOLUME]) {
         match self {
             LightStorage::Empty => cells.fill(0),

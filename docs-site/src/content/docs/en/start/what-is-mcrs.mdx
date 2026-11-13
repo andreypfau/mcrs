@@ -6,13 +6,12 @@ sidebar:
 kind: explanation
 audience: [observer, admin, jvm, player]
 stability: changing
-tracking: [180, 78, 82, 437]
+tracking: [180, 82, 437]
 sources:
   - README.md
   - docs/clean-room.md
   - assets/minecraft/version.json
   - issue:437
-  - issue:78
   - issue:82
 verified:
   snapshot: 26.4-snapshot-7
@@ -46,7 +45,7 @@ The [Status](/docs/en/start/status/) page has the full table, with a link to the
 
 mcrs is not Paper. It has no Bukkit-like API and no facade, because the project decided against them.[^437] The public surface is the crates and the plugins themselves. A loader for plugins as jar files, wasm or scripts does not exist either, and there is no decision about one yet. Today your code is a Rust Bevy plugin that you build together with the server, which is closer to Minestom than to Paper. The page [Not Paper](/docs/en/plugins/not-paper/) goes through this.
 
-mcrs is not ready for production. The server does not save chunks, has no online mode and listens on all network interfaces without authentication.[^78][^82]
+mcrs is not ready for production. The server has no online mode and listens on all network interfaces without authentication.[^82]
 
 mcrs is not a launcher and not a mod. The client is a separate Rust application. It reads textures and models from the official game jar, and the repository ships no Mojang art.
 
@@ -58,6 +57,5 @@ Next: [Install the tools](/docs/en/start/install/) and [Run a server](/docs/en/s
 
 [^412]: <Status issue={412} /> The decision to target one version at a time, with no backward compatibility.
 [^437]: <Status issue={437} /> The decision that there is no facade or API crate, and the crates and plugins are the public surface.
-[^78]: <Status issue={78} /> Tracks saving changed chunks back to region files.
 [^82]: <Status issue={82} /> Tracks online mode: encryption and session authentication.
 [^182]: <Status issue={182} /> The direction for vanilla gameplay and behavior tests on the scaling architecture.

@@ -57,12 +57,13 @@ use crate::cell_mail::CellOutbox;
 use crate::cell_volume::CellVolume;
 use crate::column_change::ColumnChange;
 use crate::column_streams::ColumnStreams;
-use crate::column_ticks::{ColumnTicks, LandedTicks, StoredTick};
+use crate::column_ticks::LandedTicks;
 use crate::coordinator::clock::GameTime;
 use crate::random_tick_speed::RandomTickSpeed;
 use crate::world_kinds::{WorldFacts, WorldKinds};
 use mcrs_minecraft_engine_world::block_drops::{BlockDrops, ItemDropped};
 use mcrs_minecraft_engine_world::world_seed::WorldSeed;
+use mcrs_minecraft_region_disk::column_ticks::{ColumnTicks, StoredTick};
 
 /// Rules under which no block reacts: no block has a behaviour that a specification states yet.
 /// Writes, neighbour and shape updates, scheduled ticks and block events still run, and a tick
@@ -141,6 +142,14 @@ pub struct TakenTicks {
     pub changed: bool,
 }
 
+/// The ticks of a loaded column for a periodic save, and whether they changed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CopiedTicks {
+    pub ticks: ColumnTicks,
+    /// A saved tick activated, or the column holds a tick scheduled since it landed.
+    pub changed: bool,
+}
+
 /// The queues of the block kernels of a dimension world, and what crosses to the other cells.
 #[derive(Resource, Default)]
 pub struct BlockSimulation {
@@ -200,6 +209,35 @@ impl BlockSimulation {
             }
             !runs
         });
+    }
+
+    /// The ticks of the sections `rows` of `column` as the data layer keeps them, without taking
+    /// them out of the queues. A periodic save uses it while the column stays loaded.
+    pub fn copy_column(
+        &self,
+        column: ColumnPos,
+        rows: impl IntoIterator<Item = i32>,
+        now: GameTick,
+    ) -> CopiedTicks {
+        let mut block = Taken::default();
+        let mut fluid = Taken::default();
+        for y in rows {
+            let section = SectionPos::new(column.x, y, column.z);
+            if let Some(ticks) = self.shard.block_ticks().section_ticks(section) {
+                block.add(ticks, now);
+            }
+            if let Some(ticks) = self.shard.fluid_ticks().section_ticks(section) {
+                fluid.add(ticks, now);
+            }
+        }
+        let changed = self.activated.contains(&column) || block.has_active() || fluid.has_active();
+        CopiedTicks {
+            ticks: ColumnTicks {
+                block: block.into_list(),
+                fluid: fluid.into_list(),
+            },
+            changed,
+        }
     }
 
     /// Takes the ticks of the sections `rows` of `column` out of the queues, as the data layer
@@ -665,5 +703,41 @@ fn cell_write(request: &BlockSetRequest) -> CellBlockWrite {
         new_state: request.new_state,
         flags: request.flags,
         recursion_left: request.recursion_left,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mcrs_minecraft_block::block_keys::Block;
+    use mcrs_minecraft_simulation::{ScheduledTick, SubTick, TickKey, TickPriority};
+    use mcrs_voxel::BlockPos;
+
+    #[test]
+    fn a_periodic_copy_reports_a_tick_scheduled_since_the_column_landed() {
+        let mut simulation = BlockSimulation::default();
+        let column = ColumnPos::new(2, 3);
+        let pos = BlockPos::new(35, 70, 50);
+        let key = TickKey {
+            due: GameTick(10),
+            priority: TickPriority::Normal,
+            sequence: SubTick::runtime(GameTick(1), 1),
+        };
+        simulation.shard.block_ticks_mut().schedule(ScheduledTick {
+            pos,
+            kind: Block::Stone.id(),
+            key,
+        });
+
+        let copied = simulation.copy_column(column, 4..5, GameTick(1));
+        assert!(
+            copied.changed,
+            "a scheduled tick is not reported as a change"
+        );
+        assert_eq!(copied.ticks.block.len(), 1);
+        assert!(
+            !simulation.copy_column(column, 0..1, GameTick(1)).changed,
+            "a tick in another section marks the column changed"
+        );
     }
 }
