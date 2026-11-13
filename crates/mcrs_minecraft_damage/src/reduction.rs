@@ -61,6 +61,12 @@ mod tests {
     }
 
     #[test]
+    fn red_002_resistance_keeps_the_f32_bits() {
+        let expected = (7.3_f32 * 15.0) / 25.0;
+        assert_eq!(reduce_by_resistance(7.3, 1).to_bits(), expected.to_bits());
+    }
+
+    #[test]
     fn red_004_absorption_absorbs_damage_first() {
         // 5 damage against 4 absorption and 20 health:
         // Absorption absorbs 4, leaves 0.

@@ -156,6 +156,33 @@ mod tests {
     }
 
     #[test]
+    fn red_002_both_bypass_flags_skip_the_resistance() {
+        for flags in [
+            crate::DamageTypeFlags {
+                bypasses_effects: true,
+                ..crate::DamageTypeFlags::default()
+            },
+            crate::DamageTypeFlags {
+                bypasses_resistance: true,
+                ..crate::DamageTypeFlags::default()
+            },
+        ] {
+            let mut vitals = pig();
+            let mut record = HitRecord::default();
+            let defence = Defence {
+                flags,
+                resistance: Some(0),
+                ..Defence::default()
+            };
+            assert_eq!(
+                hurt(&mut vitals, &mut record, &defence, Hit::new(5.0, 0), 0),
+                HitOutcome::Full
+            );
+            assert_eq!(vitals.health, 5.0);
+        }
+    }
+
+    #[test]
     fn hit_004_absorption_takes_damage_before_health() {
         let mut vitals = pig();
         vitals.absorption = 4.0;

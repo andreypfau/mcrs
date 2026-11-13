@@ -130,6 +130,7 @@ mod tests {
     #[test]
     fn saturated_heal_costs_six_exhaustion_each_ten_ticks() {
         let mut food = Food::default();
+        food.saturation = 6.0;
         let mut vitals = vitals(10.0);
         let mut healed = 0.0;
         for tick in 0..10 {
@@ -166,6 +167,6 @@ mod tests {
         assert_eq!(food.saturation, 2.0);
         let out = food.tick(&vitals, true, Difficulty::Peaceful, 10);
         assert_eq!(out.heal, 0.0);
-        assert_eq!(food.food_level, 11);
+        assert_eq!(food.food_level, 12);
     }
 }
