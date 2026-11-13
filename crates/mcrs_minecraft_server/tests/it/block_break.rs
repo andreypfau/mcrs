@@ -15,6 +15,7 @@ use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::block_action_ack::BlockActionAck;
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, PacketTarget};
+use mcrs_minecraft_engine::client_on_ground::ClientOnGround;
 use mcrs_minecraft_engine::column_change::ColumnChange;
 use mcrs_minecraft_engine::column_streams::ColumnStreams;
 use mcrs_minecraft_engine::muxer::session::SessionConnection;
@@ -181,7 +182,12 @@ fn add_section(server: &mut PlayServer, breaker: &Breaker, pos: BlockPos) {
     }
 }
 
-fn place(server: &mut PlayServer, breaker: &Breaker, pos: BlockPos, state: BlockStateId) {
+fn place(
+    server: &mut PlayServer,
+    breaker: &Breaker,
+    pos: BlockPos,
+    state: BlockStateId,
+) -> Vec<Out> {
     add_section(server, breaker, pos);
     server
         .world()
@@ -193,7 +199,7 @@ fn place(server: &mut PlayServer, breaker: &Breaker, pos: BlockPos, state: Block
             flags: BlockUpdateFlags::all(),
             recursion_left: 1,
         });
-    ticks(server, 2);
+    ticks(server, 2)
 }
 
 /// A breaker in `mode` beside `state` at `pos`, in a column that the muxer subscribes to.
@@ -1070,4 +1076,515 @@ fn a_new_state_of_the_same_block_keeps_the_block_entity() {
     place(&mut server, &breaker, NEAR, east);
 
     assert!(exists(&mut server, block_entity));
+}
+
+const DIRT: &str = "minecraft:dirt";
+const BESIDE: BlockPos = BlockPos::new(10, 64, 9);
+
+/// A survival breaker that stands on the ground beside `state` at `pos`.
+fn digger_at(server: &mut PlayServer, state: BlockStateId, pos: BlockPos) -> Breaker {
+    let breaker = breaker_at(server, GameMode::Survival, state, pos);
+    let player = server.player(breaker.anchor);
+    server.world().get_mut::<ClientOnGround>(player).unwrap().0 = true;
+    breaker
+}
+
+/// Sends `action` and runs the one tick that handles it. That tick is also a tick of the dig.
+fn step(server: &mut PlayServer, breaker: &Breaker, action: &ServerboundPlayerAction) -> Vec<Out> {
+    server.queue(breaker.anchor, action);
+    ticks(server, 1)
+}
+
+/// Starts a dig at `pos` with the sequence 10, and runs it to the tick count `count`.
+fn dig_to(server: &mut PlayServer, breaker: &Breaker, pos: BlockPos, count: usize) -> Vec<Out> {
+    let mut out = step(server, breaker, &start_action(pos, 10));
+    out.extend(ticks(server, count - 1));
+    out
+}
+
+fn finish_action(pos: BlockPos) -> ServerboundPlayerAction {
+    action(PlayerAction::StopDestroyBlock, pos, 11)
+}
+
+fn move_out_of_reach(server: &mut PlayServer, breaker: &Breaker) {
+    let player = server.player(breaker.anchor);
+    let mut transform = server.world().get_mut::<Transform>(player).unwrap();
+    transform.translation.y += 10.0;
+}
+
+fn crack(breaker: &Breaker, stage: i8) -> String {
+    format!(
+        "block_destruction {} {stage}",
+        player_network_id(breaker.session)
+    )
+}
+
+/// The stage of each `block_destruction` that the observers get, with its position.
+fn cracks(out: &[Out]) -> Vec<(BlockPos, i8)> {
+    out.iter()
+        .filter_map(|out| match out {
+            Out::Change(ColumnChange {
+                payload: PacketPayload::BlockDestruction(destruction),
+                ..
+            }) => Some((destruction.pos, destruction.progress)),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn brk_srv_001_a_start_begins_a_dig_with_the_face_of_the_request() {
+    let mut server = server();
+    let stone = default_state(&mut server, STONE);
+    let breaker = digger_at(&mut server, stone, NEAR);
+    let start = ServerboundPlayerAction {
+        direction: Direction::North,
+        ..start_action(NEAR, 10)
+    };
+
+    let answer = answers(&step(&mut server, &breaker, &start), &breaker, NEAR);
+
+    assert_eq!(answer.breaker, ["level_event 2019 2", "ack 10"]);
+    assert_eq!(
+        answer.watcher,
+        [crack(&breaker, 0), "level_event 2019 2".to_owned()]
+    );
+}
+
+#[test]
+fn brk_srv_002_a_block_with_a_hardness_of_0_breaks_at_the_start() {
+    let mut server = server();
+    let grass = default_state(&mut server, "minecraft:short_grass");
+
+    let answer = break_at(&mut server, GameMode::Survival, grass, NEAR);
+
+    assert_eq!(answer.breaker, ["block_update 0", "ack 5"]);
+    assert_eq!(
+        answer.watcher,
+        [
+            format!("level_event 2001 {}", grass.number()),
+            "block_update 0".to_owned()
+        ]
+    );
+}
+
+#[test]
+fn brk_srv_003_a_start_at_a_new_position_replaces_the_dig() {
+    let mut server = server();
+    let stone = default_state(&mut server, STONE);
+    let breaker = digger_at(&mut server, stone, NEAR);
+    place(&mut server, &breaker, BESIDE, stone);
+    dig_to(&mut server, &breaker, NEAR, 2);
+
+    let out = send(&mut server, &breaker, &start_action(BESIDE, 11));
+
+    let old = answers(&out, &breaker, NEAR);
+    assert_eq!(
+        old.breaker,
+        [
+            format!("block_update {}", stone.number()),
+            "ack 11".to_owned()
+        ]
+    );
+    assert_eq!(old.watcher, Vec::<String>::new());
+    assert_eq!(
+        answers(&out, &breaker, BESIDE).watcher,
+        [
+            crack(&breaker, 0),
+            "level_event 2019 1".to_owned(),
+            "level_event 2019 1".to_owned()
+        ]
+    );
+}
+
+#[test]
+fn brk_srv_004_each_tick_sends_a_hit_event_and_each_new_stage() {
+    let mut server = server();
+    let stone = default_state(&mut server, STONE);
+    let breaker = digger_at(&mut server, stone, NEAR);
+    let mut stages = Vec::new();
+
+    server.queue(breaker.anchor, &start_action(NEAR, 10));
+    for count in 1..=31 {
+        let out = ticks(&mut server, 1);
+        let answer = answers(&out, &breaker, NEAR);
+        let hit = if [4, 8, 12, 16, 20, 24, 28].contains(&count) {
+            "level_event 2020 1"
+        } else {
+            "level_event 2019 1"
+        };
+        assert_eq!(answer.breaker[0], hit, "tick count {count}");
+        assert_eq!(answer.watcher.last().unwrap(), hit, "tick count {count}");
+        stages.extend(cracks(&out).into_iter().map(|(_, stage)| (count, stage)));
+    }
+
+    // The sum of the rates reaches the stage 2 at the tick count 30, and the stage 1 at 14 or
+    // one tick later.
+    let [(1, 0), (first, 1), (30, 2)] = stages[..] else {
+        panic!("the stages were {stages:?}");
+    };
+    assert!((14..=15).contains(&first), "the stage 1 came at {first}");
+}
+
+#[test]
+fn brk_srv_005_the_stages_pass_9_and_the_hit_events_stop_above_a_progress_of_1() {
+    let mut server = server();
+    let dirt = default_state(&mut server, DIRT);
+    let breaker = digger_at(&mut server, dirt, NEAR);
+    let mut stages = Vec::new();
+
+    server.queue(breaker.anchor, &start_action(NEAR, 10));
+    for count in 1..=19 {
+        let out = ticks(&mut server, 1);
+        stages.extend(cracks(&out).into_iter().map(|(_, stage)| stage));
+        let stage = *stages.last().unwrap();
+        let hit = !level_events(&out, Client::Watcher).is_empty();
+        // The tick of the stage 10 has a progress of 1 or a little more.
+        if stage != 10 {
+            assert_eq!(hit, stage < 10, "tick count {count}, stage {stage}");
+        }
+    }
+
+    assert_eq!(stages, (0..=13).collect::<Vec<i8>>());
+}
+
+/// The cracks that an abort at `at` removes for the observers. The breaker must get only the
+/// acknowledgement, so no dig goes on.
+fn aborted(server: &mut PlayServer, breaker: &Breaker, at: BlockPos) -> Vec<(BlockPos, i8)> {
+    let abort = action(PlayerAction::AbortDestroyBlock, at, 0);
+    let out = send(server, breaker, &abort);
+    assert_eq!(answers(&out, breaker, NEAR).breaker, ["ack 0"]);
+    cracks(&out)
+}
+
+#[test]
+fn brk_srv_006_an_abort_ends_the_dig_and_removes_the_cracks() {
+    let mut server = server();
+    let stone = default_state(&mut server, STONE);
+    let breaker = digger_at(&mut server, stone, NEAR);
+
+    dig_to(&mut server, &breaker, NEAR, 2);
+    assert_eq!(aborted(&mut server, &breaker, NEAR), [(NEAR, -1)]);
+    dig_to(&mut server, &breaker, NEAR, 2);
+    assert_eq!(
+        aborted(&mut server, &breaker, BESIDE),
+        [(NEAR, -1), (BESIDE, -1)]
+    );
+    assert_eq!(
+        aborted(&mut server, &breaker, NEAR),
+        [(NEAR, -1)],
+        "with no dig"
+    );
+}
+
+#[test]
+fn brk_srv_007_a_face_change_sets_the_face_of_the_dig_from_any_position() {
+    let mut server = server();
+    let stone = default_state(&mut server, STONE);
+    let breaker = digger_at(&mut server, stone, NEAR);
+    let change = ServerboundPlayerAction {
+        direction: Direction::South,
+        ..action(PlayerAction::ChangeDestroyDirection, BESIDE, 0)
+    };
+
+    let idle = answers(&send(&mut server, &breaker, &change), &breaker, NEAR);
+    assert_eq!(idle.breaker, ["ack 0"], "with no dig");
+    assert_eq!(idle.watcher, Vec::<String>::new(), "with no dig");
+
+    dig_to(&mut server, &breaker, NEAR, 2);
+    let answer = answers(&send(&mut server, &breaker, &change), &breaker, NEAR);
+    assert_eq!(
+        answer.breaker,
+        ["level_event 2019 3", "ack 0", "level_event 2020 3"]
+    );
+    assert_eq!(answer.watcher, ["level_event 2019 3", "level_event 2020 3"]);
+}
+
+#[test]
+fn brk_srv_008_a_finish_at_a_progress_of_0_7_breaks_the_block() {
+    let mut server = server();
+    let dirt = default_state(&mut server, DIRT);
+    let breaker = digger_at(&mut server, dirt, NEAR);
+    dig_to(&mut server, &breaker, NEAR, 10);
+
+    let out = send(&mut server, &breaker, &finish_action(NEAR));
+
+    let answer = answers(&out, &breaker, NEAR);
+    assert_eq!(answer.breaker, ["block_update 0", "ack 11"]);
+    assert_eq!(
+        answer.watcher,
+        [
+            crack(&breaker, -1),
+            format!("level_event 2001 {}", dirt.number()),
+            "block_update 0".to_owned()
+        ]
+    );
+}
+
+#[test]
+fn brk_srv_009_an_early_finish_breaks_the_block_when_the_progress_reaches_1() {
+    let mut server = server();
+    let dirt = default_state(&mut server, DIRT);
+    let breaker = digger_at(&mut server, dirt, NEAR);
+    dig_to(&mut server, &breaker, NEAR, 9);
+
+    let mut out = step(&mut server, &breaker, &finish_action(NEAR));
+    out.extend(ticks(&mut server, 7));
+
+    let answer = answers(&out, &breaker, NEAR);
+    assert_eq!(answer.breaker, ["ack 11", "block_update 0"]);
+    assert_eq!(
+        answer.watcher,
+        [
+            crack(&breaker, 7),
+            crack(&breaker, 8),
+            crack(&breaker, 9),
+            crack(&breaker, 10),
+            format!("level_event 2001 {}", dirt.number()),
+            "block_update 0".to_owned()
+        ]
+    );
+}
+
+#[test]
+fn brk_srv_009_a_new_dig_and_the_delayed_break_both_do_their_steps() {
+    let mut server = server();
+    let stone = default_state(&mut server, STONE);
+    let breaker = digger_at(&mut server, stone, NEAR);
+    place(&mut server, &breaker, BESIDE, stone);
+    dig_to(&mut server, &breaker, NEAR, 5);
+    step(&mut server, &breaker, &finish_action(NEAR));
+    step(&mut server, &breaker, &start_action(BESIDE, 12));
+
+    let mut out = step(&mut server, &breaker, &finish_action(BESIDE));
+    out.extend(ticks(&mut server, 8));
+
+    assert_eq!(
+        level_events(&out, Client::Watcher),
+        [(BESIDE, 1); 9],
+        "the dig goes on after its early finish"
+    );
+    assert_eq!(cracks(&out), [(NEAR, 1)], "the delayed break goes on");
+}
+
+#[test]
+fn brk_srv_009_a_delayed_break_ends_when_its_block_changes() {
+    let mut server = server();
+    let dirt = default_state(&mut server, DIRT);
+    let glass = default_state(&mut server, "minecraft:glass");
+    let breaker = digger_at(&mut server, dirt, NEAR);
+    dig_to(&mut server, &breaker, NEAR, 9);
+    step(&mut server, &breaker, &finish_action(NEAR));
+    place(&mut server, &breaker, NEAR, glass);
+
+    let out = ticks(&mut server, 5);
+
+    let answer = answers(&out, &breaker, NEAR);
+    assert_eq!(answer.breaker, Vec::<String>::new());
+    assert_eq!(answer.watcher, Vec::<String>::new());
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum RefusedFinish {
+    NoDig,
+    AnotherPosition,
+    OutOfReach,
+}
+
+#[test]
+fn brk_srv_010_a_refused_finish_gets_only_the_ack_and_the_dig_continues() {
+    for case in [
+        RefusedFinish::NoDig,
+        RefusedFinish::AnotherPosition,
+        RefusedFinish::OutOfReach,
+    ] {
+        let mut server = server();
+        let dirt = default_state(&mut server, DIRT);
+        let breaker = digger_at(&mut server, dirt, NEAR);
+        place(&mut server, &breaker, BESIDE, dirt);
+        let mut stage = Vec::new();
+        let mut hit = Vec::new();
+        if case != RefusedFinish::NoDig {
+            dig_to(&mut server, &breaker, NEAR, 12);
+            stage.push(crack(&breaker, 9));
+            hit.push("level_event 2019 1".to_owned());
+        }
+        if case == RefusedFinish::OutOfReach {
+            move_out_of_reach(&mut server, &breaker);
+        }
+        let finish_at = if case == RefusedFinish::AnotherPosition {
+            BESIDE
+        } else {
+            NEAR
+        };
+
+        let out = step(&mut server, &breaker, &finish_action(finish_at));
+
+        let dug = answers(&out, &breaker, NEAR);
+        assert_eq!(dug.watcher, [stage, hit.clone()].concat(), "{case:?}");
+        assert_eq!(
+            dug.breaker,
+            [hit, vec!["ack 11".to_owned()]].concat(),
+            "{case:?}"
+        );
+        assert_eq!(
+            answers(&out, &breaker, BESIDE).watcher,
+            Vec::<String>::new(),
+            "{case:?}"
+        );
+    }
+}
+
+#[test]
+fn brk_srv_011_a_block_with_a_hardness_of_minus_1_keeps_the_stage_0() {
+    let mut server = server();
+    let bedrock = default_state(&mut server, "minecraft:bedrock");
+    let breaker = digger_at(&mut server, bedrock, NEAR);
+
+    let mut out = dig_to(&mut server, &breaker, NEAR, 31);
+    out.extend(send(&mut server, &breaker, &finish_action(NEAR)));
+
+    assert_eq!(cracks(&out), [(NEAR, 0)]);
+    let answer = answers(&out, &breaker, NEAR);
+    let block_states = |lines: &[String]| lines.iter().any(|line| line.contains("block_update"));
+    assert!(!block_states(&answer.breaker), "{:?}", answer.breaker);
+    assert!(!block_states(&answer.watcher), "{:?}", answer.watcher);
+}
+
+#[test]
+fn brk_srv_012_the_reach_is_5_5_blocks_in_survival_mode() {
+    let mut server = server();
+    let stone = default_state(&mut server, STONE);
+    let breaker = digger_at(&mut server, stone, NEAR);
+    let player = server.player(breaker.anchor);
+    let dig = [crack(&breaker, 0), "level_event 2019 1".to_owned()];
+
+    for (distance, watcher) in [
+        (5.5, &[][..]),
+        (5.51, &[]),
+        (5.6, &[]),
+        (5.4, &dig),
+        (5.49, &dig),
+    ] {
+        let eye = NEAR.as_dvec3() + DVec3::new(-distance, 0.5, 0.5);
+        server
+            .world()
+            .get_mut::<Transform>(player)
+            .unwrap()
+            .translation = eye - DVec3::new(0.0, 1.62, 0.0);
+
+        let out = step(&mut server, &breaker, &start_action(NEAR, 10));
+
+        let answer = answers(&out, &breaker, NEAR);
+        assert_eq!(answer.watcher, watcher, "{distance}");
+        assert_eq!(answer.breaker.last().unwrap(), "ack 10", "{distance}");
+    }
+}
+
+#[test]
+fn brk_srv_013_a_dig_ends_when_its_block_becomes_air() {
+    let mut server = server();
+    let stone = default_state(&mut server, STONE);
+    let breaker = digger_at(&mut server, stone, NEAR);
+    dig_to(&mut server, &breaker, NEAR, 6);
+
+    let out = place(&mut server, &breaker, NEAR, BlockStateId::AIR);
+
+    let mut watcher = answers(&out, &breaker, NEAR).watcher;
+    watcher.retain(|line| !line.starts_with("level_event"));
+    assert_eq!(watcher, ["block_update 0".to_owned(), crack(&breaker, -1)]);
+    let later = answers(&ticks(&mut server, 3), &breaker, NEAR);
+    assert_eq!(later.breaker, Vec::<String>::new());
+    assert_eq!(later.watcher, Vec::<String>::new());
+}
+
+#[test]
+fn brk_srv_013_a_dig_continues_at_the_rate_of_a_new_block() {
+    let mut server = server();
+    let stone = default_state(&mut server, STONE);
+    let dirt = default_state(&mut server, DIRT);
+    let breaker = digger_at(&mut server, stone, NEAR);
+    dig_to(&mut server, &breaker, NEAR, 5);
+
+    let mut out = place(&mut server, &breaker, NEAR, dirt);
+    out.extend(ticks(&mut server, 7));
+
+    assert_eq!(
+        cracks(&out),
+        [(NEAR, 1), (NEAR, 2), (NEAR, 3), (NEAR, 4), (NEAR, 5)]
+    );
+}
+
+#[test]
+fn brk_srv_014_a_start_on_air_sends_the_stage_10_and_the_dig_ends() {
+    let mut server = server();
+    let breaker = digger_at(&mut server, BlockStateId::AIR, NEAR);
+
+    let mut out = step(&mut server, &breaker, &start_action(NEAR, 10));
+    out.extend(ticks(&mut server, 2));
+
+    let answer = answers(&out, &breaker, NEAR);
+    assert_eq!(answer.breaker, ["ack 10"]);
+    assert_eq!(answer.watcher, [crack(&breaker, 10), crack(&breaker, -1)]);
+}
+
+#[test]
+fn brk_srv_015_a_start_at_the_position_of_the_dig_restarts_it() {
+    let mut server = server();
+    let stone = default_state(&mut server, STONE);
+    let breaker = digger_at(&mut server, stone, NEAR);
+    dig_to(&mut server, &breaker, NEAR, 2);
+
+    let mut out = step(&mut server, &breaker, &start_action(NEAR, 11));
+    out.extend(ticks(&mut server, 3));
+
+    let answer = answers(&out, &breaker, NEAR);
+    assert_eq!(
+        answer.breaker,
+        [
+            format!("block_update {}", stone.number()).as_str(),
+            "level_event 2019 1",
+            "ack 11",
+            "level_event 2019 1",
+            "level_event 2019 1",
+            "level_event 2020 1"
+        ]
+    );
+    assert_eq!(answer.watcher[0], crack(&breaker, 0));
+}
+
+#[test]
+fn brk_srv_015_a_start_that_breaks_at_once_keeps_the_dig_at_another_position() {
+    let mut server = server();
+    let stone = default_state(&mut server, STONE);
+    let grass = default_state(&mut server, "minecraft:short_grass");
+    let breaker = digger_at(&mut server, stone, NEAR);
+    place(&mut server, &breaker, BESIDE, grass);
+    dig_to(&mut server, &breaker, NEAR, 2);
+
+    let out = send(&mut server, &breaker, &start_action(BESIDE, 11));
+
+    assert_eq!(
+        answers(&out, &breaker, NEAR).breaker,
+        ["level_event 2019 1", "ack 11", "level_event 2020 1"]
+    );
+    assert_eq!(
+        answers(&out, &breaker, BESIDE).watcher,
+        [
+            format!("level_event 2001 {}", grass.number()),
+            "block_update 0".to_owned()
+        ]
+    );
+}
+
+#[test]
+fn brk_srv_016_an_abort_out_of_reach_ends_the_dig() {
+    let mut server = server();
+    let stone = default_state(&mut server, STONE);
+    let breaker = digger_at(&mut server, stone, NEAR);
+    dig_to(&mut server, &breaker, NEAR, 2);
+    move_out_of_reach(&mut server, &breaker);
+
+    assert_eq!(aborted(&mut server, &breaker, NEAR), [(NEAR, -1)]);
+    assert_eq!(aborted(&mut server, &breaker, NEAR), [], "with no dig");
 }

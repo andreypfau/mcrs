@@ -28,9 +28,10 @@ const WASM32_PACKAGES: [&str; 11] = [
     "mcrs_minecraft_biome_file",
 ];
 
-const NO_STD_PACKAGES: [&str; 11] = [
+const NO_STD_PACKAGES: [&str; 12] = [
     "mcrs_command",
     "mcrs_minecraft_bedrock_wire",
+    "mcrs_minecraft_block_break",
     "mcrs_minecraft_brain",
     "mcrs_minecraft_chat",
     "mcrs_minecraft_entity_key",
@@ -42,7 +43,7 @@ const NO_STD_PACKAGES: [&str; 11] = [
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 121] = [
+const NO_BEVY_PACKAGES: [&str; 122] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -58,6 +59,7 @@ const NO_BEVY_PACKAGES: [&str; 121] = [
     "mcrs_minecraft_biome",
     "mcrs_minecraft_biome_file",
     "mcrs_minecraft_block",
+    "mcrs_minecraft_block_break",
     "mcrs_minecraft_block_entity",
     "mcrs_minecraft_block_predicate",
     "mcrs_minecraft_block_transformer",

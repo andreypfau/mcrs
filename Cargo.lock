@@ -4149,6 +4149,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_block_break"
+version = "0.5.8"
+
+[[package]]
 name = "mcrs_minecraft_block_entity"
 version = "0.5.8"
 dependencies = [
@@ -4846,6 +4850,7 @@ dependencies = [
  "mcrs_minecraft_assets",
  "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block",
+ "mcrs_minecraft_block_break",
  "mcrs_minecraft_block_entity",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_command",
