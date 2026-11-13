@@ -9,6 +9,7 @@ use mcrs_minecraft_player_slots::Offer;
 use mcrs_minecraft_player_slots::PlayerMode;
 use mcrs_minecraft_player_slots::SlotFilter;
 use mcrs_minecraft_player_slots::SlotRule;
+use mcrs_minecraft_player_slots::swap_button_slot;
 
 fn rule(limit: u8, filter: SlotFilter) -> Option<SlotRule> {
     Some(SlotRule { limit, filter })
@@ -147,5 +148,20 @@ fn inv_slt_004_005_the_take_filters() {
             expected,
             "{filter:?} {lock:?} {mode:?}"
         );
+    }
+}
+
+#[test]
+fn inv_mnu_003_swap_buttons_name_the_hotbar_and_the_off_hand() {
+    let cases = [
+        (0, Some(0)),
+        (8, Some(8)),
+        (9, None),
+        (39, None),
+        (40, Some(40)),
+        (41, None),
+    ];
+    for (button, slot) in cases {
+        assert_eq!(swap_button_slot(button), slot, "button {button}");
     }
 }

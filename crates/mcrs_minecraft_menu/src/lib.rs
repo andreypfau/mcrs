@@ -8,11 +8,9 @@ mod menu_slot;
 pub mod menu_keys;
 #[rustfmt::skip]
 pub mod registry_keys;
-mod swap_button;
 
 pub use inventory_menu::InventoryMenu;
 pub use menu_range::MenuOrder;
 pub use menu_range::MenuRange;
 pub use menu_range::MenuRangeIter;
 pub use menu_slot::MenuSlot;
-pub use swap_button::swap_button_slot;

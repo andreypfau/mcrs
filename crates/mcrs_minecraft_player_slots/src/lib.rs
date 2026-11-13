@@ -11,6 +11,7 @@ mod offer;
 mod slot_filter;
 mod slot_rule;
 mod stacking;
+mod swap_button;
 
 pub use armour_slot::ArmourSlot;
 pub use equip_slot::EquipSlot;
@@ -30,3 +31,4 @@ pub use slot_filter::PlayerMode;
 pub use slot_filter::SlotFilter;
 pub use slot_rule::SlotRule;
 pub use stacking::Stacking;
+pub use swap_button::swap_button_slot;
