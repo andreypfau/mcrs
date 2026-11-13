@@ -67,11 +67,11 @@
 - id: persistence
   title: { en: Saving and Anvil, ru: Сохранения и Anvil }
   works:
-    en: "Reads an existing Java Edition world. Players are saved when the server shuts down cleanly."
-    ru: "Читает существующий мир Java Edition. Игроки сохраняются при чистом выключении сервера."
+    en: "Reads an existing Java Edition world and writes changed chunks back to its region files. Autosave runs every 6000 ticks, and a clean shutdown saves the world and the players."
+    ru: "Читает существующий мир Java Edition и записывает измененные чанки обратно в его файлы регионов. Автосохранение идет каждые 6000 тиков, а чистое выключение сохраняет мир и игроков."
   missing:
-    en: "Changed chunks are not written back to disk. A world of another data version does not load, and there are no datafixers."
-    ru: "Измененные чанки на диск не пишутся. Мир другой версии данных не загружается, датафиксеров нет."
+    en: "A world of another data version does not load, and there are no datafixers."
+    ru: "Мир другой версии данных не загружается, датафиксеров нет."
   state: partial
   issues: [78, 169]
   evidence: "crates/mcrs_minecraft_server/tests/it/anvil_block_states.rs"

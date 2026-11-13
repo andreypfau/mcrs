@@ -113,7 +113,7 @@ The idea is the same, and three things differ. The mcrs plugin is compiled into 
 
 ## What plugins cannot do yet
 
-Four things a plugin may need are not ready yet. They are public events, chunk sources, saving and dimensions at run time.[^283][^281][^78][^546] [Status](/docs/en/start/status/) shows what else is missing for plugins, and [Dimensions](/docs/en/plugins/dimensions/) explains why `add_plugins` does not reach a dimension.
+Three things a plugin may need are not ready yet. They are public events, chunk sources and dimensions at run time.[^283][^281][^546] [Status](/docs/en/start/status/) shows what else is missing for plugins, and [Dimensions](/docs/en/plugins/dimensions/) explains why `add_plugins` does not reach a dimension.
 
 Next: [Intercept chat](/docs/en/plugins/chat-event/) uses the first public event to cancel and rewrite a chat line.
 
@@ -123,5 +123,4 @@ Next: [Intercept chat](/docs/en/plugins/chat-event/) uses the first public event
 [^pr636]: <Status pr={636} state="works" /> Raises a cancellable event for a chat line before its broadcast.
 [^283]: <Status issue={283} /> Tracks public player events that a plugin can cancel.
 [^281]: <Status issue={281} /> Plans the chunk source as a replaceable plugin point, with empty and flat sources.
-[^78]: <Status issue={78} /> Tracks saving changed chunks back to region files.
 [^546]: <Status issue={546} /> Plans to create and remove dimension worlds at run time and move players between them.
