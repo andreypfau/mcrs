@@ -158,6 +158,7 @@ Out of scope:
 | Max Framerate: values, default, value with no limit | 10 to 260 in steps of 10, 120, 260 | MENU-VAL-009 |
 | VSync: vanilla default, mcrs default | ON, OFF | MENU-VAL-010 |
 | Fullscreen: default | OFF | MENU-VAL-011 |
+| Improved Transparency: default | OFF | MENU-VAL-012 |
 | Draw test of the client: margin | 1 column | MENU-DIST-001 |
 | Render-distance fog: end, length | `16 · r` blocks, `clamp(16 · r / 10, 4, 64)` blocks | MENU-DIST-001 |
 | View of a player on the server: margin | 2 columns | MENU-DIST-003 |
@@ -449,7 +450,7 @@ mcrs deviates from the last postcondition: MENU-DEV-011.
 | Section label | Wide row | Flat list of options, in order |
 |---------------|----------|--------------------------------|
 | `options.video.display.header` "Display" | Exclusive Fullscreen Mode | **Max Framerate**, **VSync**, Reduce FPS When, **GUI Scale**, **Fullscreen**, Exclusive Fullscreen, **Brightness**, Graphics API; then "Prefer DXGI Present" on Windows, or "Menu/Dock Visibility" on macOS |
-| `options.video.quality.header` "Quality & Performance" | Preset | Biome Blend, **Render Distance**, Chunk Builder, **Simulation Distance**, **Smooth Lighting**, **Clouds**, Particles, Mipmap Levels, Entity Shadows, Entity Distance, Menu Background Blur, Cloud Distance, See-Through Leaves, Improved Transparency, Texture Filtering, Anisotropic Filtering, Weather Effect Radius |
+| `options.video.quality.header` "Quality & Performance" | Preset | Biome Blend, **Render Distance**, Chunk Builder, **Simulation Distance**, **Smooth Lighting**, **Clouds**, Particles, Mipmap Levels, Entity Shadows, Entity Distance, Menu Background Blur, Cloud Distance, See-Through Leaves, **Improved Transparency**, Texture Filtering, Anisotropic Filtering, Weather Effect Radius |
 | `options.video.preferences.header` "Preferences" | none | Autosave Indicator, Show Vignette, Attack Indicator, Chunk Fade Time |
 
 - **Postconditions:**
@@ -458,7 +459,7 @@ mcrs deviates from the last postcondition: MENU-DEV-011.
     index 0 of the fourth row.
   - "Render Distance" is at the index 1 of the first row of "Quality & Performance".
     "Simulation Distance" is at the index 1 of the second row. "Smooth Lighting" and "Clouds"
-    share the third row.
+    share the third row. "Improved Transparency" is at the index 1 of the seventh row.
 - **Edge cases:** the Ctrl wheel on this screen changes the GUI scale (MENU-SCALE-003).
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts. Kind: layout.
@@ -474,7 +475,7 @@ Confidence: medium. Experiment: MENU-EXP-03.
   3. A wide row shows only when its option is an option of mcrs. No wide row shows.
   4. A section label row shows only when its section holds an option of mcrs.
   5. The Ctrl wheel acts as MENU-SCALE-003 states.
-- **Postconditions:** the list holds these seven rows. At W = 427 and H = 240 with the scroll
+- **Postconditions:** the list holds these eight rows. At W = 427 and H = 240 with the scroll
   offset 0:
 
 | Row | Content | Row top | Height | Widgets |
@@ -486,11 +487,15 @@ Confidence: medium. Experiment: MENU-EXP-03.
 | 4 | label "Quality & Performance" | 128 | 36 | label box top 148 |
 | 5 | "Render Distance", "Simulation Distance" | 164 | 25 | (58, 166) and (218, 166) |
 | 6 | "Smooth Lighting", "Clouds" | 189 | 25 | (58, 191) and (218, 191) |
+| 7 | "Improved Transparency" | 214 | 25 | (58, 216) |
 
-  - The content height is 183. The list is 174 high, so it scrolls with `M` = 9
+  - The content height is 208. The list is 174 high, so it scrolls with `M` = 34
     (`client-list.md`, SCRL-AREA-001).
   - At the scroll offset 0, the bottom of row 6 is below the bottom of the list at y = 207.
-  - The scrollbar shows at x = 376 (SCRL-BAR-001). Its thumb is 165 high (SCRL-BAR-002).
+    Row 7 does not show.
+  - At the scroll offset 34, row 7 is at the top 180, and its bottom is 2 above the bottom of
+    the list.
+  - The scrollbar shows at x = 376 (SCRL-BAR-001). Its thumb is 145 high (SCRL-BAR-002).
 
 Provenance: `design` for the set of rows, as MENU-PAUSE-006 states. `source_suggested` for the
 positions. Kind: layout. Confidence: medium. Experiment: MENU-EXP-03.
@@ -555,10 +560,12 @@ The options of mcrs are on these screens:
 | Max Framerate | "Video Settings", section "Display" | MENU-VAL-009 |
 | VSync | "Video Settings", section "Display" | MENU-VAL-010 |
 | Fullscreen | "Video Settings", section "Display" | MENU-VAL-011 |
+| Improved Transparency | "Video Settings", section "Quality & Performance" | MENU-VAL-012 |
 
 The rules MENU-DIST-001 to MENU-DIST-005 state the effect of Render Distance and Simulation
 Distance. The rules MENU-DISP-001 to MENU-DISP-005 state the effect of Max Framerate, VSync and
-Fullscreen. `client-controls.md`, CTRL-VAL-001, states the option Sensitivity.
+Fullscreen. `client-fog.md` states the effect of Improved Transparency.
+`client-controls.md`, CTRL-VAL-001, states the option Sensitivity.
 
 ### MENU-VAL-001: FOV
 
@@ -770,6 +777,34 @@ Experiment: MENU-EXP-13.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts. Kind: semantic.
 Confidence: medium. Experiment: MENU-EXP-14.
+
+### MENU-VAL-012: Improved Transparency
+
+- **Behavior:**
+  1. The widget is a Boolean cycle button (WID-CYC-001, step 4), with the caption form "name
+     and value". Its name is `options.improvedTransparency`, "Improved Transparency". The
+     default is OFF.
+  2. For each value, the tooltip is `options.improvedTransparency.oitWithImprovedFog.tooltip`,
+     "An experimental approach that uses an order-independent transparency algorithm to avoid
+     graphical issues normally present when looking through multiple layers of translucent
+     objects.\nThis option will also blend the sky background and the clouds with render
+     distance-based fog to make the boundary between the terrain and the sky invisible.\nThis
+     will impact performance." Each `\n` is a line break, U+000A (`client-tooltip.md`,
+     section 0.3).
+  3. Each change applies from the next frame. ON: `client-fog.md`, CFOG-TIME-002 step 3 and
+     CFOG-DRAW-002. OFF: CFOG-TIME-002 step 2 and CFOG-DRAW-001 step 1.
+  4. In mcrs, a change does not build the chunk meshes again (MENU-DEV-013).
+  5. Each change writes the options file (MENU-SAVE-001).
+  6. The stored value is the option Improved Transparency of `client-fog.md`, section 0.1.
+- **Postconditions:**
+  - The captions are "Improved Transparency: ON" and "Improved Transparency: OFF".
+  - In the frame after a change to ON, the terrain at the end of the render distance has the
+    colour of the sky and the clouds behind it. After a change to OFF, it has the fog colour.
+
+Provenance: `source_suggested`; `black_box_confirmed` for the English texts. The language file
+has two other tooltip keys of the option, `options.improvedTransparency.oit.tooltip` and
+`options.improvedTransparency.tooltip`. The button shows neither of them. `design` for step 4.
+Kind: semantic. Confidence: medium. Experiment: MENU-EXP-06.
 
 ### MENU-DIST-001: The render distance of the client
 
@@ -1089,7 +1124,7 @@ mcrs deviates from the last postcondition: MENU-DEV-011.
 - **Observer:** the options file, as the client reads it at the next start.
 - **Behavior:** the client writes the options file at these moments:
   1. after each change of the value of an option cycle button by an activation. Smooth
-     Lighting, Clouds, GUI Scale, VSync and Fullscreen are such buttons;
+     Lighting, Clouds, GUI Scale, VSync, Fullscreen and Improved Transparency are such buttons;
   2. each time that the options screen or an option sub-screen is removed: it closes, or
      another screen replaces it. For example, the options screen is removed when a sub-screen
      opens;
@@ -1276,14 +1311,17 @@ Decides: MENU-ACC-001, and the positions of MENU-ACC-002.
 
 Decides: MENU-VAL-001, MENU-VAL-002, MENU-VAL-003.
 
-### MENU-EXP-06: Smooth Lighting and Clouds
+### MENU-EXP-06: Smooth Lighting, Clouds and Improved Transparency
 
 1. Look at a block in a corner with light from one side. Press "Smooth Lighting". Record a
    screenshot after each press.
 2. Press "Clouds" three times. Record the caption and a screenshot of the sky after each press.
-3. Record the file time after each press.
+3. Look at a hill at the end of the render distance, with the sky behind it. Put the mouse on
+   "Improved Transparency" and record the tooltip. Press the button two times. After each
+   press, record the caption, a screenshot, and whether the chunk meshes build again.
+4. Record the file time after each press.
 
-Decides: MENU-VAL-004, MENU-VAL-005.
+Decides: MENU-VAL-004, MENU-VAL-005, MENU-VAL-012.
 
 ### MENU-EXP-07: GUI scale
 
@@ -1716,6 +1754,20 @@ Confidence: high.
 - **Test:** a differential test changes the fullscreen state by the system together with a
   change of the window size. Else it does not compare the option, the options file or the
   Fullscreen button after a change by the system with no change of the size.
+
+### MENU-DEV-013: A change of Improved Transparency does not build the chunk meshes again
+
+- **Rule:** MENU-VAL-012, step 4.
+- **Reference:** each change of Improved Transparency builds each chunk mesh again, as a change
+  of Smooth Lighting does (MENU-VAL-004, step 3).
+- **mcrs:** the world keeps its chunk meshes. The new value shows in the next frame.
+- **Reason:** the rules of `client-fog.md` that the option selects change only how the client
+  draws a frame. They do not change the content of a chunk mesh.
+- **Visible to the client:** yes. In vanilla, the chunk meshes build again over some frames
+  after a change. MENU-EXP-06, step 3, records what the player sees in those frames. In mcrs,
+  the world shows only the effect of the option.
+- **Test:** after a change of the option, a differential test compares the frames only after
+  each chunk mesh of the reference is built again.
 
 ---
 
