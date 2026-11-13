@@ -1,26 +1,21 @@
 //! The tooltip of a frame: one request, drawn over the rest of the GUI.
 
 use bevy::math::{IRect, IVec2};
+use mcrs_minecraft_client_widget::{GuiExtent, TooltipRequest, WidgetId};
 
 use crate::font::{self, Font, Span};
+use crate::gui_sprite_id::GuiSpriteId;
 use crate::scene::{GuiAtlasData, GuiQuad, GuiSize};
-use crate::sprite::GuiSprite;
 
 const LINE: i32 = 10;
 const OFFSET: i32 = 12;
-
-/// The background and the outline sprites, when the pack has them.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct TooltipSprites {
-    pub background: Option<GuiSprite>,
-    pub frame: Option<GuiSprite>,
-}
 
 /// The tooltip request of the current frame. The buffers stay between frames.
 #[derive(Debug, Default)]
 pub struct Tooltip {
     lines: Vec<Vec<Span>>,
     at: IVec2,
+    widget: Option<TooltipRequest>,
     requested: bool,
 }
 
@@ -43,6 +38,33 @@ impl Tooltip {
         }
         self.requested = true;
         self.at = at;
+        self.widget = None;
+    }
+
+    /// Makes the request of a widget, whose box goes where `widget` places it (WID-TIP-003,
+    /// WID-TIP-004). The request of the `focused` widget replaces the request of this frame; any
+    /// other is a request as [`Self::request`] makes (WID-TIP-005).
+    pub fn request_widget(
+        &mut self,
+        widget: TooltipRequest,
+        focused: Option<WidgetId>,
+        lines: impl FnOnce(&mut Vec<Vec<Span>>),
+    ) {
+        let replaces = focused == Some(widget.widget);
+        if self.requested && !replaces {
+            return;
+        }
+        if !self.requested {
+            self.lines.clear();
+        }
+        let kept = self.lines.len();
+        lines(&mut self.lines);
+        if self.lines.len() == kept {
+            return;
+        }
+        self.lines.drain(..kept);
+        self.requested = true;
+        self.widget = Some(widget);
     }
 
     /// The lines of the request of this frame, if there is one.
@@ -77,10 +99,16 @@ pub fn draw(tooltip: &Tooltip, gui: GuiSize, atlas: &GuiAtlasData, out: &mut Vec
     };
     let font = &atlas.font;
     let size = content_size(font, lines);
-    let at = content_origin(tooltip.at, size, IVec2::new(gui.width, gui.height));
+    let at = match tooltip.widget {
+        Some(widget) => {
+            let origin = widget.origin(GuiExtent::new(size.x, size.y));
+            IVec2::new(origin.x, origin.y)
+        }
+        None => content_origin(tooltip.at, size, IVec2::new(gui.width, gui.height)),
+    };
     let background = IRect::from_corners(at - OFFSET, at + size + OFFSET);
-    for sprite in [atlas.tooltip.background, atlas.tooltip.frame] {
-        sprite.unwrap_or(atlas.missing).draw(background, out);
+    for sprite in [GuiSpriteId::TooltipBackground, GuiSpriteId::TooltipFrame] {
+        atlas.sprite(sprite).draw(background, out);
     }
     for (index, line) in lines.iter().enumerate() {
         font::draw_text(
@@ -116,6 +144,36 @@ mod tests {
         assert!(tooltip.lines().is_none());
         tooltip.request(IVec2::new(5, 5), line("hover"));
         assert_eq!(shown(&tooltip).as_deref(), Some("hover"));
+    }
+
+    #[test]
+    fn only_the_request_of_the_focused_widget_replaces_the_first_request() {
+        use crate::item_decorations::WHITE;
+        use mcrs_minecraft_client_widget::{GuiRect, TooltipAnchor};
+        fn line(text: &'static str) -> impl FnOnce(&mut Vec<Vec<Span>>) {
+            move |rows| rows.push(vec![Span::new(text, WHITE)])
+        }
+        let request = |id| TooltipRequest {
+            widget: WidgetId(id),
+            bounds: GuiRect::new(0, 0, 20, 20),
+            screen: GuiExtent::new(100, 100),
+            anchor: TooltipAnchor::Focus,
+        };
+        let shown = |tooltip: &Tooltip| {
+            tooltip
+                .lines()
+                .map(|lines| (lines.len(), lines[0][0].text.clone()))
+        };
+        let focused = Some(WidgetId(2));
+        let mut tooltip = Tooltip::default();
+        tooltip.request(IVec2::new(1, 1), line("hover"));
+        tooltip.request_widget(request(1), focused, line("hovered widget"));
+        tooltip.request_widget(request(2), focused, |_| {});
+        assert_eq!(shown(&tooltip), Some((1, "hover".into())));
+        assert_eq!(tooltip.widget, None);
+        tooltip.request_widget(request(2), focused, line("focused widget"));
+        assert_eq!(shown(&tooltip), Some((1, "focused widget".into())));
+        assert_eq!(tooltip.widget, Some(request(2)));
     }
 
     #[test]

@@ -216,11 +216,36 @@ pub fn draw_str(
     bold: bool,
     out: &mut Vec<GuiQuad>,
 ) -> i32 {
+    let layers = [(1, shadow_color(color)), (0, color)];
+    draw_layers(font, origin, text, &layers, bold, out)
+}
+
+/// Draws one run as [`draw_str`] does a run that is not bold, without the shadow.
+pub(crate) fn draw_str_without_shadow(
+    font: &Font,
+    origin: IVec2,
+    text: &str,
+    color: u32,
+    out: &mut Vec<GuiQuad>,
+) {
+    draw_layers(font, origin, text, &[(0, color)], false, out);
+}
+
+/// Draws each glyph of `text` once for each layer, an offset and a colour, and returns the x
+/// where the next run starts.
+fn draw_layers(
+    font: &Font,
+    origin: IVec2,
+    text: &str,
+    layers: &[(i32, u32)],
+    bold: bool,
+    out: &mut Vec<GuiQuad>,
+) -> i32 {
     let mut x = origin.x;
     for ch in text.chars() {
         if font.glyph(ch).is_some() && !font.spaces.contains_key(&ch) {
             let strikes = if bold { 2 } else { 1 };
-            for (offset, color) in [(1, shadow_color(color)), (0, color)] {
+            for &(offset, color) in layers {
                 for strike in 0..strikes {
                     out.push(GuiQuad::Glyph {
                         origin: IVec2::new(x + offset + strike, origin.y + offset),

@@ -4235,6 +4235,7 @@ dependencies = [
  "mcrs_command",
  "mcrs_minecraft_block",
  "mcrs_minecraft_chat",
+ "mcrs_minecraft_client_widget",
  "mcrs_minecraft_command",
  "mcrs_minecraft_command_argument",
  "mcrs_minecraft_command_argument_block",
@@ -4245,7 +4246,6 @@ dependencies = [
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_resource",
- "mcrs_minecraft_text",
  "mcrs_minecraft_wire",
 ]
 
@@ -4294,6 +4294,7 @@ dependencies = [
  "mcrs_minecraft_client_entity",
  "mcrs_minecraft_client_gui",
  "mcrs_minecraft_client_jar",
+ "mcrs_minecraft_client_options",
  "mcrs_minecraft_client_world",
  "mcrs_minecraft_core",
  "mcrs_minecraft_datapack",
@@ -4377,6 +4378,8 @@ dependencies = [
  "getrandom 0.4.1",
  "mcrs_minecraft_chat",
  "mcrs_minecraft_chat_client",
+ "mcrs_minecraft_client_options",
+ "mcrs_minecraft_client_widget",
  "mcrs_minecraft_client_world",
  "mcrs_minecraft_command",
  "mcrs_minecraft_core",
@@ -4420,6 +4423,16 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "zip",
+]
+
+[[package]]
+name = "mcrs_minecraft_client_options"
+version = "0.5.8"
+dependencies = [
+ "bevy_ecs",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

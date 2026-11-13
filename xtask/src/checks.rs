@@ -69,6 +69,7 @@ const NO_BEVY_PACKAGES: [&str; 124] = [
     "mcrs_minecraft_chat_client",
     "mcrs_minecraft_chunk",
     "mcrs_minecraft_client_jar",
+    "mcrs_minecraft_client_options",
     "mcrs_minecraft_client_recorder",
     "mcrs_minecraft_client_widget",
     "mcrs_minecraft_goal_world",
