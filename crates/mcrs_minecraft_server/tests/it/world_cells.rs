@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 use bevy_app::{App, FixedUpdate, Last};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageReader;
-use bevy_ecs::prelude::{Has, Query, ResMut, Resource};
+use bevy_ecs::prelude::{Has, Query, ResMut, Resource, With};
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_math::DVec3;
 use mcrs_minecraft_block::block_keys::Block;
@@ -31,7 +31,7 @@ use mcrs_minecraft_engine::coordinator::ops::DefaultOpLevel;
 use mcrs_minecraft_engine::muxer::muxer_link::MuxerLink;
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
 use mcrs_minecraft_engine_brain::EntityRows;
-use mcrs_minecraft_engine_physics::ItemStacks;
+use mcrs_minecraft_engine_item::Dropped;
 use mcrs_minecraft_engine_world::block_drops::{BlockDrops, DroppingBlock, ItemDropped};
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
 use mcrs_minecraft_engine_world::session::PlayerSession;
@@ -46,6 +46,7 @@ use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item::{ItemHoverMap, ItemStack};
 use mcrs_minecraft_item_key::item_keys::Item;
+use mcrs_minecraft_item_stack::{Count, Kind};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, Decode, Packet, VarInt};
 use mcrs_minecraft_protocol_game::chunk::{LightChunk, LightData};
@@ -1333,7 +1334,7 @@ fn a_block_that_a_shape_update_destroys_drops_the_items_of_the_rules() {
     for (_, rows) in world.resource::<EntityRows>().tiles() {
         items.extend(rows.rows().map(|row| (row.id, row.state.body.position)));
     }
-    let [(id, position)] = items[..] else {
+    let [(_, position)] = items[..] else {
         panic!("one item row: {items:?}");
     };
     // PHY-CMP-025: 0.25 of random offset, then at most 0.1 per tick for the ten ticks since.
@@ -1341,10 +1342,12 @@ fn a_block_that_a_shape_update_destroys_drops_the_items_of_the_rules() {
         (position.x - 3.5).abs() < 1.25 && (position.z - 5.5).abs() < 1.25,
         "the item starts at the block: {position}"
     );
-    assert_eq!(
-        world.resource::<ItemStacks>().0.get(&id),
-        Some(&ItemStack::new(Item::NoteBlock.id(), 1))
-    );
+    let mut stacks = world.query_filtered::<(&Kind, &Count), With<Dropped>>();
+    let stacks: Vec<_> = stacks
+        .iter(world)
+        .map(|(&kind, count)| (kind, count.get()))
+        .collect();
+    assert_eq!(stacks, [(Kind(Item::NoteBlock.id().number()), 1)]);
 
     // The item starts with 0.2 upward, so it is back near its start ten ticks later.
     for _ in 0..20 {

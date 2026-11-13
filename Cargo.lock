@@ -5015,7 +5015,6 @@ dependencies = [
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_game_rule",
- "mcrs_minecraft_item",
  "mcrs_minecraft_physics",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
