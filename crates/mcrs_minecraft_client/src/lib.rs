@@ -48,6 +48,8 @@ pub mod scene_record;
 pub mod screenshot;
 #[cfg(not(target_family = "wasm"))]
 pub mod settle;
+#[cfg(not(target_family = "wasm"))]
+mod skin_download;
 pub mod sky;
 pub mod sky_state;
 pub mod stream;

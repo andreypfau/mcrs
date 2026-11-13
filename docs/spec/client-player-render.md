@@ -92,6 +92,8 @@ Confidence: high.
   2. An image of 64 by 32 texels is a legacy skin. CPR-SKIN-002 makes it a skin.
   3. An image of another size is not a skin. The client draws the default skin
      (CPR-SKIN-004).
+  4. The client holds at most 256 skins at the same time. A player past them has the default
+     skin of its model type (CPR-SKIN-004) until a skin frees (CPR-DEV-002).
 - **Postconditions:** none.
 
 Provenance: `documentation`. Kind: semantic. Confidence: high.
@@ -146,12 +148,15 @@ Provenance: `design` (CPR-DEV-001). Kind: semantic. Confidence: high.
   3. The client downloads the image only from the host `textures.minecraft.net`, always over
      HTTPS, and reads at most 1 MiB of it. A download that fails keeps the skin that the player
      has.
-  4. Until the image arrives, the player has the default skin of its model type.
+  4. Until the image arrives, the player keeps the skin that it has. A player with no skin has
+     the default skin of its model type.
+  5. The web client downloads no image (CPR-DEV-004). Its players take the model type of the
+     profile and the default skin of that model type.
 - **Postconditions:** a property with no `SKIN` gives no skin. The player then has the default
   skin `wide`.
 
 Provenance: `documentation` (the public profile service of the game). Kind: wire for items 1
-and 2, design for items 3 and 4. Confidence: high.
+and 2, design for items 3 to 5. Confidence: high.
 
 ## 3. Pose
 
@@ -216,7 +221,8 @@ Provenance: `design`. Kind: semantic. Confidence: medium. Experiment: CPR-TEST-0
   2. The player ticks, turns and walks as a player that a server adds.
   3. A move of the host acts as a teleport of the server (`client-entities.md`, CENTS-MOVE-004):
      the player travels to the new placement over its update interval, or it is there at once
-     when the distance is more than 64 blocks.
+     when the distance is more than 64 blocks. As for a teleport, that snap keeps an active
+     path, which moves with the player (CENTS-INTERP-003, item 3).
   4. The host can change the skin or the model type at any time. The next frame draws the change.
   5. When the host removes the player, its skin layer becomes free (CPR-DEV-002).
 - **Postconditions:** the observer is a user of the library. The rules of sections 1 to 3 apply.
@@ -235,7 +241,7 @@ Provenance: `design`. Kind: semantic. Confidence: high.
 
 ### CPR-DEV-002: A fixed number of skins
 
-- **Rule:** CPR-SKIN-001.
+- **Rule:** CPR-SKIN-001, item 4.
 - **Reference:** the reference has no limit.
 - **Visible to the client:** yes, only with more than 256 players with skins in view at the same
   time. A player past the limit has the default skin.
@@ -246,6 +252,13 @@ Provenance: `design`. Kind: semantic. Confidence: high.
 - **Rule:** CPR-MODEL-001, item 2.
 - **Reference:** a player can hide each part of the second layer.
 - **Visible to the client:** yes. A hidden part shows.
+- **Test:** none.
+
+### CPR-DEV-004: No skin download on the web
+
+- **Rule:** CPR-SKIN-005, item 5.
+- **Reference:** the reference downloads the skin of each profile.
+- **Visible to the client:** yes, only in the web client. Each player there is Steve or Alex.
 - **Test:** none.
 
 ## 6. Experiments

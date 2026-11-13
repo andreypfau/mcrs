@@ -62,7 +62,13 @@ impl EntityAssets {
             array_layers.min(MAX_ARRAY_LAYERS),
         );
         self.library.skin_variants = skin_variants(&self.library);
-        self.skin_textures = skin_texture_hashes();
+        // With no skin layers, a slot of an earlier library must not name a layer that this one
+        // never writes, so the players draw default skins.
+        self.skin_textures = if self.library.skin_variants.is_empty() {
+            Vec::new()
+        } else {
+            skin_texture_hashes()
+        };
         self.pack = pack;
         self.index_textures();
     }

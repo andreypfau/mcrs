@@ -105,14 +105,21 @@ pub(crate) fn skin_entry(
 
 /// Gives each entity with a skin image a skin layer and sends its texels to the render world.
 /// New entity assets start with empty layers, so each skin goes again. An entity that found no
-/// free layer tries again when one frees.
+/// free layer tries again when one frees. An entity that loses its [`PlayerSkin`] frees its layer.
 pub(crate) fn assign_skins(
     mut commands: Commands,
     assets: Option<Res<EntityAssets>>,
     mut slots: ResMut<SkinSlots>,
+    mut removed: RemovedComponents<PlayerSkin>,
     changed: Query<(Entity, &PlayerSkin, Option<&SkinSlot>), Changed<PlayerSkin>>,
     all: Query<(Entity, Ref<PlayerSkin>, Option<&SkinSlot>)>,
+    worn: Query<(), (With<SkinSlot>, Without<PlayerSkin>)>,
 ) {
+    for entity in removed.read() {
+        if worn.contains(entity) {
+            commands.entity(entity).remove::<SkinSlot>();
+        }
+    }
     let Some(assets) = assets.filter(|assets| !assets.library.skin_variants.is_empty()) else {
         return;
     };
@@ -237,6 +244,16 @@ mod tests {
         app.world_mut().get_mut::<PlayerSkin>(entity).unwrap().image = None;
         app.update();
         assert_eq!(layer(&app), [slim, alex]);
+        assert_eq!(app.world().resource::<SkinSlots>().free, [0]);
+
+        // CPR-HOST-001, item 5: a player that loses its skin frees its layer.
+        app.world_mut().get_mut::<PlayerSkin>(entity).unwrap().image =
+            SkinImage::from_rgba(64, 64, vec![0; 64 * 64 * 4]).ok();
+        app.update();
+        assert!(app.world().resource::<SkinSlots>().free.is_empty());
+        app.world_mut().entity_mut(entity).remove::<PlayerSkin>();
+        app.update();
+        assert_eq!(app.world().get::<SkinSlot>(entity), None);
         assert_eq!(app.world().resource::<SkinSlots>().free, [0]);
     }
 }

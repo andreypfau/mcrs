@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use bevy::prelude::*;
-use mcrs_minecraft_client_entity::ClientEntity;
+use mcrs_minecraft_client_entity::{ClientEntity, HOST_NETWORK_ID};
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_render::PlayerSkin;
 use mcrs_minecraft_network::event::Received;
@@ -12,6 +12,9 @@ use mcrs_minecraft_profile::{PlayerModelType, SkinTextures};
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundPlayerInfoRemove, ClientboundPlayerInfoUpdate,
 };
+
+#[cfg(not(target_family = "wasm"))]
+use crate::skin_download::{SkinDownload, finish_downloads, trusted};
 
 /// Gives each player entity the skin of its profile.
 pub struct PlayerSkinsPlugin;
@@ -22,8 +25,10 @@ impl Plugin for PlayerSkinsPlugin {
             .add_observer(on_player_info_update)
             .add_observer(on_player_info_remove)
             .add_systems(Update, dress_players);
+        // The commands of `dress_players` apply first, so that an old download that ends in the
+        // same frame does not remove the new one.
         #[cfg(not(target_family = "wasm"))]
-        app.add_systems(Update, download::finish_downloads);
+        app.add_systems(Update, finish_downloads.after(dress_players));
     }
 }
 
@@ -70,7 +75,7 @@ fn on_player_info_remove(
 
 /// Gives each new player entity, and each player whose profile came again, the model of its
 /// profile and starts the download of its image. A player keeps its image until the new one
-/// arrives.
+/// arrives. A player of the host keeps the skin that the host gives.
 fn dress_players(
     mut commands: Commands,
     mut skins: ResMut<ProfileSkins>,
@@ -88,13 +93,13 @@ fn dress_players(
         .into_iter()
         .flatten();
     for (entity, client) in added.iter().chain(again) {
-        if client.kind != EntityType::Player {
+        if client.kind != EntityType::Player || client.network_id == HOST_NETWORK_ID {
             continue;
         }
         let textures = skins.by_player.get(&client.uuid.as_u128());
         let model = textures.map_or(PlayerModelType::Wide, |textures| textures.model);
         #[cfg(not(target_family = "wasm"))]
-        let fetch = textures.and_then(|textures| download::trusted(&textures.url));
+        let fetch = textures.and_then(|textures| trusted(&textures.url));
         #[cfg(target_family = "wasm")]
         // chisle: the web client downloads no skin; a fetch through the browser lifts it.
         let fetch: Option<String> = None;
@@ -114,99 +119,45 @@ fn dress_players(
         #[cfg(not(target_family = "wasm"))]
         {
             let mut player = commands.entity(entity);
-            player.remove::<download::SkinDownload>();
+            player.remove::<SkinDownload>();
             if let Some(url) = fetch {
-                player.insert(download::SkinDownload::start(url));
+                player.insert(SkinDownload::start(url));
             }
         }
     }
 }
 
-#[cfg(not(target_family = "wasm"))]
-mod download {
-    use std::io::Read as _;
-    use std::time::Duration;
+#[cfg(test)]
+mod tests {
+    use bevy::ecs::system::RunSystemOnce as _;
+    use mcrs_minecraft_client_entity::{Placement, host_living_entity};
+    use mcrs_minecraft_entity_render::SkinImage;
 
-    use bevy::prelude::*;
-    use bevy::tasks::{IoTaskPool, Task, futures::check_ready};
-    use mcrs_minecraft_entity_render::{PlayerSkin, SkinImage};
+    use super::*;
 
-    /// The largest skin file that the client reads.
-    const MAX_BYTES: u64 = 1 << 20;
-
-    /// The download of the skin image of a player entity.
-    #[derive(Component)]
-    pub(super) struct SkinDownload(Task<Option<SkinImage>>);
-
-    impl SkinDownload {
-        // chisle: one blocking request on a thread of the IO pool for each skin; an async HTTP
-        // client lifts it.
-        pub(super) fn start(url: String) -> Self {
-            Self(IoTaskPool::get().spawn(async move {
-                let agent: ureq::Agent = ureq::Agent::config_builder()
-                    .timeout_global(Some(Duration::from_secs(15)))
-                    .build()
-                    .into();
-                let mut response = agent.get(&url).call().ok()?;
-                let mut bytes = Vec::new();
-                response
-                    .body_mut()
-                    .as_reader()
-                    .take(MAX_BYTES)
-                    .read_to_end(&mut bytes)
-                    .ok()?;
-                SkinImage::from_png(&bytes)
-                    .inspect_err(|error| warn!("skin {url}: {error}"))
-                    .ok()
-            }))
-        }
-    }
-
-    /// The HTTPS address that the client downloads a skin of `url` from, or `None` for an
-    /// address off the texture server of the game, the only server of skins.
-    pub(super) fn trusted(url: &str) -> Option<String> {
-        let rest = url
-            .strip_prefix("https://")
-            .or_else(|| url.strip_prefix("http://"))?;
-        rest.starts_with("textures.minecraft.net/")
-            .then(|| format!("https://{rest}"))
-    }
-
-    pub(super) fn finish_downloads(
-        mut commands: Commands,
-        mut downloads: Query<(Entity, &mut SkinDownload, &mut PlayerSkin)>,
-    ) {
-        for (entity, mut download, mut skin) in &mut downloads {
-            let Some(image) = check_ready(&mut download.0) else {
-                continue;
-            };
-            if image.is_some() {
-                skin.image = image;
-            }
-            commands.entity(entity).remove::<SkinDownload>();
-        }
-    }
-
-    #[cfg(test)]
-    mod tests {
-        #[test]
-        fn only_the_texture_server_of_the_game_serves_skins_and_always_over_https() {
-            let cases = [
-                (
-                    "http://textures.minecraft.net/texture/a",
-                    Some("https://textures.minecraft.net/texture/a"),
-                ),
-                (
-                    "https://textures.minecraft.net/texture/a",
-                    Some("https://textures.minecraft.net/texture/a"),
-                ),
-                ("https://textures.minecraft.net.evil.example/a", None),
-                ("https://evil.example/textures.minecraft.net/a", None),
-                ("file:///textures.minecraft.net/a", None),
-            ];
-            for (url, expected) in cases {
-                assert_eq!(super::trusted(url).as_deref(), expected, "{url}");
-            }
-        }
+    /// CPR-HOST-001, item 4: the profile of the server never dresses a player of the host.
+    #[test]
+    fn a_player_of_the_host_keeps_its_skin_and_a_player_of_the_server_takes_its_profile() {
+        let mut world = World::new();
+        world.init_resource::<ProfileSkins>();
+        let skin = PlayerSkin {
+            model: PlayerModelType::Slim,
+            image: SkinImage::from_rgba(64, 64, vec![255; 64 * 64 * 4]).ok(),
+        };
+        let mut spawn = || {
+            let player =
+                host_living_entity(EntityType::Player, Default::default(), Placement::default());
+            world.spawn((player.unwrap(), skin.clone())).id()
+        };
+        let host = spawn();
+        let server = spawn();
+        world.get_mut::<ClientEntity>(server).unwrap().network_id = 7;
+        world.run_system_once(dress_players).unwrap();
+        assert_eq!(world.get::<PlayerSkin>(host), Some(&skin));
+        let dressed = world.get::<PlayerSkin>(server).unwrap();
+        assert_eq!(
+            (dressed.model, dressed.image.is_none()),
+            (PlayerModelType::Wide, true)
+        );
     }
 }

@@ -65,9 +65,35 @@ impl fmt::Display for SkinError {
 
 impl std::error::Error for SkinError {}
 
+fn is_skin_size(width: u32, height: u32) -> bool {
+    width == SKIN_SIDE && (height == SKIN_SIDE || height == SKIN_SIDE / 2)
+}
+
+/// The width and the height that the header of a PNG file states, or `None` when `bytes` do not
+/// start as a PNG file.
+fn png_size(bytes: &[u8]) -> Option<(u32, u32)> {
+    const SIGNATURE: &[u8] = b"\x89PNG\r\n\x1a\n";
+    let header = bytes.strip_prefix(SIGNATURE)?.get(4..16)?;
+    let (kind, size) = header.split_at(4);
+    let (width, height) = size.split_at(4);
+    (kind == b"IHDR").then(|| {
+        (
+            u32::from_be_bytes(width.try_into().unwrap_or_default()),
+            u32::from_be_bytes(height.try_into().unwrap_or_default()),
+        )
+    })
+}
+
 impl SkinImage {
     /// The skin of a PNG file.
     pub fn from_png(bytes: &[u8]) -> Result<Self, SkinError> {
+        // The size comes from the header first, so that a small file that states a large image
+        // is not decoded.
+        if let Some((width, height)) = png_size(bytes)
+            && !is_skin_size(width, height)
+        {
+            return Err(SkinError::Size { width, height });
+        }
         let (rgba, width, height) =
             decode_png(bytes, "skin").map_err(|error| SkinError::Decode(error.to_string()))?;
         Self::from_rgba(width, height, rgba)
@@ -75,7 +101,7 @@ impl SkinImage {
 
     /// The skin of RGBA texels, `width` by `height`, rows from the top.
     pub fn from_rgba(width: u32, height: u32, rgba: Vec<u8>) -> Result<Self, SkinError> {
-        if width != SKIN_SIDE || (height != SKIN_SIDE && height != SKIN_SIDE / 2) {
+        if !is_skin_size(width, height) {
             return Err(SkinError::Size { width, height });
         }
         let expected = (width * height * 4) as usize;
@@ -151,6 +177,21 @@ mod tests {
         let mut out = [0; 4];
         out.copy_from_slice(&image.rgba()[at..at + 4]);
         out
+    }
+
+    /// CPR-SKIN-001, item 3: the size in the header rejects an image before it is decoded.
+    #[test]
+    fn a_png_that_states_another_size_is_rejected_from_its_header() {
+        let mut bytes = b"\x89PNG\r\n\x1a\n\0\0\0\x0dIHDR".to_vec();
+        bytes.extend_from_slice(&65_536u32.to_be_bytes());
+        bytes.extend_from_slice(&65_536u32.to_be_bytes());
+        assert_eq!(
+            SkinImage::from_png(&bytes),
+            Err(SkinError::Size {
+                width: 65_536,
+                height: 65_536
+            })
+        );
     }
 
     #[test]

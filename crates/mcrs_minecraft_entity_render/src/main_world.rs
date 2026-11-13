@@ -356,12 +356,17 @@ type LayerInputs = (
 
 /// Evaluates the render controllers of each entity whose tick state changed and writes the
 /// layers of its state record.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 pub(crate) fn write_layers(
     assets: Option<Res<EntityAssets>>,
     items: Option<Res<Items>>,
     mut vm: ResMut<EntityVm>,
     mut arena: ResMut<SlotArena>,
     mut last_generation: Local<Option<u32>>,
+    mut removed: RemovedComponents<PlayerSkin>,
     changed: Query<
         LayerInputs,
         Or<(
@@ -452,6 +457,12 @@ pub(crate) fn write_layers(
     } else {
         for entity in &changed {
             write(entity);
+        }
+        // A removal sets no change filter, so an entity that lost its skin writes here.
+        for entity in removed.read() {
+            if let Ok(entity) = all.get(entity) {
+                write(entity);
+            }
         }
     }
 }
