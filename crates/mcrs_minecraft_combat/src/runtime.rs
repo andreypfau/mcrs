@@ -44,7 +44,7 @@ use mcrs_minecraft_game_rule::GameRule;
 use mcrs_minecraft_item::ProtoStack;
 use mcrs_minecraft_item::component::equippable::EquipmentSlot;
 use mcrs_minecraft_item_key::item_keys::Item;
-use mcrs_minecraft_item_stack::{AttributeModifiers, Kind, ModifierOperation, SlotGroup};
+use mcrs_minecraft_item_stack::{AttributeModifiers, Count, Kind, ModifierOperation, SlotGroup};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_physics::{BlockAction, BlockFlags, Vitals};
 use mcrs_minecraft_protocol_game::serverbound::{
@@ -859,7 +859,7 @@ fn sync_player_combat_state(
         ),
         With<Player>,
     >,
-    stacks: Query<(&Kind, Option<&AttributeModifiers>)>,
+    stacks: Query<(&Kind, Option<&Count>, Option<&AttributeModifiers>)>,
 ) {
     for (slots, selected, mut armor, mut toughness, mut resistance, mut attack, mut equipment) in
         &mut players
@@ -880,13 +880,13 @@ fn sync_player_combat_state(
             let stack = slots.get(index);
             let next = stack
                 .and_then(|stack| stacks.get(stack).ok())
-                .map(|(kind, _)| u32::from(kind.0));
+                .map(|(kind, count, _)| (u32::from(kind.0), count.map_or(1, |count| count.get())));
             if equipment.get(slot) != next {
                 equipment.set(slot, next);
             }
             let Some(modifiers) = stack
                 .and_then(|stack| stacks.get(stack).ok())
-                .and_then(|(_, modifiers)| modifiers)
+                .and_then(|(_, _, modifiers)| modifiers)
             else {
                 continue;
             };
@@ -1696,9 +1696,9 @@ fn equipment_packet(owner: &Owner, equipment: &EntityEquipment) -> PacketPayload
         .map(|(slot, item)| {
             (
                 slot,
-                item.map_or_else(ProtoStack::default, |item| ProtoStack {
+                item.map_or_else(ProtoStack::default, |(item, count)| ProtoStack {
                     id: WireId::<Item>::new(u16::try_from(item).unwrap_or(u16::MAX)),
-                    count: 1,
+                    count: i32::from(count),
                     components: Default::default(),
                 }),
             )
@@ -1820,7 +1820,7 @@ mod tests {
         let mut equipment = EntityEquipment::new();
         equipment.set(
             mcrs_minecraft_item::component::equippable::EquipmentSlot::MainHand,
-            Some(1),
+            Some((1, 1)),
         );
         app.world_mut().spawn((
             Player,
@@ -1838,6 +1838,26 @@ mod tests {
         app.world_mut().resource_mut::<SeenPackets>().0.clear();
         app.update();
         assert!(app.world().resource::<SeenPackets>().0.is_empty());
+    }
+
+    #[test]
+    fn the_equipment_packet_carries_the_stack_count() {
+        let mut equipment = EntityEquipment::new();
+        equipment.set(
+            mcrs_minecraft_item::component::equippable::EquipmentSlot::MainHand,
+            Some((7, 3)),
+        );
+        let packet = equipment_packet(&Owner(PlayerSession(1)), &equipment);
+        let PacketPayload::SetEquipment(equipment) = packet else {
+            panic!("the packet is a set-equipment packet");
+        };
+        let (slot, stack) = equipment.slots.first().expect("the main hand is sent");
+        assert_eq!(
+            *slot,
+            mcrs_minecraft_protocol_game::entity::EquipmentSlot::MainHand
+        );
+        assert_eq!(stack.id.number(), 7);
+        assert_eq!(stack.count, 3);
     }
 
     #[test]

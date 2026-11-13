@@ -4,7 +4,7 @@ use mcrs_minecraft_item::component::equippable::EquipmentSlot;
 /// The items that a living entity wears, by slot.
 #[derive(Component, Clone, Debug, PartialEq, Eq)]
 pub struct EntityEquipment {
-    slots: [Option<u32>; EquipmentSlot::ALL.len()],
+    slots: [Option<(u32, u8)>; EquipmentSlot::ALL.len()],
 }
 
 impl Default for EntityEquipment {
@@ -23,22 +23,22 @@ impl EntityEquipment {
         }
     }
 
-    pub fn set(&mut self, slot: EquipmentSlot, item_id: Option<u32>) {
+    pub fn set(&mut self, slot: EquipmentSlot, item: Option<(u32, u8)>) {
         let idx = slot as usize;
         if let Some(target_slot) = self.slots.get_mut(idx)
-            && *target_slot != item_id
+            && *target_slot != item
         {
-            *target_slot = item_id;
+            *target_slot = item;
         }
     }
 
     #[must_use]
-    pub fn get(&self, slot: EquipmentSlot) -> Option<u32> {
+    pub fn get(&self, slot: EquipmentSlot) -> Option<(u32, u8)> {
         let idx = slot as usize;
         self.slots.get(idx).copied().flatten()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (EquipmentSlot, Option<u32>)> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = (EquipmentSlot, Option<(u32, u8)>)> + '_ {
         EquipmentSlot::ALL
             .iter()
             .copied()
