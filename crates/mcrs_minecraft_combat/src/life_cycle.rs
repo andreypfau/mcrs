@@ -134,7 +134,7 @@ pub fn process_damage_requests(
             outcome,
             damage,
         });
-        if outcome == HitOutcome::Full || outcome == HitOutcome::Partial {
+        if outcome == HitOutcome::Full {
             let strength = req.hit.knockback
                 * (1.0
                     - resistance
