@@ -203,6 +203,7 @@ mcrs_minecraft_client = { path = "crates/mcrs_minecraft_client", default-feature
 mcrs_minecraft_client_world = { path = "crates/mcrs_minecraft_client_world" }
 mcrs_minecraft_client_entity = { path = "crates/mcrs_minecraft_client_entity" }
 mcrs_minecraft_client_gui = { path = "crates/mcrs_minecraft_client_gui" }
+mcrs_minecraft_client_widget = { path = "crates/mcrs_minecraft_client_widget" }
 mcrs_minecraft_mesh = { path = "crates/mcrs_minecraft_mesh" }
 mcrs_minecraft_model = { path = "crates/mcrs_minecraft_model" }
 mcrs_minecraft_model_file = { path = "crates/mcrs_minecraft_model_file" }
