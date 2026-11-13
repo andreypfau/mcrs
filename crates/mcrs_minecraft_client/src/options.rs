@@ -36,12 +36,35 @@ impl Plugin for ClientOptionsPlugin {
                     .run_if(resource_changed::<ClientOptions>),
             );
         #[cfg(not(target_family = "wasm"))]
-        app.add_systems(
-            PreUpdate,
-            crate::window_options::project_window_options
-                .after(MenuOptionsSystems)
-                .run_if(resource_changed::<ClientOptions>),
-        );
+        {
+            use bevy::window::{PrimaryWindow, WindowResized};
+
+            use crate::window_options::{
+                FullscreenWatch, WindowFullscreen, project_window_options, read_window_fullscreen,
+                reconcile_fullscreen,
+            };
+
+            let watched = || not(resource_equals(FullscreenWatch::Idle));
+            app.insert_resource(WindowFullscreen(self.options.fullscreen))
+                .init_resource::<FullscreenWatch>()
+                .add_systems(
+                    PreUpdate,
+                    (
+                        read_window_fullscreen.run_if(watched()),
+                        reconcile_fullscreen.run_if(
+                            any_with_component::<PrimaryWindow>.and_then(
+                                on_message::<WindowResized>
+                                    .or_else(resource_changed::<ClientOptions>)
+                                    .or_else(resource_changed::<WindowFullscreen>)
+                                    .or_else(watched()),
+                            ),
+                        ),
+                        project_window_options.run_if(resource_changed::<ClientOptions>),
+                    )
+                        .chain()
+                        .after(MenuOptionsSystems),
+                );
+        }
         #[cfg(not(target_family = "wasm"))]
         if let Some(path) = &self.file {
             crate::options_file::save_options_to(app, path.clone());
@@ -99,10 +122,13 @@ fn project_options(
 mod tests {
     use std::time::Duration;
 
-    use bevy::window::{MonitorSelection, PresentMode, PrimaryWindow, WindowMode};
+    use bevy::window::{MonitorSelection, PresentMode, PrimaryWindow, WindowMode, WindowResized};
     use bevy::winit::{UpdateMode, WinitSettings};
 
     use super::*;
+    use crate::window_options::{FULLSCREEN_GRACE, FullscreenWatch, WindowFullscreen, window_mode};
+
+    const FRAME: Duration = Duration::from_millis(100);
 
     fn primary_window(world: &World) -> &Window {
         world
@@ -130,6 +156,8 @@ mod tests {
                 advanced_tooltips: false,
             })
             .init_resource::<WinitSettings>()
+            .init_resource::<Time<Real>>()
+            .add_message::<WindowResized>()
             .add_plugins(ClientOptionsPlugin {
                 options,
                 file: None,
@@ -138,6 +166,87 @@ mod tests {
         app.world_mut().spawn((Window::default(), PrimaryWindow));
         app.update();
         app
+    }
+
+    fn grace_frames() -> u32 {
+        u32::try_from(FULLSCREEN_GRACE.as_millis() / FRAME.as_millis()).unwrap()
+    }
+
+    fn run_frames(app: &mut App, frames: u32) {
+        for _ in 0..frames {
+            app.world_mut()
+                .resource_mut::<Time<Real>>()
+                .advance_by(FRAME);
+            app.update();
+        }
+    }
+
+    fn option_fullscreen(app: &App) -> bool {
+        app.world().resource::<ClientOptions>().fullscreen
+    }
+
+    fn set_window_fullscreen(app: &mut App, fullscreen: bool) {
+        app.world_mut().resource_mut::<WindowFullscreen>().0 = fullscreen;
+    }
+
+    /// The option and the window mode stay at `fullscreen`, nothing writes the options again, and
+    /// the fullscreen systems go idle.
+    fn assert_rests_at(app: &mut App, fullscreen: bool) {
+        let changed = app.world().resource_ref::<ClientOptions>().last_changed();
+        run_frames(app, 2 * grace_frames());
+        assert_eq!(option_fullscreen(app), fullscreen);
+        assert_eq!(primary_window(app.world()).mode, window_mode(fullscreen));
+        assert_eq!(
+            app.world().resource_ref::<ClientOptions>().last_changed(),
+            changed,
+            "the options change no more"
+        );
+        assert_eq!(
+            *app.world().resource::<FullscreenWatch>(),
+            FullscreenWatch::Idle
+        );
+    }
+
+    fn idle_app(fullscreen: bool) -> App {
+        let mut options = ClientOptions::default();
+        options.fullscreen = fullscreen;
+        let mut app = app_with(options, None);
+        run_frames(&mut app, grace_frames());
+        app
+    }
+
+    #[test]
+    fn a_change_of_the_window_by_the_system_reaches_the_option_in_that_frame() {
+        for system_fullscreen in [true, false] {
+            let mut app = idle_app(!system_fullscreen);
+            set_window_fullscreen(&mut app, system_fullscreen);
+            run_frames(&mut app, 1);
+            assert_eq!(option_fullscreen(&app), system_fullscreen);
+            assert_rests_at(&mut app, system_fullscreen);
+        }
+    }
+
+    #[test]
+    fn a_switch_that_the_window_follows_within_the_grace_period_changes_nothing_more() {
+        for delay in [1, grace_frames() - 1] {
+            let mut app = idle_app(false);
+            app.world_mut().resource_mut::<ClientOptions>().fullscreen = true;
+            run_frames(&mut app, delay);
+            assert!(option_fullscreen(&app), "delay {delay}");
+            set_window_fullscreen(&mut app, true);
+            assert_rests_at(&mut app, true);
+        }
+    }
+
+    #[test]
+    fn a_switch_that_the_window_never_follows_gives_the_option_the_window_state_once() {
+        let mut app = idle_app(false);
+        app.world_mut().resource_mut::<ClientOptions>().fullscreen = true;
+        run_frames(&mut app, grace_frames());
+        assert!(option_fullscreen(&app), "the switch is still in flight");
+        run_frames(&mut app, 1);
+        assert!(!option_fullscreen(&app));
+        assert_rests_at(&mut app, false);
     }
 
     #[test]
