@@ -7,18 +7,18 @@
 
 Source of these values: `assets/minecraft/version.json`.
 
-This document states what a block drops when it breaks: how the server finds the loot table of the
-block, which values the table reads, how it evaluates the table, and how each result becomes an item
-entity. It states only the parts of the loot table format that the block tables of the vanilla data
-pack use. It does not prescribe an architecture.
+This document states what a block drops when it breaks. It states how the server finds the loot
+table of the block and which values the table reads. It also states how the server evaluates the
+table, and how each result becomes an item entity. It states only the parts of the loot table format
+that the block tables of the vanilla data pack use. It does not prescribe an architecture.
 
-Scope: the loot tables of the type `minecraft:block`, for the causes of section 2. `block-breaking.md`
-states when a survival break drops loot (BRK-LOOT-001, BRK-LOOT-005), the experience (BRK-LOOT-004)
-and the packets. `item-entity.md` states the start values of a block drop (IEN-SPN-001, row "drop of
-a block") and `entity-physics.md` states the start position and velocity (PHY-CMP-025).
-`registry-fields.md`, section 9, states how the server decodes a loot table and each part of it. This
-document refers to the rules of these documents by id. Section 8 lists what this document does not
-state.
+Scope: the loot tables of the type `minecraft:block`, for the causes of section 2.
+`block-breaking.md` states when a survival break drops loot (BRK-LOOT-001, BRK-LOOT-005), the
+experience (BRK-LOOT-004) and the packets. `item-entity.md` states the start values of a block drop
+(IEN-SPN-001, row "drop of a block") and `entity-physics.md` states the start position and velocity
+(PHY-CMP-025). `registry-fields.md`, section 9, states how the server decodes a loot table and each
+part of it. This document refers to the rules of these documents by id. Section 8 lists what this
+document does not state.
 
 ## 0. Conventions
 
@@ -40,8 +40,8 @@ state.
 - **Tool**: the stack of the context value `tool`. The tool can be the empty stack.
 - **Level of an enchantment**: the level of that enchantment in the component
   `minecraft:enchantments` of the tool. The level is 0 when the tool does not have the enchantment.
-- **Draw**: one random value that an evaluation takes. `r` is a uniform f32 value in `[0, 1)`.
-  `I(a, b)` is a uniform integer in `a..b`; when `a ≥ b`, `I(a, b)` is `a` and takes no draw.
+- **Draw**: one random value that an evaluation takes. `r` is a uniform f32 value in `[0, 1)`. `I(a,
+  b)` is a uniform integer in `a..b`; when `a ≥ b`, `I(a, b)` is `a` and takes no draw.
 - **Drop list**: the ordered list of stacks that one evaluation of a table gives.
 - **Origin block**: the block position whose block table the server evaluates.
 
@@ -49,8 +49,8 @@ An integer range `a..b` includes `a` and `b`.
 
 ### 0.2 Provenance
 
-- `black_box_confirmed`: shown by a game-produced artefact: a captured result of section 11, of
-  `block-breaking.md`, section 11, or of `item-entity.md`, section 13, or the vanilla data pack.
+- `black_box_confirmed`: shown by a game-produced artefact. The artefact is a captured result of
+  this document, of `block-breaking.md` or of `item-entity.md`, or the vanilla data pack.
 - `source_suggested_black_box_confirmed`: taken from the reference implementation, and consistent
   with a captured result.
 - `source_suggested`: taken from the reference implementation, with no captured result. The
@@ -85,9 +85,9 @@ Each rule states its kind, as `docs/spec/README.md` defines it.
 
 ## 1. What the block tables use
 
-**LOOT-SRC-001** (`black_box_confirmed`, semantic, confidence high). The block tables of the vanilla data pack
-use only the types of this table. An implementation that supports these types drops the vanilla
-items for each block. An implementation can reject or ignore another type in a block table.
+**LOOT-SRC-001** (`black_box_confirmed`, semantic, confidence high). The block tables of the vanilla
+data pack use only the types of this table. An implementation that supports these types drops the
+vanilla items for each block. An implementation can reject or ignore another type in a block table.
 
 | Part | Types | Rules |
 |------|-------|-------|
@@ -96,16 +96,16 @@ items for each block. An implementation can reject or ignore another type in a b
 | modifier | `set_count`, `explosion_decay`, `copy_components`, `apply_bonus`, `limit_count`, `copy_state`, a list of modifiers | section 5 |
 | number provider | a bare number, `uniform`, `binomial` | LOOT-MOD-008 |
 
-Each pool has `rolls` 1 and no `bonus_rolls`. No entry has `weight` or `quality`. A `condition` field
-is one condition: an object, or a key of the registry `predicate`. A `modifier` field is one object
-or a list. The key `minecraft:tool/can_silk_touch` occurs 124 times and `minecraft:tool/can_shear` 14
-times. Fourteen block tables have no pools, for example `fire` and `spawner`. Nine block tables have
-a table modifier, for example `wheat`.
+Each pool has `rolls` 1 and no `bonus_rolls`. No entry has `weight` or `quality`. A `condition`
+field is one condition: an object, or a key of the registry `predicate`. A `modifier` field is one
+object or a list. The key `minecraft:tool/can_silk_touch` occurs 124 times and
+`minecraft:tool/can_shear` 14 times. Fourteen block tables have no pools, for example `fire` and
+`spawner`. Nine block tables have a table modifier, for example `wheat`.
 
 ## 2. Causes
 
-**LOOT-SRC-002** (`source_suggested`, semantic, confidence medium). The server evaluates a block table
-for these causes. The table gives the context values of each cause. "No value" means that the
+**LOOT-SRC-002** (`source_suggested`, semantic, confidence medium). The server evaluates a block
+table for these causes. The table gives the context values of each cause. "No value" means that the
 context does not have the value.
 
 | Cause | `tool` | `this_entity` | `explosion_radius` | Where |
@@ -129,28 +129,29 @@ item that breaks on this use still gives its enchantments to the table. Result R
 `block-breaking.md` shows a wooden pickaxe with the damage 58 that breaks and still drops
 `cobblestone`. Result L6 shows such a pickaxe with Silk Touch that breaks and drops `stone`.
 
-**LOOT-SRC-005** (`source_suggested_black_box_confirmed`, semantic, confidence high). With an empty main hand, the
-tool is the empty stack. The tool is present in the context, and it has no enchantments. Thus the
-level of each enchantment is 0, and each `match_tool` of a block table fails (LOOT-CND-007).
-`apply_bonus` still applies its formula with the level 0 (LOOT-MOD-004). For example, the table of
-`wheat` gives ripe wheat an extra `wheat_seeds` count of 0 to 3 for an empty hand. Result L3 shows
-this distribution.
+**LOOT-SRC-005** (`source_suggested_black_box_confirmed`, semantic, confidence high). With an empty
+main hand, the tool is the empty stack. The tool is present in the context, and it has no
+enchantments. Thus the level of each enchantment is 0, and each `match_tool` of a block table fails
+(LOOT-CND-007). `apply_bonus` still applies its formula with the level 0 (LOOT-MOD-004). For
+example, the table of `wheat` gives ripe wheat an extra `wheat_seeds` count of 0 to 3 for an empty
+hand. Result L3 shows this distribution.
 
-**LOOT-SRC-006** (`source_suggested_black_box_confirmed`, semantic, confidence high). A block of two parts evaluates
-the table of one part, as follows.
+**LOOT-SRC-006** (`source_suggested_black_box_confirmed`, semantic, confidence high). A block of two
+parts evaluates the table of one part, as follows.
 
-- A survival break of a tall plant evaluates the block table of the hit part, with the context of
-  the break, before it removes either part. The removal of the other part then evaluates the table
-  of the other part, but its `location_check` fails, because the hit part is gone. For example,
-  `tall_grass` and `sunflower` drop one time.
+- A survival break of a tall plant evaluates the block table of the hit part before it removes
+  either part. The context is the context of the break. The removal of the other part then evaluates
+  the table of the other part, but its `location_check` fails, because the hit part is gone. For
+  example, `tall_grass` and `sunflower` drop one time.
 - A door or a bed evaluates the table of each part when that part is removed. The table drops only
   for one part, because of its `match_block` condition: the lower part of a door, and the head of a
   bed. When the break hits the other part, the removal of the part that drops is a neighbour change.
   Its context is the second row of LOOT-SRC-002: the empty stack and no `this_entity`.
 
-The item entity appears at the position of the part whose table dropped it. Result L4 shows one
-item for each break: at the lower part of a door and at the head of a bed, for each hit part, and at
-the hit part of `tall_grass`. Item U1 records what result L4 does not show.
+The item entity appears at the position of the part whose table dropped it. Result L4 shows one item
+for each break. For each hit part, the item of a door is at the lower part, and the item of a bed is
+at the head. The item of `tall_grass` is at the hit part. Item U1 records what result L4 does not
+show.
 
 ## 3. Context and evaluation
 
@@ -171,8 +172,8 @@ its rule states for that case.
 
 **LOOT-EVL-001** (`source_suggested`, semantic, confidence medium). An evaluation of a table makes
 the drop list. For each pool, in the order of `pools`, the server does LOOT-EVL-002. Each stack that
-a pool gives goes through the modifier of the table, when the table has one, and then to the end of
-the drop list.
+a pool gives goes through the modifier of the table, when the table has one. Then the stack goes to
+the end of the drop list.
 
 **LOOT-EVL-002** (`source_suggested`, semantic, confidence medium). A pool does these steps:
 
@@ -210,10 +211,10 @@ condition fails, the expansion selects nothing and gives false. Otherwise:
 
 The expansion tests each condition one time in each roll.
 
-**LOOT-EVL-005** (`source_suggested_black_box_confirmed`, semantic, confidence high). An `alternatives`
-entry thus selects the first child whose condition passes. For example, the table of `stone` gives
-`stone` when the tool can Silk Touch, and otherwise `cobblestone`. Result R37 of `block-breaking.md`
-shows both.
+**LOOT-EVL-005** (`source_suggested_black_box_confirmed`, semantic, confidence high). An
+`alternatives` entry thus selects the first child whose condition passes. For example, the table of
+`stone` gives `stone` when the tool can Silk Touch, and otherwise `cobblestone`. Result R37 of
+`block-breaking.md` shows both.
 
 **LOOT-EVL-006** (`source_suggested`, semantic, confidence medium). A leaf entry makes its stacks:
 
@@ -225,8 +226,8 @@ Each stack goes through the modifier of the entry, when the entry has one. Then 
 
 **LOOT-EVL-007** (`source_suggested`, semantic, confidence medium). The only `dynamic` name in a
 block table is `minecraft:sherds`, in the table of `decorated_pot`. It makes four stacks, one for
-each side of the pot, in the order back, left, right, front. The stack of a side is the item of
-that side in the component `minecraft:pot_decorations` of the block entity, with the count 1. A side
+each side of the pot, in the order back, left, right, front. The stack of a side is the item of that
+side in the component `minecraft:pot_decorations` of the block entity, with the count 1. A side
 without a decoration gives `brick`. Without a block entity, it makes nothing. The entry has the
 condition that the pot is cracked, so a pot that is not cracked drops itself (LOOT-MOD-006).
 
@@ -235,24 +236,25 @@ condition that the pot is cracked, so a pot that is not cracked drops itself (LO
 A condition passes or fails. A condition field that is absent passes.
 
 **LOOT-CND-001** (`source_suggested`, semantic, confidence medium). A key of the registry
-`predicate` is the condition that the registry entry holds. For example, `minecraft:tool/can_silk_touch`
-is a `match_tool` condition that passes for a tool with Silk Touch at level 1 or more.
-`minecraft:tool/can_shear` passes for the tool `shears`.
+`predicate` is the condition that the registry entry holds. For example,
+`minecraft:tool/can_silk_touch` is a `match_tool` condition that passes for a tool with Silk Touch
+at level 1 or more. `minecraft:tool/can_shear` passes for the tool `shears`.
 
-**LOOT-CND-002** (`source_suggested`, semantic, confidence medium). `inverted` passes when its `term`
-fails. `all_of` tests its `terms` in order and fails at the first term that fails. It passes when
-each term passes, and also when it has no terms. `any_of` tests its `terms` in order and passes at
-the first term that passes. It fails when no term passes, and also when it has no terms. A term that
-is not tested takes no draw.
+**LOOT-CND-002** (`source_suggested`, semantic, confidence medium). `inverted` passes when its
+`term` fails. `all_of` tests its `terms` in order and fails at the first term that fails. It passes
+when each term passes, and also when it has no terms. `any_of` tests its `terms` in order and passes
+at the first term that passes. It fails when no term passes, and also when it has no terms. A term
+that is not tested takes no draw.
 
 **LOOT-CND-003** (`source_suggested`, semantic, confidence medium). `survives_explosion` passes when
-the context has no `explosion_radius`. Otherwise it takes a draw `r` and passes when
-`r ≤ 1 / explosion_radius`.
+the context has no `explosion_radius`. Otherwise it takes a draw `r` and passes when `r ≤ 1 /
+explosion_radius`.
 
-**LOOT-CND-004** (`source_suggested_black_box_confirmed`, semantic, confidence high). `table_bonus` reads the level `L`
-of its `enchantment`. Let `c` be the element `min(L, len - 1)` of `chances`, where `len` is the
-number of elements. The condition takes a draw `r` and passes when `r < c`. For example, `gravel`
-drops `flint` with the chance 0.1 for an empty hand. Result L2 shows the chances of `oak_leaves`.
+**LOOT-CND-004** (`source_suggested_black_box_confirmed`, semantic, confidence high). `table_bonus`
+reads the level `L` of its `enchantment`. Let `c` be the element `min(L, len - 1)` of `chances`,
+where `len` is the number of elements. The condition takes a draw `r` and passes when `r < c`. For
+example, `gravel` drops `flint` with the chance 0.1 for an empty hand. Result L2 shows the chances
+of `oak_leaves`.
 
 **LOOT-CND-005** (`source_suggested`, semantic, confidence medium). `random_chance` takes a draw `r`
 and passes when `r < chance`. `chance` is a float provider (LOOT-MOD-008).
@@ -273,15 +275,15 @@ the item predicate, and neither part matches the empty stack:
 
 **LOOT-CND-008** (`source_suggested`, semantic, confidence medium). `location_check` reads the block
 at the origin block plus `(offsetX, offsetY, offsetZ)`, each 0 by default. The block tables use only
-the `block` part of the location predicate: the block there must be one of `blocks` and match
+the `block` part of the location predicate. The block there must be one of `blocks` and match
 `state`, as in LOOT-CND-006. The tables of tall plants, for example `tall_grass`, use it to test the
 other part (LOOT-SRC-006). The server reads the block at the time of the evaluation.
 
-**LOOT-CND-009** (`source_suggested_black_box_confirmed`, semantic, confidence high). `entity_properties` with `entity`
-`this` and an empty `predicate` passes when the context has a `this_entity`, and fails when it does
-not. The only block table with it is `snow`. Thus a snow layer drops `snowball` or `snow` when a
-player breaks it, and drops nothing for a neighbour change or for `setblock` with `destroy`. Result
-L5 shows both cases.
+**LOOT-CND-009** (`source_suggested_black_box_confirmed`, semantic, confidence high).
+`entity_properties` with `entity` `this` and an empty `predicate` passes when the context has a
+`this_entity`, and fails when it does not. The only block table with it is `snow`. Thus a snow layer
+drops `snowball` or `snow` when a player breaks it, and drops nothing for a neighbour change or for
+`setblock` with `destroy`. Result L5 shows both cases.
 
 ## 5. Modifiers and number providers
 
@@ -289,25 +291,26 @@ A modifier changes one stack. The common field `condition` (REG-FLD-742) applies
 when it fails, the modifier does not change the stack. A list of modifiers applies each modifier in
 order. In the rules of this section, `c` is the count of the stack before the modifier.
 
-**LOOT-MOD-001** (`source_suggested_black_box_confirmed`, semantic, confidence high). `set_count` sets the count to
-`v`, or to `c + v` when `add` is true. `v` is the value of the int provider `count`. The count can
-become 0 or less. For example, the tables of `glow_lichen` and `sculk_vein` add 1 for each face and
-then `-1`. Result L3 shows the counts below 1 of `brown_mushroom_block`, which make no item.
+**LOOT-MOD-001** (`source_suggested_black_box_confirmed`, semantic, confidence high). `set_count`
+sets the count to `v`, or to `c + v` when `add` is true. `v` is the value of the int provider
+`count`. The count can become 0 or less. For example, the tables of `glow_lichen` and `sculk_vein`
+add 1 for each face and then `-1`. Result L3 shows the counts below 1 of `brown_mushroom_block`,
+which make no item.
 
 **LOOT-MOD-002** (`source_suggested`, semantic, confidence medium). `explosion_decay` does nothing
 when the context has no `explosion_radius`. Otherwise it takes `c` draws, one for each item, and
 keeps each item when its draw `r ≤ 1 / explosion_radius`. The count becomes the number of items
 kept.
 
-**LOOT-MOD-003** (`source_suggested_black_box_confirmed`, semantic, confidence high). `limit_count` limits the count
-to the range `limit`: a bare int is an exact range, and an object has `min` and `max`, each optional.
-A count below `min` becomes `min`. A count above `max` becomes `max`. For example, the table of
-`glowstone` limits `glowstone_dust` to `1..4`, and the table of `brown_mushroom_block` limits the
-count to 0 or more. Result L3 shows both.
+**LOOT-MOD-003** (`source_suggested_black_box_confirmed`, semantic, confidence high). `limit_count`
+limits the count to the range `limit`: a bare int is an exact range, and an object has `min` and
+`max`, each optional. A count below `min` becomes `min`. A count above `max` becomes `max`. For
+example, the table of `glowstone` limits `glowstone_dust` to `1..4`, and the table of
+`brown_mushroom_block` limits the count to 0 or more. Result L3 shows both.
 
-**LOOT-MOD-004** (`source_suggested_black_box_confirmed`, semantic, confidence high). `apply_bonus` reads the level `L`
-of its `enchantment`. When the context has no tool, it does nothing. Otherwise it applies one
-formula, also with `L = 0`:
+**LOOT-MOD-004** (`source_suggested_black_box_confirmed`, semantic, confidence high). `apply_bonus`
+reads the level `L` of its `enchantment`. When the context has no tool, it does nothing. Otherwise
+it applies one formula, also with `L = 0`:
 
 | `formula` | `parameters` | New count | Draws |
 |-----------|--------------|-----------|-------|
@@ -315,29 +318,29 @@ formula, also with `L = 0`:
 | `minecraft:uniform_bonus_count` | `bonusMultiplier` `m` | `c + I(0, m × L)` | 1 when `m × L > 0` |
 | `minecraft:binomial_with_bonus_count` | `extra` `e`, `probability` `p` | `c` plus the number of draws `r < p`, for `L + e` draws | `L + e` |
 
-For `ore_drops` with `L > 0`, the factor is 1 with the chance `2 / (L + 2)`, and each value of
-`2..L + 1` with the chance `1 / (L + 2)`. Result L1 shows `ore_drops` with `L = 3`, and result L3
-shows `binomial_with_bonus_count` with `L = 0`.
+For `ore_drops` with `L > 0`, the factor is 1 with the chance `2 / (L + 2)`, and each value of `2..L
++ 1` with the chance `1 / (L + 2)`. Result L1 shows `ore_drops` with `L = 3`, and result L3 shows
+`binomial_with_bonus_count` with `L = 0`.
 
 **LOOT-MOD-005** (`source_suggested`, semantic, confidence medium). `copy_state` adds to the
 component `minecraft:block_state` of the stack each property of `properties` that the context state
 has, with the value of the context state. Other entries of the component stay. Without a context
 state, it does nothing. For example, the tables of `beehive` and `bee_nest` copy `honey_level`.
 
-**LOOT-MOD-006** (`source_suggested_black_box_confirmed`, semantic, confidence high). `copy_components` with `source`
-`block_entity` copies components of the block entity of the context to the stack. It copies each
-component type of `include` that the block entity has, except each type of `exclude`. Without
-`include`, it copies each type that the block entity has, except each type of `exclude`. Without a
-block entity, it does nothing. For example, the table of `chest` copies `minecraft:custom_name`, so
-a named chest drops a named item. Result L7 shows it.
+**LOOT-MOD-006** (`source_suggested_black_box_confirmed`, semantic, confidence high).
+`copy_components` with `source` `block_entity` copies components of the block entity of the context
+to the stack. It copies each component type of `include` that the block entity has, except each type
+of `exclude`. Without `include`, it copies each type that the block entity has, except each type of
+`exclude`. Without a block entity, it does nothing. For example, the table of `chest` copies
+`minecraft:custom_name`, so a named chest drops a named item. Result L7 shows it.
 
 **LOOT-MOD-007** (`source_suggested`, semantic, confidence medium). The components of a block entity
-are the values that the block entity stores in the form of components, for example its custom name,
-its contents, its lock and its bees. No specification states them for each block entity yet. Item U2
+are the values that the block entity stores as components. Examples are its custom name, its
+contents, its lock and its bees. No specification states them for each block entity yet. Item U2
 records this dependency.
 
-**LOOT-MOD-008** (`source_suggested_black_box_confirmed`, semantic, confidence high). The block tables use these
-number providers:
+**LOOT-MOD-008** (`source_suggested_black_box_confirmed`, semantic, confidence high). The block
+tables use these number providers:
 
 | Provider | Int value | Float value | Draws |
 |----------|-----------|-------------|-------|
@@ -358,50 +361,50 @@ when it is not 0. For example, 70 `snowball` with the maximum 16 become four sta
 
 **LOOT-OUT-002** (`source_suggested_black_box_confirmed`, semantic, confidence high). Each stack of
 LOOT-OUT-001 that is not empty becomes one item entity, in the order of the list. A stack with the
-count 0 or less makes nothing. The start values are the row "drop of a block" of IEN-SPN-001: the
-position and the velocity of PHY-CMP-025 at the origin block, and the pickup delay 10. Result R37 of
-`block-breaking.md` shows one item entity for each stack.
+count 0 or less makes nothing. The start values are the row "drop of a block" of IEN-SPN-001. The
+position and the velocity are those of PHY-CMP-025 at the origin block, and the pickup delay is 10.
+Result R37 of `block-breaking.md` shows one item entity for each stack.
 
 **LOOT-OUT-003** (`source_suggested`, semantic, confidence medium). When the game rule `block_drops`
 is false, no stack of a block table becomes an item entity (BRK-LOOT-005).
 
-**LOOT-OUT-004** (`source_suggested`, semantic, confidence medium). The order of the item entities of
-one break is the order of the drop list. `add_entity` reaches the breaker in that order. The
+**LOOT-OUT-004** (`source_suggested`, semantic, confidence medium). The order of the item entities
+of one break is the order of the drop list. `add_entity` reaches the breaker in that order. The
 experience orbs come after the items (BRK-LOOT-001). The item entities of a block that loses its
 support come before those of the broken block (BRK-LOOT-003).
 
 ## 7. Random values
 
 **LOOT-RND-001** (`design`, semantic). Each draw of an evaluation is a keyed random value. The
-stream is a function of the world seed, the id of the block table, the origin block, the game tick
-of the evaluation and the cause. The `i`-th draw of one evaluation is the `i`-th value of its
-stream. Thus a drop does not depend on the order of the breaks in a tick or on the thread count.
-Reason: the keyed random values of `entity-ai-timing.md` (AIT-LAG-008) and `entity-physics.md`
-(PHY-CMP-025). LOOT-DEV-001 records the difference from the vanilla server.
+stream is a function of the world seed, the id of the block table and the origin block. It is also a
+function of the game tick of the evaluation and of the cause. The `i`-th draw of one evaluation is
+the `i`-th value of its stream. Thus a drop does not depend on the order of the breaks in a tick or
+on the thread count. Reason: the keyed random values of `entity-ai-timing.md` (AIT-LAG-008) and
+`entity-physics.md` (PHY-CMP-025). LOOT-DEV-001 records the difference from the vanilla server.
 
 **LOOT-RND-002** (`source_suggested`, semantic, confidence medium). A parity test compares the
 distribution of the drops over many breaks. The support, the probability of each value and the
 independence of the draws of sections 3 to 5 are the behaviour. The generator and the number of
 draws are not. Kind of the generator: unspecified.
 
-**LOOT-RND-003** (`source_suggested`, semantic, confidence medium). The position and the velocity
-of an item entity of a drop take their own random values (PHY-CMP-025, PHY-DEV-013). They are not
-draws of the evaluation.
+**LOOT-RND-003** (`source_suggested`, semantic, confidence medium). The position and the velocity of
+an item entity of a drop take their own random values (PHY-CMP-025, PHY-DEV-013). They are not draws
+of the evaluation.
 
 ## 8. What this document does not state
 
-- The decoding of a loot table and its parts: `registry-fields.md`, section 9.
-- The types that no block table uses, for example the entries `tag`, `loot_table` and `slots`, the
-  conditions `killed_by_player`, `entity_scores`, `damage_source_properties`, `weather_check`,
-  `time_check` and `enchantment_active_check`, and most item modifiers.
-- The loot of an entity, of a chest, of fishing, of an archaeology block, of a block interaction,
-  of a shearing, of a vault and of a trial spawner. The advancements, and the statistic of a mined
-  block.
+- How the server decodes a loot table and its parts: `registry-fields.md`, section 9.
+- The types that no block table uses. Examples are the entries `tag`, `loot_table` and `slots`, and
+  the conditions `killed_by_player`, `entity_scores`, `damage_source_properties`, `weather_check`,
+  `time_check` and `enchantment_active_check`. Most item modifiers are also such types.
+- The loot tables of other types, for example `entity`, `chest`, `fishing`, `archaeology`,
+  `block_use`, `block_interact`, `shearing` and `vault`. The loot of a trial spawner.
+- The advancements, and the statistic of a mined block.
 - An explosion: which explosions have decay, the merge of the stacks of one explosion, and the
   experience of an explosion. This document states only what `explosion_radius` changes in a table
   (LOOT-CND-003, LOOT-MOD-002).
-- The contents of a container that drop with the block (BRK-LOOT-003, IEN-SPN-005). They do not
-  come from the block table.
+- The contents of a container that drop with the block (BRK-LOOT-003, IEN-SPN-005). They do not come
+  from the block table.
 - The experience of a block (BRK-LOOT-004, BRK-LOOT-006).
 - The items that a block drops in a creative break (BRK-DRP-007, BRK-DRP-008).
 - Feature flags. Each item of the vanilla data pack is enabled.
@@ -432,8 +435,8 @@ draws of the evaluation.
 ### 9.3 Unresolved
 
 - **U1**: the context of the part of a door or a bed that drops when the break hits the other part
-  (LOOT-SRC-006). The reference suggests the empty stack and no `this_entity`. No current block table
-  of a door or a bed reads the tool or the entity, so no experiment can show it.
+  (LOOT-SRC-006). The reference suggests the empty stack and no `this_entity`. No current block
+  table of a door or a bed reads the tool or the entity, so no experiment can show it.
 - **U2**: the components of a block entity (LOOT-MOD-007). The server does not yet store components
   for each block entity. Until it does, `copy_components` does nothing, and a named chest drops a
   chest without a name.
@@ -445,8 +448,8 @@ with one scripted client in survival mode. The attribute `minecraft:block_break_
 was 1000, so each start action broke the block at once. Experiments E1, E2, E3 and E8 evaluate the
 block table with the command `execute as <player> run loot spawn <pos> mine <block> mainhand`. That
 command evaluates the same table, with the main-hand item of the player as the tool and the player
-as `this_entity`. Each run of the command writes one line to the log, for example
-`Dropped 2 [Coal] from loot table minecraft:blocks/coal_ore`.
+as `this_entity`. Each run of the command writes one line to the log, for example `Dropped 2 [Coal]
+from loot table minecraft:blocks/coal_ore`.
 
 | Id | Steps | Result | Rules |
 |----|-------|--------|-------|
@@ -484,8 +487,9 @@ game rule `block_drops`.
 
 **L3.** E3 and E8, the count of each evaluation. For `brown_mushroom_block`, the log line of a count
 0 is `Dropped 0 [Air]`. The expected numbers for it are 388.9, 55.6 and 55.6. For `wheat`, each
-evaluation gave 1 `wheat` and one stack of `wheat_seeds`. The script read the item entities of 250 of
-the 500 evaluations. The expected numbers for the seeds of these 250 are 19.6, 79.1, 104.9 and 46.4.
+evaluation gave 1 `wheat` and one stack of `wheat_seeds`. The script read the item entities of 250
+of the 500 evaluations. The expected numbers for the seeds of these 250 are 19.6, 79.1, 104.9 and
+46.4.
 
 | Table | Count: evaluations |
 |-------|--------------------|
