@@ -1171,7 +1171,7 @@ fn announce_player_deaths(
         let Ok((owner, dimension, _, profile)) = players.get(target) else {
             continue;
         };
-        let player_id = (owner.0.0 as u32 * 2 + 1) as i32;
+        let player_id = player_network_id(owner.0);
         packets.write(to_target(
             players_in_dimension(&viewers, dimension.0),
             PacketPayload::EntityEvent(ClientboundEntityEvent {
@@ -1276,7 +1276,7 @@ fn send_player_damage(
         let Ok((owner, dimension, _, transform)) = players.get(target) else {
             continue;
         };
-        let player_id = (owner.0.0 as u32 * 2 + 1) as i32;
+        let player_id = player_network_id(owner.0);
         let network_id = |key: Option<EntityKey>| {
             key.and_then(|key| {
                 players
