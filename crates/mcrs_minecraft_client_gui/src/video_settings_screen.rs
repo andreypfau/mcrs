@@ -1,4 +1,7 @@
-use mcrs_minecraft_client_options::{ClientOptions, MAX_FRAMERATE_RANGE, MAX_FRAMERATE_STEP};
+use mcrs_minecraft_client_options::{
+    ClientOptions, MAX_FRAMERATE_RANGE, MAX_FRAMERATE_STEP, VIEW_DISTANCE_DEFAULT,
+    VIEW_DISTANCE_RANGE,
+};
 use mcrs_minecraft_client_widget::{
     BUTTON_HEIGHT, CycleButton, DONE_BUTTON_WIDTH, GuiExtent, GuiRect, KeyModifiers, Slider,
     Widget, WidgetId, WidgetKind,
@@ -18,6 +21,7 @@ pub(crate) const CLOUDS: WidgetId = WidgetId(8);
 pub(crate) const MAX_FRAMERATE: WidgetId = WidgetId(9);
 pub(crate) const VSYNC: WidgetId = WidgetId(10);
 pub(crate) const FULLSCREEN: WidgetId = WidgetId(11);
+pub(crate) const RENDER_DISTANCE: WidgetId = WidgetId(12);
 
 /// The "Video Settings" screen on a screen of the size `screen` with the values of `options`,
 /// where `max_gui_scale` is the scale of Auto (MENU-VID-002).
@@ -27,7 +31,7 @@ pub(crate) fn video_settings_screen(
     font: &Font,
     options: &ClientOptions,
     max_gui_scale: u32,
-) -> Option<[Widget; 12]> {
+) -> Option<[Widget; 13]> {
     let [title, done] = option_sub_screen(
         screen,
         language,
@@ -42,6 +46,13 @@ pub(crate) fn video_settings_screen(
         i32::from(MAX_FRAMERATE_RANGE.end() / MAX_FRAMERATE_STEP),
         i32::from(options.max_framerate / MAX_FRAMERATE_STEP),
     )?;
+    let view_distance = options.view_distance.unwrap_or(VIEW_DISTANCE_DEFAULT);
+    let render_distance_slider = Slider::range(
+        i32::from(*VIEW_DISTANCE_RANGE.start()),
+        i32::from(*VIEW_DISTANCE_RANGE.end()),
+        i32::from(view_distance),
+    )?
+    .deferred();
     let boolean_button = |id, name_key, value| {
         Widget::new(
             id,
@@ -79,8 +90,14 @@ pub(crate) fn video_settings_screen(
     )])?;
     let quality =
         list.section_label(QUALITY, language.get("options.video.quality.header"), font)?;
-    // chisle: the row of Render Distance and Simulation Distance is missing under this label; it
-    // comes with the render distance and the simulation distance options.
+    // chisle: Simulation Distance is missing at the index 1 of this row; it comes with the
+    // simulation distance option.
+    let [render_distance] = list.option_row([Widget::new(
+        RENDER_DISTANCE,
+        GuiRect::default(),
+        render_distance_caption(language, i32::from(view_distance)),
+        WidgetKind::Slider(render_distance_slider),
+    )])?;
     let [smooth_lighting, clouds] = list.option_row([
         boolean_button(SMOOTH_LIGHTING, "options.ao", options.smooth_light),
         Widget::new(
@@ -100,6 +117,7 @@ pub(crate) fn video_settings_screen(
         fullscreen,
         brightness,
         quality,
+        render_distance,
         smooth_lighting,
         clouds,
         done,
@@ -108,7 +126,7 @@ pub(crate) fn video_settings_screen(
 
 /// Stores the value of `widget` after its change. A cycle button steps from the stored value,
 /// with `max_gui_scale` and `modifiers` of the moment of the activation (MENU-VAL-003 to
-/// MENU-VAL-006, MENU-VAL-009 to MENU-VAL-011, MENU-SCALE-002).
+/// MENU-VAL-007, MENU-VAL-009 to MENU-VAL-011, MENU-SCALE-002).
 pub(crate) fn write_option(
     options: &mut ClientOptions,
     widget: &Widget,
@@ -126,6 +144,16 @@ pub(crate) fn write_option(
                 options.max_framerate = framerate;
             }
         }
+        (RENDER_DISTANCE, WidgetKind::Slider(slider)) => {
+            // The value that `None` reads as is no change (MENU-DEV-011).
+            if let Some(columns) = slider
+                .value()
+                .and_then(|columns| u8::try_from(columns).ok())
+                && columns != options.view_distance.unwrap_or(VIEW_DISTANCE_DEFAULT)
+            {
+                options.view_distance = Some(columns);
+            }
+        }
         (VSYNC, WidgetKind::CycleButton(_)) => options.vsync = !options.vsync,
         (FULLSCREEN, WidgetKind::CycleButton(_)) => options.fullscreen = !options.fullscreen,
         (SMOOTH_LIGHTING, WidgetKind::CycleButton(_)) => {
@@ -136,6 +164,16 @@ pub(crate) fn write_option(
             options.gui_scale = activated_gui_scale(options.gui_scale, max_gui_scale, modifiers);
         }
         _ => {}
+    }
+}
+
+/// The caption of `widget` at the value that it waits to store (WID-SLD-007, step 3).
+pub(crate) fn pending_caption(language: &ClientLanguage, widget: &Widget) -> Option<String> {
+    match (widget.id(), &widget.kind) {
+        (RENDER_DISTANCE, WidgetKind::Slider(slider)) => {
+            Some(render_distance_caption(language, slider.value()?))
+        }
+        _ => None,
     }
 }
 
@@ -227,6 +265,22 @@ fn max_framerate_caption(language: &ClientLanguage, max_framerate: u16) -> Strin
         language,
         "options.generic_value",
         "options.framerateLimit",
+        &value,
+    )
+}
+
+/// The caption of Render Distance at `columns` (MENU-VAL-007, step 4).
+fn render_distance_caption(language: &ClientLanguage, columns: i32) -> String {
+    let chunks = [vec![Span::new(columns.to_string(), 0)]];
+    let value: String = language
+        .translate("options.chunks", 0, &chunks)
+        .into_iter()
+        .map(|span| span.text)
+        .collect();
+    option_caption(
+        language,
+        "options.generic_value",
+        "options.renderDistance",
         &value,
     )
 }

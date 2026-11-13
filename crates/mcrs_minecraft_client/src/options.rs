@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 use bevy::prelude::*;
 use mcrs_minecraft_client_gui::menu_options_systems::MenuOptionsSystems;
 use mcrs_minecraft_client_gui::scene::GuiConfig;
-use mcrs_minecraft_client_options::ClientOptions;
+use mcrs_minecraft_client_options::{ClientOptions, VIEW_DISTANCE_DEFAULT};
+use mcrs_minecraft_client_world::player_view::RequestedViewDistance;
 use mcrs_minecraft_mesh::smooth_light::SmoothLight;
 use mcrs_minecraft_render::Brightness;
 
@@ -12,9 +13,9 @@ use crate::sky::Clouds;
 use crate::stream::LightOptions;
 
 /// Keeps the client options as the one resource that the field of view, the terrain light, the
-/// clouds, the brightness, the GUI scale and, on a native client, the window mode, the present
-/// mode and the frame limit follow, and writes them to `file` as JSON each time they change after
-/// start-up. The web has no file, so there `file` is ignored.
+/// clouds, the brightness, the GUI scale, the requested view distance and, on a native client,
+/// the window mode, the present mode and the frame limit follow, and writes them to `file` as
+/// JSON each time they change after start-up. The web has no file, so there `file` is ignored.
 pub struct ClientOptionsPlugin {
     pub options: ClientOptions,
     pub file: Option<PathBuf>,
@@ -28,6 +29,7 @@ struct GuiScaleOverride(Option<u32>);
 impl Plugin for ClientOptionsPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(self.options)
+            .insert_resource(requested_view_distance(&self.options))
             .insert_resource(GuiScaleOverride(self.gui_scale))
             .add_systems(
                 PreUpdate,
@@ -79,15 +81,26 @@ pub(crate) fn read(path: &Path) -> Result<ClientOptions, String> {
     Ok(options)
 }
 
+#[must_use]
+fn requested_view_distance(options: &ClientOptions) -> RequestedViewDistance {
+    RequestedViewDistance(options.view_distance.unwrap_or(VIEW_DISTANCE_DEFAULT))
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and writer is its own parameter"
+)]
 fn project_options(
     options: Res<ClientOptions>,
     gui_scale: Res<GuiScaleOverride>,
+    mut view_distance: ResMut<RequestedViewDistance>,
     fov: Option<ResMut<FovOptions>>,
     light: Option<ResMut<LightOptions>>,
     clouds: Option<ResMut<Clouds>>,
     brightness: Option<ResMut<Brightness>>,
     gui: Option<ResMut<GuiConfig>>,
 ) {
+    view_distance.set_if_neq(requested_view_distance(&options));
     if let Some(mut fov) = fov {
         fov.set_if_neq(FovOptions {
             fov: options.fov,

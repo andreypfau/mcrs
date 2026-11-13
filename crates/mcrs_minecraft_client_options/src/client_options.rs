@@ -8,6 +8,8 @@ use crate::OptionsError;
 pub const FOV_RANGE: RangeInclusive<u8> = 30..=110;
 /// Columns.
 pub const VIEW_DISTANCE_RANGE: RangeInclusive<u8> = 2..=96;
+/// Columns; the view distance of `None`.
+pub const VIEW_DISTANCE_DEFAULT: u8 = 96;
 /// Frames per second; the end sets no limit.
 pub const MAX_FRAMERATE_RANGE: RangeInclusive<u16> = 10..=260;
 /// Frames per second between two values of `max_framerate`.
@@ -28,7 +30,7 @@ pub struct ClientOptions {
     pub clouds: bool,
     /// From 0 (Moody) through 0.5 (the default) to 1 (Bright).
     pub brightness: f32,
-    /// Columns, in `VIEW_DISTANCE_RANGE`; `None` leaves the choice to the application.
+    /// Columns, in `VIEW_DISTANCE_RANGE`; `None` is `VIEW_DISTANCE_DEFAULT`.
     pub view_distance: Option<u8>,
     /// `0` picks the largest scale that keeps 320 x 240 GUI units on screen.
     pub gui_scale: u32,

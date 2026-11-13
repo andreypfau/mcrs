@@ -191,7 +191,16 @@ pub(crate) fn write_first_configuration_packets(out: &mut impl WritePacket, view
             PropertyMap(vec![(identity::COMMIT_PROPERTY, identity::COMMIT_HASH)]),
         )],
     ))));
-    out.write_packet(&ServerboundClientInformation(ClientInformation {
+    out.write_packet(&ServerboundClientInformation(client_information(
+        view_distance,
+    )));
+}
+
+/// The `client_information` that the client sends in the configuration state and in the play
+/// state. Only the view distance varies; the other fields are fixed.
+#[must_use]
+pub fn client_information(view_distance: u8) -> ClientInformation<'static> {
+    ClientInformation {
         locale: "en_us",
         view_distance,
         chat_mode: ChatMode::Enabled,
@@ -201,7 +210,7 @@ pub(crate) fn write_first_configuration_packets(out: &mut impl WritePacket, view
         enable_text_filtering: false,
         allow_server_listings: true,
         particle_status: ParticleStatus::All,
-    }));
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
