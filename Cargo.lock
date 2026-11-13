@@ -5804,6 +5804,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_player_slots"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_inventory_plan",
+]
+
+[[package]]
 name = "mcrs_minecraft_potion"
 version = "0.5.8"
 dependencies = [
@@ -6321,6 +6328,7 @@ dependencies = [
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_item_table",
  "mcrs_minecraft_physics",
+ "mcrs_minecraft_player_slots",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_replication",
