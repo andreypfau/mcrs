@@ -15,6 +15,7 @@ use mcrs_minecraft_protocol_game::{ByteAngle, PositionFlag};
 use crate::client_entity::{ClientEntity, NetworkEntities};
 use crate::delta;
 use crate::equipment::Equipment;
+use crate::host_entity::move_entity;
 use crate::living::Living;
 use crate::motion::{Age, Motion};
 use crate::path::PacketPath;
@@ -280,27 +281,17 @@ fn on_teleport_entity(
         relative(PositionFlag::Y, packet.position.y, current.position.y),
         relative(PositionFlag::Z, packet.position.z, current.position.z),
     );
-    let rotation = Rotation {
-        yaw: relative(
-            PositionFlag::YRot,
-            f64::from(packet.look.yaw),
-            f64::from(current.yaw),
-        ) as f32,
-        pitch: relative(
-            PositionFlag::XRot,
-            f64::from(packet.look.pitch),
-            f64::from(current.pitch),
-        ) as f32,
-    };
-    if current.position.distance(position) > SNAP_DISTANCE {
-        motion.snap(Placement::new(position, rotation.yaw, rotation.pitch));
-    } else {
-        motion.start(
-            Some(PacketPath::Linear(position)),
-            Some(rotation),
-            client.update_interval(),
-        );
-    }
+    let yaw = relative(
+        PositionFlag::YRot,
+        f64::from(packet.look.yaw),
+        f64::from(current.yaw),
+    ) as f32;
+    let pitch = relative(
+        PositionFlag::XRot,
+        f64::from(packet.look.pitch),
+        f64::from(current.pitch),
+    ) as f32;
+    move_entity(&mut motion, client, Placement::new(position, yaw, pitch));
     motion.on_ground = packet.on_ground;
 }
 
