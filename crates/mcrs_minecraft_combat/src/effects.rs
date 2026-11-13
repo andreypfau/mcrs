@@ -150,16 +150,23 @@ pub fn tick_active_effects(
             }
         }
         for effect in removed {
-            if let Some(hidden) = hidden.as_deref_mut()
-                && let Some(promoted) = crate::persistence::promote_hidden(hidden, effect)
-                && promoted.duration > 0
-            {
+            let promoted = hidden.as_deref_mut().and_then(|hidden| {
+                crate::persistence::promote_hidden(hidden, effect)
+                    .filter(|promoted| promoted.duration > 0)
+            });
+            if let Some(promoted) = promoted {
                 effects.0.insert(promoted);
-                continue;
+            } else {
+                remove_events.write(RemoveEffectEvent { entity, effect });
             }
-            remove_events.write(RemoveEffectEvent { entity, effect });
             match effect {
-                MobEffect::Absorption => vitals.0.absorption = 0.0,
+                MobEffect::Absorption => {
+                    vitals.0.absorption = if promoted.is_some() {
+                        effects.0.absorption_cap()
+                    } else {
+                        0.0
+                    };
+                }
                 MobEffect::HealthBoost => {
                     let base_health =
                         base.map_or(vitals.0.max_health - previous_boost, |base| base.0);
@@ -179,6 +186,69 @@ mod tests {
 
     use super::*;
     use mcrs_minecraft_physics::Vitals;
+
+    #[test]
+    fn a_promoted_effect_updates_its_derived_stats() {
+        let mut app = App::new();
+        app.add_message::<ApplyEffectEvent>();
+        app.add_message::<RemoveEffectEvent>();
+        app.add_message::<DamageRequest>();
+        app.insert_resource(DamageTypeRulesResource::default());
+        app.add_systems(Update, handle_apply_effect_events);
+        let entity = app
+            .world_mut()
+            .spawn((
+                PlayerVitals(Vitals {
+                    health: 20.0,
+                    max_health: 20.0,
+                    ..Vitals::default()
+                }),
+                PlayerEffects::new(),
+                PlayerEffectsHidden::default(),
+                BaseMaxHealth(20.0),
+            ))
+            .id();
+        let mut messages = app.world_mut().resource_mut::<Messages<ApplyEffectEvent>>();
+        messages.write(ApplyEffectEvent {
+            entity,
+            effect: ActiveEffect::new(MobEffect::HealthBoost, 1, 1),
+        });
+        messages.write(ApplyEffectEvent {
+            entity,
+            effect: ActiveEffect::new(MobEffect::HealthBoost, 0, 10),
+        });
+        messages.write(ApplyEffectEvent {
+            entity,
+            effect: ActiveEffect::new(MobEffect::Absorption, 1, 1),
+        });
+        messages.write(ApplyEffectEvent {
+            entity,
+            effect: ActiveEffect::new(MobEffect::Absorption, 0, 10),
+        });
+        app.update();
+        assert_eq!(
+            app.world()
+                .get::<PlayerVitals>(entity)
+                .unwrap()
+                .0
+                .max_health,
+            28.0
+        );
+        assert_eq!(
+            app.world()
+                .get::<PlayerVitals>(entity)
+                .unwrap()
+                .0
+                .absorption,
+            8.0
+        );
+
+        app.add_systems(Update, tick_active_effects);
+        app.update();
+        let vitals = &app.world().get::<PlayerVitals>(entity).unwrap().0;
+        assert_eq!(vitals.max_health, 24.0);
+        assert_eq!(vitals.absorption, 4.0);
+    }
 
     #[test]
     fn a_health_boost_returns_a_mob_to_its_own_maximum() {
