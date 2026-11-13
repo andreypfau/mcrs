@@ -2,7 +2,6 @@ use std::collections::HashSet;
 
 use mcrs_minecraft_menu::InventoryMenu;
 use mcrs_minecraft_menu::MenuSlot;
-use mcrs_minecraft_menu::swap_button_slot;
 use mcrs_minecraft_player_slots::ArmourSlot;
 use mcrs_minecraft_player_slots::EquipSlot;
 use mcrs_minecraft_player_slots::Holder;
@@ -49,21 +48,6 @@ fn inv_mnu_001_each_slot_of_the_holders_has_exactly_one_entry() {
     ];
     for slot in outside {
         assert_eq!(InventoryMenu::index(slot), None, "{slot:?}");
-    }
-}
-
-#[test]
-fn inv_mnu_003_swap_buttons_name_the_hotbar_and_the_off_hand() {
-    let cases = [
-        (0, Some(0)),
-        (8, Some(8)),
-        (9, None),
-        (39, None),
-        (40, Some(40)),
-        (41, None),
-    ];
-    for (button, slot) in cases {
-        assert_eq!(swap_button_slot(button), slot, "button {button}");
     }
 }
 

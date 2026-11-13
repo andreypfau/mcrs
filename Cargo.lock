@@ -5385,6 +5385,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_inventory_click"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_inventory_plan",
+ "mcrs_minecraft_menu",
+ "mcrs_minecraft_player_slots",
+]
+
+[[package]]
 name = "mcrs_minecraft_inventory_plan"
 version = "0.5.8"
 

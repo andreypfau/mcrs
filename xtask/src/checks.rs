@@ -28,7 +28,7 @@ const WASM32_PACKAGES: [&str; 11] = [
     "mcrs_minecraft_biome_file",
 ];
 
-const NO_STD_PACKAGES: [&str; 14] = [
+const NO_STD_PACKAGES: [&str; 15] = [
     "mcrs_command",
     "mcrs_minecraft_bedrock_wire",
     "mcrs_minecraft_block_break",
@@ -38,6 +38,7 @@ const NO_STD_PACKAGES: [&str; 14] = [
     "mcrs_minecraft_entity_key",
     "mcrs_minecraft_goal_world",
     "mcrs_minecraft_goals",
+    "mcrs_minecraft_inventory_click",
     "mcrs_minecraft_inventory_plan",
     "mcrs_minecraft_player_slots",
     "mcrs_molang",
@@ -45,7 +46,7 @@ const NO_STD_PACKAGES: [&str; 14] = [
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 127] = [
+const NO_BEVY_PACKAGES: [&str; 128] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -104,9 +105,9 @@ const NO_BEVY_PACKAGES: [&str; 127] = [
     "mcrs_minecraft_game_rule",
     "mcrs_minecraft_heightmap",
     "mcrs_minecraft_instrument",
+    "mcrs_minecraft_inventory_click",
     "mcrs_minecraft_inventory_plan",
     "mcrs_minecraft_inventory_view",
-    "mcrs_minecraft_player_slots",
     "mcrs_minecraft_item",
     "mcrs_minecraft_item_entity",
     "mcrs_minecraft_item_key",
@@ -132,6 +133,7 @@ const NO_BEVY_PACKAGES: [&str; 127] = [
     "mcrs_minecraft_numeric",
     "mcrs_minecraft_particle",
     "mcrs_minecraft_physics",
+    "mcrs_minecraft_player_slots",
     "mcrs_minecraft_potion",
     "mcrs_minecraft_probe",
     "mcrs_minecraft_predicate",
