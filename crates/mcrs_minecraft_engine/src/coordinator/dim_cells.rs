@@ -40,7 +40,7 @@ use crate::coordinator::running_dimensions::RunningDimensions;
 use crate::departure::PlayerTransfer;
 use crate::dim_tick;
 use crate::dim_tick::{DimInput, DimOutput, DimWorld, TickDimensions, TickDimensionsSet};
-use crate::persistence::{AutosaveCadence, AutosavePlugin};
+use crate::persistence::AutosaveCadence;
 use crate::player_roster::RosterRow;
 use crate::player_view::PlayerView;
 use crate::to_coordinator::RoutedInput;
@@ -56,9 +56,6 @@ pub struct DimCellsPlugin;
 
 impl Plugin for DimCellsPlugin {
     fn build(&self, app: &mut App) {
-        if !app.is_plugin_added::<AutosavePlugin>() {
-            app.add_plugins(AutosavePlugin);
-        }
         app.init_resource::<DimCells>();
         app.init_resource::<EntityIdRanges>();
         app.init_resource::<PlayerRoster>();

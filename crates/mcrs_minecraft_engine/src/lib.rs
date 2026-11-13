@@ -9,6 +9,7 @@ pub mod ability;
 mod advance_digs;
 mod advance_production;
 mod assign_global_entity_id;
+mod background_writer;
 pub mod banlist;
 pub mod between_ticks;
 pub mod block_action_ack;
@@ -86,6 +87,7 @@ pub mod view_radius;
 mod wanted_column;
 pub mod whitelist;
 pub mod world_kinds;
+mod world_state;
 
 #[cfg(feature = "world-access")]
 pub use cell_volume::CellVolume;
@@ -98,3 +100,10 @@ impl Plugin for EnginePlugin {
         app.add_plugins((CoordinatorPlugin, MuxerPlugin));
     }
 }
+
+pub use persistence::{
+    AutosaveCadence, AutosavePlugin, UnreadablePlayerDat, load_player, write_player,
+};
+pub use world_state::{
+    SavedSpawn, WorldStatePlugin, WorldStateSources, WorldStateWrite, WorldStateWriter,
+};
