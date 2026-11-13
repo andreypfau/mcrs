@@ -5,16 +5,18 @@ mod item_definitions;
 mod loading_state;
 mod log_diagnostics;
 mod registry_load_plugin;
+mod registry_names;
 mod registry_snapshot;
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
 mod test_corpus;
 
-pub use item_definitions::{ItemLoadError, load_item_definitions};
+pub use item_definitions::{ItemLoadError, LoadedItems, load_item_definitions, load_items};
 pub use registry_load_plugin::{RegistryLoadPlugin, SyncedRegistries, transition_to_playing};
 #[cfg(feature = "test-support")]
 pub use registry_snapshot::replace_registries;
 pub use registry_snapshot::{
-    RegistrySnapshot, apply_registries, extract_registries, install_registries,
+    RegistriesNotInstalled, RegistrySnapshot, apply_registries, extract_registries,
+    install_item_table, install_registries,
 };
 #[cfg(all(feature = "test-support", not(target_family = "wasm")))]
-pub use test_corpus::test_corpus;
+pub use test_corpus::{test_corpus, test_item_table};
