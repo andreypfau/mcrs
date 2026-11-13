@@ -5137,6 +5137,7 @@ dependencies = [
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
+ "mcrs_minecraft_entity",
  "mcrs_minecraft_entity_key",
  "mcrs_minecraft_game_rule",
  "mcrs_minecraft_item",

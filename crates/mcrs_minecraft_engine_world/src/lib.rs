@@ -17,3 +17,4 @@ pub mod world;
 pub mod world_cells;
 pub mod world_placement;
 pub mod world_seed;
+pub mod world_settings;

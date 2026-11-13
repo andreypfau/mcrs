@@ -1,19 +1,13 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageReader, MessageWriter};
 use bevy_ecs::system::{Query, Res};
-pub use mcrs_minecraft_damage::{ActiveEffect, EffectAction, Effects};
-use mcrs_minecraft_damage::Hit;
-use mcrs_minecraft_damage::DamageSource;
+pub use mcrs_minecraft_damage::ActiveEffect;
+use mcrs_minecraft_damage::{DamageSource, EffectAction, Hit};
 pub use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
-use mcrs_minecraft_protocol_game::clientbound::ClientboundRemoveMobEffect;
 
 use crate::components::{Armor, Dying, PlayerEffects, PlayerFood, PlayerVitals};
 use crate::damage_rules::DamageTypeRulesResource;
-use crate::events::{DamageRequest, DamageTarget};
-
-pub use mcrs_minecraft_damage::ActiveEffect as Effect;
-pub use mcrs_minecraft_damage::Effects as ActiveEffects;
-pub use mcrs_minecraft_entity::mob_effect_keys::MobEffect as EffectKey;
+use crate::events::DamageRequest;
 
 /// Message triggered when an effect is applied.
 #[derive(Message, Clone, Debug)]

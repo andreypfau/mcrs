@@ -157,6 +157,3 @@ pub struct ArmorToughness(pub f32);
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct AttackDamage(pub f32);
 
-/// The last position of a player that the movement checks read.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
-pub struct CombatPosition(pub bevy_math::DVec3);

@@ -6,7 +6,6 @@ mod components;
 mod damage_rules;
 mod death_drops;
 mod effects;
-mod environment;
 mod equipment;
 mod events;
 mod experience;
@@ -15,21 +14,20 @@ mod runtime;
 
 pub use combat_plugin::{CombatPlugin, CombatSet};
 pub use components::{
-    Armor, ArmorToughness, AttackDamage, CombatPosition, Dying, KnockbackResistance,
+    Armor, ArmorToughness, AttackDamage, Dying, KnockbackResistance,
     PlayerEffects, PlayerExperience, PlayerFood, PlayerHitRecord, PlayerVitals, RespawnPoint,
 };
 pub use damage_rules::DamageTypeRulesResource;
 pub use death_drops::{DropInventoryOnDeathEvent, handle_death_drops};
 pub use effects::{
-    ActiveEffect, ActiveEffects, ApplyEffectEvent, EffectKey, MobEffect, RemoveEffectEvent,
-    handle_apply_effect_events, tick_active_effects,
+    ActiveEffect, ApplyEffectEvent, MobEffect, RemoveEffectEvent, handle_apply_effect_events,
+    tick_active_effects,
 };
 pub use equipment::{EntityEquipment, EquipmentChangedEvent, track_equipment_changes};
 pub use events::{
     DamageDealt, DamageRequest, DamageTarget, DeathEvent, KnockbackRequest, RespawnRequest,
 };
 pub use experience::ExperienceGainedEvent;
-pub use runtime::WorldBorderState;
 pub use life_cycle::{
     apply_knockback, process_damage_requests, tick_death, tick_player_cooldowns,
 };

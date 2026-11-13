@@ -35,8 +35,7 @@ use mcrs_minecraft_engine_world::world::dimension::{
 use mcrs_minecraft_engine_world::world::storage::view::{DimensionView, WorldView};
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
 use mcrs_minecraft_entity::attribute_instance::{AttributeOperation, fold_attribute};
-use mcrs_minecraft_entity::Difficulty;
-use mcrs_minecraft_entity::WorldBorderSettings;
+use mcrs_minecraft_engine_world::world_settings::{Difficulty, WorldBorderSettings};
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_rows::Placed;
@@ -84,13 +83,13 @@ use crate::damage_rules::DamageTypeRulesResource;
 use crate::equipment::{EntityEquipment, EquipmentChangedEvent};
 use crate::events::{DamageDealt, DamageRequest, DamageTarget, DeathEvent, RespawnRequest};
 use crate::components::{
-    Armor, ArmorToughness, AttackDamage, CombatPosition, KnockbackResistance, PlayerExperience,
+    Armor, ArmorToughness, AttackDamage, KnockbackResistance, PlayerExperience,
     PlayerHitRecord,
 };
 use crate::components::Dying as DeathState;
 
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
-struct CombatVitals {
+struct EnvironmentTimers {
     last_y: f64,
     fall_distance: f64,
     on_ground: bool,
@@ -118,7 +117,7 @@ struct PlayerInputState {
     jumping: bool,
 }
 
-impl CombatVitals {
+impl EnvironmentTimers {
     fn at(transform: Transform) -> Self {
         Self {
             last_y: transform.translation.y,
@@ -139,24 +138,6 @@ impl CombatVitals {
 struct WorldSpawn {
     value: Option<mcrs_minecraft_save::RespawnData>,
     loaded: bool,
-}
-
-#[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
-struct CombatDifficulty(Difficulty);
-
-impl Default for CombatDifficulty {
-    fn default() -> Self {
-        Self(Difficulty::Normal)
-    }
-}
-
-#[derive(Resource, Clone, Copy, Debug, PartialEq)]
-pub struct WorldBorderState(pub WorldBorderSettings);
-
-impl Default for WorldBorderState {
-    fn default() -> Self {
-        Self(WorldBorderSettings::default())
-    }
 }
 
 #[derive(Component, Debug, Default)]
@@ -197,7 +178,7 @@ fn slot_group_applies(group: SlotGroup, slot: EquipmentSlot) -> bool {
 
 fn note_ground_pos(
     on: On<Received<ServerboundMovePlayerPos>>,
-    mut players: Query<&mut CombatVitals>,
+    mut players: Query<&mut EnvironmentTimers>,
 ) {
     if let Some(packet) = on.packet()
         && let Ok(mut vitals) = players.get_mut(on.entity)
@@ -208,7 +189,7 @@ fn note_ground_pos(
 
 fn note_ground_pos_rot(
     on: On<Received<ServerboundMovePlayerPosRot>>,
-    mut players: Query<&mut CombatVitals>,
+    mut players: Query<&mut EnvironmentTimers>,
 ) {
     if let Some(packet) = on.packet()
         && let Ok(mut vitals) = players.get_mut(on.entity)
@@ -219,7 +200,7 @@ fn note_ground_pos_rot(
 
 fn note_ground_rot(
     on: On<Received<ServerboundMovePlayerRot>>,
-    mut players: Query<&mut CombatVitals>,
+    mut players: Query<&mut EnvironmentTimers>,
 ) {
     if let Some(packet) = on.packet()
         && let Ok(mut vitals) = players.get_mut(on.entity)
@@ -230,7 +211,7 @@ fn note_ground_rot(
 
 fn note_ground_status(
     on: On<Received<ServerboundMovePlayerStatusOnly>>,
-    mut players: Query<&mut CombatVitals>,
+    mut players: Query<&mut EnvironmentTimers>,
 ) {
     if let Some(packet) = on.packet()
         && let Ok(mut vitals) = players.get_mut(on.entity)
@@ -254,7 +235,7 @@ fn on_client_command(
 fn on_change_difficulty(
     on: On<Received<ServerboundChangeDifficulty>>,
     op_levels: Query<&PlayerOpLevel>,
-    mut difficulty: ResMut<CombatDifficulty>,
+    mut difficulty: ResMut<Difficulty>,
 ) {
     let Some(packet) = on.packet() else {
         return;
@@ -313,7 +294,7 @@ fn on_set_carried_item(
 fn tick_player_hunger(
     mut players: Query<(Entity, &mut Health, &mut FoodData), (With<Player>, Without<DeathState>)>,
     rules: Option<Res<GameRules>>,
-    difficulty: Option<Res<CombatDifficulty>>,
+    difficulty: Option<Res<Difficulty>>,
     type_rules: Option<Res<DamageTypeRulesResource>>,
     time: Option<Res<GameTime>>,
     mut damage: MessageWriter<DamageRequest>,
@@ -326,7 +307,7 @@ fn tick_player_hunger(
         let food_tick = food.0.tick(
             &health.0,
             natural_regeneration,
-            difficulty.as_deref().map_or(Difficulty::Normal, |value| value.0),
+            difficulty.as_deref().map_or(Difficulty::default().0, |value| value.0),
             age,
         );
         if food_tick.heal > 0.0 {
@@ -358,7 +339,7 @@ fn tick_player_environment(
             Option<&Velocity>,
             &mut Health,
             &mut FoodData,
-            &mut CombatVitals,
+            &mut EnvironmentTimers,
         ),
         (With<Player>, Without<DeathState>),
     >,
@@ -366,7 +347,7 @@ fn tick_player_environment(
     definitions: Option<Res<Blocks>>,
     dimensions: Query<&DimensionTypeConfig>,
     rules: Option<Res<GameRules>>,
-    border: Option<Res<WorldBorderState>>,
+    border: Option<Res<WorldBorderSettings>>,
     type_rules: Option<Res<DamageTypeRulesResource>>,
     time: Option<Res<GameTime>>,
     mut damage: MessageWriter<DamageRequest>,
@@ -831,7 +812,7 @@ fn attach_player_combat(
     players: Query<(Entity, &Transform), (With<Player>, Without<Health>)>,
 ) {
     for (entity, transform) in &players {
-        let mut vitals = CombatVitals::at(*transform);
+        let mut vitals = EnvironmentTimers::at(*transform);
         vitals.on_ground = true;
         commands.entity(entity).insert((
             Health::new(20.0, 20.0),
@@ -839,7 +820,6 @@ fn attach_player_combat(
             PlayerExperience::default(),
             PlayerHitRecord::default(),
             ActiveEffects::new(),
-            CombatPosition(transform.translation),
             vitals,
         ));
         commands.entity(entity).insert((
@@ -859,10 +839,8 @@ fn attach_player_combat(
 fn sync_player_combat_state(
     mut players: Query<
         (
-            &Transform,
             &Slots,
             &Selected,
-            &mut CombatPosition,
             &mut Armor,
             &mut ArmorToughness,
             &mut KnockbackResistance,
@@ -874,10 +852,8 @@ fn sync_player_combat_state(
     stacks: Query<(&Kind, Option<&AttributeModifiers>)>,
 ) {
     for (
-        transform,
         slots,
         selected,
-        mut position,
         mut armor,
         mut toughness,
         mut resistance,
@@ -885,7 +861,6 @@ fn sync_player_combat_state(
         mut equipment,
     ) in &mut players
     {
-        position.0 = transform.translation;
         let worn = [
             (EquipmentSlot::MainHand, usize::from(selected.0)),
             (EquipmentSlot::OffHand, 40),
@@ -1358,7 +1333,7 @@ struct RespawnPlayer {
     experience: &'static mut PlayerExperience,
     transform: &'static mut Transform,
     teleport: &'static mut TeleportState,
-    vitals: &'static mut CombatVitals,
+    vitals: &'static mut EnvironmentTimers,
     sync: &'static mut CombatSync,
     in_dimension: &'static InDimension,
     environment_sync: &'static mut EnvironmentSync,
@@ -1543,8 +1518,8 @@ pub(crate) fn build(app: &mut App) {
         });
     app.insert_resource(DamageTypeRulesResource(rules));
     app.init_resource::<WorldSpawn>();
-    app.init_resource::<WorldBorderState>();
-    app.init_resource::<CombatDifficulty>();
+    app.init_resource::<WorldBorderSettings>();
+    app.init_resource::<Difficulty>();
     app.add_observer(note_ground_pos);
     app.add_observer(note_ground_pos_rot);
     app.add_observer(note_ground_rot);

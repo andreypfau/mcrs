@@ -1,7 +1,7 @@
 use bevy_app::{App, FixedUpdate};
 use bevy_ecs::message::Messages;
 use mcrs_minecraft_combat::{
-    ActiveEffect, Armor, ArmorToughness, CombatPlugin, CombatPosition, DamageDealt, DamageRequest,
+    ActiveEffect, Armor, ArmorToughness, CombatPlugin, DamageDealt, DamageRequest,
     DamageTarget, DeathEvent, MobEffect, PlayerEffects, PlayerFood as FoodData,
     PlayerHitRecord, PlayerVitals as Health,
 };
@@ -30,7 +30,6 @@ fn integration_combat_damage_flow_and_death() {
             },
             ArmorToughness(4.0),
             PlayerHitRecord::default(),
-            CombatPosition(glam::DVec3::new(0.0, 64.0, 0.0)),
         ))
         .id();
 

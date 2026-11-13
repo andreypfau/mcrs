@@ -241,7 +241,7 @@ fn dmg_env_003_a_player_outside_the_world_border_takes_damage() {
     }
     server
         .world()
-        .insert_resource(mcrs_minecraft_combat::WorldBorderState(
+        .insert_resource(mcrs_minecraft_engine_world::world_settings::WorldBorderSettings(
             mcrs_minecraft_entity::WorldBorderSettings {
                 center_x: 0.0,
                 center_z: 0.0,

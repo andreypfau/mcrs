@@ -26,6 +26,8 @@ pub struct Living {
     pub fall_damage_immune: bool,
 }
 
+const _: () = assert!(core::mem::size_of::<Living>() == 184);
+
 /// The state of a living entity that a hit, the fire, the air and the powder snow change
 /// (DMG-ATT-001, DMG-HIT-003, DMG-PLR-002).
 #[derive(Clone, Copy, Debug, PartialEq)]
