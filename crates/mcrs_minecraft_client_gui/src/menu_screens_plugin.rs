@@ -67,6 +67,7 @@ impl Plugin for MenuScreensPlugin {
                     .before(MenuInputSystems),
                 (
                     write_menu_options.in_set(MenuOptionsSystems),
+                    show_pending_values,
                     follow_menu_events,
                 )
                     .chain()
@@ -146,6 +147,15 @@ fn target(shown: Screen, widget: WidgetId) -> Option<Screen> {
             option_sub_screen::DONE,
         ) => Some(parent(shown)),
         _ => None,
+    }
+}
+
+/// The screen that `event` on `shown` opens.
+fn next_screen(shown: Screen, event: MenuEvent) -> Option<Screen> {
+    match event {
+        MenuEvent::CloseRequested => Some(parent(shown)),
+        MenuEvent::Widget(WidgetEvent::Activated { widget, .. }) => target(shown, widget),
+        MenuEvent::Widget(_) => None,
     }
 }
 
@@ -308,7 +318,15 @@ fn project_menu(
     for placed in built.widgets.iter() {
         menu.widgets.set_rect(placed.id(), placed.rect());
         if let Some(widget) = menu.widgets.get_mut(placed.id()) {
-            widget.caption.clone_from(&placed.caption);
+            // A slider that waits shows its own value, not the stored one (WID-SLD-007, step 3).
+            if screen == Screen::VideoSettings
+                && let Some(caption) =
+                    video_settings_screen::pending_caption(&source.language, widget)
+            {
+                widget.caption = caption;
+            } else {
+                widget.caption.clone_from(&placed.caption);
+            }
         }
     }
     menu.tooltips = built.tooltips;
@@ -336,18 +354,30 @@ fn ctrl_wheel_gui_scale(
 }
 
 /// The value changes of the widgets of the shown screen: each one writes its field of the
-/// [`ClientOptions`], and the menu follows.
+/// [`ClientOptions`], and the menu follows. An event that leaves the screen first stores the
+/// value of each slider that waits (MENU-SUB-002, step 1).
 fn write_menu_options(
     mut events: MessageReader<MenuEvent>,
     screen: Res<Screen>,
-    menu: Res<Menu>,
+    mut menu: ResMut<Menu>,
     mut options: ResMut<ClientOptions>,
     keys: Res<ButtonInput<KeyCode>>,
     window: Single<&Window, With<PrimaryWindow>>,
+    mut changes: Local<Vec<WidgetEvent>>,
 ) {
-    let mut next = *options;
     for event in events.read() {
-        let MenuEvent::Widget(WidgetEvent::ValueChanged { widget }) = *event else {
+        match *event {
+            MenuEvent::Widget(change @ WidgetEvent::ValueChanged { .. }) => changes.push(change),
+            // No wait lasts past the end of the clock.
+            event if next_screen(*screen, event).is_some() => {
+                menu.widgets.apply_deferred(u64::MAX, &mut changes);
+            }
+            _ => {}
+        }
+    }
+    let mut next = *options;
+    for change in changes.drain(..) {
+        let WidgetEvent::ValueChanged { widget } = change else {
             continue;
         };
         let Some(widget) = menu.widgets.get(widget) else {
@@ -376,6 +406,24 @@ fn write_menu_options(
     options.set_if_neq(next);
 }
 
+/// A slider that waits shows its new value at once (WID-SLD-007, step 3).
+fn show_pending_values(
+    mut events: MessageReader<MenuEvent>,
+    screen: Res<Screen>,
+    language: Res<ClientLanguage>,
+    mut menu: ResMut<Menu>,
+) {
+    for event in events.read() {
+        if let MenuEvent::Widget(WidgetEvent::ValuePending { widget }) = *event
+            && *screen == Screen::VideoSettings
+            && let Some(widget) = menu.widgets.get_mut(widget)
+            && let Some(caption) = video_settings_screen::pending_caption(&language, widget)
+        {
+            widget.caption = caption;
+        }
+    }
+}
+
 /// The actions of the widgets and of Escape: each one writes the [`Screen`], and the menu
 /// follows.
 fn follow_menu_events(
@@ -391,20 +439,15 @@ fn follow_menu_events(
         if *screen != shown {
             continue;
         }
-        let next = match *event {
-            MenuEvent::CloseRequested => Some(parent(shown)),
-            MenuEvent::Widget(WidgetEvent::Activated { widget, .. }) => {
-                if (shown, widget) == (Screen::Pause, pause_screen::LAST) {
-                    if let Some(last) = menu.widgets.get_mut(widget) {
-                        last.active = false;
-                    }
-                    exit.write(AppExit::Success);
-                }
-                target(shown, widget)
+        if let MenuEvent::Widget(WidgetEvent::Activated { widget, .. }) = *event
+            && (shown, widget) == (Screen::Pause, pause_screen::LAST)
+        {
+            if let Some(last) = menu.widgets.get_mut(widget) {
+                last.active = false;
             }
-            MenuEvent::Widget(_) => None,
-        };
-        if let Some(next) = next {
+            exit.write(AppExit::Success);
+        }
+        if let Some(next) = next_screen(shown, *event) {
             *screen = next;
             if next == Screen::None {
                 grab(&mut cursor, true);
@@ -419,6 +462,7 @@ fn follow_menu_events(
 mod tests {
     mod jar {
         use std::sync::{Arc, LazyLock};
+        use std::time::Duration;
 
         use bevy::input::keyboard::{Key, KeyboardInput};
         use bevy::input::mouse::{MouseButtonInput, MouseScrollUnit, MouseWheel};
@@ -636,8 +680,9 @@ mod tests {
                 ("Fullscreen: OFF", GuiRect::new(218, 80, 150, 20)),
                 ("Brightness: Default", GuiRect::new(58, 105, 150, 20)),
                 ("Quality & Performance", GuiRect::new(153, 148, 120, 17)),
-                ("Smooth Lighting: ON", GuiRect::new(58, 166, 150, 20)),
-                ("Clouds: Fancy", GuiRect::new(218, 166, 150, 20)),
+                ("Render Distance: 96 Chunks", GuiRect::new(58, 166, 150, 20)),
+                ("Smooth Lighting: ON", GuiRect::new(58, 191, 150, 20)),
+                ("Clouds: Fancy", GuiRect::new(218, 191, 150, 20)),
                 ("Done", GuiRect::new(113, 214, 200, 20)),
                 ("", GuiRect::new(0, 33, 427, 174)),
                 ("Controls...", GuiRect::new(58, 37, 150, 20)),
@@ -654,6 +699,8 @@ mod tests {
             ]
             .map(|(caption, rect)| (caption.to_owned(), rect));
             assert_eq!(placed, expected);
+            let video_thumb = video[1].scrollbar().map(|scrollbar| scrollbar.thumb);
+            assert_eq!(video_thumb, Some(GuiRect::new(376, 33, 6, 165)));
         }
 
         const VIDEO_BUTTON: (i32, i32) = (100, 100);
@@ -780,14 +827,14 @@ mod tests {
             ),
             (
                 VIDEO,
-                &[(100, 170)],
+                &[(100, 195)],
                 |o| o.smooth_light = false,
                 video_settings_screen::SMOOTH_LIGHTING,
                 "Smooth Lighting: OFF",
             ),
             (
                 VIDEO,
-                &[(260, 170)],
+                &[(260, 195)],
                 |o| o.clouds = false,
                 video_settings_screen::CLOUDS,
                 "Clouds: OFF",
@@ -848,6 +895,83 @@ mod tests {
                 change(&mut expected);
                 let options = *app.world().resource::<ClientOptions>();
                 assert_eq!((options, caption(&app, widget).as_str()), (expected, shown));
+            }
+        }
+
+        const RENDER_DISTANCE_LEFT: (i32, i32) = (58, 171);
+        const RENDER_DISTANCE_RIGHT: (i32, i32) = (207, 171);
+
+        #[test]
+        fn render_distance_stores_its_value_in_the_first_frame_600_ms_after_the_last_change() {
+            let cases: [(&[(i32, i32)], &str, Option<u8>); 2] = [
+                (
+                    &[RENDER_DISTANCE_LEFT],
+                    "Render Distance: 2 Chunks",
+                    Some(2),
+                ),
+                (
+                    &[RENDER_DISTANCE_LEFT, RENDER_DISTANCE_RIGHT],
+                    "Render Distance: 96 Chunks",
+                    None,
+                ),
+            ];
+            for (clicks, shown, stored) in cases {
+                let mut app = game_app();
+                open_sub_screen(&mut app, VIDEO);
+                let opened = app.world().resource_ref::<ClientOptions>().last_changed();
+                for &(x, y) in clicks {
+                    click(&mut app, x, y);
+                }
+                let pending = caption(&app, video_settings_screen::RENDER_DISTANCE);
+                let frames = [599, 600].map(|ms| {
+                    let mut time = app.world_mut().resource_mut::<Time<Real>>();
+                    time.advance_to(Duration::from_millis(ms));
+                    app.update();
+                    let options = app.world().resource_ref::<ClientOptions>();
+                    (options.view_distance, options.last_changed() != opened)
+                });
+                assert_eq!(
+                    (pending.as_str(), frames),
+                    (shown, [(None, false), (stored, stored.is_some())])
+                );
+            }
+        }
+
+        #[test]
+        fn a_change_of_another_option_keeps_the_caption_of_the_render_distance_that_waits() {
+            let mut app = game_app();
+            open_sub_screen(&mut app, VIDEO);
+            click(&mut app, RENDER_DISTANCE_LEFT.0, RENDER_DISTANCE_LEFT.1);
+            app.world_mut().resource_mut::<ClientOptions>().vsync = true;
+            app.update();
+            let waiting = caption(&app, video_settings_screen::RENDER_DISTANCE);
+            app.world_mut()
+                .resource_mut::<Time<Real>>()
+                .advance_to(Duration::from_millis(600));
+            app.update();
+            app.update();
+            let stored = app.world().resource::<ClientOptions>().view_distance;
+            let shown = caption(&app, video_settings_screen::RENDER_DISTANCE);
+            assert_eq!(
+                (waiting.as_str(), stored, shown.as_str()),
+                (
+                    "Render Distance: 2 Chunks",
+                    Some(2),
+                    "Render Distance: 2 Chunks"
+                )
+            );
+        }
+
+        #[test]
+        fn escape_or_done_stores_the_render_distance_that_waits_at_once() {
+            let done: fn(&mut App) = |app| click(app, DONE_BUTTON.0, DONE_BUTTON.1);
+            for close in [tap_escape, done] {
+                let mut app = game_app();
+                open_sub_screen(&mut app, VIDEO);
+                click(&mut app, RENDER_DISTANCE_LEFT.0, RENDER_DISTANCE_LEFT.1);
+                close(&mut app);
+                let stored = app.world().resource::<ClientOptions>().view_distance;
+                assert_eq!((screen(&app), stored), (Screen::Options, Some(2)));
             }
         }
 

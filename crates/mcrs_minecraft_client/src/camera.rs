@@ -4,7 +4,7 @@ use bevy::math::DVec3;
 use bevy::prelude::*;
 use bevy::render::render_resource::TextureUsages;
 use bevy::render::view::Msaa;
-use mcrs_minecraft_client_options::ClientOptions;
+use mcrs_minecraft_client_options::{ClientOptions, VIEW_DISTANCE_DEFAULT};
 use mcrs_minecraft_client_world::local_player::{Flying, LocalPlayerTick, Sprint};
 use mcrs_minecraft_client_world::player::{Player, look_direction};
 use mcrs_minecraft_client_world::player_view::{ChunkCacheRadius, RequestedViewDistance};
@@ -12,8 +12,6 @@ use mcrs_minecraft_engine_world::entity::physics::{
     OldTransform, Rotation, Transform as PhysicsTransform,
 };
 use mcrs_minecraft_render::CameraOrigin;
-
-use crate::config::VIEW_DISTANCE;
 
 const STANDING_EYE_HEIGHT: f32 = 1.62;
 const DEFAULT_WALKING_SPEED: f32 = 0.1;
@@ -225,7 +223,7 @@ fn spawn_camera(mut commands: Commands) {
             fov: f32::from(FovOptions::default().fov).to_radians(),
             near: NEAR_PLANE,
             near_clip_plane: Vec4::new(0.0, 0.0, -1.0, -NEAR_PLANE),
-            far: far_plane(VIEW_DISTANCE),
+            far: far_plane(VIEW_DISTANCE_DEFAULT),
             ..default()
         }),
     ));

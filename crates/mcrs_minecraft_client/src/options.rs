@@ -3,13 +3,12 @@ use std::path::{Path, PathBuf};
 use bevy::prelude::*;
 use mcrs_minecraft_client_gui::menu_options_systems::MenuOptionsSystems;
 use mcrs_minecraft_client_gui::scene::GuiConfig;
-use mcrs_minecraft_client_options::ClientOptions;
+use mcrs_minecraft_client_options::{ClientOptions, VIEW_DISTANCE_DEFAULT};
 use mcrs_minecraft_client_world::player_view::RequestedViewDistance;
 use mcrs_minecraft_mesh::smooth_light::SmoothLight;
 use mcrs_minecraft_render::Brightness;
 
 use crate::camera::FovOptions;
-use crate::config::VIEW_DISTANCE;
 use crate::sky::Clouds;
 use crate::stream::LightOptions;
 
@@ -84,7 +83,7 @@ pub(crate) fn read(path: &Path) -> Result<ClientOptions, String> {
 
 #[must_use]
 fn requested_view_distance(options: &ClientOptions) -> RequestedViewDistance {
-    RequestedViewDistance(options.view_distance.unwrap_or(VIEW_DISTANCE))
+    RequestedViewDistance(options.view_distance.unwrap_or(VIEW_DISTANCE_DEFAULT))
 }
 
 #[expect(

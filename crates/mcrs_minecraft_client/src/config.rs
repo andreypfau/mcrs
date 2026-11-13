@@ -10,7 +10,7 @@ use crate::options;
 use bevy::app::App;
 use bevy::ecs::resource::Resource;
 use mcrs_minecraft_client_gui::scene::{GuiConfig, GuiPlugin};
-use mcrs_minecraft_client_options::{ClientOptions, VIEW_DISTANCE_RANGE};
+use mcrs_minecraft_client_options::{ClientOptions, VIEW_DISTANCE_DEFAULT, VIEW_DISTANCE_RANGE};
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_render::{Budget, FACE_BYTES, MODEL_BYTES, QUAD_BYTES, Uploads};
 
@@ -62,7 +62,6 @@ const MESH_IN_FLIGHT: usize = 128;
 #[cfg(target_family = "wasm")]
 const MESH_PER_FRAME: usize = 32;
 
-pub(crate) const VIEW_DISTANCE: u8 = 96;
 pub const MAX_VIEW_DISTANCE: u8 = *VIEW_DISTANCE_RANGE.end();
 
 /// The `MCRS_` settings of a run, named without the prefix; with none set, every setting takes
@@ -144,7 +143,7 @@ impl Knobs {
 
     /// The render distance the client asks the server for at start; `VIEW=<columns>` sets it.
     pub fn view_distance(&self) -> u8 {
-        self.options.view_distance.unwrap_or(VIEW_DISTANCE)
+        self.options.view_distance.unwrap_or(VIEW_DISTANCE_DEFAULT)
     }
 
     pub fn username(&self) -> String {
