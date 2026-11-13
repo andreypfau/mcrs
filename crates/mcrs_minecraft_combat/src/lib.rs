@@ -10,6 +10,7 @@ mod equipment;
 mod events;
 mod experience;
 mod life_cycle;
+mod persistence;
 mod runtime;
 
 pub use combat_plugin::{CombatPlugin, CombatSet};

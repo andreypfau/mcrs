@@ -22,11 +22,15 @@ pub(crate) fn load_inventory(world: &mut World, holder: Entity, values: Vec<Opti
         let Some(value) = value else {
             continue;
         };
-        let entity = world.spawn_empty();
-        let stack = entity.id();
-        spawn_stack(entity, value);
-        if let Ok(mut stack) = world.get_entity_mut(stack) {
-            stack.insert(InSlot::new(holder, index));
-        }
+        load_slot(world, holder, index, value);
+    }
+}
+
+pub(crate) fn load_slot(world: &mut World, holder: Entity, index: u16, value: ItemStack) {
+    let entity = world.spawn_empty();
+    let stack = entity.id();
+    spawn_stack(entity, value);
+    if let Ok(mut stack) = world.get_entity_mut(stack) {
+        stack.insert(InSlot::new(holder, index));
     }
 }

@@ -27,10 +27,16 @@ use serde::Serialize;
 use crate::Selected;
 use crate::Slots;
 use crate::Stacks;
-use crate::load_inventory::load_inventory;
+use crate::load_inventory::{load_inventory, load_slot};
 
 /// The slots 0 through 35 of `Inventory`: the hotbar and the main inventory.
 const INVENTORY_SLOTS: usize = 36;
+const PLAYER_SLOTS: usize = 41;
+const OFFHAND_SLOT: u16 = 40;
+const FEET_SLOT: u16 = 36;
+const LEGS_SLOT: u16 = 37;
+const CHEST_SLOT: u16 = 38;
+const HEAD_SLOT: u16 = 39;
 const ENDER_SLOTS: u8 = 27;
 const HOTBAR_SLOTS: u8 = 9;
 
@@ -201,7 +207,7 @@ fn slot_stacks(
 
 fn apply_inventory(world: &mut World, holder: Entity, tag: &NbtTag) -> Result<(), PersistedError> {
     let names = table(world, INVENTORY)?;
-    let mut values: Vec<Option<ItemStack>> = alloc::vec![None; INVENTORY_SLOTS];
+    let mut values: Vec<Option<ItemStack>> = alloc::vec![None; PLAYER_SLOTS];
     for SlotStack { slot, stack } in slot_stacks(tag, &names, INVENTORY)? {
         if let Some(value) = values.get_mut(usize::from(slot)) {
             *value = Some(stack);
@@ -293,6 +299,23 @@ fn apply_equipment(world: &mut World, holder: Entity, tag: &NbtTag) -> Result<()
             ));
         };
         *slot = Some(read_saved(saved, &names).map_err(|error| decode_error(EQUIPMENT, error))?);
+    }
+    if world.get::<Slots>(holder).is_none() {
+        world
+            .get_entity_mut(holder)
+            .map_err(|_| PersistedError::NoEntity(holder))?
+            .insert(Slots::new(PLAYER_SLOTS));
+    }
+    for (index, stack) in [
+        (OFFHAND_SLOT, &worn.offhand),
+        (FEET_SLOT, &worn.feet),
+        (LEGS_SLOT, &worn.legs),
+        (CHEST_SLOT, &worn.chest),
+        (HEAD_SLOT, &worn.head),
+    ] {
+        if let Some(stack) = stack {
+            load_slot(world, holder, index, stack.clone());
+        }
     }
     world
         .get_entity_mut(holder)

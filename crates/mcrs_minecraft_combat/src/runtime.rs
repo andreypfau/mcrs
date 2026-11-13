@@ -20,10 +20,11 @@ use mcrs_minecraft_engine::coordinator::clock::GameTime;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine::player_entity_id;
+use mcrs_minecraft_engine::player_state::PlayerFileState;
 use mcrs_minecraft_engine::teleport::{TeleportState, position_packet, teleport_to};
 use mcrs_minecraft_engine::tile_events::TileEvents;
 use mcrs_minecraft_engine_brain::EntityRows;
-use mcrs_minecraft_engine_item::{Selected, Slots, Stacks};
+use mcrs_minecraft_engine_item::{Selected, Slots, Stacks, WornEquipment};
 use mcrs_minecraft_engine_physics::{Mob, Mobs, PhysicsTables};
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::entity::EntityUuid;
@@ -98,12 +99,12 @@ use crate::events::{DamageDealt, DamageRequest, DamageTarget, DeathEvent, Respaw
 use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
-struct EnvironmentTimers {
-    last_position: DVec3,
-    fall_distance: f64,
-    on_ground: bool,
-    jumping: bool,
-    respawn_at: Transform,
+pub(crate) struct EnvironmentTimers {
+    pub(crate) last_position: DVec3,
+    pub(crate) fall_distance: f64,
+    pub(crate) on_ground: bool,
+    pub(crate) jumping: bool,
+    pub(crate) respawn_at: Transform,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -826,20 +827,36 @@ fn block_flags(view: &DimensionView<'_>, tables: &PhysicsTables, at: BlockPos) -
 
 fn attach_player_combat(
     mut commands: Commands,
-    players: Query<(Entity, &Transform), (With<Player>, Without<Health>)>,
+    players: Query<(Entity, &Transform, Option<&PlayerFileState>), (With<Player>, Without<Health>)>,
 ) {
-    for (entity, transform) in &players {
-        let mut vitals = EnvironmentTimers::at(*transform);
-        vitals.on_ground = true;
+    for (entity, transform, file) in &players {
+        let mut timers = EnvironmentTimers::at(*transform);
+        timers.on_ground = true;
+        let (health, base, food, experience, effects) = if let Some(file) = file {
+            timers.on_ground = file.on_ground;
+            timers.fall_distance = file.fall_distance.max(0.0);
+            crate::persistence::load(file)
+        } else {
+            (
+                Health::new(20.0, 20.0),
+                BaseMaxHealth::default(),
+                FoodData::default(),
+                PlayerExperience::default(),
+                ActiveEffects::new(),
+            )
+        };
         commands.entity(entity).insert((
-            Health::new(20.0, 20.0),
-            BaseMaxHealth::default(),
-            FoodData::default(),
-            PlayerExperience::default(),
+            health,
+            base,
+            food,
+            experience,
             PlayerHitRecord::default(),
-            ActiveEffects::new(),
-            vitals,
+            effects,
+            timers,
         ));
+        commands
+            .entity(entity)
+            .insert_if_new(WornEquipment::default());
         commands.entity(entity).insert_if_new(Selected(0));
         commands.entity(entity).insert((
             PlayerInputState::default(),
@@ -1553,7 +1570,12 @@ pub(crate) fn build(app: &mut App) {
     );
     app.add_systems(
         FixedUpdate,
-        (load_world_spawn, respawn_players, sync_player_combat)
+        (
+            load_world_spawn,
+            respawn_players,
+            sync_player_combat,
+            store_player_file_state,
+        )
             .chain()
             .in_set(CombatSet::Post),
     );
@@ -1569,6 +1591,25 @@ pub(crate) fn build(app: &mut App) {
             .chain()
             .in_set(CombatSet::Send),
     );
+}
+
+fn store_player_file_state(
+    mut players: Query<
+        (
+            &Health,
+            &BaseMaxHealth,
+            &FoodData,
+            &PlayerExperience,
+            &ActiveEffects,
+            &EnvironmentTimers,
+            &mut PlayerFileState,
+        ),
+        With<Player>,
+    >,
+) {
+    for (health, base, food, experience, effects, timers, mut file) in &mut players {
+        crate::persistence::store(&mut file, health, base, food, experience, effects, timers);
+    }
 }
 
 #[derive(Clone, Copy)]
