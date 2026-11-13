@@ -664,8 +664,10 @@ fn drop_broken_blocks<B: BlockDrops + Send + Sync + 'static>(
     time: Res<GameTime>,
     seed: Option<Res<WorldSeed>>,
     mut drops: Local<Vec<ItemStack>>,
+    mut broken_now: Local<Vec<BlockPos>>,
     mut dropped: DropOutlet,
 ) {
+    broken_now.clear();
     let Some(view) = dims
         .single()
         .ok()
@@ -677,6 +679,12 @@ fn drop_broken_blocks<B: BlockDrops + Send + Sync + 'static>(
     let tick = time.0.cast_unsigned();
     let world_seed = seed.as_deref().map_or(0, |seed| seed.0);
     for harvest in harvests.read() {
+        // Two breaks of one block in a tick both read it before either write lands.
+        let parts = [Some(harvest.at), harvest.other.map(|(at, _)| at)];
+        if parts.iter().flatten().any(|at| broken_now.contains(at)) {
+            continue;
+        }
+        broken_now.extend(parts.into_iter().flatten());
         if let Some((at, state)) = harvest.other {
             let removed = DroppingBlock {
                 at,

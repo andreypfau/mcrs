@@ -22,8 +22,7 @@ impl mcrs_minecraft_resource::RegistryValue for ConditionFile {
 
 mcrs_minecraft_registries::resolve_as_is!(ConditionFile);
 
-/// The fields a part of a predicate does not name. A part with such fields tests what no rule
-/// here states, so it never passes.
+/// The fields a part of a predicate does not name.
 pub type OtherFields = BTreeMap<String, IgnoredAny>;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -42,6 +41,7 @@ pub enum TypedCondition {
     #[serde(rename = "minecraft:table_bonus", alias = "table_bonus")]
     TableBonus {
         enchantment: ResourceLocationBuf,
+        #[serde(deserialize_with = "non_empty")]
         chances: Vec<f32>,
     },
     #[serde(rename = "minecraft:match_block", alias = "match_block")]
@@ -118,4 +118,12 @@ pub struct EnchantmentPredicateFile {
 pub enum LevelsFile {
     Exact(u32),
     Range { min: Option<u32>, max: Option<u32> },
+}
+
+fn non_empty<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Vec<f32>, D::Error> {
+    let chances = Vec::<f32>::deserialize(deserializer)?;
+    if chances.is_empty() {
+        return Err(serde::de::Error::invalid_length(0, &"at least one chance"));
+    }
+    Ok(chances)
 }

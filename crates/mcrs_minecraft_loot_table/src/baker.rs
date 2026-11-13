@@ -8,7 +8,8 @@ use mcrs_voxel::BlockPos;
 
 use crate::condition::{Condition, EnchantmentTest, ItemTest, StateSet};
 use crate::condition_file::{
-    BlockPredicateFile, ConditionFile, ItemPredicateFile, LevelsFile, StateValue, TypedCondition,
+    BlockPredicateFile, ConditionFile, ItemPredicateFile, LevelsFile, OtherFields, StateValue,
+    TypedCondition,
 };
 use crate::loot_issue::LootProblem;
 use crate::loot_table_file::{EntryFile, EntryKind as EntryKindFile, LootTableFile};
@@ -21,6 +22,21 @@ use crate::table::{Entry, EntryKind, Pool, Table};
 
 /// How deep registered predicates may name each other before the bake takes a cycle.
 const PREDICATE_DEPTH: u8 = 16;
+
+const LOCATION_PARTS: &[&str] = &[
+    "position",
+    "biomes",
+    "structures",
+    "dimension",
+    "smokey",
+    "light",
+    "fluid",
+    "can_see_sky",
+];
+
+fn unsupported(other: &OtherFields, parts: &[&str]) -> bool {
+    other.keys().any(|key| parts.contains(&key.as_str()))
+}
 
 /// Turns the file form of block tables into tables of ids.
 pub(crate) struct Baker<'a> {
@@ -146,7 +162,9 @@ impl<'a> Baker<'a> {
             } => {
                 let offset = BlockPos::new(*offset_x, *offset_y, *offset_z);
                 let block = match predicate {
-                    Some(predicate) if !predicate.other.is_empty() => return Condition::Never,
+                    Some(predicate) if unsupported(&predicate.other, LOCATION_PARTS) => {
+                        return Condition::Never;
+                    }
                     Some(predicate) => predicate.block.as_ref(),
                     None => None,
                 };
@@ -202,7 +220,7 @@ impl<'a> Baker<'a> {
     /// The states a block predicate accepts; `None` for a predicate with a part that no rule
     /// states.
     fn states(&mut self, predicate: &BlockPredicateFile) -> Option<StateSet> {
-        if !predicate.other.is_empty() {
+        if unsupported(&predicate.other, &["nbt", "components", "predicates"]) {
             return None;
         }
         let blocks: Vec<Id<Block>> = match &predicate.blocks {
@@ -212,7 +230,7 @@ impl<'a> Baker<'a> {
                 .collect(),
         };
         let mut states = Vec::new();
-        for block in blocks {
+        'blocks: for block in blocks {
             let Some(entry) = self.definitions.entry(block) else {
                 continue;
             };
@@ -222,11 +240,13 @@ impl<'a> Baker<'a> {
                     return None;
                 };
                 if entry.properties.index_of(property).is_none() {
-                    self.problems.push(LootProblem::UnknownProperty {
-                        block: entry.identifier.to_string(),
-                        property: property.clone(),
-                    });
-                    return None;
+                    if predicate.blocks.is_some() {
+                        self.problems.push(LootProblem::UnknownProperty {
+                            block: entry.identifier.to_string(),
+                            property: property.clone(),
+                        });
+                    }
+                    continue 'blocks;
                 }
                 wanted.push((property.as_str(), text.as_str()));
             }
@@ -248,7 +268,9 @@ impl<'a> Baker<'a> {
 
     fn item_test(&mut self, predicate: &ItemPredicateFile) -> Option<ItemTest> {
         let sub = predicate.predicates.as_ref();
-        if !predicate.other.is_empty() || sub.is_some_and(|sub| !sub.other.is_empty()) {
+        if unsupported(&predicate.other, &["count", "components"])
+            || sub.is_some_and(|sub| !sub.other.is_empty())
+        {
             return None;
         }
         let items = predicate.items.as_ref().map(|names| {
@@ -382,5 +404,48 @@ impl<'a> Baker<'a> {
             }
         }
         ids
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use mcrs_minecraft_engine_registries::test_corpus;
+    use mcrs_minecraft_game_registries::registry_load::test_registries;
+    use serde::de::IgnoredAny;
+
+    use super::*;
+
+    fn axis_y(other: &[&str]) -> Option<StateSet> {
+        let blocks = &test_corpus().0.0;
+        let predicate = BlockPredicateFile {
+            blocks: None,
+            state: Some(BTreeMap::from([(
+                "axis".to_owned(),
+                StateValue::Exact("y".to_owned()),
+            )])),
+            other: other
+                .iter()
+                .map(|key| ((*key).to_owned(), IgnoredAny))
+                .collect(),
+        };
+        Baker::new(blocks, test_registries()).states(&predicate)
+    }
+
+    #[test]
+    fn a_state_test_without_blocks_skips_the_blocks_without_the_property() {
+        let blocks = &test_corpus().0.0;
+        let log = blocks.block("minecraft:oak_log").expect("a vanilla block");
+        let y = log
+            .with_text(log.default_state_id, "axis", "y")
+            .expect("an axis");
+        let x = log
+            .with_text(log.default_state_id, "axis", "x")
+            .expect("an axis");
+        let states = axis_y(&["custom_note"]).expect("a state set");
+        assert!(states.0.contains(&y));
+        assert!(!states.0.contains(&x));
+        assert!(axis_y(&["nbt"]).is_none());
     }
 }
