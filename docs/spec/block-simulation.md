@@ -1233,8 +1233,11 @@ list before it reports a difference from vanilla as a defect.
 | DEV-07 | A column that does not broadcast changes keeps its marks, and sends them when it broadcasts again. The complete column that the client gets later also carries the change. | A column that no player can receive drops its marks, as a section that no player sees does. The difference is not visible, because the client gets the complete column before it can show the position. | SIM-SET-005 |
 | DEV-08 | Each random pick draws its position when it runs. A position whose state starts to tick during the level tick can take a later pick of its section in the same level tick. | The random picks of all sections draw their positions at the start of the random-tick step, from the positions that tick then. Each pick reads the state at its position when it runs, and runs a handler only if that state ticks. A position whose state starts to tick during the step takes picks from the next step. Each pick stays uniform over the 4096 positions of its section. A position that ticks at the start of a step keeps its rate. | SIM-RND-002, SIM-MODEL-106 |
 | DEV-09 | An open shulker box, while its lid moves or stays open, has the support shape of a plate of 1 sixteenth on the side opposite to its `facing`. The lid state is in the block entity, not in the block state. | Each shulker box has the full block as its support shape, open or closed. The block rules read only block states. | SIM-FIRE-003 |
+| DEV-10 | The view distance V of the load level from player tickets is clamped to 2–32, as the server view distance of vanilla. | V is clamped to 2–96, as the server view distance of this project (`client-menu.md`, MENU-DEV-008). Player tickets give the load level 31 to each column at a distance d ≤ V, also when V is above 32. | SIM-TICK-005 |
 
 Provenance of the vanilla column: `source_suggested`. No experiment was run.
+
+The column of this project for DEV-10 is `design`: the owner decided it on 2026-11-13. The reason: the server view distance of this project can reach 96, and the server sends the columns up to that distance. The load tickets of a player must reach the same columns.
 
 Experiment for DEV-01:
 1. Put a repeater at the edge of column C. Put its input in the next column D.
@@ -1438,7 +1441,7 @@ Provenance: `source_suggested`. Confidence: high.
 - **Ordering constraints:** none.
 - **Numeric semantics:** full = 33, block-ticking = 32, entity-ticking = 31. In vanilla, these values apply to a column at Chebyshev distance d (in columns) from the column of a player:
   - simulation level = max(0, 31 − S) + d. S is the simulation distance (server property `simulation-distance`, default 10).
-  - load level from player tickets = 31 + max(0, d − V). V is the view distance, clamped to 2–32.
+  - load level from player tickets = 31 + max(0, d − V). V is the view distance, clamped to 2–32. This project clamps V to 2–96 (B.4, DEV-10).
   - Each ticket type changes the load level, the simulation level, or both:
     - only the simulation level: `player_simulation`
     - only the load level: `player_loading`, `player_spawn`, `spawn_search`, `unknown`
@@ -1455,7 +1458,7 @@ Provenance: `source_suggested`. Confidence: high.
 - **Vanilla grouping:** the ticket system calculates load and simulation levels for each column. These levels have no vertical component: the properties of a section depend only on `(sx, sz)`. A host can calculate properties for each section by any rule. An exact-parity mode gives each section of a column the properties that vanilla gives the column.
 - **Conformance tests:** use simulation distance 3 and a view distance of at least 3 (default 10). Put a repeater with a pending tick in a section at simulation level 32. This section is one ring outside the entity-ticking area (d = 4). Put a sapling in the same section. Result: the pending repeater tick runs, but the sapling never grows by random ticks. Failing twin: the sapling grows.
 
-Provenance: `source_suggested`. Confidence: high.
+Provenance: `source_suggested`. `design` for the clamp of V in this project: the owner decided it on 2026-11-13 (B.4, DEV-10). Kind: semantic. Confidence: high.
 
 ---
 

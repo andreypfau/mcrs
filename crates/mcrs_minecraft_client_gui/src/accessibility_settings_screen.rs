@@ -12,6 +12,7 @@ use crate::option_caption::option_caption;
 use crate::option_sub_screen::{OptionList, option_sub_screen};
 
 pub(crate) const FOV_EFFECTS: WidgetId = WidgetId(3);
+pub(crate) const CONTROLS: WidgetId = WidgetId(4);
 
 /// The "Accessibility Settings" screen on a screen of the size `screen` with the values of
 /// `options`; "Done" keeps its vanilla size (MENU-ACC-002).
@@ -20,7 +21,7 @@ pub(crate) fn accessibility_settings_screen(
     language: &ClientLanguage,
     font: &Font,
     options: &ClientOptions,
-) -> Option<[Widget; 4]> {
+) -> Option<[Widget; 5]> {
     let [title, done] = option_sub_screen(
         screen,
         language,
@@ -37,8 +38,14 @@ pub(crate) fn accessibility_settings_screen(
     );
     fov_effects.tooltip = Some(TooltipDelay::default());
     let mut list = OptionList::new(screen);
+    let [controls] = list.option_row([Widget::new(
+        CONTROLS,
+        GuiRect::default(),
+        language.get("options.controls").to_owned(),
+        WidgetKind::Button,
+    )])?;
     let [fov_effects] = list.option_row([fov_effects])?;
-    Some([title, list.into_widget(), fov_effects, done])
+    Some([title, list.into_widget(), controls, fov_effects, done])
 }
 
 /// The tooltip of FOV Effects (MENU-VAL-002, step 5).
