@@ -1,7 +1,6 @@
 use crate::click_mode::ClickMode;
 use crate::closed::Closed;
 use crate::command_input::{CommandInput, Context, Request};
-use crate::edit_box::{Anchor, EditBox};
 use crate::history::{History, Recall};
 use crate::history_change::HistoryChange;
 use crate::input_style::InputStyle;
@@ -12,13 +11,14 @@ use crate::signing::Signing;
 use crate::style_click::StyleClick;
 use crate::tab_direction::TabDirection;
 use mcrs_minecraft_chat::{MAX_INPUT, normalize};
+use mcrs_minecraft_client_widget::{Anchor, EditBox, LengthUnit};
 use mcrs_minecraft_command_argument_vanilla::VanillaLookup;
 use mcrs_minecraft_protocol_game::text::{ClickEvent, TextTypes};
 use mcrs_minecraft_wire::utf16_len;
 
 /// The chat screen while it is open: the input box, the history position, the draft style and
 /// the command state.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct ChatScreen {
     edit: EditBox,
     recall: Recall,
@@ -26,6 +26,21 @@ pub struct ChatScreen {
     pub commands: CommandInput,
     sent: String,
     request: Option<Request>,
+}
+
+impl Default for ChatScreen {
+    fn default() -> Self {
+        let mut edit = EditBox::default();
+        edit.set_max_length(MAX_INPUT, LengthUnit::Characters);
+        Self {
+            edit,
+            recall: Recall::default(),
+            draft: false,
+            commands: CommandInput::default(),
+            sent: String::new(),
+            request: None,
+        }
+    }
 }
 
 impl ChatScreen {

@@ -8,9 +8,10 @@ use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
 use mcrs_minecraft_chat_client::{
-    Anchor, ChatScreen, ClickMode, Closed, Context, History, HistoryChange, InputStyle, Key,
-    Outcome, Step, StyleClick, TabDirection, Tag, UnsentDraft,
+    ChatScreen, ClickMode, Closed, Context, History, HistoryChange, InputStyle, Key, Outcome,
+    StyleClick, TabDirection, Tag, UnsentDraft,
 };
+use mcrs_minecraft_client_widget::{Anchor, Step};
 use mcrs_minecraft_command::Source;
 use mcrs_minecraft_protocol_game::text::Text;
 

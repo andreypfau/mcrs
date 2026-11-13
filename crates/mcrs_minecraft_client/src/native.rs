@@ -35,6 +35,8 @@ use mcrs_minecraft_client::config::{Knobs, TerrainLimits};
 use mcrs_minecraft_client::scene_capture::SceneCapturePlugin;
 use mcrs_minecraft_client::screenshot;
 use mcrs_minecraft_client::{ClientPlugins, ClientTerrainPlugin, config, sky, vanilla};
+use mcrs_minecraft_client_gui::menu_plugin::MenuPlugin;
+use mcrs_minecraft_client_gui::menu_screens_plugin::MenuScreensPlugin;
 use mcrs_minecraft_client_gui::{chat_input, game_mode_switcher};
 use mcrs_minecraft_client_world::asset_source::asset_source;
 use mcrs_minecraft_client_world::registries::ClientRegistriesPlugin;
@@ -276,6 +278,7 @@ pub fn run() -> AppExit {
     // After `DefaultPlugins`: an embedded server leaves the task pools to its
     // host, so the host has to have built them before the server thread ticks.
     let username = knobs.username();
+    let local_world = cfg!(feature = "singleplayer") && knobs.server().is_none();
     #[cfg(feature = "singleplayer")]
     let server = server_address(&knobs).unwrap_or_else(|| {
         #[cfg(feature = "dev")]
@@ -318,6 +321,7 @@ pub fn run() -> AppExit {
         }),
     });
     app.add_plugins(chat_input::ChatScreenPlugin);
+    app.add_plugins((MenuPlugin, MenuScreensPlugin { local_world }));
     app.insert_resource(ExitOnDisconnect);
 
     let mut saved_clocks = save_data.world_clocks;
