@@ -33,7 +33,7 @@ pub fn handle_apply_effect_events(
         Option<&Armor>,
         Option<&Dying>,
     )>,
-    rules: Option<Res<DamageTypeRulesResource>>,
+    rules: Res<DamageTypeRulesResource>,
     mut damage_events: MessageWriter<DamageRequest>,
 ) {
     for ev in events.read() {
@@ -51,10 +51,7 @@ pub fn handle_apply_effect_events(
             }
             MobEffect::InstantDamage => {
                 let amount = 6.0 * f32::from(1u16 << amplifier.min(15));
-                let id = rules
-                    .as_deref()
-                    .and_then(|rules| rules.0.id_path("magic"))
-                    .unwrap_or(0);
+                let id = rules.0.id_path("magic").unwrap_or(0);
                 damage_events.write(DamageRequest::player(
                     ev.entity,
                     Hit::from_source(amount, DamageSource::new(id)),
@@ -65,8 +62,10 @@ pub fn handle_apply_effect_events(
                 vitals.0.absorption = effects.0.absorption_cap();
             }
             MobEffect::HealthBoost => {
+                let previous = effects.0.health_boost();
                 effects.0.add(ev.effect);
-                vitals.0.max_health = base.map_or(20.0, |base| base.0) + effects.0.health_boost();
+                let base_health = base.map_or(vitals.0.max_health - previous, |base| base.0);
+                vitals.0.max_health = base_health + effects.0.health_boost();
                 vitals.0.health = vitals.0.health.min(vitals.0.max_health);
             }
             _ => {
@@ -88,7 +87,7 @@ pub fn tick_active_effects(
         Option<&Armor>,
         Option<&Dying>,
     )>,
-    rules: Option<Res<DamageTypeRulesResource>>,
+    rules: Res<DamageTypeRulesResource>,
     mut damage_events: MessageWriter<DamageRequest>,
     mut remove_events: MessageWriter<RemoveEffectEvent>,
 ) {
@@ -97,6 +96,7 @@ pub fn tick_active_effects(
             continue;
         }
         let mut actions = Vec::new();
+        let previous_boost = effects.0.health_boost();
         let removed = effects
             .0
             .tick(false, vitals.0.health, vitals.0.absorption, |action| {
@@ -109,10 +109,7 @@ pub fn tick_active_effects(
                 }
                 EffectAction::Damage { magic, amount } => {
                     let name = if magic { "magic" } else { "wither" };
-                    let id = rules
-                        .as_deref()
-                        .and_then(|rules| rules.0.id_path(name))
-                        .unwrap_or(0);
+                    let id = rules.0.id_path(name).unwrap_or(0);
                     damage_events.write(DamageRequest::player(
                         entity,
                         Hit::from_source(amount, DamageSource::new(id)),
@@ -140,12 +137,69 @@ pub fn tick_active_effects(
             match effect {
                 MobEffect::Absorption => vitals.0.absorption = 0.0,
                 MobEffect::HealthBoost => {
-                    vitals.0.max_health =
-                        base.map_or(20.0, |base| base.0) + effects.0.health_boost();
+                    let base_health =
+                        base.map_or(vitals.0.max_health - previous_boost, |base| base.0);
+                    vitals.0.max_health = base_health + effects.0.health_boost();
                     vitals.0.health = vitals.0.health.min(vitals.0.max_health);
                 }
                 _ => {}
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy_app::{App, Update};
+    use bevy_ecs::message::Messages;
+
+    use super::*;
+    use mcrs_minecraft_physics::Vitals;
+
+    #[test]
+    fn a_health_boost_returns_a_mob_to_its_own_maximum() {
+        let mut app = App::new();
+        app.add_message::<ApplyEffectEvent>();
+        app.add_message::<RemoveEffectEvent>();
+        app.add_message::<DamageRequest>();
+        app.insert_resource(DamageTypeRulesResource::default());
+        app.add_systems(Update, handle_apply_effect_events);
+        let entity = app
+            .world_mut()
+            .spawn((
+                PlayerVitals(Vitals {
+                    health: 10.0,
+                    max_health: 10.0,
+                    ..Vitals::default()
+                }),
+                PlayerEffects::new(),
+            ))
+            .id();
+        app.world_mut()
+            .resource_mut::<Messages<ApplyEffectEvent>>()
+            .write(ApplyEffectEvent {
+                entity,
+                effect: ActiveEffect::new(MobEffect::HealthBoost, 0, 1),
+            });
+        app.update();
+        assert_eq!(
+            app.world()
+                .get::<PlayerVitals>(entity)
+                .unwrap()
+                .0
+                .max_health,
+            14.0
+        );
+
+        app.add_systems(Update, tick_active_effects);
+        app.update();
+        assert_eq!(
+            app.world()
+                .get::<PlayerVitals>(entity)
+                .unwrap()
+                .0
+                .max_health,
+            10.0
+        );
     }
 }
