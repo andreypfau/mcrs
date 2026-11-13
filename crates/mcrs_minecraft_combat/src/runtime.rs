@@ -20,7 +20,7 @@ use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine::teleport::{TeleportState, position_packet, teleport_to};
 use mcrs_minecraft_engine_brain::EntityRows;
-use mcrs_minecraft_engine_item::{Selected, Slots};
+use mcrs_minecraft_engine_item::{Selected, Slots, Stacks};
 use mcrs_minecraft_engine_physics::{Mob, Mobs, PhysicsTables};
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::entity::EntityUuid;
@@ -41,22 +41,24 @@ use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_rows::Placed;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_rule::GameRule;
-use mcrs_minecraft_item::ProtoStack;
 use mcrs_minecraft_item::component::equippable::EquipmentSlot;
-use mcrs_minecraft_item_key::item_keys::Item;
-use mcrs_minecraft_item_stack::{AttributeModifiers, Count, Kind, ModifierOperation, SlotGroup};
+use mcrs_minecraft_item_stack::{
+    AttributeModifiers, Count, ItemStack, Kind, ModifierOperation, SlotGroup, write_wire,
+};
+use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_physics::{BlockAction, BlockFlags, Vitals};
 use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundAttack, ServerboundChangeDifficulty, ServerboundPlayerAction,
     ServerboundPlayerInput, ServerboundSetCarriedItem,
 };
-use mcrs_minecraft_registries::{CurrentRegistries, WireId};
+use mcrs_minecraft_registries::{CurrentRegistries, Wire};
 
 use crate::CombatSet;
 
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::LpVec3;
+use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_protocol_game::clientbound::{
     AttributeSnapshot, ClientboundDamageEvent, ClientboundEntityEvent, ClientboundHurtAnimation,
     ClientboundPlayerCombatKill, ClientboundRemoveMobEffect, ClientboundRespawn,
@@ -75,6 +77,7 @@ use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_minecraft_save::read_level_dat;
 use mcrs_minecraft_text::{RawText, Text};
 use mcrs_minecraft_volume::BlockVolume;
+use mcrs_minecraft_wire::Decode;
 use mcrs_voxel::{BlockPos, BlockStateId};
 
 use crate::components::Dying as DeathState;
@@ -860,6 +863,8 @@ fn sync_player_combat_state(
         With<Player>,
     >,
     stacks: Query<(&Kind, Option<&Count>, Option<&AttributeModifiers>)>,
+    mut values: Stacks,
+    table: Res<ItemTable>,
 ) {
     for (slots, selected, mut armor, mut toughness, mut resistance, mut attack, mut equipment) in
         &mut players
@@ -879,9 +884,9 @@ fn sync_player_combat_state(
         for (slot, index) in worn {
             let stack = slots.get(index);
             let next = stack
-                .and_then(|stack| stacks.get(stack).ok())
-                .map(|(kind, count, _)| (u32::from(kind.0), count.map_or(1, |count| count.get())));
-            if equipment.get(slot) != next {
+                .and_then(|stack| values.to_value(stack))
+                .and_then(|value| wire_stack(&value, &table));
+            if equipment.get(slot) != next.as_ref() {
                 equipment.set(slot, next);
             }
             let Some(modifiers) = stack
@@ -1545,7 +1550,7 @@ pub(crate) fn build(app: &mut App) {
         FixedUpdate,
         (
             attach_player_combat,
-            sync_player_combat_state,
+            sync_player_combat_state.run_if(resource_exists::<ItemTable>),
             tick_player_hunger,
             tick_player_environment,
             tick_mob_environment,
@@ -1685,19 +1690,17 @@ fn on_player_attack(
     }
 }
 
+fn wire_stack(value: &ItemStack, table: &ItemTable) -> Option<ProtoStack<Wire>> {
+    let mut bytes = Vec::new();
+    write_wire(Some(value), table, &mut bytes).ok()?;
+    let stack = ProtoStack::decode(&mut bytes.as_slice()).ok()?;
+    (!stack.is_empty()).then_some(stack)
+}
+
 fn equipment_packet(owner: &Owner, equipment: &EntityEquipment) -> PacketPayload {
     let slots = equipment
         .iter()
-        .map(|(slot, item)| {
-            (
-                slot,
-                item.map_or_else(ProtoStack::default, |(item, count)| ProtoStack {
-                    id: WireId::<Item>::new(u16::try_from(item).unwrap_or(u16::MAX)),
-                    count: i32::from(count),
-                    components: Default::default(),
-                }),
-            )
-        })
+        .map(|(slot, item)| (slot, item.cloned().unwrap_or_default()))
         .collect();
     PacketPayload::SetEquipment(ClientboundSetEquipment {
         entity_id: VarInt(player_network_id(owner.0)),
@@ -1745,6 +1748,7 @@ mod tests {
     use super::*;
     use bevy_app::{App, Update};
     use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
+    use mcrs_minecraft_registries::WireId;
 
     #[derive(Resource, Default)]
     struct SeenPackets(Vec<PacketPayload>);
@@ -1815,7 +1819,11 @@ mod tests {
         let mut equipment = EntityEquipment::new();
         equipment.set(
             mcrs_minecraft_item::component::equippable::EquipmentSlot::MainHand,
-            Some((1, 1)),
+            Some(ProtoStack::<Wire> {
+                id: WireId::new(1),
+                count: 1,
+                components: Default::default(),
+            }),
         );
         app.world_mut().spawn((
             Player,
@@ -1840,7 +1848,11 @@ mod tests {
         let mut equipment = EntityEquipment::new();
         equipment.set(
             mcrs_minecraft_item::component::equippable::EquipmentSlot::MainHand,
-            Some((7, 3)),
+            Some(ProtoStack::<Wire> {
+                id: WireId::new(7),
+                count: 3,
+                components: Default::default(),
+            }),
         );
         let packet = equipment_packet(&Owner(PlayerSession(1)), &equipment);
         let PacketPayload::SetEquipment(equipment) = packet else {

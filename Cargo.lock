@@ -4564,6 +4564,7 @@ dependencies = [
  "mcrs_minecraft_save",
  "mcrs_minecraft_text",
  "mcrs_minecraft_volume",
+ "mcrs_minecraft_wire",
  "mcrs_voxel",
  "tracing",
 ]
