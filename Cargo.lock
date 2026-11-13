@@ -5271,6 +5271,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_fog"
+version = "0.5.8"
+dependencies = [
+ "libm",
+]
+
+[[package]]
 name = "mcrs_minecraft_game_mode"
 version = "0.5.8"
 dependencies = [

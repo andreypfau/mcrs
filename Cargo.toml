@@ -211,6 +211,7 @@ mcrs_minecraft_client_entity = { path = "crates/mcrs_minecraft_client_entity" }
 mcrs_minecraft_client_gui = { path = "crates/mcrs_minecraft_client_gui" }
 mcrs_minecraft_client_options = { path = "crates/mcrs_minecraft_client_options" }
 mcrs_minecraft_client_widget = { path = "crates/mcrs_minecraft_client_widget" }
+mcrs_minecraft_fog = { path = "crates/mcrs_minecraft_fog" }
 mcrs_minecraft_mesh = { path = "crates/mcrs_minecraft_mesh" }
 mcrs_minecraft_model = { path = "crates/mcrs_minecraft_model" }
 mcrs_minecraft_model_file = { path = "crates/mcrs_minecraft_model_file" }
