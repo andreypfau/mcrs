@@ -55,12 +55,25 @@ impl ItemPlugin {
     }
 }
 
+/// The stacks of a world and their codecs in the player file, without the systems of
+/// [`ItemPlugin`]. The world gets its [`ItemTable`] elsewhere, such as from its loaded registries,
+/// and a codec fails until it has one.
+#[derive(Clone, Copy, Default)]
+pub struct ItemPersistencePlugin;
+
+impl Plugin for ItemPersistencePlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<ItemComponents>()
+            .init_resource::<RequestScratch>();
+        crate::persist::register(app);
+    }
+}
+
 impl Plugin for ItemPlugin {
     fn build(&self, app: &mut App) {
         let changed = common_conditions::any_match_filter::<HolderChanged>;
         app.insert_resource(self.table)
-            .init_resource::<ItemComponents>()
-            .init_resource::<RequestScratch>()
+            .add_plugins(ItemPersistencePlugin)
             .add_message::<Given>()
             .add_message::<RequestResult>()
             .add_systems(

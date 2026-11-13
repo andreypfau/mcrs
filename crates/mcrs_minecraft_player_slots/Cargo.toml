@@ -1,0 +1,14 @@
+[package]
+name = "mcrs_minecraft_player_slots"
+description = "The slots of a player: their indices, slot limits and filters, and the insert rule"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_inventory_plan.workspace = true

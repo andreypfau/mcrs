@@ -1,23 +1,25 @@
 use bevy_tasks::{Task, TaskPool, TaskPoolBuilder};
 use mcrs_engine_link::{InFlight, Step, TaskOutcome};
+use mcrs_minecraft_anvil::{ChunkStructures, StructureStart};
 use mcrs_minecraft_engine::column_generation::GenerationAnswer;
-use mcrs_minecraft_engine::stored_column::{StoredColumn, StoredSection};
 use mcrs_minecraft_engine_world::aoi::min_column_distance;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::ChunkTrackingView;
 use mcrs_minecraft_engine_world::palette::{ChunkBlocks, section_states};
 use mcrs_minecraft_engine_world::world::lifecycle::column_loading::LOADING_RINGS;
+use mcrs_minecraft_region_disk::stored_column::{StoredColumn, StoredSection};
 use mcrs_minecraft_worldgen_generator::stages::FillContext;
 use mcrs_minecraft_worldgen_generator::staging::{
     ColumnDelta, FilledSnapshot, Stage, StagingStore,
 };
 use mcrs_minecraft_worldgen_generator::task::{CancellationToken, ColumnSource};
+use mcrs_minecraft_worldgen_structure::piece::PieceContext;
 use mcrs_voxel::ColumnPos;
 use rustc_hash::FxHashMap;
 use std::collections::BTreeSet;
 use std::mem;
 use std::ops::Range;
 use std::sync::{Arc, OnceLock};
-use tracing::{trace, warn};
+use tracing::{error, trace, warn};
 
 use crate::generated_ticks;
 use crate::generation_input::GenerationInput;
@@ -455,6 +457,7 @@ impl GenerationStage {
             .collect();
         let heightmaps = merged.maps.clone();
         let ticks = generated_ticks::column_ticks(&merged.ticks, &ctx.blocks);
+        let structures = structures_for(ctx, col);
 
         self.priority_index.remove(&col);
         self.fresh.remove(&key);
@@ -462,19 +465,29 @@ impl GenerationStage {
         // Nothing spawns generated entities yet, so they leave the store unspawned.
         self.store.take_entities(col);
         let block_entities = self.store.take_block_entities(col);
-        let stored = match sections {
-            Some(sections) => Some(StoredColumn {
+        let stored = match sections.zip(heightmaps) {
+            Some((sections, heightmaps)) => Some(StoredColumn {
+                status: mcrs_minecraft_region_disk::stored_column::ChunkStatus::Full,
+                is_light_on: false,
+                inhabited_time: 0,
+                last_update: 0,
                 min_section_y: self.rows.start,
                 sections,
                 block_entities,
+                unknown_block_entities: Vec::new(),
                 heightmaps,
+                retrogen: None,
+                structures,
+                post_processing: Vec::new(),
+                upgrade_data: Default::default(),
+                blending_data: None,
                 ticks,
             }),
             None => {
                 warn!(
                     x = col.x,
                     z = col.z,
-                    "a generated column lacks the blocks of a section"
+                    "a generated column lacks the blocks of a section or its heightmaps"
                 );
                 None
             }
@@ -484,6 +497,55 @@ impl GenerationStage {
             stored,
         })
     }
+}
+
+/// The starts and references this column carries, from the same structure index that placed
+/// them. A piece keeps the tag its own kind writes, so a reloaded start keeps its state.
+fn structures_for(ctx: &FillContext, column: ColumnPos) -> ChunkStructures {
+    let Some(index) = ctx.structures.as_deref() else {
+        return ChunkStructures::default();
+    };
+    let frozen = &index.tables().frozen;
+    let mut structures = ChunkStructures::default();
+    for (start_column, start) in index.starts_reaching(column) {
+        let Some(structure) = frozen.structure(start.structure) else {
+            continue;
+        };
+        let id = structure.id.clone();
+        structures
+            .references
+            .entry(id.clone())
+            .or_default()
+            .insert(start_column);
+        if start_column != column {
+            continue;
+        }
+        let context = PieceContext {
+            frozen,
+            structure: start.structure,
+        };
+        let pieces = start
+            .pieces
+            .iter()
+            .filter_map(|piece| match context.saved::<mcrs_minecraft_nbt::Error>(piece) {
+                Ok(saved) => Some(saved),
+                Err(error) => {
+                    error!(structure = %id, %error, "a generated piece does not convert to NBT");
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        if !pieces.is_empty() {
+            structures.starts.insert(
+                id,
+                StructureStart {
+                    references: 0,
+                    pieces,
+                },
+            );
+        }
+    }
+    structures
 }
 
 struct KeyChange {

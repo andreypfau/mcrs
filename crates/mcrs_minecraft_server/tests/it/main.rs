@@ -44,6 +44,7 @@ mod epoch_round_trip;
 mod host_app;
 mod host_subapp_handoff;
 mod hostile_commands;
+mod item_summon;
 mod light_engine_e2e;
 mod login_handshake_e2e;
 mod login_profile;
@@ -52,7 +53,9 @@ mod mob_replication;
 #[path = "common/mock_connection.rs"]
 mod mock_connection;
 mod op_level;
+mod persistence;
 mod play_state_delivery;
+mod player_file;
 mod probe_bans;
 mod run_server_loop_exit;
 mod schedule_ambiguity;

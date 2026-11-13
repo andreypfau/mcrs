@@ -4,13 +4,14 @@ use bevy::math::DVec3;
 use bevy::prelude::*;
 use bevy::render::render_resource::TextureUsages;
 use bevy::render::view::Msaa;
-use mcrs_minecraft_client_options::ClientOptions;
+use mcrs_minecraft_client_options::{ClientOptions, VIEW_DISTANCE_DEFAULT};
 use mcrs_minecraft_client_world::local_player::{Flying, LocalPlayerTick, Sprint};
 use mcrs_minecraft_client_world::player::{Player, look_direction};
+use mcrs_minecraft_client_world::player_view::{ChunkCacheRadius, RequestedViewDistance};
 use mcrs_minecraft_engine_world::entity::physics::{
     OldTransform, Rotation, Transform as PhysicsTransform,
 };
-use mcrs_minecraft_render::CameraOrigin;
+use mcrs_minecraft_render::{CameraOrigin, RenderDistance};
 
 const STANDING_EYE_HEIGHT: f32 = 1.62;
 const DEFAULT_WALKING_SPEED: f32 = 0.1;
@@ -23,26 +24,33 @@ const MIN_ZOOM: f32 = 0.1;
 const MAX_ZOOM: f32 = 1.5;
 const NEAR_PLANE: f32 = 0.05;
 const BLOCKS_PER_CHUNK_OF_RENDER_DISTANCE: f32 = 64.0;
+/// Chunks; mcrs has no option for the cloud range, so it keeps the default.
+const CLOUD_RANGE: u8 = 128;
+const BLOCKS_PER_CHUNK_OF_CLOUD_RANGE: f32 = 16.0;
 
-/// Places the first-person camera of the local player in each frame and filters its eye height
-/// and zoom in each tick.
-pub struct CameraPlugin {
-    /// The render distance in chunks; the far plane of the view frustum follows it.
-    pub render_distance: u8,
-}
+/// Places the first-person camera of the local player in each frame, filters its eye height and
+/// zoom in each tick, and keeps [`RenderDistance`] and the far plane at the render distance.
+/// Without a [`RequestedViewDistance`] both stay at the default render distance.
+pub struct CameraPlugin;
 
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
-        let far = f32::from(self.render_distance) * BLOCKS_PER_CHUNK_OF_RENDER_DISTANCE;
         app.init_resource::<FovOptions>()
+            .insert_resource(RenderDistance(VIEW_DISTANCE_DEFAULT))
             .register_required_components::<Player, Transform>()
-            .add_systems(Startup, move |commands: Commands| {
-                spawn_camera(commands, far)
-            })
+            .add_systems(Startup, spawn_camera)
             .add_systems(FixedUpdate, tick_camera.before(LocalPlayerTick))
             .add_systems(
                 PostUpdate,
-                place_camera
+                (
+                    place_camera,
+                    project_render_distance.run_if(
+                        resource_exists_and_changed::<RequestedViewDistance>
+                            .or_else(any_match_filter::<Changed<ChunkCacheRadius>>),
+                    ),
+                    follow_render_distance.run_if(resource_changed::<RenderDistance>),
+                )
+                    .chain()
                     .before(TransformSystems::Propagate)
                     .before(CameraUpdateSystems),
             );
@@ -178,7 +186,24 @@ fn frame_rotation(previous: Rotation, current: Rotation, partial_tick: f32) -> Q
     orientation(yaw, pitch)
 }
 
-fn spawn_camera(mut commands: Commands, far: f32) {
+/// The distance the options ask for, capped by the server radius once that is above 0.
+// chisle: there is no render-distance fog (MENU-DIST-001 steps 5 to 7). A fog that reads it
+// lifts this.
+#[must_use]
+fn render_distance(requested: u8, server_radius: i32) -> u8 {
+    match u8::try_from(server_radius) {
+        Ok(radius) if radius > 0 => requested.min(radius),
+        _ => requested,
+    }
+}
+
+#[must_use]
+fn far_plane(render_distance: u8) -> f32 {
+    (f32::from(render_distance) * BLOCKS_PER_CHUNK_OF_RENDER_DISTANCE)
+        .max(f32::from(CLOUD_RANGE) * BLOCKS_PER_CHUNK_OF_CLOUD_RANGE)
+}
+
+fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         PlayerCamera,
         CameraFilters::default(),
@@ -199,10 +224,37 @@ fn spawn_camera(mut commands: Commands, far: f32) {
             fov: f32::from(FovOptions::default().fov).to_radians(),
             near: NEAR_PLANE,
             near_clip_plane: Vec4::new(0.0, 0.0, -1.0, -NEAR_PLANE),
-            far,
+            far: far_plane(VIEW_DISTANCE_DEFAULT),
             ..default()
         }),
     ));
+}
+
+fn project_render_distance(
+    requested: Option<Res<RequestedViewDistance>>,
+    server: Option<Single<&ChunkCacheRadius>>,
+    mut distance: ResMut<RenderDistance>,
+) {
+    let Some(requested) = requested else {
+        return;
+    };
+    distance.set_if_neq(RenderDistance(render_distance(
+        requested.0,
+        server.map_or(0, |radius| radius.0),
+    )));
+}
+
+fn follow_render_distance(
+    distance: Res<RenderDistance>,
+    mut projection: Single<&mut Projection, With<PlayerCamera>>,
+) {
+    let far = far_plane(distance.0);
+    if let Projection::Perspective(perspective) = projection.as_ref()
+        && perspective.far != far
+        && let Projection::Perspective(perspective) = projection.as_mut()
+    {
+        perspective.far = far;
+    }
 }
 
 fn tick_camera(
@@ -279,6 +331,86 @@ fn place_camera(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::options::ClientOptionsPlugin;
+
+    fn camera_far(app: &mut App) -> f32 {
+        let mut cameras = app
+            .world_mut()
+            .query_filtered::<&Projection, With<PlayerCamera>>();
+        match cameras.single(app.world()).unwrap() {
+            Projection::Perspective(perspective) => perspective.far,
+            other => panic!("the player camera has a perspective projection, not {other:?}"),
+        }
+    }
+
+    fn render_distance_of(app: &App) -> u8 {
+        app.world().resource::<RenderDistance>().0
+    }
+
+    #[test]
+    fn the_render_distance_and_the_far_plane_follow_the_option_capped_by_the_server_radius() {
+        enum Change {
+            Requested(u8),
+            ServerRadius(i32),
+        }
+        let mut options = ClientOptions::default();
+        options.view_distance = Some(12);
+        let mut app = App::new();
+        app.init_resource::<Time<Fixed>>().add_plugins((
+            ClientOptionsPlugin {
+                options,
+                file: None,
+                gui_scale: None,
+            },
+            CameraPlugin,
+        ));
+        let connection = app.world_mut().spawn(ChunkCacheRadius(10)).id();
+        app.update();
+        assert_eq!(render_distance_of(&app), 10, "o = 12 with v = 10");
+        assert_eq!(
+            camera_far(&mut app),
+            2048.0,
+            "r = 10 is inside the cloud range"
+        );
+
+        for (change, distance, far) in [
+            (Change::Requested(96), 10, 2048.0),
+            (Change::ServerRadius(0), 96, 6144.0),
+            (Change::Requested(40), 40, 2560.0),
+            (Change::ServerRadius(36), 36, 2304.0),
+            (Change::Requested(2), 2, 2048.0),
+        ] {
+            match change {
+                Change::Requested(columns) => {
+                    app.world_mut()
+                        .resource_mut::<ClientOptions>()
+                        .view_distance = Some(columns);
+                }
+                Change::ServerRadius(radius) => {
+                    app.world_mut()
+                        .entity_mut(connection)
+                        .insert(ChunkCacheRadius(radius));
+                }
+            }
+            app.update();
+            assert_eq!(render_distance_of(&app), distance);
+            assert_eq!(camera_far(&mut app), far);
+        }
+    }
+
+    #[test]
+    fn without_client_options_the_render_distance_and_the_far_plane_keep_the_default() {
+        let mut app = App::new();
+        app.init_resource::<Time<Fixed>>().add_plugins(CameraPlugin);
+        app.world_mut().spawn(ChunkCacheRadius(4));
+        app.update();
+        assert_eq!(render_distance_of(&app), VIEW_DISTANCE_DEFAULT);
+        assert_eq!(
+            camera_far(&mut app),
+            6144.0,
+            "the default render distance is 96"
+        );
+    }
 
     #[test]
     fn the_zoom_of_a_player_that_starts_to_sprint_while_flying_halves_its_way_to_the_target() {

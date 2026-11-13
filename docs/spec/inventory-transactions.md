@@ -456,8 +456,8 @@ true.
 | 9 | each other case | The stack of `S` goes to the inventory of the player, then `split(H, S, cap(S, H))`. |
 
 In row 9, the stack of `S` enters the inventory of the player by the insert rule of the player
-inventory. The part that does not fit becomes a dropped stack. A later specification states that
-rule (section 8). See experiment E10.
+inventory. The part that does not fit becomes a dropped stack. `inventory.md` states that rule
+(INV-INS-001). See experiment E10.
 
 **ITX-JAV-011** (`source_suggested`, semantic). Pick up all gives operations when each of these
 conditions is true: the slot index is 0 or more, `C` holds a stack, and `S` holds the empty stack
@@ -480,12 +480,13 @@ experiment E11.
 conditions is true: the player has infinite materials (creative mode), `C` holds the empty stack,
 the slot index is 0 or more, and `S` holds a stack. The cursor then holds a copy of the stack of
 `S` with the count `max(S)`. `S` does not change. This click makes items, so no operation of this
-document states it (ITX-ATM-005). See open question Q1 and experiment E12.
+document states it (ITX-ATM-005). `inventory.md` states its operation (INV-CRE-005). See
+experiment E12.
 
 **ITX-JAV-013** (`source_suggested`, semantic). Throw gives an operation when each of these
 conditions is true: `C` holds the empty stack, the slot index is 0 or more, `S` holds a stack,
-`take(S)` is true, and the player can drop items. A later specification states the last
-condition. With button 0 the list is `drop(S, 1)`. With each other button the list is
+`take(S)` is true, and the player can drop items. `inventory.md` states the last condition
+(INV-MNU-006). With button 0 the list is `drop(S, 1)`. With each other button the list is
 `drop(S, count(S))`. A later specification states the repeat of a throw for a slot that fills
 again (section 8). That repeat occurs only with button 1. See experiment E13.
 
@@ -561,8 +562,8 @@ are true again:
 
 After the last slot, the count of the cursor is `count(C)` minus the sum of each `g(X)`. When
 that number is 0 or less, the cursor holds the empty stack. The click thus makes only the items
-that the cursor did not hold. No operation of this document states it (ITX-ATM-005). See open
-question Q1 and experiment E12.
+that the cursor did not hold. No operation of this document states it (ITX-ATM-005).
+`inventory.md` states its operations (INV-CRE-005). See experiment E12.
 
 ## 7. Bedrock Edition: the stack request
 
@@ -608,7 +609,8 @@ that the stack does not permit. Reason: the limits of a stack are the same for e
 ## 8. What this document does not state
 
 A later specification states each of these items. A rule above names the place where each one
-connects.
+connects. `inventory.md` states them for the player: the slots and the filters, the inventory
+menu, the insert rule, the operations that make items, the state id and the close of a menu.
 
 - The slots of each holder type, their slot limits and their filters (ITX-LIM-001, ITX-LIM-004,
   ITX-LIM-005).
@@ -670,9 +672,9 @@ connects.
 
 For the owner:
 
-- **Q1**: ITX-JAV-012 and ITX-JAV-020. The clone click and the creative drag make items. The
-  `Destroy` and `Create` actions of ITX-BED-001 destroy and make items. Does the request get a
-  `create` and a `destroy` operation, or does the edge do these changes outside the request?
+- **Q1**: answered for Java Edition. The clone click and the creative drag use the `set` operation
+  of `inventory.md` (INV-CRE-001, INV-CRE-005). The `Destroy` and `Create` actions of ITX-BED-001
+  stay open until the specification of the Bedrock edge.
 - **Q2**: ITX-MOD-004. Is 128 the maximum for the number of operations? The repeat of a quick
   move on a result slot (section 8) can need a larger number. It can also use more than one
   request.

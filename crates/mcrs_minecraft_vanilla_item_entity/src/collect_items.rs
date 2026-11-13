@@ -17,13 +17,14 @@ use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::StackCommandsExt;
 use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_item_entity::ItemEntity;
-use mcrs_minecraft_item_entity::Slot;
 use mcrs_minecraft_item_entity::can_pick_up;
-use mcrs_minecraft_item_entity::insert;
 use mcrs_minecraft_item_entity::pickup_box;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_physics::Aabb;
+use mcrs_minecraft_player_slots::Slot;
+use mcrs_minecraft_player_slots::Stacking;
+use mcrs_minecraft_player_slots::insert;
 
 use crate::Collect;
 use crate::ItemCollector;
@@ -111,9 +112,14 @@ fn pick_up(
         return;
     };
     let max = max_count(&mut reader, offer.stack);
-    let damaged = reader
+    let stacking = if reader
         .get::<Damage>(offer.stack)
-        .is_some_and(|damage| damage.0 > 0);
+        .is_some_and(|damage| damage.0 > 0)
+    {
+        Stacking::Alone
+    } else {
+        Stacking::Stacks
+    };
     let slot = |index: u16| match slots.get(usize::from(index)) {
         None if usize::from(index) < slots.len() => Slot::Empty,
         Some(held) if reader.mergeable(offer.stack, held) => {
@@ -128,7 +134,7 @@ fn pick_up(
     let end = insert(
         count,
         max,
-        damaged,
+        stacking,
         selected.map_or(0, |selected| selected.0),
         slot,
         |index, moved| merges.push((index, moved)),

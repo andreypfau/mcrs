@@ -158,7 +158,7 @@ impl<I: Copy + PartialEq, T: Copy + PartialEq> Plan<I, T> {
 
     fn examine(
         &mut self,
-        op: Op<I>,
+        op: Op<I, Planned<T>>,
         load: &mut impl FnMut(I) -> Option<Loaded<T>>,
         place: &mut impl FnMut(I, T) -> Filter,
         equal: &mut impl FnMut(T, T) -> bool,
@@ -219,6 +219,11 @@ impl<I: Copy + PartialEq, T: Copy + PartialEq> Plan<I, T> {
                 }
                 self.push_dropped(Planned { count, ..held })?;
                 self.remove(source, held, count);
+            }
+            Op::Set { slot, stack, count } => {
+                let target = self.find(slot, load)?;
+                let stack = stack.filter(|_| count > 0);
+                self.set(target.index, stack.map(|stack| Planned { count, ..stack }));
             }
         }
         Ok(())
@@ -288,7 +293,7 @@ fn admit_swap<I: Copy, T: Copy>(
 /// When the request applies, `scratch` holds the changed slots and the dropped stacks. When it
 /// is rejected, `scratch` holds nothing.
 pub fn plan<I: Copy + PartialEq, T: Copy + PartialEq>(
-    ops: impl IntoIterator<Item = Op<I>>,
+    ops: impl IntoIterator<Item = Op<I, Planned<T>>>,
     scratch: &mut Plan<I, T>,
     mut load: impl FnMut(I) -> Option<Loaded<T>>,
     mut place: impl FnMut(I, T) -> Filter,

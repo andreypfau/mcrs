@@ -2,7 +2,7 @@ use mcrs_minecraft_chunk::{LightLayer, LightStorage, SectionNibbles as LightNibb
 use mcrs_minecraft_protocol_game::chunk::{LightChunk, LightData};
 use std::borrow::Cow;
 
-use crate::stored_column::StoredColumn;
+use mcrs_minecraft_region_disk::stored_column::StoredColumn;
 
 /// One row of the light packet's section sequence. The packet carries a
 /// section below and a section above the dimension's real Y range, so the

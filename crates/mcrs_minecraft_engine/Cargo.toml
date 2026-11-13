@@ -26,6 +26,7 @@ mcrs_minecraft_biome_file.workspace = true
 mcrs_minecraft_block_entity.workspace = true
 mcrs_minecraft_dimension_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_anvil.workspace = true
 mcrs_minecraft_simulation.workspace = true
 mcrs_minecraft_volume.workspace = true
 mcrs_minecraft_game_registries.workspace = true
@@ -36,6 +37,7 @@ bevy_platform.workspace = true
 mcrs_engine_cell = { workspace = true, features = ["bevy"] }
 mcrs_engine_link.workspace = true
 mcrs_engine_store.workspace = true
+mcrs_minecraft_region_disk.workspace = true
 flume.workspace = true
 mcrs_engine_muxer.workspace = true
 mcrs_minecraft_replication.workspace = true

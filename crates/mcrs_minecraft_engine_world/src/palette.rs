@@ -1,15 +1,12 @@
 use mcrs_minecraft_chunk::PalettedContainer::{Heterogeneous, Homogeneous};
+use mcrs_minecraft_chunk::VoxelPalette;
 pub use mcrs_minecraft_chunk::palette::{BiomePalette, BlockPalette};
-use mcrs_minecraft_chunk::{SharedVoxelPalette, VoxelPalette};
 use mcrs_voxel::{BlockStateId, SectionPos};
 
 /// One section's block states as the engine keeps them.
 pub type SectionStates = VoxelPalette<BlockStateId, { SectionPos::SIZE }>;
 
-/// The blocks of a loaded section, which the
-/// [`SectionIndex`](crate::world::storage::section::SectionIndex) of its dimension holds: the
-/// engine's shared section palette, named in this crate's vocabulary.
-pub type ChunkBlocks = SharedVoxelPalette<BlockStateId, { SectionPos::SIZE }>;
+pub use mcrs_minecraft_chunk::ChunkBlocks;
 
 /// The states of a section that worldgen or a save produced, checked against the
 /// `state_count` states of the block table. An id past the table reads as air.

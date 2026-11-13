@@ -1,6 +1,7 @@
 use crate::mob_view::display_name;
 use crate::set::{VanillaCommands, VanillaContext};
 use bevy_ecs::prelude::*;
+use bevy_ecs::system::SystemParam;
 use bevy_math::DVec3;
 use mcrs_command::{ArgumentHandle, BuildError, NodeId};
 use mcrs_minecraft_command::{CommandLevel, PermissionCheck};
@@ -16,10 +17,14 @@ use mcrs_minecraft_engine_world::entity_births::EntityBirths;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::registry_keys::ENTITY_TYPE;
-use mcrs_minecraft_entity_key::{BirthSequences, BirthSource};
+use mcrs_minecraft_entity_key::{BirthSequences, BirthSource, EntityKey};
+use mcrs_minecraft_item_entity::ItemEntity;
+use mcrs_minecraft_item_stack::{ItemStack, read_saved};
+use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_text::Text;
+use mcrs_minecraft_vanilla_item_entity::ItemSpawnRequest;
 use mcrs_voxel::BlockPos;
 use std::collections::HashSet;
 use uuid::Uuid;
@@ -72,16 +77,71 @@ fn spawnable(position: DVec3) -> bool {
         && (-MAX_Y..MAX_Y).contains(&block.y)
 }
 
+/// The queues of the spawns of a summon, and the item table that reads the stack of an item.
+#[derive(SystemParam)]
+pub(crate) struct Spawns<'w> {
+    mobs: ResMut<'w, EffectQueue<MobSpawnRequest>>,
+    items: ResMut<'w, EffectQueue<ItemSpawnRequest>>,
+    table: Option<Res<'w, ItemTable>>,
+}
+
+/// What a summon makes.
+enum Summon {
+    Mob {
+        kind: &'static EntityTypeData,
+        setup: SpawnSetup,
+        extras: MobExtras,
+    },
+    Item(SummonedItem),
+}
+
+/// The summon of `entity_type` with the keys of `nbt`, and the UUID that the keys give. `None`
+/// when the server makes no such entity or a key does not load.
+fn read_summon(
+    entity_type: EntityType,
+    nbt: Option<NbtCompound>,
+    table: Option<&ItemTable>,
+) -> Option<(Summon, Option<u128>)> {
+    if entity_type == EntityType::Item {
+        let item = read_item_keys(nbt?, table?)?;
+        let uuid = item.uuid;
+        return Some((Summon::Item(item), uuid));
+    }
+    let kind = EntityTypeData::server_mob(entity_type)?;
+    Some(match nbt {
+        None => (
+            Summon::Mob {
+                kind,
+                setup: SpawnSetup::First,
+                extras: MobExtras::default(),
+            },
+            None,
+        ),
+        Some(compound) => {
+            let Summoned { extras, uuid } = read_keys(compound)?;
+            (
+                Summon::Mob {
+                    kind,
+                    setup: SpawnSetup::None,
+                    extras,
+                },
+                uuid,
+            )
+        }
+    })
+}
+
 /// TRK-SUM-002: one mob of the type at the position, or at the source, with the first spawn setup
 /// of its type. A summon without a UUID gives the mob a new one from the world seed, the
 /// dimension, the birth clock, the block of the spawn point, the block of the source and the
-/// sequence of that pair in the tick.
+/// sequence of that pair in the tick. An item entity starts at rest with the stack of its keys
+/// (IEN-SPN-001).
 pub(crate) fn run(
     In(call): In<Call<(), SummonCommand>>,
     context: VanillaContext,
     births: EntityBirths,
     mut output: CommandOutput,
-    mut spawns: ResMut<EffectQueue<MobSpawnRequest>>,
+    mut spawns: Spawns,
     mut order: Local<SummonOrder>,
 ) -> CommandResult {
     let command = call.command;
@@ -105,16 +165,13 @@ pub(crate) fn run(
         ));
     }
     let failed = || CommandFailure::translate("commands.summon.failed", vec![]);
-    let Some(kind) = EntityTypeData::server_mob(entity_type) else {
-        return Err(failed());
-    };
-    let (setup, Summoned { extras, uuid }) = match context.opt(&call.invocation, command.nbt)? {
-        None => (SpawnSetup::First, Summoned::default()),
-        Some(text) => {
-            let compound = text.read().map_err(|_| failed())?;
-            (SpawnSetup::None, read_keys(compound).ok_or_else(failed)?)
-        }
-    };
+    let nbt = context
+        .opt(&call.invocation, command.nbt)?
+        .map(|text| text.read())
+        .transpose()
+        .map_err(|_| failed())?;
+    let (summon, uuid) =
+        read_summon(entity_type, nbt, spawns.table.as_deref()).ok_or_else(failed)?;
     if order.tick != births.tick() {
         *order = SummonOrder {
             tick: births.tick(),
@@ -136,21 +193,38 @@ pub(crate) fn run(
     let sequence = order.sequences.next(births.tick(), &birth);
     let uuid = uuid.unwrap_or_else(|| births.born(&birth, sequence).0);
     order.uuids.insert(uuid);
-    let name = display_name(
-        entity_type,
-        Uuid::from_u128(uuid),
-        extras.custom_name.as_deref(),
-    );
-    output.effect(
-        &mut spawns,
-        MobSpawnRequest {
+    let custom_name = match &summon {
+        Summon::Mob { extras, .. } => extras.custom_name.as_deref(),
+        Summon::Item(_) => None,
+    };
+    let name = display_name(entity_type, Uuid::from_u128(uuid), custom_name);
+    match summon {
+        Summon::Item(item) => output.effect(
+            &mut spawns.items,
+            ItemSpawnRequest {
+                stack: item.stack,
+                position,
+                key: EntityKey(uuid),
+                values: item.values,
+                owner: item.owner,
+                thrower: item.thrower,
+            },
+        ),
+        Summon::Mob {
             kind,
-            position,
-            uuid,
             setup,
             extras,
-        },
-    );
+        } => output.effect(
+            &mut spawns.mobs,
+            MobSpawnRequest {
+                kind,
+                position,
+                uuid,
+                setup,
+                extras,
+            },
+        ),
+    }
     output.success(
         &call.invocation,
         Text::translate("commands.summon.success", vec![name]),
@@ -214,4 +288,58 @@ fn read_keys(compound: NbtCompound) -> Option<Summoned> {
 
 pub(crate) fn apply(worlds: &mut Worlds, request: MobSpawnRequest) {
     worlds.world_mut().write_message(request);
+}
+
+/// A dimension world without item entities drops the request.
+pub(crate) fn apply_item(worlds: &mut Worlds, request: ItemSpawnRequest) {
+    let world = worlds.world_mut();
+    if world.contains_resource::<Messages<ItemSpawnRequest>>() {
+        world.write_message(request);
+    }
+}
+
+/// The keys of `<nbt>` for an item entity: its saved form (IEN-DAT-003) and `UUID`.
+struct SummonedItem {
+    stack: ItemStack,
+    values: ItemEntity,
+    owner: Option<u128>,
+    thrower: Option<u128>,
+    uuid: Option<u128>,
+}
+
+/// `None` when the compound holds another key, or when `Item` is absent or empty: the summon then
+/// fails, where the reference removes the item entity at once (IEN-DAT-004).
+fn read_item_keys(compound: NbtCompound, table: &ItemTable) -> Option<SummonedItem> {
+    let mut stack = None;
+    let mut values = ItemEntity::default();
+    let (mut owner, mut thrower, mut uuid) = (None, None, None);
+    for (key, tag) in compound {
+        match (key.as_str(), tag) {
+            ("Item", NbtTag::Compound(saved)) => stack = Some(read_saved(&saved, table).ok()?),
+            ("Age", NbtTag::Short(age)) => values.age = age,
+            ("PickupDelay", NbtTag::Short(delay)) => values.pickup_delay = delay,
+            ("Health", NbtTag::Short(health)) => values.health = health,
+            ("Owner", NbtTag::IntArray(words)) => owner = uuid_of(&words),
+            ("Thrower", NbtTag::IntArray(words)) => thrower = uuid_of(&words),
+            ("UUID", NbtTag::IntArray(words)) => uuid = uuid_of(&words),
+            ("Item" | "Age" | "PickupDelay" | "Health" | "Owner" | "Thrower" | "UUID", _) => {}
+            _ => return None,
+        }
+    }
+    Some(SummonedItem {
+        stack: stack?,
+        values,
+        owner,
+        thrower,
+        uuid,
+    })
+}
+
+/// A UUID as four ints, the most significant first.
+fn uuid_of(words: &[i32]) -> Option<u128> {
+    let [a, b, c, d] = words[..] else {
+        return None;
+    };
+    let word = |value: i32| u128::from(value.cast_unsigned());
+    Some(word(a) << 96 | word(b) << 64 | word(c) << 32 | word(d))
 }

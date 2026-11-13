@@ -16,8 +16,8 @@ use crate::column_asks::ColumnOrigin;
 use crate::column_light::ColumnLight;
 use crate::column_snapshot::ColumnSnapshots;
 use crate::column_store::{ColumnStoreLink, Delivery, ReadFrom, ViewedColumn};
-use crate::stored_column::StoredColumn;
 use crate::wanted_column::{Ask, Changed, Content, Source, Wanted};
+use mcrs_minecraft_region_disk::stored_column::StoredColumn;
 
 /// The stages in cold space: the data layer generates and lights each column that a view waits
 /// on and that the dimension does not light, and hands the final column to the view.

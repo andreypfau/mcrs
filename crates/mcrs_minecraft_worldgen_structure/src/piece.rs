@@ -1,14 +1,18 @@
-use mcrs_minecraft_registries::dispatch;
+pub use mcrs_minecraft_anvil::piece::{
+    DoorTag, GridTag, Junction, PortalProperties, SavedPiece, SmallDoor, StairsDownTag,
+};
+use mcrs_minecraft_anvil::piece::{
+    MonumentBuildingTag, MonumentChildTag, MonumentRoomTag, RegistryId, SavedPoolElement,
+    SavedSingleElement,
+};
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::fmt;
 
 use glam::IVec3;
-use mcrs_minecraft_core::{BoundingBox, Direction, Mirror, Rotation, mirror, rotation};
-use mcrs_minecraft_nbt::{nbt_flag, nbt_int_array};
+use mcrs_minecraft_core::{BoundingBox, Direction, Mirror, Rotation};
 use mcrs_minecraft_worldgen_feature::template::Projection;
 use mcrs_voxel::ColumnPos;
-use serde::de::{DeserializeSeed, Error as _};
-use serde::ser::Error as _;
+use serde::de::DeserializeSeed;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::frozen::{
@@ -17,20 +21,10 @@ use crate::frozen::{
 use crate::hardcoded::igloo::IglooTemplate;
 use crate::orient::{Boxed, Orientation, union_of};
 use crate::{MineshaftType, OceanTemperature, PortalPlacement, TerrainAdaptation};
-use mcrs_minecraft_worldgen_feature::pool::{LiquidSettings, PoolElement, SingleElement};
+use mcrs_minecraft_block_predicate::provider::Holder;
+use mcrs_minecraft_worldgen_feature::pool::LiquidSettings;
 
 pub const TERRAIN_MARGIN: i32 = 12;
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Junction {
-    pub source_x: i32,
-    pub source_ground_y: i32,
-    pub source_z: i32,
-    pub delta_y: i32,
-    #[serde(rename = "dest_proj")]
-    pub dest_projection: Projection,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JigsawPiece {
@@ -225,18 +219,6 @@ impl OceanRuinPiece {
     pub const LAYOUT_FLOOR: i32 = 90;
 }
 
-/// `RuinedPortalPiece.Properties`.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct PortalProperties {
-    pub cold: bool,
-    pub mossiness: f32,
-    pub air_pocket: bool,
-    pub overgrown: bool,
-    pub vines: bool,
-    pub replace_with_blackstone: bool,
-}
-
 /// The one piece of a ruined portal: a template placed mirrored and rotated
 /// about the pivot at half its size.
 #[derive(Debug, Clone, PartialEq)]
@@ -393,17 +375,6 @@ pub struct EndCityPiece {
 }
 
 pub const END_CITY_TEMPLATE_PREFIX: &str = "end_city/";
-
-/// The doorway a stronghold piece is entered through, spelled as the
-/// reference's legacy enum codec writes it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum SmallDoor {
-    Opening,
-    WoodDoor,
-    Grates,
-    IronDoor,
-}
 
 /// The stronghold piece types, each with the state its constructor draws or
 /// derives from its box.
@@ -672,7 +643,7 @@ impl PieceContext<'_> {
             .ok_or_else(|| E::custom(format!("the piece's template {name} is not under {prefix}")))
     }
 
-    fn pool_element(&self, element: ElementId) -> Option<PoolElement> {
+    fn pool_element(&self, element: ElementId) -> Option<SavedPoolElement> {
         Some(match self.frozen.element(element)? {
             FrozenElement::Single {
                 template,
@@ -681,22 +652,25 @@ impl PieceContext<'_> {
                 projection,
                 liquid_settings,
             } => {
-                let single = SingleElement {
+                let Holder::Reference(processors) = processors else {
+                    return None;
+                };
+                let single = SavedSingleElement {
                     location: self.template_name(*template)?,
-                    processors: processors.clone(),
+                    processors: RegistryId(processors.clone()),
                     projection: *projection,
                     override_liquid_settings: *liquid_settings,
                 };
                 if *legacy {
-                    PoolElement::LegacySingle(single)
+                    SavedPoolElement::LegacySingle(single)
                 } else {
-                    PoolElement::Single(single)
+                    SavedPoolElement::Single(single)
                 }
             }
             FrozenElement::List {
                 elements,
                 projection,
-            } => PoolElement::List {
+            } => SavedPoolElement::List {
                 elements: elements
                     .iter()
                     .map(|id| self.pool_element(*id))
@@ -706,17 +680,22 @@ impl PieceContext<'_> {
             FrozenElement::Feature {
                 feature,
                 projection,
-            } => PoolElement::Feature {
-                feature: feature.clone(),
-                projection: *projection,
-            },
-            FrozenElement::Empty => PoolElement::Empty {},
+            } => {
+                let Holder::Reference(feature) = feature else {
+                    return None;
+                };
+                SavedPoolElement::Feature {
+                    feature: RegistryId(feature.clone()),
+                    projection: *projection,
+                }
+            }
+            FrozenElement::Empty => SavedPoolElement::Empty {},
         })
     }
 
     fn element_id<E: serde::de::Error>(
         &self,
-        wanted: &PoolElement,
+        wanted: &SavedPoolElement,
     ) -> Result<(ElementId, &FrozenElement), E> {
         self.frozen
             .elements
@@ -727,7 +706,7 @@ impl PieceContext<'_> {
             .ok_or_else(|| E::custom("the pool element is not one any loaded pool holds"))
     }
 
-    fn element_matches(&self, element: &FrozenElement, wanted: &PoolElement) -> bool {
+    fn element_matches(&self, element: &FrozenElement, wanted: &SavedPoolElement) -> bool {
         match (element, wanted) {
             (
                 FrozenElement::Single {
@@ -737,11 +716,11 @@ impl PieceContext<'_> {
                     projection,
                     liquid_settings,
                 },
-                PoolElement::Single(single) | PoolElement::LegacySingle(single),
+                SavedPoolElement::Single(single) | SavedPoolElement::LegacySingle(single),
             ) => {
                 self.frozen.template_ids.get(&single.location) == Some(template)
-                    && *legacy == matches!(wanted, PoolElement::LegacySingle(_))
-                    && *processors == single.processors
+                    && *legacy == matches!(wanted, SavedPoolElement::LegacySingle(_))
+                    && matches!(processors, Holder::Reference(id) if *id == single.processors.0)
                     && *projection == single.projection
                     && *liquid_settings == single.override_liquid_settings
             }
@@ -750,12 +729,12 @@ impl PieceContext<'_> {
                     elements,
                     projection,
                 },
-                PoolElement::List {
+                SavedPoolElement::List {
                     elements: wanted,
                     projection: wanted_projection,
                 },
             ) => {
-                projection == wanted_projection
+                *projection == *wanted_projection
                     && elements.len() == wanted.len()
                     && elements.iter().zip(wanted).all(|(id, wanted)| {
                         self.frozen
@@ -768,643 +747,17 @@ impl PieceContext<'_> {
                     feature,
                     projection,
                 },
-                PoolElement::Feature {
+                SavedPoolElement::Feature {
                     feature: wanted,
                     projection: wanted_projection,
                 },
-            ) => feature == wanted && projection == wanted_projection,
-            (FrozenElement::Empty, PoolElement::Empty {}) => true,
+            ) => {
+                matches!(feature, Holder::Reference(id) if *id == wanted.0)
+                    && *projection == *wanted_projection
+            }
+            (FrozenElement::Empty, SavedPoolElement::Empty {}) => true,
             _ => false,
         }
-    }
-}
-
-/// `StructurePiece.createTag` plus each type's `addAdditionalSaveData`; `id`
-/// picks the type, so the save reads back whatever order its keys came in.
-#[dispatch(registry = crate::structure_piece_keys::StructurePieceType, key = "id", unsupported(Nestart, Omcr, Omdxr, Omdxyr, Omdyr, Omdyzr, Omdzr, Omentry, Ompenthouse, Omsimple, Omsimplet, Omwr))]
-#[serde(deny_unknown_fields)]
-enum PieceTag {
-    Jigsaw {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "PosX")]
-        pos_x: i32,
-        #[serde(rename = "PosY")]
-        pos_y: i32,
-        #[serde(rename = "PosZ")]
-        pos_z: i32,
-        ground_level_delta: i32,
-        pool_element: PoolElement,
-        #[serde(with = "rotation::legacy")]
-        rotation: Rotation,
-        junctions: Vec<Junction>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        liquid_settings: Option<LiquidSettings>,
-    },
-    #[dispatch(Tedp)]
-    DesertPyramid {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "Width")]
-        width: i32,
-        #[serde(rename = "Height")]
-        height: i32,
-        #[serde(rename = "Depth")]
-        depth: i32,
-        #[serde(rename = "HPos")]
-        height_position: i32,
-        #[serde(rename = "hasPlacedChest0", deserialize_with = "nbt_flag")]
-        has_placed_chest_0: bool,
-        #[serde(rename = "hasPlacedChest1", deserialize_with = "nbt_flag")]
-        has_placed_chest_1: bool,
-        #[serde(rename = "hasPlacedChest2", deserialize_with = "nbt_flag")]
-        has_placed_chest_2: bool,
-        #[serde(rename = "hasPlacedChest3", deserialize_with = "nbt_flag")]
-        has_placed_chest_3: bool,
-    },
-    #[dispatch(Tejp)]
-    JungleTemple {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "Width")]
-        width: i32,
-        #[serde(rename = "Height")]
-        height: i32,
-        #[serde(rename = "Depth")]
-        depth: i32,
-        #[serde(rename = "HPos")]
-        height_position: i32,
-        #[serde(rename = "placedMainChest", deserialize_with = "nbt_flag")]
-        placed_main_chest: bool,
-        #[serde(rename = "placedHiddenChest", deserialize_with = "nbt_flag")]
-        placed_hidden_chest: bool,
-        #[serde(rename = "placedTrap1", deserialize_with = "nbt_flag")]
-        placed_trap_1: bool,
-        #[serde(rename = "placedTrap2", deserialize_with = "nbt_flag")]
-        placed_trap_2: bool,
-    },
-    #[dispatch(Tesh)]
-    SwampHut {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "Width")]
-        width: i32,
-        #[serde(rename = "Height")]
-        height: i32,
-        #[serde(rename = "Depth")]
-        depth: i32,
-        #[serde(rename = "HPos")]
-        height_position: i32,
-        #[serde(rename = "Witch", deserialize_with = "nbt_flag")]
-        witch: bool,
-        #[serde(rename = "Cat", deserialize_with = "nbt_flag")]
-        cat: bool,
-    },
-    #[dispatch(Btp)]
-    BuriedTreasure {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-    },
-    Shipwreck {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "TPX")]
-        template_x: i32,
-        #[serde(rename = "TPY")]
-        template_y: i32,
-        #[serde(rename = "TPZ")]
-        template_z: i32,
-        #[serde(rename = "Template")]
-        template: ResourceLocationBuf,
-        #[serde(rename = "isBeached", deserialize_with = "nbt_flag")]
-        is_beached: bool,
-        #[serde(rename = "Rot", with = "rotation::legacy")]
-        rotation: Rotation,
-        #[serde(deserialize_with = "nbt_flag")]
-        height_adjusted: bool,
-    },
-    #[dispatch(Nebcr)]
-    FortressBridgeCrossing(GridTag),
-    #[dispatch(Nebef)]
-    FortressBridgeEndFiller {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "Seed")]
-        seed: i32,
-    },
-    #[dispatch(Nebs)]
-    FortressBridgeStraight(GridTag),
-    #[dispatch(Neccs)]
-    FortressCorridorStairs(GridTag),
-    #[dispatch(Nectb)]
-    FortressCorridorBalcony(GridTag),
-    #[dispatch(Nece)]
-    FortressCastleEntrance(GridTag),
-    #[dispatch(Nescsc)]
-    FortressSmallCorridorCrossing(GridTag),
-    #[dispatch(Nesclt)]
-    FortressSmallCorridorLeftTurn {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "Chest", deserialize_with = "nbt_flag")]
-        chest: bool,
-    },
-    #[dispatch(Nesc)]
-    FortressSmallCorridor(GridTag),
-    #[dispatch(Nescrt)]
-    FortressSmallCorridorRightTurn {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "Chest", deserialize_with = "nbt_flag")]
-        chest: bool,
-    },
-    #[dispatch(Necsr)]
-    FortressStalkRoom(GridTag),
-    #[dispatch(Nemt)]
-    FortressMonsterThrone {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "Mob", deserialize_with = "nbt_flag")]
-        mob: bool,
-    },
-    #[dispatch(Nerc)]
-    FortressRoomCrossing(GridTag),
-    #[dispatch(Nesr)]
-    FortressStairsRoom(GridTag),
-    #[dispatch(Orp)]
-    OceanRuin {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "TPX")]
-        template_x: i32,
-        #[serde(rename = "TPY")]
-        template_y: i32,
-        #[serde(rename = "TPZ")]
-        template_z: i32,
-        #[serde(rename = "Template")]
-        template: ResourceLocationBuf,
-        #[serde(rename = "Rot", with = "rotation::legacy")]
-        rotation: Rotation,
-        #[serde(rename = "Integrity")]
-        integrity: f32,
-        #[serde(rename = "BiomeType", with = "biome_type")]
-        biome_temp: OceanTemperature,
-        #[serde(rename = "IsLarge", deserialize_with = "nbt_flag")]
-        large: bool,
-    },
-    #[dispatch(Rupo)]
-    RuinedPortal {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "TPX")]
-        pos_x: i32,
-        #[serde(rename = "TPY")]
-        pos_y: i32,
-        #[serde(rename = "TPZ")]
-        pos_z: i32,
-        #[serde(rename = "Template")]
-        template: ResourceLocationBuf,
-        #[serde(rename = "Rotation", with = "rotation::legacy")]
-        rotation: Rotation,
-        #[serde(rename = "Mirror", with = "mirror::legacy")]
-        mirror: Mirror,
-        #[serde(rename = "VerticalPlacement")]
-        placement: PortalPlacement,
-        #[serde(rename = "Properties")]
-        properties: PortalProperties,
-    },
-    #[dispatch(Omb)]
-    OceanMonumentBuilding(GridTag),
-    #[dispatch(Msroom)]
-    MineshaftRoom {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "MST")]
-        mineshaft_type: i32,
-        #[serde(rename = "Entrances", serialize_with = "nbt_int_arrays")]
-        entrances: Vec<[i32; 6]>,
-    },
-    #[dispatch(Mscorridor)]
-    MineshaftCorridor {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "MST")]
-        mineshaft_type: i32,
-        #[serde(rename = "hr", deserialize_with = "nbt_flag")]
-        has_rails: bool,
-        #[serde(rename = "sc", deserialize_with = "nbt_flag")]
-        spider_corridor: bool,
-        #[serde(rename = "hps", deserialize_with = "nbt_flag")]
-        has_placed_spider: bool,
-        #[serde(rename = "Num")]
-        num_sections: i32,
-    },
-    #[dispatch(Mscrossing)]
-    MineshaftCrossing {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "MST")]
-        mineshaft_type: i32,
-        #[serde(rename = "tf", deserialize_with = "nbt_flag")]
-        two_floored: bool,
-        #[serde(rename = "D")]
-        direction: i8,
-    },
-    #[dispatch(Msstairs)]
-    MineshaftStairs {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "MST")]
-        mineshaft_type: i32,
-    },
-    #[dispatch(Iglu)]
-    Igloo {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "TPX")]
-        template_x: i32,
-        #[serde(rename = "TPY")]
-        template_y: i32,
-        #[serde(rename = "TPZ")]
-        template_z: i32,
-        #[serde(rename = "Template")]
-        template: ResourceLocationBuf,
-        #[serde(rename = "Rot", with = "rotation::legacy")]
-        rotation: Rotation,
-    },
-    #[dispatch(Nefos)]
-    NetherFossil {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "TPX")]
-        template_x: i32,
-        #[serde(rename = "TPY")]
-        template_y: i32,
-        #[serde(rename = "TPZ")]
-        template_z: i32,
-        #[serde(rename = "Template")]
-        template: ResourceLocationBuf,
-        #[serde(rename = "Rot", with = "rotation::legacy")]
-        rotation: Rotation,
-    },
-    #[dispatch(Ecp)]
-    EndCity {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "TPX")]
-        template_x: i32,
-        #[serde(rename = "TPY")]
-        template_y: i32,
-        #[serde(rename = "TPZ")]
-        template_z: i32,
-        #[serde(rename = "Template")]
-        template: String,
-        #[serde(rename = "Rot", with = "rotation::legacy")]
-        rotation: Rotation,
-        #[serde(rename = "OW", deserialize_with = "nbt_flag")]
-        overwrite: bool,
-    },
-    #[dispatch(Shstart)]
-    StrongholdStart(StairsDownTag),
-    #[dispatch(Shsd)]
-    StrongholdStairsDown(StairsDownTag),
-    #[dispatch(Shs)]
-    StrongholdStraight {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "EntryDoor")]
-        entry_door: SmallDoor,
-        #[serde(rename = "Left", deserialize_with = "nbt_flag")]
-        left: bool,
-        #[serde(rename = "Right", deserialize_with = "nbt_flag")]
-        right: bool,
-    },
-    #[dispatch(Shph)]
-    StrongholdPrisonHall(DoorTag),
-    #[dispatch(Shlt)]
-    StrongholdLeftTurn(DoorTag),
-    #[dispatch(Shrt)]
-    StrongholdRightTurn(DoorTag),
-    #[dispatch(Shrc)]
-    StrongholdRoomCrossing {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "EntryDoor")]
-        entry_door: SmallDoor,
-        #[serde(rename = "Type")]
-        variant: i32,
-    },
-    #[dispatch(Shssd)]
-    StrongholdStraightStairsDown(DoorTag),
-    #[dispatch(Sh5c)]
-    StrongholdFiveCrossing {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "EntryDoor")]
-        entry_door: SmallDoor,
-        #[serde(rename = "leftLow", deserialize_with = "nbt_flag")]
-        left_low: bool,
-        #[serde(rename = "leftHigh", deserialize_with = "nbt_flag")]
-        left_high: bool,
-        #[serde(rename = "rightLow", deserialize_with = "nbt_flag")]
-        right_low: bool,
-        #[serde(rename = "rightHigh", deserialize_with = "nbt_flag")]
-        right_high: bool,
-    },
-    #[dispatch(Shcc)]
-    StrongholdChestCorridor {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "EntryDoor")]
-        entry_door: SmallDoor,
-        #[serde(rename = "Chest", deserialize_with = "nbt_flag")]
-        chest: bool,
-    },
-    #[dispatch(Shli)]
-    StrongholdLibrary {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "EntryDoor")]
-        entry_door: SmallDoor,
-        #[serde(rename = "Tall", deserialize_with = "nbt_flag")]
-        tall: bool,
-    },
-    #[dispatch(Shpr)]
-    StrongholdPortalRoom {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "EntryDoor")]
-        entry_door: SmallDoor,
-        #[serde(rename = "Mob", deserialize_with = "nbt_flag")]
-        mob: bool,
-    },
-    #[dispatch(Shfc)]
-    StrongholdFillerCorridor {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "EntryDoor")]
-        entry_door: SmallDoor,
-        #[serde(rename = "Steps")]
-        steps: i32,
-    },
-    #[dispatch(Wmp)]
-    WoodlandMansion {
-        #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-        bounds: [i32; 6],
-        #[serde(rename = "O")]
-        orientation: i32,
-        #[serde(rename = "GD")]
-        gen_depth: i32,
-        #[serde(rename = "TPX")]
-        template_x: i32,
-        #[serde(rename = "TPY")]
-        template_y: i32,
-        #[serde(rename = "TPZ")]
-        template_z: i32,
-        #[serde(rename = "Template")]
-        template: String,
-        #[serde(rename = "Rot", with = "rotation::legacy")]
-        rotation: Rotation,
-        #[serde(rename = "Mi", with = "mirror::legacy")]
-        mirror: Mirror,
-    },
-}
-
-/// `OceanRuinStructure.Type.LEGACY_CODEC`: the enum constant's name.
-mod biome_type {
-    use super::*;
-
-    pub fn serialize<S: Serializer>(
-        temp: &OceanTemperature,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(match temp {
-            OceanTemperature::Warm => "WARM",
-            OceanTemperature::Cold => "COLD",
-        })
-    }
-
-    pub fn deserialize<'de, D: Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<OceanTemperature, D::Error> {
-        match String::deserialize(deserializer)?.as_str() {
-            "WARM" => Ok(OceanTemperature::Warm),
-            "COLD" => Ok(OceanTemperature::Cold),
-            name => Err(D::Error::custom(format!("No value with id: {name}"))),
-        }
-    }
-}
-
-struct IntArray<'a>(&'a [i32; 6]);
-
-impl Serialize for IntArray<'_> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        nbt_int_array(self.0, serializer)
-    }
-}
-
-/// `BoundingBox.CODEC.listOf()`: a list of int arrays.
-fn nbt_int_arrays<S: Serializer>(boxes: &[[i32; 6]], serializer: S) -> Result<S::Ok, S::Error> {
-    serializer.collect_seq(boxes.iter().map(IntArray))
-}
-
-/// What every stronghold piece writes past `createTag`: its entry door.
-#[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct DoorTag {
-    #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-    bounds: [i32; 6],
-    #[serde(rename = "O")]
-    orientation: i32,
-    #[serde(rename = "GD")]
-    gen_depth: i32,
-    #[serde(rename = "EntryDoor")]
-    entry_door: SmallDoor,
-}
-
-impl DoorTag {
-    fn of(piece: &StrongholdPiece) -> Self {
-        DoorTag {
-            bounds: box_array(piece.bounds),
-            orientation: piece.orientation.data_2d(),
-            gen_depth: piece.gen_depth,
-            entry_door: piece.entry_door,
-        }
-    }
-
-    fn with(bounds: [i32; 6], orientation: i32, gen_depth: i32, entry_door: SmallDoor) -> Self {
-        DoorTag {
-            bounds,
-            orientation,
-            gen_depth,
-            entry_door,
-        }
-    }
-
-    fn piece<E: serde::de::Error>(self, kind: StrongholdKind) -> Result<Piece, E> {
-        Ok(Piece::Stronghold(StrongholdPiece {
-            kind,
-            entry_door: self.entry_door,
-            bounds: box_of(self.bounds),
-            orientation: Orientation::from_data_2d(self.orientation)
-                .ok_or_else(|| E::custom("a stronghold piece without an orientation"))?,
-            gen_depth: self.gen_depth,
-        }))
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct StairsDownTag {
-    #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-    bounds: [i32; 6],
-    #[serde(rename = "O")]
-    orientation: i32,
-    #[serde(rename = "GD")]
-    gen_depth: i32,
-    #[serde(rename = "EntryDoor")]
-    entry_door: SmallDoor,
-    #[serde(rename = "Source", deserialize_with = "nbt_flag")]
-    source: bool,
-}
-
-/// `StructurePiece.createTag` without the id: what every grid piece writes.
-#[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct GridTag {
-    #[serde(rename = "BB", serialize_with = "nbt_int_array")]
-    bounds: [i32; 6],
-    #[serde(rename = "O")]
-    orientation: i32,
-    #[serde(rename = "GD")]
-    gen_depth: i32,
-}
-
-impl GridTag {
-    fn of(piece: &FortressPiece) -> Self {
-        GridTag {
-            bounds: box_array(piece.bounds),
-            orientation: piece.orientation.data_2d(),
-            gen_depth: piece.gen_depth,
-        }
-    }
-
-    fn piece<E: serde::de::Error>(self, kind: FortressKind) -> Result<Piece, E> {
-        Ok(Piece::Fortress(FortressPiece {
-            kind,
-            bounds: box_of(self.bounds),
-            orientation: self.oriented()?,
-            gen_depth: self.gen_depth,
-        }))
-    }
-
-    fn oriented<E: serde::de::Error>(&self) -> Result<Orientation, E> {
-        Orientation::from_data_2d(self.orientation)
-            .ok_or_else(|| E::custom("a grid piece without an orientation"))
     }
 }
 
@@ -1431,40 +784,347 @@ fn box_of(array: [i32; 6]) -> BoundingBox {
     }
 }
 
+trait DoorTagExt: Sized {
+    fn of(piece: &StrongholdPiece) -> Self;
+    fn piece<E: serde::de::Error>(self, kind: StrongholdKind) -> Result<Piece, E>;
+}
+
+trait MonumentBuildingTagExt: Sized {
+    fn of(piece: &OceanMonumentPiece) -> Self;
+    fn piece<E: serde::de::Error>(self) -> Result<OceanMonumentPiece, E>;
+}
+
+trait MonumentRoomTagExt: Sized {
+    fn of(room: &MonumentRoom) -> Self;
+    fn room<E: serde::de::Error>(self) -> Result<MonumentRoom, E>;
+}
+
+trait MonumentChildTagExt: Sized {
+    fn of(child: &MonumentChild) -> Self;
+    fn child<E: serde::de::Error>(self) -> Result<MonumentChild, E>;
+}
+
+trait GridTagExt: Sized {
+    fn of(piece: &FortressPiece) -> Self;
+    fn piece<E: serde::de::Error>(self, kind: FortressKind) -> Result<Piece, E>;
+    fn oriented<E: serde::de::Error>(&self) -> Result<Orientation, E>;
+}
+
+fn room_byte<E: serde::de::Error>(value: i32) -> Result<u8, E> {
+    u8::try_from(value).map_err(|_| E::custom("a monument room is not a byte"))
+}
+
+impl DoorTagExt for DoorTag {
+    fn of(piece: &StrongholdPiece) -> Self {
+        DoorTag {
+            header: GridTag {
+                bounds: box_array(piece.bounds),
+                orientation: piece.orientation.data_2d(),
+                gen_depth: piece.gen_depth,
+            },
+            entry_door: piece.entry_door,
+        }
+    }
+
+    fn piece<E: serde::de::Error>(self, kind: StrongholdKind) -> Result<Piece, E> {
+        Ok(Piece::Stronghold(StrongholdPiece {
+            kind,
+            entry_door: self.entry_door,
+            bounds: box_of(self.header.bounds),
+            orientation: Orientation::from_data_2d(self.header.orientation)
+                .ok_or_else(|| E::custom("a stronghold piece without an orientation"))?,
+            gen_depth: self.header.gen_depth,
+        }))
+    }
+}
+
+/// Gives a saved monument building the room graph that generation of the start at `chunk` makes
+/// from `seed`. A building whose bounds or orientation differ from that generation is not a
+/// start of this seed, and stays as saved.
+pub fn rebuild_monument_rooms(
+    seed: i64,
+    chunk: ColumnPos,
+    saved: &mut MonumentBuildingTag,
+) -> bool {
+    let Some(built) = crate::hardcoded::ocean_monument::rebuild(seed, chunk) else {
+        return false;
+    };
+    let built = MonumentBuildingTag::of(&built);
+    if built.header.bounds != saved.header.bounds
+        || built.header.orientation != saved.header.orientation
+    {
+        return false;
+    }
+    *saved = built;
+    true
+}
+
+impl MonumentBuildingTagExt for MonumentBuildingTag {
+    fn of(piece: &OceanMonumentPiece) -> Self {
+        MonumentBuildingTag {
+            header: GridTag {
+                bounds: box_array(piece.bounds),
+                orientation: piece.orientation.data_2d(),
+                gen_depth: 0,
+            },
+            rooms: piece.rooms.iter().map(MonumentRoomTag::of).collect(),
+            children: piece.children.iter().map(MonumentChildTag::of).collect(),
+        }
+    }
+
+    fn piece<E: serde::de::Error>(self) -> Result<OceanMonumentPiece, E> {
+        Ok(OceanMonumentPiece {
+            bounds: box_of(self.header.bounds),
+            orientation: Orientation::from_data_2d(self.header.orientation)
+                .ok_or_else(|| E::custom("a monument without an orientation"))?,
+            rooms: self
+                .rooms
+                .into_iter()
+                .map(MonumentRoomTag::room)
+                .collect::<Result<_, _>>()?,
+            children: self
+                .children
+                .into_iter()
+                .map(MonumentChildTag::child)
+                .collect::<Result<_, _>>()?,
+        })
+    }
+}
+
+impl MonumentRoomTagExt for MonumentRoomTag {
+    fn of(room: &MonumentRoom) -> Self {
+        let mut openings = [0; 6];
+        for (saved, open) in openings.iter_mut().zip(room.has_opening) {
+            *saved = i8::from(open);
+        }
+        MonumentRoomTag {
+            index: room.index,
+            openings,
+            connections: room.connections.map(|room| room.map_or(-1, i32::from)),
+        }
+    }
+
+    fn room<E: serde::de::Error>(self) -> Result<MonumentRoom, E> {
+        let mut openings = [false; 6];
+        for (open, saved) in openings.iter_mut().zip(self.openings) {
+            *open = match saved {
+                0 => false,
+                1 => true,
+                _ => return Err(E::custom("a monument room opening is not a flag")),
+            };
+        }
+        let mut connections = [None; 6];
+        for (connection, saved) in connections.iter_mut().zip(self.connections) {
+            *connection = match saved {
+                -1 => None,
+                0..=255 => Some(room_byte(saved)?),
+                _ => return Err(E::custom("a monument room connection is not a room")),
+            };
+        }
+        Ok(MonumentRoom {
+            index: self.index,
+            has_opening: openings,
+            connections,
+        })
+    }
+}
+
+impl MonumentChildTagExt for MonumentChildTag {
+    fn of(child: &MonumentChild) -> Self {
+        let bounds = box_array(child.bounds);
+        match child.kind {
+            MonumentRoomKind::Entry { room } => Self::Entry {
+                bounds,
+                room: i32::from(room),
+            },
+            MonumentRoomKind::Core { room } => Self::Core {
+                bounds,
+                room: i32::from(room),
+            },
+            MonumentRoomKind::DoubleX { room } => Self::DoubleX {
+                bounds,
+                room: i32::from(room),
+            },
+            MonumentRoomKind::DoubleXY { room } => Self::DoubleXY {
+                bounds,
+                room: i32::from(room),
+            },
+            MonumentRoomKind::DoubleY { room } => Self::DoubleY {
+                bounds,
+                room: i32::from(room),
+            },
+            MonumentRoomKind::DoubleYZ { room } => Self::DoubleYZ {
+                bounds,
+                room: i32::from(room),
+            },
+            MonumentRoomKind::DoubleZ { room } => Self::DoubleZ {
+                bounds,
+                room: i32::from(room),
+            },
+            MonumentRoomKind::Simple { room, main_design } => Self::Simple {
+                bounds,
+                room: i32::from(room),
+                design: main_design,
+            },
+            MonumentRoomKind::SimpleTop { room } => Self::SimpleTop {
+                bounds,
+                room: i32::from(room),
+            },
+            MonumentRoomKind::Wing { main_design } => Self::Wing {
+                bounds,
+                design: main_design,
+            },
+            MonumentRoomKind::Penthouse => Self::Penthouse { bounds },
+        }
+    }
+
+    fn child<E: serde::de::Error>(self) -> Result<MonumentChild, E> {
+        let (bounds, kind) = match self {
+            Self::Entry { bounds, room } => (
+                bounds,
+                MonumentRoomKind::Entry {
+                    room: room_byte(room)?,
+                },
+            ),
+            Self::Core { bounds, room } => (
+                bounds,
+                MonumentRoomKind::Core {
+                    room: room_byte(room)?,
+                },
+            ),
+            Self::DoubleX { bounds, room } => (
+                bounds,
+                MonumentRoomKind::DoubleX {
+                    room: room_byte(room)?,
+                },
+            ),
+            Self::DoubleXY { bounds, room } => (
+                bounds,
+                MonumentRoomKind::DoubleXY {
+                    room: room_byte(room)?,
+                },
+            ),
+            Self::DoubleY { bounds, room } => (
+                bounds,
+                MonumentRoomKind::DoubleY {
+                    room: room_byte(room)?,
+                },
+            ),
+            Self::DoubleYZ { bounds, room } => (
+                bounds,
+                MonumentRoomKind::DoubleYZ {
+                    room: room_byte(room)?,
+                },
+            ),
+            Self::DoubleZ { bounds, room } => (
+                bounds,
+                MonumentRoomKind::DoubleZ {
+                    room: room_byte(room)?,
+                },
+            ),
+            Self::Simple {
+                bounds,
+                room,
+                design,
+            } => (
+                bounds,
+                MonumentRoomKind::Simple {
+                    room: room_byte(room)?,
+                    main_design: design,
+                },
+            ),
+            Self::SimpleTop { bounds, room } => (
+                bounds,
+                MonumentRoomKind::SimpleTop {
+                    room: room_byte(room)?,
+                },
+            ),
+            Self::Wing { bounds, design } => (
+                bounds,
+                MonumentRoomKind::Wing {
+                    main_design: design,
+                },
+            ),
+            Self::Penthouse { bounds } => (bounds, MonumentRoomKind::Penthouse),
+        };
+        Ok(MonumentChild {
+            kind,
+            bounds: box_of(bounds),
+        })
+    }
+}
+
+impl GridTagExt for GridTag {
+    fn of(piece: &FortressPiece) -> Self {
+        GridTag {
+            bounds: box_array(piece.bounds),
+            orientation: piece.orientation.data_2d(),
+            gen_depth: piece.gen_depth,
+        }
+    }
+
+    fn piece<E: serde::de::Error>(self, kind: FortressKind) -> Result<Piece, E> {
+        Ok(Piece::Fortress(FortressPiece {
+            kind,
+            bounds: box_of(self.bounds),
+            orientation: self.oriented()?,
+            gen_depth: self.gen_depth,
+        }))
+    }
+
+    fn oriented<E: serde::de::Error>(&self) -> Result<Orientation, E> {
+        Orientation::from_data_2d(self.orientation)
+            .ok_or_else(|| E::custom("a grid piece without an orientation"))
+    }
+}
+
 pub struct PieceNbt<'a> {
     piece: &'a Piece,
     context: &'a PieceContext<'a>,
 }
 
 impl Serialize for PieceNbt<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.context
+            .saved::<S::Error>(self.piece)?
+            .serialize(serializer)
+    }
+}
+
+impl PieceContext<'_> {
+    /// The saved form of `piece`, with every key its kind writes.
     #[expect(
         clippy::too_many_lines,
         reason = "one arm per piece kind, each writing that kind's tag, in the reference's kind order"
     )]
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let tag = match self.piece {
+    pub fn saved<E: serde::ser::Error>(&self, piece: &Piece) -> Result<SavedPiece, E> {
+        let tag = match piece {
             Piece::Jigsaw(piece) => {
-                let liquid = self.context.liquid_settings();
-                PieceTag::Jigsaw {
-                    bounds: box_array(piece.bounds),
-                    orientation: NO_ORIENTATION,
-                    gen_depth: 0,
+                let liquid = self.liquid_settings();
+                SavedPiece::Jigsaw {
+                    header: GridTag {
+                        bounds: box_array(piece.bounds),
+                        orientation: NO_ORIENTATION,
+                        gen_depth: 0,
+                    },
                     pos_x: piece.position.x,
                     pos_y: piece.position.y,
                     pos_z: piece.position.z,
                     ground_level_delta: piece.ground_level_delta,
-                    pool_element: self.context.pool_element(piece.element).ok_or_else(|| {
-                        S::Error::custom("a jigsaw piece of an element no loaded pool holds")
+                    pool_element: self.pool_element(piece.element).ok_or_else(|| {
+                        E::custom("a jigsaw piece of an element no loaded pool holds")
                     })?,
                     rotation: piece.rotation,
                     junctions: piece.junctions.clone(),
                     liquid_settings: (liquid != LiquidSettings::default()).then_some(liquid),
                 }
             }
-            Piece::DesertPyramid(piece) => PieceTag::DesertPyramid {
-                bounds: box_array(piece.bounds),
-                orientation: piece.orientation.data_2d(),
-                gen_depth: 0,
+            Piece::DesertPyramid(piece) => SavedPiece::DesertPyramid {
+                header: GridTag {
+                    bounds: box_array(piece.bounds),
+                    orientation: piece.orientation.data_2d(),
+                    gen_depth: 0,
+                },
                 width: DesertPyramidPiece::WIDTH,
                 height: DesertPyramidPiece::HEIGHT,
                 depth: DesertPyramidPiece::DEPTH,
@@ -1474,10 +1134,12 @@ impl Serialize for PieceNbt<'_> {
                 has_placed_chest_2: false,
                 has_placed_chest_3: false,
             },
-            Piece::JungleTemple(piece) => PieceTag::JungleTemple {
-                bounds: box_array(piece.bounds),
-                orientation: piece.orientation.data_2d(),
-                gen_depth: 0,
+            Piece::JungleTemple(piece) => SavedPiece::JungleTemple {
+                header: GridTag {
+                    bounds: box_array(piece.bounds),
+                    orientation: piece.orientation.data_2d(),
+                    gen_depth: 0,
+                },
                 width: JungleTemplePiece::WIDTH,
                 height: JungleTemplePiece::HEIGHT,
                 depth: JungleTemplePiece::DEPTH,
@@ -1487,10 +1149,12 @@ impl Serialize for PieceNbt<'_> {
                 placed_trap_1: false,
                 placed_trap_2: false,
             },
-            Piece::SwampHut(piece) => PieceTag::SwampHut {
-                bounds: box_array(piece.bounds),
-                orientation: piece.orientation.data_2d(),
-                gen_depth: 0,
+            Piece::SwampHut(piece) => SavedPiece::SwampHut {
+                header: GridTag {
+                    bounds: box_array(piece.bounds),
+                    orientation: piece.orientation.data_2d(),
+                    gen_depth: 0,
+                },
                 width: SwampHutPiece::WIDTH,
                 height: SwampHutPiece::HEIGHT,
                 depth: SwampHutPiece::DEPTH,
@@ -1498,116 +1162,99 @@ impl Serialize for PieceNbt<'_> {
                 witch: false,
                 cat: false,
             },
-            Piece::BuriedTreasure(piece) => PieceTag::BuriedTreasure {
+            Piece::BuriedTreasure(piece) => SavedPiece::BuriedTreasure {
                 bounds: box_array(piece.bounds),
                 orientation: NO_ORIENTATION,
                 gen_depth: 0,
             },
             Piece::Fortress(piece) => {
-                let grid = GridTag::of(piece);
-                let GridTag {
-                    bounds,
-                    orientation,
-                    gen_depth,
-                } = grid;
+                let header = GridTag::of(piece);
                 match piece.kind {
-                    FortressKind::BridgeCrossing => PieceTag::FortressBridgeCrossing(grid),
-                    FortressKind::BridgeEndFiller { seed } => PieceTag::FortressBridgeEndFiller {
-                        bounds,
-                        orientation,
-                        gen_depth,
-                        seed,
-                    },
-                    FortressKind::BridgeStraight => PieceTag::FortressBridgeStraight(grid),
-                    FortressKind::CorridorStairs => PieceTag::FortressCorridorStairs(grid),
-                    FortressKind::CorridorBalcony => PieceTag::FortressCorridorBalcony(grid),
-                    FortressKind::CastleEntrance => PieceTag::FortressCastleEntrance(grid),
+                    FortressKind::BridgeCrossing => SavedPiece::FortressBridgeCrossing(header),
+                    FortressKind::BridgeEndFiller { seed } => {
+                        SavedPiece::FortressBridgeEndFiller { header, seed }
+                    }
+                    FortressKind::BridgeStraight => SavedPiece::FortressBridgeStraight(header),
+                    FortressKind::CorridorStairs => SavedPiece::FortressCorridorStairs(header),
+                    FortressKind::CorridorBalcony => SavedPiece::FortressCorridorBalcony(header),
+                    FortressKind::CastleEntrance => SavedPiece::FortressCastleEntrance(header),
                     FortressKind::SmallCorridorCrossing => {
-                        PieceTag::FortressSmallCorridorCrossing(grid)
+                        SavedPiece::FortressSmallCorridorCrossing(header)
                     }
                     FortressKind::SmallCorridorLeftTurn { chest } => {
-                        PieceTag::FortressSmallCorridorLeftTurn {
-                            bounds,
-                            orientation,
-                            gen_depth,
-                            chest,
-                        }
+                        SavedPiece::FortressSmallCorridorLeftTurn { header, chest }
                     }
-                    FortressKind::SmallCorridor => PieceTag::FortressSmallCorridor(grid),
+                    FortressKind::SmallCorridor => SavedPiece::FortressSmallCorridor(header),
                     FortressKind::SmallCorridorRightTurn { chest } => {
-                        PieceTag::FortressSmallCorridorRightTurn {
-                            bounds,
-                            orientation,
-                            gen_depth,
-                            chest,
-                        }
+                        SavedPiece::FortressSmallCorridorRightTurn { header, chest }
                     }
-                    FortressKind::StalkRoom => PieceTag::FortressStalkRoom(grid),
-                    FortressKind::MonsterThrone => PieceTag::FortressMonsterThrone {
-                        bounds,
-                        orientation,
-                        gen_depth,
-                        mob: false,
-                    },
-                    FortressKind::RoomCrossing => PieceTag::FortressRoomCrossing(grid),
-                    FortressKind::StairsRoom => PieceTag::FortressStairsRoom(grid),
+                    FortressKind::StalkRoom => SavedPiece::FortressStalkRoom(header),
+                    FortressKind::MonsterThrone => {
+                        SavedPiece::FortressMonsterThrone { header, mob: false }
+                    }
+                    FortressKind::RoomCrossing => SavedPiece::FortressRoomCrossing(header),
+                    FortressKind::StairsRoom => SavedPiece::FortressStairsRoom(header),
                 }
             }
-            Piece::Shipwreck(piece) => PieceTag::Shipwreck {
-                bounds: box_array(piece.bounds),
-                orientation: NORTH_ORIENTATION,
-                gen_depth: 0,
+            Piece::Shipwreck(piece) => SavedPiece::Shipwreck {
+                header: GridTag {
+                    bounds: box_array(piece.bounds),
+                    orientation: NORTH_ORIENTATION,
+                    gen_depth: 0,
+                },
                 template_x: piece.position.x,
                 template_y: piece.height,
                 template_z: piece.position.z,
-                template: self.context.template_name_or(piece.template)?,
+                template: self.template_name_or::<E>(piece.template)?.to_string(),
                 is_beached: piece.is_beached,
                 rotation: piece.rotation,
                 height_adjusted: true,
             },
-            Piece::OceanRuin(piece) => PieceTag::OceanRuin {
-                bounds: box_array(piece.bounds),
-                orientation: Orientation::North.data_2d(),
-                gen_depth: 0,
+            Piece::OceanRuin(piece) => SavedPiece::OceanRuin {
+                header: GridTag {
+                    bounds: box_array(piece.bounds),
+                    orientation: Orientation::North.data_2d(),
+                    gen_depth: 0,
+                },
                 template_x: piece.position.x,
                 template_y: piece.floor_y,
                 template_z: piece.position.z,
-                template: self.context.template_name_or(piece.template)?,
+                template: self.template_name_or::<E>(piece.template)?.to_string(),
                 rotation: piece.rotation,
                 integrity: piece.integrity,
                 biome_temp: piece.biome_temp,
                 large: piece.large,
             },
-            Piece::RuinedPortal(piece) => PieceTag::RuinedPortal {
-                bounds: box_array(piece.bounds),
-                orientation: Orientation::North.data_2d(),
-                gen_depth: 0,
+            Piece::RuinedPortal(piece) => SavedPiece::RuinedPortal {
+                header: GridTag {
+                    bounds: box_array(piece.bounds),
+                    orientation: Orientation::North.data_2d(),
+                    gen_depth: 0,
+                },
                 pos_x: piece.position.x,
                 pos_y: piece.position.y,
                 pos_z: piece.position.z,
-                template: self.context.template_name_or(piece.template)?,
+                template: self.template_name_or::<E>(piece.template)?.to_string(),
                 rotation: piece.rotation,
                 mirror: piece.mirror,
                 placement: piece.placement,
                 properties: piece.properties,
             },
-            Piece::OceanMonument(piece) => PieceTag::OceanMonumentBuilding(GridTag {
-                bounds: box_array(piece.bounds),
-                orientation: piece.orientation.data_2d(),
-                gen_depth: 0,
-            }),
+            Piece::OceanMonument(piece) => {
+                SavedPiece::OceanMonumentBuilding(MonumentBuildingTag::of(piece))
+            }
             Piece::Mineshaft(piece) => {
-                let bounds = box_array(piece.bounds);
-                let orientation = piece
-                    .orientation()
-                    .map_or(NO_ORIENTATION, Orientation::data_2d);
-                let gen_depth = piece.gen_depth;
-                let mineshaft_type = self.context.mineshaft_type();
+                let header = GridTag {
+                    bounds: box_array(piece.bounds),
+                    orientation: piece
+                        .orientation()
+                        .map_or(NO_ORIENTATION, Orientation::data_2d),
+                    gen_depth: piece.gen_depth,
+                };
+                let mineshaft_type = self.mineshaft_type();
                 match &piece.kind {
-                    MineshaftKind::Room { entrances } => PieceTag::MineshaftRoom {
-                        bounds,
-                        orientation,
-                        gen_depth,
+                    MineshaftKind::Room { entrances } => SavedPiece::MineshaftRoom {
+                        header,
                         mineshaft_type,
                         entrances: entrances.iter().map(|b| box_array(*b)).collect(),
                     },
@@ -1616,163 +1263,143 @@ impl Serialize for PieceNbt<'_> {
                         spider_corridor,
                         num_sections,
                         spawner_host: _,
-                    } => PieceTag::MineshaftCorridor {
-                        bounds,
-                        orientation,
-                        gen_depth,
+                    } => SavedPiece::MineshaftCorridor {
+                        header,
                         mineshaft_type,
                         has_rails: *has_rails,
                         spider_corridor: *spider_corridor,
                         has_placed_spider: false,
                         num_sections: *num_sections,
                     },
-                    MineshaftKind::Crossing { two_floored } => PieceTag::MineshaftCrossing {
-                        bounds,
-                        orientation,
-                        gen_depth,
+                    MineshaftKind::Crossing { two_floored } => SavedPiece::MineshaftCrossing {
+                        header,
                         mineshaft_type,
                         two_floored: *two_floored,
                         direction: piece
                             .direction
-                            .ok_or_else(|| {
-                                S::Error::custom("a mineshaft crossing without a direction")
-                            })?
-                            .data_2d() as i8,
+                            .ok_or_else(|| E::custom("a mineshaft crossing without a direction"))?
+                            .data_2d()
+                            .try_into()
+                            .unwrap_or_default(),
                     },
-                    MineshaftKind::Stairs => PieceTag::MineshaftStairs {
-                        bounds,
-                        orientation,
-                        gen_depth,
+                    MineshaftKind::Stairs => SavedPiece::MineshaftStairs {
+                        header,
                         mineshaft_type,
                     },
                 }
             }
-            Piece::Igloo(piece) => PieceTag::Igloo {
-                bounds: box_array(piece.bounds),
-                orientation: NORTH_ORIENTATION,
-                gen_depth: 0,
+            Piece::Igloo(piece) => SavedPiece::Igloo {
+                header: GridTag {
+                    bounds: box_array(piece.bounds),
+                    orientation: NORTH_ORIENTATION,
+                    gen_depth: 0,
+                },
                 template_x: piece.position.x,
                 template_y: piece.height,
                 template_z: piece.position.z,
-                template: piece.template.location().to_buf(),
+                template: piece.template.location().to_string(),
                 rotation: piece.rotation,
             },
-            Piece::NetherFossil(piece) => PieceTag::NetherFossil {
-                bounds: box_array(piece.bounds),
-                orientation: NORTH_ORIENTATION,
-                gen_depth: 0,
+            Piece::NetherFossil(piece) => SavedPiece::NetherFossil {
+                header: GridTag {
+                    bounds: box_array(piece.bounds),
+                    orientation: NORTH_ORIENTATION,
+                    gen_depth: 0,
+                },
                 template_x: piece.position.x,
                 template_y: piece.position.y,
                 template_z: piece.position.z,
-                template: self.context.template_name_or(piece.template)?,
+                template: self.template_name_or::<E>(piece.template)?.to_string(),
                 rotation: piece.rotation,
             },
-            Piece::EndCity(piece) => PieceTag::EndCity {
-                bounds: box_array(piece.bounds),
-                orientation: NORTH_ORIENTATION,
-                gen_depth: piece.gen_depth,
+            Piece::EndCity(piece) => SavedPiece::EndCity {
+                header: GridTag {
+                    bounds: box_array(piece.bounds),
+                    orientation: NORTH_ORIENTATION,
+                    gen_depth: piece.gen_depth,
+                },
                 template_x: piece.position.x,
                 template_y: piece.position.y,
                 template_z: piece.position.z,
-                template: self
-                    .context
-                    .template_suffix(piece.template, END_CITY_TEMPLATE_PREFIX)?,
+                template: self.template_suffix::<E>(piece.template, END_CITY_TEMPLATE_PREFIX)?,
                 rotation: piece.rotation,
                 overwrite: piece.overwrite,
             },
-            Piece::WoodlandMansion(piece) => PieceTag::WoodlandMansion {
-                bounds: box_array(piece.bounds),
-                orientation: NORTH_ORIENTATION,
-                gen_depth: 0,
+            Piece::WoodlandMansion(piece) => SavedPiece::WoodlandMansion {
+                header: GridTag {
+                    bounds: box_array(piece.bounds),
+                    orientation: NORTH_ORIENTATION,
+                    gen_depth: 0,
+                },
                 template_x: piece.position.x,
                 template_y: piece.position.y,
                 template_z: piece.position.z,
                 template: self
-                    .context
-                    .template_suffix(piece.template, WoodlandMansionPiece::TEMPLATE_PREFIX)?,
+                    .template_suffix::<E>(piece.template, WoodlandMansionPiece::TEMPLATE_PREFIX)?,
                 rotation: piece.rotation,
                 mirror: piece.mirror,
             },
             Piece::Stronghold(piece) => {
                 let door = DoorTag::of(piece);
-                let DoorTag {
-                    bounds,
-                    orientation,
-                    gen_depth,
-                    entry_door,
-                } = door;
+                let DoorTag { header, entry_door } = door;
                 let stairs = |source| StairsDownTag {
-                    bounds,
-                    orientation,
-                    gen_depth,
+                    header,
                     entry_door,
                     source,
                 };
                 match piece.kind {
-                    StrongholdKind::Start => PieceTag::StrongholdStart(stairs(true)),
-                    StrongholdKind::StairsDown => PieceTag::StrongholdStairsDown(stairs(false)),
-                    StrongholdKind::Straight { left, right } => PieceTag::StrongholdStraight {
-                        bounds,
-                        orientation,
-                        gen_depth,
+                    StrongholdKind::Start => SavedPiece::StrongholdStart(stairs(true)),
+                    StrongholdKind::StairsDown => SavedPiece::StrongholdStairsDown(stairs(false)),
+                    StrongholdKind::Straight { left, right } => SavedPiece::StrongholdStraight {
+                        header,
                         entry_door,
                         left,
                         right,
                     },
-                    StrongholdKind::PrisonHall => PieceTag::StrongholdPrisonHall(door),
-                    StrongholdKind::LeftTurn => PieceTag::StrongholdLeftTurn(door),
-                    StrongholdKind::RightTurn => PieceTag::StrongholdRightTurn(door),
-                    StrongholdKind::RoomCrossing { variant } => PieceTag::StrongholdRoomCrossing {
-                        bounds,
-                        orientation,
-                        gen_depth,
-                        entry_door,
-                        variant,
-                    },
+                    StrongholdKind::PrisonHall => SavedPiece::StrongholdPrisonHall(door),
+                    StrongholdKind::LeftTurn => SavedPiece::StrongholdLeftTurn(door),
+                    StrongholdKind::RightTurn => SavedPiece::StrongholdRightTurn(door),
+                    StrongholdKind::RoomCrossing { variant } => {
+                        SavedPiece::StrongholdRoomCrossing {
+                            header,
+                            entry_door,
+                            variant,
+                        }
+                    }
                     StrongholdKind::StraightStairsDown => {
-                        PieceTag::StrongholdStraightStairsDown(door)
+                        SavedPiece::StrongholdStraightStairsDown(door)
                     }
                     StrongholdKind::FiveCrossing {
                         left_low,
                         left_high,
                         right_low,
                         right_high,
-                    } => PieceTag::StrongholdFiveCrossing {
-                        bounds,
-                        orientation,
-                        gen_depth,
+                    } => SavedPiece::StrongholdFiveCrossing {
+                        header,
                         entry_door,
                         left_low,
                         left_high,
                         right_low,
                         right_high,
                     },
-                    StrongholdKind::ChestCorridor => PieceTag::StrongholdChestCorridor {
-                        bounds,
-                        orientation,
-                        gen_depth,
+                    StrongholdKind::ChestCorridor => SavedPiece::StrongholdChestCorridor {
+                        header,
                         entry_door,
                         chest: false,
                     },
-                    StrongholdKind::Library { tall } => PieceTag::StrongholdLibrary {
-                        bounds,
-                        orientation,
-                        gen_depth,
+                    StrongholdKind::Library { tall } => SavedPiece::StrongholdLibrary {
+                        header,
                         entry_door,
                         tall,
                     },
-                    StrongholdKind::PortalRoom => PieceTag::StrongholdPortalRoom {
-                        bounds,
-                        orientation,
-                        gen_depth,
+                    StrongholdKind::PortalRoom => SavedPiece::StrongholdPortalRoom {
+                        header,
                         entry_door,
                         mob: false,
                     },
                     StrongholdKind::FillerCorridor { steps } => {
-                        PieceTag::StrongholdFillerCorridor {
-                            bounds,
-                            orientation,
-                            gen_depth,
+                        SavedPiece::StrongholdFillerCorridor {
+                            header,
                             entry_door,
                             steps,
                         }
@@ -1780,7 +1407,7 @@ impl Serialize for PieceNbt<'_> {
                 }
             }
         };
-        tag.serialize(serializer)
+        Ok(tag)
     }
 }
 
@@ -1798,14 +1425,27 @@ pub struct PieceSeed<'a>(pub PieceContext<'a>);
 impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
     type Value = Piece;
 
+    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Piece, D::Error> {
+        self.0
+            .piece(<SavedPiece as Deserialize>::deserialize(deserializer)?)
+    }
+}
+
+fn location<E: serde::de::Error>(text: &str) -> Result<ResourceLocationBuf, E> {
+    ResourceLocationBuf::read(text)
+        .map_err(|_| E::custom(format!("`{text}` is not a resource location")))
+}
+
+impl PieceContext<'_> {
+    /// The piece that `saved` describes, resolving the names it carries against the tables.
     #[expect(
         clippy::too_many_lines,
         reason = "one arm per piece tag, each rebuilding that kind's piece, in the reference's kind order"
     )]
-    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Piece, D::Error> {
-        match <PieceTag as Deserialize>::deserialize(deserializer)? {
-            PieceTag::Jigsaw {
-                bounds,
+    pub fn piece<E: serde::de::Error>(&self, saved: SavedPiece) -> Result<Piece, E> {
+        match saved {
+            SavedPiece::Jigsaw {
+                header: GridTag { bounds, .. },
                 pos_x,
                 pos_y,
                 pos_z,
@@ -1815,10 +1455,10 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                 junctions,
                 ..
             } => {
-                let (element, frozen_element) = self.0.element_id(&pool_element)?;
+                let (element, frozen_element) = self.element_id(&pool_element)?;
                 let projection = frozen_element
                     .projection()
-                    .ok_or_else(|| D::Error::custom("a jigsaw piece of an empty element"))?;
+                    .ok_or_else(|| E::custom("a jigsaw piece of an empty element"))?;
                 Ok(Piece::Jigsaw(JigsawPiece {
                     element,
                     position: IVec3::new(pos_x, pos_y, pos_z),
@@ -1829,102 +1469,82 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                     junctions,
                 }))
             }
-            PieceTag::DesertPyramid {
-                bounds,
-                orientation,
+            SavedPiece::DesertPyramid {
+                header:
+                    GridTag {
+                        bounds,
+                        orientation,
+                        ..
+                    },
                 height_position,
                 ..
             } => Ok(Piece::DesertPyramid(DesertPyramidPiece {
                 bounds: box_of(bounds),
                 orientation: Orientation::from_data_2d(orientation)
-                    .ok_or_else(|| D::Error::custom("a desert pyramid without an orientation"))?,
+                    .ok_or_else(|| E::custom("a desert pyramid without an orientation"))?,
                 height_position,
             })),
-            PieceTag::JungleTemple {
-                bounds,
-                orientation,
+            SavedPiece::JungleTemple {
+                header:
+                    GridTag {
+                        bounds,
+                        orientation,
+                        ..
+                    },
                 height_position,
                 ..
             } => Ok(Piece::JungleTemple(JungleTemplePiece {
                 bounds: box_of(bounds),
                 orientation: Orientation::from_data_2d(orientation)
-                    .ok_or_else(|| D::Error::custom("a jungle temple without an orientation"))?,
+                    .ok_or_else(|| E::custom("a jungle temple without an orientation"))?,
                 height_position,
             })),
-            PieceTag::SwampHut {
-                bounds,
-                orientation,
+            SavedPiece::SwampHut {
+                header:
+                    GridTag {
+                        bounds,
+                        orientation,
+                        ..
+                    },
                 height_position,
                 ..
             } => Ok(Piece::SwampHut(SwampHutPiece {
                 bounds: box_of(bounds),
                 orientation: Orientation::from_data_2d(orientation)
-                    .ok_or_else(|| D::Error::custom("a swamp hut without an orientation"))?,
+                    .ok_or_else(|| E::custom("a swamp hut without an orientation"))?,
                 height_position,
             })),
-            PieceTag::BuriedTreasure { bounds, .. } => {
+            SavedPiece::BuriedTreasure { bounds, .. } => {
                 Ok(Piece::BuriedTreasure(BuriedTreasurePiece {
                     bounds: box_of(bounds),
                 }))
             }
-            PieceTag::FortressBridgeCrossing(grid) => grid.piece(FortressKind::BridgeCrossing),
-            PieceTag::FortressBridgeEndFiller {
-                bounds,
-                orientation,
-                gen_depth,
-                seed,
-            } => GridTag {
-                bounds,
-                orientation,
-                gen_depth,
+            SavedPiece::FortressBridgeCrossing(grid) => grid.piece(FortressKind::BridgeCrossing),
+            SavedPiece::FortressBridgeEndFiller { header, seed } => {
+                header.piece(FortressKind::BridgeEndFiller { seed })
             }
-            .piece(FortressKind::BridgeEndFiller { seed }),
-            PieceTag::FortressBridgeStraight(grid) => grid.piece(FortressKind::BridgeStraight),
-            PieceTag::FortressCorridorStairs(grid) => grid.piece(FortressKind::CorridorStairs),
-            PieceTag::FortressCorridorBalcony(grid) => grid.piece(FortressKind::CorridorBalcony),
-            PieceTag::FortressCastleEntrance(grid) => grid.piece(FortressKind::CastleEntrance),
-            PieceTag::FortressSmallCorridorCrossing(grid) => {
+            SavedPiece::FortressBridgeStraight(grid) => grid.piece(FortressKind::BridgeStraight),
+            SavedPiece::FortressCorridorStairs(grid) => grid.piece(FortressKind::CorridorStairs),
+            SavedPiece::FortressCorridorBalcony(grid) => grid.piece(FortressKind::CorridorBalcony),
+            SavedPiece::FortressCastleEntrance(grid) => grid.piece(FortressKind::CastleEntrance),
+            SavedPiece::FortressSmallCorridorCrossing(grid) => {
                 grid.piece(FortressKind::SmallCorridorCrossing)
             }
-            PieceTag::FortressSmallCorridorLeftTurn {
-                bounds,
-                orientation,
-                gen_depth,
-                chest,
-            } => GridTag {
-                bounds,
-                orientation,
-                gen_depth,
+            SavedPiece::FortressSmallCorridorLeftTurn { header, chest } => {
+                header.piece(FortressKind::SmallCorridorLeftTurn { chest })
             }
-            .piece(FortressKind::SmallCorridorLeftTurn { chest }),
-            PieceTag::FortressSmallCorridor(grid) => grid.piece(FortressKind::SmallCorridor),
-            PieceTag::FortressSmallCorridorRightTurn {
-                bounds,
-                orientation,
-                gen_depth,
-                chest,
-            } => GridTag {
-                bounds,
-                orientation,
-                gen_depth,
+            SavedPiece::FortressSmallCorridor(grid) => grid.piece(FortressKind::SmallCorridor),
+            SavedPiece::FortressSmallCorridorRightTurn { header, chest } => {
+                header.piece(FortressKind::SmallCorridorRightTurn { chest })
             }
-            .piece(FortressKind::SmallCorridorRightTurn { chest }),
-            PieceTag::FortressStalkRoom(grid) => grid.piece(FortressKind::StalkRoom),
-            PieceTag::FortressMonsterThrone {
-                bounds,
-                orientation,
-                gen_depth,
-                ..
-            } => GridTag {
-                bounds,
-                orientation,
-                gen_depth,
+            SavedPiece::FortressStalkRoom(grid) => grid.piece(FortressKind::StalkRoom),
+            SavedPiece::FortressMonsterThrone { header, .. } => {
+                header.piece(FortressKind::MonsterThrone)
             }
-            .piece(FortressKind::MonsterThrone),
-            PieceTag::FortressRoomCrossing(grid) => grid.piece(FortressKind::RoomCrossing),
-            PieceTag::FortressStairsRoom(grid) => grid.piece(FortressKind::StairsRoom),
-            PieceTag::Shipwreck {
-                bounds,
+            SavedPiece::FortressRoomCrossing(grid) => grid.piece(FortressKind::RoomCrossing),
+            SavedPiece::FortressStairsRoom(grid) => grid.piece(FortressKind::StairsRoom),
+            SavedPiece::Shipwreck {
+                header: GridTag { bounds, .. },
                 template_x,
                 template_y,
                 template_z,
@@ -1934,9 +1554,11 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                 ..
             } => {
                 let bounds = box_of(bounds);
-                let template = *self.0.frozen.template_ids.get(&template).ok_or_else(|| {
-                    D::Error::custom(format!("the template {template} is not loaded"))
-                })?;
+                let template = location::<E>(&template)?;
+                let template =
+                    *self.frozen.template_ids.get(&template).ok_or_else(|| {
+                        E::custom(format!("the template {template} is not loaded"))
+                    })?;
                 Ok(Piece::Shipwreck(ShipwreckPiece {
                     template,
                     position: IVec3::new(template_x, bounds.min.y, template_z),
@@ -1946,8 +1568,8 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                     height: template_y,
                 }))
             }
-            PieceTag::OceanRuin {
-                bounds,
+            SavedPiece::OceanRuin {
+                header: GridTag { bounds, .. },
                 template_x,
                 template_y,
                 template_z,
@@ -1958,9 +1580,11 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                 large,
                 ..
             } => {
-                let template = *self.0.frozen.template_ids.get(&template).ok_or_else(|| {
-                    D::Error::custom(format!("the template {template} is not loaded"))
-                })?;
+                let template = location::<E>(&template)?;
+                let template =
+                    *self.frozen.template_ids.get(&template).ok_or_else(|| {
+                        E::custom(format!("the template {template} is not loaded"))
+                    })?;
                 let bounds = box_of(bounds);
                 Ok(Piece::OceanRuin(OceanRuinPiece {
                     template,
@@ -1973,8 +1597,8 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                     floor_y: template_y,
                 }))
             }
-            PieceTag::RuinedPortal {
-                bounds,
+            SavedPiece::RuinedPortal {
+                header: GridTag { bounds, .. },
                 pos_x,
                 pos_y,
                 pos_z,
@@ -1985,8 +1609,9 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                 properties,
                 ..
             } => {
-                let template = *self.0.frozen.template_ids.get(&template).ok_or_else(|| {
-                    D::Error::custom(format!(
+                let template = location::<E>(&template)?;
+                let template = *self.frozen.template_ids.get(&template).ok_or_else(|| {
+                    E::custom(format!(
                         "the template {template} is not one any loaded structure draws"
                     ))
                 })?;
@@ -2000,21 +1625,27 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                     properties,
                 }))
             }
-            // The rooms are not in the save; the reference rebuilds them from the
-            // seed on load, which the save's loader does when it lands.
-            PieceTag::OceanMonumentBuilding(grid) => Ok(Piece::OceanMonument(OceanMonumentPiece {
-                bounds: box_of(grid.bounds),
-                orientation: grid.oriented()?,
-                rooms: Vec::new(),
-                children: Vec::new(),
-            })),
-            PieceTag::MineshaftRoom {
-                bounds,
-                gen_depth,
+            SavedPiece::FortressStart(_)
+            | SavedPiece::OceanMonumentEntry(_)
+            | SavedPiece::OceanMonumentCore(_)
+            | SavedPiece::OceanMonumentDoubleX(_)
+            | SavedPiece::OceanMonumentDoubleXY(_)
+            | SavedPiece::OceanMonumentDoubleY(_)
+            | SavedPiece::OceanMonumentDoubleYZ(_)
+            | SavedPiece::OceanMonumentDoubleZ(_)
+            | SavedPiece::OceanMonumentPenthouse(_)
+            | SavedPiece::OceanMonumentSimple(_)
+            | SavedPiece::OceanMonumentSimpleTop(_)
+            | SavedPiece::OceanMonumentWing(_) => Err(E::custom("the piece has no runtime form")),
+            SavedPiece::OceanMonumentBuilding(tag) => tag.piece().map(Piece::OceanMonument),
+            SavedPiece::MineshaftRoom {
+                header: GridTag {
+                    bounds, gen_depth, ..
+                },
                 mineshaft_type,
                 entrances,
                 ..
-            } => self.0.mineshaft(
+            } => self.mineshaft(
                 mineshaft_type,
                 MineshaftPiece {
                     kind: MineshaftKind::Room {
@@ -2025,16 +1656,19 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                     gen_depth,
                 },
             ),
-            PieceTag::MineshaftCorridor {
-                bounds,
-                orientation,
-                gen_depth,
+            SavedPiece::MineshaftCorridor {
+                header:
+                    GridTag {
+                        bounds,
+                        orientation,
+                        gen_depth,
+                    },
                 mineshaft_type,
                 has_rails,
                 spider_corridor,
                 num_sections,
                 ..
-            } => self.0.mineshaft(
+            } => self.mineshaft(
                 mineshaft_type,
                 MineshaftPiece {
                     kind: MineshaftKind::Corridor {
@@ -2048,14 +1682,15 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                     gen_depth,
                 },
             ),
-            PieceTag::MineshaftCrossing {
-                bounds,
-                gen_depth,
+            SavedPiece::MineshaftCrossing {
+                header: GridTag {
+                    bounds, gen_depth, ..
+                },
                 mineshaft_type,
                 two_floored,
                 direction,
                 ..
-            } => self.0.mineshaft(
+            } => self.mineshaft(
                 mineshaft_type,
                 MineshaftPiece {
                     kind: MineshaftKind::Crossing { two_floored },
@@ -2064,12 +1699,15 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                     gen_depth,
                 },
             ),
-            PieceTag::MineshaftStairs {
-                bounds,
-                orientation,
-                gen_depth,
+            SavedPiece::MineshaftStairs {
+                header:
+                    GridTag {
+                        bounds,
+                        orientation,
+                        gen_depth,
+                    },
                 mineshaft_type,
-            } => self.0.mineshaft(
+            } => self.mineshaft(
                 mineshaft_type,
                 MineshaftPiece {
                     kind: MineshaftKind::Stairs,
@@ -2078,8 +1716,8 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                     gen_depth,
                 },
             ),
-            PieceTag::Igloo {
-                bounds,
+            SavedPiece::Igloo {
+                header: GridTag { bounds, .. },
                 template_x,
                 template_y,
                 template_z,
@@ -2088,35 +1726,39 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                 ..
             } => {
                 let bounds = box_of(bounds);
+                let template = location::<E>(&template)?;
                 Ok(Piece::Igloo(IglooPiece {
-                    template: IglooTemplate::from_location(&template).ok_or_else(|| {
-                        D::Error::custom(format!("{template} is not an igloo template"))
-                    })?,
+                    template: IglooTemplate::from_location(&template)
+                        .ok_or_else(|| E::custom(format!("{template} is not an igloo template")))?,
                     position: IVec3::new(template_x, bounds.min.y, template_z),
                     rotation,
                     bounds,
                     height: template_y,
                 }))
             }
-            PieceTag::NetherFossil {
-                bounds,
+            SavedPiece::NetherFossil {
+                header: GridTag { bounds, .. },
                 template_x,
                 template_y,
                 template_z,
                 template,
                 rotation,
                 ..
-            } => Ok(Piece::NetherFossil(NetherFossilPiece {
-                template: *self.0.frozen.template_ids.get(&template).ok_or_else(|| {
-                    D::Error::custom(format!("the template {template} is not loaded"))
-                })?,
-                position: IVec3::new(template_x, template_y, template_z),
-                rotation,
-                bounds: box_of(bounds),
-            })),
-            PieceTag::EndCity {
-                bounds,
-                gen_depth,
+            } => {
+                let template = location::<E>(&template)?;
+                Ok(Piece::NetherFossil(NetherFossilPiece {
+                    template: *self.frozen.template_ids.get(&template).ok_or_else(|| {
+                        E::custom(format!("the template {template} is not loaded"))
+                    })?,
+                    position: IVec3::new(template_x, template_y, template_z),
+                    rotation,
+                    bounds: box_of(bounds),
+                }))
+            }
+            SavedPiece::EndCity {
+                header: GridTag {
+                    bounds, gen_depth, ..
+                },
                 template_x,
                 template_y,
                 template_z,
@@ -2128,9 +1770,9 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                 let location = ResourceLocationBuf::minecraft(&format!(
                     "{END_CITY_TEMPLATE_PREFIX}{template}"
                 ))
-                .map_err(D::Error::custom)?;
-                let template = *self.0.frozen.template_ids.get(&location).ok_or_else(|| {
-                    D::Error::custom(format!("the end city template {location} is not loaded"))
+                .map_err(E::custom)?;
+                let template = *self.frozen.template_ids.get(&location).ok_or_else(|| {
+                    E::custom(format!("the end city template {location} is not loaded"))
                 })?;
                 Ok(Piece::EndCity(EndCityPiece {
                     template,
@@ -2141,8 +1783,8 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                     gen_depth,
                 }))
             }
-            PieceTag::WoodlandMansion {
-                bounds,
+            SavedPiece::WoodlandMansion {
+                header: GridTag { bounds, .. },
                 template_x,
                 template_y,
                 template_z,
@@ -2155,9 +1797,9 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                     "{}{template}",
                     WoodlandMansionPiece::TEMPLATE_PREFIX
                 ))
-                .map_err(D::Error::custom)?;
-                let template = *self.0.frozen.template_ids.get(&name).ok_or_else(|| {
-                    D::Error::custom(format!("the mansion template {name} is not loaded"))
+                .map_err(E::custom)?;
+                let template = *self.frozen.template_ids.get(&name).ok_or_else(|| {
+                    E::custom(format!("the mansion template {name} is not loaded"))
                 })?;
                 Ok(Piece::WoodlandMansion(WoodlandMansionPiece {
                     template,
@@ -2167,87 +1809,61 @@ impl<'de> DeserializeSeed<'de> for PieceSeed<'_> {
                     bounds: box_of(bounds),
                 }))
             }
-            PieceTag::StrongholdStart(tag) | PieceTag::StrongholdStairsDown(tag) => {
-                DoorTag::with(tag.bounds, tag.orientation, tag.gen_depth, tag.entry_door).piece(
-                    if tag.source {
-                        StrongholdKind::Start
-                    } else {
-                        StrongholdKind::StairsDown
-                    },
-                )
+            SavedPiece::StrongholdStart(tag) | SavedPiece::StrongholdStairsDown(tag) => DoorTag {
+                header: tag.header,
+                entry_door: tag.entry_door,
             }
-            PieceTag::StrongholdStraight {
-                bounds,
-                orientation,
-                gen_depth,
+            .piece(if tag.source {
+                StrongholdKind::Start
+            } else {
+                StrongholdKind::StairsDown
+            }),
+            SavedPiece::StrongholdStraight {
+                header,
                 entry_door,
                 left,
                 right,
-            } => DoorTag::with(bounds, orientation, gen_depth, entry_door)
-                .piece(StrongholdKind::Straight { left, right }),
-            PieceTag::StrongholdPrisonHall(door) => door.piece(StrongholdKind::PrisonHall),
-            PieceTag::StrongholdLeftTurn(door) => door.piece(StrongholdKind::LeftTurn),
-            PieceTag::StrongholdRightTurn(door) => door.piece(StrongholdKind::RightTurn),
-            PieceTag::StrongholdRoomCrossing {
-                bounds,
-                orientation,
-                gen_depth,
+            } => DoorTag { header, entry_door }.piece(StrongholdKind::Straight { left, right }),
+            SavedPiece::StrongholdPrisonHall(door) => door.piece(StrongholdKind::PrisonHall),
+            SavedPiece::StrongholdLeftTurn(door) => door.piece(StrongholdKind::LeftTurn),
+            SavedPiece::StrongholdRightTurn(door) => door.piece(StrongholdKind::RightTurn),
+            SavedPiece::StrongholdRoomCrossing {
+                header,
                 entry_door,
                 variant,
-            } => DoorTag::with(bounds, orientation, gen_depth, entry_door)
-                .piece(StrongholdKind::RoomCrossing { variant }),
-            PieceTag::StrongholdStraightStairsDown(door) => {
+            } => DoorTag { header, entry_door }.piece(StrongholdKind::RoomCrossing { variant }),
+            SavedPiece::StrongholdStraightStairsDown(door) => {
                 door.piece(StrongholdKind::StraightStairsDown)
             }
-            PieceTag::StrongholdFiveCrossing {
-                bounds,
-                orientation,
-                gen_depth,
+            SavedPiece::StrongholdFiveCrossing {
+                header,
                 entry_door,
                 left_low,
                 left_high,
                 right_low,
                 right_high,
-            } => DoorTag::with(bounds, orientation, gen_depth, entry_door).piece(
-                StrongholdKind::FiveCrossing {
-                    left_low,
-                    left_high,
-                    right_low,
-                    right_high,
-                },
-            ),
-            PieceTag::StrongholdChestCorridor {
-                bounds,
-                orientation,
-                gen_depth,
-                entry_door,
-                ..
-            } => DoorTag::with(bounds, orientation, gen_depth, entry_door)
-                .piece(StrongholdKind::ChestCorridor),
-            PieceTag::StrongholdLibrary {
-                bounds,
-                orientation,
-                gen_depth,
+            } => DoorTag { header, entry_door }.piece(StrongholdKind::FiveCrossing {
+                left_low,
+                left_high,
+                right_low,
+                right_high,
+            }),
+            SavedPiece::StrongholdChestCorridor {
+                header, entry_door, ..
+            } => DoorTag { header, entry_door }.piece(StrongholdKind::ChestCorridor),
+            SavedPiece::StrongholdLibrary {
+                header,
                 entry_door,
                 tall,
-            } => DoorTag::with(bounds, orientation, gen_depth, entry_door)
-                .piece(StrongholdKind::Library { tall }),
-            PieceTag::StrongholdPortalRoom {
-                bounds,
-                orientation,
-                gen_depth,
-                entry_door,
-                ..
-            } => DoorTag::with(bounds, orientation, gen_depth, entry_door)
-                .piece(StrongholdKind::PortalRoom),
-            PieceTag::StrongholdFillerCorridor {
-                bounds,
-                orientation,
-                gen_depth,
+            } => DoorTag { header, entry_door }.piece(StrongholdKind::Library { tall }),
+            SavedPiece::StrongholdPortalRoom {
+                header, entry_door, ..
+            } => DoorTag { header, entry_door }.piece(StrongholdKind::PortalRoom),
+            SavedPiece::StrongholdFillerCorridor {
+                header,
                 entry_door,
                 steps,
-            } => DoorTag::with(bounds, orientation, gen_depth, entry_door)
-                .piece(StrongholdKind::FillerCorridor { steps }),
+            } => DoorTag { header, entry_door }.piece(StrongholdKind::FillerCorridor { steps }),
         }
     }
 }
@@ -2264,7 +1880,9 @@ mod tests {
     use crate::Structure;
     use crate::frozen::{FrozenStructure, PoolId};
     use mcrs_minecraft_block_predicate::provider::Holder;
+    use mcrs_minecraft_nbt::compound::NbtCompound;
     use mcrs_minecraft_nbt::deserializer::Deserializer as NbtDeserializer;
+    use mcrs_minecraft_nbt::tag::NbtTag;
     use mcrs_minecraft_nbt::{to_bytes, to_nbt_compound};
     use mcrs_minecraft_resource::rl;
     use mcrs_minecraft_worldgen_feature::placement::DecorationStep;
@@ -2802,7 +2420,7 @@ mod tests {
     }
 
     #[test]
-    fn the_monument_building_round_trips_without_its_rooms() {
+    fn the_monument_building_round_trips_with_its_room_graph() {
         let frozen = frozen(LiquidSettings::ApplyWaterlogging);
         let context = PieceContext {
             frozen: &frozen,
@@ -2832,13 +2450,49 @@ mod tests {
         assert_eq!(tag.get_string("id"), Some("minecraft:omb"));
         assert_eq!(tag.get_int("O"), Some(3));
         assert_eq!(tag.get_int("GD"), Some(0));
-        assert_eq!(tag.child_tags.len(), 4);
+        assert_eq!(tag.child_tags.len(), 6);
         let Piece::OceanMonument(loaded) = round_trip(&context, &piece) else {
             panic!("not a monument");
         };
-        assert_eq!(loaded.bounds, bounds);
-        assert_eq!(loaded.orientation, Orientation::East);
-        assert!(loaded.rooms.is_empty() && loaded.children.is_empty());
+        let Piece::OceanMonument(expected) = piece else {
+            panic!("not a monument");
+        };
+        assert_eq!(loaded, expected);
+    }
+
+    #[test]
+    fn a_monument_saved_without_the_room_extension_loads_without_a_graph() {
+        let frozen = frozen(LiquidSettings::ApplyWaterlogging);
+        let context = PieceContext {
+            frozen: &frozen,
+            structure: StructureId(0),
+        };
+        let piece = Piece::OceanMonument(OceanMonumentPiece {
+            bounds: BoundingBox::point(BlockPos::new(1, 2, 3)),
+            orientation: Orientation::North,
+            rooms: vec![MonumentRoom {
+                index: 10,
+                has_opening: [true; 6],
+                connections: [Some(0); 6],
+            }],
+            children: vec![MonumentChild {
+                kind: MonumentRoomKind::Penthouse,
+                bounds: BoundingBox::point(BlockPos::new(1, 2, 3)),
+            }],
+        });
+        let mut tag = to_nbt_compound(&piece.nbt(&context)).unwrap();
+        tag.child_tags
+            .retain(|(name, _)| name != "mcrs:rooms" && name != "mcrs:children");
+        let mut bytes = Vec::new();
+        to_bytes(&mcrs_minecraft_nbt::tag::NbtTag::Compound(tag), &mut bytes).unwrap();
+        let loaded = PieceSeed(context)
+            .deserialize(&mut NbtDeserializer::new(Cursor::new(bytes), true))
+            .unwrap();
+        let Piece::OceanMonument(loaded) = loaded else {
+            panic!("not a monument");
+        };
+        assert!(loaded.rooms.is_empty());
+        assert!(loaded.children.is_empty());
     }
 
     #[test]
@@ -2910,6 +2564,257 @@ mod tests {
         ] {
             let mut deserializer = serde_json::Deserializer::from_str(&json);
             assert!(PieceSeed(context).deserialize(&mut deserializer).is_err(), "{json}");
+        }
+    }
+
+    fn sorted_tag(tag: &NbtTag) -> NbtTag {
+        match tag {
+            NbtTag::Compound(compound) => {
+                let mut entries: Vec<_> = compound
+                    .child_tags
+                    .iter()
+                    .map(|(key, value)| (key.clone(), sorted_tag(value)))
+                    .collect();
+                entries.sort_by(|a, b| a.0.cmp(&b.0));
+                NbtTag::Compound(NbtCompound {
+                    child_tags: entries,
+                })
+            }
+            NbtTag::List(items) => NbtTag::List(items.iter().map(sorted_tag).collect()),
+            other => other.clone(),
+        }
+    }
+
+    fn saved_piece(id: &str, keys: Vec<(&str, NbtTag)>) -> NbtCompound {
+        let mut piece = NbtCompound::new();
+        piece.put_string("id", format!("minecraft:{id}"));
+        piece.put("BB", NbtTag::IntArray(vec![1, 2, 3, 4, 5, 6]));
+        piece.put_int("O", 1);
+        piece.put_int("GD", 3);
+        for (key, value) in keys {
+            piece.put(key, value);
+        }
+        piece
+    }
+
+    fn flags(keys: &[&'static str]) -> Vec<(&'static str, NbtTag)> {
+        keys.iter().map(|key| (*key, NbtTag::Byte(1))).collect()
+    }
+
+    fn ints(keys: &[&'static str]) -> Vec<(&'static str, NbtTag)> {
+        keys.iter().map(|key| (*key, NbtTag::Int(7))).collect()
+    }
+
+    fn door(mut keys: Vec<(&'static str, NbtTag)>) -> Vec<(&'static str, NbtTag)> {
+        keys.insert(0, ("EntryDoor", NbtTag::String("WOOD_DOOR".to_owned())));
+        keys
+    }
+
+    fn template(mut keys: Vec<(&'static str, NbtTag)>) -> Vec<(&'static str, NbtTag)> {
+        keys.extend(ints(&["TPX", "TPY", "TPZ"]));
+        keys.push(("Template", NbtTag::String("minecraft:igloo/top".to_owned())));
+        keys
+    }
+
+    fn rot(mut keys: Vec<(&'static str, NbtTag)>) -> Vec<(&'static str, NbtTag)> {
+        keys.push(("Rot", NbtTag::String("CLOCKWISE_90".to_owned())));
+        keys
+    }
+
+    fn size(mut keys: Vec<(&'static str, NbtTag)>) -> Vec<(&'static str, NbtTag)> {
+        keys.extend(ints(&["Width", "Height", "Depth", "HPos"]));
+        keys
+    }
+
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one entry per piece type id of the saved layout"
+    )]
+    fn every_piece_type() -> Vec<NbtCompound> {
+        let mut pieces = Vec::new();
+        let mut add = |id: &str, keys: Vec<(&str, NbtTag)>| pieces.push(saved_piece(id, keys));
+        let mut corridor = flags(&["hr", "sc", "hps"]);
+        corridor.extend(ints(&["Num", "MST"]));
+        add("mscorridor", corridor);
+        let mut crossing = flags(&["tf"]);
+        crossing.push(("D", NbtTag::Byte(3)));
+        crossing.push(("MST", NbtTag::Int(1)));
+        add("mscrossing", crossing);
+        add(
+            "msroom",
+            vec![
+                (
+                    "Entrances",
+                    NbtTag::List(vec![NbtTag::IntArray(vec![1, 2, 3, 4, 5, 6])]),
+                ),
+                ("MST", NbtTag::Int(1)),
+            ],
+        );
+        add("msstairs", ints(&["MST"]));
+        for id in [
+            "nebcr",
+            "nebs",
+            "neccs",
+            "nectb",
+            "nece",
+            "nescsc",
+            "nesc",
+            "necsr",
+            "nerc",
+            "nesr",
+            "nestart",
+            "btp",
+            "omcr",
+            "omdxr",
+            "omdxyr",
+            "omdyr",
+            "omdyzr",
+            "omdzr",
+            "omentry",
+            "ompenthouse",
+            "omsimple",
+            "omsimplet",
+            "omwr",
+        ] {
+            add(id, Vec::new());
+        }
+        add("nebef", ints(&["Seed"]));
+        add("nesclt", flags(&["Chest"]));
+        add("nescrt", flags(&["Chest"]));
+        add("nemt", flags(&["Mob"]));
+        add("shcc", door(flags(&["Chest"])));
+        add("shfc", door(ints(&["Steps"])));
+        add(
+            "sh5c",
+            door(flags(&["leftLow", "leftHigh", "rightLow", "rightHigh"])),
+        );
+        for id in ["shlt", "shrt", "shph", "shssd"] {
+            add(id, door(Vec::new()));
+        }
+        add("shli", door(flags(&["Tall"])));
+        add("shpr", door(flags(&["Mob"])));
+        add("shrc", door(ints(&["Type"])));
+        add("shsd", door(flags(&["Source"])));
+        add("shstart", door(flags(&["Source"])));
+        add("shs", door(flags(&["Left", "Right"])));
+        add(
+            "tejp",
+            size(flags(&[
+                "placedMainChest",
+                "placedHiddenChest",
+                "placedTrap1",
+                "placedTrap2",
+            ])),
+        );
+        add(
+            "tedp",
+            size(flags(&[
+                "hasPlacedChest0",
+                "hasPlacedChest1",
+                "hasPlacedChest2",
+                "hasPlacedChest3",
+            ])),
+        );
+        add("tesh", size(flags(&["Witch", "Cat"])));
+        let mut room = NbtCompound::new();
+        room.put_int("index", 4);
+        room.put("openings", NbtTag::ByteArray(vec![1, 0, 1, 0, 1, 0].into()));
+        room.put("connections", NbtTag::IntArray(vec![-1, 2, -1, 3, -1, 5]));
+        let child = |kind: &str, extra: &[(&str, i32)]| {
+            let mut child = NbtCompound::new();
+            child.put_string("kind", kind.to_owned());
+            child.put("bounds", NbtTag::IntArray(vec![1, 2, 3, 4, 5, 6]));
+            for (key, value) in extra {
+                child.put_int(key, *value);
+            }
+            NbtTag::Compound(child)
+        };
+        add(
+            "omb",
+            vec![
+                ("mcrs:rooms", NbtTag::List(vec![NbtTag::Compound(room)])),
+                (
+                    "mcrs:children",
+                    NbtTag::List(vec![
+                        child("simple", &[("room", 4), ("design", 2)]),
+                        child("wing", &[("design", 1)]),
+                        child("penthouse", &[]),
+                        child("double_xy", &[("room", 5)]),
+                    ]),
+                ),
+            ],
+        );
+        add("iglu", rot(template(Vec::new())));
+        add("nefos", rot(template(Vec::new())));
+        let mut shipwreck = flags(&["isBeached", "height_adjusted"]);
+        shipwreck.extend(template(Vec::new()));
+        add("shipwreck", rot(shipwreck));
+        let mut ruin = template(Vec::new());
+        ruin.push(("Integrity", NbtTag::Float(0.5)));
+        ruin.push(("BiomeType", NbtTag::String("COLD".to_owned())));
+        ruin.extend(flags(&["IsLarge"]));
+        add("orp", rot(ruin));
+        add("ecp", rot(template(flags(&["OW"]))));
+        let mut mansion = template(Vec::new());
+        mansion.push(("Mi", NbtTag::String("LEFT_RIGHT".to_owned())));
+        add("wmp", rot(mansion));
+        let mut properties = NbtCompound::new();
+        for key in [
+            "cold",
+            "air_pocket",
+            "overgrown",
+            "vines",
+            "replace_with_blackstone",
+        ] {
+            properties.put_byte(key, 1);
+        }
+        properties.put_float("mossiness", 0.25);
+        let mut portal = template(Vec::new());
+        portal.push(("Rotation", NbtTag::String("CLOCKWISE_180".to_owned())));
+        portal.push(("Mirror", NbtTag::String("FRONT_BACK".to_owned())));
+        portal.push((
+            "VerticalPlacement",
+            NbtTag::String("partly_buried".to_owned()),
+        ));
+        portal.push(("Properties", NbtTag::Compound(properties)));
+        add("rupo", portal);
+        let mut junction = NbtCompound::new();
+        for key in ["source_x", "source_ground_y", "source_z", "delta_y"] {
+            junction.put_int(key, 3);
+        }
+        junction.put_string("dest_proj", "rigid".to_owned());
+        let mut element = NbtCompound::new();
+        element.put_string("element_type", "minecraft:empty_pool_element".to_owned());
+        let mut jigsaw = ints(&["PosX", "PosY", "PosZ", "ground_level_delta"]);
+        jigsaw.push(("pool_element", NbtTag::Compound(element)));
+        jigsaw.push(("rotation", NbtTag::String("NONE".to_owned())));
+        jigsaw.push(("junctions", NbtTag::List(vec![NbtTag::Compound(junction)])));
+        jigsaw.push((
+            "liquid_settings",
+            NbtTag::String("apply_waterlogging".to_owned()),
+        ));
+        add("jigsaw", jigsaw);
+        pieces
+    }
+
+    #[test]
+    fn every_piece_type_loads_and_writes_the_same_compound() {
+        use mcrs_minecraft_nbt::tag_deserializer::from_tag;
+        let pieces = every_piece_type();
+        assert_eq!(
+            pieces.len(),
+            mcrs_minecraft_anvil::structure_piece_keys::StructurePieceType::ALL.len()
+        );
+        for piece in pieces {
+            let id = piece.get_string("id").unwrap().to_owned();
+            let saved: SavedPiece = from_tag(NbtTag::Compound(piece.clone()))
+                .unwrap_or_else(|error| panic!("{id}: {error}"));
+            let written = to_nbt_compound(&saved).unwrap();
+            assert_eq!(
+                sorted_tag(&NbtTag::Compound(written)),
+                sorted_tag(&NbtTag::Compound(piece)),
+                "{id}"
+            );
         }
     }
 }

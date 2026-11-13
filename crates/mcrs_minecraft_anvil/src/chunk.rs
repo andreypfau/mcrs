@@ -1,6 +1,5 @@
 use mcrs_minecraft_core::VERSION;
 use mcrs_voxel::{BlockPos, ColumnPos, LocalPos};
-use std::collections::BTreeMap;
 use std::hash::Hash;
 use std::io::Cursor;
 
@@ -14,9 +13,10 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::ChunkStatus;
 use crate::ErrorKind;
 use crate::palette::{BlockStateList, PaletteLookup};
+use crate::record::{BlendingData, Heightmaps, NoEntities, UpgradeData};
 use crate::retrogen::{RetroGen, Words};
 use crate::structures::{ChunkStructures, DroppedStructure, Structures};
-use crate::ticks::{DroppedFluidTick, FluidTicks, SavedFluidTick};
+use crate::ticks::{BlockTicks, FluidTicks, SavedBlockTick, SavedFluidTick};
 
 pub const LIGHT_BYTES: usize = 2048;
 
@@ -40,24 +40,28 @@ pub struct Chunk {
     pub is_light_on: bool,
     pub inhabited_time: i64,
     pub last_update: i64,
-    pub heightmaps: BTreeMap<String, Vec<i64>>,
+    pub heightmaps: Heightmaps,
+    /// Block entity compounds stay as written; only `id`, `x`, `y` and `z` are checked.
     pub block_entities: Vec<NbtCompound>,
     pub retrogen: Option<RetroGen>,
+    pub post_processing: Vec<Vec<i16>>,
+    pub upgrade_data: UpgradeData,
+    pub blending_data: Option<BlendingData>,
     pub sections: Vec<Section>,
     pub fluid_ticks: Vec<SavedFluidTick>,
+    pub block_ticks: Vec<SavedBlockTick>,
     pub structures: ChunkStructures,
     pub decode_report: ChunkDecodeReport,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ChunkDecodeReport {
-    pub dropped_fluid_ticks: Vec<DroppedFluidTick>,
     pub dropped_structures: Vec<DroppedStructure>,
 }
 
 impl ChunkDecodeReport {
     pub fn is_clean(&self) -> bool {
-        self.dropped_fluid_ticks.is_empty() && self.dropped_structures.is_empty()
+        self.dropped_structures.is_empty()
     }
 }
 
@@ -90,7 +94,7 @@ impl Chunk {
         let previous = states.set_local(LocalPos::new(x as u8, y as u8, z as u8), state);
         if previous != state {
             self.is_light_on = false;
-            self.heightmaps.clear();
+            self.heightmaps = Heightmaps::default();
             for section in &mut self.sections {
                 section.block_light = None;
                 section.sky_light = None;
@@ -113,6 +117,7 @@ pub(crate) struct RawPalettedContainer {
 }
 
 #[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct RawSection {
     #[serde(rename = "Y", default)]
     pub(crate) y: i8,
@@ -139,27 +144,24 @@ pub(crate) struct RawSection {
 }
 
 #[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct RawChunk<'a> {
     #[serde(rename = "DataVersion")]
     pub(crate) data_version: i32,
-    #[serde(rename = "xPos")]
+    #[serde(rename = "xPos", default)]
     pub(crate) x_pos: i32,
-    #[serde(rename = "zPos")]
+    #[serde(rename = "zPos", default)]
     pub(crate) z_pos: i32,
-    /// Each section carries its own `Y`, so the load never reads this.
-    #[serde(rename = "yPos", skip_deserializing)]
+    /// Each section carries its own `Y`, so the load never uses this.
+    #[serde(rename = "yPos", default)]
     pub(crate) y_pos: i32,
-    pub(crate) status: ChunkStatus,
     #[serde(default)]
-    pub(crate) sections: Vec<RawSection>,
-    #[serde(
-        rename = "Heightmaps",
-        default,
-        skip_serializing_if = "BTreeMap::is_empty",
-        serialize_with = "long_array_map"
-    )]
-    pub(crate) heightmaps: BTreeMap<String, Vec<i64>>,
-    /// Vanilla writes the flag only when set.
+    pub(crate) status: Option<ChunkStatus>,
+    #[serde(rename = "LastUpdate", default)]
+    pub(crate) last_update: i64,
+    #[serde(rename = "InhabitedTime", default)]
+    pub(crate) inhabited_time: i64,
+    /// The game writes the flag only when set.
     #[serde(
         rename = "isLightOn",
         default,
@@ -167,32 +169,31 @@ pub(crate) struct RawChunk<'a> {
     )]
     pub(crate) is_light_on: bool,
     #[serde(default)]
+    pub(crate) sections: Vec<RawSection>,
+    #[serde(default)]
     pub(crate) block_entities: Vec<NbtCompound>,
-    #[serde(rename = "InhabitedTime", default)]
-    pub(crate) inhabited_time: i64,
-    #[serde(rename = "LastUpdate", default)]
-    pub(crate) last_update: i64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(crate) retrogen: Option<RetroGen>,
+    pub(crate) entities: Option<NoEntities>,
+    #[serde(rename = "Heightmaps", default)]
+    pub(crate) heightmaps: Heightmaps,
     #[serde(default)]
     pub(crate) fluid_ticks: FluidTicks<'a>,
     #[serde(default)]
+    pub(crate) block_ticks: BlockTicks<'a>,
+    #[serde(rename = "PostProcessing", default)]
+    pub(crate) post_processing: Vec<Vec<i16>>,
+    #[serde(default)]
     pub(crate) structures: Structures<'a>,
-}
-
-fn long_array_map<S: Serializer>(
-    map: &BTreeMap<String, Vec<i64>>,
-    serializer: S,
-) -> Result<S::Ok, S::Error> {
-    struct LongArray<'a>(&'a [i64]);
-
-    impl Serialize for LongArray<'_> {
-        fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-            mcrs_minecraft_nbt::nbt_long_array(self.0, serializer)
-        }
-    }
-
-    serializer.collect_map(map.iter().map(|(name, data)| (name, LongArray(data))))
+    #[serde(
+        rename = "UpgradeData",
+        default,
+        skip_serializing_if = "UpgradeData::is_empty"
+    )]
+    pub(crate) upgrade_data: UpgradeData,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) blending_data: Option<BlendingData>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) retrogen: Option<RetroGen>,
 }
 
 #[derive(Deserialize)]
@@ -222,6 +223,15 @@ pub fn parse(
     blocks: &impl PaletteLookup<VoxelId>,
     biomes: &impl PaletteLookup<u8>,
 ) -> Result<Chunk, ErrorKind> {
+    parse_column(nbt, blocks, biomes)?.ok_or(ErrorKind::MissingStatus)
+}
+
+/// The chunk of a record, or `None` when the record has no `status`.
+pub(crate) fn parse_column(
+    nbt: &[u8],
+    blocks: &impl PaletteLookup<VoxelId>,
+    biomes: &impl PaletteLookup<u8>,
+) -> Result<Option<Chunk>, ErrorKind> {
     let raw: RawChunk<'static> = match mcrs_minecraft_nbt::from_bytes(Cursor::new(nbt)) {
         Ok(raw) => raw,
         Err(err) => return Err(wrong_version(nbt).unwrap_or_else(|| err.into())),
@@ -232,31 +242,51 @@ pub fn parse(
             expected: VERSION.world_version,
         });
     }
-    let keeps_noise_biomes = raw.status != ChunkStatus::Full;
+    let Some(status) = raw.status else {
+        return Ok(None);
+    };
+    for entry in &raw.block_entities {
+        check_block_entity(entry)?;
+    }
+    let keeps_noise_biomes = status != ChunkStatus::Full;
     let pos = ColumnPos::new(raw.x_pos, raw.z_pos);
-    let (fluid_ticks, dropped_fluid_ticks) = raw.fluid_ticks.within(pos);
+    let fluid_ticks = raw.fluid_ticks.within(pos);
+    let block_ticks = raw.block_ticks.within(pos);
     let (structures, dropped_structures) = raw.structures.within(pos);
-    Ok(Chunk {
+    Ok(Some(Chunk {
         pos,
-        status: raw.status,
+        status,
         is_light_on: raw.is_light_on,
         inhabited_time: raw.inhabited_time,
         last_update: raw.last_update,
         heightmaps: raw.heightmaps,
         block_entities: raw.block_entities,
         retrogen: raw.retrogen,
+        post_processing: raw.post_processing,
+        upgrade_data: raw.upgrade_data,
+        blending_data: raw.blending_data,
         fluid_ticks,
+        block_ticks,
         structures,
-        decode_report: ChunkDecodeReport {
-            dropped_fluid_ticks,
-            dropped_structures,
-        },
+        decode_report: ChunkDecodeReport { dropped_structures },
         sections: raw
             .sections
             .into_iter()
             .map(|section| parse_section(section, keeps_noise_biomes, blocks, biomes))
             .collect::<Result<_, _>>()?,
-    })
+    }))
+}
+
+fn check_block_entity(entry: &NbtCompound) -> Result<(), ErrorKind> {
+    if entry.get_string("id").is_none() {
+        return Err(ErrorKind::BlockEntityKey { key: "id" });
+    }
+    for key in ["x", "y", "z"] {
+        if entry.get_int(key).is_none() {
+            return Err(ErrorKind::BlockEntityKey { key });
+        }
+    }
+    Ok(())
 }
 
 fn parse_section(

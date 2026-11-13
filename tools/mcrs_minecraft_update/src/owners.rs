@@ -3,6 +3,7 @@ use crate::keys::{Owner, ValueType};
 /// The owners that list their own static registries: the catalog stays below world generation,
 /// so it cannot depend on them.
 pub const OWN_LISTS: &[&str] = &[
+    "mcrs_minecraft_anvil",
     "mcrs_minecraft_game_registries",
     "mcrs_minecraft_worldgen_carver",
     "mcrs_minecraft_worldgen_density",
@@ -359,7 +360,7 @@ pub const OWNERS: &[Owner] = &[
     },
     Owner {
         registry: "minecraft:worldgen/structure_piece",
-        krate: "mcrs_minecraft_worldgen_structure",
+        krate: "mcrs_minecraft_anvil",
         value: ValueType::Enum("StructurePieceType"),
     },
     Owner {

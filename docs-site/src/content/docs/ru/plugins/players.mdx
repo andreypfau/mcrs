@@ -26,11 +26,11 @@ import { Aside } from '@astrojs/starlight/components';
 
 `GameProfile` - профиль, с которым клиент вошел на сервер:
 
-<Example file="crates/mcrs_minecraft_engine/src/game_profile.rs" from={"#[derive(Debug, Clone, Component)]\npub struct GameProfile"} title="GameProfile" />
+<Example file="crates/mcrs_minecraft_engine/src/game_profile.rs" from={"#[derive(Debug, Clone, Component, serde::Serialize, serde::Deserialize)]\npub struct GameProfile"} title="GameProfile" />
 
 Режим игры, состояние полета и уровень оператора лежат в одном файле:
 
-<Example file="crates/mcrs_minecraft_engine/src/ability.rs" from={"#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut)]\npub struct PlayerGameMode"} to="pub struct PlayerFlying" title="PlayerGameMode и PlayerFlying" />
+<Example file="crates/mcrs_minecraft_engine/src/ability.rs" from={"/// The game mode of a player.\n#[derive("} to="pub struct PlayerFlying" title="PlayerGameMode и PlayerFlying" />
 
 `PlayerOpLevel` в том же файле хранит уровень оператора, от 0 для игрока без прав оператора до 4. Тестовое окружение читает режим игры так:
 

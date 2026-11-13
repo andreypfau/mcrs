@@ -16,6 +16,7 @@ use crate::coordinator::dim_cells::DimCellsPlugin;
 use crate::coordinator::ops::OpListHostPlugin;
 use crate::server_edit::ServerStateHostPlugin;
 use crate::whitelist::WhitelistHostPlugin;
+use crate::world_state::WorldStatePlugin;
 
 /// The coordinator: the dimension worlds and their lockstep tick, the queues that spawn and
 /// despawn them, the clocks, the whitelist, the ban list and the operators.
@@ -38,6 +39,7 @@ impl Plugin for CoordinatorPlugin {
             BanListHostPlugin,
             OpListHostPlugin,
             ServerStateHostPlugin,
+            WorldStatePlugin,
         ));
         app.add_systems(
             OnEnter(AppState::Playing),

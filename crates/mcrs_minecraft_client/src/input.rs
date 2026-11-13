@@ -4,6 +4,7 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use mcrs_minecraft_engine_world::entity::physics::{OldTransform, Transform as PhysicsTransform};
 
 use mcrs_minecraft_client_gui::menu_screens_plugin::MenuScreensPlugin;
+use mcrs_minecraft_client_options::ClientOptions;
 use mcrs_minecraft_client_world::attack_input::AttackInput;
 use mcrs_minecraft_client_world::local_player::{FlyingSpeed, LocalPlayerTick};
 use mcrs_minecraft_client_world::movement_input::MovementInput;
@@ -14,8 +15,8 @@ const FLY_SPEED_STEP: f64 = 0.05;
 const FLY_SPEED_MIN: f64 = 0.0;
 const FLY_SPEED_MAX: f64 = 2.0;
 
-/// Degrees of turn per pixel of mouse motion.
-const LOOK_SENSITIVITY: f32 = 0.15;
+/// Degrees of turn for each unit of mouse motion at a turn factor of 1.
+const DEGREES_PER_MOTION_UNIT: f32 = 0.15;
 
 pub struct ClientInputPlugin;
 
@@ -34,6 +35,8 @@ impl Plugin for ClientInputPlugin {
                     read_fly_speed_wheel,
                 ),
             );
+        #[cfg(not(target_family = "wasm"))]
+        app.add_systems(Update, toggle_fullscreen);
     }
 
     fn finish(&self, app: &mut App) {
@@ -127,8 +130,25 @@ fn screen_is_none(screen: Option<Res<Screen>>) -> bool {
     screen.is_none_or(|screen| *screen == Screen::None)
 }
 
+/// F11 inverts Fullscreen, also while a screen or an edit box has the keys, but not while F3 is
+/// down (MENU-DISP-005).
+#[cfg(not(target_family = "wasm"))]
+fn toggle_fullscreen(keys: Res<ButtonInput<KeyCode>>, mut options: ResMut<ClientOptions>) {
+    if keys.just_pressed(KeyCode::F11) && !keys.pressed(KeyCode::F3) {
+        options.fullscreen = !options.fullscreen;
+    }
+}
+
+/// Degrees of turn for each unit of mouse motion at the sensitivity `sensitivity`
+/// (CTRL-TURN-002).
+fn degrees_per_motion_unit(sensitivity: f32) -> f32 {
+    let factor = 0.6 * sensitivity + 0.2;
+    DEGREES_PER_MOTION_UNIT * 8.0 * factor.powi(3)
+}
+
 pub(crate) fn apply_mouse_look(
     motion: Res<AccumulatedMouseMotion>,
+    options: Res<ClientOptions>,
     window: Single<&CursorOptions, With<PrimaryWindow>>,
     player: Single<(&mut PhysicsTransform, &mut OldTransform), With<Player>>,
 ) {
@@ -136,11 +156,25 @@ pub(crate) fn apply_mouse_look(
         return;
     }
     let (mut transform, mut previous) = player.into_inner();
-    let before = transform.rotation;
-    let yaw = motion.delta.x * LOOK_SENSITIVITY;
-    transform.rotation = before.turn(yaw, motion.delta.y * LOOK_SENSITIVITY);
+    let turn = motion.delta * degrees_per_motion_unit(options.sensitivity);
+    transform.rotation = transform.rotation.turn(turn.x, turn.y);
     // The previous look turns with the current one, so the frame shows the turn at once and
     // only a turn that a tick makes is interpolated.
-    let pitch = transform.rotation.pitch() - before.pitch();
-    previous.0.rotation = previous.rotation.turn(yaw, pitch);
+    previous.0.rotation = previous.rotation.turn(turn.x, turn.y);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_sensitivity_sets_the_degrees_of_each_unit_of_motion() {
+        for (sensitivity, degrees) in [(0.0, 0.0096), (0.5, 0.15), (1.0, 0.6144)] {
+            let turned = degrees_per_motion_unit(sensitivity);
+            assert!(
+                (turned - degrees).abs() <= degrees * 1e-6,
+                "sensitivity {sensitivity}: {turned} degrees"
+            );
+        }
+    }
 }
