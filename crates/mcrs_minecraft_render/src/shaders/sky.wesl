@@ -204,15 +204,15 @@ fn fragment_disc(in: SkyVertex) -> @location(0) vec4<f32> {
 
 struct OccluderVertex {
     @builtin(position) clip_position: vec4<f32>,
-    @location(0) world: vec3<f32>,
+    @location(0) direction: vec3<f32>,
 };
 
 @vertex
 fn vertex_occluder(@builtin(vertex_index) index: u32) -> OccluderVertex {
     let ndc = vec2<f32>(f32((index << 1u) & 2u), f32(index & 2u)) * 2.0 - 1.0;
-    let near = view.world_from_clip * vec4<f32>(ndc, 1.0, 1.0);
+    let near = view.view_from_clip * vec4<f32>(ndc, 1.0, 1.0);
     var out: OccluderVertex;
-    out.world = near.xyz / near.w;
+    out.direction = (view.world_from_view * vec4<f32>(near.xyz / near.w, 0.0)).xyz;
     out.clip_position = vec4<f32>(ndc, 1.0, 1.0);
     return out;
 }
@@ -225,7 +225,7 @@ fn ramp_smooth(low: f32, high: f32, x: f32) -> f32 {
 
 @fragment
 fn fragment_occluder(in: OccluderVertex) -> @location(0) vec4<f32> {
-    let direction = normalize(in.world - view.world_position.xyz);
+    let direction = normalize(in.direction);
     let elevation = degrees(asin(clamp(direction.y, -1.0, 1.0)));
     let alpha = ramp_smooth(sky.occluder.x, sky.occluder.y, elevation) * sky.occluder.z;
     return vec4<f32>(sky.fog.rgb, alpha);
