@@ -1,3 +1,4 @@
+use bevy_ecs::entity::Entity;
 use mcrs_minecraft_inventory_plan::MAX_OPS;
 use mcrs_minecraft_inventory_plan::Op;
 
@@ -11,7 +12,7 @@ use crate::SlotRef;
 #[derive(Clone, Debug, PartialEq)]
 pub struct Request {
     id: RequestId,
-    ops: [Option<Op<SlotRef>>; MAX_OPS],
+    ops: [Option<Op<SlotRef, Entity>>; MAX_OPS],
     len: usize,
 }
 
@@ -43,18 +44,28 @@ impl Request {
         self.with(Op::Swap { left, right })
     }
 
+    /// Puts the stack entity `stack` with the count `count` in `slot`, or the empty stack for
+    /// `None` or the count 0, past every filter and slot limit; the stack that `slot` held ends.
+    /// A stack that has no place moves to the slot; the slot gets a copy of each other stack. An
+    /// entity that is not a stack sets the empty stack. It makes and destroys items, so only an
+    /// edge adds it.
+    #[must_use]
+    pub fn set(self, slot: SlotRef, stack: Option<Entity>, count: u8) -> Self {
+        self.with(Op::Set { slot, stack, count })
+    }
+
     pub(crate) fn id(&self) -> RequestId {
         self.id
     }
 
     /// The operations in order. A request with more than [`MAX_OPS`] operations gives one more,
     /// so that the planner rejects it.
-    pub(crate) fn ops(&self) -> impl Iterator<Item = Op<SlotRef>> + '_ {
+    pub(crate) fn ops(&self) -> impl Iterator<Item = Op<SlotRef, Entity>> + '_ {
         let past_max = (self.ops.last().copied().flatten()).filter(|_| self.len > MAX_OPS);
         self.ops.iter().flatten().copied().chain(past_max)
     }
 
-    fn with(mut self, op: Op<SlotRef>) -> Self {
+    fn with(mut self, op: Op<SlotRef, Entity>) -> Self {
         if let Some(free) = self.ops.get_mut(self.len) {
             *free = Some(op);
         }

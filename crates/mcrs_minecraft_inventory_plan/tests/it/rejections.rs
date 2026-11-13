@@ -1,11 +1,11 @@
 use mcrs_minecraft_inventory_plan::MAX_OPS;
-use mcrs_minecraft_inventory_plan::Op;
 use mcrs_minecraft_inventory_plan::Plan;
 use mcrs_minecraft_inventory_plan::Reason;
 use mcrs_minecraft_inventory_plan::Reason::*;
 use mcrs_minecraft_inventory_plan::Rejected;
 
 use crate::holder::DIRT_HANDLE;
+use crate::holder::Operation;
 use crate::holder::STONE_HANDLE;
 use crate::holder::Slot;
 use crate::holder::dirt;
@@ -19,6 +19,7 @@ use crate::holder::pearl;
 use crate::holder::refusing;
 use crate::holder::request;
 use crate::holder::request_in;
+use crate::holder::set;
 use crate::holder::split;
 use crate::holder::stone;
 use crate::holder::swap;
@@ -26,12 +27,12 @@ use crate::holder::swap;
 struct Case {
     name: &'static str,
     slots: Vec<Slot>,
-    ops: Vec<Op<usize>>,
+    ops: Vec<Operation>,
     op: usize,
     reason: Reason,
 }
 
-fn first(name: &'static str, slots: Vec<Slot>, op: Op<usize>, reason: Reason) -> Case {
+fn first(name: &'static str, slots: Vec<Slot>, op: Operation, reason: Reason) -> Case {
     Case {
         name,
         slots,
@@ -60,6 +61,13 @@ fn single_reason_cases() -> Vec<Case> {
             "split to a missing slot",
             stone_and_empty(),
             split(0, 9, 1),
+            NoSuchSlot,
+        ),
+        first(
+            // INV-CRE-001
+            "set of a missing slot",
+            stone_and_empty(),
+            set(9, stone(1), 1),
             NoSuchSlot,
         ),
         first(
@@ -411,7 +419,7 @@ fn a_rejection_has_the_first_reason_of_the_first_operation_that_fails() {
     }
 }
 
-fn swaps(count: usize) -> impl Iterator<Item = Op<usize>> {
+fn swaps(count: usize) -> impl Iterator<Item = Operation> {
     (0..count).map(|_| swap(0, 1))
 }
 
