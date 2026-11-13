@@ -1608,11 +1608,13 @@ Decides: MENU-VAL-011, MENU-DISP-003, MENU-DISP-005.
      frame in which the client information made from the stored options differs from the last
      `client_information` that the client sent, in the configuration state or in the play state.
      The left button and a write that runs do not delay this.
-  8. Step 7 applies from the first frame of the play state. Thus, when the stored options change
-     while the connection is not in the play state, the client sends one `client_information`
-     with the current value in the first frame of the play state. When a value changes and then
-     becomes equal to the value of the last `client_information` again before the play state
-     starts, the client sends nothing.
+  8. Step 7 applies from the first frame of the play state. Thus, after a change of the stored
+     options while the connection is not in the play state, the client sends one
+     `client_information` in the first frame of the play state only when the client information
+     made from the stored options then differs from the last `client_information`. A change of
+     an option that is not in the client information, for example Sensitivity, sends nothing.
+     When a value changes and then becomes equal to the value of the last `client_information`
+     again before the play state starts, the client sends nothing.
   9. When the client information is equal to the last `client_information`, the client sends
      nothing. This applies to the start of the play state, a write of the options file, the
      removal of a screen and the stop of the client.
@@ -1655,8 +1657,9 @@ Decides: MENU-VAL-011, MENU-DISP-003, MENU-DISP-005.
     to the last `client_information`. The reference sends one at the first moment of
     MENU-SAVE-001 in the play state.
   - After a change of Render Distance outside the play state, a server gets the new value in the
-    first frame of the play state. The reference sends it at the first moment of MENU-SAVE-001
-    in the play state.
+    first frame of the play state when that value differs from the value of the last
+    `client_information`. The reference sends it at the first moment of MENU-SAVE-001 in the
+    play state.
 - **Test:** a differential test does not compare the time of the options file. It does not
   compare the moments of `client_information` in the play state (MENU-EXP-08, MENU-EXP-11,
   MENU-EXP-12). It compares the values in the file after the left button is up and each write
