@@ -1,12 +1,12 @@
 ---
 title: Worlds and saves
-description: What the server does with a Java world folder, how a new world is made, what is saved today (players) and what is not (chunks), and how data packs fit in.
+description: What the server does with a Java world folder, how a new world is made, when and how it saves the world, and how data packs fit in.
 sidebar:
   order: 1
 kind: explanation
 audience: [admin, jvm]
 stability: changing
-tracking: [78, 169, 316, 388]
+tracking: [316, 388]
 sources:
   - src/main.rs
   - crates/mcrs_minecraft_engine_server/src/world_options.rs
@@ -14,12 +14,12 @@ sources:
   - crates/mcrs_minecraft_anvil/src/lib.rs
   - crates/mcrs_minecraft_save/src/player.rs
   - crates/mcrs_minecraft_engine/src/persistence.rs
+  - crates/mcrs_minecraft_region_disk/src/lib.rs
+  - crates/mcrs_minecraft_engine_server/src/shutdown.rs
   - crates/mcrs_minecraft_datapack/src/root.rs
   - crates/mcrs_minecraft_game_registries/examples/check_pack.rs
   - tests/it/shutdown.rs
   - assets/minecraft/version.json
-  - issue:78
-  - issue:169
   - issue:316
   - issue:388
   - pr:624
@@ -35,7 +35,7 @@ import Status from '~/components/Status.astro';
 import StatusRows from '~/components/StatusRows.astro';
 import Example from '~/components/Example.astro';
 
-This page is for an admin who wants to point the mcrs server at a world. The server reads a Java Edition world of the same game version, and it saves players. It does not save chunks yet, so every block edit is lost when the server stops.
+This page is for an admin who wants to point the mcrs server at a world. The server reads a Java Edition world of the same game version, and it saves the world and its players. Changed chunks go back to the region files of the folder, so a block edit survives a restart.
 
 <StatusRows areas="persistence" />
 
@@ -57,7 +57,7 @@ mcrs has no converter for saves of older versions and will not get one, because 
 
 ## Without a folder, the server generates a world
 
-When you start the server with no argument, it generates a world from a preset. Nothing of that world reaches the disk. It has no player files either, because the server builds the path of a player file from the world folder. Three settings shape the world, and the server reads them once at start. The full list of settings is in [`server_settings.rs`](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server_settings/src/server_settings.rs).
+When you start the server with no argument, it generates a world from a preset. Nothing of that world reaches the disk, and there is no autosave. It has no player files either, because the server builds the path of a player file from the world folder. Three settings shape the world, and the server reads them once at start. The full list of settings is in [`server_settings.rs`](https://github.com/andreypfau/mcrs/blob/main/crates/mcrs_minecraft_server_settings/src/server_settings.rs).
 
 | Variable | Meaning | Default |
 |---|---|---|
@@ -67,25 +67,22 @@ When you start the server with no argument, it generates a world from a preset. 
 
 World generation matches vanilla in parity tests on the reference seeds. [Parity](/docs/en/concepts/parity/) says what those tests cover.
 
-## Players are saved, chunks are not
+## The server saves the world
 
 | Data | State |
 |---|---|
 | Player files | Saved. The server writes each player to `players/data/<uuid>.dat` in the world folder on disconnect, and an autosave writes them every 6000 ticks, which is vanilla's own interval |
 | A clean stop with players | <Status pr={624} state="works" />. On the first SIGINT or SIGTERM the server disconnects every player with the vanilla shutdown reason, saves them and exits. A second signal exits at once |
-| Chunks and block edits | Not saved. The server reads chunks but never writes them, see <Status issue={78} /> |
-| Clean shutdown with chunks | Not done. Waiting for chunk writes is <Status issue={169} /> |
-| `level.dat`, world clocks, weather, game rules | Read but not written yet. <Status issue={78} /> lists writing them |
+| Chunks and block edits | Saved. The server writes each changed chunk back to its region file in the world folder, and an autosave does this every 6000 ticks |
+| A clean stop with the world | On the first SIGINT or SIGTERM the server also saves every loaded chunk and the world state files before it exits. If a save fails, the exit status shows an error |
+| World state files | The server reads the spawn, the weather, the game rules, the world clocks and the world generation settings of the save at start, and writes them back on the autosave |
+| Unreadable regions | The server copies a chunk it cannot decode, or a region with a damaged slot, to `<save>/quarantine/` before it replaces it. A file that cannot be read stays as it is on the disk |
 
 The server protects a player file that it cannot parse. The player joins empty, and the server never saves that player over the old file. An inventory in a player file survives too. The server keeps it as opaque data and writes it back unchanged, because the inventory code was removed and is being rewritten from a specification.[^521]
 
 A short test checks the clean stop.
 
 <Example file="tests/it/shutdown.rs" from="let player_file = player_dat_path(" to="assert!(player_file.exists()" title="A shutdown request writes the player file" />
-
-<Aside type="caution" title="WIP">
-Chunk saving is a plan, and no code exists for it yet. In the plan, the server writes changed chunks in the Anvil format off the main thread, on unload and at intervals, with one writer per region file.[^78] Until it lands, use a running mcrs server to look at a world and to try things. Do not use it to keep a world.
-</Aside>
 
 ## Data packs load once, at start
 
@@ -105,5 +102,4 @@ There is no source yet for how the server treats a `datapacks` folder inside a w
 
 [^388]: <Status issue={388} /> The decision that saves are read at exactly the targeted data version, with no datafixers.
 [^521]: <Status issue={521} /> Tracks the specification and the plugin of the player inventory.
-[^78]: <Status issue={78} /> Tracks saving changed chunks back to region files.
 [^316]: <Status issue={316} /> Plans the reload of data packs while the server runs.

@@ -3,7 +3,9 @@ use bevy_asset::AssetPlugin;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::Res;
+use bevy_ecs::world::World;
 use mcrs_engine_cell::{CellIndex, Placement};
+use mcrs_engine_store::MemoryDisk;
 use tracing::{error, warn};
 
 use crate::assign_global_entity_id::assign_global_entity_id;
@@ -11,7 +13,7 @@ use crate::bus::{InboundPlayerSpawn, OutboundPlayerPacket};
 use crate::cell_mail::CellMailPlugin;
 use crate::command_handoff::CommandHandoff;
 use crate::coordinator::dim::DimSubAppHandle;
-use crate::coordinator::dim_cells::DimCells;
+use crate::coordinator::dim_cells::{ColumnDisk, DimCells};
 use crate::coordinator::entity_id_ranges::EntityIdRanges;
 use crate::coordinator::running_dimensions::{RunningDimension, RunningDimensions};
 use crate::dim_mail::DimMail;
@@ -27,6 +29,7 @@ use crate::column_store::ColumnStorePlugin;
 use crate::heightmap::{BlockHeightmapPredicates, DimHeightmapPlugin};
 use crate::minecraft_entity::MinecraftEntityPlugin;
 use crate::player_tracker::PlayerTrackerPlugin;
+use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_dimension_environment::environment::DimensionEnvironment;
 use mcrs_minecraft_engine_world::owned_columns::{OwnedColumns, region_partition};
@@ -46,6 +49,7 @@ use mcrs_minecraft_engine_world::world::sub_app::{
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
 use mcrs_minecraft_engine_world::world_cells::WorldCells;
 use mcrs_minecraft_engine_world::world_placement::WorldPlacement;
+use mcrs_minecraft_region_disk::{RegionDisk, quarantine_dir, region_dir};
 use mcrs_minecraft_registries::CurrentRegistries;
 
 /// Builds the worlds of a dimension, one for each of its cells as [`WorldCells`] says, and
@@ -96,6 +100,8 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
         .get_resource::<mcrs_minecraft_assets::packs::PackLayering>()
         .cloned()
         .ok_or(DimSpawnError::NoPackRoots)?;
+
+    let disk = column_disk(app.world(), request)?;
 
     let label_entity = app
         .world_mut()
@@ -371,6 +377,9 @@ fn spawn_dim_subapp(app: &mut App, request: &DimSpawnRequest) -> Result<Entity, 
             placement.map_or(Placement::Inline, |placement| placement.0),
         );
     }
+    if let Some(mut cells) = app.world_mut().get_resource_mut::<DimCells>() {
+        cells.set_disk(label_entity, disk);
+    }
     Ok(label_entity)
 }
 
@@ -394,6 +403,34 @@ pub enum DimSpawnError {
     UnknownDimensionType(#[from] UnknownDimensionType),
     #[error("the host registered no pack roots for a dimension's assets to read")]
     NoPackRoots,
+    #[error("the world has a save but no block table for its region files")]
+    NoBlocks,
+    #[error("the dimension key leaves the world save")]
+    DimensionOutsideSave,
+}
+
+/// The region files of the dimension under the save of the world, or memory only while the
+/// world has no save.
+fn column_disk(world: &World, request: &DimSpawnRequest) -> Result<ColumnDisk, DimSpawnError> {
+    let Some(save) = world.get_resource::<WorldSave>() else {
+        return Ok(ColumnDisk::Memory(MemoryDisk::new()));
+    };
+    let blocks = world
+        .get_resource::<Blocks>()
+        .ok_or(DimSpawnError::NoBlocks)?;
+    let registries =
+        world
+            .get_resource::<CurrentRegistries>()
+            .ok_or_else(|| UnknownDimensionType {
+                dimension: request.dimension.as_str().to_owned(),
+                dimension_type: request.dimension_type.number(),
+            })?;
+    let dir = region_dir(&save.0, &request.dimension).ok_or(DimSpawnError::DimensionOutsideSave)?;
+    let mut disk = RegionDisk::new(dir, blocks.clone(), (**registries).clone());
+    if let Some(quarantine) = quarantine_dir(&save.0, &request.dimension) {
+        disk = disk.with_quarantine(quarantine);
+    }
+    Ok(ColumnDisk::Region(Box::new(disk)))
 }
 
 /// Builds a dimension world for each request of the host's `DimSpawnQueue`. The host calls it

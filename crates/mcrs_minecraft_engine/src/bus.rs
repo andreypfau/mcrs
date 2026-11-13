@@ -1,7 +1,6 @@
-use crate::client_info::ClientInfo;
+use crate::persisted_registry::PersistedSnapshot;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Message;
-use bevy_math::{DVec3, Vec2};
 use bytes::Bytes;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
@@ -47,7 +46,7 @@ pub struct InboundPlayerPacket {
 #[derive(Message, Clone, Debug)]
 pub struct InboundPlayerSpawn {
     pub session: PlayerSession,
-    pub snapshot: PlayerTransferSnapshot,
+    pub snapshot: PersistedSnapshot,
     /// The keys of the host's `DimensionList`, which no dimension world holds, for
     /// `ClientboundLogin.dimensions`.
     pub dimensions: Arc<[ResourceKeyBuf<mcrs_minecraft_dimension::Dimension>]>,
@@ -177,15 +176,4 @@ pub struct PlayerInfoEntry {
     pub username: String,
     pub game_mode: GameMode,
     pub listed: bool,
-}
-
-/// The state of a joining player that the host hands to the dimension that spawns it.
-#[derive(Clone, Debug)]
-pub struct PlayerTransferSnapshot {
-    pub uuid: Uuid,
-    pub username: String,
-    pub position: DVec3,
-    pub rotation: Vec2,
-    /// What the client said about itself before it joined; absent when it said nothing.
-    pub client_info: Option<ClientInfo>,
 }

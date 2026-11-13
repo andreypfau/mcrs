@@ -3,12 +3,13 @@
 use bevy_ecs::component::Component;
 use bevy_math::DVec3;
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
-use mcrs_minecraft_physics::{Orientation, PlayerState, Relative, Teleport, apply_teleport};
+use mcrs_minecraft_physics::{Orientation, PlayerState, Relative, Teleport};
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::PositionFlags;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundPlayerPosition;
 
 use crate::coordinator::clock::GameTime;
+use crate::persistence::transform_serde;
 
 /// The horizontal bound, in blocks, of a position a player can reach.
 pub const MAX_XZ_BLOCKS: i32 = 30_000_000;
@@ -26,19 +27,21 @@ pub const RESEND_INTERVAL: i64 = 20;
 
 /// The server-side state of the teleports of a player: the newest id it sent, the teleport the
 /// client did not confirm yet, and the transform the client last knew.
-#[derive(Component, Clone, Debug, Default)]
+#[derive(Component, Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct TeleportState {
     /// The id of the newest teleport; `None` before the first one.
     last_id: Option<i32>,
     pending: Option<PendingTeleport>,
+    #[serde(with = "transform_serde")]
     synced_transform: Transform,
 }
 
 /// A teleport the client did not confirm yet. Only the newest teleport can be pending: a newer
 /// one replaces it.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PendingTeleport {
     pub id: i32,
+    #[serde(with = "transform_serde")]
     pub destination: Transform,
     pub sent_at: GameTime,
 }
@@ -146,7 +149,7 @@ pub fn teleport_to(known: Transform, destination: Transform) -> Teleport {
 pub fn landing(known: Transform, teleport: &Teleport) -> Transform {
     let mut state = PlayerState::new(known.translation);
     let mut rotation = Orientation::facing(known.rotation.yaw(), known.rotation.pitch());
-    apply_teleport(&mut state, &mut rotation, teleport);
+    mcrs_minecraft_physics::apply_teleport(&mut state, &mut rotation, teleport);
     Transform {
         translation: state.body.position,
         rotation: Rotation::new(rotation.yaw, rotation.pitch),

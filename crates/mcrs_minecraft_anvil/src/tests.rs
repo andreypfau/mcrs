@@ -421,6 +421,27 @@ fn a_chunk_outside_the_region_is_a_loud_error() {
     assert!(matches!(err.kind, ErrorKind::WrongRegion { .. }), "{err}");
 }
 
+#[test]
+fn a_record_that_names_another_column_than_its_slot_is_unreadable() {
+    let fixture = Fixture::new("record_position");
+    let err = read_one(&fixture, ZLIB, &chunk_nbt(1, 0, Vec::new())).unwrap_err();
+    assert!(matches!(err.kind, ErrorKind::WrongPosition { .. }), "{err}");
+    assert!(err.to_string().contains("slot 0,0"), "{err}");
+    assert!(err.to_string().contains("chunk 1,0"), "{err}");
+}
+
+#[test]
+fn a_record_without_position_keys_reads_as_column_zero() {
+    let fixture = Fixture::new("record_no_position");
+    let mut root = chunk_nbt(0, 0, Vec::new());
+    root.child_tags
+        .retain(|(key, _)| key != "xPos" && key != "zPos");
+    assert_eq!(
+        read_one(&fixture, ZLIB, &root).unwrap().pos,
+        ColumnPos::new(0, 0)
+    );
+}
+
 /// Three entries need two bits, but `Strategy.createForBlockStates` maps bit
 /// counts one through four onto the four-bit configuration. Packing at two bits
 /// would decode most cells to the wrong palette entry.
@@ -1002,23 +1023,20 @@ fn a_chunk_one_data_version_off_either_way_is_refused_and_the_current_one_loads(
     }
 }
 
-/// Vanilla reads the fields it names off the compound and ignores the rest, and
-/// a real save carries keys other tools wrote: a world opened once under
-/// Starlight puts `starlight.skylight_state` on every section. The `DataVersion`
-/// gate is what catches format drift; refusing a stranger's key on top of it
-/// only makes modded worlds unreadable.
 #[test]
-fn a_key_this_decoder_does_not_know_is_ignored() {
+fn an_unknown_key_in_a_section_fails_the_load_by_name() {
     let fixture = Fixture::new("unknown_key");
     let mut section = section(
         0,
         container(vec![NbtTag::Compound(block("minecraft:stone"))], None),
     );
     section.put_int("starlight.skylight_state", 3);
-    let mut root = chunk_nbt(0, 0, vec![NbtTag::Compound(section)]);
-    root.put_int("SomeFutureField", 1);
-    let chunk = read_one(&fixture, ZLIB, &root).unwrap();
-    assert_eq!(chunk.sections.len(), 1);
+    let root = chunk_nbt(0, 0, vec![NbtTag::Compound(section)]);
+    let err = read_one(&fixture, ZLIB, &root).unwrap_err();
+    assert!(
+        err.to_string().contains("starlight.skylight_state"),
+        "{err}"
+    );
 }
 
 /// `DataVersion` arrived in 15w32a, so a chunk older than that has no version
@@ -1077,56 +1095,245 @@ fn a_chunk_with_an_unregistered_status_is_a_load_error() {
 }
 
 #[test]
-fn a_current_chunk_with_the_old_status_key_is_refused_for_the_missing_field() {
-    let fixture = Fixture::new("old_status_key");
-    let mut root = chunk_nbt_without_status(0, 0, Vec::new(), VERSION.world_version);
-    root.put_string("Status", "minecraft:full".to_string());
-    let err = read_one(&fixture, ZLIB, &root).unwrap_err();
-    assert!(matches!(err.kind, ErrorKind::Nbt(_)), "{err}");
-    assert!(err.to_string().contains("status"), "{err}");
+fn a_chunk_without_a_status_reads_as_missing() {
+    let fixture = Fixture::new("no_status");
+    let root = chunk_nbt_without_status(0, 0, Vec::new(), VERSION.world_version);
+    let path = fixture.region(0, 0, &single_slot(ZLIB, &root));
+    let registry = TestRegistry::default();
+    let read = RegionFile::open(&path)
+        .unwrap()
+        .read_chunk(ColumnPos::new(0, 0), &registry, &registry)
+        .unwrap();
+    assert!(read.is_none());
+}
+
+fn tick_compound(id: &str, x: i32) -> NbtTag {
+    let mut tick = NbtCompound::new();
+    tick.put_string("i", id.to_string());
+    tick.put_int("x", x);
+    tick.put_int("y", 2);
+    tick.put_int("z", 3);
+    tick.put_int("t", 5);
+    tick.put_int("p", -1);
+    NbtTag::Compound(tick)
+}
+
+fn sorted(tag: &NbtTag) -> NbtTag {
+    match tag {
+        NbtTag::Compound(compound) => NbtTag::Compound(sorted_compound(compound)),
+        NbtTag::List(items) => NbtTag::List(items.iter().map(sorted).collect()),
+        other => other.clone(),
+    }
+}
+
+fn sorted_compound(compound: &NbtCompound) -> NbtCompound {
+    let mut entries: Vec<(String, NbtTag)> = compound
+        .child_tags
+        .iter()
+        .map(|(key, value)| (key.clone(), sorted(value)))
+        .collect();
+    entries.sort_by(|a, b| a.0.cmp(&b.0));
+    NbtCompound {
+        child_tags: entries,
+    }
+}
+
+/// A column record below full that holds every key of SAVE-CHUNK-001.
+#[expect(
+    clippy::too_many_lines,
+    reason = "one fixture lists every key of the record"
+)]
+fn chunk_with_every_key() -> NbtCompound {
+    let mut data = vec![0i64; 256];
+    data[0] = 1 << 4;
+    let mut states = NbtCompound::new();
+    states.put_list(
+        "palette",
+        vec![
+            NbtTag::String("minecraft:stone".to_string()),
+            NbtTag::Compound(block_with("minecraft:oak_log", "axis", "x")),
+        ],
+    );
+    states.put("data", NbtTag::LongArray(data));
+    let mut biomes = NbtCompound::new();
+    biomes.put_list(
+        "palette",
+        vec![NbtTag::String("minecraft:plains".to_string())],
+    );
+    let mut section = NbtCompound::new();
+    section.put_byte("Y", 0);
+    section.put_component("block_states", states);
+    section.put_component("biomes", biomes.clone());
+    section.put_component("noise_biomes", biomes);
+    section.put(
+        "BlockLight",
+        NbtTag::ByteArray(vec![1; LIGHT_BYTES].into_boxed_slice()),
+    );
+    section.put(
+        "SkyLight",
+        NbtTag::ByteArray(vec![2; LIGHT_BYTES].into_boxed_slice()),
+    );
+
+    let mut root = NbtCompound::new();
+    root.put_int("DataVersion", VERSION.world_version);
+    root.put_int("xPos", 0);
+    root.put_int("zPos", 0);
+    root.put_int("yPos", -4);
+    root.put_string("status", "minecraft:noise_biomes".to_string());
+    root.put_long("LastUpdate", 1757);
+    root.put_long("InhabitedTime", 42);
+    root.put_bool("isLightOn", true);
+    root.put_list("sections", vec![NbtTag::Compound(section)]);
+    let mut block_entity = block("minecraft:chest");
+    block_entity.put_int("x", 1);
+    block_entity.put_int("y", 2);
+    block_entity.put_int("z", 3);
+    block_entity.put_string("keeps", "this".to_string());
+    root.put_list("block_entities", vec![NbtTag::Compound(block_entity)]);
+    root.put_list("entities", Vec::new());
+    let mut heightmaps = NbtCompound::new();
+    for name in [
+        "WORLD_SURFACE_WG",
+        "WORLD_SURFACE",
+        "OCEAN_FLOOR_WG",
+        "OCEAN_FLOOR",
+        "MOTION_BLOCKING",
+        "MOTION_BLOCKING_NO_LEAVES",
+    ] {
+        heightmaps.put(name, NbtTag::LongArray(vec![7, 8, 9]));
+    }
+    root.put_component("Heightmaps", heightmaps);
+    root.put_list("block_ticks", vec![tick_compound("minecraft:stone", 1)]);
+    root.put_list("fluid_ticks", vec![tick_compound("minecraft:water", 2)]);
+    root.put_list(
+        "PostProcessing",
+        vec![
+            NbtTag::List(vec![NbtTag::Short(17)]),
+            NbtTag::List(Vec::new()),
+        ],
+    );
+    let mut piece = NbtCompound::new();
+    piece.put_string("id", "minecraft:btp".to_string());
+    piece.put("BB", NbtTag::IntArray(vec![0, 1, 2, 3, 4, 5]));
+    piece.put_int("O", -1);
+    piece.put_int("GD", 0);
+    let mut start = NbtCompound::new();
+    start.put_int("ChunkX", 0);
+    start.put_int("ChunkZ", 0);
+    start.put_int("references", 2);
+    start.put_list("Children", vec![NbtTag::Compound(piece)]);
+    let mut starts = NbtCompound::new();
+    starts.put_component("minecraft:buried_treasure", start);
+    let mut references = NbtCompound::new();
+    references.put("minecraft:mineshaft", NbtTag::LongArray(vec![1]));
+    let mut structures = NbtCompound::new();
+    structures.put_component("starts", starts);
+    structures.put_component("References", references);
+    root.put_component("structures", structures);
+    let mut upgrade = NbtCompound::new();
+    let mut indices = NbtCompound::new();
+    indices.put("0", NbtTag::IntArray(vec![1, 2]));
+    upgrade.put_component("Indices", indices);
+    upgrade.put_byte("Sides", 3);
+    upgrade.put_list(
+        "neighbor_block_ticks",
+        vec![tick_compound("minecraft:stone", 4)],
+    );
+    upgrade.put_list(
+        "neighbor_fluid_ticks",
+        vec![tick_compound("minecraft:water", 5)],
+    );
+    root.put_component("UpgradeData", upgrade);
+    let mut blending = NbtCompound::new();
+    blending.put_int("min_section", -4);
+    blending.put_int("max_section", 20);
+    blending.put_list(
+        "heights",
+        (0..16).map(|i| NbtTag::Float(i as f32)).collect(),
+    );
+    root.put_component("blending_data", blending);
+    root.put_component("retrogen", {
+        let mut record = retrogen_record("minecraft:full", &["minecraft:biomes"]);
+        record.put_bool("has_below_zero_retrogen", true);
+        record.put("missing_bedrock", NbtTag::LongArray(vec![5, 0, 9]));
+        record
+    });
+    root
 }
 
 #[test]
-fn the_vanilla_shaped_extra_fields_are_accepted() {
-    let fixture = Fixture::new("vanilla_extras");
-    let mut root = chunk_nbt(0, 0, Vec::new());
-    root.put_list("block_ticks", Vec::new());
-    root.put_list("fluid_ticks", Vec::new());
-    root.put_list("PostProcessing", Vec::new());
-    root.put_component("structures", NbtCompound::new());
-    root.put_list("entities", Vec::new());
-    root.put_component("UpgradeData", NbtCompound::new());
-    root.put_component("blending_data", NbtCompound::new());
-    root.put_component(
-        "retrogen",
-        retrogen_record("minecraft:full", &["minecraft:features"]),
-    );
-    let mut heightmaps = NbtCompound::new();
-    heightmaps.put("MOTION_BLOCKING", NbtTag::LongArray(vec![7i64; 37]));
-    root.put_component("Heightmaps", heightmaps);
-    let mut block_entity = NbtCompound::new();
-    block_entity.put_string("id", "minecraft:chest".to_string());
-    root.put_list("block_entities", vec![NbtTag::Compound(block_entity)]);
+fn a_column_record_with_every_key_loads_and_writes_the_same_compound() {
+    let root = chunk_with_every_key();
+    let (blocks, biomes) = (crate::PaletteNames::new(), crate::PaletteNames::new());
+    let chunk = crate::parse_chunk(&nbt_bytes(&root), &blocks, &biomes).unwrap();
+    assert!(chunk.decode_report.is_clean());
+    let written = crate::write_chunk(&chunk, -4, &blocks, &biomes).unwrap();
+    let written = write::root(&written);
+    assert_eq!(sorted_compound(&written), sorted_compound(&root));
+}
 
-    let chunk = read_one(&fixture, ZLIB, &root).unwrap();
-    assert_eq!(chunk.status, ChunkStatus::Full);
-    assert!(chunk.is_light_on);
-    assert_eq!(chunk.inhabited_time, 42);
-    assert_eq!(chunk.heightmaps["MOTION_BLOCKING"].len(), 37);
-    assert_eq!(chunk.block_entities.len(), 1);
-    assert_eq!(
-        chunk.block_entities[0].get_string("id"),
-        Some("minecraft:chest")
-    );
-    assert_eq!(
-        chunk.retrogen,
-        Some(crate::RetroGen {
-            target_status: ChunkStatus::Full,
-            statuses_to_rerun: vec![ChunkStatus::Features],
-            has_below_zero_retrogen: false,
-            missing_bedrock: Vec::new(),
-        })
-    );
+fn parse_error(root: &NbtCompound) -> String {
+    let (blocks, biomes) = (crate::PaletteNames::new(), crate::PaletteNames::new());
+    crate::parse_chunk(&nbt_bytes(root), &blocks, &biomes)
+        .unwrap_err()
+        .to_string()
+}
+
+fn edit_compound(root: &mut NbtCompound, key: &str, edit: impl FnOnce(&mut NbtCompound)) {
+    let mut inner = root.get_compound(key).unwrap().clone();
+    edit(&mut inner);
+    root.put_component(key, inner);
+}
+
+#[test]
+fn an_unknown_key_in_a_column_record_fails_the_load_by_name() {
+    let mut cases = vec![("root", {
+        let mut root = chunk_with_every_key();
+        root.put_int("mcrs_unknown_key", 1);
+        root
+    })];
+    for key in [
+        "Heightmaps",
+        "UpgradeData",
+        "blending_data",
+        "retrogen",
+        "structures",
+    ] {
+        let mut root = chunk_with_every_key();
+        edit_compound(&mut root, key, |inner| inner.put_int("mcrs_unknown_key", 1));
+        cases.push((key, root));
+    }
+    for (what, root) in cases {
+        let error = parse_error(&root);
+        assert!(error.contains("mcrs_unknown_key"), "{what}: {error}");
+    }
+}
+
+fn with_piece(edit: impl FnOnce(&mut NbtCompound)) -> NbtCompound {
+    let mut root = chunk_with_every_key();
+    edit_compound(&mut root, "structures", |structures| {
+        edit_compound(structures, "starts", |starts| {
+            edit_compound(starts, "minecraft:buried_treasure", |start| {
+                let mut piece = start.get_list("Children").unwrap()[0]
+                    .extract_compound()
+                    .unwrap()
+                    .clone();
+                edit(&mut piece);
+                start.put_list("Children", vec![NbtTag::Compound(piece)]);
+            });
+        });
+    });
+    root
+}
+
+#[test]
+fn an_unknown_piece_id_or_an_unlisted_piece_key_fails_the_load_by_name() {
+    let error = parse_error(&with_piece(|piece| piece.put_int("mcrs_unknown_key", 1)));
+    assert!(error.contains("mcrs_unknown_key"), "{error}");
+    let error = parse_error(&with_piece(|piece| {
+        piece.put_string("id", "minecraft:no_such_piece".to_string());
+    }));
+    assert!(error.contains("no_such_piece"), "{error}");
 }
 
 fn fluid_tick(id: &str, x: i32, z: NbtTag) -> NbtTag {
@@ -1140,72 +1347,87 @@ fn fluid_tick(id: &str, x: i32, z: NbtTag) -> NbtTag {
     NbtTag::Compound(tick)
 }
 
-#[test]
-fn a_fluid_tick_that_does_not_load_is_dropped_and_the_rest_survive_a_save() {
-    use crate::{DroppedFluidTick, SavedFluidTick};
+fn edited_tick(z: i32, edit: impl FnOnce(&mut NbtCompound)) -> NbtTag {
+    let mut tick = NbtCompound::new();
+    tick.put_string("i", "minecraft:water".to_owned());
+    for (key, value) in [("x", 1), ("y", 2), ("z", z), ("t", 5), ("p", -1)] {
+        tick.put(key, NbtTag::Int(value));
+    }
+    edit(&mut tick);
+    NbtTag::Compound(tick)
+}
 
-    let fixture = Fixture::new("fluid_ticks");
+fn read_ticks(list: &str, ticks: Vec<NbtTag>) -> Result<crate::Chunk, String> {
     let mut root = chunk_nbt(0, 0, Vec::new());
-    root.put_list(
-        "fluid_ticks",
-        vec![
-            fluid_tick("minecraft:flowing_water", 1, NbtTag::Int(3)),
-            fluid_tick("minecraft:water", 1, NbtTag::String("4".into())),
-            fluid_tick("minecraft:lava", 17, NbtTag::Int(4)),
-            NbtTag::Int(7),
-            fluid_tick("minecraft:water", 1, NbtTag::Int(4)),
-        ],
-    );
+    root.put_list(list, ticks);
     let (blocks, biomes) = (crate::PaletteNames::new(), crate::PaletteNames::new());
-    let path = fixture.region(0, 0, &single_slot(ZLIB, &root));
-    let chunk = RegionFile::open(&path)
-        .unwrap()
-        .read_chunk(ColumnPos::new(0, 0), &blocks, &biomes)
-        .unwrap()
-        .unwrap();
-    let kept = vec![SavedFluidTick {
-        fluid: mcrs_minecraft_block::fluid_keys::Fluid::Water,
-        pos: mcrs_voxel::BlockPos::new(1, 2, 4),
-        delay: 5,
-        priority: -1,
-    }];
-    assert_eq!(chunk.fluid_ticks, kept);
-    let dropped = &chunk.decode_report.dropped_fluid_ticks;
-    assert_eq!(dropped.len(), 3, "{dropped:?}");
-    assert_eq!(
-        dropped[0],
-        DroppedFluidTick::UnknownFluid("minecraft:flowing_water".into())
-    );
-    assert!(
-        dropped[1..]
-            .iter()
-            .all(|reason| matches!(reason, DroppedFluidTick::Malformed(_))),
-        "{dropped:?}"
-    );
+    crate::parse_chunk(&nbt_bytes(&root), &blocks, &biomes).map_err(|error| error.to_string())
+}
+
+#[test]
+fn a_scheduled_tick_that_does_not_load_fails_the_column() {
+    let extra_key = edited_tick(3, |tick| tick.put_int("extra", 1));
+    let no_priority = edited_tick(3, |tick| tick.child_tags.retain(|(key, _)| key != "p"));
+    let bad = [
+        (
+            "an unknown fluid",
+            fluid_tick("minecraft:flowing_water", 1, NbtTag::Int(3)),
+        ),
+        (
+            "a key of the wrong type",
+            fluid_tick("minecraft:water", 1, NbtTag::String("4".into())),
+        ),
+        ("an entry that is no compound", NbtTag::Int(7)),
+        ("an unlisted key", extra_key),
+        ("a missing key", no_priority),
+    ];
+    for (what, entry) in bad {
+        let kept = fluid_tick("minecraft:lava", 17, NbtTag::Int(4));
+        assert!(
+            read_ticks("fluid_ticks", vec![kept, entry]).is_err(),
+            "{what} loaded"
+        );
+    }
+    let unknown_block = fluid_tick("minecraft:no_such_block", 1, NbtTag::Int(3));
+    assert!(read_ticks("block_ticks", vec![unknown_block]).is_err());
+    assert!(read_ticks("fluid_ticks", vec![NbtTag::Int(7)]).is_err());
+}
+
+#[test]
+fn a_tick_priority_outside_the_range_reads_as_the_nearest_end() {
+    let tick = |priority| edited_tick(4, |tick| tick.put("p", NbtTag::Int(priority)));
+    let chunk = read_ticks("fluid_ticks", vec![tick(9), tick(-9), tick(2)]).unwrap();
+    let priorities: Vec<i32> = chunk.fluid_ticks.iter().map(|tick| tick.priority).collect();
+    assert_eq!(priorities, [3, -3, 2]);
+}
+
+#[test]
+fn a_start_with_only_its_pieces_reads_zero_counts_and_writes_every_key() {
+    let mut root = chunk_nbt(3, -2, Vec::new());
+    let mut start = NbtCompound::new();
+    start.put_list("Children", vec![structure_piece("minecraft:btp")]);
+    let mut starts = NbtCompound::new();
+    starts.put_component("minecraft:shipwreck", start);
+    let mut structures = NbtCompound::new();
+    structures.put_component("starts", starts);
+    root.put_component("structures", structures);
+    let (blocks, biomes) = (crate::PaletteNames::new(), crate::PaletteNames::new());
+    let chunk = crate::parse_chunk(&nbt_bytes(&root), &blocks, &biomes).unwrap();
+    let kept = chunk.structures.starts.values().next().unwrap();
+    assert_eq!(kept.references, 0);
 
     let written = crate::write_chunk(&chunk, -4, &blocks, &biomes).unwrap();
     let saved: NbtCompound =
         mcrs_minecraft_nbt::from_bytes(std::io::Cursor::new(&written[..])).unwrap();
-    let Some(NbtTag::List(ticks)) = saved.get("fluid_ticks") else {
-        panic!("the written chunk carries a fluid tick list");
-    };
-    let [NbtTag::Compound(tick)] = ticks.as_slice() else {
-        panic!("one tick is written: {ticks:?}");
-    };
-    assert_eq!(tick.get_string("i"), Some("minecraft:water"));
-    for (key, value) in [("x", 1), ("y", 2), ("z", 4), ("t", 5), ("p", -1)] {
-        assert_eq!(tick.get(key), Some(&NbtTag::Int(value)), "{key}");
-    }
-    let read = crate::parse_chunk(&written, &blocks, &biomes).unwrap();
-    assert_eq!(read.fluid_ticks, kept);
-    assert!(read.decode_report.is_clean());
-
-    let mut root = chunk_nbt(0, 0, Vec::new());
-    root.put("fluid_ticks", NbtTag::Int(7));
-    let mut bytes = Vec::new();
-    mcrs_minecraft_nbt::to_bytes(&root, &mut bytes).unwrap();
-    let not_a_list = crate::parse_chunk(&bytes, &blocks, &biomes).unwrap();
-    assert!(not_a_list.fluid_ticks.is_empty());
+    let start = saved
+        .get_compound("structures")
+        .and_then(|structures| structures.get_compound("starts"))
+        .and_then(|starts| starts.get_compound("minecraft:shipwreck"))
+        .unwrap();
+    assert_eq!(start.get("ChunkX"), Some(&NbtTag::Int(3)));
+    assert_eq!(start.get("ChunkZ"), Some(&NbtTag::Int(-2)));
+    assert_eq!(start.get("references"), Some(&NbtTag::Int(0)));
+    assert_eq!(start.get_list("Children").map(<[_]>::len), Some(1));
 }
 
 fn structure_start(chunk: ColumnPos, children: Option<Vec<NbtTag>>) -> NbtTag {
@@ -1222,6 +1444,8 @@ fn structure_start(chunk: ColumnPos, children: Option<Vec<NbtTag>>) -> NbtTag {
 fn structure_piece(id: &str) -> NbtTag {
     let mut piece = NbtCompound::new();
     piece.put_string("id", id.to_string());
+    piece.put("BB", NbtTag::IntArray(vec![0, 1, 2, 3, 4, 5]));
+    piece.put_int("O", -1);
     piece.put_int("GD", 1);
     NbtTag::Compound(piece)
 }
@@ -1248,7 +1472,10 @@ fn structure_cases() -> [StructureCase; 4] {
 
     let pos = STRUCTURE_CHUNK;
     let rl = |id: &str| ResourceLocationBuf::read(id).unwrap();
-    let piece = || Some(vec![structure_piece("minecraft:shipwreck")]);
+    let piece = || Some(vec![structure_piece("minecraft:btp")]);
+    let mut unreadable = NbtCompound::new();
+    unreadable.put_string("id", "minecraft:btp".to_string());
+    let unreadable = NbtTag::Compound(unreadable);
     [
         Case {
             what: "a start and a reference the game wrote",
@@ -1267,35 +1494,24 @@ fn structure_cases() -> [StructureCase; 4] {
             starts: vec![
                 ("minecraft:igloo", structure_start(pos, Some(Vec::new()))),
                 ("minecraft:mineshaft", structure_start(pos, None)),
-                (
-                    "minecraft:stronghold",
-                    structure_start(pos, Some(vec![NbtTag::Int(1)])),
-                ),
-                ("minecraft:village_plains", NbtTag::Int(0)),
             ],
             references: Vec::new(),
             kept_starts: &[],
             kept_references: &[],
-            dropped: [
-                "minecraft:igloo",
-                "minecraft:mineshaft",
-                "minecraft:stronghold",
-                "minecraft:village_plains",
-            ]
-            .map(|id| DroppedStructure::StartWithoutPieces(rl(id)))
-            .into(),
+            dropped: ["minecraft:igloo", "minecraft:mineshaft"]
+                .map(|id| DroppedStructure::StartWithoutPieces(rl(id)))
+                .into(),
             written_as_read: false,
         },
         Case {
             what: "odd keys",
             starts: vec![
-                ("Not An Id", structure_start(pos, piece())),
+                ("Not An Id", structure_start(pos, Some(vec![unreadable]))),
                 ("mymod:tower", structure_start(pos, piece())),
                 ("desert_pyramid", structure_start(pos, piece())),
             ],
             references: vec![
                 ("Not An Id", NbtTag::LongArray(vec![packed_chunk(2, -3)])),
-                ("minecraft:igloo", NbtTag::IntArray(vec![2, -3])),
                 ("minecraft:jungle_pyramid", NbtTag::LongArray(Vec::new())),
             ],
             kept_starts: &["minecraft:desert_pyramid", "mymod:tower"],
@@ -1506,24 +1722,22 @@ fn a_sector_past_the_end_of_the_file_is_an_error() {
 }
 
 #[test]
-fn a_record_of_no_sectors_is_a_payload_length_error() {
+fn a_record_of_no_sectors_is_a_damaged_slot() {
     let fixture = Fixture::new("empty_record");
     let path = fixture.region(0, 0, &single_slot(NONE, &chunk_nbt(0, 0, Vec::new())));
     let mut bytes = std::fs::read(&path).unwrap();
     bytes[..4].copy_from_slice(&(2i32 << 8).to_be_bytes());
     std::fs::write(&path, bytes).unwrap();
-    let err = RegionFile::open(&path)
-        .unwrap()
+    let region = RegionFile::open(&path).unwrap();
+    assert!(region.has_damaged_slot());
+    let err = region
         .read_chunk(
             ColumnPos::new(0, 0),
             &TestRegistry::default(),
             &TestRegistry::default(),
         )
         .unwrap_err();
-    assert!(
-        matches!(err.kind, ErrorKind::PayloadLength { available: 0, .. }),
-        "{err}"
-    );
+    assert!(matches!(err.kind, ErrorKind::NoSectors { .. }), "{err}");
 }
 
 #[test]
@@ -1802,7 +2016,11 @@ pub(crate) mod write {
             .collect()
     }
 
-    fn rewrite(region: &RegionFile, replaced: &[(ColumnPos, Vec<u8>)], dir: &Path) -> RegionFile {
+    fn rewrite(
+        region: &mut RegionFile,
+        replaced: &[(ColumnPos, Vec<u8>)],
+        dir: &Path,
+    ) -> RegionFile {
         let out = dir.join(region.path().file_name().unwrap());
         region.write(replaced, &out).unwrap();
         RegionFile::open(out).unwrap()
@@ -1823,7 +2041,7 @@ pub(crate) mod write {
     fn reads_equal_after_a_round_trip(name: &str, chunks: usize) {
         let src = Fixture::new(&format!("{name}_src"));
         let dst = Fixture::new(&format!("{name}_dst"));
-        let region = fixture_region(&src, chunks);
+        let mut region = fixture_region(&src, chunks);
         let originals: Vec<(ColumnPos, Named)> = region
             .present()
             .map(|pos| (pos, read_named(&region, pos)))
@@ -1866,7 +2084,7 @@ pub(crate) mod write {
         }
         assert!(arrays > 0, "no packed data or light was written");
 
-        let written = rewrite(&region, &replaced, &dst.dir);
+        let written = rewrite(&mut region, &replaced, &dst.dir);
         for (pos, original) in &originals {
             let entries_before = (original.blocks.len(), original.biomes.len());
             let read = read_named(&written, *pos);
@@ -1881,7 +2099,7 @@ pub(crate) mod write {
 
     fn written_retrogen(record: NbtCompound, dir: &Fixture, name: &str) -> NbtCompound {
         let src = Fixture::new(name);
-        let region = RegionFile::open(src.region(
+        let mut region = RegionFile::open(src.region(
             0,
             0,
             &single_slot(ZLIB, &chunk_with_retrogen("minecraft:terrain", record)),
@@ -1890,7 +2108,7 @@ pub(crate) mod write {
         let pos = ColumnPos::new(0, 0);
         let original = read_named(&region, pos);
         let nbt = write_chunk(&original.chunk, -4, &original.blocks, &original.biomes).unwrap();
-        let read = read_named(&rewrite(&region, &[(pos, nbt.clone())], &dir.dir), pos);
+        let read = read_named(&rewrite(&mut region, &[(pos, nbt.clone())], &dir.dir), pos);
         assert_same_chunk(&read, &original, name);
         root(&nbt).get_compound("retrogen").unwrap().clone()
     }
@@ -1926,7 +2144,7 @@ pub(crate) mod write {
             "minecraft:terrain",
             vec![NbtTag::Compound(held), NbtTag::Compound(bare)],
         );
-        let region = RegionFile::open(src.region(0, 0, &single_slot(ZLIB, &root_in))).unwrap();
+        let mut region = RegionFile::open(src.region(0, 0, &single_slot(ZLIB, &root_in))).unwrap();
         let pos = ColumnPos::new(0, 0);
         let original = read_named(&region, pos);
         assert!(original.chunk.sections[0].noise_biomes.is_some());
@@ -1944,14 +2162,14 @@ pub(crate) mod write {
         assert!(has_key(0));
         assert!(!has_key(1));
 
-        let read = read_named(&rewrite(&region, &[(pos, nbt)], &dst.dir), pos);
+        let read = read_named(&rewrite(&mut region, &[(pos, nbt)], &dst.dir), pos);
         assert_same_chunk(&read, &original, "noise biomes");
     }
 
     #[test]
     fn a_block_set_by_name_reads_back() {
         let (src, dst) = (Fixture::new("set_block_src"), Fixture::new("set_block_dst"));
-        let region = fixture_region(&src, 1);
+        let mut region = fixture_region(&src, 1);
         let pos = ColumnPos::new(0, 0);
         let mut original = read_named(&region, pos);
         let untouched = read_named(&region, pos);
@@ -1963,7 +2181,7 @@ pub(crate) mod write {
         original.chunk.set_block(at, torch).unwrap();
         let nbt = write_chunk(&original.chunk, -4, &original.blocks, &original.biomes).unwrap();
 
-        let read = read_named(&rewrite(&region, &[(pos, nbt)], &dst.dir), pos);
+        let read = read_named(&rewrite(&mut region, &[(pos, nbt)], &dst.dir), pos);
         let section = read.chunk.sections.iter().find(|s| s.y == 70 >> 4).unwrap();
         let id = section
             .block_states
@@ -2006,7 +2224,7 @@ pub(crate) mod write {
             ))],
             VERSION.world_version,
         );
-        let region = RegionFile::open(src.region(0, 0, &single_slot(ZLIB, &root_in))).unwrap();
+        let mut region = RegionFile::open(src.region(0, 0, &single_slot(ZLIB, &root_in))).unwrap();
         let pos = ColumnPos::new(0, 0);
         let mut edited = read_named(&region, pos);
         assert!(edited.chunk.is_light_on);
@@ -2024,14 +2242,14 @@ pub(crate) mod write {
             root(&nbt).get_int("DataVersion"),
             Some(VERSION.world_version)
         );
-        let read = read_named(&rewrite(&region, &[(pos, nbt)], &dst.dir), pos);
+        let read = read_named(&rewrite(&mut region, &[(pos, nbt)], &dst.dir), pos);
         assert!(!read.chunk.is_light_on);
     }
 
     #[test]
     fn an_edited_chunk_drops_its_saved_light_and_heightmaps() {
         let (src, dst) = (Fixture::new("stale_src"), Fixture::new("stale_dst"));
-        let region = fixture_region(&src, 8);
+        let mut region = fixture_region(&src, 8);
         let lit = region
             .present()
             .find(|&pos| {
@@ -2048,9 +2266,13 @@ pub(crate) mod write {
         let at = BlockPos::new(lit.x * 16 + 3, 64, lit.z * 16 + 4);
         edited.chunk.set_block(at, torch).unwrap();
         let nbt = write_chunk(&edited.chunk, -4, &edited.blocks, &edited.biomes).unwrap();
-        assert!(root(&nbt).get("Heightmaps").is_none());
+        assert!(
+            root(&nbt)
+                .get_compound("Heightmaps")
+                .is_some_and(|maps| maps.child_tags.is_empty())
+        );
 
-        let read = read_named(&rewrite(&region, &[(lit, nbt)], &dst.dir), lit);
+        let read = read_named(&rewrite(&mut region, &[(lit, nbt)], &dst.dir), lit);
         assert!(read.chunk.heightmaps.is_empty());
         for section in &read.chunk.sections {
             assert!(section.block_light.is_none(), "section {}", section.y);
@@ -2069,7 +2291,7 @@ pub(crate) mod write {
                 container(vec![NbtTag::Compound(block("minecraft:deepslate"))], None),
             ))],
         );
-        let region = RegionFile::open(src.region(
+        let mut region = RegionFile::open(src.region(
             1,
             0,
             &[(33, 2, ZLIB, compress(ZLIB, &nbt_bytes(&root_in)))],
@@ -2096,7 +2318,7 @@ pub(crate) mod write {
         original.chunk.block_entities.push(chest);
         let nbt = write_chunk(&original.chunk, -4, &original.blocks, &original.biomes).unwrap();
 
-        let written = rewrite(&region, &[(pos, nbt)], &dst.dir);
+        let written = rewrite(&mut region, &[(pos, nbt)], &dst.dir);
         let bytes = std::fs::read(written.path()).unwrap();
         let (record, _) = records(&bytes)[&(2 * 32 + 1)];
         assert_eq!(record.len(), SECTOR_BYTES, "the stub takes one sector");
@@ -2108,28 +2330,59 @@ pub(crate) mod write {
     }
 
     #[test]
-    fn writing_onto_the_file_it_was_read_from_is_refused() {
-        let fixture = Fixture::new("refuse");
-        let region = fixture_region(&fixture, 2);
-        let before = std::fs::read(region.path()).unwrap();
-        let pos = ColumnPos::new(0, 0);
-        let n = read_named(&region, pos);
+    fn writing_onto_the_file_it_was_read_from_keeps_the_other_chunks() {
+        let fixture = Fixture::new("in_place");
+        let mut region = fixture_region(&fixture, 2);
+        let first = ColumnPos::new(0, 0);
+        let second = ColumnPos::new(1, 0);
+        let before_first = read_named(&region, first);
+        let before_second = read_named(&region, second);
         let replaced = [(
-            pos,
-            write_chunk(&n.chunk, -4, &n.blocks, &n.biomes).unwrap(),
+            first,
+            write_chunk(
+                &before_first.chunk,
+                -4,
+                &before_first.blocks,
+                &before_first.biomes,
+            )
+            .unwrap(),
         )];
 
-        let same = region.path().to_path_buf();
         let spelled_otherwise = fixture.dir.join(".").join("r.0.0.mca");
-        for out in [same, spelled_otherwise] {
-            let err = region.write(&replaced, &out).unwrap_err();
-            assert!(
-                matches!(err.kind, ErrorKind::WriteOntoSource { .. }),
-                "{}: {err}",
-                out.display()
-            );
+        region.write(&replaced, &spelled_otherwise).unwrap();
+        assert_eq!(region.bytes_held(), 2 * SECTOR_BYTES);
+
+        let reopened = RegionFile::open(region.path()).unwrap();
+        assert_eq!(reopened.bytes_held(), 2 * SECTOR_BYTES);
+        assert_same_chunk(
+            &read_named(&reopened, first),
+            &before_first,
+            "the replaced chunk",
+        );
+        assert_same_chunk(
+            &read_named(&reopened, second),
+            &before_second,
+            "the untouched neighbour",
+        );
+    }
+
+    #[test]
+    fn a_second_write_to_a_new_relative_path_keeps_the_first() {
+        let fixture = Fixture::new("relative");
+        std::env::set_current_dir(&fixture.dir).unwrap();
+        let mut region = RegionFile::create(mcrs_minecraft_core::RegionPos::new(0, 0), "r.0.0.mca");
+        for x in [0, 1] {
+            let nbt = nbt_bytes(&chunk_nbt(x, 0, Vec::new()));
+            region
+                .write(&[(ColumnPos::new(x, 0), nbt)], Path::new("r.0.0.mca"))
+                .unwrap();
         }
-        assert_eq!(std::fs::read(region.path()).unwrap(), before);
+
+        let reopened = RegionFile::open(fixture.dir.join("r.0.0.mca")).unwrap();
+        assert_eq!(
+            reopened.present().collect::<Vec<_>>(),
+            [ColumnPos::new(0, 0), ColumnPos::new(1, 0)]
+        );
     }
 
     #[test]
@@ -2170,7 +2423,7 @@ pub(crate) mod write {
     #[test]
     fn untouched_chunks_are_copied_byte_for_byte() {
         let (src, dst) = (Fixture::new("verbatim_src"), Fixture::new("verbatim_dst"));
-        let region = fixture_region(&src, 40);
+        let mut region = fixture_region(&src, 40);
         let pos = ColumnPos::new(5, 0);
         let n = read_named(&region, pos);
         let replaced = [(
@@ -2178,7 +2431,7 @@ pub(crate) mod write {
             write_chunk(&n.chunk, -4, &n.blocks, &n.biomes).unwrap(),
         )];
 
-        let written = rewrite(&region, &replaced, &dst.dir);
+        let written = rewrite(&mut region, &replaced, &dst.dir);
         let (before, after) = (
             std::fs::read(region.path()).unwrap(),
             std::fs::read(written.path()).unwrap(),

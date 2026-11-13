@@ -390,7 +390,7 @@ impl Dispatcher<'_, '_> {
                             Box::new(merge_column(
                                 &base,
                                 &deltas,
-                                predicates.as_ref(),
+                                &predicates,
                                 program
                                     .as_deref()
                                     .map(|program| &program.world.has_block_entity),

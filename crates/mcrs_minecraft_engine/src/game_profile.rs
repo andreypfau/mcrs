@@ -5,7 +5,7 @@ use std::borrow::Cow;
 
 /// The profile a client logged in with. The session carries it on the host, and the player
 /// carries it in its dimension world.
-#[derive(Debug, Clone, Component)]
+#[derive(Debug, Clone, Component, serde::Serialize, serde::Deserialize)]
 pub struct GameProfile {
     pub id: uuid::Uuid,
     pub username: String,

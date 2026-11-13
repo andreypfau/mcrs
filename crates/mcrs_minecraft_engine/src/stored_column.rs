@@ -1,42 +1,26 @@
-use mcrs_minecraft_block_entity::GeneratedBlockEntity;
-use mcrs_minecraft_chunk::{BlockLight, SkyLight};
-use mcrs_minecraft_engine_world::palette::{BiomePalette, ChunkBlocks};
-use mcrs_minecraft_heightmap::ColumnHeightmapSet;
+use mcrs_minecraft_anvil::{BlendingData, ChunkStructures, RetroGen, UpgradeData};
+use mcrs_minecraft_nbt::compound::NbtCompound;
 
-use crate::column_ticks::ColumnTicks;
+pub use crate::cold_columns::SectionChanged;
+pub use crate::stored_columns_landing::{PendingColumnFacts, TakenFromStore};
 
-/// The last version of a column, as the data layer keeps it. A client receives whole columns,
-/// so Minecraft keys the data layer by column and not by section.
-#[derive(Clone, Debug)]
-pub struct StoredColumn {
-    /// The Y of the first entry of `sections`.
-    pub min_section_y: i32,
-    /// Every section of the column, in ascending Y.
-    pub sections: Vec<StoredSection>,
-    pub block_entities: Vec<GeneratedBlockEntity>,
-    pub heightmaps: Option<ColumnHeightmapSet>,
-    /// The scheduled ticks of the column, with their delays from the game time of the write.
-    pub ticks: ColumnTicks,
-}
+/// Saved block entities whose id has no typed form. They stay beside the typed block entities
+/// of their section and go back to the save unchanged.
+#[derive(Clone, Debug, Default, bevy_ecs::component::Component)]
+pub struct RawBlockEntities(pub Vec<NbtCompound>);
 
-impl StoredColumn {
-    /// Whether the column holds light. Only the data layer keeps light, which it lit from the
-    /// blocks of the column and of the eight around it, so a kept column with light holds its
-    /// final light.
-    #[must_use]
-    pub fn is_lit(&self) -> bool {
-        self.sections
-            .iter()
-            .any(|section| section.block_light.is_some() || section.sky_light.is_some())
-    }
-}
+/// The structure starts and references of a saved column, as the save carries them.
+#[derive(Clone, Debug, Default, bevy_ecs::component::Component)]
+pub struct ColumnStructures(pub ChunkStructures);
 
-/// One section of a [`StoredColumn`]. The light is absent in a world that does not light its
-/// columns.
-#[derive(Clone, Debug)]
-pub struct StoredSection {
-    pub blocks: ChunkBlocks,
-    pub biomes: BiomePalette,
-    pub block_light: Option<BlockLight>,
-    pub sky_light: Option<SkyLight>,
+/// The facts of a saved column that the engine does not simulate and writes back as it read
+/// them.
+#[derive(Clone, Debug, Default, bevy_ecs::component::Component)]
+pub struct ColumnRecord {
+    pub inhabited_time: i64,
+    pub last_update: i64,
+    pub retrogen: Option<RetroGen>,
+    pub post_processing: Vec<Vec<i16>>,
+    pub upgrade_data: UpgradeData,
+    pub blending_data: Option<BlendingData>,
 }

@@ -18,6 +18,10 @@ pub use light_storage::LightStorage;
 pub use nibbles::SectionNibbles;
 pub use voxel_palette::{SharedVoxelPalette, VoxelPalette};
 
+/// The block states of one section as a column keeps them.
+pub type ChunkBlocks =
+    SharedVoxelPalette<mcrs_voxel::BlockStateId, { mcrs_voxel::SectionPos::SIZE }>;
+
 /// An opaque voxel identifier. The engine never interprets it: the game assigns
 /// ids when its asset corpus loads, and they are not stable across runs, so a
 /// save names the voxel instead of storing its id.

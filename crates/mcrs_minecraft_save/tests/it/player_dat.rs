@@ -41,7 +41,7 @@ fn sorted(tag: &NbtTag) -> NbtTag {
 }
 
 #[test]
-fn the_vanilla_file_round_trips_through_the_typed_shape() {
+fn the_vanilla_file_reads_and_rewrites_with_every_key() {
     let world = temp_world("round_trip");
     let uuid = Uuid::from_u128(0x1234);
     std::fs::write(
@@ -56,61 +56,67 @@ fn the_vanilla_file_round_trips_through_the_typed_shape() {
         .unwrap()
         .expect("the file exists");
     assert_eq!(dat.data_version, VERSION.world_version);
-    assert_eq!(dat.pos, [12.5, 64.0, -7.25]);
-    assert_eq!(dat.rotation, [90.0, -12.5]);
+    assert_eq!(dat.pos(), Some([12.5, 64.0, -7.25]));
+    assert_eq!(dat.rotation(), Some([90.0, -12.5]));
     assert_eq!(
-        dat.dimension,
-        mcrs_minecraft_dimension::dimension_keys::OVERWORLD
-    );
-    assert_eq!(dat.selected_item_slot, 3);
-    assert_eq!(
-        dat.inventory
-            .iter()
-            .map(|entry| entry.slot)
-            .collect::<Vec<_>>(),
-        [0, 3, 9, 10, 20, 35]
+        dat.dimension().as_ref(),
+        Some(&mcrs_minecraft_dimension::dimension_keys::OVERWORLD.to_buf())
     );
     assert_eq!(
-        dat.inventory[0].stack.item.location().as_str(),
-        "minecraft:diamond_sword"
+        dat.get("SelectedItemSlot").and_then(NbtTag::extract_int),
+        Some(3)
     );
-    assert_eq!(dat.inventory[2].stack.count.0, 64);
-    assert!(
-        dat.inventory[3]
-            .stack
-            .components
-            .is_removed(mcrs_minecraft_item::data_component_type_keys::DataComponentType::Lore)
-    );
+    let inventory = dat
+        .get("Inventory")
+        .and_then(NbtTag::extract_list)
+        .expect("the vanilla file has an inventory");
+    let slots: Vec<i8> = inventory
+        .iter()
+        .filter_map(|entry| entry.extract_compound()?.get_byte("Slot"))
+        .collect();
+    assert_eq!(slots, [0, 3, 9, 10, 20, 35]);
+    let ids: Vec<&str> = inventory
+        .iter()
+        .filter_map(|entry| entry.extract_compound()?.get_string("id"))
+        .collect();
+    assert_eq!(ids[0], "minecraft:diamond_sword");
     assert_eq!(
-        dat.equipment.keys().cloned().collect::<Vec<_>>(),
-        ["chest", "offhand"]
+        inventory[2].extract_compound().and_then(|entry| entry
+            .get_int("count")
+            .or_else(|| entry.get_byte("count").map(i32::from))),
+        Some(64)
     );
-    assert_eq!(
-        dat.equipment["chest"].item.location().as_str(),
-        "minecraft:leather_chestplate"
-    );
-    let mut rest: Vec<&str> = dat
-        .rest
+    let equipment = dat
+        .get("equipment")
+        .and_then(NbtTag::extract_compound)
+        .expect("the vanilla file has equipment");
+    let mut equipment_keys: Vec<&str> = equipment
         .child_tags
         .iter()
         .map(|(key, _)| key.as_str())
         .collect();
-    rest.sort_unstable();
+    equipment_keys.sort_unstable();
+    assert_eq!(equipment_keys, ["chest", "offhand"]);
     assert_eq!(
-        rest,
-        [
-            "EnderItems",
-            "Fire",
-            "Motion",
-            "OnGround",
-            "UUID",
-            "XpLevel",
-            "abilities",
-            "foodLevel",
-            "foodSaturationLevel",
-        ]
+        equipment
+            .get_compound("chest")
+            .and_then(|entry| entry.get_string("id")),
+        Some("minecraft:leather_chestplate")
     );
-    assert_eq!(dat.rest.get_short("Fire"), Some(-20));
+    for key in [
+        "EnderItems",
+        "Fire",
+        "Motion",
+        "OnGround",
+        "UUID",
+        "XpLevel",
+        "abilities",
+        "foodLevel",
+        "foodSaturationLevel",
+    ] {
+        assert!(dat.get(key).is_some(), "the key {key} is kept");
+    }
+    assert_eq!(dat.get("Fire").and_then(NbtTag::extract_short), Some(-20));
 
     let other = Uuid::from_u128(0x5678);
     write_player_dat(&world, other, &dat).unwrap();
@@ -141,7 +147,8 @@ fn a_missing_file_is_none_and_a_fresh_one_stamps_the_world_version() {
     write_player_dat(&world, uuid, &PlayerDat::default()).unwrap();
     let written = read_player_dat(&world, uuid).unwrap().unwrap();
     assert_eq!(written.data_version, VERSION.world_version);
-    assert!(written.inventory.is_empty());
+    assert_eq!(written.pos(), Some([0.0; 3]));
+    assert!(written.get("Inventory").is_none());
     assert!(
         !Path::new(
             &world

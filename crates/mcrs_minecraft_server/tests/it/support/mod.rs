@@ -99,3 +99,46 @@ pub fn client_info_with_view_distance(view_distance: u8) -> ClientInfo {
         chat_mode: ChatMode::Enabled,
     }
 }
+
+pub use mcrs_minecraft_region_disk::{CorpusBlockStates, RegistryBiomes};
+
+pub use mcrs_minecraft_worldgen_generator::staging::SectionData;
+
+pub fn column_sections(
+    mut saved: Vec<mcrs_minecraft_anvil::Section>,
+    y_sections: &[i32],
+) -> Vec<Option<SectionData>> {
+    y_sections
+        .iter()
+        .map(|&y| {
+            let (blocks, biomes) = saved
+                .iter()
+                .position(|section| i32::from(section.y) == y)
+                .map(|index| {
+                    let section = saved.swap_remove(index);
+                    (section.block_states, section.biomes)
+                })
+                .unwrap_or_default();
+            Some((
+                mcrs_minecraft_chunk::VoxelPalette(blocks.unwrap_or_default()),
+                mcrs_minecraft_chunk::VoxelPalette(biomes.unwrap_or_default()),
+            ))
+        })
+        .collect()
+}
+
+pub fn saved_block_entities(
+    chunk: &mcrs_minecraft_anvil::Chunk,
+) -> Result<Vec<mcrs_minecraft_block_entity::GeneratedBlockEntity>, mcrs_minecraft_nbt::Error> {
+    chunk
+        .block_entities
+        .iter()
+        .filter(|compound| {
+            compound
+                .get_string("id")
+                .and_then(mcrs_minecraft_block_entity::GeneratedBlockEntity::kind_of)
+                .is_some()
+        })
+        .map(mcrs_minecraft_block_entity::GeneratedBlockEntity::from_compound)
+        .collect()
+}

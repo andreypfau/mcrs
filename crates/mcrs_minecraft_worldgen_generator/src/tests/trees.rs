@@ -126,8 +126,7 @@ pub(super) fn dimension_with(
     let ctx = FillContext {
         blocks: blocks().0.clone(),
         biome: Some(source),
-        predicates: Some(heightmap_predicates(blocks(), block_tags())),
-        saved: None,
+        predicates: heightmap_predicates(blocks(), block_tags()),
         program: ColumnProgram {
             generator: ColumnGenerator::Modern {
                 surface: Some((
