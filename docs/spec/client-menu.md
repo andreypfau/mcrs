@@ -42,6 +42,9 @@ architecture.
   (`client-controls.md`, CTRL-MOUSE-001).
 - **Pending value**: a value of an option slider that waits and is not stored yet
   (`client-widget.md`, WID-SLD-007, step 2).
+- **Stored options**: the value that each option stores. A pending value is not in the stored
+  options. A **change of the stored options** changes one of these values. A store of the value
+  that an option already has is not a change.
 - **Local world**: a world that the client runs in its own process. A singleplayer world is a
   local world, also when it is open to LAN. A world on a server that the client does not run is
   not a local world.
@@ -324,6 +327,7 @@ semantic for the actions. Confidence: medium. Experiment: MENU-EXP-01.
   removed (MENU-SAVE-001).
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: MENU-EXP-02.
+mcrs deviates from the postconditions: MENU-DEV-011.
 
 ### MENU-OPT-002: Layout of the vanilla options screen
 
@@ -428,6 +432,7 @@ Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: ME
     (MENU-SAVE-001).
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: MENU-EXP-03.
+mcrs deviates from the last postcondition: MENU-DEV-011.
 
 ### MENU-VID-001: Rows of the vanilla "Video Settings" screen
 
@@ -820,7 +825,8 @@ medium. Experiment: MENU-EXP-11.
     the value that the client sent last. A pending value is not stored, so it does not go.
   - In mcrs, `o` can be up to 96. A vanilla server clamps it (MENU-DIST-003).
 
-Provenance: `source_suggested`. Kind: wire. Confidence: medium. Experiment: MENU-EXP-11.
+Provenance: `source_suggested`. Kind: wire. Confidence: medium. Experiment: MENU-EXP-11. mcrs
+deviates from steps 2, 3 and 5 and from the first two postconditions: MENU-DEV-011.
 
 ### MENU-DIST-003: The view of a player on the server
 
@@ -883,7 +889,7 @@ columns. Confidence: medium. Experiment: MENU-EXP-11.
 
 Provenance: `source_suggested`. `design` for the edge case: the server of mcrs accepts the range
 of Render Distance of mcrs (MENU-VAL-007, step 3). Kind: wire. Confidence: medium. Experiment:
-MENU-EXP-12.
+MENU-EXP-12. mcrs deviates from the last postcondition: MENU-DEV-011.
 
 ### MENU-DIST-005: Simulation Distance in a local world
 
@@ -1065,6 +1071,7 @@ Confidence: medium. Experiment: MENU-EXP-07.
   GUI Scale button does not get it.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: MENU-EXP-07.
+mcrs deviates from the last postcondition: MENU-DEV-011.
 
 ---
 
@@ -1090,6 +1097,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   - The close of the pause screen writes nothing.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: MENU-EXP-08.
+mcrs deviates: MENU-DEV-011.
 
 ### MENU-SAVE-002: Stop of the client
 
@@ -1146,7 +1154,7 @@ mcrs deviates: MENU-DEV-005.
   after the open. An implementation can write a line for each write that fails.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: MENU-EXP-10.
-mcrs deviates from step 1: MENU-DEV-006.
+mcrs deviates from step 1: MENU-DEV-006. mcrs deviates from the moments of step 4: MENU-DEV-011.
 
 ### MENU-SAVE-004: A write that stops before its end
 
@@ -1446,8 +1454,9 @@ Decides: MENU-VAL-011, MENU-DISP-003, MENU-DISP-005.
 - **mcrs:**
   1. At a stop of the client, mcrs lets a write that still runs come to its end.
   2. Then mcrs writes the file when a change waits for its write, or when the last write that
-     ended before the stop failed (MENU-DEV-006). A change of a slider that the player still
-     holds is a change that waits. The screen that is open has no effect.
+     ended before the stop failed (MENU-DEV-006). MENU-DEV-011, step 3, states when a change
+     waits. A change of a slider that the player still holds is an example. The screen that is
+     open has no effect.
   3. When no change waits and no write that ended before the stop failed, the stop writes
      nothing. The removal of the options screen or of an option sub-screen at the stop does not
      write the file.
@@ -1477,7 +1486,8 @@ Decides: MENU-VAL-011, MENU-DISP-003, MENU-DISP-005.
   4. A later write that succeeds clears the fact of step 1.
   5. mcrs writes a warning to its log for each write that fails. The log is not an observer
      (MENU-SAVE-003, edge cases).
-  6. Steps 2 to 4 of MENU-SAVE-003 apply to mcrs.
+  6. Steps 2 and 3 of MENU-SAVE-003 apply to mcrs. Step 4 applies with the moments of
+     MENU-DEV-011 and MENU-DEV-005 in place of MENU-SAVE-001 and MENU-SAVE-002.
 - **Reason:** without the write at the stop, the player loses a change that the screens showed
   as applied.
 - **Visible to the client:** yes, after a write that failed, when the write at the stop
@@ -1557,6 +1567,92 @@ Decides: MENU-VAL-011, MENU-DISP-003, MENU-DISP-005.
   to the refresh rate of the monitor, and the image can tear (MENU-DISP-002).
 - **Test:** a differential test writes the value of VSync into the options file before it
   compares. It does not compare the default.
+
+### MENU-DEV-011: The options file and `client_information` follow the stored options
+
+- **Rule:** MENU-SAVE-001; steps 2, 3 and 5 and the first two postconditions of MENU-DIST-002;
+  the last postcondition of MENU-DIST-004, of MENU-SUB-002 and of MENU-SCALE-003; the
+  postconditions of MENU-OPT-001; the moments of MENU-SAVE-003, step 4. `client-controls.md`,
+  CTRL-DEV-002, applies this entry to Sensitivity.
+- **Reference:** the rules. The client writes the options file at the moments of MENU-SAVE-001.
+  A change of a slider and a change by the Ctrl wheel wait for the removal of the options screen
+  or of an option sub-screen. In the play state, the client sends `client_information` at the
+  moments of MENU-SAVE-001 and MENU-SAVE-002 when the information changed (MENU-DIST-002). The
+  first such moment always sends it.
+- **mcrs:**
+  1. After each change of the stored options, mcrs writes the options file. The write stores the
+     value of each option at the start of the write.
+  2. The write starts in the first frame in which the left button is up and no other write of
+     the options file runs. This can be the frame of the change.
+  3. Until that frame, the change waits. Each change that waits goes into the next write. Thus a
+     drag that changes an option many times causes one write.
+  4. The removal of a screen writes nothing. Examples: the close of the options screen or of an
+     option sub-screen, the open of an option sub-screen, and the close of the pause screen.
+     MENU-DEV-005 states the stop of the client.
+  5. The table gives the moments for each input. "At once" means that the write starts in the
+     frame of the change, when step 2 lets it.
+
+| Input | Change of the stored options | Start of the write |
+|-------|------------------------------|--------------------|
+| Activation of a cycle button by a press of the left button (WID-CYC-002) | at the press | at the release of the left button |
+| Activation of a cycle button by an activation key, or a wheel event on the button | at the key or at the wheel event | at once |
+| Drag of a slider that applies at once (WID-SLD-002; WID-SLD-007, step 1) | at the press and at each move | one write, at the release of the left button |
+| Key step on a slider that applies at once, in change mode (WID-SLD-003, WID-SLD-005) | at each key | at once |
+| Slider that waits (WID-SLD-007, step 2) | at the store: the first frame at least 600 ms after the last change of the pending value, or the close of the screen (MENU-SUB-002, step 1) | at once when the left button is up at the store; else at the release of the left button |
+| Ctrl wheel on "Video Settings" (MENU-SCALE-003) | at the wheel event | at once |
+| Key "Toggle Fullscreen" (MENU-DISP-005) | at the press of the key | at once |
+
+  6. Each other change of the stored options acts in the same way. An example is a change of
+     Fullscreen by the system (MENU-DISP-003, step 6).
+  7. In the play state, after each change of the stored options, the client makes its client
+     information from the stored options. The left button and a write that runs do not delay
+     this.
+  8. The client compares that information with the last `client_information` that it sent, in
+     the configuration state or in the play state. When they differ, the client sends
+     `client_information` (play, serverbound 14).
+  9. In the play state, the client sends `client_information` at no other moment. A write of the
+     options file, the removal of a screen and the stop of the client send nothing. The first
+     change in the play state sends nothing when no field differs.
+  10. Steps 1 and 4 of MENU-DIST-002 apply to mcrs.
+  11. Render Distance is the only option of mcrs in the client information. Its slider waits, so
+      a pending value does not go. Thus each wait of the slider sends at most one
+      `client_information`.
+- **Postconditions in mcrs:** these replace the postconditions of the rules of the field "Rule"
+  that name "Done", the removal of a screen or a write that waits.
+  - A drag of Render Distance sends nothing while the value is pending. The end of the wait
+    stores the value and sends one `client_information` with it. "Done" then sends nothing.
+  - "Done" or Escape before the end of the wait stores the pending value (MENU-SUB-002, step 1).
+    That store sends one `client_information`.
+  - When a drag of Render Distance ends at the stored value, its store is not a change. It sends
+    nothing and writes nothing.
+  - A press of a cycle button sends nothing. No option of a cycle button is in the client
+    information.
+  - In a local world, when the host raises `o`, the new columns arrive after the end of the wait
+    (MENU-DIST-004). The screen can still be open.
+  - After a drag of FOV, the write starts at the release. The close of the options screen then
+    writes nothing.
+  - A change by the Ctrl wheel writes the options file at once.
+- **Reason:** the owner decided this on 2026-11-13. The stored options are one state. The options
+  file and the server follow that state, with work in proportion to the change. A crash of the
+  client loses less. The wait of the slider and the comparison with the last
+  `client_information` put a limit on the traffic to the server.
+- **Visible to the client:** yes.
+  - The time of the options file differs. A crash or a kill of the process can occur while the
+    options screen or an option sub-screen is open. Then mcrs starts with each change up to the
+    last release of the left button. The reference starts with the values of its last write.
+  - A server gets `client_information` at the end of the wait of Render Distance, while the
+    screen is still open. The reference sends it at the next moment of MENU-SAVE-001, for
+    example at "Done". Thus in mcrs, the view of the player changes before the close.
+  - A server gets no `client_information` in the play state until a change of Render Distance.
+    The reference sends one at the first moment of MENU-SAVE-001 in the play state.
+- **Test:** a differential test does not compare the time of the options file. It does not
+  compare the moments of `client_information` in the play state (MENU-EXP-08, MENU-EXP-11,
+  MENU-EXP-12). It compares the values in the file after the left button is up and each write
+  ended. It compares the view distance of the last `client_information` after the end of each
+  wait and the close of the screen. A conformance test of mcrs uses the moments of this entry.
+
+Provenance: `design`. Kind: semantic for the options file, wire for `client_information`.
+Confidence: high.
 
 ---
 

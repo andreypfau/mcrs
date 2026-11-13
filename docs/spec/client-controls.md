@@ -122,6 +122,7 @@ Out of scope:
   (CTRL-SAVE-001).
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: CTRL-EXP-01.
+mcrs deviates from the postconditions: CTRL-DEV-002.
 
 ### CTRL-SCR-002: Rows of the vanilla "Controls" screen
 
@@ -202,6 +203,7 @@ CTRL-EXP-01.
   the screen that opened "Controls".
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: CTRL-EXP-02.
+mcrs deviates from the first sentence of the postconditions: CTRL-DEV-002.
 
 ### CTRL-MOUSE-002: Rows of the vanilla "Mouse Settings" screen
 
@@ -285,7 +287,7 @@ CTRL-EXP-02.
   (CTRL-SAVE-001).
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts. Kind: semantic.
-Confidence: medium. Experiment: CTRL-EXP-03.
+Confidence: medium. Experiment: CTRL-EXP-03. mcrs deviates from the edge case: CTRL-DEV-002.
 
 ---
 
@@ -376,6 +378,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
     mcrs acts as MENU-DEV-005 states.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: CTRL-EXP-03.
+mcrs deviates: CTRL-DEV-002.
 
 ---
 
@@ -491,6 +494,28 @@ Decides: item 1 of section 9.
   invert options off.
 - **Test:** a differential test compares the bounds of each widget of mcrs with the rules of the
   mcrs subset. It does not compare them with a vanilla capture.
+
+### CTRL-DEV-002: Sensitivity writes the options file after its change
+
+- **Rule:** CTRL-SAVE-001; the edge case of CTRL-VAL-001; the postconditions of CTRL-SCR-001
+  and CTRL-MOUSE-001 for the options file.
+- **Reference:** the rules. A change of Sensitivity writes nothing at once. Each removal of
+  "Controls" or of "Mouse Settings" writes the options file.
+- **mcrs:** `client-menu.md`, MENU-DEV-011, applies to these screens:
+  1. A drag of Sensitivity writes the options file one time, at the release of the left button.
+  2. A key step of Sensitivity in change mode writes the options file at once.
+  3. The open and the close of "Controls" and of "Mouse Settings" write nothing.
+  4. Sensitivity is not in the client information. Its change sends no `client_information`.
+- **Reason:** as MENU-DEV-011 states.
+- **Visible to the client:** yes, in the time of the options file. A crash or a kill of the
+  process can occur while "Mouse Settings" is open. Then mcrs starts with the value of
+  Sensitivity at the last release of the left button. The reference starts with the value of its
+  last write.
+- **Test:** a differential test does not compare the time of the options file (CTRL-EXP-01 to
+  CTRL-EXP-03). It compares the value of Sensitivity in the file after the left button is up and
+  each write ended.
+
+Provenance: `design`. Kind: semantic. Confidence: high.
 
 ---
 
