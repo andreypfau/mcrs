@@ -132,6 +132,7 @@ pub fn collision_table(definitions: &BlockDefinitions, tags: &Tags<Block>) -> Co
             speed_factor: named.speed_factor,
             jump_factor: named.jump_factor,
             bounce,
+            fall_damage_multiplier: named.fall_damage_multiplier,
         };
         let _ = builder.push(StateSpec {
             boxes: &boxes,

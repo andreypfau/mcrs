@@ -11,14 +11,15 @@ use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::block::BlockStateNumber;
 use mcrs_minecraft_protocol_game::clientbound::{
     AttributeModifier, AttributeOperation, AttributeSnapshot, ClientboundAddEntity,
-    ClientboundSetEntityData, ClientboundSetEquipment, ClientboundSetPassengers,
-    ClientboundUpdateAttributes,
+    ClientboundPlayerCombatKill, ClientboundRemoveMobEffect, ClientboundSetEntityData,
+    ClientboundSetEquipment, ClientboundSetExperience, ClientboundSetHealth,
+    ClientboundSetPassengers, ClientboundUpdateAttributes, ClientboundUpdateMobEffect,
 };
 use mcrs_minecraft_protocol_game::entity::{
     DyeColor, EquipmentSlot, MetaDataValue, Metadata, MetadataEntry, OptionalBlockState,
     OptionalUnsignedInt, Pose, VillagerData,
 };
-use mcrs_minecraft_protocol_game::{ByteAngle, LpVec3, ProtoStack};
+use mcrs_minecraft_protocol_game::{ByteAngle, LpVec3, ProtoStack, text::Text};
 use mcrs_minecraft_resource::{Id, ResourceLocation};
 use uuid::Uuid;
 
@@ -307,4 +308,68 @@ fn a_player_info_update_reads_the_list_order_and_hat_actions_from_the_top_two_bi
         panic!("{:?}", update.entries);
     };
     assert_eq!((entry.list_order, entry.show_hat), (5, true));
+}
+
+#[test]
+fn set_experience_writes_progress_level_total() {
+    let packet = ClientboundSetExperience {
+        experience_progress: 0.5,
+        experience_level: VarInt(7),
+        total_experience: VarInt(300),
+    };
+    let mut buf = Vec::new();
+    let bytes = round_trip(&packet, &mut buf);
+    assert_eq!(bytes, [0x3f, 0x00, 0x00, 0x00, 0x07, 0xac, 0x02]);
+}
+
+#[test]
+fn set_health_writes_health_food_saturation() {
+    let packet = ClientboundSetHealth {
+        health: 20.0,
+        food: VarInt(20),
+        saturation: 5.0,
+    };
+    let mut buf = Vec::new();
+    let bytes = round_trip(&packet, &mut buf);
+    assert_eq!(
+        bytes,
+        [0x41, 0xa0, 0x00, 0x00, 0x14, 0x40, 0xa0, 0x00, 0x00]
+    );
+}
+
+#[test]
+fn update_mob_effect_writes_entity_effect_amplifier_duration_flags() {
+    let packet = ClientboundUpdateMobEffect {
+        entity_id: VarInt(300),
+        effect: VarInt(1),
+        amplifier: VarInt(2),
+        duration: VarInt(600),
+        flags: 3,
+    };
+    let mut buf = Vec::new();
+    let bytes = round_trip(&packet, &mut buf);
+    assert_eq!(bytes, [0xac, 0x02, 0x01, 0x02, 0xd8, 0x04, 0x03]);
+}
+
+#[test]
+fn remove_mob_effect_writes_entity_and_effect() {
+    let packet = ClientboundRemoveMobEffect {
+        entity_id: VarInt(300),
+        effect: VarInt(1),
+    };
+    let mut buf = Vec::new();
+    let bytes = round_trip(&packet, &mut buf);
+    assert_eq!(bytes, [0xac, 0x02, 0x01]);
+}
+
+#[test]
+fn combat_kill_writes_player_before_message() {
+    let message = mcrs_minecraft_text::RawText::from_text(&Text::text("x")).unwrap();
+    let packet = ClientboundPlayerCombatKill {
+        player_id: VarInt(300),
+        message,
+    };
+    let mut buf = Vec::new();
+    let bytes = round_trip(&packet, &mut buf);
+    assert_eq!(bytes, [0xac, 0x02, 0x08, 0x00, 0x01, 0x78]);
 }

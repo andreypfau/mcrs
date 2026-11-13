@@ -13,4 +13,6 @@ pub struct MobState {
     pub health: f32,
     /// Whether the mob is in the dying state, whose pose is `dying`.
     pub dying: bool,
+    /// Whether the mob is drawn on fire.
+    pub on_fire: bool,
 }

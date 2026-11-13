@@ -54,5 +54,15 @@ bitflags::bitflags! {
         const GRASS_BLOCK = 1 << 23;
         /// The block tag `doors`.
         const DOOR = 1 << 24;
+        /// A magma block: the step action deals the hot floor damage.
+        const HOT_FLOOR = 1 << 25;
+        /// A cactus: its inside action deals the cactus damage.
+        const CACTUS = 1 << 26;
+        /// A sweet berry bush: its inside action deals the bush damage.
+        const SWEET_BERRY_BUSH = 1 << 27;
+        /// Fire or soul fire: its inside action ignites the entity.
+        const FIRE = 1 << 28;
+        /// Powder snow: the inside action freezes the entity.
+        const POWDER_SNOW = 1 << 29;
     }
 }

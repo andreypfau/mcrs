@@ -81,6 +81,7 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(VanillaBlockLootPlugin)
             .add(VanillaMobBrainPlugin)
             .add(VanillaItemPlugin)
+            .add(VanillaCombatPlugin)
             .add(VanillaBlockPlacePlugin)
             .add(self.world_gen)
             .add(LightingPlugin)
@@ -118,6 +119,15 @@ pub struct VanillaItemPlugin;
 impl Plugin for VanillaItemPlugin {
     fn build(&self, app: &mut App) {
         app.add_persistence_plugin(ItemPersistencePlugin);
+    }
+}
+
+/// Combat, health, damage, status effects and experience in every dimension world.
+pub struct VanillaCombatPlugin;
+
+impl Plugin for VanillaCombatPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_dimension_plugin(mcrs_minecraft_combat::CombatPlugin);
     }
 }
 

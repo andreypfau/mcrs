@@ -428,6 +428,9 @@ where
             } => {
                 self.set(pos, state, flags, limit);
             }
+            MessageBody::Destroy { pos, drops, limit } => {
+                self.destroy(pos, drops, limit);
+            }
             MessageBody::BlockTick {
                 pos,
                 block,

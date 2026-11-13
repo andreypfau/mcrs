@@ -261,7 +261,7 @@ fn the_store_follows_the_tile_of_a_living_row_that_crosses_dies_and_leaves() {
         .state_mut(dying)
         .and_then(|state| state.living.as_mut())
     {
-        living.death_time = Some(19);
+        living.vitals.death_time = Some(19);
     }
     rows.freeze(&Serial, &mut grid);
     rows.tick(&pass, &Serial, &grid);

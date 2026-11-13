@@ -73,8 +73,8 @@ pub(crate) fn run(
                 2,
             ),
             "Health" => (
-                format!("{}f", java_float(living.health)),
-                living.health as i32,
+                format!("{}f", java_float(living.vitals.health)),
+                living.vitals.health as i32,
             ),
             _ => {
                 return Err(CommandFailure::translate(

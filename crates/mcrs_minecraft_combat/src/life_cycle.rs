@@ -1,0 +1,250 @@
+use bevy_ecs::entity::Entity;
+use bevy_ecs::message::{MessageReader, MessageWriter};
+use bevy_ecs::prelude::*;
+use glam::DVec3;
+use mcrs_minecraft_damage::{Defence, HitOutcome, hurt};
+use mcrs_minecraft_engine::ability::PlayerGameMode;
+use mcrs_minecraft_engine::coordinator::clock::GameTime;
+use mcrs_minecraft_engine_brain::EntityRows;
+use mcrs_minecraft_engine_physics::{RowDamaged, RowDied, RowHit, RowHits};
+use mcrs_minecraft_engine_world::entity::physics::{Transform, Velocity};
+use mcrs_minecraft_engine_world::game_rules::GameRules;
+use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
+use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_game_rule::GameRule;
+
+use crate::components::{
+    Armor, Dying, KnockbackResistance, PlayerEffects, PlayerEnvironment, PlayerFood,
+    PlayerHitRecord, PlayerVitals,
+};
+use crate::damage_rules::DamageTypeRulesResource;
+use crate::events::{DamageDealt, DamageRequest, DamageTarget, DeathEvent, KnockbackRequest};
+
+/// Applies every queued player hit through the one damage core (DMG-HIT-001 to DMG-HIT-005).
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: the queue, the damage sinks and the damaged player components are separate parameters"
+)]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one hit applies the cooldown, the reduction, the exhaustion, the knockback and the death in one place"
+)]
+#[expect(
+    clippy::type_complexity,
+    reason = "a Bevy system: each component of a damaged player is a separate query term"
+)]
+pub fn process_damage_requests(
+    mut commands: Commands,
+    mut requests: MessageReader<DamageRequest>,
+    mut damage_dealt: MessageWriter<DamageDealt>,
+    mut death_events: MessageWriter<DeathEvent>,
+    mut knockbacks: MessageWriter<KnockbackRequest>,
+    rules: Res<DamageTypeRulesResource>,
+    game_rules: Res<GameRules>,
+    time: Res<GameTime>,
+    rows: Option<Res<EntityRows>>,
+    mut row_hits: ResMut<RowHits>,
+    mut query: Query<(
+        Entity,
+        &mut PlayerVitals,
+        &mut PlayerHitRecord,
+        Option<&mut PlayerFood>,
+        Option<&PlayerEffects>,
+        Option<&Armor>,
+        Option<&KnockbackResistance>,
+        Option<&PlayerGameMode>,
+        Option<&Dying>,
+        Option<&Transform>,
+    )>,
+) {
+    for req in requests.read() {
+        let tick = time.0.max(0) as u64;
+        if let DamageTarget::Row(id) = req.target {
+            let Some(rows) = rows.as_deref() else {
+                continue;
+            };
+            let Some(at) = rows.placed(id) else {
+                continue;
+            };
+            let flags = rules.0.flags(req.hit.damage_type);
+            row_hits.0.push(
+                at.tile,
+                RowHit {
+                    at,
+                    hit: req.hit,
+                    defence: Defence::new(flags),
+                    tick,
+                },
+            );
+            continue;
+        }
+        let DamageTarget::Player(entity) = req.target else {
+            continue;
+        };
+        let Ok((
+            _,
+            mut vitals,
+            mut record,
+            mut food,
+            effects,
+            armor,
+            resistance,
+            mode,
+            dying,
+            transform,
+        )) = query.get_mut(entity)
+        else {
+            continue;
+        };
+        if dying.is_some() {
+            continue;
+        }
+        let flags = rules.0.flags(req.hit.damage_type);
+        if let Some(mode) = mode
+            && matches!(mode.0, GameMode::Creative | GameMode::Spectator)
+            && !flags.bypasses_invulnerability
+        {
+            continue;
+        }
+        if flags.is_fall && !game_rules.is_on(GameRule::FallDamage)
+            || flags.is_fire && !game_rules.is_on(GameRule::FireDamage)
+            || flags.is_drowning && !game_rules.is_on(GameRule::DrowningDamage)
+            || flags.is_freezing && !game_rules.is_on(GameRule::FreezeDamage)
+        {
+            continue;
+        }
+        let fire_resistance = effects.is_some_and(|effects| {
+            effects.0.has(MobEffect::FireResistance) && !flags.bypasses_effects
+        });
+        let defence = Defence {
+            flags,
+            armor: armor.map_or(0.0, |armor| armor.armor),
+            armor_toughness: armor.map_or(0.0, |armor| armor.toughness),
+            resistance: effects.and_then(|effects| effects.0.resistance()),
+            max_absorption: effects.map_or(0.0, |effects| effects.0.absorption_cap()),
+            fire_resistance,
+            fire_immune: false,
+            fall_immune: false,
+            undead: false,
+        };
+        let health_before = vitals.0.health;
+        let before = vitals.0.health + vitals.0.absorption;
+        let outcome = hurt(&mut vitals.0, &mut record.0, &defence, req.hit, tick);
+        if outcome == HitOutcome::Rejected {
+            continue;
+        }
+        let after = vitals.0.health + vitals.0.absorption;
+        let damage = (before - after).max(0.0);
+        if let Some(ref mut food) = food
+            && vitals.0.health < health_before
+        {
+            food.0
+                .add_exhaustion(rules.0.exhaustion(req.hit.damage_type));
+        }
+        damage_dealt.write(DamageDealt {
+            target: req.target,
+            hit: req.hit,
+            outcome,
+            damage,
+        });
+        if outcome == HitOutcome::Full && !flags.no_knockback {
+            let strength = req.hit.knockback
+                * (1.0
+                    - resistance
+                        .map_or(0.0, |resistance| resistance.0 as f32)
+                        .clamp(0.0, 1.0));
+            if strength > 0.0 {
+                let target_position =
+                    transform.map_or(DVec3::ZERO, |transform| transform.translation);
+                let direction =
+                    req.hit
+                        .source
+                        .source_position
+                        .map_or(bevy_math::Vec3::Z, |source| {
+                            let mut dx = (target_position.x - source.x) as f32;
+                            let mut dz = (target_position.z - source.z) as f32;
+                            let length_squared = dx * dx + dz * dz;
+                            if length_squared < 1.0e-4 {
+                                dx = 0.0;
+                                dz = 1.0;
+                            } else {
+                                let length = length_squared.sqrt();
+                                dx /= length;
+                                dz /= length;
+                            }
+                            bevy_math::Vec3::new(dx, 0.0, dz)
+                        });
+                knockbacks.write(KnockbackRequest {
+                    target: entity,
+                    direction,
+                    strength,
+                });
+            }
+        }
+        if vitals.0.death_time == Some(0) {
+            commands.entity(entity).insert(Dying);
+            death_events.write(DeathEvent {
+                target: req.target,
+                source: req.hit.source,
+            });
+        }
+    }
+}
+
+/// Counts the death time of a player (DMG-DTH-001, PLD-DTH-002).
+pub fn tick_death(mut query: Query<(&mut PlayerVitals, &Dying)>) {
+    for (mut vitals, _) in &mut query {
+        let Some(time) = vitals.0.death_time.as_mut() else {
+            continue;
+        };
+        *time = time.saturating_add(1);
+    }
+}
+
+/// Lowers the damage cooldown and the hurt time of each player by one tick (DMG-HIT-003).
+pub fn tick_player_cooldowns(mut query: Query<&mut PlayerVitals>) {
+    for mut vitals in &mut query {
+        vitals.0.damage_cooldown = vitals.0.damage_cooldown.saturating_sub(1);
+        vitals.0.hurt_time = vitals.0.hurt_time.saturating_sub(1);
+    }
+}
+
+/// Pushes a player along the horizontal direction of a hit (DMG-KB-001).
+pub fn apply_knockback(
+    mut requests: MessageReader<KnockbackRequest>,
+    mut query: Query<(&mut Velocity, Option<&PlayerEnvironment>)>,
+) {
+    for request in requests.read() {
+        if let Ok((mut velocity, environment)) = query.get_mut(request.target) {
+            let power = f64::from(request.strength);
+            velocity.0.x = velocity.0.x / 2.0 + f64::from(request.direction.x) * power;
+            velocity.0.z = velocity.0.z / 2.0 + f64::from(request.direction.z) * power;
+            if environment.is_none_or(|environment| environment.on_ground) {
+                velocity.0.y = (velocity.0.y / 2.0 + power).min(0.4);
+            }
+        }
+    }
+}
+
+/// Turns the row hits applied at the merge point into the one damage result stream.
+pub fn emit_row_damage(
+    mut damaged: MessageReader<RowDamaged>,
+    mut died: MessageReader<RowDied>,
+    mut damage_dealt: MessageWriter<DamageDealt>,
+    mut death_events: MessageWriter<DeathEvent>,
+) {
+    for row in damaged.read() {
+        damage_dealt.write(DamageDealt {
+            target: DamageTarget::Row(row.at.id),
+            hit: row.hit,
+            outcome: row.outcome,
+            damage: row.damage,
+        });
+    }
+    for row in died.read() {
+        death_events.write(DeathEvent {
+            target: DamageTarget::Row(row.at.id),
+            source: row.source,
+        });
+    }
+}

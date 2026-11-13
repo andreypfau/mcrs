@@ -50,6 +50,11 @@ use crate::mob_life::spawn_mobs;
 use crate::mob_spawn_request::MobSpawnRequest;
 use crate::mobs::MobUuids;
 use crate::mobs::Mobs;
+use crate::row_damage::RowDamaged;
+use crate::row_damage::RowDied;
+use crate::row_damage::RowHitApply;
+use crate::row_damage::RowHits;
+use crate::row_damage::apply_row_hits;
 
 /// The entity pass of a dimension world: the merge point, the life cycle and the freeze in
 /// `DomainInput`, the pass in `Simulate`, and in `Project` the tile moves, then the systems of
@@ -119,7 +124,10 @@ impl<M: Send + Sync + 'static> Plugin for EntityPhysicsPlugin<M> {
         app.init_resource::<MobChanges>();
         app.init_resource::<CrowdDamageType>();
         app.init_resource::<PendingSpawns>();
+        app.init_resource::<RowHits>();
         app.add_message::<MobSpawnRequest>();
+        app.add_message::<RowDamaged>();
+        app.add_message::<RowDied>();
         app.add_message::<BlockPlaced>();
         app.add_systems(
             FixedUpdate,
@@ -138,6 +146,11 @@ impl<M: Send + Sync + 'static> Plugin for EntityPhysicsPlugin<M> {
                 .in_set(TickSet::DomainInput),
         );
         app.configure_sets(FixedUpdate, EntityPass.in_set(TickSet::Simulate));
+        app.configure_sets(
+            FixedUpdate,
+            RowHitApply.in_set(TickSet::Simulate).after(EntityPass),
+        );
+        app.add_systems(FixedUpdate, apply_row_hits::<M>.in_set(RowHitApply));
         app.add_systems(
             FixedUpdate,
             entity_tick::<M>

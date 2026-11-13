@@ -1,0 +1,52 @@
+[package]
+name = "mcrs_minecraft_combat"
+description = "Combat, health, hunger, environmental damage, death and respawn as Bevy plugins"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+bevy_math.workspace = true
+bytes.workspace = true
+glam.workspace = true
+mcrs_engine_muxer.workspace = true
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_damage.workspace = true
+mcrs_minecraft_dimension.workspace = true
+mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_brain.workspace = true
+mcrs_minecraft_engine_item.workspace = true
+mcrs_minecraft_entity_key.workspace = true
+mcrs_minecraft_engine_physics.workspace = true
+mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_entity_rows.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_game_mode.workspace = true
+mcrs_minecraft_game_rule.workspace = true
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_item_table.workspace = true
+mcrs_minecraft_item_key.workspace = true
+mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_network.workspace = true
+mcrs_minecraft_physics.workspace = true
+mcrs_minecraft_protocol.workspace = true
+mcrs_minecraft_protocol_game.workspace = true
+mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_replication.workspace = true
+mcrs_minecraft_save.workspace = true
+mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_text.workspace = true
+mcrs_minecraft_volume.workspace = true
+mcrs_minecraft_wire.workspace = true
+mcrs_voxel.workspace = true
+serde.workspace = true
+tracing.workspace = true

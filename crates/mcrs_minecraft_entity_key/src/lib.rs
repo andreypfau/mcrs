@@ -10,6 +10,7 @@ extern crate alloc;
 
 mod birth_sequences;
 mod birth_source;
+mod cause;
 mod entity_id;
 mod entity_key;
 mod keyed_stream;
@@ -17,6 +18,7 @@ mod tile_key;
 
 pub use birth_sequences::BirthSequences;
 pub use birth_source::BirthSource;
+pub use cause::Cause;
 pub use entity_id::EntityId;
 pub use entity_key::EntityKey;
 pub use keyed_stream::KeyedStream;

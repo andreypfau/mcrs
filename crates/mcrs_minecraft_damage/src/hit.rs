@@ -1,10 +1,12 @@
-/// A hit on a living entity: the amount and the network id of the damage type. The source has no
-/// entity and no position.
+use crate::DamageSource;
+/// A hit on a living entity: the amount, the damage type id, and the full damage source (DMG-SRC-001).
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct Hit {
     pub amount: f32,
     pub damage_type: u32,
+    pub source: DamageSource,
+    pub knockback: f32,
 }
 
 impl Hit {
@@ -13,6 +15,18 @@ impl Hit {
         Self {
             amount,
             damage_type,
+            source: DamageSource::new(damage_type),
+            knockback: 0.4,
+        }
+    }
+
+    #[must_use]
+    pub const fn from_source(amount: f32, source: DamageSource) -> Self {
+        Self {
+            amount,
+            damage_type: source.damage_type,
+            source,
+            knockback: 0.4,
         }
     }
 }

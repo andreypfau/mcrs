@@ -94,6 +94,7 @@ mod world_state;
 
 #[cfg(feature = "world-access")]
 pub use cell_volume::CellVolume;
+pub use publish_player_tiles::player_entity_id;
 
 /// The host: the coordinator and the muxer, in one world.
 pub struct EnginePlugin;

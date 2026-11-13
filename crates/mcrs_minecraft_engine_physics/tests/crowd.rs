@@ -104,7 +104,7 @@ const CRAMMING: u32 = 7;
 fn add_pig(scene: &mut TestScene, index: u32, position: DVec3, health: f32) {
     let motion = MotionRow::living(Category::Walker, Dimensions::scalable(0.9, 0.9));
     let mut living = Living::of(&motion);
-    living.health = health;
+    living.vitals.health = health;
     let body = Body {
         position,
         ..Body::default()

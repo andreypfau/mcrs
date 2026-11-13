@@ -39,7 +39,7 @@ fn validate<K: Kinds, V: Volume>(
         }
         let queued = !matches!(
             message.body,
-            MessageBody::Set { .. } | MessageBody::Update(_)
+            MessageBody::Set { .. } | MessageBody::Destroy { .. } | MessageBody::Update(_)
         );
         if kind == PartitionKind::Cell && queued {
             return Err(StepError::NoQueues { section });

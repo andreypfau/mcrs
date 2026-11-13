@@ -241,6 +241,13 @@ impl mcrs_minecraft_protocol::Decode<'_> for ParticleRandomization {
     }
 }
 
+/// Tells a player that it died, with the message of the death screen.
+#[derive(Clone, Debug, PartialEq, Encode, Decode)]
+pub struct ClientboundPlayerCombatKill<'a> {
+    pub player_id: VarInt,
+    pub message: RawText<'a>,
+}
+
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub struct ClientboundHurtAnimation {
     pub entity_id: VarInt,
@@ -618,6 +625,20 @@ impl mcrs_minecraft_protocol::Decode<'_> for ClientboundSetEquipment {
 }
 
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
+pub struct ClientboundSetExperience {
+    pub experience_progress: f32,
+    pub experience_level: VarInt,
+    pub total_experience: VarInt,
+}
+
+#[derive(Clone, Debug, PartialEq, Encode, Decode)]
+pub struct ClientboundSetHealth {
+    pub health: f32,
+    pub food: VarInt,
+    pub saturation: f32,
+}
+
+#[derive(Clone, Debug, PartialEq, Encode, Decode)]
 pub struct ClientboundSetHeldSlot {
     pub slot: VarInt,
 }
@@ -670,6 +691,16 @@ pub enum AttributeOperation {
     AddValue,
     AddMultipliedBase,
     AddMultipliedTotal,
+}
+
+impl From<AttributeOperation> for mcrs_minecraft_entity::attribute_instance::AttributeOperation {
+    fn from(operation: AttributeOperation) -> Self {
+        match operation {
+            AttributeOperation::AddValue => Self::AddValue,
+            AttributeOperation::AddMultipliedBase => Self::AddMultipliedBase,
+            AttributeOperation::AddMultipliedTotal => Self::AddMultipliedTotal,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
@@ -923,6 +954,22 @@ impl<'a> mcrs_minecraft_protocol::Decode<'a> for ClientboundPlayerInfoUpdate<'a>
         })
     }
 }
+
+#[derive(Clone, Debug, PartialEq, Encode, Decode)]
+pub struct ClientboundUpdateMobEffect {
+    pub entity_id: VarInt,
+    pub effect: VarInt,
+    pub amplifier: VarInt,
+    pub duration: VarInt,
+    pub flags: u8,
+}
+
+#[derive(Clone, Debug, PartialEq, Encode, Decode)]
+pub struct ClientboundRemoveMobEffect {
+    pub entity_id: VarInt,
+    pub effect: VarInt,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
