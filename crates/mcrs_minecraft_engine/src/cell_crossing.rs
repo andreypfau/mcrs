@@ -107,7 +107,7 @@ pub(crate) fn arrive(
         view,
         ticket,
     } = crossing;
-    let transform = carried.transform;
+    let transform = carried.transform();
     let player = player_dimension_change::place(world, session, transform, carried, view)?;
     release_remote(world, session);
     let mut arrived = world.entity_mut(player);

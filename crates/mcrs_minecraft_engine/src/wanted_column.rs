@@ -1,7 +1,7 @@
 use mcrs_engine_store::ChunkVersion;
 
 use crate::column_store::Delivery;
-use crate::stored_column::StoredColumn;
+use mcrs_minecraft_region_disk::stored_column::StoredColumn;
 
 /// A column that a view waits on, or a column that views hold and whose light is lit again.
 pub(crate) struct Wanted {

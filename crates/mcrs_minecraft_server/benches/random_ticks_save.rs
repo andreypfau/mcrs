@@ -40,12 +40,12 @@ use mcrs_minecraft_engine_world::world::storage::random_ticks::{RandomListing, R
 use mcrs_minecraft_engine_world::world::storage::section::{SectionBundle, SectionIndex};
 use mcrs_minecraft_engine_world::world::storage::view::WorldViewMut;
 use mcrs_minecraft_random::legacy::LegacyRandom;
+use mcrs_minecraft_region_disk::CorpusBlockStates;
 use mcrs_minecraft_simulation::{
     BlockBehaviour, BlockFacts, BlockShard, Cx, Env, Footprints, GameTick, KernelConfig, Kinds,
     PartitionKind, RandomPicks, RandomTickTable, RandomTicks, SemanticOrder, ShardId,
     SimulationVolume, Spread, StepOutput, StreamSeed, random_step,
 };
-use mcrs_minecraft_worldgen_generator::saved::CorpusBlockStates;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
 
 /// The default of the game rule `random_tick_speed`.

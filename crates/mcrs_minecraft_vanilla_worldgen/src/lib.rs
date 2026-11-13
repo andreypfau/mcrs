@@ -12,6 +12,7 @@ mod generation_stage;
 mod generation_tests;
 mod modern_carvers;
 mod routers;
+mod saved_monuments;
 mod structures;
 mod template_asset;
 mod template_handle;

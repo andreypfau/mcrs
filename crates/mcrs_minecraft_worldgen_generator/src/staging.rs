@@ -9,7 +9,9 @@ use mcrs_minecraft_worldgen_feature_place::entity::GeneratedEntity;
 use mcrs_voxel::ColumnPos;
 use rustc_hash::FxHashMap;
 
-use crate::saved::SectionData;
+use mcrs_minecraft_chunk::palette::{BiomePalette, BlockPalette};
+
+pub type SectionData = (BlockPalette, BiomePalette);
 use crate::task::ColumnSource;
 use mcrs_minecraft_heightmap::ColumnHeightmapSet;
 

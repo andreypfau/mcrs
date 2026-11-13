@@ -14,7 +14,7 @@ use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
 use mcrs_minecraft_engine::between_ticks::take_dim_outputs;
 use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
-    OutboundPlayerPacket, PacketPayload, PacketTarget, PlayerTransferSnapshot,
+    OutboundPlayerPacket, PacketPayload, PacketTarget,
 };
 use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
 use mcrs_minecraft_engine::muxer::session::SessionBundle;
@@ -102,6 +102,7 @@ fn play_login_targets_host_anchor() {
 
     {
         use mcrs_minecraft_engine::channel_types::ToDim;
+        use mcrs_minecraft_engine::persisted_registry::PersistedSnapshot;
         let sent = app
             .world_mut()
             .resource_mut::<mcrs_minecraft_engine::muxer::dim_inputs::DimInputs>()
@@ -109,13 +110,13 @@ fn play_login_targets_host_anchor() {
                 dim_label,
                 ToDim::Spawn(InboundPlayerSpawn {
                     session,
-                    snapshot: PlayerTransferSnapshot {
-                        uuid: Uuid::new_v4(),
-                        username: "target_test".into(),
-                        position: DVec3::new(0.0, 64.0, 0.0),
-                        rotation: bevy_math::Vec2::ZERO,
-                        client_info: Some(crate::support::client_info_with_view_distance(12)),
-                    },
+                    snapshot: PersistedSnapshot::joining_player(
+                        Uuid::new_v4(),
+                        "target_test".into(),
+                        DVec3::new(0.0, 64.0, 0.0),
+                        bevy_math::Vec2::ZERO,
+                        Some(crate::support::client_info_with_view_distance(12)),
+                    ),
                     dimensions: Vec::new().into(),
                 }),
             );

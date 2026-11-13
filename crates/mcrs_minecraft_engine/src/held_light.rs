@@ -5,7 +5,7 @@ use mcrs_minecraft_engine_world::world::light_gate::SectionRelit;
 use mcrs_voxel::SectionPos;
 
 use crate::light_codec::SectionLight;
-use crate::stored_column::StoredColumn;
+use mcrs_minecraft_region_disk::stored_column::StoredColumn;
 
 /// The light of a column that the clients hold, one row for each section from the lowest up.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

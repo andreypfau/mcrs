@@ -3,23 +3,22 @@
 
 use bevy_ecs::message::Message;
 use bevy_ecs::query::With;
-use bevy_ecs::world::EntityWorldMut;
+use bevy_ecs::world::{EntityWorldMut, World};
 use mcrs_minecraft_dimension::Dimension as DimensionKey;
 use mcrs_minecraft_engine_world::entity::EntityUuid;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
-use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_resource::ResourceKeyBuf;
+use tracing::error;
 
 use crate::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
-use crate::client_info::ClientInfo;
 use crate::coordinator::clock::GameTime;
 use crate::dimension_change::{Arrival, DimensionChangeError};
-use crate::game_mode::ListedGameMode;
-use crate::game_profile::GameProfile;
-use crate::op_level::AnnouncedOpLevel;
-use crate::persistence::{LoadedPlayerDat, UnreadablePlayerDat};
+use crate::persisted_registry::{PersistedRegistry, PersistedSnapshot};
+use crate::persistence::UnreadablePlayerDat;
 use crate::teleport::TeleportState;
 
 /// A player that its dimension world let go at the end of a tick, to arrive in the dimension
@@ -42,25 +41,16 @@ pub enum PlayerTransfer {
     Return(Departure),
 }
 
-/// The components of a player that go with it to another dimension world. A component of the
-/// player that is not here stays behind and is despawned.
+/// The components of a player that go with it to another dimension world, captured through the
+/// persisted-component registry. A component of the player that is not registered stays behind and
+/// is despawned.
 #[derive(Clone, Debug)]
 pub(crate) struct CarriedPlayer {
-    pub(crate) uuid: EntityUuid,
-    pub(crate) transform: Transform,
-    pub(crate) game_mode: PlayerGameMode,
-    pub(crate) flying: PlayerFlying,
-    pub(crate) op_level: PlayerOpLevel,
-    pub(crate) teleport: TeleportState,
+    snapshot: PersistedSnapshot,
+    /// The player file could not be read, so no later save may replace it.
+    unreadable: bool,
     /// The game time at which the player left, when the host sends its arrival teleport.
     pub(crate) departed_at: GameTime,
-    profile: Option<GameProfile>,
-    view_distance: Option<PlayerViewDistance>,
-    client_info: Option<ClientInfo>,
-    announced_op_level: Option<AnnouncedOpLevel>,
-    listed_game_mode: Option<ListedGameMode>,
-    loaded_dat: Option<LoadedPlayerDat>,
-    unreadable_dat: Option<UnreadablePlayerDat>,
 }
 
 /// The players that [`CarriedPlayer::take`] takes from.
@@ -75,74 +65,219 @@ pub(crate) type Carriable = (
 );
 
 impl CarriedPlayer {
-    /// Takes the carried components out of `player`. Takes nothing when `player` is no player
+    /// Takes the registered components out of `player`. Takes nothing when `player` is no player
     /// or lacks the state its arrival sends.
     pub(crate) fn take(player: &mut EntityWorldMut<'_>) -> Result<Self, DimensionChangeError> {
-        let (Some(&uuid), Some(&transform), true) = (
-            player.get::<EntityUuid>(),
-            player.get::<Transform>(),
-            player.contains::<Player>(),
-        ) else {
+        if !(player.contains::<Player>()
+            && player.contains::<EntityUuid>()
+            && player.contains::<Transform>()
+            && player.contains::<PlayerOpLevel>())
+        {
             return Err(DimensionChangeError::NoPlayer);
-        };
-        let (Some(&game_mode), Some(&flying), Some(&op_level), true) = (
-            player.get::<PlayerGameMode>(),
-            player.get::<PlayerFlying>(),
-            player.get::<PlayerOpLevel>(),
-            player.contains::<TeleportState>(),
-        ) else {
+        }
+        if !(player.contains::<PlayerGameMode>()
+            && player.contains::<PlayerFlying>()
+            && player.contains::<TeleportState>())
+        {
             return Err(DimensionChangeError::NoArrivalState);
-        };
-        let Some(teleport) = player.take::<TeleportState>() else {
-            return Err(DimensionChangeError::NoArrivalState);
-        };
-        let departed_at = player
-            .world()
-            .get_resource::<GameTime>()
-            .copied()
-            .unwrap_or_default();
+        }
+        let id = player.id();
+        let unreadable = player.contains::<UnreadablePlayerDat>();
+        let (snapshot, departed_at) = player.world_scope(|world| {
+            let Some(registry) = world.remove_resource::<PersistedRegistry>() else {
+                error!("player transfer has no persisted-component registry");
+                return Err(DimensionChangeError::NoArrivalState);
+            };
+            let snapshot = registry.capture(world, id);
+            world.insert_resource(registry);
+            let snapshot = snapshot.map_err(|err| {
+                error!(?id, "player transfer state not captured: {err}");
+                DimensionChangeError::NoArrivalState
+            })?;
+            let departed_at = world
+                .get_resource::<GameTime>()
+                .copied()
+                .unwrap_or_default();
+            Ok((snapshot, departed_at))
+        })?;
         Ok(Self {
-            uuid,
-            transform,
-            game_mode,
-            flying,
-            op_level,
-            teleport,
+            snapshot,
+            unreadable,
             departed_at,
-            profile: player.take(),
-            view_distance: player.take(),
-            client_info: player.take(),
-            announced_op_level: player.take(),
-            listed_game_mode: player.take(),
-            loaded_dat: player.take(),
-            unreadable_dat: player.take(),
         })
+    }
+
+    pub(crate) fn transform(&self) -> Transform {
+        self.snapshot.transform().unwrap_or_default()
+    }
+
+    pub(crate) fn uuid(&self) -> EntityUuid {
+        EntityUuid(
+            self.snapshot
+                .profile()
+                .map_or(Uuid::nil(), |profile| profile.id),
+        )
+    }
+
+    pub(crate) fn game_mode(&self) -> GameMode {
+        self.snapshot.game_mode().0
+    }
+
+    pub(crate) fn flying(&self) -> PlayerFlying {
+        self.snapshot.flying()
+    }
+
+    pub(crate) fn op_level(&self) -> PlayerOpLevel {
+        self.snapshot.op_level()
+    }
+
+    /// Sends the player a teleport to `destination` as of its departure and returns its id.
+    pub(crate) fn send_teleport(&mut self, destination: Transform) -> i32 {
+        self.snapshot.send_teleport(destination, self.departed_at)
     }
 
     /// Inserts the carried components into `player`, except its transform and its uuid, which
     /// the spawn of `player` sets.
-    pub(crate) fn insert_into(self, player: &mut EntityWorldMut<'_>) {
-        player.insert((self.game_mode, self.flying, self.op_level, self.teleport));
-        if let Some(profile) = self.profile {
-            player.insert(profile);
+    pub(crate) fn insert_into(self, world: &mut World, player: bevy_ecs::entity::Entity) {
+        let mut snapshot = self.snapshot;
+        snapshot.forget_placement();
+        if self.unreadable {
+            world.entity_mut(player).insert(UnreadablePlayerDat);
         }
-        if let Some(view_distance) = self.view_distance {
-            player.insert(view_distance);
+        let Some(registry) = world.remove_resource::<PersistedRegistry>() else {
+            error!("player transfer has no persisted-component registry");
+            return;
+        };
+        if let Err(err) = registry.apply(world, player, &snapshot) {
+            error!(?player, "player transfer state not applied: {err}");
+            world.entity_mut(player).insert(UnreadablePlayerDat);
         }
-        if let Some(client_info) = self.client_info {
-            player.insert(client_info);
-        }
-        if let Some(announced_op_level) = self.announced_op_level {
-            player.insert(announced_op_level);
-        }
-        if let Some(listed_game_mode) = self.listed_game_mode {
-            player.insert(listed_game_mode);
-        }
-        if let Some(loaded_dat) = self.loaded_dat {
-            player.insert(loaded_dat);
-        }
-        if let Some(unreadable_dat) = self.unreadable_dat {
-            player.insert(unreadable_dat);
-        }
+        world.insert_resource(registry);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::game_profile::GameProfile;
+    use crate::persisted_registry::{PersistScope, PersistedAppExt};
+    use crate::persistence::tests::{app, profile, temp_world};
+    use crate::persistence::{PlayerPersistencePlugin, load_player, write_player};
+    use bevy_app::App;
+    use bevy_ecs::component::Component;
+    use mcrs_minecraft_protocol::uuid::Uuid;
+    use mcrs_minecraft_save::{player_dat_path, read_player_dat};
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Component, Clone, Debug, PartialEq, Serialize, Deserialize)]
+    struct CarriedMarker(u32);
+
+    fn player_bundle() -> impl bevy_ecs::bundle::Bundle {
+        (
+            Player,
+            EntityUuid(Uuid::nil()),
+            Transform::default(),
+            PlayerGameMode::default(),
+            PlayerFlying(false),
+            PlayerOpLevel(1),
+            TeleportState::default(),
+        )
+    }
+
+    #[test]
+    fn a_registered_player_component_crosses_a_dimension() {
+        let mut app = App::new();
+        app.add_plugins(PlayerPersistencePlugin);
+        app.register_persisted::<CarriedMarker>(&["TestCarried"], PersistScope::TravelOnly);
+        app.insert_resource(GameTime(42));
+        let world = app.world_mut();
+        let old = world
+            .spawn((player_bundle(), profile(), CarriedMarker(9)))
+            .id();
+
+        let carried = {
+            let mut leaving = world.entity_mut(old);
+            CarriedPlayer::take(&mut leaving).unwrap()
+        };
+        world.despawn(old);
+        let arrived = world
+            .spawn((Player, EntityUuid(Uuid::nil()), Transform::default()))
+            .id();
+        carried.insert_into(world, arrived);
+
+        assert_eq!(world.get::<CarriedMarker>(arrived), Some(&CarriedMarker(9)));
+        assert_eq!(world.get::<PlayerOpLevel>(arrived), Some(&PlayerOpLevel(1)));
+        assert_eq!(
+            world.get::<GameProfile>(arrived).map(|profile| profile.id),
+            Some(profile().id)
+        );
+    }
+
+    #[test]
+    fn an_unreadable_player_file_survives_a_dimension_change_and_a_save() {
+        let dir = temp_world();
+        let path = player_dat_path(&dir, profile().id);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, b"not a player file").unwrap();
+        let mut app = app(&dir);
+        let world = app.world_mut();
+        let old = world.spawn((player_bundle(), profile())).id();
+        load_player(world, old);
+        assert!(world.get::<UnreadablePlayerDat>(old).is_some());
+
+        let carried = CarriedPlayer::take(&mut world.entity_mut(old)).unwrap();
+        world.despawn(old);
+        let arrived = world
+            .spawn((Player, EntityUuid(Uuid::nil()), Transform::default()))
+            .id();
+        carried.insert_into(world, arrived);
+        write_player(world, arrived);
+
+        assert_eq!(std::fs::read(&path).unwrap(), b"not a player file");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_failed_arrival_apply_keeps_the_player_file_from_being_overwritten() {
+        let dir = temp_world();
+        let path = player_dat_path(&dir, profile().id);
+        let mut source = app(&dir);
+        source.register_persisted::<CarriedMarker>(&["TestCarried"], PersistScope::TravelOnly);
+        let world = source.world_mut();
+        let old = world
+            .spawn((player_bundle(), profile(), CarriedMarker(9)))
+            .id();
+        let carried = CarriedPlayer::take(&mut world.entity_mut(old)).unwrap();
+
+        let mut destination = app(&dir);
+        let world = destination.world_mut();
+        let arrived = world
+            .spawn((Player, EntityUuid(Uuid::nil()), Transform::default()))
+            .id();
+        carried.insert_into(world, arrived);
+        assert!(world.get::<UnreadablePlayerDat>(arrived).is_some());
+        write_player(world, arrived);
+
+        assert!(!path.exists());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_readable_player_file_is_written_after_a_dimension_change() {
+        let dir = temp_world();
+        let mut app = app(&dir);
+        let world = app.world_mut();
+        let old = world.spawn((player_bundle(), profile())).id();
+        let carried = CarriedPlayer::take(&mut world.entity_mut(old)).unwrap();
+        world.despawn(old);
+        let arrived = world
+            .spawn((Player, EntityUuid(Uuid::nil()), Transform::default()))
+            .id();
+        carried.insert_into(world, arrived);
+        assert!(world.get::<UnreadablePlayerDat>(arrived).is_none());
+        write_player(world, arrived);
+
+        assert!(read_player_dat(&dir, profile().id).unwrap().is_some());
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

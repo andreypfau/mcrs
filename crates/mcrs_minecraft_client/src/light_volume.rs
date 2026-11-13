@@ -20,6 +20,7 @@ use mcrs_minecraft_render::CameraOrigin;
 use mcrs_voxel::{ColumnPos, SectionPos};
 
 use crate::Unsettled;
+use crate::config::MAX_VIEW_DISTANCE;
 use mcrs_minecraft_client_world::columns::{
     ClientTerrainSet, Column, ColumnChange, ColumnStore, Columns, Extent,
 };
@@ -55,12 +56,11 @@ impl Default for LightVolumePlugin {
 
 impl Plugin for LightVolumePlugin {
     fn build(&self, app: &mut App) {
-        let knobs = crate::config::Knobs::of(app);
         app.add_plugins(LightColorPlugin)
             .add_plugins(LightVolumeRenderPlugin {
                 settings: VolumeSettings {
                     radius: self.radius,
-                    view_distance: knobs.view_distance(),
+                    view_distance: MAX_VIEW_DISTANCE,
                     sections_per_frame: self.sections_per_frame,
                 },
             })

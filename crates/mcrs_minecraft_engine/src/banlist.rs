@@ -468,12 +468,17 @@ mod tests {
     fn a_write_that_cannot_finish_leaves_the_file_as_it_was() {
         let path = temp_file("unfinished");
         let mut list = BanList::read(&path);
-        std::fs::create_dir_all(path.with_file_name("unfinished.tmp")).unwrap();
+        std::fs::remove_file(&path).unwrap();
+        std::fs::create_dir_all(path.join("keep")).unwrap();
         list.add(ban(STEVE, "Steve"));
 
         list.write_file();
 
-        assert_eq!(on_disk(&path).len(), 0);
+        assert!(path.join("keep").is_dir());
+        assert_eq!(
+            std::fs::read_dir(path.parent().unwrap()).unwrap().count(),
+            1
+        );
     }
 
     #[test]

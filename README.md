@@ -116,7 +116,7 @@ Every crate is named `mcrs_minecraft_<name>` under [`crates/`](crates).
 | World generation (noise, surface, carvers, features, structures) | Matches vanilla in parity tests |
 | Lighting (sky, block and coloured light) | Working |
 | Client rendering (terrain, sky, clouds, light) | Working; numbers in [`PERF.md`](PERF.md) |
-| Anvil saves | Loading; the server does not save yet ([#78](https://github.com/andreypfau/mcrs/issues/78)) |
+| Anvil saves | Loading and saving; changed chunks go back to the region files, and a clean shutdown saves the world |
 | Protocol | Status, login, configuration and play; about half the packets typed |
 | Gameplay | Joining, chat, game modes and a plain flight stub; the rest returns from specifications |
 | Online mode, encryption, proxy forwarding | Not yet ([#82](https://github.com/andreypfau/mcrs/issues/82), [#296](https://github.com/andreypfau/mcrs/issues/296)) |

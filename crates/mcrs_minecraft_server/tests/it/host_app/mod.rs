@@ -21,7 +21,7 @@ use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
 use mcrs_minecraft_engine::between_ticks::take_dim_outputs;
 use mcrs_minecraft_engine::bus::{
     InboundPlayerDespawn, InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerAttached,
-    OutboundPlayerPacket, PacketPayload, PacketTarget, PlayerTransferSnapshot,
+    OutboundPlayerPacket, PacketPayload, PacketTarget,
 };
 use mcrs_minecraft_engine::channel_types::ToDim;
 use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
@@ -30,6 +30,7 @@ use mcrs_minecraft_engine::coordinator::ops::{DefaultOpLevel, OpList, OpListEntr
 use mcrs_minecraft_engine::muxer::dim_inputs::{DimInputs, DimInputsPlugin};
 use mcrs_minecraft_engine::muxer::muxer_link::{self, Answers};
 use mcrs_minecraft_engine::muxer::session::{HostAnchorRef, SessionBundle, SessionConnection};
+use mcrs_minecraft_engine::persisted_registry::PersistedSnapshot;
 use mcrs_minecraft_engine::to_coordinator::JoinRequested;
 use mcrs_minecraft_engine::to_muxer::JoinPlaced;
 use mcrs_minecraft_engine_world::entity::player::Player;
@@ -89,6 +90,7 @@ pub fn make_host_app() -> App {
     app.add_plugins(TimePlugin);
     app.insert_resource(Time::<Fixed>::from_hz(20.0));
     app.add_plugins(StatesPlugin);
+    app.add_plugins(mcrs_minecraft_engine::PlayerPersistencePlugin);
     app.init_state::<AppState>();
 
     app.add_message::<OutboundPlayerPacket>();
@@ -204,13 +206,13 @@ pub fn join(
         label,
         ToDim::Spawn(InboundPlayerSpawn {
             session: PlayerSession(session.0),
-            snapshot: PlayerTransferSnapshot {
-                uuid: Uuid::new_v4(),
-                username: "joining".into(),
-                position: DVec3::new(0.0, 64.0, 0.0),
-                rotation: Vec2::ZERO,
-                client_info: Some(crate::support::client_info_with_view_distance(12)),
-            },
+            snapshot: PersistedSnapshot::joining_player(
+                Uuid::new_v4(),
+                "joining".into(),
+                DVec3::new(0.0, 64.0, 0.0),
+                Vec2::ZERO,
+                Some(crate::support::client_info_with_view_distance(12)),
+            ),
             dimensions,
         }),
     );
@@ -449,15 +451,15 @@ pub fn admit(app: &mut App, dim: Entity, arrival: &Arrival<'_>) -> Entity {
         dim,
         ToDim::Spawn(InboundPlayerSpawn {
             session,
-            snapshot: PlayerTransferSnapshot {
-                uuid: arrival.uuid,
-                username: arrival.name.into(),
-                position: arrival.position,
-                rotation: Vec2::ZERO,
-                client_info: Some(crate::support::client_info_with_view_distance(
+            snapshot: PersistedSnapshot::joining_player(
+                arrival.uuid,
+                arrival.name.into(),
+                arrival.position,
+                Vec2::ZERO,
+                Some(crate::support::client_info_with_view_distance(
                     arrival.view_distance,
                 )),
-            },
+            ),
             dimensions: Vec::new().into(),
         }),
     );

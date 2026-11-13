@@ -9,6 +9,7 @@ pub mod ability;
 mod advance_digs;
 mod advance_production;
 mod assign_global_entity_id;
+mod background_writer;
 pub mod banlist;
 pub mod between_ticks;
 pub mod block_action_ack;
@@ -65,11 +66,13 @@ mod movement;
 pub mod muxer;
 pub mod network_id;
 mod op_level;
-pub mod persistence;
+pub mod persisted_registry;
+mod persistence;
 mod player_bundle;
 mod player_dimension_change;
 pub mod player_order;
 pub mod player_roster;
+pub mod player_state;
 mod player_tracker;
 mod player_view;
 mod publish_player_tiles;
@@ -86,6 +89,7 @@ pub mod view_radius;
 mod wanted_column;
 pub mod whitelist;
 pub mod world_kinds;
+mod world_state;
 
 #[cfg(feature = "world-access")]
 pub use cell_volume::CellVolume;
@@ -96,6 +100,17 @@ pub struct EnginePlugin;
 
 impl Plugin for EnginePlugin {
     fn build(&self, app: &mut App) {
+        if !app.is_plugin_added::<persistence::PlayerPersistencePlugin>() {
+            app.add_plugins(persistence::PlayerPersistencePlugin);
+        }
         app.add_plugins((CoordinatorPlugin, MuxerPlugin));
     }
 }
+
+pub use persistence::{
+    AutosaveCadence, AutosavePlugin, PlayerPersistencePlugin, UnreadablePlayerDat,
+    apply_join_snapshot, load_player, write_player,
+};
+pub use world_state::{
+    SavedSpawn, WorldStatePlugin, WorldStateSources, WorldStateWrite, WorldStateWriter,
+};

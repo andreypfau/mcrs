@@ -4,7 +4,6 @@
 
 mod cause;
 mod hand_form;
-mod insert;
 mod item_entity;
 mod merge;
 mod pickup;
@@ -14,10 +13,6 @@ pub use cause::Cause;
 pub use hand_form::HandVelocity;
 pub use hand_form::default_form;
 pub use hand_form::hand_form;
-pub use insert::Insertion;
-pub use insert::OFF_HAND;
-pub use insert::Slot;
-pub use insert::insert;
 pub use item_entity::DEFAULT_HEALTH;
 pub use item_entity::ItemEntity;
 pub use item_entity::LIFETIME;

@@ -8,13 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::proto::{PlacedFeature, StructureProcessorList, WrappedProcessors};
 use crate::template::Projection;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum LiquidSettings {
-    IgnoreWaterlogging,
-    #[default]
-    ApplyWaterlogging,
-}
+pub use mcrs_minecraft_anvil::piece::LiquidSettings;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

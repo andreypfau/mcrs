@@ -1,7 +1,6 @@
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer};
-use std::fs::File;
-use std::io::{ErrorKind, Write};
+use std::io::ErrorKind;
 use std::path::Path;
 
 #[derive(Deserialize)]
@@ -48,12 +47,5 @@ pub(crate) fn parse_json_list<T: DeserializeOwned>(
 }
 
 pub(crate) fn write_atomic(path: &Path, contents: &str) -> std::io::Result<()> {
-    let mut temp = path.as_os_str().to_owned();
-    temp.push(".tmp");
-    let mut file = File::create(&temp)?;
-    file.write_all(contents.as_bytes())?;
-    // Without the sync a power loss can keep the rename and lose the data.
-    file.sync_all()?;
-    drop(file);
-    std::fs::rename(&temp, path)
+    mcrs_minecraft_save::write_atomic(path, contents.as_bytes())
 }
