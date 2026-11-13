@@ -114,6 +114,11 @@ impl DeferredRows {
 
 pub use crate::join::ServerProfile;
 
+/// The view distance of the last `client_information` that the client sent on this connection, in
+/// the configuration state or in the play state.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SentViewDistance(pub u8);
+
 /// Present when the client holds the vanilla pack of its own version, so it may let a server
 /// leave that pack's entries out.
 #[derive(Resource)]
@@ -236,7 +241,10 @@ impl Plugin for ClientNetworkPlugin {
 
         app.add_systems(
             Update,
-            (spawn_joined_connection(recv), receive_packets)
+            (
+                spawn_joined_connection(recv, self.view_distance),
+                receive_packets,
+            )
                 .chain()
                 .in_set(ClientNetworkSystems::Receive),
         );
@@ -277,7 +285,10 @@ async fn connect_and_join(server: ServerAddress, join: Join) -> anyhow::Result<J
 
 type JoinOutcome = Result<Joined, String>;
 
-fn spawn_joined_connection(mut joined: Receiver<JoinOutcome>) -> impl FnMut(&mut World) {
+fn spawn_joined_connection(
+    mut joined: Receiver<JoinOutcome>,
+    view_distance: u8,
+) -> impl FnMut(&mut World) {
     move |world: &mut World| {
         while let Ok(outcome) = joined.try_recv() {
             let Joined {
@@ -302,6 +313,7 @@ fn spawn_joined_connection(mut joined: Receiver<JoinOutcome>) -> impl FnMut(&mut
                     ConnectionState::Configuration,
                     profile,
                     Configuration::default(),
+                    SentViewDistance(view_distance),
                 ))
                 .id();
             world.trigger(RegistriesReceived {

@@ -145,11 +145,12 @@ pub fn run() {
 
     match server(&knobs) {
         Some(server) => {
+            let view_distance = knobs.view_distance();
             app.add_plugins(ClientNetworkPlugin {
                 server,
                 username: knobs.username(),
                 profile_id: None,
-                view_distance: knobs.view_distance(),
+                view_distance,
                 holds_vanilla_pack: false,
                 play: Some(mcrs_minecraft_client_world::game_packets::GAME_CLIENTBOUND),
             });
