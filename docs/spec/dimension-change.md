@@ -2,8 +2,8 @@
 
 | Field | Value |
 |-------|-------|
-| Game version | `26.4-snapshot-4` (Minecraft Java Edition, 26.4 Snapshot 4) |
-| Protocol version | `1073742166` |
+| Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
+| Protocol version | `1073742169` |
 | Packets | PLAY, clientbound: `respawn` 84, `change_difficulty` 10, `entity_event` 34, `commands` 16, `player_position` 73, `set_chunk_cache_center` 96, `player_abilities` 65, `initialize_border` 44, `set_time` 115, `set_default_spawn_position` 99, `game_event` 39, `ticking_state` 130, `ticking_step` 131, `container_set_content` 18, `set_held_slot` 107, `update_mob_effect` 135, `post_effects` 83, `set_health` 106, `set_experience` 105, `remove_entities` 78 |
 
 Source of the version values: `assets/minecraft/version.json`. Source of the packet ids:
@@ -114,7 +114,6 @@ that one `update_mob_effect` arrives and that no `forget_level_chunk` arrives.
 | dimension | Identifier | the identifier of the new dimension |
 | game mode | VarInt | the id of the game mode of the player |
 | previous game mode | VarInt | 0 when the player has no previous game mode; otherwise the id of that mode plus 1 |
-| debug | Boolean | true when the new dimension is a debug world |
 | flat | Boolean | true when the world is a flat world |
 | last death location | optional | a Boolean; when true, then the Identifier of the dimension and the block position of the last death |
 | portal cooldown | VarInt | the portal cooldown of the player, in ticks |
