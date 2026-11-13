@@ -46,7 +46,7 @@ use mcrs_minecraft_item::component::equippable::EquipmentSlot;
 use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_item_stack::{AttributeModifiers, Kind, ModifierOperation, SlotGroup};
 use mcrs_minecraft_network::event::Received;
-use mcrs_minecraft_physics::{BlockAction, Vitals};
+use mcrs_minecraft_physics::{BlockAction, BlockFlags, Vitals};
 use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundAttack, ServerboundChangeDifficulty, ServerboundPlayerAction,
     ServerboundPlayerInput, ServerboundSetCarriedItem,
@@ -91,9 +91,10 @@ use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 struct EnvironmentTimers {
-    last_y: f64,
+    last_position: DVec3,
     fall_distance: f64,
     on_ground: bool,
+    jumping: bool,
     respawn_at: Transform,
 }
 
@@ -124,9 +125,10 @@ struct PlayerInputState {
 impl EnvironmentTimers {
     fn at(transform: Transform) -> Self {
         Self {
-            last_y: transform.translation.y,
+            last_position: transform.translation,
             fall_distance: 0.0,
             on_ground: false,
+            jumping: false,
             respawn_at: transform,
         }
     }
@@ -286,7 +288,13 @@ fn on_set_carried_item(
     let Ok(mut selected) = players.get_mut(on.entity) else {
         return;
     };
-    selected.0 = u8::try_from(packet.slot).unwrap_or(0).min(8);
+    let Ok(slot) = u8::try_from(packet.slot) else {
+        return;
+    };
+    if slot > 8 {
+        return;
+    }
+    selected.0 = slot;
 }
 
 fn tick_player_hunger(
@@ -419,13 +427,16 @@ fn tick_player_environment(
             eye_in_water = is_water(view, definitions, eye);
             in_water = is_water(view, definitions, feet);
             in_lava = is_lava(view, definitions, feet) || is_lava(view, definitions, eye);
-            in_fire = is_block(view, definitions, feet, "minecraft:fire")
-                || is_block(view, definitions, feet, "minecraft:soul_fire");
-            in_powder_snow = is_block(view, definitions, feet, "minecraft:powder_snow")
-                || is_block(view, definitions, eye, "minecraft:powder_snow");
-            on_magma = is_block(view, definitions, below, "minecraft:magma_block");
-            in_cactus = touches_cactus(view, definitions, position);
-            in_berry_bush = is_block(view, definitions, feet, "minecraft:sweet_berry_bush");
+            if let Some(tables) = tables.as_deref() {
+                let feet_flags = block_flags(view, tables, feet);
+                let eye_flags = block_flags(view, tables, eye);
+                in_fire = feet_flags.contains(BlockFlags::FIRE);
+                in_powder_snow = feet_flags.contains(BlockFlags::POWDER_SNOW)
+                    || eye_flags.contains(BlockFlags::POWDER_SNOW);
+                in_berry_bush = feet_flags.contains(BlockFlags::SWEET_BERRY_BUSH);
+                on_magma = block_flags(view, tables, below).contains(BlockFlags::HOT_FLOOR);
+                in_cactus = touches_cactus(view, tables, position);
+            }
             in_wall = view.block(eye).ok().is_some_and(|state| {
                 definitions
                     .state(state)
@@ -435,21 +446,27 @@ fn tick_player_environment(
             });
         }
 
-        if let Some(velocity) = velocity
-            && velocity.0.x.hypot(velocity.0.z) > 0.1
-        {
+        let travelled = DVec3::new(
+            position.x - timers.last_position.x,
+            0.0,
+            position.z - timers.last_position.z,
+        )
+        .length();
+        if travelled > 0.0 && travelled < 10.0 {
             if sprinting {
-                food.add_exhaustion(0.1);
+                food.add_exhaustion(0.1 * travelled as f32);
             } else if in_water {
-                food.add_exhaustion(0.01);
+                food.add_exhaustion(0.01 * travelled as f32);
             }
         }
-        if input.is_some_and(|input| input.jumping) && timers.on_ground {
+        let jumping = input.is_some_and(|input| input.jumping);
+        if jumping && !timers.jumping && timers.on_ground {
             food.add_exhaustion(if sprinting { 0.2 } else { 0.05 });
         }
+        timers.jumping = jumping;
 
         if vulnerable && fall_damage && !flying.is_some_and(|flying| flying.0) {
-            let dy = position.y - timers.last_y;
+            let dy = position.y - timers.last_position.y;
             if dy.abs() > 8.0 {
                 timers.fall_distance = 0.0;
             } else if dy < 0.0 && !in_water && !in_lava && !in_powder_snow {
@@ -468,7 +485,7 @@ fn tick_player_environment(
         } else {
             timers.fall_distance = 0.0;
         }
-        timers.last_y = position.y;
+        timers.last_position = position;
 
         let fire_resistant = effects.is_some_and(|effects| effects.has(MobEffect::FireResistance));
         if in_water {
@@ -637,7 +654,7 @@ fn tick_mob_environment(
     }
     let mut hits: Vec<(Placed, Hit)> = Vec::new();
     for at in places {
-        let touched = touched.remove(&at.id.0).unwrap_or_default();
+        let mut touched = touched.remove(&at.id.0).unwrap_or_default();
         let Some(state) = rows.state_mut(at) else {
             continue;
         };
@@ -657,6 +674,15 @@ fn tick_mob_environment(
         );
         let feet_in_water = is_water(&view, definitions, feet);
         let eye_in_water = is_water(&view, definitions, eye);
+        if let Some(tables) = tables.as_deref() {
+            let flags = block_flags(&view, tables, feet);
+            touched.fire |= flags.contains(BlockFlags::FIRE);
+            touched.cactus |= flags.contains(BlockFlags::CACTUS);
+            touched.berry |= flags.contains(BlockFlags::SWEET_BERRY_BUSH);
+            touched.hot_floor |=
+                block_flags(&view, tables, BlockPos::new(feet.x, feet.y - 1, feet.z))
+                    .contains(BlockFlags::HOT_FLOOR);
+        }
         let in_lava = is_lava(&view, definitions, feet) || is_lava(&view, definitions, eye);
         let in_powder_snow = is_block(&view, definitions, feet, "minecraft:powder_snow")
             || is_block(&view, definitions, eye, "minecraft:powder_snow");
@@ -791,19 +817,25 @@ fn is_block(view: &DimensionView<'_>, blocks: &Blocks, at: BlockPos, name: &str)
         .is_some_and(|owner| owner.identifier.as_str() == name)
 }
 
-fn touches_cactus(view: &DimensionView<'_>, blocks: &Blocks, position: bevy_math::DVec3) -> bool {
+fn touches_cactus(view: &DimensionView<'_>, tables: &PhysicsTables, position: DVec3) -> bool {
     let min_y = position.y.floor() as i32;
     for y in min_y..=min_y + 1 {
         for x in [position.x - 0.3, position.x + 0.3] {
             for z in [position.z - 0.3, position.z + 0.3] {
                 let at = BlockPos::new(x.floor() as i32, y, z.floor() as i32);
-                if is_block(view, blocks, at, "minecraft:cactus") {
+                if block_flags(view, tables, at).contains(BlockFlags::CACTUS) {
                     return true;
                 }
             }
         }
     }
     false
+}
+
+fn block_flags(view: &DimensionView<'_>, tables: &PhysicsTables, at: BlockPos) -> BlockFlags {
+    block_state(view, at).map_or(BlockFlags::empty(), |state| {
+        tables.collision().state(state).flags
+    })
 }
 
 fn attach_player_combat(
@@ -821,8 +853,8 @@ fn attach_player_combat(
             ActiveEffects::new(),
             vitals,
         ));
+        commands.entity(entity).insert_if_new(Selected(0));
         commands.entity(entity).insert((
-            Selected(0),
             PlayerInputState::default(),
             EntityEquipment::new(),
             Armor::default(),
@@ -1213,10 +1245,10 @@ fn announce_player_deaths(
 }
 
 fn send_player_knockback(
-    mut players: Query<(&Owner, &mut Velocity), (With<Player>, Changed<Velocity>)>,
+    players: Query<(&Owner, &Velocity), (With<Player>, Changed<Velocity>)>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
-    for (owner, mut velocity) in &mut players {
+    for (owner, velocity) in &players {
         if velocity.0.length_squared() < 1.0e-4 {
             continue;
         }
@@ -1227,7 +1259,6 @@ fn send_player_knockback(
                 velocity: LpVec3(velocity.0),
             }),
         ));
-        velocity.0 = DVec3::ZERO;
     }
 }
 
@@ -1428,7 +1459,8 @@ fn respawn_players(
         sync.experience = None;
         sync.attributes = None;
         sync.effects.clear();
-        vitals.last_y = spawn.y;
+        vitals.last_position = spawn;
+        vitals.jumping = false;
         vitals.fall_distance = 0.0;
         vitals.on_ground = true;
         commands.entity(request.player).remove::<DeathState>();

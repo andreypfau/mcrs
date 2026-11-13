@@ -52,7 +52,10 @@ impl NamedBlock {
                 named.fall_damage_multiplier = 0.5;
             }
             "cobweb" => named.inside = InsideEffect::Cobweb,
-            "powder_snow" => named.inside = InsideEffect::PowderSnow,
+            "powder_snow" => {
+                named.inside = InsideEffect::PowderSnow;
+                named.flags |= BlockFlags::POWDER_SNOW;
+            }
             "water" => named.flags |= BlockFlags::OWN_SPEED_FACTOR,
             "bubble_column" => {
                 named.flags |= BlockFlags::OWN_SPEED_FACTOR | BlockFlags::COARSE_BUBBLE_COLUMN;
@@ -91,9 +94,11 @@ const STEP_ACTIONS: [&str; 9] = [
 
 /// The blocks with an inside action that are not in a tag of [`crate::collision_table`] and have
 /// no [`InsideEffect`].
-const INSIDE_ACTIONS: [&str; 25] = [
+const INSIDE_ACTIONS: [&str; 27] = [
     "tripwire",
     "detector_rail",
+    "fire",
+    "soul_fire",
     "wheat",
     "carrots",
     "potatoes",

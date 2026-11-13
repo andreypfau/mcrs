@@ -62,5 +62,7 @@ bitflags::bitflags! {
         const SWEET_BERRY_BUSH = 1 << 27;
         /// Fire or soul fire: its inside action ignites the entity.
         const FIRE = 1 << 28;
+        /// Powder snow: the inside action freezes the entity.
+        const POWDER_SNOW = 1 << 29;
     }
 }
