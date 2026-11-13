@@ -979,7 +979,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 
 Provenance: `design`: the owner decided on 2026-11-13 that fullscreen in mcrs is a borderless
 window on the primary monitor. `source_suggested` for step 3. Kind: semantic. Confidence:
-medium. Experiment: MENU-EXP-14. mcrs deviates: MENU-DEV-009.
+medium. Experiment: MENU-EXP-14. mcrs deviates: MENU-DEV-009. For step 3, mcrs deviates from
+step 6 of MENU-DISP-003: MENU-DEV-012.
 
 ### MENU-DISP-005: The key "Toggle Fullscreen"
 
@@ -997,7 +998,8 @@ medium. Experiment: MENU-EXP-14. mcrs deviates: MENU-DEV-009.
 - **Postconditions:** two presses put the window back at its old position and size.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts. Kind: semantic.
-Confidence: medium. Experiment: MENU-EXP-14.
+Confidence: medium. Experiment: MENU-EXP-14. mcrs deviates after a change of the fullscreen
+state by the system that does not change the window size: MENU-DEV-012.
 
 ---
 
@@ -1097,7 +1099,8 @@ mcrs deviates from the last postcondition: MENU-DEV-011.
   - The close of the pause screen writes nothing.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: MENU-EXP-08.
-mcrs deviates: MENU-DEV-011.
+mcrs deviates: MENU-DEV-011. For a change of Fullscreen by the system in step 3, mcrs deviates:
+MENU-DEV-012.
 
 ### MENU-SAVE-002: Stop of the client
 
@@ -1668,6 +1671,42 @@ Decides: MENU-VAL-011, MENU-DISP-003, MENU-DISP-005.
 
 Provenance: `design`. Kind: semantic for the options file, wire for `client_information`.
 Confidence: high.
+
+### MENU-DEV-012: mcrs sees a change of fullscreen by the system only with a change of size
+
+- **Rule:** MENU-DISP-003, step 6, which MENU-DISP-004, step 3, applies to mcrs. After such a
+  change: MENU-DISP-005 and MENU-SAVE-001, step 3.
+- **Reference:** the rule. The option takes each change of the fullscreen state by the system.
+  The client writes the options file, and an open "Video Settings" shows the new value.
+- **mcrs:**
+  1. The client reads the fullscreen state of the window only at these times:
+     - in each frame from a change of the window size until 2 s after that change;
+     - in each frame after a switch that the client starts, until 2 s pass with no change of
+       the window size.
+  2. When a read gives a state that differs from the option, the option takes that state at
+     once. The rest of MENU-DISP-003, step 6, then applies.
+  3. Thus the client does not see a change of the fullscreen state by the system that does not
+     change the window size. The option keeps its old value until the next change of the window
+     size or the next switch.
+  4. While the option keeps its old value, the options file and the Fullscreen button of an
+     open "Video Settings" show the old value.
+  5. While the option keeps its old value, a press of "Toggle Fullscreen" sets the option to the
+     state that the window already has. The window does not change. The Fullscreen button shows
+     the other value, which is now the state of the window.
+  6. The next press switches the window as MENU-DISP-005 states.
+- **Reason:** the owner decided this on 2026-11-13. The window library of mcrs sends no message
+  for a change of the fullscreen state. A read in each frame is a system that runs in each frame
+  with no condition. The project keeps each system of an empty frame behind a condition. The
+  case is rare, and it does not justify the cost of a read in each frame.
+- **Visible to the client:** yes, only on a system that changes the fullscreen state with no
+  change of the window size. On macOS, Windows and X11, a switch between a window and a
+  borderless window over a monitor changes the window size. There, the case needs a window that
+  already has the size of the monitor. A compositor of Wayland can change the state with no
+  change of the size. The player then sees the old value of Fullscreen, and the first press of
+  "Toggle Fullscreen" does not change the window.
+- **Test:** a differential test changes the fullscreen state by the system together with a
+  change of the window size. Else it does not compare the option, the options file or the
+  Fullscreen button after a change by the system with no change of the size.
 
 ---
 
