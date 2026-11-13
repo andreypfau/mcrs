@@ -52,7 +52,7 @@ use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundAttack, ServerboundChangeDifficulty, ServerboundPlayerAction,
     ServerboundPlayerInput, ServerboundSetCarriedItem,
 };
-use mcrs_minecraft_registries::{CurrentRegistries, Wire};
+use mcrs_minecraft_registries::{CurrentRegistries, Wire, WireId};
 
 use crate::CombatSet;
 
@@ -881,9 +881,14 @@ fn sync_player_combat_state(
         let mut attack_modifiers = Vec::new();
         for (slot, index) in worn {
             let stack = slots.get(index);
-            let next = stack
-                .and_then(|stack| values.to_value(stack))
-                .and_then(|value| wire_stack(&value, &table));
+            let next = stack.and_then(|stack| {
+                let (kind, count, _) = stacks.get(stack).ok()?;
+                let count = count.copied().or_else(|| Count::new(1))?;
+                let value = values
+                    .to_value(stack)
+                    .unwrap_or_else(|| ItemStack::new(*kind, count));
+                wire_stack(&value, &table)
+            });
             if equipment.get(slot) != next.as_ref() {
                 equipment.set(slot, next);
             }
@@ -1686,9 +1691,18 @@ fn on_player_attack(
 
 fn wire_stack(value: &ItemStack, table: &ItemTable) -> Option<ProtoStack<Wire>> {
     let mut bytes = Vec::new();
-    write_wire(Some(value), table, &mut bytes).ok()?;
-    let stack = ProtoStack::decode(&mut bytes.as_slice()).ok()?;
-    (!stack.is_empty()).then_some(stack)
+    if write_wire(Some(value), table, &mut bytes).is_ok() {
+        let stack = ProtoStack::decode(&mut bytes.as_slice()).ok()?;
+        return (!stack.is_empty()).then_some(stack);
+    }
+    if !value.patch().is_empty() || table.prototype(value.kind).is_none() {
+        return None;
+    }
+    Some(ProtoStack {
+        id: WireId::new(value.kind.0),
+        count: i32::from(value.count.get()),
+        components: Default::default(),
+    })
 }
 
 fn equipment_packet(owner: &Owner, equipment: &EntityEquipment) -> PacketPayload {
