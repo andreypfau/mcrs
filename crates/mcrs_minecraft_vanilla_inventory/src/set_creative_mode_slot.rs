@@ -1,4 +1,6 @@
+use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
+use bevy_ecs::message::Messages;
 use bevy_ecs::observer::On;
 use bevy_ecs::system::Commands;
 use bevy_ecs::system::InRef;
@@ -6,12 +8,13 @@ use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
+use bevy_ecs::world::World;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
 use mcrs_minecraft_engine_item::ItemCommandsExt;
 use mcrs_minecraft_engine_item::Request;
-use mcrs_minecraft_engine_item::RequestId;
+use mcrs_minecraft_engine_item::RequestResult;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -23,7 +26,6 @@ use mcrs_minecraft_item_stack::read_wire_with_length;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_menu::InventoryMenu;
 use mcrs_minecraft_network::event::Received;
-use mcrs_minecraft_player_slots::Holder;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundSetCreativeModeSlot;
 use mcrs_minecraft_wire::Encode;
 
@@ -34,8 +36,7 @@ use crate::creative_drops::CreativeDrops;
 use crate::insert_stack::max_stack_size;
 use crate::launch_drops::launch_from_player;
 use crate::menu_queue::MenuQueue;
-
-const CREATIVE_REQUEST: RequestId = RequestId(4);
+use crate::request_ids::CREATIVE_REQUEST;
 
 /// Writes the [`InventoryInput::CreativeSet`] of each `set_creative_mode_slot` packet whose stack
 /// decodes.
@@ -76,7 +77,7 @@ pub(crate) fn apply_creative_set(
         &PlayerHolders,
         &mut InventoryMenuSync,
         Option<&PlayerGameMode>,
-        Option<&CreativeDrops>,
+        &mut CreativeDrops,
         Option<&Transform>,
         Option<&GameProfile>,
     )>,
@@ -93,7 +94,7 @@ pub(crate) fn apply_creative_set(
     else {
         return;
     };
-    let Ok((holders, mut sync, game_mode, drops, transform, profile)) = players.get_mut(player)
+    let Ok((holders, mut sync, game_mode, mut drops, transform, profile)) = players.get_mut(player)
     else {
         return;
     };
@@ -105,10 +106,9 @@ pub(crate) fn apply_creative_set(
         .filter(|index| (1..InventoryMenu::LEN).contains(index))
         .and_then(InventoryMenu::slot);
     if creative && fits && slot < 0 {
-        let mut drops = drops.copied().unwrap_or_default();
-        let thrown = drops.try_drop(clock.0);
-        commands.entity(player).insert(drops);
-        if thrown && let Some(stack) = stack {
+        if drops.try_drop(clock.0)
+            && let Some(stack) = stack
+        {
             let mut entity = commands.spawn_stack(stack.clone());
             launch_from_player(&mut entity, transform, profile, Cause::Throw);
         }
@@ -118,31 +118,35 @@ pub(crate) fn apply_creative_set(
         && fits
         && let Some(entry) = entry
     {
-        let holder = match entry.holder {
-            Holder::Inventory => player,
-            Holder::Cursor => holders.cursor,
-            Holder::CraftGrid => holders.craft_grid,
-            Holder::CraftResult => holders.craft_result,
-        };
         let target = SlotRef {
-            holder,
+            holder: holders.entity(player, entry.holder),
             index: entry.index,
         };
-        let request = Request::new(CREATIVE_REQUEST);
-        let request = match stack {
-            Some(stack) => {
-                let count = stack.count.get();
-                let stack = commands.spawn_stack(stack.clone()).id();
-                request.set(target, Some(stack), count)
-            }
-            None => request.set(target, None, 0),
-        };
+        let spawned = stack.map(|stack| commands.spawn_stack(stack.clone()).id());
+        let count = stack.map_or(0, |stack| stack.count.get());
+        let request = Request::new(CREATIVE_REQUEST).set(target, spawned, count);
         commands.entity(player).request(request);
+        if let Some(spawned) = spawned {
+            commands.queue(move |world: &mut World| despawn_if_rejected(world, player, spawned));
+        }
         set_view(&mut sync, slot, stack);
         return;
     }
     if set_view(&mut sync, slot, stack) {
         queue.compare.push(player);
+    }
+}
+
+/// Despawns `stack` when the last request result is a rejection of the creative set of `player`,
+/// since a rejected set gives the stack no slot.
+fn despawn_if_rejected(world: &mut World, player: Entity, stack: Entity) {
+    let rejected = (world.get_resource::<Messages<RequestResult>>())
+        .and_then(|results| results.iter_current_update_messages().last())
+        .is_some_and(|result| {
+            result.holder == player && result.id == CREATIVE_REQUEST && result.outcome.is_err()
+        });
+    if rejected {
+        world.despawn(stack);
     }
 }
 

@@ -23,13 +23,34 @@ pub(crate) const CARRIED_KEYS: &[&str] = &[CURSOR_KEY, CRAFT_GRID_KEY];
 
 /// The keys of `equipment` in the player file that hold slots of the player inventory
 /// (INV-SAV-001), in the order of a write. The file keeps each other key.
-const EQUIPMENT: [(&str, u16); 5] = [
-    ("offhand", OFF_HAND),
-    ("feet", ArmourSlot::Feet.index()),
-    ("legs", ArmourSlot::Legs.index()),
-    ("chest", ArmourSlot::Chest.index()),
-    ("head", ArmourSlot::Head.index()),
+const EQUIPMENT: [EquipmentKey; 5] = [
+    EquipmentKey {
+        key: "offhand",
+        index: OFF_HAND,
+    },
+    EquipmentKey {
+        key: "feet",
+        index: ArmourSlot::Feet.index(),
+    },
+    EquipmentKey {
+        key: "legs",
+        index: ArmourSlot::Legs.index(),
+    },
+    EquipmentKey {
+        key: "chest",
+        index: ArmourSlot::Chest.index(),
+    },
+    EquipmentKey {
+        key: "head",
+        index: ArmourSlot::Head.index(),
+    },
 ];
+
+/// A key of `equipment` in the player file and the slot of the player inventory that it holds.
+struct EquipmentKey {
+    key: &'static str,
+    index: u16,
+}
 
 /// The stacks of the holders of a player as values, and its selected slot. The craft result has
 /// no part: neither the player file nor a carry holds it.
@@ -94,7 +115,7 @@ impl PlayerStacks {
                 *slot = Some(slotted.stack);
             }
         }
-        for (key, index) in EQUIPMENT {
+        for EquipmentKey { key, index } in EQUIPMENT {
             if let Some(value) = file.equipment.get_compound(key)
                 && let Some(slot) = stacks.inventory.get_mut(usize::from(index))
             {
@@ -137,7 +158,7 @@ impl PlayerStacks {
                 file.inventory.push(saved);
             }
         }
-        for (key, index) in EQUIPMENT {
+        for EquipmentKey { key, index } in EQUIPMENT {
             let saved = self
                 .inventory
                 .get(usize::from(index))
@@ -179,7 +200,7 @@ impl PlayerStacks {
 
 /// True when `key` of `equipment` holds a slot of the player inventory.
 pub(crate) fn is_slot_key(key: &str) -> bool {
-    EQUIPMENT.iter().any(|(slot_key, _)| *slot_key == key)
+    EQUIPMENT.iter().any(|equipment| equipment.key == key)
 }
 
 fn read_slots(stacks: &mut Stacks, slots: &Slots, values: &mut [Option<ItemStack>]) {

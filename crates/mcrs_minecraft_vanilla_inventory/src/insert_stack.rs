@@ -45,9 +45,13 @@ pub(crate) fn insert_stack(
 
 /// The maximum stack size of `stack`, in the range `1..=99`.
 pub(crate) fn max_stack_size(stack: &ItemStack, table: &ItemTable) -> u8 {
-    let max = table
-        .effective::<MaxStackSize>(stack)
-        .map_or(1, |max| max.0.clamp(1, LARGEST_STACK));
+    clamp_stack_size(table.effective::<MaxStackSize>(stack))
+}
+
+/// The maximum stack size that the component `max_stack_size` gives, in the range `1..=99`. No
+/// component gives 1.
+pub(crate) fn clamp_stack_size(max: Option<&MaxStackSize>) -> u8 {
+    let max = max.map_or(1, |max| max.0.clamp(1, LARGEST_STACK));
     u8::try_from(max).unwrap_or(1)
 }
 

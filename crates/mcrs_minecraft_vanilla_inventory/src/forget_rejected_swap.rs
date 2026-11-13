@@ -9,7 +9,7 @@ use mcrs_minecraft_player_slots::Holder;
 use mcrs_minecraft_player_slots::OFF_HAND;
 
 use crate::InventoryMenuSync;
-use crate::hand_action::HAND_SWAP_REQUEST;
+use crate::request_ids::HAND_SWAP_REQUEST;
 
 /// Makes the client view of the hand and of the off hand not known when their swap has a
 /// rejection, because the client showed the swap before the answer came (INV-SEL-006).

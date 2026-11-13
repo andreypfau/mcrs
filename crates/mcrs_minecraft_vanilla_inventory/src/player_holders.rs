@@ -1,5 +1,6 @@
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
+use mcrs_minecraft_player_slots::Holder;
 
 /// The holders of a player beside its player inventory, which is the
 /// [`Slots`](mcrs_minecraft_engine_item::Slots) of the player itself (INV-SLT-002). Each one is a
@@ -10,4 +11,16 @@ pub struct PlayerHolders {
     pub cursor: Entity,
     pub craft_grid: Entity,
     pub craft_result: Entity,
+}
+
+impl PlayerHolders {
+    /// The entity that holds the slots of `holder` for `player`.
+    pub(crate) fn entity(&self, player: Entity, holder: Holder) -> Entity {
+        match holder {
+            Holder::Inventory => player,
+            Holder::Cursor => self.cursor,
+            Holder::CraftGrid => self.craft_grid,
+            Holder::CraftResult => self.craft_result,
+        }
+    }
 }

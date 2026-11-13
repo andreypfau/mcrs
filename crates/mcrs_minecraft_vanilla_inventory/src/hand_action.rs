@@ -7,7 +7,6 @@ use bevy_ecs::system::Query;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
 use mcrs_minecraft_engine_item::Request;
-use mcrs_minecraft_engine_item::RequestId;
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
@@ -20,9 +19,8 @@ use mcrs_minecraft_protocol_game::serverbound::ServerboundPlayerAction;
 
 use crate::InventoryInput;
 use crate::PlayerHolders;
-
-const HAND_DROP_REQUEST: RequestId = RequestId(1);
-pub(crate) const HAND_SWAP_REQUEST: RequestId = RequestId(2);
+use crate::request_ids::HAND_DROP_REQUEST;
+use crate::request_ids::HAND_SWAP_REQUEST;
 
 /// An action of the `player_action` packet on the hands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

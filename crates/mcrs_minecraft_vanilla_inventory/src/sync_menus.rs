@@ -98,12 +98,14 @@ pub(crate) fn sync_menus(
             continue;
         };
         let sync = &mut *sync;
-        let slots = HolderSlots::read(inventory, player_holders, &holders);
+        let slots = HolderSlots::read(player, inventory, player_holders, &holders);
         if send == MenuSend::Content {
             let content = menu_content(sync, &slots, &mut stacks, &table, bytes);
             packets.write(to(session, PacketPayload::ContainerSetContent(content)));
             continue;
         }
+        // chisle: each compared player costs 46 stack values built from their rows, mismatch or
+        // not; a view comparison that reads the stack rows in place lifts it.
         entries.clear();
         for index in 0..InventoryMenu::LEN {
             let stack = InventoryMenu::slot(index)

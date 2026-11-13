@@ -43,7 +43,7 @@ pub(crate) fn send_full_state(
         let Ok(mut sync) = syncs.get_mut(player) else {
             continue;
         };
-        let slots = HolderSlots::read(inventory, player_holders, &holders);
+        let slots = HolderSlots::read(player, inventory, player_holders, &holders);
         let content = menu_content(&mut sync, &slots, &mut stacks, &table, &mut bytes);
         packets.write(to(
             session,

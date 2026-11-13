@@ -12,8 +12,10 @@ use mcrs_minecraft_vanilla_item_entity::ItemEntityCommandsExt;
 use mcrs_minecraft_vanilla_item_entity::Thrower;
 
 use crate::PlayerHolders;
-use crate::close_container::CLOSE_REQUEST;
 use crate::hand_launch::hand_launch;
+use crate::request_ids::CLICK_REQUEST;
+use crate::request_ids::CLOSE_REQUEST;
+use crate::request_ids::HAND_DROP_REQUEST;
 
 /// Launches each stack that a drop took out of a holder of a player as an item entity
 /// (IEN-SPN-001): the rest of a menu close, or a throw with the player as its thrower.
@@ -24,6 +26,11 @@ pub(crate) fn launch_drops(
     mut commands: Commands,
 ) {
     for drop in drops.read() {
+        let cause = match drop.id {
+            CLOSE_REQUEST => Cause::MenuRest,
+            CLICK_REQUEST | HAND_DROP_REQUEST => Cause::Throw,
+            _ => continue,
+        };
         let player = if players.contains(drop.holder) {
             drop.holder
         } else if let Ok(parent) = parents.get(drop.holder) {
@@ -33,11 +40,6 @@ pub(crate) fn launch_drops(
         };
         let Ok((transform, profile)) = players.get(player) else {
             continue;
-        };
-        let cause = if drop.id == CLOSE_REQUEST {
-            Cause::MenuRest
-        } else {
-            Cause::Throw
         };
         launch_from_player(&mut commands.entity(drop.stack), transform, profile, cause);
     }

@@ -6,7 +6,6 @@ use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
 use mcrs_minecraft_engine_item::Request;
-use mcrs_minecraft_engine_item::RequestId;
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
@@ -22,8 +21,7 @@ use crate::close_inventory_menu::CloseMove;
 use crate::close_inventory_menu::Destination;
 use crate::close_inventory_menu::close_inventory_menu;
 use crate::player_stacks::PlayerStacks;
-
-pub(crate) const CLOSE_REQUEST: RequestId = RequestId(3);
+use crate::request_ids::CLOSE_REQUEST;
 
 /// Writes the [`InventoryInput::Close`] of each `container_close` packet.
 pub(crate) fn close_container(

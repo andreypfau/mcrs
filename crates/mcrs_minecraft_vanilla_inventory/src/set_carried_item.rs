@@ -6,12 +6,11 @@ use bevy_ecs::system::InRef;
 use bevy_ecs::system::Query;
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_network::event::Received;
+use mcrs_minecraft_player_slots::HOTBAR;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundSetCarriedItem;
 
 use crate::InventoryInput;
 use crate::PlayerHolders;
-
-const HOTBAR_SLOTS: u16 = 9;
 
 /// Writes the [`InventoryInput::SelectSlot`] of each `set_carried_item` packet.
 pub(crate) fn set_carried_item(
@@ -35,7 +34,7 @@ pub(crate) fn apply_selected_slot(
     let &InventoryInput::SelectSlot { player, slot } = input else {
         return;
     };
-    if slot >= HOTBAR_SLOTS {
+    if !HOTBAR.contains(&slot) {
         return;
     }
     let Ok(slot) = u8::try_from(slot) else {

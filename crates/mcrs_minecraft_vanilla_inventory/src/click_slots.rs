@@ -17,6 +17,7 @@ use mcrs_minecraft_player_slots::PlayerMode;
 use mcrs_minecraft_player_slots::Stacking;
 
 use crate::PlayerHolders;
+use crate::insert_stack::clamp_stack_size;
 
 const HOLDERS: [Holder; 4] = [
     Holder::Inventory,
@@ -25,7 +26,6 @@ const HOLDERS: [Holder; 4] = [
     Holder::CraftResult,
 ];
 const SLOT_COUNT: usize = 47;
-const LARGEST_STACK: i32 = 99;
 
 /// A stack of a click: its entity, the first slot that holds a stack with the same item and
 /// components, and whether it can stack beside its maximum stack size.
@@ -66,9 +66,7 @@ impl ClickSlots {
         for holder in HOLDERS {
             let content = match holder {
                 Holder::Inventory => Some(inventory),
-                Holder::Cursor => holder_slots.get(holders.cursor).ok(),
-                Holder::CraftGrid => holder_slots.get(holders.craft_grid).ok(),
-                Holder::CraftResult => holder_slots.get(holders.craft_result).ok(),
+                _ => holder_slots.get(holders.entity(player, holder)).ok(),
             };
             let Some(content) = content else {
                 continue;
@@ -98,14 +96,8 @@ impl ClickSlots {
     }
 
     pub(crate) fn slot_ref(&self, slot: MenuSlot) -> SlotRef {
-        let holder = match slot.holder {
-            Holder::Inventory => self.player,
-            Holder::Cursor => self.holders.cursor,
-            Holder::CraftGrid => self.holders.craft_grid,
-            Holder::CraftResult => self.holders.craft_result,
-        };
         SlotRef {
-            holder,
+            holder: self.holders.entity(self.player, slot.holder),
             index: slot.index,
         }
     }
@@ -184,7 +176,7 @@ fn planned(
 ) -> Option<Planned<StackHandle>> {
     let kind = stacks.kind(entity)?;
     let count = stacks.count(entity)?;
-    let max = (stacks.get::<MaxStackSize>(entity)).map_or(1, |max| max.0.clamp(1, LARGEST_STACK));
+    let max = clamp_stack_size(stacks.get::<MaxStackSize>(entity));
     let stacking = if stacks
         .get::<Damage>(entity)
         .is_some_and(|damage| damage.0 > 0)
@@ -208,6 +200,6 @@ fn planned(
         },
         kind: kind.0,
         count: count.get(),
-        max: u8::try_from(max).unwrap_or(1),
+        max,
     })
 }

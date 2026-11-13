@@ -33,6 +33,7 @@ mod player_file;
 mod player_file_codec;
 mod player_holders;
 mod player_stacks;
+mod request_ids;
 mod restore_holders;
 mod saved_stack;
 mod send_full_state;

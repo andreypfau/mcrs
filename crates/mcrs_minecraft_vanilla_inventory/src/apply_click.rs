@@ -6,7 +6,6 @@ use bevy_ecs::system::ResMut;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
 use mcrs_minecraft_engine_item::Request;
-use mcrs_minecraft_engine_item::RequestId;
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::Stacks;
@@ -28,8 +27,7 @@ use crate::click_menu::ClickMenu;
 use crate::click_slots::ClickSlots;
 use crate::click_slots::StackHandle;
 use crate::menu_queue::MenuQueue;
-
-const CLICK_REQUEST: RequestId = RequestId(0);
+use crate::request_ids::CLICK_REQUEST;
 
 /// Makes the request of a click in the inventory menu and records what the client claims to hold
 /// after it (ITX-JAV-001, ITX-JAV-002, ITX-JAV-004).

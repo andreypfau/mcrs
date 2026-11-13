@@ -15,15 +15,17 @@ pub(crate) struct HolderSlots<'slots> {
 
 impl<'slots> HolderSlots<'slots> {
     pub(crate) fn read(
+        player: Entity,
         inventory: &'slots Slots,
         holders: &PlayerHolders,
         holder_slots: &'slots Query<&Slots>,
     ) -> Self {
+        let slots_of = |holder| holder_slots.get(holders.entity(player, holder)).ok();
         Self {
             inventory,
-            cursor: holder_slots.get(holders.cursor).ok(),
-            craft_grid: holder_slots.get(holders.craft_grid).ok(),
-            craft_result: holder_slots.get(holders.craft_result).ok(),
+            cursor: slots_of(Holder::Cursor),
+            craft_grid: slots_of(Holder::CraftGrid),
+            craft_result: slots_of(Holder::CraftResult),
         }
     }
 
