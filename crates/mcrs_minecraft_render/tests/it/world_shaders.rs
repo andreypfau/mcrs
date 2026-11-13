@@ -23,7 +23,9 @@ const HALF_PI: f32 = 1.57079632679;";
 const BEVY_VIEW: &str = "struct View {
     clip_from_world: mat4x4<f32>,
     world_from_clip: mat4x4<f32>,
+    world_from_view: mat4x4<f32>,
     world_position: vec3<f32>,
+    view_from_clip: mat4x4<f32>,
 };";
 
 /// The light volume module, which imports this crate by name. The resolver keys a module on its
