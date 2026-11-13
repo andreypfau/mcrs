@@ -164,7 +164,7 @@ fn a_respawn_restores_the_health_and_clears_the_death() {
     );
 }
 
-/// DMG-DEATH-002: a dead survival player scatters the inventory, including the armour slots.
+/// PLD-DRP-001 and PLD-DRP-004: a dead survival player scatters the inventory, including the armour slots.
 #[test]
 fn dmg_death_002_death_drops_the_inventory() {
     use mcrs_minecraft_engine_item::HolderCommandsExt;
@@ -237,7 +237,7 @@ fn dmg_death_002_death_drops_the_inventory() {
     );
 }
 
-/// DMG-ENV-003: a player five blocks past the border and its safe zone takes the border damage.
+/// ENV-BRD-001: a player five blocks past the border and its safe zone takes the border damage.
 #[test]
 fn dmg_env_003_a_player_outside_the_world_border_takes_damage() {
     let mut server = start();
@@ -371,7 +371,7 @@ fn dmg_src_002_a_player_attack_hits_another_player() {
     assert_eq!(health_of(&mut server, attacker), 20.0);
 }
 
-/// DMG-ENV-002: a mob that stands in fire catches fire, is drawn on fire, and loses health.
+/// ENV-FIR-004: a mob that stands in fire catches fire, is drawn on fire, and loses health.
 #[test]
 fn dmg_env_002_a_mob_in_fire_burns_and_loses_health() {
     let mut server = start();
@@ -430,7 +430,7 @@ fn dmg_env_002_a_mob_in_fire_burns_and_loses_health() {
     assert!(on_fire || fire_ticks > 0, "the pig burns");
 }
 
-/// DMG-ENV-001: a mob under water loses its air and then its health.
+/// ENV-AIR-003: a mob under water loses its air and then its health.
 #[test]
 fn dmg_env_001_a_mob_under_water_drowns() {
     let mut server = start();
@@ -452,7 +452,7 @@ fn dmg_env_001_a_mob_under_water_drowns() {
     );
 }
 
-/// DMG-ENV-003: powder snow freezes a mob after the warm-up.
+/// ENV-FRZ-003: powder snow freezes a mob after the warm-up.
 #[test]
 fn dmg_env_003_a_mob_in_powder_snow_freezes() {
     let mut server = start();
@@ -478,7 +478,7 @@ fn dmg_env_003_a_mob_in_powder_snow_freezes() {
     );
 }
 
-/// DMG-ENV-004: a mob that touches a cactus loses health.
+/// ENV-CTC-001: a mob that touches a cactus loses health.
 #[test]
 fn dmg_env_004_a_mob_against_a_cactus_is_hurt() {
     let mut server = start();
@@ -500,7 +500,7 @@ fn dmg_env_004_a_mob_against_a_cactus_is_hurt() {
     );
 }
 
-/// DMG-ENV-004: a mob with its eyes in a block suffocates.
+/// ENV-WAL-001: a mob with its eyes in a block suffocates.
 #[test]
 fn dmg_env_004_a_mob_with_its_eyes_in_a_block_suffocates() {
     let mut server = start();
@@ -554,7 +554,7 @@ fn place(server: &mut PlayServer, positions: &[(i32, i32, i32)], name: &str) {
     }
 }
 
-/// DMG-ENV-001: a survival player under water loses air and then health.
+/// ENV-AIR-003: a survival player under water loses air and then health.
 #[test]
 fn dmg_env_001_a_player_under_water_drowns() {
     let mut server = start();
@@ -574,7 +574,7 @@ fn dmg_env_001_a_player_under_water_drowns() {
     );
 }
 
-/// DMG-ENV-002: a survival player in fire catches fire and loses health.
+/// ENV-FIR-004: a survival player in fire catches fire and loses health.
 #[test]
 fn dmg_env_002_a_player_in_fire_burns() {
     let mut server = start();
@@ -590,7 +590,7 @@ fn dmg_env_002_a_player_in_fire_burns() {
     );
 }
 
-/// DMG-ENV-002: lava ignites a player and deals its own damage.
+/// ENV-FIR-006: lava ignites a player and deals its own damage.
 #[test]
 fn dmg_env_002_a_player_in_lava_burns() {
     let mut server = start();
@@ -606,7 +606,7 @@ fn dmg_env_002_a_player_in_lava_burns() {
     );
 }
 
-/// DMG-ENV-003: powder snow freezes a player after the warm-up.
+/// ENV-FRZ-003: powder snow freezes a player after the warm-up.
 #[test]
 fn dmg_env_003_a_player_in_powder_snow_freezes() {
     let mut server = start();
@@ -626,7 +626,7 @@ fn dmg_env_003_a_player_in_powder_snow_freezes() {
     );
 }
 
-/// DMG-ENV-004: a player with its eyes in a block suffocates.
+/// ENV-WAL-001: a player with its eyes in a block suffocates.
 #[test]
 fn dmg_env_004_a_player_with_its_eyes_in_a_block_suffocates() {
     let mut server = start();
@@ -642,7 +642,7 @@ fn dmg_env_004_a_player_with_its_eyes_in_a_block_suffocates() {
     );
 }
 
-/// DMG-ENV-004: a player against a cactus loses health.
+/// ENV-CTC-001: a player against a cactus loses health.
 #[test]
 fn dmg_env_004_a_player_against_a_cactus_is_hurt() {
     let mut server = start();
@@ -665,7 +665,7 @@ fn dmg_env_004_a_player_against_a_cactus_is_hurt() {
     );
 }
 
-/// DMG-ENV-005: a player below the void floor takes damage regardless of the game mode.
+/// ENV-VOID-001: a player below the void floor takes damage regardless of the game mode.
 #[test]
 fn dmg_env_005_a_player_below_the_world_loses_health() {
     let mut server = start();

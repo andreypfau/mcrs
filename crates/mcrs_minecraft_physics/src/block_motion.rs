@@ -5,7 +5,7 @@ pub struct BlockMotion {
     pub speed_factor: f32,
     pub jump_factor: f32,
     pub bounce: f32,
-    /// The factor of the fall damage of a landing on the block (DMG-ENV-004).
+    /// The factor of the fall damage of a landing on the block (DMG-FALL-004).
     pub fall_damage_multiplier: f32,
 }
 
