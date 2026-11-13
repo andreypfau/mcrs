@@ -225,10 +225,8 @@ impl Effects {
                         saturation: f32::from(amplifier.saturating_add(1)) * 2.0,
                     });
                 }
-                MobEffect::Absorption => {
-                    if absorption <= 0.0 {
-                        remove.push(MobEffect::Absorption);
-                    }
+                MobEffect::Absorption if absorption <= 0.0 => {
+                    remove.push(MobEffect::Absorption);
                 }
                 _ => {}
             }
