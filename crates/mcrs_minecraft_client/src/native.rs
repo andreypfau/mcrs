@@ -574,7 +574,9 @@ fn load_save(world: &Path) -> SaveData {
     SaveData {
         world_clocks,
         player_uuid: level.singleplayer_uuid,
-        advance_time: game_rules.advance_time,
+        advance_time: game_rules
+            .get(mcrs_minecraft_game_rule::GameRule::AdvanceTime)
+            .is_none_or(|value| value != 0),
         weather: WeatherLevel {
             rain: if weather.raining { 1.0 } else { 0.0 },
             thunder: if weather.thundering { 1.0 } else { 0.0 },
