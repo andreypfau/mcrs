@@ -282,8 +282,15 @@ fn vertex_clouds(@builtin(vertex_index) index: u32) -> CloudVertex {
     return out;
 }
 
-@fragment
-fn fragment_clouds(in: CloudVertex) -> @location(0) vec4<f32> {
+struct CloudHit {
+    hit: bool,
+    color: vec4<f32>,
+    point: vec3<f32>,
+}
+
+fn march_clouds(in: CloudVertex) -> CloudHit {
+    var miss: CloudHit;
+    miss.hit = false;
     let origin = view.world_position.xyz;
     let direction = normalize(in.world - origin);
 
@@ -295,7 +302,7 @@ fn fragment_clouds(in: CloudVertex) -> @location(0) vec4<f32> {
     var leave = fade;
     if abs(direction.y) < 1e-6 {
         if origin.y < bottom || origin.y > top {
-            discard;
+            return miss;
         }
     } else {
         let first = (bottom - origin.y) / direction.y;
@@ -304,7 +311,7 @@ fn fragment_clouds(in: CloudVertex) -> @location(0) vec4<f32> {
         leave = min(fade, max(first, second));
     }
     if enter > leave {
-        discard;
+        return miss;
     }
 
     let start = (origin.xz + in.drift + direction.xz * enter) / CLOUD_CELL;
@@ -342,11 +349,43 @@ fn fragment_clouds(in: CloudVertex) -> @location(0) vec4<f32> {
         }
     }
     if filled.a < CLOUD_OPEN {
-        discard;
+        return miss;
     }
 
-    return vec4<f32>(
+    var out: CloudHit;
+    out.hit = true;
+    out.color = vec4<f32>(
         filled.rgb * sky.cloud_color.rgb * shade,
         filled.a * sky.cloud_color.a * (1.0 - clamp(distance * in.inv_fade, 0.0, 1.0)),
     );
+    out.point = origin + direction * distance;
+    return out;
+}
+
+@fragment
+fn fragment_clouds(in: CloudVertex) -> @location(0) vec4<f32> {
+    let cloud = march_clouds(in);
+    if !cloud.hit {
+        discard;
+    }
+    return cloud.color;
+}
+
+struct CloudTexel {
+    @location(0) color: vec4<f32>,
+    @builtin(frag_depth) depth: f32,
+}
+
+/// The clouds into the cloud image, at the depth of the cell face the march enters.
+@fragment
+fn fragment_cloud_image(in: CloudVertex) -> CloudTexel {
+    let cloud = march_clouds(in);
+    if !cloud.hit {
+        discard;
+    }
+    let clip = view.clip_from_world * vec4<f32>(cloud.point, 1.0);
+    var out: CloudTexel;
+    out.color = cloud.color;
+    out.depth = clamp(clip.z / max(clip.w, 1e-6), 0.0, 1.0);
+    return out;
 }

@@ -11,6 +11,8 @@ import package::shaders::include::fields::{
     MODEL_X_WORD, MODEL_Y_WORD, MODEL_Z_WORD,
 };
 import package::shaders::include::fog::{fog_mix, fog_value};
+@if(IMPROVED) import package::shaders::include::fog::fog_values;
+@if(IMPROVED) import package::shaders::include::transparency::transparent_fog;
 import package::shaders::include::frame::{camera, params};
 import package::shaders::include::quad::{
     CORNERS_PER_QUAD, MODEL_WORDS_PER_VERTEX, corner_index, corner_uv, degenerate, model_position,
@@ -140,6 +142,12 @@ fn fragment_model_translucent(in: ModelOut) -> @location(0) vec4<f32> {
         discard;
     }
     let lit = package::shaders::include::deferred::shade(color.rgb, in.shade, in.block_light, in.sky_light);
+    @if(IMPROVED) {
+        let values = fog_values(in.world - camera.offset, camera.fog_environmental, camera.fog_render_distance);
+        let pixel = vec2<i32>(in.clip_position.xy);
+        let fogged = transparent_fog(lit, pixel, in.clip_position.z, values, camera.fog_color);
+        return vec4<f32>(package::shaders::include::finish::to_target(fogged), color.a);
+    }
     let fog = fog_value(in.world - camera.offset, camera.fog_environmental, camera.fog_render_distance);
     return vec4<f32>(package::shaders::include::finish::to_target(fog_mix(lit, fog, camera.fog_color)), color.a);
 }

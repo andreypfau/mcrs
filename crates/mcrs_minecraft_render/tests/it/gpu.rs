@@ -122,9 +122,79 @@ const FOG_KERNEL: &str = "
 @group(0) @binding(1) var<storage, read_write> values: array<f32>;
 
 @compute @workgroup_size(1)
-fn fog_values(@builtin(global_invocation_id) id: vec3<u32>) {
+fn fog_value_kernel(@builtin(global_invocation_id) id: vec3<u32>) {
     let ramps = cases[id.x * 2u + 1u];
     values[id.x] = fog_value(cases[id.x * 2u].xyz, ramps.xy, ramps.zw);
+}
+";
+
+/// A face of CFOG-TEST-005: its two fog values, the cloud image at its pixel, and its colour.
+struct ImprovedCase {
+    values: [f32; 2],
+    cloud: [f32; 4],
+    cloud_behind: bool,
+    pixel: [f32; 3],
+}
+
+const FACE: [f32; 3] = [0.4, 0.5, 0.1];
+const NOON_FOG: [f32; 3] = [0.711644, 0.818954, 1.0];
+const SKY_BYTES: [f32; 3] = [155.0 / 255.0, 191.0 / 255.0, 1.0];
+const NO_CLOUD: [f32; 4] = [0.0; 4];
+const CLOUD: [f32; 4] = [0.6, 0.6, 0.6, 0.6];
+const AT_180: [f32; 2] = [0.178206, 0.375];
+const AT_192: [f32; 2] = [0.178206, 1.0];
+const RAIN_AT_10: [f32; 2] = [0.183190, 0.0];
+const NO_CLOUD_PIXEL: [f32; 3] = [0.502270, 0.609773, 0.4375];
+
+const fn improved_case(
+    values: [f32; 2],
+    cloud: [f32; 4],
+    cloud_behind: bool,
+    pixel: [f32; 3],
+) -> ImprovedCase {
+    ImprovedCase {
+        values,
+        cloud,
+        cloud_behind,
+        pixel,
+    }
+}
+
+fn plain_fog_mix(value: f32) -> [f32; 3] {
+    std::array::from_fn(|channel| FACE[channel] + value * (NOON_FOG[channel] - FACE[channel]))
+}
+
+const IMPROVED_KERNEL: &str = "
+@group(0) @binding(0) var<storage, read> cases: array<vec4<f32>>;
+@group(0) @binding(1) var<storage, read_write> pixels: array<vec4<f32>>;
+
+@compute @workgroup_size(1)
+fn improved_fog(@builtin(global_invocation_id) id: vec3<u32>) {
+    let face = cases[id.x * 5u];
+    let fog = cases[id.x * 5u + 1u];
+    let color = cases[id.x * 5u + 2u].rgb;
+    let sky = cases[id.x * 5u + 3u].rgb;
+    let cloud = cases[id.x * 5u + 4u];
+    pixels[id.x] = vec4<f32>(improved_fog_mix(face.rgb, fog.xy, color, sky, cloud, fog.z > 0.5), 1.0);
+}
+";
+
+/// A grey pixel of CFOG-TIME-002 under the cloud image: `m`, `cl`, `ca`, the depth of the cloud
+/// image and of the pixel, and the composited value.
+const CLOUD_OVER_CASES: [[f32; 6]; 2] = [
+    [0.2, 0.5, 0.5, 0.4, 0.0, 0.6],
+    [0.2, 0.5, 0.5, 0.4, 0.7, 0.2],
+];
+
+const CLOUD_OVER_KERNEL: &str = "
+@group(0) @binding(0) var<storage, read> cases: array<vec4<f32>>;
+@group(0) @binding(1) var<storage, read_write> values: array<f32>;
+
+@compute @workgroup_size(1)
+fn cloud_over_kernel(@builtin(global_invocation_id) id: vec3<u32>) {
+    let row = cases[id.x * 2u];
+    let depths = cases[id.x * 2u + 1u];
+    values[id.x] = cloud_over(vec3<f32>(row.x), vec4<f32>(vec3<f32>(row.y), row.z), depths.x, depths.y).r;
 }
 ";
 
@@ -257,24 +327,6 @@ impl Gpu {
     }
 
     fn fog_values(&self) -> Vec<f32> {
-        let source = format!(
-            "{}{FOG_KERNEL}",
-            include_str!("../../src/shaders/include/fog.wesl")
-        );
-        let module = self.device.create_shader_module(ShaderModuleDescriptor {
-            label: None,
-            source: ShaderSource::Wgsl(source.into()),
-        });
-        let pipeline = self
-            .device
-            .create_compute_pipeline(&ComputePipelineDescriptor {
-                label: None,
-                layout: None,
-                module: &module,
-                entry_point: Some("fog_values"),
-                compilation_options: PipelineCompilationOptions::default(),
-                cache: None,
-            });
         let cases: Vec<f32> = FOG_CASES
             .iter()
             .flat_map(|case| {
@@ -290,9 +342,83 @@ impl Gpu {
                 ]
             })
             .collect();
-        let cases = self.buffer(bytemuck::cast_slice(&cases), BufferUsages::STORAGE);
+        self.fog_kernel(FOG_KERNEL, "fog_value_kernel", &cases, FOG_CASES.len(), 1)
+    }
+
+    fn improved_pixels(&self, cases: &[ImprovedCase]) -> Vec<[f32; 4]> {
+        let inputs: Vec<f32> = cases
+            .iter()
+            .flat_map(|case| {
+                let behind = if case.cloud_behind { 1.0 } else { 0.0 };
+                [
+                    FACE[0],
+                    FACE[1],
+                    FACE[2],
+                    0.0,
+                    case.values[0],
+                    case.values[1],
+                    behind,
+                    0.0,
+                    NOON_FOG[0],
+                    NOON_FOG[1],
+                    NOON_FOG[2],
+                    0.0,
+                    SKY_BYTES[0],
+                    SKY_BYTES[1],
+                    SKY_BYTES[2],
+                    0.0,
+                ]
+                .into_iter()
+                .chain(case.cloud)
+            })
+            .collect();
+        let pixels = self.fog_kernel(IMPROVED_KERNEL, "improved_fog", &inputs, cases.len(), 4);
+        let (pixels, _) = pixels.as_chunks::<4>();
+        pixels.to_vec()
+    }
+
+    fn cloud_over_values(&self) -> Vec<f32> {
+        let inputs: Vec<f32> = CLOUD_OVER_CASES
+            .iter()
+            .flat_map(|&[m, cl, ca, cloud_depth, depth, _]| {
+                [m, cl, ca, 0.0, cloud_depth, depth, 0.0, 0.0]
+            })
+            .collect();
+        let cases = CLOUD_OVER_CASES.len();
+        self.fog_kernel(CLOUD_OVER_KERNEL, "cloud_over_kernel", &inputs, cases, 1)
+    }
+
+    /// Runs `kernel` after `fog.wesl` in `invocations` workgroups over `inputs`, and reads back
+    /// `width` floats of each.
+    fn fog_kernel(
+        &self,
+        kernel: &str,
+        entry: &str,
+        inputs: &[f32],
+        invocations: usize,
+        width: usize,
+    ) -> Vec<f32> {
+        let source = format!(
+            "{}{kernel}",
+            include_str!("../../src/shaders/include/fog.wesl")
+        );
+        let module = self.device.create_shader_module(ShaderModuleDescriptor {
+            label: None,
+            source: ShaderSource::Wgsl(source.into()),
+        });
+        let pipeline = self
+            .device
+            .create_compute_pipeline(&ComputePipelineDescriptor {
+                label: None,
+                layout: None,
+                module: &module,
+                entry_point: Some(entry),
+                compilation_options: PipelineCompilationOptions::default(),
+                cache: None,
+            });
+        let cases = self.buffer(bytemuck::cast_slice(inputs), BufferUsages::STORAGE);
         let values = self.buffer(
-            &[0; FOG_CASES.len() * 4],
+            &vec![0; invocations * width * 4],
             BufferUsages::STORAGE | BufferUsages::COPY_SRC,
         );
         let read = self.device.create_buffer(&BufferDescriptor {
@@ -307,7 +433,7 @@ impl Gpu {
             let mut pass = encoder.begin_compute_pass(&Default::default());
             pass.set_pipeline(&pipeline);
             pass.set_bind_group(0, &group, &[]);
-            pass.dispatch_workgroups(FOG_CASES.len() as u32, 1, 1);
+            pass.dispatch_workgroups(invocations as u32, 1, 1);
         }
         encoder.copy_buffer_to_buffer(&values, 0, &read, 0, values.size());
         self.queue.submit([encoder.finish()]);
@@ -329,13 +455,59 @@ fn the_fog_value_of_an_offset_is_the_larger_of_its_two_ramps() {
     let wrong: Vec<([f32; 3], f32, f32)> = FOG_CASES
         .iter()
         .zip(values)
-        .filter(|(case, value)| (value - case.value).abs() > 1e-5)
+        .filter(|(case, value)| !value.is_finite() || (value - case.value).abs() > 1e-5)
         .map(|(case, value)| (case.offset, case.value, value))
         .collect();
     assert!(
         wrong.is_empty(),
         "(offset, fog value of the rule, fog value of the shader): {wrong:?}"
     );
+}
+
+#[test]
+fn improved_transparency_fades_the_far_face_into_the_sky_and_the_clouds_behind_it() {
+    let Some(gpu) = Gpu::new() else {
+        panic!("no adapter");
+    };
+    let cloud_behind_at_192 = [0.843137, 0.899608, 1.0];
+    let cases = [
+        improved_case(AT_180, NO_CLOUD, false, NO_CLOUD_PIXEL),
+        improved_case(AT_180, CLOUD, true, [0.535358, 0.630950, 0.4375]),
+        improved_case(AT_180, CLOUD, false, NO_CLOUD_PIXEL),
+        improved_case(AT_192, NO_CLOUD, false, SKY_BYTES),
+        improved_case(AT_192, CLOUD, true, cloud_behind_at_192),
+        improved_case(RAIN_AT_10, CLOUD, true, plain_fog_mix(RAIN_AT_10[0])),
+    ];
+    let pixels = gpu.improved_pixels(&cases);
+    let wrong: Vec<([f32; 2], bool, [f32; 3], [f32; 4])> = cases
+        .iter()
+        .zip(pixels)
+        .filter(|(case, pixel)| {
+            case.pixel
+                .iter()
+                .zip(pixel)
+                .any(|(expected, actual)| !actual.is_finite() || (expected - actual).abs() > 1e-4)
+        })
+        .map(|(case, pixel)| (case.values, case.cloud_behind, case.pixel, pixel))
+        .collect();
+    assert!(
+        wrong.is_empty(),
+        "(fog values, cloud behind, pixel of the rule, pixel of the shader): {wrong:?}"
+    );
+}
+
+#[test]
+fn the_cloud_image_goes_over_the_pixel_in_image_values_unless_a_face_is_nearer() {
+    let Some(gpu) = Gpu::new() else {
+        panic!("no adapter");
+    };
+    let values = gpu.cloud_over_values();
+    let wrong: Vec<([f32; 6], f32)> = CLOUD_OVER_CASES
+        .into_iter()
+        .zip(values)
+        .filter(|(case, value)| !value.is_finite() || (value - case[5]).abs() > 1e-5)
+        .collect();
+    assert!(wrong.is_empty(), "(case, value of the shader): {wrong:?}");
 }
 
 #[test]

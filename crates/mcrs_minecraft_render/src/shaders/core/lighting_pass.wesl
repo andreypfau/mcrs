@@ -3,6 +3,8 @@ import package::shaders::include::deferred::{octahedral_decode, shade};
 import package::shaders::include::depth::depth_at;
 import package::shaders::include::finish::to_target;
 import package::shaders::include::fog::{fog_mix, fog_value};
+@if(IMPROVED) import package::shaders::include::fog::fog_values;
+@if(IMPROVED) import package::shaders::include::transparency::{sky_with_clouds, transparent_fog, with_clouds};
 import package::shaders::include::frame::camera;
 @if(LIGHT_TINT) import mcrs_minecraft_light_render::shaders::volume::{shade_tinted, volume_tint};
 
@@ -33,6 +35,9 @@ fn lighting(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let pixel = vec2<i32>(in.position.xy);
     let d = depth_at(depth, nearest, pixel);
     if (d == 0.0) {
+        @if(IMPROVED)
+        return vec4<f32>(to_target(sky_with_clouds(pixel)), 1.0);
+        @else
         discard;
     }
     @if(UNLIT)
@@ -56,8 +61,19 @@ fn lighting(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
         @if(LIGHTING_TERM) {
             return vec4<f32>(to_target(lit), 1.0);
         } @else {
+            @if(IMPROVED) {
+                if (l.a > 0.5) {
+                    let values = fog_values(relative - camera.offset, camera.fog_environmental, camera.fog_render_distance);
+                    let terrain = transparent_fog(lit, pixel, d, values, camera.fog_color);
+                    return vec4<f32>(to_target(with_clouds(terrain, pixel, d)), 1.0);
+                }
+            }
             let fog = fog_value(relative - camera.offset, camera.fog_environmental, camera.fog_render_distance);
-            return vec4<f32>(to_target(fog_mix(lit, fog, camera.fog_color)), 1.0);
+            let m = fog_mix(lit, fog, camera.fog_color);
+            @if(IMPROVED)
+            return vec4<f32>(to_target(with_clouds(m, pixel, d)), 1.0);
+            @else
+            return vec4<f32>(to_target(m), 1.0);
         }
     }
 }

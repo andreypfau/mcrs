@@ -16,6 +16,8 @@ import package::shaders::include::fields::{
     QUAD_WORDS,
 };
 import package::shaders::include::fog::{fog_mix, fog_value};
+@if(IMPROVED) import package::shaders::include::fog::fog_values;
+@if(IMPROVED) import package::shaders::include::transparency::transparent_fog;
 import package::shaders::include::frame::{camera, params};
 import package::shaders::include::lighting::face_shade;
 import package::shaders::include::quad::{corner_index, degenerate, face_normal, greedy_corner};
@@ -191,6 +193,12 @@ fn fragment_greedy_translucent(in: GreedyOut) -> @location(0) vec4<f32> {
     }
     let light = greedy_light(in);
     let lit = package::shaders::include::deferred::shade(color.rgb, light.x, light.y, light.z);
+    @if(IMPROVED) {
+        let values = fog_values(in.world - camera.offset, camera.fog_environmental, camera.fog_render_distance);
+        let pixel = vec2<i32>(in.clip_position.xy);
+        let fogged = transparent_fog(lit, pixel, in.clip_position.z, values, camera.fog_color);
+        return vec4<f32>(package::shaders::include::finish::to_target(fogged), color.a);
+    }
     let fog = fog_value(in.world - camera.offset, camera.fog_environmental, camera.fog_render_distance);
     return vec4<f32>(package::shaders::include::finish::to_target(fog_mix(lit, fog, camera.fog_color)), color.a);
 }

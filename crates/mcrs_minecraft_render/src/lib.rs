@@ -10,6 +10,7 @@ mod frame;
 mod frame_view;
 mod gbuffer;
 mod hiz;
+mod improved_transparency;
 mod layer;
 mod pass;
 mod pipeline;
@@ -24,6 +25,7 @@ mod stats;
 mod terrain;
 mod texture;
 mod timestamps;
+mod transparency_targets;
 mod upload;
 mod views;
 mod words;
@@ -52,6 +54,7 @@ use mcrs_minecraft_mesh::STREAMS;
 pub use frame::{CameraOrigin, TerrainShade, clip_from_relative};
 pub use frame_view::{FrameView, SIDE_PLANES};
 pub use gbuffer::{DeferredFrame, GBUFFER_FORMATS};
+pub use improved_transparency::ImprovedTransparency;
 pub use layer::{LayerGroup, Shape};
 pub use pass::draw_layer_group;
 pub use pipeline::{TERRAIN_PIPELINES, stream_slot, terrain_slot};
@@ -239,6 +242,7 @@ fn embed_shaders(app: &mut App) {
     load_shader_library!(app, "shaders/include/depth.wesl");
     load_shader_library!(app, "shaders/include/visibility.wesl");
     load_shader_library!(app, "shaders/include/deferred.wesl");
+    load_shader_library!(app, "shaders/include/transparency.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/greedy.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/model.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/cull.wesl");
@@ -299,6 +303,7 @@ impl Plugin for TerrainPlugin {
             .init_resource::<QuadCull>()
             .init_resource::<RenderDistance>()
             .init_resource::<WorldFog>()
+            .init_resource::<ImprovedTransparency>()
             .init_resource::<Brightness>()
             .init_resource::<DrawMask>()
             .init_resource::<DebugViews>()
@@ -310,6 +315,7 @@ impl Plugin for TerrainPlugin {
             .add_plugins(ExtractResourcePlugin::<QuadCull>::default())
             .add_plugins(ExtractResourcePlugin::<RenderDistance>::default())
             .add_plugins(ExtractResourcePlugin::<WorldFog>::default())
+            .add_plugins(ExtractResourcePlugin::<ImprovedTransparency>::default())
             .add_plugins(ExtractResourcePlugin::<Brightness>::default())
             .add_plugins(ExtractResourcePlugin::<DrawMask>::default())
             .add_plugins(ExtractResourcePlugin::<PinnedTick>::default())

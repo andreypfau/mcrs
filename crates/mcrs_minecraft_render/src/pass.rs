@@ -1,5 +1,6 @@
 use std::sync::atomic::Ordering;
 
+use bevy::color::{LinearRgba, Srgba};
 use bevy::core_pipeline::core_3d::{AlphaMask3d, Opaque3d};
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
@@ -15,14 +16,15 @@ use super::cull::stream_name;
 use super::draws::PARAMS_STRIDE;
 use super::gbuffer::DeferredFrame;
 use super::layer::LayerGroup;
-use super::pipeline::{DeferredPipelines, stream_slot};
+use super::pipeline::{DeferredPipelines, TransparencyPipelines, stream_slot};
 use super::show::{DepthDisplay, DepthSource};
 use super::sky::SkyDraws;
 use super::stats::{DRAW_ARGS_SIZE, FrameCounts, VERTICES_PER_QUAD};
 use super::terrain::Terrain;
+use super::transparency_targets::TransparencyTargets;
 use super::upload::{UploadParams, apply_uploads};
 use super::views::{DeferredViews, Display, Lighting, SelectedView};
-use super::{DrawMask, LightTint, Occlusion, PassTimestamps};
+use super::{DrawMask, LightTint, Occlusion, PassTimestamps, WorldFog};
 
 pub(super) fn drop_unused_bins(
     mut opaque: ResMut<ViewBinnedRenderPhases<Opaque3d>>,
@@ -180,9 +182,26 @@ pub(crate) struct DeferredParams<'w> {
     counts: Res<'w, FrameCounts>,
     views: Res<'w, DeferredViews>,
     selected: Res<'w, SelectedView>,
+    sky: SkyDraws<'w>,
+}
+
+/// A frame drawn with Improved Transparency: the option is on, its targets and pipelines exist,
+/// the clouds can be drawn into the cloud image, and the view shows final shading.
+struct Transparency<'a> {
+    targets: &'a TransparencyTargets,
+    pipelines: &'a TransparencyPipelines,
 }
 
 impl DeferredParams<'_> {
+    fn transparency(&self) -> Option<Transparency<'_>> {
+        let targets = self.frame.as_deref()?.transparency.as_ref()?;
+        let pipelines = self.pipelines.transparency.as_ref()?;
+        (self.display().lighting == Lighting::Lit
+            && pipelines.ready(&self.cache)
+            && self.sky.cloud_image_ready(&self.cache))
+        .then_some(Transparency { targets, pipelines })
+    }
+
     /// A view whose program is still compiling shows final shading.
     fn display(&self) -> Display {
         let display = self.views.display(*self.selected);
@@ -259,19 +278,41 @@ fn gbuffer_pass<'a>(
     })
 }
 
+fn cleared(view: &TextureView, color: LinearRgba) -> RenderPassColorAttachment<'_> {
+    RenderPassColorAttachment {
+        view,
+        depth_slice: None,
+        resolve_target: None,
+        ops: Operations {
+            load: LoadOp::Clear(color.into()),
+            store: StoreOp::Store,
+        },
+    }
+}
+
 /// The sky is drawn into the view target first, in a pass of its own: its pipelines draw finite
-/// geometry with no depth test, so it cannot go behind the lit terrain later.
+/// geometry with no depth test, so it cannot go behind the lit terrain later. With Improved
+/// Transparency it goes into the sky image instead, cleared to the fog colour, and the clouds
+/// into the cloud image.
 pub(crate) fn draw_gbuffer(
     view: ViewQuery<WorldView>,
     params: DeferredParams,
-    sky: SkyDraws,
+    fog: Option<Res<WorldFog>>,
     mut ctx: RenderContext,
 ) {
     let Some(frame) = params.frame.as_deref() else {
         return;
     };
     let (target, depth, _, view_offset) = view.into_inner();
-    let color_attachments = [Some(target.get_color_attachment())];
+    let transparency = params.transparency();
+    let color_attachments = [Some(match &transparency {
+        Some(transparency) => {
+            let [red, green, blue] = fog.map_or([0.0; 3], |fog| fog.color);
+            let clear = LinearRgba::from(Srgba::rgb(red, green, blue));
+            cleared(&transparency.targets.sky, clear)
+        }
+        None => target.get_color_attachment(),
+    })];
     let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
         label: Some("sky"),
         color_attachments: &color_attachments,
@@ -280,8 +321,35 @@ pub(crate) fn draw_gbuffer(
         occlusion_query_set: None,
         multiview_mask: None,
     });
-    sky.draw_sky(&mut pass, view_offset.offset, &params.cache);
+    params
+        .sky
+        .draw_sky(&mut pass, view_offset.offset, &params.cache);
     drop(pass);
+
+    if let Some(transparency) = &transparency {
+        let color_attachments = [Some(cleared(
+            &transparency.targets.clouds,
+            LinearRgba::NONE,
+        ))];
+        let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
+            label: Some("cloud image"),
+            color_attachments: &color_attachments,
+            depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
+                view: &transparency.targets.cloud_depth,
+                depth_ops: Some(Operations {
+                    load: LoadOp::Clear(0.0),
+                    store: StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+        params
+            .sky
+            .draw_cloud_image(&mut pass, view_offset.offset, &params.cache);
+    }
 
     let mut pass = gbuffer_pass(&mut ctx, "gbuffer", frame, depth, true);
     if let Some(terrain) = params.terrain.as_deref() {
@@ -332,6 +400,7 @@ pub(crate) fn draw_lighting(
         return;
     }
     let (target, depth, _, _) = view.into_inner();
+    let transparency = params.transparency();
     let pipeline = match params.display().lighting {
         Lighting::Depth => {
             let source = DepthSource::Depth(depth);
@@ -342,10 +411,15 @@ pub(crate) fn draw_lighting(
             return display.draw(&mut ctx, target, source, &params.cache, &device);
         }
         Lighting::Variant(variant) => params.pipelines.variant(variant, &params.cache),
-        Lighting::Lit => params
-            .pipelines
-            .lighting
-            .and_then(|id| params.cache.get_render_pipeline(id)),
+        Lighting::Lit => match &transparency {
+            Some(transparency) => params
+                .cache
+                .get_render_pipeline(transparency.pipelines.lighting),
+            None => params
+                .pipelines
+                .lighting
+                .and_then(|id| params.cache.get_render_pipeline(id)),
+        },
     };
     let Some(pipeline) = pipeline else {
         return;
@@ -362,7 +436,12 @@ pub(crate) fn draw_lighting(
     pass.set_render_pipeline(pipeline);
     pass.set_bind_group(0, terrain.view_bind_group(), &[0]);
     pass.set_bind_group(1, terrain.draw_bind_group(), &[]);
-    pass.set_bind_group(2, &frame.bind_group, &[]);
+    let gbuffer = transparency
+        .as_ref()
+        .map_or(&frame.bind_group, |transparency| {
+            &transparency.targets.lighting
+        });
+    pass.set_bind_group(2, gbuffer, &[]);
     if let Some(tint) = tint {
         pass.set_bind_group(3, tint, &[]);
     }
@@ -374,10 +453,10 @@ pub(crate) fn draws_forward(params: DeferredParams) -> bool {
 }
 
 /// Drawn over the lit frame the way the classic path draws it, with the lighting pass's shading.
+/// With Improved Transparency the lighting pass has composited the cloud image already.
 pub(crate) fn draw_forward_deferred(
     view: ViewQuery<WorldView>,
     params: DeferredParams,
-    sky: SkyDraws,
     mut ctx: RenderContext,
 ) {
     let Some(terrain) = params.terrain.as_deref() else {
@@ -402,7 +481,16 @@ pub(crate) fn draw_forward_deferred(
         multiview_mask: None,
     });
     let span = diagnostics.pass_span(&mut pass, "forward");
-    let mut draws = sky.draw_clouds(&mut pass, view_offset.offset, &params.cache);
+    let transparency = params.transparency();
+    let mut draws = match &transparency {
+        Some(transparency) => {
+            pass.set_bind_group(2, &transparency.targets.forward, &[]);
+            0
+        }
+        None => params
+            .sky
+            .draw_clouds(&mut pass, view_offset.offset, &params.cache),
+    };
     for &phase in phases {
         draws += draw_layer_group(
             &mut pass,
@@ -410,10 +498,11 @@ pub(crate) fn draw_forward_deferred(
             LayerGroup::Translucent,
             phase,
             &params.mask,
-            |stream| {
-                params
+            |stream| match &transparency {
+                Some(transparency) => transparency.pipelines.translucent(stream, &params.cache),
+                None => params
                     .pipelines
-                    .terrain(stream_slot(stream, false), &params.cache)
+                    .terrain(stream_slot(stream, false), &params.cache),
             },
         );
     }
