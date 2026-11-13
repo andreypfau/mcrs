@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use mcrs_minecraft_entity::attribute_instance::fold_attribute;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
+use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 use mcrs_minecraft_item::ItemHoverMap;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::clientbound::{
@@ -211,6 +212,14 @@ fn on_effect(
     let Ok(mut local) = players.single_mut() else {
         return;
     };
+    if packet.effect.0 == i32::from(MobEffect::Absorption.id().number()) {
+        local.absorption = 4.0
+            * f32::from(
+                u8::try_from(packet.amplifier.0)
+                    .unwrap_or(u8::MAX)
+                    .saturating_add(1),
+            );
+    }
     let effect = VisibleEffect {
         effect: u8::try_from(packet.effect.0).unwrap_or(u8::MAX),
         amplifier: u8::try_from(packet.amplifier.0).unwrap_or(u8::MAX),
@@ -245,6 +254,9 @@ fn on_effect_removed(
         return;
     };
     let effect = u8::try_from(packet.effect.0).unwrap_or(u8::MAX);
+    if packet.effect.0 == i32::from(MobEffect::Absorption.id().number()) {
+        local.absorption = 0.0;
+    }
     local.effects.retain(|active| active.effect != effect);
 }
 
@@ -402,6 +414,44 @@ mod tests {
         assert_eq!(local.experience_progress, 0.5);
         assert_eq!(local.experience_level, 3);
         assert_eq!(local.total_experience, 25);
+    }
+
+    #[test]
+    fn dmg_net_004_absorption_follows_the_effect_on_the_wire() {
+        let (mut app, connection) = app();
+        let absorption = i32::from(MobEffect::Absorption.id().number());
+        receive(
+            &mut app,
+            connection,
+            ClientboundUpdateMobEffect {
+                entity_id: VarInt(PLAYER_ID),
+                effect: VarInt(absorption),
+                amplifier: VarInt(1),
+                duration: VarInt(100),
+                flags: 0,
+            },
+        );
+        let local = app
+            .world_mut()
+            .query_filtered::<&LocalVitals, With<Player>>()
+            .single(app.world())
+            .unwrap();
+        assert_eq!(local.absorption, 8.0);
+
+        receive(
+            &mut app,
+            connection,
+            ClientboundRemoveMobEffect {
+                entity_id: VarInt(PLAYER_ID),
+                effect: VarInt(absorption),
+            },
+        );
+        let local = app
+            .world_mut()
+            .query_filtered::<&LocalVitals, With<Player>>()
+            .single(app.world())
+            .unwrap();
+        assert_eq!(local.absorption, 0.0);
     }
 
     #[test]
