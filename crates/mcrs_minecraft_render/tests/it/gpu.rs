@@ -1,10 +1,14 @@
 use bevy::tasks::block_on;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferDescriptor, BufferUsages,
-    ComputePipeline, ComputePipelineDescriptor, Device, DeviceDescriptor, Instance,
-    InstanceDescriptor, MapMode, PipelineCompilationOptions, PollType, PowerPreference, Queue,
-    RequestAdapterOptions, ShaderModuleDescriptor, ShaderSource,
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource, BlendState, Buffer,
+    BufferDescriptor, BufferUsages, Color, ColorTargetState, ColorWrites, ComputePipeline,
+    ComputePipelineDescriptor, Device, DeviceDescriptor, Extent3d, FragmentState, Instance,
+    InstanceDescriptor, LoadOp, MapMode, Operations, PipelineCompilationOptions, PollType,
+    PowerPreference, Queue, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline,
+    RenderPipelineDescriptor, RequestAdapterOptions, ShaderModule, ShaderModuleDescriptor,
+    ShaderSource, StoreOp, TexelCopyBufferInfo, TexelCopyBufferLayout, TextureDescriptor,
+    TextureFormat, TextureUsages, TextureView, VertexState,
 };
 
 use crate::world_shaders::{cull_defs, wgsl};
@@ -198,6 +202,35 @@ fn cloud_over_kernel(@builtin(global_invocation_id) id: vec3<u32>) {
 }
 ";
 
+/// A fullscreen triangle with the output of Bevy's fullscreen vertex shader, and a fragment of white
+/// at half alpha.
+const HALF_WHITE: &str = "
+struct FullscreenVertexOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+};
+
+@vertex
+fn fullscreen(@builtin(vertex_index) index: u32) -> FullscreenVertexOutput {
+    let uv = vec2<f32>(f32(index >> 1u), f32(index & 1u)) * 2.0;
+    var out: FullscreenVertexOutput;
+    out.position = vec4<f32>(uv * vec2<f32>(2.0, -2.0) + vec2<f32>(-1.0, 1.0), 0.0, 1.0);
+    out.uv = uv;
+    return out;
+}
+
+@fragment
+fn half_white() -> @location(0) vec4<f32> {
+    return vec4<f32>(1.0, 1.0, 1.0, 0.5);
+}
+";
+
+/// The format of the world image, which the present pass encodes for an sRGB view target.
+const WORLD_IMAGE: TextureFormat = TextureFormat::Rgba8Unorm;
+const VIEW_TARGET: TextureFormat = TextureFormat::Rgba8UnormSrgb;
+/// The row pitch a texture copy into a buffer must align to.
+const COPY_ROW: u32 = 256;
+
 struct Gpu {
     device: Device,
     queue: Queue,
@@ -388,6 +421,153 @@ impl Gpu {
         self.fog_kernel(CLOUD_OVER_KERNEL, "cloud_over_kernel", &inputs, cases, 1)
     }
 
+    fn module(&self, source: String) -> ShaderModule {
+        self.device.create_shader_module(ShaderModuleDescriptor {
+            label: None,
+            source: ShaderSource::Wgsl(source.into()),
+        })
+    }
+
+    fn fullscreen_pipeline(
+        &self,
+        vertex: &ShaderModule,
+        fragment: &ShaderModule,
+        entry: &str,
+        target: ColorTargetState,
+    ) -> RenderPipeline {
+        self.device
+            .create_render_pipeline(&RenderPipelineDescriptor {
+                label: None,
+                layout: None,
+                vertex: VertexState {
+                    module: vertex,
+                    entry_point: Some("fullscreen"),
+                    compilation_options: PipelineCompilationOptions::default(),
+                    buffers: &[],
+                },
+                primitive: Default::default(),
+                depth_stencil: None,
+                multisample: Default::default(),
+                fragment: Some(FragmentState {
+                    module: fragment,
+                    entry_point: Some(entry),
+                    compilation_options: PipelineCompilationOptions::default(),
+                    targets: &[Some(target)],
+                }),
+                multiview_mask: None,
+                cache: None,
+            })
+    }
+
+    fn pixel(&self, format: TextureFormat, usage: TextureUsages) -> wgpu::Texture {
+        self.device.create_texture(&TextureDescriptor {
+            label: None,
+            size: Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage: usage | TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        })
+    }
+
+    /// The red byte of the view target after white at half alpha is blended over black in the
+    /// world image and the present pass encodes the world image for the target.
+    fn presented_half_white(&self) -> u8 {
+        let vertex = self.module(HALF_WHITE.to_owned());
+        let present = self.module(wgsl("present", Vec::new()));
+        let blended = self.fullscreen_pipeline(
+            &vertex,
+            &vertex,
+            "half_white",
+            ColorTargetState {
+                format: WORLD_IMAGE,
+                blend: Some(BlendState::ALPHA_BLENDING),
+                write_mask: ColorWrites::ALL,
+            },
+        );
+        let presented = self.fullscreen_pipeline(
+            &vertex,
+            &present,
+            "present",
+            ColorTargetState {
+                format: VIEW_TARGET,
+                blend: None,
+                write_mask: ColorWrites::ALL,
+            },
+        );
+        let world = self.pixel(WORLD_IMAGE, TextureUsages::TEXTURE_BINDING);
+        let world = world.create_view(&Default::default());
+        let target = self.pixel(VIEW_TARGET, TextureUsages::COPY_SRC);
+        let target_view = target.create_view(&Default::default());
+        let group = self.device.create_bind_group(&BindGroupDescriptor {
+            label: None,
+            layout: &presented.get_bind_group_layout(0),
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::TextureView(&world),
+            }],
+        });
+        let read = self.device.create_buffer(&BufferDescriptor {
+            label: None,
+            size: u64::from(COPY_ROW),
+            usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let mut encoder = self.device.create_command_encoder(&Default::default());
+        let draw = |encoder: &mut wgpu::CommandEncoder,
+                    view: &TextureView,
+                    pipeline: &RenderPipeline,
+                    group: Option<&BindGroup>| {
+            let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
+                color_attachments: &[Some(RenderPassColorAttachment {
+                    view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Clear(Color::BLACK),
+                        store: StoreOp::Store,
+                    },
+                })],
+                ..Default::default()
+            });
+            pass.set_pipeline(pipeline);
+            if let Some(group) = group {
+                pass.set_bind_group(0, group, &[]);
+            }
+            pass.draw(0..3, 0..1);
+        };
+        draw(&mut encoder, &world, &blended, None);
+        draw(&mut encoder, &target_view, &presented, Some(&group));
+        encoder.copy_texture_to_buffer(
+            target.as_image_copy(),
+            TexelCopyBufferInfo {
+                buffer: &read,
+                layout: TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(COPY_ROW),
+                    rows_per_image: None,
+                },
+            },
+            Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+        );
+        self.queue.submit([encoder.finish()]);
+        read.slice(..).map_async(MapMode::Read, |_| {});
+        self.device.poll(PollType::wait_indefinitely()).unwrap();
+        let red = read.slice(..).get_mapped_range().unwrap()[0];
+        read.unmap();
+        red
+    }
+
     /// Runs `kernel` after `fog.wesl` in `invocations` workgroups over `inputs`, and reads back
     /// `width` floats of each.
     fn fog_kernel(
@@ -528,5 +708,18 @@ fn the_section_cull_keeps_a_column_only_inside_the_render_distance() {
     assert!(
         wrong.is_empty(),
         "(r, offset, drawn by the rule) the kernel decided otherwise for: {wrong:?}"
+    );
+}
+
+#[test]
+fn a_blended_draw_mixes_image_values_and_the_present_pass_keeps_them() {
+    let Some(gpu) = Gpu::new() else {
+        panic!("no adapter");
+    };
+    let red = gpu.presented_half_white();
+    assert!(
+        red.abs_diff(128) <= 1,
+        "white at half alpha over black shows {red}; the over blend of image values gives 128, \
+         a blend in linear light 188"
     );
 }

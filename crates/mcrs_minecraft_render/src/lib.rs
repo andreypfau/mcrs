@@ -14,6 +14,7 @@ mod improved_transparency;
 mod layer;
 mod pass;
 mod pipeline;
+mod present;
 mod reconstruct;
 mod render_path;
 mod shaders;
@@ -250,6 +251,7 @@ fn embed_shaders(app: &mut App) {
     bevy::asset::embedded_asset!(app, "shaders/core/show.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/lighting_pass.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/gbuffer_views.wesl");
+    bevy::asset::embedded_asset!(app, "shaders/core/present.wesl");
 }
 
 /// The stages the world is drawn in, in order. A system joins one with `.in_set`; systems sharing a
@@ -381,6 +383,10 @@ impl Plugin for TerrainPlugin {
                         .in_set(WorldPass::Forward)
                         .run_if(pipeline::frame_ready)
                         .run_if(pass::draws_forward),
+                    present::present
+                        .in_set(WorldPass::Forward)
+                        .after(pass::draw_forward_deferred)
+                        .run_if(pipeline::frame_ready),
                 ),
             );
         // Bevy's opaque pass draws nothing here yet still clears and stores colour and depth,

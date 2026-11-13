@@ -12,8 +12,9 @@ use mcrs_minecraft_mesh::block::Pass;
 use mcrs_minecraft_mesh::{Group, stream_pass};
 
 use super::binds::Bindings;
-use super::gbuffer::{DeferredFrame, GBUFFER_FORMATS, gbuffer_layout};
+use super::gbuffer::{DeferredFrame, GBUFFER_FORMATS, WORLD_IMAGE_FORMAT, gbuffer_layout};
 use super::layer::{Shape, blend};
+use super::present::present_layout;
 use super::render_path::RenderPath;
 use super::shaders::Shaders;
 use super::terrain::Terrain;
@@ -40,6 +41,26 @@ pub fn common(
     view: &ExtractedView,
     blend: Option<BlendState>,
 ) -> RenderPipelineDescriptor {
+    descriptor(
+        label,
+        layout,
+        shader,
+        vertex,
+        fragment,
+        view.target_format,
+        blend,
+    )
+}
+
+pub(crate) fn descriptor(
+    label: String,
+    layout: Vec<BindGroupLayoutDescriptor>,
+    shader: &Handle<Shader>,
+    vertex: String,
+    fragment: String,
+    format: TextureFormat,
+    blend: Option<BlendState>,
+) -> RenderPipelineDescriptor {
     RenderPipelineDescriptor {
         label: Some(label.into()),
         layout,
@@ -52,7 +73,7 @@ pub fn common(
             shader: shader.clone(),
             entry_point: Some(fragment.into()),
             targets: vec![Some(ColorTargetState {
-                format: view.target_format,
+                format,
                 blend,
                 write_mask: ColorWrites::ALL,
             })],
@@ -80,7 +101,6 @@ pub(crate) fn terrain_descriptor(
     layer: Pass,
     shape: Shape,
     wireframe: bool,
-    view: &ExtractedView,
 ) -> RenderPipelineDescriptor {
     let mut descriptor = RenderPipelineDescriptor {
         primitive: PrimitiveState {
@@ -96,7 +116,7 @@ pub(crate) fn terrain_descriptor(
             stencil: default(),
             bias: model_depth_bias(layer, shape),
         }),
-        ..common(
+        ..descriptor(
             format!(
                 "terrain {} {}{}",
                 layer.label(),
@@ -107,7 +127,7 @@ pub(crate) fn terrain_descriptor(
             shaders.shape(shape),
             format!("vertex_{}", shape.label()),
             format!("fragment_{}_{}", shape.label(), layer.label()),
-            view,
+            WORLD_IMAGE_FORMAT,
             blend(layer),
         )
     };
@@ -160,6 +180,7 @@ fn model_depth_bias(layer: Pass, shape: Shape) -> DepthBiasState {
 #[derive(Resource, Default)]
 pub(crate) struct DeferredPipelines {
     pub lighting: Option<CachedRenderPipelineId>,
+    pub present: Option<CachedRenderPipelineId>,
     pub terrain: [Option<CachedRenderPipelineId>; TERRAIN_PIPELINES],
     variants: [Option<CachedRenderPipelineId>; Variant::ALL.len()],
     pub tinted: bool,
@@ -198,6 +219,7 @@ impl DeferredPipelines {
     fn gated(&self) -> impl Iterator<Item = CachedRenderPipelineId> + '_ {
         self.lighting
             .into_iter()
+            .chain(self.present)
             .chain(self.terrain.iter().copied().flatten())
     }
 
@@ -288,7 +310,6 @@ pub(crate) fn prepare_deferred_pipelines(
             pipelines.transparency = Some(queue_transparency(
                 tint_layout,
                 terrain,
-                view,
                 &fullscreen,
                 &asset_server,
                 &cache,
@@ -347,13 +368,13 @@ fn queue_pipelines(
         |label: &str, shader: &Handle<Shader>, entry: &str, def: &'static str| {
             let mut descriptor = RenderPipelineDescriptor {
                 vertex: fullscreen.to_vertex_state(),
-                ..common(
+                ..descriptor(
                     label.into(),
                     layout.clone(),
                     shader,
                     String::new(),
                     entry.into(),
-                    view,
+                    WORLD_IMAGE_FORMAT,
                     None,
                 )
             };
@@ -368,6 +389,19 @@ fn queue_pipelines(
             }
             cache.queue_render_pipeline(descriptor)
         };
+    let present = asset_server.load("embedded://mcrs_minecraft_render/shaders/core/present.wesl");
+    pipelines.present = Some(cache.queue_render_pipeline(RenderPipelineDescriptor {
+        vertex: fullscreen.to_vertex_state(),
+        ..common(
+            "present".into(),
+            vec![present_layout()],
+            &present,
+            String::new(),
+            "present".into(),
+            view,
+            None,
+        )
+    }));
     pipelines.lighting = Some(fullscreen_pipeline(
         "deferred lighting",
         &lighting,
@@ -402,7 +436,6 @@ fn queue_pipelines(
             layer,
             shape,
             wireframe,
-            view,
         );
         if let Some(slot) = pipelines
             .terrain
@@ -417,7 +450,6 @@ fn queue_pipelines(
 fn queue_transparency(
     tint_layout: Option<&BindGroupLayoutDescriptor>,
     terrain: &Terrain,
-    view: &ExtractedView,
     fullscreen: &FullscreenShader,
     asset_server: &AssetServer,
     cache: &PipelineCache,
@@ -427,7 +459,7 @@ fn queue_transparency(
     let groups = [terrain.view_layout().clone(), terrain.draw_layout().clone()];
     let mut lighting = RenderPipelineDescriptor {
         vertex: fullscreen.to_vertex_state(),
-        ..common(
+        ..descriptor(
             "deferred lighting with improved transparency".into(),
             groups
                 .iter()
@@ -438,7 +470,7 @@ fn queue_transparency(
             &lighting_shader,
             String::new(),
             "lighting".into(),
-            view,
+            WORLD_IMAGE_FORMAT,
             None,
         )
     };
@@ -457,7 +489,6 @@ fn queue_transparency(
             Pass::Translucent,
             shape,
             false,
-            view,
         );
         descriptor.label = Some(format!("terrain translucent {} improved", shape.label()).into());
         descriptor.layout.push(transparency_layout());

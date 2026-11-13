@@ -26,7 +26,7 @@ fn cloud_depth_at(pixel: vec2<i32>) -> f32 {
 
 /// The fog of a face at `pixel` and the reverse-Z `depth`, where a smaller depth is farther.
 fn transparent_fog(rgb: vec3<f32>, pixel: vec2<i32>, depth: f32, values: vec2<f32>, color: vec3<f32>) -> vec3<f32> {
-    let sky = from_target(sky_texel(pixel).rgb);
+    let sky = sky_texel(pixel).rgb;
     return improved_fog_mix(rgb, values, color, sky, cloud_at(pixel), cloud_depth_at(pixel) <= depth);
 }
 
@@ -36,5 +36,5 @@ fn with_clouds(rgb: vec3<f32>, pixel: vec2<i32>, depth: f32) -> vec3<f32> {
 }
 
 fn sky_with_clouds(pixel: vec2<i32>) -> vec3<f32> {
-    return with_clouds(from_target(sky_texel(pixel).rgb), pixel, 0.0);
+    return with_clouds(sky_texel(pixel).rgb, pixel, 0.0);
 }

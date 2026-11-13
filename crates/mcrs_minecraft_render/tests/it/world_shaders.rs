@@ -146,7 +146,7 @@ const FULL: &[RenderPath] = &[RenderPath::Full];
 
 /// Each shader the minimal path draws with, the defs of a pipeline that uses it beside those of
 /// the path, and the paths that build that pipeline.
-const PIPELINES: [(&str, &[&str], &[RenderPath]); 14] = [
+const PIPELINES: [(&str, &[&str], &[RenderPath]); 15] = [
     ("greedy", &[], BOTH),
     ("greedy", &["WIREFRAME"], BOTH),
     ("greedy", &["IMPROVED"], BOTH),
@@ -161,6 +161,7 @@ const PIPELINES: [(&str, &[&str], &[RenderPath]); 14] = [
     ("gbuffer_views", &["SHOW_GRID"], BOTH),
     ("show", &[], BOTH),
     ("show", &["PYRAMID"], BOTH),
+    ("present", &[], BOTH),
 ];
 
 /// The sampled textures a fragment stage of WebGL2 may bind.

@@ -1,6 +1,6 @@
 import bevy_render::maths::{HALF_PI, PI};
 import bevy_render::view::View;
-import package::shaders::include::finish::to_target;
+import package::shaders::include::finish::from_target;
 import package::shaders::include::quad::degenerate;
 import package::shaders::include::sky::Sky;
 
@@ -194,12 +194,12 @@ fn vertex_stars(@builtin(vertex_index) index: u32) -> SkyVertex {
 
 @fragment
 fn fragment_flat(in: SkyVertex) -> @location(0) vec4<f32> {
-    return in.color;
+    return vec4<f32>(from_target(in.color.rgb), in.color.a);
 }
 
 @fragment
 fn fragment_disc(in: SkyVertex) -> @location(0) vec4<f32> {
-    return vec4<f32>(to_target(mix(in.color.rgb, sky.fog.rgb, min(in.fog, 1.0))), 1.0);
+    return vec4<f32>(mix(in.color.rgb, sky.fog.rgb, min(in.fog, 1.0)), 1.0);
 }
 
 struct OccluderVertex {
@@ -228,12 +228,13 @@ fn fragment_occluder(in: OccluderVertex) -> @location(0) vec4<f32> {
     let direction = normalize(in.world - view.world_position.xyz);
     let elevation = degrees(asin(clamp(direction.y, -1.0, 1.0)));
     let alpha = ramp_smooth(sky.occluder.x, sky.occluder.y, elevation) * sky.occluder.z;
-    return vec4<f32>(to_target(sky.fog.rgb), alpha);
+    return vec4<f32>(sky.fog.rgb, alpha);
 }
 
 @fragment
 fn fragment_celestial(in: SkyVertex) -> @location(0) vec4<f32> {
-    return textureSampleLevel(celestials, celestial_sampler, in.uv, in.layer, 0.0) * in.color;
+    let color = textureSampleLevel(celestials, celestial_sampler, in.uv, in.layer, 0.0) * in.color;
+    return vec4<f32>(from_target(color.rgb), color.a);
 }
 
 struct CloudVertex {
@@ -368,7 +369,7 @@ fn fragment_clouds(in: CloudVertex) -> @location(0) vec4<f32> {
     if !cloud.hit {
         discard;
     }
-    return cloud.color;
+    return vec4<f32>(from_target(cloud.color.rgb), cloud.color.a);
 }
 
 struct CloudTexel {
