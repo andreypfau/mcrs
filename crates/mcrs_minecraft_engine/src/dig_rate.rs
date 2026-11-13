@@ -19,13 +19,19 @@ pub(crate) fn dig_rate(
     // the player inventory lifts it.
     let miner = Miner {
         item_speed: 1.0,
-        harvests: !data
-            .flags
-            .contains(BlockStateFlags::REQUIRES_CORRECT_TOOL_FOR_DROPS),
+        harvests: harvests(blocks, state),
         on_ground: on_ground.0,
         eyes_in_water: eyes_in_water(blocks, world, eye),
     };
     rate(data.hardness, &miner)
+}
+
+/// Whether the empty main hand harvests `state`.
+pub(crate) fn harvests(blocks: &BlockDefinitions, state: BlockStateId) -> bool {
+    !blocks
+        .state(state)
+        .flags
+        .contains(BlockStateFlags::REQUIRES_CORRECT_TOOL_FOR_DROPS)
 }
 
 // chisle: an eye above the water surface inside the top water block still counts as in water; a

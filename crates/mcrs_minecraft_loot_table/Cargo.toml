@@ -1,0 +1,28 @@
+[package]
+name = "mcrs_minecraft_loot_table"
+description = "Loot tables as a data pack writes them, and the block tables baked and evaluated"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_item_key.workspace = true
+mcrs_minecraft_item_stack.workspace = true
+mcrs_minecraft_item_table.workspace = true
+mcrs_minecraft_loot.workspace = true
+mcrs_minecraft_random.workspace = true
+mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_resource.workspace = true
+mcrs_voxel.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }

@@ -1,6 +1,6 @@
 use crate::ability::PlayerGameMode;
 use crate::block_break::{
-    DESTRUCTION_NONE, Hit, break_block, destruction, eye_position, level_event, observed,
+    DESTRUCTION_NONE, Hit, break_block, destruction, eye_position, harvest, level_event, observed,
 };
 use crate::break_session::{BreakSession, Crack};
 use crate::bus::OutboundPlayerPacket;
@@ -11,6 +11,7 @@ use crate::diggers::Diggers;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::system::{Query, Res, ResMut};
 use mcrs_minecraft_block::definition::{BlockStateFlags, Blocks};
+use mcrs_minecraft_engine_world::block_drops::BlockBroken;
 use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
@@ -43,6 +44,10 @@ fn advance(
 
 /// One tick of each dig and of each delayed break. It runs after the requests of the tick, so
 /// the tick of a start action is the first tick of its dig.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each query, writer and resource is its own parameter"
+)]
 pub(crate) fn advance_digs(
     mut diggers: ResMut<Diggers>,
     mut players: Query<(
@@ -58,6 +63,7 @@ pub(crate) fn advance_digs(
     mut packets: MessageWriter<OutboundPlayerPacket>,
     mut changes: MessageWriter<ColumnChange>,
     mut blocks: MessageWriter<BlockSetRequest>,
+    mut broken_blocks: MessageWriter<BlockBroken>,
 ) {
     let Some(definitions) = definitions else {
         return;
@@ -134,7 +140,7 @@ pub(crate) fn advance_digs(
                         breaker: session,
                         dimension: dimension.0,
                     };
-                    break_block(
+                    let new_states = break_block(
                         &definitions,
                         |pos| view.block(pos).ok(),
                         &hit,
@@ -142,6 +148,13 @@ pub(crate) fn advance_digs(
                         &mut changes,
                         &mut blocks,
                     );
+                    broken_blocks.write_batch(harvest(
+                        &definitions,
+                        &hit,
+                        &new_states,
+                        |pos| view.block(pos).ok(),
+                        player,
+                    ));
                 }
             }
         }

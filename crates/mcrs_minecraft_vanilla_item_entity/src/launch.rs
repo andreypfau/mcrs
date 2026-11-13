@@ -6,6 +6,7 @@ use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_item_entity::HandVelocity;
 use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_item_entity::Start;
+use mcrs_minecraft_item_entity::block_form;
 use mcrs_minecraft_item_entity::default_form;
 use mcrs_minecraft_item_entity::hand_form;
 
@@ -29,6 +30,8 @@ pub enum Form {
     },
     /// The default form at a point (IEN-SPN-008).
     Default(DVec3),
+    /// A drop of the block whose lowest corner is the point (PHY-CMP-025).
+    Block(DVec3),
     /// A given start, such as `summon item`.
     Fixed(Start),
 }
@@ -44,6 +47,7 @@ impl Form {
                 velocity,
             } => hand_form(feet, eye_height, velocity, stream),
             Self::Default(point) => default_form(point, stream),
+            Self::Block(block) => block_form(block, stream),
             Self::Fixed(start) => start,
         }
     }
