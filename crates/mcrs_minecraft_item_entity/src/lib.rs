@@ -11,6 +11,7 @@ mod start;
 
 pub use cause::Cause;
 pub use hand_form::HandVelocity;
+pub use hand_form::block_form;
 pub use hand_form::default_form;
 pub use hand_form::hand_form;
 pub use item_entity::DEFAULT_HEALTH;

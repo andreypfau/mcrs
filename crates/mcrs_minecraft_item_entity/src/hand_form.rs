@@ -60,6 +60,23 @@ pub fn hand_form(
     }
 }
 
+/// The start of a drop of the block whose lowest corner is `block`, with the draws of `stream`
+/// (PHY-CMP-025): a random offset of up to 0.25 from the centre, lowered by half the item height.
+#[must_use]
+pub fn block_form(block: DVec3, stream: &KeyedStream) -> Start {
+    const HALF_HEIGHT: f64 = 0.125;
+    let uniform = |index: u64, low: f64, high: f64| low + stream.unit(index) * (high - low);
+    let centre = block + DVec3::splat(0.5);
+    Start {
+        position: DVec3::new(
+            centre.x + uniform(0, -0.25, 0.25),
+            centre.y + uniform(1, -0.25, 0.25) - HALF_HEIGHT,
+            centre.z + uniform(2, -0.25, 0.25),
+        ),
+        velocity: DVec3::new(uniform(3, -0.1, 0.1), 0.2, uniform(4, -0.1, 0.1)),
+    }
+}
+
 /// The default form at `point`, with the draws of `stream` (IEN-SPN-008).
 #[must_use]
 pub fn default_form(point: DVec3, stream: &KeyedStream) -> Start {

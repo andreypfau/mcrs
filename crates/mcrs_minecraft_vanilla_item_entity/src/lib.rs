@@ -1,6 +1,7 @@
 //! The vanilla item entity: a stack with the placement `Dropped` that moves as a physics row,
 //! ages, merges with a near stack and is picked up into an inventory.
 
+mod block_drops;
 mod collect_items;
 mod item_collector;
 mod item_entity_commands_ext;

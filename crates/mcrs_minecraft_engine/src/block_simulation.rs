@@ -19,7 +19,7 @@ use bevy_ecs::prelude::{Has, Query, With};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::common_conditions::{not, resource_exists};
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition};
-use bevy_ecs::system::{Res, ResMut, SystemParam};
+use bevy_ecs::system::{Local, Res, ResMut, SystemParam};
 use bevy_ecs::world::World;
 use bevy_tasks::{ComputeTaskPool, ParallelSliceMut, TaskPool};
 use mcrs_minecraft_block::block_keys::Block;
@@ -47,8 +47,8 @@ use mcrs_minecraft_simulation::{
     Serial, ShardId, SimulatedSections, Spread, StepAt, StepOutput, StreamSeed, SubTick, TickKind,
     TickQueue, VanillaOrder,
 };
-use mcrs_minecraft_volume::PalettedSection;
-use mcrs_voxel::{ColumnPos, SectionPos};
+use mcrs_minecraft_volume::{BlockVolume, PalettedSection};
+use mcrs_voxel::{BlockPos, ColumnPos, SectionPos};
 use rustc_hash::FxHashSet;
 
 use crate::block_update::{BroadcastMarks, remove_replaced_block_entities};
@@ -61,8 +61,13 @@ use crate::column_ticks::LandedTicks;
 use crate::coordinator::clock::GameTime;
 use crate::random_tick_speed::RandomTickSpeed;
 use crate::world_kinds::{WorldFacts, WorldKinds};
-use mcrs_minecraft_engine_world::block_drops::{BlockDrops, ItemDropped};
+use mcrs_minecraft_engine_world::block_drops::{
+    BlockBroken, BlockDrops, DroppingBlock, ItemDropped,
+};
+use mcrs_minecraft_engine_world::game_rules::GameRules;
+use mcrs_minecraft_engine_world::world::storage::view::WorldView;
 use mcrs_minecraft_engine_world::world_seed::WorldSeed;
+use mcrs_minecraft_game_rule::GameRule;
 use mcrs_minecraft_region_disk::column_ticks::{ColumnTicks, StoredTick};
 
 /// Rules under which no block reacts: no block has a behaviour that a specification states yet.
@@ -115,6 +120,7 @@ impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
         app.init_resource::<LandedTicks>();
         app.init_resource::<BroadcastMarks>();
         app.add_message::<ItemDropped>();
+        app.add_message::<BlockBroken>();
         app.add_plugins(RandomTickIndexPlugin);
         app.add_systems(
             FixedUpdate,
@@ -122,6 +128,7 @@ impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
                 index_random_ticks::<B>.run_if(
                     resource_exists::<Blocks>.and_then(not(resource_exists::<RandomTickIndex>)),
                 ),
+                drop_broken_blocks::<B>,
                 run_block_simulation::<B>,
             )
                 .chain()
@@ -380,7 +387,28 @@ struct StepOutlets<'w, 's> {
     marks: ResMut<'w, BroadcastMarks>,
     streams: Query<'w, 's, &'static ColumnStreams>,
     changes: MessageWriter<'w, ColumnChange>,
+    dropped: DropOutlet<'w>,
+}
+
+/// Where the items of a block go: one [`ItemDropped`] each, unless the game rule `block_drops`
+/// is off (LOOT-OUT-003).
+#[derive(SystemParam)]
+struct DropOutlet<'w> {
     dropped: MessageWriter<'w, ItemDropped>,
+    game_rules: Option<Res<'w, GameRules>>,
+}
+
+impl DropOutlet<'_> {
+    fn write(&mut self, at: BlockPos, stacks: impl Iterator<Item = ItemStack>) {
+        let on = self
+            .game_rules
+            .as_deref()
+            .is_none_or(|rules| rules.is_on(GameRule::BlockDrops));
+        if on {
+            self.dropped
+                .write_batch(stacks.map(|stack| ItemDropped { at, stack }));
+        }
+    }
 }
 
 #[expect(
@@ -591,14 +619,19 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     {
         publish_block_events(&out.delivered, streams, &mut outlets.changes);
     }
+    let world_seed = random.seed.as_deref().map_or(0, |seed| seed.0);
     for block in out.destroyed.iter().filter(|block| block.drops) {
-        rules.drops(block.pos, block.state, &mut simulation.drops);
-        for stack in simulation.drops.drain(..) {
-            outlets.dropped.write(ItemDropped {
-                at: block.pos,
-                stack,
-            });
-        }
+        let dropping = DroppingBlock {
+            at: block.pos,
+            state: block.state,
+            tool: None,
+            breaker: None,
+            tick: kernel.time.0.cast_unsigned(),
+            world_seed,
+        };
+        let view = &volume.view;
+        rules.drops(&dropping, |pos| view.block(pos).ok(), &mut simulation.drops);
+        outlets.dropped.write(block.pos, simulation.drops.drain(..));
     }
     if let Some(outbox) = links.outbox.as_mut() {
         outbox.0.messages.append(&mut out.outbound);
@@ -610,6 +643,84 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
     simulation.inbound = inbound;
     ledgers.clear();
     simulation.ledgers = ledgers;
+}
+
+/// The items of each survival break, read before the write of the break applies: the other part
+/// of a block of two parts first, as a change around it once the hit part is gone, then the hit
+/// part with the breaker, when the break harvests it.
+// chisle: these items go out before those of the blocks that the step destroys after the break,
+// and a destroyed block reads the world after the step; LOOT-OUT-004 and LOOT-CND-008 want the
+// reverse order and the world at the removal. No block rule destroys a block with drops yet;
+// evaluating the destroyed blocks inside the step lifts it.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each message, resource and query is its own parameter"
+)]
+fn drop_broken_blocks<B: BlockDrops + Send + Sync + 'static>(
+    mut harvests: MessageReader<BlockBroken>,
+    world: WorldView,
+    dims: Query<Entity, With<Dimension>>,
+    rules: Res<BlockRules<B>>,
+    time: Res<GameTime>,
+    seed: Option<Res<WorldSeed>>,
+    mut drops: Local<Vec<ItemStack>>,
+    mut broken_now: Local<Vec<BlockPos>>,
+    mut dropped: DropOutlet,
+) {
+    broken_now.clear();
+    let Some(view) = dims
+        .single()
+        .ok()
+        .and_then(|dimension| world.get(dimension))
+    else {
+        harvests.clear();
+        return;
+    };
+    let tick = time.0.cast_unsigned();
+    let world_seed = seed.as_deref().map_or(0, |seed| seed.0);
+    for harvest in harvests.read() {
+        // Two breaks of one block in a tick both read it before either write lands.
+        let parts = [Some(harvest.at), harvest.other.map(|(at, _)| at)];
+        if parts.iter().flatten().any(|at| broken_now.contains(at)) {
+            continue;
+        }
+        broken_now.extend(parts.into_iter().flatten());
+        if let Some((at, state)) = harvest.other {
+            let removed = DroppingBlock {
+                at,
+                state,
+                tool: None,
+                breaker: None,
+                tick,
+                world_seed,
+            };
+            let after_hit = |pos| {
+                if pos == harvest.at {
+                    Some(harvest.left)
+                } else {
+                    view.block(pos).ok()
+                }
+            };
+            rules.0.drops(&removed, after_hit, &mut drops);
+            dropped.write(at, drops.drain(..));
+        }
+        if !harvest.harvests {
+            continue;
+        }
+        // chisle: the main hand is always empty; the player inventory lifts it.
+        let broken = DroppingBlock {
+            at: harvest.at,
+            state: harvest.state,
+            tool: None,
+            breaker: Some(harvest.breaker),
+            tick,
+            world_seed,
+        };
+        rules
+            .0
+            .drops(&broken, |pos| view.block(pos).ok(), &mut drops);
+        dropped.write(harvest.at, drops.drain(..));
+    }
 }
 
 /// Lists the positions that tick randomly in each loaded section once the block table landed.

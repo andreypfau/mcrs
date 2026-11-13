@@ -10,8 +10,12 @@ use mcrs_minecraft_damage::HitOutcome;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::entity_ids::CellEntityIds;
 use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_entity::chicken_sound_variant_keys;
+use mcrs_minecraft_entity::cow_sound_variant_keys;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::pig_sound_variant_keys;
+use mcrs_minecraft_entity::registry_keys::CHICKEN_SOUND_VARIANT;
+use mcrs_minecraft_entity::registry_keys::COW_SOUND_VARIANT;
 use mcrs_minecraft_entity::registry_keys::PIG_SOUND_VARIANT;
 use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_key::KeyedStream;
@@ -222,21 +226,38 @@ fn first_looks(
     if !kind.is_ageable() {
         return MobLooks::default();
     }
-    let mut type_entries = Vec::new();
-    if kind.entity_type == EntityType::Pig {
-        let sound = pick(
+    let unit = stream.unit(0);
+    let sound = match kind.entity_type {
+        EntityType::Pig => pick(
             registries,
             PIG_SOUND_VARIANT.location(),
             pig_sound_variant_keys::CLASSIC.location(),
-            stream.unit(0),
-        );
-        if let (Some(index), Some(sound)) = (kind.variant_indices.sound_variant, sound) {
-            type_entries.push(MetadataEntry {
-                index,
-                value: MetaDataValue::PigSoundVariant(sound),
-            });
-        }
-    }
+            unit,
+        )
+        .map(MetaDataValue::PigSoundVariant),
+        EntityType::Cow => pick(
+            registries,
+            COW_SOUND_VARIANT.location(),
+            cow_sound_variant_keys::CLASSIC.location(),
+            unit,
+        )
+        .map(MetaDataValue::CowSoundVariant),
+        EntityType::Chicken => pick(
+            registries,
+            CHICKEN_SOUND_VARIANT.location(),
+            chicken_sound_variant_keys::CLASSIC.location(),
+            unit,
+        )
+        .map(MetaDataValue::ChickenSoundVariant),
+        _ => None,
+    };
+    let type_entries = kind
+        .variant_indices
+        .sound_variant
+        .zip(sound)
+        .map(|(index, value)| MetadataEntry { index, value })
+        .into_iter()
+        .collect();
     MobLooks {
         no_ai: false,
         left_handed: stream.unit(1) < LEFT_HANDED,
@@ -259,4 +280,55 @@ fn pick<R>(
         return None;
     }
     Id::checked(u16::try_from(index).ok()?, names.len())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use mcrs_minecraft_game_registries::registry_load::test_registries;
+
+    use super::*;
+
+    /// ANIM-VAR-004: the first spawn setup gives each sound variant entry of the type the same
+    /// chance, and a default entry sends nothing.
+    #[test]
+    fn the_first_setup_draws_each_sound_variant_with_an_equal_chance() {
+        let cases = [
+            (&EntityTypeData::PIG, "PigSoundVariant", 3),
+            (&EntityTypeData::COW, "CowSoundVariant", 2),
+            (&EntityTypeData::CHICKEN, "ChickenSoundVariant", 2),
+        ];
+        for (kind, name, entries) in cases {
+            let mut counts: BTreeMap<String, u32> = BTreeMap::new();
+            for uuid in 0..3000u128 {
+                let looks = first_looks(
+                    kind,
+                    &KeyedStream::new(&EntityKey(uuid), 0),
+                    Some(test_registries()),
+                );
+                let drawn = match looks.type_entries.as_slice() {
+                    [] => "default".to_owned(),
+                    [entry] => {
+                        assert_eq!(Some(entry.index), kind.variant_indices.sound_variant);
+                        format!("{:?}", entry.value)
+                    }
+                    more => panic!("one sound variant entry at most: {more:?}"),
+                };
+                *counts.entry(drawn).or_default() += 1;
+            }
+            assert_eq!(counts.len(), entries, "{name}: {counts:?}");
+            for (drawn, count) in &counts {
+                assert!(
+                    drawn == "default" || drawn.starts_with(name),
+                    "{name}: {drawn}"
+                );
+                let share = f64::from(*count) / 3000.0;
+                assert!(
+                    (share - 1.0 / entries as f64).abs() < 0.04,
+                    "{name}: {counts:?}"
+                );
+            }
+        }
+    }
 }

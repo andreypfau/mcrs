@@ -1,21 +1,36 @@
-//! The goals of the pig in a pen, against the timings and the chances of `mob-goals.md`.
+//! The goals of the farm animals, mostly of the pig in a pen, against the timings and the chances
+//! of `mob-goals.md`.
 
 use glam::DVec3;
 use mcrs_minecraft_brain::AiDelay;
+use mcrs_minecraft_brain::Cadence;
 use mcrs_minecraft_brain::ConfigError;
+use mcrs_minecraft_brain::ControlFlags;
 use mcrs_minecraft_brain::DamageCause;
+use mcrs_minecraft_brain::DamageRecord;
+use mcrs_minecraft_brain::Intents;
+use mcrs_minecraft_brain::MobBrain;
+use mcrs_minecraft_brain::MobFlags;
+use mcrs_minecraft_brain::MobView;
 use mcrs_minecraft_brain::Panic;
+use mcrs_minecraft_brain::PathIntent;
 use mcrs_minecraft_brain::PlayerFlags;
 use mcrs_minecraft_brain::PlayerRow;
 use mcrs_minecraft_brain::StageConfig;
+use mcrs_minecraft_brain::Turn;
 use mcrs_minecraft_brain::WorldSeed;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_goals::ChickenBrain;
+use mcrs_minecraft_goals::CowBrain;
+use mcrs_minecraft_goals::FlatGround;
 use mcrs_minecraft_goals::IdleRule;
 use mcrs_minecraft_goals::PenConfig;
 use mcrs_minecraft_goals::PenLook;
+use mcrs_minecraft_goals::PigBrain;
 use mcrs_minecraft_goals::PigPen;
 use mcrs_minecraft_goals::Pond;
+use mcrs_minecraft_goals::SheepBrain;
 use mcrs_minecraft_goals::run_tiles;
 
 /// The steady speed on grass of a pig with the speed modifier `m` (GOAL-CTL-002): E-G2 measures
@@ -237,4 +252,58 @@ fn a_burning_pig_panics_into_the_nearest_water() {
         Some(DVec3::new(13.5, 0.0, 32.5)),
         "the panic walks into the water 3 blocks east"
     );
+}
+
+/// The speed modifier of the first panic path of a brain that a hit of the last tick wakes on a
+/// flat floor, over the first key whose search finds a destination.
+fn panic_modifier<B: MobBrain<FlatGround> + Default>() -> Option<f32> {
+    let ground = FlatGround {
+        side: 64,
+        pond: None,
+    };
+    (0..32u128).find_map(|key| {
+        let view = MobView {
+            mob: EntityId(0),
+            key: EntityKey(key << 64),
+            position: DVec3::new(32.5, 0.0, 32.5),
+            eye_height: 1.0,
+            flags: MobFlags::ALIVE.union(MobFlags::ON_GROUND),
+            idle_time: 0,
+            damage: Some(DamageRecord {
+                tick: 19,
+                cause: DamageCause::Panic,
+            }),
+            disabled: ControlFlags::NONE,
+            path: Default::default(),
+        };
+        let turn = Turn {
+            tick: 20,
+            seed: WorldSeed(41),
+            max_lag: 0,
+            cadence: Cadence::new(1, 0),
+            view: &view,
+            players: &[],
+            world: &ground,
+        };
+        let mut intents = Intents::default();
+        B::default().evaluate(&turn, &mut intents);
+        match intents.path {
+            Some(PathIntent::Walk { speed_modifier, .. }) => Some(speed_modifier),
+            _ => None,
+        }
+    })
+}
+
+/// GOAL-ANI-001 to GOAL-ANI-004: the panic of each farm animal walks at the speed of its list.
+#[test]
+fn each_farm_animal_panics_at_the_speed_of_its_goal_list() {
+    let cases = [
+        ("pig", panic_modifier::<PigBrain>(), 1.25),
+        ("cow", panic_modifier::<CowBrain>(), 2.0),
+        ("sheep", panic_modifier::<SheepBrain>(), 1.25),
+        ("chicken", panic_modifier::<ChickenBrain>(), 1.4),
+    ];
+    for (animal, modifier, expected) in cases {
+        assert_eq!(modifier, Some(expected), "{animal}");
+    }
 }

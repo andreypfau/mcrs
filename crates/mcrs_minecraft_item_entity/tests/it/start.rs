@@ -3,6 +3,7 @@ use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_item_entity::HandVelocity;
 use mcrs_minecraft_item_entity::Start;
+use mcrs_minecraft_item_entity::block_form;
 use mcrs_minecraft_item_entity::default_form;
 use mcrs_minecraft_item_entity::hand_form;
 
@@ -95,5 +96,33 @@ fn ien_spn_008_the_default_form_starts_at_the_point_at_0_2_up_within_0_1() {
             .iter()
             .all(|start| start.position == FEET && start.velocity.y == 0.2),
         "position and vertical velocity are fixed"
+    );
+}
+
+/// PHY-CMP-025, E54: drops of one block start at offsets of `x` and `z` in `[0.25, 0.75)` and of
+/// `y` in `[0.125, 0.625)`, with `v.y` of 0.2 and `v.x`, `v.z` in `[-0.1, 0.1)`, each spread over
+/// its range.
+#[test]
+fn phy_cmp_025_a_block_drop_starts_in_the_ranges_of_the_vanilla_drops() {
+    let block = DVec3::new(10.0, -50.0, 30.0);
+    let starts: Vec<Start> = streams().map(|stream| block_form(block, &stream)).collect();
+    let ranges: [(&str, fn(&Start) -> f64, f64, f64); 5] = [
+        ("x", |start| start.position.x - 10.0, 0.25, 0.75),
+        ("y", |start| start.position.y + 50.0, 0.125, 0.625),
+        ("z", |start| start.position.z - 30.0, 0.25, 0.75),
+        ("v.x", |start| start.velocity.x, -0.1, 0.1),
+        ("v.z", |start| start.velocity.z, -0.1, 0.1),
+    ];
+    for (name, value, low, high) in ranges {
+        let (min, max) = bounds(&starts, value);
+        let margin = (high - low) * 0.01;
+        assert!(
+            low <= min && min < low + margin && max < high && high - margin < max,
+            "{name} spans [{low}, {high}): {min} to {max}"
+        );
+    }
+    assert!(
+        starts.iter().all(|start| start.velocity.y == 0.2),
+        "v.y is 0.2"
     );
 }

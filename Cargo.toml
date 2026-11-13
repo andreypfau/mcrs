@@ -148,6 +148,7 @@ mcrs_minecraft_command_vanilla = { path = "crates/mcrs_minecraft_command_vanilla
 mcrs_minecraft_command_world = { path = "crates/mcrs_minecraft_command_world" }
 mcrs_minecraft_console = { path = "crates/mcrs_minecraft_console" }
 mcrs_minecraft_loot = { path = "crates/mcrs_minecraft_loot" }
+mcrs_minecraft_loot_table = { path = "crates/mcrs_minecraft_loot_table" }
 mcrs_minecraft_item_key = { path = "crates/mcrs_minecraft_item_key" }
 mcrs_minecraft_potion = { path = "crates/mcrs_minecraft_potion" }
 mcrs_minecraft_block_transformer = { path = "crates/mcrs_minecraft_block_transformer" }

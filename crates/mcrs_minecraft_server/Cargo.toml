@@ -29,7 +29,12 @@ mcrs_minecraft_game_mode.workspace = true
 mcrs_minecraft_goals.workspace = true
 mcrs_minecraft_item.workspace = true
 mcrs_minecraft_item_table = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_loot_table.workspace = true
 mcrs_minecraft_physics.workspace = true
+mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_simulation.workspace = true
+mcrs_voxel.workspace = true
 mcrs_minecraft_text.workspace = true
 mcrs_minecraft_vanilla_item_entity.workspace = true
 mcrs_minecraft_vanilla_light.workspace = true
@@ -82,6 +87,7 @@ mcrs_minecraft_command.workspace = true
 mcrs_minecraft_biome_file.workspace = true
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item_key.workspace = true
+mcrs_minecraft_game_rule.workspace = true
 mcrs_minecraft_dimension_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }

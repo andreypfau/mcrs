@@ -25,7 +25,6 @@ mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_entity_rows = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_game_rule.workspace = true
-mcrs_minecraft_item.workspace = true
 mcrs_minecraft_physics.workspace = true
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
