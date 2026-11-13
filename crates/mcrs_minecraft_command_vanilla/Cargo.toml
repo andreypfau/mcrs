@@ -45,6 +45,10 @@ mcrs_minecraft_engine_brain.workspace = true
 mcrs_minecraft_engine_physics.workspace = true
 mcrs_minecraft_entity_rows.workspace = true
 mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_item_entity.workspace = true
+mcrs_minecraft_item_stack.workspace = true
+mcrs_minecraft_item_table = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_vanilla_item_entity.workspace = true
 mcrs_minecraft_physics.workspace = true
 mcrs_minecraft_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_heightmap = { workspace = true, features = ["bevy"] }
