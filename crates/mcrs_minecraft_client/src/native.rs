@@ -14,10 +14,9 @@ use bevy::render::settings::WgpuSettings;
 use bevy::transform::TransformSystems;
 use bevy::window::ExitCondition;
 use bevy::window::{
-    Monitor, MonitorSelection, PresentMode, PrimaryMonitor, WindowLevel, WindowMode,
-    WindowPosition, WindowResolution,
+    Monitor, MonitorSelection, PrimaryMonitor, WindowLevel, WindowPosition, WindowResolution,
 };
-use bevy::winit::{UpdateMode, WinitPlugin, WinitSettings};
+use bevy::winit::WinitPlugin;
 use mcrs_minecraft_biome_file::BiomeFile;
 use mcrs_minecraft_datapack::DirectoryPacks;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
@@ -30,11 +29,13 @@ use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_save::{self as save, SaveError};
 
 use mcrs_minecraft_assets::packs::PackRoots;
-use mcrs_minecraft_client::config::{Knobs, TerrainLimits};
+use mcrs_minecraft_client::config::{Knobs, MAX_VIEW_DISTANCE, TerrainLimits};
 #[cfg(feature = "scene")]
 use mcrs_minecraft_client::scene_capture::SceneCapturePlugin;
 use mcrs_minecraft_client::screenshot;
-use mcrs_minecraft_client::{ClientPlugins, ClientTerrainPlugin, config, sky, vanilla};
+use mcrs_minecraft_client::{
+    ClientPlugins, ClientTerrainPlugin, config, sky, vanilla, window_options,
+};
 use mcrs_minecraft_client_gui::menu_plugin::MenuPlugin;
 use mcrs_minecraft_client_gui::menu_screens_plugin::MenuScreensPlugin;
 use mcrs_minecraft_client_gui::{chat_input, game_mode_switcher};
@@ -108,8 +109,8 @@ fn scene_dir(_: &Knobs) -> Option<PathBuf> {
 pub fn run() -> AppExit {
     #[cfg(target_os = "macos")]
     mcrs_minecraft_client::app_nap::decline();
-    let knobs = knobs();
     let world = world_folder();
+    let knobs = knobs(world.as_deref());
     let save_data = world.as_deref().map(load_save).unwrap_or_default();
     let frozen_at = knobs.frozen_time();
     let resolution = knobs.resolution();
@@ -182,11 +183,7 @@ pub fn run() -> AppExit {
                     Some(world) => format!("mcrs — {}", world.display()),
                     None => "mcrs".to_owned(),
                 },
-                mode: if knobs.fullscreen() && resolution.is_none() {
-                    WindowMode::BorderlessFullscreen(MonitorSelection::Primary)
-                } else {
-                    WindowMode::Windowed
-                },
+                mode: window_options::window_mode(knobs.fullscreen()),
                 position: WindowPosition::Centered(MonitorSelection::Primary),
                 // A window another one covers stops being presented, and a frame that gets no
                 // swapchain texture is a frame that is never drawn, so a sized window stays on
@@ -202,11 +199,7 @@ pub fn run() -> AppExit {
                     }
                     None => WindowResolution::default(),
                 },
-                present_mode: if knobs.vsync() {
-                    PresentMode::AutoVsync
-                } else {
-                    PresentMode::AutoNoVsync
-                },
+                present_mode: window_options::present_mode(knobs.vsync()),
                 #[cfg(feature = "dev")]
                 desired_maximum_frame_latency: knobs.frame_latency(),
                 ..default()
@@ -227,10 +220,6 @@ pub fn run() -> AppExit {
             .add(ScheduleRunnerPlugin::default())
     } else {
         defaults
-    })
-    .insert_resource(WinitSettings {
-        focused_mode: UpdateMode::Continuous,
-        unfocused_mode: UpdateMode::Continuous,
     })
     .add_plugins(
         ClientPlugins(knobs.clone())
@@ -341,7 +330,7 @@ pub fn run() -> AppExit {
         .insert_resource(AdvanceTime(save_data.advance_time && frozen_at.is_none()))
         .insert_resource(save_data.weather);
 
-    app.add_plugins(ClientTerrainPlugin(terrain_limits(view_distance)));
+    app.add_plugins(ClientTerrainPlugin(terrain_limits(MAX_VIEW_DISTANCE)));
     #[cfg(feature = "dev")]
     app.add_plugins(mcrs_minecraft_client::dev::DevPlugin);
 
@@ -495,12 +484,13 @@ fn server_address(knobs: &Knobs) -> Option<SocketAddr> {
     }
 }
 
-/// The `MCRS_` variables of the process environment, and whether Metal's HUD times encoders.
+/// The `MCRS_` variables of the process environment, and whether Metal's HUD times encoders. The
+/// options file is `options.json` of the world folder, unless `MCRS_OPTIONS` names another.
 #[expect(
     clippy::disallowed_methods,
     reason = "the client binary reads its settings from the environment"
 )]
-fn knobs() -> Knobs {
+fn knobs(world: Option<&Path>) -> Knobs {
     let variables = std::env::vars_os().filter_map(|(name, value)| {
         let name = name.into_string().ok()?;
         // Windows matches variable names in any case, as `std::env::var` does there.
@@ -514,6 +504,7 @@ fn knobs() -> Knobs {
     Knobs::new(
         variables,
         std::env::var("MTL_HUD_ENCODER_TIMING_ENABLED").is_ok_and(|on| on != "0"),
+        world.map(|world| world.join("options.json")),
     )
 }
 

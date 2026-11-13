@@ -9,11 +9,12 @@ use mcrs_minecraft_client_options::ClientOptions;
 use mcrs_minecraft_client_widget::{
     GuiExtent, GuiInput, GuiPoint, Widget, WidgetEvent, WidgetId, Widgets,
 };
-use mcrs_minecraft_client_world::screen::Screen;
+use mcrs_minecraft_client_world::screen::{ControlsParent, Screen};
 
 use crate::accessibility_settings_screen::{
     self, accessibility_settings_screen, fov_effects_tooltip,
 };
+use crate::controls_screen::{self, controls_screen};
 use crate::cursor_grab::grab;
 use crate::language::ClientLanguage;
 use crate::menu::{Menu, MenuBackground};
@@ -21,6 +22,7 @@ use crate::menu_event::MenuEvent;
 use crate::menu_input::{menu_clock, modifiers};
 use crate::menu_input_systems::MenuInputSystems;
 use crate::menu_options_systems::MenuOptionsSystems;
+use crate::mouse_settings_screen::{self, mouse_settings_screen};
 use crate::option_sub_screen;
 use crate::options_screen::{self, options_screen};
 use crate::pause_screen::{self, pause_screen};
@@ -65,6 +67,7 @@ impl Plugin for MenuScreensPlugin {
                     .before(MenuInputSystems),
                 (
                     write_menu_options.in_set(MenuOptionsSystems),
+                    show_pending_values,
                     follow_menu_events,
                 )
                     .chain()
@@ -79,7 +82,11 @@ impl Plugin for MenuScreensPlugin {
 fn parent(screen: Screen) -> Screen {
     match screen {
         Screen::Options => Screen::Pause,
-        Screen::VideoSettings | Screen::AccessibilitySettings => Screen::Options,
+        Screen::VideoSettings
+        | Screen::AccessibilitySettings
+        | Screen::Controls(ControlsParent::Options) => Screen::Options,
+        Screen::Controls(ControlsParent::AccessibilitySettings) => Screen::AccessibilitySettings,
+        Screen::MouseSettings(parent) => Screen::Controls(parent),
         Screen::None
         | Screen::Inventory
         | Screen::GameModeSwitcher(_)
@@ -92,7 +99,11 @@ fn parent(screen: Screen) -> Screen {
 fn keeps_widgets(screen: Screen) -> bool {
     matches!(
         screen,
-        Screen::Options | Screen::VideoSettings | Screen::AccessibilitySettings
+        Screen::Options
+            | Screen::VideoSettings
+            | Screen::AccessibilitySettings
+            | Screen::Controls(_)
+            | Screen::MouseSettings(_)
     )
 }
 
@@ -102,6 +113,11 @@ fn kept_focus(left: Screen, screen: Screen) -> Option<WidgetId> {
     match (left, screen) {
         (Screen::VideoSettings, Screen::Options) => Some(options_screen::VIDEO),
         (Screen::AccessibilitySettings, Screen::Options) => Some(options_screen::ACCESSIBILITY),
+        (Screen::Controls(_), Screen::Options) => Some(options_screen::CONTROLS),
+        (Screen::Controls(_), Screen::AccessibilitySettings) => {
+            Some(accessibility_settings_screen::CONTROLS)
+        }
+        (Screen::MouseSettings(_), Screen::Controls(_)) => Some(controls_screen::MOUSE_SETTINGS),
         _ => None,
     }
 }
@@ -112,12 +128,34 @@ fn target(shown: Screen, widget: WidgetId) -> Option<Screen> {
         (Screen::Pause, pause_screen::OPTIONS) => Some(Screen::Options),
         (Screen::Options, options_screen::VIDEO) => Some(Screen::VideoSettings),
         (Screen::Options, options_screen::ACCESSIBILITY) => Some(Screen::AccessibilitySettings),
+        (Screen::Options, options_screen::CONTROLS) => {
+            Some(Screen::Controls(ControlsParent::Options))
+        }
+        (Screen::AccessibilitySettings, accessibility_settings_screen::CONTROLS) => {
+            Some(Screen::Controls(ControlsParent::AccessibilitySettings))
+        }
+        (Screen::Controls(parent), controls_screen::MOUSE_SETTINGS) => {
+            Some(Screen::MouseSettings(parent))
+        }
         (Screen::Pause, pause_screen::BACK_TO_GAME)
         | (Screen::Options, options_screen::DONE)
-        | (Screen::VideoSettings | Screen::AccessibilitySettings, option_sub_screen::DONE) => {
-            Some(parent(shown))
-        }
+        | (
+            Screen::VideoSettings
+            | Screen::AccessibilitySettings
+            | Screen::Controls(_)
+            | Screen::MouseSettings(_),
+            option_sub_screen::DONE,
+        ) => Some(parent(shown)),
         _ => None,
+    }
+}
+
+/// The screen that `event` on `shown` opens.
+fn next_screen(shown: Screen, event: MenuEvent) -> Option<Screen> {
+    match event {
+        MenuEvent::CloseRequested => Some(parent(shown)),
+        MenuEvent::Widget(WidgetEvent::Activated { widget, .. }) => target(shown, widget),
+        MenuEvent::Widget(_) => None,
     }
 }
 
@@ -198,6 +236,18 @@ fn screen_menu(
             )?,
             vec![fov_effects_tooltip(language)],
         ),
+        Screen::Controls(_) => (
+            widgets_of(extent, input, controls_screen(extent, language, font)?)?,
+            Vec::new(),
+        ),
+        Screen::MouseSettings(_) => (
+            widgets_of(
+                extent,
+                input,
+                mouse_settings_screen(extent, language, font, options)?,
+            )?,
+            Vec::new(),
+        ),
         Screen::None | Screen::Inventory | Screen::GameModeSwitcher(_) | Screen::Chat => {
             return None;
         }
@@ -268,7 +318,15 @@ fn project_menu(
     for placed in built.widgets.iter() {
         menu.widgets.set_rect(placed.id(), placed.rect());
         if let Some(widget) = menu.widgets.get_mut(placed.id()) {
-            widget.caption.clone_from(&placed.caption);
+            // A slider that waits shows its own value, not the stored one (WID-SLD-007, step 3).
+            if screen == Screen::VideoSettings
+                && let Some(caption) =
+                    video_settings_screen::pending_caption(&source.language, widget)
+            {
+                widget.caption = caption;
+            } else {
+                widget.caption.clone_from(&placed.caption);
+            }
         }
     }
     menu.tooltips = built.tooltips;
@@ -296,18 +354,30 @@ fn ctrl_wheel_gui_scale(
 }
 
 /// The value changes of the widgets of the shown screen: each one writes its field of the
-/// [`ClientOptions`], and the menu follows.
+/// [`ClientOptions`], and the menu follows. An event that leaves the screen first stores the
+/// value of each slider that waits (MENU-SUB-002, step 1).
 fn write_menu_options(
     mut events: MessageReader<MenuEvent>,
     screen: Res<Screen>,
-    menu: Res<Menu>,
+    mut menu: ResMut<Menu>,
     mut options: ResMut<ClientOptions>,
     keys: Res<ButtonInput<KeyCode>>,
     window: Single<&Window, With<PrimaryWindow>>,
+    mut changes: Local<Vec<WidgetEvent>>,
 ) {
-    let mut next = *options;
     for event in events.read() {
-        let MenuEvent::Widget(WidgetEvent::ValueChanged { widget }) = *event else {
+        match *event {
+            MenuEvent::Widget(change @ WidgetEvent::ValueChanged { .. }) => changes.push(change),
+            // No wait lasts past the end of the clock.
+            event if next_screen(*screen, event).is_some() => {
+                menu.widgets.apply_deferred(u64::MAX, &mut changes);
+            }
+            _ => {}
+        }
+    }
+    let mut next = *options;
+    for change in changes.drain(..) {
+        let WidgetEvent::ValueChanged { widget } = change else {
             continue;
         };
         let Some(widget) = menu.widgets.get(widget) else {
@@ -324,14 +394,34 @@ fn write_menu_options(
             Screen::AccessibilitySettings => {
                 accessibility_settings_screen::write_option(&mut next, widget);
             }
+            Screen::MouseSettings(_) => mouse_settings_screen::write_option(&mut next, widget),
             Screen::None
             | Screen::Inventory
             | Screen::GameModeSwitcher(_)
             | Screen::Chat
-            | Screen::Pause => {}
+            | Screen::Pause
+            | Screen::Controls(_) => {}
         }
     }
     options.set_if_neq(next);
+}
+
+/// A slider that waits shows its new value at once (WID-SLD-007, step 3).
+fn show_pending_values(
+    mut events: MessageReader<MenuEvent>,
+    screen: Res<Screen>,
+    language: Res<ClientLanguage>,
+    mut menu: ResMut<Menu>,
+) {
+    for event in events.read() {
+        if let MenuEvent::Widget(WidgetEvent::ValuePending { widget }) = *event
+            && *screen == Screen::VideoSettings
+            && let Some(widget) = menu.widgets.get_mut(widget)
+            && let Some(caption) = video_settings_screen::pending_caption(&language, widget)
+        {
+            widget.caption = caption;
+        }
+    }
 }
 
 /// The actions of the widgets and of Escape: each one writes the [`Screen`], and the menu
@@ -349,20 +439,15 @@ fn follow_menu_events(
         if *screen != shown {
             continue;
         }
-        let next = match *event {
-            MenuEvent::CloseRequested => Some(parent(shown)),
-            MenuEvent::Widget(WidgetEvent::Activated { widget, .. }) => {
-                if (shown, widget) == (Screen::Pause, pause_screen::LAST) {
-                    if let Some(last) = menu.widgets.get_mut(widget) {
-                        last.active = false;
-                    }
-                    exit.write(AppExit::Success);
-                }
-                target(shown, widget)
+        if let MenuEvent::Widget(WidgetEvent::Activated { widget, .. }) = *event
+            && (shown, widget) == (Screen::Pause, pause_screen::LAST)
+        {
+            if let Some(last) = menu.widgets.get_mut(widget) {
+                last.active = false;
             }
-            MenuEvent::Widget(_) => None,
-        };
-        if let Some(next) = next {
+            exit.write(AppExit::Success);
+        }
+        if let Some(next) = next_screen(shown, *event) {
             *screen = next;
             if next == Screen::None {
                 grab(&mut cursor, true);
@@ -377,6 +462,7 @@ fn follow_menu_events(
 mod tests {
     mod jar {
         use std::sync::{Arc, LazyLock};
+        use std::time::Duration;
 
         use bevy::input::keyboard::{Key, KeyboardInput};
         use bevy::input::mouse::{MouseButtonInput, MouseScrollUnit, MouseWheel};
@@ -565,11 +651,15 @@ mod tests {
             let video = video_settings_screen(GUI, language, font, &defaults, 2).unwrap();
             let accessibility =
                 accessibility_settings_screen(GUI, language, font, &defaults).unwrap();
+            let controls = controls_screen(GUI, language, font).unwrap();
+            let mouse_settings = mouse_settings_screen(GUI, language, font, &defaults).unwrap();
             let placed: Vec<(String, GuiRect)> = pause
                 .iter()
                 .chain(&options[1..])
                 .chain(&video[1..])
                 .chain(&accessibility[1..])
+                .chain(&controls)
+                .chain(&mouse_settings)
                 .map(|widget| (widget.caption.clone(), widget.rect()))
                 .collect();
             let expected = [
@@ -579,31 +669,53 @@ mod tests {
                 ("Save and Quit to Title", GuiRect::new(111, 128, 204, 20)),
                 ("FOV: Normal", GuiRect::new(138, 29, 150, 20)),
                 ("Video Settings...", GuiRect::new(59, 91, 150, 20)),
-                ("Accessibility Settings...", GuiRect::new(217, 91, 150, 20)),
+                ("Controls...", GuiRect::new(217, 91, 150, 20)),
+                ("Accessibility Settings...", GuiRect::new(59, 115, 150, 20)),
                 ("Done", GuiRect::new(113, 214, 200, 20)),
                 ("", GuiRect::new(0, 33, 427, 174)),
                 ("Display", GuiRect::new(192, 37, 43, 17)),
-                ("GUI Scale: Auto", GuiRect::new(58, 55, 150, 20)),
-                ("Brightness: Default", GuiRect::new(218, 55, 150, 20)),
-                ("Quality & Performance", GuiRect::new(153, 98, 120, 17)),
-                ("Smooth Lighting: ON", GuiRect::new(58, 116, 150, 20)),
-                ("Clouds: Fancy", GuiRect::new(218, 116, 150, 20)),
+                ("Max Framerate: 120 FPS", GuiRect::new(58, 55, 150, 20)),
+                ("VSync: OFF", GuiRect::new(218, 55, 150, 20)),
+                ("GUI Scale: Auto", GuiRect::new(58, 80, 150, 20)),
+                ("Fullscreen: OFF", GuiRect::new(218, 80, 150, 20)),
+                ("Brightness: Default", GuiRect::new(58, 105, 150, 20)),
+                ("Quality & Performance", GuiRect::new(153, 148, 120, 17)),
+                ("Render Distance: 96 Chunks", GuiRect::new(58, 166, 150, 20)),
+                ("Smooth Lighting: ON", GuiRect::new(58, 191, 150, 20)),
+                ("Clouds: Fancy", GuiRect::new(218, 191, 150, 20)),
                 ("Done", GuiRect::new(113, 214, 200, 20)),
                 ("", GuiRect::new(0, 33, 427, 174)),
-                ("FOV Effects: 100%", GuiRect::new(58, 37, 150, 20)),
+                ("Controls...", GuiRect::new(58, 37, 150, 20)),
+                ("FOV Effects: 100%", GuiRect::new(58, 62, 150, 20)),
                 ("Done", GuiRect::new(138, 214, 150, 20)),
+                ("Controls", GuiRect::new(192, 12, 43, 9)),
+                ("", GuiRect::new(0, 33, 427, 174)),
+                ("Mouse Settings...", GuiRect::new(58, 37, 150, 20)),
+                ("Done", GuiRect::new(113, 214, 200, 20)),
+                ("Mouse Settings", GuiRect::new(176, 12, 74, 9)),
+                ("", GuiRect::new(0, 33, 427, 174)),
+                ("Sensitivity: 100%", GuiRect::new(58, 37, 150, 20)),
+                ("Done", GuiRect::new(113, 214, 200, 20)),
             ]
             .map(|(caption, rect)| (caption.to_owned(), rect));
             assert_eq!(placed, expected);
+            let video_thumb = video[1].scrollbar().map(|scrollbar| scrollbar.thumb);
+            assert_eq!(video_thumb, Some(GuiRect::new(376, 33, 6, 165)));
         }
 
         const VIDEO_BUTTON: (i32, i32) = (100, 100);
-        const ACCESSIBILITY_BUTTON: (i32, i32) = (250, 100);
+        const CONTROLS_BUTTON: (i32, i32) = (250, 100);
+        const ACCESSIBILITY_BUTTON: (i32, i32) = (100, 120);
+        const FIRST_ROW_BUTTON: (i32, i32) = (100, 40);
+        const DONE_BUTTON: (i32, i32) = (200, 220);
 
-        fn open_sub_screen(app: &mut App, (x, y): (i32, i32)) {
+        /// Opens the options screen from the game, then clicks each button of `path`.
+        fn open_sub_screen(app: &mut App, path: &[(i32, i32)]) {
             tap_escape(app);
             click(app, 150, 110);
-            click(app, x, y);
+            for &(x, y) in path {
+                click(app, x, y);
+            }
         }
 
         fn hold_key(app: &mut App, key_code: KeyCode, logical_key: Key) {
@@ -649,68 +761,131 @@ mod tests {
             )
         }
 
+        const VIDEO: &[(i32, i32)] = &[VIDEO_BUTTON];
+        const ACCESSIBILITY: &[(i32, i32)] = &[ACCESSIBILITY_BUTTON];
+        const MOUSE_SETTINGS: &[(i32, i32)] = &[CONTROLS_BUTTON, FIRST_ROW_BUTTON];
+
+        /// The path to a sub-screen, the clicks on it, the change of the options they make, and
+        /// the widget with its caption after them.
+        type OptionChange = (
+            &'static [(i32, i32)],
+            &'static [(i32, i32)],
+            fn(&mut ClientOptions),
+            WidgetId,
+            &'static str,
+        );
+
+        const OPTION_CHANGES: [OptionChange; 15] = [
+            (
+                VIDEO,
+                &[(58, 60)],
+                |o| o.max_framerate = 10,
+                video_settings_screen::MAX_FRAMERATE,
+                "Max Framerate: 10 FPS",
+            ),
+            (
+                VIDEO,
+                &[(207, 60)],
+                |o| o.max_framerate = 260,
+                video_settings_screen::MAX_FRAMERATE,
+                "Max Framerate: Unlimited",
+            ),
+            (
+                VIDEO,
+                &[(260, 60)],
+                |o| o.vsync = true,
+                video_settings_screen::VSYNC,
+                "VSync: ON",
+            ),
+            (
+                VIDEO,
+                &[(260, 85)],
+                |o| o.fullscreen = true,
+                video_settings_screen::FULLSCREEN,
+                "Fullscreen: ON",
+            ),
+            (
+                VIDEO,
+                &[(58, 110)],
+                |o| o.brightness = 0.0,
+                video_settings_screen::BRIGHTNESS,
+                "Brightness: Moody",
+            ),
+            (
+                VIDEO,
+                &[(207, 110)],
+                |o| o.brightness = 1.0,
+                video_settings_screen::BRIGHTNESS,
+                "Brightness: Bright",
+            ),
+            (
+                VIDEO,
+                &[(100, 85)],
+                |o| o.gui_scale = 1,
+                video_settings_screen::GUI_SCALE,
+                "GUI Scale: 1",
+            ),
+            (
+                VIDEO,
+                &[(100, 195)],
+                |o| o.smooth_light = false,
+                video_settings_screen::SMOOTH_LIGHTING,
+                "Smooth Lighting: OFF",
+            ),
+            (
+                VIDEO,
+                &[(260, 195)],
+                |o| o.clouds = false,
+                video_settings_screen::CLOUDS,
+                "Clouds: OFF",
+            ),
+            (
+                ACCESSIBILITY,
+                &[(58, 65)],
+                |o| o.fov_effect_scale = 0.0,
+                accessibility_settings_screen::FOV_EFFECTS,
+                "FOV Effects: OFF",
+            ),
+            (
+                ACCESSIBILITY,
+                &[(133, 65)],
+                |o| o.fov_effect_scale = 0.25,
+                accessibility_settings_screen::FOV_EFFECTS,
+                "FOV Effects: 25%",
+            ),
+            (
+                ACCESSIBILITY,
+                &[(58, 65), (207, 65)],
+                |_| {},
+                accessibility_settings_screen::FOV_EFFECTS,
+                "FOV Effects: 100%",
+            ),
+            (
+                MOUSE_SETTINGS,
+                &[(58, 40)],
+                |o| o.sensitivity = 0.0,
+                mouse_settings_screen::SENSITIVITY,
+                "Sensitivity: *yawn*",
+            ),
+            (
+                MOUSE_SETTINGS,
+                &[(207, 40)],
+                |o| o.sensitivity = 1.0,
+                mouse_settings_screen::SENSITIVITY,
+                "Sensitivity: HYPERSPEED!!!",
+            ),
+            (
+                MOUSE_SETTINGS,
+                &[(63, 40)],
+                |o| o.sensitivity = (1.0 / 142.0_f64) as f32,
+                mouse_settings_screen::SENSITIVITY,
+                "Sensitivity: 1%",
+            ),
+        ];
+
         #[test]
         fn each_option_widget_writes_its_option_and_shows_the_new_value() {
-            type Change = fn(&mut ClientOptions);
-            let cases: [(_, &[(i32, i32)], Change, _, &str); 8] = [
-                (
-                    VIDEO_BUTTON,
-                    &[(218, 60)],
-                    |o| o.brightness = 0.0,
-                    video_settings_screen::BRIGHTNESS,
-                    "Brightness: Moody",
-                ),
-                (
-                    VIDEO_BUTTON,
-                    &[(367, 60)],
-                    |o| o.brightness = 1.0,
-                    video_settings_screen::BRIGHTNESS,
-                    "Brightness: Bright",
-                ),
-                (
-                    VIDEO_BUTTON,
-                    &[(100, 60)],
-                    |o| o.gui_scale = 1,
-                    video_settings_screen::GUI_SCALE,
-                    "GUI Scale: 1",
-                ),
-                (
-                    VIDEO_BUTTON,
-                    &[(100, 120)],
-                    |o| o.smooth_light = false,
-                    video_settings_screen::SMOOTH_LIGHTING,
-                    "Smooth Lighting: OFF",
-                ),
-                (
-                    VIDEO_BUTTON,
-                    &[(260, 120)],
-                    |o| o.clouds = false,
-                    video_settings_screen::CLOUDS,
-                    "Clouds: OFF",
-                ),
-                (
-                    ACCESSIBILITY_BUTTON,
-                    &[(58, 40)],
-                    |o| o.fov_effect_scale = 0.0,
-                    accessibility_settings_screen::FOV_EFFECTS,
-                    "FOV Effects: OFF",
-                ),
-                (
-                    ACCESSIBILITY_BUTTON,
-                    &[(133, 40)],
-                    |o| o.fov_effect_scale = 0.25,
-                    accessibility_settings_screen::FOV_EFFECTS,
-                    "FOV Effects: 25%",
-                ),
-                (
-                    ACCESSIBILITY_BUTTON,
-                    &[(58, 40), (207, 40)],
-                    |_| {},
-                    accessibility_settings_screen::FOV_EFFECTS,
-                    "FOV Effects: 100%",
-                ),
-            ];
-            for (sub_screen, clicks, change, widget, shown) in cases {
+            for (sub_screen, clicks, change, widget, shown) in OPTION_CHANGES {
                 let mut app = game_app();
                 open_sub_screen(&mut app, sub_screen);
                 for &(x, y) in clicks {
@@ -723,13 +898,90 @@ mod tests {
             }
         }
 
+        const RENDER_DISTANCE_LEFT: (i32, i32) = (58, 171);
+        const RENDER_DISTANCE_RIGHT: (i32, i32) = (207, 171);
+
+        #[test]
+        fn render_distance_stores_its_value_in_the_first_frame_600_ms_after_the_last_change() {
+            let cases: [(&[(i32, i32)], &str, Option<u8>); 2] = [
+                (
+                    &[RENDER_DISTANCE_LEFT],
+                    "Render Distance: 2 Chunks",
+                    Some(2),
+                ),
+                (
+                    &[RENDER_DISTANCE_LEFT, RENDER_DISTANCE_RIGHT],
+                    "Render Distance: 96 Chunks",
+                    None,
+                ),
+            ];
+            for (clicks, shown, stored) in cases {
+                let mut app = game_app();
+                open_sub_screen(&mut app, VIDEO);
+                let opened = app.world().resource_ref::<ClientOptions>().last_changed();
+                for &(x, y) in clicks {
+                    click(&mut app, x, y);
+                }
+                let pending = caption(&app, video_settings_screen::RENDER_DISTANCE);
+                let frames = [599, 600].map(|ms| {
+                    let mut time = app.world_mut().resource_mut::<Time<Real>>();
+                    time.advance_to(Duration::from_millis(ms));
+                    app.update();
+                    let options = app.world().resource_ref::<ClientOptions>();
+                    (options.view_distance, options.last_changed() != opened)
+                });
+                assert_eq!(
+                    (pending.as_str(), frames),
+                    (shown, [(None, false), (stored, stored.is_some())])
+                );
+            }
+        }
+
+        #[test]
+        fn a_change_of_another_option_keeps_the_caption_of_the_render_distance_that_waits() {
+            let mut app = game_app();
+            open_sub_screen(&mut app, VIDEO);
+            click(&mut app, RENDER_DISTANCE_LEFT.0, RENDER_DISTANCE_LEFT.1);
+            app.world_mut().resource_mut::<ClientOptions>().vsync = true;
+            app.update();
+            let waiting = caption(&app, video_settings_screen::RENDER_DISTANCE);
+            app.world_mut()
+                .resource_mut::<Time<Real>>()
+                .advance_to(Duration::from_millis(600));
+            app.update();
+            app.update();
+            let stored = app.world().resource::<ClientOptions>().view_distance;
+            let shown = caption(&app, video_settings_screen::RENDER_DISTANCE);
+            assert_eq!(
+                (waiting.as_str(), stored, shown.as_str()),
+                (
+                    "Render Distance: 2 Chunks",
+                    Some(2),
+                    "Render Distance: 2 Chunks"
+                )
+            );
+        }
+
+        #[test]
+        fn escape_or_done_stores_the_render_distance_that_waits_at_once() {
+            let done: fn(&mut App) = |app| click(app, DONE_BUTTON.0, DONE_BUTTON.1);
+            for close in [tap_escape, done] {
+                let mut app = game_app();
+                open_sub_screen(&mut app, VIDEO);
+                click(&mut app, RENDER_DISTANCE_LEFT.0, RENDER_DISTANCE_LEFT.1);
+                close(&mut app);
+                let stored = app.world().resource::<ClientOptions>().view_distance;
+                assert_eq!((screen(&app), stored), (Screen::Options, Some(2)));
+            }
+        }
+
         #[test]
         fn the_gui_scale_values_follow_the_window_of_each_change() {
             let mut app = game_app();
-            open_sub_screen(&mut app, VIDEO_BUTTON);
+            open_sub_screen(&mut app, &[VIDEO_BUTTON]);
             resize_window(&mut app, 854, 480);
             let activations = [(); 3].map(|()| {
-                click(&mut app, 100, 60);
+                click(&mut app, 100, 85);
                 gui_scale(&app)
             });
             assert_eq!(
@@ -761,15 +1013,15 @@ mod tests {
             ctrl_wheel(&mut app, 1.0);
             assert_eq!(gui_scale(&app), (4, "GUI Scale: 4".to_owned()));
             hold_key(&mut app, KeyCode::ShiftLeft, Key::Shift);
-            click(&mut app, 100, 60);
+            click(&mut app, 100, 85);
             assert_eq!(gui_scale(&app), (3, "GUI Scale: 3".to_owned()));
         }
 
         #[test]
         fn a_new_gui_size_moves_the_widgets_and_keeps_the_focus() {
             let mut app = game_app();
-            open_sub_screen(&mut app, VIDEO_BUTTON);
-            click(&mut app, 100, 60);
+            open_sub_screen(&mut app, &[VIDEO_BUTTON]);
+            click(&mut app, 100, 85);
             app.world_mut().resource_mut::<GuiScene>().size = GuiSize {
                 width: 854,
                 height: 480,
@@ -786,9 +1038,82 @@ mod tests {
                 ),
                 (
                     Some(video_settings_screen::GUI_SCALE),
-                    GuiRect::new(272, 55, 150, 20),
+                    GuiRect::new(272, 80, 150, 20),
                     "GUI Scale: 1"
                 )
+            );
+        }
+
+        #[test]
+        fn controls_and_mouse_settings_close_to_the_screen_that_opened_them() {
+            type Step = fn(&mut App);
+            let open_mouse_settings: Step =
+                |app| click(app, FIRST_ROW_BUTTON.0, FIRST_ROW_BUTTON.1);
+            let done: Step = |app| click(app, DONE_BUTTON.0, DONE_BUTTON.1);
+            let cases: [(&[(i32, i32)], _, _, _, Step); 2] = [
+                (
+                    &[CONTROLS_BUTTON],
+                    ControlsParent::Options,
+                    Screen::Options,
+                    options_screen::CONTROLS,
+                    tap_escape,
+                ),
+                (
+                    &[ACCESSIBILITY_BUTTON, FIRST_ROW_BUTTON],
+                    ControlsParent::AccessibilitySettings,
+                    Screen::AccessibilitySettings,
+                    accessibility_settings_screen::CONTROLS,
+                    done,
+                ),
+            ];
+            for (path, parent, opener, opener_button, close_controls) in cases {
+                let mut app = game_app();
+                open_sub_screen(&mut app, path);
+                let shown = |app: &App| {
+                    let menu = app.world().resource::<Menu>();
+                    (screen(app), menu.widgets.focused())
+                };
+                let mut seen = vec![shown(&app)];
+                for step in [
+                    open_mouse_settings,
+                    tap_escape,
+                    open_mouse_settings,
+                    done,
+                    close_controls,
+                ] {
+                    step(&mut app);
+                    seen.push(shown(&app));
+                }
+                let mouse_settings = Some(controls_screen::MOUSE_SETTINGS);
+                assert_eq!(
+                    seen,
+                    [
+                        (Screen::Controls(parent), None),
+                        (Screen::MouseSettings(parent), None),
+                        (Screen::Controls(parent), mouse_settings),
+                        (Screen::MouseSettings(parent), None),
+                        (Screen::Controls(parent), mouse_settings),
+                        (opener, Some(opener_button)),
+                    ]
+                );
+            }
+        }
+
+        #[test]
+        fn the_fullscreen_button_shows_a_change_from_the_key_and_inverts_the_stored_value() {
+            let mut app = game_app();
+            open_sub_screen(&mut app, &[VIDEO_BUTTON]);
+            app.world_mut().resource_mut::<ClientOptions>().fullscreen = true;
+            app.update();
+            let shown = caption(&app, video_settings_screen::FULLSCREEN);
+            click(&mut app, 260, 85);
+            assert_eq!(
+                (
+                    shown.as_str(),
+                    app.world().resource::<ClientOptions>().fullscreen,
+                    caption(&app, video_settings_screen::FULLSCREEN).as_str()
+                ),
+                ("Fullscreen: ON", false, "Fullscreen: OFF")
             );
         }
     }
