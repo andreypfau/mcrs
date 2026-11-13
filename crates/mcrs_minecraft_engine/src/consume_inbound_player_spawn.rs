@@ -31,6 +31,7 @@ use mcrs_minecraft_engine_world::world::dimension::{Dimension, DimensionTypeId, 
 use mcrs_minecraft_engine_world::world::lifecycle::simulation::SimulationDistance;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_protocol::VarInt;
+use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLogin;
 use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
 use mcrs_minecraft_resource::ResourceKeyBuf;
@@ -71,18 +72,28 @@ pub(crate) fn consume_inbound_player_spawn(
         let Some((dim, dim_key, dimension_type)) = dims.iter().next() else {
             continue;
         };
-        let view_distance = PlayerViewDistance {
-            distance: spawn
-                .snapshot
-                .client_info
-                .as_ref()
-                .map_or(VIEW_DISTANCE_FALLBACK, |info| info.view_distance)
-                .clamp(2, MAX_VIEW_DISTANCE),
-            ..Default::default()
-        };
-        let op_level = ops.level_of(&spawn.snapshot.uuid, *default_op_level);
-        let arrival =
-            Arrival::absolute(Transform::default().with_translation(spawn.snapshot.position));
+        let profile = spawn.snapshot.profile().unwrap_or_else(|| GameProfile {
+            id: Uuid::nil(),
+            username: String::new(),
+            properties: Vec::new(),
+        });
+        let transform = spawn.snapshot.transform().unwrap_or_default();
+        let client_info = spawn.snapshot.client_info();
+        let view_distance = spawn.snapshot.view_distance().map_or_else(
+            || PlayerViewDistance {
+                distance: client_info
+                    .as_ref()
+                    .map_or(VIEW_DISTANCE_FALLBACK, |info| info.view_distance)
+                    .clamp(2, MAX_VIEW_DISTANCE),
+                ..Default::default()
+            },
+            |view| PlayerViewDistance {
+                distance: view.distance.clamp(2, MAX_VIEW_DISTANCE),
+                ..view
+            },
+        );
+        let op_level = ops.level_of(&profile.id, *default_op_level);
+        let arrival = Arrival::absolute(transform);
         let mut teleport_state = TeleportState::default();
         let login_teleport_id = teleport_state.sent(arrival.transform, *time);
         let new_entity = spawn_player_entity(
@@ -93,19 +104,23 @@ pub(crate) fn consume_inbound_player_spawn(
             view_distance,
             op_level,
             default_game_mode.0,
+            profile.clone(),
         );
         commands.entity(new_entity).insert(teleport_state);
-        if let Some(info) = &spawn.snapshot.client_info {
-            commands.entity(new_entity).insert(info.clone());
+        if let Some(info) = client_info {
+            commands.entity(new_entity).insert(info);
         }
-        commands.queue(move |world: &mut World| persistence::load_player(world, new_entity));
+        let joined = spawn.snapshot.clone();
+        commands.queue(move |world: &mut World| {
+            persistence::apply_join_snapshot(world, new_entity, &joined);
+        });
         let session = spawn.session;
         let wire_id = network_id::player_network_id(session);
-        let spawn_pos = spawn.snapshot.position;
+        let spawn_pos = arrival.transform.translation;
 
         info!(
             "{} logged in with entity id {wire_id} in {dim_key} at ({:.2}, {:.2}, {:.2})",
-            spawn.snapshot.username, spawn_pos.x, spawn_pos.y, spawn_pos.z
+            profile.username, spawn_pos.x, spawn_pos.y, spawn_pos.z
         );
         debug!(
             target: "mcrs_minecraft_engine::player",
@@ -132,8 +147,8 @@ pub(crate) fn consume_inbound_player_spawn(
             session,
             PacketPayload::PlayerInfoUpdate {
                 entries: vec![PlayerInfoEntry {
-                    player_uuid: spawn.snapshot.uuid,
-                    username: spawn.snapshot.username.clone(),
+                    player_uuid: profile.id,
+                    username: profile.username.clone(),
                     game_mode: default_game_mode.0,
                     listed: true,
                 }],
@@ -181,6 +196,10 @@ fn login_packet(
     })
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the spawn builds one entity from its dimension, position, game mode, view distance and profile"
+)]
 fn spawn_player_entity(
     commands: &mut Commands,
     spawn: &InboundPlayerSpawn,
@@ -189,6 +208,7 @@ fn spawn_player_entity(
     view_distance: PlayerViewDistance,
     op_level: PlayerOpLevel,
     game_mode: GameMode,
+    profile: GameProfile,
 ) -> Entity {
     commands
         .spawn((
@@ -196,7 +216,7 @@ fn spawn_player_entity(
                 minecraft_entity: Default::default(),
                 dimension: InDimension(dim),
                 transform,
-                uuid: EntityUuid(spawn.snapshot.uuid),
+                uuid: EntityUuid(profile.id),
             },
             PlayerBundle {
                 game_mode: PlayerGameMode(game_mode),
@@ -209,11 +229,7 @@ fn spawn_player_entity(
             SentChunkView::default(),
             AnnounceJoin,
             Owner(spawn.session),
-            GameProfile {
-                id: spawn.snapshot.uuid,
-                username: spawn.snapshot.username.clone(),
-                properties: Vec::new(),
-            },
+            profile,
         ))
         .id()
 }

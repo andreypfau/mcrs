@@ -91,7 +91,7 @@ pub struct DimCells {
     tick: Tick,
     outputs: Vec<DimTicked>,
     save: SavePhase,
-    /// A column failed to reach the disk since the last request of a save-all.
+    /// A column or a player file failed to reach the disk since the last request of a save-all.
     save_failed: bool,
 }
 
@@ -100,7 +100,7 @@ pub struct DimCells {
 enum SavePhase {
     /// No save-all is asked for, or the last one is not waiting.
     Idle,
-    /// The next tick asks every dimension to write all of its columns.
+    /// The next tick asks every dimension to write all of its columns and player files.
     Requested,
     Complete,
 }
@@ -383,7 +383,7 @@ impl DimCells {
     }
 
     /// Whether the data layer answered the requested save without making every column durable,
-    /// .
+    /// or a player file did not reach the disk since the request.
     #[must_use]
     pub fn save_failed(&self) -> bool {
         self.save_failed
@@ -515,7 +515,10 @@ impl DimCells {
                         dim,
                         &mut self.sessions,
                         spawn.session,
-                        spawn.snapshot.position,
+                        spawn
+                            .snapshot
+                            .transform()
+                            .map_or(bevy_math::DVec3::ZERO, |transform| transform.translation),
                     )
                 }),
                 ToDim::Transfer(transfer) => {
@@ -524,7 +527,7 @@ impl DimCells {
                             (departure.session, departure.arrival.transform.translation)
                         }
                         PlayerTransfer::Return(departure) => {
-                            (departure.session, departure.carried.transform.translation)
+                            (departure.session, departure.carried.transform().translation)
                         }
                     };
                     dim.and_then(|dim| place(dim, &mut self.sessions, session, position))
@@ -623,7 +626,7 @@ impl DimCells {
                 dim,
                 sessions,
                 session,
-                crossing.carried.transform.translation,
+                crossing.carried.transform().translation,
             ) else {
                 continue;
             };
@@ -691,6 +694,10 @@ impl DimCells {
                 output: ticked.output,
             });
         }
+        self.save_failed |= self
+            .outputs
+            .iter()
+            .any(|ticked| ticked.output.player_save_failed);
         self.send_to_stores();
         if save_all {
             self.flush_stores_and_wait();

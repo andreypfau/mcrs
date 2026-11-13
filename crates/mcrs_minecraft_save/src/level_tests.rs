@@ -818,7 +818,10 @@ fn player_file(dimension: Option<&str>) -> Vec<u8> {
 fn a_saved_dimension_keeps_its_text() {
     let written = player_file(Some("minecraft:the_nether"));
     let dat = player::parse_player_dat(&written, path()).unwrap();
-    assert_eq!(dat.dimension.as_str(), "minecraft:the_nether");
+    assert_eq!(
+        dat.dimension().as_ref().unwrap().as_str(),
+        "minecraft:the_nether"
+    );
 
     let rewritten = mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec(&dat).unwrap();
     assert_eq!(rewritten, written);
@@ -830,22 +833,10 @@ fn a_saved_dimension_keeps_its_text() {
 }
 
 #[test]
-fn a_player_save_without_a_dimension_reads_as_the_overworld() {
+fn a_player_save_without_a_dimension_has_none() {
     let dat = player::parse_player_dat(&player_file(None), path()).unwrap();
-    assert_eq!(dat.dimension.as_str(), "minecraft:overworld");
-    assert_eq!(dat.pos, [1.5, 64.0, -2.5]);
-}
-
-#[test]
-fn a_birth_key_of_an_older_save_is_dropped_at_the_read() {
-    let mut dat = player::PlayerDat::default();
-    dat.rest.put("mcrs:birth", NbtTag::Long(7));
-    let written = mcrs_minecraft_nbt::nbt_compress::to_gzip_bytes_vec(&dat).unwrap();
-    let read = player::parse_player_dat(&written, path()).unwrap();
-    assert!(
-        read.rest.child_tags.is_empty(),
-        "the order key is the UUID, so the old key is not kept"
-    );
+    assert_eq!(dat.dimension(), None);
+    assert_eq!(dat.pos(), Some([1.5, 64.0, -2.5]));
 }
 
 #[test]

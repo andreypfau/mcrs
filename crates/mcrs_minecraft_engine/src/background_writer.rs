@@ -1,4 +1,5 @@
 use bevy_tasks::futures::check_ready;
+use bevy_tasks::futures_lite::future::block_on;
 use bevy_tasks::{IoTaskPool, Task};
 
 /// One batch of file writes that the I/O pool runs.
@@ -47,17 +48,24 @@ impl<J: WriteJob> BackgroundWriter<J> {
         self.start(sink);
     }
 
-    #[cfg(test)]
     pub(crate) fn flush(&mut self, mut sink: impl FnMut(J::Output)) {
         self.start(&mut sink);
         while let Some(task) = self.writing.take() {
-            sink(bevy_tasks::futures_lite::future::block_on(task));
+            sink(block_on(task));
             self.start(&mut sink);
         }
     }
 
     pub(crate) fn is_idle(&self) -> bool {
         self.pending.is_none() && self.writing.is_none()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn running(task: Task<J::Output>) -> Self {
+        Self {
+            pending: None,
+            writing: Some(task),
+        }
     }
 
     fn start(&mut self, mut sink: impl FnMut(J::Output)) {
