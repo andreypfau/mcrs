@@ -46,7 +46,8 @@
               "#minecraft:supports_vegetation"
             ]
           }
-        ]
+        ],
+        "tested_directions": "all"
       },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],

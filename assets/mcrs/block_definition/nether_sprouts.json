@@ -41,7 +41,8 @@
               "#minecraft:supports_nether_sprouts"
             ]
           }
-        ]
+        ],
+        "tested_directions": "all"
       },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],

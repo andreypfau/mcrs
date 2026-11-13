@@ -39,6 +39,7 @@
         "seconds_to_destroy": 0.4
       },
       "minecraft:loot": "minecraft:blocks/ladder",
+      "mcrs:solid": false,
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
       "mcrs:emissive_rendering": false,
@@ -70,7 +71,14 @@
           ],
           "minecraft:selection_box": [
             { "origin": [-8, 0, 5], "size": [16, 16, 3] }
-          ]
+          ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, 0, 1],
+              "direction": "north"
+            }
+          }
         }
       },
       {
@@ -81,7 +89,14 @@
           ],
           "minecraft:selection_box": [
             { "origin": [-8, 0, -8], "size": [16, 16, 3] }
-          ]
+          ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, 0, -1],
+              "direction": "south"
+            }
+          }
         }
       },
       {
@@ -92,7 +107,14 @@
           ],
           "minecraft:selection_box": [
             { "origin": [5, 0, -8], "size": [3, 16, 16] }
-          ]
+          ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [1, 0, 0],
+              "direction": "west"
+            }
+          }
         }
       },
       {
@@ -103,7 +125,14 @@
           ],
           "minecraft:selection_box": [
             { "origin": [-8, 0, -8], "size": [3, 16, 16] }
-          ]
+          ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [-1, 0, 0],
+              "direction": "east"
+            }
+          }
         }
       }
     ]

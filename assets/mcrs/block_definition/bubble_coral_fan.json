@@ -35,6 +35,13 @@
       },
       "minecraft:destructible_by_mining": true,
       "minecraft:loot": "minecraft:blocks/bubble_coral_fan",
+      "minecraft:placement_filter": {
+        "predicate": {
+          "type": "minecraft:has_sturdy_face",
+          "offset": [0, -1, 0],
+          "direction": "up"
+        }
+      },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
       "mcrs:emissive_rendering": false,
