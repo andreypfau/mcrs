@@ -1,10 +1,11 @@
 use bevy::app::{App, Plugin};
-use bevy::ecs::prelude::{Commands, Component, On};
+use bevy::ecs::prelude::{Commands, Component, On, Resource};
 use bevy::math::DVec3;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundChunkCacheRadius, ClientboundPlayerPosition, ClientboundSetChunkCacheCenter,
+    ClientboundChunkCacheRadius, ClientboundLogin, ClientboundPlayerPosition,
+    ClientboundSetChunkCacheCenter,
 };
 use mcrs_minecraft_protocol_game::{ColumnPos, PositionFlags};
 
@@ -17,7 +18,8 @@ impl Plugin for PlayerViewPlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(on_player_position)
             .add_observer(on_set_chunk_cache_center)
-            .add_observer(on_chunk_cache_radius);
+            .add_observer(on_chunk_cache_radius)
+            .add_observer(on_login);
     }
 }
 
@@ -43,6 +45,10 @@ pub struct ChunkCacheCenter(pub ColumnPos);
 /// The radius in columns of the area the server keeps loaded for the client.
 #[derive(Component, Clone, Copy, Debug)]
 pub struct ChunkCacheRadius(pub i32);
+
+/// The render distance in columns that the options of the user ask for.
+#[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RequestedViewDistance(pub u8);
 
 fn on_player_position(event: On<Received<ClientboundPlayerPosition>>, mut commands: Commands) {
     let Some(position) = event.packet() else {
@@ -81,4 +87,13 @@ fn on_chunk_cache_radius(event: On<Received<ClientboundChunkCacheRadius>>, mut c
     commands
         .entity(event.entity)
         .insert(ChunkCacheRadius(radius.radius.0));
+}
+
+fn on_login(event: On<Received<ClientboundLogin>>, mut commands: Commands) {
+    let Some(login) = event.packet() else {
+        return;
+    };
+    commands
+        .entity(event.entity)
+        .insert(ChunkCacheRadius(login.chunk_radius.0));
 }

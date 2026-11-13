@@ -29,7 +29,7 @@ use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_save::{self as save, SaveError};
 
 use mcrs_minecraft_assets::packs::PackRoots;
-use mcrs_minecraft_client::config::{Knobs, TerrainLimits};
+use mcrs_minecraft_client::config::{Knobs, MAX_VIEW_DISTANCE, TerrainLimits};
 #[cfg(feature = "scene")]
 use mcrs_minecraft_client::scene_capture::SceneCapturePlugin;
 use mcrs_minecraft_client::screenshot;
@@ -330,7 +330,7 @@ pub fn run() -> AppExit {
         .insert_resource(AdvanceTime(save_data.advance_time && frozen_at.is_none()))
         .insert_resource(save_data.weather);
 
-    app.add_plugins(ClientTerrainPlugin(terrain_limits(view_distance)));
+    app.add_plugins(ClientTerrainPlugin(terrain_limits(MAX_VIEW_DISTANCE)));
     #[cfg(feature = "dev")]
     app.add_plugins(mcrs_minecraft_client::dev::DevPlugin);
 

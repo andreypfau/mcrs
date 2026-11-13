@@ -62,7 +62,7 @@ const MESH_IN_FLIGHT: usize = 128;
 #[cfg(target_family = "wasm")]
 const MESH_PER_FRAME: usize = 32;
 
-const VIEW_DISTANCE: u8 = 96;
+pub(crate) const VIEW_DISTANCE: u8 = 96;
 pub const MAX_VIEW_DISTANCE: u8 = *VIEW_DISTANCE_RANGE.end();
 
 /// The `MCRS_` settings of a run, named without the prefix; with none set, every setting takes
