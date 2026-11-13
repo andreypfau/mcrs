@@ -1,5 +1,5 @@
-//! The AI of summoned pigs in a dimension world: a pig near a player strolls, and a hit by a
-//! cactus makes a pig panic and run.
+//! The AI of summoned farm animals in a dimension world: an animal near a player strolls, and a
+//! hit by a cactus makes a pig panic and run.
 
 use bevy_ecs::prelude::*;
 use bevy_math::DVec3;
@@ -7,6 +7,8 @@ use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_engine_brain::EntityRows;
 use mcrs_minecraft_engine_brain::MobAi;
+use mcrs_minecraft_engine_physics::Mobs;
+use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_goals::VanillaBrain;
 use mcrs_minecraft_protocol::Bounded;
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -51,9 +53,13 @@ fn pig_positions(server: &mut PlayServer) -> Vec<DVec3> {
 }
 
 fn pig_panics(brain: &VanillaBrain) -> bool {
-    match brain {
-        VanillaBrain::Pig(pig) => pig.selector().is_running(PANIC),
-    }
+    let selector = match brain {
+        VanillaBrain::Pig(brain) => brain.selector(),
+        VanillaBrain::Cow(brain) => brain.selector(),
+        VanillaBrain::Sheep(brain) => brain.selector(),
+        VanillaBrain::Chicken(brain) => brain.selector(),
+    };
+    selector.is_running(PANIC)
 }
 
 fn horizontal_distance(from: DVec3, to: DVec3) -> f64 {
@@ -182,4 +188,91 @@ fn a_drown_hit_each_80_ticks_keeps_a_pig_strolling_without_a_panic() {
         farthest = farthest.max(horizontal_distance(rested[0], now[0]));
     }
     assert!(farthest > 0.5, "the hits make the pig stroll again");
+}
+
+/// GOAL-ANI-002 to GOAL-ANI-004, TRK-TYPE-002: a summoned cow, sheep and chicken get the type data
+/// and the brain of their type, and each type strolls near a player within a minute.
+#[test]
+fn summoned_cows_sheep_and_chickens_get_their_brains_and_stroll() {
+    let animals: [(&str, &EntityTypeData); 3] = [
+        ("cow", &EntityTypeData::COW),
+        ("sheep", &EntityTypeData::SHEEP),
+        ("chicken", &EntityTypeData::CHICKEN),
+    ];
+    let (mut server, operator) = start();
+    for (row, (name, _)) in animals.iter().enumerate() {
+        for x in [3, 7, 11] {
+            let z = 3 + 5 * row;
+            run(
+                &mut server,
+                operator,
+                &format!("summon minecraft:{name} {x} 64 {z}"),
+            );
+        }
+    }
+    server.ticks(operator, 40);
+    let positions = |server: &mut PlayServer| {
+        let mobs = server.world().resource::<Mobs>().0.clone();
+        let mut rows = server
+            .world()
+            .resource::<EntityRows>()
+            .living_rows()
+            .map(|(placed, state)| {
+                (
+                    placed.id,
+                    mobs[&placed.id].kind.entity_type,
+                    state.body.position,
+                )
+            })
+            .collect::<Vec<_>>();
+        rows.sort_by_key(|(id, _, _)| *id);
+        rows
+    };
+    let rested = positions(&mut server);
+    for (_, kind) in animals {
+        let count = rested
+            .iter()
+            .filter(|(_, entity_type, _)| *entity_type == kind.entity_type)
+            .count();
+        assert_eq!(
+            count, 3,
+            "{:?}: three summons make three mobs",
+            kind.entity_type
+        );
+    }
+    let mobs = server.world().resource::<Mobs>().0.clone();
+    let ai = server.world().resource::<MobAi<VanillaBrain>>();
+    let mut brains = 0;
+    for entry in ai.stage().tiles().flat_map(|(_, brains)| brains.iter()) {
+        let kind = mobs[&entry.mob].kind;
+        let expected = match entry.brain {
+            VanillaBrain::Pig(_) => &EntityTypeData::PIG,
+            VanillaBrain::Cow(_) => &EntityTypeData::COW,
+            VanillaBrain::Sheep(_) => &EntityTypeData::SHEEP,
+            VanillaBrain::Chicken(_) => &EntityTypeData::CHICKEN,
+        };
+        assert_eq!(
+            kind, expected,
+            "the brain of a mob is the brain of its type"
+        );
+        brains += 1;
+    }
+    assert_eq!(brains, 9, "each animal has a brain");
+
+    server.ticks(operator, 1200);
+
+    let walked = positions(&mut server);
+    for (_, kind) in animals {
+        let farthest = rested
+            .iter()
+            .zip(&walked)
+            .filter(|((_, entity_type, _), _)| *entity_type == kind.entity_type)
+            .map(|((_, _, from), (_, _, to))| horizontal_distance(*from, *to))
+            .fold(0.0, f64::max);
+        assert!(
+            farthest > 1.5,
+            "{:?}: an animal strolls away from where it landed",
+            kind.entity_type
+        );
+    }
 }
