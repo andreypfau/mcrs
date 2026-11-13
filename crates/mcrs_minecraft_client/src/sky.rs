@@ -243,6 +243,7 @@ impl SkyEnvironment {
             sky_fog_end_distance: self.scalar(frame, SkyField::SkyFogEndDistance),
             cloud_fog_end_distance: self.scalar(frame, SkyField::CloudFogEndDistance),
             render_distance,
+            render_fog_end: 16.0 * f32::from(render_distance),
             cloud_distance: CLOUD_DISTANCE,
             view_east,
             rain_level: frame.rain,

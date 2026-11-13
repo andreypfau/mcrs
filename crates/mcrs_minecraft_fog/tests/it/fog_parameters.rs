@@ -2,6 +2,10 @@ use mcrs_minecraft_fog::{FogInputs, FogParameters, FogRamp};
 
 const COLOR_TOLERANCE: f32 = 2.5e-5;
 const DISTANCE_TOLERANCE: f32 = 1e-4;
+const TWELVE_CHUNKS: FogRamp = FogRamp {
+    start: 172.8,
+    end: 192.0,
+};
 
 struct ParityCase {
     name: &'static str,
@@ -33,6 +37,7 @@ fn parity_scene(render_distance: u8) -> FogInputs {
         sky_fog_end_distance: 512.0,
         cloud_fog_end_distance: 2048.0,
         render_distance,
+        render_fog_end: 16.0 * f32::from(render_distance),
         cloud_distance: 128,
         view_east: 0.0,
         rain_level: 0.0,
@@ -58,19 +63,46 @@ fn assert_ramp(case: &str, quantity: &str, actual: FogRamp, expected: FogRamp) {
     assert_near(case, quantity, actual.end, expected.end, DISTANCE_TOLERANCE);
 }
 
+fn assert_parity(case: &ParityCase) {
+    let fog = FogParameters::from_inputs(&case.inputs);
+    let channels = fog.color.into_iter().zip(case.color);
+    for (actual, expected) in channels {
+        assert_near(case.name, "C", actual, expected, COLOR_TOLERANCE);
+    }
+    if let Some(environmental) = case.environmental {
+        assert_ramp(case.name, "es, ee", fog.environmental, environmental);
+    }
+    assert_ramp(
+        case.name,
+        "rs, re",
+        fog.render_distance,
+        case.render_distance,
+    );
+    assert_near(
+        case.name,
+        "se",
+        fog.sky_end,
+        case.sky_end,
+        DISTANCE_TOLERANCE,
+    );
+    assert_near(
+        case.name,
+        "ce",
+        fog.cloud_end,
+        case.cloud_end,
+        DISTANCE_TOLERANCE,
+    );
+}
+
 #[test]
 fn parity_tests_give_the_fog_parameters() {
-    let twelve_chunks = FogRamp {
-        start: 172.8,
-        end: 192.0,
-    };
     let cases = [
         ParityCase {
             name: "CFOG-TEST-001",
             inputs: parity_scene(12),
             color: [0.711644, 0.818954, 1.0],
             environmental: Some(FogRamp::NONE),
-            render_distance: twelve_chunks,
+            render_distance: TWELVE_CHUNKS,
             sky_end: 192.0,
             cloud_end: 2048.0,
         },
@@ -95,7 +127,7 @@ fn parity_tests_give_the_fog_parameters() {
             },
             color: [0.037813, 0.042539, 0.073656],
             environmental: Some(FogRamp::NONE),
-            render_distance: twelve_chunks,
+            render_distance: TWELVE_CHUNKS,
             sky_end: 192.0,
             cloud_end: 2048.0,
         },
@@ -110,7 +142,7 @@ fn parity_tests_give_the_fog_parameters() {
             color: [0.349732, 0.393120, 0.559360],
             // The stated `es` and `ee` take the rain fog factor 1, which the crate does not take.
             environmental: None,
-            render_distance: twelve_chunks,
+            render_distance: TWELVE_CHUNKS,
             sky_end: 192.0,
             cloud_end: 2048.0,
         },
@@ -126,7 +158,7 @@ fn parity_tests_give_the_fog_parameters() {
                 start: 10.0,
                 end: 96.0,
             }),
-            render_distance: twelve_chunks,
+            render_distance: TWELVE_CHUNKS,
             sky_end: 192.0,
             cloud_end: 2048.0,
         },
@@ -142,7 +174,7 @@ fn parity_tests_give_the_fog_parameters() {
                 start: 0.0,
                 end: 512.0,
             }),
-            render_distance: twelve_chunks,
+            render_distance: TWELVE_CHUNKS,
             sky_end: 192.0,
             cloud_end: 2048.0,
         },
@@ -155,41 +187,69 @@ fn parity_tests_give_the_fog_parameters() {
             },
             color: [0.711644, 0.818954, 1.0],
             environmental: Some(FogRamp::NONE),
-            render_distance: twelve_chunks,
+            render_distance: TWELVE_CHUNKS,
             sky_end: 192.0,
             cloud_end: 2048.0,
         },
     ];
 
     for case in cases {
-        let fog = FogParameters::from_inputs(&case.inputs);
-        let channels = fog.color.into_iter().zip(case.color);
-        for (actual, expected) in channels {
-            assert_near(case.name, "C", actual, expected, COLOR_TOLERANCE);
-        }
-        if let Some(environmental) = case.environmental {
-            assert_ramp(case.name, "es, ee", fog.environmental, environmental);
-        }
-        assert_ramp(
-            case.name,
-            "rs, re",
-            fog.render_distance,
-            case.render_distance,
-        );
-        assert_near(
-            case.name,
-            "se",
-            fog.sky_end,
-            case.sky_end,
-            DISTANCE_TOLERANCE,
-        );
-        assert_near(
-            case.name,
-            "ce",
-            fog.cloud_end,
-            case.cloud_end,
-            DISTANCE_TOLERANCE,
-        );
+        assert_parity(&case);
+    }
+}
+
+#[test]
+fn render_fog_end_sets_the_render_distance_ramp() {
+    let cases = [
+        ParityCase {
+            name: "render fog end at 80 blocks",
+            inputs: FogInputs {
+                render_fog_end: 80.0,
+                ..parity_scene(12)
+            },
+            color: [0.711644, 0.818954, 1.0],
+            environmental: Some(FogRamp::NONE),
+            render_distance: FogRamp {
+                start: 72.0,
+                end: 80.0,
+            },
+            sky_end: 192.0,
+            cloud_end: 2048.0,
+        },
+        ParityCase {
+            name: "render fog end at 20 blocks",
+            inputs: FogInputs {
+                render_fog_end: 20.0,
+                ..parity_scene(12)
+            },
+            color: [0.711644, 0.818954, 1.0],
+            environmental: Some(FogRamp::NONE),
+            render_distance: FogRamp {
+                start: 16.0,
+                end: 20.0,
+            },
+            sky_end: 192.0,
+            cloud_end: 2048.0,
+        },
+        ParityCase {
+            name: "render fog end at 0 blocks",
+            inputs: FogInputs {
+                render_fog_end: 0.0,
+                ..parity_scene(12)
+            },
+            color: [0.711644, 0.818954, 1.0],
+            environmental: Some(FogRamp::NONE),
+            render_distance: FogRamp {
+                start: -4.0,
+                end: 0.0,
+            },
+            sky_end: 192.0,
+            cloud_end: 2048.0,
+        },
+    ];
+
+    for case in cases {
+        assert_parity(&case);
     }
 }
 
