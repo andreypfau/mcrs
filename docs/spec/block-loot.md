@@ -49,12 +49,12 @@ An integer range `a..b` includes `a` and `b`.
 
 ### 0.2 Provenance
 
-- `black_box_confirmed`: shown by a game-produced artefact: a captured result of
+- `black_box_confirmed`: shown by a game-produced artefact: a captured result of section 11, of
   `block-breaking.md`, section 11, or of `item-entity.md`, section 13, or the vanilla data pack.
 - `source_suggested_black_box_confirmed`: taken from the reference implementation, and consistent
   with a captured result.
 - `source_suggested`: taken from the reference implementation, with no captured result. The
-  confidence is at most medium. Section 10 attaches an experiment.
+  confidence is at most medium. Section 10 lists the experiments that ran.
 - `design`: a choice of this project. The rule states the reason.
 - `unresolved`: not decided. Section 9.3 collects these items.
 
@@ -127,15 +127,16 @@ from loot, for example `air`, `water` and `bedrock`. A block table without pools
 break, the tool is a copy of the main-hand item before the break damages it (BRK-DMG-001). Thus an
 item that breaks on this use still gives its enchantments to the table. Result R37 of
 `block-breaking.md` shows a wooden pickaxe with the damage 58 that breaks and still drops
-`cobblestone`. Result R37 does not test Silk Touch on such an item. See experiment E6.
+`cobblestone`. Result L6 shows such a pickaxe with Silk Touch that breaks and drops `stone`.
 
-**LOOT-SRC-005** (`source_suggested`, semantic, confidence medium). With an empty main hand, the
+**LOOT-SRC-005** (`source_suggested_black_box_confirmed`, semantic, confidence high). With an empty main hand, the
 tool is the empty stack. The tool is present in the context, and it has no enchantments. Thus the
 level of each enchantment is 0, and each `match_tool` of a block table fails (LOOT-CND-007).
 `apply_bonus` still applies its formula with the level 0 (LOOT-MOD-004). For example, the table of
-`wheat` gives ripe wheat an extra `wheat_seeds` count of 0 to 3 for an empty hand.
+`wheat` gives ripe wheat an extra `wheat_seeds` count of 0 to 3 for an empty hand. Result L3 shows
+this distribution.
 
-**LOOT-SRC-006** (`source_suggested`, semantic, confidence medium). A block of two parts evaluates
+**LOOT-SRC-006** (`source_suggested_black_box_confirmed`, semantic, confidence high). A block of two parts evaluates
 the table of one part, as follows.
 
 - A survival break of a tall plant evaluates the block table of the hit part, with the context of
@@ -147,8 +148,9 @@ the table of one part, as follows.
   bed. When the break hits the other part, the removal of the part that drops is a neighbour change.
   Its context is the second row of LOOT-SRC-002: the empty stack and no `this_entity`.
 
-The item entity appears at the position of the part whose table dropped it. See experiment E4 and
-item U1.
+The item entity appears at the position of the part whose table dropped it. Result L4 shows one
+item for each break: at the lower part of a door and at the head of a bed, for each hit part, and at
+the hit part of `tall_grass`. Item U1 records what result L4 does not show.
 
 ## 3. Context and evaluation
 
@@ -247,10 +249,10 @@ is not tested takes no draw.
 the context has no `explosion_radius`. Otherwise it takes a draw `r` and passes when
 `r ≤ 1 / explosion_radius`.
 
-**LOOT-CND-004** (`source_suggested`, semantic, confidence medium). `table_bonus` reads the level `L`
+**LOOT-CND-004** (`source_suggested_black_box_confirmed`, semantic, confidence high). `table_bonus` reads the level `L`
 of its `enchantment`. Let `c` be the element `min(L, len - 1)` of `chances`, where `len` is the
 number of elements. The condition takes a draw `r` and passes when `r < c`. For example, `gravel`
-drops `flint` with the chance 0.1 for an empty hand.
+drops `flint` with the chance 0.1 for an empty hand. Result L2 shows the chances of `oak_leaves`.
 
 **LOOT-CND-005** (`source_suggested`, semantic, confidence medium). `random_chance` takes a draw `r`
 and passes when `r < chance`. `chance` is a float provider (LOOT-MOD-008).
@@ -275,11 +277,11 @@ the `block` part of the location predicate: the block there must be one of `bloc
 `state`, as in LOOT-CND-006. The tables of tall plants, for example `tall_grass`, use it to test the
 other part (LOOT-SRC-006). The server reads the block at the time of the evaluation.
 
-**LOOT-CND-009** (`source_suggested`, semantic, confidence medium). `entity_properties` with `entity`
+**LOOT-CND-009** (`source_suggested_black_box_confirmed`, semantic, confidence high). `entity_properties` with `entity`
 `this` and an empty `predicate` passes when the context has a `this_entity`, and fails when it does
 not. The only block table with it is `snow`. Thus a snow layer drops `snowball` or `snow` when a
-player breaks it, and drops nothing for a neighbour change or for `setblock` with `destroy`. See
-experiment E5.
+player breaks it, and drops nothing for a neighbour change or for `setblock` with `destroy`. Result
+L5 shows both cases.
 
 ## 5. Modifiers and number providers
 
@@ -287,23 +289,23 @@ A modifier changes one stack. The common field `condition` (REG-FLD-742) applies
 when it fails, the modifier does not change the stack. A list of modifiers applies each modifier in
 order. In the rules of this section, `c` is the count of the stack before the modifier.
 
-**LOOT-MOD-001** (`source_suggested`, semantic, confidence medium). `set_count` sets the count to
+**LOOT-MOD-001** (`source_suggested_black_box_confirmed`, semantic, confidence high). `set_count` sets the count to
 `v`, or to `c + v` when `add` is true. `v` is the value of the int provider `count`. The count can
 become 0 or less. For example, the tables of `glow_lichen` and `sculk_vein` add 1 for each face and
-then `-1`.
+then `-1`. Result L3 shows the counts below 1 of `brown_mushroom_block`, which make no item.
 
 **LOOT-MOD-002** (`source_suggested`, semantic, confidence medium). `explosion_decay` does nothing
 when the context has no `explosion_radius`. Otherwise it takes `c` draws, one for each item, and
 keeps each item when its draw `r ≤ 1 / explosion_radius`. The count becomes the number of items
 kept.
 
-**LOOT-MOD-003** (`source_suggested`, semantic, confidence medium). `limit_count` limits the count
+**LOOT-MOD-003** (`source_suggested_black_box_confirmed`, semantic, confidence high). `limit_count` limits the count
 to the range `limit`: a bare int is an exact range, and an object has `min` and `max`, each optional.
 A count below `min` becomes `min`. A count above `max` becomes `max`. For example, the table of
 `glowstone` limits `glowstone_dust` to `1..4`, and the table of `brown_mushroom_block` limits the
-count to 0 or more.
+count to 0 or more. Result L3 shows both.
 
-**LOOT-MOD-004** (`source_suggested`, semantic, confidence medium). `apply_bonus` reads the level `L`
+**LOOT-MOD-004** (`source_suggested_black_box_confirmed`, semantic, confidence high). `apply_bonus` reads the level `L`
 of its `enchantment`. When the context has no tool, it does nothing. Otherwise it applies one
 formula, also with `L = 0`:
 
@@ -314,26 +316,27 @@ formula, also with `L = 0`:
 | `minecraft:binomial_with_bonus_count` | `extra` `e`, `probability` `p` | `c` plus the number of draws `r < p`, for `L + e` draws | `L + e` |
 
 For `ore_drops` with `L > 0`, the factor is 1 with the chance `2 / (L + 2)`, and each value of
-`2..L + 1` with the chance `1 / (L + 2)`.
+`2..L + 1` with the chance `1 / (L + 2)`. Result L1 shows `ore_drops` with `L = 3`, and result L3
+shows `binomial_with_bonus_count` with `L = 0`.
 
 **LOOT-MOD-005** (`source_suggested`, semantic, confidence medium). `copy_state` adds to the
 component `minecraft:block_state` of the stack each property of `properties` that the context state
 has, with the value of the context state. Other entries of the component stay. Without a context
 state, it does nothing. For example, the tables of `beehive` and `bee_nest` copy `honey_level`.
 
-**LOOT-MOD-006** (`source_suggested`, semantic, confidence medium). `copy_components` with `source`
+**LOOT-MOD-006** (`source_suggested_black_box_confirmed`, semantic, confidence high). `copy_components` with `source`
 `block_entity` copies components of the block entity of the context to the stack. It copies each
 component type of `include` that the block entity has, except each type of `exclude`. Without
 `include`, it copies each type that the block entity has, except each type of `exclude`. Without a
 block entity, it does nothing. For example, the table of `chest` copies `minecraft:custom_name`, so
-a named chest drops a named item.
+a named chest drops a named item. Result L7 shows it.
 
 **LOOT-MOD-007** (`source_suggested`, semantic, confidence medium). The components of a block entity
 are the values that the block entity stores in the form of components, for example its custom name,
 its contents, its lock and its bees. No specification states them for each block entity yet. Item U2
 records this dependency.
 
-**LOOT-MOD-008** (`source_suggested`, semantic, confidence medium). The block tables use these
+**LOOT-MOD-008** (`source_suggested_black_box_confirmed`, semantic, confidence high). The block tables use these
 number providers:
 
 | Provider | Int value | Float value | Draws |
@@ -343,7 +346,7 @@ number providers:
 | `binomial` with `n` and `p` | the number of draws `r < p`, for `n` draws | the int value | `n` |
 
 The `min`, the `max`, `n` and `p` are number providers too. For example, the table of `melon_stem`
-gives `binomial` with `n` 3 and `p` `0.06666667` for the age 0.
+gives `binomial` with `n` 3 and `p` `0.06666667` for the age 0. Results L2 and L3 show `uniform`.
 
 ## 6. The drop list and the item entities
 
@@ -430,22 +433,81 @@ draws of the evaluation.
 
 - **U1**: the context of the part of a door or a bed that drops when the break hits the other part
   (LOOT-SRC-006). The reference suggests the empty stack and no `this_entity`. No current block table
-  of a door or a bed reads the tool or the entity, so the result is the same. Experiment E4 can
-  show the position of the item entity.
+  of a door or a bed reads the tool or the entity, so no experiment can show it.
 - **U2**: the components of a block entity (LOOT-MOD-007). The server does not yet store components
   for each block entity. Until it does, `copy_components` does nothing, and a named chest drops a
   chest without a name.
 
 ## 10. Experiments
 
-None of these experiments has run yet. Each uses `tools/vanilla-oracle` and a survival player.
+All experiments ran on 2026-11-13 against the vanilla server of `26.4-snapshot-7`, on a flat world,
+with one scripted client in survival mode. The attribute `minecraft:block_break_speed` of the player
+was 1000, so each start action broke the block at once. Experiments E1, E2, E3 and E8 evaluate the
+block table with the command `execute as <player> run loot spawn <pos> mine <block> mainhand`. That
+command evaluates the same table, with the main-hand item of the player as the tool and the player
+as `this_entity`. Each run of the command writes one line to the log, for example
+`Dropped 2 [Coal] from loot table minecraft:blocks/coal_ore`.
 
-| Id | Steps | What to record | Rules |
-|----|-------|----------------|-------|
-| E1 | Break 1000 `coal_ore` with a diamond pickaxe with Fortune III. | the count of `coal` in each break. Expect 1, 2, 3 and 4 with the chances 0.4, 0.2, 0.2 and 0.2. | LOOT-MOD-004 |
-| E2 | Break 2000 `oak_leaves` with an empty hand. | the counts of `oak_sapling`, `stick` and `apple`. | LOOT-CND-004, LOOT-MOD-008 |
-| E3 | Break 500 `glowstone` and 500 `brown_mushroom_block` with an empty hand. | the count of each break. Expect `2..4` for glowstone, and `0..2` for the mushroom block with the chances 7/9, 1/9 and 1/9. | LOOT-MOD-003, LOOT-OUT-002 |
-| E4 | Break the upper part of `oak_door`, the foot of `red_bed` and the upper part of `tall_grass` with shears. | the item entities and their positions. | LOOT-SRC-006 |
-| E5 | Place `snow` with `layers=3`. Break it with a wooden shovel. Place it again, and run `setblock` with `air` and `destroy`. | the item entities. | LOOT-CND-009 |
-| E6 | Break `stone` with a wooden pickaxe with Silk Touch and the damage 58. | the item entity. Expect `stone`. | LOOT-SRC-004 |
-| E7 | Name a chest with an anvil, place it and break it. | the component `minecraft:custom_name` of the dropped stack. | LOOT-MOD-006 |
+| Id | Steps | Result | Rules |
+|----|-------|--------|-------|
+| E1 | Evaluate the table of `coal_ore` 1000 times with a diamond pickaxe with Fortune III. | L1 | LOOT-MOD-004 |
+| E2 | Evaluate the table of `oak_leaves` 2000 times with an empty hand. | L2 | LOOT-CND-004, LOOT-MOD-008 |
+| E3 | Evaluate the tables of `glowstone` and `brown_mushroom_block` 500 times each with an empty hand. | L3 | LOOT-MOD-001, LOOT-MOD-003 |
+| E8 | Evaluate the table of `wheat` with `age=7` 500 times with an empty hand. Count the items of each evaluation. | L3 | LOOT-SRC-005, LOOT-MOD-004 |
+| E4 | Break each part of `oak_door` and `red_bed` with an empty hand, and each part of `tall_grass` with shears. Record `add_entity` and the item. | L4 | LOOT-SRC-006 |
+| E5 | Break `snow` with `layers=3` with a wooden shovel. Place it again, and run `setblock` with `air` and `destroy`. | L5 | LOOT-CND-009 |
+| E6 | Break `stone` with a wooden pickaxe with Silk Touch and the damage 58. | L6 | LOOT-SRC-004 |
+| E7 | Place a chest with the name `Box` and break it with an empty hand. | L7 | LOOT-MOD-006 |
+
+No experiment tests an explosion, the division of LOOT-OUT-001, the order of LOOT-OUT-004 or the
+game rule `block_drops`.
+
+## 11. Captured results
+
+**L1.** E1, the count of `coal` in each evaluation. The expected numbers are 400, 200, 200 and 200.
+
+| Count | 1 | 2 | 3 | 4 |
+|-------|---|---|---|---|
+| Evaluations | 415 | 190 | 180 | 215 |
+
+**L2.** E2, 2000 evaluations of `oak_leaves`. The expected chances of one evaluation are 0.05 for
+`oak_sapling`, 0.02 for `stick` and 0.005 for `apple`.
+
+| Result | Evaluations |
+|--------|-------------|
+| 1 `oak_sapling` | 115 |
+| 1 `stick` | 19 |
+| 2 `stick` | 16 |
+| 1 `apple` | 6 |
+| two stacks | 2 |
+| nothing | 1842 |
+
+**L3.** E3 and E8, the count of each evaluation. For `brown_mushroom_block`, the log line of a count
+0 is `Dropped 0 [Air]`. The expected numbers for it are 388.9, 55.6 and 55.6. For `wheat`, each
+evaluation gave 1 `wheat` and one stack of `wheat_seeds`. The script read the item entities of 250 of
+the 500 evaluations. The expected numbers for the seeds of these 250 are 19.6, 79.1, 104.9 and 46.4.
+
+| Table | Count: evaluations |
+|-------|--------------------|
+| `glowstone` | 2: 150, 3: 176, 4: 174 |
+| `brown_mushroom_block` | 0: 380, 1: 58, 2: 62 |
+| `wheat`, `wheat_seeds` | 1: 17, 2: 78, 3: 112, 4: 43 |
+
+**L4.** E4, the one item entity of each break. The `y` of an item is the block `y` plus 0.125 to
+0.625.
+
+| Break | Item | Position of `add_entity` | Part at that position |
+|-------|------|--------------------------|-----------------------|
+| door, upper part at `(2, -59, 0)` | `oak_door` | `(2.41, -59.5, 0.59)` | lower |
+| door, lower part at `(2, -60, 0)` | `oak_door` | `(2.53, -59.47, 0.69)` | lower |
+| bed, foot at `(2, -60, 0)` | `red_bed` | `(3.64, -59.85, 0.35)` | head |
+| bed, head at `(3, -60, 0)` | `red_bed` | `(3.34, -59.79, 0.47)` | head |
+| tall grass, upper part at `(2, -59, 0)`, shears | 2 `short_grass` | `(2.75, -58.64, 0.64)` | upper, the hit part |
+| tall grass, lower part at `(2, -60, 0)`, shears | 2 `short_grass` | `(2.3, -59.74, 0.34)` | lower, the hit part |
+
+**L5.** E5. The break with the wooden shovel dropped 3 `snowball`. `setblock` with `destroy` dropped
+nothing.
+
+**L6.** E6. The pickaxe broke, and the break dropped 1 `stone`.
+
+**L7.** E7. The break dropped one `chest` with the component `"minecraft:custom_name": "Box"`.
