@@ -406,17 +406,28 @@ Milestone: later.
     distance divided by `L`; it is less where a distance is outside the ramp. The fog value, the
     larger of the two ramps, differs by no more than the larger of their two differences. A ramp
     with `L = 0` is a step: on a face that the step crosses, the fog value can differ by up to 1.
-    For a face of one block and a ramp with `L > 0`:
+    For a face of one block and ramps with `L > 0`:
     - `ds` differs by at most `1 / (4 · d)` blocks, where `d` is the smallest `ds` of the face.
-      The fog value differs by less than `1/255` when `d · L ≥ 64`.
-    - `dc` differs by at most `1 / (4 · h)` blocks, where `h` is the smallest `√(dx² + dz²)` of
-      the face, when the face does not cross `|dy| = √(dx² + dz²)`. Where it crosses, `dc`
-      differs by up to about `1/2` block at each distance, and the fog value by up to
-      `1 / (2 · L)`.
-    - With the ramps of the vanilla data, the environmental fog meets the condition: in the
-      overworld `L = 1024`, so `d ≥ 1/16`; in the nether `L = 86`, so `d ≥ 0.75`. The
-      render-distance fog meets it except where a face crosses `|dy| = √(dx² + dz²)`, because
-      `L ≥ 4` and, with `r ≥ 2`, the ramp starts at `rs ≥ 28`.
+      Thus `ve` differs by less than `1/255` when `d · (ee − es) ≥ 64`.
+    - `dc` is the larger of `|dy|` and `√(dx² + dz²)`:
+      - Where `|dy|` is the larger at each point of the face, `dc = |dy|`, and the interpolation
+        gives the same value. `vr` does not differ.
+      - Where `√(dx² + dz²)` is the larger at each point of the face, `dc` differs by at most
+        `1 / (4 · h)` blocks, where `h` is the smallest `√(dx² + dz²)` of the face. Thus `vr`
+        differs by less than `1/255` when `h · (re − rs) ≥ 64`.
+      - Where the face crosses `|dy| = √(dx² + dz²)`, `dc` differs by up to about `1/2` block at
+        each distance, and `vr` by up to `1 / (2 · (re − rs))`.
+    - `v` differs by less than `1/255` when `ve` and `vr` both do. The condition of one ramp
+      does not bound the other ramp. Example with `ve = ramp(ds, 0, 1024)` and
+      `vr = ramp(dc, 28, 32)`, the ramps of the vanilla data in the overworld at `r = 2`: a
+      horizontal face at `dy = 28.25`, with `dx` from 27.75 to 28.75 and `dz` from −0.5 to 0.5,
+      has `d · (ee − es) > 64`, and it crosses `|dy| = √(dx² + dz²)`. At its centre, `v = 0.0625`
+      for the point itself and about `0.1255` with the interpolated distances.
+    - With the ramps of the vanilla data, `ve` meets its condition: in the overworld
+      `ee − es = 1024`, so `d ≥ 1/16`; in the nether `ee − es = 86`, so `d ≥ 0.75`. `vr` meets
+      its condition on each face that does not cross `|dy| = √(dx² + dz²)`: `re − rs ≥ 4`, and
+      `vr` differs only on a face where `dc` goes above `rs`. With `r ≥ 2`, `rs ≥ 28`, so such
+      a face has `h > 26`.
     - Outside these conditions, for example a data pack with `es = 0` and `ee = 1`, the pixel of
       the vanilla client can differ by far more than `1/255`. The pixel of mcrs is the value of
       the point itself. That difference is intended (CFOG-DEV-006).
