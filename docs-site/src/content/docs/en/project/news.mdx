@@ -48,6 +48,7 @@ This entry covers 2026-10-14 to 2026-11-10. In that time 6 authors made 874 comm
 - Entity physics, movement checks and block simulation work (<Status pr={648} state="works" />), and so do the block tick and block event queues (<Status pr={477} state="works" />).
 - Player bans and the whitelist follow their specifications (<Status pr={637} state="works" />, <Status pr={635} state="works" />).
 - The server disconnects and saves every player before shutdown (<Status pr={624} state="works" />).
+- The server writes changed chunks back to their region files, and a clean shutdown saves the world (<Status issue={78} />).
 - A player can break blocks in creative mode (<Status pr={643} state="works" />).
 - The mc.rs landing page was added, with a language switcher (<Status pr={629} state="works" />, <Status pr={633} state="works" />), and CI checks that the client compiles for `wasm32` (<Status pr={622} state="works" />).
 - The VarInt and VarLong reader now rejects out-of-range bits (<Status pr={653} state="works" />).
@@ -75,7 +76,7 @@ A plugin here is Rust code that is compiled into the server.
 
 ### Not there yet
 
-- Changed chunks are not saved to region files (<Status issue={78} />), and there is no online mode (<Status issue={82} />).
+- There is no online mode (<Status issue={82} />).
 - There is no loader for plugins outside the server build, and no decision on it.
 - There is no speed claim against another server. The benchmark runs are provisional, as [Performance](/docs/en/project/performance/) explains.
 

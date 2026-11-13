@@ -19,7 +19,7 @@ use tracing::warn;
 use crate::block_entity_packet::packet_entry;
 use crate::heightmap::client_heightmaps;
 use crate::light_codec::{build_fullbright_light_data, build_stored_light_data};
-use crate::stored_column::StoredColumn;
+use mcrs_minecraft_region_disk::stored_column::StoredColumn;
 
 /// The bits a palette entry takes when a section is too varied for a palette.
 #[derive(Clone, Copy)]
@@ -103,18 +103,13 @@ pub(crate) fn encode_stored_column(
         StoredLight::Kept { has_sky_light } => build_stored_light_data(stored, has_sky_light),
         StoredLight::Fullbright => build_fullbright_light_data(stored.sections.len() + 2),
     };
-    let heightmaps = stored
-        .heightmaps
-        .as_ref()
-        .map(
-            |ColumnHeightmapSet {
-                 surface,
-                 motion,
-                 no_leaves,
-                 ..
-             }| { client_heightmaps(surface, motion, no_leaves) },
-        )
-        .unwrap_or_default();
+    let ColumnHeightmapSet {
+        surface,
+        motion,
+        no_leaves,
+        ..
+    } = &stored.heightmaps;
+    let heightmaps = client_heightmaps(surface, motion, no_leaves);
     let light_arrays = light_data.sky_light_arrays.len() + light_data.block_light_arrays.len();
     let mut packet = BytesMut::with_capacity(
         data.len() + light_arrays * WIRE_LIGHT_ARRAY_BYTES + PACKET_SLACK_BYTES,

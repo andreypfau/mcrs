@@ -1,6 +1,8 @@
 use crate::ability::{AnnounceOpLevel, AnswerOpLevel, OpLevelAnnounced};
 use crate::block_break::BlockBreakPlugin;
+use crate::bus::OutboundPlayerReleased;
 use crate::client_info::ClientInfoPlugin;
+use crate::cold_columns::SaveRequest;
 use crate::column_streams::ColumnStreamPlugin;
 use crate::consume_inbound_player_spawn::consume_inbound_player_spawn;
 use crate::coordinator::default_game_mode::DefaultGameMode;
@@ -17,8 +19,9 @@ use crate::player_dimension_change::receive_transfers;
 use crate::player_order::{OrderedPlayer, obey_orders};
 use bevy_app::{App, FixedPreUpdate, FixedUpdate, Plugin, Update};
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_ecs::schedule::common_conditions::{on_message, resource_exists_and_changed};
-use mcrs_minecraft_engine_world::aoi::every_n_ticks;
+use bevy_ecs::schedule::common_conditions::{
+    on_message, resource_exists, resource_exists_and_changed,
+};
 use mcrs_minecraft_engine_world::entity::add_entity_to_chunk;
 use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
 use mcrs_minecraft_engine_world::tick::TickSet;
@@ -31,6 +34,10 @@ pub struct DimPlayerPlugin;
 impl Plugin for DimPlayerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DefaultGameMode>();
+        if !app.is_plugin_added::<persistence::PlayerPersistencePlugin>() {
+            app.add_plugins(persistence::PlayerPersistencePlugin);
+        }
+        app.init_resource::<persistence::PlayerSaveQueue>();
         app.init_resource::<mcrs_minecraft_engine_world::session::DimPlayerIndex>();
         app.add_message::<ChangeDimensionRequest>();
         app.add_message::<PlayerTransfer>();
@@ -83,11 +90,15 @@ impl Plugin for DimPlayerPlugin {
                     .after(game_mode::send_game_mode),
             ),
         );
+        app.add_message::<OutboundPlayerReleased>();
         app.add_systems(
             FixedUpdate,
-            persistence::autosave_players
-                .in_set(TickSet::Output)
-                .run_if(every_n_ticks(persistence::AUTOSAVE_INTERVAL)),
+            (
+                persistence::autosave_players.run_if(resource_exists::<SaveRequest>),
+                persistence::finish_player_saves.run_if(persistence::player_saves_pending),
+            )
+                .chain()
+                .in_set(TickSet::Output),
         );
     }
 }

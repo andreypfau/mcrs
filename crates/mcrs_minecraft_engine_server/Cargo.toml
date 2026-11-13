@@ -48,6 +48,7 @@ mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_fixtures.workspace = true
 tokio.workspace = true
+bevy_tasks.workspace = true
 
 [features]
 default = ["client-jar"]

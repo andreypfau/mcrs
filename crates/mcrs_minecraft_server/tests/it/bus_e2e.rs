@@ -8,13 +8,13 @@ use mcrs_minecraft_engine::between_ticks::drain_dim_spawn_queue;
 use mcrs_minecraft_engine::between_ticks::take_dim_outputs;
 use mcrs_minecraft_engine::bus::{
     InboundPlayerPacket, InboundPlayerSpawn, OutboundPlayerPacket, PacketTarget,
-    PlayerTransferSnapshot,
 };
 use mcrs_minecraft_engine::channel_types::ToDim;
 use mcrs_minecraft_engine::coordinator::dim::DimSubAppHandle;
 use mcrs_minecraft_engine::muxer::bridge::bridge_inbound_to_channel;
 use mcrs_minecraft_engine::muxer::dim_inputs::DimInputs;
 use mcrs_minecraft_engine::muxer::session::SessionBundle;
+use mcrs_minecraft_engine::persisted_registry::PersistedSnapshot;
 use mcrs_minecraft_engine_world::session::{
     Place, PlayerSession, PlayerSessionCounter, SessionPlacement,
 };
@@ -219,13 +219,13 @@ fn messages_sent_before_a_dimension_boots_arrive_in_order_on_its_first_tick() {
             label_entity,
             ToDim::Spawn(InboundPlayerSpawn {
                 session,
-                snapshot: PlayerTransferSnapshot {
-                    uuid: mcrs_minecraft_protocol::uuid::Uuid::nil(),
-                    username: "readiness_player".into(),
-                    position: bevy_math::DVec3::ZERO,
-                    rotation: bevy_math::Vec2::ZERO,
-                    client_info: Some(crate::support::client_info_with_view_distance(12)),
-                },
+                snapshot: PersistedSnapshot::joining_player(
+                    mcrs_minecraft_protocol::uuid::Uuid::nil(),
+                    "readiness_player".into(),
+                    bevy_math::DVec3::ZERO,
+                    bevy_math::Vec2::ZERO,
+                    Some(crate::support::client_info_with_view_distance(12)),
+                ),
                 dimensions: Vec::new().into(),
             }),
         );

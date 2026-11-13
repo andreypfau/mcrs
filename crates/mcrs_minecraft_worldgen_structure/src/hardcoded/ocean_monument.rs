@@ -5,6 +5,8 @@ use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_random::{Random, shuffle};
 use mcrs_minecraft_worldgen_feature::placer::BiomeMask;
 
+use mcrs_voxel::ColumnPos;
+
 use super::on_top_of_chunk_centre;
 use crate::orient::{Orientation, orient_box, world_pos};
 use crate::piece::{MonumentChild, MonumentRoom, MonumentRoomKind, OceanMonumentPiece, Piece};
@@ -32,14 +34,27 @@ pub fn site(
 }
 
 pub fn layout(ctx: &mut Context<'_>, mut site: Site) -> Vec<Piece> {
-    let rng = &mut site.rng;
-    let west = ctx.chunk.min_block_x() - BIOME_RANGE_CHECK;
-    let north = ctx.chunk.min_block_z() - BIOME_RANGE_CHECK;
-    let orientation = Orientation::random(rng);
-    building(rng, west, north, orientation)
+    start_piece(&mut site.rng, ctx.chunk)
         .map(Piece::OceanMonument)
         .into_iter()
         .collect()
+}
+
+/// The building that generation makes for the start at `chunk`, from the world seed alone.
+/// The monument site step draws nothing from the chunk's large-feature stream, so the layout
+/// reads the stream from its start.
+pub fn rebuild(seed: i64, chunk: ColumnPos) -> Option<OceanMonumentPiece> {
+    start_piece(
+        &mut LegacyRandom::large_feature(seed, chunk.x, chunk.z),
+        chunk,
+    )
+}
+
+fn start_piece(rng: &mut LegacyRandom, chunk: ColumnPos) -> Option<OceanMonumentPiece> {
+    let west = chunk.min_block_x() - BIOME_RANGE_CHECK;
+    let north = chunk.min_block_z() - BIOME_RANGE_CHECK;
+    let orientation = Orientation::random(rng);
+    building(rng, west, north, orientation)
 }
 
 const fn room_index(x: i32, y: i32, z: i32) -> i32 {

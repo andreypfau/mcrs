@@ -2,11 +2,12 @@ use mcrs_minecraft_resource::ResourceLocationBuf;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
-use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_nbt::tag::NbtTag;
+use crate::piece::SavedPiece;
 use mcrs_voxel::ColumnPos;
+use serde::de::{IgnoredAny, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::marker::PhantomData;
 
 /// The structure ids are kept as written: this layer has no structure registry,
 /// so an id it does not name is for the caller to reject.
@@ -21,7 +22,7 @@ pub struct ChunkStructures {
 pub struct StructureStart {
     pub references: i32,
     /// The saved pieces, each typed by its own `id`; never empty once loaded.
-    pub pieces: Vec<NbtCompound>,
+    pub pieces: Vec<SavedPiece>,
 }
 
 /// A saved structure entry that did not load. The rest of the chunk loads
@@ -78,80 +79,113 @@ fn pack(pos: ColumnPos) -> i64 {
     (i64::from(pos.x) & 0xFFFF_FFFF) | (i64::from(pos.z) << 32)
 }
 
-fn compound(tag: NbtTag) -> NbtCompound {
-    match tag {
-        NbtTag::Compound(compound) => compound,
-        _ => NbtCompound::new(),
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReadStart {
+    #[serde(rename = "ChunkX", default)]
+    _chunk_x: i32,
+    #[serde(rename = "ChunkZ", default)]
+    _chunk_z: i32,
+    #[serde(default)]
+    references: i32,
+    #[serde(rename = "Children", default)]
+    children: Vec<SavedPiece>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReadStructures {
+    #[serde(default)]
+    starts: ById<ReadStart>,
+    #[serde(rename = "References", default)]
+    references: ById<Vec<i64>>,
+}
+
+/// A map keyed by structure id whose value is read only when its key is an id, so that an entry
+/// dropped for its id cannot fail the column with an error in its value.
+struct ById<T> {
+    kept: Vec<(ResourceLocationBuf, T)>,
+    invalid: Vec<String>,
+}
+
+impl<T> Default for ById<T> {
+    fn default() -> Self {
+        Self {
+            kept: Vec::new(),
+            invalid: Vec::new(),
+        }
     }
 }
 
-fn start(tag: NbtTag) -> StructureStart {
-    let mut start = StructureStart {
-        references: 0,
-        pieces: Vec::new(),
-    };
-    for (key, value) in compound(tag).child_tags {
-        match (key.as_str(), value) {
-            ("references", NbtTag::Int(references)) => start.references = references,
-            ("Children", NbtTag::List(children)) => {
-                start.pieces = children
-                    .into_iter()
-                    .filter_map(|piece| match piece {
-                        NbtTag::Compound(piece) => Some(piece),
-                        _ => None,
-                    })
-                    .collect();
-            }
-            _ => {}
-        }
-    }
-    start
-}
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for ById<T> {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct Entries<T>(PhantomData<T>);
 
-fn decode(tag: NbtTag) -> Structures<'static> {
-    let mut kept = ChunkStructures::default();
-    let mut dropped = Vec::new();
-    for (key, value) in compound(tag).child_tags {
-        match key.as_str() {
-            "starts" => {
-                for (id, value) in compound(value).child_tags {
-                    let Ok(structure) = ResourceLocationBuf::read(&id) else {
-                        dropped.push(DroppedStructure::StartId(id));
-                        continue;
-                    };
-                    let start = start(value);
-                    if start.pieces.is_empty() {
-                        dropped.push(DroppedStructure::StartWithoutPieces(structure));
-                    } else {
-                        kept.starts.insert(structure, start);
+        impl<'de, T: Deserialize<'de>> Visitor<'de> for Entries<T> {
+            type Value = ById<T>;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a compound keyed by structure id")
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+                let mut entries = ById::default();
+                while let Some(id) = map.next_key::<String>()? {
+                    match ResourceLocationBuf::read(&id) {
+                        Ok(structure) => entries.kept.push((structure, map.next_value()?)),
+                        Err(_) => {
+                            map.next_value::<IgnoredAny>()?;
+                            entries.invalid.push(id);
+                        }
                     }
                 }
+                Ok(entries)
             }
-            "References" => {
-                for (id, value) in compound(value).child_tags {
-                    let Ok(structure) = ResourceLocationBuf::read(&id) else {
-                        dropped.push(DroppedStructure::ReferenceId(id));
-                        continue;
-                    };
-                    if let NbtTag::LongArray(chunks) = value {
-                        kept.references
-                            .insert(structure, chunks.into_iter().map(unpack).collect());
-                    }
-                }
-            }
-            _ => {}
         }
-    }
-    Structures {
-        pos: ColumnPos::default(),
-        kept: Cow::Owned(kept),
-        dropped,
+
+        d.deserialize_map(Entries(PhantomData))
     }
 }
 
 impl<'de> Deserialize<'de> for Structures<'_> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        <NbtTag as Deserialize>::deserialize(d).map(decode)
+        let raw = ReadStructures::deserialize(d)?;
+        let mut kept = ChunkStructures::default();
+        let mut dropped = Vec::new();
+        dropped.extend(
+            raw.starts
+                .invalid
+                .into_iter()
+                .map(DroppedStructure::StartId),
+        );
+        for (structure, start) in raw.starts.kept {
+            if start.children.is_empty() {
+                dropped.push(DroppedStructure::StartWithoutPieces(structure));
+            } else {
+                kept.starts.insert(
+                    structure,
+                    StructureStart {
+                        references: start.references,
+                        pieces: start.children,
+                    },
+                );
+            }
+        }
+        dropped.extend(
+            raw.references
+                .invalid
+                .into_iter()
+                .map(DroppedStructure::ReferenceId),
+        );
+        for (structure, chunks) in raw.references.kept {
+            kept.references
+                .insert(structure, chunks.into_iter().map(unpack).collect());
+        }
+        Ok(Structures {
+            pos: ColumnPos::default(),
+            kept: Cow::Owned(kept),
+            dropped,
+        })
     }
 }
 
@@ -163,7 +197,7 @@ struct RawStart<'a> {
     chunk_z: i32,
     references: i32,
     #[serde(rename = "Children")]
-    children: &'a [NbtCompound],
+    children: &'a [SavedPiece],
 }
 
 struct Starts<'a>(&'a Structures<'a>);

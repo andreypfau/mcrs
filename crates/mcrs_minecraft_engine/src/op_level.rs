@@ -12,7 +12,9 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundEntityEvent;
 
 /// The operator level that the client of a player was told, which the login and a dimension
 /// change leave as it was told.
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(
+    Component, Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize,
+)]
 pub struct AnnouncedOpLevel(pub PlayerOpLevel);
 
 /// Gives each player of this world the level that the operators now name for it, after an `op`,

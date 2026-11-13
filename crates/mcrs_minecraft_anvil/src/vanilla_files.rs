@@ -202,8 +202,11 @@ fn keys(compound: &NbtCompound) -> Vec<&str> {
     keys
 }
 
-const SAME_AS_THE_GAME: [&str; 10] = [
+const SAME_AS_THE_GAME: [&str; 13] = [
     "DataVersion",
+    "PostProcessing",
+    "block_ticks",
+    "entities",
     "InhabitedTime",
     "LastUpdate",
     "isLightOn",
@@ -215,8 +218,7 @@ const SAME_AS_THE_GAME: [&str; 10] = [
     "zPos",
 ];
 
-/// Containers list their palettes in a different order, an empty heightmap
-/// compound is left out on write, and the files hold an empty `structures`
+/// Containers list their palettes in a different order, and the files hold an empty `structures`
 /// compound where a save writes empty `starts` and `References`, so these are
 /// compared as values.
 const COMPARED_AS_VALUES: [&str; 4] = ["Heightmaps", "block_entities", "sections", "structures"];
@@ -244,18 +246,13 @@ fn every_chunk_written_by_the_game_round_trips_over_what_the_shape_models() {
             );
         }
 
-        let mut expected = vec!["PostProcessing", "block_ticks"];
-        if original.chunk.status != ChunkStatus::Full {
-            expected.push("entities");
-        }
-        expected.sort_unstable();
         let left_out: Vec<&str> = keys(&game)
             .into_iter()
             .filter(|key| !SAME_AS_THE_GAME.contains(key) && !COMPARED_AS_VALUES.contains(key))
             .collect();
-        assert_eq!(
-            left_out, expected,
-            "{name}: keys the game wrote that the shape leaves out"
+        assert!(
+            left_out.is_empty(),
+            "{name}: keys the game wrote that the shape leaves out: {left_out:?}"
         );
     }
 }

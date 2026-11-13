@@ -674,12 +674,7 @@ pub fn zero_position_with_transform(
     zero_pos + IVec3::new(dx, 0, dz)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Projection {
-    Rigid,
-    TerrainMatching,
-}
+pub use mcrs_minecraft_anvil::piece::Projection;
 
 #[cfg(test)]
 mod tests {

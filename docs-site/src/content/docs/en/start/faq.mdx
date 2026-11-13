@@ -6,7 +6,7 @@ sidebar:
 kind: explanation
 audience: [jvm, admin, observer, player, contributor, rust]
 stability: changing
-tracking: [437, 78, 82, 321]
+tracking: [437, 82, 321]
 sources:
   - README.md
   - docs/clean-room.md
@@ -26,7 +26,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## Can I use it yet?
 
-Yes, if you are a developer who wants a base to build on, or if you want to watch the project. No, if you need a server for players. A vanilla client of the same snapshot can join in offline mode, chat, run {fact('root_commands')} commands and break blocks in creative. The world is not saved after you leave, only players are.[^78] See [Run a server](/docs/en/start/run-server/) and [Status](/docs/en/start/status/).
+Yes, if you are a developer who wants a base to build on, or if you want to watch the project. No, if you need a server for players. A vanilla client of the same snapshot can join in offline mode, chat, run {fact('root_commands')} commands and break blocks in creative. The server saves the world and the players, so your edits survive a restart. See [Run a server](/docs/en/start/run-server/) and [Status](/docs/en/start/status/).
 
 ## Will my plugins work?
 
@@ -68,7 +68,6 @@ Crates are not on crates.io, but you can depend on a git commit.[^321] There are
 
 Watch issues on GitHub, follow the tags feed or join [Discord](https://discord.gg/ged3nMRzwG). The [Status](/docs/en/start/status/#how-to-follow-progress) page lists every way.
 
-[^78]: <Status issue={78} /> Tracks saving changed chunks back to region files.
 [^437]: <Status issue={437} /> The decision that there is no facade or API crate, and the crates and plugins are the public surface.
 [^388]: <Status issue={388} /> The decision that saves are read at exactly the targeted data version, with no datafixers.
 [^412]: <Status issue={412} /> The decision to target one version at a time, with no backward compatibility.

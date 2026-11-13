@@ -5,6 +5,7 @@ use mcrs_minecraft_inventory_plan::Planned;
 use mcrs_minecraft_inventory_plan::Reason;
 use mcrs_minecraft_inventory_plan::Rejected;
 
+use crate::holder::Operation;
 use crate::holder::Slot;
 use crate::holder::Stack;
 use crate::holder::components;
@@ -86,7 +87,7 @@ fn random_slot(random: &mut Random) -> Slot {
     }
 }
 
-fn random_op(random: &mut Random) -> Op<usize> {
+fn random_op(random: &mut Random) -> Operation {
     let from = random.below(SLOTS as u64) as usize;
     let to = random.below(SLOTS as u64) as usize;
     let count = random.below(12) as u8;
@@ -117,7 +118,7 @@ fn random_requests_keep_the_items_or_change_nothing() {
     for round in 0..4000 {
         let slots: Vec<Slot> = (0..SLOTS).map(|_| random_slot(&mut random)).collect();
         let length = 1 + random.below(4);
-        let ops: Vec<Op<usize>> = (0..length).map(|_| random_op(&mut random)).collect();
+        let ops: Vec<Operation> = (0..length).map(|_| random_op(&mut random)).collect();
         let before: Vec<Stack> = slots.iter().map(|slot| slot.stack).collect();
         let outcome = request_in(&mut scratch, &slots, ops.iter().copied());
         if outcome.result.is_err() {

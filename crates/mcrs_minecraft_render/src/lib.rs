@@ -180,6 +180,19 @@ impl Default for QuadCull {
     }
 }
 
+/// The render distance `r` in columns: the sections of a column `dx`, `dz` columns from the
+/// camera's are drawn only while `max(0, |dx| - 1)² + max(0, |dz| - 1)² < r²`. The default draws
+/// each column up to 255 away.
+#[derive(Resource, Clone, Copy, Debug, PartialEq, ExtractResource)]
+#[extract_app(RenderApp)]
+pub struct RenderDistance(pub u8);
+
+impl Default for RenderDistance {
+    fn default() -> Self {
+        Self(u8::MAX)
+    }
+}
+
 /// Vanilla's Brightness slider, from 0 (Moody) to 1 (Bright).
 #[derive(Resource, Clone, Copy, ExtractResource)]
 #[extract_app(RenderApp)]
@@ -276,6 +289,7 @@ impl Plugin for TerrainPlugin {
         app.init_resource::<CameraOrigin>()
             .init_resource::<Occlusion>()
             .init_resource::<QuadCull>()
+            .init_resource::<RenderDistance>()
             .init_resource::<Brightness>()
             .init_resource::<DrawMask>()
             .init_resource::<DebugViews>()
@@ -285,6 +299,7 @@ impl Plugin for TerrainPlugin {
             .add_plugins(ExtractResourcePlugin::<SelectedView>::default())
             .add_plugins(ExtractResourcePlugin::<Occlusion>::default())
             .add_plugins(ExtractResourcePlugin::<QuadCull>::default())
+            .add_plugins(ExtractResourcePlugin::<RenderDistance>::default())
             .add_plugins(ExtractResourcePlugin::<Brightness>::default())
             .add_plugins(ExtractResourcePlugin::<DrawMask>::default())
             .add_plugins(ExtractResourcePlugin::<PinnedTick>::default())
