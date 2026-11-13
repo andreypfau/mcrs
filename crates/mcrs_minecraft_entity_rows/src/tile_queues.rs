@@ -26,6 +26,16 @@ impl<T> TileQueues<T> {
     pub fn take(&mut self, tile: TileKey) -> Vec<T> {
         self.tiles.remove(&tile).unwrap_or_default()
     }
+
+    /// Adds `entry` to the queue of `tile`.
+    pub fn push(&mut self, tile: TileKey, entry: T) {
+        self.tiles.entry(tile).or_default().push(entry);
+    }
+
+    /// Takes every queue in the order of its tile.
+    pub fn drain(&mut self) -> impl Iterator<Item = (TileKey, Vec<T>)> {
+        std::mem::take(&mut self.tiles).into_iter()
+    }
 }
 
 impl<E> TileQueues<Keyed<E>> {

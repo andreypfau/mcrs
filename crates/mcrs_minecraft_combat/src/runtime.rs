@@ -672,8 +672,10 @@ fn tick_mob_environment(
                     .contains(BlockFlags::HOT_FLOOR);
         }
         let in_lava = is_lava(&view, definitions, feet) || is_lava(&view, definitions, eye);
-        let in_powder_snow = is_block(&view, definitions, feet, "minecraft:powder_snow")
-            || is_block(&view, definitions, eye, "minecraft:powder_snow");
+        let in_powder_snow = tables.as_deref().is_some_and(|tables| {
+            block_flags(&view, tables, feet).contains(BlockFlags::POWDER_SNOW)
+                || block_flags(&view, tables, eye).contains(BlockFlags::POWDER_SNOW)
+        });
         let in_wall = view.block(eye).ok().is_some_and(|state| {
             definitions
                 .state(state)
@@ -799,12 +801,6 @@ fn is_lava(view: &DimensionView<'_>, blocks: &Blocks, at: BlockPos) -> bool {
     block_state(view, at)
         .and_then(|state| blocks.state(state).fluid)
         .is_some_and(|fluid| fluid.fluid == Fluid::Lava.id())
-}
-
-fn is_block(view: &DimensionView<'_>, blocks: &Blocks, at: BlockPos, name: &str) -> bool {
-    block_state(view, at)
-        .and_then(|state| blocks.owner(state))
-        .is_some_and(|owner| owner.identifier.as_str() == name)
 }
 
 fn touches_cactus(view: &DimensionView<'_>, tables: &PhysicsTables, position: DVec3) -> bool {

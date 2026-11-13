@@ -5,7 +5,7 @@ use mcrs_minecraft_damage::{Defence, HitOutcome, hurt};
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::coordinator::clock::GameTime;
 use mcrs_minecraft_engine_brain::EntityRows;
-use mcrs_minecraft_engine_physics::{MobChanges, hurt_mob};
+use mcrs_minecraft_engine_physics::{RowDamaged, RowDied, RowHit, RowHits};
 use mcrs_minecraft_engine_world::entity::physics::Velocity;
 use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
@@ -40,8 +40,8 @@ pub fn process_damage_requests(
     rules: Res<DamageTypeRulesResource>,
     game_rules: Res<GameRules>,
     time: Res<GameTime>,
-    mut rows: Option<ResMut<EntityRows>>,
-    mut changes: Option<ResMut<MobChanges>>,
+    rows: Option<Res<EntityRows>>,
+    mut row_hits: ResMut<RowHits>,
     mut query: Query<(
         Entity,
         &mut PlayerVitals,
@@ -57,54 +57,22 @@ pub fn process_damage_requests(
     for req in requests.read() {
         let tick = time.0.max(0) as u64;
         if let DamageTarget::Row(id) = req.target {
-            let (Some(rows), Some(changes)) = (rows.as_deref_mut(), changes.as_deref_mut()) else {
+            let Some(rows) = rows.as_deref() else {
                 continue;
             };
             let Some(at) = rows.placed(id) else {
                 continue;
             };
             let flags = rules.0.flags(req.hit.damage_type);
-            let before = rows
-                .state_of(at)
-                .and_then(|state| state.living)
-                .map_or(0.0, |living| {
-                    living.vitals.health + living.vitals.absorption
-                });
-            let Some(outcome) = hurt_mob(
-                &mut *rows,
-                &mut *changes,
-                at,
-                req.hit,
-                &Defence::new(flags),
-                tick,
-            ) else {
-                continue;
-            };
-            if outcome == HitOutcome::Rejected {
-                continue;
-            }
-            let after = rows
-                .state_of(at)
-                .and_then(|state| state.living)
-                .map_or(0.0, |living| {
-                    living.vitals.health + living.vitals.absorption
-                });
-            damage_dealt.write(DamageDealt {
-                target: req.target,
-                hit: req.hit,
-                outcome,
-                damage: (before - after).max(0.0),
-            });
-            if rows
-                .state_of(at)
-                .and_then(|state| state.living)
-                .is_some_and(|living| !living.is_alive())
-            {
-                death_events.write(DeathEvent {
-                    target: req.target,
-                    source: req.hit.source,
-                });
-            }
+            row_hits.0.push(
+                at.tile,
+                RowHit {
+                    at,
+                    hit: req.hit,
+                    defence: Defence::new(flags),
+                    tick,
+                },
+            );
             continue;
         }
         let DamageTarget::Player(entity) = req.target else {
@@ -223,5 +191,28 @@ pub fn apply_knockback(
             velocity.0.z += f64::from(request.direction.z) * f64::from(request.strength);
             velocity.0.y = velocity.0.y.max(f64::from(request.strength) * 0.4);
         }
+    }
+}
+
+/// Turns the row hits applied at the merge point into the one damage result stream.
+pub fn emit_row_damage(
+    mut damaged: MessageReader<RowDamaged>,
+    mut died: MessageReader<RowDied>,
+    mut damage_dealt: MessageWriter<DamageDealt>,
+    mut death_events: MessageWriter<DeathEvent>,
+) {
+    for row in damaged.read() {
+        damage_dealt.write(DamageDealt {
+            target: DamageTarget::Row(row.at.id),
+            hit: row.hit,
+            outcome: row.outcome,
+            damage: row.damage,
+        });
+    }
+    for row in died.read() {
+        death_events.write(DeathEvent {
+            target: DamageTarget::Row(row.at.id),
+            source: row.source,
+        });
     }
 }

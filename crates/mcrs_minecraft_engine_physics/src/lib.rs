@@ -11,6 +11,7 @@ mod mob_damage;
 mod mob_life;
 mod mob_spawn_request;
 mod mobs;
+mod row_damage;
 #[cfg(feature = "testing")]
 mod test_scene;
 
@@ -32,6 +33,11 @@ pub use mob_spawn_request::SpawnSetup;
 pub use mobs::Mob;
 pub use mobs::MobUuids;
 pub use mobs::Mobs;
+pub use row_damage::RowDamaged;
+pub use row_damage::RowDied;
+pub use row_damage::RowHit;
+pub use row_damage::RowHitApply;
+pub use row_damage::RowHits;
 #[cfg(feature = "testing")]
 pub use test_scene::FLOOR;
 #[cfg(feature = "testing")]
