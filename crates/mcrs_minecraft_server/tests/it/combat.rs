@@ -307,9 +307,10 @@ fn dmg_src_002_a_player_attack_reaches_a_mob_only_within_range() {
             entity_id: VarInt(i32::try_from(near).expect("the row id fits")),
         },
     );
-    assert!(
-        mob_health(&mut server, near) < near_before,
-        "the pig in reach loses health"
+    assert_eq!(
+        mob_health(&mut server, near),
+        near_before - 1.0,
+        "the pig in reach loses one bare-hand hit"
     );
     server.send(
         anchor,
@@ -347,9 +348,10 @@ fn dmg_src_002_a_player_attack_hits_another_player() {
             entity_id: VarInt(player_network_id(owner.0)),
         },
     );
-    assert!(
-        health_of(&mut server, target) < before,
-        "the attacked player loses health"
+    assert_eq!(
+        health_of(&mut server, target),
+        before - 1.0,
+        "the attacked player loses one bare-hand hit"
     );
     assert_eq!(health_of(&mut server, attacker), 20.0);
 }
@@ -405,9 +407,10 @@ fn dmg_env_002_a_mob_in_fire_burns_and_loses_health() {
             living.vitals.air,
         )
     };
-    assert!(
-        after < before,
-        "the burning pig loses health: pos {position:?} fire {on_fire} ticks {fire_ticks} air {air} health {after}",
+    assert_eq!(
+        after,
+        before - 5.0,
+        "the burning pig loses five fire hits: pos {position:?} fire {on_fire} ticks {fire_ticks} air {air}",
     );
     assert!(on_fire || fire_ticks > 0, "the pig burns");
 }
@@ -424,12 +427,13 @@ fn dmg_env_001_a_mob_under_water_drowns() {
         "summon minecraft:pig 12 64 8 {NoAI:1b,PersistenceRequired:1b}",
     );
     server.ticks(anchor, 2);
-    let (id, before) = summoned_mob(&mut server, 12.5);
+    let (id, _) = summoned_mob(&mut server, 12.5);
     place(&mut server, &[(12, 64, 8), (12, 65, 8)], "minecraft:water");
     server.ticks(anchor, 340);
-    assert!(
-        mob_health(&mut server, id) < before,
-        "the submerged pig drowns"
+    assert_eq!(
+        mob_health(&mut server, id),
+        8.0,
+        "the submerged pig drowns twice"
     );
 }
 
@@ -445,16 +449,17 @@ fn dmg_env_003_a_mob_in_powder_snow_freezes() {
         "summon minecraft:pig 12 64 8 {NoAI:1b,PersistenceRequired:1b}",
     );
     server.ticks(anchor, 2);
-    let (id, before) = summoned_mob(&mut server, 12.5);
+    let (id, _) = summoned_mob(&mut server, 12.5);
     place(
         &mut server,
         &[(12, 64, 8), (12, 65, 8)],
         "minecraft:powder_snow",
     );
     server.ticks(anchor, 190);
-    assert!(
-        mob_health(&mut server, id) < before,
-        "the frozen pig loses health"
+    assert_eq!(
+        mob_health(&mut server, id),
+        5.0,
+        "the frozen pig loses five hits"
     );
 }
 
@@ -470,12 +475,13 @@ fn dmg_env_004_a_mob_against_a_cactus_is_hurt() {
         "summon minecraft:pig 12 64 8 {NoAI:1b,PersistenceRequired:1b}",
     );
     server.ticks(anchor, 2);
-    let (id, before) = summoned_mob(&mut server, 12.5);
+    let (id, _) = summoned_mob(&mut server, 12.5);
     place(&mut server, &[(12, 64, 8)], "minecraft:cactus");
     server.ticks(anchor, 35);
-    assert!(
-        mob_health(&mut server, id) < before,
-        "the cactus hurts the pig"
+    assert_eq!(
+        mob_health(&mut server, id),
+        6.0,
+        "the cactus hurts the pig four times"
     );
 }
 
@@ -491,12 +497,13 @@ fn dmg_env_004_a_mob_with_its_eyes_in_a_block_suffocates() {
         "summon minecraft:pig 12 64 8 {NoAI:1b,PersistenceRequired:1b}",
     );
     server.ticks(anchor, 2);
-    let (id, before) = summoned_mob(&mut server, 12.5);
+    let (id, _) = summoned_mob(&mut server, 12.5);
     place(&mut server, &[(12, 65, 8)], "minecraft:stone");
     server.ticks(anchor, 35);
-    assert!(
-        mob_health(&mut server, id) < before,
-        "the suffocating pig loses health"
+    assert_eq!(
+        mob_health(&mut server, id),
+        6.0,
+        "the suffocating pig loses four hits"
     );
 }
 
@@ -545,8 +552,11 @@ fn dmg_env_001_a_player_under_water_drowns() {
         "minecraft:water",
     );
     server.ticks(anchor, 330);
-    let health = health_of(&mut server, anchor);
-    assert!(health < 20.0, "the diver loses health, got {health}");
+    assert_eq!(
+        health_of(&mut server, anchor),
+        18.0,
+        "the diver drowns once"
+    );
 }
 
 /// DMG-ENV-002: a survival player in fire catches fire and loses health.
@@ -558,10 +568,10 @@ fn dmg_env_002_a_player_in_fire_burns() {
     survival(&mut server, anchor);
     place(&mut server, &[(8, 64, 8)], "minecraft:fire");
     server.ticks(anchor, 25);
-    let health = health_of(&mut server, anchor);
-    assert!(
-        health < 20.0,
-        "the burning player loses health, got {health}"
+    assert_eq!(
+        health_of(&mut server, anchor),
+        18.5,
+        "the burning player loses 1.5"
     );
 }
 
@@ -574,8 +584,11 @@ fn dmg_env_002_a_player_in_lava_burns() {
     survival(&mut server, anchor);
     place(&mut server, &[(8, 64, 8), (8, 65, 8)], "minecraft:lava");
     server.ticks(anchor, 25);
-    let health = health_of(&mut server, anchor);
-    assert!(health < 20.0, "the lava player loses health, got {health}");
+    assert_eq!(
+        health_of(&mut server, anchor),
+        9.500_001,
+        "the lava player loses 10.5"
+    );
 }
 
 /// DMG-ENV-003: powder snow freezes a player after the warm-up.
@@ -591,10 +604,10 @@ fn dmg_env_003_a_player_in_powder_snow_freezes() {
         "minecraft:powder_snow",
     );
     server.ticks(anchor, 190);
-    let health = health_of(&mut server, anchor);
-    assert!(
-        health < 20.0,
-        "the frozen player loses health, got {health}"
+    assert_eq!(
+        health_of(&mut server, anchor),
+        17.5,
+        "the frozen player loses 2.5"
     );
 }
 
@@ -607,10 +620,10 @@ fn dmg_env_004_a_player_with_its_eyes_in_a_block_suffocates() {
     survival(&mut server, anchor);
     place(&mut server, &[(8, 65, 8)], "minecraft:stone");
     server.ticks(anchor, 35);
-    let health = health_of(&mut server, anchor);
-    assert!(
-        health < 20.0,
-        "the suffocating player loses health, got {health}"
+    assert_eq!(
+        health_of(&mut server, anchor),
+        18.0,
+        "the suffocating player loses 2.0"
     );
 }
 
@@ -630,8 +643,11 @@ fn dmg_env_004_a_player_against_a_cactus_is_hurt() {
         .translation
         .x = 8.75;
     server.ticks(anchor, 35);
-    let health = health_of(&mut server, anchor);
-    assert!(health < 20.0, "the cactus hurts the player, got {health}");
+    assert_eq!(
+        health_of(&mut server, anchor),
+        18.0,
+        "the cactus hurts the player twice"
+    );
 }
 
 /// DMG-ENV-005: a player below the void floor takes damage regardless of the game mode.
@@ -656,8 +672,11 @@ fn dmg_env_005_a_player_below_the_world_loses_health() {
         .translation
         .y = f64::from(min_y) - 65.0;
     server.ticks(anchor, 3);
-    let health = health_of(&mut server, anchor);
-    assert!(health < 20.0, "the void player loses health, got {health}");
+    assert_eq!(
+        health_of(&mut server, anchor),
+        16.0,
+        "the void player loses 4.0"
+    );
 }
 
 #[test]
