@@ -52,6 +52,10 @@ pub(crate) fn extract_entities(mut main: ResMut<MainWorld>, mut state: ResMut<En
     let Some(mut arena) = main.get_resource_mut::<SlotArena>() else {
         return;
     };
+    if state.library.is_some() {
+        // A new library builds an entity GPU with empty buffers: it needs every record.
+        arena.resend(state.clock.tick);
+    }
     let upload = arena.take_upload();
     merge(&mut state.pending, upload);
 }
