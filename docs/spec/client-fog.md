@@ -60,8 +60,9 @@ draw takes the fog. The document does not prescribe an architecture.
   draws.
 - **Ring** (`k`) of a column: its distance from the column of the camera in columns, as the draw
   test measures it (CFOG-MCRS-004, step 1).
-- **Drawn column**: a column that the client holds, where the mesh of each section is built and
-  ready for the frame. A section with nothing to draw counts as built (CFOG-MCRS-004).
+- **Drawn column**: a column that the client holds and whose sections with blocks have their
+  meshes in the frame. CFOG-MCRS-004, the input "the drawn columns of the frame", states when a
+  column becomes drawn and when it stops being drawn.
 - **Drawn end** (`e`): the end of the render-distance fog in mcrs, a value that the client keeps
   between frames (CFOG-MCRS-004).
 - `f32` is a 32-bit IEEE 754 value. `f64` is a 64-bit IEEE 754 value.
@@ -399,9 +400,28 @@ Milestone: later.
 - **Postconditions:**
   - The environmental fog uses the spherical distance. The render-distance fog uses the
     cylindrical distance.
-  - The distances are those of the point itself. The vanilla client computes them at the
-    vertices of faces of one block, and interpolates them. For such faces the difference is
-    below `1/255`. CFOG-SKY-001 states the one draw where the difference is visible.
+  - The distances are those of the point itself (CFOG-MCRS-003). The vanilla client computes
+    them at the vertices of faces of one block, and interpolates them. For a ramp with the length
+    `L > 0`, `ee − es` or `re − rs`, the difference of its value is at most the difference of the
+    distance divided by `L`; it is less where a distance is outside the ramp. The fog value, the
+    larger of the two ramps, differs by no more than the larger of their two differences. A ramp
+    with `L = 0` is a step: on a face that the step crosses, the fog value can differ by up to 1.
+    For a face of one block and a ramp with `L > 0`:
+    - `ds` differs by at most `1 / (4 · d)` blocks, where `d` is the smallest `ds` of the face.
+      The fog value differs by less than `1/255` when `d · L ≥ 64`.
+    - `dc` differs by at most `1 / (4 · h)` blocks, where `h` is the smallest `√(dx² + dz²)` of
+      the face, when the face does not cross `|dy| = √(dx² + dz²)`. Where it crosses, `dc`
+      differs by up to about `1/2` block at each distance, and the fog value by up to
+      `1 / (2 · L)`.
+    - With the ramps of the vanilla data, the environmental fog meets the condition: in the
+      overworld `L = 1024`, so `d ≥ 1/16`; in the nether `L = 86`, so `d ≥ 0.75`. The
+      render-distance fog meets it except where a face crosses `|dy| = √(dx² + dz²)`, because
+      `L ≥ 4` and, with `r ≥ 2`, the ramp starts at `rs ≥ 28`.
+    - Outside these conditions, for example a data pack with `es = 0` and `ee = 1`, the pixel of
+      the vanilla client can differ by far more than `1/255`. The pixel of mcrs is the value of
+      the point itself. That difference is intended (CFOG-DEV-006).
+
+    CFOG-SKY-001 states the one draw where mcrs keeps the interpolation.
 - **Edge cases:** when `es ≥ ee` or `rs ≥ re`, the ramp is a step at the start: 0 at or before
   the start, 1 after it.
 - **Note:** in mcrs, `ve = 0` for each point when `A(fog_end_distance) > 512` (CFOG-MCRS-002,
@@ -574,8 +594,12 @@ Milestone: 1.
      `(a0, a1) = (15, 10)`. Else, with the camera medium air, `(a0, a1) = (−1, −8)`. The angles
      for the camera medium water are out of scope.
   4. The colour of the pixel is `lerp(alpha, colour below, C)`.
-- **Postconditions:** above an elevation of −1°, the occluder has no effect. Below −8°, the sky
-  has the colour `C`. The terrain covers the occluder.
+- **Postconditions:**
+  - With the eye `y` at or above `min_y`: above an elevation of −1°, the occluder has no effect.
+    Below −8°, the sky has the colour `C`.
+  - With the eye `y` below `min_y`: above an elevation of 15°, the occluder has no effect. Below
+    10°, the sky has the colour `C`. Thus at the elevation 0° the alpha is 1.
+  - The terrain covers the occluder.
 
 Provenance: `source_suggested_black_box_confirmed`
 (`assets/minecraft/shaders/core/sky_occluder.fsh`; `"has_sky_occluder": true` in
@@ -891,6 +915,20 @@ be of `26.4-snapshot-7`.
 - **Test:** a differential test compares frames only after each column that passes the draw
   test is drawn and `e = 16 · r`.
 
+### CFOG-DEV-006: mcrs computes the fog distances of each pixel
+
+- **Rule:** CFOG-MCRS-003.
+- **Reference:** the client computes `ds` and `dc` at the vertices of each face and interpolates
+  them over the face. The interpolated distance is larger than the distance of the point.
+- **Visible to the client:** yes, outside the conditions of CFOG-MIX-001, the second
+  postcondition. With a short ramp from a data pack, the vanilla client shows too much fog on a
+  near face: with `es = 0` and `ee = 1`, a face of one block at 0.1 blocks in front of the
+  camera has `ds = 0.1` at its centre and about 0.714 at its corners. With the vanilla data, the
+  render-distance fog shows a difference of up to `1 / (2 · L)` on a face that crosses
+  `|dy| = √(dx² + dz²)`.
+- **Test:** a differential test compares only the pixels of faces that meet the conditions of
+  CFOG-MIX-001, the second postcondition.
+
 ---
 
 ## 13. Unresolved
@@ -942,14 +980,26 @@ be of `26.4-snapshot-7`.
    holds these columns (item 5). The owner decides if the client must build the mesh of a column
    that it holds before that column passes the draw test, so that the fog end does not move when
    the camera walks. Recommendation: yes, for the columns of the next ring outside the draw test.
+7. CFOG-MCRS-004: mcrs counts the mesh of a section as drawn in the frame from the moment the
+   client places it for the frame. When the client places many meshes at once, the upload of
+   their geometry and of their draw records to the GPU can come some frames later. A section can
+   also stay out of the draw list when its stream has no room. In those frames the fog end can
+   move past a column that the image does not show yet. The options are:
+   - (a) a column becomes drawn only when the draw records of its sections are applied for the
+     frame;
+   - (b) mcrs keeps this limit, because the fog end moves with a time constant of 10 ticks and
+     the upload usually comes first.
+
+   Recommendation: (a), in a later release.
 
 ---
 
 ## 14. The subset of mcrs
 
-### CFOG-MCRS-001: What mcrs draws now
+### CFOG-MCRS-001: What mcrs drew before the first fog
 
-This is a record of the state at the time of this document, not a rule.
+This is a record of the state of mcrs before the release of CFOG-MCRS-002, not a rule. It does
+not state what mcrs draws now. Each item is in the past, at the base of CFOG-MCRS-002.
 
 - The image is cleared to `A(fog_color)`, with no step of CFOG-COL-001 or CFOG-COL-002.
 - The sky disc is a fan at the height 16 with the radius `A(sky_fog_end_distance)`, not 512. Its
@@ -1019,8 +1069,11 @@ Milestone: 1.
   pixel from the world position of the pixel. It does not interpolate them from the vertices.
 - **Postconditions:** a terrain face longer than one block gets the fog of each of its points.
 
-Provenance: `design`. The result is that of the vanilla client within `1/255` for faces of one
-block (CFOG-MIX-001), and a face of mcrs can be longer than one block. The sky disc keeps the
+Provenance: `design`. The result is that of the vanilla client within `1/255` only under the
+conditions of CFOG-MIX-001, the second postcondition: a face far enough from the camera for the
+length of its ramp. With the ramps of the vanilla data, these conditions hold for most pixels.
+Outside them, mcrs gives the value of the point itself and the vanilla client the interpolated
+value (CFOG-DEV-006). A face of mcrs can be longer than one block. The sky disc keeps the
 interpolation of CFOG-SKY-001, because the image shows it. Kind: semantic. Confidence: high.
 Milestone: 1.
 
@@ -1031,7 +1084,18 @@ Milestone: 1.
 - **Inputs:**
   - `r` (MENU-DIST-001, step 1);
   - the column (`cx`, `cz`) of the camera of the frame;
-  - the drawn columns of the frame;
+  - the drawn columns of the frame:
+    - A column becomes drawn when the client holds it and the mesh of each of its sections that
+      has blocks is drawn in the frame. A column whose sections have nothing to draw is drawn.
+    - A drawn column stops being drawn when the client lets the column go, or when the mesh of
+      one of its sections leaves the frame with no mesh in its place.
+    - A drawn column stays drawn while the client builds the mesh of a section again with the
+      old mesh still in the frame. It also stays drawn when a section that had no blocks gets
+      its first blocks.
+    - In this release, a mesh is drawn in the frame from the moment the client places it for
+      the frame, also when its upload to the GPU comes in a later frame or its section stays out
+      of the draw list for lack of room. The fog end can then move past a column that the image
+      does not show yet (section 13, item 7);
   - the drawn end `e` of the previous frame. `e` is 0 when the client joins a world and when it
     changes the dimension;
   - the time `Δ` since the previous frame, in ticks, as CFOG-ENV-002 defines it.
@@ -1074,10 +1138,13 @@ Milestone: 1.
 - **Edge cases:**
   - With no drawn column, `t = 0` and `e = 0`. Then `rs = −4` and `re = 0`, and each point is in
     the fog (CFOG-MIX-001, the ramp at `dc ≥ re`).
-  - A column whose sections have nothing to draw is a drawn column when the client holds it.
-  - A drawn column stays drawn while the client builds the mesh of one of its sections again,
-    for example after a block change. The older mesh stays ready for the frame until the new
-    mesh replaces it. Else one block change in the ring 0 sets `e = 0`.
+  - A block change does not make a column stop being drawn. The client builds the mesh of the
+    section again, and the old mesh stays in the frame until the new mesh replaces it. When the
+    change puts the first blocks into a section with no blocks, the column also stays drawn
+    while the client builds the first mesh of that section. Else one block change in the ring 0
+    sets `e = 0`.
+  - A section whose mesh leaves the frame with no mesh in its place makes its column stop being
+    drawn, also while the client builds a new mesh for it.
   - A column that passes the draw test and never becomes drawn keeps `t` at 16 times its ring.
     This release has no tolerance for it (section 13, item 5).
   - When the camera goes into the next column, the columns that come into the draw test lower
