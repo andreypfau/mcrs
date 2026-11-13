@@ -3,6 +3,7 @@
 #![no_std]
 
 mod armour_slot;
+mod equip_slot;
 mod holder;
 mod insert;
 mod layout;
@@ -12,6 +13,7 @@ mod slot_rule;
 mod stacking;
 
 pub use armour_slot::ArmourSlot;
+pub use equip_slot::EquipSlot;
 pub use holder::Holder;
 pub use insert::Insertion;
 pub use insert::Slot;

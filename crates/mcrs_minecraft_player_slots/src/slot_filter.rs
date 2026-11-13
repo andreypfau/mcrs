@@ -1,6 +1,7 @@
 use mcrs_minecraft_inventory_plan::Filter;
 
 use crate::ArmourSlot;
+use crate::EquipSlot;
 use crate::OffHandTag;
 use crate::Offer;
 
@@ -47,7 +48,7 @@ impl SlotFilter {
     pub fn place(self, offer: Offer, rule: OffHandRule) -> Filter {
         let permits = match self {
             Self::Any => true,
-            Self::Armour(slot) => offer.wear == Some(slot),
+            Self::Armour(slot) => offer.wear == Some(EquipSlot::Armour(slot)),
             Self::OffHand => match rule {
                 OffHandRule::AnyItem => true,
                 OffHandRule::TaggedItems => offer.off_hand_tag == OffHandTag::Member,
