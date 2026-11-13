@@ -37,7 +37,6 @@ pub fn spawn_player(world: &mut World, position: DVec3, yaw: f32, pitch: f32) ->
             LastSentMovement::default(),
             SlotTable::fixed(slots::COUNT),
             SelectedHotbarSlot::default(),
-            crate::vitals::LocalVitals::default(),
         ))
         .id()
 }

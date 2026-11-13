@@ -25,10 +25,8 @@ use crate::item_resolve::{GuiVertex, ItemRenderLayers};
 use crate::language::ClientLanguage;
 use crate::sprite::{GuiSprite, Scaling};
 use crate::tooltip::Tooltip;
-use mcrs_minecraft_client_world::game_mode::LocalGameMode;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
-use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_model::atlas::{MISSING_SIZE, decode_png, missing_pixels, rgba};
 use mcrs_minecraft_model::resource_set::ResourceSet;
 
@@ -124,72 +122,9 @@ const SWITCHER_HEIGHT: u32 = 75;
 const BLANK: &str = "blank";
 const MISSING: &str = "missing";
 
-pub(crate) const EFFECT_TEXTURES: [&str; 41] = [
-    "mob_effect/speed",
-    "mob_effect/slowness",
-    "mob_effect/haste",
-    "mob_effect/mining_fatigue",
-    "mob_effect/strength",
-    "mob_effect/instant_health",
-    "mob_effect/instant_damage",
-    "mob_effect/jump_boost",
-    "mob_effect/nausea",
-    "mob_effect/regeneration",
-    "mob_effect/resistance",
-    "mob_effect/fire_resistance",
-    "mob_effect/water_breathing",
-    "mob_effect/invisibility",
-    "mob_effect/blindness",
-    "mob_effect/night_vision",
-    "mob_effect/hunger",
-    "mob_effect/weakness",
-    "mob_effect/poison",
-    "mob_effect/wither",
-    "mob_effect/health_boost",
-    "mob_effect/absorption",
-    "mob_effect/saturation",
-    "mob_effect/glowing",
-    "mob_effect/levitation",
-    "mob_effect/luck",
-    "mob_effect/unluck",
-    "mob_effect/slow_falling",
-    "mob_effect/conduit_power",
-    "mob_effect/dolphins_grace",
-    "mob_effect/bad_omen",
-    "mob_effect/hero_of_the_village",
-    "mob_effect/darkness",
-    "mob_effect/trial_omen",
-    "mob_effect/raid_omen",
-    "mob_effect/wind_charged",
-    "mob_effect/weaving",
-    "mob_effect/oozing",
-    "mob_effect/infested",
-    "mob_effect/breath_of_the_nautilus",
-    "mob_effect/freezing",
-];
-
-const GUI_TEXTURES: [&str; 40] = [
+const GUI_TEXTURES: [&str; 19] = [
     "hud/hotbar",
     "hud/hotbar_selection",
-    "hud/heart/container",
-    "hud/heart/full",
-    "hud/heart/half",
-    "hud/heart/poisoned_full",
-    "hud/heart/poisoned_half",
-    "hud/heart/withered_full",
-    "hud/heart/withered_half",
-    "hud/heart/absorbing_full",
-    "hud/heart/absorbing_half",
-    "hud/air_empty",
-    "hud/air",
-    "hud/armor_empty",
-    "hud/armor_full",
-    "hud/armor_half",
-    "hud/food_empty",
-    "hud/food_full",
-    "hud/food_half",
-    "hud/experience_bar_background",
-    "hud/experience_bar_progress",
     "hud/hotbar_offhand_left",
     "container/slot_highlight_back",
     "container/slot_highlight_front",
@@ -207,8 +142,6 @@ const GUI_TEXTURES: [&str; 40] = [
     "font/ascii",
     "misc/enchanted_glint_item",
     "icon/chat_modified",
-    "hud/effect_background",
-    "hud/effect_background_ambient",
 ];
 
 fn texture_path(name: &str) -> String {
@@ -217,7 +150,6 @@ fn texture_path(name: &str) -> String {
             format!("minecraft/textures/gui/{name}.png")
         }
         "font/ascii" | "misc/enchanted_glint_item" => format!("minecraft/textures/{name}.png"),
-        _ if name.starts_with("mob_effect/") => format!("minecraft/textures/{name}.png"),
         _ => format!("minecraft/textures/gui/sprites/{name}.png"),
     }
 }
@@ -243,10 +175,6 @@ pub struct GuiAtlas(pub Arc<GuiAtlasData>);
 impl GuiAtlasData {
     /// Shelf-packs the GUI textures the screens blit, which are not square and so
     /// bypass the sprite arrays; the glint stays separate because it repeats.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "one pass decodes, shelves and binds every texture of the atlas"
-    )]
     pub fn load(pack: &ResourceSet) -> Result<Self, String> {
         let mut images = Vec::new();
         let mut glint = None;
@@ -275,16 +203,6 @@ impl GuiAtlasData {
                     images.push((name, pixels, width, height));
                 }
             }
-        }
-        for name in EFFECT_TEXTURES {
-            let path = texture_path(name);
-            let Ok(bytes) = pack.read(&path) else {
-                continue;
-            };
-            let Ok((pixels, width, height)) = decode_png(bytes, &path) else {
-                continue;
-            };
-            images.push((name, pixels, width, height));
         }
         images.push((BLANK, vec![255; 16], 2, 2));
         images.push((MISSING, missing_pixels(), MISSING_SIZE, MISSING_SIZE));
@@ -566,32 +484,13 @@ fn draw_tooltip(atlas: Option<Res<GuiAtlas>>, mut scene: ResMut<GuiScene>) {
 
 fn draw_screens(
     screen: Res<Screen>,
-    player: Query<
-        (
-            &SlotTable,
-            &SelectedHotbarSlot,
-            &mcrs_minecraft_client_world::vitals::LocalVitals,
-            Option<&LocalGameMode>,
-        ),
-        With<Player>,
-    >,
-    language: Option<Res<ClientLanguage>>,
-    game_time: Option<Res<mcrs_minecraft_client_world::clock_sync::ClientGameTime>>,
+    player: Query<(&SlotTable, &SelectedHotbarSlot), With<Player>>,
     mut scene: ResMut<GuiScene>,
 ) {
     let scene = &mut *scene;
-    let Ok((slots, selected, vitals, game_mode)) = player.single() else {
+    let Ok((slots, selected)) = player.single() else {
         return;
     };
-    let game_mode = game_mode.map_or(GameMode::Survival, |mode| mode.current);
-    crate::vitals::vitals(
-        scene.size,
-        vitals,
-        game_time.as_deref().and_then(|time| time.0),
-        game_mode,
-        &mut scene.quads,
-    );
-    crate::vitals::death(scene.size, vitals, language.as_deref(), &mut scene.quads);
     hotbar(scene.size, selected.0, slots, &mut scene.quads);
     if *screen == Screen::Inventory {
         inventory_screen(scene.size, scene.cursor, slots, &mut scene.quads);
@@ -819,7 +718,6 @@ impl Plugin for GuiPlugin {
             .init_resource::<GuiBatch>()
             .add_plugins(ExtractResourcePlugin::<GuiBatch>::default())
             .add_plugins(ExtractResourcePlugin::<GuiAtlas>::default())
-            .add_systems(Update, crate::vitals::respawn_button)
             .add_systems(
                 PostUpdate,
                 (

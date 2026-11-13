@@ -1,4 +1,3 @@
-use bevy::ecs::entity::Entity;
 use bevy::math::{DVec3, IVec3};
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::voxel_shape::Aabb;
@@ -47,49 +46,9 @@ pub struct BlockHit {
     pub point: DVec3,
 }
 
-/// An entity that the ray of the player hits.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct EntityHit {
-    pub entity: Entity,
-    pub network_id: i32,
-    pub point: DVec3,
-}
-
-/// The entity target of a ray from `eye` along the unit vector `direction`. Each candidate is
-/// its entity, network id, feet position, width and height. The nearest box within the entity
-/// reach wins. The client picks the closer of this target and the block target.
-#[must_use]
-pub fn entity_target(
-    eye: DVec3,
-    direction: DVec3,
-    reach: Reach,
-    candidates: impl IntoIterator<Item = (Entity, i32, DVec3, f64, f64)>,
-) -> Option<EntityHit> {
-    let mut nearest: Option<(f64, EntityHit)> = None;
-    for (entity, network_id, position, width, height) in candidates {
-        let half = width / 2.0;
-        let min = position - DVec3::new(half, 0.0, half);
-        let max = position + DVec3::new(half, height, half);
-        let Some((t, _)) = enter(eye, direction, min, max) else {
-            continue;
-        };
-        if t <= reach.entity && nearest.is_none_or(|(best, _)| t < best) {
-            nearest = Some((
-                t,
-                EntityHit {
-                    entity,
-                    network_id,
-                    point: eye + direction * t,
-                },
-            ));
-        }
-    }
-    nearest.map(|(_, hit)| hit)
-}
-
 /// The block target of a ray from `eye` along the unit vector `direction`, or `None` for a miss.
 /// `outline_at` gives the outline shape of the block at a position, in the coordinates of that
-/// position. An entity target can hide the block; the caller compares the two.
+/// position. The client tests no entities, so no entity target hides a block.
 #[must_use]
 pub fn block_target<'s>(
     eye: DVec3,
@@ -244,40 +203,6 @@ mod tests {
 
     fn one_block(at: BlockPos, shape: &'static [Aabb]) -> impl Fn(BlockPos) -> &'static [Aabb] {
         move |pos| if pos == at { shape } else { &[] }
-    }
-
-    #[test]
-    fn cbk_tgt_009_the_nearest_entity_box_on_the_ray_is_the_entity_target() {
-        let eye = DVec3::new(0.5, 1.62, 0.5);
-        let near = Entity::from_raw_u32(7).expect("an entity");
-        let far = Entity::from_raw_u32(8).expect("an entity");
-        let hit = entity_target(
-            eye,
-            DVec3::Z,
-            Reach::of(GameMode::Survival),
-            [
-                (far, 20, DVec3::new(0.5, 0.0, 2.5), 0.6, 1.8),
-                (near, 10, DVec3::new(0.5, 0.0, 1.5), 0.6, 1.8),
-            ],
-        )
-        .expect("both boxes are in reach");
-        assert_eq!((hit.entity, hit.network_id), (near, 10));
-        assert!((hit.point.z - 1.2).abs() < 1e-9, "{:?}", hit.point);
-    }
-
-    #[test]
-    fn cbk_tgt_010_an_entity_outside_the_entity_range_is_not_a_target() {
-        let eye = DVec3::new(0.5, 1.62, 0.5);
-        let entity = Entity::from_raw_u32(7).expect("an entity");
-        let at = |z| [(entity, 10, DVec3::new(0.5, 0.0, z), 0.6, 1.8)];
-        assert!(
-            entity_target(eye, DVec3::Z, Reach::of(GameMode::Survival), at(4.0)).is_none(),
-            "the box begins past the survival entity range"
-        );
-        assert!(
-            entity_target(eye, DVec3::Z, Reach::of(GameMode::Creative), at(5.2)).is_some(),
-            "the creative entity range reaches farther"
-        );
     }
 
     #[test]
