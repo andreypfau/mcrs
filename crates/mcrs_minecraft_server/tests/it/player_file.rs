@@ -231,3 +231,52 @@ fn combat_keys_load_into_components_and_write_back() {
     }
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn a_missing_health_uses_the_saved_maximum() {
+    let dir = std::env::temp_dir().join(format!("mcrs-health-default-{}", Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let id = Uuid::from_u128(0x5a1);
+    let mut input = PlayerDat::default();
+    input.root.put_short("HurtTime", 3);
+    let mut attribute = NbtCompound::new();
+    attribute.put_string("id", "minecraft:max_health".to_owned());
+    attribute.put_double("base", 30.0);
+    input
+        .root
+        .put_list("attributes", vec![NbtTag::Compound(attribute)]);
+    write_player_dat(&dir, id, &input).unwrap();
+
+    let mut app = WorldServer::default().start();
+    let label = label_of(&app, OVERWORLD);
+    let world: &mut World = dimension_world(&mut app, label);
+    world.insert_resource(WorldSave(dir.clone()));
+    let player = world
+        .spawn((
+            GameProfile {
+                id,
+                username: "health".to_owned(),
+                properties: Vec::new(),
+            },
+            Transform::default(),
+            PlayerGameMode::default(),
+            PlayerFlying(false),
+        ))
+        .id();
+
+    load_player(world, player);
+    assert!(
+        world.get::<UnreadablePlayerDat>(player).is_none(),
+        "the load rejected the file"
+    );
+    assert_eq!(
+        world
+            .get::<mcrs_minecraft_combat::PlayerVitals>(player)
+            .unwrap()
+            .0
+            .health,
+        30.0,
+        "a save without Health starts at the maximum the attributes give"
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}

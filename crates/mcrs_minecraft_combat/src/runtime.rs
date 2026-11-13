@@ -861,10 +861,9 @@ fn attach_player_combat(
         let base = base
             .copied()
             .unwrap_or(BaseMaxHealth(attributes.max_health_base()));
-        let mut health = health.copied().unwrap_or_else(|| {
-            let health = file.map_or(20.0, |file| file.health);
-            Health::new(health, base.0)
-        });
+        let mut health = health
+            .copied()
+            .unwrap_or_else(|| Health::new(base.0, base.0));
         let effects = effects.cloned().unwrap_or_default();
         health.0.max_health = base.0 + effects.health_boost();
         health.0.health = health.0.health.clamp(0.0, health.0.max_health);
@@ -1875,6 +1874,21 @@ mod tests {
         )
     }
 
+    fn shared_flags(packets: &[PacketPayload]) -> Option<i8> {
+        packets.iter().rev().find_map(|packet| match packet {
+            PacketPayload::SetEntityData(packet) => packet
+                .metadata
+                .0
+                .iter()
+                .find(|entry| entry.index == entity_data_index::SHARED_FLAGS)
+                .and_then(|entry| match entry.value {
+                    MetaDataValue::Byte(flags) => Some(flags),
+                    _ => None,
+                }),
+            _ => None,
+        })
+    }
+
     #[test]
     fn shared_flags_keep_crouch_and_sprint_when_fire_is_off() {
         let mut app = App::new();
@@ -1898,24 +1912,71 @@ mod tests {
         ));
         app.update();
         let packets = &app.world().resource::<SeenPackets>().0;
-        let flags = packets.iter().find_map(|packet| match packet {
-            PacketPayload::SetEntityData(packet) => packet
-                .metadata
-                .0
-                .iter()
-                .find(|entry| entry.index == entity_data_index::SHARED_FLAGS)
-                .and_then(|entry| match entry.value {
-                    MetaDataValue::Byte(flags) => Some(flags),
-                    _ => None,
-                }),
-            _ => None,
-        });
         assert_eq!(
-            flags,
+            shared_flags(packets),
             Some(
                 entity_data_index::SHARED_FLAG_CROUCHING | entity_data_index::SHARED_FLAG_SPRINTING
             )
         );
+    }
+
+    #[test]
+    fn shared_flags_clear_when_the_fire_ends() {
+        let mut app = App::new();
+        app.add_message::<OutboundPlayerPacket>();
+        app.init_resource::<SeenPackets>();
+        app.add_systems(
+            Update,
+            (sync_player_environment_metadata, record_packets).chain(),
+        );
+        let player = app
+            .world_mut()
+            .spawn((
+                Player,
+                Owner(PlayerSession(1)),
+                InDimension(Entity::PLACEHOLDER),
+                Health::new(20.0, 20.0),
+                EnvironmentSync::default(),
+            ))
+            .id();
+        app.world_mut()
+            .get_mut::<Health>(player)
+            .expect("the player has health")
+            .0
+            .fire_ticks = 20;
+        app.update();
+        assert_eq!(
+            shared_flags(&app.world().resource::<SeenPackets>().0),
+            Some(entity_data_index::SHARED_FLAG_ON_FIRE)
+        );
+        app.world_mut()
+            .get_mut::<Health>(player)
+            .expect("the player has health")
+            .0
+            .fire_ticks = 0;
+        app.update();
+        assert_eq!(
+            shared_flags(&app.world().resource::<SeenPackets>().0),
+            Some(0),
+            "the tracker clears the fire bit instead of keeping the last flags"
+        );
+    }
+
+    #[test]
+    fn a_player_without_loaded_vitals_starts_at_its_maximum_health() {
+        let mut app = App::new();
+        app.add_systems(Update, attach_player_combat);
+        let player = app
+            .world_mut()
+            .spawn((Player, Transform::default(), BaseMaxHealth(30.0)))
+            .id();
+        app.update();
+        let health = app
+            .world()
+            .get::<Health>(player)
+            .expect("the attach gives the player vitals");
+        assert_eq!(health.0.health, 30.0);
+        assert_eq!(health.0.max_health, 30.0);
     }
 
     #[test]

@@ -202,6 +202,31 @@ fn a_respawn_restores_the_health_and_clears_the_death() {
     );
 }
 
+#[test]
+fn two_respawn_requests_in_one_tick_respawn_the_player_once() {
+    let mut server = start();
+    load_stone_column(&mut server);
+    let (anchor, _) = server.join(PLAYER, "returning");
+    survival(&mut server, anchor);
+    hurt(&mut server, anchor, 100.0);
+    server.ticks(anchor, 2);
+    let request = ServerboundClientCommand {
+        action: ClientCommandAction::PerformRespawn,
+    };
+    server.queue(anchor, &request);
+    server.queue(anchor, &request);
+    let packets = server.ticks(anchor, 2);
+    assert_eq!(
+        packets
+            .iter()
+            .filter(|packet| matches!(packet, PacketPayload::Respawn(_)))
+            .count(),
+        1,
+        "the second request of the same tick does not respawn the player again"
+    );
+    assert_eq!(health_of(&mut server, anchor), 20.0);
+}
+
 /// PLD-DRP-001 and PLD-DRP-004: a dead survival player scatters the inventory, including the armour slots.
 #[test]
 fn dmg_death_002_death_drops_the_inventory() {
@@ -469,6 +494,39 @@ fn dmg_env_002_a_player_in_fire_burns() {
         health,
         Some(18.5),
         "the burning player loses 1.5 and the client sees it"
+    );
+}
+
+/// ENV-AIR-002: only the eye in water starts drowning, so waist-deep water keeps the air.
+#[test]
+fn dmg_env_001_a_player_waist_deep_in_water_keeps_air() {
+    let mut server = start();
+    load_stone_column(&mut server);
+    let (anchor, _) = server.join(PLAYER, "wading");
+    survival(&mut server, anchor);
+    let player = server.player(anchor);
+    let position = server
+        .world()
+        .get::<mcrs_minecraft_engine_world::entity::physics::Transform>(player)
+        .expect("the player has a position")
+        .translation;
+    place(
+        &mut server,
+        &[(
+            position.x.floor() as i32,
+            position.y.floor() as i32,
+            position.z.floor() as i32,
+        )],
+        "minecraft:water",
+    );
+    server.ticks(anchor, 2);
+    let health = server
+        .world()
+        .get::<mcrs_minecraft_combat::PlayerVitals>(player)
+        .expect("the player has air");
+    assert_eq!(
+        health.0.air, 300,
+        "water at the feet but not at the eye does not start drowning"
     );
 }
 
