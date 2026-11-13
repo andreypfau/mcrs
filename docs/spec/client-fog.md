@@ -245,7 +245,7 @@ with `q = 0` in step 4.
   - With Improved Transparency on, a pixel with one translucent layer with the alpha
     `0.01 ≤ α ≤ 0.98` has the over blend of that layer. A cloud pixel with no other
     translucent layer thus shows `(1 − ca) · m + cl`, where `m` is the pixel of the main image
-    after step 3.4. mcrs blends the translucent terrain in linear light (CFOG-DEV-004).
+    after step 3.4.
   - With Improved Transparency on, a translucent layer with `α > 0.98` replaces the colour of
     the pixel, when it is the only layer of the pixel.
 - **Edge cases:** a pixel of the cloud image with `ca = 0` has no cloud. The cloud image gives
@@ -766,8 +766,6 @@ of the draw test drawn, and `e = 16 · r` (CFOG-MCRS-004; CFOG-DEV-005).
   - In rain as CFOG-TEST-004, the offset `(0, 0, 10)` has `ve = 0.183190` and `vr = 0`. Thus
     `b = 0`, and the pixel is the fog mix of CFOG-MIX-001 step 4, as with the option off. mcrs:
     this case needs the rain fog (milestone `later`; section 13, item 4).
-  - The face is opaque, and no blended draw covers it. Thus CFOG-DEV-004 does not change these
-    pixels.
 
 ---
 
@@ -893,25 +891,6 @@ be of `26.4-snapshot-7`.
   and the two are the same.
 - **Test:** a differential test in a dimension with `A(fog_end_distance) > 512` compares the fog
   values of mcrs with `vr` alone. Section 10 gives the values of mcrs on the lines "mcrs:".
-
-### CFOG-DEV-004: mcrs blends the blended draws in linear light
-
-- **Rule:** the over blend (section 0.1) where a draw is blended into the image: the translucent
-  terrain with each value of Improved Transparency (CFOG-TIME-002, steps 2 and 3.5, and its
-  second postcondition), the clouds with Improved Transparency off, the sunrise fan and the
-  stars (CFOG-SKY-002), and the sky occluder (CFOG-SKY-003, step 4).
-- **Reference:** the over blend is on image values.
-- **mcrs:** the image is an sRGB target. A blended draw converts its colour to linear light, and
-  the target blends there. These results do not change, because mcrs computes them in image
-  values: the opaque draws, each fog mix (CFOG-MIX-001, CFOG-DRAW-002), the sky disc
-  (CFOG-SKY-001), and the cloud layer with Improved Transparency on (CFOG-MCRS-002, item 1.1).
-  The deviation goes away when mcrs draws the world into a target that holds image values and
-  converts it one time at the end. That is a change of the renderer for a later release.
-- **Visible to the client:** yes. A white layer with the alpha 0.5 over black gives about 0.735
-  in mcrs, and 0.5 in the game.
-- **Test:** a differential test compares the pixels that no blended draw covers with the
-  tolerance of section 0.2. For a pixel that a blended draw covers, the test states its own
-  tolerance.
 
 ### CFOG-DEV-005: mcrs ends the render-distance fog at the edge of the drawn columns
 
@@ -1059,15 +1038,14 @@ not state what mcrs draws now. Each item is in the past, at the base of CFOG-MCR
     the option off.
   - With the option on, the clouds show behind the translucent terrain. Where a pixel has one
     translucent layer with the alpha from 0.01 to 0.98, the image is that of the game
-    (CFOG-TIME-002, the second postcondition), with the over blend in linear light of
-    CFOG-DEV-004.
+    (CFOG-TIME-002, the second postcondition).
   - In the overworld, a point nearer than `rs` has no fog (item 3).
   - While a column that passes the draw test is not drawn, the render-distance fog ends at the
     edge of the drawn columns (item 4).
 
 Provenance: `design`. These rules give the render-distance fog with a colour that meets the
-sky at the horizon. The limit of item 3 is CFOG-DEV-003, and the blend of the blended draws is
-CFOG-DEV-004. The rain fog and the void darkness come in a later release. Improved
+sky at the horizon. The limit of item 3 is CFOG-DEV-003. The rain fog and the void darkness
+come in a later release. Improved
 Transparency is in this release, because the owner decided on 2026-11-13 that the option has
 its effect from the first release. It changes the colour of the far terrain only in some
 scenes: where the sky behind the terrain is not `C`. Examples are terrain above the horizon,
