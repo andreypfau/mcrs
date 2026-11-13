@@ -71,4 +71,5 @@ getrandom = { version = "0.4", features = ["wasm_js"] }
 
 [dev-dependencies]
 mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_fixtures.workspace = true
 mcrs_minecraft_model = { workspace = true, features = ["test-support"] }

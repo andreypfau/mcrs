@@ -377,9 +377,6 @@ mod tests {
     use mcrs_minecraft_client_world::sign::yaw_of;
     use serde::Deserialize;
 
-    const ARTEFACT: &str =
-        include_str!("../../mcrs_minecraft_model/tests/fixtures/vanilla/sign_text.json");
-
     #[derive(Deserialize)]
     struct Artefact {
         cases: Vec<Case>,
@@ -439,7 +436,9 @@ mod tests {
     }
 
     fn cases() -> Vec<Case> {
-        serde_json::from_str::<Artefact>(ARTEFACT).unwrap().cases
+        serde_json::from_str::<Artefact>(&mcrs_minecraft_fixtures::fixture("sign_text").text())
+            .unwrap()
+            .cases
     }
 
     fn family_of(name: &str) -> SignFamily {
