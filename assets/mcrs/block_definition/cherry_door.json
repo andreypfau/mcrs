@@ -236,6 +236,22 @@
             { "origin": [-8, 0, -8], "size": [3, 16, 16] }
           ]
         }
+      },
+      {
+        "condition": "q.block_state(\u0027half\u0027) \u003d\u003d \u0027lower\u0027",
+        "components": {
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, -1, 0],
+              "direction": "up"
+            },
+            "tested_directions": [
+              "down",
+              "up"
+            ]
+          }
+        }
       }
     ]
   }

@@ -41,6 +41,7 @@
         "seconds_to_destroy": 1
       },
       "minecraft:loot": "minecraft:blocks/crimson_sign",
+      "mcrs:solid": true,
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
       "mcrs:emissive_rendering": false,
@@ -69,7 +70,13 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-8, 4.5, 6], "size": [16, 8, 2] }
-          ]
+          ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:solid",
+              "offset": [0, 0, 1]
+            }
+          }
         }
       },
       {
@@ -77,7 +84,13 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-8, 4.5, -8], "size": [16, 8, 2] }
-          ]
+          ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:solid",
+              "offset": [0, 0, -1]
+            }
+          }
         }
       },
       {
@@ -85,7 +98,13 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [6, 4.5, -8], "size": [2, 8, 16] }
-          ]
+          ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:solid",
+              "offset": [1, 0, 0]
+            }
+          }
         }
       },
       {
@@ -93,7 +112,13 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-8, 4.5, -8], "size": [2, 8, 16] }
-          ]
+          ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:solid",
+              "offset": [-1, 0, 0]
+            }
+          }
         }
       }
     ]

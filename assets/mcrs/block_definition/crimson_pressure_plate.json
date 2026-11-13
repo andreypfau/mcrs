@@ -35,6 +35,26 @@
         "seconds_to_destroy": 0.5
       },
       "minecraft:loot": "minecraft:blocks/crimson_pressure_plate",
+      "minecraft:placement_filter": {
+        "predicate": {
+          "type": "minecraft:any_of",
+          "predicates": [
+            {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, -1, 0],
+              "direction": "up",
+              "face_test": "ring"
+            },
+            {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, -1, 0],
+              "direction": "up",
+              "face_test": "center"
+            }
+          ]
+        }
+      },
+      "mcrs:solid": true,
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
       "mcrs:emissive_rendering": false,

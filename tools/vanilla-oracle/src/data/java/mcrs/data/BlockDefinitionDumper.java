@@ -715,12 +715,12 @@ public final class BlockDefinitionDumper {
             differs from the directions of the offsets that the predicate reads. A block
             that no shape update removes gets no component.
 
-            Plants keep the short form of Bedrock, one condition whose `allowed_faces` is
-            `up` and whose `block_filter` is one block tag. Every other block has the
-            predicate form, a block predicate of the data pack under `predicate`. A
-            component in `permutations` gives the predicate of the states it selects, so a
-            block on a wall names its supporting side for each `facing`, and the upper half
-            of a tall plant or a door carries none.
+            A block tag below keeps the short form of Bedrock, one condition whose
+            `allowed_faces` is `up` and whose `block_filter` is the tag. Every other
+            predicate has the predicate form, a block predicate of the data pack under
+            `predicate`. A component in `permutations` gives the predicate of the states it
+            selects, so a block on a wall names its supporting side for each `facing`, and
+            the upper half of a tall plant or a door carries none.
 
             The blocks that carry the component. The supporting position is the side of the
             block that the predicate reads, one entry for each state that differs:
