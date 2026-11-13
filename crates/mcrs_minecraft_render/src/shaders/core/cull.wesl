@@ -126,9 +126,17 @@ fn section_box(slot: u32) -> Box {
     return Box(origin - MODEL_OVERHANG, origin + span + MODEL_OVERHANG);
 }
 
-/// Once a frame, before any group is read: a bit a section the cave walk reaches and the frustum
-/// holds. A group of a section left out is dropped on that one bit, without reading anything of
-/// the section's own.
+/// Whether the section's column, `dx`, `dz` columns from the camera's, lies inside the render
+/// distance `r`: `max(0, |dx| - 1)² + max(0, |dz| - 1)² < r²`.
+fn column_drawn(desc: SectionDesc) -> bool {
+    let reach = i32(camera.render_distance);
+    let away = max(abs(vec2<i32>(desc.x, desc.z) - camera.section.xz) - vec2<i32>(1), vec2<i32>(0));
+    return all(away < vec2<i32>(reach)) && dot(away, away) < reach * reach;
+}
+
+/// Once a frame, before any group is read: a bit a section the cave walk reaches, whose column
+/// lies inside the render distance and that the frustum holds. A group of a section left out is
+/// dropped on that one bit, without reading anything of the section's own.
 @compute @workgroup_size(CULL_THREADS)
 fn cull_sections(
     @builtin(workgroup_id) workgroup: vec3<u32>,
@@ -147,7 +155,7 @@ fn cull_sections(
         workgroupBarrier();
         if (slot < SECTION_SLOTS && ((cave_visible[slot >> 5u] >> (slot & 31u)) & 1u) != 0u) {
             let bounds = section_box(slot);
-            if (in_frustum(bounds.mn, bounds.mx)) {
+            if (column_drawn(sections[slot]) && in_frustum(bounds.mn, bounds.mx)) {
                 atomicOr(&shown_word, 1u << (slot & 31u));
             }
         }

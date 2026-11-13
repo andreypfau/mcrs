@@ -21,6 +21,7 @@ struct Camera {
     quad_cull: u32,
     viewport: vec2<f32>,
     shade_table: u32,
+    render_distance: u32,
 }
 
 @group(0) @binding(0) var<uniform> params: Params;
