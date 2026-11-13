@@ -40,6 +40,7 @@ mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol_game.workspace = true
 uuid = { workspace = true, optional = true }
 mcrs_minecraft_client_gui.workspace = true
+mcrs_minecraft_client_options = { workspace = true, features = ["bevy"] }
 bevy = { version = "0.20.1", default-features = false, features = [
     "std",
     "async_executor",

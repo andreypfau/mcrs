@@ -1,5 +1,5 @@
-use crate::edit_box::{Anchor, Step};
 use crate::tab_direction::TabDirection;
+use mcrs_minecraft_client_widget::{Anchor, Step};
 
 /// A key of the chat screen, after the platform mapped Cmd or Ctrl.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

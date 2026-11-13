@@ -8,4 +8,8 @@ pub enum Screen {
     Inventory,
     GameModeSwitcher(GameMode),
     Chat,
+    Pause,
+    Options,
+    VideoSettings,
+    AccessibilitySettings,
 }

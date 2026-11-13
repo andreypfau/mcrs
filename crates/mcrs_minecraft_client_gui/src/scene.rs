@@ -14,14 +14,17 @@ use mcrs_minecraft_item::{
     ItemStack, SelectedHotbarSlot, SlotTable, damage_value, is_damaged, max_damage,
 };
 
+use crate::atlas_quad::AtlasQuad;
 use crate::font::Font;
+use crate::gui_sprite_id::GuiSpriteId;
+use crate::gui_texture_id::GuiTextureId;
 use crate::hotbar::hotbar;
 use crate::inventory_screen::inventory_screen;
 use crate::item_decorations::{Decorated, WHITE, decorations};
 use crate::item_resolve::{GuiVertex, ItemRenderLayers};
 use crate::language::ClientLanguage;
 use crate::sprite::{GuiSprite, Scaling};
-use crate::tooltip::{Tooltip, TooltipSprites};
+use crate::tooltip::Tooltip;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_model::atlas::{MISSING_SIZE, decode_png, missing_pixels, rgba};
@@ -39,12 +42,11 @@ impl GuiSize {
         (framebuffer.x / 320).min(framebuffer.y / 240).max(1)
     }
 
+    /// The GUI size for the option value `scale`, where 0 is Auto and a value above the scale of
+    /// Auto gives that scale (MENU-SCALE-001).
     pub fn of(framebuffer: UVec2, scale: u32) -> Self {
-        let scale = if scale == 0 {
-            Self::auto_scale(framebuffer)
-        } else {
-            scale
-        };
+        let auto = Self::auto_scale(framebuffer);
+        let scale = if scale == 0 { auto } else { scale.min(auto) };
         Self {
             width: framebuffer.x.div_ceil(scale) as i32,
             height: framebuffer.y.div_ceil(scale) as i32,
@@ -82,6 +84,19 @@ pub enum GuiQuad {
         origin: IVec2,
         stack: Entity,
     },
+    /// Changes the colour of each pixel already drawn in `rect`: to (255 − R, 255 − G, 255) with
+    /// `invert`, else to (R, G, 255) (EDIT-SEL-001).
+    Highlight {
+        rect: IRect,
+        invert: bool,
+    },
+    /// Cuts the quads that follow, up to the matching `EndClip`, to `rect` and to each clip
+    /// around it.
+    Clip {
+        rect: IRect,
+    },
+    /// Ends the innermost `Clip`.
+    EndClip,
 }
 
 /// What the screens emit each frame, in draw order.
@@ -106,8 +121,6 @@ const SWITCHER_WIDTH: u32 = 125;
 const SWITCHER_HEIGHT: u32 = 75;
 const BLANK: &str = "blank";
 const MISSING: &str = "missing";
-
-const TOOLTIP_SPRITES: [&str; 2] = ["tooltip/background", "tooltip/frame"];
 
 const GUI_TEXTURES: [&str; 19] = [
     "hud/hotbar",
@@ -148,7 +161,8 @@ pub struct GuiAtlasData {
     pub regions: HashMap<&'static str, IRect>,
     pub font: Font,
     pub glint: (u32, u32, Vec<u8>),
-    pub tooltip: TooltipSprites,
+    pub(crate) sprites: [GuiSprite; GuiSpriteId::ALL.len()],
+    pub(crate) textures: [IRect; GuiTextureId::ALL.len()],
     pub missing: GuiSprite,
     pub ascii_origin: IVec2,
     pub chat_modified: IRect,
@@ -165,7 +179,7 @@ impl GuiAtlasData {
         let mut images = Vec::new();
         let mut glint = None;
         let mut font = None;
-        let tooltip_scaling = load_tooltip_sprites(pack, &mut images);
+        let sprite_scalings = load_widget_images(pack, &mut images);
         for name in GUI_TEXTURES {
             let path = texture_path(name);
             let (pixels, width, height) =
@@ -223,20 +237,25 @@ impl GuiAtlasData {
             }
             regions.insert(name, rect);
         }
-        let [background, frame] = TOOLTIP_SPRITES.map(|name| regions.get(name).copied());
-        let [background_scaling, frame_scaling] = tooltip_scaling;
-        let tooltip = TooltipSprites {
-            background: background
-                .zip(background_scaling)
-                .map(|(rect, s)| GuiSprite::new(rect, s)),
-            frame: frame
-                .zip(frame_scaling)
-                .map(|(rect, s)| GuiSprite::new(rect, s)),
-        };
-        let missing = GuiSprite::new(
-            regions.get(MISSING).copied().unwrap_or_default(),
-            Scaling::Stretch,
-        );
+        let missing_region = regions.get(MISSING).copied().unwrap_or_default();
+        let missing = GuiSprite::new(missing_region, Scaling::Stretch);
+        let mut sprites = [missing; GuiSpriteId::ALL.len()];
+        for (id, scaling) in sprite_scalings {
+            let region = regions.get(id.name());
+            if let (Some(slot), Some(&region), Some(scaling)) =
+                (sprites.get_mut(id as usize), region, scaling)
+            {
+                *slot = GuiSprite::new(region, scaling);
+            }
+        }
+        let mut textures = [missing_region; GuiTextureId::ALL.len()];
+        for id in GuiTextureId::ALL {
+            if let (Some(slot), Some(&region)) =
+                (textures.get_mut(id as usize), regions.get(id.name()))
+            {
+                *slot = region;
+            }
+        }
         let ascii_origin = regions.get("font/ascii").copied().unwrap_or_default().min;
         let chat_modified = regions
             .get("icon/chat_modified")
@@ -249,7 +268,8 @@ impl GuiAtlasData {
             regions,
             font: font.ok_or("the GUI atlas lists no font/ascii")?,
             glint: glint.ok_or("the GUI atlas lists no glint")?,
-            tooltip,
+            sprites,
+            textures,
             missing,
             ascii_origin,
             chat_modified,
@@ -258,6 +278,16 @@ impl GuiAtlasData {
 
     pub fn region(&self, name: &str) -> IRect {
         self.regions.get(name).copied().unwrap_or_default()
+    }
+
+    /// The sprite `id` with its scaling, or the missing sprite when the pack lacks it or it
+    /// failed to load.
+    #[must_use]
+    pub fn sprite(&self, id: GuiSpriteId) -> GuiSprite {
+        self.sprites
+            .get(id as usize)
+            .copied()
+            .unwrap_or(self.missing)
     }
 
     fn uv(&self, pixel: IRect) -> [[f32; 2]; 4] {
@@ -276,30 +306,55 @@ impl GuiAtlasData {
     }
 }
 
-/// The scaling of the background and the outline sprites of a tooltip. A sprite the pack lacks,
-/// or one with an error, is left out, so it draws the missing sprite.
-fn load_tooltip_sprites(
+/// Adds the textures and the sprites of the widgets to `images`, and gives the scaling of each
+/// sprite that loaded.
+fn load_widget_images(
     pack: &ResourceSet,
     images: &mut Vec<(&'static str, Vec<u8>, u32, u32)>,
-) -> [Option<Scaling>; 2] {
-    TOOLTIP_SPRITES.map(|name| {
-        let path = texture_path(name);
-        let bytes = pack.get(&path)?;
-        let loaded = Scaling::read(pack.get(&format!("{path}.mcmeta"))).and_then(|scaling| {
-            let image = decode_png(bytes, &path).map_err(|error| error.to_string())?;
-            Ok((scaling, image))
-        });
-        match loaded {
-            Ok((scaling, (pixels, width, height))) => {
-                images.push((name, pixels, width, height));
-                Some(scaling)
-            }
-            Err(reason) => {
-                error!("GUI sprite minecraft:{name}: {reason}");
-                None
-            }
-        }
+) -> [(GuiSpriteId, Option<Scaling>); GuiSpriteId::ALL.len()] {
+    for id in GuiTextureId::ALL {
+        let path = format!("minecraft/{}", id.name());
+        load_image(pack, id.name(), &path, Ok(Scaling::Stretch), images);
+    }
+    GuiSpriteId::ALL.map(|id| {
+        let path = texture_path(id.name());
+        let scaling = Scaling::read(pack.get(&format!("{path}.mcmeta")));
+        (id, load_image(pack, id.name(), &path, scaling, images))
     })
+}
+
+/// Adds the image `minecraft:name` at `path` to `images` and gives its scaling. An image the pack
+/// lacks, or one with an error, is left out, so it draws the missing sprite.
+fn load_image(
+    pack: &ResourceSet,
+    name: &'static str,
+    path: &str,
+    scaling: Result<Scaling, String>,
+    images: &mut Vec<(&'static str, Vec<u8>, u32, u32)>,
+) -> Option<Scaling> {
+    let bytes = pack.get(path)?;
+    let loaded = scaling.and_then(|scaling| {
+        let image = decode_png(bytes, path).map_err(|error| error.to_string())?;
+        // chisle: the atlas has a fixed width, and the packer would wrap a wider image into the
+        // rows below it; a pack with such an image needs an atlas that grows in width.
+        if image.1 > ATLAS_WIDTH {
+            return Err(format!(
+                "{} pixels wide, the atlas holds {ATLAS_WIDTH}",
+                image.1
+            ));
+        }
+        Ok((scaling, image))
+    });
+    match loaded {
+        Ok((scaling, (pixels, width, height))) => {
+            images.push((name, pixels, width, height));
+            Some(scaling)
+        }
+        Err(reason) => {
+            error!("GUI image minecraft:{name}: {reason}");
+            None
+        }
+    }
 }
 
 fn crop(pixels: &[u8], stride: u32, width: u32, height: u32) -> Vec<u8> {
@@ -322,7 +377,20 @@ pub const GLINT_BIT: u32 = 1 << 30;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GuiDraw {
     pub range: Range<u32>,
-    pub item: bool,
+    pub kind: GuiDrawKind,
+}
+
+/// How the pass draws the vertices of a [`GuiDraw`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GuiDrawKind {
+    /// Atlas quads, blended over what is drawn.
+    Flat,
+    /// The layers of one item, depth-tested in a band of their own.
+    Item,
+    /// White quads that turn the red and the green of what is drawn into one minus their value.
+    InvertRedGreen,
+    /// Quads that set the blue of what is drawn to full.
+    FullBlue,
 }
 
 /// The scene flattened to what the pass draws: triangle-list vertices in GUI units
@@ -355,13 +423,8 @@ pub(super) fn sprite(at: IVec2, size: IVec2, region: &'static str) -> GuiQuad {
     }
 }
 
-fn push_quad(
-    vertices: &mut Vec<GuiVertex>,
-    rect: IRect,
-    uv: [[f32; 2]; 4],
-    colors: [u32; 4],
-    sprite: u32,
-) {
+fn push_quad(vertices: &mut Vec<GuiVertex>, quad: AtlasQuad, sprite: u32) {
+    let AtlasQuad { rect, uv, colors } = quad;
     let corners = [
         [rect.min.x as f32, rect.min.y as f32, 0.0],
         [rect.max.x as f32, rect.min.y as f32, 0.0],
@@ -386,16 +449,20 @@ fn push_quad(
     vertices.extend([a, b, c, a, c, d]);
 }
 
+/// The window pixels, at least 1 × 1.
+pub(crate) fn window_framebuffer(window: &Window) -> UVec2 {
+    UVec2::new(
+        window.physical_width().max(1),
+        window.physical_height().max(1),
+    )
+}
+
 fn begin_gui_frame(
     window: Single<&Window, With<PrimaryWindow>>,
     config: Res<GuiConfig>,
     mut scene: ResMut<GuiScene>,
 ) {
-    let framebuffer = UVec2::new(
-        window.physical_width().max(1),
-        window.physical_height().max(1),
-    );
-    scene.size = GuiSize::of(framebuffer, config.scale);
+    scene.size = GuiSize::of(window_framebuffer(&window), config.scale);
     scene.cursor = config.cursor.unwrap_or_else(|| {
         window
             .physical_cursor_position()
@@ -440,6 +507,10 @@ pub fn load_gui_atlas(pack: &ResourceSet, commands: &mut Commands) -> Result<(),
     Ok(())
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter"
+)]
 fn build_gui_batch(
     scene: Res<GuiScene>,
     atlas: Option<Res<GuiAtlas>>,
@@ -448,8 +519,10 @@ fn build_gui_batch(
     time: Res<Time<Real>>,
     config: Res<GuiConfig>,
     mut batch: ResMut<GuiBatch>,
+    mut clips: Local<Vec<IRect>>,
 ) {
     let batch = &mut *batch;
+    clips.clear();
     batch.vertices.clear();
     batch.draws.clear();
     batch.scale = scene.size.scale;
@@ -486,31 +559,63 @@ fn build_gui_batch(
         {
             draws.push(GuiDraw {
                 range: begin..end,
-                item: false,
+                kind: GuiDrawKind::Flat,
             });
         }
     };
     for quad in expanded {
         let vertices = &mut batch.vertices;
-        if let GuiQuad::Item { origin, stack } = quad {
-            let end = vertices.len() as u32;
-            close_flat(&mut flat_start, end, &mut batch.draws);
-            let Ok(layers) = layers.get(stack) else {
-                continue;
-            };
-            push_item_layers(vertices, layers, origin);
-            let after = vertices.len() as u32;
-            if after != end {
+        match quad {
+            GuiQuad::Item { origin, stack } => {
+                let end = vertices.len() as u32;
+                close_flat(&mut flat_start, end, &mut batch.draws);
+                let Ok(layers) = layers.get(stack) else {
+                    continue;
+                };
+                // chisle: the layers of an item ignore the clip, so an item in a scrolled list
+                // shows across its edge; a clip of the item vertices lifts it.
+                push_item_layers(vertices, layers, origin);
+                let after = vertices.len() as u32;
+                if after != end {
+                    batch.draws.push(GuiDraw {
+                        range: end..after,
+                        kind: GuiDrawKind::Item,
+                    });
+                }
+            }
+            GuiQuad::Highlight { rect, invert } => {
+                let end = vertices.len() as u32;
+                close_flat(&mut flat_start, end, &mut batch.draws);
+                let white = GuiQuad::Fill { rect, color: WHITE };
+                push_flat_quad(vertices, atlas, blank, white, clips.last().copied());
+                let range = end..vertices.len() as u32;
+                if range.is_empty() {
+                    continue;
+                }
+                if invert {
+                    batch.draws.push(GuiDraw {
+                        range: range.clone(),
+                        kind: GuiDrawKind::InvertRedGreen,
+                    });
+                }
                 batch.draws.push(GuiDraw {
-                    range: end..after,
-                    item: true,
+                    range,
+                    kind: GuiDrawKind::FullBlue,
                 });
             }
-        } else {
-            if flat_start.is_none() {
-                flat_start = Some(vertices.len() as u32);
+            GuiQuad::Clip { rect } => {
+                let inner = clips.last().map_or(rect, |outer| outer.intersect(rect));
+                clips.push(inner);
             }
-            push_flat_quad(vertices, atlas, blank, quad);
+            GuiQuad::EndClip => {
+                clips.pop();
+            }
+            flat => {
+                if flat_start.is_none() {
+                    flat_start = Some(vertices.len() as u32);
+                }
+                push_flat_quad(vertices, atlas, blank, flat, clips.last().copied());
+            }
         }
     }
     let end = batch.vertices.len() as u32;
@@ -536,46 +641,40 @@ fn push_item_layers(vertices: &mut Vec<GuiVertex>, layers: &ItemRenderLayers, or
     }
 }
 
-/// The vertices of a quad drawn from the GUI atlas; an item quad draws its own layers instead.
+/// The vertices of a quad drawn from the GUI atlas, cut to `clip`; an item quad draws its own
+/// layers instead.
 fn push_flat_quad(
     vertices: &mut Vec<GuiVertex>,
     atlas: &GuiAtlasData,
     blank: [[f32; 2]; 4],
     quad: GuiQuad,
+    clip: Option<IRect>,
 ) {
-    match quad {
+    let flat = match quad {
         GuiQuad::Sprite {
             rect,
             region,
             color,
-        } => {
-            push_quad(
-                vertices,
-                rect,
-                atlas.uv(atlas.region(region)),
-                [color; 4],
-                GUI_ATLAS_BIT,
-            );
-        }
-        GuiQuad::Fill { rect, color } => {
-            push_quad(vertices, rect, blank, [color; 4], GUI_ATLAS_BIT)
-        }
-        GuiQuad::Texels { rect, texels } => push_quad(
-            vertices,
+        } => AtlasQuad {
             rect,
-            atlas.texel_uv(texels),
-            [WHITE; 4],
-            GUI_ATLAS_BIT,
-        ),
-        GuiQuad::FillGradient { rect, top, bottom } => {
-            push_quad(
-                vertices,
-                rect,
-                blank,
-                [top, top, bottom, bottom],
-                GUI_ATLAS_BIT,
-            );
-        }
+            uv: atlas.uv(atlas.region(region)),
+            colors: [color; 4],
+        },
+        GuiQuad::Fill { rect, color } => AtlasQuad {
+            rect,
+            uv: blank,
+            colors: [color; 4],
+        },
+        GuiQuad::Texels { rect, texels } => AtlasQuad {
+            rect,
+            uv: atlas.texel_uv(texels),
+            colors: [WHITE; 4],
+        },
+        GuiQuad::FillGradient { rect, top, bottom } => AtlasQuad {
+            rect,
+            uv: blank,
+            colors: [top, top, bottom, bottom],
+        },
         GuiQuad::Glyph {
             origin,
             glyph,
@@ -586,11 +685,23 @@ fn push_flat_quad(
             };
             let ascii = atlas.ascii_origin + glyph.cell;
             let cell = atlas.font.cell_size;
-            let pixel = IRect::from_corners(ascii, ascii + cell);
-            let rect = IRect::from_corners(origin, origin + cell);
-            push_quad(vertices, rect, atlas.uv(pixel), [color; 4], GUI_ATLAS_BIT);
+            AtlasQuad {
+                rect: IRect::from_corners(origin, origin + cell),
+                uv: atlas.uv(IRect::from_corners(ascii, ascii + cell)),
+                colors: [color; 4],
+            }
         }
-        GuiQuad::Item { .. } => {}
+        GuiQuad::Item { .. }
+        | GuiQuad::Highlight { .. }
+        | GuiQuad::Clip { .. }
+        | GuiQuad::EndClip => return,
+    };
+    let clipped = match clip {
+        Some(clip) => flat.clip(clip),
+        None => Some(flat),
+    };
+    if let Some(flat) = clipped {
+        push_quad(vertices, flat, GUI_ATLAS_BIT);
     }
 }
 
@@ -614,6 +725,7 @@ impl Plugin for GuiPlugin {
                     draw_screens,
                     crate::chat::draw,
                     crate::game_mode_switcher::draw,
+                    crate::menu_draw::draw.run_if(resource_exists::<crate::menu::Menu>),
                     draw_tooltip,
                     build_gui_batch,
                 )
@@ -640,6 +752,14 @@ mod tests {
         assert_eq!(GuiSize::auto_scale(UVec2::new(1920, 1080)), 4);
         assert_eq!(GuiSize::auto_scale(UVec2::new(300, 200)), 1);
         assert_eq!(GuiSize::of(UVec2::new(1920, 1080), 0).scale, 4);
+        assert_eq!(
+            GuiSize::of(UVec2::new(854, 480), 3),
+            GuiSize {
+                width: 427,
+                height: 240,
+                scale: 2
+            }
+        );
     }
 
     mod jar {
@@ -673,6 +793,48 @@ mod tests {
             let blank = atlas.region(BLANK);
             let start = (blank.min.y as usize * atlas.width as usize + blank.min.x as usize) * 4;
             assert_eq!(&atlas.pixels[start..start + 4], &[255, 255, 255, 255]);
+        }
+
+        #[test]
+        fn the_button_is_a_nine_slice_and_a_sprite_the_pack_lacks_is_the_missing_sprite() {
+            let atlas = GuiAtlasData::load(ResourceSet::corpus()).unwrap();
+            for id in GuiSpriteId::ALL {
+                assert_ne!(atlas.sprite(id), atlas.missing, "{}", id.name());
+            }
+            for id in GuiTextureId::ALL {
+                assert!(atlas.regions.contains_key(id.name()), "{}", id.name());
+            }
+            let button = atlas.region(GuiSpriteId::Button.name()).min;
+            let mut out = Vec::new();
+            atlas
+                .sprite(GuiSpriteId::Button)
+                .draw(IRect::new(0, 0, 50, 20), &mut out);
+            assert_eq!(out.len(), 9, "{out:?}");
+            for (at, texel) in [((0, 0), (0, 0)), ((47, 0), (197, 0)), ((0, 17), (0, 17))] {
+                let (at, texel) = (IVec2::from(at), button + IVec2::from(texel));
+                let corner = GuiQuad::Texels {
+                    rect: IRect::from_corners(at, at + 3),
+                    texels: Rect::from_corners(texel.as_vec2(), (texel + 3).as_vec2()),
+                };
+                assert!(out.contains(&corner), "{corner:?} in {out:?}");
+            }
+
+            let gui = [
+                "minecraft/font/",
+                "minecraft/textures/font/",
+                "minecraft/textures/gui/",
+                "minecraft/textures/misc/",
+            ];
+            let without_button: ResourceSet =
+                mcrs_minecraft_model::vanilla_source::resource_files()
+                    .iter()
+                    .filter(|(path, _)| gui.iter().any(|folder| path.starts_with(folder)))
+                    .filter(|(path, _)| !path.contains("sprites/widget/button.png"))
+                    .cloned()
+                    .collect();
+            let atlas = GuiAtlasData::load(&without_button).unwrap();
+            assert_eq!(atlas.sprite(GuiSpriteId::Button), atlas.missing);
+            assert_ne!(atlas.sprite(GuiSpriteId::ButtonHighlighted), atlas.missing);
         }
     }
 }

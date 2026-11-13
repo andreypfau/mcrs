@@ -1,110 +1,89 @@
-use std::ops::RangeInclusive;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
+use bevy::prelude::*;
+use mcrs_minecraft_client_gui::menu_options_systems::MenuOptionsSystems;
+use mcrs_minecraft_client_gui::scene::GuiConfig;
+use mcrs_minecraft_client_options::ClientOptions;
 use mcrs_minecraft_mesh::smooth_light::SmoothLight;
-use serde::{Deserialize, Serialize};
+use mcrs_minecraft_render::Brightness;
 
 use crate::camera::FovOptions;
-use crate::config::MAX_VIEW_DISTANCE;
 use crate::sky::Clouds;
 use crate::stream::LightOptions;
 
-pub const FOV_RANGE: RangeInclusive<u8> = 30..=110;
-pub const VIEW_DISTANCE_RANGE: RangeInclusive<u8> = 2..=MAX_VIEW_DISTANCE;
-
-/// The video options of the client, with the meaning of the vanilla option of the same name.
-/// `MCRS_OPTIONS=<file>` names a JSON file that holds any of these fields; an absent field keeps
-/// its default.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct ClientOptions {
-    /// Degrees, in `FOV_RANGE`.
-    pub fov: u8,
-    /// In `[0, 1]`.
-    pub fov_effect_scale: f32,
-    pub smooth_light: bool,
-    pub clouds: bool,
-    /// From 0 (Moody) through 0.5 (the default) to 1 (Bright).
-    pub brightness: f32,
-    /// Columns, in `VIEW_DISTANCE_RANGE`; the `MCRS_VIEW` setting wins when both are set.
-    pub view_distance: Option<u8>,
+/// Keeps the client options as the one resource that the field of view, the terrain light, the
+/// clouds, the brightness and the GUI scale follow, and writes them to `file` as JSON each time
+/// they change after start-up. The web has no file, so there `file` is ignored.
+pub struct ClientOptionsPlugin {
+    pub options: ClientOptions,
+    pub file: Option<PathBuf>,
+    /// The GUI scale the client shows in place of the one of the options; it is never saved.
+    pub gui_scale: Option<u32>,
 }
 
-impl Default for ClientOptions {
-    fn default() -> Self {
-        let fov = FovOptions::default();
-        Self {
-            fov: fov.fov,
-            fov_effect_scale: fov.effect_scale,
-            smooth_light: true,
-            clouds: true,
-            brightness: 0.5,
-            view_distance: None,
+#[derive(Resource)]
+struct GuiScaleOverride(Option<u32>);
+
+impl Plugin for ClientOptionsPlugin {
+    fn build(&self, app: &mut App) {
+        app.insert_resource(self.options)
+            .insert_resource(GuiScaleOverride(self.gui_scale))
+            .add_systems(
+                PreUpdate,
+                project_options
+                    .after(MenuOptionsSystems)
+                    .run_if(resource_changed::<ClientOptions>),
+            );
+        #[cfg(not(target_family = "wasm"))]
+        if let Some(path) = &self.file {
+            crate::options_file::save_options_to(app, path.clone());
         }
     }
 }
 
-impl ClientOptions {
-    /// Reads and validates the options file at `path`.
-    pub fn read(path: &Path) -> Result<Self, String> {
-        let text = std::fs::read_to_string(path).map_err(|error| error.to_string())?;
-        let options: Self = serde_json::from_str(&text).map_err(|error| error.to_string())?;
-        options.validate()?;
-        Ok(options)
-    }
+/// Reads and validates the options file at `path`.
+pub(crate) fn read(path: &Path) -> Result<ClientOptions, String> {
+    let text = std::fs::read_to_string(path).map_err(|error| error.to_string())?;
+    let options: ClientOptions = serde_json::from_str(&text).map_err(|error| error.to_string())?;
+    options.validate().map_err(|error| error.to_string())?;
+    Ok(options)
+}
 
-    pub fn validate(&self) -> Result<(), String> {
-        if !FOV_RANGE.contains(&self.fov) {
-            return Err(format!(
-                "fov is {}, expected {} to {} degrees",
-                self.fov,
-                FOV_RANGE.start(),
-                FOV_RANGE.end()
-            ));
-        }
-        if !(0.0..=1.0).contains(&self.fov_effect_scale) {
-            return Err(format!(
-                "fov_effect_scale is {}, expected 0 to 1",
-                self.fov_effect_scale
-            ));
-        }
-        if !(0.0..=1.0).contains(&self.brightness) {
-            return Err(format!(
-                "brightness is {}, expected 0 to 1",
-                self.brightness
-            ));
-        }
-        if let Some(view) = self.view_distance
-            && !VIEW_DISTANCE_RANGE.contains(&view)
-        {
-            return Err(format!(
-                "view_distance is {view}, expected {} to {} columns",
-                VIEW_DISTANCE_RANGE.start(),
-                VIEW_DISTANCE_RANGE.end()
-            ));
-        }
-        Ok(())
+fn project_options(
+    options: Res<ClientOptions>,
+    gui_scale: Res<GuiScaleOverride>,
+    fov: Option<ResMut<FovOptions>>,
+    light: Option<ResMut<LightOptions>>,
+    clouds: Option<ResMut<Clouds>>,
+    brightness: Option<ResMut<Brightness>>,
+    gui: Option<ResMut<GuiConfig>>,
+) {
+    if let Some(mut fov) = fov {
+        fov.set_if_neq(FovOptions {
+            fov: options.fov,
+            effect_scale: options.fov_effect_scale,
+        });
     }
-
-    pub fn fov_options(&self) -> FovOptions {
-        FovOptions {
-            fov: self.fov,
-            effect_scale: self.fov_effect_scale,
-        }
-    }
-
-    pub fn light_options(&self) -> LightOptions {
-        LightOptions {
-            smooth_light: if self.smooth_light {
+    if let Some(mut light) = light {
+        light.set_if_neq(LightOptions {
+            smooth_light: if options.smooth_light {
                 SmoothLight::On
             } else {
                 SmoothLight::Off
             },
-        }
+        });
     }
-
-    pub fn clouds(&self) -> Clouds {
-        self.clouds.into()
+    if let Some(mut clouds) = clouds {
+        clouds.set_if_neq(options.clouds.into());
+    }
+    if let Some(brightness) = brightness {
+        brightness
+            .map_unchanged(|brightness| &mut brightness.0)
+            .set_if_neq(options.brightness);
+    }
+    if let Some(gui) = gui {
+        gui.map_unchanged(|config| &mut config.scale)
+            .set_if_neq(gui_scale.0.unwrap_or(options.gui_scale));
     }
 }
 
@@ -112,18 +91,69 @@ impl ClientOptions {
 mod tests {
     use super::*;
 
-    #[test]
-    fn a_partial_file_keeps_the_defaults_and_a_range_error_names_its_field() {
-        let options: ClientOptions = serde_json::from_str(r#"{"fov": 90}"#).unwrap();
-        assert_eq!(options.fov, 90);
-        assert_eq!(options.brightness, 0.5);
-        assert_eq!(options.validate(), Ok(()));
+    fn app_with(options: ClientOptions, gui_scale: Option<u32>) -> App {
+        let mut app = App::new();
+        app.init_resource::<FovOptions>()
+            .init_resource::<LightOptions>()
+            .init_resource::<Clouds>()
+            .init_resource::<Brightness>()
+            .insert_resource(GuiConfig {
+                scale: 0,
+                cursor: None,
+                frozen_ticks: None,
+                advanced_tooltips: false,
+            })
+            .add_plugins(ClientOptionsPlugin {
+                options,
+                file: None,
+                gui_scale,
+            });
+        app.update();
+        app
+    }
 
-        let too_wide = ClientOptions {
-            fov: 111,
-            ..options
-        };
-        assert!(too_wide.validate().unwrap_err().starts_with("fov is 111"));
-        assert!(serde_json::from_str::<ClientOptions>(r#"{"fog": 1}"#).is_err());
+    #[test]
+    fn the_start_up_options_and_a_later_change_reach_each_projection() {
+        let mut options = ClientOptions::default();
+        options.fov = 80;
+        let mut app = app_with(options, None);
+        assert_eq!(app.world().resource::<FovOptions>().fov, 80);
+
+        let cases: [(fn(&mut ClientOptions), fn(&World) -> bool); 5] = [
+            (
+                |options| options.fov = 90,
+                |world| world.resource::<FovOptions>().fov == 90,
+            ),
+            (
+                |options| options.brightness = 1.0,
+                |world| world.resource::<Brightness>().0 == 1.0,
+            ),
+            (
+                |options| options.gui_scale = 3,
+                |world| world.resource::<GuiConfig>().scale == 3,
+            ),
+            (
+                |options| options.smooth_light = false,
+                |world| world.resource::<LightOptions>().smooth_light == SmoothLight::Off,
+            ),
+            (
+                |options| options.clouds = false,
+                |world| *world.resource::<Clouds>() == Clouds::Off,
+            ),
+        ];
+        for (index, (change, projected)) in cases.into_iter().enumerate() {
+            change(&mut app.world_mut().resource_mut::<ClientOptions>());
+            app.update();
+            assert!(projected(app.world()), "case {index}");
+        }
+    }
+
+    #[test]
+    fn a_gui_scale_of_the_plugin_wins_over_the_options_and_stays_out_of_them() {
+        let mut app = app_with(ClientOptions::default(), Some(2));
+        app.world_mut().resource_mut::<ClientOptions>().gui_scale = 3;
+        app.update();
+        assert_eq!(app.world().resource::<GuiConfig>().scale, 2);
+        assert_eq!(app.world().resource::<ClientOptions>().gui_scale, 3);
     }
 }
