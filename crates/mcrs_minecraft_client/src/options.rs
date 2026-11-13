@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 use bevy::prelude::*;
 use mcrs_minecraft_client_gui::menu_options_systems::MenuOptionsSystems;
 use mcrs_minecraft_client_gui::scene::GuiConfig;
-use mcrs_minecraft_client_options::ClientOptions;
+use mcrs_minecraft_client_options::{ClientOptions, VIEW_DISTANCE_DEFAULT};
+use mcrs_minecraft_client_world::player_view::RequestedViewDistance;
 use mcrs_minecraft_mesh::smooth_light::SmoothLight;
 use mcrs_minecraft_render::Brightness;
 
@@ -12,8 +13,9 @@ use crate::sky::Clouds;
 use crate::stream::LightOptions;
 
 /// Keeps the client options as the one resource that the field of view, the terrain light, the
-/// clouds, the brightness and the GUI scale follow, and writes them to `file` as JSON each time
-/// they change after start-up. The web has no file, so there `file` is ignored.
+/// clouds, the brightness, the GUI scale, the requested view distance and, on a native client,
+/// the window mode, the present mode and the frame limit follow, and writes them to `file` as
+/// JSON each time they change after start-up. The web has no file, so there `file` is ignored.
 pub struct ClientOptionsPlugin {
     pub options: ClientOptions,
     pub file: Option<PathBuf>,
@@ -27,6 +29,7 @@ struct GuiScaleOverride(Option<u32>);
 impl Plugin for ClientOptionsPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(self.options)
+            .insert_resource(requested_view_distance(&self.options))
             .insert_resource(GuiScaleOverride(self.gui_scale))
             .add_systems(
                 PreUpdate,
@@ -34,6 +37,36 @@ impl Plugin for ClientOptionsPlugin {
                     .after(MenuOptionsSystems)
                     .run_if(resource_changed::<ClientOptions>),
             );
+        #[cfg(not(target_family = "wasm"))]
+        {
+            use bevy::window::{PrimaryWindow, WindowResized};
+
+            use crate::window_options::{
+                FullscreenWatch, WindowFullscreen, project_window_options, read_window_fullscreen,
+                reconcile_fullscreen,
+            };
+
+            let watched = || not(resource_equals(FullscreenWatch::Idle));
+            app.insert_resource(WindowFullscreen(self.options.fullscreen))
+                .init_resource::<FullscreenWatch>()
+                .add_systems(
+                    PreUpdate,
+                    (
+                        read_window_fullscreen.run_if(watched()),
+                        reconcile_fullscreen.run_if(
+                            any_with_component::<PrimaryWindow>.and_then(
+                                on_message::<WindowResized>
+                                    .or_else(resource_changed::<ClientOptions>)
+                                    .or_else(resource_changed::<WindowFullscreen>)
+                                    .or_else(watched()),
+                            ),
+                        ),
+                        project_window_options.run_if(resource_changed::<ClientOptions>),
+                    )
+                        .chain()
+                        .after(MenuOptionsSystems),
+                );
+        }
         #[cfg(not(target_family = "wasm"))]
         if let Some(path) = &self.file {
             crate::options_file::save_options_to(app, path.clone());
@@ -49,15 +82,26 @@ pub(crate) fn read(path: &Path) -> Result<ClientOptions, String> {
     Ok(options)
 }
 
+#[must_use]
+fn requested_view_distance(options: &ClientOptions) -> RequestedViewDistance {
+    RequestedViewDistance(options.view_distance.unwrap_or(VIEW_DISTANCE_DEFAULT))
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and writer is its own parameter"
+)]
 fn project_options(
     options: Res<ClientOptions>,
     gui_scale: Res<GuiScaleOverride>,
+    mut view_distance: ResMut<RequestedViewDistance>,
     fov: Option<ResMut<FovOptions>>,
     light: Option<ResMut<LightOptions>>,
     clouds: Option<ResMut<Clouds>>,
     brightness: Option<ResMut<Brightness>>,
     gui: Option<ResMut<GuiConfig>>,
 ) {
+    view_distance.set_if_neq(requested_view_distance(&options));
     if let Some(mut fov) = fov {
         fov.set_if_neq(FovOptions {
             fov: options.fov,
@@ -89,7 +133,28 @@ fn project_options(
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
+    use bevy::window::{MonitorSelection, PresentMode, PrimaryWindow, WindowMode, WindowResized};
+    use bevy::winit::{UpdateMode, WinitSettings};
+
     use super::*;
+    use crate::window_options::{FULLSCREEN_GRACE, FullscreenWatch, WindowFullscreen, window_mode};
+
+    const FRAME: Duration = Duration::from_millis(100);
+
+    fn primary_window(world: &World) -> &Window {
+        world
+            .try_query_filtered::<&Window, With<PrimaryWindow>>()
+            .and_then(|mut windows| windows.single(world).ok())
+            .unwrap()
+    }
+
+    fn frame_limit(world: &World) -> UpdateMode {
+        let settings = world.resource::<WinitSettings>();
+        assert_eq!(settings.focused_mode, settings.unfocused_mode);
+        settings.focused_mode
+    }
 
     fn app_with(options: ClientOptions, gui_scale: Option<u32>) -> App {
         let mut app = App::new();
@@ -103,13 +168,98 @@ mod tests {
                 frozen_ticks: None,
                 advanced_tooltips: false,
             })
+            .init_resource::<WinitSettings>()
+            .init_resource::<Time<Real>>()
+            .add_message::<WindowResized>()
             .add_plugins(ClientOptionsPlugin {
                 options,
                 file: None,
                 gui_scale,
             });
+        app.world_mut().spawn((Window::default(), PrimaryWindow));
         app.update();
         app
+    }
+
+    fn grace_frames() -> u32 {
+        u32::try_from(FULLSCREEN_GRACE.as_millis() / FRAME.as_millis()).unwrap()
+    }
+
+    fn run_frames(app: &mut App, frames: u32) {
+        for _ in 0..frames {
+            app.world_mut()
+                .resource_mut::<Time<Real>>()
+                .advance_by(FRAME);
+            app.update();
+        }
+    }
+
+    fn option_fullscreen(app: &App) -> bool {
+        app.world().resource::<ClientOptions>().fullscreen
+    }
+
+    fn set_window_fullscreen(app: &mut App, fullscreen: bool) {
+        app.world_mut().resource_mut::<WindowFullscreen>().0 = fullscreen;
+    }
+
+    /// The option and the window mode stay at `fullscreen`, nothing writes the options again, and
+    /// the fullscreen systems go idle.
+    fn assert_rests_at(app: &mut App, fullscreen: bool) {
+        let changed = app.world().resource_ref::<ClientOptions>().last_changed();
+        run_frames(app, 2 * grace_frames());
+        assert_eq!(option_fullscreen(app), fullscreen);
+        assert_eq!(primary_window(app.world()).mode, window_mode(fullscreen));
+        assert_eq!(
+            app.world().resource_ref::<ClientOptions>().last_changed(),
+            changed,
+            "the options change no more"
+        );
+        assert_eq!(
+            *app.world().resource::<FullscreenWatch>(),
+            FullscreenWatch::Idle
+        );
+    }
+
+    fn idle_app(fullscreen: bool) -> App {
+        let mut options = ClientOptions::default();
+        options.fullscreen = fullscreen;
+        let mut app = app_with(options, None);
+        run_frames(&mut app, grace_frames());
+        app
+    }
+
+    #[test]
+    fn a_change_of_the_window_by_the_system_reaches_the_option_in_that_frame() {
+        for system_fullscreen in [true, false] {
+            let mut app = idle_app(!system_fullscreen);
+            set_window_fullscreen(&mut app, system_fullscreen);
+            run_frames(&mut app, 1);
+            assert_eq!(option_fullscreen(&app), system_fullscreen);
+            assert_rests_at(&mut app, system_fullscreen);
+        }
+    }
+
+    #[test]
+    fn a_switch_that_the_window_follows_within_the_grace_period_changes_nothing_more() {
+        for delay in [1, grace_frames() - 1] {
+            let mut app = idle_app(false);
+            app.world_mut().resource_mut::<ClientOptions>().fullscreen = true;
+            run_frames(&mut app, delay);
+            assert!(option_fullscreen(&app), "delay {delay}");
+            set_window_fullscreen(&mut app, true);
+            assert_rests_at(&mut app, true);
+        }
+    }
+
+    #[test]
+    fn a_switch_that_the_window_never_follows_gives_the_option_the_window_state_once() {
+        let mut app = idle_app(false);
+        app.world_mut().resource_mut::<ClientOptions>().fullscreen = true;
+        run_frames(&mut app, grace_frames());
+        assert!(option_fullscreen(&app), "the switch is still in flight");
+        run_frames(&mut app, 1);
+        assert!(!option_fullscreen(&app));
+        assert_rests_at(&mut app, false);
     }
 
     #[test]
@@ -118,8 +268,12 @@ mod tests {
         options.fov = 80;
         let mut app = app_with(options, None);
         assert_eq!(app.world().resource::<FovOptions>().fov, 80);
+        assert_eq!(
+            primary_window(app.world()).present_mode,
+            PresentMode::AutoNoVsync
+        );
 
-        let cases: [(fn(&mut ClientOptions), fn(&World) -> bool); 5] = [
+        let cases: [(fn(&mut ClientOptions), fn(&World) -> bool); 9] = [
             (
                 |options| options.fov = 90,
                 |world| world.resource::<FovOptions>().fov == 90,
@@ -139,6 +293,33 @@ mod tests {
             (
                 |options| options.clouds = false,
                 |world| *world.resource::<Clouds>() == Clouds::Off,
+            ),
+            (
+                |options| options.vsync = true,
+                |world| primary_window(world).present_mode == PresentMode::Fifo,
+            ),
+            (
+                |options| options.fullscreen = true,
+                |world| {
+                    primary_window(world).mode
+                        == WindowMode::BorderlessFullscreen(MonitorSelection::Primary)
+                },
+            ),
+            (
+                |options| options.max_framerate = 60,
+                |world| {
+                    frame_limit(world)
+                        == UpdateMode::Reactive {
+                            wait: Duration::from_secs(1) / 60,
+                            react_to_device_events: false,
+                            react_to_user_events: false,
+                            react_to_window_events: false,
+                        }
+                },
+            ),
+            (
+                |options| options.max_framerate = 260,
+                |world| frame_limit(world) == UpdateMode::Continuous,
             ),
         ];
         for (index, (change, projected)) in cases.into_iter().enumerate() {
