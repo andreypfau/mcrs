@@ -1,14 +1,15 @@
 use bevy_app::{App, FixedUpdate};
 use bevy_ecs::message::Messages;
 use mcrs_minecraft_combat::{
-    ActiveEffect, ActiveEffects, Armor, ArmorToughness, CombatPlugin, CombatPosition,
-    DamageCooldown, DamageDealt, DamageRequest, DeathEvent, FoodData, Health, MobEffect,
+    ActiveEffect, Armor, ArmorToughness, CombatPlugin, CombatPosition, DamageDealt, DamageRequest,
+    DamageTarget, DeathEvent, MobEffect, PlayerEffects, PlayerFood as FoodData,
+    PlayerHitRecord, PlayerVitals as Health,
 };
 use mcrs_minecraft_damage::{DamageSource, Hit};
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::coordinator::clock::GameTime;
 use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
-use mcrs_minecraft_protocol_game::Difficulty;
+use mcrs_minecraft_entity::Difficulty;
 
 #[test]
 fn integration_combat_damage_flow_and_death() {
@@ -22,17 +23,20 @@ fn integration_combat_damage_flow_and_death() {
     let entity = app
         .world_mut()
         .spawn((
-            Health::new(20.0),
-            Armor(10.0),
+            Health::new(20.0, 20.0),
+            Armor {
+                armor: 10.0,
+                toughness: 4.0,
+            },
             ArmorToughness(4.0),
-            DamageCooldown::default(),
-            CombatPosition::from_coords(0.0, 64.0, 0.0),
+            PlayerHitRecord::default(),
+            CombatPosition(glam::DVec3::new(0.0, 64.0, 0.0)),
         ))
         .id();
 
     // Send damage request of 10.0
     let mut damage_writer = app.world_mut().resource_mut::<Messages<DamageRequest>>();
-    damage_writer.write(DamageRequest::new(
+    damage_writer.write(DamageRequest::player(
         entity,
         Hit::from_source(10.0, DamageSource::new(0)),
     ));
@@ -41,15 +45,15 @@ fn integration_combat_damage_flow_and_death() {
 
     let health = app.world().get::<Health>(entity).unwrap();
     // With armor 10 and toughness 4, damage is significantly reduced (below 10.0)
-    assert!(health.current < 20.0);
-    assert!(health.current > 10.0);
+    assert!(health.health < 20.0);
+    assert!(health.health > 10.0);
 
     let dealt_messages = app.world().resource::<Messages<DamageDealt>>();
     assert_eq!(dealt_messages.len(), 1);
 
     // Immediate second hit of smaller amount is rejected due to 10-tick invulnerability
     let mut damage_writer = app.world_mut().resource_mut::<Messages<DamageRequest>>();
-    damage_writer.write(DamageRequest::new(
+    damage_writer.write(DamageRequest::player(
         entity,
         Hit::from_source(2.0, DamageSource::new(0)),
     ));
@@ -62,7 +66,7 @@ fn integration_combat_damage_flow_and_death() {
 
     // Fatal blow of 1000.0 damage
     let mut damage_writer = app.world_mut().resource_mut::<Messages<DamageRequest>>();
-    damage_writer.write(DamageRequest::new(
+    damage_writer.write(DamageRequest::player(
         entity,
         Hit::from_source(1000.0, DamageSource::new(0)),
     ));
@@ -70,8 +74,8 @@ fn integration_combat_damage_flow_and_death() {
     app.world_mut().run_schedule(FixedUpdate);
 
     let health = app.world().get::<Health>(entity).unwrap();
-    assert_eq!(health.current, 0.0);
-    assert!(health.is_dead());
+    assert_eq!(health.health, 0.0);
+    assert!(!health.is_alive());
 
     let death_messages = app.world().resource::<Messages<DeathEvent>>();
     assert_eq!(death_messages.len(), 1);
@@ -79,20 +83,18 @@ fn integration_combat_damage_flow_and_death() {
 
 #[test]
 fn integration_hunger_exhaustion_and_healing() {
-    let mut food = FoodData::new(20, 5.0);
-    let mut health = Health::new(20.0);
-    health.current = 10.0;
+    let mut food = FoodData::default();
+    let mut health = Health::new(20.0, 20.0);
+    health.health = 10.0;
 
-    // Fast regeneration with full food and saturation: heals every 10 ticks
-    for _ in 0..9 {
-        let (heal, _) = food.tick(health.current, health.max, true, Difficulty::Normal);
-        health.heal(heal);
-        assert_eq!(health.current, 10.0);
+    for age in 0..9 {
+        let tick = food.0.tick(&health.0, true, Difficulty::Normal, age);
+        health.heal(tick.heal);
+        assert_eq!(health.health, 10.0);
     }
-    // 10th tick heals
-    let (heal, _) = food.tick(health.current, health.max, true, Difficulty::Normal);
-    health.heal(heal);
-    assert!(health.current > 10.0);
+    let tick = food.0.tick(&health.0, true, Difficulty::Normal, 9);
+    health.heal(tick.heal);
+    assert!(health.health > 10.0);
 }
 
 #[test]
@@ -103,12 +105,12 @@ fn integration_status_effects_application_and_ticking() {
     app.add_message::<ChangeDimensionRequest>();
     app.init_resource::<GameTime>();
 
-    let mut effects = ActiveEffects::new();
+    let mut effects = PlayerEffects::new();
     effects.add(ActiveEffect::new(MobEffect::Regeneration, 0, 50));
     effects.add(ActiveEffect::new(MobEffect::Poison, 0, 25));
 
-    let mut health = Health::new(20.0);
-    health.current = 15.0;
+    let mut health = Health::new(20.0, 20.0);
+    health.health = 15.0;
 
     let entity = app.world_mut().spawn((effects, health)).id();
 
@@ -116,5 +118,6 @@ fn integration_status_effects_application_and_ticking() {
 
     let health = app.world().get::<Health>(entity).unwrap();
     // At duration 50, regeneration tick triggered healing 1.0 -> 16.0
-    assert_eq!(health.current, 16.0);
+    assert_eq!(health.health, 16.0);
+    let _ = DamageTarget::Player(entity);
 }

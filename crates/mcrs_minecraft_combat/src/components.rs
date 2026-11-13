@@ -25,7 +25,14 @@ impl PlayerVitals {
         Self(Vitals {
             health,
             max_health,
-            ..Vitals::default()
+            absorption: 0.0,
+            last_damage: 0.0,
+            damage_cooldown: 0,
+            hurt_time: 0,
+            death_time: None,
+            fire_ticks: 0,
+            air: 300,
+            frozen_ticks: 0,
         })
     }
 

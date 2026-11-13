@@ -1,9 +1,10 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{Message, MessageReader, MessageWriter};
 use bevy_ecs::system::{Query, Res};
-use mcrs_minecraft_damage::{ActiveEffect, EffectAction, Effects, Hit};
+pub use mcrs_minecraft_damage::{ActiveEffect, EffectAction, Effects};
+use mcrs_minecraft_damage::Hit;
 use mcrs_minecraft_damage::DamageSource;
-use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
+pub use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundRemoveMobEffect;
 
 use crate::components::{Armor, Dying, PlayerEffects, PlayerFood, PlayerVitals};
@@ -57,7 +58,7 @@ pub fn handle_apply_effect_events(
                 let amount = 6.0 * f32::from(1u16 << amplifier.min(15));
                 let id = rules
                     .as_deref()
-                    .and_then(|rules| rules.id("minecraft:magic"))
+                    .and_then(|rules| rules.0.id_path("magic"))
                     .unwrap_or(0);
                 damage_events.write(DamageRequest::player(
                     ev.entity,

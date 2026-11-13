@@ -136,7 +136,7 @@ mod tests {
             fire_ticks: 40,
             ..Vitals::default()
         };
-        let hits: u32 = (0..40)
+        let hits = (0..40)
             .filter(|_| tick_fire(&mut vitals, false, false))
             .count();
         assert_eq!(hits, 2);

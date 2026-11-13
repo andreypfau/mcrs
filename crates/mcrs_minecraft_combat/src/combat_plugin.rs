@@ -10,7 +10,7 @@ use crate::effects::{
 use crate::equipment::{EquipmentChangedEvent, track_equipment_changes};
 use crate::events::{DamageDealt, DamageRequest, DeathEvent, KnockbackRequest, RespawnRequest};
 use crate::experience::ExperienceGainedEvent;
-use crate::life_cycle::{apply_knockback, process_damage_requests, tick_cooldowns, tick_death};
+use crate::life_cycle::{apply_knockback, process_damage_requests, tick_player_cooldowns, tick_death};
 
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CombatSet {
@@ -36,7 +36,6 @@ impl Plugin for CombatPlugin {
         app.add_message::<DeathEvent>();
         app.add_message::<RespawnRequest>();
         app.add_message::<KnockbackRequest>();
-        app.init_resource::<crate::hunger::CombatDifficulty>();
         app.add_message::<ApplyEffectEvent>();
         app.add_message::<RemoveEffectEvent>();
         app.add_message::<DropInventoryOnDeathEvent>();
@@ -68,7 +67,7 @@ impl Plugin for CombatPlugin {
             (
                 process_damage_requests,
                 apply_knockback,
-                tick_cooldowns,
+                tick_player_cooldowns,
                 handle_death_drops,
                 drop_dead_inventories,
                 tick_death,

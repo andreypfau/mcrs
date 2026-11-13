@@ -24,7 +24,6 @@ pub use effects::{
     ActiveEffect, ActiveEffects, ApplyEffectEvent, EffectKey, MobEffect, RemoveEffectEvent,
     handle_apply_effect_events, tick_active_effects,
 };
-pub use environment::WorldBorderState;
 pub use equipment::{EntityEquipment, EquipmentChangedEvent, track_equipment_changes};
 pub use events::{
     DamageDealt, DamageRequest, DamageTarget, DeathEvent, KnockbackRequest, RespawnRequest,

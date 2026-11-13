@@ -6,7 +6,8 @@ use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_game_rule::GameRule;
 
 use crate::events::DeathEvent;
-use crate::position::CombatPosition;
+use mcrs_minecraft_engine_world::entity::physics::Transform;
+use crate::events::DamageTarget;
 
 /// Event emitted when an entity's inventory should be dropped at the death position (#116).
 #[derive(Message, Clone, Debug, PartialEq)]
@@ -19,7 +20,7 @@ pub struct DropInventoryOnDeathEvent {
 pub fn handle_death_drops(
     mut death_events: MessageReader<DeathEvent>,
     rules_opt: Option<Res<GameRules>>,
-    positions: Query<&CombatPosition>,
+    positions: Query<&Transform>,
     mut drop_events: MessageWriter<DropInventoryOnDeathEvent>,
 ) {
     let keep_inventory = rules_opt
@@ -27,10 +28,16 @@ pub fn handle_death_drops(
         .unwrap_or(false);
 
     for ev in death_events.read() {
+        let DamageTarget::Player(entity) = ev.target else {
+            continue;
+        };
         if !keep_inventory {
-            let pos = positions.get(ev.entity).map(|p| p.0).unwrap_or(DVec3::ZERO);
+            let pos = positions
+                .get(entity)
+                .map(|transform| transform.translation)
+                .unwrap_or(DVec3::ZERO);
             drop_events.write(DropInventoryOnDeathEvent {
-                entity: ev.entity,
+                entity,
                 death_position: pos,
             });
         }
@@ -91,16 +98,15 @@ mod tests {
 
         let entity = app
             .world_mut()
-            .spawn(CombatPosition::from_coords(10.0, 64.0, 10.0))
+            .spawn(Transform::from_xyz(10.0, 64.0, 10.0))
             .id();
 
         let mut death_writer = app
             .world_mut()
             .resource_mut::<bevy_ecs::message::Messages<DeathEvent>>();
         death_writer.write(DeathEvent {
-            entity,
-            damage_type: crate::damage_types::GENERIC,
-            source: mcrs_minecraft_damage::DamageSource::new(crate::damage_types::GENERIC),
+            target: DamageTarget::Player(entity),
+            source: mcrs_minecraft_damage::DamageSource::new(0),
         });
 
         app.update();

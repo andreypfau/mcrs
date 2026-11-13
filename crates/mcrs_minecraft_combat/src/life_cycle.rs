@@ -51,7 +51,7 @@ pub fn process_damage_requests(
             _,
             mut vitals,
             mut record,
-            food,
+            mut food,
             effects,
             armor,
             resistance,

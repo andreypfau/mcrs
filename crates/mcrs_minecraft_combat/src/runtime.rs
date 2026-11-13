@@ -7,7 +7,10 @@ use bevy_math::DVec3;
 use mcrs_minecraft_block::definition::BlockStateFlags;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block::fluid_keys::Fluid;
-use mcrs_minecraft_damage::{DamageSource, DamageTypeFlags, DamageTypeRules, Hit};
+use mcrs_minecraft_damage::{
+    DamageSource, DamageTypeFlags, DamageTypeRules, Defence, Hit, border_damage, ignite,
+    fall_damage as compute_fall_damage, is_in_void, tick_air, tick_fire, tick_freeze,
+};
 use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use mcrs_minecraft_engine::bus::{
     OutboundPlayerPacket, PacketPayload, PacketTarget, to, to_target,
@@ -32,6 +35,8 @@ use mcrs_minecraft_engine_world::world::dimension::{
 use mcrs_minecraft_engine_world::world::storage::view::{DimensionView, WorldView};
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
 use mcrs_minecraft_entity::attribute_instance::{AttributeOperation, fold_attribute};
+use mcrs_minecraft_entity::Difficulty;
+use mcrs_minecraft_entity::WorldBorderSettings;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_rows::Placed;
@@ -42,6 +47,7 @@ use mcrs_minecraft_item::component::equippable::EquipmentSlot;
 use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_item_stack::{AttributeModifiers, Kind, ModifierOperation, SlotGroup};
 use mcrs_minecraft_network::event::Received;
+use mcrs_minecraft_physics::Vitals;
 use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundAttack, ServerboundChangeDifficulty, ServerboundPlayerAction,
     ServerboundPlayerInput, ServerboundSetCarriedItem,
@@ -72,19 +78,15 @@ use mcrs_minecraft_text::{RawText, Text};
 use mcrs_minecraft_volume::BlockVolume;
 use mcrs_voxel::{BlockPos, BlockStateId};
 
-use crate::damage_rules::DamageTypeRulesResource;
-use crate::components::{PlayerEffects as ActiveEffects, PlayerFood, PlayerVitals as Health};
+use crate::components::{PlayerEffects as ActiveEffects, PlayerFood as FoodData, PlayerVitals as Health};
 use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
-use crate::environment::{
-    AirSupply, CombatDifficulty, FireState, FreezeState, WorldBorderState, compute_fall_damage,
-    is_in_void,
-};
+use crate::damage_rules::DamageTypeRulesResource;
 use crate::equipment::{EntityEquipment, EquipmentChangedEvent};
-use crate::events::{DamageDealt, DamageRequest, DeathEvent, RespawnRequest};
+use crate::events::{DamageDealt, DamageRequest, DamageTarget, DeathEvent, RespawnRequest};
 use crate::components::{
     Armor, ArmorToughness, AttackDamage, CombatPosition, KnockbackResistance, PlayerExperience,
 };
-use crate::life_cycle::Dying as DeathState;
+use crate::components::Dying as DeathState;
 
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 struct CombatVitals {
@@ -136,6 +138,24 @@ impl CombatVitals {
 struct WorldSpawn {
     value: Option<mcrs_minecraft_save::RespawnData>,
     loaded: bool,
+}
+
+#[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
+struct CombatDifficulty(Difficulty);
+
+impl Default for CombatDifficulty {
+    fn default() -> Self {
+        Self(Difficulty::Normal)
+    }
+}
+
+#[derive(Resource, Clone, Copy, Debug, PartialEq)]
+struct WorldBorderState(WorldBorderSettings);
+
+impl Default for WorldBorderState {
+    fn default() -> Self {
+        Self(WorldBorderSettings::default())
+    }
 }
 
 #[derive(Component, Debug, Default)]
@@ -241,7 +261,7 @@ fn on_change_difficulty(
     if !op_levels.get(on.entity).is_ok_and(|level| level.0 >= 2) {
         return;
     }
-    difficulty.0 = packet.difficulty;
+    difficulty.0 = packet.difficulty.into();
 }
 
 fn on_player_input(
@@ -293,27 +313,29 @@ fn tick_player_hunger(
     mut players: Query<(Entity, &mut Health, &mut FoodData), (With<Player>, Without<DeathState>)>,
     rules: Option<Res<GameRules>>,
     difficulty: Option<Res<CombatDifficulty>>,
+    type_rules: Option<Res<DamageTypeRulesResource>>,
+    time: Option<Res<GameTime>>,
     mut damage: MessageWriter<DamageRequest>,
 ) {
     let natural_regeneration = rules
         .as_deref()
         .is_none_or(|rules| rules.is_on(GameRule::NaturalHealthRegeneration));
+    let age = time.as_deref().map_or(0, |time| time.0.max(0) as u64);
     for (entity, mut health, mut food) in &mut players {
-        let difficulty = difficulty
-            .as_deref()
-            .map_or(mcrs_minecraft_protocol_game::Difficulty::Normal, |value| {
-                value.0
-            });
-        let (heal, starve) =
-            food.tick(health.current, health.max, natural_regeneration, difficulty);
-        if heal > 0.0 {
-            health.heal(heal);
+        let food_tick = food.0.tick(
+            &health.0,
+            natural_regeneration,
+            difficulty.as_deref().map_or(Difficulty::Normal, |value| value.0),
+            age,
+        );
+        if food_tick.heal > 0.0 {
+            health.heal(food_tick.heal);
         }
-        if starve > 0.0 && health.is_alive() {
-            damage.write(DamageRequest::new(
-                entity,
-                Hit::from_source(starve, DamageSource::new(damage_types::STARVE)),
-            ));
+        if food_tick.starve
+            && health.is_alive()
+            && let Some(hit) = hit_of(type_rules.as_deref(), "starve", 1.0)
+        {
+            damage.write(DamageRequest::player(entity, hit));
         }
     }
 }
@@ -335,9 +357,6 @@ fn tick_player_environment(
             Option<&Velocity>,
             &mut Health,
             &mut FoodData,
-            &mut AirSupply,
-            &mut FireState,
-            &mut FreezeState,
             &mut CombatVitals,
         ),
         (With<Player>, Without<DeathState>),
@@ -347,6 +366,8 @@ fn tick_player_environment(
     dimensions: Query<&DimensionTypeConfig>,
     rules: Option<Res<GameRules>>,
     border: Option<Res<WorldBorderState>>,
+    type_rules: Option<Res<DamageTypeRulesResource>>,
+    time: Option<Res<GameTime>>,
     mut damage: MessageWriter<DamageRequest>,
 ) {
     let fall_damage = rules
@@ -361,6 +382,7 @@ fn tick_player_environment(
     let freeze_damage = rules
         .as_deref()
         .is_none_or(|rules| rules.is_on(GameRule::FreezeDamage));
+    let age = time.as_deref().map_or(0, |time| time.0.max(0) as u64);
     let dimensions = &dimensions;
 
     for (
@@ -372,12 +394,9 @@ fn tick_player_environment(
         effects,
         input,
         velocity,
-        health,
+        mut health,
         mut food,
-        mut air,
-        mut fire,
-        mut freeze,
-        mut vitals,
+        mut timers,
     ) in &mut players
     {
         if !health.is_alive() {
@@ -442,156 +461,141 @@ fn tick_player_environment(
                 food.add_exhaustion(0.01);
             }
         }
-        if input.is_some_and(|input| input.jumping) && vitals.on_ground {
+        if input.is_some_and(|input| input.jumping) && timers.on_ground {
             food.add_exhaustion(if sprinting { 0.2 } else { 0.05 });
         }
 
         if vulnerable && fall_damage && !flying.is_some_and(|flying| flying.0) {
-            let dy = position.y - vitals.last_y;
+            let dy = position.y - timers.last_y;
             if dy.abs() > 8.0 {
-                vitals.fall_distance = 0.0;
+                timers.fall_distance = 0.0;
             } else if dy < 0.0 && !in_water && !in_lava && !in_powder_snow {
-                vitals.fall_distance += -dy;
+                timers.fall_distance += -dy;
             }
-            if vitals.on_ground {
+            if timers.on_ground {
                 let multiplier = fall_multiplier(view.as_ref(), definitions.as_deref(), below);
-                let fall = compute_fall_damage(vitals.fall_distance, 3.0, multiplier);
-                if fall > 0.0 {
-                    damage.write(DamageRequest::new(
-                        entity,
-                        Hit::from_source(fall, DamageSource::new(damage_types::FALL)),
-                    ));
+                let fall = compute_fall_damage(timers.fall_distance, 3.0, multiplier);
+                if fall > 0.0
+                    && let Some(hit) = hit_of(type_rules.as_deref(), "fall", fall)
+                {
+                    damage.write(DamageRequest::player(entity, hit));
                 }
-                vitals.fall_distance = 0.0;
+                timers.fall_distance = 0.0;
             }
         } else {
-            vitals.fall_distance = 0.0;
+            timers.fall_distance = 0.0;
         }
-        vitals.last_y = position.y;
+        timers.last_y = position.y;
 
         let fire_resistant = effects.is_some_and(|effects| effects.has(MobEffect::FireResistance));
         if in_water {
-            fire.extinguish();
-            vitals.lava_ticks = 0;
+            health.fire_ticks = 0;
+            timers.lava_ticks = 0;
         }
         if let Ok(config) = dimensions.get(in_dimension.0)
             && is_in_void(position.y, f64::from(config.min_y))
+            && let Some(hit) = hit_of(type_rules.as_deref(), "out_of_world", 4.0)
         {
-            damage.write(DamageRequest::new(
-                entity,
-                Hit::from_source(4.0, DamageSource::new(damage_types::OUT_OF_WORLD)),
-            ));
+            damage.write(DamageRequest::player(entity, hit));
         }
         if !vulnerable {
-            vitals.lava_ticks = 0;
+            timers.lava_ticks = 0;
             continue;
         }
-        if eye_in_water && !effects.is_some_and(|effects| effects.has(MobEffect::WaterBreathing)) {
-            if drowning_damage && air.tick_underwater() {
-                damage.write(DamageRequest::new(
-                    entity,
-                    Hit::from_source(2.0, DamageSource::new(damage_types::DROWN)),
-                ));
-            }
-        } else {
-            air.tick_in_air();
+        let water_breathing =
+            effects.is_some_and(|effects| effects.has(MobEffect::WaterBreathing));
+        if tick_air(
+            &mut health.0,
+            300,
+            eye_in_water && !water_breathing,
+            !eye_in_water,
+        ) && drowning_damage
+            && let Some(hit) = hit_of(type_rules.as_deref(), "drown", 2.0)
+        {
+            damage.write(DamageRequest::player(entity, hit));
         }
         if in_lava {
-            if fire.remaining_fire_ticks <= 0 {
-                fire.ignite(300);
-            }
-            vitals.lava_ticks += 1;
-            if !fire_resistant && vitals.lava_ticks.is_multiple_of(10) {
-                damage.write(DamageRequest::new(
-                    entity,
-                    Hit::from_source(4.0, DamageSource::new(damage_types::LAVA)),
-                ));
+            ignite(&mut health.0, 300, fire_resistant);
+            timers.lava_ticks += 1;
+            if !fire_resistant
+                && timers.lava_ticks.is_multiple_of(10)
+                && let Some(hit) = hit_of(type_rules.as_deref(), "lava", 4.0)
+            {
+                damage.write(DamageRequest::player(entity, hit));
             }
         } else {
-            vitals.lava_ticks = 0;
+            timers.lava_ticks = 0;
         }
-        if in_fire && fire.remaining_fire_ticks <= 0 {
-            fire.ignite(160);
+        if in_fire {
+            ignite(&mut health.0, 160, fire_resistant);
         }
-        if fire.tick() && fire_damage && !fire_resistant {
-            damage.write(DamageRequest::new(
-                entity,
-                Hit::from_source(1.0, DamageSource::new(damage_types::ON_FIRE)),
-            ));
+        if fire_damage
+            && tick_fire(&mut health.0, fire_resistant, in_lava)
+            && let Some(hit) = hit_of(type_rules.as_deref(), "on_fire", 1.0)
+        {
+            damage.write(DamageRequest::player(entity, hit));
         }
-        if in_powder_snow {
-            if freeze_damage && freeze.tick_in_powder_snow() {
-                damage.write(DamageRequest::new(
-                    entity,
-                    Hit::from_source(1.0, DamageSource::new(damage_types::FREEZE)),
-                ));
-            }
-        } else {
-            freeze.tick_warm();
+        if freeze_damage
+            && tick_freeze(&mut health.0, in_powder_snow, true, false, age)
+            && let Some(hit) = hit_of(type_rules.as_deref(), "freeze", 1.0)
+        {
+            damage.write(DamageRequest::player(entity, hit));
         }
         if in_cactus {
-            vitals.cactus_ticks += 1;
-            if vitals.cactus_ticks.is_multiple_of(10) {
-                damage.write(DamageRequest::new(
-                    entity,
-                    Hit::from_source(1.0, DamageSource::new(damage_types::CACTUS)),
-                ));
+            timers.cactus_ticks += 1;
+            if timers.cactus_ticks.is_multiple_of(10)
+                && let Some(hit) = hit_of(type_rules.as_deref(), "cactus", 1.0)
+            {
+                damage.write(DamageRequest::player(entity, hit));
             }
         } else {
-            vitals.cactus_ticks = 0;
+            timers.cactus_ticks = 0;
         }
         if in_wall {
-            vitals.suffocation_ticks += 1;
-            if vitals.suffocation_ticks.is_multiple_of(10) {
-                damage.write(DamageRequest::new(
-                    entity,
-                    Hit::from_source(1.0, DamageSource::new(damage_types::IN_WALL)),
-                ));
+            timers.suffocation_ticks += 1;
+            if timers.suffocation_ticks.is_multiple_of(10)
+                && let Some(hit) = hit_of(type_rules.as_deref(), "in_wall", 1.0)
+            {
+                damage.write(DamageRequest::player(entity, hit));
             }
         } else {
-            vitals.suffocation_ticks = 0;
+            timers.suffocation_ticks = 0;
         }
         if in_berry_bush
             && velocity.is_some_and(|velocity| {
                 velocity.0.x * velocity.0.x + velocity.0.z * velocity.0.z > 0.003
             })
         {
-            vitals.berry_ticks += 1;
-            if vitals.berry_ticks.is_multiple_of(10) {
-                damage.write(DamageRequest::new(
-                    entity,
-                    Hit::from_source(1.0, DamageSource::new(damage_types::SWEET_BERRY_BUSH)),
-                ));
+            timers.berry_ticks += 1;
+            if timers.berry_ticks.is_multiple_of(10)
+                && let Some(hit) = hit_of(type_rules.as_deref(), "sweet_berry_bush", 1.0)
+            {
+                damage.write(DamageRequest::player(entity, hit));
             }
         } else {
-            vitals.berry_ticks = 0;
+            timers.berry_ticks = 0;
         }
         if on_magma && !input.is_some_and(|input| input.sneaking) {
-            vitals.hot_floor_ticks += 1;
-            if vitals.hot_floor_ticks.is_multiple_of(10) {
-                damage.write(DamageRequest::new(
-                    entity,
-                    Hit::from_source(1.0, DamageSource::new(damage_types::HOT_FLOOR)),
-                ));
+            timers.hot_floor_ticks += 1;
+            if timers.hot_floor_ticks.is_multiple_of(10)
+                && let Some(hit) = hit_of(type_rules.as_deref(), "hot_floor", 1.0)
+            {
+                damage.write(DamageRequest::player(entity, hit));
             }
         } else {
-            vitals.hot_floor_ticks = 0;
+            timers.hot_floor_ticks = 0;
         }
         if let Some(border) = border.as_deref() {
-            let border_damage = border.compute_damage(position);
-            if border_damage > 0.0 {
-                vitals.border_ticks = vitals.border_ticks.saturating_add(1);
-                if vitals.border_ticks.is_multiple_of(10) {
-                    damage.write(DamageRequest::new(
-                        entity,
-                        Hit::from_source(
-                            border_damage,
-                            DamageSource::new(damage_types::OUTSIDE_BORDER),
-                        ),
-                    ));
+            let amount = border_damage(&border.0, position, 0.6, 1.8);
+            if amount > 0.0 {
+                timers.border_ticks = timers.border_ticks.saturating_add(1);
+                if timers.border_ticks.is_multiple_of(10)
+                    && let Some(hit) = hit_of(type_rules.as_deref(), "outside_border", amount)
+                {
+                    damage.write(DamageRequest::player(entity, hit));
                 }
             } else {
-                vitals.border_ticks = 0;
+                timers.border_ticks = 0;
             }
         }
     }
@@ -641,13 +645,6 @@ fn tick_mob_environment(
         .get(dimension)
         .map(|config| f64::from(config.min_y))
         .unwrap_or(-64.0);
-    let flags = |damage_type: u32| {
-        type_rules
-            .as_deref()
-            .map_or(DamageTypeFlags::builtin_for(damage_type), |rules| {
-                rules.0.flags(damage_type)
-            })
-    };
     let tick = clock.as_deref().map_or(0, |clock| clock.0);
     let places: Vec<Placed> = rows
         .living_rows()
@@ -691,102 +688,84 @@ fn tick_mob_environment(
         });
 
         if feet_in_water {
-            living.fire_ticks = 0;
+            living.vitals.fire_ticks = 0;
         }
-        if eye_in_water {
-            living.air -= 1;
-            if in_lava {
-                living.fire_ticks = 300;
-            }
-        } else if living.air < 300 {
-            living.air = (living.air + 4).min(300);
+        if in_lava {
+            ignite(&mut living.vitals, 300, living.fire_immune);
+        } else if in_fire {
+            ignite(&mut living.vitals, 160, living.fire_immune);
         }
-        if in_lava && !living.fire_immune {
-            if living.fire_ticks <= 0 {
-                living.fire_ticks = 300;
-            }
-        } else if in_fire && !living.fire_immune && living.fire_ticks <= 0 {
-            living.fire_ticks = 160;
+        if fire_damage
+            && tick_fire(&mut living.vitals, living.fire_immune, in_lava)
+            && let Some(hit) = hit_of(type_rules.as_deref(), "on_fire", 1.0)
+        {
+            hits.push((at, hit));
         }
-        if living.fire_ticks > 0 {
-            living.fire_ticks -= 1;
-            living.on_fire = true;
-            if fire_damage && living.fire_ticks % 20 == 0 {
-                hits.push((
-                    at,
-                    Hit::from_source(1.0, DamageSource::new(damage_types::ON_FIRE))
-                        .with_flags(flags(damage_types::ON_FIRE)),
-                ));
-            }
-        } else {
-            living.on_fire = false;
+        if in_lava
+            && !living.fire_immune
+            && let Some(hit) = hit_of(type_rules.as_deref(), "lava", 4.0)
+        {
+            hits.push((at, hit));
         }
-        if in_lava && !living.fire_immune {
-            hits.push((
-                at,
-                Hit::from_source(4.0, DamageSource::new(damage_types::LAVA))
-                    .with_flags(flags(damage_types::LAVA)),
-            ));
+        if tick_air(&mut living.vitals, 300, eye_in_water, !eye_in_water)
+            && drowning_damage
+            && let Some(hit) = hit_of(type_rules.as_deref(), "drown", 2.0)
+        {
+            hits.push((at, hit));
         }
-        if eye_in_water && living.air <= -20 {
-            living.air = 0;
-            if drowning_damage {
-                hits.push((
-                    at,
-                    Hit::from_source(2.0, DamageSource::new(damage_types::DROWN))
-                        .with_flags(flags(damage_types::DROWN)),
-                ));
-            }
+        if freeze_damage
+            && tick_freeze(
+                &mut living.vitals,
+                in_powder_snow,
+                true,
+                false,
+                tick.max(0) as u64,
+            )
+            && let Some(hit) = hit_of(type_rules.as_deref(), "freeze", 1.0)
+        {
+            hits.push((at, hit));
         }
-        if in_powder_snow {
-            living.frozen_ticks = living.frozen_ticks.saturating_add(1).min(300);
-            if freeze_damage && living.frozen_ticks >= 140 && (living.frozen_ticks - 140) % 40 == 0
-            {
-                hits.push((
-                    at,
-                    Hit::from_source(1.0, DamageSource::new(damage_types::FREEZE))
-                        .with_flags(flags(damage_types::FREEZE)),
-                ));
-            }
-        } else if living.frozen_ticks > 0 {
-            living.frozen_ticks = (living.frozen_ticks - 2).max(0);
+        if in_cactus
+            && let Some(hit) = hit_of(type_rules.as_deref(), "cactus", 1.0)
+        {
+            hits.push((at, hit));
         }
-        if in_cactus {
-            hits.push((
-                at,
-                Hit::from_source(1.0, DamageSource::new(damage_types::CACTUS))
-                    .with_flags(flags(damage_types::CACTUS)),
-            ));
-        }
-        if in_wall {
-            hits.push((
-                at,
-                Hit::from_source(1.0, DamageSource::new(damage_types::IN_WALL))
-                    .with_flags(flags(damage_types::IN_WALL)),
-            ));
+        if in_wall
+            && let Some(hit) = hit_of(type_rules.as_deref(), "in_wall", 1.0)
+        {
+            hits.push((at, hit));
         }
         if in_berry_bush
             && state.body.velocity.x * state.body.velocity.x
                 + state.body.velocity.z * state.body.velocity.z
                 > 0.003
+            && let Some(hit) = hit_of(type_rules.as_deref(), "sweet_berry_bush", 1.0)
         {
-            hits.push((
-                at,
-                Hit::from_source(1.0, DamageSource::new(damage_types::SWEET_BERRY_BUSH))
-                    .with_flags(flags(damage_types::SWEET_BERRY_BUSH)),
-            ));
+            hits.push((at, hit));
         }
-        if position.y < min_y - 64.0 {
-            hits.push((
-                at,
-                Hit::from_source(4.0, DamageSource::new(damage_types::OUT_OF_WORLD))
-                    .with_flags(flags(damage_types::OUT_OF_WORLD)),
-            ));
+        if is_in_void(position.y, min_y)
+            && let Some(hit) = hit_of(type_rules.as_deref(), "out_of_world", 4.0)
+        {
+            hits.push((at, hit));
         }
     }
+    let rules = type_rules.as_deref();
     for (at, hit) in hits {
-        hurt_mob(&mut rows, &mut changes, at, hit, tick);
+        let flags = rules.map_or_else(DamageTypeFlags::default, |rules| rules.0.flags(hit.damage_type));
+        hurt_mob(
+            &mut rows,
+            &mut changes,
+            at,
+            hit,
+            &Defence::new(flags),
+            tick.max(0) as u64,
+        );
     }
+}
+
+fn hit_of(rules: Option<&DamageTypeRulesResource>, path: &str, amount: f32) -> Option<Hit> {
+    let damage_type = rules?.0.id_path(path)?;
+    Some(Hit::new(amount, damage_type))
 }
 
 fn fall_multiplier(
@@ -854,14 +833,10 @@ fn attach_player_combat(
         let mut vitals = CombatVitals::at(*transform);
         vitals.on_ground = true;
         commands.entity(entity).insert((
-            Health::new(20.0),
+            Health::new(20.0, 20.0),
             FoodData::default(),
             PlayerExperience::default(),
-            AirSupply::default(),
-            FireState::default(),
-            FreezeState::default(),
             ActiveEffects::new(),
-            DamageCooldown::default(),
             CombatPosition(transform.translation),
             vitals,
         ));
@@ -963,7 +938,7 @@ fn sync_player_combat_state(
                 }
             }
         }
-        armor.0 = (fold_attribute(0.0, armor_modifiers) as f32).clamp(0.0, 30.0);
+        armor.armor = (fold_attribute(0.0, armor_modifiers) as f32).clamp(0.0, 30.0);
         toughness.0 = (fold_attribute(0.0, toughness_modifiers) as f32).clamp(0.0, 20.0);
         resistance.0 = fold_attribute(0.0, resistance_modifiers).clamp(0.0, 1.0);
         attack.0 = (fold_attribute(1.0, attack_modifiers) as f32).max(0.0);
@@ -975,9 +950,7 @@ fn sync_player_environment_metadata(
         (
             &Owner,
             &InDimension,
-            &AirSupply,
-            &FireState,
-            &FreezeState,
+            &Health,
             &mut EnvironmentSync,
             Option<&PlayerInputState>,
             Option<&ActiveEffects>,
@@ -987,8 +960,8 @@ fn sync_player_environment_metadata(
     >,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
-    for (owner, dimension, air, fire, freeze, mut sync, input, effects, flying) in &mut players {
-        let on_fire = fire.remaining_fire_ticks > 0;
+    for (owner, dimension, health, mut sync, input, effects, flying) in &mut players {
+        let on_fire = health.fire_ticks > 0;
         let mut flags = 0;
         if on_fire {
             flags |= entity_data_index::SHARED_FLAG_ON_FIRE;
@@ -1005,16 +978,16 @@ fn sync_player_environment_metadata(
         if flying.is_some_and(|flying| flying.0) {
             flags |= entity_data_index::SHARED_FLAG_FLYING;
         }
-        if sync.air == Some(air.air)
+        if sync.air == Some(health.air)
             && sync.fire == Some(on_fire)
-            && sync.frozen == Some(freeze.ticks_frozen)
+            && sync.frozen == Some(health.frozen_ticks)
             && sync.flags == Some(flags)
         {
             continue;
         }
-        sync.air = Some(air.air);
+        sync.air = Some(health.air);
         sync.fire = Some(on_fire);
-        sync.frozen = Some(freeze.ticks_frozen);
+        sync.frozen = Some(health.frozen_ticks);
         sync.flags = Some(flags);
         let metadata = Metadata(vec![
             MetadataEntry {
@@ -1023,11 +996,11 @@ fn sync_player_environment_metadata(
             },
             MetadataEntry {
                 index: entity_data_index::AIR_SUPPLY,
-                value: MetaDataValue::VarInt(VarInt(air.air)),
+                value: MetaDataValue::VarInt(VarInt(health.air)),
             },
             MetadataEntry {
                 index: entity_data_index::TICKS_FROZEN,
-                value: MetaDataValue::VarInt(VarInt(freeze.ticks_frozen)),
+                value: MetaDataValue::VarInt(VarInt(health.frozen_ticks)),
             },
         ]);
         packets.write(to_target(
@@ -1062,11 +1035,11 @@ fn sync_player_combat(
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
     for (owner, health, food, experience, armor, toughness, attack, effects, mut sync) in players {
-        let health_changed = sync.health != Some(health.current);
+        let health_changed = sync.health != Some(health.health);
         let food_changed = sync.food != Some((food.food_level, food.saturation));
         let attributes = (
-            health.max.to_bits(),
-            armor.0.to_bits(),
+            health.max_health.to_bits(),
+            armor.armor.to_bits(),
             toughness.0.to_bits(),
             attack.0.to_bits(),
         );
@@ -1079,12 +1052,12 @@ fn sync_player_combat(
                     attributes: vec![
                         AttributeSnapshot {
                             attribute: Attribute::MaxHealth,
-                            base: f64::from(health.max),
+                            base: f64::from(health.max_health),
                             modifiers: Vec::new(),
                         },
                         AttributeSnapshot {
                             attribute: Attribute::Armor,
-                            base: f64::from(armor.0),
+                            base: f64::from(armor.armor),
                             modifiers: Vec::new(),
                         },
                         AttributeSnapshot {
@@ -1102,12 +1075,12 @@ fn sync_player_combat(
             ));
         }
         if health_changed || food_changed {
-            sync.health = Some(health.current);
+            sync.health = Some(health.health);
             sync.food = Some((food.food_level, food.saturation));
             packets.write(to(
                 owner.0,
                 PacketPayload::SetHealth(ClientboundSetHealth {
-                    health: health.current,
+                    health: health.health,
                     food: VarInt(food.food_level as i32),
                     saturation: food.saturation,
                 }),
@@ -1117,7 +1090,7 @@ fn sync_player_combat(
         let xp = (
             experience.level,
             experience.progress.to_bits(),
-            experience.total_experience,
+            experience.total,
         );
         if sync.experience != Some(xp) {
             sync.experience = Some(xp);
@@ -1125,7 +1098,7 @@ fn sync_player_combat(
                 owner.0,
                 PacketPayload::SetExperience(ClientboundSetExperience {
                     experience_progress: experience.progress,
-                    total_experience: VarInt(experience.total_experience),
+                    total_experience: VarInt(experience.total),
                     experience_level: VarInt(experience.level),
                 }),
             ));
@@ -1156,7 +1129,7 @@ fn sync_player_combat(
                 owner.0,
                 PacketPayload::UpdateMobEffect(ClientboundUpdateMobEffect {
                     entity_id: VarInt(owner.0.0 as i32 * 2 + 1),
-                    effect: VarInt(effect.id() as i32),
+                    effect: VarInt(effect.id().number() as i32),
                     amplifier: VarInt(i32::from(amplifier)),
                     duration: VarInt(duration.min(i32::MAX as u32) as i32),
                     flags,
@@ -1169,7 +1142,7 @@ fn sync_player_combat(
                     owner.0,
                     PacketPayload::RemoveMobEffect(ClientboundRemoveMobEffect {
                         entity_id: VarInt(owner.0.0 as i32 * 2 + 1),
-                        effect: VarInt(effect.id() as i32),
+                        effect: VarInt(effect.id().number() as i32),
                     }),
                 ));
             }
@@ -1195,11 +1168,15 @@ fn announce_player_deaths(
     mut deaths: MessageReader<DeathEvent>,
     players: Query<(&Owner, &InDimension, &EntityUuid, Option<&GameProfile>), With<Player>>,
     mobs: Option<Res<Mobs>>,
+    type_rules: Option<Res<DamageTypeRulesResource>>,
     viewers: Query<(&Owner, &InDimension)>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
     for death in deaths.read() {
-        let Ok((owner, dimension, _, profile)) = players.get(death.entity) else {
+        let DamageTarget::Player(target) = death.target else {
+            continue;
+        };
+        let Ok((owner, dimension, _, profile)) = players.get(target) else {
             continue;
         };
         let player_id = (owner.0.0 as u32 * 2 + 1) as i32;
@@ -1212,7 +1189,10 @@ fn announce_player_deaths(
         ));
         let key = format!(
             "death.attack.{}",
-            damage_types::message_id(death.damage_type)
+            type_rules
+                .as_deref()
+                .and_then(|rules| rules.0.message_id(death.source.damage_type))
+                .unwrap_or("generic")
         );
         let name = profile
             .map(|profile| Text::<mcrs_minecraft_text::ItemHover>::text(profile.username.clone()))
@@ -1294,11 +1274,15 @@ fn send_player_damage(
     mut dealt: MessageReader<DamageDealt>,
     players: Query<(&Owner, &InDimension, &EntityUuid, Option<&Transform>), With<Player>>,
     entities: Query<(&EntityUuid, Option<&GlobalEntityId>)>,
+    type_rules: Option<Res<DamageTypeRulesResource>>,
     viewers: Query<(&Owner, &InDimension)>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
 ) {
     for event in dealt.read() {
-        let Ok((owner, dimension, _, transform)) = players.get(event.target) else {
+        let DamageTarget::Player(target) = event.target else {
+            continue;
+        };
+        let Ok((owner, dimension, _, transform)) = players.get(target) else {
             continue;
         };
         let player_id = (owner.0.0 as u32 * 2 + 1) as i32;
@@ -1331,8 +1315,11 @@ fn send_player_damage(
                 source_position: event.hit.source.source_position,
             }),
         ));
+        let no_knockback = type_rules
+            .as_deref()
+            .is_some_and(|rules| rules.0.flags(event.hit.damage_type).no_knockback);
         if event.hit.knockback > 0.0
-            && !event.hit.flags.no_knockback
+            && !no_knockback
             && event.hit.source.source_position.is_some()
         {
             packets.write(to_target(
@@ -1372,13 +1359,9 @@ struct RespawnPlayer {
     vitals: &'static mut CombatVitals,
     sync: &'static mut CombatSync,
     in_dimension: &'static InDimension,
-    air: &'static mut AirSupply,
-    fire: &'static mut FireState,
-    freeze: &'static mut FreezeState,
     environment_sync: &'static mut EnvironmentSync,
     effects: Option<&'static mut ActiveEffects>,
     respawn_point: Option<&'static PlayerRespawnPoint>,
-    cooldown: Option<&'static mut DamageCooldown>,
     velocity: Option<&'static mut Velocity>,
 }
 
@@ -1416,13 +1399,9 @@ fn respawn_players(
             mut vitals,
             mut sync,
             in_dimension,
-            mut air,
-            mut fire,
-            mut freeze,
             mut environment_sync,
             effects,
             respawn_point,
-            cooldown,
             velocity,
         }) = players.get_mut(request.player)
         else {
@@ -1442,9 +1421,18 @@ fn respawn_players(
         let keep_inventory = rules
             .as_deref()
             .is_some_and(|rules| rules.is_on(GameRule::KeepInventory));
-        health.current = 20.0;
-        health.max = 20.0;
-        health.absorption = 0.0;
+        health.0 = Vitals {
+            health: 20.0,
+            max_health: 20.0,
+            absorption: 0.0,
+            last_damage: 0.0,
+            damage_cooldown: 0,
+            hurt_time: 0,
+            death_time: None,
+            fire_ticks: 0,
+            air: 300,
+            frozen_ticks: 0,
+        };
         *food = FoodData::default();
         if !keep_inventory {
             *experience = PlayerExperience::default();
@@ -1452,15 +1440,9 @@ fn respawn_players(
         if let Some(mut effects) = effects {
             effects.clear();
         }
-        *air = AirSupply::default();
-        if let Some(mut cooldown) = cooldown {
-            *cooldown = DamageCooldown::default();
-        }
         if let Some(mut velocity) = velocity {
             velocity.0 = DVec3::ZERO;
         }
-        fire.remaining_fire_ticks = 0;
-        freeze.ticks_frozen = 0;
         *environment_sync = EnvironmentSync::default();
         sync.health = None;
         sync.food = None;
@@ -1554,12 +1536,13 @@ pub(crate) fn build(app: &mut App) {
     let rules = app
         .world()
         .get_resource::<CurrentRegistries>()
-        .map_or_else(DamageTypeRules::builtin, |registries| {
+        .map_or_else(DamageTypeRules::default, |registries| {
             DamageTypeRules::from_registries(registries)
         });
     app.insert_resource(DamageTypeRulesResource(rules));
     app.init_resource::<WorldSpawn>();
     app.init_resource::<WorldBorderState>();
+    app.init_resource::<CombatDifficulty>();
     app.add_observer(note_ground_pos);
     app.add_observer(note_ground_pos_rot);
     app.add_observer(note_ground_rot);
@@ -1665,25 +1648,24 @@ fn on_player_attack(
         return;
     }
     let reach = AttackReach::of(transform, mode);
-    let mut source = DamageSource::new(damage_types::PLAYER_ATTACK);
+    let damage_type = rules
+        .as_deref()
+        .and_then(|rules| rules.0.id_path("player_attack"))
+        .unwrap_or(0);
+    let mut source = DamageSource::new(damage_type);
     if let Some(uuid) = uuid {
         let key = EntityKey(uuid.0.as_u128());
         source = source.with_cause(mcrs_minecraft_entity_key::Cause::new(key, key));
     }
     source.source_position = Some(reach.eye);
     let amount = (attack.map_or(1.0, |attack| attack.0)
-        + effects.map_or(0.0, ActiveEffects::attack_damage_bonus))
+        + effects.map_or(0.0, |effects| effects.attack_damage_bonus()))
     .max(0.0);
     if let Some(mut food) = food
         && mode != GameMode::Creative
     {
         food.add_exhaustion(0.1);
     }
-    let hit_flags = rules.as_deref().map_or(
-        DamageTypeFlags::builtin_for(damage_types::PLAYER_ATTACK),
-        |rules| rules.0.flags(damage_types::PLAYER_ATTACK),
-    );
-
     let mob = rows
         .living_rows()
         .find(|(at, _)| at.id.0 as i64 == i64::from(packet.entity_id.0))
@@ -1701,21 +1683,31 @@ fn on_player_attack(
         if !reach.reaches(position, width, height) {
             return;
         }
-        let hit = Hit::from_source(amount, source).with_flags(hit_flags);
-        hurt_mob(&mut rows, &mut changes, at, hit, clock.0);
+        let hit = Hit::from_source(amount, source);
+        let flags = rules
+            .as_deref()
+            .map_or_else(DamageTypeFlags::default, |rules| rules.0.flags(damage_type));
+        hurt_mob(
+            &mut rows,
+            &mut changes,
+            at,
+            hit,
+            &Defence::new(flags),
+            clock.0.max(0) as u64,
+        );
         return;
     }
 
     for (target, target_transform, owner, health, target_dimension) in &targets {
         if target_dimension.0 != dimension.0
             || player_network_id(owner.0) != packet.entity_id.0
-            || health.is_some_and(Health::is_dead)
+            || health.is_some_and(|health| !health.is_alive())
             || !reach.reaches(target_transform.translation, 0.6, 1.8)
         {
             continue;
         }
-        let hit = Hit::from_source(amount, source).with_flags(hit_flags);
-        damage.write(DamageRequest::new(target, hit));
+        let hit = Hit::from_source(amount, source);
+        damage.write(DamageRequest::player(target, hit));
         return;
     }
 }
@@ -1833,9 +1825,7 @@ mod tests {
             Player,
             Owner(PlayerSession(1)),
             InDimension(Entity::PLACEHOLDER),
-            AirSupply::default(),
-            FireState::default(),
-            FreezeState::default(),
+            Health::new(20.0, 20.0),
             EnvironmentSync::default(),
             PlayerInputState {
                 sneaking: true,
@@ -1910,14 +1900,14 @@ mod tests {
                 EntityUuid(mcrs_minecraft_protocol::uuid::Uuid::from_u128(7)),
             ))
             .id();
-        let mut source = DamageSource::new(crate::damage_types::PLAYER_ATTACK);
+        let mut source = DamageSource::new(0);
         source.source_position = Some(DVec3::new(1.0, 64.0, 0.0));
 
         let mut messages = app
             .world_mut()
             .resource_mut::<bevy_ecs::message::Messages<DamageDealt>>();
         messages.write(DamageDealt {
-            target,
+            target: DamageTarget::Player(target),
             hit: Hit::from_source(1.0, source),
             outcome: mcrs_minecraft_damage::HitOutcome::Partial,
             damage: 1.0,
@@ -1929,7 +1919,7 @@ mod tests {
             .world_mut()
             .resource_mut::<bevy_ecs::message::Messages<DamageDealt>>();
         messages.write(DamageDealt {
-            target,
+            target: DamageTarget::Player(target),
             hit: Hit::from_source(2.0, source),
             outcome: mcrs_minecraft_damage::HitOutcome::Full,
             damage: 2.0,
@@ -1948,14 +1938,16 @@ mod tests {
                 .any(|packet| matches!(packet, PacketPayload::HurtAnimation(_)))
         );
 
-        let mut fall = DamageSource::new(crate::damage_types::FALL);
+        let mut fall = DamageSource::new(1);
         fall.source_position = Some(DVec3::new(1.0, 64.0, 0.0));
+        let mut fall_hit = Hit::from_source(3.0, fall);
+        fall_hit.knockback = 0.0;
         let mut messages = app
             .world_mut()
             .resource_mut::<bevy_ecs::message::Messages<DamageDealt>>();
         messages.write(DamageDealt {
-            target,
-            hit: Hit::from_source(3.0, fall),
+            target: DamageTarget::Player(target),
+            hit: fall_hit,
             outcome: mcrs_minecraft_damage::HitOutcome::Full,
             damage: 3.0,
         });
