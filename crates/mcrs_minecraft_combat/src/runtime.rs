@@ -328,6 +328,10 @@ fn tick_player_hunger(
 }
 
 #[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: the player, its position, its dimension and its timers are separate parameters"
+)]
+#[expect(
     clippy::too_many_lines,
     reason = "the environmental damage sources of one player are checked in one place"
 )]
@@ -702,13 +706,7 @@ fn tick_mob_environment(
             hits.push((at, hit));
         }
         if freeze_damage
-            && tick_freeze(
-                &mut living.vitals,
-                in_powder_snow,
-                true,
-                false,
-                tick.max(0) as u64,
-            )
+            && tick_freeze(&mut living.vitals, in_powder_snow, true, false, tick)
             && let Some(hit) = hit_of(&type_rules, "freeze", 1.0)
         {
             hits.push((at, hit));
@@ -1603,10 +1601,6 @@ impl AttackReach {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a Bevy system: the attacker, the target rows, the rules and the damage events are separate parameters"
-)]
 fn on_player_attack(
     event: On<Received<ServerboundAttack>>,
     mut players: Query<

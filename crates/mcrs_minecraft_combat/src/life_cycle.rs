@@ -20,6 +20,14 @@ use crate::events::{DamageDealt, DamageRequest, DamageTarget, DeathEvent, Knockb
 
 /// Applies every queued player hit through the one damage core (DMG-HIT-001 to DMG-HIT-005).
 #[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: the queue, the damage sinks and the damaged player components are separate parameters"
+)]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one hit applies the cooldown, the reduction, the exhaustion, the knockback and the death in one place"
+)]
+#[expect(
     clippy::type_complexity,
     reason = "a Bevy system: each component of a damaged player is a separate query term"
 )]
