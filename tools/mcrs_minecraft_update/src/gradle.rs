@@ -25,7 +25,11 @@ pub fn run(
     task: &str,
     properties: &[(&str, impl AsRef<str>)],
 ) -> Result<(), String> {
-    let wrapper = if cfg!(windows) { "gradlew.bat" } else { "gradlew" };
+    let wrapper = if cfg!(windows) {
+        "gradlew.bat"
+    } else {
+        "gradlew"
+    };
     let status = Command::new(project.join(wrapper))
         .args(arguments(task, properties))
         .current_dir(project)
