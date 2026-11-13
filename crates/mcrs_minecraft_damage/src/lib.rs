@@ -3,7 +3,6 @@
 //! [`HitRecord`](mcrs_minecraft_physics::HitRecord). A host calls it from the pass or from a
 //! command and tells the viewers what the [`HitOutcome`] says.
 
-mod attributes;
 mod damage_rules;
 pub mod damage_types;
 mod hit;
@@ -13,7 +12,6 @@ mod knockback;
 mod reduction;
 mod source;
 
-pub use attributes::{AttributeInstance, AttributeModifier, AttributeOperation};
 pub use damage_rules::{DamageTypeFlags, DamageTypeRules};
 pub use hit::Hit;
 pub use hit_outcome::HitOutcome;

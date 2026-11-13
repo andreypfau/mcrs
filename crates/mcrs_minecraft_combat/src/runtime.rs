@@ -31,6 +31,7 @@ use mcrs_minecraft_engine_world::world::dimension::{
 };
 use mcrs_minecraft_engine_world::world::storage::view::{DimensionView, WorldView};
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
+use mcrs_minecraft_entity::attribute_instance::{AttributeOperation, fold_attribute};
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_rows::Placed;
@@ -154,14 +155,6 @@ struct CombatSync {
     experience: Option<(i32, u32, i32)>,
     effects: Vec<(MobEffect, u8, u32, u8)>,
     attributes: Option<(u32, u32, u32, u32)>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct CombatModifier {
-    attribute: u16,
-    amount: f64,
-    operation: ModifierOperation,
-    slot: SlotGroup,
 }
 
 fn slot_group_applies(group: SlotGroup, slot: EquipmentSlot) -> bool {
@@ -888,35 +881,6 @@ fn attach_player_combat(
     }
 }
 
-fn apply_attribute(
-    modifier: &CombatModifier,
-    armor: &mut f64,
-    toughness: &mut f64,
-    resistance: &mut f64,
-) {
-    let value = match modifier.attribute {
-        value if value == Attribute::Armor as u16 => armor,
-        value if value == Attribute::ArmorToughness as u16 => toughness,
-        value if value == Attribute::KnockbackResistance as u16 => resistance,
-        _ => return,
-    };
-    match modifier.operation {
-        ModifierOperation::AddValue => *value += modifier.amount,
-        ModifierOperation::AddMultipliedBase | ModifierOperation::AddMultipliedTotal => {
-            *value *= 1.0 + modifier.amount;
-        }
-    }
-}
-
-fn apply_attack_modifier(modifier: &CombatModifier, value: &mut f64) {
-    match modifier.operation {
-        ModifierOperation::AddValue => *value += modifier.amount,
-        ModifierOperation::AddMultipliedBase | ModifierOperation::AddMultipliedTotal => {
-            *value *= 1.0 + modifier.amount;
-        }
-    }
-}
-
 fn sync_player_combat_state(
     mut players: Query<
         (
@@ -955,10 +919,10 @@ fn sync_player_combat_state(
             (EquipmentSlot::Chest, 38),
             (EquipmentSlot::Head, 39),
         ];
-        let mut armor_value = 0.0;
-        let mut toughness_value = 0.0;
-        let mut resistance_value = 0.0;
-        let mut attack_value = 1.0;
+        let mut armor_modifiers = Vec::new();
+        let mut toughness_modifiers = Vec::new();
+        let mut resistance_modifiers = Vec::new();
+        let mut attack_modifiers = Vec::new();
         for (slot, index) in worn {
             let stack = slots.get(index);
             equipment.set(
@@ -977,29 +941,34 @@ fn sync_player_combat_state(
                 if !slot_group_applies(modifier.slot, slot) {
                     continue;
                 }
-                let combat_modifier = CombatModifier {
-                    attribute: modifier.attribute.0,
-                    amount: modifier.amount,
-                    operation: modifier.operation,
-                    slot: modifier.slot,
+                let operation = match modifier.operation {
+                    ModifierOperation::AddValue => AttributeOperation::AddValue,
+                    ModifierOperation::AddMultipliedBase => AttributeOperation::AddMultipliedBase,
+                    ModifierOperation::AddMultipliedTotal => AttributeOperation::AddMultipliedTotal,
                 };
-                apply_attribute(
-                    &combat_modifier,
-                    &mut armor_value,
-                    &mut toughness_value,
-                    &mut resistance_value,
-                );
-                if slot == EquipmentSlot::MainHand
-                    && combat_modifier.attribute == Attribute::AttackDamage as u16
-                {
-                    apply_attack_modifier(&combat_modifier, &mut attack_value);
+                let folded = (operation, modifier.amount);
+                match modifier.attribute.0 {
+                    value if value == Attribute::Armor as u16 => armor_modifiers.push(folded),
+                    value if value == Attribute::ArmorToughness as u16 => {
+                        toughness_modifiers.push(folded);
+                    }
+                    value if value == Attribute::KnockbackResistance as u16 => {
+                        resistance_modifiers.push(folded);
+                    }
+                    value
+                        if value == Attribute::AttackDamage as u16
+                            && slot == EquipmentSlot::MainHand =>
+                    {
+                        attack_modifiers.push(folded);
+                    }
+                    _ => {}
                 }
             }
         }
-        armor.0 = (armor_value as f32).clamp(0.0, 30.0);
-        toughness.0 = (toughness_value as f32).clamp(0.0, 20.0);
-        resistance.0 = resistance_value.clamp(0.0, 1.0);
-        attack.0 = attack_value.max(0.0) as f32;
+        armor.0 = (fold_attribute(0.0, armor_modifiers) as f32).clamp(0.0, 30.0);
+        toughness.0 = (fold_attribute(0.0, toughness_modifiers) as f32).clamp(0.0, 20.0);
+        resistance.0 = fold_attribute(0.0, resistance_modifiers).clamp(0.0, 1.0);
+        attack.0 = (fold_attribute(1.0, attack_modifiers) as f32).max(0.0);
     }
 }
 

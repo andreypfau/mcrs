@@ -5,12 +5,18 @@ use mcrs_minecraft_combat::{
     DamageCooldown, DamageDealt, DamageRequest, DeathEvent, FoodData, Health, MobEffect,
 };
 use mcrs_minecraft_damage::{DamageSource, Hit};
+use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
+use mcrs_minecraft_engine::coordinator::clock::GameTime;
+use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
 use mcrs_minecraft_protocol_game::Difficulty;
 
 #[test]
 fn integration_combat_damage_flow_and_death() {
     let mut app = App::new();
     app.add_plugins(CombatPlugin);
+    app.add_message::<OutboundPlayerPacket>();
+    app.add_message::<ChangeDimensionRequest>();
+    app.init_resource::<GameTime>();
 
     // Entity with 20 HP, 10 Armor, 4 Toughness
     let entity = app
@@ -93,6 +99,9 @@ fn integration_hunger_exhaustion_and_healing() {
 fn integration_status_effects_application_and_ticking() {
     let mut app = App::new();
     app.add_plugins(CombatPlugin);
+    app.add_message::<OutboundPlayerPacket>();
+    app.add_message::<ChangeDimensionRequest>();
+    app.init_resource::<GameTime>();
 
     let mut effects = ActiveEffects::new();
     effects.add(ActiveEffect::new(MobEffect::Regeneration, 0, 50));

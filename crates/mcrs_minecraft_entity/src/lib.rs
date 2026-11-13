@@ -1,4 +1,5 @@
 pub mod attribute;
+pub mod attribute_instance;
 mod base_attributes;
 pub mod damage_type;
 mod entity_type_data;
@@ -60,6 +61,9 @@ pub mod villager;
 mod wire;
 
 pub use attribute::AttributeDefinition;
+pub use attribute_instance::{
+    AttributeInstance, AttributeModifier, AttributeOperation, fold_attribute,
+};
 pub use base_attributes::BaseAttributes;
 pub use entity_type_data::EntityTypeData;
 pub use life::Life;

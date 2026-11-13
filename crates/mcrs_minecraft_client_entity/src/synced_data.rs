@@ -1,8 +1,11 @@
 use bevy_ecs::component::Component;
 use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_entity::attribute_instance::{AttributeOperation, fold_attribute};
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::variant::{FrogVariant, PigVariant};
-use mcrs_minecraft_protocol_game::clientbound::{AttributeOperation, AttributeSnapshot};
+use mcrs_minecraft_protocol_game::clientbound::{
+    AttributeOperation as WireOperation, AttributeSnapshot,
+};
 use mcrs_minecraft_protocol_game::entity::{MetaDataValue, MetadataEntry, Pose};
 use mcrs_minecraft_protocol_game::entity_data_index::{
     AGE_LOCKED, BABY, CUSTOM_NAME, HEALTH, LIVING_FLAGS, MOB_FLAGS, NAME_VISIBLE, POSE,
@@ -195,21 +198,17 @@ pub const SCALE_RANGE: (f64, f64) = (0.0625, 16.0);
 /// times one plus each total multiplier, clamped to [`SCALE_RANGE`]. NaN gives the smallest
 /// scale.
 fn attribute_value(attribute: &AttributeSnapshot<'_>) -> f64 {
-    let sum = |operation: AttributeOperation| -> f64 {
-        attribute
-            .modifiers
-            .iter()
-            .filter(|modifier| modifier.operation == operation)
-            .map(|modifier| modifier.amount)
-            .sum()
-    };
-    let added = attribute.base + sum(AttributeOperation::AddValue);
-    let mut value = added + added * sum(AttributeOperation::AddMultipliedBase);
-    for modifier in &attribute.modifiers {
-        if modifier.operation == AttributeOperation::AddMultipliedTotal {
-            value *= 1.0 + modifier.amount;
-        }
-    }
+    let value = fold_attribute(
+        attribute.base,
+        attribute.modifiers.iter().map(|modifier| {
+            let operation = match modifier.operation {
+                WireOperation::AddValue => AttributeOperation::AddValue,
+                WireOperation::AddMultipliedBase => AttributeOperation::AddMultipliedBase,
+                WireOperation::AddMultipliedTotal => AttributeOperation::AddMultipliedTotal,
+            };
+            (operation, modifier.amount)
+        }),
+    );
     let (min, max) = SCALE_RANGE;
     if value.is_nan() {
         min
