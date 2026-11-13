@@ -14,7 +14,7 @@ mod runtime;
 
 pub use combat_plugin::{CombatPlugin, CombatSet};
 pub use components::{
-    Armor, ArmorToughness, AttackDamage, Dying, KnockbackResistance, PlayerEffects,
+    Armor, ArmorToughness, AttackDamage, BaseMaxHealth, Dying, KnockbackResistance, PlayerEffects,
     PlayerExperience, PlayerFood, PlayerHitRecord, PlayerVitals, RespawnPoint,
 };
 pub use damage_rules::DamageTypeRulesResource;

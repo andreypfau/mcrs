@@ -491,7 +491,7 @@ mod tests {
     }
 
     #[test]
-    fn cbk_tgt_009_an_entity_press_attacks_it_before_the_punch() {
+    fn cbk_tgt_010_an_entity_press_attacks_it_before_the_punch() {
         let mut attack = Attack::default();
         let mut world = Fake::with(&[], false);
         attack.tick_entity(

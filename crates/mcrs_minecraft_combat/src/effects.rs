@@ -5,7 +5,7 @@ pub use mcrs_minecraft_damage::ActiveEffect;
 use mcrs_minecraft_damage::{DamageSource, EffectAction, Hit};
 pub use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 
-use crate::components::{Armor, Dying, PlayerEffects, PlayerFood, PlayerVitals};
+use crate::components::{Armor, BaseMaxHealth, Dying, PlayerEffects, PlayerFood, PlayerVitals};
 use crate::damage_rules::DamageTypeRulesResource;
 use crate::events::DamageRequest;
 
@@ -29,6 +29,7 @@ pub fn handle_apply_effect_events(
     mut query: Query<(
         &mut PlayerVitals,
         &mut PlayerEffects,
+        Option<&BaseMaxHealth>,
         Option<&Armor>,
         Option<&Dying>,
     )>,
@@ -36,7 +37,7 @@ pub fn handle_apply_effect_events(
     mut damage_events: MessageWriter<DamageRequest>,
 ) {
     for ev in events.read() {
-        let Ok((mut vitals, mut effects, armor, dying)) = query.get_mut(ev.entity) else {
+        let Ok((mut vitals, mut effects, base, armor, dying)) = query.get_mut(ev.entity) else {
             continue;
         };
         if dying.is_some() {
@@ -65,7 +66,7 @@ pub fn handle_apply_effect_events(
             }
             MobEffect::HealthBoost => {
                 effects.0.add(ev.effect);
-                vitals.0.max_health = 20.0 + effects.0.health_boost();
+                vitals.0.max_health = base.map_or(20.0, |base| base.0) + effects.0.health_boost();
                 vitals.0.health = vitals.0.health.min(vitals.0.max_health);
             }
             _ => {
@@ -83,6 +84,7 @@ pub fn tick_active_effects(
         &mut PlayerVitals,
         &mut PlayerEffects,
         Option<&mut PlayerFood>,
+        Option<&BaseMaxHealth>,
         Option<&Armor>,
         Option<&Dying>,
     )>,
@@ -90,7 +92,7 @@ pub fn tick_active_effects(
     mut damage_events: MessageWriter<DamageRequest>,
     mut remove_events: MessageWriter<RemoveEffectEvent>,
 ) {
-    for (entity, mut vitals, mut effects, mut food, _armor, dying) in &mut query {
+    for (entity, mut vitals, mut effects, mut food, base, _armor, dying) in &mut query {
         if dying.is_some() {
             continue;
         }
@@ -138,7 +140,8 @@ pub fn tick_active_effects(
             match effect {
                 MobEffect::Absorption => vitals.0.absorption = 0.0,
                 MobEffect::HealthBoost => {
-                    vitals.0.max_health = 20.0;
+                    vitals.0.max_health =
+                        base.map_or(20.0, |base| base.0) + effects.0.health_boost();
                     vitals.0.health = vitals.0.health.min(vitals.0.max_health);
                 }
                 _ => {}

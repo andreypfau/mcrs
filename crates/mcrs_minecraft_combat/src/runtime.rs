@@ -79,7 +79,8 @@ use mcrs_voxel::{BlockPos, BlockStateId};
 
 use crate::components::Dying as DeathState;
 use crate::components::{
-    Armor, ArmorToughness, AttackDamage, KnockbackResistance, PlayerExperience, PlayerHitRecord,
+    Armor, ArmorToughness, AttackDamage, BaseMaxHealth, KnockbackResistance, PlayerExperience,
+    PlayerHitRecord,
 };
 use crate::components::{
     PlayerEffects as ActiveEffects, PlayerFood as FoodData, PlayerVitals as Health,
@@ -847,6 +848,7 @@ fn attach_player_combat(
         vitals.on_ground = true;
         commands.entity(entity).insert((
             Health::new(20.0, 20.0),
+            BaseMaxHealth::default(),
             FoodData::default(),
             PlayerExperience::default(),
             PlayerHitRecord::default(),
@@ -1141,7 +1143,7 @@ fn sync_player_combat(
             packets.write(to(
                 owner.0,
                 PacketPayload::UpdateMobEffect(ClientboundUpdateMobEffect {
-                    entity_id: VarInt(owner.0.0 as i32 * 2 + 1),
+                    entity_id: VarInt(player_network_id(owner.0)),
                     effect: VarInt(effect.id().number() as i32),
                     amplifier: VarInt(i32::from(amplifier)),
                     duration: VarInt(duration.min(i32::MAX as u32) as i32),
@@ -1154,7 +1156,7 @@ fn sync_player_combat(
                 packets.write(to(
                     owner.0,
                     PacketPayload::RemoveMobEffect(ClientboundRemoveMobEffect {
-                        entity_id: VarInt(owner.0.0 as i32 * 2 + 1),
+                        entity_id: VarInt(player_network_id(owner.0)),
                         effect: VarInt(effect.id().number() as i32),
                     }),
                 ));

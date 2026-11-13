@@ -135,7 +135,7 @@ pub fn vitals(size: GuiSize, vitals: &LocalVitals, game_time: Option<i64>, out: 
     let ticks = game_time.unwrap_or(0).max(0) as i32;
     for i in 0..10 {
         let shake = if vitals.food <= 6 {
-            (ticks.wrapping_mul(31).wrapping_add(i) % 3) - 1
+            (ticks.wrapping_mul(31).wrapping_add(i).rem_euclid(3)) - 1
         } else {
             0
         };
@@ -205,11 +205,15 @@ fn effects(size: GuiSize, vitals: &LocalVitals, out: &mut Vec<GuiQuad>) {
             },
         ));
         out.push(sprite(at + IVec2::new(3, 3), IVec2::new(18, 18), icon));
-        let seconds = effect.duration.max(0) / 20;
-        let text = if seconds >= 60 {
-            format!("{}:{:02}", seconds / 60, seconds % 60)
+        let text = if effect.duration < 0 {
+            "**:**".to_owned()
         } else {
-            seconds.to_string()
+            let seconds = effect.duration / 20;
+            if seconds >= 60 {
+                format!("{}:{:02}", seconds / 60, seconds % 60)
+            } else {
+                seconds.to_string()
+            }
         };
         draw_text(out, at.x + 12, at.y + 24, &text, 0xFFFF_FFFF, 1);
     }

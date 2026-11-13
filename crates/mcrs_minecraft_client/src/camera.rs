@@ -170,7 +170,6 @@ fn orientation(yaw: f32, pitch: f32) -> Quat {
         .rotation
 }
 
-/// The stored yaws are wrapped, so the turn between them is taken the short way round.
 #[must_use]
 fn hurt_roll(hurt_time: i32) -> Quat {
     if hurt_time <= 0 {
@@ -181,6 +180,8 @@ fn hurt_roll(hurt_time: i32) -> Quat {
     Quat::from_rotation_z(angle)
 }
 
+/// The stored yaws are wrapped, so the turn between them is taken the short way round.
+#[must_use]
 fn frame_rotation(previous: Rotation, current: Rotation, partial_tick: f32) -> Quat {
     let turn = (current.yaw() - previous.yaw() + 180.0).rem_euclid(360.0) - 180.0;
     let yaw = previous.yaw() + turn * partial_tick;

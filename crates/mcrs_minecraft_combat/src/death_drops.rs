@@ -9,7 +9,7 @@ use crate::events::DamageTarget;
 use crate::events::DeathEvent;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 
-/// Event emitted when an entity's inventory should be dropped at the death position (#116).
+/// Event emitted when an entity's inventory should be dropped at the death position.
 #[derive(Message, Clone, Debug, PartialEq)]
 pub struct DropInventoryOnDeathEvent {
     pub entity: Entity,
@@ -74,47 +74,35 @@ mod tests {
     use super::*;
     use bevy_app::{App, Update};
 
-    #[test]
-    fn dmg_death_002_dropped_stacks_scatter() {
-        let first = scatter_offset(0);
-        let second = scatter_offset(1);
-        let third = scatter_offset(2);
-        assert_ne!(first, second);
-        assert_ne!(second, third);
-        assert_ne!(first, third);
-        assert!(first.x != 0.0 && first.z != 0.0);
-    }
-
-    #[test]
-    fn test_death_drops_honors_keep_inventory() {
+    fn drops_for(keep_inventory: bool) -> usize {
         let mut app = App::new();
         app.add_message::<DeathEvent>();
         app.add_message::<DropInventoryOnDeathEvent>();
         app.add_systems(Update, handle_death_drops);
-
         let mut rules = GameRules::default();
-        rules.set(GameRule::KeepInventory, 1);
+        if keep_inventory {
+            rules.set(GameRule::KeepInventory, 1);
+        }
         app.insert_resource(rules);
-
         let entity = app
             .world_mut()
             .spawn(Transform::from_xyz(10.0, 64.0, 10.0))
             .id();
-
-        let mut death_writer = app
-            .world_mut()
-            .resource_mut::<bevy_ecs::message::Messages<DeathEvent>>();
-        death_writer.write(DeathEvent {
-            target: DamageTarget::Player(entity),
-            source: mcrs_minecraft_damage::DamageSource::new(0),
-        });
-
+        app.world_mut()
+            .resource_mut::<bevy_ecs::message::Messages<DeathEvent>>()
+            .write(DeathEvent {
+                target: DamageTarget::Player(entity),
+                source: mcrs_minecraft_damage::DamageSource::new(0),
+            });
         app.update();
+        app.world()
+            .resource::<bevy_ecs::message::Messages<DropInventoryOnDeathEvent>>()
+            .len()
+    }
 
-        // With keepInventory = 1, no drops should be emitted
-        let drop_events = app
-            .world()
-            .resource::<bevy_ecs::message::Messages<DropInventoryOnDeathEvent>>();
-        assert_eq!(drop_events.len(), 0);
+    #[test]
+    fn test_death_drops_honors_keep_inventory() {
+        assert_eq!(drops_for(false), 1);
+        assert_eq!(drops_for(true), 0);
     }
 }

@@ -42,10 +42,13 @@ fn collect_attack_candidates(
 ) {
     candidates.0.clear();
     for (entity, client, motion, living) in &entities {
-        if living.is_some_and(|living| living.death_time > 0) {
+        let Some(living) = living else {
+            continue;
+        };
+        if living.death_time > 0 {
             continue;
         }
-        let Some(data) = client.type_data() else {
+        let Some(data) = client.type_data().filter(|data| data.is_living()) else {
             continue;
         };
         candidates.0.push(AttackCandidate {

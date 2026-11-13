@@ -10,6 +10,16 @@ use mcrs_minecraft_resource::ResourceKeyBuf;
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub struct PlayerVitals(pub Vitals);
 
+/// The max health of a player before the modifiers of its effects.
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+pub struct BaseMaxHealth(pub f32);
+
+impl Default for BaseMaxHealth {
+    fn default() -> Self {
+        Self(20.0)
+    }
+}
+
 impl Default for PlayerVitals {
     fn default() -> Self {
         Self(Vitals {
