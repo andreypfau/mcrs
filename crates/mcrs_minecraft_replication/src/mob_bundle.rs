@@ -10,8 +10,14 @@ use mcrs_minecraft_protocol_game::entity_data_index::{
     HEALTH, MOB_FLAG_LEFT_HANDED, MOB_FLAG_NO_AI, MOB_FLAGS, POSE,
 };
 
+use crate::encode::record;
 use crate::mob_state::MobState;
+use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_protocol_game::entity::MobLooks;
+use mcrs_minecraft_registries::Wire;
+
+/// The index of the stack in the entity data of an item entity.
+const ITEM_STACK: u8 = 8;
 
 /// The living entries of a mob that change in its life.
 #[derive(Clone, Copy, Debug)]
@@ -34,6 +40,48 @@ impl PartialEq for LivingEntries {
     /// Compares the bits of the health, as the entry on the wire does.
     fn eq(&self, other: &Self) -> bool {
         self.health.to_bits() == other.health.to_bits() && self.dying == other.dying
+    }
+}
+
+/// The entity data entries of a tracked entity that change in its life.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum Entries {
+    Living(LivingEntries),
+    /// The stack of an item entity (IEN-NET-003).
+    Item(ProtoStack<Wire>),
+}
+
+impl Entries {
+    /// Every entry, for a client that missed updates.
+    pub(crate) fn all(&self) -> Vec<MetadataEntry<'static>> {
+        match self {
+            Self::Living(living) => {
+                let mut entries = Vec::new();
+                if living.dying {
+                    entries.push(pose_entry());
+                }
+                entries.push(health_entry(living.health));
+                entries
+            }
+            Self::Item(stack) => vec![item_entry(stack)],
+        }
+    }
+
+    /// The entries that differ from `sent`.
+    pub(crate) fn changed_from(&self, sent: &Self) -> Vec<MetadataEntry<'static>> {
+        match (self, sent) {
+            (Self::Living(now), Self::Living(sent)) => {
+                let mut changed = Vec::new();
+                if now.dying != sent.dying {
+                    changed.push(pose_entry());
+                }
+                if now.health.to_bits() != sent.health.to_bits() {
+                    changed.push(health_entry(now.health));
+                }
+                changed
+            }
+            _ => self.all(),
+        }
     }
 }
 
@@ -76,15 +124,32 @@ pub(crate) fn health_entry(health: f32) -> MetadataEntry<'static> {
     }
 }
 
-/// The `set_entity_data` and the `update_attributes` of the spawn bundle of the mob `id`, as
-/// records. The attributes are the list that the reference sends: `movement_speed` with its base
-/// and no modifier (TRK-DATA-004).
+fn item_entry(stack: &ProtoStack<Wire>) -> MetadataEntry<'static> {
+    MetadataEntry {
+        index: ITEM_STACK,
+        value: MetaDataValue::Slot(stack.clone()),
+    }
+}
+
+/// The packets of the spawn bundle of the entity `id` after its `add_entity`, as records. A mob
+/// has its `set_entity_data` and its `update_attributes`, whose list is the one that the reference
+/// sends: `movement_speed` with its base and no modifier (TRK-DATA-004). An item entity has the
+/// `set_entity_data` with its stack (IEN-NET-001).
 pub(crate) fn spawn_extras(
     id: VarInt,
     kind: &EntityTypeData,
     looks: &MobLooks,
-    living: LivingEntries,
+    entries: &Entries,
 ) -> Result<Bytes> {
+    let living = match entries {
+        Entries::Living(living) => *living,
+        Entries::Item(stack) => {
+            return record(&ClientboundSetEntityData {
+                entity_id: id,
+                metadata: Metadata(vec![item_entry(stack)]),
+            });
+        }
+    };
     let movement_speed = kind
         .base_attributes
         .map_or(Attribute::MovementSpeed.definition().default, |base| {

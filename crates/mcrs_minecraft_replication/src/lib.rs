@@ -23,6 +23,7 @@ mod player_input;
 mod player_list;
 mod player_spawn;
 mod replication_data;
+mod spawn_look;
 mod wire_id;
 
 pub use delta_base::Pose;
@@ -37,4 +38,5 @@ pub use player_input::{Backlog, PlayerInput};
 pub use player_list::{LIST_INTERVAL_TICKS, LISTED_CAP};
 pub use player_spawn::PlayerSpawn;
 pub use replication_data::ReplicationData;
+pub use spawn_look::SpawnLook;
 pub use wire_id::wire_id;

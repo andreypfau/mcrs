@@ -1,9 +1,10 @@
 use crate::{Tree, context, source};
 use mcrs_minecraft_chat::normalize;
 use mcrs_minecraft_chat_client::{
-    Anchor, ChatScreen, ClickMode, Closed, EditBox, History, HistoryChange, InputStyle, Key,
-    Outcome, Outgoing, Signing, Step, StyleClick, UnsentDraft, keeps_draft,
+    ChatScreen, ClickMode, Closed, History, HistoryChange, InputStyle, Key, Outcome, Outgoing,
+    Signing, StyleClick, UnsentDraft, keeps_draft,
 };
+use mcrs_minecraft_client_widget::{Anchor, Step};
 use mcrs_minecraft_protocol_game::text::ClickEvent;
 
 #[test]
@@ -29,7 +30,7 @@ fn normalization_trims_and_collapses_whitespace() {
 
 #[test]
 fn the_input_box_rejects_section_signs_and_control_codes_and_holds_256_characters() {
-    let mut edit = EditBox::default();
+    let mut edit = ChatScreen::default().edit().clone();
     edit.insert("a\u{a7}b\u{7f}c\nd");
     assert_eq!(edit.text(), "abcd");
     edit.set("");

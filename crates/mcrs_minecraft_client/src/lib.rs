@@ -37,6 +37,8 @@ pub mod frozen_clocks;
 pub mod input;
 pub mod light_volume;
 pub mod options;
+#[cfg(not(target_family = "wasm"))]
+mod options_file;
 #[cfg(all(feature = "scene", not(target_family = "wasm")))]
 pub mod scene_capture;
 #[cfg(all(feature = "scene", not(target_family = "wasm")))]
@@ -67,9 +69,13 @@ impl PluginGroup for ClientPlugins {
             .add(input::ClientInputPlugin)
             .add(local_player::LocalPlayerPlugin)
             .add(block_breaking::BlockBreakingPlugin)
+            .add(options::ClientOptionsPlugin {
+                options: self.0.options(),
+                file: self.0.options_file(),
+                gui_scale: self.0.gui_scale(),
+            })
             .add(camera::CameraPlugin {
                 render_distance: self.0.view_distance(),
-                fov: self.0.options().fov_options(),
             })
             .add(mcrs_minecraft_client_gui::debug_screen::DebugScreenPlugin {
                 stats_interval: self.0.stats_interval(),
@@ -104,11 +110,6 @@ impl Plugin for ClientTerrainPlugin {
         .add_plugins(mcrs_minecraft_client_gui::gui_items::GuiItemsPlugin)
         .add_plugins(entities::ClientEntityRenderPlugin)
         .insert_resource(mcrs_minecraft_render::Occlusion(knobs.occlusion()))
-        .insert_resource(mcrs_minecraft_render::Brightness(
-            knobs.options().brightness,
-        ))
-        .insert_resource(knobs.options().light_options())
-        .insert_resource(knobs.options().clouds())
         .add_plugins(stream::StreamPlugin::new(
             budget,
             uploads,

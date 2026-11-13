@@ -18,7 +18,7 @@ use mcrs_minecraft_render::{
     DEPTH_COMPARE, RenderPath, Terrain, Words, WorldPass, pipeline_descriptor, uniform_buffer,
 };
 
-use crate::scene::{GLINT_ALPHA, GuiAtlas, GuiBatch};
+use crate::scene::{GLINT_ALPHA, GuiAtlas, GuiBatch, GuiDraw, GuiDrawKind};
 
 pub struct GuiItemsPlugin;
 
@@ -62,14 +62,30 @@ pub struct GuiPass {
     shader: Handle<Shader>,
     uniform: Buffer,
     vertices: Option<Buffer>,
-    pipelines: Option<(
-        TextureFormat,
-        CachedRenderPipelineId,
-        CachedRenderPipelineId,
-    )>,
+    pipelines: Option<GuiPipelines>,
     textures: Option<GuiTextures>,
     bind_group: Option<([TextureId; 4], BindGroup)>,
 }
+
+struct GuiPipelines {
+    format: TextureFormat,
+    flat: CachedRenderPipelineId,
+    item: CachedRenderPipelineId,
+    invert_red_green: CachedRenderPipelineId,
+    full_blue: CachedRenderPipelineId,
+}
+
+/// One minus the colour already drawn, for a white source.
+// chisle: the blend works on linear colour, so a selected text of E0 inverts to 8A, not to 1F
+// (EDIT-SEL-001); a GUI pass on a non-sRGB target lifts it.
+const INVERT: BlendState = BlendState {
+    color: BlendComponent {
+        src_factor: BlendFactor::OneMinusDst,
+        dst_factor: BlendFactor::Zero,
+        operation: BlendOperation::Add,
+    },
+    alpha: BlendComponent::REPLACE,
+};
 
 struct GuiTextures {
     atlas_view: TextureView,
@@ -197,21 +213,43 @@ pub(super) fn prepare_gui_pass(
     if pass
         .pipelines
         .as_ref()
-        .is_none_or(|(format, ..)| *format != view.target_format)
+        .is_none_or(|pipelines| pipelines.format != view.target_format)
     {
-        let queue_pipeline = |item: bool| {
+        let queue_pipeline = |kind: GuiDrawKind| {
+            let item = kind == GuiDrawKind::Item;
+            let (label, blend, write_mask) = match kind {
+                GuiDrawKind::Flat => (
+                    "gui flat",
+                    Some(BlendState::ALPHA_BLENDING),
+                    ColorWrites::ALL,
+                ),
+                GuiDrawKind::Item => (
+                    "gui items",
+                    Some(BlendState::ALPHA_BLENDING),
+                    ColorWrites::ALL,
+                ),
+                GuiDrawKind::InvertRedGreen => (
+                    "gui invert",
+                    Some(INVERT),
+                    ColorWrites::RED | ColorWrites::GREEN,
+                ),
+                GuiDrawKind::FullBlue => ("gui blue", None, ColorWrites::BLUE),
+            };
             let mut descriptor = pipeline_descriptor(
-                if item { "gui items" } else { "gui flat" }.into(),
+                label.into(),
                 vec![pass.layout.clone()],
                 &pass.shader,
                 "vs_gui".into(),
                 "fs_gui".into(),
                 view,
-                Some(BlendState::ALPHA_BLENDING),
+                blend,
             );
             descriptor.vertex.shader_defs = terrain.path().shader_defs();
             if let Some(fragment) = descriptor.fragment.as_mut() {
                 fragment.shader_defs = terrain.path().shader_defs();
+                for target in fragment.targets.iter_mut().flatten() {
+                    target.write_mask = write_mask;
+                }
             }
             descriptor.vertex.buffers = vec![VertexBufferLayout::from_vertex_formats(
                 VertexStepMode::Vertex,
@@ -241,11 +279,13 @@ pub(super) fn prepare_gui_pass(
             });
             pipeline_cache.queue_render_pipeline(descriptor)
         };
-        pass.pipelines = Some((
-            view.target_format,
-            queue_pipeline(true),
-            queue_pipeline(false),
-        ));
+        pass.pipelines = Some(GuiPipelines {
+            format: view.target_format,
+            flat: queue_pipeline(GuiDrawKind::Flat),
+            item: queue_pipeline(GuiDrawKind::Item),
+            invert_red_green: queue_pipeline(GuiDrawKind::InvertRedGreen),
+            full_blue: queue_pipeline(GuiDrawKind::FullBlue),
+        });
     }
     let sprites = &terrain.sprites;
     let atlas_ids = sprites.atlases.each_ref().map(|slot| slot.texture.id());
@@ -387,27 +427,38 @@ pub fn draw_gui(
     if batch.draws.is_empty() {
         return;
     }
-    let (Some((_, item_id, flat_id)), Some((_, bind_group)), Some(vertices)) = (
-        gui.pipelines,
+    let (Some(ids), Some((_, bind_group)), Some(vertices)) = (
+        gui.pipelines.as_ref(),
         gui.bind_group.as_ref(),
         gui.vertices.as_ref(),
     ) else {
         return;
     };
-    let (Some(item), Some(flat)) = (
-        pipeline_cache.get_render_pipeline(item_id),
-        pipeline_cache.get_render_pipeline(flat_id),
+    let (Some(flat), Some(item)) = (
+        pipeline_cache.get_render_pipeline(ids.flat),
+        pipeline_cache.get_render_pipeline(ids.item),
     ) else {
         return;
     };
+    let invert_red_green = pipeline_cache.get_render_pipeline(ids.invert_red_green);
+    let full_blue = pipeline_cache.get_render_pipeline(ids.full_blue);
     let size = extracted.viewport.zw().as_vec2();
-    let items = batch.draws.iter().filter(|draw| draw.item).count().max(1) as f32;
+    let is_item = |draw: &&GuiDraw| draw.kind == GuiDrawKind::Item;
+    let items = batch.draws.iter().filter(is_item).count().max(1) as f32;
     pass.set_bind_group(0, bind_group, &[]);
     pass.set_vertex_buffer(0, vertices.slice(..));
     let mut band = 0;
     for draw in &batch.draws {
-        if draw.item {
-            pass.set_render_pipeline(item);
+        let Some(pipeline) = (match draw.kind {
+            GuiDrawKind::Flat => Some(flat),
+            GuiDrawKind::Item => Some(item),
+            GuiDrawKind::InvertRedGreen => invert_red_green,
+            GuiDrawKind::FullBlue => full_blue,
+        }) else {
+            continue;
+        };
+        pass.set_render_pipeline(pipeline);
+        if draw.kind == GuiDrawKind::Item {
             pass.set_viewport(
                 0.0,
                 0.0,
@@ -418,7 +469,6 @@ pub fn draw_gui(
             );
             band += 1;
         } else {
-            pass.set_render_pipeline(flat);
             pass.set_viewport(0.0, 0.0, size.x, size.y, 0.0, 1.0);
         }
         pass.draw(draw.range.clone(), 0..1);

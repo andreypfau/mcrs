@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::time::{Duration, Instant};
 
-use mcrs_minecraft_client::options::ClientOptions;
+use mcrs_minecraft_client_options::ClientOptions;
 
 const FRAME_TIMEOUT: Duration = Duration::from_secs(180);
 

@@ -155,21 +155,21 @@ The input is `abc` in gray italic.
 
 ### CHAT-BOX-001: The input box
 
-- **Behavior:**
-  - The input box holds at most 256 characters (CHAT-DEV-002). A paste or a typed text that
-    is longer is cut at the limit.
-  - The box rejects the characters U+00A7, U+007F and each character below U+0020. A paste
-    loses them, and the rest of the paste stays.
+- **Behavior:** the input box is an edit box (`client-edit-box.md`, EDIT-OPT-002). The caret is
+  the cursor of the edit box. These parts are specific to the chat:
+  - The maximum length is 256 characters (CHAT-DEV-002).
   - The box rectangle has the left edge 4, the top `H − 12`, the width `W − 4` and the height
     12. It has no border. The text starts at x = 4 and y = `H − 12`.
   - Before the box, the screen fills the rectangle from (2, `H − 14`) to (`W − 2`, `H − 2`).
     The fill is `80000000`, or CHAT-OPT-001 "Text Background" gives another fill.
-  - The default text colour is `FFE0E0E0`. `client-commands.md`, CCMD-HL-001, colours a
-    command input.
-  - The caret blinks: it shows for 300 ms, then hides for 300 ms, from the moment of focus.
-    At the end of a shorter input, the caret is the glyph `_`. Otherwise it is a bar of
-    1 GUI unit, from y − 1 to y + 10 of the text.
-  - When the text is wider than the box, the box shows the part around the caret.
+  - The text colour is `FFE0E0E0`, the default of `client-edit-box.md`, EDIT-OPT-001.
+    `client-commands.md`, CCMD-HL-001, colours a command input.
+- **Rules of the edit box:** `client-edit-box.md` states the rest of the behaviour:
+  - the refused characters, and a paste that contains them (EDIT-LEN-001);
+  - the cut of a paste or a typed text at the maximum length (EDIT-LEN-002), with characters in
+    place of code units;
+  - the form and the blink of the caret (EDIT-CUR-001, EDIT-CUR-002);
+  - the part of the input that the box shows (EDIT-SCROLL-001, EDIT-DRAW-003).
 - **Postconditions:** the input never holds a character that the server rejects
   (`commands-packet.md`, CMDP-EXEC-002).
 
@@ -179,17 +179,9 @@ rest. Confidence: medium. Experiment: paste a text of 300 `a` into the input box
 
 ### CHAT-BOX-002: Edit keys
 
-The input box has the edit keys of a one-line text field:
-
-| Key | Effect |
-|-----|--------|
-| Backspace, Delete | remove the character before or after the caret; with Ctrl, remove a word |
-| Left, Right | move the caret by one character; with Ctrl, by one word |
-| Home, End | move the caret to the start or to the end |
-| Shift with a move key | select text |
-| Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X | select all, copy, paste, cut |
-
-On macOS, Cmd replaces Ctrl. A generic text field specification can replace this table.
+The input box has the edit keys of the edit box. `client-edit-box.md`, EDIT-KEY-001, states the
+keys, and EDIT-KEY-002 states the word positions. CHAT-KEY-001 states the keys that the chat
+screen uses before the box.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: low. Experiment: type `a b`, press
 Ctrl+Backspace. The input is `a `.
@@ -781,7 +773,8 @@ first.
 
 ### CHAT-DEV-002: The input box counts characters
 
-- **Rule:** CHAT-BOX-001 and CHAT-SEND-002, step 3.
+- **Rule:** CHAT-BOX-001 and CHAT-SEND-002, step 3. The chat differs from
+  `client-edit-box.md`, EDIT-LEN-002, which counts the maximum length in code units.
 - **Reference:** the input box holds at most 256 code units. A cut at the limit does not split a
   surrogate pair. The caret and the edit keys move by code units, and skip the second code unit
   of a pair.

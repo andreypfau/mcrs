@@ -10,7 +10,6 @@ use mcrs_minecraft_entity_key::TILE_WIDTH;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::BodyView;
 use mcrs_minecraft_physics::CROWD_DAMAGE;
-use mcrs_minecraft_physics::Category;
 use mcrs_minecraft_physics::CollisionWorld;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::GridFlags;
@@ -46,8 +45,6 @@ use crate::row_store::deal;
 use crate::row_store::wakes;
 use crate::tile_world::TileWorld;
 
-/// The age at which an item or an experience orb despawns (AIT-VAN-018, AIT-VAN-019).
-const LIFETIME: u32 = 6000;
 /// The death time at which a dying entity leaves the world (DMG-DTH-003).
 const DEATH_TICKS: u8 = 20;
 
@@ -345,17 +342,14 @@ fn tick_tile<W: CollisionWorld, B: BodyView, M>(
                 moved.push(row.id);
             }
             state.age = state.age.wrapping_add(1);
-            let expires = matches!(
-                row.motion.category,
-                Category::Item | Category::ExperienceOrb
-            );
+            let expires = (row.motion.lifetime).is_some_and(|lifetime| state.age >= lifetime);
             let dead = state.living.as_mut().is_some_and(count_down);
             // The hurt time and the damage cooldown do not enter the physics step, so a hit row
             // that rests stays at its fixed point; a knockback is a write, which wakes it.
             if state.living.is_some_and(|living| !living.is_alive()) {
                 state.rest = Rest::Awake;
             }
-            if dead || (expires && state.age >= LIFETIME) {
+            if dead || expires {
                 if dead {
                     died.push(row.id);
                 }

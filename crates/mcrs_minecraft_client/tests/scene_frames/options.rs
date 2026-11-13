@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use mcrs_minecraft_client::options::ClientOptions;
+use mcrs_minecraft_client_options::ClientOptions;
 
 /// The client options that give the options of a scene, which are keys of `options.txt` with
 /// values as that file writes them. A feature that mcrs does not draw yet counts as off, so the
@@ -37,7 +37,7 @@ pub fn client_options(options: &BTreeMap<String, String>) -> Result<ClientOption
             }
         }
     }
-    client.validate()?;
+    client.validate().map_err(|error| error.to_string())?;
     Ok(client)
 }
 

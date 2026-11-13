@@ -28,12 +28,13 @@ const WASM32_PACKAGES: [&str; 11] = [
     "mcrs_minecraft_biome_file",
 ];
 
-const NO_STD_PACKAGES: [&str; 12] = [
+const NO_STD_PACKAGES: [&str; 13] = [
     "mcrs_command",
     "mcrs_minecraft_bedrock_wire",
     "mcrs_minecraft_block_break",
     "mcrs_minecraft_brain",
     "mcrs_minecraft_chat",
+    "mcrs_minecraft_client_widget",
     "mcrs_minecraft_entity_key",
     "mcrs_minecraft_goal_world",
     "mcrs_minecraft_goals",
@@ -43,7 +44,7 @@ const NO_STD_PACKAGES: [&str; 12] = [
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 122] = [
+const NO_BEVY_PACKAGES: [&str; 125] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -68,7 +69,9 @@ const NO_BEVY_PACKAGES: [&str; 122] = [
     "mcrs_minecraft_chat_client",
     "mcrs_minecraft_chunk",
     "mcrs_minecraft_client_jar",
+    "mcrs_minecraft_client_options",
     "mcrs_minecraft_client_recorder",
+    "mcrs_minecraft_client_widget",
     "mcrs_minecraft_goal_world",
     "mcrs_minecraft_goals",
     "mcrs_minecraft_mob_control",
@@ -102,6 +105,7 @@ const NO_BEVY_PACKAGES: [&str; 122] = [
     "mcrs_minecraft_instrument",
     "mcrs_minecraft_inventory_plan",
     "mcrs_minecraft_item",
+    "mcrs_minecraft_item_entity",
     "mcrs_minecraft_item_key",
     "mcrs_minecraft_item_stack",
     "mcrs_minecraft_item_table",

@@ -1,0 +1,14 @@
+[package]
+name = "mcrs_minecraft_client_widget"
+description = "The widgets of the client GUI without rendering: rectangles, layout, pointer and keyboard input, focus and widget state"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+libm.workspace = true
+
+[lints]
+workspace = true

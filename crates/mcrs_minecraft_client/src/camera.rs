@@ -4,6 +4,7 @@ use bevy::math::DVec3;
 use bevy::prelude::*;
 use bevy::render::render_resource::TextureUsages;
 use bevy::render::view::Msaa;
+use mcrs_minecraft_client_options::ClientOptions;
 use mcrs_minecraft_client_world::local_player::{Flying, LocalPlayerTick, Sprint};
 use mcrs_minecraft_client_world::player::{Player, look_direction};
 use mcrs_minecraft_engine_world::entity::physics::{
@@ -28,13 +29,12 @@ const BLOCKS_PER_CHUNK_OF_RENDER_DISTANCE: f32 = 64.0;
 pub struct CameraPlugin {
     /// The render distance in chunks; the far plane of the view frustum follows it.
     pub render_distance: u8,
-    pub fov: FovOptions,
 }
 
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         let far = f32::from(self.render_distance) * BLOCKS_PER_CHUNK_OF_RENDER_DISTANCE;
-        app.insert_resource(self.fov)
+        app.init_resource::<FovOptions>()
             .register_required_components::<Player, Transform>()
             .add_systems(Startup, move |commands: Commands| {
                 spawn_camera(commands, far)
@@ -65,9 +65,10 @@ pub struct FovOptions {
 
 impl Default for FovOptions {
     fn default() -> Self {
+        let options = ClientOptions::default();
         Self {
-            fov: 70,
-            effect_scale: 1.0,
+            fov: options.fov,
+            effect_scale: options.fov_effect_scale,
         }
     }
 }
