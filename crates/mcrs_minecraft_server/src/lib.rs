@@ -6,8 +6,10 @@ use mcrs_minecraft_chat_server::ChatPlugin;
 use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_command_world::WorldCommandsPlugin;
+use mcrs_minecraft_engine::persisted_registry::PersistedAppExt;
 use mcrs_minecraft_engine_brain::MobBrainPlugin;
 use mcrs_minecraft_engine_brain::MobColumn;
+use mcrs_minecraft_engine_item::ItemPersistencePlugin;
 use mcrs_minecraft_engine_mob_replication::MobReplicationPlugin;
 use mcrs_minecraft_engine_physics::EntityPhysicsPlugin;
 use mcrs_minecraft_engine_server::{DimensionWorldsPlugin, ServerCorePlugin, ServerNetworkPlugin};
@@ -70,6 +72,7 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(VanillaChatPlugin)
             .add(VanillaEntityPhysicsPlugin)
             .add(VanillaMobBrainPlugin)
+            .add(VanillaItemPlugin)
             .add(self.world_gen)
             .add(LightingPlugin)
             .add(self.network)
@@ -96,6 +99,16 @@ impl Plugin for VanillaMobBrainPlugin {
             vanilla_brains::vanilla_brain,
             PANIC_CAUSES,
         ));
+    }
+}
+
+/// The item stacks of the player files, in the host and in every dimension world. The item table
+/// comes from the registries that the server loads.
+pub struct VanillaItemPlugin;
+
+impl Plugin for VanillaItemPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_persistence_plugin(ItemPersistencePlugin);
     }
 }
 
