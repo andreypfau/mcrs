@@ -29,6 +29,9 @@ rules for each widget, layout and background. The document does not prescribe an
   an options screen shows one option and changes it.
 - **Options file**: the file in which the client keeps the options between two starts. Its form
   is out of scope.
+- **Stop of the client**: the end of the client on a request of the player. The player closes
+  the window, or activates a button that closes the client (MENU-PAUSE-006, step 5). A crash and
+  a kill of the process are not a stop of the client.
 - **Options screen**: the screen with the title "Options" (section 2).
 - **Option sub-screen**: a screen that the options screen opens and that shows an option list
   (section 3).
@@ -76,7 +79,7 @@ Each example uses W = 427 and H = 240, as in the setup of `client-widget.md`, se
 | `MENU-ACC` | the "Accessibility Settings" screen |
 | `MENU-VAL` | the six options: widget, values, caption, tooltip and effect |
 | `MENU-SCALE` | the GUI scale: its computation, its values and the Ctrl wheel |
-| `MENU-SAVE` | the moments when the client writes the options file |
+| `MENU-SAVE` | the moments when the client writes the options file, and a write that fails |
 | `MENU-PROP` | the properties of each screen that `client-widget.md` leaves open |
 | `MENU-EXP` | experiments |
 | `MENU-DEV` | intentional deviations |
@@ -90,7 +93,7 @@ In scope:
 - the option sub-screens "Video Settings" and "Accessibility Settings", for the order of their
   rows;
 - the six options of mcrs;
-- the moment when the client writes the options file;
+- the moment when the client writes the options file, and what a write that fails leaves in it;
 - the points that `client-widget.md`, section 16, items 5 and 6, hand to this document.
 
 Out of scope:
@@ -707,6 +710,86 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: MENU-EXP-08.
 
+### MENU-SAVE-002: Stop of the client
+
+- **Observer:** the options file, as the client reads it at the next start.
+- **Inputs:** a stop of the client, and the screen that is open at that moment.
+- **Behavior:**
+  1. At a stop of the client, the client removes the screen that is open.
+  2. When that screen is the options screen or an option sub-screen, MENU-SAVE-001, step 2,
+     writes the options file.
+  3. The stop of the client does not write the options file at another moment.
+- **Postconditions:**
+  - The write of step 2 occurs also when no option changed. The client does not compare the
+    options with the content of the file.
+  - With the options screen or an option sub-screen open, the file gets each change that waits
+    for MENU-SAVE-001, step 2. Examples: a change of a slider, and a change by the Ctrl wheel.
+  - With no such screen open, the stop writes nothing. The pause screen is not such a screen.
+    Thus the last button of the pause screen (MENU-PAUSE-006, step 5) writes nothing.
+  - After a stop of the client, the file holds the last value of each of the six options.
+    MENU-SAVE-003 states the exception.
+- **Edge cases:** the client removes only the screen that is open. When an option sub-screen is
+  open, the options screen was removed when the sub-screen opened. Thus a stop writes the file
+  one time at most.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: MENU-EXP-09.
+mcrs deviates: MENU-DEV-005.
+
+### MENU-SAVE-003: A write that fails
+
+- **Observer:** the player, and the options file as the client reads it at the next start.
+- **Inputs:** a write of the options file (MENU-SAVE-001, MENU-SAVE-002) that the client cannot
+  complete. For example, the file is read-only, its directory does not exist, or the disk is
+  full.
+- **Behavior:**
+  1. The client does not try the write again. No timer and no later attempt exists for it.
+  2. The options in memory keep their new values. Each change applies as section 4 states, also
+     when its write fails.
+  3. The client shows no message. Each screen acts as after a write that succeeds. For example,
+     "Done" opens the parent screen.
+  4. The next write occurs at the next moment of MENU-SAVE-001 or MENU-SAVE-002. Each write
+     stores the value that each option has in memory at that moment.
+- **Postconditions:**
+  - When a later write succeeds, the file holds the value that each option has in memory at that
+    moment. For the option of the failed write, this is the value of that change, or a later
+    value when the option changed again.
+  - When no later write succeeds, the next start gets the values that the file holds. These are
+    the old values when the client could not open the file. They are the result of MENU-SAVE-004
+    when the write failed after the open, and that result can hold the change.
+  - When the client cannot open the file, the file keeps the content that it had before the
+    write. A read-only file is an example.
+  - When the write fails after the client opened the file, the file holds the result of
+    MENU-SAVE-004. A full disk is an example.
+- **Edge cases:** the log of the client is not an observer of this rule. The reference writes an
+  error line to its log when it cannot open the file. It writes no line when the write fails
+  after the open. An implementation can write a line for each write that fails.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: MENU-EXP-10.
+mcrs deviates from step 1: MENU-DEV-006.
+
+### MENU-SAVE-004: A write that stops before its end
+
+- **Observer:** the options file, as the client reads it at the next start.
+- **Inputs:** a write of the options file that stops before its end. For example, the process
+  ends, the computer loses power, or the disk becomes full.
+- **Behavior:**
+  1. The client writes the new content into the options file itself. It uses no other file: no
+     temporary file, no copy of the old content and no rename.
+  2. When the write starts, the file loses its old content. Then the new content goes into the
+     file from its first line to its last line.
+  3. The client does not wait until the disk holds the content.
+- **Postconditions:**
+  - After a write that stops before its end, the file is empty or holds the first part of the
+    new content. The old content is lost, and no other file holds it.
+  - The last line in the file can be cut. Its value can then differ from the value in memory.
+  - At the next start, the client reads the options that the file holds. Each other option has
+    its default value.
+  - Because of step 3, a loss of power soon after a write can also leave the file empty or cut.
+- **Edge cases:** a write that cannot open the file does not change the file (MENU-SAVE-003).
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium for steps 1 and 2, low for the
+content after a loss of power. Experiment: MENU-EXP-10. mcrs deviates: MENU-DEV-007.
+
 ---
 
 ## 7. Screen properties
@@ -821,6 +904,37 @@ MENU-SCALE-002.
 
 Decides: MENU-SAVE-001.
 
+### MENU-EXP-09: Stop of the client
+
+1. In a world, open "Options...". Move the FOV slider. Record the file time.
+2. Close the window. Record the file time and the FOV value in `options.txt`.
+3. Start the client. In a world, open "Video Settings...". Record the file time.
+4. Close the window with no change. Record the file time.
+5. Start the client. In a world, with no screen open, record the file time.
+6. Close the window. Record the file time.
+7. Start the client. Open "Video Settings...". Hold Ctrl and turn the wheel one notch.
+8. Close the window. Record the GUI scale value in `options.txt`.
+
+Decides: MENU-SAVE-002.
+
+### MENU-EXP-10: A write that fails or stops before its end
+
+1. Make `options.txt` read-only. In a world, open "Video Settings...". Press "Clouds".
+2. Record the caption, a screenshot of the sky, the new log lines and the content of the file.
+3. Press "Done". Record the screen that shows and the file time.
+4. Make the file writable. Open "Video Settings..." and press "Done". Record the Clouds value in
+   the file.
+5. Make the file read-only. Open "Video Settings...", press "Clouds" and press "Done".
+6. Close the window. Make the file writable. Start the client. Record the caption of "Clouds".
+7. Start the client under a system call tracer. Press "Clouds".
+8. Record each call that opens, truncates, writes, renames or deletes a file of the game
+   directory during the press.
+9. Repeat step 7 with a tracer that ends the process at the first write call on `options.txt`.
+   Record the size and the content of the file.
+10. Start the client. Record the value of each of the six options.
+
+Decides: MENU-SAVE-003 and MENU-SAVE-004.
+
 ---
 
 ## 9. Intentional deviations
@@ -862,6 +976,81 @@ Decides: MENU-SAVE-001.
   is open. In mcrs the caption agrees with the stored value.
 - **Test:** a differential test does not compare the GUI Scale caption after a change of the
   window size while "Video Settings" is open.
+
+### MENU-DEV-005: The stop of the client writes only a change that waits
+
+- **Rule:** MENU-SAVE-002.
+- **Reference:** the rule. The stop writes the file when the options screen or an option
+  sub-screen is open, also when no option changed. With another screen open or none, the stop
+  writes nothing.
+- **mcrs:**
+  1. At a stop of the client, mcrs lets a write that still runs come to its end.
+  2. Then mcrs writes the file when a change waits for its write, or when the last write that
+     ended before the stop failed (MENU-DEV-006). A change of a slider that the player still
+     holds is a change that waits. The screen that is open has no effect.
+  3. When no change waits and no write that ended before the stop failed, the stop writes
+     nothing. The removal of the options screen or of an option sub-screen at the stop does not
+     write the file.
+  4. When the write of step 1 fails, it does not count as a failed write for step 2. When the
+     write of step 2 fails, mcrs does not try it again.
+- **Reason:** when no write failed, the file already holds each change that does not wait. A
+  write of the same values at the stop adds nothing for the next start.
+- **Visible to the client:** no, in normal play. After a stop, the file holds the last value of
+  each option, as in the reference. The time of the file can differ. MENU-DEV-006 states the
+  result after a write that failed.
+- **Test:** a differential test does not compare the time of the file after a stop
+  (MENU-EXP-09). It compares the values in the file.
+
+### MENU-DEV-006: A write that failed occurs again at the stop
+
+- **Rule:** MENU-SAVE-003, step 1.
+- **Reference:** the client does not try a write that failed again. A later write of
+  MENU-SAVE-001 or MENU-SAVE-002 that succeeds stores the value that each option has at that
+  moment. With no such write, the file holds what the postconditions of MENU-SAVE-003 state:
+  the old content, or the result of MENU-SAVE-004.
+- **mcrs:**
+  1. mcrs keeps the fact that the last write failed.
+  2. At the stop of the client, mcrs writes the file once more (MENU-DEV-005, step 2), with any
+     screen open or none. A write that fails during the stop is not tried again (MENU-DEV-005,
+     step 4).
+  3. mcrs does not try the write again on a timer or on each frame.
+  4. A later write that succeeds clears the fact of step 1.
+  5. mcrs writes a warning to its log for each write that fails. The log is not an observer
+     (MENU-SAVE-003, edge cases).
+  6. Steps 2 to 4 of MENU-SAVE-003 apply to mcrs.
+- **Reason:** without the write at the stop, the player loses a change that the screens showed
+  as applied.
+- **Visible to the client:** yes, after a write that failed, when the write at the stop
+  succeeds. At the next start, mcrs has the last value of each option. The reference has the
+  values that its file holds: the old values, or the result of MENU-SAVE-004, which can hold a
+  part of the new values.
+- **Test:** a differential test does not compare the options at the next start after a write
+  that failed (MENU-EXP-10, steps 5 and 6).
+
+### MENU-DEV-007: The options file holds the old or the new content whole
+
+- **Rule:** MENU-SAVE-004.
+- **Reference:** the client writes into the options file itself and does not wait for the disk.
+  After a write that stops before its end, the file is empty or cut. At the next start, each
+  option that the file does not hold gets its default value.
+- **mcrs:**
+  1. mcrs writes the new content to a second file beside the options file.
+  2. mcrs waits until the disk holds the content of the second file.
+  3. mcrs then renames the second file over the options file.
+  - After a write that stops before its end, the options file holds the old content whole or
+    the new content whole. The second file can stay with a part of the new content. The next
+    write replaces it.
+  - A write that fails at a step does not change the options file. Thus the last postcondition
+    of MENU-SAVE-003 does not apply to mcrs.
+- **Reason:** the native client of mcrs refuses to start on an options file that it cannot read.
+  The game gives each missing option its default value.
+- **Visible to the client:** yes, only after a crash, a kill of the process or a loss of power
+  during a write. mcrs starts with the old or the new options. The reference can start with
+  default values.
+- **Test:** a differential test does not compare the file after a write that stops before its
+  end (MENU-EXP-10, steps 7 to 10). Because of the rename, a read-only options file in a
+  writable directory can let a write succeed. A test of MENU-SAVE-003 against mcrs makes the
+  directory read-only in place of the file.
 
 ---
 
