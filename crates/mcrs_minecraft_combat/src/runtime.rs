@@ -1252,8 +1252,9 @@ fn announce_player_deaths(
             .unwrap_or_else(|| Text::text("Player"));
         let cause = death
             .source
-            .causing_entity
-            .or(death.source.direct_entity)
+            .cause
+            .causing
+            .or(death.source.cause.direct)
             .and_then(|key| {
                 players
                     .iter()
@@ -1358,8 +1359,8 @@ fn send_player_damage(
             PacketPayload::DamageEvent(ClientboundDamageEvent {
                 entity_id: VarInt(player_id),
                 damage_type: VarInt(event.hit.damage_type as i32),
-                cause_entity_id: VarInt(network_id(event.hit.source.causing_entity)),
-                direct_entity_id: VarInt(network_id(event.hit.source.direct_entity)),
+                cause_entity_id: VarInt(network_id(event.hit.source.cause.causing)),
+                direct_entity_id: VarInt(network_id(event.hit.source.cause.direct)),
                 source_position: event.hit.source.source_position,
             }),
         ));
@@ -1705,7 +1706,7 @@ fn on_player_attack(
     let mut source = DamageSource::new(damage_types::PLAYER_ATTACK);
     if let Some(uuid) = uuid {
         let key = EntityKey(uuid.0.as_u128());
-        source = source.with_causing(key).with_direct(key);
+        source = source.with_cause(mcrs_minecraft_entity_key::Cause::new(key, key));
     }
     source.source_position = Some(reach.eye);
     let amount = (attack.map_or(1.0, |attack| attack.0)
