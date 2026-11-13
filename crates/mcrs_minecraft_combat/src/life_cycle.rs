@@ -4,6 +4,8 @@ use bevy_ecs::prelude::*;
 use mcrs_minecraft_damage::{DamageTypeFlags, Defence, HitOutcome, hurt};
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::coordinator::clock::GameTime;
+use mcrs_minecraft_engine_brain::EntityRows;
+use mcrs_minecraft_engine_physics::{MobChanges, hurt_mob};
 use mcrs_minecraft_engine_world::entity::physics::Velocity;
 use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
@@ -14,9 +16,7 @@ use crate::components::{
     Armor, Dying, KnockbackResistance, PlayerEffects, PlayerFood, PlayerHitRecord, PlayerVitals,
 };
 use crate::damage_rules::DamageTypeRulesResource;
-use crate::events::{
-    DamageDealt, DamageRequest, DamageTarget, DeathEvent, KnockbackRequest,
-};
+use crate::events::{DamageDealt, DamageRequest, DamageTarget, DeathEvent, KnockbackRequest};
 
 /// Applies every queued player hit through the one damage core (DMG-HIT-001 to DMG-HIT-005).
 #[expect(
@@ -32,6 +32,8 @@ pub fn process_damage_requests(
     rules: Option<Res<DamageTypeRulesResource>>,
     game_rules: Option<Res<GameRules>>,
     time: Res<GameTime>,
+    mut rows: Option<ResMut<EntityRows>>,
+    mut changes: Option<ResMut<MobChanges>>,
     mut query: Query<(
         Entity,
         &mut PlayerVitals,
@@ -45,20 +47,67 @@ pub fn process_damage_requests(
     )>,
 ) {
     for req in requests.read() {
+        let tick = time.0.max(0) as u64;
+        if let DamageTarget::Row(id) = req.target {
+            let (Some(rows), Some(changes)) = (rows.as_deref_mut(), changes.as_deref_mut()) else {
+                continue;
+            };
+            let Some(at) = rows.placed(id) else {
+                continue;
+            };
+            let flags = rules
+                .as_deref()
+                .map_or(DamageTypeFlags::default(), |rules| {
+                    rules.0.flags(req.hit.damage_type)
+                });
+            let before = rows
+                .state_of(at)
+                .and_then(|state| state.living)
+                .map_or(0.0, |living| {
+                    living.vitals.health + living.vitals.absorption
+                });
+            let Some(outcome) = hurt_mob(
+                &mut *rows,
+                &mut *changes,
+                at,
+                req.hit,
+                &Defence::new(flags),
+                tick,
+            ) else {
+                continue;
+            };
+            if outcome == HitOutcome::Rejected {
+                continue;
+            }
+            let after = rows
+                .state_of(at)
+                .and_then(|state| state.living)
+                .map_or(0.0, |living| {
+                    living.vitals.health + living.vitals.absorption
+                });
+            damage_dealt.write(DamageDealt {
+                target: req.target,
+                hit: req.hit,
+                outcome,
+                damage: (before - after).max(0.0),
+            });
+            if rows
+                .state_of(at)
+                .and_then(|state| state.living)
+                .is_some_and(|living| !living.is_alive())
+            {
+                death_events.write(DeathEvent {
+                    target: req.target,
+                    source: req.hit.source,
+                });
+            }
+            continue;
+        }
         let DamageTarget::Player(entity) = req.target else {
             continue;
         };
-        let Ok((
-            _,
-            mut vitals,
-            mut record,
-            mut food,
-            effects,
-            armor,
-            resistance,
-            mode,
-            dying,
-        )) = query.get_mut(entity)
+        let Ok((_, mut vitals, mut record, mut food, effects, armor, resistance, mode, dying)) =
+            query.get_mut(entity)
         else {
             continue;
         };
@@ -101,13 +150,7 @@ pub fn process_damage_requests(
         };
         let health_before = vitals.0.health;
         let before = vitals.0.health + vitals.0.absorption;
-        let outcome = hurt(
-            &mut vitals.0,
-            &mut record.0,
-            &defence,
-            req.hit,
-            time.0 as u64,
-        );
+        let outcome = hurt(&mut vitals.0, &mut record.0, &defence, req.hit, tick);
         if outcome == HitOutcome::Rejected {
             continue;
         }
@@ -130,7 +173,10 @@ pub fn process_damage_requests(
         });
         if outcome == HitOutcome::Full || outcome == HitOutcome::Partial {
             let strength = req.hit.knockback
-                * (1.0 - resistance.map_or(0.0, |resistance| resistance.0 as f32).clamp(0.0, 1.0));
+                * (1.0
+                    - resistance
+                        .map_or(0.0, |resistance| resistance.0 as f32)
+                        .clamp(0.0, 1.0));
             if strength > 0.0 {
                 knockbacks.write(KnockbackRequest {
                     target: entity,
@@ -151,10 +197,7 @@ pub fn process_damage_requests(
 
 /// Counts the death time of a player and removes the dying marker after twenty ticks
 /// (DMG-DTH-001).
-pub fn tick_death(
-    mut commands: Commands,
-    mut query: Query<(Entity, &mut PlayerVitals, &Dying)>,
-) {
+pub fn tick_death(mut commands: Commands, mut query: Query<(Entity, &mut PlayerVitals, &Dying)>) {
     for (entity, mut vitals, _) in &mut query {
         let Some(time) = vitals.0.death_time.as_mut() else {
             continue;

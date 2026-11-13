@@ -22,6 +22,7 @@ use crate::MobIntent;
 use crate::MobRows;
 use crate::Placed;
 use crate::Row;
+use crate::RowAction;
 use crate::TileBodies;
 use crate::TileQueues;
 use crate::TileRows;
@@ -53,6 +54,8 @@ pub struct RowStore<M> {
     pub(crate) changes: Changes,
     /// The crowd hits of the last pass that their rows did not reject, in the order of the keys.
     pub(crate) crowd_hits: Vec<CrowdHit>,
+    /// The block actions of the last pass, by tile.
+    pub(crate) actions: Vec<RowAction>,
     /// The largest half width of a body that the grid ever held.
     pub(crate) reach: f32,
 }
@@ -87,6 +90,7 @@ impl<M> Default for RowStore<M> {
             moved: Vec::new(),
             changes: Changes::default(),
             crowd_hits: Vec::new(),
+            actions: Vec::new(),
             reach: 0.0,
         }
     }
@@ -103,6 +107,13 @@ impl<M> Default for Tile<M> {
 }
 
 impl<M> RowStore<M> {
+    /// Adds a row with `id` and no mob column in the tile of its position.
+    /// The block actions of the last pass, in the order of the tiles.
+    #[must_use]
+    pub fn actions(&self) -> &[RowAction] {
+        &self.actions
+    }
+
     /// Adds a row with `id` and no mob column in the tile of its position.
     pub fn spawn(&mut self, id: EntityId, state: EntityState, motion: MotionRow) {
         let tile = TileKey::at(state.body.position);
@@ -165,6 +176,12 @@ impl<M> RowStore<M> {
     #[must_use]
     pub fn tile_of(&self, id: EntityId) -> Option<TileKey> {
         self.living.get(&id).copied()
+    }
+
+    /// The living row `id` with its tile; `None` when the world has no such row.
+    #[must_use]
+    pub fn placed(&self, id: EntityId) -> Option<Placed> {
+        self.living.get(&id).map(|&tile| Placed { tile, id })
     }
 
     /// The state of the row `at`; `None` when the tile has no such row.

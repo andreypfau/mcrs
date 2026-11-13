@@ -4,10 +4,9 @@ use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_item::ItemHoverMap;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundHurtAnimation, ClientboundPlayerCombatKill,
-    ClientboundRemoveMobEffect, ClientboundRespawn, ClientboundSetEntityData,
-    ClientboundSetExperience, ClientboundSetHealth, ClientboundUpdateAttributes,
-    ClientboundUpdateMobEffect,
+    ClientboundHurtAnimation, ClientboundPlayerCombatKill, ClientboundRemoveMobEffect,
+    ClientboundRespawn, ClientboundSetEntityData, ClientboundSetExperience, ClientboundSetHealth,
+    ClientboundUpdateAttributes, ClientboundUpdateMobEffect,
 };
 use mcrs_minecraft_protocol_game::entity::MetaDataValue;
 use mcrs_minecraft_protocol_game::entity_data_index;

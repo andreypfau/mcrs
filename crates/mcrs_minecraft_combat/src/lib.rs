@@ -14,8 +14,8 @@ mod runtime;
 
 pub use combat_plugin::{CombatPlugin, CombatSet};
 pub use components::{
-    Armor, ArmorToughness, AttackDamage, Dying, KnockbackResistance,
-    PlayerEffects, PlayerExperience, PlayerFood, PlayerHitRecord, PlayerVitals, RespawnPoint,
+    Armor, ArmorToughness, AttackDamage, Dying, KnockbackResistance, PlayerEffects,
+    PlayerExperience, PlayerFood, PlayerHitRecord, PlayerVitals, RespawnPoint,
 };
 pub use damage_rules::DamageTypeRulesResource;
 pub use death_drops::{DropInventoryOnDeathEvent, handle_death_drops};
@@ -23,14 +23,12 @@ pub use effects::{
     ActiveEffect, ApplyEffectEvent, MobEffect, RemoveEffectEvent, handle_apply_effect_events,
     tick_active_effects,
 };
-pub use equipment::{EntityEquipment, EquipmentChangedEvent, track_equipment_changes};
+pub use equipment::EntityEquipment;
 pub use events::{
     DamageDealt, DamageRequest, DamageTarget, DeathEvent, KnockbackRequest, RespawnRequest,
 };
 pub use experience::ExperienceGainedEvent;
-pub use life_cycle::{
-    apply_knockback, process_damage_requests, tick_death, tick_player_cooldowns,
-};
+pub use life_cycle::{apply_knockback, process_damage_requests, tick_death, tick_player_cooldowns};
 pub use mcrs_minecraft_damage::{
     DamageSource, DamageTypeFlags, DamageTypeRules, Effects, Experience, Food, Hit,
     points_for_level, total_points_for_level,

@@ -1,6 +1,6 @@
-use mcrs_minecraft_damage::{Defence, Hit};
 use mcrs_minecraft_damage::HitOutcome;
 use mcrs_minecraft_damage::compute_knockback;
+use mcrs_minecraft_damage::{Defence, Hit};
 use mcrs_minecraft_entity_rows::Placed;
 use mcrs_minecraft_entity_rows::RowStore;
 
@@ -23,7 +23,8 @@ pub fn hurt_mob<M>(
         fall_immune: living.fall_damage_immune,
         ..*defence
     };
-    let outcome = mcrs_minecraft_damage::hurt(&mut living.vitals, &mut state.hits, &defence, hit, tick);
+    let outcome =
+        mcrs_minecraft_damage::hurt(&mut living.vitals, &mut state.hits, &defence, hit, tick);
     if outcome == HitOutcome::Rejected {
         return Some(outcome);
     }
@@ -99,7 +100,10 @@ mod tests {
             &mut MobChanges::default(),
             at,
             Hit::new(5.0, 0),
-            &Defence::default(),
+            &Defence::new(mcrs_minecraft_damage::DamageTypeFlags {
+                is_fire: true,
+                ..mcrs_minecraft_damage::DamageTypeFlags::default()
+            }),
             0,
         );
         assert_eq!(outcome, Some(HitOutcome::Rejected));
@@ -119,7 +123,10 @@ mod tests {
             &mut MobChanges::default(),
             at,
             Hit::new(5.0, 0),
-            &Defence::default(),
+            &Defence::new(mcrs_minecraft_damage::DamageTypeFlags {
+                is_fall: true,
+                ..mcrs_minecraft_damage::DamageTypeFlags::default()
+            }),
             0,
         );
         assert_eq!(outcome, Some(HitOutcome::Rejected));

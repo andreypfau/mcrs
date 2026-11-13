@@ -82,12 +82,7 @@ pub fn ignite(vitals: &mut Vitals, ticks: i32, fire_immune: bool) {
 
 /// Advances the air supply and returns whether the entity takes the drown hit
 /// (ENV-AIR-002, ENV-AIR-003).
-pub fn tick_air(
-    vitals: &mut Vitals,
-    max_air: i32,
-    can_drown: bool,
-    refills: bool,
-) -> bool {
+pub fn tick_air(vitals: &mut Vitals, max_air: i32, can_drown: bool, refills: bool) -> bool {
     if can_drown {
         vitals.air -= 1;
     } else if vitals.air < max_air && refills {
@@ -114,9 +109,7 @@ pub fn tick_freeze(
     } else if !can_freeze || (!in_powder_snow && !freezing_effect) {
         vitals.frozen_ticks = (vitals.frozen_ticks - 2).max(0);
     }
-    can_freeze
-        && vitals.frozen_ticks >= FROZEN_TICKS
-        && age.is_multiple_of(40)
+    can_freeze && vitals.frozen_ticks >= FROZEN_TICKS && age.is_multiple_of(40)
 }
 
 #[cfg(test)]

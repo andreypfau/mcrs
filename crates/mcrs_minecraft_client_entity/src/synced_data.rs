@@ -1,8 +1,8 @@
 use bevy_ecs::component::Component;
 use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_entity::attribute_instance::fold_attribute;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::variant::{FrogVariant, PigVariant};
-use mcrs_minecraft_entity::attribute_instance::fold_attribute;
 use mcrs_minecraft_protocol_game::clientbound::AttributeSnapshot;
 use mcrs_minecraft_protocol_game::entity::{MetaDataValue, MetadataEntry, Pose};
 use mcrs_minecraft_protocol_game::entity_data_index::{

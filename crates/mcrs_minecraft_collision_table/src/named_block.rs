@@ -10,6 +10,7 @@ pub(crate) struct NamedBlock {
     pub(crate) speed_factor: f32,
     pub(crate) jump_factor: f32,
     pub(crate) bounce: f32,
+    pub(crate) fall_damage_multiplier: f32,
 }
 
 impl NamedBlock {
@@ -21,21 +22,36 @@ impl NamedBlock {
             speed_factor: BlockMotion::DEFAULT.speed_factor,
             jump_factor: BlockMotion::DEFAULT.jump_factor,
             bounce: BlockMotion::DEFAULT.bounce,
+            fall_damage_multiplier: BlockMotion::DEFAULT.fall_damage_multiplier,
         };
         match path {
-            "slime_block" => {
-                named.bounce = 1.0;
-                named.flags |= BlockFlags::SLIME;
-            }
             "soul_sand" => named.speed_factor = 0.4,
             "honey_block" => {
                 named.speed_factor = 0.4;
                 named.jump_factor = 0.5;
                 named.inside = InsideEffect::Honey;
+                named.fall_damage_multiplier = 0.2;
             }
             "shelf_mushroom" => named.bounce = 0.75,
+            "slime_block" => {
+                named.bounce = 1.0;
+                named.fall_damage_multiplier = 0.0;
+                named.flags |= BlockFlags::SLIME;
+            }
+            "magma_block" => named.flags |= BlockFlags::HOT_FLOOR,
+            "cactus" => named.flags |= BlockFlags::CACTUS,
+            "sweet_berry_bush" => {
+                named.inside = InsideEffect::SweetBerryBush;
+                named.flags |= BlockFlags::SWEET_BERRY_BUSH;
+            }
+            "fire" | "soul_fire" => named.flags |= BlockFlags::FIRE,
+            "hay_block" => named.fall_damage_multiplier = 0.2,
+            "red_bed" | "black_bed" | "blue_bed" | "brown_bed" | "cyan_bed" | "gray_bed"
+            | "green_bed" | "light_blue_bed" | "light_gray_bed" | "lime_bed" | "magenta_bed"
+            | "orange_bed" | "pink_bed" | "purple_bed" | "white_bed" | "yellow_bed" => {
+                named.fall_damage_multiplier = 0.5;
+            }
             "cobweb" => named.inside = InsideEffect::Cobweb,
-            "sweet_berry_bush" => named.inside = InsideEffect::SweetBerryBush,
             "powder_snow" => named.inside = InsideEffect::PowderSnow,
             "water" => named.flags |= BlockFlags::OWN_SPEED_FACTOR,
             "bubble_column" => {

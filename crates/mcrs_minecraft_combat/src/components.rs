@@ -1,8 +1,8 @@
 use bevy_ecs::component::Component;
 use core::ops::{Deref, DerefMut};
 use mcrs_minecraft_damage::{Effects, Experience, Food};
-use mcrs_minecraft_physics::HitRecord;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_physics::HitRecord;
 use mcrs_minecraft_physics::Vitals;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 
@@ -156,4 +156,3 @@ pub struct ArmorToughness(pub f32);
 /// The attack damage that the equipment of a player adds.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
 pub struct AttackDamage(pub f32);
-

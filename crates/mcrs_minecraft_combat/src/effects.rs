@@ -95,12 +95,11 @@ pub fn tick_active_effects(
             continue;
         }
         let mut actions = Vec::new();
-        let removed = effects.0.tick(
-            false,
-            vitals.0.health,
-            vitals.0.absorption,
-            |action| actions.push(action),
-        );
+        let removed = effects
+            .0
+            .tick(false, vitals.0.health, vitals.0.absorption, |action| {
+                actions.push(action)
+            });
         for action in actions {
             match action {
                 EffectAction::Heal(amount) => {
@@ -122,7 +121,10 @@ pub fn tick_active_effects(
                         food.0.add_exhaustion(amount);
                     }
                 }
-                EffectAction::Saturation { food: add, saturation } => {
+                EffectAction::Saturation {
+                    food: add,
+                    saturation,
+                } => {
                     if let Some(ref mut food) = food {
                         food.0.food_level = food.0.food_level.saturating_add(add).min(20);
                         food.0.saturation =

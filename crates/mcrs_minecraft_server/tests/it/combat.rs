@@ -198,9 +198,7 @@ fn dmg_death_002_death_drops_the_inventory() {
             player,
             mcrs_minecraft_combat::Hit::from_source(
                 1000.0,
-                mcrs_minecraft_combat::DamageSource::new(
-                    10,
-                ),
+                mcrs_minecraft_combat::DamageSource::new(10),
             ),
         ));
     server.ticks(anchor, 4);
@@ -239,9 +237,8 @@ fn dmg_env_003_a_player_outside_the_world_border_takes_damage() {
             .expect("the player has a transform");
         transform.translation.x = 10.0;
     }
-    server
-        .world()
-        .insert_resource(mcrs_minecraft_engine_world::world_settings::WorldBorderSettings(
+    server.world().insert_resource(
+        mcrs_minecraft_engine_world::world_settings::WorldBorderSettings(
             mcrs_minecraft_entity::WorldBorderSettings {
                 center_x: 0.0,
                 center_z: 0.0,
@@ -249,7 +246,8 @@ fn dmg_env_003_a_player_outside_the_world_border_takes_damage() {
                 safe_zone: 0.0,
                 damage_per_block: 0.2,
             },
-        ));
+        ),
+    );
     server.ticks(anchor, 10);
     let health = health_of(&mut server, anchor);
     assert_eq!(
@@ -271,7 +269,12 @@ fn summoned_mob(server: &mut PlayServer, x: f64) -> (u64, f32) {
     let rows = server.world().resource::<EntityRows>();
     rows.living_rows()
         .find(|(_, state)| (state.body.position.x - x).abs() < 1.0)
-        .map(|(at, state)| (at.id.0, state.living.expect("the summon is living").vitals.health))
+        .map(|(at, state)| {
+            (
+                at.id.0,
+                state.living.expect("the summon is living").vitals.health,
+            )
+        })
         .expect("the summon has a row")
 }
 
@@ -281,7 +284,8 @@ fn mob_health(server: &mut PlayServer, id: u64) -> f32 {
         .find(|(at, _)| at.id.0 == id)
         .and_then(|(_, state)| state.living)
         .expect("the mob is alive")
-        .vitals.health
+        .vitals
+        .health
 }
 
 /// DMG-SRC-002: a bare-hand player attack reaches a mob within the survival entity range, and

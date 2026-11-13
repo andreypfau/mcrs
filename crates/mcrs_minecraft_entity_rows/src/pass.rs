@@ -8,6 +8,7 @@ use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::KeyedStream;
 use mcrs_minecraft_entity_key::TILE_WIDTH;
 use mcrs_minecraft_entity_key::TileKey;
+use mcrs_minecraft_physics::BlockAction;
 use mcrs_minecraft_physics::BodyView;
 use mcrs_minecraft_physics::CROWD_DAMAGE;
 use mcrs_minecraft_physics::CollisionWorld;
@@ -81,6 +82,15 @@ struct TileStep {
     died: Vec<EntityId>,
     /// The rows that drew the crowd damage, for the crowd fix-up.
     crowd: Vec<Crowded>,
+    /// The block actions of the rows of the tile.
+    actions: Vec<(EntityId, BlockAction)>,
+}
+
+/// A block action that the pass of one row made (B7).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RowAction {
+    pub at: Placed,
+    pub action: BlockAction,
 }
 
 /// A row whose crowd counts, from the start of the tick, give it the crowd damage.
@@ -116,6 +126,7 @@ impl<M: Send> RowStore<M> {
         grid: &BodyGrid,
     ) -> Vec<EntityId> {
         self.moved.clear();
+        self.actions.clear();
         self.changes.spawned.clear();
         self.changes.removed.clear();
         let bodies = FrontGrid {
@@ -163,6 +174,14 @@ impl<M: Send> RowStore<M> {
                 tile: step.tile,
                 id,
             }));
+            self.actions
+                .extend(step.actions.into_iter().map(|(id, action)| RowAction {
+                    at: Placed {
+                        tile: step.tile,
+                        id,
+                    },
+                    action,
+                }));
             self.leaving.extend(step.left.into_iter().map(|id| Leaving {
                 from: step.tile,
                 id,
@@ -305,6 +324,7 @@ fn tick_tile<W: CollisionWorld, B: BodyView, M>(
     let mut moved = Vec::new();
     let mut died = Vec::new();
     let mut crowd = Vec::new();
+    let mut row_actions = Vec::new();
     let mut intents = mem::take(&mut entry.intents);
     intents.sort_by_key(|intent| intent.target);
     for row in rows.rows_mut() {
@@ -337,7 +357,7 @@ fn tick_tile<W: CollisionWorld, B: BodyView, M>(
                 push_row(view.bodies, pass, &own, state, &mut crowd, scratch);
             }
             tick_entity(view, SERVER, row.motion, state, wake, &mut actions, scratch);
-            actions.clear();
+            row_actions.extend(actions.drain(..).map(|action| (row.id, action)));
             if start.is_some() {
                 stirred |= !same_bits(&before, &state.body);
             }
@@ -385,6 +405,7 @@ fn tick_tile<W: CollisionWorld, B: BodyView, M>(
         moved,
         died,
         crowd,
+        actions: row_actions,
     }
 }
 

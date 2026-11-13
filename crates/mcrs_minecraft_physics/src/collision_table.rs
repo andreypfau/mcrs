@@ -42,7 +42,7 @@ pub struct StateCollision {
     pub path: PathType,
 }
 
-const _: () = assert!(size_of::<StateCollision>() == 44);
+const _: () = assert!(size_of::<StateCollision>() == 48);
 
 impl StateCollision {
     pub const AIR: StateCollision = StateCollision {

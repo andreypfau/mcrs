@@ -5,9 +5,9 @@ use mcrs_minecraft_engine_item::{Slots, StackCommandsExt};
 use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_game_rule::GameRule;
 
+use crate::events::DamageTarget;
 use crate::events::DeathEvent;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
-use crate::events::DamageTarget;
 
 /// Event emitted when an entity's inventory should be dropped at the death position (#116).
 #[derive(Message, Clone, Debug, PartialEq)]

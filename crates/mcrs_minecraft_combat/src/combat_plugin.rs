@@ -7,10 +7,11 @@ use crate::death_drops::{DropInventoryOnDeathEvent, drop_dead_inventories, handl
 use crate::effects::{
     ApplyEffectEvent, RemoveEffectEvent, handle_apply_effect_events, tick_active_effects,
 };
-use crate::equipment::{EquipmentChangedEvent, track_equipment_changes};
 use crate::events::{DamageDealt, DamageRequest, DeathEvent, KnockbackRequest, RespawnRequest};
 use crate::experience::ExperienceGainedEvent;
-use crate::life_cycle::{apply_knockback, process_damage_requests, tick_player_cooldowns, tick_death};
+use crate::life_cycle::{
+    apply_knockback, process_damage_requests, tick_death, tick_player_cooldowns,
+};
 
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CombatSet {
@@ -39,7 +40,6 @@ impl Plugin for CombatPlugin {
         app.add_message::<ApplyEffectEvent>();
         app.add_message::<RemoveEffectEvent>();
         app.add_message::<DropInventoryOnDeathEvent>();
-        app.add_message::<EquipmentChangedEvent>();
         app.add_message::<ExperienceGainedEvent>();
 
         app.configure_sets(
@@ -74,10 +74,6 @@ impl Plugin for CombatPlugin {
             )
                 .chain()
                 .in_set(CombatSet::Outcome),
-        );
-        app.add_systems(
-            FixedUpdate,
-            track_equipment_changes.in_set(CombatSet::Progress),
         );
     }
 }

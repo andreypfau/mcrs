@@ -84,11 +84,7 @@ impl Food {
         }
 
         let hurt = vitals.health > 0.0 && vitals.health < vitals.max_health;
-        if natural_regeneration
-            && self.saturation > 0.0
-            && self.food_level >= 20
-            && hurt
-        {
+        if natural_regeneration && self.saturation > 0.0 && self.food_level >= 20 && hurt {
             self.tick_timer += 1;
             if self.tick_timer >= 10 {
                 self.tick_timer = 0;

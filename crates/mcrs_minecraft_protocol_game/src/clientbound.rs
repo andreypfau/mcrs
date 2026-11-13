@@ -693,9 +693,7 @@ pub enum AttributeOperation {
     AddMultipliedTotal,
 }
 
-impl From<AttributeOperation>
-    for mcrs_minecraft_entity::attribute_instance::AttributeOperation
-{
+impl From<AttributeOperation> for mcrs_minecraft_entity::attribute_instance::AttributeOperation {
     fn from(operation: AttributeOperation) -> Self {
         match operation {
             AttributeOperation::AddValue => Self::AddValue,
