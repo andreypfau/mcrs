@@ -18,7 +18,7 @@ pub(crate) fn wire_stack_of(
         .and_then(|value| wire_stack(&value, table))
 }
 
-// ponytail: the two stack models meet through the bytes of the wire; a direct conversion when
+// chisle: the two stack models meet through the bytes of the wire; a direct conversion when
 // the protocol holds `ItemStack`.
 fn wire_stack(stack: &ItemStack, table: &ItemTable) -> Option<ProtoStack<Wire>> {
     let mut bytes = Vec::new();

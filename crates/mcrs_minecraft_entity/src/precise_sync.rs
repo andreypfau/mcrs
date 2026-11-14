@@ -3,6 +3,7 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum PreciseSync {
+    /// Only for the reasons of every simulated entity: a resync or a move that does not fit.
     Never,
     /// After each tick whose move had a horizontal or a vertical collision.
     AfterCollision,

@@ -41,7 +41,7 @@ fn motion_row() -> MotionRow {
 
 /// Gives each dropped stack without a motion its motion: the start of its launch, or its position
 /// at rest. A stack dropped without a launch gets the default values (IEN-DAT-002). A stack
-/// without a wire form gets no appearance, so it never moves.
+/// without a wire form cannot be shown, so it leaves the world instead of becoming an item entity.
 pub(crate) fn spawn_motions(
     mut commands: Commands,
     pending: Query<
@@ -54,6 +54,10 @@ pub(crate) fn spawn_motions(
     table: Res<ItemTable>,
 ) {
     for (stack, dropped, launching, fixed) in &pending {
+        let Some(wire) = wire_stack_of(&mut stacks, &table, stack) else {
+            commands.entity(stack).despawn();
+            continue;
+        };
         let (source, form) = match launching {
             Some(launching) => (launching.source, launching.form),
             None => (
@@ -76,16 +80,17 @@ pub(crate) fn spawn_motions(
         };
         let mut state = EntityState::new(key, body, None);
         state.phase = key.phase_offset();
-        let mut entity = commands.entity(stack);
-        entity
+        commands
+            .entity(stack)
             .remove::<(Launching, FixedKey)>()
-            .insert((MotionState(state), MotionKind(motion_row())))
+            .insert((
+                MotionState(state),
+                MotionKind(motion_row()),
+                Appearance {
+                    kind: &EntityTypeData::ITEM,
+                    look: SpawnLook::Item(wire),
+                },
+            ))
             .insert_if_new(ItemEntity::default());
-        if let Some(wire) = wire_stack_of(&mut stacks, &table, stack) {
-            entity.insert(Appearance {
-                kind: &EntityTypeData::ITEM,
-                look: SpawnLook::Item(wire),
-            });
-        }
     }
 }

@@ -23,6 +23,7 @@ pub struct EntityTypeData {
     pub update_interval: u32,
     /// Each update compares the velocity with the last sent velocity (TRK-UPD-007).
     pub tracks_velocity: bool,
+    /// How the client moves the entity between two updates, which selects the move packets.
     pub client_motion: ClientMotion,
     pub fire_immune: bool,
     /// The size of a baby relative to the adult, which the renderer applies; `None` for a type

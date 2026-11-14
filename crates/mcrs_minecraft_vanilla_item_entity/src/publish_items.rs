@@ -1,4 +1,5 @@
 use bevy_ecs::change_detection::DetectChanges;
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::query::Added;
@@ -88,14 +89,11 @@ pub(crate) fn publish_takes(
     }
     for (count, mut appearance) in &mut spawning {
         let count = i32::from(count.get());
-        let SpawnLook::Item(stack) = &appearance.look else {
-            continue;
-        };
-        if stack.count == count {
-            continue;
-        }
-        if let SpawnLook::Item(stack) = &mut appearance.look {
+        if let SpawnLook::Item(stack) = &mut appearance.bypass_change_detection().look
+            && stack.count != count
+        {
             stack.count = count;
+            appearance.set_changed();
         }
     }
 }

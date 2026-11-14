@@ -24,7 +24,7 @@ const VELOCITY_CHANGE: f64 = 1.0e-7;
 
 /// The tracker of one mob, which all its viewers share (TRK-UPD-001 to TRK-UPD-009): what the
 /// viewers last received, and the open step of the path of the next update.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct MobTracker {
     kind: &'static EntityTypeData,
     /// The tick of the first tracker tick.
@@ -44,7 +44,7 @@ pub(crate) struct MobTracker {
 }
 
 /// The motion of a mob that its viewers last received.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 struct Sent {
     /// The position base.
     position: DVec3,
@@ -159,15 +159,14 @@ impl MobTracker {
     /// `bytes`. The tracker and `bytes` stay as they are when an encoding fails.
     pub(crate) fn tick(&mut self, id: VarInt, tick: u64, bytes: &mut BytesMut) -> Result<()> {
         let interval = u64::from(self.kind.update_interval.max(1));
-        if self.latest.bounced {
-            self.latest.bounced = false;
-            if !self.kind.is_living() {
-                let count = tick.wrapping_sub(self.start);
-                let jumped = (count / interval).wrapping_add(1).wrapping_mul(interval);
-                self.start = tick.wrapping_sub(jumped);
-            }
-        }
-        let count = tick.wrapping_sub(self.start);
+        let start = if self.latest.bounced && !self.kind.is_living() {
+            let count = tick.wrapping_sub(self.start);
+            let jumped = (count / interval).wrapping_add(1).wrapping_mul(interval);
+            tick.wrapping_sub(jumped)
+        } else {
+            self.start
+        };
+        let count = tick.wrapping_sub(start);
         let dirty = self.dirty();
         if count.is_multiple_of(interval) || dirty {
             let (sent, since_sync) = (self.sent, self.since_sync);
@@ -181,6 +180,8 @@ impl MobTracker {
                 self.sent_entries = self.entries.clone();
             }
         }
+        self.start = start;
+        self.latest.bounced = false;
         self.open = self.open.saturating_add(1);
         self.last = tick;
         Ok(())
@@ -759,6 +760,92 @@ mod tests {
         }
     }
 
+    /// TRK-UPD-003 and TRK-UPD-016: the 401st counted update since the last resync is a resync.
+    /// A sync because the move does not fit counts and does not end the count; an item at rest
+    /// does not count.
+    #[test]
+    fn trk_upd_003_016_the_401st_counted_update_resyncs() {
+        let path = |tick: u64, jump: u64, rest: core::ops::RangeInclusive<u64>| {
+            let moving = if tick > *rest.end() {
+                tick - (rest.end() - rest.start())
+            } else {
+                tick.min(*rest.start())
+            };
+            let x = if tick >= jump { 100.5 } else { 0.5 };
+            DVec3::new(x, -40.0 + 0.01 * moving as f64, 4.5)
+        };
+        let rows: [(
+            &'static EntityTypeData,
+            u64,
+            core::ops::RangeInclusive<u64>,
+            u64,
+            [u64; 2],
+            &str,
+        ); 2] = [
+            (
+                &EntityTypeData::ZOMBIFIED_PIGLIN,
+                297,
+                u64::MAX..=u64::MAX,
+                1210,
+                [297, 1200],
+                "a mob: update n at tick 3 (n - 1)",
+            ),
+            (
+                &EntityTypeData::ITEM,
+                1000,
+                2000..=4000,
+                10010,
+                [1000, 10000],
+                "an item: 101 counted updates to tick 2000, none at rest to tick 4000",
+            ),
+        ];
+        for (kind, jump, rest, ticks, expected, case) in rows {
+            let states: Vec<MobState> = (0..ticks)
+                .map(|tick| MobState {
+                    position: path(tick, jump, rest.clone()),
+                    ..MobState::default()
+                })
+                .collect();
+            let spawn = MobState {
+                position: DVec3::new(0.5, -41.0, 4.5),
+                ..MobState::default()
+            };
+            let mut tracker = MobTracker::new(
+                spawn,
+                Entries::FallingBlock(BlockPos::new(0, 0, 0)),
+                kind,
+                0,
+            );
+            let syncs: Vec<u64> = updates(&mut tracker, &states)
+                .into_iter()
+                .filter(|(tick, bytes)| {
+                    let position = states[*tick as usize].position;
+                    let path = if kind.is_living() && *tick > 0 {
+                        PositionPath::Stepped {
+                            steps: vec![PositionStep {
+                                position,
+                                tick_offset: VarInt(3),
+                            }],
+                            start_immediately: false,
+                        }
+                    } else {
+                        PositionPath::Linear(position)
+                    };
+                    let sync = record(&ClientboundEntityPositionSync {
+                        entity_id: ID,
+                        position: path,
+                        look: Look::default(),
+                        on_ground: false,
+                    })
+                    .unwrap();
+                    *bytes == sync
+                })
+                .map(|(tick, _)| tick)
+                .collect();
+            assert_eq!(syncs, expected, "{case}");
+        }
+    }
+
     #[test]
     fn trk_upd_005_an_item_moves_on_the_linear_path() {
         let states: Vec<MobState> = (0..21)
@@ -773,6 +860,39 @@ mod tests {
             updates.last(),
             Some(&(20, linear(states[0].position, states[20].position, false))),
             "one linear move over the interval, not a step of 20 ticks"
+        );
+    }
+
+    #[test]
+    fn an_update_that_fails_to_encode_leaves_the_tracker_as_it_was() {
+        let spawn = MobState {
+            position: DVec3::new(0.5, -40.0, 4.5),
+            ..MobState::default()
+        };
+        let mut tracker = MobTracker::new(spawn, Entries::custom(&[]), &EntityTypeData::ITEM, 0);
+        tracker.tick(ID, 0, &mut BytesMut::new()).unwrap();
+        tracker.record(MobState {
+            position: DVec3::new(0.5, -41.0, 4.5),
+            bounced: true,
+            ..MobState::default()
+        });
+        tracker.record_entries(&[MetadataEntry {
+            index: 0xFF,
+            value: MetaDataValue::Byte(0),
+        }]);
+        let before = tracker.clone();
+        let mut out = BytesMut::new();
+
+        let result = tracker.tick(ID, 5, &mut out);
+
+        assert!(
+            result.is_err(),
+            "the index 0xFF is the end marker of entity data"
+        );
+        assert!(out.is_empty(), "no packet of the update is written");
+        assert_eq!(
+            tracker, before,
+            "the bounce and the move wait for the next tick"
         );
     }
 

@@ -1,4 +1,5 @@
 mod block_loot;
+mod entity_motion;
 mod falling_blocks;
 mod item_entities;
 pub mod operator_broadcast;

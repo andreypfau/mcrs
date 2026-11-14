@@ -11,6 +11,7 @@ use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_entity_motion::StepOutcome;
 use mcrs_minecraft_engine_entity_motion_replication::MotionId;
 use mcrs_minecraft_engine_item::Dropped;
+use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
 use mcrs_minecraft_entity_key::EntityKey;
@@ -42,6 +43,7 @@ pub(crate) fn step_items(
     mut commands: Commands,
     mut items: Query<(Entity, &mut ItemEntity, &MotionState, &StepOutcome), With<MotionId>>,
     dimension: Option<Single<&DimensionTypeConfig, With<Dimension>>>,
+    clock: Res<BirthClock>,
     mut stepped: ResMut<Stepped>,
 ) {
     stepped.0.clear();
@@ -49,14 +51,18 @@ pub(crate) fn step_items(
         f64::from(config.min_y) - VOID_DEPTH
     });
     for (stack, mut item, state, outcome) in &mut items {
-        let before = outcome.start;
+        let state = &state.0;
+        let position = state.body.position;
+        let before = if outcome.is_of(*clock) {
+            outcome.start
+        } else {
+            position
+        };
         if before.y < floor {
             commands.entity(stack).despawn();
             continue;
         }
         item.count_down();
-        let state = &state.0;
-        let position = state.body.position;
         stepped.0.push(SteppedItem {
             stack,
             key: state.key,
