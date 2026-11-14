@@ -47,8 +47,14 @@ impl BlockBehaviour<WorldKinds> for VanillaBlocks {
         _neighbour: BlockPos,
         _neighbour_state: BlockStateId,
     ) -> BlockStateId {
-        let read = |pos| cx.state(pos).unwrap_or(self.void_air);
-        if self.support.stays_after_update(state, at, from, read) {
+        let mut unavailable = false;
+        let read = |pos| {
+            cx.state(pos).unwrap_or_else(|_| {
+                unavailable = true;
+                self.void_air
+            })
+        };
+        if self.support.stays_after_update(state, at, from, read) || unavailable {
             state
         } else {
             self.air

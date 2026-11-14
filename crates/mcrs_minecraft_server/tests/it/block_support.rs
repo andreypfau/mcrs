@@ -214,6 +214,22 @@ fn sup_veg_002_both_parts_of_a_sunflower_go_with_its_base() {
     assert_eq!(world.item_entities(), one(Item::Sunflower));
 }
 
+/// SUP-RUN-001: a shape update whose support read reaches a section that is not available keeps
+/// the subject; only the void outside the world reads as void air.
+#[test]
+fn sup_run_001_an_unavailable_base_keeps_the_plant() {
+    let mut world = World::new();
+    let stone = world.state("minecraft:stone", &[]);
+    let poppy = world.state("minecraft:poppy", &[]);
+    let lowest = BlockPos::new(P.x, BELOW.y - 15, P.z);
+    world.set(lowest, poppy, KEEP_SHAPE);
+    assert_eq!(world.block_at(lowest), poppy);
+
+    world.set(lowest + IVec3::X, stone, BlockUpdateFlags::ALL);
+
+    assert_eq!(world.block_at(lowest), poppy);
+}
+
 /// SUP-VEG-002: a change beside a part of a tall plant, not above or below it, leaves the plant.
 #[test]
 fn sup_veg_002_a_side_neighbour_leaves_a_tall_plant() {
