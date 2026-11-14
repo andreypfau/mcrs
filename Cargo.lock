@@ -6247,6 +6247,7 @@ dependencies = [
  "mcrs_minecraft_goals",
  "mcrs_minecraft_heightmap",
  "mcrs_minecraft_item",
+ "mcrs_minecraft_item_entity",
  "mcrs_minecraft_item_key",
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_item_table",

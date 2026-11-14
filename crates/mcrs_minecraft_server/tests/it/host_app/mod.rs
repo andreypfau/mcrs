@@ -430,6 +430,16 @@ pub struct Arrival<'a> {
 /// Places a new session in `dim` and sends the spawn of its player, without running a tick.
 /// Returns its host anchor.
 pub fn admit(app: &mut App, dim: Entity, arrival: &Arrival<'_>) -> Entity {
+    admit_with_file(app, dim, arrival, &PersistedSnapshot::new())
+}
+
+/// [`admit`] of a player whose file holds the keys of `file`, as the host reads them at a join.
+pub fn admit_with_file(
+    app: &mut App,
+    dim: Entity,
+    arrival: &Arrival<'_>,
+    file: &PersistedSnapshot,
+) -> Entity {
     let session = app
         .world_mut()
         .resource_mut::<PlayerSessionCounter>()
@@ -446,20 +456,25 @@ pub fn admit(app: &mut App, dim: Entity, arrival: &Arrival<'_>) -> Entity {
         ))
         .id();
     app.world_mut().spawn(HostAnchorRef(anchor));
+    let joining = PersistedSnapshot::joining_player(
+        arrival.uuid,
+        arrival.name.into(),
+        arrival.position,
+        Vec2::ZERO,
+        Some(crate::support::client_info_with_view_distance(
+            arrival.view_distance,
+        )),
+    );
+    let mut snapshot = file.clone();
+    for (key, tag) in joining.iter() {
+        snapshot.insert(key, tag.clone());
+    }
     submit_to(
         app,
         dim,
         ToDim::Spawn(InboundPlayerSpawn {
             session,
-            snapshot: PersistedSnapshot::joining_player(
-                arrival.uuid,
-                arrival.name.into(),
-                arrival.position,
-                Vec2::ZERO,
-                Some(crate::support::client_info_with_view_distance(
-                    arrival.view_distance,
-                )),
-            ),
+            snapshot,
             dimensions: Vec::new().into(),
         }),
     );

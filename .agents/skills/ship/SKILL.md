@@ -73,8 +73,9 @@ One pass, in a new agent, before the pull request exists: the skill `review-pr`.
 
 ## 7. Merge
 
-- `main` has linear history: `gh pr merge <pr> --rebase`. Squash drops the commits and their
-  `Closes` footers.
+- The repository allows only squash merges: `gh pr merge <pr> --squash --subject "<title> (#<pr>)"
+  --body "<body>"`. The squash drops the commit footers, so the body repeats each `Closes #N`
+  and `Refs #N` of the commits.
 - Merge when every required check is green and no review thread is open.
 - After the merge, report the merge commit and stop.
 
