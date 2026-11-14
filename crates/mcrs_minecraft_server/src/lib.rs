@@ -9,6 +9,7 @@ use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_command_world::WorldCommandsPlugin;
 use mcrs_minecraft_engine::persisted_registry::PersistedAppExt;
+use mcrs_minecraft_engine_attributes::EntityAttributesPlugin;
 use mcrs_minecraft_engine_brain::MobBrainPlugin;
 use mcrs_minecraft_engine_brain::MobColumn;
 use mcrs_minecraft_engine_item::ItemPersistencePlugin;
@@ -78,6 +79,7 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(self.worlds)
             .add(VanillaChatPlugin)
             .add(VanillaEntityPhysicsPlugin)
+            .add(VanillaEntityAttributesPlugin)
             .add(VanillaItemEntityPlugin)
             .add(VanillaBlocksPlugin)
             .add(VanillaMobBrainPlugin)
@@ -96,6 +98,15 @@ impl Plugin for VanillaEntityPhysicsPlugin {
     fn build(&self, app: &mut App) {
         app.add_dimension_plugin(EntityPhysicsPlugin::<MobColumn>::default());
         app.add_dimension_plugin(MobReplicationPlugin::<MobColumn>::default());
+    }
+}
+
+/// The attribute instances of the players and the mob rows in every dimension world.
+pub struct VanillaEntityAttributesPlugin;
+
+impl Plugin for VanillaEntityAttributesPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_dimension_plugin(EntityAttributesPlugin::<MobColumn>::default());
     }
 }
 
