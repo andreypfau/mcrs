@@ -36,6 +36,7 @@ mcrs_minecraft_simulation.workspace = true
 mcrs_voxel.workspace = true
 mcrs_minecraft_text.workspace = true
 mcrs_minecraft_vanilla_block_place.workspace = true
+mcrs_minecraft_vanilla_inventory.workspace = true
 mcrs_minecraft_vanilla_item_entity.workspace = true
 mcrs_minecraft_vanilla_light.workspace = true
 mcrs_minecraft_vanilla_worldgen.workspace = true
