@@ -3,6 +3,7 @@
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine::ability::{PlayerFlying, PlayerGameMode};
 use mcrs_minecraft_engine::game_profile::GameProfile;
+use mcrs_minecraft_engine::persisted_registry::CaptureCause;
 use mcrs_minecraft_engine::{UnreadablePlayerDat, load_player, write_player};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
@@ -85,7 +86,7 @@ fn a_vanilla_player_file_with_items_loads_in_the_server_and_writes_back_equal() 
         world.get::<UnreadablePlayerDat>(player).is_none(),
         "the load rejected the file"
     );
-    write_player(world, player);
+    write_player(world, player, CaptureCause::Autosave);
     let output = read_player_dat(&dir, id).unwrap().unwrap();
 
     for key in KEYS {

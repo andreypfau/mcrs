@@ -1,11 +1,12 @@
 use bytes::{Bytes, BytesMut};
 use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_protocol::{Result, VarInt, write_record};
 use mcrs_minecraft_protocol_game::clientbound::{
     AttributeSnapshot, ClientboundSetEntityData, ClientboundUpdateAttributes,
 };
-use mcrs_minecraft_protocol_game::entity::{MetaDataValue, Metadata, MetadataEntry, Pose};
+use mcrs_minecraft_protocol_game::entity::{MetaDataValue, Metadata, MetadataEntry};
 use mcrs_minecraft_protocol_game::entity_data_index::{
     HEALTH, MOB_FLAG_LEFT_HANDED, MOB_FLAG_NO_AI, MOB_FLAGS, POSE,
 };
@@ -151,10 +152,9 @@ pub(crate) fn spawn_extras(
         }
     };
     let movement_speed = kind
-        .base_attributes
-        .map_or(Attribute::MovementSpeed.definition().default, |base| {
-            base.movement_speed
-        });
+        .attribute_bases()
+        .and_then(|bases| bases.base(Attribute::MovementSpeed))
+        .unwrap_or(Attribute::MovementSpeed.definition().default);
     let mut bytes = BytesMut::new();
     write_record(
         &mut bytes,

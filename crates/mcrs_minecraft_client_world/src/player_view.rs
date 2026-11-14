@@ -1,8 +1,10 @@
 use bevy::app::{App, Plugin, Update};
 use bevy::ecs::prelude::{
-    Commands, Component, IntoScheduleConfigs, On, Query, Res, Resource, Single,
+    Commands, Component, DetectChanges, IntoScheduleConfigs, Local, On, Query, Res, Resource,
+    SystemCondition, resource_exists, resource_exists_and_changed,
 };
 use bevy::math::DVec3;
+use bevy::time::{Real, Time};
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::{ClientConnection, ClientNetworkSystems, SentViewDistance};
@@ -15,9 +17,15 @@ use mcrs_minecraft_protocol_game::clientbound::{
 };
 use mcrs_minecraft_protocol_game::serverbound::ServerboundClientInformation;
 use mcrs_minecraft_protocol_game::{ColumnPos, PositionFlags};
+use std::time::Duration;
+
+const SMALLER_VIEW_DISTANCE_WAIT: Duration = Duration::from_millis(600);
 
 /// Keeps on the connection where the server puts the player and which columns it keeps
 /// loaded around it, and tells the server the view distance that the options ask for.
+///
+/// A larger view distance goes in the frame of its change; a smaller one goes in the first frame
+/// at least 600 ms of [`Time<Real>`] after the last change. The app must insert [`Time<Real>`].
 #[derive(Clone, Copy, Debug, Default)]
 pub struct PlayerViewPlugin;
 
@@ -32,7 +40,12 @@ impl Plugin for PlayerViewPlugin {
                 send_view_distance
                     .after(ClientNetworkSystems::Receive)
                     .before(ClientNetworkSystems::Flush)
-                    .run_if(view_distance_unsent),
+                    .run_if(
+                        resource_exists::<Time<Real>>.and_then(
+                            resource_exists_and_changed::<RequestedViewDistance>
+                                .or_else(view_distance_unsent),
+                        ),
+                    ),
             );
     }
 }
@@ -75,10 +88,28 @@ fn view_distance_unsent(
 }
 
 fn send_view_distance(
+    time: Res<Time<Real>>,
     requested: Res<RequestedViewDistance>,
-    connection: Single<(&mut ClientConnection, &mut SentViewDistance)>,
+    mut changed_at: Local<Duration>,
+    mut connections: Query<(
+        &mut ClientConnection,
+        &mut SentViewDistance,
+        &ConnectionState,
+    )>,
 ) {
-    let (mut connection, mut sent) = connection.into_inner();
+    let now = time.elapsed();
+    if requested.is_changed() {
+        *changed_at = now;
+    }
+    let Ok((mut connection, mut sent, state)) = connections.single_mut() else {
+        return;
+    };
+    if *state != ConnectionState::Game || requested.0 == sent.0 {
+        return;
+    }
+    if requested.0 < sent.0 && now.saturating_sub(*changed_at) < SMALLER_VIEW_DISTANCE_WAIT {
+        return;
+    }
     connection.write_packet(&ServerboundClientInformation(join::client_information(
         requested.0,
     )));
@@ -137,7 +168,7 @@ fn on_login(event: On<Received<ClientboundLogin>>, mut commands: Commands) {
 #[cfg(not(target_family = "wasm"))]
 mod tests {
     use super::*;
-    use bevy::ecs::prelude::{Entity, With};
+    use bevy::ecs::prelude::{DetectChangesMut, Entity, With};
     use bytes::BytesMut;
     use mcrs_minecraft_network::client::{ClientNetworkPlugin, finish_configuration};
     use mcrs_minecraft_protocol::decode::{PacketDecoder, PacketFrame};
@@ -247,7 +278,8 @@ mod tests {
             },
             PlayerViewPlugin,
         ))
-        .insert_resource(RequestedViewDistance(view_distance));
+        .insert_resource(RequestedViewDistance(view_distance))
+        .init_resource::<Time<Real>>();
         app
     }
 
@@ -265,20 +297,27 @@ mod tests {
         panic!("the client never joined");
     }
 
-    fn request(app: &mut App, view_distance: u8) {
-        app.world_mut().resource_mut::<RequestedViewDistance>().0 = view_distance;
+    /// Runs one frame that starts `elapsed_ms` after the last one, with the requested view
+    /// distance `view_distance`.
+    fn frame(app: &mut App, elapsed_ms: u64, view_distance: u8) {
+        app.world_mut()
+            .resource_mut::<Time<Real>>()
+            .update_with_duration(Duration::from_millis(elapsed_ms));
+        app.world_mut()
+            .resource_mut::<RequestedViewDistance>()
+            .set_if_neq(RequestedViewDistance(view_distance));
         app.update();
     }
 
     #[test]
-    fn the_play_state_sends_a_view_distance_that_differs_from_the_last_sent() {
+    fn a_larger_view_distance_goes_at_once_and_a_smaller_one_after_600_ms() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let mut app = client(&listener, 8);
         let (mut server, configuration) = Server::join(&listener);
         let configured = ClientInformation::decode(&mut &configuration.body[..]).unwrap();
         let connection = spawned_connection(&mut app);
 
-        request(&mut app, 12);
+        frame(&mut app, 0, 12);
         let world = app.world_mut();
         finish_configuration(&mut world.commands(), connection);
         world.flush();
@@ -290,10 +329,35 @@ mod tests {
         );
         server.assert_next_information(configured, 12);
 
-        request(&mut app, 12);
-        request(&mut app, 16);
-        server.assert_next_information(configured, 16);
-        request(&mut app, 8);
-        server.assert_next_information(configured, 8);
+        // Each assertion reads the next packet, so a packet that a row must not send fails the
+        // assertion of a later row.
+        let frames: [(u64, u8, Option<u8>); 20] = [
+            (16, 13, Some(13)),
+            (16, 14, Some(14)),
+            (16, 15, Some(15)),
+            (16, 16, Some(16)),
+            (16, 15, None),
+            (16, 12, None),
+            (16, 10, None),
+            (599, 10, None),
+            (1, 10, Some(10)),
+            (16, 8, None),
+            (500, 9, None),
+            (500, 9, None),
+            (100, 9, Some(9)),
+            (16, 7, None),
+            (16, 11, Some(11)),
+            (700, 11, None),
+            (16, 8, None),
+            (16, 11, None),
+            (700, 11, None),
+            (16, 12, Some(12)),
+        ];
+        for (elapsed_ms, view_distance, sent) in frames {
+            frame(&mut app, elapsed_ms, view_distance);
+            if let Some(sent) = sent {
+                server.assert_next_information(configured, sent);
+            }
+        }
     }
 }

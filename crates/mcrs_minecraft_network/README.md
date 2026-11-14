@@ -1,5 +1,35 @@
 # mcrs_minecraft_network
 
+## Inbound backpressure
+
+The stream reader bounds both the number of packets waiting for `RawConnection::try_recv`
+and the sum of their decoded payload lengths. Compression does not reduce the payload charge.
+
+| Reader | Packet slots | Queued payload budget |
+|---|---:|---:|
+| Server reading a client | 256 | 4 MiB |
+| Client reading a server | 65,536 | 64 MiB |
+
+When either bound is full, the reader waits until the application takes a packet. It preserves
+packet order and stops reading more frames while it waits, so a burst applies stream
+backpressure rather than losing packets or disconnecting a healthy peer. The larger client
+queue still accommodates many small entity updates between rendered frames.
+
+A legal packet larger than the payload budget is admitted when no other payload bytes are
+queued. This allows the protocol's maximum inflated packet of 8 MiB without letting several
+such packets bypass the budget. The server queue therefore holds at most 8 MiB of payload,
+and the client queue at most 64 MiB. The reader can also hold one decoded packet waiting for
+room, in addition to decoder buffers and transport buffers. These budgets count payload
+lengths, not allocator capacity or bytes the application retains after taking packets.
+
+The reader owns the byte counter. Each dequeue returns its payload length over a bounded
+credit channel, with room for the packet slots plus one send in progress. Dequeue never waits.
+Dropping the connection closes both channels and releases a reader waiting for either byte
+credit or a packet slot. Cancelling a send before it enters the queue consumes no byte credit.
+
+`RawConnection::new_for_test_full` keeps its directly supplied packet channel for test harnesses;
+stream connections use both bounds above.
+
 ## LAN announcement
 
 A server that listens beyond loopback announces itself on the local network, so a vanilla client lists it under its LAN worlds. The announcement is the game's datagram, `[MOTD]<motd>[/MOTD][AD]<port>[/AD]`, sent to the multicast group `224.0.2.60` on port `4445` every 1.5 seconds, the first one at once. The MOTD is the one the status response carries and the port is the one the server listens on. The sending socket is bound to the IPv4 address the server listens on, or to any IPv4 address when it listens on every interface. The game announces over IPv4 only and its client joins the address the datagram came from, so a server listening on one IPv6 address does not announce, and logs that once at startup.

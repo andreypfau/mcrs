@@ -103,6 +103,92 @@ fn walk_to(target: DVec3) -> Intents {
 }
 
 #[test]
+fn fol_006_repeated_walks_keep_the_stuck_window_when_tickets_and_speed_change() {
+    let mut walker = Walker::new(DVec3::ZERO);
+    walker.moves = false;
+    walker.input.speed = 0.25;
+    for tick in 1..=101 {
+        walker.apply(Intents {
+            path: Some(PathIntent::Walk {
+                ticket: Ticket(tick),
+                target: DVec3::new(10.0, 0.0, 0.0),
+                speed_modifier: if tick < 50 { 1.0 } else { 2.0 },
+            }),
+            ..Intents::default()
+        });
+        let output = walker.tick();
+        let expected = (tick == 101).then_some(PathEnd::Stuck);
+        assert_eq!(output.path_ended, expected, "follower tick {tick}");
+        assert_eq!(walker.control.applied().ticket, Ticket(tick));
+        if tick == 50 {
+            assert_eq!(output.steering.unwrap().speed, 0.5);
+        }
+    }
+    assert_eq!(walker.control.applied().progress, Progress::Ended);
+}
+
+#[test]
+fn fol_004_repeated_walks_keep_the_timeout_for_the_current_node() {
+    let mut walker = Walker::new(DVec3::ZERO);
+    walker.moves = false;
+    walker.input.speed = 0.25;
+    let target = DVec3::new(10.0, 0.0, 0.0);
+    walker.apply(walk_to(target));
+    assert_eq!(walker.tick().path_ended, None);
+    walker.input.tick = 10_000;
+    walker.apply(walk_to(target));
+    assert_eq!(walker.tick().path_ended, Some(PathEnd::TimedOut));
+}
+
+#[test]
+fn req_004_a_changed_node_restarts_the_stuck_window() {
+    for target in [
+        DVec3::new(20.0, 0.0, 0.0),
+        DVec3::new(10.0, 1.0, 0.0),
+        DVec3::new(10.0, 0.0, 10.0),
+    ] {
+        let mut walker = Walker::new(DVec3::ZERO);
+        walker.moves = false;
+        walker.input.speed = 0.25;
+        walker.apply(walk_to(DVec3::new(10.0, 0.0, 0.0)));
+        for _ in 0..100 {
+            assert_eq!(walker.tick().path_ended, None);
+        }
+        walker.apply(walk_to(target));
+        for _ in 0..100 {
+            assert_eq!(walker.tick().path_ended, None, "target {target}");
+        }
+        assert_eq!(walker.tick().path_ended, Some(PathEnd::Stuck));
+    }
+}
+
+#[test]
+fn fol_003_zero_speed_does_not_report_stuck() {
+    let mut walker = Walker::new(DVec3::ZERO);
+    walker.moves = false;
+    walker.input.movement_speed = 0.0;
+    for _ in 0..101 {
+        walker.apply(walk_to(DVec3::new(10.5, 0.0, 0.5)));
+        assert_eq!(walker.tick().path_ended, None);
+    }
+    assert!(walker.control.has_path(), "zero speed must keep the route");
+}
+
+#[test]
+fn fol_003_reaching_the_node_precedes_the_stuck_check_at_tick_101() {
+    let mut walker = Walker::new(DVec3::ZERO);
+    walker.moves = false;
+    let target = DVec3::new(10.5, 0.0, 0.5);
+    for _ in 0..100 {
+        walker.apply(walk_to(target));
+        assert_eq!(walker.tick().path_ended, None);
+    }
+    walker.input.position = target;
+    walker.apply(walk_to(target));
+    assert_eq!(walker.tick().path_ended, Some(PathEnd::Done));
+}
+
+#[test]
 fn a_walker_reaches_its_target_and_stops() {
     let mut walker = Walker::new(DVec3::new(0.5, 0.0, 0.5));
     walker.apply(walk_to(DVec3::new(8.5, 0.0, 3.5)));

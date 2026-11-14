@@ -368,7 +368,10 @@ impl LightVolumeFeed {
                 }
             }
             ColumnChange::Departed(at, _) => self.depart(*at, scope),
-            ColumnChange::Relit(..) | ColumnChange::Filled(_) | ColumnChange::Reblocked(..) => {}
+            ColumnChange::Relit(..)
+            | ColumnChange::Filled(_)
+            | ColumnChange::Reblocked(..)
+            | ColumnChange::Signed(_) => {}
         }
     }
 

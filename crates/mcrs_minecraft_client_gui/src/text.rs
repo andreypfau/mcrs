@@ -136,10 +136,11 @@ pub fn wrap(spans: &[Span], width: i32, style: Wrap, font: &Font, rows: &mut Vec
         return;
     }
     let mut row: Vec<Span> = Vec::new();
-    let mut used = 0;
-    let start_row = |row: &mut Vec<Span>, used: &mut i32, rows: &mut Vec<Vec<Span>>| {
+    let mut used = 0.0;
+    let width = width as f32;
+    let start_row = |row: &mut Vec<Span>, used: &mut f32, rows: &mut Vec<Vec<Span>>| {
         rows.push(std::mem::take(row));
-        *used = 0;
+        *used = 0.0;
         if !tooltip {
             row.push(Span::new(" ", 0xFFFF_FFFF));
             *used = font.advance(' ', false);
@@ -152,7 +153,7 @@ pub fn wrap(spans: &[Span], width: i32, style: Wrap, font: &Font, rows: &mut Vec
                 continue;
             }
             let advance = font.advance(c, span.bold);
-            if used + advance > width && used > 0 {
+            if used + advance > width && used > 0.0 {
                 if tooltip && c == ' ' {
                     start_row(&mut row, &mut used, rows);
                     continue;
@@ -163,7 +164,7 @@ pub fn wrap(spans: &[Span], width: i32, style: Wrap, font: &Font, rows: &mut Vec
                 }
                 start_row(&mut row, &mut used, rows);
                 for carried in carried {
-                    used += font.width(std::slice::from_ref(&carried));
+                    used += font.exact_width(std::slice::from_ref(&carried));
                     row.push(carried);
                 }
             }

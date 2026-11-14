@@ -28,7 +28,7 @@ const WASM32_PACKAGES: [&str; 11] = [
     "mcrs_minecraft_biome_file",
 ];
 
-const NO_STD_PACKAGES: [&str; 15] = [
+const NO_STD_PACKAGES: [&str; 16] = [
     "mcrs_command",
     "mcrs_minecraft_bedrock_wire",
     "mcrs_minecraft_block_break",
@@ -36,6 +36,7 @@ const NO_STD_PACKAGES: [&str; 15] = [
     "mcrs_minecraft_chat",
     "mcrs_minecraft_client_widget",
     "mcrs_minecraft_entity_key",
+    "mcrs_minecraft_fog",
     "mcrs_minecraft_goal_world",
     "mcrs_minecraft_goals",
     "mcrs_minecraft_inventory_click",
@@ -46,7 +47,7 @@ const NO_STD_PACKAGES: [&str; 15] = [
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 128] = [
+const NO_BEVY_PACKAGES: [&str; 130] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -96,11 +97,13 @@ const NO_BEVY_PACKAGES: [&str; 128] = [
     "mcrs_minecraft_enchantment",
     "mcrs_minecraft_entity",
     "mcrs_minecraft_entity_animation",
+    "mcrs_minecraft_entity_attribute",
     "mcrs_minecraft_entity_key",
     "mcrs_minecraft_entity_model",
     "mcrs_minecraft_entity_rows",
     "mcrs_minecraft_environment",
     "mcrs_minecraft_fixtures",
+    "mcrs_minecraft_fog",
     "mcrs_minecraft_game_mode",
     "mcrs_minecraft_game_rule",
     "mcrs_minecraft_heightmap",
@@ -191,6 +194,22 @@ const STANDALONE_BAKE_FORBIDDEN: [&str; 7] = [
     "mcrs_minecraft_server",
     "mcrs_minecraft_engine_server",
     "tokio",
+];
+
+/// The crates that draw an entity, which a viewer takes without a connection.
+const ENTITY_RENDER_PACKAGES: [&str; 2] = [
+    "mcrs_minecraft_entity_render",
+    "mcrs_minecraft_entity_visual",
+];
+
+const ENTITY_RENDER_FORBIDDEN: [&str; 7] = [
+    "mcrs_minecraft_network",
+    "mcrs_minecraft_protocol_game",
+    "mcrs_minecraft_client",
+    "mcrs_minecraft_client_entity",
+    "mcrs_minecraft_client_world",
+    "mcrs_minecraft_server",
+    "mcrs_minecraft_engine_server",
 ];
 
 const GAME_DATA_PACKAGES: [&str; 7] = [
@@ -469,11 +488,20 @@ fn layers(ctx: &Context) -> Outcome {
     for package in STANDALONE_BAKE_PACKAGES {
         linked_forbidden(ctx, package, &STANDALONE_BAKE_FORBIDDEN, &mut linked)?;
     }
+    if !linked.is_empty() {
+        return Err(format!(
+            "a model bake links the network, a client or a server ({}); a viewer bakes from the pack alone",
+            linked.join(", ")
+        ));
+    }
+    for package in ENTITY_RENDER_PACKAGES {
+        linked_forbidden(ctx, package, &ENTITY_RENDER_FORBIDDEN, &mut linked)?;
+    }
     if linked.is_empty() {
         Ok(String::new())
     } else {
         Err(format!(
-            "a model bake links the network, a client or a server ({}); a viewer bakes from the pack alone",
+            "an entity renderer crate links the network, the play-state packets, a client or a server ({}); a viewer draws an entity with no connection",
             linked.join(", ")
         ))
     }

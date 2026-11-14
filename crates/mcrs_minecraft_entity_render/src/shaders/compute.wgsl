@@ -1,14 +1,16 @@
-// The bindings of the entity compute passes. A pass binds only those its entry point reads.
+// The bindings of the entity compute passes. A pass binds only those its entry point reads, so
+// that each pass fits the storage buffers that a stage of a WebGPU device has. The static tables
+// that the passes index are uniform arrays, and the tick record of a slot lies before its previous
+// one in `ticks`.
 
 @group(0) @binding(0) var<uniform> frame: Frame;
 @group(0) @binding(1) var<storage, read_write> ticks: array<TickRecord>;
-@group(0) @binding(2) var<storage, read_write> previous_ticks: array<TickRecord>;
 @group(0) @binding(3) var<storage, read_write> tick_of_record: array<u32>;
 @group(0) @binding(4) var<storage, read> culls: array<CullRecord>;
 @group(0) @binding(5) var<storage, read> states: array<StateRecord>;
 @group(0) @binding(6) var<storage, read> inputs: array<InputRecord>;
-@group(0) @binding(8) var<storage, read> models: array<ModelRecord>;
-@group(0) @binding(9) var<storage, read> bones: array<BoneRecord>;
+@group(0) @binding(8) var<uniform> models: array<ModelRecord, MODELS>;
+@group(0) @binding(9) var<uniform> bones: array<BoneRecord, BONES>;
 @group(0) @binding(10) var<storage, read> cuboids: array<CuboidRecord>;
 @group(0) @binding(11) var<storage, read_write> visible: array<vec2<u32>>;
 @group(0) @binding(12) var<storage, read_write> bone_matrices: array<vec4<f32>>;
@@ -18,12 +20,13 @@
 @group(0) @binding(16) var<storage, read_write> indirect: array<u32>;
 @group(0) @binding(17) var<storage, read> scatter: array<ScatterEntry>;
 @group(0) @binding(18) var hiz: texture_2d<f32>;
-@group(0) @binding(19) var<storage, read> variants: array<Variant>;
+@group(0) @binding(19) var<uniform> variants: array<Variant, VARIANTS>;
 @group(0) @binding(20) var<storage, read> cutout: array<u32>;
 @group(0) @binding(21) var<storage, read_write> impostors: array<u32>;
 @group(0) @binding(22) var<storage, read> impostor_pairs: array<u32>;
-@group(0) @binding(23) var<storage, read> impostor_frames: array<vec4<f32>>;
 @group(0) @binding(24) var<storage, read_write> impostor_draws: array<ImpostorDraw>;
+/// The views of the impostor images of each model, then the coverage of each view image from
+/// `FIRST_COVER` on.
 @group(0) @binding(25) var<storage, read> impostor_covers: array<vec4<f32>>;
 
 struct ScatterEntry {
@@ -41,6 +44,9 @@ const EXPAND_LANES = #{EXPAND_LANES};
 /// The height of the entity box at the scale 1 and the baby scale of each definition.
 const BOX_SIZES = #{BOX_SIZES};
 const VARIANTS: u32 = #{VARIANTS}u;
+const MODELS: u32 = #{MODELS}u;
+const BONES: u32 = #{BONES}u;
+const FIRST_COVER: u32 = #{FIRST_COVER}u;
 const COUNTER_BONES: u32 = 0u;
 const COUNTER_VISIBLE: u32 = 1u;
 const COUNTER_FACES: u32 = 17u;
@@ -55,6 +61,14 @@ const COUNTER_SMALL_IMPOSTORS: u32 = 28u;
 const COUNTER_CUTOUT_FACES: u32 = 29u;
 const NO_IMPOSTOR: u32 = 0xffffffffu;
 
+fn current_tick(slot: u32) -> u32 {
+    return 2u * slot;
+}
+
+fn previous_tick(slot: u32) -> u32 {
+    return 2u * slot + 1u;
+}
+
 /// The scatter of the tick records that the CPU wrote since the last frame: the current record
 /// of each slot becomes its previous record.
 @compute @workgroup_size(64)
@@ -65,11 +79,11 @@ fn scatter_ticks(@builtin(global_invocation_id) id: vec3<u32>) {
     let entry = scatter[id.x];
     let fresh = (entry.tick & SCATTER_FRESH) != 0u;
     if (fresh) {
-        previous_ticks[entry.slot] = entry.record;
+        ticks[previous_tick(entry.slot)] = entry.record;
     } else {
-        previous_ticks[entry.slot] = ticks[entry.slot];
+        ticks[previous_tick(entry.slot)] = ticks[current_tick(entry.slot)];
     }
-    ticks[entry.slot] = entry.record;
+    ticks[current_tick(entry.slot)] = entry.record;
     tick_of_record[entry.slot] = entry.tick & ~SCATTER_FRESH;
 }
 

@@ -14,9 +14,11 @@ workspace = true
 mcrs_minecraft_protocol_game.workspace = true
 bytemuck = { version = "1", features = ["derive"] }
 mcrs_minecraft_chat.workspace = true
+mcrs_minecraft_block_entity.workspace = true
 mcrs_minecraft_chat_client.workspace = true
 mcrs_minecraft_client_options = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_client_widget.workspace = true
+mcrs_minecraft_client_jar.workspace = true
 mcrs_minecraft_client_world.workspace = true
 mcrs_minecraft_command.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
@@ -28,6 +30,7 @@ mcrs_minecraft_item_key.workspace = true
 mcrs_minecraft_lang.workspace = true
 mcrs_minecraft_model.workspace = true
 mcrs_minecraft_model_file.workspace = true
+mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
@@ -69,4 +72,5 @@ getrandom = { version = "0.4", features = ["wasm_js"] }
 
 [dev-dependencies]
 mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_fixtures.workspace = true
 mcrs_minecraft_model = { workspace = true, features = ["test-support"] }

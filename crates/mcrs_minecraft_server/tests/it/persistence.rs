@@ -3,10 +3,11 @@
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use bevy_app::App;
+use bevy_app::{App, Plugin};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::query::With;
+use bevy_ecs::resource::Resource;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_engine_store::{DiskStore, VersionedChunk};
@@ -15,11 +16,14 @@ use mcrs_minecraft_anvil::{SavedPiece, StructureStart};
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block_entity::{ContainerData, GeneratedBlockEntity};
 use mcrs_minecraft_chat_server::ChatPlugin;
+use mcrs_minecraft_engine::bus::InboundPlayerDespawn;
+use mcrs_minecraft_engine::channel_types::ToDim;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::persisted_registry::{
-    PersistedAppExt, PersistedRegistry, PersistedSnapshot,
+    CaptureCause, PersistScope, PersistedAppExt, PersistedError, PersistedRegistry,
+    PersistedSnapshot,
 };
-use mcrs_minecraft_engine_item::{ItemPersistencePlugin, Slots};
+use mcrs_minecraft_engine_item::{ItemPersistencePlugin, PlayerItemFilePlugin, Slots};
 use mcrs_minecraft_engine_registries::{install_item_table, test_item_table};
 use mcrs_minecraft_engine_server::{Placement, ShutdownRequest};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -31,6 +35,7 @@ use mcrs_minecraft_engine_world::world::lifecycle::stage::SectionStage;
 use mcrs_minecraft_engine_world::world::storage::block_entity::{BlockEntity, BlockEntityPos};
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
+use mcrs_minecraft_engine_world::world::world_save::WorldSave;
 use mcrs_minecraft_game_registries::dimension::Dimensions;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -272,7 +277,8 @@ fn slot_stack(slot: i8, id: &str, count: i32) -> NbtTag {
 #[test]
 fn an_inventory_crosses_a_dimension_change() {
     let mut app = host_app::make_host_app();
-    app.add_persistence_plugin(ItemPersistencePlugin);
+    app.add_persistence_plugin(ItemPersistencePlugin)
+        .add_persistence_plugin(PlayerItemFilePlugin);
     app.add_dimension_plugin(ChatPlugin);
     install_item_table(app.world_mut(), test_item_table()).unwrap();
     let mut server = PlayServer::start_in(
@@ -318,9 +324,123 @@ fn an_inventory_crosses_a_dimension_change() {
         .expect("the player is in the End");
     let world = server.world_in(end);
     let registry = world.remove_resource::<PersistedRegistry>().unwrap();
-    let saved = registry.capture_file(world, arrived).unwrap();
+    let saved = registry
+        .capture_file(world, arrived, CaptureCause::Autosave)
+        .unwrap();
     world.insert_resource(registry);
     assert_eq!(saved.get("Inventory"), Some(&NbtTag::List(items)));
+}
+
+#[derive(Resource, Default)]
+struct Captured(Vec<CaptureCause>);
+
+#[derive(Clone)]
+struct CauseRecorderPlugin;
+
+impl Plugin for CauseRecorderPlugin {
+    fn build(&self, app: &mut App) {
+        app.register_persisted_codec(
+            &["test:cause"],
+            PersistScope::Persisted,
+            record_cause,
+            |_, _, _| Ok(()),
+        );
+    }
+}
+
+fn record_cause(
+    world: &mut World,
+    _: Entity,
+    cause: CaptureCause,
+) -> Result<Option<NbtTag>, PersistedError> {
+    world.get_resource_or_init::<Captured>().0.push(cause);
+    Ok(None)
+}
+
+#[test]
+fn a_dimension_change_and_a_leave_capture_the_player_with_their_cause() {
+    let mut app = host_app::make_host_app();
+    app.add_persistence_plugin(CauseRecorderPlugin);
+    let mut server = PlayServer::start_in(
+        app,
+        &[
+            ("minecraft:overworld", "minecraft:overworld"),
+            ("minecraft:the_end", "minecraft:the_end"),
+        ],
+        &[],
+        0,
+    );
+    let (anchor, _) = server.join(Uuid::new_v4(), "Walker");
+    let overworld = server.dim;
+    let end = label_of(&server.app, "minecraft:the_end");
+
+    let player = server.player(anchor);
+    let world = server.world_in(overworld);
+    let transform = *world.get::<Transform>(player).unwrap();
+    world
+        .resource_mut::<Messages<ChangeDimensionRequest>>()
+        .write(ChangeDimensionRequest {
+            player,
+            to: ResourceKeyBuf::from_location(
+                ResourceLocationBuf::read("minecraft:the_end").unwrap(),
+            ),
+            transform,
+        });
+    server.ticks_all(3);
+    assert!(server.player_in(end, anchor).is_some());
+
+    let save_dir = std::env::temp_dir().join(format!("mcrs-capture-cause-{}", std::process::id()));
+    std::fs::create_dir_all(&save_dir).unwrap();
+    server
+        .world_in(end)
+        .insert_resource(WorldSave(save_dir.clone()));
+    let session = server.session_of(anchor).unwrap();
+    server.submit_to(end, ToDim::Despawn(InboundPlayerDespawn { session }));
+    server.ticks_all(2);
+
+    let causes = |server: &mut PlayServer, dim| {
+        server
+            .world_in(dim)
+            .get_resource::<Captured>()
+            .map(|captured| captured.0.clone())
+    };
+    assert_eq!(
+        causes(&mut server, overworld),
+        Some(vec![CaptureCause::DimensionChange])
+    );
+    assert_eq!(causes(&mut server, end), Some(vec![CaptureCause::Leave]));
+    drop(server);
+    let _ = std::fs::remove_dir_all(save_dir);
+}
+
+#[test]
+fn a_leave_without_a_world_save_still_captures_the_player() {
+    let mut app = host_app::make_host_app();
+    app.add_persistence_plugin(CauseRecorderPlugin);
+    let mut server = PlayServer::start_in(
+        app,
+        &[("minecraft:overworld", "minecraft:overworld")],
+        &[],
+        0,
+    );
+    let (anchor, _) = server.join(Uuid::new_v4(), "Leaver");
+    let overworld = server.dim;
+    assert!(
+        server
+            .world_in(overworld)
+            .get_resource::<WorldSave>()
+            .is_none()
+    );
+
+    let session = server.session_of(anchor).unwrap();
+    server.submit_to(overworld, ToDim::Despawn(InboundPlayerDespawn { session }));
+    server.ticks_all(2);
+
+    let captured = server
+        .world_in(overworld)
+        .get_resource::<Captured>()
+        .map(|captured| captured.0.clone());
+    assert_eq!(captured, Some(vec![CaptureCause::Leave]));
 }
 
 const SEED: i64 = 4;

@@ -254,6 +254,13 @@ tasks.register('dumpNumeric', JavaExec) {
 	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/numeric-out".toString()]
 }
 
+tasks.register('dumpAttributes', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.AttributeOracle'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/attribute-out".toString()]
+}
+
 tasks.register('dumpBlockModels', JavaExec) {
 	group = 'oracle'
 	classpath = sourceSets.data.runtimeClasspath
@@ -291,4 +298,16 @@ tasks.register('dumpEnvironment', JavaExec) {
 	classpath = sourceSets.data.runtimeClasspath
 	mainClass = 'mcrs.data.EnvironmentOracle'
 	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/environment-out".toString()]
+}
+
+tasks.register('dumpFont', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.FontOracle'
+	jvmArgs '-Xmx2G'
+	args = [
+		project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/font-out".toString(),
+		"${layout.buildDirectory.get()}/font-assets".toString(),
+		"${projectDir}/../../crates/mcrs_minecraft_client_jar/src/release.json".toString()
+	]
 }

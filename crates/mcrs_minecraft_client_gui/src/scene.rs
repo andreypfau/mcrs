@@ -16,6 +16,11 @@ use mcrs_minecraft_item::{
 
 use crate::atlas_quad::AtlasQuad;
 use crate::font::Font;
+use crate::font_definition::FontOptions;
+use crate::font_glyph::{
+    GlyphImage, ImageSource, MISSING_GLYPH_SIZE, Weight, missing_glyph_pixels,
+};
+use crate::glyph_cache::{self, GlyphCache};
 use crate::gui_sprite_id::GuiSpriteId;
 use crate::gui_texture_id::GuiTextureId;
 use crate::hotbar::hotbar;
@@ -75,10 +80,14 @@ pub enum GuiQuad {
         rect: IRect,
         texels: Rect,
     },
+    /// One strike of a glyph with its pen at `pen`, in GUI units.
     Glyph {
-        origin: IVec2,
+        pen: Vec2,
         glyph: char,
+        /// The picture the font gave for `glyph`.
+        image: GlyphImage,
         color: u32,
+        weight: Weight,
     },
     Item {
         origin: IVec2,
@@ -121,8 +130,10 @@ const SWITCHER_WIDTH: u32 = 125;
 const SWITCHER_HEIGHT: u32 = 75;
 const BLANK: &str = "blank";
 const MISSING: &str = "missing";
+const MISSING_GLYPH: &str = "font/missing";
+const CELL: usize = crate::font_unihex::CELL;
 
-const GUI_TEXTURES: [&str; 19] = [
+const GUI_TEXTURES: [&str; 18] = [
     "hud/hotbar",
     "hud/hotbar_selection",
     "hud/hotbar_offhand_left",
@@ -139,7 +150,6 @@ const GUI_TEXTURES: [&str; 19] = [
     "container/gamemode_switcher",
     "gamemode_switcher/slot",
     "gamemode_switcher/selection",
-    "font/ascii",
     "misc/enchanted_glint_item",
     "icon/chat_modified",
 ];
@@ -149,7 +159,7 @@ fn texture_path(name: &str) -> String {
         "container/inventory" | "container/gamemode_switcher" => {
             format!("minecraft/textures/gui/{name}.png")
         }
-        "font/ascii" | "misc/enchanted_glint_item" => format!("minecraft/textures/{name}.png"),
+        "misc/enchanted_glint_item" => format!("minecraft/textures/{name}.png"),
         _ => format!("minecraft/textures/gui/sprites/{name}.png"),
     }
 }
@@ -164,8 +174,19 @@ pub struct GuiAtlasData {
     pub(crate) sprites: [GuiSprite; GuiSpriteId::ALL.len()],
     pub(crate) textures: [IRect; GuiTextureId::ALL.len()],
     pub missing: GuiSprite,
-    pub ascii_origin: IVec2,
+    /// Where the texture of each bitmap provider of the font lies, by the provider's index.
+    pub page_origins: Vec<(usize, IVec2)>,
+    pub missing_glyph: IRect,
+    /// The top left of the region the glyph cache draws Unifont glyphs into.
+    pub glyph_origin: IVec2,
     pub chat_modified: IRect,
+}
+
+/// What a packed image is, so the font's textures need no name of their own.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Packed {
+    Named(&'static str),
+    Page(usize),
 }
 
 #[derive(Resource, Clone, ExtractResource)]
@@ -175,10 +196,13 @@ pub struct GuiAtlas(pub Arc<GuiAtlasData>);
 impl GuiAtlasData {
     /// Shelf-packs the GUI textures the screens blit, which are not square and so
     /// bypass the sprite arrays; the glint stays separate because it repeats.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one load packs every texture in the order each placement depends on the last"
+    )]
     pub fn load(pack: &ResourceSet) -> Result<Self, String> {
         let mut images = Vec::new();
         let mut glint = None;
-        let mut font = None;
         let sprite_scalings = load_widget_images(pack, &mut images);
         for name in GUI_TEXTURES {
             let path = texture_path(name);
@@ -187,25 +211,44 @@ impl GuiAtlasData {
                     .map_err(|error| error.to_string())?;
             match name {
                 "misc/enchanted_glint_item" => glint = Some((width, height, pixels)),
-                "container/inventory" => {
-                    images.push((name, crop(&pixels, width, 176, 166), 176, 166))
-                }
+                "container/inventory" => images.push((
+                    Packed::Named(name),
+                    crop(&pixels, width, 176, 166),
+                    176,
+                    166,
+                )),
                 "container/gamemode_switcher" => images.push((
-                    name,
+                    Packed::Named(name),
                     crop(&pixels, width, SWITCHER_WIDTH, SWITCHER_HEIGHT),
                     SWITCHER_WIDTH,
                     SWITCHER_HEIGHT,
                 )),
-                _ => {
-                    if name == "font/ascii" {
-                        font = Some(Font::load(pack, &pixels, width, height)?);
-                    }
-                    images.push((name, pixels, width, height));
-                }
+                _ => images.push((Packed::Named(name), pixels, width, height)),
             }
         }
-        images.push((BLANK, vec![255; 16], 2, 2));
-        images.push((MISSING, missing_pixels(), MISSING_SIZE, MISSING_SIZE));
+        let font = Font::load(pack, FontOptions::default())?;
+        for (source, page) in font.bitmap_pages() {
+            let (width, height) = page.size();
+            // chisle: same fixed atlas width as the GUI images; its glyphs then draw nothing.
+            if width > ATLAS_WIDTH {
+                error!("font page {source}: {width} pixels wide, the atlas holds {ATLAS_WIDTH}");
+                continue;
+            }
+            images.push((Packed::Page(source), page.pixels().to_vec(), width, height));
+        }
+        images.push((Packed::Named(BLANK), vec![255; 16], 2, 2));
+        images.push((
+            Packed::Named(MISSING),
+            missing_pixels(),
+            MISSING_SIZE,
+            MISSING_SIZE,
+        ));
+        images.push((
+            Packed::Named(MISSING_GLYPH),
+            missing_glyph_pixels(),
+            MISSING_GLYPH_SIZE.0,
+            MISSING_GLYPH_SIZE.1,
+        ));
         images.sort_by_key(|(name, _, _, height)| (std::cmp::Reverse(*height), *name));
         let (mut x, mut y, mut row) = (0u32, 0u32, 0u32);
         let mut placed = Vec::new();
@@ -223,9 +266,11 @@ impl GuiAtlasData {
             x += width;
             row = row.max(height);
         }
-        let atlas_height = (y + row).next_power_of_two();
+        let glyph_origin = IVec2::new(0, (y + row) as i32);
+        let atlas_height = (y + row + (glyph_cache::ROWS * CELL) as u32).next_power_of_two();
         let mut pixels = vec![0u8; (ATLAS_WIDTH * atlas_height * 4) as usize];
         let mut regions = HashMap::new();
+        let mut page_origins = Vec::new();
         for (name, source, rect) in placed {
             let width = rect.width() as usize;
             for (line, source_row) in source.chunks_exact(width * 4).enumerate() {
@@ -235,7 +280,12 @@ impl GuiAtlasData {
                     target.copy_from_slice(source_row);
                 }
             }
-            regions.insert(name, rect);
+            match name {
+                Packed::Named(name) => {
+                    regions.insert(name, rect);
+                }
+                Packed::Page(source) => page_origins.push((source, rect.min)),
+            }
         }
         let missing_region = regions.get(MISSING).copied().unwrap_or_default();
         let missing = GuiSprite::new(missing_region, Scaling::Stretch);
@@ -256,7 +306,7 @@ impl GuiAtlasData {
                 *slot = region;
             }
         }
-        let ascii_origin = regions.get("font/ascii").copied().unwrap_or_default().min;
+        let missing_glyph = regions.get(MISSING_GLYPH).copied().unwrap_or_default();
         let chat_modified = regions
             .get("icon/chat_modified")
             .copied()
@@ -266,12 +316,14 @@ impl GuiAtlasData {
             height: atlas_height,
             pixels,
             regions,
-            font: font.ok_or("the GUI atlas lists no font/ascii")?,
+            font,
             glint: glint.ok_or("the GUI atlas lists no glint")?,
             sprites,
             textures,
             missing,
-            ascii_origin,
+            page_origins,
+            missing_glyph,
+            glyph_origin,
             chat_modified,
         })
     }
@@ -294,6 +346,34 @@ impl GuiAtlasData {
         self.texel_uv(pixel.as_rect())
     }
 
+    /// Where the picture of a glyph lies in the atlas. A Unifont glyph takes a cell of the glyph
+    /// region, which is `None` when the cache has none to give.
+    fn glyph_texels(
+        &self,
+        source: ImageSource,
+        glyph: char,
+        cache: &mut GlyphCache,
+    ) -> Option<Rect> {
+        match source {
+            ImageSource::Bitmap { source, texels } => {
+                let (_, origin) = self.page_origins.iter().find(|(page, _)| *page == source)?;
+                Some(Rect::from_corners(
+                    texels.min + origin.as_vec2(),
+                    texels.max + origin.as_vec2(),
+                ))
+            }
+            ImageSource::Missing => Some(self.missing_glyph.as_rect()),
+            ImageSource::Unifont { columns, .. } => {
+                let (x, y) = glyph_cache::cell_origin(cache.cell(glyph)?);
+                let min = self.glyph_origin.as_vec2() + Vec2::new(x as f32, y as f32);
+                Some(Rect::from_corners(
+                    min,
+                    min + Vec2::new(columns.min(CELL as u32) as f32, CELL as f32),
+                ))
+            }
+        }
+    }
+
     fn texel_uv(&self, texels: Rect) -> [[f32; 2]; 4] {
         let (w, h) = (self.width as f32, self.height as f32);
         let (x0, y0, x1, y1) = (
@@ -310,7 +390,7 @@ impl GuiAtlasData {
 /// sprite that loaded.
 fn load_widget_images(
     pack: &ResourceSet,
-    images: &mut Vec<(&'static str, Vec<u8>, u32, u32)>,
+    images: &mut Vec<(Packed, Vec<u8>, u32, u32)>,
 ) -> [(GuiSpriteId, Option<Scaling>); GuiSpriteId::ALL.len()] {
     for id in GuiTextureId::ALL {
         let path = format!("minecraft/{}", id.name());
@@ -330,7 +410,7 @@ fn load_image(
     name: &'static str,
     path: &str,
     scaling: Result<Scaling, String>,
-    images: &mut Vec<(&'static str, Vec<u8>, u32, u32)>,
+    images: &mut Vec<(Packed, Vec<u8>, u32, u32)>,
 ) -> Option<Scaling> {
     let bytes = pack.get(path)?;
     let loaded = scaling.and_then(|scaling| {
@@ -347,7 +427,7 @@ fn load_image(
     });
     match loaded {
         Ok((scaling, (pixels, width, height))) => {
-            images.push((name, pixels, width, height));
+            images.push((Packed::Named(name), pixels, width, height));
             Some(scaling)
         }
         Err(reason) => {
@@ -402,6 +482,8 @@ pub struct GuiBatch {
     pub draws: Vec<GuiDraw>,
     pub scale: u32,
     pub glint_offset: [f32; 2],
+    /// The Unifont glyph in each cell of the atlas's glyph region.
+    pub glyphs: Vec<Option<char>>,
 }
 
 pub const GLINT_ALPHA: f32 = 0.75;
@@ -426,10 +508,10 @@ pub(super) fn sprite(at: IVec2, size: IVec2, region: &'static str) -> GuiQuad {
 fn push_quad(vertices: &mut Vec<GuiVertex>, quad: AtlasQuad, sprite: u32) {
     let AtlasQuad { rect, uv, colors } = quad;
     let corners = [
-        [rect.min.x as f32, rect.min.y as f32, 0.0],
-        [rect.max.x as f32, rect.min.y as f32, 0.0],
-        [rect.max.x as f32, rect.max.y as f32, 0.0],
-        [rect.min.x as f32, rect.max.y as f32, 0.0],
+        [rect.min.x, rect.min.y, 0.0],
+        [rect.max.x, rect.min.y, 0.0],
+        [rect.max.x, rect.max.y, 0.0],
+        [rect.min.x, rect.max.y, 0.0],
     ];
     let vertex = |pos: [f32; 3], uv: [f32; 2], color: u32| GuiVertex {
         pos,
@@ -509,7 +591,8 @@ pub fn load_gui_atlas(pack: &ResourceSet, commands: &mut Commands) -> Result<(),
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "a Bevy system: each resource and query is its own parameter"
+    clippy::too_many_lines,
+    reason = "a Bevy system: each resource and query is its own parameter, and one pass turns each kind of quad into vertices"
 )]
 fn build_gui_batch(
     scene: Res<GuiScene>,
@@ -518,10 +601,12 @@ fn build_gui_batch(
     stacks: Query<EntityRef, (With<ItemStack>, Without<IsResource>)>,
     time: Res<Time<Real>>,
     config: Res<GuiConfig>,
+    mut cache: ResMut<GlyphCache>,
     mut batch: ResMut<GuiBatch>,
     mut clips: Local<Vec<IRect>>,
 ) {
     let batch = &mut *batch;
+    cache.begin_frame();
     clips.clear();
     batch.vertices.clear();
     batch.draws.clear();
@@ -587,7 +672,14 @@ fn build_gui_batch(
                 let end = vertices.len() as u32;
                 close_flat(&mut flat_start, end, &mut batch.draws);
                 let white = GuiQuad::Fill { rect, color: WHITE };
-                push_flat_quad(vertices, atlas, blank, white, clips.last().copied());
+                push_flat_quad(
+                    vertices,
+                    atlas,
+                    blank,
+                    &mut cache,
+                    white,
+                    clips.last().copied(),
+                );
                 let range = end..vertices.len() as u32;
                 if range.is_empty() {
                     continue;
@@ -614,12 +706,21 @@ fn build_gui_batch(
                 if flat_start.is_none() {
                     flat_start = Some(vertices.len() as u32);
                 }
-                push_flat_quad(vertices, atlas, blank, flat, clips.last().copied());
+                push_flat_quad(
+                    vertices,
+                    atlas,
+                    blank,
+                    &mut cache,
+                    flat,
+                    clips.last().copied(),
+                );
             }
         }
     }
     let end = batch.vertices.len() as u32;
     close_flat(&mut flat_start, end, &mut batch.draws);
+    batch.glyphs.clear();
+    batch.glyphs.extend_from_slice(cache.resident());
 }
 
 fn push_item_layers(vertices: &mut Vec<GuiVertex>, layers: &ItemRenderLayers, origin: IVec2) {
@@ -647,6 +748,7 @@ fn push_flat_quad(
     vertices: &mut Vec<GuiVertex>,
     atlas: &GuiAtlasData,
     blank: [[f32; 2]; 4],
+    cache: &mut GlyphCache,
     quad: GuiQuad,
     clip: Option<IRect>,
 ) {
@@ -656,38 +758,38 @@ fn push_flat_quad(
             region,
             color,
         } => AtlasQuad {
-            rect,
+            rect: rect.as_rect(),
             uv: atlas.uv(atlas.region(region)),
             colors: [color; 4],
         },
         GuiQuad::Fill { rect, color } => AtlasQuad {
-            rect,
+            rect: rect.as_rect(),
             uv: blank,
             colors: [color; 4],
         },
         GuiQuad::Texels { rect, texels } => AtlasQuad {
-            rect,
+            rect: rect.as_rect(),
             uv: atlas.texel_uv(texels),
             colors: [WHITE; 4],
         },
         GuiQuad::FillGradient { rect, top, bottom } => AtlasQuad {
-            rect,
+            rect: rect.as_rect(),
             uv: blank,
             colors: [top, top, bottom, bottom],
         },
         GuiQuad::Glyph {
-            origin,
+            pen,
             glyph,
+            image,
             color,
+            weight,
         } => {
-            let Some(glyph) = atlas.font.glyph(glyph) else {
+            let Some(texels) = atlas.glyph_texels(image.source, glyph, cache) else {
                 return;
             };
-            let ascii = atlas.ascii_origin + glyph.cell;
-            let cell = atlas.font.cell_size;
             AtlasQuad {
-                rect: IRect::from_corners(origin, origin + cell),
-                uv: atlas.uv(IRect::from_corners(ascii, ascii + cell)),
+                rect: image.strike(pen, weight),
+                uv: atlas.texel_uv(texels),
                 colors: [color; 4],
             }
         }
@@ -716,6 +818,7 @@ impl Plugin for GuiPlugin {
             .insert_resource(self.screen)
             .init_resource::<GuiScene>()
             .init_resource::<GuiBatch>()
+            .init_resource::<GlyphCache>()
             .add_plugins(ExtractResourcePlugin::<GuiBatch>::default())
             .add_plugins(ExtractResourcePlugin::<GuiAtlas>::default())
             .add_systems(
@@ -787,9 +890,9 @@ mod tests {
                 atlas.region("gamemode_switcher/slot").size(),
                 IVec2::new(26, 26)
             );
-            assert_eq!(atlas.font.advance('7', false), 6);
+            assert_eq!(atlas.font.advance('7', false), 6.0);
             assert_eq!(atlas.glint.0, 128);
-            assert!(atlas.height <= 512);
+            assert!(atlas.height <= 2048);
             let blank = atlas.region(BLANK);
             let start = (blank.min.y as usize * atlas.width as usize + blank.min.x as usize) * 4;
             assert_eq!(&atlas.pixels[start..start + 4], &[255, 255, 255, 255]);

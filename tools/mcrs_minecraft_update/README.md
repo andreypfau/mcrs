@@ -72,8 +72,10 @@ The steps, in order:
 2. Read `version.json` from the jar and stop if its id is not the requested one.
 3. Write `version.json` of the jar to `assets/minecraft/version.json`.
 4. Write `crates/mcrs_minecraft_client_jar/src/release.json`, the descriptor of
-   the jar, its central directory and the package descriptor, and
-   `crates/mcrs_minecraft_client_jar/src/font_hint.json`.
+   the jar, its central directory and the package descriptor,
+   `crates/mcrs_minecraft_client_jar/src/font_hint.json` and
+   `crates/mcrs_minecraft_client_jar/src/font_objects.json`, the font folder of
+   the asset index the package descriptor names.
 5. Run the game's data generator through the `dumpReports` task of
    `tools/vanilla-oracle` and the `dumpDefinitions` task, both into temporary
    directories.

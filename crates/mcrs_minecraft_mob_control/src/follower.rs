@@ -26,6 +26,21 @@ struct Route {
     speed_modifier: f32,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Acceptance {
+    Changed,
+    Same,
+    Dropped,
+}
+
+fn acceptance(current: Option<Route>, result: Option<Route>) -> Acceptance {
+    match (current, result) {
+        (_, None) => Acceptance::Dropped,
+        (Some(current), Some(result)) if current.node == result.node => Acceptance::Same,
+        (_, Some(_)) => Acceptance::Changed,
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 struct StuckCheck {
     tick: u64,
@@ -69,37 +84,39 @@ impl Follower {
         self.route.is_some()
     }
 
-    /// Applies a path intent of a decision; a new path resets the stuck check and the timeout.
+    /// Applies a path intent; only a changed route resets the stuck check and the timeout.
     pub fn apply(&mut self, intent: &PathIntent, position: DVec3) {
-        match *intent {
+        let (ticket, route) = match *intent {
             PathIntent::Walk {
                 ticket,
                 target,
                 speed_modifier,
-            } => {
-                self.route = Some(Route {
+            } => (
+                ticket,
+                Some(Route {
                     node: BlockPos::from(target),
                     floor: target.y,
                     speed_modifier,
-                });
-                self.applied = Applied {
-                    ticket,
-                    progress: Progress::Running,
-                };
-                self.stuck = StuckCheck {
-                    tick: self.ticks,
-                    position,
-                };
-                self.timeout = Timeout::default();
-            }
-            PathIntent::Clear { ticket } => {
-                self.route = None;
-                self.applied = Applied {
-                    ticket,
-                    progress: Progress::Ended,
-                };
-            }
+                }),
+            ),
+            PathIntent::Clear { ticket } => (ticket, None),
+        };
+        if acceptance(self.route, route) == Acceptance::Changed {
+            self.stuck = StuckCheck {
+                tick: self.ticks,
+                position,
+            };
+            self.timeout = Timeout::default();
         }
+        self.route = route;
+        self.applied = Applied {
+            ticket,
+            progress: if route.is_some() {
+                Progress::Running
+            } else {
+                Progress::Ended
+            },
+        };
     }
 
     /// One tick of the follower before the move control: the advance at the node, the stuck

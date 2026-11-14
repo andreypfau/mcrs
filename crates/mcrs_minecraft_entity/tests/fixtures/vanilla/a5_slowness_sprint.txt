@@ -1,0 +1,173 @@
+client-ticks 2
+version 26.4-snapshot-7
+experiment A5
+step slowness_sprint
+instruction After Go, hold Ctrl and W for 1 second, then release both.
+fill -16 99 -16 48 99 16 minecraft:stone
+events
+3615471 < abilities none 0.05
+3615471 < attribute minecraft:block_interaction_range 4.5
+3615471 < attribute minecraft:entity_interaction_range 3
+3615471 < attribute minecraft:movement_speed 0.10000000149011612
+3615471 < teleport 3 0.5 100 0.5 0 0 0 -90 0 0
+3666100 > move - - none
+3666100 > tick
+3716600 > move - - on_ground
+3716601 > tick
+3766305 > move 0.5,100,0.5 - on_ground
+3766306 > tick
+3816295 > tick
+3866151 > tick
+3916373 > tick
+3965956 > tick
+4021917 > tick
+4074546 > tick
+4116274 > tick
+4166176 > tick
+4217300 > tick
+4269884 > tick
+4321333 > tick
+4366148 > tick
+4416752 > tick
+4466304 > tick
+4517930 > tick
+4568623 > tick
+4617404 > tick
+4672265 > tick
+4717914 > tick
+4769142 > move 0.5,100,0.5 - on_ground
+4769143 > tick
+4816139 > tick
+4866410 > tick
+4916855 > tick
+4969501 > tick
+5020125 > tick
+5068788 > tick
+5116056 > tick
+5166888 > tick
+5216952 > tick
+5267295 > tick
+5315551 > tick
+5365889 > tick
+5416727 > tick
+5467053 > tick
+5516798 > tick
+5566153 > tick
+5615745 > tick
+5667258 > tick
+5716610 > tick
+5767064 > move 0.5,100,0.5 - on_ground
+5767065 > tick
+5816010 > tick
+5865871 > tick
+5915774 > tick
+5970792 > tick
+6016220 > tick
+6067691 > tick
+6115576 > tick
+6166327 > tick
+6166591 < effect minecraft:slowness 0
+6216155 > tick
+6216987 < attribute minecraft:movement_speed 0.10000000149011612 minecraft:effect.slowness -0.15000000596046448 2
+6268077 > tick
+6317074 > tick
+6368835 > tick
+6416520 > tick
+6465736 > tick
+6517915 > tick
+6567159 > tick
+6617283 > tick
+6665966 > tick
+6718355 > input forward,sprint
+6718356 > sprint true
+6718357 > move 0.6082900025165081,100,0.5 - on_ground
+6718357 > tick
+6768885 > move 0.7757063532747104,100,0.5 - on_ground
+6769395 > tick
+6769379 < attribute minecraft:movement_speed 0.10000000149011612 minecraft:effect.slowness -0.15000000596046448 2 minecraft:sprinting 0.30000001192092896 2
+6817367 > move 0.9754056939226317,100,0.5 - on_ground
+6819102 > tick
+6868857 > move 1.1927315490977057,100,0.5 - on_ground
+6868904 > tick
+6917807 > move 1.419681482322467,100,0.5 - on_ground
+6917810 > tick
+6967646 > move 1.6518861627727102,100,0.5 - on_ground
+6968859 > tick
+7020180 > move 1.8869599355413191,100,0.5 - on_ground
+7020181 > tick
+7068040 > move 2.1236002328977115,100,0.5 - on_ground
+7068042 > tick
+7120130 > move 2.361095852778382,100,0.5 - on_ground
+7120395 > tick
+7166819 > move 2.599058478811552,100,0.5 - on_ground
+7166821 > tick
+7219195 > move 2.8372760902336043,100,0.5 - on_ground
+7219196 > tick
+7267778 > move 3.075632923694157,100,0.5 - on_ground
+7267779 > tick
+7316456 > move 3.3140657723965603,100,0.5 - on_ground
+7316457 > tick
+7368347 > move 3.552540125425835,100,0.5 - on_ground
+7368349 > tick
+7417137 > move 3.791037139820214,100,0.5 - on_ground
+7417141 > tick
+7466460 > move 4.029546527321377,100,0.5 - on_ground
+7466461 > tick
+7515747 > move 4.268062670539628,100,0.5 - on_ground
+7517485 > tick
+7566674 > move 4.506582502379838,100,0.5 - on_ground
+7566676 > tick
+7617391 > move 4.745104348207872,100,0.5 - on_ground
+7617392 > tick
+7665363 > move 4.9836272936733845,100,0.5 - on_ground
+7667300 > tick
+7716073 > input none
+7716074 > sprint false
+7716075 > move 5.113860837024523,100,0.5 - on_ground
+7716075 > tick
+7766985 > move 5.1849683599535705,100,0.5 - on_ground
+7766986 > tick
+7766967 < attribute minecraft:movement_speed 0.10000000149011612 minecraft:effect.slowness -0.15000000596046448 2
+7816710 > move 5.223793071982422,100,0.5 - on_ground
+7816711 > tick
+7865679 > move 5.244991367212413,100,0.5 - on_ground
+7865681 > tick
+7916175 > move 5.25656563775237,100,0.5 - on_ground
+7916176 > tick
+7965626 > move 5.262885190201219,100,0.5 - on_ground
+7966796 > tick
+8015550 > move 5.266335666239073,100,0.5 - on_ground
+8016705 > tick
+8065722 > tick
+8115684 > tick
+8165863 > tick
+8216693 > tick
+8265743 > tick
+8316742 > tick
+8365838 > tick
+8415592 > tick
+8466866 > tick
+8515696 > tick
+8566836 > tick
+8615809 > tick
+8666239 > tick
+8716451 > tick
+8766300 > tick
+8816468 > tick
+8865900 > tick
+8915843 > tick
+8967100 > tick
+9022383 > move 5.266335666239073,100,0.5 - on_ground
+9022385 > tick
+9066172 > tick
+9115939 > tick
+9165939 > tick
+9215882 > tick
+9274967 > tick
+9319198 > tick
+9366673 > tick
+9415805 > tick
+9465869 > tick
+9520595 > tick
+9569139 > tick
+9616427 > tick

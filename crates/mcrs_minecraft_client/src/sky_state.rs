@@ -6,6 +6,7 @@ use mcrs_minecraft_dimension_environment::environment::{
 };
 use mcrs_minecraft_environment::AttributeValue;
 use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
+use mcrs_minecraft_fog::{FogInputs, FogParameters};
 
 use mcrs_minecraft_render::sky::SkyEffects;
 
@@ -34,10 +35,11 @@ pub enum SkyField {
     SkyFogEndDistance,
     WaterFogEndDistance,
     WaterFogStartDistance,
+    HasSkyOccluder,
 }
 
 impl SkyField {
-    pub const ALL: [SkyField; 22] = [
+    pub const ALL: [SkyField; 23] = [
         SkyField::SkyColor,
         SkyField::FogColor,
         SkyField::CloudColor,
@@ -60,6 +62,7 @@ impl SkyField {
         SkyField::SkyFogEndDistance,
         SkyField::WaterFogEndDistance,
         SkyField::WaterFogStartDistance,
+        SkyField::HasSkyOccluder,
     ];
 
     pub fn attribute(self) -> EnvironmentAttribute {
@@ -87,22 +90,23 @@ impl SkyField {
             SkyField::SkyFogEndDistance => A::VisualSkyFogEndDistance,
             SkyField::WaterFogEndDistance => A::VisualWaterFogEndDistance,
             SkyField::WaterFogStartDistance => A::VisualWaterFogStartDistance,
+            SkyField::HasSkyOccluder => A::VisualHasSkyOccluder,
         }
     }
 }
 
-/// One field's value: a scalar, or a packed `0xAARRGGBB` colour.
+/// One field's value: a scalar, or a colour as red, green, blue and alpha in `[0, 1]`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SkyValue {
     Scalar(f32),
-    Color(u32),
+    Color([f32; 4]),
 }
 
 impl SkyValue {
-    pub fn color(self) -> u32 {
+    pub fn color(self) -> [f32; 4] {
         match self {
-            SkyValue::Color(packed) => packed,
-            SkyValue::Scalar(value) => value as u32,
+            SkyValue::Color(channels) => channels,
+            SkyValue::Scalar(_) => [0.0; 4],
         }
     }
 }
@@ -120,13 +124,13 @@ fn stack_value(
 }
 
 fn sky_value(value: &AttributeValue) -> SkyValue {
-    if let Some(packed) = value.packed_argb() {
-        return SkyValue::Color(packed);
-    }
     match value {
+        AttributeValue::Rgb([red, green, blue]) => SkyValue::Color([*red, *green, *blue, 1.0]),
+        AttributeValue::Argb(channels) => SkyValue::Color(*channels),
         AttributeValue::Float(v) => SkyValue::Scalar(*v),
         AttributeValue::Integer(v) => SkyValue::Scalar(*v as f32),
         AttributeValue::MoonPhase(phase) => SkyValue::Scalar(phase.index() as f32),
+        AttributeValue::Boolean(v) => SkyValue::Scalar(if *v { 1.0 } else { 0.0 }),
         _ => SkyValue::Scalar(0.0),
     }
 }
@@ -233,38 +237,60 @@ impl SkyLayout {
 
 /// A draw exists when this dimension can make it visible at all.
 ///
-/// The sun, the moon, its twilight and the stars belong to the overworld
-/// skybox; clouds need a cloud colour that is not fully transparent, which is
-/// what leaves the Nether and the End without them.
+/// Only the skybox `overworld` draws a sky; with another one the clear colour shows
+/// (CFOG-SKY-001, step 1). Clouds need a cloud colour that is not fully transparent.
 fn effects(
     skybox: Skybox,
     attributes: &DimensionAttributes,
     ctx: &EnvironmentContext,
 ) -> SkyEffects {
-    let mut effects = SkyEffects::DISC;
-    if skybox == Skybox::Overworld {
-        effects |= SkyEffects::TWILIGHT | SkyEffects::CELESTIAL | SkyEffects::STARS;
-        // A tracked colour can be transparent at this tick and opaque at the next, so only a
-        // constant one can rule the clouds out.
-        let clouds = attributes
-            .stack(SkyField::CloudColor.attribute())
-            .is_some_and(|stack| {
-                stack.is_dynamic() || sky_value(&stack.evaluate(ctx)).color() >> 24 != 0
-            });
-        if clouds {
-            effects |= SkyEffects::CLOUDS;
-        }
+    if skybox != Skybox::Overworld {
+        return SkyEffects::empty();
+    }
+    let mut effects =
+        SkyEffects::DISC | SkyEffects::TWILIGHT | SkyEffects::CELESTIAL | SkyEffects::STARS;
+    // A tracked colour can be transparent at this tick and opaque at the next, so only a
+    // constant one can rule the clouds out.
+    let clouds = attributes
+        .stack(SkyField::CloudColor.attribute())
+        .is_some_and(|stack| {
+            stack.is_dynamic() || sky_value(&stack.evaluate(ctx)).color()[3] > 0.0
+        });
+    if clouds {
+        effects |= SkyEffects::CLOUDS;
+    }
+    let occluder = attributes
+        .stack(EnvironmentAttribute::VisualHasSkyOccluder)
+        .is_some_and(|stack| {
+            stack.is_dynamic() || matches!(stack.evaluate(ctx), AttributeValue::Boolean(true))
+        });
+    if occluder {
+        effects |= SkyEffects::OCCLUDER;
     }
     effects
 }
 
 /// The per-frame uniform: one write, no allocation, no memoized value.
-#[derive(Resource, Debug, Clone, Default, PartialEq)]
+#[derive(Resource, Debug, Clone, PartialEq)]
 pub struct SkyFrame {
     pub camera: [f32; 3],
     pub rain: f32,
     pub thunder: f32,
     pub values: Vec<SkyValue>,
+    /// The fog of the frame, which the clear colour, the world and the sky read.
+    pub fog: FogParameters,
+}
+
+impl Default for SkyFrame {
+    fn default() -> Self {
+        Self {
+            camera: [0.0; 3],
+            rain: 0.0,
+            thunder: 0.0,
+            values: Vec::new(),
+            fog: FogParameters::from_inputs(&FogInputs::default()),
+        }
+    }
 }
 
 impl SkyFrame {
@@ -456,8 +482,8 @@ mod tests {
         assert_eq!(frame.len(), 11, "{frame:?}");
         assert_eq!(
             constant.len(),
-            11,
-            "the 13 constants less the two particle payloads"
+            12,
+            "the 14 constants less the two particle payloads"
         );
 
         for field in [
@@ -552,7 +578,7 @@ mod tests {
         let constants = layout.constants(&attributes, &context(&ticks));
         assert_eq!(constants.key.skybox, Skybox::Overworld);
         assert_eq!(constants.key.effects, SkyEffects::all());
-        assert_eq!(constants.key.draws(), 5);
+        assert_eq!(constants.key.draws(), 6);
         assert_eq!(
             constants.get(SkyField::CloudHeight),
             Some(SkyValue::Scalar(192.33))
@@ -560,7 +586,7 @@ mod tests {
     }
 
     #[test]
-    fn the_nether_has_no_sun_moon_stars_or_clouds() {
+    fn the_nether_draws_no_sky() {
         let nether_timelines = [timeline("villager_schedule.json")];
         let borrowed: Vec<&Timeline> = nether_timelines.iter().collect();
         let proto = dimension_type("the_nether.json");
@@ -573,8 +599,8 @@ mod tests {
         let constants = layout.constants(&attributes, &ctx);
 
         assert_eq!(constants.key.skybox, Skybox::None);
-        assert_eq!(constants.key.effects, SkyEffects::DISC);
-        assert_eq!(constants.key.draws(), 1);
+        assert_eq!(constants.key.effects, SkyEffects::empty());
+        assert_eq!(constants.key.draws(), 0);
 
         let overworld_draws = {
             let (overworld, _timelines) = overworld();
@@ -583,7 +609,7 @@ mod tests {
                 .key
                 .draws()
         };
-        assert_eq!(overworld_draws - constants.key.draws(), 4);
+        assert_eq!(overworld_draws - constants.key.draws(), 6);
 
         for id in [
             EnvironmentAttribute::VisualSunAngle,

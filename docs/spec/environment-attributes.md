@@ -79,7 +79,8 @@ the clock of the client. The server clock and the commands that change a clock a
 `command-time.md`, CMD-TIME-005 to CMD-TIME-019. This document cites them.
 
 Out of scope: what each consumer does with a value, for example how the sky renderer uses
-`visual/sky_color`. The consumer specification owns that.
+`visual/sky_color`. The consumer specification owns that. `client-fog.md` states the consumers
+of the fog, sky and cloud attributes when the camera is in air.
 
 ---
 

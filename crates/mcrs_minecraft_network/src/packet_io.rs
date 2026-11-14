@@ -1,3 +1,6 @@
+use crate::inbound;
+use crate::inbound::InboundReceiver;
+use crate::inbound::InboundSender;
 #[cfg(not(target_family = "wasm"))]
 use crate::outbound::OutboundReceiver;
 use crate::outbound::{FrameWriter, OutboundBatch, WriterQueue};
@@ -92,6 +95,13 @@ impl Inbound {
         match self {
             Self::FromClient => 256,
             Self::FromServer => 65_536,
+        }
+    }
+
+    fn payload_budget(self) -> usize {
+        match self {
+            Self::FromClient => 4 * 1024 * 1024,
+            Self::FromServer => 64 * 1024 * 1024,
         }
     }
 }
@@ -204,7 +214,8 @@ impl<S: AsyncRead + AsyncWrite + Unpin> PacketIo<S> {
     where
         S: ByteStream,
     {
-        let (incoming_sender, incoming_receiver) = mpsc::channel(inbound.capacity());
+        let (incoming_sender, incoming_receiver) =
+            inbound::channel(inbound.capacity(), inbound.payload_budget());
         let (outgoing_sender, outgoing_receiver) =
             mpsc::channel::<OutboundBatch>(OUTBOUND_CHANNEL_CAPACITY);
         let signal = Arc::new(WriterSignal::default());
@@ -279,9 +290,9 @@ async fn read_until_closed<R: AsyncRead + Unpin>(
     mut reader: R,
     dec: PacketDecoder,
     switches: mpsc::UnboundedReceiver<InboundSwitch>,
-    incoming_sender: mpsc::Sender<ReceivedPacket>,
+    incoming_sender: InboundSender,
 ) {
-    let connection = incoming_sender.clone();
+    let connection = incoming_sender.packets.clone();
     tokio::select! {
         () = reader_loop(&mut reader, dec, switches, incoming_sender) => {}
         () = connection.closed() => {}
@@ -299,7 +310,7 @@ async fn reader_loop<R: AsyncRead + Unpin>(
     mut reader: R,
     mut dec: PacketDecoder,
     switches: mpsc::UnboundedReceiver<InboundSwitch>,
-    incoming_sender: mpsc::Sender<ReceivedPacket>,
+    mut incoming_sender: InboundSender,
 ) {
     let mut buf = BytesMut::new();
     let mut switches = Some(switches);
@@ -408,7 +419,7 @@ async fn writer_loop<W: AsyncWrite + Unpin>(
 
 pub struct RawConnection {
     outgoing: mpsc::Sender<OutboundBatch>,
-    recv: mpsc::Receiver<ReceivedPacket>,
+    recv: InboundReceiver,
     pub remote_addr: SocketAddr,
     switch_mode: SwitchMode,
     announced_compression: Option<CompressionThreshold>,
@@ -488,7 +499,7 @@ impl RawConnection {
         let addr = SocketAddr::from(([127, 0, 0, 1], 0));
         let raw = RawConnection {
             outgoing: outgoing_tx,
-            recv: inbound_rx,
+            recv: InboundReceiver::from_packets(inbound_rx),
             remote_addr: addr,
             switch_mode: SwitchMode::of_own_version(),
             announced_compression: None,
@@ -724,7 +735,46 @@ mod tests {
     use mcrs_minecraft_protocol::packets::login::clientbound::LoginCompression;
     use mcrs_minecraft_protocol::packets::ping::serverbound::PingRequest;
     use mcrs_minecraft_protocol::packets::status::clientbound::StatusResponse;
+    use std::future::Future;
+    use std::task::Context;
+    use std::task::Poll;
+    use std::task::Waker;
     use std::time::Duration;
+
+    #[test]
+    fn compressed_inbound_packets_wait_for_payload_budget_and_resume_in_order() {
+        let threshold = CompressionThreshold(1);
+        let mut encoder = PacketEncoder::new();
+        encoder.set_compression(threshold);
+        for id in 1..=3 {
+            let packet = vec![id; 3 * 1024 * 1024];
+            encoder.append_encoded(&packet).unwrap();
+        }
+        let wire = encoder.take();
+        let mut decoder = PacketDecoder::new();
+        decoder.set_compression(threshold);
+        let (_switch, switches) = mpsc::unbounded_channel();
+        let inbound = Inbound::FromClient;
+        let (sender, mut receiver) = inbound::channel(inbound.capacity(), inbound.payload_budget());
+        let mut reading = Box::pin(reader_loop(&wire[..], decoder, switches, sender));
+        let mut context = Context::from_waker(Waker::noop());
+
+        for expected in 1..=3 {
+            let progress = if expected < 3 {
+                Poll::Pending
+            } else {
+                Poll::Ready(())
+            };
+            assert_eq!(reading.as_mut().poll(&mut context), progress);
+            let packet = receiver.try_recv().unwrap();
+            assert_eq!(packet.id, expected);
+            assert_eq!(packet.payload.len(), 3 * 1024 * 1024 - 1);
+            assert!(
+                receiver.try_recv().is_err(),
+                "only one large packet fits the client budget"
+            );
+        }
+    }
 
     fn body_of<P: Encode>(packet: &P) -> Vec<u8> {
         let mut body = Vec::new();

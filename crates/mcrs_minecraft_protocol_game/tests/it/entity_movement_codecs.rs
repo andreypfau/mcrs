@@ -194,3 +194,17 @@ fn trk_wire_004_an_angle_packs_to_the_floor_of_its_step() {
         );
     }
 }
+
+/// A pitch above the horizon is negative and must decode below zero, not past 180.
+#[test]
+fn an_angle_decodes_to_the_signed_range() {
+    for (byte, degrees) in [
+        (0, 0.0),
+        (64, 90.0),
+        (127, 178.59375),
+        (128, -180.0),
+        (234, -30.9375),
+    ] {
+        assert_eq!(ByteAngle(byte).to_degrees(), degrees, "{byte}");
+    }
+}

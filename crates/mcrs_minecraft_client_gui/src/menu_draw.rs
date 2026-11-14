@@ -260,13 +260,13 @@ fn draw_caption(widget: &Widget, now_ms: u64, font: &Font, out: &mut Vec<GuiQuad
             let origin = point(checkbox_label_origin(widget.rect(), count));
             for (line, text) in (0..).zip(caption.lines()) {
                 let at = origin + IVec2::new(0, LINE_HEIGHT * line);
-                draw_str(font, at, text, color, false, out);
+                draw_str(font, at.as_vec2(), text, color, false, out);
             }
         }
         WidgetKind::MultiLineText { .. } => {
             for (line, text) in (0..).zip(caption.lines()) {
                 if let Some(origin) = widget.line_origin(line, font.str_width(text)) {
-                    draw_str(font, point(origin), text, color, false, out);
+                    draw_str(font, point(origin).as_vec2(), text, color, false, out);
                 }
             }
         }
@@ -282,11 +282,18 @@ fn draw_caption(widget: &Widget, now_ms: u64, font: &Font, out: &mut Vec<GuiQuad
             match cut_room(widget, width, font) {
                 Some(room) => {
                     let start = caption.get(..cut_end(font, caption, room)).unwrap_or("");
-                    let x = draw_str(font, origin, start, color, false, out);
-                    draw_str(font, IVec2::new(x, origin.y), ELLIPSIS, color, false, out);
+                    let x = draw_str(font, origin.as_vec2(), start, color, false, out);
+                    draw_str(
+                        font,
+                        Vec2::new(x, origin.y as f32),
+                        ELLIPSIS,
+                        color,
+                        false,
+                        out,
+                    );
                 }
                 None => {
-                    draw_str(font, origin, caption, color, false, out);
+                    draw_str(font, origin.as_vec2(), caption, color, false, out);
                 }
             }
             if layout.clip.is_some() {
@@ -311,10 +318,10 @@ fn cut_room(widget: &Widget, text_width: i32, font: &Font) -> Option<i32> {
 
 /// The byte length of the longest start of `text` no wider than `room`.
 fn cut_end(font: &Font, text: &str, room: i32) -> usize {
-    let mut width = 0;
+    let mut width = 0.0;
     for (index, ch) in text.char_indices() {
         width += font.advance(ch, false);
-        if width > room {
+        if width > room as f32 {
             return index;
         }
     }
@@ -482,14 +489,18 @@ mod tests {
             let after_end = tx + ATLAS.font.str_width("ab") + 1;
             let underscore = [
                 GuiQuad::Glyph {
-                    origin: IVec2::new(after_end + 1, ty + 1),
+                    pen: Vec2::new((after_end + 1) as f32, (ty + 1) as f32),
                     glyph: '_',
+                    image: ATLAS.font.glyph('_').image.unwrap(),
                     color: shadow_color(text),
+                    weight: crate::font_glyph::Weight::Regular,
                 },
                 GuiQuad::Glyph {
-                    origin: IVec2::new(after_end, ty),
+                    pen: Vec2::new((after_end) as f32, (ty) as f32),
                     glyph: '_',
+                    image: ATLAS.font.glyph('_').image.unwrap(),
                     color: text,
+                    weight: crate::font_glyph::Weight::Regular,
                 },
             ];
             let bar = GuiQuad::Fill {

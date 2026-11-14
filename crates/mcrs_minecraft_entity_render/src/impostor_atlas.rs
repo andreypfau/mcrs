@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::ops::Range;
 
 use bytemuck::{Pod, Zeroable};
 use mcrs_minecraft_entity_model::{
@@ -78,13 +79,15 @@ pub(crate) struct ImpostorAtlas {
     max_layers: u32,
     /// For each model and variant, the layer of its set and its hidden mask, or [`NO_IMPOSTOR`].
     pub(crate) pairs: Buffer,
-    /// [`ImpostorView`] of each model and view.
-    pub(crate) frame_table: Buffer,
     rest_bones: Buffer,
     seen: HashSet<(u16, u16)>,
     noted: Vec<Pair>,
+    /// The variants whose texels change, so that no image set of theirs stays true.
+    skin_variants: Range<u16>,
     pub(crate) images: BindGroup,
-    /// For each layer and view: the centroid of the covered texels in the image and their share.
+    /// The [`ImpostorView`] of each model and view, then for each layer and view the centroid of
+    /// the covered texels in the image and their share. One buffer holds both, so that the
+    /// prepare pass fits the storage buffers of a WebGPU stage.
     pub(crate) covers: Buffer,
     cover: wgpu::ComputePipeline,
 }
@@ -109,16 +112,8 @@ impl ImpostorAtlas {
             bytemuck::cast_slice(&vec![NO_IMPOSTOR; pair_count]),
             BufferUsages::COPY_DST,
         );
-        let frame_table = storage(
-            "entity impostor frames",
-            bytemuck::cast_slice(
-                &frames
-                    .iter()
-                    .flat_map(|frames| frames.views)
-                    .collect::<Vec<ImpostorView>>(),
-            ),
-            BufferUsages::empty(),
-        );
+        let views: Vec<ImpostorView> = frames.iter().flat_map(|frames| frames.views).collect();
+        let first_cover = views.len();
         let rest_bones = storage(
             "entity rest bones",
             bytemuck::cast_slice(&library.rest_bones),
@@ -154,23 +149,30 @@ impl ImpostorAtlas {
             used: 0,
             max_layers,
             pairs,
-            frame_table,
             rest_bones,
             seen: HashSet::new(),
             noted: Vec::new(),
+            skin_variants: library.skin_variants.clone(),
             images,
-            covers: device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("entity impostor covers"),
-                size: u64::from(max_layers) * u64::from(VIEWS) * 16,
-                usage: BufferUsages::STORAGE,
-                mapped_at_creation: false,
-            }),
+            covers: storage(
+                "entity impostor covers",
+                &[
+                    bytemuck::cast_slice(&views),
+                    vec![0; max_layers as usize * VIEWS as usize * 16].as_slice(),
+                ]
+                .concat(),
+                BufferUsages::empty(),
+            ),
             cover: device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                 label: Some("entity impostor cover"),
                 layout: None,
                 module: &device.create_shader_module(wgpu::ShaderModuleDescriptor {
                     label: Some("entity impostor cover"),
-                    source: wgpu::ShaderSource::Wgsl(impostor_constants(COVER).into()),
+                    source: wgpu::ShaderSource::Wgsl(
+                        impostor_constants(COVER)
+                            .replace("#{FIRST_COVER}", &first_cover.to_string())
+                            .into(),
+                    ),
                 }),
                 entry_point: Some("cover"),
                 compilation_options: Default::default(),
@@ -217,11 +219,15 @@ impl ImpostorAtlas {
         pass.dispatch_workgroups(VIEWS, 1, 1);
     }
 
-    /// Notes the pairs of the active layers of `state` that have no image set yet.
+    /// Notes the pairs of the active layers of `state` that have no image set yet. A pair of a
+    /// skin keeps none, so its slots draw a full rig.
     pub(crate) fn note(&mut self, state: &StateRecord) {
         let hidden = (state.flags >> STATE_HIDDEN_SHIFT) as u16;
         for (layer, [model, variant]) in state.layers.iter().enumerate() {
-            if state.layer_mask & (1 << layer) != 0 && self.seen.insert((*model, *variant)) {
+            if state.layer_mask & (1 << layer) != 0
+                && !self.skin_variants.contains(variant)
+                && self.seen.insert((*model, *variant))
+            {
                 self.noted.push(Pair {
                     model: *model,
                     variant: *variant,

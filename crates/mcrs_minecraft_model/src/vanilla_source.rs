@@ -23,11 +23,13 @@ pub fn fill(root: &Dir, files: Files) {
     }
 }
 
-/// The resource half of the installed client jar, read once per process.
+/// The resource half of the installed client jar with the font files of the asset index laid
+/// over it, read once per process.
 ///
 /// # Panics
 ///
-/// When the client jar can not be installed or read.
+/// When the client jar can not be installed or read, or the font objects of the asset index can
+/// not be fetched.
 #[cfg(any(test, feature = "test-support"))]
 #[expect(
     clippy::unwrap_used,
@@ -36,13 +38,17 @@ pub fn fill(root: &Dir, files: Files) {
 pub fn resource_files() -> &'static Files {
     use mcrs_minecraft_client_jar::Progress;
     static FILES: std::sync::LazyLock<Files> = std::sync::LazyLock::new(|| {
-        mcrs_minecraft_client_jar::resolve(
-            &Progress::default(),
-            crate::resource_set::is_resource,
-            drop,
-        )
-        .unwrap()
-        .0
+        let progress = Progress::default();
+        let mut files =
+            mcrs_minecraft_client_jar::resolve(&progress, crate::resource_set::is_resource, drop)
+                .unwrap()
+                .0;
+        // The asset index layer lies above the jar: its file of a path replaces the jar's. A corpus
+        // without it would fail the tests that need Unifont in confusing ways, so fail here.
+        let layer = mcrs_minecraft_client_jar::font_assets().unwrap();
+        files.retain(|(name, _)| layer.iter().all(|(above, _)| above != name));
+        files.extend(layer);
+        files
     });
     &FILES
 }

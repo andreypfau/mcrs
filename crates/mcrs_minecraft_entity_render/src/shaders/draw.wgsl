@@ -3,13 +3,13 @@
 
 @group(0) @binding(0) var<uniform> frame: Frame;
 @group(0) @binding(5) var<storage, read> states: array<StateRecord>;
-@group(0) @binding(8) var<storage, read> models: array<ModelRecord>;
+@group(0) @binding(8) var<uniform> models: array<ModelRecord, #{MODELS}>;
 @group(0) @binding(10) var<storage, read> cuboids: array<CuboidRecord>;
 @group(0) @binding(11) var<storage, read> visible: array<vec2<u32>>;
 @group(0) @binding(12) var<storage, read> bone_matrices: array<vec4<f32>>;
 @group(0) @binding(13) var<storage, read> instances: array<Instance>;
 @group(0) @binding(14) var<storage, read> faces: array<vec2<u32>>;
-@group(0) @binding(19) var<storage, read> variants: array<Variant>;
+@group(0) @binding(19) var<uniform> variants: array<Variant, #{VARIANTS}>;
 @group(1) @binding(0) var entity_textures: texture_2d_array<f32>;
 @group(1) @binding(1) var entity_sampler: sampler;
 

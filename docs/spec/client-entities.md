@@ -32,8 +32,8 @@ in each frame. The document does not prescribe an architecture.
 - **Yaw**: a horizontal angle in degrees. Yaw `0` faces +Z. Yaw `90` faces −X. The facing vector
   for yaw `y` and pitch `p` is `(−sin y · cos p, −sin p, cos y · cos p)`.
 - **Pitch**: a vertical angle in degrees. A positive pitch looks down.
-- **Byte angle**: an angle on the wire as one unsigned byte `b`. The angle is `b · 360 / 256`
-  degrees.
+- **Byte angle**: an angle on the wire as one byte. The client reads the byte as a signed value
+  `s` in `[−128, 127]`. The angle is `s · 360 / 256` degrees, in the range `[−180, 180)`.
 - **Wrap**: `wrap(a)` gives the angle equal to `a` modulo 360 in the range `[−180, 180)`.
 - **Angle interpolation**: `alerp(t, a, b) = a + t · wrap(b − a)`. It follows the shorter arc.
 - **Linear interpolation**: `lerp(t, a, b) = a + t · (b − a)`.

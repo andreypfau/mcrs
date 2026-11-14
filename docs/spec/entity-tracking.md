@@ -131,8 +131,8 @@ data:
 The default values are: client tracking range 5, update interval 3, summonable true. The type data
 of the reference has more fields: "tracks velocity" (true for each mob, false for the player),
 "allowed in peaceful" and "fire immune". G1 reads none of them. G2 adds the fields fire-immune,
-the base `armor` and the hit kind (`entity-damage.md`, Appendix A); the zombified piglin is
-fire-immune, with the armor 2 and the normal hit kind.
+the base `armor` and the hit kind (Appendix A of `entity-damage.md` and of `attributes.md`); the
+zombified piglin is fire-immune, with the armor 2 and the normal hit kind.
 
 **TRK-TYPE-002** (`source_suggested_black_box_confirmed`, wire, confidence: high). The types of
 the farm have these values. TRK-E1 and TRK-E3 confirm the wire id, the range and the interval of
@@ -172,18 +172,17 @@ attribute defaults, and these values:
 | `armor` | 2 |
 | `spawn_reinforcements` | 0 |
 
-The attributes of a living entity are: `max_health`, `knockback_resistance`, `movement_speed`,
-`armor`, `armor_toughness`, `max_absorption`, `step_height`, `scale`, `gravity`,
-`safe_fall_distance`, `fall_damage_multiplier`, `jump_strength`, `entity_interaction_range`,
-`oxygen_bonus`, `burning_time`, `explosion_knockback_resistance`, `water_movement_efficiency`,
-`movement_efficiency`, `attack_knockback`, `camera_distance`, `waypoint_transmit_range`,
-`bounciness`, `air_drag_modifier`, `friction_modifier`, `name_tag_distance` and
-`below_name_distance`. The client has the same defaults for each type. Thus the client agrees on
+The attributes of a living entity are the common set of ATR-BASE-002 of `attributes.md`, with
+the attribute defaults of ATR-DEF-001. The client has the same defaults for each type. Thus the client agrees on
 each attribute that the server does not send. The walker tick reads the attributes of
 `MotionAttributes`; of the fields of `MotionAttributes`, only `movement_speed` of a zombified
 piglin differs from the attribute
 default (0.7). In this document, "the base of the type" is the value of this table, and "the
 attribute default" is the default of the attribute itself.
+
+`attributes.md` owns these values. ATR-BASE-002 states the list of a living entity, and
+ATR-BASE-003 with its Appendix A states the base of each type. This rule and TRK-TYPE-004 repeat
+the rows that this document needs.
 
 **TRK-TYPE-004** (`source_suggested_black_box_confirmed`, client agreement, confidence: high). The
 default attributes of the four farm animals are the attributes of a living entity with their
@@ -542,15 +541,16 @@ so the codec derives this entry from the type.
 **TRK-DATA-004** (`source_suggested_black_box_confirmed`, client agreement, confidence: medium).
 The `update_attributes` of the spawn bundle must hold each syncable attribute whose base value
 differs from the base of the type (TRK-TYPE-003), or that has a modifier. It can hold other
-syncable attributes. Each attribute of TRK-TYPE-003, in its table and in its list, is syncable,
-except `follow_range`,
-`attack_damage`, `knockback_resistance`, `spawn_reinforcements`, `attack_knockback` and
-`waypoint_transmit_range`. The
-reference holds the attributes that the server read or changed, for example `movement_speed` of a
-zombified piglin with its base `0.23F`. G1 sends the list of the reference: `movement_speed` with
-its base and no modifier, so the bundle equals TRK-E1. Hook: when an attribute changes later, the
-next update sends `update_attributes` with the changed attributes, after `set_entity_data`. TRK-E2 shows the modifier `minecraft:baby`, amount 0.5, operation 1, on
-`movement_speed` of a baby.
+syncable attributes. The column "Syncable" of ATR-DEF-001 of `attributes.md` states which
+attributes are syncable. The reference holds the attributes that the server read or changed, for
+example `movement_speed` of a zombified piglin with its base `0.23F` and no modifier (TRK-E1). G1
+sends no entry for an instance with the base of the type and no modifier (ATR-NET-003 of
+`attributes.md`). Thus the bundle of a summoned zombified piglin has no `update_attributes`
+(TRK-SPN-001). Before it compares a bundle with TRK-E1, a differential test drops each such entry
+of the reference, and then each `update_attributes` with no entry. Hook: when an attribute changes
+later, the next update sends `update_attributes` with the changed attributes, after
+`set_entity_data` (ATR-NET-002 and ATR-NET-003 of `attributes.md`). TRK-E2 shows the modifier
+`minecraft:baby`, amount 0.5, operation 1, on `movement_speed` of a baby.
 
 **TRK-DATA-005** (`source_suggested`, wire, confidence: high). Hook. A dirty entry makes the tracker
 tick an update (TRK-UPD-001). The update sends `set_entity_data` with each dirty entry in the
@@ -1043,7 +1043,8 @@ update before it: the fall damage made the health entry dirty, which made an upd
   TRK-E2 from the first update to the landing: the linear zero move at `c = 0`, one update each 3
   ticks, the velocity before the move, one step of 3 ticks, `entity_position_sync` at the landing
   with the ground flag 1, and a zero step at `c = 60` while the piglin rests.
-- Spawn bundle: the bundle of a summoned piglin equals TRK-E1.
+- Spawn bundle: the bundle of a summoned piglin equals TRK-E1 without the entries that
+  TRK-DATA-004 drops.
 - Range: the pure function of TRK-RNG-001 with the cases of TRK-E3.
 - `summon`: the failures of TRK-SUM-002 steps 1 and 2 and of TRK-SUM-003, and the message of
   TRK-SUM-004 with the UUID of the row.

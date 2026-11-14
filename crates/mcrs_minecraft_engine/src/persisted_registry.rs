@@ -22,6 +22,21 @@ pub enum PersistScope {
     TravelOnly,
 }
 
+/// Why the engine captures the registered components of a player. A codec can act on the cause,
+/// such as to close what the player holds open before a leave.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum CaptureCause {
+    /// The periodic save writes the player file.
+    Autosave,
+    /// The player leaves the server; the engine writes its file and despawns it.
+    Leave,
+    /// The player leaves its dimension world for another dimension.
+    DimensionChange,
+    /// The player leaves its cell for another cell of the same dimension.
+    CellCrossing,
+}
+
 /// A saved component held as NBT, under the root keys of the player file.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PersistedSnapshot {
@@ -151,7 +166,7 @@ pub trait PersistedForm<T>: Serialize + DeserializeOwned {
     fn into_value(self) -> Result<T, String>;
 }
 
-type Capture = fn(&mut World, Entity) -> Result<Option<NbtTag>, PersistedError>;
+type Capture = fn(&mut World, Entity, CaptureCause) -> Result<Option<NbtTag>, PersistedError>;
 type Apply = fn(&mut World, Entity, &NbtTag) -> Result<(), PersistedError>;
 
 #[derive(Clone, Copy)]
@@ -249,8 +264,9 @@ impl PersistedRegistry {
         &self,
         world: &mut World,
         entity: Entity,
+        cause: CaptureCause,
     ) -> Result<PersistedSnapshot, PersistedError> {
-        self.capture_scoped(world, entity, |_| true)
+        self.capture_scoped(world, entity, cause, |_| true)
     }
 
     /// The [`PersistScope::Persisted`] components of `entity`, for the player file.
@@ -258,19 +274,23 @@ impl PersistedRegistry {
         &self,
         world: &mut World,
         entity: Entity,
+        cause: CaptureCause,
     ) -> Result<PersistedSnapshot, PersistedError> {
-        self.capture_scoped(world, entity, |scope| scope == PersistScope::Persisted)
+        self.capture_scoped(world, entity, cause, |scope| {
+            scope == PersistScope::Persisted
+        })
     }
 
     fn capture_scoped(
         &self,
         world: &mut World,
         entity: Entity,
+        cause: CaptureCause,
         wanted: impl Fn(PersistScope) -> bool,
     ) -> Result<PersistedSnapshot, PersistedError> {
         let mut snapshot = PersistedSnapshot::new();
         for codec in self.codecs.iter().filter(|codec| wanted(codec.scope)) {
-            if let Some(tag) = (codec.capture)(world, entity)? {
+            if let Some(tag) = (codec.capture)(world, entity, cause)? {
                 snapshot.put_tag(codec.keys, tag)?;
             }
         }
@@ -386,7 +406,11 @@ impl PersistedAppExt for App {
     }
 }
 
-fn capture_component<T>(world: &mut World, entity: Entity) -> Result<Option<NbtTag>, PersistedError>
+fn capture_component<T>(
+    world: &mut World,
+    entity: Entity,
+    _: CaptureCause,
+) -> Result<Option<NbtTag>, PersistedError>
 where
     T: Component + Serialize,
 {
@@ -409,7 +433,11 @@ where
     insert(world, entity, component)
 }
 
-fn capture_form<T, F>(world: &mut World, entity: Entity) -> Result<Option<NbtTag>, PersistedError>
+fn capture_form<T, F>(
+    world: &mut World,
+    entity: Entity,
+    _: CaptureCause,
+) -> Result<Option<NbtTag>, PersistedError>
 where
     T: Component,
     F: PersistedForm<T>,
@@ -534,7 +562,9 @@ mod tests {
             .register::<Counter>(&["test:counter"], PersistScope::Persisted)
             .unwrap();
 
-        let snapshot = registry.capture(&mut world, entity).unwrap();
+        let snapshot = registry
+            .capture(&mut world, entity, CaptureCause::Autosave)
+            .unwrap();
         world.despawn(entity);
         let entity = world.spawn_empty().id();
         registry.apply(&mut world, entity, &snapshot).unwrap();
@@ -551,7 +581,9 @@ mod tests {
             .register::<Counter>(&["test:counter"], PersistScope::Persisted)
             .unwrap();
 
-        let snapshot = registry.capture(&mut world, entity).unwrap();
+        let snapshot = registry
+            .capture(&mut world, entity, CaptureCause::Autosave)
+            .unwrap();
 
         assert!(snapshot.is_empty());
     }
@@ -586,7 +618,9 @@ mod tests {
             .register::<Spot>(&["X", "Y"], PersistScope::Persisted)
             .unwrap();
 
-        let snapshot = registry.capture(&mut world, entity).unwrap();
+        let snapshot = registry
+            .capture(&mut world, entity, CaptureCause::Autosave)
+            .unwrap();
         assert_eq!(snapshot.get("X"), Some(&NbtTag::Int(1)));
         assert_eq!(snapshot.get("Y"), Some(&NbtTag::Int(2)));
 
@@ -606,11 +640,16 @@ mod tests {
 
         assert!(
             registry
-                .capture_file(&mut world, entity)
+                .capture_file(&mut world, entity, CaptureCause::Autosave)
                 .unwrap()
                 .is_empty()
         );
-        assert!(!registry.capture(&mut world, entity).unwrap().is_empty());
+        assert!(
+            !registry
+                .capture(&mut world, entity, CaptureCause::CellCrossing)
+                .unwrap()
+                .is_empty()
+        );
         assert_eq!(registry.file_key("test:counter"), None);
     }
 }

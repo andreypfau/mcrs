@@ -113,11 +113,11 @@ fn pose(@builtin(global_invocation_id) id: vec3<u32>) {
     }
     let slot = entry.x;
     let state = states[slot];
-    let current = ticks[slot];
+    let current = ticks[current_tick(slot)];
     let interpolates = tick_of_record[slot] == frame.tick;
     var previous = current;
     if (interpolates) {
-        previous = previous_ticks[slot];
+        previous = ticks[previous_tick(slot)];
     }
     let pt = frame.partial_tick;
 

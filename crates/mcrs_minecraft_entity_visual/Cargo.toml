@@ -1,0 +1,24 @@
+[package]
+name = "mcrs_minecraft_entity_visual"
+description = "The state of an entity that a viewer draws: placement and interpolation, age, head and body yaw, walk, hurt and death, entity data and equipment, the tick that advances them and the values of one frame"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+glam = { workspace = true, features = ["std"] }
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_item_key.workspace = true
+mcrs_minecraft_numeric.workspace = true
+mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_resource.workspace = true
+mcrs_voxel.workspace = true
+uuid.workspace = true

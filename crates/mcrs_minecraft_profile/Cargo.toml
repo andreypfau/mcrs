@@ -19,5 +19,7 @@ bevy_ecs = { workspace = true, optional = true }
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_wire = { workspace = true, features = ["uuid"] }
 anyhow.workspace = true
+base64.workspace = true
 serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
 uuid = { workspace = true, features = ["serde"] }

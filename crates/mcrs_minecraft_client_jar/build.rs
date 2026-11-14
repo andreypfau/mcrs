@@ -12,6 +12,7 @@ use std::path::Path;
 use serde::Deserialize;
 
 const DESCRIPTOR: &str = "src/release.json";
+const OBJECTS: &str = "src/font_objects.json";
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -28,6 +29,14 @@ struct Release {
     jar: Artifact,
     directory: Artifact,
     json: Artifact,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AssetObject {
+    path: String,
+    sha1: String,
+    size: u64,
 }
 
 fn artifact(artifact: &Artifact) -> String {
@@ -51,4 +60,20 @@ fn main() {
         artifact(&release.json),
     );
     std::fs::write(Path::new(&out).join("release.rs"), code).expect("OUT_DIR is writable");
+
+    println!("cargo::rerun-if-changed={OBJECTS}");
+    let text = std::fs::read_to_string(OBJECTS).expect("the font object list reads");
+    let objects: Vec<AssetObject> =
+        serde_json::from_str(&text).expect("the font object list is a list of asset objects");
+    let rows: Vec<String> = objects
+        .iter()
+        .map(|object| {
+            format!(
+                "AssetObject {{ path: {:?}, sha1: {:?}, size: {} }}",
+                object.path, object.sha1, object.size
+            )
+        })
+        .collect();
+    let code = format!("[{}]", rows.join(", "));
+    std::fs::write(Path::new(&out).join("font_objects.rs"), code).expect("OUT_DIR is writable");
 }

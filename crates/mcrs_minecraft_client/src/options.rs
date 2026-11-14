@@ -6,14 +6,14 @@ use mcrs_minecraft_client_gui::scene::GuiConfig;
 use mcrs_minecraft_client_options::{ClientOptions, VIEW_DISTANCE_DEFAULT};
 use mcrs_minecraft_client_world::player_view::RequestedViewDistance;
 use mcrs_minecraft_mesh::smooth_light::SmoothLight;
-use mcrs_minecraft_render::Brightness;
+use mcrs_minecraft_render::{Brightness, ImprovedTransparency};
 
 use crate::camera::FovOptions;
 use crate::sky::Clouds;
 use crate::stream::LightOptions;
 
 /// Keeps the client options as the one resource that the field of view, the terrain light, the
-/// clouds, the brightness, the GUI scale, the requested view distance and, on a native client,
+/// clouds, the brightness, Improved Transparency, the GUI scale, the requested view distance and, on a native client,
 /// the window mode, the present mode and the frame limit follow, and writes them to `file` as
 /// JSON each time they change after start-up. The web has no file, so there `file` is ignored.
 pub struct ClientOptionsPlugin {
@@ -99,6 +99,7 @@ fn project_options(
     light: Option<ResMut<LightOptions>>,
     clouds: Option<ResMut<Clouds>>,
     brightness: Option<ResMut<Brightness>>,
+    improved_transparency: Option<ResMut<ImprovedTransparency>>,
     gui: Option<ResMut<GuiConfig>>,
 ) {
     view_distance.set_if_neq(requested_view_distance(&options));
@@ -124,6 +125,9 @@ fn project_options(
         brightness
             .map_unchanged(|brightness| &mut brightness.0)
             .set_if_neq(options.brightness);
+    }
+    if let Some(mut improved_transparency) = improved_transparency {
+        improved_transparency.set_if_neq(ImprovedTransparency(options.improved_transparency));
     }
     if let Some(gui) = gui {
         gui.map_unchanged(|config| &mut config.scale)
@@ -162,6 +166,7 @@ mod tests {
             .init_resource::<LightOptions>()
             .init_resource::<Clouds>()
             .init_resource::<Brightness>()
+            .init_resource::<ImprovedTransparency>()
             .insert_resource(GuiConfig {
                 scale: 0,
                 cursor: None,
@@ -273,7 +278,7 @@ mod tests {
             PresentMode::AutoNoVsync
         );
 
-        let cases: [(fn(&mut ClientOptions), fn(&World) -> bool); 9] = [
+        let cases: [(fn(&mut ClientOptions), fn(&World) -> bool); 10] = [
             (
                 |options| options.fov = 90,
                 |world| world.resource::<FovOptions>().fov == 90,
@@ -293,6 +298,10 @@ mod tests {
             (
                 |options| options.clouds = false,
                 |world| *world.resource::<Clouds>() == Clouds::Off,
+            ),
+            (
+                |options| options.improved_transparency = true,
+                |world| world.resource::<ImprovedTransparency>().0,
             ),
             (
                 |options| options.vsync = true,

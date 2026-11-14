@@ -10,6 +10,9 @@ import package::shaders::include::fields::{
     MODEL_V_WORD, MODEL_V_SHIFT, MODEL_V_BITS,
     MODEL_X_WORD, MODEL_Y_WORD, MODEL_Z_WORD,
 };
+import package::shaders::include::fog::{fog_mix, fog_value};
+@if(IMPROVED) import package::shaders::include::fog::fog_values;
+@if(IMPROVED) import package::shaders::include::transparency::transparent_fog;
 import package::shaders::include::frame::{camera, params};
 import package::shaders::include::quad::{
     CORNERS_PER_QUAD, MODEL_WORDS_PER_VERTEX, corner_index, corner_uv, degenerate, model_position,
@@ -24,7 +27,7 @@ import package::shaders::include::terrain_bindings::{
 struct ModelOut {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) uv: vec2<f32>,
-    @location(1) world_xz: vec2<f32>,
+    @location(1) world: vec3<f32>,
     @location(2) block_light: f32,
     @location(3) @interpolate(flat) sprite: u32,
     @location(4) @interpolate(flat) tint_kind: u32,
@@ -73,7 +76,7 @@ fn vertex_model(in: TerrainVertex) -> ModelOut {
     out.sky_light = sky_light;
     out.shade = shade;
     out.normal = model_quad_normal(at.quad);
-    out.world_xz = world.xz;
+    out.world = world;
     out.tint_kind = model_field(base, MODEL_TINT_WORD, MODEL_TINT_SHIFT, MODEL_TINT_BITS)
         | (model_field(base, MODEL_TINT_HIGH_WORD, MODEL_TINT_HIGH_SHIFT, MODEL_TINT_HIGH_BITS)
             << MODEL_TINT_BITS);
@@ -101,7 +104,7 @@ fn model_surface(in: ModelOut) -> Surface {
     s.tint_kind = in.tint_kind;
     s.shade = vec3<f32>(1.0);
     s.uv = in.uv;
-    s.world_xz = in.world_xz;
+    s.world_xz = in.world.xz;
     s.ddx = dpdx(in.uv);
     s.ddy = dpdy(in.uv);
     return s;
@@ -139,5 +142,12 @@ fn fragment_model_translucent(in: ModelOut) -> @location(0) vec4<f32> {
         discard;
     }
     let lit = package::shaders::include::deferred::shade(color.rgb, in.shade, in.block_light, in.sky_light);
-    return vec4<f32>(package::shaders::include::finish::to_target(lit), color.a);
+    @if(IMPROVED) {
+        let values = fog_values(in.world - camera.offset, camera.fog_environmental, camera.fog_render_distance);
+        let pixel = vec2<i32>(in.clip_position.xy);
+        let fogged = transparent_fog(lit, pixel, in.clip_position.z, values, camera.fog_color);
+        return vec4<f32>(fogged, color.a);
+    }
+    let fog = fog_value(in.world - camera.offset, camera.fog_environmental, camera.fog_render_distance);
+    return vec4<f32>(fog_mix(lit, fog, camera.fog_color), color.a);
 }

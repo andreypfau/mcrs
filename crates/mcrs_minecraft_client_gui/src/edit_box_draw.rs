@@ -29,9 +29,9 @@ pub(crate) fn draw_edit_box(
     } = edit.layout(widget.rect(), now_ms, &|text| font.str_width(text));
     let run = |at: IVec2, text: &str, color: u32, out: &mut Vec<GuiQuad>| {
         if edit.text_shadow {
-            draw_str(font, at, text, color, false, out);
+            draw_str(font, at.as_vec2(), text, color, false, out);
         } else {
-            draw_str_without_shadow(font, at, text, color, out);
+            draw_str_without_shadow(font, at.as_vec2(), text, color, out);
         }
     };
     run(

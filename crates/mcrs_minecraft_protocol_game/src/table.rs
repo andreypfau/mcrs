@@ -3,6 +3,7 @@ mcrs_minecraft_protocol::extend_packet_table! {
         "add_entity" => ClientboundAddEntity,
         "block_changed_ack" => ClientboundBlockChangedAck,
         "block_destruction" => ClientboundBlockDestruction,
+        "block_entity_data" => ClientboundBlockEntityData,
         "block_event" => ClientboundBlockEvent,
         "block_update" => ClientboundBlockUpdate,
         "chunk_batch_finished" => ClientboundChunkBatchFinished,

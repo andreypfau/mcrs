@@ -143,12 +143,15 @@ state. They do not get type 2001. See result R5. Result R5 tests only fire.
 ### 3.1 Reach
 
 **BRK-RCH-001** (`source_suggested_black_box_confirmed`, semantic). A start action is refused when the
-distance from the eye position to the nearest point of the block cube is 6.0 or more. A distance less
-than 6.0 is in reach. See results R7 and R8. The breaker gets one acknowledgement and no block state. An
+distance from the eye position to the nearest point of the block cube is the limit or more. A distance
+less than the limit is in reach. The breaker gets one acknowledgement and no block state. An
 observer gets nothing.
 
-The limit is the value of the `minecraft:block_interaction_range` attribute, plus 1.0. The attribute is
-4.5 by default, and creative mode adds 0.5 to it.
+The limit is the value of the `minecraft:block_interaction_range` attribute of the breaker, plus 1.0
+(ATR-VAL-001 of `attributes.md`). The base value is 4.5, and creative mode adds 0.5 with a modifier
+(ATR-SRC-003 of `attributes.md`). Thus, with that base value and no other modifier, the limit is 6.0 in creative mode and 5.5 in
+survival mode.
+See results R7 and R8 for creative mode, and BRK-SRV-012 with result R36 for survival mode.
 
 **BRK-RCH-002** (`black_box_confirmed`, semantic). The distance uses the block cube, and not the
 shape of the block. A bottom slab has the same limit as a full block when the breaker is above it. See

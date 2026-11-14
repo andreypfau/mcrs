@@ -760,7 +760,8 @@ a position near `spawn.pos`, and the yaw and pitch of `spawn`.
 An attribute compound has the string `id` (required), the double `base` (default 0) and the list
 `modifiers` (default empty). A modifier is a compound with the string `id`, the double `amount` and
 the string `operation`. All three are required. `operation` is `add_value`, `add_multiplied_base`
-or `add_multiplied_total`.
+or `add_multiplied_total`. ATR-SAV-002 of `attributes.md` states the load of a compound with an
+unknown attribute, a bad field, or two modifiers with one `id`.
 
 An effect compound has the string `id` (required), the ubyte `amplifier` (default 0), the int
 `duration` (default 0), the byte `ambient` (default false) and the byte `show_particles` (default

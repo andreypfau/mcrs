@@ -313,23 +313,23 @@ fn input_box(
     let caret = screen.edit().caret();
     let visible = size.width - 8;
     let mut skip = 0;
-    let mut width = font.str_width(input.get(..caret).unwrap_or_default());
-    for ch in input.get(..caret).unwrap_or_default().chars() {
-        if width <= visible {
+    let before = input.get(..caret).unwrap_or_default();
+    for ch in before.chars() {
+        // Measured like it is drawn, formatting codes included.
+        if font.exact_str_width(before.get(skip..).unwrap_or_default()) <= visible as f32 {
             break;
         }
-        width -= font.advance(ch, false);
         skip += ch.len_utf8();
     }
     let y = size.height - 12;
-    let mut x = 4;
+    let mut x = 4.0;
     let mut start = 0;
     for_each_input_run(screen, |text, color| {
         let cut = skip.saturating_sub(start).min(text.len());
         start += text.len();
         x = font::draw_str(
             font,
-            IVec2::new(x, y),
+            Vec2::new(x, y as f32),
             text.get(cut..).unwrap_or_default(),
             color,
             false,
@@ -342,11 +342,25 @@ fn input_box(
         && input.chars().count() < MAX_INPUT
         && let Some(ghost) = screen.commands.list().and_then(|list| list.ghost(input))
     {
-        font::draw_str(font, IVec2::new(caret_x - 1, y), ghost, GHOST, false, out);
+        font::draw_str(
+            font,
+            Vec2::new(caret_x as f32 - 1.0, y as f32),
+            ghost,
+            GHOST,
+            false,
+            out,
+        );
     }
     if caret_on {
         if at_end {
-            font::draw_str(font, IVec2::new(caret_x, y), "_", INPUT_TEXT, false, out);
+            font::draw_str(
+                font,
+                Vec2::new(caret_x as f32, y as f32),
+                "_",
+                INPUT_TEXT,
+                false,
+                out,
+            );
         } else {
             out.push(GuiQuad::Fill {
                 rect: IRect::new(caret_x, y - 1, caret_x + 1, y + 10),
@@ -435,6 +449,7 @@ pub fn draw(
 mod tests {
     use super::*;
     use crate::font::corpus_font;
+    use crate::font_glyph::Weight;
     use crate::text::row_texts;
 
     mod jar {
@@ -506,9 +521,11 @@ mod tests {
             let (chat_bottom, text_offset, frame_x) = (size.height - 40, 8, 4);
             assert!(
                 out.contains(&GuiQuad::Glyph {
-                    origin: IVec2::new(frame_x, chat_bottom - text_offset),
+                    pen: Vec2::new(frame_x as f32, (chat_bottom - text_offset) as f32),
                     glyph: 'h',
+                    image: font.glyph('h').image.unwrap(),
                     color: 0xFFFF_FFFF,
+                    weight: Weight::Regular,
                 }),
                 "{out:?}"
             );

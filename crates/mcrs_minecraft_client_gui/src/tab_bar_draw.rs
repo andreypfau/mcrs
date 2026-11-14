@@ -82,7 +82,7 @@ pub(crate) fn draw_tab_bar(
         }
         draw_str(
             &atlas.font,
-            point(layout.origin),
+            point(layout.origin).as_vec2(),
             &tab.label,
             color,
             false,

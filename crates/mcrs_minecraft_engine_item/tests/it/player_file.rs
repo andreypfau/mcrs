@@ -14,12 +14,14 @@ use mcrs_minecraft_engine::ability::PlayerFlying;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::load_player;
+use mcrs_minecraft_engine::persisted_registry::CaptureCause;
 use mcrs_minecraft_engine::persisted_registry::PersistedRegistry;
 use mcrs_minecraft_engine::persisted_registry::PersistedSnapshot;
 use mcrs_minecraft_engine::player_state::PlayerFileState;
 use mcrs_minecraft_engine::write_player;
 use mcrs_minecraft_engine_item::EnderItems;
 use mcrs_minecraft_engine_item::ItemPlugin;
+use mcrs_minecraft_engine_item::PlayerItemFilePlugin;
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::WornEquipment;
@@ -50,7 +52,7 @@ fn temp_world() -> PathBuf {
 fn app(dir: &std::path::Path) -> App {
     let mut app = App::new();
     app.add_plugins(PlayerPersistencePlugin)
-        .add_plugins(ItemPlugin::new(test_item_table()))
+        .add_plugins((ItemPlugin::new(test_item_table()), PlayerItemFilePlugin))
         .insert_resource(WorldSave(dir.to_owned()));
     app
 }
@@ -392,7 +394,7 @@ fn a_player_file_with_every_key_writes_back_as_the_same_compound() {
     let worn = world.get::<WornEquipment>(player).unwrap();
     assert!(worn.chest.is_some() && worn.offhand.is_some() && worn.mainhand.is_none());
 
-    write_player(app.world_mut(), player);
+    write_player(app.world_mut(), player, CaptureCause::Autosave);
     let rewritten = read_player_dat(&dir, profile().id).unwrap().unwrap();
 
     assert_eq!(
@@ -455,7 +457,7 @@ fn a_key_that_the_game_reads_and_never_writes_is_not_written_back() {
             .as_deref(),
         Some("red")
     );
-    write_player(app.world_mut(), player);
+    write_player(app.world_mut(), player, CaptureCause::Autosave);
 
     let rewritten = read_player_dat(&dir, profile().id).unwrap().unwrap();
     assert!(rewritten.get("Team").is_none());

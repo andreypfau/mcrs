@@ -1,12 +1,13 @@
 use std::ops::{Add, Mul};
 
-use bevy::math::{IRect, IVec2, Vec2, Vec4};
+use bevy::math::{IRect, Rect, Vec2, Vec4};
 
 /// A quad drawn from the GUI atlas: its rectangle in GUI units, and the texture coordinate and the
-/// ARGB colour of each corner, from the top left corner clockwise.
+/// ARGB colour of each corner, from the top left corner clockwise. A glyph's rectangle may lie
+/// between pixels.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct AtlasQuad {
-    pub rect: IRect,
+    pub rect: Rect,
     pub uv: [[f32; 2]; 4],
     pub colors: [u32; 4],
 }
@@ -16,21 +17,21 @@ impl AtlasQuad {
     /// new corners, or `None` when no part of it is inside.
     #[must_use]
     pub fn clip(self, clip: IRect) -> Option<Self> {
-        let cut = self.rect.intersect(clip);
+        let cut = self.rect.intersect(clip.as_rect());
         if cut.is_empty() {
             return None;
         }
         if cut == self.rect {
             return Some(self);
         }
-        let size = self.rect.size().as_vec2();
+        let size = self.rect.size();
         let corners = [
             cut.min,
-            IVec2::new(cut.max.x, cut.min.y),
+            Vec2::new(cut.max.x, cut.min.y),
             cut.max,
-            IVec2::new(cut.min.x, cut.max.y),
+            Vec2::new(cut.min.x, cut.max.y),
         ]
-        .map(|corner| (corner - self.rect.min).as_vec2() / size);
+        .map(|corner| (corner - self.rect.min) / size);
         let uv = self.uv.map(Vec2::from);
         let colors = self.colors.map(channels);
         Some(Self {
@@ -66,7 +67,7 @@ mod tests {
     fn a_quad_across_an_edge_of_the_clip_keeps_its_part_inside() {
         let (top, bottom) = (0xFF000000, 0xFF000080);
         let quad = |rect: [i32; 4], uv: [f32; 4], colors: [u32; 2]| AtlasQuad {
-            rect: IRect::new(rect[0], rect[1], rect[2], rect[3]),
+            rect: IRect::new(rect[0], rect[1], rect[2], rect[3]).as_rect(),
             uv: [
                 [uv[0], uv[1]],
                 [uv[2], uv[1]],

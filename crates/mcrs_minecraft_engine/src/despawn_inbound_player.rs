@@ -1,5 +1,6 @@
 use crate::bus::{InboundPlayerDespawn, OutboundPlayerReleased};
 use crate::game_profile::GameProfile;
+use crate::persisted_registry::CaptureCause;
 use crate::persistence;
 use crate::publish_player_tiles::publish_leave_message;
 use crate::replicated::Replicated;
@@ -33,7 +34,7 @@ pub fn despawn_inbound_player(
             }
             let session = msg.session;
             commands.queue(move |world: &mut World| {
-                persistence::queue_player_save(world, entity, Some(session));
+                persistence::queue_player_save(world, entity, Some(session), CaptureCause::Leave);
                 world.despawn(entity);
             });
         } else {

@@ -2,7 +2,6 @@ import bevy_core_pipeline::fullscreen_vertex_shader::FullscreenVertexOutput;
 import package::shaders::include::deferred::octahedral_decode;
 import package::shaders::include::depth::depth_at;
 import package::shaders::include::fields::SECTION_SIZE;
-import package::shaders::include::finish::to_target;
 import package::shaders::include::frame::camera;
 
 struct Reconstruction {
@@ -68,5 +67,5 @@ fn show(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
         let ramp = along_face(fract(rel), normal);
         let colour = vec3<f32>(0.2 + 0.4 * parity + 0.4 * ramp.x * ramp.y);
     }
-    return vec4<f32>(to_target(colour), 1.0);
+    return vec4<f32>(colour, 1.0);
 }

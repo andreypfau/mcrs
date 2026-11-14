@@ -3,11 +3,12 @@ use bevy::prelude::*;
 use bevy::render::render_resource::binding_types::{sampler, texture_2d};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice};
-use bevy::render::view::{ExtractedView, ViewDepthStencilTexture, ViewTarget};
+use bevy::render::view::{ExtractedView, ViewDepthStencilTexture};
 use bevy::shader::ShaderDefVal;
 
-use crate::gbuffer::nearest_sampler;
-use crate::pipeline::common;
+use crate::gbuffer::{WORLD_IMAGE_FORMAT, nearest_sampler};
+use crate::pass::loaded;
+use crate::pipeline::descriptor;
 use crate::terrain::Terrain;
 
 /// Draws reverse-Z depth over the whole view as greyscale: near white, far dark, sky black.
@@ -32,7 +33,7 @@ impl DepthDisplay {
     pub fn draw(
         &self,
         ctx: &mut RenderContext,
-        target: &ViewTarget,
+        target: &TextureView,
         source: DepthSource,
         cache: &PipelineCache,
         device: &RenderDevice,
@@ -61,7 +62,7 @@ impl DepthDisplay {
             &cache.get_bind_group_layout(&self.layout),
             &BindGroupEntries::sequential((&texture, &self.nearest)),
         );
-        let color_attachments = [Some(target.get_color_attachment())];
+        let color_attachments = [Some(loaded(target))];
         let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
             label: Some("show depth"),
             color_attachments: &color_attachments,
@@ -108,19 +109,19 @@ pub(crate) fn prepare_depth_display(
     if display.depth.is_some() {
         return;
     }
-    let Some(view) = views.iter().next() else {
+    if views.is_empty() {
         return;
-    };
+    }
     let queue = |label: &str, defs: Vec<ShaderDefVal>| {
         let mut descriptor = RenderPipelineDescriptor {
             vertex: fullscreen.to_vertex_state(),
-            ..common(
+            ..descriptor(
                 label.into(),
                 vec![display.layout.clone()],
                 &display.shader,
                 String::new(),
                 "show".into(),
-                view,
+                WORLD_IMAGE_FORMAT,
                 None,
             )
         };

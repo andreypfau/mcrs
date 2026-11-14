@@ -10,12 +10,13 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundBlockChangedAck, ClientboundBlockDestruction, ClientboundBlockEvent,
     ClientboundBlockUpdate, ClientboundChunkBatchFinished, ClientboundChunkBatchStart,
-    ClientboundChunkCacheRadius, ClientboundCommandSuggestions, ClientboundEntityEvent,
-    ClientboundEntityPositionSync, ClientboundForgetLevelChunk, ClientboundGameEvent,
-    ClientboundLevelEvent, ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerAbilities,
-    ClientboundPlayerLookAt, ClientboundPlayerPosition, ClientboundRespawn,
-    ClientboundSectionBlocksUpdate, ClientboundSetChunkCacheCenter, ClientboundSetTime,
-    ClientboundSystemChatPacket, ClientboundTabList,
+    ClientboundChunkCacheRadius, ClientboundCommandSuggestions, ClientboundContainerSetContent,
+    ClientboundContainerSetSlot, ClientboundEntityEvent, ClientboundEntityPositionSync,
+    ClientboundForgetLevelChunk, ClientboundGameEvent, ClientboundLevelEvent,
+    ClientboundLightUpdate, ClientboundLogin, ClientboundPlayerAbilities, ClientboundPlayerLookAt,
+    ClientboundPlayerPosition, ClientboundRespawn, ClientboundSectionBlocksUpdate,
+    ClientboundSetChunkCacheCenter, ClientboundSetCursorItem, ClientboundSetHeldSlot,
+    ClientboundSetTime, ClientboundSystemChatPacket, ClientboundTabList,
 };
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_minecraft_text::Text;
@@ -149,6 +150,10 @@ pub enum PacketPayload {
     Commands(Bytes),
     CommandSuggestions(ClientboundCommandSuggestions<'static>),
     SetTime(ClientboundSetTime),
+    SetHeldSlot(ClientboundSetHeldSlot),
+    ContainerSetContent(ClientboundContainerSetContent),
+    ContainerSetSlot(ClientboundContainerSetSlot),
+    SetCursorItem(ClientboundSetCursorItem),
 }
 
 impl PacketPayload {

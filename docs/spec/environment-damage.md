@@ -408,10 +408,12 @@ when the game rule `freeze_damage` is false (DMG-PLR-001). The frozen ticks stil
 
 **ENV-FRZ-005** (`source_suggested`, client agreement, confidence: medium). A living entity with
 the attribute `movement_speed` has a transient modifier of the id `minecraft:powder_snow` while
-its frozen ticks are more than 0. The operation is `add_value`. The value is
-`-0.05F × min(frozen, 140) / 140`, as f32. The server removes the modifier when the frozen ticks
-are 0. The server sends the change in the packet that carries the attributes. The client uses it
-to predict the movement of the player.
+its frozen ticks are more than 0. The operation is `add_value`. The amount is
+`-0.05F × (f32(min(frozen, 140)) / 140F)`. Each operation is an f32 operation: the quotient
+first, then the product. The amount is that f32, widened to f64. For example, 139 frozen ticks
+give the bits `bfa96ac9e0000000`. The server removes the modifier when the frozen ticks are 0.
+The server sends the change in the packet that carries the attributes. The client uses it to
+predict the movement of the player.
 
 **ENV-FRZ-006** (`source_suggested`, semantic, confidence: high). These events set the frozen
 ticks to 0: ignition (ENV-FIR-003), the contact of `fire`, `soul_fire`, lava and `lava_cauldron`

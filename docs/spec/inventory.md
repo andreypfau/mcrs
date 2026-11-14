@@ -44,6 +44,10 @@ id. Section 9 lists what this document does not state.
   (INV-SYN-002).
 - **Alike stack**: a stack in a slot that can accept more items of a given stack (INV-INS-001).
 - **Infinite materials**: the ability that a player in creative mode has.
+- **Dimension change**: as `dimension-change.md`, section 0.1, defines it.
+- **Cell**: a part of a dimension that the server simulates on its own. A player does not see the
+  border between two cells of one dimension.
+- **Cell crossing**: a move of a player from one cell to another cell of the same dimension.
 
 ### 0.2 Provenance
 
@@ -69,7 +73,7 @@ No experiment of section 12 has a recorded run. Each one is a proposal.
 | `INV-INS` | the insert rule |
 | `INV-CRE` | the creative inventory and the operations that make items |
 | `INV-SYN` | the state id, the client view and the packets that the server sends |
-| `INV-CLS` | the cursor stack and the craft grid when a menu closes or the player leaves |
+| `INV-CLS` | the cursor stack and the craft grid when a menu closes, the player leaves or the player changes dimension |
 | `INV-SAV` | the player file |
 
 ### 0.5 Notation
@@ -259,7 +263,7 @@ found no room. The caller decides what these items become. This table lists the 
 | a pickup of an item entity | IEN-PCK-002, IEN-PCK-005, IEN-PCK-006 |
 | the `give` command | IEN-SPN-004 |
 | the stack of `S` in row 9 of ITX-JAV-010 | a dropped stack of the request |
-| the cursor stack and the craft grid at a menu close or at a leave (INV-CLS-001, INV-CLS-003) | an item entity, IEN-SPN-001 |
+| the cursor stack and the craft grid at a menu close, a leave or a dimension change (INV-CLS-001, INV-CLS-003) | an item entity, IEN-SPN-001 |
 
 **INV-INS-003** (`design`, semantic). The insert rule reads no place filter. This includes the
 place filter of the off-hand slot (INV-SLT-005). Reason: the insert adds only to a stack that the
@@ -380,7 +384,7 @@ stack. It carries no state id. A parity test must not compare if a change arrive
 or in a `container_set_slot` packet. Reason: the vanilla client shows the same stack for each of
 the two.
 
-## 7. The close of a menu, and the leave
+## 7. The close of a menu, the leave and the dimension change
 
 **INV-CLS-001** (`source_suggested`, semantic). The serverbound `container_close` packet closes the
 open menu. The server does not compare the container id of the packet. The server then does these
@@ -402,11 +406,26 @@ When the server closes a menu itself, it sends a clientbound `container_close` p
 container id of that menu. It then does the steps of INV-CLS-001. The server never closes the
 inventory menu.
 
-**INV-CLS-003** (`design`, semantic). When a player leaves the server, the server does the steps
-of INV-CLS-001 for the open menu and then for the inventory menu. It does them before it writes
-the player file. Thus the cursor stack and the stacks of the craft grid are in the player
-inventory of the file. Only the items that find no room become item entities. Reason: a leave
-then has the path of a menu close, and the stacks stay with the player. See deviation D4.
+**INV-CLS-003** (`design`, semantic). The server does the steps of INV-CLS-001 at these events:
+
+- the player leaves the server;
+- the player does a dimension change.
+
+It does them for the open menu and then for the inventory menu. Thus the cursor stack and the stacks of the craft grid enter the player inventory.
+Only the items that find no room become item entities. These item entities are in the dimension
+that the player leaves.
+
+At a leave, the server does the steps before it writes the player file. Thus the player file holds
+these stacks in the player inventory. At a dimension change, the server does the steps before the
+player enters the new dimension. When the open menu is not the inventory menu, the server sends
+`container_close` as INV-CLS-002 states.
+
+At a cell crossing, the server does not do these steps, and the open menu stays open. The cursor
+stack and the stacks of the craft grid move with the player to the new cell.
+
+Reason: issue 521 decides that a dimension change closes the menus as a leave does. Thus the
+stacks stay with the player. A cell crossing changes nothing, because the player does not see it.
+See deviations D4 and D6.
 
 ## 8. The player file
 
@@ -498,6 +517,24 @@ A later specification states each of these items.
 - **Visible to the client**: only when `mcrs:offhand_accepts_any_item` is false. The reference
   has no such rule.
 - **Test**: a differential test uses the default value of the rule.
+
+**D6.**
+
+- **Rule**: INV-CLS-003.
+- **Reference**: a dimension change does not close a menu on the server. The cursor stack and the
+  stacks of the craft grid stay where they are. The vanilla client sends `container_close` in two
+  cases:
+  - it shows a menu screen while the player is in a portal. The close then occurs before the
+    dimension change.
+  - it gets the `respawn` packet while a menu other than the inventory menu is open. The items
+    that find no room then become item entities in the new dimension.
+
+  In the other cases, the cursor stack stays on the server until the next `container_close`. An
+  example is a `teleport` command while the inventory screen is open.
+- **Visible to the client**: yes. After a dimension change, the cursor stack and the stacks of the
+  craft grid are in the player inventory. The items that find no room are in the old dimension.
+- **Test**: a differential test must not compare the slots, the cursor or the item entities after
+  a dimension change with a stack in the cursor or in the craft grid.
 
 ## 11. Unresolved
 

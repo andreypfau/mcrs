@@ -16,8 +16,10 @@ use crate::entity_assets::EntityAssets;
 use crate::entity_gpu::{Capacities, DrawTargets, EntityGpu, PassQueries};
 use crate::entity_library::EntityLibrary;
 use crate::frame_uniform::FrameUniform;
+use crate::gpu_layouts::tables_fit;
 use crate::height_threshold::HeightThreshold;
 use crate::main_world::EntityClock;
+use crate::player_skin::{SkinSlots, SkinUpload};
 use crate::slot_upload::{SCATTER_FRESH, SlotArena, SlotUpload};
 
 /// The full rigs that one frame draws, in all and of one definition: the full-rig cap of the
@@ -30,8 +32,11 @@ pub(crate) struct EntityRenderState {
     generation: Option<u32>,
     library: Option<EntityLibrary>,
     gpu: Option<EntityGpu>,
+    /// The library does not fit this device, so the uploads of the slots are dropped.
+    unfit: bool,
     hiz: Option<TextureViewId>,
     pending: SlotUpload,
+    pending_skins: Vec<SkinUpload>,
     clock: EntityClock,
     threshold: HeightThreshold,
 }
@@ -45,10 +50,20 @@ pub(crate) fn extract_entities(mut main: ResMut<MainWorld>, mut state: ResMut<En
     {
         state.generation = Some(assets.generation);
         state.library = Some(assets.library.clone());
+        // The skin variants of the old library can name other textures in the new one.
+        state.pending_skins.clear();
+    }
+    if let Some(mut skins) = main.get_resource_mut::<SkinSlots>() {
+        let uploads = skins.take_uploads();
+        state.pending_skins.extend(uploads);
     }
     let Some(mut arena) = main.get_resource_mut::<SlotArena>() else {
         return;
     };
+    if state.library.is_some() {
+        // A new library builds an entity GPU with empty buffers: it needs every record.
+        arena.resend(state.clock.tick);
+    }
     let upload = arena.take_upload();
     merge(&mut state.pending, upload);
 }
@@ -106,6 +121,19 @@ pub(crate) fn prepare_entities(
         return;
     };
     if let Some(library) = state.library.take() {
+        state.unfit = !tables_fit(&library, &device.limits());
+        if state.unfit {
+            warn!(
+                models = library.models.len(),
+                bones = library.bones.len(),
+                variants = library.variants.len(),
+                "the entity tables exceed the uniform buffers of this device: entities are not drawn"
+            );
+            state.gpu = None;
+            state.pending = SlotUpload::default();
+            state.pending_skins.clear();
+            return;
+        }
         let capacities = Capacities::for_cap(&library, FULL_RIG_CAP);
         let slots = state.pending.slot_capacity.max(1024);
         state.gpu = Some(EntityGpu::new(
@@ -130,6 +158,12 @@ pub(crate) fn prepare_entities(
         );
         for diagnostic in &library.diagnostics {
             warn!("{diagnostic}");
+        }
+    }
+    let state = &mut *state;
+    for skin in state.pending_skins.drain(..) {
+        if let Some(gpu) = &state.gpu {
+            gpu.write_texels(&queue, skin.variant, skin.image.rgba());
         }
     }
     if state.hiz != Some(pyramid.id())
@@ -174,7 +208,9 @@ pub(crate) fn draw_entities(
     let clock = state.clock;
     let mut threshold = state.threshold;
     let Some(gpu) = state.gpu.as_mut() else {
-        state.pending = pending;
+        if !state.unfit {
+            state.pending = pending;
+        }
         return;
     };
     if let Some(counts) = gpu.take_counts() {

@@ -18,6 +18,8 @@ use mcrs_minecraft_render::{
     DEPTH_COMPARE, RenderPath, Terrain, Words, WorldPass, pipeline_descriptor, uniform_buffer,
 };
 
+use crate::font_unihex::CELL;
+use crate::glyph_cache;
 use crate::scene::{GLINT_ALPHA, GuiAtlas, GuiBatch, GuiDraw, GuiDrawKind};
 
 pub struct GuiItemsPlugin;
@@ -32,7 +34,7 @@ impl Plugin for GuiItemsPlugin {
             .add_systems(RenderStartup, init_gui_pass)
             .add_systems(
                 Render,
-                (prepare_gui_pass, write_gui_buffers)
+                (prepare_gui_pass, upload_glyphs, write_gui_buffers)
                     .chain()
                     .in_set(RenderSystems::Prepare),
             )
@@ -64,6 +66,8 @@ pub struct GuiPass {
     vertices: Option<Buffer>,
     pipelines: Option<GuiPipelines>,
     textures: Option<GuiTextures>,
+    /// The Unifont glyph drawn into each cell of the atlas's glyph region so far.
+    resident: Vec<Option<char>>,
     bind_group: Option<([TextureId; 4], BindGroup)>,
 }
 
@@ -88,6 +92,7 @@ const INVERT: BlendState = BlendState {
 };
 
 struct GuiTextures {
+    atlas: Texture,
     atlas_view: TextureView,
     glint_view: TextureView,
     glint_sampler: Sampler,
@@ -124,6 +129,7 @@ pub(super) fn init_gui_pass(
         vertices: None,
         pipelines: None,
         textures: None,
+        resident: Vec::new(),
         bind_group: None,
     });
 }
@@ -135,8 +141,8 @@ fn srgb_texture(
     pixels: &[u8],
     device: &RenderDevice,
     queue: &RenderQueue,
-) -> TextureView {
-    let texture = device.create_texture_with_data(
+) -> Texture {
+    device.create_texture_with_data(
         queue,
         &TextureDescriptor {
             label: Some(label),
@@ -149,13 +155,12 @@ fn srgb_texture(
             sample_count: 1,
             dimension: TextureDimension::D2,
             format: TextureFormat::Rgba8UnormSrgb,
-            usage: TextureUsages::TEXTURE_BINDING,
+            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
             view_formats: &[],
         },
         wgpu::util::TextureDataOrder::LayerMajor,
         pixels,
-    );
-    texture.create_view(&TextureViewDescriptor::default())
+    )
 }
 
 #[expect(
@@ -183,15 +188,18 @@ pub(super) fn prepare_gui_pass(
             return;
         };
         let atlas = &*atlas.0;
+        let atlas_texture = srgb_texture(
+            "gui atlas",
+            atlas.width,
+            atlas.height,
+            &atlas.pixels,
+            &device,
+            &queue,
+        );
+        pass.resident.clear();
         pass.textures = Some(GuiTextures {
-            atlas_view: srgb_texture(
-                "gui atlas",
-                atlas.width,
-                atlas.height,
-                &atlas.pixels,
-                &device,
-                &queue,
-            ),
+            atlas_view: atlas_texture.create_view(&TextureViewDescriptor::default()),
+            atlas: atlas_texture,
             glint_view: srgb_texture(
                 "enchanted glint",
                 atlas.glint.0,
@@ -199,7 +207,8 @@ pub(super) fn prepare_gui_pass(
                 &atlas.glint.2,
                 &device,
                 &queue,
-            ),
+            )
+            .create_view(&TextureViewDescriptor::default()),
             glint_sampler: device.create_sampler(&SamplerDescriptor {
                 label: Some("enchanted glint"),
                 address_mode_u: AddressMode::Repeat,
@@ -315,6 +324,57 @@ pub(super) fn prepare_gui_pass(
             )),
         );
         pass.bind_group = Some((atlas_ids, bind_group));
+    }
+}
+
+/// Draws each Unifont glyph the batch puts in a cell of the glyph region into that cell, once
+/// per change of the cell's content.
+pub(super) fn upload_glyphs(
+    pass: Option<ResMut<GuiPass>>,
+    batch: Option<Res<GuiBatch>>,
+    atlas: Option<Res<GuiAtlas>>,
+    queue: Res<RenderQueue>,
+) {
+    let (Some(mut pass), Some(batch), Some(atlas)) = (pass, batch, atlas) else {
+        return;
+    };
+    let pass = &mut *pass;
+    let Some(textures) = pass.textures.as_ref() else {
+        return;
+    };
+    pass.resident.resize(batch.glyphs.len(), None);
+    for (cell, (wanted, drawn)) in batch.glyphs.iter().zip(&mut pass.resident).enumerate() {
+        if wanted == drawn {
+            continue;
+        }
+        *drawn = *wanted;
+        let Some(pixels) = wanted.and_then(|glyph| atlas.0.font.unifont_cell(glyph)) else {
+            continue;
+        };
+        let (x, y) = glyph_cache::cell_origin(cell);
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &textures.atlas,
+                mip_level: 0,
+                origin: wgpu::Origin3d {
+                    x: atlas.0.glyph_origin.x as u32 + x,
+                    y: atlas.0.glyph_origin.y as u32 + y,
+                    z: 0,
+                },
+                aspect: wgpu::TextureAspect::All,
+            },
+            &pixels,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(CELL as u32 * 4),
+                rows_per_image: Some(CELL as u32),
+            },
+            Extent3d {
+                width: CELL as u32,
+                height: CELL as u32,
+                depth_or_array_layers: 1,
+            },
+        );
     }
 }
 
