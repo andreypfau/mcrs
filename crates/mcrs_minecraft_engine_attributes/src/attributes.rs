@@ -4,13 +4,21 @@ use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::{AttributeBases, AttributeSet};
 
 /// The attribute instances of a player, with the bases of the type `player`. Each player has it
-/// from its spawn; only [`AttributeEdit`](crate::AttributeEdit) changes it.
+/// from its spawn. In a dimension world only [`AttributeEdit`](crate::AttributeEdit) changes it;
+/// a player that arrives from another world takes the set it left with.
 #[derive(Component, Clone, Debug, Default, PartialEq)]
 pub struct Attributes {
     pub(crate) set: AttributeSet,
 }
 
 impl Attributes {
+    /// The instances of `set`, as a player carries them into another world. The change sends no
+    /// [`AttributeChanged`](crate::AttributeChanged).
+    #[must_use]
+    pub fn new(set: AttributeSet) -> Self {
+        Self { set }
+    }
+
     /// The value of ATR-VAL-001, or `None` when the attribute is not in the set of a player.
     #[must_use]
     pub fn value(&self, attribute: Attribute) -> Option<f64> {

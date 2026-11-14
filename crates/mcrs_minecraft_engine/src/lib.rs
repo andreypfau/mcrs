@@ -19,6 +19,7 @@ pub mod block_simulation;
 mod block_update;
 mod break_session;
 pub mod bus;
+mod carried_attributes;
 mod cell_crossing;
 mod cell_mail;
 mod cell_volume;

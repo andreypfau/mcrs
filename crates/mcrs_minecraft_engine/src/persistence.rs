@@ -4,6 +4,7 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Component, Res, ResMut, Resource, With};
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::VERSION;
+use mcrs_minecraft_engine_attributes::Attributes;
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
@@ -22,6 +23,7 @@ use tracing::error;
 use crate::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use crate::background_writer::{BackgroundWriter, WriteJob};
 use crate::bus::OutboundPlayerReleased;
+use crate::carried_attributes::CarriedAttributes;
 use crate::client_info::ClientInfo;
 use crate::cold_columns::SaveRequest;
 use crate::coordinator::clock::GameTime;
@@ -32,6 +34,7 @@ use crate::persisted_registry::{
     CaptureCause, PersistScope, PersistedAppExt, PersistedError, PersistedForm, PersistedRegistry,
     PersistedSnapshot,
 };
+use crate::player_sprinting::PlayerSprinting;
 use crate::player_state::{Ints, PlayerFileState, player_state_keys};
 use crate::teleport::TeleportState;
 use mcrs_minecraft_dimension::Dimension;
@@ -50,6 +53,8 @@ const PROFILE_KEYS: &[&str] = &["mcrs:profile"];
 const CLIENT_INFO_KEYS: &[&str] = &["mcrs:client_info"];
 const VIEW_DISTANCE_KEYS: &[&str] = &["mcrs:view_distance"];
 const TELEPORT_KEYS: &[&str] = &["mcrs:teleport"];
+const ATTRIBUTES_KEYS: &[&str] = &["mcrs:attributes"];
+const SPRINTING_KEYS: &[&str] = &["mcrs:sprinting"];
 const UUID_KEYS: &[&str] = &["UUID"];
 
 /// Registers the components of a player that the engine owns, under the root keys of the player
@@ -89,7 +94,12 @@ impl Plugin for PlayerPersistencePlugin {
                 VIEW_DISTANCE_KEYS,
                 PersistScope::TravelOnly,
             )
-            .register_persisted::<TeleportState>(TELEPORT_KEYS, PersistScope::TravelOnly);
+            .register_persisted::<TeleportState>(TELEPORT_KEYS, PersistScope::TravelOnly)
+            .register_persisted_as::<Attributes, CarriedAttributes>(
+                ATTRIBUTES_KEYS,
+                PersistScope::TravelOnly,
+            )
+            .register_persisted::<PlayerSprinting>(SPRINTING_KEYS, PersistScope::TravelOnly);
     }
 }
 

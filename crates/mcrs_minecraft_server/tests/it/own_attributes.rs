@@ -1,7 +1,19 @@
+use bevy_app::App;
+use bevy_ecs::change_detection::DetectChangesMut;
+use bevy_ecs::entity::Entity;
+use bevy_ecs::message::Messages;
+use bevy_ecs::world::World;
+use bevy_math::DVec3;
 use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::coordinator::default_game_mode::DefaultGameMode;
 use mcrs_minecraft_engine::network_id::player_network_id;
+use mcrs_minecraft_engine::player_sprinting::PlayerSprinting;
+use mcrs_minecraft_engine_attributes::{AttributeEdit, AttributeTarget, Attributes, InstanceEdit};
+use mcrs_minecraft_engine_world::entity::physics::Transform;
+use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
+use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
+use mcrs_minecraft_entity::{InstanceModifier, ModifierKind};
 use mcrs_minecraft_entity_attribute::ModifierOperation;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBundleDelimiter;
@@ -11,11 +23,15 @@ use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundAddEntity, ClientboundUpdateAttributes,
 };
 use mcrs_minecraft_protocol_game::serverbound::{PlayerCommandAction, ServerboundPlayerCommand};
+use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
 use mcrs_minecraft_server::{
     VanillaCreativeRangePlugin, VanillaEntityAttributesPlugin, VanillaSprintAttributePlugin,
 };
 
-use crate::host_app::{self, PlayServer, replicated, sent_to};
+use crate::host_app::{self, Arrival, PlayServer, label_of, replicated, sent_to};
+use crate::world_server::{
+    Holder, OVERWORLD, WorldServer, cell_worlds, holder, lockstep_tick, wait_for_generation, walk,
+};
 
 #[derive(Debug, PartialEq)]
 struct Entry {
@@ -97,7 +113,7 @@ fn atr_net_003_the_own_player_gets_each_change_of_its_sprint_modifier() {
         entity_id,
         entries: vec![Entry {
             attribute: Attribute::MovementSpeed,
-            base: 0.10000000149011612,
+            base: f64::from(0.1_f32),
             modifiers,
         }],
     };
@@ -105,7 +121,7 @@ fn atr_net_003_the_own_player_gets_each_change_of_its_sprint_modifier() {
         started,
         [speed(vec![(
             "minecraft:sprinting".to_owned(),
-            0.30000001192092896,
+            f64::from(0.3_f32),
             ModifierOperation::AddMultipliedTotal,
         )])]
     );
@@ -153,10 +169,10 @@ fn atr_net_003_a_tracking_player_gets_the_sprint_modifier_of_the_player_it_track
             entity_id,
             entries: vec![Entry {
                 attribute: Attribute::MovementSpeed,
-                base: 0.10000000149011612,
+                base: f64::from(0.1_f32),
                 modifiers: vec![(
                     "minecraft:sprinting".to_owned(),
-                    0.30000001192092896,
+                    f64::from(0.3_f32),
                     ModifierOperation::AddMultipliedTotal,
                 )],
             }],
@@ -271,4 +287,181 @@ fn atr_net_005_a_creative_player_gets_its_range_modifiers_after_the_login() {
     assert_eq!(updates[0].entity_id, entity_id);
     updates[0].entries.sort_by_key(|entry| entry.attribute);
     assert_eq!(updates[0].entries, creative_ranges());
+}
+
+/// The world of the cell that holds the player of `session`, and the player.
+fn held(app: &mut App, label: Entity, session: PlayerSession) -> (&mut World, Entity) {
+    let Holder { cell, player } = holder(app, label, session).expect("the player is in a cell");
+    (cell_worlds(app, label).swap_remove(cell), player)
+}
+
+fn set_sprinting(app: &mut App, label: Entity, session: PlayerSession, sprinting: bool) {
+    let (world, player) = held(app, label, session);
+    world
+        .get_mut::<PlayerSprinting>(player)
+        .unwrap()
+        .set_if_neq(PlayerSprinting(sprinting));
+}
+
+/// ATR-SRC-002 across a cell border: the player keeps its sprint modifier, and the stop of its
+/// sprint in the new cell reaches a tracking player as one entry with no modifier.
+#[test]
+fn a_sprinter_that_crosses_a_cell_border_keeps_its_sprint_modifier_until_it_stops() {
+    let mut app = WorldServer {
+        cells: 2,
+        ..WorldServer::default()
+    }
+    .start();
+    let label = label_of(&app, OVERWORLD);
+    wait_for_generation(&mut app, label);
+    let mut join = |name, x| {
+        let arrival = Arrival {
+            uuid: Uuid::from_u128(u128::from(name == "Watcher") + 1),
+            name,
+            position: DVec3::new(x, 100.0, 8.5),
+            view_distance: 2,
+        };
+        let anchor = host_app::admit(&mut app, label, &arrival);
+        host_app::session_of(&app, anchor).unwrap()
+    };
+    let sprinter = join("Sprinter", -8.5);
+    let watcher = join("Watcher", 8.5);
+    for _ in 0..30 {
+        lockstep_tick(&mut app, label);
+    }
+    set_sprinting(&mut app, label, sprinter, true);
+    lockstep_tick(&mut app, label);
+    let west = holder(&mut app, label, sprinter).unwrap().cell;
+
+    walk(&mut app, label, sprinter, DVec3::new(16.0, 0.0, 0.0));
+    let mut crossed = Vec::new();
+    for _ in 0..10 {
+        crossed.extend(lockstep_tick(&mut app, label));
+    }
+    assert_ne!(holder(&mut app, label, sprinter).unwrap().cell, west);
+    assert_eq!(
+        own_updates(&sent_to(sprinter, crossed)),
+        [],
+        "a cell crossing tells the client nothing"
+    );
+    let (world, player) = held(&mut app, label, sprinter);
+    let speed = world
+        .get::<Attributes>(player)
+        .unwrap()
+        .value(Attribute::MovementSpeed)
+        .unwrap();
+    assert_eq!(
+        speed.to_bits(),
+        (f64::from(0.1_f32) * (1.0 + f64::from(0.3_f32))).to_bits()
+    );
+
+    set_sprinting(&mut app, label, sprinter, false);
+    let mut stopped = Vec::new();
+    for _ in 0..2 {
+        stopped.extend(lockstep_tick(&mut app, label));
+    }
+
+    let entity_id = player_network_id(sprinter);
+    let updates: Vec<OwnUpdate> = tracked_updates(&sent_to(watcher, stopped))
+        .into_iter()
+        .filter(|update| update.entity_id == entity_id)
+        .collect();
+    assert_eq!(
+        updates,
+        [OwnUpdate {
+            entity_id,
+            entries: vec![Entry {
+                attribute: Attribute::MovementSpeed,
+                base: f64::from(0.1_f32),
+                modifiers: Vec::new(),
+            }],
+        }]
+    );
+}
+
+/// ATR-NET-005: a player keeps a modifier through a change of dimension, and its
+/// client gets the entry after the `respawn`.
+#[test]
+fn a_modifier_of_a_player_holds_after_a_change_of_dimension() {
+    let mut app = host_app::make_host_app();
+    app.add_plugins(VanillaEntityAttributesPlugin);
+    let mut server = PlayServer::start_in(
+        app,
+        &[
+            ("minecraft:overworld", "minecraft:overworld"),
+            ("minecraft:the_end", "minecraft:the_end"),
+        ],
+        &[],
+        0,
+    );
+    let (anchor, _) = server.join(Uuid::from_u128(5), "Walker");
+    let overworld = server.dim;
+    let end = label_of(&server.app, "minecraft:the_end");
+    let player = server.player(anchor);
+    let boost = || {
+        InstanceModifier::new(
+            ResourceLocationBuf::read("mcrs:boost").unwrap(),
+            0.25,
+            ModifierOperation::AddMultipliedBase,
+            ModifierKind::Permanent,
+        )
+    };
+    server
+        .world()
+        .resource_mut::<Messages<AttributeEdit>>()
+        .write(AttributeEdit {
+            target: AttributeTarget::Player(player),
+            attribute: Attribute::MovementSpeed,
+            edit: InstanceEdit::Put(boost()),
+        });
+    server.ticks(anchor, 1);
+    server
+        .world_in(overworld)
+        .resource_mut::<Messages<ChangeDimensionRequest>>()
+        .write(ChangeDimensionRequest {
+            player,
+            to: ResourceKeyBuf::from_location(
+                ResourceLocationBuf::read("minecraft:the_end").unwrap(),
+            ),
+            transform: Transform::from_translation(DVec3::new(100.5, 49.0, 0.5)),
+        });
+    let packets = server.ticks(anchor, 3);
+
+    let arrived = server.player_in(end, anchor).expect("the player arrived");
+    let instance = server
+        .world_in(end)
+        .get::<Attributes>(arrived)
+        .unwrap()
+        .set()
+        .instance(Attribute::MovementSpeed)
+        .cloned()
+        .expect("the instance holds its modifier");
+    assert_eq!(instance.modifiers(), [boost()]);
+    let respawn = packets
+        .iter()
+        .position(|packet| matches!(packet, PacketPayload::Respawn(_)))
+        .expect("a respawn is sent");
+    let update = packets
+        .iter()
+        .position(|packet| own_update(packet).is_some())
+        .expect("an update of the attributes is sent");
+    assert!(
+        respawn < update,
+        "the update follows the respawn: {packets:?}"
+    );
+    assert_eq!(
+        own_updates(&packets[update..]),
+        [OwnUpdate {
+            entity_id: player_network_id(server.session_of(anchor).unwrap()),
+            entries: vec![Entry {
+                attribute: Attribute::MovementSpeed,
+                base: f64::from(0.1_f32),
+                modifiers: vec![(
+                    "mcrs:boost".to_owned(),
+                    0.25,
+                    ModifierOperation::AddMultipliedBase,
+                )],
+            }],
+        }]
+    );
 }
