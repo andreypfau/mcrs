@@ -21,6 +21,7 @@ mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_wire.workspace = true
+mcrs_voxel.workspace = true
 bytes.workspace = true
 glam = { workspace = true, features = ["std"] }
 rustc-hash.workspace = true

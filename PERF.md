@@ -1106,6 +1106,45 @@ was the faster one only because the load happened to be lower, and a one-second 
 inside that spread. What they do show is that adding it does not move a clean workspace check
 outside the noise, and that a change in a dependent crate does not rebuild it.
 
+## Moving entities: rows against components
+
+Scenario: the bench `crates/mcrs_minecraft_engine_entity_motion/benches/motion_pass.rs`, on the
+items of `TestScene` with seed 11 and no walkers. The component side runs the production
+`EntityMotionPlugin` alone in an `App`, on the sections of the scene. The rows side runs
+`TestScene::step` on the same items with no lifetime. Both sides use the same kernel and the same
+task pool of 16 threads, and warm up for 400 ticks. Criterion readings, bench profile, Apple M4 Max,
+2026-11-15.
+
+| case | rows | components (`EntityMotionPlugin`) | components / rows |
+|---|---|---|---|
+| 100k items at rest (99,959 rest on each side) | 0.608 ms | 0.972 ms | 1.60 |
+| 100k items in flight | 2.38 ms | 3.42 ms | 1.44 |
+| 1M items, 25% awake, median of 20 ticks | 15.7 ms | 16.5 ms | 1.05 |
+| spawn of 10k items | 1.25 ms (`RowStore::spawn`) | 0.356 ms (`spawn_batch`) | 0.28 |
+
+Method of the cases in flight: before each measured tick, and outside the measure, the bench puts
+each launched item back at its start body: above the floor, rising, awake. Thus each sample measures
+the same tick, the first tick of a launch, and no item lands. At 100k each item is launched. At 1M
+one item in four is launched, and the other items rest.
+
+The machine was not idle. The 1-minute load average did not fall below 6 in 15 minutes: it was 9.0
+at the start and 12.0 at the end. Thus each time is an upper bound.
+
+The work of the two sides is not equal:
+
+- The rows side writes the body grid of each dirty tile in the freeze, and a launch makes the tile
+  of each launched item dirty. It also runs the merge point with no writes and the tile moves.
+- The component side runs a schedule of three systems. It fills a section window of 8 slots for
+  each entity, through the section index of the dimension. It writes `StepOutcome`, and it sorts
+  the list of movers.
+- Neither side holds a mob, so the rows side has no push work and no neighbour reads.
+
+The rows pass is faster at 100k: the components cost 1.60 times the rows at rest and 1.44 times in
+flight. At 1M with a quarter awake, the difference is 5%. A spawn through `spawn_batch` costs 0.28
+times a spawn of rows. The moving entities that are not living therefore stay components in
+`mcrs_minecraft_engine_entity_motion`, and mobs stay on rows. `docs/physics-architecture.md` §6.1
+records the decision.
+
 ## Findings not yet acted on
 
 - UI layout and its siblings cost about 130 µs per frame with nothing visible.

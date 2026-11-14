@@ -4,52 +4,58 @@ use bevy_ecs::query::Without;
 use bevy_ecs::system::Commands;
 use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
-use bevy_ecs::system::ResMut;
+use bevy_ecs::system::Res;
 use glam::DVec3;
+use mcrs_minecraft_engine_entity_motion::MotionKind;
+use mcrs_minecraft_engine_entity_motion::MotionState;
+use mcrs_minecraft_engine_entity_motion_replication::Appearance;
 use mcrs_minecraft_engine_item::Dropped;
+use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_engine_world::entity_births::EntityBirths;
-use mcrs_minecraft_engine_world::entity_ids::CellEntityIds;
+use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity_key::BirthSequences;
 use mcrs_minecraft_entity_key::BirthSource;
 use mcrs_minecraft_entity_key::KeyedStream;
-use mcrs_minecraft_entity_rows::RowStore;
 use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_item_entity::Start;
 use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::MotionRow;
 use mcrs_minecraft_physics::block_at;
+use mcrs_minecraft_replication::SpawnLook;
 
 use crate::Form;
-use crate::item_row::ItemRow;
 use crate::item_spawn_request::FixedKey;
 use crate::launch::Launching;
+use crate::wire_stack::wire_stack_of;
 
 /// The motion row of an item entity: the plugin, not the pass, ends it (IEN-AGE-001).
-pub(crate) fn motion_row() -> MotionRow {
+fn motion_row() -> MotionRow {
     MotionRow {
         lifetime: None,
         ..MotionRow::item()
     }
 }
 
-/// Gives each dropped stack without a row its row: the start of its launch, or its position at
-/// rest. A stack dropped without a launch gets the default values (IEN-DAT-002).
-pub(crate) fn spawn_rows<M: Send + Sync + 'static>(
+/// Gives each dropped stack without a motion its motion: the start of its launch, or its position
+/// at rest. A stack dropped without a launch gets the default values (IEN-DAT-002). A stack
+/// without a wire form cannot be shown, so it leaves the world instead of becoming an item entity.
+pub(crate) fn spawn_motions(
     mut commands: Commands,
-    mut pending: Query<
-        (Entity, &mut Dropped, Option<&Launching>, Option<&FixedKey>),
-        (With<Kind>, Without<ItemRow>),
+    pending: Query<
+        (Entity, &Dropped, Option<&Launching>, Option<&FixedKey>),
+        (With<Kind>, Without<MotionState>),
     >,
     births: EntityBirths,
     mut sequences: Local<BirthSequences>,
-    mut ids: ResMut<CellEntityIds>,
-    mut rows: ResMut<RowStore<M>>,
+    mut stacks: Stacks,
+    table: Res<ItemTable>,
 ) {
-    for (stack, mut dropped, launching, fixed) in &mut pending {
-        let Some(id) = ids.allocate() else {
-            tracing::warn!(?stack, "the cell has no entity id left; the item waits");
+    for (stack, dropped, launching, fixed) in &pending {
+        let Some(wire) = wire_stack_of(&mut stacks, &table, stack) else {
+            commands.entity(stack).despawn();
             continue;
         };
         let (source, form) = match launching {
@@ -74,14 +80,17 @@ pub(crate) fn spawn_rows<M: Send + Sync + 'static>(
         };
         let mut state = EntityState::new(key, body, None);
         state.phase = key.phase_offset();
-        rows.spawn(id, state, motion_row());
-        if dropped.pos != start.position {
-            dropped.pos = start.position;
-        }
         commands
             .entity(stack)
             .remove::<(Launching, FixedKey)>()
-            .insert(ItemRow { id, key })
+            .insert((
+                MotionState(state),
+                MotionKind(motion_row()),
+                Appearance {
+                    kind: &EntityTypeData::ITEM,
+                    look: SpawnLook::Item(wire),
+                },
+            ))
             .insert_if_new(ItemEntity::default());
     }
 }

@@ -30,7 +30,8 @@ use mcrs_minecraft_engine::coordinator::dim_cells::DimCells;
 use mcrs_minecraft_engine::coordinator::ops::DefaultOpLevel;
 use mcrs_minecraft_engine::muxer::muxer_link::MuxerLink;
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
-use mcrs_minecraft_engine_brain::EntityRows;
+use mcrs_minecraft_engine_entity_motion::MotionState;
+use mcrs_minecraft_engine_entity_motion_replication::MotionId;
 use mcrs_minecraft_engine_item::Dropped;
 use mcrs_minecraft_engine_world::block_drops::{BlockDrops, DroppingBlock, ItemDropped};
 use mcrs_minecraft_engine_world::owned_columns::OwnedColumns;
@@ -1330,12 +1331,13 @@ fn a_block_that_a_shape_update_destroys_drops_the_items_of_the_rules() {
         .into_iter()
         .next()
         .expect("a cell");
-    let mut items = Vec::new();
-    for (_, rows) in world.resource::<EntityRows>().tiles() {
-        items.extend(rows.rows().map(|row| (row.id, row.state.body.position)));
-    }
+    let items: Vec<(MotionId, DVec3)> = world
+        .query::<(&MotionId, &MotionState)>()
+        .iter(world)
+        .map(|(id, state)| (*id, state.0.body.position))
+        .collect();
     let [(_, position)] = items[..] else {
-        panic!("one item row: {items:?}");
+        panic!("one item in motion: {items:?}");
     };
     // PHY-CMP-025: 0.25 of random offset, then at most 0.1 per tick for the ten ticks since.
     assert!(
@@ -1358,13 +1360,9 @@ fn a_block_that_a_shape_update_destroys_drops_the_items_of_the_rules() {
         .next()
         .expect("a cell");
     let later = world
-        .resource::<EntityRows>()
-        .tiles()
-        .flat_map(|(_, rows)| {
-            rows.rows()
-                .map(|row| row.state.body.position.y)
-                .collect::<Vec<_>>()
-        })
+        .query_filtered::<&MotionState, With<MotionId>>()
+        .iter(world)
+        .map(|state| state.0.body.position.y)
         .next();
     assert!(
         later.is_some_and(|y| y < position.y),

@@ -181,6 +181,9 @@ impl EntityCodec {
                 EntityEvent::Data(ReplicationData::Mob(MobReport::Stack(stack))) => {
                     self.mobs.record_stack(subject, stack);
                 }
+                EntityEvent::Data(ReplicationData::Mob(MobReport::Entries(entries))) => {
+                    self.mobs.record_entries(subject, entries);
+                }
                 EntityEvent::Data(ReplicationData::Mob(MobReport::Attribute(attribute))) => {
                     self.mobs.record_attribute(subject, attribute);
                 }

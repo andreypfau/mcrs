@@ -1,12 +1,11 @@
-//! The vanilla item entity: a stack with the placement `Dropped` that moves as a physics row,
-//! ages, merges with a near stack and is picked up into an inventory.
+//! The vanilla item entity: a stack with the placement `Dropped` that moves with the motion pass
+//! of the engine, ages, merges with a near stack and is picked up into an inventory.
 
 mod block_drops;
 mod collect_items;
 mod item_collector;
 mod item_entity_commands_ext;
 mod item_entity_plugin;
-mod item_row;
 mod item_spawn_request;
 mod launch;
 mod max_count;
@@ -14,10 +13,11 @@ mod merge_items;
 mod owner;
 mod picked_up;
 mod publish_items;
-mod release_row;
-mod spawn_rows;
+mod release_motion;
+mod spawn_motions;
 mod step_items;
 mod thrower;
+mod wire_stack;
 
 pub use item_collector::Collect;
 pub use item_collector::ItemCollector;

@@ -5006,6 +5006,49 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_engine_entity_motion"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_tasks",
+ "bevy_utils",
+ "criterion",
+ "glam",
+ "mcrs_minecraft_engine_physics",
+ "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_entity_key",
+ "mcrs_minecraft_entity_rows",
+ "mcrs_minecraft_physics",
+ "mcrs_minecraft_simulation",
+ "mcrs_minecraft_volume",
+ "mcrs_voxel",
+]
+
+[[package]]
+name = "mcrs_minecraft_engine_entity_motion_replication"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_tasks",
+ "glam",
+ "mcrs_engine_muxer",
+ "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_entity_motion",
+ "mcrs_minecraft_engine_physics",
+ "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_key",
+ "mcrs_minecraft_physics",
+ "mcrs_minecraft_protocol_game",
+ "mcrs_minecraft_replication",
+ "mcrs_voxel",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "mcrs_minecraft_engine_item"
 version = "0.5.8"
 dependencies = [
@@ -5338,6 +5381,21 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tracing",
+]
+
+[[package]]
+name = "mcrs_minecraft_falling_block"
+version = "0.5.8"
+dependencies = [
+ "glam",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_game_registries",
+ "mcrs_minecraft_physics",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+ "mcrs_voxel",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -6239,6 +6297,7 @@ dependencies = [
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_wire",
+ "mcrs_voxel",
  "rustc-hash 2.1.1",
  "tracing",
  "uuid",
@@ -6317,6 +6376,8 @@ dependencies = [
  "mcrs_minecraft_engine",
  "mcrs_minecraft_engine_attributes",
  "mcrs_minecraft_engine_brain",
+ "mcrs_minecraft_engine_entity_motion",
+ "mcrs_minecraft_engine_entity_motion_replication",
  "mcrs_minecraft_engine_item",
  "mcrs_minecraft_engine_mob_replication",
  "mcrs_minecraft_engine_physics",
@@ -6327,6 +6388,7 @@ dependencies = [
  "mcrs_minecraft_entity_attribute",
  "mcrs_minecraft_entity_key",
  "mcrs_minecraft_environment",
+ "mcrs_minecraft_falling_block",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_game_registries",
@@ -6358,6 +6420,7 @@ dependencies = [
  "mcrs_minecraft_text_flatten",
  "mcrs_minecraft_vanilla_attributes",
  "mcrs_minecraft_vanilla_block_place",
+ "mcrs_minecraft_vanilla_falling_block",
  "mcrs_minecraft_vanilla_inventory",
  "mcrs_minecraft_vanilla_item_entity",
  "mcrs_minecraft_vanilla_light",
@@ -6554,6 +6617,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_vanilla_falling_block"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_tasks",
+ "glam",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_collision_table",
+ "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_entity_motion",
+ "mcrs_minecraft_engine_entity_motion_replication",
+ "mcrs_minecraft_engine_item",
+ "mcrs_minecraft_engine_physics",
+ "mcrs_minecraft_engine_registries",
+ "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_key",
+ "mcrs_minecraft_falling_block",
+ "mcrs_minecraft_game_registries",
+ "mcrs_minecraft_game_rule",
+ "mcrs_minecraft_item",
+ "mcrs_minecraft_item_entity",
+ "mcrs_minecraft_item_stack",
+ "mcrs_minecraft_physics",
+ "mcrs_minecraft_protocol_game",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_replication",
+ "mcrs_minecraft_vanilla_block_place",
+ "mcrs_minecraft_vanilla_item_entity",
+ "mcrs_minecraft_volume",
+ "mcrs_voxel",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
 name = "mcrs_minecraft_vanilla_inventory"
 version = "0.5.8"
 dependencies = [
@@ -6594,12 +6694,13 @@ dependencies = [
  "glam",
  "mcrs_engine_muxer",
  "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_entity_motion",
+ "mcrs_minecraft_engine_entity_motion_replication",
  "mcrs_minecraft_engine_item",
  "mcrs_minecraft_engine_physics",
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_entity_key",
- "mcrs_minecraft_entity_rows",
  "mcrs_minecraft_item_entity",
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_item_table",

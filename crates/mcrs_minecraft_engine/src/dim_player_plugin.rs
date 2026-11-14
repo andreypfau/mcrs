@@ -108,9 +108,9 @@ impl Plugin for DimPlayerPlugin {
                 .run_if(on_message::<AttributeChanged>.or_else(on_message::<OpLevelAnnounced>))
                 .in_set(TickSet::Project)
                 .after(AttributeEdits)
-                // The mobs of the set write other subjects, which the take of the tile events
-                // sorts.
-                .ambiguous_with(MobPublish),
+                // The publishers of other subjects follow `MobPublish`, and the take of the tile
+                // events sorts the subjects; the order only settles the ambiguity check.
+                .before(MobPublish),
         );
         app.add_message::<OutboundPlayerReleased>();
         app.add_systems(

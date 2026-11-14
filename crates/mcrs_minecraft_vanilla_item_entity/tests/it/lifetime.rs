@@ -3,6 +3,7 @@ use mcrs_minecraft_entity_key::BirthSource;
 use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_item_entity::NEVER_AGES;
 use mcrs_minecraft_item_entity::Start;
+use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_vanilla_item_entity::Form;
 use mcrs_minecraft_vanilla_item_entity::Launch;
 use mcrs_voxel::BlockPos;
@@ -81,4 +82,25 @@ fn ien_mov_004_an_item_entity_below_the_world_minus_64_is_removed() {
     run(&mut app, 1);
     let alive: Vec<_> = items(app.world_mut()).iter().map(|item| item.0).collect();
     assert_eq!(alive, [kept], "R12");
+}
+
+#[test]
+fn a_stack_without_a_wire_form_leaves_the_world() {
+    let mut app = app();
+    app.insert_resource(ItemTable::leak([Vec::new(), Vec::new()]));
+    let unnamed = launch(
+        app.world_mut(),
+        STONE,
+        1,
+        at_rest(DVec3::new(0.5, FLOOR, 0.5), ItemEntity::default()),
+    );
+    assert!(
+        app.world().get_entity(unnamed).is_ok(),
+        "the table has a prototype of the item 1"
+    );
+    run(&mut app, 1);
+    assert!(
+        app.world().get_entity(unnamed).is_err(),
+        "the table names no item, so the stack has no wire form to show"
+    );
 }
