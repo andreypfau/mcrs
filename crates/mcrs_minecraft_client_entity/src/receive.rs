@@ -1,6 +1,11 @@
 use bevy_ecs::prelude::*;
 use glam::DVec3;
 use mcrs_minecraft_client_world::columns::ColumnStore;
+use mcrs_minecraft_client_world::joined_game::JoinedGame;
+use mcrs_minecraft_client_world::player::Player;
+use mcrs_minecraft_entity::AttributeBases;
+use mcrs_minecraft_entity::attribute_keys::Attribute;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_visual::{
     Age, ClientEntity, Equipment, Living, Motion, PacketPath, Placement, Rotation, SNAP_DISTANCE,
     ServerTicking, SyncedData, in_ticking_area, move_entity,
@@ -16,12 +21,15 @@ use mcrs_minecraft_protocol_game::clientbound::{
 };
 use mcrs_minecraft_protocol_game::{ByteAngle, PositionFlag};
 
-use crate::apply_entity_data::{apply_attributes, apply_entity_data};
+use crate::apply_entity_data::apply_entity_data;
+use crate::attribute_instances::{AttributeInstances, RespawnKeep};
 use crate::delta;
 use crate::network_entities::NetworkEntities;
 
 /// The largest X and Z of an added entity.
 pub const WORLD_LIMIT: f64 = 3.0e7;
+/// The bit of the "data to keep" of a respawn that keeps the attribute modifiers (DIM-CHG-004).
+const KEEP_ATTRIBUTE_MODIFIERS: u8 = 0x01;
 /// The entity event that sets the health of a living entity to 0.
 pub const DEATH_EVENT: i8 = ClientboundEntityEvent::DIED;
 
@@ -82,6 +90,9 @@ fn on_add_entity(
     match client.type_data() {
         Some(data) if data.is_living() => {
             spawned.insert((Living::new(degrees(packet.head_yaw)), Equipment::default()));
+            if let Some(bases) = data.attribute_bases() {
+                spawned.insert(AttributeInstances::new(bases));
+            }
         }
         Some(_) => {}
         None => tracing::debug!(
@@ -119,17 +130,45 @@ fn clear_entities(entities: &mut NetworkEntities, commands: &mut Commands) {
 fn on_login(
     _event: On<Received<ClientboundLogin>>,
     mut entities: ResMut<NetworkEntities>,
+    player: Query<Entity, With<Player>>,
     mut commands: Commands,
 ) {
     clear_entities(&mut entities, &mut commands);
+    if let Ok(player) = player.single()
+        && let Some(bases) = AttributeBases::of(EntityType::Player)
+    {
+        commands
+            .entity(player)
+            .insert(AttributeInstances::new(bases));
+    }
 }
 
 fn on_respawn(
-    _event: On<Received<ClientboundRespawn>>,
+    event: On<Received<ClientboundRespawn>>,
     mut entities: ResMut<NetworkEntities>,
+    player: Query<(Entity, Option<&AttributeInstances>), With<Player>>,
     mut commands: Commands,
 ) {
     clear_entities(&mut entities, &mut commands);
+    let Some(packet) = event.packet() else {
+        return;
+    };
+    let Ok((player, old)) = player.single() else {
+        return;
+    };
+    let keep = if packet.data_to_keep & KEEP_ATTRIBUTE_MODIFIERS != 0 {
+        RespawnKeep::BasesAndModifiers
+    } else {
+        RespawnKeep::Bases
+    };
+    let respawned = match old {
+        Some(old) => old.respawned(keep),
+        None => match AttributeBases::of(EntityType::Player) {
+            Some(bases) => AttributeInstances::new(bases),
+            None => return,
+        },
+    };
+    commands.entity(player).insert(respawned);
 }
 
 /// Starts an interpolation of the entity `network_id` from a relative move.
@@ -333,13 +372,35 @@ fn on_set_equipment(
 fn on_update_attributes(
     event: On<Received<ClientboundUpdateAttributes<'static>>>,
     entities: Res<NetworkEntities>,
-    mut data: Query<&mut SyncedData>,
+    connections: Query<&JoinedGame>,
+    player: Query<Entity, With<Player>>,
+    mut living: Query<(&mut AttributeInstances, Option<&mut SyncedData>)>,
 ) {
-    if let Some(packet) = event.packet()
-        && let Some(entity) = entities.get(packet.entity_id.0)
-        && let Ok(mut data) = data.get_mut(entity)
+    let Some(packet) = event.packet() else {
+        return;
+    };
+    let network_id = packet.entity_id.0;
+    let own = connections
+        .get(event.entity)
+        .is_ok_and(|joined| joined.player_id == network_id);
+    let entity = if own {
+        player.single().ok()
+    } else {
+        entities.get(network_id)
+    };
+    let Some(entity) = entity else {
+        return;
+    };
+    let Ok((mut instances, data)) = living.get_mut(entity) else {
+        return;
+    };
+    for entry in &packet.attributes {
+        instances.receive(entry);
+    }
+    if let Some(data) = data
+        && let Some(scale) = instances.value(Attribute::Scale)
     {
-        apply_attributes(&mut data, &packet.attributes);
+        data.map_unchanged(|data| &mut data.scale).set_if_neq(scale);
     }
 }
 
