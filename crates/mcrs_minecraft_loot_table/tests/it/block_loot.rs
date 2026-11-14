@@ -342,6 +342,7 @@ fn reg_fld_701_the_terms_of_any_of_and_all_of_may_be_a_predicate_tag() {
         ("andesite", "all_of", r#"["t:pass", "t:fail"]"#, false),
         ("dirt", "all_of", r##""#t:passing""##, true),
         ("coarse_dirt", "any_of", r##""#t:missing""##, false),
+        ("cobblestone", "any_of", r##""#t:loop""##, false),
     ];
     let mut additions = test_additions();
     let files = &mut additions.files;
@@ -352,9 +353,20 @@ fn reg_fld_701_the_terms_of_any_of_and_all_of_may_be_a_predicate_tag() {
             format!(r#"{{"type": "minecraft:random_chance", "chance": {chance:.1}}}"#),
         );
     }
+    for name in ["loop_a", "loop_b", "loop_c", "loop_d"] {
+        files.insert(
+            "tags",
+            format!("data/t/predicate/{name}.json"),
+            r##"{"type": "minecraft:any_of", "terms": "#t:loop"}"##,
+        );
+    }
     for (name, values) in [
         ("mixed", r#"["t:pass", "t:fail"]"#),
         ("passing", r#"["t:pass"]"#),
+        (
+            "loop",
+            r#"["t:loop_a", "t:loop_b", "t:loop_c", "t:loop_d"]"#,
+        ),
     ] {
         files.insert(
             "tags",
@@ -376,10 +388,11 @@ fn reg_fld_701_the_terms_of_any_of_and_all_of_may_be_a_predicate_tag() {
     let (registries, _) = load_registries(&test_packs(), additions).expect("the pack loads");
     let (loot, issues) = BlockLoot::bake(blocks(), &registries, &test_item_table());
 
-    let issues: Vec<_> = issues
+    let (looped, issues): (Vec<_>, Vec<_>) = issues
         .into_iter()
         .map(|issue| (issue.table.to_string(), issue.problem))
-        .collect();
+        .partition(|(table, _)| table == "minecraft:blocks/cobblestone");
+    assert!(!looped.is_empty());
     assert_eq!(
         issues,
         [(

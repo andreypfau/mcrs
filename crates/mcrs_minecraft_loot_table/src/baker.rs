@@ -24,6 +24,10 @@ use crate::table::{Entry, EntryKind, Pool, Table};
 /// How deep registered predicates may name each other before the bake takes a cycle.
 const PREDICATE_DEPTH: u8 = 16;
 
+/// How many registered predicates one table may expand, so that siblings which name each other
+/// cannot multiply the work up to the depth limit.
+const PREDICATE_EXPANSIONS: u32 = 4096;
+
 const LOCATION_PARTS: &[&str] = &[
     "position",
     "biomes",
@@ -46,6 +50,7 @@ pub(crate) struct Baker<'a> {
     predicates: Option<&'a Registry<ConditionFile>>,
     pub(crate) problems: Vec<LootProblem>,
     depth: u8,
+    expansions: u32,
 }
 
 impl<'a> Baker<'a> {
@@ -56,6 +61,7 @@ impl<'a> Baker<'a> {
             predicates: registries.registry::<ConditionFile>(),
             problems: Vec::new(),
             depth: 0,
+            expansions: 0,
         }
     }
 
@@ -222,7 +228,10 @@ impl<'a> Baker<'a> {
             .predicates
             .and_then(|predicates| predicates.get(predicates.by_name(key.as_location())?));
         match file {
-            Some(file) if self.depth < PREDICATE_DEPTH => {
+            Some(file)
+                if self.depth < PREDICATE_DEPTH && self.expansions < PREDICATE_EXPANSIONS =>
+            {
+                self.expansions += 1;
                 self.depth += 1;
                 let condition = self.condition(file);
                 self.depth -= 1;
