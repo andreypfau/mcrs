@@ -30,7 +30,7 @@ Section 14 is the implementation plan.
 | Writes and claims | binned by target tile; applied and arbitrated per target tile in parallel; writes at the start of the next tick (PHY-CMP-015), claims after the block domain (PHY-CMP-017) | §3.7 |
 | Frozen state | the grid is written inside the pass into a back buffer; the freeze patches only tiles that changed after the pass | §3.4 |
 | AI | eight reflexes in the hot tick; decisions in an AI stage on an isolated pool at the vanilla periods; versioned snapshot; late decisions applied per tile; proposals per component; `max_lag` 2; `AiDelay::Inline` in exact-parity mode | §5 |
-| Data layout | hybrid: hot state in SoA rows of the kernel crate; cold state in ECS only for mobs; items, orbs and projectiles are rows only; players are rows | §6 |
+| Data layout | hybrid: the hot state of mobs in SoA rows of the kernel crate, their cold state in ECS; the moving entities that are not living (items, falling blocks, primed TNT, orbs, projectiles) are ECS entities with components, which one parallel pass steps with a section cache per batch; players are rows | §6, §6.9 |
 | Partition | one world per dimension in a process; tiles as work units; cells for placement across processes | §7 |
 | Block domain | block tiles of 4 × 4 columns, 2 × 2 colours, dependency-driven phases, region-only access, undo and re-run for chains that leave the region | §7.4, §7.5 |
 | Players | L0 and L1 on the network threads, per connection in stream order; L2 in the world before the entity pass, so entities see the moves of this tick (PHY-CMP-021); the server copy follows PHY-CMP-023 | §8 |
@@ -199,7 +199,7 @@ through the per-tile dependency counters of §3.9.
 | | Collider group (PHY-CMP-018) | Explosion group (PHY-CMP-020) |
 |---|---|---|
 | Why | two moving hard colliders that read each other's start box overlap, and PHY-COL-003 then lets them pass | a TNT cannon needs the push of the charges in the move of the projectile in the same tick (PHY-EXP-002) |
-| Seeds | every awake hard collider (boats, rafts, minecarts, shulkers, happy ghasts) | every primed TNT with a fuse of 1 or less, and every creeper that reaches its fuse in this tick (AIT-RFX-002); both known from the row at the start of the tick |
+| Seeds | every awake hard collider (boats, rafts, minecarts, shulkers, happy ghasts) | every primed TNT with a fuse of 1 or less, and every creeper that reaches its fuse in this tick (AIT-RFX-002); the TNT is known from its components and the creeper from its row, both at the start of the tick |
 | Growth | union of colliders whose read zones intersect, over the per-section list of hard colliders. A resting collider is not stepped: its start box is its end box | every entity whose read zone touches the reach (a cube of edge `4p`, grown by the displacement of the exploder), then every entity that an explosion of the group can ignite or move, until the group stops growing; groups that share an entity, or whose reaches intersect, merge |
 | Finding cost | union-find over ~10k colliders at 1M: < 0.5 core-ms | grid and position-table queries per seed: ~2 µs per seed |
 | Start | beginning of `Simulate` | beginning of `Simulate` |
@@ -369,7 +369,7 @@ Output:       tile events from mover lists; AI delta (versioned), block changes,
 |-----|------------|-----------|----------|
 | `EntityKey` | PHY-CMP-013: the UUID of the entity, compared as an unsigned 128-bit integer. Kept across a change of dimension | yes, as the UUID of the entity | the push order, the item phase, the crowd damage stream, the groups, the AI random streams, the bins, claims |
 | `EntityId` | the global runtime id from the coordinator's ranges; the wire id | no | the slot map of the store, side tables, the protocol |
-| `Entity` | the Bevy entity of the cold state of a mob or a player | no | ECS only |
+| `Entity` | the Bevy entity of a moving entity that is not living, or of the cold state of a mob or a player | no | ECS only |
 
 The order key is the UUID. An entity without a UUID gets a new one from its birth inputs:
 
@@ -519,22 +519,48 @@ L0/L1. It waits for the AI stage only at `T + max_lag`, or always in `AiDelay::F
 
 ### 6.1 Options
 
-| Criterion at 1M, 25% awake | Plain Bevy components + `par_iter` | Hybrid: SoA rows in the kernel crate, cold state in ECS |
-|----------------------------|------------------------------------|---------------------------------------------------------|
-| Skip of resting entities | visits every entity: ~15 core-ms | per tile: a quiet tile costs zero |
-| Block reads | hash + `Query::get` per section: +37 core-ms | per-task section cache: ~2.4 core-ms |
-| Snapshot and neighbours | a separate grid anyway | the grid is part of the store |
-| Change detection | `Changed<T>` scans over 1M (1–2 ms each, serial) | mover lists from the pass |
-| Structural changes | an ECS spawn per item, serial | items are rows; mobs spawn in batches |
-| Estimated hot loop | ~260 core-ms | ~210 core-ms |
+The bench `ecs_pass` of `mcrs_minecraft_engine_physics` measures both options on the scene of
+`TestScene`, with the same kernel, the same blocks and the same task pool. `PERF.md`, section
+"Moving entities: rows against components", gives the machine, the method and the load.
 
-Decision: hybrid. Each hot field has one home.
+| Case | Rows | Components, section cache per batch | Components, direct block reads |
+|------|------|-------------------------------------|--------------------------------|
+| steady tick, 50k walkers and 50k items | 2.18 ms | 3.35 ms | 4.60 ms |
+| 100k items at rest | 0.65 ms | 0.83 ms | 1.57 ms |
+| 1M entities, about 27% awake, median tick | 30.6 ms | 35.3 ms | 51.3 ms |
+| spawn of 10k items | 1.27 ms (`RowStore::spawn`) | 0.31 ms (`spawn_batch`), 1.74 ms (`Commands`) | — |
+| list of movers at 100k | a slice read | a `Changed` scan: 0.10 ms at rest, 0.23 ms in the steady tick | — |
+
+A rest marker brings the 100k items at rest to 0.045 ms, and a wake of 10k items costs 0.29 ms.
+The pass does not use a rest marker today.
+
+The work of the two sides is not equal. The component side bins the mobs into the neighbour grid
+on one thread. The rows pass does not skip a quiet tile: it visits each row and returns early for
+a row at rest. The bench has mobs on both sides; the production pass of components holds no mobs.
+
+The measurement refutes three claims of the first estimate:
+
+| Claim | Result |
+|-------|--------|
+| a quiet tile costs zero | refuted: the rows pass visits each row; 100k items at rest cost 0.65 ms with rows and 0.83 ms with components |
+| only rows can cache block reads | refuted: a section cache per `par_iter` batch brings the components from 51.3 ms to 35.3 ms at 1M |
+| an ECS spawn per item is serial and slow | refuted: `spawn_batch` spawns 10k items in 0.31 ms, against 1.27 ms for the rows; only `Commands` is slower, at 1.74 ms |
+
+The estimate of 1–2 ms for each `Changed<T>` scan is also too high: a scan over 100k costs 0.10
+to 0.23 ms.
+
+Decision: mobs stay on rows, because the body grid, the push groups and the AI link read rows. The
+moving entities that are not living are ECS entities with components (§6.3). They push nothing, so
+their pass reads no body grid. A kind from a vanilla plugin or a third-party plugin is then a set
+of components, with no store of its own (§6.9). The cost is about 15% of the pass time at 1M
+against rows (35.3 ms against 30.6 ms). Each hot field has one home.
 
 ### 6.2 Resources
 
 | Resource | Content | Written in `Simulate` by |
 |----------|---------|--------------------------|
-| `EntityRows` | the rows of server entities, one segment per tile | the groups and the main pass, each on its own rows |
+| `EntityRows` | the rows of living server entities, one segment per tile | the groups and the main pass, each on its own rows |
+| `Movers` | the moving entities that are not living and that moved in the last motion pass | the motion pass (§6.3) |
 | `PlayerRows` | the rows of players: the accepted state and the server copy | `predict` and the server part of each player |
 | `BodyGrid` | the grid and the position table, front and back buffer per tile | the main pass (back buffer of its tile) |
 | `ColliderEnds` | end boxes of hard colliders, with a ready counter per tile | collider groups |
@@ -567,9 +593,13 @@ pub struct TileRows {                       // SoA; sorted by motion class; moun
 The kernel steps one `EntityState` with its `MotionRow` (`tick_entity`), so B0 stores these two as
 columns next to `id`. B2 splits a column further only where a measurement shows a gain.
 
-- **Row-only entities.** Items, experience orbs and projectiles have no ECS entity. Their cold state
-  (item stack, owner, pickup delay end tick, age end tick, projectile owner) lives in side tables
-  keyed by `EntityId`. A spawn or a despawn is a row operation in its tile, in parallel over tiles.
+- **Moving entities that are not living.** Items, falling blocks, primed TNT, experience orbs and
+  projectiles are ECS entities with components, not rows. `MotionState` holds the key, the body,
+  the rest and the age; `MotionKind` holds the `MotionRow`. One pass in `Simulate` (`MotionPass`)
+  steps each of them with `tick_entity`, through `par_iter_mut().for_each_init`. Each batch has a
+  section cache, a scratch and an action buffer. These entities push nothing, so the pass reads no
+  body grid. Their cold state (item stack, owner, pickup delay, projectile owner) lives in the
+  components of the kind plugin. §6.9 gives the steps of a kind plugin.
 - **Mobs** keep an ECS entity for their cold state. Each tile reserves `EntityId`s from its range in
   parallel; the life cycle then spawns all new mobs of the tick with one `spawn_batch`.
 - **Players** are rows (approved decision 3). `Transform` stops being the truth for a player:
@@ -593,8 +623,13 @@ and the shared `Orientation`, and players and server entities use the same `Tile
 | body size | derived from class, pose, `scale`, baby; cached per row | rows | one projection at the merge point; `tick_player` derives it from the pose on read (§9) |
 | accepted player state, server copy | authoritative | `PlayerRows` + `Prediction` | `predict`, the server part |
 | grid rows, position table | materialized, frozen | `BodyGrid` | the pass (back buffer), the freeze patch |
-| mover lists | temporal fact of the tick | rows | the pass |
-| cold state of items, orbs, projectiles | authoritative | side tables by `EntityId` | the life cycle, claims |
+| mover lists of mobs | temporal fact of the tick | rows | the pass |
+| `MotionState` of an entity that is not living (key, body, rest, age) | authoritative | ECS component | the motion pass in `Simulate`; outside `Simulate`, an impulse of a plugin (§6.9) |
+| `MotionKind` | authoritative, constant while the entity moves | ECS component | the kind plugin |
+| `Dropped.pos` of an item | projection of `MotionState` | ECS component | one writer: the item plugin, after the motion pass |
+| `Movers` | temporal fact of the tick | resource | the motion pass; it holds from the end of one pass to the start of the next |
+| `PublishedTile` | materialized: the tile in which the viewers know the entity | ECS component | the publisher, in `MotionPublish` |
+| cold state of items, falling blocks, TNT, orbs, projectiles | authoritative | ECS components | the kind plugin, claims |
 | cold state of mobs and players | authoritative | ECS | their systems |
 | brain state | authoritative | AI stage | the AI stage |
 | box, `pushable`, `push_targets` | derived on read | — | — |
@@ -666,6 +701,59 @@ up).
 
 Rows of one class are contiguous in a tile, so the in-air rows batch in f64 lanes of 4,
 bit-identical to the scalar path.
+
+### 6.9 A moving entity kind from a plugin
+
+`mcrs_minecraft_engine_entity_motion` moves the entities that are not living, and
+`mcrs_minecraft_engine_entity_motion_replication` shows them to viewers. The motion crate does not
+depend on the replication crate. A plugin adds a kind in these steps:
+
+1. Spawn the entity with a `MotionState` and a `MotionKind` that holds the `MotionRow` of the kind.
+   An entity that gets them through commands before `MotionPass` moves in the same tick.
+2. Add an `Appearance` when viewers see the kind. The replication plugin holds each new
+   `MotionState` with `MotionHold`. In `MotionRelease`, it gives a `MotionId` to each held entity
+   with an `Appearance`, and releases it. Thus, with the replication plugin, an entity without an
+   `Appearance` does not move.
+3. To see an entity before it moves, insert a `MotionHold` and remove it in `MotionRelease`.
+4. Read the result after `MotionPass`. `StepOutcome` holds the start position, the collision flags
+   and the outcome of the kernel, for example a landing. `Movers` lists the entities whose motion
+   changed in a way that a viewer sees.
+5. Give an impulse as a write to `MotionState` in a system outside `Simulate`. The write wakes a
+   resting entity. Inside `MotionPass`, only the pass writes `MotionState`.
+6. End the entity: despawn it, or remove its `MotionState`. The pass does not end an entity at the
+   lifetime of its `MotionRow`. The replication plugin then publishes the removal and removes the
+   `MotionId`. A later `MotionState` gets a new id and a new spawn.
+7. Show the entity with `Appearance { kind, look }`. `kind` is the type data of the entity, with its
+   `ClientMotion` and its `PreciseSync`. For a kind that `mcrs_minecraft_replication` does not know,
+   `look` is `SpawnLook::Custom` with the data of `add_entity` and the entries that differ from
+   their defaults.
+8. Change the entity data with a `MobReport::Entries` event. The next tracker tick sends the
+   entries that changed (TRK-DATA-005).
+9. Push the own tile events of the entity after `MotionPublish`, to the tile of its
+   `PublishedTile`. Thus the viewers get the spawn before the events of the plugin, and the events
+   reach the viewers that know the entity.
+
+`mcrs_minecraft_vanilla_item_entity` and `mcrs_minecraft_vanilla_falling_block` follow these steps.
+The falling block also gives review points: `FallingBlockSet::StartReview` with a `PendingFall`, and
+`FallingBlockSet::LandingReview` with a `Landed`. A system in these sets changes or cancels a start
+or a landing.
+
+| Consumer | What it takes |
+|----------|---------------|
+| a bot | the kernel alone: `tick_entity` with its own block source |
+| a headless client, a replay viewer, an online map | the motion pass without the replication crate |
+| a minigame server | its own kinds and `MotionRow` values; a cancel of a fall or a landing in the review sets of the falling block |
+| a proxy, another server | the tracker; it is not public yet (#784) |
+
+Open points:
+
+- The pass depends on `mcrs_minecraft_engine_physics` for `PhysicsTables` and `BlockWorld`, so a
+  client cannot take the pass without the server crate. The client pull request of #97 makes the
+  pass generic over the block source.
+- The tracker is not public (#784).
+- Block behaviours from plugins and the automatic start of a fall are open (#785).
+- The order of block packets against entity packets, and `add_transient_block`, are open (#787).
+- A network id does not return to the allocator of the cell.
 
 ## 7. Partitioning
 
@@ -1180,7 +1268,7 @@ pub struct TileQueues<T> { tiles: BTreeMap<TileKey, Vec<T>> }
 pub struct ColliderEnds { tiles: BTreeMap<TileKey, TileEnds> }
 /// Front and back buffer per tile; `swap` swaps only the tiles whose back buffer was written.
 pub struct BodyGrid { tiles: BTreeMap<TileKey, GridTile> }
-/// Row-only life cycle: `reserve_ids`, `spawn_row`, `despawn_row`.
+/// Life cycle of the rows of mobs: `reserve_ids`, `spawn_row`, `despawn_row`.
 pub struct TileRows { state: Vec<EntityState>, motion: Vec<MotionRow>, id: Vec<EntityId>, .. }
 ```
 
@@ -1202,7 +1290,7 @@ short.
 | `BlockOverlay` as a `CollisionWorld` | explosion groups run during `Simulate` and must not write blocks |
 | `ColliderEnds` ready per tile | a main-pass tile waits only for the collider groups that touch it |
 | `BodyGrid` back buffer per tile | the pass writes the grid of its tile |
-| Row-only life cycle (`spawn_row`, `despawn_row`, `reserve_ids`) | items, orbs and projectiles never touch ECS |
+| Row life cycle (`spawn_row`, `despawn_row`, `reserve_ids`) | each tile spawns and despawns the rows of its mobs in parallel; the entities that are not living are ECS entities (§6.3) |
 | Per-tile decision queue in `TileQueues` | late AI decisions apply in the tile task |
 | `masks()` returns `Option` | the client view and the overlays must force the per-block path |
 | `Side` and `PlayerState` | `tick_player` cannot be bit-exact without them |
@@ -1281,7 +1369,7 @@ At 1M on 32 cores, the parallel work of the tick is ~509 core-ms, so its floor i
 |---|-------------|------------------------------------------------|-------|-----|
 | S1 | L0/L1 in `bridge_inbound` | 5 ms (today) | 0 | network threads (§8.1) |
 | S2 | stage results landing; sections are ECS entities | 1–4 ms | ~0.3 ms | columns land in parallel; one batched structural change |
-| S3 | merge point, AI apply, proposals, ECS spawn and despawn | ~1.5 ms (2 in a mob farm) | ~0.3 ms | bins per target tile; decisions per tile; proposal components; row-only entities; batched mob spawns |
+| S3 | merge point, AI apply, proposals, ECS spawn and despawn | ~1.5 ms (2 in a mob farm) | ~0.3 ms | bins per target tile; decisions per tile; proposal components; `spawn_batch` for the entities that are not living (§6.1); batched mob spawns |
 | S4 | freeze grid rebuild | ~0.7 ms | ~0.1 ms | grid in the pass, patch at the freeze |
 | S5 | finding the groups | < 0.5 ms (1k TNT ~2) | < 0.5 ms | unchanged; hidden behind the patch per tile |
 | S6 | commands; raid tick | 0.1–0.3 ms | 0.1–0.3 ms | serial by nature (command order, raid order) |
@@ -1491,9 +1579,9 @@ working. Steps in one track run in sequence; tracks marked ∥ run in parallel w
 
 | Step | Crate | Scope | Rules | Tests | Exit |
 |------|-------|-------|-------|-------|------|
-| B0 | `mcrs_minecraft_physics` | the boundaries of §9: `EffectBuffer` bins with `WriterKey`, `BlockOverlay`, `ColliderEnds` per tile, grid back buffer, row-only life cycle, `TileQueues`, `masks()` as `Option` | — | compile-level and unit tests | types stable; later steps only fill them |
+| B0 | `mcrs_minecraft_physics` | the boundaries of §9: `EffectBuffer` bins with `WriterKey`, `BlockOverlay`, `ColliderEnds` per tile, grid back buffer, row life cycle of mobs, `TileQueues`, `masks()` as `Option` | — | compile-level and unit tests | types stable; later steps only fill them |
 | B1 | `mcrs_minecraft_engine`, save | the UUID as the order key, the new UUID from the birth inputs, the phase offset, persistence | PHY-CMP-013, 016, 024 | save and load equality; one cell against four give equal keys | before any determinism test |
-| B2 | `mcrs_minecraft_engine_physics` | `EntityRows`, `BodyGrid` (grid in the pass, patch at the freeze), `entity_tick` over tiles with counters, rest per tile, bins, merge point per target tile, row-only items and orbs | PHY-CMP-008, 009, 012, 015, PHY-INV-015 | tick determinism for 1, 2, 8 threads and task splits; grid patch equals rebuild | 100k items and walkers at ≤ 5 ms on 16 cores |
+| B2 | `mcrs_minecraft_engine_physics` | `EntityRows`, `BodyGrid` (grid in the pass, patch at the freeze), `entity_tick` over tiles with counters, rest per tile, bins, merge point per target tile; items and orbs as ECS entities in the motion pass of `mcrs_minecraft_engine_entity_motion` (§6.3) | PHY-CMP-008, 009, 012, 015, PHY-INV-015 | tick determinism for 1, 2, 8 threads and task splits; grid patch equals rebuild | 100k items and walkers at ≤ 5 ms on 16 cores |
 | B3 | `mcrs_minecraft_engine_physics` | claims per target tile; pickups, hoppers, merges, command kills | PHY-CMP-017 | property: one winner, lowest key, any thread count | dupe tests pass |
 | B4 | `mcrs_minecraft_engine_physics` | collider groups with waves; explosion groups with the overlay, creeper seeds, the opt-in wave mode; counters | PHY-CMP-018, 020, 022, PHY-EXP-001..003, AIT-RFX-002 | boats do not tunnel; TNT cannon; group finding determinism | E29–E31 within PHY-DEV-002 |
 | B5 | `mcrs_minecraft_engine_physics` | block-domain writes to rows; pistons; entity block actions | PHY-BLK-001/002, PHY-RCH-002, PHY-CMP-010 | piston moves a mob in the same tick | test passes |
@@ -1683,8 +1771,7 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     no violation, for each teleport; the accept applies the teleport to the candidates at that time,
     which keep their flags and fall distance; unknown values make the next tick a resync tick.
 56. `entity-tracking.md` TRK-LIFE-001, the cold state of a mob. Decided: the cold state of a mob
-    lives in a side table keyed by `EntityId`, as the stack of an item, not in an ECS entity as
-    §6.3 states. The table holds only the entity type; each other entity data value is a function
+    lives in a side table keyed by `EntityId`, not in an ECS entity as §6.3 states. The table holds only the entity type; each other entity data value is a function
     of the type. The health and the dying state live in the row (DMG-DTH-005). Reason: no system queries the cold state of
     mobs yet, and a side table keeps the spawn a row operation of its tile. A mob gets an ECS
     entity when a system of the AI or the damage needs a query over the cold state.

@@ -1106,6 +1106,36 @@ was the faster one only because the load happened to be lower, and a one-second 
 inside that spread. What they do show is that adding it does not move a clean workspace check
 outside the noise, and that a change in a dependent crate does not rebuild it.
 
+## Moving entities: rows against components
+
+Scenario: the bench `crates/mcrs_minecraft_engine_physics/benches/ecs_pass.rs`, on the scene of
+`TestScene` with no item lifetime. Both sides use the same kernel, the same blocks and the same
+task pool. The rows side is the rows pass. The component side steps plain Bevy components with
+`par_iter_mut().for_each_init`, either with a section cache per batch or with a direct block read.
+Criterion readings, bench profile, Apple M4 Max with 16 threads, 2026-11-14.
+
+| case | rows | components, section cache per batch | components, direct block reads |
+|---|---|---|---|
+| steady tick, 50k walkers and 50k items | 2.18 ms | 3.35 ms | 4.60 ms |
+| 100k items at rest | 0.65 ms | 0.83 ms | 1.57 ms |
+| 1M entities, about 27% awake, median tick | 30.6 ms | 35.3 ms | 51.3 ms |
+| spawn of 10k items | 1.27 ms (`RowStore::spawn`) | 0.31 ms (`spawn_batch`), 1.74 ms (`Commands`) | not applicable |
+| list of movers at 100k | a slice read | a `Changed` scan: 0.10 ms at rest, 0.23 ms in the steady tick | not applicable |
+
+A rest marker brings the 100k items at rest to 0.045 ms, and a wake of 10k items costs 0.29 ms.
+The motion pass does not use a rest marker.
+
+The machine was not idle: the 1-minute load average was 5 at the start and 27 at the end, so each
+time is an upper bound. The work of the two sides is not equal. The component side bins the mobs
+into the neighbour grid on one thread. The rows pass does not skip a quiet tile: it visits each row
+and returns early for a row at rest. The bench has mobs on both sides; the production pass of
+components holds no mobs.
+
+With the section cache per batch, the components cost about 15% of the pass time at 1M against
+rows. The moving entities that are not living (items, falling blocks, later primed TNT, experience
+orbs and projectiles) therefore are components in `mcrs_minecraft_engine_entity_motion`. Mobs stay
+on rows. `docs/physics-architecture.md` §6.1 records the decision.
+
 ## Findings not yet acted on
 
 - UI layout and its siblings cost about 130 µs per frame with nothing visible.
