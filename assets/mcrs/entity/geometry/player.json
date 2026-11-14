@@ -9,7 +9,17 @@
       },
       "bones": [
         {
+          "name": "root",
+          "pivot": [0.0, 0.0, 0.0]
+        },
+        {
+          "name": "waist",
+          "parent": "root",
+          "pivot": [0.0, 12.0, 0.0]
+        },
+        {
           "name": "body",
+          "parent": "waist",
           "pivot": [0.0, 24.0, 0.0],
           "cubes": [
             {
@@ -34,6 +44,7 @@
         },
         {
           "name": "head",
+          "parent": "waist",
           "pivot": [0.0, 24.0, 0.0],
           "cubes": [
             {
@@ -58,6 +69,7 @@
         },
         {
           "name": "left_arm",
+          "parent": "waist",
           "pivot": [5.0, 22.0, 0.0],
           "cubes": [
             {
@@ -82,6 +94,7 @@
         },
         {
           "name": "left_leg",
+          "parent": "root",
           "pivot": [1.9, 12.0, 0.0],
           "cubes": [
             {
@@ -106,6 +119,7 @@
         },
         {
           "name": "right_arm",
+          "parent": "waist",
           "pivot": [-5.0, 22.0, 0.0],
           "cubes": [
             {
@@ -130,6 +144,7 @@
         },
         {
           "name": "right_leg",
+          "parent": "root",
           "pivot": [-1.9, 12.0, 0.0],
           "cubes": [
             {
@@ -151,6 +166,26 @@
               "uv": [0.0, 32.0]
             }
           ]
+        },
+        {
+          "name": "cape",
+          "parent": "waist",
+          "pivot": [0.0, 24.0, 2.0]
+        },
+        {
+          "name": "elytra",
+          "parent": "waist",
+          "pivot": [0.0, 24.0, 2.0]
+        },
+        {
+          "name": "right_item",
+          "parent": "right_arm",
+          "pivot": [-6.0, 12.0, -2.0]
+        },
+        {
+          "name": "left_item",
+          "parent": "left_arm",
+          "pivot": [6.0, 12.0, -2.0]
         }
       ]
     },
@@ -162,7 +197,17 @@
       },
       "bones": [
         {
+          "name": "root",
+          "pivot": [0.0, 0.0, 0.0]
+        },
+        {
+          "name": "waist",
+          "parent": "root",
+          "pivot": [0.0, 12.0, 0.0]
+        },
+        {
           "name": "body",
+          "parent": "waist",
           "pivot": [0.0, 24.0, 0.0],
           "cubes": [
             {
@@ -187,6 +232,7 @@
         },
         {
           "name": "head",
+          "parent": "waist",
           "pivot": [0.0, 24.0, 0.0],
           "cubes": [
             {
@@ -211,6 +257,7 @@
         },
         {
           "name": "left_arm",
+          "parent": "waist",
           "pivot": [5.0, 22.0, 0.0],
           "cubes": [
             {
@@ -235,6 +282,7 @@
         },
         {
           "name": "left_leg",
+          "parent": "root",
           "pivot": [1.9, 12.0, 0.0],
           "cubes": [
             {
@@ -259,6 +307,7 @@
         },
         {
           "name": "right_arm",
+          "parent": "waist",
           "pivot": [-5.0, 22.0, 0.0],
           "cubes": [
             {
@@ -283,6 +332,7 @@
         },
         {
           "name": "right_leg",
+          "parent": "root",
           "pivot": [-1.9, 12.0, 0.0],
           "cubes": [
             {
@@ -304,6 +354,26 @@
               "uv": [0.0, 32.0]
             }
           ]
+        },
+        {
+          "name": "cape",
+          "parent": "waist",
+          "pivot": [0.0, 24.0, 2.0]
+        },
+        {
+          "name": "elytra",
+          "parent": "waist",
+          "pivot": [0.0, 24.0, 2.0]
+        },
+        {
+          "name": "right_item",
+          "parent": "right_arm",
+          "pivot": [-5.5, 12.0, -2.0]
+        },
+        {
+          "name": "left_item",
+          "parent": "left_arm",
+          "pivot": [5.5, 12.0, -2.0]
         }
       ]
     }
