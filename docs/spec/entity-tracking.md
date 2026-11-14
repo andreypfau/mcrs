@@ -1302,7 +1302,8 @@ as a fixture of `mcrs_minecraft_fixtures`.
     (TRK-UPD-016);
   - a falling block that falls 20 ticks: a relative move at `c = 0`, a sync at `c = 20`
     because the delta does not fit;
-  - a TNT on a block: a sync and the fuse entry in each tick;
+  - a TNT summoned on a block: `entity_position_sync` at `c = 0`, then the fuse entry in each
+    tick and no move packet (TRK-UPD-016);
   - an item that slides with `v` true: a sync at each update, with the vectors of TRK-UPD-013;
   - an item that bounces before the tracker tick of `c = 23`: `c` becomes 40, that tick is an
     update, and the next periodic update comes 20 tracker ticks later (TRK-UPD-011);

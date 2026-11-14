@@ -11,6 +11,7 @@ use glam::DVec3;
 use mcrs_engine_muxer::EntityEvent;
 use mcrs_minecraft_engine::tile_events::TileEvents;
 use mcrs_minecraft_engine_entity_motion::EntityMotionPlugin;
+use mcrs_minecraft_engine_entity_motion::MotionHold;
 use mcrs_minecraft_engine_entity_motion::MotionKind;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_entity_motion::StepOutcome;
@@ -233,15 +234,20 @@ fn an_item_that_bounces_on_slime_reports_the_bounce_in_that_tick_only() {
                 }
                 _ => None,
             });
-        let Some(bounced) = reported else {
-            continue;
-        };
         let turned_up = before <= 0.0 && after > 0.0;
-        assert_eq!(
-            bounced, turned_up,
-            "tick {at}: velocity {before} to {after}"
-        );
-        bounces += usize::from(bounced);
+        if turned_up {
+            assert_eq!(
+                reported,
+                Some(true),
+                "tick {at} reports its bounce: velocity {before} to {after}"
+            );
+            bounces += 1;
+        } else if let Some(bounced) = reported {
+            assert!(
+                !bounced,
+                "tick {at} does not bounce: velocity {before} to {after}"
+            );
+        }
     }
     assert!(bounces > 0, "the item bounces on the slime block");
 }
@@ -303,5 +309,85 @@ fn the_spawn_of_a_falling_block_shows_its_start_and_the_first_step_follows_as_a_
     assert!(
         moved.y < start.y && move_velocity.y < 0.0,
         "the move shows the first step: {moved:?}, {move_velocity:?}"
+    );
+}
+
+/// Runs one tick and gives the positions of its moves.
+fn moves(app: &mut App) -> Vec<DVec3> {
+    app.world_mut().run_schedule(FixedUpdate);
+    let deltas = app.world_mut().resource_mut::<TileEvents>().take();
+    deltas
+        .tiles
+        .iter()
+        .flat_map(|delta| &delta.events)
+        .filter_map(|event| match &event.event {
+            EntityEvent::Move(ReplicationData::Mob(MobReport::Move(state))) => Some(state.position),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_write_of_another_system_to_an_entity_at_rest_is_published_once() {
+    let mut app = app(|blocks| blocks.stone);
+    let block = spawn(
+        app.world_mut(),
+        MotionRow::falling_block(),
+        DVec3::new(0.5, 3.0, 0.5),
+    );
+    app.world_mut()
+        .get_mut::<MotionState>(block)
+        .expect("a moving entity")
+        .0
+        .no_gravity = true;
+    for _ in 0..5 {
+        tick(&mut app);
+    }
+    assert!(moves(&mut app).is_empty(), "the block floats still");
+
+    let teleport = DVec3::new(1.5, 3.0, 0.5);
+    app.world_mut()
+        .get_mut::<MotionState>(block)
+        .expect("a moving entity")
+        .0
+        .body
+        .position = teleport;
+
+    assert_eq!(moves(&mut app), [teleport], "the write reaches the viewers");
+    assert!(moves(&mut app).is_empty(), "the write is published once");
+}
+
+#[test]
+fn a_write_to_a_held_entity_at_rest_wakes_it_after_the_release() {
+    let mut app = app(|blocks| blocks.stone);
+    let block = spawn(
+        app.world_mut(),
+        MotionRow::falling_block(),
+        DVec3::new(0.5, 3.0, 0.5),
+    );
+    for _ in 0..60 {
+        tick(&mut app);
+    }
+    let rest = state(&app, block).rest;
+    assert!(
+        matches!(rest, Rest::Resting(_)),
+        "the block rests: {rest:?}"
+    );
+
+    let mut entity = app.world_mut().entity_mut(block);
+    entity.insert(MotionHold);
+    entity
+        .get_mut::<MotionState>()
+        .expect("a moving entity")
+        .0
+        .body
+        .velocity = DVec3::new(0.0, 0.5, 0.0);
+    tick(&mut app);
+    app.world_mut().entity_mut(block).remove::<MotionHold>();
+    tick(&mut app);
+
+    assert!(
+        state(&app, block).body.position.y > 0.0,
+        "the write survives the hold and lifts the block"
     );
 }

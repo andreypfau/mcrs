@@ -75,7 +75,8 @@ the Minecraft EULA in its environment, and the author had no such acceptance.
   `e3_drop_slime_block.json`: captures of `26.4-snapshot-7` (experiment E3 of `entity-physics.md`).
   Each has a falling block of `sand` with the drop flag false.
 - The data pack of mcrs, `assets/mcrs/datapacks/mcrs/`: the tags of FBK-TRG-002 and the file
-  `mcrs/falling_block/concrete_pairs.json`.
+  `mcrs/falling_block/concrete_pairs.json`. These files are not in this revision. The second pull
+  request of #97 adds them.
 - The data pack of the game: the block tags `minecraft:concrete_powders`, `minecraft:anvil`,
   `minecraft:fire` and `minecraft:water` (a fluid tag), and the game rule `minecraft:entity_drops`.
 - The block definitions under `assets/mcrs/block_definition/`: the component
@@ -287,7 +288,8 @@ air supply, a fluid current does not push it, and the removal below the world do
 it. FBK-TCK-005 replaces that removal.
 
 **FBK-TCK-002** (`source_suggested_black_box_confirmed`, semantic, confidence high). A falling block
-that lands in a tick is removed in that tick. The captures `e3_drop_stone.json` and
+that lands in a tick is removed in that tick, except at a target cell that holds `moving_piston`
+(FBK-LND-001). The captures `e3_drop_stone.json` and
 `e3_drop_slime_block.json` show a falling block of `sand` that is present after tick 17 and absent
 after tick 18, the tick in which it reaches the floor.
 
@@ -314,8 +316,8 @@ faster than one block in each tick does not pass through a thin layer of water. 
 checks this rule.
 
 **FBK-TCK-004** (`design`, semantic). A falling block that does not land in the maximum age drops
-as its item. When the on-ground flag and the water contact are false, and the age is more than the
-maximum age, the server does these steps:
+as its item. When the maximum age is more than 0, the on-ground flag and the water contact are false,
+and the age is more than the maximum age, the server does these steps:
 
 1. When the drop flag is true and the game rule `minecraft:entity_drops` is true, make the item
    entity of FBK-LND-006. The server sends no `level_event`, also for an anvil (FBK-LND-007).
@@ -476,8 +478,9 @@ drop. Experiment E9 checks this rule.
 
 ## 6. Packets
 
-**FBK-NET-001** (`black_box_confirmed`, wire, confidence high). The updates of a falling block
-follow TRK-UPD-001 and PHY-CMP-002 with the update interval 20. A falling block needs a precise
+**FBK-NET-001** (`source_suggested_black_box_confirmed`, wire, confidence high). The updates of a
+falling block follow TRK-UPD-001 and PHY-CMP-002 with the update interval 20. The type artefact
+`entity_types.json` gives this update interval. A falling block needs a precise
 position after each tick with a collision flag (PHY-CMP-002).
 
 **FBK-NET-002** (`source_suggested`, wire, confidence medium). When the carried state becomes a block
@@ -582,7 +585,7 @@ packets of `W` after each step. None of these experiments ran.
 | E3 | Drop `sand` from 5 blocks onto each block of the table of FBK-LND-002, and onto a boat. Record the block at the target cell, the item entities, and the packets of `W` in the tick of the landing. | FBK-LND-002, FBK-LND-003, FBK-NET-002 |
 | E4 | Set `entity_drops` to false. Drop `sand` onto a bottom slab. Record the item entities. | FBK-LND-006 |
 | E5 | Drop `white_concrete_powder` from 3 blocks into a water source on `stone`. Drop it onto `stone` with a water source on one side, and with a water source below the stone. Summon it with `Motion:[0d,-1.5d,0d]` 3 blocks above a water source of 1 layer on `stone`. Record the final block and the first `block_update`. | FBK-TCK-003, FBK-LND-004, D1 |
-| E6 | Put `sand` and `suspicious_sand` above a column of four `cobweb` blocks on `stone`. Record the tick in which each falling block ends, and the item entities. Do it again above a bubble column of `soul_sand`. | FBK-TCK-004 |
+| E6 | Summon falling blocks of `sand` and `suspicious_sand` in the top block of a column of four `cobweb` blocks on `stone`. A `cobweb` is not free (FBK-TRG-004), so a gravity block above it does not fall. Record the tick in which each falling block ends, and the item entities. Do it again above a bubble column of `soul_sand`. | FBK-TCK-004 |
 | E7 | Summon `sand` with `NoGravity:1b` 10 blocks below the minimum `y`, and 10 blocks above the maximum `y`. Step 102 ticks. Record the tick of the end and the item entities. | FBK-TCK-005 |
 | E8 | Drop `suspicious_gravel` from 3 blocks onto `stone`. Record the `level_event` packets, the block and the item entities. Do it again with `entity_drops` false. | FBK-LND-005 |
 | E9 | Drop an `anvil` from 3 blocks onto `stone`, and onto a bottom slab. Do it again with `Silent:1b`. Record the `level_event` packets. | FBK-LND-007 |

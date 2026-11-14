@@ -7,6 +7,7 @@ use mcrs_minecraft_engine::tile_events::TileEvents;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_entity_motion::Movers;
 use mcrs_minecraft_engine_entity_motion::StepOutcome;
+use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::Body;
 use mcrs_minecraft_physics::TickOutcome;
@@ -25,9 +26,14 @@ use crate::subject::Subject;
 /// Records the tile events of the tick in the order of the ids: the spawn of each entity that got
 /// its id, the change of tile and the move of each entity whose body changed, and the removal of
 /// each entity that lost its motion. A spawn shows the body before the step of its tick, and the
-/// move of that step follows it (FBK-SPN-001, TRK-UPD-015). An entity that left before its spawn
+/// move of that step follows it (FBK-SPN-001, TRK-UPD-015). The move of an entity that the pass
+/// skipped shows no kernel outcome. An entity that left before its spawn
 /// sends nothing. A change of tile and a removal start from the [`PublishedTile`], so that they
 /// reach the viewers that know the entity.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a system takes each resource that it reads"
+)]
 pub(crate) fn publish_motion(
     mut entities: Query<(
         &MotionState,
@@ -38,6 +44,7 @@ pub(crate) fn publish_motion(
     ids: Query<&MotionId>,
     mut assigned: ResMut<Assigned>,
     movers: Res<Movers>,
+    clock: Res<BirthClock>,
     mut moved: Local<Vec<Subject>>,
     mut departures: ResMut<Departures>,
     mut events: ResMut<TileEvents>,
@@ -82,6 +89,11 @@ pub(crate) fn publish_motion(
             continue;
         };
         let body = &state.0.body;
+        let kernel = if outcome.is_of(*clock) {
+            outcome.kernel
+        } else {
+            TickOutcome::default()
+        };
         let tile = TileKey::at(body.position);
         if before != tile {
             published.0 = Some(tile);
@@ -91,7 +103,7 @@ pub(crate) fn publish_motion(
         events.push(
             tile,
             subject.id,
-            EntityEvent::Move(MobReport::Move(viewed(body, &outcome.kernel)).into()),
+            EntityEvent::Move(MobReport::Move(viewed(body, &kernel)).into()),
         );
     }
     let departures = &mut departures.0;

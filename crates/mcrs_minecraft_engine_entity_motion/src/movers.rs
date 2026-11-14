@@ -6,8 +6,9 @@ use bevy_ecs::system::ResMut;
 use bevy_utils::Parallel;
 
 /// The entities whose motion changed in the last [`MotionPass`](crate::MotionPass) in a way that a
-/// viewer sees: a new position, new collision flags, a bounce, or a new velocity after a wake. A
-/// change of the velocity of a resting entity alone is not listed. The pass replaces the list in
+/// viewer sees: a new position, new collision flags, a bounce, a new velocity after a wake, or a
+/// write of another system since the last pass. A change of the velocity of a resting entity alone
+/// is not listed. The pass replaces the list in
 /// each tick, so it holds from the end of one pass to the start of the next. The entities are
 /// sorted and appear once.
 #[derive(Resource, Default)]

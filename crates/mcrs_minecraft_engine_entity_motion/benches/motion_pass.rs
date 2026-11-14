@@ -56,7 +56,6 @@ const MILLION_HALF: i32 = 50;
 const MILLION: u32 = 1_000_000;
 /// Enough ticks for every item of the scene to land and rest.
 const WARM_UP_TICKS: u32 = 400;
-const MEDIAN_TICKS: usize = 20;
 const SPAWNS: u32 = 10_000;
 
 fn pool() -> &'static TaskPool {
@@ -308,28 +307,44 @@ fn flight_case(group: &mut BenchmarkGroup<'_, WallTime>, name: &str, mut side: i
     });
 }
 
-/// One measure without criterion sampling: the median of 20 ticks at 1M items, each tick the
-/// first after a launch of a quarter of them; the others rest.
-fn million(_criterion: &mut Criterion) {
-    million_case("rows", RowsSide::new(MILLION_HALF, MILLION));
-    million_case("components", ComponentsSide::new(MILLION_HALF, MILLION));
+/// Each measured tick at 1M items is the first after a launch of a quarter of them; the others
+/// rest. The scene is built only when a filter selects the case.
+fn million(criterion: &mut Criterion) {
+    let threads = pool().thread_num();
+    let mut group = criterion.benchmark_group(format!("1M items, 25% awake, {threads} threads"));
+    group.sample_size(10);
+    million_case(&mut group, "rows", || RowsSide::new(MILLION_HALF, MILLION));
+    million_case(&mut group, "components", || {
+        ComponentsSide::new(MILLION_HALF, MILLION)
+    });
+    group.finish();
 }
 
-fn million_case(name: &str, mut side: impl PassSide) {
-    warm_up(&mut side);
-    side.launch(Launch::Quarter);
-    let resting = side.resting();
-    let mut times: Vec<Duration> = (0..MEDIAN_TICKS)
-        .map(|_| {
+fn million_case<S: PassSide>(
+    group: &mut BenchmarkGroup<'_, WallTime>,
+    name: &str,
+    new: impl Fn() -> S,
+) {
+    let mut scene: Option<S> = None;
+    group.bench_function(name, |bencher| {
+        let side = scene.get_or_insert_with(|| {
+            let mut side = new();
+            warm_up(&mut side);
             side.launch(Launch::Quarter);
-            let start = Instant::now();
-            side.step();
-            start.elapsed()
+            println!("1M items, {name}: {} of {MILLION} rest", side.resting());
+            side
+        });
+        bencher.iter_custom(|iterations| {
+            let mut total = Duration::ZERO;
+            for _ in 0..iterations {
+                side.launch(Launch::Quarter);
+                let start = Instant::now();
+                side.step();
+                total += start.elapsed();
+            }
+            total
         })
-        .collect();
-    times.sort_unstable();
-    let median = times.get(MEDIAN_TICKS / 2).copied().unwrap_or_default();
-    println!("1M items, {name}: median tick {median:?}, {resting} of {MILLION} rest");
+    });
 }
 
 fn spawns(criterion: &mut Criterion) {

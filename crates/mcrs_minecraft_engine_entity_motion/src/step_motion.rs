@@ -2,8 +2,8 @@ use bevy_ecs::batching::BatchingStrategy;
 use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::query::Has;
 use bevy_ecs::query::With;
-use bevy_ecs::query::Without;
 use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
@@ -20,7 +20,9 @@ use mcrs_minecraft_engine_world::world::storage::view::WorldView;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::BlockAction;
 use mcrs_minecraft_physics::CollisionWorld;
+use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::NoBodies;
+use mcrs_minecraft_physics::Rest;
 use mcrs_minecraft_physics::Scratch;
 use mcrs_minecraft_physics::SectionLookup;
 use mcrs_minecraft_physics::Side;
@@ -46,6 +48,7 @@ type Moving<'a> = (
     Mut<'a, MotionState>,
     &'a MotionKind,
     Mut<'a, StepOutcome>,
+    bool,
 );
 
 /// The buffers of one thread of the pass, kept from tick to tick.
@@ -69,10 +72,13 @@ pub(crate) fn step_motion(
     clock: Res<BirthClock>,
     movers: ResMut<Movers>,
     buffers: Local<Parallel<StepBuffers>>,
-    mut entities: Query<
-        (Entity, &mut MotionState, &MotionKind, &mut StepOutcome),
-        Without<MotionHold>,
-    >,
+    mut entities: Query<(
+        Entity,
+        &mut MotionState,
+        &MotionKind,
+        &mut StepOutcome,
+        Has<MotionHold>,
+    )>,
 ) {
     let Some(blocks) = world.get(*dimension) else {
         return;
@@ -104,9 +110,11 @@ pub(crate) fn step_motion(
 }
 
 /// One step of one entity, as the rows pass steps a row that is not living: no push, the block
-/// actions of the tick dropped, and the age counted. Gives the entity when its body changed.
+/// actions of the tick dropped, and the age counted. Gives the entity when its body changed, or
+/// when another system wrote its motion since the last pass. An entity that the pass skips keeps
+/// its wake for the step after.
 fn step<W: CollisionWorld>(
-    (entity, mut state, kind, mut outcome): Moving<'_>,
+    (entity, mut state, kind, mut outcome, held): Moving<'_>,
     world: &W,
     tables: &Tables,
     stirred: &StirredTiles,
@@ -115,15 +123,26 @@ fn step<W: CollisionWorld>(
     actions: &mut Vec<BlockAction>,
 ) -> Option<Entity> {
     let written = state.is_changed();
+    // The first step of an entity follows its spawn, which already shows the body.
+    let external = written && !state.is_added();
     let motion = &mut state.bypass_change_detection().0;
     let start = motion.body;
+    let wake = written || stirred.wakes(TileKey::at(start.position));
+    let skipped = |motion: &mut EntityState| {
+        if wake {
+            motion.rest = Rest::Awake;
+        }
+        external.then_some(entity)
+    };
+    if held {
+        return skipped(motion);
+    }
     // The kernel decides inside `tick_entity` whether a resting entity skips its tick, so the
     // window is filled before that call.
     let cache = SectionCache::cover(world, start.position);
     if !loaded(&cache, start.position) {
-        return None;
+        return skipped(motion);
     }
-    let wake = written || stirred.wakes(TileKey::at(start.position));
     let view = View::new(&cache, &NoBodies, tables);
     let kernel = tick_entity(view, SERVER, &kind.0, motion, wake, actions, scratch);
     actions.clear();
@@ -136,11 +155,12 @@ fn step<W: CollisionWorld>(
         stepped_at,
     });
     if same_bits(&start, &motion.body) {
-        return None;
+        return external.then_some(entity);
     }
     let body = motion.body;
     state.set_changed();
-    let moved = body.position != start.position
+    let moved = external
+        || body.position != start.position
         || body.flags != start.flags
         || kernel.bounced
         || wake && body.velocity != start.velocity;
