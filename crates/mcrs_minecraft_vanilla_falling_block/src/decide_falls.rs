@@ -80,6 +80,9 @@ pub(crate) fn decide_falls(
     for (entity, FallingBlockEntity(falling_block), MotionState(motion), outcome) in &falls {
         let body = motion.body;
         let contact = if table.is_concrete_powder(falling_block.carried) {
+            // chisle: the motion pass exposes the velocity after the drag, not before it, so a
+            // block with a speed from 1.0 to 1.0 / 0.98 tests only its cell. A velocity before the
+            // drag in the outcome of the pass lifts it.
             water_contact_at(
                 table,
                 &definitions,
@@ -127,6 +130,11 @@ pub(crate) fn decide_falls(
                 let Some(site) = landing_site(table, &definitions, state_at, contact) else {
                     continue;
                 };
+                // chisle: the motion pass applies the ground rule of FBK-LND-001 only on the
+                // ground, so a landing by water contact in the air keeps its velocity; an observer
+                // sees it only when the target holds `moving_piston`. The ground rule in the landing
+                // lifts it. Each landing is audible, which entity data entry 4 of a falling block
+                // lifts.
                 let landing = falling_block.land(table, &site, entity_drops, Silence::Audible);
                 if landing.outcome != LandingOutcome::Wait {
                     commands.entity(entity).insert(Landed {
@@ -140,9 +148,10 @@ pub(crate) fn decide_falls(
 }
 
 /// What a landing reads at the target cell, or `None` when a block it reads is not loaded.
-// chisle: each carried state stays by its support predicate, and only a neighbour with no
-// collision shape counts as water beside, so a waterlogged neighbour with an open face does not
-// harden a powder. The support predicate of SUP-PRED-001 and the face test of SUP-FACE-001 lift it.
+// chisle: each carried state stays, which a support predicate of SUP-PRED-001 lifts. Only a
+// neighbour with no collision shape counts as water beside, so a waterlogged bottom slab beside the
+// target does not harden a powder; a table of the full face test of SUP-FACE-001 over a state and a
+// direction, in a crate below this one, lifts it.
 fn landing_site(
     table: &FallingBlockTable,
     definitions: &BlockDefinitions,

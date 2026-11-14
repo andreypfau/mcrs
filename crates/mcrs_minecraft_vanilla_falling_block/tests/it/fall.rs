@@ -1,8 +1,11 @@
+use glam::DVec3;
+use glam::IVec3;
 use mcrs_minecraft_engine_entity_motion_replication::Appearance;
 use mcrs_minecraft_falling_block::Settings;
 use mcrs_minecraft_protocol_game::block::BlockStateNumber;
 use mcrs_minecraft_replication::SpawnLook;
 use mcrs_voxel::BlockPos;
+use mcrs_voxel::BlockStateId;
 
 use crate::fixture::app;
 use crate::fixture::block;
@@ -13,7 +16,9 @@ use crate::fixture::item_of;
 use crate::fixture::level_events;
 use crate::fixture::run;
 use crate::fixture::set_block;
+use crate::fixture::set_velocity;
 use crate::fixture::state;
+use crate::fixture::state_with;
 
 const START: BlockPos = BlockPos::new(0, 5, 0);
 const FLOOR: BlockPos = BlockPos::new(0, 0, 0);
@@ -115,6 +120,69 @@ fn fbk_lnd_the_landings_on_the_floor() {
                 case.name
             );
         }
+    }
+}
+
+/// A concrete powder that drops from `start` and, after its spawn, gets `velocity` and the blocks
+/// `set`: the block at `landed` after it.
+#[test]
+fn fbk_the_water_of_a_concrete_powder() {
+    struct Case {
+        name: &'static str,
+        start: BlockPos,
+        velocity: Option<DVec3>,
+        set: Vec<(BlockPos, BlockStateId)>,
+        landed: BlockPos,
+        placed: &'static str,
+    }
+    let waterlogged_top_slab =
+        state_with("stone_slab", &[("type", "top"), ("waterlogged", "true")]);
+    let flowing_water = state_with("water", &[("level", "1")]);
+    let cases = [
+        Case {
+            name: "FBK-LND-004 a waterlogged top slab above the target does not count",
+            start: FLOOR + IVec3::Y,
+            velocity: None,
+            set: vec![(FLOOR + IVec3::Y, waterlogged_top_slab)],
+            landed: FLOOR,
+            placed: "white_concrete_powder",
+        },
+        Case {
+            name: "FBK-TCK-003 a fast segment finds a source 10 blocks back over a wet cell",
+            start: BlockPos::new(0, 30, 0),
+            velocity: Some(DVec3::new(0.0, -12.0, 0.0)),
+            set: [16, 17, 18]
+                .map(|y| (BlockPos::new(0, y, 0), flowing_water))
+                .into_iter()
+                .chain([(BlockPos::new(0, 20, 0), state("water"))])
+                .collect(),
+            landed: BlockPos::new(0, 20, 0),
+            placed: "white_concrete",
+        },
+    ];
+    for case in cases {
+        let mut app = app(Settings::default());
+        drop_block(app.world_mut(), case.start, state("white_concrete_powder"));
+        run(&mut app, 1);
+        let world = app.world_mut();
+        let [(entity, _)] = falling_blocks(world)[..] else {
+            panic!("{}: one falling block", case.name);
+        };
+        if let Some(velocity) = case.velocity {
+            set_velocity(world, entity, velocity);
+        }
+        for (pos, state) in case.set {
+            set_block(world, pos, state);
+        }
+        run(&mut app, 60);
+        let world = app.world_mut();
+        assert_eq!(
+            block(world, case.landed),
+            state(case.placed),
+            "{}",
+            case.name
+        );
+        assert!(falling_blocks(world).is_empty(), "{}", case.name);
     }
 }
 

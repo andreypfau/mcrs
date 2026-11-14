@@ -12,6 +12,7 @@ use bevy_ecs::system::ResMut;
 use bevy_ecs::world::World;
 use bevy_tasks::ComputeTaskPool;
 use bevy_tasks::TaskPool;
+use glam::DVec3;
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_collision_table::collision_table;
@@ -22,6 +23,7 @@ use mcrs_minecraft_engine::column_change::ColumnChange;
 use mcrs_minecraft_engine::coordinator::clock::GameTime;
 use mcrs_minecraft_engine::random_tick_speed::RandomTickSpeed;
 use mcrs_minecraft_engine_entity_motion::EntityMotionPlugin;
+use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_entity_motion_replication::EntityMotionReplicationPlugin;
 use mcrs_minecraft_engine_item::ItemPlugin;
 use mcrs_minecraft_engine_item::ItemSet;
@@ -82,6 +84,16 @@ pub fn state(name: &str) -> BlockStateId {
     blocks()
         .default_state(&format!("minecraft:{name}"))
         .unwrap()
+}
+
+/// The state of the block `name` of the namespace `minecraft` with `properties` set.
+pub fn state_with(name: &str, properties: &[(&str, &str)]) -> BlockStateId {
+    let entry = blocks().block(&format!("minecraft:{name}")).unwrap();
+    properties
+        .iter()
+        .fold(entry.default_state_id, |id, (property, value)| {
+            entry.with_text(id, property, value).unwrap()
+        })
 }
 
 /// The item that places the default state of the block `name`.
@@ -217,6 +229,15 @@ pub fn falling_blocks(world: &mut World) -> Vec<(Entity, FallingBlockEntity)> {
         .iter(world)
         .map(|(entity, falling)| (entity, *falling))
         .collect()
+}
+
+pub fn set_velocity(world: &mut World, entity: Entity, velocity: DVec3) {
+    world
+        .get_mut::<MotionState>(entity)
+        .unwrap()
+        .0
+        .body
+        .velocity = velocity;
 }
 
 /// The kind of each item entity.
