@@ -2,7 +2,7 @@ use glam::DVec3;
 use mcrs_minecraft_client_world::columns::{Column, ColumnStore};
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
-use mcrs_minecraft_entity_visual::EntityLight;
+use mcrs_minecraft_entity_visual::{EntityLight, HostLight};
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::chunk::LightChunk;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundTeleportEntity;
@@ -66,4 +66,39 @@ fn an_entity_that_snaps_into_a_lit_block_takes_its_light() {
     client.app.update();
 
     assert_eq!(client.app.world().get::<EntityLight>(pig), Some(&lit));
+}
+
+#[test]
+fn an_entity_with_host_light_keeps_the_light_of_its_host() {
+    let host = EntityLight { block: 15, sky: 15 };
+    let mut client = Client::new();
+    client
+        .app
+        .insert_resource(store_lit_at_origin(EntityLight { block: 5, sky: 3 }));
+    client.receive(add_entity(
+        PIG,
+        EntityType::Pig,
+        DVec3::new(200.5, 4.0, 8.5),
+        0.0,
+        0.0,
+    ));
+    client.app.update();
+    let pig = client.entity(PIG).expect("the pig was added");
+    client
+        .app
+        .world_mut()
+        .entity_mut(pig)
+        .insert((HostLight, host));
+
+    client.receive(ClientboundTeleportEntity {
+        entity_id: VarInt(PIG),
+        position: DVec3::new(8.5, 4.0, 8.5),
+        velocity: DVec3::ZERO,
+        look: Look::default(),
+        relatives: PositionFlags::default(),
+        on_ground: true,
+    });
+    client.app.update();
+
+    assert_eq!(client.app.world().get::<EntityLight>(pig), Some(&host));
 }

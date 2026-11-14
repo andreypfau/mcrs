@@ -1,7 +1,9 @@
 use bevy_ecs::prelude::*;
 use glam::DVec3;
 use mcrs_minecraft_client_world::columns::ColumnStore;
-use mcrs_minecraft_entity_visual::{ClientEntity, EntityLight, Motion, SyncedData, eye_height};
+use mcrs_minecraft_entity_visual::{
+    ClientEntity, EntityLight, HostLight, Motion, SyncedData, eye_height,
+};
 use mcrs_minecraft_volume::LightVolume;
 use mcrs_voxel::BlockPos;
 
@@ -39,7 +41,10 @@ pub(crate) fn write_entity_light(
             Option<&mut LightSampledAt>,
             Option<&mut EntityLight>,
         ),
-        Or<(Changed<Motion>, Changed<SyncedData>, Without<EntityLight>)>,
+        (
+            Without<HostLight>,
+            Or<(Changed<Motion>, Changed<SyncedData>, Without<EntityLight>)>,
+        ),
     >,
     mut commands: Commands,
 ) {
