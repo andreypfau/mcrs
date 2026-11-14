@@ -565,7 +565,8 @@ section 8. In this path only, a full rig that is far from the camera can use a l
 
 | Limit | Value | Consequence |
 |---|---|---|
-| storage buffers per stage | 8 in WebGPU core | the Full vertex stage binds `faces`, `cuboids`, `bone_matrices`, `slots`, `variants`; the model tables share one buffer |
+| storage buffers per stage | 8 in WebGPU core | each pass binds only the buffers its entry point reads, at most 8 (pose, expand, impostor prepare); the current and the previous tick records share `ticks`, and the impostor views and covers share one buffer |
+| uniform binding size | 64 KiB in WebGPU core | `models`, `bones` and `variants` are uniform arrays: at most 1,024 models, 1,365 bones and 4,096 variants. A larger pack draws no entity and logs a warning |
 | storage binding size | 128 MiB | a larger `bone_matrices` splits by page range |
 | texture array layers | 256 in WebGL2 | several entity texture arrays, one draw per array (section 3) |
 | buffer size | 256 MiB | |

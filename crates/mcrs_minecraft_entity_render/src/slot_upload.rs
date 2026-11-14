@@ -236,6 +236,31 @@ impl SlotArena {
         write(&mut self.inputs, &mut self.dirty_inputs, slot, record)
     }
 
+    /// Queues every record of the mirror for the next upload, the tick record of each live slot
+    /// as fresh at `tick`: the GPU buffers that a new library builds start empty.
+    pub fn resend(&mut self, tick: u32) {
+        let live: Vec<u32> = self
+            .validity
+            .iter()
+            .enumerate()
+            .flat_map(|(page, bits)| {
+                (0..PAGE_SLOTS)
+                    .filter(move |bit| bits & (1 << bit) != 0)
+                    .map(move |bit| page as u32 * PAGE_SLOTS + bit)
+            })
+            .collect();
+        for page in 0..self.validity.len() as u32 {
+            self.dirty_culls.mark(page);
+            self.dirty_states.mark(page);
+            self.dirty_inputs.mark(page);
+        }
+        for slot in live {
+            if let Some(record) = self.ticks.get(slot as usize).copied() {
+                self.write_tick(slot, tick, record, true);
+            }
+        }
+    }
+
     /// The writes since the last call, and clears them.
     pub fn take_upload(&mut self) -> SlotUpload {
         for entry in &self.pending_ticks {
@@ -316,5 +341,32 @@ mod tests {
         assert_eq!(upload.states.len(), 1);
         assert_eq!(upload.states[0].records[b as usize], state);
         assert!(arena.take_upload().ticks.is_empty());
+    }
+
+    #[test]
+    fn a_resend_queues_the_whole_mirror_and_the_live_tick_records_as_fresh() {
+        let mut arena = SlotArena::new();
+        let a = arena.allocate();
+        let b = arena.allocate();
+        let record = TickRecord {
+            block: [7, 0, 0],
+            ..TickRecord::default()
+        };
+        arena.write_tick(a, 1, record, true);
+        arena.release(b);
+        arena.take_upload();
+        arena.resend(9);
+        let upload = arena.take_upload();
+        assert_eq!(upload.ticks.len(), 1, "only the live slot");
+        assert_eq!(upload.ticks[0].slot, a);
+        assert_eq!(upload.ticks[0].record, record);
+        assert_eq!(upload.ticks[0].tick, 9 | SCATTER_FRESH);
+        for ranges in [
+            upload.culls.iter().map(|r| r.records.len()).sum::<usize>(),
+            upload.states.iter().map(|r| r.records.len()).sum::<usize>(),
+            upload.inputs.iter().map(|r| r.records.len()).sum::<usize>(),
+        ] {
+            assert_eq!(ranges, arena.capacity() as usize);
+        }
     }
 }

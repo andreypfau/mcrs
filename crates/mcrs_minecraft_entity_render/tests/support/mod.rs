@@ -11,8 +11,8 @@ pub struct Gpu {
 }
 
 impl Gpu {
-    /// The high-performance adapter with all its limits, and timestamps when it has them;
-    /// `None` with no adapter.
+    /// The high-performance adapter with the default limits of WebGPU, which a browser grants
+    /// and the entity passes must fit, and timestamps when it has them; `None` with no adapter.
     pub fn new() -> Option<Self> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::PRIMARY,
@@ -30,7 +30,7 @@ impl Gpu {
             futures_lite::future::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
                 label: Some("entity render test"),
                 required_features: adapter.features() & wgpu::Features::TIMESTAMP_QUERY,
-                required_limits: adapter.limits(),
+                required_limits: wgpu::Limits::default(),
                 ..Default::default()
             }))
             .ok()?;

@@ -8,6 +8,8 @@
 const TILE: u32 = #{TILE}u;
 const YAWS: i32 = #{YAWS};
 const VIEWS: u32 = #{VIEWS}u;
+/// The covers follow the views of the impostor images in the same buffer.
+const FIRST_COVER: u32 = #{FIRST_COVER}u;
 
 var<workgroup> covered: atomic<u32>;
 var<workgroup> sum_x: atomic<u32>;
@@ -47,6 +49,6 @@ fn cover(@builtin(workgroup_id) group: vec3<u32>, @builtin(local_invocation_inde
             let mean = vec2<f32>(f32(atomicLoad(&sum_x)), f32(atomicLoad(&sum_y))) / f32(total);
             result = vec4<f32>((mean + 0.5) / f32(TILE), f32(total) / f32(TILE * TILE), 0.0);
         }
-        covers[layer * VIEWS + view] = result;
+        covers[FIRST_COVER + layer * VIEWS + view] = result;
     }
 }
