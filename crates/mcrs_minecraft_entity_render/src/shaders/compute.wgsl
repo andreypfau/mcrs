@@ -172,7 +172,8 @@ fn cull(
         if (slot < frame.slot_count) {
             let record = culls[slot];
             let flags = record.radius_flags >> 16u;
-            if ((flags & CULL_VALID) != 0u) {
+            let in_view = ((flags >> CULL_VIEWS_SHIFT) & frame.view) != 0u;
+            if ((flags & CULL_VALID) != 0u && in_view) {
                 let radius = unpack2x16float(record.radius_flags & 0xffffu).x + 0.8660254;
                 let centre = relative_block(record.bx, record.by, record.bz) + vec3<f32>(0.5);
                 keep = sphere_in_frustum(centre, radius) && !sphere_hidden(centre, radius);

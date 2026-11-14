@@ -471,8 +471,8 @@ mod tests {
     use crate::frame_uniform::FrameUniform;
     use crate::gpu_layouts as layouts;
     use crate::records::{
-        CULL_FULL_RIG_ONLY, CULL_VALID, CullRecord, InputRecord, STATE_BABY, STATE_DYING,
-        STATE_HIDDEN_SHIFT, ScatterEntry, StateRecord, TickRecord,
+        CULL_FULL_RIG_ONLY, CULL_VALID, CULL_VIEWS_SHIFT, CullRecord, InputRecord, STATE_BABY,
+        STATE_DYING, STATE_HIDDEN_SHIFT, ScatterEntry, StateRecord, TickRecord,
     };
     use crate::slot_upload::SCATTER_FRESH;
 
@@ -523,6 +523,7 @@ mod tests {
         let constants = [
             ("CULL_VALID", i64::from(CULL_VALID)),
             ("CULL_FULL_RIG_ONLY", i64::from(CULL_FULL_RIG_ONLY)),
+            ("CULL_VIEWS_SHIFT", i64::from(CULL_VIEWS_SHIFT)),
             ("STATE_BABY", i64::from(STATE_BABY)),
             ("STATE_DYING", i64::from(STATE_DYING)),
             ("STATE_HIDDEN_SHIFT", i64::from(STATE_HIDDEN_SHIFT)),

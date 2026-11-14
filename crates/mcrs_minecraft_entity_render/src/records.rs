@@ -35,12 +35,14 @@ pub struct CullRecord {
     pub block: [i32; 3],
     /// The cull radius in blocks as an `f16`, rounded up.
     pub radius: u16,
-    /// [`CULL_VALID`] and [`CULL_FULL_RIG_ONLY`].
+    /// [`CULL_VALID`] and [`CULL_FULL_RIG_ONLY`] in the low byte, and the
+    /// [`crate::EntityViews`] of the entity in the high byte.
     pub flags: u16,
 }
 
 pub const CULL_VALID: u16 = 1;
 pub const CULL_FULL_RIG_ONLY: u16 = 2;
+pub(crate) const CULL_VIEWS_SHIFT: u16 = 8;
 
 /// The state of a slot that changes less often than once a tick.
 #[repr(C)]

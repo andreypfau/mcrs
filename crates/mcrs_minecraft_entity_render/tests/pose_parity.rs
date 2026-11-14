@@ -21,8 +21,8 @@ use mcrs_minecraft_entity_animation::{
     EntityAnimation, EntityQuery, Pose, PoseBinding, QuerySource, Rig,
 };
 use mcrs_minecraft_entity_render::{
-    CULL_VALID, Capacities, CullRecord, DefinitionTables, EntityGpu, EntityLibrary, FrameUniform,
-    PackEntity, SlotArena, StateRecord, TickRecord, f16_up, input_record,
+    CULL_VALID, Capacities, CullRecord, DefinitionTables, EntityGpu, EntityLibrary, EntityViews,
+    FrameUniform, PackEntity, SlotArena, StateRecord, TickRecord, f16_up, input_record,
 };
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_molang::{ScalarVm, Value, string_hash};
@@ -293,7 +293,7 @@ fn write_case(
         CullRecord {
             block: [0, 64, 0],
             radius: f16_up(2.0),
-            flags: CULL_VALID,
+            flags: CULL_VALID | EntityViews::WORLD.cull_flags(),
         },
     );
     slot
@@ -433,6 +433,7 @@ fn the_gpu_pose_of_each_case_agrees_with_the_cpu_animation() {
         tick: TICK,
         partial_tick: 0.0,
         viewport: [854.0, 480.0],
+        view: u32::from(EntityViews::WORLD.0),
         ..FrameUniform::default()
     };
     entity_gpu.write_frame(&gpu.queue, &frame, upload.slot_count);

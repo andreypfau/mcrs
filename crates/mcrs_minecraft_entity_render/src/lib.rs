@@ -14,6 +14,8 @@ mod entity_assets_build;
 mod entity_gpu;
 mod entity_library;
 mod entity_pack;
+mod entity_views;
+mod frame_posed;
 mod frame_queries;
 mod frame_uniform;
 mod gpu_buffers;
@@ -41,6 +43,8 @@ pub use entity_library::{
     DefinitionSource, DefinitionTables, EntityLibrary, TextureArray, TextureImage, VariantRecord,
 };
 pub use entity_pack::{EntityPack, PackEntity};
+pub use entity_views::EntityViews;
+pub use frame_posed::FramePosed;
 pub use frame_queries::{FrameQueries, VariantEntry, pose_from_name};
 pub use frame_uniform::FrameUniform;
 pub use height_threshold::HeightThreshold;

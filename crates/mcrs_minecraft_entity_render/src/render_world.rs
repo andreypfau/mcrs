@@ -15,6 +15,7 @@ use mcrs_minecraft_render::{
 use crate::entity_assets::EntityAssets;
 use crate::entity_gpu::{Capacities, DrawTargets, EntityGpu, PassQueries};
 use crate::entity_library::EntityLibrary;
+use crate::entity_views::EntityViews;
 use crate::frame_uniform::FrameUniform;
 use crate::gpu_layouts::tables_fit;
 use crate::height_threshold::HeightThreshold;
@@ -229,6 +230,7 @@ pub(crate) fn draw_entities(
     let mut uniform = FrameUniform::new(view, clock.tick, clock.partial_tick, light);
     uniform.hiz_levels = terrain.depth_pyramid_levels(&params.occlusion, &params.cache);
     uniform.height_threshold = threshold.pixels();
+    uniform.view = u32::from(EntityViews::WORLD.0);
     gpu.write_frame(&params.queue, &uniform, pending.slot_count);
     let queries = params
         .timestamps

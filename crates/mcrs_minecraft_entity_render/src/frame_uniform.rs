@@ -31,12 +31,17 @@ pub struct FrameUniform {
     pub bone_capacity: u32,
     pub visible_capacity: u32,
     pub face_capacity: u32,
+    /// The bit of the view that the frame draws: a slot whose [`crate::EntityViews`] lacks it
+    /// is not visible.
+    pub view: u32,
+    /// Pads the struct to the 16-byte size of a WGSL uniform.
+    pub spare: [u32; 3],
 }
 
 /// The height threshold of a full rig before any feedback, in pixels.
 pub const FULL_RIG_HEIGHT: f32 = 12.0;
 
-const _: () = assert!(size_of::<FrameUniform>() == 224);
+const _: () = assert!(size_of::<FrameUniform>() == 240);
 
 impl FrameUniform {
     /// The camera fields of `view`, with the tick, the partial tick and the cardinal light of the

@@ -30,8 +30,8 @@ use mcrs_minecraft_core::CardinalLight;
 use mcrs_minecraft_entity_animation::EntityQuery;
 use mcrs_minecraft_entity_render::{
     CULL_VALID, Capacities, CullRecord, EntityFrameCounts, EntityGpu, EntityLibrary, EntityPack,
-    FrameUniform, STATE_BABY, STATE_HIDDEN_SHIFT, SlotArena, StateRecord, TextureImage, TickRecord,
-    f16_up,
+    EntityViews, FrameUniform, STATE_BABY, STATE_HIDDEN_SHIFT, SlotArena, StateRecord,
+    TextureImage, TickRecord, f16_up,
 };
 use mcrs_minecraft_render::{CameraOrigin, FrameView};
 use mcrs_minecraft_render_controller::RenderQuery;
@@ -420,7 +420,7 @@ fn render(
         CullRecord {
             block: [0, 64, 0],
             radius: f16_up(2.0),
-            flags: CULL_VALID,
+            flags: CULL_VALID | EntityViews::WORLD.cull_flags(),
         },
     );
     let upload = frame.arena.take_upload();
@@ -428,6 +428,7 @@ fn render(
     entity_gpu.upload(&gpu.device, &gpu.queue, &mut encoder, &upload);
     let uniform = FrameUniform {
         height_threshold: threshold,
+        view: u32::from(EntityViews::WORLD.0),
         ..FrameUniform::new(view, TICK, 0.0, CardinalLight::Default)
     };
     entity_gpu.write_frame(&gpu.queue, &uniform, upload.slot_count.max(1));
