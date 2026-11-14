@@ -3,6 +3,7 @@
     clippy::panic,
     reason = "a test reports a failure by panicking"
 )]
+mod entity_light;
 mod packets;
 mod pig_walk;
 mod replay;

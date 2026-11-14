@@ -289,7 +289,7 @@ fn cube_corner(baked: &BakedGeometry, bone: &str) -> Vec3 {
 }
 
 #[test]
-fn a_turn_of_the_waist_moves_the_head_and_leaves_the_legs() {
+fn a_turn_of_the_waist_turns_the_upper_body_about_the_waist_and_leaves_the_legs() {
     let text =
         std::fs::read_to_string(assets().join(GEOMETRY_DIRECTORY).join("player.json")).unwrap();
     let file: GeometryFile = text.parse().unwrap();
@@ -298,7 +298,22 @@ fn a_turn_of_the_waist_moves_the_head_and_leaves_the_legs() {
         let mut poses: Vec<BonePose> = baked.bones.iter().map(BonePose::rest).collect();
         poses[baked.bone_index("waist").unwrap()].rotation = Vec3::new(30.0, 0.0, 0.0);
         let transforms = baked.model_transforms(&poses);
-        for (bone, moves) in [("head", true), ("left_leg", false), ("right_leg", false)] {
+        let waist_pivot = Vec3::new(0.0, 12.0, 0.0);
+        let turned_pivot =
+            transforms[baked.bone_index("body").unwrap()].transform_point3(waist_pivot);
+        assert!(
+            turned_pivot.distance(waist_pivot) < 1e-3,
+            "{}: the waist turns about {waist_pivot}, not {turned_pivot}",
+            baked.identifier
+        );
+        for (bone, moves) in [
+            ("head", true),
+            ("body", true),
+            ("right_arm", true),
+            ("left_arm", true),
+            ("left_leg", false),
+            ("right_leg", false),
+        ] {
             let corner = cube_corner(&baked, bone);
             let posed = transforms[baked.bone_index(bone).unwrap()].transform_point3(corner);
             assert_eq!(

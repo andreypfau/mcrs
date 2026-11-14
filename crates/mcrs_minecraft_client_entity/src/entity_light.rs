@@ -5,7 +5,9 @@ use mcrs_minecraft_entity_visual::{ClientEntity, EntityLight, Motion, SyncedData
 use mcrs_minecraft_volume::LightVolume;
 use mcrs_voxel::BlockPos;
 
-const OPEN_SKY: u8 = 0x0f;
+/// The block that the [`EntityLight`] of the entity was last sampled at.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct LightSampledAt(BlockPos);
 
 fn eye_block(position: DVec3, eye_height: f64) -> BlockPos {
     let eye = (position + DVec3::Y * eye_height).floor().as_ivec3();
@@ -13,38 +15,48 @@ fn eye_block(position: DVec3, eye_height: f64) -> BlockPos {
 }
 
 fn sample(columns: &ColumnStore, at: BlockPos) -> EntityLight {
-    let light = columns.light(at).unwrap_or(OPEN_SKY);
+    let Ok(light) = columns.light(at) else {
+        return EntityLight::OPEN_SKY;
+    };
     EntityLight {
         block: light >> 4,
         sky: light & 0x0f,
     }
 }
 
-/// Gives each entity with no light the light at its eye, before the renderer reads it in the
-/// frame that the entity is added.
-pub(crate) fn insert_entity_light(
-    columns: Res<ColumnStore>,
-    entities: Query<(Entity, &ClientEntity, &Motion, &SyncedData), Without<EntityLight>>,
-    mut commands: Commands,
-) {
-    for (entity, client, motion, data) in &entities {
-        let at = eye_block(motion.current.position, eye_height(client, data));
-        commands.entity(entity).insert(sample(&columns, at));
-    }
-}
-
-/// Samples the light again for each entity whose eye entered another block in the last tick.
+/// Samples the light at the eye of each entity that has no light yet, or whose eye is in another
+/// block than the one that its light was sampled at.
 // chisle: a light change at an eye that does not move is not seen; a message of the column store
 // for each changed light lifts it.
-pub(crate) fn update_entity_light(
+pub(crate) fn write_entity_light(
     columns: Res<ColumnStore>,
-    mut entities: Query<(&ClientEntity, &Motion, &SyncedData, &mut EntityLight), Changed<Motion>>,
+    mut entities: Query<
+        (
+            Entity,
+            &ClientEntity,
+            &Motion,
+            &SyncedData,
+            Option<&mut LightSampledAt>,
+            Option<&mut EntityLight>,
+        ),
+        Or<(Changed<Motion>, Changed<SyncedData>, Without<EntityLight>)>,
+    >,
+    mut commands: Commands,
 ) {
-    for (client, motion, data, mut light) in &mut entities {
-        let height = eye_height(client, data);
-        let at = eye_block(motion.current.position, height);
-        if at != eye_block(motion.previous.position, height) {
-            light.set_if_neq(sample(&columns, at));
+    for (entity, client, motion, data, sampled_at, light) in &mut entities {
+        let at = eye_block(motion.current.position, eye_height(client, data));
+        match (sampled_at, light) {
+            (Some(mut sampled_at), Some(mut light)) => {
+                if sampled_at.0 != at {
+                    sampled_at.0 = at;
+                    light.set_if_neq(sample(&columns, at));
+                }
+            }
+            _ => {
+                commands
+                    .entity(entity)
+                    .insert((sample(&columns, at), LightSampledAt(at)));
+            }
         }
     }
 }

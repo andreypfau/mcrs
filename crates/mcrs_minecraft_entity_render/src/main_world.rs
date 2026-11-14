@@ -249,12 +249,12 @@ pub(crate) fn write_ticks(
             state.flags &= !STATE_DYING;
         }
         state.scale = f16_up(scale);
-        let light = light.copied().unwrap_or(EntityLight { block: 0, sky: 15 });
-        state.sky_light = light.sky;
+        let light = light.copied().unwrap_or(EntityLight::OPEN_SKY);
+        state.sky_light = light.sky.min(15);
         state.block_light = if data.is_on_fire(client.type_data()) {
             15
         } else {
-            light.block
+            light.block.min(15)
         };
         arena.write_state(slot.slot, state);
     }

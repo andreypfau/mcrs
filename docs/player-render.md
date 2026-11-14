@@ -36,11 +36,13 @@ and the values of one frame. It has no packet and no connection. These files mov
 - `client_entity.rs`, without `NetworkEntities`;
 - `tick.rs`, with `ClientEntityTick`.
 
-The crate adds three public names:
+The crate adds four public names:
 
 - `TickingArea`: a trait of a resource that tells whether the entities of a column tick.
 - `EntityTickPlugin<A: TickingArea>`: the plugin that ticks each entity in `ClientEntityTick`.
 - `EntityLight`: a component with the block light and the sky light at the eye of an entity.
+- `EntityLightSystems`: the set that holds the writer of `EntityLight`. The renderer reads the
+  light after this set.
 
 `mcrs_minecraft_client_entity` keeps the packet side: `receive.rs`, `delta.rs`,
 `NetworkEntities`, the functions that apply entity data and attributes of a packet to
@@ -59,7 +61,7 @@ Each input has one writer for one entity. The renderer reads and never writes.
 | yaws, walk, hurt, death | `Living` | `entity_visual` | the tick; the packet side sets the targets |
 | pose, baby, scale, variant, flags | `SyncedData` | `entity_visual` | the packet side, or a host |
 | equipment | `Equipment` | `entity_visual` | the packet side, or a host |
-| light at the eye | `EntityLight` | `entity_visual` | the client, from its columns; a host or a viewer sets its value |
+| light at the eye | `EntityLight` | `entity_visual` | the client, from its columns, for each entity; an application with no column store sets the value |
 | tick rate | `ServerTicking` | `entity_visual` | the packet side, or a host |
 | arm model | `PlayerModel` | `entity_render` | the client, from the profile; or a host |
 | skin image | `PlayerSkin` | `entity_render` | the client, from the download; or a host |
@@ -122,7 +124,8 @@ placement in the space of its view. It needs a second view with no terrain. The 
 layers and the pose are data of an entity, not of a view. Only the cull, the draw targets and
 the frame uniform are bound to one view, and they are private to the render world. The second
 view adds a view mask for each entity and one set of these private resources for each view. No
-public type of the player work changes.
+public type of the player work changes. While the client has columns, the doll needs a way to
+keep the light that the GUI gives, and the doll work adds that way.
 
 ### 4.3 Skin viewer or editor
 
