@@ -3,6 +3,7 @@ use glam::DVec3;
 use mcrs_minecraft_client_world::columns::ColumnStore;
 use mcrs_minecraft_client_world::joined_game::JoinedGame;
 use mcrs_minecraft_client_world::player::Player;
+use mcrs_minecraft_client_world::{AttributeInstances, RespawnKeep};
 use mcrs_minecraft_entity::AttributeBases;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
@@ -22,7 +23,6 @@ use mcrs_minecraft_protocol_game::clientbound::{
 use mcrs_minecraft_protocol_game::{ByteAngle, PositionFlag};
 
 use crate::apply_entity_data::apply_entity_data;
-use crate::attribute_instances::{AttributeInstances, RespawnKeep};
 use crate::delta;
 use crate::network_entities::NetworkEntities;
 

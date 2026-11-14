@@ -1,9 +1,10 @@
-use bevy_ecs::component::Component;
+use bevy::ecs::component::Component;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::{
     AttributeBases, AttributeSet, InstanceChange, InstanceModifier, ModifierKind,
 };
 use mcrs_minecraft_protocol_game::clientbound::AttributeSnapshot;
+use mcrs_minecraft_resource::ResourceLocation;
 
 /// The attribute instances of a living entity on the client, with the bases of its type. A new
 /// living entity has the base of the type and no modifier for each attribute (ATR-CLI-001).
@@ -15,7 +16,7 @@ pub struct AttributeInstances {
 
 /// What a new local player takes from the old one at a respawn (ATR-CLI-005).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum RespawnKeep {
+pub enum RespawnKeep {
     BasesAndModifiers,
     Bases,
 }
@@ -49,7 +50,7 @@ impl AttributeInstances {
     /// Takes the base and the modifiers of `entry` (ATR-CLI-002). An attribute that is not in the
     /// set of the type changes nothing, and a second modifier of one identifier is ignored
     /// (ATR-CLI-003).
-    pub(crate) fn receive(&mut self, entry: &AttributeSnapshot<'_>) {
+    pub fn receive(&mut self, entry: &AttributeSnapshot<'_>) {
         let attribute = entry.attribute;
         if self
             .set
@@ -71,7 +72,7 @@ impl AttributeInstances {
     }
 
     #[must_use]
-    pub(crate) fn respawned(&self, keep: RespawnKeep) -> Self {
+    pub fn respawned(&self, keep: RespawnKeep) -> Self {
         match keep {
             RespawnKeep::BasesAndModifiers => self.clone(),
             RespawnKeep::Bases => {
@@ -85,6 +86,28 @@ impl AttributeInstances {
                 respawned
             }
         }
+    }
+
+    /// Leaves an equal modifier in place (ATR-INS-004); `Unchanged` also when the attribute is
+    /// not in the set of the type.
+    pub(crate) fn put_modifier(
+        &mut self,
+        attribute: Attribute,
+        modifier: InstanceModifier,
+    ) -> InstanceChange {
+        self.set
+            .set_modifier(self.bases, attribute, modifier)
+            .unwrap_or(InstanceChange::Unchanged)
+    }
+
+    pub(crate) fn remove_modifier(
+        &mut self,
+        attribute: Attribute,
+        id: ResourceLocation<'_>,
+    ) -> InstanceChange {
+        self.set
+            .remove_modifier(self.bases, attribute, id)
+            .unwrap_or(InstanceChange::Unchanged)
     }
 
     fn remove_modifiers(&mut self, attribute: Attribute) {

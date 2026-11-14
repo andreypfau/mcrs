@@ -5,6 +5,7 @@
 #[cfg(not(target_family = "wasm"))]
 pub mod asset_source;
 pub mod attack_input;
+mod attribute_instances;
 pub mod block_breaking;
 pub mod block_prediction;
 pub mod block_target;
@@ -27,3 +28,5 @@ mod received;
 pub mod registries;
 pub mod screen;
 pub mod sign;
+
+pub use attribute_instances::{AttributeInstances, RespawnKeep};

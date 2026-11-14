@@ -1,5 +1,5 @@
 use glam::DVec3;
-use mcrs_minecraft_client_entity::AttributeInstances;
+use mcrs_minecraft_client_world::AttributeInstances;
 use mcrs_minecraft_client_world::joined_game::JoinedGame;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_dimension::dimension_keys::OVERWORLD;

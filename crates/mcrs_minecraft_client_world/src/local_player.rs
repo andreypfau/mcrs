@@ -3,6 +3,8 @@ use bevy::prelude::*;
 use mcrs_minecraft_engine_world::entity::physics::{
     OldTransform, Rotation, Transform as PhysicsTransform, Velocity,
 };
+use mcrs_minecraft_entity::attribute_keys::Attribute;
+use mcrs_minecraft_entity::{InstanceChange, InstanceModifier, ModifierKind, SPRINT_MODIFIER};
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::ClientConnection;
 use mcrs_minecraft_physics::{Orientation, PlayerState, Relative, Teleport, apply_teleport};
@@ -13,6 +15,7 @@ use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundMovePlayerPosRot, ServerboundMovePlayerRot,
 };
 
+use crate::attribute_instances::AttributeInstances;
 use crate::movement_input::MovementInput;
 use crate::player::Player;
 use crate::player_view::{PendingTeleports, PlayerViewPlugin, ServerTeleport};
@@ -34,7 +37,7 @@ impl Default for FlyingSpeed {
     }
 }
 
-#[derive(Component, Debug, Clone, Copy, Default)]
+#[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Sprint {
     pub active: bool,
 }
@@ -103,7 +106,9 @@ impl Plugin for LocalPlayerPlugin {
             FixedUpdate,
             (
                 accept_teleports.before(LocalPlayerTick),
-                (capture_old_transform, fly).chain().in_set(LocalPlayerTick),
+                (capture_old_transform, fly, give_sprint_modifier)
+                    .chain()
+                    .in_set(LocalPlayerTick),
                 send_movement.after(LocalPlayerTick),
             ),
         );
@@ -217,7 +222,35 @@ fn fly(
 ) {
     let (mut sprint, mut transform, flying_speed) = player.into_inner();
     let yaw = transform.rotation.yaw();
-    transform.translation += tick(&mut sprint, *flying_speed, yaw, *input);
+    let mut next = *sprint;
+    transform.translation += tick(&mut next, *flying_speed, yaw, *input);
+    sprint.set_if_neq(next);
+}
+
+/// Adds or removes the sprint modifier only when the sprint state changes (ATR-SRC-002), so a
+/// `movement_speed` entry that drops it keeps it dropped until the next change (ATR-CLI-002).
+fn give_sprint_modifier(
+    mut players: Query<(&Sprint, &mut AttributeInstances), (With<Player>, Changed<Sprint>)>,
+) {
+    for (sprint, mut instances) in &mut players {
+        let unchecked = instances.bypass_change_detection();
+        let change = if sprint.active {
+            unchecked.put_modifier(
+                Attribute::MovementSpeed,
+                InstanceModifier::new(
+                    SPRINT_MODIFIER.id.to_buf(),
+                    SPRINT_MODIFIER.amount,
+                    SPRINT_MODIFIER.operation,
+                    ModifierKind::Transient,
+                ),
+            )
+        } else {
+            unchecked.remove_modifier(Attribute::MovementSpeed, SPRINT_MODIFIER.id)
+        };
+        if change == InstanceChange::Changed {
+            instances.set_changed();
+        }
+    }
 }
 
 /// The displacement of one tick: the pressed direction turned by the yaw, with
@@ -245,7 +278,10 @@ mod tests {
     use super::*;
     use crate::player::look_direction;
     use mcrs_minecraft_core::Look;
+    use mcrs_minecraft_entity::AttributeBases;
+    use mcrs_minecraft_entity::entity_type_keys::EntityType;
     use mcrs_minecraft_protocol_game::PositionFlag;
+    use mcrs_minecraft_protocol_game::clientbound::AttributeSnapshot;
 
     #[test]
     fn no_move_is_sent_before_the_first_accepted_teleport() {
@@ -267,6 +303,71 @@ mod tests {
             last_sent.tick(DVec3::new(0.5, -60.0, 6.5), rotation),
             Some(MovePacket::Pos)
         ));
+    }
+
+    #[test]
+    fn the_sprint_state_puts_and_removes_the_sprint_modifier() {
+        let base = 0.1_f32 as f64;
+        let sprinting = base * (1.0 + 0.3_f32 as f64);
+        let mut app = App::new();
+        app.add_systems(Update, give_sprint_modifier);
+        let bases = AttributeBases::of(EntityType::Player).expect("a player has attributes");
+        let player = app
+            .world_mut()
+            .spawn((Player, Sprint::default(), AttributeInstances::new(bases)))
+            .id();
+        let speed = |app: &App| {
+            app.world()
+                .get::<AttributeInstances>(player)
+                .and_then(|instances| instances.value(Attribute::MovementSpeed))
+                .map(f64::to_bits)
+        };
+        let changed = |app: &App| {
+            app.world()
+                .entity(player)
+                .get_change_ticks::<AttributeInstances>()
+                .map(|ticks| ticks.changed)
+        };
+        let set_sprint = |app: &mut App, active: bool| {
+            app.world_mut()
+                .get_mut::<Sprint>(player)
+                .expect("the player sprints")
+                .active = active;
+            app.update();
+        };
+
+        set_sprint(&mut app, true);
+        assert_eq!(speed(&app), Some(sprinting.to_bits()));
+
+        let before = changed(&app);
+        set_sprint(&mut app, true);
+        assert_eq!(
+            changed(&app),
+            before,
+            "an unchanged state leaves the instances alone"
+        );
+
+        app.world_mut()
+            .get_mut::<AttributeInstances>(player)
+            .expect("the player has instances")
+            .receive(&AttributeSnapshot {
+                attribute: Attribute::MovementSpeed,
+                base,
+                modifiers: Vec::new(),
+            });
+        app.update();
+        assert_eq!(
+            speed(&app),
+            Some(base.to_bits()),
+            "an entry drops the modifier"
+        );
+
+        set_sprint(&mut app, false);
+        assert_eq!(speed(&app), Some(base.to_bits()));
+        set_sprint(&mut app, true);
+        assert_eq!(speed(&app), Some(sprinting.to_bits()));
+        set_sprint(&mut app, false);
+        assert_eq!(speed(&app), Some(base.to_bits()));
     }
 
     #[test]
