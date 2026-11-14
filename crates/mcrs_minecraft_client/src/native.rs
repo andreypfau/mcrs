@@ -354,7 +354,9 @@ pub fn run() -> AppExit {
         yaw,
         pitch,
     );
-    app.world_mut().spawn(inventory_figure(local_uuid));
+    if let Some(figure) = inventory_figure(local_uuid) {
+        app.world_mut().spawn(figure);
+    }
     #[cfg(feature = "dev")]
     mcrs_minecraft_client::dev::script_flight(&mut app, player);
     #[cfg(not(feature = "dev"))]

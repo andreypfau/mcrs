@@ -19,4 +19,10 @@ impl EntityViews {
     pub const fn cull_flags(self) -> u16 {
         (self.0 as u16) << CULL_VIEWS_SHIFT
     }
+
+    /// The set as [`crate::FrameUniform::view`].
+    #[must_use]
+    pub const fn frame_bit(self) -> u32 {
+        self.0 as u32
+    }
 }

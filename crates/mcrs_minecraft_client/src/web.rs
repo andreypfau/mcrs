@@ -166,7 +166,9 @@ pub fn run() {
     let (yaw, pitch) = knobs.look_override().unwrap_or((0.0, 0.0));
     player::spawn_player(app.world_mut(), SPAWN, yaw, pitch);
     let local_uuid = offline_player_uuid(&knobs.username());
-    app.world_mut().spawn(inventory_figure(local_uuid));
+    if let Some(figure) = inventory_figure(local_uuid) {
+        app.world_mut().spawn(figure);
+    }
     app.run();
 }
 

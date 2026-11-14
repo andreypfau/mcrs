@@ -211,4 +211,9 @@ impl FrameBuffers {
             impostor_draws: impostor_draws(device, scatter_capacity),
         }
     }
+
+    /// Sets the counters to zero before the compute passes of a frame.
+    pub(crate) fn reset_counters(&self, encoder: &mut CommandEncoder) {
+        encoder.copy_buffer_to_buffer(&self.counters_zero, 0, &self.counters, 0, COUNTERS * 4);
+    }
 }

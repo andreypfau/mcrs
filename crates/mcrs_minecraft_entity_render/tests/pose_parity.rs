@@ -433,7 +433,7 @@ fn the_gpu_pose_of_each_case_agrees_with_the_cpu_animation() {
         tick: TICK,
         partial_tick: 0.0,
         viewport: [854.0, 480.0],
-        view: u32::from(EntityViews::WORLD.0),
+        view: EntityViews::WORLD.frame_bit(),
         ..FrameUniform::default()
     };
     entity_gpu.write_frame(&gpu.queue, &frame, upload.slot_count);

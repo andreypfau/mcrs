@@ -463,8 +463,7 @@ pub fn draw_gui(
     )>,
     gui: Option<Res<GuiPass>>,
     batch: Option<Res<GuiBatch>>,
-    terrain: Option<Res<Terrain>>,
-    mut figure: Option<FigureDraw>,
+    figure: Option<FigureDraw>,
     pipeline_cache: Res<PipelineCache>,
     mut ctx: RenderContext,
 ) {
@@ -524,6 +523,7 @@ pub fn draw_gui(
     pass.set_bind_group(0, bind_group, &[]);
     pass.set_vertex_buffer(0, vertices.slice(..));
     let mut band = 0;
+    let band_range = |band: u32| band as f32 / bands..(band + 1) as f32 / bands;
     for draw in &batch.draws {
         let pipeline = match draw.kind {
             GuiDrawKind::Flat => Some(flat),
@@ -531,17 +531,14 @@ pub fn draw_gui(
             GuiDrawKind::InvertRedGreen => invert_red_green,
             GuiDrawKind::FullBlue => full_blue,
             GuiDrawKind::Figure { rect } => {
-                let depth = band as f32 / bands..(band + 1) as f32 / bands;
+                let depth = band_range(band);
                 band += 1;
-                if let (Some(figure), Some(terrain)) = (figure.as_mut(), terrain.as_deref()) {
-                    let scissor = FigureScissor {
-                        rect: IRect::from_corners(
-                            rect.min * batch.scale as i32,
-                            rect.max * batch.scale as i32,
-                        ),
-                        target: size,
-                    };
-                    draw_figure(&mut pass, figure, terrain, scissor, depth);
+                if let Some(figure) = figure.as_ref() {
+                    let scissor = IRect::from_corners(
+                        rect.min * batch.scale as i32,
+                        rect.max * batch.scale as i32,
+                    );
+                    draw_figure(&mut pass, figure, scissor, size, depth);
                     pass.set_bind_group(0, bind_group, &[]);
                     pass.set_vertex_buffer(0, vertices.slice(..));
                 }
@@ -553,13 +550,14 @@ pub fn draw_gui(
         };
         pass.set_render_pipeline(pipeline);
         if draw.kind == GuiDrawKind::Item {
+            let depth = band_range(band);
             pass.set_viewport(
                 0.0,
                 0.0,
                 size.x as f32,
                 size.y as f32,
-                band as f32 / bands,
-                (band + 1) as f32 / bands,
+                depth.start,
+                depth.end,
             );
             band += 1;
         } else {
@@ -569,35 +567,24 @@ pub fn draw_gui(
     }
 }
 
-/// The rectangle of the figure in window pixels, and the size of the target that bounds it.
-struct FigureScissor {
-    rect: IRect,
-    target: UVec2,
-}
-
-/// Draws the figure view inside `scissor.rect` and in the depth band `depth`, then opens the
-/// scissor to the whole target again.
+/// Draws the figure view inside `rect`, in window pixels, and in the depth band `depth`, then
+/// opens the scissor to the whole target of `target` pixels again.
 fn draw_figure(
     pass: &mut TrackedRenderPass,
-    figure: &mut FigureDraw,
-    terrain: &Terrain,
-    scissor: FigureScissor,
+    figure: &FigureDraw,
+    rect: IRect,
+    target: UVec2,
     depth: Range<f32>,
 ) {
-    let FigureScissor { rect, target } = scissor;
-    let min = rect.min.max(IVec2::ZERO).as_uvec2().min(target);
-    let max = rect.max.max(IVec2::ZERO).as_uvec2().min(target);
-    if min.x >= max.x || min.y >= max.y {
+    let scissor = rect.intersect(IRect::from_corners(IVec2::ZERO, target.as_ivec2()));
+    if scissor.is_empty() {
         return;
     }
+    let min = scissor.min.as_uvec2();
+    let scissor_size = scissor.size().as_uvec2();
     let size = target.as_vec2();
     pass.set_viewport(0.0, 0.0, size.x, size.y, depth.start, depth.end);
-    pass.set_scissor_rect(min.x, min.y, max.x - min.x, max.y - min.y);
-    let sprites = &terrain.sprites;
-    figure.encode(
-        pass.wgpu_pass(),
-        sprites.lightmap_view(),
-        sprites.lightmap_sampler(),
-    );
+    pass.set_scissor_rect(min.x, min.y, scissor_size.x, scissor_size.y);
+    figure.encode(pass.wgpu_pass());
     pass.set_scissor_rect(0, 0, target.x, target.y);
 }

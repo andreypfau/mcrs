@@ -210,7 +210,13 @@ fn draw_source(models: usize, variants: usize) -> String {
             .replace("#{VARIANTS}", &variants.max(1).to_string())
 }
 
-/// The forward draws of the figure view: the face records with a cutout texel, then the others.
+/// The forward draw shader of the figure view into a target of `color`.
+fn figure_source(tables: DrawTables, color: wgpu::TextureFormat) -> String {
+    draw_source(tables.models, tables.variants)
+        + &FIGURE.replace("#{TARGET_ENCODES}", &color.is_srgb().to_string())
+}
+
+/// The forward draws of the figure view: the face records with no cutout texel, then the others.
 pub(crate) struct FigurePipelines {
     pub(crate) draw: RenderPipeline,
     pub(crate) draw_opaque: RenderPipeline,
@@ -227,9 +233,7 @@ impl FigurePipelines {
     ) -> Self {
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("entity figure"),
-            source: wgpu::ShaderSource::Wgsl(
-                (draw_source(tables.models, tables.variants) + FIGURE).into(),
-            ),
+            source: wgpu::ShaderSource::Wgsl(figure_source(tables, targets.color).into()),
         });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("entity figure"),
@@ -713,7 +717,13 @@ mod tests {
         );
         check_bindings(
             "figure",
-            &(draw_source(library.models.len(), library.variants.len()) + FIGURE),
+            &figure_source(
+                DrawTables {
+                    models: library.models.len(),
+                    variants: library.variants.len(),
+                },
+                wgpu::TextureFormat::Rgba8UnormSrgb,
+            ),
             &[
                 ("vertex", &layouts::DRAW),
                 ("figure_fragment", &[(0, layouts::Slot::Frame)]),

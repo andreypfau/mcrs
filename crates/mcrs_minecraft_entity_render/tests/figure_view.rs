@@ -10,8 +10,8 @@ mod support;
 
 use glam::{Mat4, Vec3};
 use mcrs_minecraft_entity_render::{
-    CULL_VALID, Capacities, CullRecord, EntityLibrary, EntityPack, EntityViews, FigureFrame,
-    FigureTargets, SlotArena, StateRecord, TextureImage, TickRecord, f16_up,
+    CULL_VALID, Capacities, CullRecord, EntityGpu, EntityLibrary, EntityPack, EntityViews,
+    FigureFrame, FigureTargets, SlotArena, StateRecord, TextureImage, TickRecord, f16_up,
 };
 
 const TICK: u32 = 1000;
@@ -19,13 +19,8 @@ const SIDE: u32 = 64;
 const SKIN: [u8; 4] = [200, 120, 60, 255];
 const CLEAR: [u8; 4] = [0, 0, 0, 0];
 
-/// The face factor of a face whose seen side has the normal `m`, with the light directions of
-/// the figure in screen axes.
-fn face_factor(m: Vec3) -> f32 {
-    let light0 = Vec3::new(0.2, 1.0, 1.0).normalize();
-    let light1 = Vec3::new(-0.2, 1.0, 0.0).normalize();
-    ((m.dot(light0).max(0.0) + m.dot(light1).max(0.0)) * 0.6 + 0.4).min(1.0)
-}
+/// The face factor of a face that points to the viewer, with the light directions of the figure.
+const FRONT_FACTOR: f32 = 0.8201;
 
 #[test]
 #[ignore = "needs a GPU"]
@@ -44,12 +39,6 @@ fn a_player_in_the_figure_view_draws_with_the_face_factor_of_the_figure_inside_t
     let library = EntityLibrary::build(&pack.sources(), &[steve], 2048);
     let mut arena = player_arena(&pack, &library);
 
-    let targets = FigureTargets {
-        color: wgpu::TextureFormat::Rgba8Unorm,
-        depth: wgpu::TextureFormat::Depth32Float,
-        depth_compare: wgpu::CompareFunction::GreaterEqual,
-        sample_count: 1,
-    };
     let capacities = Capacities::for_cap(&library, 64);
     let mut entity_gpu = gpu.entity_gpu(&library, capacities, arena.capacity());
     let upload = arena.take_upload();
@@ -68,71 +57,98 @@ fn a_player_in_the_figure_view_draws_with_the_face_factor_of_the_figure_inside_t
         ]),
         lights: [Vec3::new(0.2, 1.0, 1.0), Vec3::new(-0.2, 1.0, 0.0)],
     };
-    entity_gpu.prepare_figure(&gpu.device, targets);
-    entity_gpu.write_figure_frame(&gpu.queue, &figure, TICK, 0.0);
-    let mut encoder = gpu.device.create_command_encoder(&Default::default());
-    entity_gpu.encode_figure_compute(&mut encoder);
-
-    let target = texture(&gpu, targets.color, wgpu::TextureUsages::COPY_SRC);
-    let depth = texture(&gpu, targets.depth, wgpu::TextureUsages::empty());
+    let lightmap = white_lightmap(&gpu);
     let sampler = gpu.device.create_sampler(&Default::default());
-    // The head fills the rows above 16; the scissor leaves it out.
-    let scissor_top = 20;
-    {
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("figure test"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &target.create_view(&Default::default()),
-                depth_slice: None,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &depth.create_view(&Default::default()),
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(0.0),
-                    store: wgpu::StoreOp::Store,
-                }),
-                stencil_ops: None,
-            }),
-            timestamp_writes: None,
-            occlusion_query_set: None,
-            multiview_mask: None,
-        });
-        pass.set_scissor_rect(0, scissor_top, SIDE, SIDE - scissor_top);
-        entity_gpu.encode_figure_draw(&gpu.device, &mut pass, &white_lightmap(&gpu), &sampler);
-    }
-    let texels = read_texture(&gpu, encoder, &target);
-    let texel = |x: u32, y: u32| -> [u8; 4] {
-        let at = ((y * SIDE + x) * 4) as usize;
-        texels.get(at..at + 4).unwrap().try_into().unwrap()
-    };
+    // A target that encodes on write stores the same bytes as a plain one: the figure decodes
+    // its colour before the write.
+    for color in [
+        wgpu::TextureFormat::Rgba8Unorm,
+        wgpu::TextureFormat::Rgba8UnormSrgb,
+    ] {
+        let targets = FigureTargets {
+            color,
+            depth: wgpu::TextureFormat::Depth32Float,
+            depth_compare: wgpu::CompareFunction::GreaterEqual,
+            sample_count: 1,
+        };
+        entity_gpu.prepare_figure(&gpu.device, targets, &lightmap, &sampler);
+        entity_gpu.write_figure_frame(&gpu.queue, &figure, TICK, 0.0);
+        let mut encoder = gpu.device.create_command_encoder(&Default::default());
+        entity_gpu.encode_figure_compute(&mut encoder);
 
-    // The front of the body at the middle of the target, below the scissor top. Its face points
-    // to the viewer; a unorm target rounds each channel, so it may differ by one step.
-    let front = face_factor(Vec3::Z);
-    let expected = SKIN.map(|channel| (f32::from(channel) * front).round() as i16);
-    let drawn = texel(SIDE / 2, 28);
-    for (channel, (&got, want)) in drawn.iter().zip(expected).take(3).enumerate() {
-        assert!(
-            (i16::from(got) - want).abs() <= 1,
-            "channel {channel} of the front: {drawn:?}, expected {expected:?} with the factor {front}"
+        let target = texture(&gpu, targets.color, wgpu::TextureUsages::COPY_SRC);
+        let depth = texture(&gpu, targets.depth, wgpu::TextureUsages::empty());
+        // The head fills the rows above 16; the scissor leaves it out.
+        let scissor_top = 20;
+        draw_figure(&mut encoder, &entity_gpu, &target, &depth, scissor_top);
+        let texels = read_texture(&gpu, encoder, &target);
+        let texel = |x: u32, y: u32| -> [u8; 4] {
+            let at = ((y * SIDE + x) * 4) as usize;
+            texels.get(at..at + 4).unwrap().try_into().unwrap()
+        };
+
+        // The front of the body at the middle of the target, below the scissor top. Its face
+        // points to the viewer; the target rounds each channel, so it may differ by one step.
+        let expected = SKIN.map(|channel| (f32::from(channel) * FRONT_FACTOR).round() as i16);
+        let drawn = texel(SIDE / 2, 28);
+        for (channel, (&got, want)) in drawn.iter().zip(expected).take(3).enumerate() {
+            assert!(
+                (i16::from(got) - want).abs() <= 1,
+                "{color:?}: channel {channel} of the front: {drawn:?}, expected {expected:?}"
+            );
+        }
+        assert_eq!(
+            drawn.get(3),
+            Some(&255),
+            "{color:?}: the figure writes an opaque colour"
+        );
+        assert_eq!(
+            texel(SIDE / 2, 8),
+            CLEAR,
+            "{color:?}: the head is outside the scissor"
+        );
+        assert_eq!(
+            texel(2, 40),
+            CLEAR,
+            "{color:?}: no part of the player is at the left edge"
         );
     }
-    assert_eq!(
-        drawn.get(3),
-        Some(&255),
-        "the figure writes an opaque colour"
-    );
-    assert_eq!(texel(SIDE / 2, 8), CLEAR, "the head is outside the scissor");
-    assert_eq!(
-        texel(2, 40),
-        CLEAR,
-        "no part of the player is at the left edge"
-    );
+}
+
+/// Draws the figure view into `target` and `depth`, cleared, with the scissor below the row
+/// `scissor_top`.
+fn draw_figure(
+    encoder: &mut wgpu::CommandEncoder,
+    entity_gpu: &EntityGpu,
+    target: &wgpu::Texture,
+    depth: &wgpu::Texture,
+    scissor_top: u32,
+) {
+    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        label: Some("figure test"),
+        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            view: &target.create_view(&Default::default()),
+            depth_slice: None,
+            resolve_target: None,
+            ops: wgpu::Operations {
+                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                store: wgpu::StoreOp::Store,
+            },
+        })],
+        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+            view: &depth.create_view(&Default::default()),
+            depth_ops: Some(wgpu::Operations {
+                load: wgpu::LoadOp::Clear(0.0),
+                store: wgpu::StoreOp::Store,
+            }),
+            stencil_ops: None,
+        }),
+        timestamp_writes: None,
+        occlusion_query_set: None,
+        multiview_mask: None,
+    });
+    pass.set_scissor_rect(0, scissor_top, SIDE, SIDE - scissor_top);
+    entity_gpu.encode_figure_draw(&mut pass);
 }
 
 /// An arena with one player with the model `default` and the skin of the library, at the

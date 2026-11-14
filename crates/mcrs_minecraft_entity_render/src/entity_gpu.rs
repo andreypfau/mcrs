@@ -10,9 +10,7 @@ use crate::figure_gpu::{DrawTables, FIGURE_RIGS, FigureGpu, figure_uniform};
 use crate::figure_targets::FigureTargets;
 use crate::figure_view::FigureFrame;
 use crate::frame_uniform::FrameUniform;
-use crate::gpu_buffers::{
-    COUNTERS, FrameBuffers, SlotBuffers, StaticBuffers, impostor_draws, impostor_list,
-};
+use crate::gpu_buffers::{FrameBuffers, SlotBuffers, StaticBuffers, impostor_draws, impostor_list};
 use crate::gpu_layouts::{ARGS, CULL, DRAW, EXPAND, Layouts, POSE, PREPARE, SCATTER, Slot};
 use crate::gpu_pipelines::{Pipelines, texture_arrays};
 use crate::impostor_atlas::{BakeResources, ImpostorAtlas};
@@ -398,13 +396,7 @@ impl EntityGpu {
         encoder: &mut CommandEncoder,
         queries: Option<PassQueries<'_>>,
     ) {
-        encoder.copy_buffer_to_buffer(
-            &self.frame.counters_zero,
-            0,
-            &self.frame.counters,
-            0,
-            COUNTERS * 4,
-        );
+        self.frame.reset_counters(encoder);
         let writes = |pass: ComputePass| {
             queries.map(|queries| {
                 let begin = queries.first + 2 * pass as u32;
@@ -541,12 +533,23 @@ impl EntityGpu {
     }
 
     /// Makes the frame buffers, the bind groups and the forward pipelines of the figure view at
-    /// its first frame, and the pipelines again when `targets` change.
-    pub fn prepare_figure(&mut self, device: &Device, targets: FigureTargets) {
+    /// its first frame, the pipelines again when `targets` change, and the bind group of the
+    /// light again when `lightmap` changes.
+    pub fn prepare_figure(
+        &mut self,
+        device: &Device,
+        targets: FigureTargets,
+        lightmap: &wgpu::TextureView,
+        sampler: &wgpu::Sampler,
+    ) {
         let tables = self.draw_tables();
         match &mut self.figure {
-            Some(figure) if figure.targets == targets => {}
-            Some(figure) => figure.retarget(device, &self.layouts, tables, targets),
+            Some(figure) => {
+                if figure.targets != targets {
+                    figure.retarget(device, &self.layouts, tables, targets);
+                }
+                figure.bind_lightmap(device, lightmap, sampler);
+            }
             None => {
                 let frame = FrameBuffers::new(
                     device,
@@ -563,6 +566,8 @@ impl EntityGpu {
                     binds,
                     tables,
                     targets,
+                    lightmap,
+                    sampler,
                 ));
             }
         }
@@ -597,40 +602,24 @@ impl EntityGpu {
         let Some(figure) = &self.figure else {
             return;
         };
-        encoder.copy_buffer_to_buffer(
-            &figure.frame.counters_zero,
-            0,
-            &figure.frame.counters,
-            0,
-            COUNTERS * 4,
-        );
+        figure.frame.reset_counters(encoder);
         self.encode_rigs(encoder, &figure.frame, &figure.binds, |_| None);
     }
 
-    /// Draws the face records of the figure view into `pass`, lit by `lightmap`, within the
-    /// scissor rectangle and the viewport that the caller has set. It draws nothing before
-    /// [`Self::prepare_figure`].
-    pub fn encode_figure_draw(
-        &mut self,
-        device: &Device,
-        pass: &mut RenderPass<'_>,
-        lightmap: &wgpu::TextureView,
-        sampler: &wgpu::Sampler,
-    ) {
-        let Some(mut figure) = self.figure.take() else {
+    /// Draws the face records of the figure view into `pass`, lit by the lightmap of
+    /// [`Self::prepare_figure`], within the scissor rectangle and the viewport that the caller
+    /// has set. It draws nothing before [`Self::prepare_figure`].
+    pub fn encode_figure_draw(&self, pass: &mut RenderPass<'_>) {
+        let Some(figure) = &self.figure else {
             return;
         };
-        figure.bind_lightmap(device, lightmap, sampler);
-        if let Some(light) = figure.lightmap() {
-            pass.set_bind_group(2, light, &[]);
-            self.draw_rigs(
-                pass,
-                [&figure.pipelines.draw_opaque, &figure.pipelines.draw],
-                &figure.binds.draw,
-                &figure.frame.indirect,
-            );
-        }
-        self.figure = Some(figure);
+        pass.set_bind_group(2, figure.light_group(), &[]);
+        self.draw_rigs(
+            pass,
+            [&figure.pipelines.draw_opaque, &figure.pipelines.draw],
+            &figure.binds.draw,
+            &figure.frame.indirect,
+        );
     }
 
     /// Draws the impostors into the render pass of the gbuffer.

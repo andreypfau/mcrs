@@ -292,11 +292,15 @@ GUI pass:             quads ─► figure draw ─► quads, cursor stack, toolt
   draw over the figure.
 - **A closed screen costs nothing.** With no figure frame, the figure run of the passes and the
   figure draw do not run. The renderer creates the buffers and the pipelines of the figure view
-  for the first figure frame.
+  in its prepare step, when the host inserts `FigureTargets`. Thus the first open of the screen
+  compiles no shader.
+- **The renderer binds the lightmap.** The prepare step binds the lightmap of the terrain and
+  its sampler. It makes the bind group again only when the terrain gives another lightmap. The
+  host gives only the render pass.
 
-`draw_gui` uses a tracked render pass of Bevy today, and the renderer encodes into a `wgpu`
-render pass. `draw_gui` changes to a `wgpu` render pass, as `draw_entities` has it. The GUI then
-sets its pipeline, its bind group and its vertex buffer again after the figure draw.
+`draw_gui` keeps the tracked render pass of Bevy. For the figure draw, it gives the `wgpu` pass
+of that tracked pass with `wgpu_pass()`. This call resets the tracked state of the pass. Thus the
+GUI sets its pipeline, its bind group and its vertex buffer again after the figure draw.
 
 The options that this design rejects:
 
@@ -336,16 +340,16 @@ third person still needs a mask.
 
 The figure is one entity with the marker `InventoryFigure`. The client spawns it with the local
 player, with the bundle `inventory_figure` of the GUI crate and the UUID of the local profile.
-The client despawns it with the local player. The entity exists while the screen is closed. Thus
-the skin loads one time, and to open the screen changes no archetype. A closed screen costs one
-slot and one skin layer.
+The entity exists for the whole session, and no system despawns it. It exists while the screen
+is closed. Thus the skin loads one time, and to open the screen changes no archetype. A closed
+screen costs one slot and one skin layer.
 
-The bundle holds the components of `host_living_entity` without `HostEntity`, and
+The bundle holds the components of `host_living_entity`, and `InventoryFigure`,
 `EntityViews::FIGURE`, `FramePosed`, `HostLight` and an `EntityLight` with the levels 15 and 15.
 
 | Input | Writer | Value |
 |---|---|---|
-| `PlayerModel`, `PlayerSkin` | `dress_players` of the client | the profile that the player list has for the UUID of the figure, as for each other player (CPR-SKIN-005). The figure has no `HostEntity`, so `dress_players` does not skip it |
+| `PlayerModel`, `PlayerSkin` | `dress_players` of the client | the profile that the player list has for the UUID of the figure, as for each other player (CPR-SKIN-005). `dress_players` skips each `HostEntity` except an entity with `InventoryFigure` |
 | `Motion` | the bundle | the origin of figure space; no system moves the figure |
 | body yaw, head yaw, pitch | the figure system | the angles `a` and `t` of CPR-FIG-003, items 3 to 5 |
 | walk, hurt time, pose, flags | the figure system | the frame values of the local player (CPR-FIG-004) |

@@ -29,7 +29,7 @@ struct FigureLight {
     light1: [f32; 4],
 }
 
-/// The bind group of the light and of the lightmap that the host gives.
+/// The bind group of the light and of the lightmap of the terrain.
 struct LightmapBind {
     view: TextureView,
     sampler: Sampler,
@@ -46,10 +46,14 @@ pub(crate) struct FigureGpu {
     pub(crate) pipelines: FigurePipelines,
     light: Buffer,
     layout: BindGroupLayout,
-    lightmap: Option<LightmapBind>,
+    lightmap: LightmapBind,
 }
 
 impl FigureGpu {
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the parts of the figure view come from the world view and from the host"
+    )]
     pub(crate) fn new(
         device: &Device,
         layouts: &Layouts,
@@ -57,22 +61,26 @@ impl FigureGpu {
         binds: Binds,
         tables: DrawTables,
         targets: FigureTargets,
+        lightmap: &TextureView,
+        sampler: &Sampler,
     ) -> Self {
         let layout = figure_layout(device);
         let pipelines = FigurePipelines::new(device, layouts, &layout, tables, targets);
+        let light = device.create_buffer(&BufferDescriptor {
+            label: Some("entity figure light"),
+            size: size_of::<FigureLight>() as u64,
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let lightmap = lightmap_bind(device, &layout, &light, lightmap, sampler);
         Self {
             targets,
             frame,
             binds,
             pipelines,
-            light: device.create_buffer(&BufferDescriptor {
-                label: Some("entity figure light"),
-                size: size_of::<FigureLight>() as u64,
-                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            }),
+            light,
             layout,
-            lightmap: None,
+            lightmap,
         }
     }
 
@@ -90,11 +98,9 @@ impl FigureGpu {
 
     /// Writes the light directions of `figure`.
     pub(crate) fn write_light(&self, queue: &Queue, figure: &FigureFrame) {
-        // The fourth component of the first light tells the shader that the target encodes.
-        let encodes = if self.targets.color.is_srgb() { 1.0 } else { 0.0 };
         let [light0, light1] = figure
             .lights
-            .map(|light| light.normalize_or_zero().extend(encodes).to_array());
+            .map(|light| light.normalize_or_zero().extend(0.0).to_array());
         queue.write_buffer(
             &self.light,
             0,
@@ -102,46 +108,52 @@ impl FigureGpu {
         );
     }
 
-    /// Binds the light and `lightmap`; the bind group is made again only when the host gives
-    /// another lightmap.
+    /// Binds the light and `lightmap` again when the terrain gives another lightmap.
     pub(crate) fn bind_lightmap(
         &mut self,
         device: &Device,
         lightmap: &TextureView,
         sampler: &Sampler,
     ) {
-        let held = self
-            .lightmap
-            .take()
-            .filter(|held| held.view == *lightmap && held.sampler == *sampler);
-        let bind = held.unwrap_or_else(|| LightmapBind {
-            view: lightmap.clone(),
-            sampler: sampler.clone(),
-            group: device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("entity figure light"),
-                layout: &self.layout,
-                entries: &[
-                    BindGroupEntry {
-                        binding: 0,
-                        resource: self.light.as_entire_binding(),
-                    },
-                    BindGroupEntry {
-                        binding: 1,
-                        resource: BindingResource::TextureView(lightmap),
-                    },
-                    BindGroupEntry {
-                        binding: 2,
-                        resource: BindingResource::Sampler(sampler),
-                    },
-                ],
-            }),
-        });
-        self.lightmap = Some(bind);
+        if self.lightmap.view != *lightmap || self.lightmap.sampler != *sampler {
+            self.lightmap = lightmap_bind(device, &self.layout, &self.light, lightmap, sampler);
+        }
     }
 
-    /// The bind group of the light and the lightmap, after [`Self::bind_lightmap`].
-    pub(crate) fn lightmap(&self) -> Option<&BindGroup> {
-        self.lightmap.as_ref().map(|bind| &bind.group)
+    /// The bind group of the light and the lightmap.
+    pub(crate) fn light_group(&self) -> &BindGroup {
+        &self.lightmap.group
+    }
+}
+
+fn lightmap_bind(
+    device: &Device,
+    layout: &BindGroupLayout,
+    light: &Buffer,
+    lightmap: &TextureView,
+    sampler: &Sampler,
+) -> LightmapBind {
+    LightmapBind {
+        view: lightmap.clone(),
+        sampler: sampler.clone(),
+        group: device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("entity figure light"),
+            layout,
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: light.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::TextureView(lightmap),
+                },
+                BindGroupEntry {
+                    binding: 2,
+                    resource: BindingResource::Sampler(sampler),
+                },
+            ],
+        }),
     }
 }
 
@@ -166,8 +178,7 @@ pub(crate) fn figure_uniform(
         tick,
         camera_offset: figure_eye(figure.clip_from_figure, depth_compare).to_array(),
         partial_tick,
-        height_threshold: 0.0,
-        view: u32::from(EntityViews::FIGURE.0),
+        view: EntityViews::FIGURE.frame_bit(),
         ..FrameUniform::default()
     }
 }

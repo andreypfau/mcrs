@@ -1,4 +1,4 @@
-use bevy::math::{IRect, IVec2, Mat4, UVec2, Vec2, Vec3};
+use bevy::math::proj;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use mcrs_minecraft_client_world::player::Player;
@@ -7,7 +7,7 @@ use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_render::{EntityViews, FigureFrame, FigureView, FramePosed};
 use mcrs_minecraft_entity_visual::{
-    Age, ClientEntity, EntityLight, Equipment, HostLight, Living, Motion, Placement, SyncedData,
+    EntityLight, HostLight, Living, Motion, Placement, SyncedData, host_living_entity,
 };
 use uuid::Uuid;
 
@@ -27,36 +27,26 @@ const TURN_DEGREES_PER_RADIAN: f32 = 20.0;
 const DEPTH_HALF_RANGE_BLOCKS: f32 = 4.0;
 const LIGHT_0: Vec3 = Vec3::new(0.2, 1.0, 1.0);
 const LIGHT_1: Vec3 = Vec3::new(-0.2, 1.0, 0.0);
-// No packet of a server names an entity with this id.
-const FIGURE_NETWORK_ID: i32 = i32::MIN;
 const FULL_LIGHT: EntityLight = EntityLight { block: 15, sky: 15 };
 
 /// The player figure of the inventory screen. Only the figure view draws it.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct InventoryFigure;
 
-/// The figure of the local player with the UUID `uuid`: a player at the origin of figure space,
-/// in full light, that takes the skin of the profile with that UUID.
+/// The figure of the local player with the UUID `uuid`: a player of the host at the origin of
+/// figure space, in full light, that takes the skin of the profile with that UUID. `None` when
+/// the type table does not list the player as living.
 #[must_use]
-pub fn inventory_figure(uuid: Uuid) -> impl Bundle {
-    let placement = Placement::default();
-    (
+pub fn inventory_figure(uuid: Uuid) -> Option<impl Bundle> {
+    let host = host_living_entity(EntityType::Player, uuid, Placement::default())?;
+    Some((
+        host,
         InventoryFigure,
-        ClientEntity {
-            network_id: FIGURE_NETWORK_ID,
-            uuid,
-            kind: EntityType::Player,
-        },
-        Motion::new(placement, placement.position),
-        Age::default(),
-        SyncedData::default(),
-        Living::default(),
-        Equipment::default(),
         EntityViews::FIGURE,
         FramePosed,
         HostLight,
         FULL_LIGHT,
-    )
+    ))
 }
 
 /// Turns the figure to the cursor and gives the figure view its frame while the inventory
@@ -65,11 +55,11 @@ pub(crate) fn pose_inventory_figure(
     screen: Res<Screen>,
     scene: Res<GuiScene>,
     window: Single<&Window, With<PrimaryWindow>>,
-    player: Query<Option<&SyncedData>, With<Player>>,
+    player: Query<&SyncedData, With<Player>>,
     mut figures: Query<(&mut Living, &mut Motion), With<InventoryFigure>>,
     mut view: ResMut<FigureView>,
 ) {
-    let invisible = player.iter().flatten().any(SyncedData::is_invisible);
+    let invisible = player.iter().any(SyncedData::is_invisible);
     if *screen != Screen::Inventory || invisible {
         view.set_if_neq(FigureView(None));
         return;
@@ -80,17 +70,16 @@ pub(crate) fn pose_inventory_figure(
     };
     let points = figure_points(origin(scene.size), standing);
     let angles = figure_angles(points.eye, scene.cursor.as_vec2());
-    let frame = clip_from_figure(
-        points.feet,
-        angles.tilt,
-        window_framebuffer(&window),
-        scene.size.scale,
-    )
-    .map(|clip_from_figure| FigureFrame {
-        clip_from_figure,
+    let frame = FigureFrame {
+        clip_from_figure: clip_from_figure(
+            points.feet,
+            angles.tilt,
+            window_framebuffer(&window),
+            scene.size.scale,
+        ),
         lights: figure_lights(angles.tilt),
-    });
-    view.set_if_neq(FigureView(frame));
+    };
+    view.set_if_neq(FigureView(Some(frame)));
 
     // A yaw of 0 faces +Z, toward the viewer, and a positive yaw turns the front to -X.
     let body_yaw = -angles.turn;
@@ -159,28 +148,22 @@ pub(crate) fn figure_angles(eye: Vec2, mouse: Vec2) -> FigureAngles {
 
 /// The parallel projection from figure space to clip space: `x` to the right, `y` up and `z` to
 /// the viewer, one block for each unit, the feet at the origin. Clip depth grows toward the
-/// viewer. `None` for a window with no pixels.
+/// viewer. `window` has at least one pixel on each side.
 #[must_use]
-pub(crate) fn clip_from_figure(
-    feet: Vec2,
-    tilt_degrees: f32,
-    window: UVec2,
-    scale: u32,
-) -> Option<Mat4> {
-    if window.x == 0 || window.y == 0 {
-        return None;
-    }
+pub(crate) fn clip_from_figure(feet: Vec2, tilt_degrees: f32, window: UVec2, scale: u32) -> Mat4 {
     let gui_size = window.as_vec2() / scale.max(1) as f32;
-    let clip_from_gui = Mat4::from_translation(Vec3::new(-1.0, 1.0, 0.5))
-        * Mat4::from_scale(Vec3::new(
-            2.0 / gui_size.x,
-            -2.0 / gui_size.y,
-            0.5 / DEPTH_HALF_RANGE_BLOCKS,
-        ));
+    let clip_from_gui = proj::orthographic(
+        0.0,
+        gui_size.x,
+        gui_size.y,
+        0.0,
+        DEPTH_HALF_RANGE_BLOCKS,
+        -DEPTH_HALF_RANGE_BLOCKS,
+    );
     let gui_from_figure = Mat4::from_translation(feet.extend(0.0))
         * Mat4::from_scale(Vec3::new(GUI_UNITS_PER_BLOCK, -GUI_UNITS_PER_BLOCK, 1.0))
         * Mat4::from_rotation_x(-tilt_degrees.to_radians());
-    Some(clip_from_gui * gui_from_figure)
+    clip_from_gui * gui_from_figure
 }
 
 /// The two light directions in figure space. They turn against the tilt, so they stay fixed on
@@ -280,9 +263,7 @@ mod tests {
             },
         )
         .feet;
-        let Some(upright) = clip_from_figure(feet, 0.0, window, 2) else {
-            panic!("a window with pixels has a projection");
-        };
+        let upright = clip_from_figure(feet, 0.0, window, 2);
         let window_from_clip =
             |clip: Vec3| Vec2::new((clip.x + 1.0) / 2.0, (1.0 - clip.y) / 2.0) * window.as_vec2();
         let feet_pixel = window_from_clip(upright.project_point3(Vec3::ZERO));
@@ -296,9 +277,7 @@ mod tests {
             "the eye is at {eye_pixel} window pixels"
         );
 
-        let Some(tilted) = clip_from_figure(feet, 15.0, window, 2) else {
-            panic!("a window with pixels has a projection");
-        };
+        let tilted = clip_from_figure(feet, 15.0, window, 2);
         let feet_depth = tilted.project_point3(Vec3::ZERO).z;
         let top_depth = tilted.project_point3(Vec3::Y * 1.8).z;
         assert!(

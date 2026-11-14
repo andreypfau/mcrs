@@ -712,6 +712,10 @@ fn build_gui_batch(
                 clips.pop();
             }
             GuiQuad::Figure { rect } => {
+                let rect = clips.last().map_or(rect, |clip| clip.intersect(rect));
+                if rect.is_empty() {
+                    continue;
+                }
                 let end = vertices.len() as u32;
                 close_flat(&mut flat_start, end, &mut batch.draws);
                 batch.draws.push(GuiDraw {

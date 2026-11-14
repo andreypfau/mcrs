@@ -61,7 +61,7 @@ impl FrameUniform {
             projection_scale: view.focal_y * view.viewport.y * 0.5,
             height_threshold: FULL_RIG_HEIGHT,
             shade_table: face_shade::shader_index(light),
-            view: u32::from(EntityViews::WORLD.0),
+            view: EntityViews::WORLD.frame_bit(),
             ..Self::default()
         }
     }

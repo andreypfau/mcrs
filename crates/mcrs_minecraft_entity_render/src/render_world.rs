@@ -46,12 +46,12 @@ pub(crate) struct EntityRenderState {
 }
 
 impl EntityRenderState {
-    pub(crate) fn gpu_mut(&mut self) -> Option<&mut EntityGpu> {
-        self.gpu.as_mut()
+    pub(crate) fn gpu(&self) -> Option<&EntityGpu> {
+        self.gpu.as_ref()
     }
 
-    pub(crate) fn figure(&self) -> Option<FigureFrame> {
-        self.figure
+    pub(crate) fn has_figure(&self) -> bool {
+        self.figure.is_some()
     }
 }
 
@@ -128,6 +128,7 @@ fn merge(pending: &mut SlotUpload, next: SlotUpload) {
 pub(crate) fn prepare_entities(
     mut state: ResMut<EntityRenderState>,
     terrain: Option<Res<Terrain>>,
+    figure_targets: Option<Res<FigureTargets>>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
 ) {
@@ -188,6 +189,15 @@ pub(crate) fn prepare_entities(
     {
         gpu.set_hiz(device.wgpu_device(), (**pyramid).clone());
         state.hiz = Some(pyramid.id());
+    }
+    if let (Some(targets), Some(gpu)) = (figure_targets, state.gpu.as_mut()) {
+        let sprites = &terrain.sprites;
+        gpu.prepare_figure(
+            device.wgpu_device(),
+            *targets,
+            sprites.lightmap_view(),
+            sprites.lightmap_sampler(),
+        );
     }
 }
 
@@ -295,20 +305,14 @@ pub(crate) fn figure_requested(state: Res<EntityRenderState>) -> bool {
 /// The figure run of the cull, the pose and the expand, into the frame buffers of the figure
 /// view, after the world view has uploaded the slots of the frame.
 pub(crate) fn run_figure_view(
-    mut state: ResMut<EntityRenderState>,
-    targets: Option<Res<FigureTargets>>,
-    device: Res<RenderDevice>,
+    state: Res<EntityRenderState>,
     queue: Res<RenderQueue>,
     mut ctx: RenderContext,
 ) {
-    let (Some(targets), Some(figure)) = (targets, state.figure) else {
+    let (Some(figure), Some(gpu)) = (state.figure, state.gpu.as_ref()) else {
         return;
     };
     let clock = state.clock;
-    let Some(gpu) = state.gpu.as_mut() else {
-        return;
-    };
-    gpu.prepare_figure(device.wgpu_device(), *targets);
     gpu.write_figure_frame(&queue, &figure, clock.tick, clock.partial_tick);
     gpu.encode_figure_compute(ctx.command_encoder());
 }

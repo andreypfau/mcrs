@@ -1,7 +1,7 @@
 //! The cull of a view keeps only the slots whose view set holds the bit of the view.
 //!
 //! ```sh
-//! cargo test -p mcrs_minecraft_entity_render --test view_mask -- --ignored
+//! cargo nextest run -p mcrs_minecraft_entity_render --run-ignored all
 //! ```
 #![expect(clippy::unwrap_used, reason = "a test reports a failure by panicking")]
 
@@ -81,7 +81,7 @@ fn a_view_draws_only_the_slots_whose_view_set_holds_its_bit() {
             frustum: [[0.0, 0.0, 0.0, 1.0]; 5],
             tick: TICK,
             viewport: [854.0, 480.0],
-            view: u32::from(view.0),
+            view: view.frame_bit(),
             ..FrameUniform::default()
         };
         let mut encoder = gpu.device.create_command_encoder(&Default::default());
