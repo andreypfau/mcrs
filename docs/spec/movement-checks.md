@@ -1951,13 +1951,10 @@ The proxy parses these packets:
 | play | `set_passengers`, `set_camera` | the ride state and the camera of the player |
 | play | `start_configuration` | the end of the play state |
 
-The proxy computes the value of an attribute from its base value `b` and its modifiers:
-
-- `A` is the sum of the amounts of the modifiers with operation 0.
-- `B` is the sum of the amounts of the modifiers with operation 1.
-- `C` is the product of `1 + amount` for the modifiers with operation 2.
-
-The value is `(b + A) × (1 + B) × C`, clamped to the range of the attribute.
+The proxy computes the value of an attribute from the base value and the modifiers of the entry.
+The order of the modifiers in the entry is the sequence that ATR-VAL-002 takes. The value is the
+result of ATR-VAL-001 to ATR-VAL-003 of `attributes.md`, with the range of ATR-DEF-001. A closed form with sums and one product does not
+give the same f64 bits.
 
 When the proxy has no registry report for the protocol version, it does not run MVC-CHK-024. It runs
 the other rules of L0 and L1.

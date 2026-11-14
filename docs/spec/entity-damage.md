@@ -108,8 +108,8 @@ Section 12 lists the subjects that are out of scope, with the reason for each.
 - `assets/mcrs/reports/packets.json`: the packet ids of section 9.
 - The game rule table of `crates/mcrs_minecraft_game_rule`: `max_entity_cramming` (default 24),
   `fall_damage`, `fire_damage`.
-- Appendix A: the base values of the attributes and the immunities of each living entity type. A
-  vanilla server gave these values (experiment D8).
+- Appendix A: the immunities of each living entity type. A vanilla server gave these values
+  (experiment D8).
 
 ### 0.6 Damage tags of the three types
 
@@ -142,10 +142,10 @@ becomes less than the health, the health changes to the max health.
 | `safe_fall_distance` | the fall damage (DMG-FALL-002) |
 | `fall_damage_multiplier` | the fall damage (DMG-FALL-002) |
 
-The base value of each attribute is data of the entity type (Appendix A). The attribute
-definitions in `crates/mcrs_minecraft_entity` give the default when a type has no own value.
-Modifiers of items and effects change the value. This document does not state the modifier
-rules. A mob with no items and no effects has the base value.
+The base value of each attribute is data of the entity type. ATR-BASE-003 of `attributes.md` and
+its Appendix A own that table. ATR-DEF-001 of that document gives the default when a type has no
+own value. Modifiers of items and effects change the value, as ATR-VAL-001 of `attributes.md`
+states. A mob with no modifier has the base value.
 
 **DMG-ATT-003** (`black_box_confirmed`, semantic, confidence: high). Two properties of the entity
 type make it immune to some damage types (DMG-HIT-001). They are the entity type tag
@@ -932,7 +932,8 @@ these results in this order:
 | damage types and their network ids | the corpus `damage_type/`, the registry (REG-ENTRY-004, REG-NET-006) |
 | the damage tags of 0.6 and of DMG-HIT-001 | the corpus `tags/damage_type/` |
 | `fall_damage_immune` | the corpus `tags/entity_type/` |
-| the base attributes, fire-immune, the own hit procedures | the type table of `entity-tracking.md` (TRK-TYPE-001), with the values of Appendix A. That table gains the fields `armor`, fire-immune and the hit kind (normal or own) |
+| the base attributes | Appendix A of `attributes.md` |
+| fire-immune, the own hit procedures | the type table of `entity-tracking.md` (TRK-TYPE-001), with the values of Appendix A. That table gains the fields fire-immune and the hit kind (normal or own) |
 | the fall action of each block | DMG-FALL-004 of this document |
 | the magma step action and the fall multiplier | the named block data of `mcrs_minecraft_collision_table` (DMG-FALL-004) |
 | `max_entity_cramming` | the resource of DMG-CRW-001 |
@@ -950,108 +951,108 @@ these results in this order:
   hex of D9. It does not compare `sound` packets.
 - The exit test of 17.3 in the engine.
 
-## Appendix A: base attributes and immunities of the living types
+## Appendix A: immunities of the living types
 
-The values come from D8. The columns `fall` and `fire` state the immunity to the damage types `fall`
-and `hot_floor`: `yes` for immune. Only the `own` types are immune to `cramming`. `own` marks a type whose own hit
-procedure rejected each type in D8 (U3). The attribute `armor_toughness` and `max_absorption` are 0
-for each type. A type that is not in the table uses the defaults of DMG-ATT-002 and no immunity.
+The values come from D8, for summoned entities. Appendix A of `attributes.md` gives the base
+values of the attributes of each type (DMG-ATT-002). The columns `fall` and `fire` state the
+immunity to the damage types `fall` and `hot_floor`: `yes` for immune. Only the `own` types are
+immune to `cramming`. `own` marks a type whose own hit procedure rejected each type in D8 (U3). A
+type that is not in the table has no immunity.
 
-| Type | `max_health` | `armor` | `safe_fall_distance` | `fall_damage_multiplier` | `fall` | `fire` |
-|------|-------------|---------|----------------------|--------------------------|--------|--------|
-| `allay` | 20 | 0 | 3 | 1 | yes | — |
-| `armadillo` | 12 | 0 | 3 | 1 | — | — |
-| `armor_stand` | 20 | 0 | 3 | 1 | own | own |
-| `axolotl` | 14 | 0 | 3 | 1 | — | — |
-| `bat` | 6 | 0 | 3 | 1 | yes | — |
-| `bee` | 10 | 0 | 3 | 1 | yes | — |
-| `blaze` | 20 | 0 | 3 | 1 | yes | yes |
-| `bogged` | 16 | 0 | 3 | 1 | — | — |
-| `breeze` | 30 | 0 | 3 | 1 | yes | — |
-| `camel` | 32 | 0 | 6 | 0.5 | — | — |
-| `camel_husk` | 32 | 0 | 6 | 0.5 | — | — |
-| `cat` | 10 | 0 | 3 | 1 | yes | — |
-| `cave_spider` | 12 | 0 | 3 | 1 | — | — |
-| `chicken` | 4 | 0 | 3 | 1 | yes | — |
-| `cod` | 3 | 0 | 3 | 1 | — | — |
-| `copper_golem` | 12 | 0 | 3 | 1 | yes | — |
-| `cow` | 10 | 0 | 3 | 1 | — | — |
-| `creaking` | 1 | 0 | 3 | 1 | — | — |
-| `creeper` | 20 | 0 | 3 | 1 | — | — |
-| `dolphin` | 10 | 0 | 3 | 1 | — | — |
-| `donkey` | 53 | 0 | 6 | 0.5 | — | — |
-| `drowned` | 20 | 2 | 3 | 1 | — | — |
-| `elder_guardian` | 80 | 0 | 3 | 1 | — | — |
-| `enderman` | 40 | 0 | 3 | 1 | — | — |
-| `endermite` | 8 | 0 | 3 | 1 | — | — |
-| `ender_dragon` | 200 | 0 | 3 | 1 | own | own |
-| `evoker` | 24 | 0 | 3 | 1 | — | — |
-| `fox` | 10 | 0 | 5 | 1 | — | — |
-| `frog` | 10 | 0 | 3 | 1 | — | — |
-| `frostbite` | 24 | 2 | 3 | 1 | — | — |
-| `ghast` | 10 | 0 | 3 | 1 | yes | yes |
-| `giant` | 100 | 0 | 3 | 1 | — | — |
-| `glow_squid` | 10 | 0 | 3 | 1 | own | own |
-| `goat` | 10 | 0 | 3 | 1 | — | — |
-| `guardian` | 30 | 0 | 3 | 1 | — | — |
-| `happy_ghast` | 20 | 0 | 3 | 1 | yes | — |
-| `hoglin` | 40 | 0 | 3 | 1 | — | — |
-| `horse` | 53 | 0 | 6 | 0.5 | — | — |
-| `husk` | 20 | 2 | 3 | 1 | — | — |
-| `illusioner` | 32 | 0 | 3 | 1 | — | — |
-| `iron_golem` | 100 | 0 | 3 | 1 | yes | — |
-| `llama` | 53 | 0 | 6 | 0.5 | — | — |
-| `magma_cube` | 1 | 3 | 3 | 1 | yes | yes |
-| `mannequin` | 20 | 0 | 3 | 1 | — | — |
-| `mooshroom` | 10 | 0 | 3 | 1 | — | — |
-| `mule` | 53 | 0 | 6 | 0.5 | — | — |
-| `nautilus` | 15 | 0 | 3 | 1 | — | — |
-| `ocelot` | 10 | 0 | 3 | 1 | yes | — |
-| `panda` | 20 | 0 | 3 | 1 | — | — |
-| `parched` | 16 | 0 | 3 | 1 | — | — |
-| `parrot` | 6 | 0 | 3 | 1 | yes | — |
-| `phantom` | 20 | 0 | 3 | 1 | yes | — |
-| `pig` | 10 | 0 | 3 | 1 | — | — |
-| `piglin` | 16 | 0 | 3 | 1 | — | — |
-| `piglin_brute` | 50 | 0 | 3 | 1 | — | — |
-| `pillager` | 24 | 0 | 3 | 1 | — | — |
-| `polar_bear` | 30 | 0 | 3 | 1 | — | — |
-| `pufferfish` | 3 | 0 | 3 | 1 | — | — |
-| `rabbit` | 3 | 0 | 3 | 1 | — | — |
-| `ravager` | 100 | 0 | 3 | 1 | — | — |
-| `salmon` | 3 | 0 | 3 | 1 | — | — |
-| `sheep` | 8 | 0 | 3 | 1 | — | — |
-| `shulker` | 30 | 0 | 3 | 1 | yes | yes |
-| `silverfish` | 8 | 0 | 3 | 1 | — | — |
-| `skeleton` | 20 | 0 | 3 | 1 | — | — |
-| `skeleton_horse` | 15 | 0 | 6 | 0.5 | — | — |
-| `slime` | 1 | 0 | 3 | 1 | — | — |
-| `sniffer` | 14 | 0 | 3 | 1 | — | — |
-| `snow_golem` | 4 | 0 | 3 | 1 | yes | — |
-| `spider` | 16 | 0 | 3 | 1 | — | — |
-| `squid` | 10 | 0 | 3 | 1 | own | own |
-| `stray` | 20 | 0 | 3 | 1 | — | — |
-| `strider` | 20 | 0 | 3 | 1 | — | yes |
-| `sulfur_cube` | 4 | 0 | 3 | 1 | — | — |
-| `tadpole` | 6 | 0 | 3 | 1 | — | — |
-| `trader_llama` | 53 | 0 | 6 | 0.5 | — | — |
-| `tropical_fish` | 3 | 0 | 3 | 1 | — | — |
-| `turtle` | 30 | 0 | 3 | 1 | — | — |
-| `vex` | 14 | 0 | 3 | 1 | — | yes |
-| `villager` | 20 | 0 | 3 | 1 | — | — |
-| `vindicator` | 24 | 0 | 3 | 1 | — | — |
-| `wandering_trader` | 20 | 0 | 3 | 1 | — | — |
-| `warden` | 500 | 0 | 3 | 1 | — | yes |
-| `witch` | 26 | 0 | 3 | 1 | — | — |
-| `wither` | 300 | 4 | 3 | 1 | yes | yes |
-| `wither_skeleton` | 20 | 0 | 3 | 1 | — | yes |
-| `wolf` | 8 | 0 | 3 | 1 | — | — |
-| `zoglin` | 40 | 0 | 3 | 1 | — | yes |
-| `zombie` | 20 | 2 | 3 | 1 | — | — |
-| `zombie_horse` | 25 | 0 | 6 | 0.5 | — | — |
-| `zombie_nautilus` | 15 | 0 | 3 | 1 | — | — |
-| `zombie_villager` | 20 | 2 | 3 | 1 | — | — |
-| `zombified_piglin` | 20 | 2 | 3 | 1 | — | yes |
+| Type | `fall` | `fire` |
+|------|--------|--------|
+| `allay` | yes | — |
+| `armadillo` | — | — |
+| `armor_stand` | own | own |
+| `axolotl` | — | — |
+| `bat` | yes | — |
+| `bee` | yes | — |
+| `blaze` | yes | yes |
+| `bogged` | — | — |
+| `breeze` | yes | — |
+| `camel` | — | — |
+| `camel_husk` | — | — |
+| `cat` | yes | — |
+| `cave_spider` | — | — |
+| `chicken` | yes | — |
+| `cod` | — | — |
+| `copper_golem` | yes | — |
+| `cow` | — | — |
+| `creaking` | — | — |
+| `creeper` | — | — |
+| `dolphin` | — | — |
+| `donkey` | — | — |
+| `drowned` | — | — |
+| `elder_guardian` | — | — |
+| `enderman` | — | — |
+| `endermite` | — | — |
+| `ender_dragon` | own | own |
+| `evoker` | — | — |
+| `fox` | — | — |
+| `frog` | — | — |
+| `frostbite` | — | — |
+| `ghast` | yes | yes |
+| `giant` | — | — |
+| `glow_squid` | own | own |
+| `goat` | — | — |
+| `guardian` | — | — |
+| `happy_ghast` | yes | — |
+| `hoglin` | — | — |
+| `horse` | — | — |
+| `husk` | — | — |
+| `illusioner` | — | — |
+| `iron_golem` | yes | — |
+| `llama` | — | — |
+| `magma_cube` | yes | yes |
+| `mannequin` | — | — |
+| `mooshroom` | — | — |
+| `mule` | — | — |
+| `nautilus` | — | — |
+| `ocelot` | yes | — |
+| `panda` | — | — |
+| `parched` | — | — |
+| `parrot` | yes | — |
+| `phantom` | yes | — |
+| `pig` | — | — |
+| `piglin` | — | — |
+| `piglin_brute` | — | — |
+| `pillager` | — | — |
+| `polar_bear` | — | — |
+| `pufferfish` | — | — |
+| `rabbit` | — | — |
+| `ravager` | — | — |
+| `salmon` | — | — |
+| `sheep` | — | — |
+| `shulker` | yes | yes |
+| `silverfish` | — | — |
+| `skeleton` | — | — |
+| `skeleton_horse` | — | — |
+| `slime` | — | — |
+| `sniffer` | — | — |
+| `snow_golem` | yes | — |
+| `spider` | — | — |
+| `squid` | own | own |
+| `stray` | — | — |
+| `strider` | — | yes |
+| `sulfur_cube` | — | — |
+| `tadpole` | — | — |
+| `trader_llama` | — | — |
+| `tropical_fish` | — | — |
+| `turtle` | — | — |
+| `vex` | — | yes |
+| `villager` | — | — |
+| `vindicator` | — | — |
+| `wandering_trader` | — | — |
+| `warden` | — | yes |
+| `witch` | — | — |
+| `wither` | yes | yes |
+| `wither_skeleton` | — | yes |
+| `wolf` | — | — |
+| `zoglin` | — | yes |
+| `zombie` | — | — |
+| `zombie_horse` | — | — |
+| `zombie_nautilus` | — | — |
+| `zombie_villager` | — | — |
+| `zombified_piglin` | — | yes |
 
-The `player` type is not in D8. A player has `max_health` 20, `armor` 0 and the defaults of
-DMG-ATT-002.
+The `player` type is not in D8. A player has no immunity of this table.

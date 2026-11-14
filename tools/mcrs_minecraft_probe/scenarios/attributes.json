@@ -1,0 +1,65 @@
+{
+  "target": {
+    "operators": ["atoperator"],
+    "banned_players": []
+  },
+  "steps": [
+    { "id": "operator_joins", "join": "atoperator" },
+    { "id": "survival", "command": { "client": "atoperator", "line": "gamemode survival" } },
+    { "id": "speed_value", "command": { "client": "atoperator", "line": "attribute @s minecraft:movement_speed get" } },
+    { "id": "speed_base", "command": { "client": "atoperator", "line": "attribute @s minecraft:movement_speed base get" } },
+    { "id": "attribute_not_in_set", "command": { "client": "atoperator", "line": "attribute @s minecraft:follow_range get" } },
+    { "id": "saved_new_player", "command": { "client": "atoperator", "line": "data get entity @s attributes" } },
+
+    { "id": "base_above_maximum", "command": { "client": "atoperator", "line": "attribute @s minecraft:max_health base set 5000" } },
+    { "id": "base_above_maximum_base", "command": { "client": "atoperator", "line": "attribute @s minecraft:max_health base get" } },
+    { "id": "base_above_maximum_value", "command": { "client": "atoperator", "line": "attribute @s minecraft:max_health get" } },
+    { "id": "base_above_maximum_saved", "command": { "client": "atoperator", "line": "data get entity @s attributes[{id:\"minecraft:max_health\"}]" } },
+    { "id": "base_restored", "command": { "client": "atoperator", "line": "attribute @s minecraft:max_health base set 20" } },
+
+    { "id": "modifier_add", "command": { "client": "atoperator", "line": "attribute @s minecraft:luck modifier add test:a 1 add_value" } },
+    { "id": "modifier_add_again", "command": { "client": "atoperator", "line": "attribute @s minecraft:luck modifier add test:a 2 add_multiplied_total" } },
+    { "id": "modifier_value", "command": { "client": "atoperator", "line": "attribute @s minecraft:luck modifier value get test:a" } },
+    { "id": "modifier_saved", "command": { "client": "atoperator", "line": "data get entity @s attributes[{id:\"minecraft:luck\"}]" } },
+    { "id": "modifier_remove", "command": { "client": "atoperator", "line": "attribute @s minecraft:luck modifier remove test:a" } },
+    { "id": "modifier_remove_again", "command": { "client": "atoperator", "line": "attribute @s minecraft:luck modifier remove test:a" } },
+
+    { "id": "creative", "command": { "client": "atoperator", "line": "gamemode creative" } },
+    { "id": "creative_block_range", "command": { "client": "atoperator", "line": "attribute @s minecraft:block_interaction_range get" } },
+    { "id": "creative_entity_range", "command": { "client": "atoperator", "line": "attribute @s minecraft:entity_interaction_range get" } },
+    { "id": "creative_saved", "command": { "client": "atoperator", "line": "data get entity @s attributes[{id:\"minecraft:block_interaction_range\"}]" } },
+    { "id": "survival_again", "command": { "client": "atoperator", "line": "gamemode survival" } },
+    { "id": "survival_block_range", "command": { "client": "atoperator", "line": "attribute @s minecraft:block_interaction_range get" } },
+
+    { "id": "speed_effect", "command": { "client": "atoperator", "line": "effect give @s minecraft:speed 1000 0 true" } },
+    { "id": "slowness_effect", "command": { "client": "atoperator", "line": "effect give @s minecraft:slowness 1000 2 true" } },
+    { "id": "effects_value", "command": { "client": "atoperator", "line": "attribute @s minecraft:movement_speed get" } },
+    { "id": "effects_saved", "command": { "client": "atoperator", "line": "data get entity @s attributes[{id:\"minecraft:movement_speed\"}]" } },
+    { "id": "effects_cleared", "command": { "client": "atoperator", "line": "effect clear @s" } },
+
+    { "id": "pig_with_bases", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atr\",\"atr_a\"],UUID:[I;0,0,0,1],NoAI:1b,attributes:[{id:\"minecraft:attack_damage\",base:7.0d},{id:\"minecraft:max_health\",base:30.0d}]}" } },
+    { "id": "pig_with_bases_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atr_a,limit=1] attributes" } },
+    { "id": "pig_unknown_attribute", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atr\",\"atr_b\"],UUID:[I;0,0,0,2],NoAI:1b,attributes:[{id:\"test:unknown\",base:1.0d},{id:\"minecraft:scale\",base:2.0d}]}" } },
+    { "id": "pig_unknown_attribute_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atr_b,limit=1] attributes" } },
+    { "id": "pig_base_out_of_range", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atr\",\"atr_c\"],UUID:[I;0,0,0,3],NoAI:1b,attributes:[{id:\"minecraft:scale\",base:100.0d}]}" } },
+    { "id": "pig_base_out_of_range_base", "command": { "client": "atoperator", "line": "attribute @e[tag=atr_c,limit=1] minecraft:scale base get" } },
+    { "id": "pig_base_out_of_range_value", "command": { "client": "atoperator", "line": "attribute @e[tag=atr_c,limit=1] minecraft:scale get" } },
+    { "id": "pig_two_modifiers_one_id", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atr\",\"atr_d\"],UUID:[I;0,0,0,4],NoAI:1b,attributes:[{id:\"minecraft:scale\",base:1.0d,modifiers:[{id:\"test:m\",amount:1.0d,operation:\"add_value\"},{id:\"test:m\",amount:2.0d,operation:\"add_value\"}]}]}" } },
+    { "id": "pig_two_modifiers_one_id_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atr_d,limit=1] attributes" } },
+    { "id": "pig_bad_operation", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atr\",\"atr_e\"],UUID:[I;0,0,0,5],NoAI:1b,attributes:[{id:\"minecraft:scale\",base:1.0d,modifiers:[{id:\"test:m\",amount:1.0d,operation:\"no_such_operation\"}]}]}" } },
+    { "id": "pig_bad_operation_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atr_e,limit=1] attributes" } },
+    { "id": "pig_good_and_bad_modifier", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atr\",\"atr_g\"],UUID:[I;0,0,0,6],NoAI:1b,attributes:[{id:\"minecraft:scale\",base:2.0d,modifiers:[{id:\"test:g\",amount:1.0d,operation:\"add_value\"},{id:\"test:m\",amount:1.0d,operation:\"no_such_operation\"}]}]}" } },
+    { "id": "pig_good_and_bad_modifier_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atr_g,limit=1] attributes" } },
+    { "id": "pig_bad_base", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atr\",\"atr_h\"],UUID:[I;0,0,0,7],NoAI:1b,attributes:[{id:\"minecraft:scale\",base:\"x\",modifiers:[{id:\"test:g\",amount:1.0d,operation:\"add_value\"}]},{id:\"minecraft:max_health\",base:30.0d}]}" } },
+    { "id": "pig_bad_base_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atr_h,limit=1] attributes" } },
+    { "id": "pigs_removed", "command": { "client": "atoperator", "line": "kill @e[type=minecraft:pig,tag=atr]" } },
+
+    { "id": "baby_zombie", "command": { "client": "atoperator", "line": "summon minecraft:zombie ~ ~ ~ {Tags:[\"atr\",\"atr_f\"],UUID:[I;0,0,0,8],NoAI:1b,IsBaby:1b,PersistenceRequired:1b}" } },
+    { "id": "baby_zombie_speed", "command": { "client": "atoperator", "line": "attribute @e[tag=atr_f,limit=1] minecraft:movement_speed get" } },
+    { "id": "baby_zombie_modifier", "command": { "client": "atoperator", "line": "attribute @e[tag=atr_f,limit=1] minecraft:movement_speed modifier value get minecraft:baby" } },
+    { "id": "baby_zombie_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atr_f,limit=1] attributes" } },
+    { "id": "baby_zombie_removed", "command": { "client": "atoperator", "line": "kill @e[tag=atr_f]" } },
+
+    { "id": "operator_leaves", "leave": "atoperator" }
+  ]
+}

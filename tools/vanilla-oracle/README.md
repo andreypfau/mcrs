@@ -818,3 +818,30 @@ each one, its advance (normal and bold), the offsets of the bold strike and of t
 bitmap size and the box of the glyph. The first configuration also lists the winner of every code
 point of the basic plane as runs, the advance of every bitmap glyph, the widths of the Unifont
 glyphs, and the widths of sample strings (the sum before rounding and the width the client uses).
+
+## Attributes (`dumpAttributes`)
+
+One file, `attributes.json`, in `crates/mcrs_minecraft_entity/tests/fixtures/vanilla`. The task
+`AttributeOracle` runs no server and makes no entity. It is experiment A1 of
+`docs/spec/attributes.md`.
+
+```sh
+cargo run -p mcrs_minecraft_update -- recapture attributes
+```
+
+Each f64 of the file is a string of 16 hexadecimal digits: the bits of the value, the high bits
+first. The file has these parts:
+
+| Part | One row |
+|------|---------|
+| `game_version` | the name of the game version |
+| `operations` | the save names of the operations, in the order of their wire ids |
+| `default_attributes` | the id of an entity type, then one pair for each attribute of the type, in the order of the numeric ids: the attribute and the base of the type |
+| `value_cases` | a name, an attribute, a base value, the steps, and the value that the game computes |
+| `order_cases` | an operation id, the steps, and the ids in the order in which the game computes with them |
+
+A step of `value_cases` is `["add", id, amount, operation id]` or `["remove", id]`. A step of
+`order_cases` is a string: `id` adds a modifier, `-id` removes it, and `id|n` adds a modifier of
+the operation `n` that the order does not list. The task finds an order with three amounts on the
+attribute `minecraft:luck`: 2^53, -2^53 and 0. With the base value 1, the result is 0 when 2^53
+comes first and 1 when -2^53 comes first.

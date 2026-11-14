@@ -456,6 +456,16 @@
     ]
   },
   {
+    "name": "attributes",
+    "task": "dumpAttributes",
+    "outputs": [
+      {
+        "file": "attributes.json",
+        "to": "crates/mcrs_minecraft_entity/tests/fixtures/vanilla"
+      }
+    ]
+  },
+  {
     "name": "block_models",
     "task": "dumpBlockModels",
     "outputs": [

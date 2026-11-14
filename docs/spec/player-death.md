@@ -486,12 +486,18 @@ the inventory is empty, the selected hotbar slot is 0, and the experience level,
 experience and score are 0. The check of the game rule is at the respawn, not at the death. A
 change of the rule between the two events changes the result.
 
-**PLD-RST-004** (`source_suggested`, semantic, confidence: medium). The respawned player has the
-base value of each attribute of the dead player. It has no attribute modifier of the dead player.
-This includes the modifiers that a command added and the modifiers that an item gave. The
-modifiers of the worn items apply again in the first tick in which the server finds the worn
-items as changed slots (PLD-EQP-006). The health of
+**PLD-RST-004** (`source_suggested_black_box_confirmed`, semantic, confidence: medium). The
+respawned player has the base value of each attribute of the dead player. It has no attribute
+modifier of the dead player. This includes the modifiers that a command added and the modifiers
+that an item gave. The modifiers of the worn items apply again in the first tick in which the
+server finds the worn items as changed slots (PLD-EQP-006). The health of
 the respawned player is its max health, which the base value of `max_health` gives.
+
+The recording `crates/mcrs_minecraft_entity/tests/fixtures/vanilla/a4_respawn.txt` (experiment A4
+of `attributes.md`) shows the attributes. After the respawn, `max_health` has the base value 30 of
+the dead player. `luck` has no modifier of `/attribute`, and `movement_speed` has no modifier of
+the effect `speed`. The recording shows no health and no item modifier. The statements of this rule
+about the health and about the modifiers of items are `source_suggested`.
 
 **PLD-RST-005** (`source_suggested`, semantic, confidence: medium). The respawned player also has
 these values from the dead player:

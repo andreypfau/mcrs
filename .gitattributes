@@ -65,3 +65,4 @@ crates/mcrs_minecraft_environment/tests/fixtures/vanilla/environment.json lingui
 crates/mcrs_minecraft_mesh/tests/fixtures/vanilla/block_smooth_light.json linguist-generated
 crates/mcrs_minecraft_mesh/tests/fixtures/vanilla/block_occlusion_shade.json linguist-generated
 crates/mcrs_minecraft_client/tests/fixtures/vanilla/frames/** linguist-generated
+crates/mcrs_minecraft_entity/tests/fixtures/vanilla/attributes.json linguist-generated
