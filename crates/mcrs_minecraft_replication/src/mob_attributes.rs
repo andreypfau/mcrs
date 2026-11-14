@@ -1,10 +1,10 @@
 use bytes::BytesMut;
 use mcrs_minecraft_entity::AttributeBases;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
-use mcrs_minecraft_entity_attribute::AttributeModifier;
 use mcrs_minecraft_protocol::{Result, VarInt, write_record};
 use mcrs_minecraft_protocol_game::clientbound::{AttributeSnapshot, ClientboundUpdateAttributes};
 
+use crate::attribute_snapshot::attribute_snapshot;
 use crate::mob_attribute::MobAttribute;
 
 /// The syncable attribute instances of a mob that changed after its spawn, with the latest state
@@ -74,7 +74,7 @@ impl MobAttributes {
             .changed
             .iter()
             .filter(|held| keep(held))
-            .map(|held| self.snapshot(held))
+            .map(|held| attribute_snapshot(self.bases, held.attribute, held.instance.as_ref()))
             .collect();
         if attributes.is_empty() {
             return Ok(());
@@ -86,34 +86,5 @@ impl MobAttributes {
                 attributes,
             },
         )
-    }
-
-    /// The entry of `held` (ATR-NET-002): the stored base and every modifier in the order of the
-    /// sequence.
-    fn snapshot<'held>(&self, held: &'held MobAttribute) -> AttributeSnapshot<'held> {
-        let Some(instance) = &held.instance else {
-            let base = self
-                .bases
-                .and_then(|bases| bases.base(held.attribute))
-                .unwrap_or(held.attribute.definition().default);
-            return AttributeSnapshot {
-                attribute: held.attribute,
-                base,
-                modifiers: Vec::new(),
-            };
-        };
-        AttributeSnapshot {
-            attribute: held.attribute,
-            base: instance.base(),
-            modifiers: instance
-                .modifiers()
-                .iter()
-                .map(|modifier| AttributeModifier {
-                    id: modifier.id(),
-                    amount: modifier.amount(),
-                    operation: modifier.operation(),
-                })
-                .collect(),
-        }
     }
 }

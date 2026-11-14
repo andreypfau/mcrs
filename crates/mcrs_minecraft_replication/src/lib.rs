@@ -2,6 +2,7 @@
 //! functions and plain state under it that turn the state of a subject into packets. Each packet
 //! is a record: its length, then its id and its body, not framed.
 
+mod attribute_snapshot;
 mod delivery;
 mod delta_base;
 mod encode;
@@ -20,6 +21,7 @@ mod mob_trackers;
 mod motion;
 mod move_choice;
 mod nearest;
+mod own_attributes;
 mod player_data;
 mod player_input;
 mod player_list;
@@ -36,6 +38,7 @@ pub use mob_report::MobReport;
 pub use mob_signal::MobSignal;
 pub use mob_spawn::MobSpawn;
 pub use mob_state::MobState;
+pub use own_attributes::own_attributes;
 pub use player_data::PlayerData;
 pub use player_input::{Backlog, PlayerInput};
 pub use player_list::{LIST_INTERVAL_TICKS, LISTED_CAP};

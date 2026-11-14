@@ -80,6 +80,7 @@ mod player_view;
 mod publish_player_tiles;
 mod random_tick_speed;
 mod replicated;
+mod send_own_attributes;
 pub mod server_edit;
 pub mod stored_column;
 mod stored_columns_landing;
