@@ -22,6 +22,7 @@ use mcrs_minecraft_network::event;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundUpdateTags;
 use mcrs_minecraft_registries::{CurrentRegistries, Diagnostics, Received, Registries};
 
+use crate::collision_tables::{ClientPhysicsTables, build_collision_tables};
 use crate::joined_game::{self, CurrentDimension};
 use crate::received::{received, received_tags};
 
@@ -72,7 +73,11 @@ impl Plugin for ClientRegistriesPlugin {
                     clear_derived_tables
                         .in_set(SessionSet::Clear)
                         .run_if(entered_configuration),
-                    (derive_clock_markers, seed_session_clocks)
+                    (
+                        derive_clock_markers,
+                        seed_session_clocks,
+                        build_collision_tables,
+                    )
                         .in_set(SessionSet::Derive)
                         .run_if(resource_exists_and_changed::<CurrentRegistries>),
                 ),
@@ -244,6 +249,7 @@ fn clear_derived_tables(
 ) {
     commands.remove_resource::<Items>();
     commands.remove_resource::<ClockTimeMarkers>();
+    commands.remove_resource::<ClientPhysicsTables>();
     if !clocks.is_empty() {
         *clocks = WorldClocks::default();
     }

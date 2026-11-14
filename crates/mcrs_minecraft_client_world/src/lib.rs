@@ -14,6 +14,7 @@ pub mod chat_history;
 mod chat_packets;
 mod client_light;
 pub mod clock_sync;
+pub mod collision_tables;
 pub mod columns;
 pub mod game_mode;
 pub mod game_packets;
