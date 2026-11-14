@@ -41,6 +41,7 @@ use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_falling_block::CONCRETE_PAIRS_PATH;
 use mcrs_minecraft_falling_block::ConcretePairsFile;
+use mcrs_minecraft_falling_block::PackConcretePairs;
 use mcrs_minecraft_falling_block::Settings;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_item_entity::ItemEntity;
@@ -49,9 +50,8 @@ use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLevelEvent;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_vanilla_falling_block::FallRequest;
-use mcrs_minecraft_vanilla_falling_block::FallingBlockEntity;
+use mcrs_minecraft_vanilla_falling_block::Falling;
 use mcrs_minecraft_vanilla_falling_block::FallingBlockPlugin;
-use mcrs_minecraft_vanilla_falling_block::PackConcretePairs;
 use mcrs_minecraft_vanilla_item_entity::ItemEntityPlugin;
 use mcrs_minecraft_vanilla_item_entity::ItemEntitySet;
 use mcrs_minecraft_volume::SectionBlocks;
@@ -192,9 +192,9 @@ pub fn run(app: &mut App, ticks: u32) {
     }
 }
 
-fn with_index<R>(world: &mut World, f: impl FnOnce(&mut SectionIndex) -> R) -> R {
+fn with_index<R>(world: &mut World, action: impl FnOnce(&mut SectionIndex) -> R) -> R {
     let mut query = world.query_filtered::<&mut SectionIndex, With<Dimension>>();
-    f(&mut query.single_mut(world).unwrap())
+    action(&mut query.single_mut(world).unwrap())
 }
 
 pub fn set_block(world: &mut World, pos: BlockPos, state: BlockStateId) {
@@ -221,9 +221,9 @@ pub fn drop_block(world: &mut World, pos: BlockPos, state: BlockStateId) {
     world.write_message(FallRequest { pos, state });
 }
 
-pub fn falling_blocks(world: &mut World) -> Vec<(Entity, FallingBlockEntity)> {
+pub fn falling_blocks(world: &mut World) -> Vec<(Entity, Falling)> {
     world
-        .query::<(Entity, &FallingBlockEntity)>()
+        .query::<(Entity, &Falling)>()
         .iter(world)
         .map(|(entity, falling)| (entity, *falling))
         .collect()

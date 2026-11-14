@@ -1,108 +1,23 @@
-use mcrs_voxel::BlockStateId;
-
-use crate::falling_block::AtLanding;
-use crate::falling_block::FallingBlock;
+use crate::fall::AtLanding;
+use crate::fall::Fall;
 use crate::falling_block_table::FallingBlockTable;
+use crate::landing_event::LandingEvent;
+use crate::landing_outcome::LandingOutcome;
+use crate::landing_site::LandingSite;
+use crate::landing_site::Replaceable;
+use crate::landing_site::Support;
+use crate::landing_site::WaterBeside;
+use crate::placement::Placement;
 use crate::remains::EntityDrops;
 use crate::remains::Remains;
 use crate::state_flags::StateFlags;
 use crate::water_contact::WaterContact;
-
-/// Whether the state at the target cell is replaceable at a landing (FBK-LND-003).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Replaceable {
-    Replaceable,
-    Occupied,
-}
-
-/// Whether the carried state can stay at the target cell by its support predicate (FBK-LND-002).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Support {
-    Stays,
-    Fails,
-}
-
-/// Whether a neighbour above the target cell or on one of its four horizontal sides holds water of
-/// the tag `minecraft:water`, with a face toward the target cell that is not sturdy (FBK-LND-004).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum WaterBeside {
-    Absent,
-    Present,
-}
 
 /// Entity data entry 4 of a falling block.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Silence {
     Audible,
     Silent,
-}
-
-/// What the host reads from the world at the target cell for a landing.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct LandingSite {
-    /// The state at the target cell.
-    pub target: BlockStateId,
-    /// The state below the target cell.
-    pub below: BlockStateId,
-    pub replaceable: Replaceable,
-    pub support: Support,
-    pub water_contact: WaterContact,
-    pub water_beside: WaterBeside,
-}
-
-/// The block that a landing places (FBK-LND-004).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Placement {
-    /// The carried state, waterlogged on a water source, set at step 2.
-    pub placed: BlockStateId,
-    /// The default state of the concrete, set at step 5, when the concrete condition is true.
-    pub concrete: Option<BlockStateId>,
-}
-
-impl Placement {
-    /// The state that the landing leaves at the target cell, which the packets of FBK-NET-002
-    /// carry.
-    #[must_use]
-    pub fn final_state(&self) -> BlockStateId {
-        self.concrete.unwrap_or(self.placed)
-    }
-}
-
-/// The result of a landing (FBK-LND-001).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum LandingOutcome {
-    /// The target cell holds `moving_piston`: the falling block stays, with no other effect.
-    Wait,
-    /// The break flag is true: no block and no item (FBK-LND-005).
-    Break,
-    /// The carried state becomes a block (FBK-LND-004).
-    Place(Placement),
-    /// The falling block breaks into its item (FBK-LND-006).
-    Item(Remains),
-}
-
-/// A `level_event` that a landing sends to the players of BRK-BRK-006.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum LevelEvent {
-    /// The type 2001 with the network id of the carried state, at the cell of the centre of the box
-    /// (FBK-LND-005).
-    BlockBreak,
-    /// The type 1031 with the data 0 at the target cell (FBK-LND-007).
-    AnvilLand,
-    /// The type 1029 with the data 0 at the target cell (FBK-LND-007).
-    AnvilDestroy,
-}
-
-impl LevelEvent {
-    /// The type of the event on the wire.
-    #[must_use]
-    pub fn id(self) -> i32 {
-        match self {
-            Self::BlockBreak => 2001,
-            Self::AnvilLand => 1031,
-            Self::AnvilDestroy => 1029,
-        }
-    }
 }
 
 /// A landing: the result and the sound of an anvil that goes with it. The host applies the ground
@@ -112,23 +27,24 @@ impl LevelEvent {
 pub struct Landing {
     pub outcome: LandingOutcome,
     /// The event of an anvil that is not silent (FBK-LND-007).
-    pub anvil_event: Option<LevelEvent>,
+    pub anvil_event: Option<LandingEvent>,
 }
 
 impl Landing {
-    /// The events that the host sends, in this order: [`LevelEvent::BlockBreak`] for
+    /// The events that the host sends, in this order: [`LandingEvent::BlockBreak`] for
     /// [`LandingOutcome::Break`] (FBK-LND-005), then the event of the anvil.
-    pub fn events(&self) -> impl Iterator<Item = LevelEvent> {
+    #[must_use = "the host sends each event of a landing"]
+    pub fn events(&self) -> impl Iterator<Item = LandingEvent> {
         let block_break =
-            matches!(self.outcome, LandingOutcome::Break).then_some(LevelEvent::BlockBreak);
+            matches!(self.outcome, LandingOutcome::Break).then_some(LandingEvent::BlockBreak);
         block_break.into_iter().chain(self.anvil_event)
     }
 }
 
-impl FallingBlock {
+impl Fall {
     /// The landing at `site` (FBK-LND-001 to FBK-LND-007). An item of [`Remains::Item`] with
-    /// [`LevelEvent::AnvilDestroy`] stands for a drop: a host whose carried block has no item makes
-    /// neither.
+    /// [`LandingEvent::AnvilDestroy`] stands for a drop: a host whose carried block has no item
+    /// makes neither.
     #[must_use]
     pub fn land(
         &self,
@@ -148,7 +64,7 @@ impl FallingBlock {
         if self.at_landing == AtLanding::Break {
             return Landing {
                 outcome: LandingOutcome::Break,
-                anvil_event: audible_anvil.then_some(LevelEvent::AnvilDestroy),
+                anvil_event: audible_anvil.then_some(LandingEvent::AnvilDestroy),
             };
         }
         let rests = !table.is_free(site.below) || site.water_contact == WaterContact::Wet;
@@ -166,14 +82,14 @@ impl FallingBlock {
                     placed,
                     concrete: table.concrete(self.carried).filter(|_| hardens),
                 }),
-                anvil_event: audible_anvil.then_some(LevelEvent::AnvilLand),
+                anvil_event: audible_anvil.then_some(LandingEvent::AnvilLand),
             };
         }
         let remains = Remains::of(self.item_drop, entity_drops);
         Landing {
             outcome: LandingOutcome::Item(remains),
             anvil_event: (audible_anvil && remains == Remains::Item)
-                .then_some(LevelEvent::AnvilDestroy),
+                .then_some(LandingEvent::AnvilDestroy),
         }
     }
 }

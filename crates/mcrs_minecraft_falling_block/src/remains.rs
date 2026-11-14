@@ -1,4 +1,4 @@
-use crate::falling_block::ItemDrop;
+use crate::fall::ItemDrop;
 
 /// The value of the game rule `minecraft:entity_drops`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

@@ -17,10 +17,3 @@ pub struct ConcretePairsFile {
     /// Each key is a powder block; its value is the concrete block.
     pub values: BTreeMap<ResourceLocationBuf, ResourceLocationBuf>,
 }
-
-/// The concrete pairs of one data pack, with the name of the pack for an error.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct PackPairs<'a> {
-    pub pack: &'a str,
-    pub file: &'a ConcretePairsFile,
-}

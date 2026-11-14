@@ -1,9 +1,19 @@
+use std::num::NonZeroU32;
+
+use bevy_ecs::world::World;
 use glam::DVec3;
 use glam::IVec3;
 use mcrs_minecraft_engine_entity_motion_replication::Appearance;
+use mcrs_minecraft_falling_block::AtLanding;
+use mcrs_minecraft_falling_block::Fall;
+use mcrs_minecraft_falling_block::ItemDrop;
 use mcrs_minecraft_falling_block::Settings;
+use mcrs_minecraft_falling_block::Start;
+use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_protocol_game::block::BlockStateNumber;
 use mcrs_minecraft_replication::SpawnLook;
+use mcrs_minecraft_vanilla_falling_block::FallRequest;
+use mcrs_minecraft_vanilla_falling_block::PendingFall;
 use mcrs_voxel::BlockPos;
 use mcrs_voxel::BlockStateId;
 
@@ -191,12 +201,121 @@ fn fbk_the_water_of_a_concrete_powder() {
 fn fbk_tck_004_the_maximum_age_drops_the_item_and_0_disables_it() {
     let high = BlockPos::new(0, 40, 0);
     for (max_age, placed, items) in [(10, "air", vec![item_of("sand")]), (0, "sand", vec![])] {
-        let mut app = app(Settings { max_age });
+        let mut app = app(Settings::new(NonZeroU32::new(max_age)));
         drop_block(app.world_mut(), high, state("sand"));
         run(&mut app, 120);
         let world = app.world_mut();
         assert_eq!(block(world, FLOOR), state(placed), "max age {max_age}");
         assert_eq!(item_kinds(world), items, "max age {max_age}");
         assert!(falling_blocks(world).is_empty(), "max age {max_age}");
+    }
+}
+
+/// Two falls of the block at [`START`] in one tick, the falling blocks after the first tick, and
+/// the block at [`FLOOR`] and the items after the landing.
+#[test]
+fn one_falling_block_for_a_block_and_one_block_for_a_cell() {
+    struct Case {
+        name: &'static str,
+        spawn: fn(&mut World),
+        falling: usize,
+        items: Vec<Kind>,
+    }
+    fn two_requests(world: &mut World) {
+        drop_block(world, START, state("sand"));
+        world.write_message(FallRequest {
+            pos: START,
+            state: state("sand"),
+        });
+    }
+    fn two_starts(world: &mut World) {
+        let start = Start {
+            leftover: state("air"),
+            position: DVec3::new(0.5, 5.0, 0.5),
+            falling_block: Fall {
+                carried: state("sand"),
+                item_drop: ItemDrop::Allowed,
+                at_landing: AtLanding::Settle,
+                start: *START,
+            },
+        };
+        world.spawn(PendingFall(start));
+        world.spawn(PendingFall(start));
+    }
+    let cases = [
+        Case {
+            name: "FBK-SPN-001 two requests for one block make one falling block",
+            spawn: two_requests,
+            falling: 1,
+            items: vec![],
+        },
+        Case {
+            name: "FBK-LND-002 a cell that a landing of the same tick fills takes the item",
+            spawn: two_starts,
+            falling: 2,
+            items: vec![item_of("sand")],
+        },
+    ];
+    for case in cases {
+        let mut app = app(Settings::default());
+        (case.spawn)(app.world_mut());
+        run(&mut app, 1);
+        assert_eq!(
+            falling_blocks(app.world_mut()).len(),
+            case.falling,
+            "{}",
+            case.name
+        );
+        run(&mut app, 60);
+        let world = app.world_mut();
+        assert_eq!(block(world, FLOOR), state("sand"), "{}", case.name);
+        assert_eq!(item_kinds(world), case.items, "{}", case.name);
+        assert!(falling_blocks(world).is_empty(), "{}", case.name);
+    }
+}
+
+/// A falling block whose section is not loaded, which the pass does not step, over the block
+/// `floor` at [`FLOOR`], with `velocity` after its spawn.
+#[test]
+fn fbk_tck_001_a_falling_block_that_the_pass_does_not_step_takes_no_tick() {
+    struct Case {
+        name: &'static str,
+        carried: &'static str,
+        floor: &'static str,
+        velocity: DVec3,
+    }
+    let cases = [
+        Case {
+            name: "FBK-TCK-004 the maximum age 5 does not end it",
+            carried: "sand",
+            floor: "air",
+            velocity: DVec3::ZERO,
+        },
+        Case {
+            name: "FBK-TCK-003 a concrete powder tests no segment of an earlier step",
+            carried: "white_concrete_powder",
+            floor: "water",
+            velocity: DVec3::new(0.0, -12.0, 0.0),
+        },
+    ];
+    for case in cases {
+        let mut app = app(Settings::new(NonZeroU32::new(5)));
+        let world = app.world_mut();
+        set_block(world, FLOOR, state(case.floor));
+        world.write_message(FallRequest {
+            pos: BlockPos::new(100, 5, 0),
+            state: state(case.carried),
+        });
+        run(&mut app, 1);
+        let world = app.world_mut();
+        let [(entity, _)] = falling_blocks(world)[..] else {
+            panic!("{}: one falling block", case.name);
+        };
+        set_velocity(world, entity, case.velocity);
+        run(&mut app, 20);
+        let world = app.world_mut();
+        assert_eq!(falling_blocks(world).len(), 1, "{}", case.name);
+        assert!(item_kinds(world).is_empty(), "{}", case.name);
+        assert_eq!(block(world, FLOOR), state(case.floor), "{}", case.name);
     }
 }

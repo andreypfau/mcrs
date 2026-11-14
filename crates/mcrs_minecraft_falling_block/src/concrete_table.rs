@@ -3,9 +3,9 @@ use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 
-use crate::concrete_pairs::PackPairs;
 use crate::concrete_pairs_error::ConcretePairsError;
 use crate::concrete_pairs_error::ConcretePairsErrorKind;
+use crate::pack_concrete_pairs::PackConcretePairs;
 
 /// The concrete of each powder block after the merge of the packs, indexed by block.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -17,8 +17,8 @@ impl ConcreteTable {
     /// Merges the pairs of `packs` in their load order and resolves them against `definitions`
     /// (FBK-TRG-002). A pack with `replace` discards the pairs before it; a later pair of a key
     /// replaces the earlier one. Every pair of every pack must name two different blocks.
-    pub fn load<'a>(
-        packs: impl IntoIterator<Item = PackPairs<'a>>,
+    pub fn load(
+        packs: &[PackConcretePairs],
         definitions: &BlockDefinitions,
     ) -> Result<Self, ConcretePairsError> {
         let mut concrete: Box<[Option<Id<Block>>]> =
@@ -29,7 +29,7 @@ impl ConcreteTable {
             }
             for (powder, block) in &pack.file.values {
                 let error = |identifier: &ResourceLocationBuf, kind| ConcretePairsError {
-                    pack: pack.pack.to_owned(),
+                    pack: pack.pack.clone(),
                     identifier: identifier.clone(),
                     kind,
                 };

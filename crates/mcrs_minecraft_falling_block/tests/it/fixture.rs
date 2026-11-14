@@ -7,7 +7,7 @@ use mcrs_minecraft_block::fluid_keys::Fluid;
 use mcrs_minecraft_falling_block::ConcretePairsFile;
 use mcrs_minecraft_falling_block::ConcreteTable;
 use mcrs_minecraft_falling_block::FallingBlockTable;
-use mcrs_minecraft_falling_block::PackPairs;
+use mcrs_minecraft_falling_block::PackConcretePairs;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_voxel::BlockStateId;
 
@@ -43,9 +43,9 @@ pub static DEFAULT_PAIRS: LazyLock<ConcretePairsFile> = LazyLock::new(|| {
 pub static TABLE: LazyLock<FallingBlockTable> = LazyLock::new(|| {
     let registries = test_registries();
     let concrete = ConcreteTable::load(
-        [PackPairs {
-            pack: "mcrs",
-            file: &DEFAULT_PAIRS,
+        &[PackConcretePairs {
+            pack: "mcrs".to_owned(),
+            file: DEFAULT_PAIRS.clone(),
         }],
         &DEFINITIONS,
     )

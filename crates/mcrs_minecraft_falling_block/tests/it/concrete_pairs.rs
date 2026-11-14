@@ -2,7 +2,7 @@ use mcrs_minecraft_falling_block::ConcretePairsError;
 use mcrs_minecraft_falling_block::ConcretePairsErrorKind;
 use mcrs_minecraft_falling_block::ConcretePairsFile;
 use mcrs_minecraft_falling_block::ConcreteTable;
-use mcrs_minecraft_falling_block::PackPairs;
+use mcrs_minecraft_falling_block::PackConcretePairs;
 
 use crate::fixture::DEFAULT_PAIRS;
 use crate::fixture::DEFINITIONS;
@@ -12,8 +12,14 @@ fn file(json: &str) -> ConcretePairsFile {
 }
 
 fn load(packs: &[(&str, &ConcretePairsFile)]) -> Result<ConcreteTable, ConcretePairsError> {
-    let packs = packs.iter().map(|(pack, file)| PackPairs { pack, file });
-    ConcreteTable::load(packs, &DEFINITIONS)
+    let packs: Vec<PackConcretePairs> = packs
+        .iter()
+        .map(|(pack, file)| PackConcretePairs {
+            pack: (*pack).to_owned(),
+            file: (*file).clone(),
+        })
+        .collect();
+    ConcreteTable::load(&packs, &DEFINITIONS)
 }
 
 fn concrete_of(table: &ConcreteTable, powder: &str) -> Option<String> {

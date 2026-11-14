@@ -1,13 +1,23 @@
+use core::num::NonZeroU32;
+
 /// The settings of the falling block that the host passes in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct Settings {
     /// The maximum age of FBK-TCK-004: a falling block that is older and has not landed drops.
-    /// 0 disables that limit.
-    pub max_age: u32,
+    /// `None` disables that limit.
+    pub max_age: Option<NonZeroU32>,
+}
+
+impl Settings {
+    #[must_use]
+    pub fn new(max_age: Option<NonZeroU32>) -> Self {
+        Self { max_age }
+    }
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { max_age: 600 }
+        Self::new(NonZeroU32::new(600))
     }
 }

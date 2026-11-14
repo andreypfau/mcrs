@@ -26,12 +26,10 @@ fn fbk_spn_001_a_fall_leaves_the_fluid_and_carries_the_dry_state() {
         let start = start(&TABLE, block, falling);
         assert_eq!(start.leftover, leftover, "{falling:?}");
         assert_eq!(start.position, DVec3::new(3.5, -64.0, -1.5));
-        assert_eq!(start.velocity, DVec3::ZERO);
         let falling_block = start.falling_block;
         assert_eq!(falling_block.carried, carried, "{falling:?}");
         assert_eq!(falling_block.at_landing, at_landing, "{falling:?}");
         assert_eq!(falling_block.item_drop, ItemDrop::Allowed);
-        assert_eq!(falling_block.age, 0);
         assert_eq!(falling_block.start, block);
     }
 }

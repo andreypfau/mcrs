@@ -1,14 +1,17 @@
 use glam::IVec3;
 use mcrs_voxel::BlockStateId;
 
-/// The values that a falling block adds to an entity (FBK-DAT-001). The position and the
-/// velocity are the host's, beside it.
+/// The values that a falling block adds to an entity (FBK-DAT-001). The position, the velocity and
+/// the age are the host's, beside it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct FallingBlock {
+pub struct Fall {
+    /// The block that falls.
     pub carried: BlockStateId,
-    pub age: i32,
+    /// The drop flag (FBK-TCK-004, FBK-LND-006).
     pub item_drop: ItemDrop,
+    /// The break flag (FBK-LND-005).
     pub at_landing: AtLanding,
+    /// The block position at which the fall started, the entity data entry of FBK-DAT-003.
     pub start: IVec3,
 }
 
@@ -31,18 +34,18 @@ pub enum AtLanding {
 pub enum TickStart {
     /// The carried state is `air`: the host removes the falling block, nothing drops.
     Remove,
-    /// The host applies the motion of the category "falling block".
+    /// The host adds 1 to the age and applies the motion of the category "falling block".
     Move,
 }
 
-impl FallingBlock {
-    /// Steps 1 and 2 of FBK-TCK-001: a falling block of `air` ends, any other one ages by 1. The
-    /// age stops at its maximum.
-    pub fn begin_tick(&mut self) -> TickStart {
+impl Fall {
+    /// Step 1 of FBK-TCK-001: a falling block of `air` ends.
+    #[must_use]
+    pub fn begin_tick(&self) -> TickStart {
         if self.carried == BlockStateId::AIR {
-            return TickStart::Remove;
+            TickStart::Remove
+        } else {
+            TickStart::Move
         }
-        self.age = self.age.saturating_add(1);
-        TickStart::Move
     }
 }

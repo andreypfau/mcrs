@@ -16,11 +16,29 @@ use crate::state_flags::StateFlags;
 
 const WATERLOGGED: &str = "waterlogged";
 
-const TAG_FLAGS: [(TagKey<'static, Block>, StateFlags); 4] = [
-    (block_tag_keys::FIRE, StateFlags::FREE),
-    (GRAVITY_BLOCKS, StateFlags::GRAVITY),
-    (BREAKS_AFTER_FALL, StateFlags::BREAKS_AFTER_FALL),
-    (block_tag_keys::ANVIL, StateFlags::ANVIL),
+#[derive(Clone, Copy, Debug)]
+struct TagFlag<T> {
+    tag: T,
+    flag: StateFlags,
+}
+
+const TAG_FLAGS: [TagFlag<TagKey<'static, Block>>; 4] = [
+    TagFlag {
+        tag: block_tag_keys::FIRE,
+        flag: StateFlags::FREE,
+    },
+    TagFlag {
+        tag: GRAVITY_BLOCKS,
+        flag: StateFlags::GRAVITY,
+    },
+    TagFlag {
+        tag: BREAKS_AFTER_FALL,
+        flag: StateFlags::BREAKS_AFTER_FALL,
+    },
+    TagFlag {
+        tag: block_tag_keys::ANVIL,
+        flag: StateFlags::ANVIL,
+    },
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -49,9 +67,14 @@ impl FallingBlockTable {
         fluid_tags: &Tags<Fluid>,
         concrete: &ConcreteTable,
     ) -> Self {
-        let tag_flags: Vec<_> = TAG_FLAGS
+        let tag_flags: Vec<TagFlag<_>> = TAG_FLAGS
             .iter()
-            .filter_map(|(key, flag)| Some((block_tags.id(*key)?, *flag)))
+            .filter_map(|tag_flag| {
+                Some(TagFlag {
+                    tag: block_tags.id(tag_flag.tag)?,
+                    flag: tag_flag.flag,
+                })
+            })
             .collect();
         let water_tag = fluid_tags.id(fluid_tag_keys::WATER);
         let rows = definitions
@@ -63,25 +86,25 @@ impl FallingBlockTable {
                     water_tag.is_some_and(|tag| fluid_tags.contains(tag, fluid.fluid))
                 });
                 let mut flags = StateFlags::default();
-                for (tag, flag) in &tag_flags {
-                    flags.set(
-                        *flag,
-                        block.is_some_and(|block| block_tags.contains(*tag, block)),
+                for tag_flag in &tag_flags {
+                    flags.insert_if(
+                        tag_flag.flag,
+                        block.is_some_and(|block| block_tags.contains(tag_flag.tag, block)),
                     );
                 }
                 let is = |key: Block| block == Some(key.id());
-                flags.set(
+                flags.insert_if(
                     StateFlags::FREE,
                     data.flags.contains(BlockStateFlags::REPLACEABLE)
                         || is(Block::Water)
                         || is(Block::Lava),
                 );
-                flags.set(StateFlags::HOLDS_WATER, holds_water);
-                flags.set(
+                flags.insert_if(StateFlags::HOLDS_WATER, holds_water);
+                flags.insert_if(
                     StateFlags::WATER_SOURCE,
                     holds_water && data.fluid.is_some_and(|fluid| fluid.source),
                 );
-                flags.set(StateFlags::MOVING_PISTON, is(Block::MovingPiston));
+                flags.insert_if(StateFlags::MOVING_PISTON, is(Block::MovingPiston));
                 let owner = definitions.owner(id);
                 let waterlogged = |value| {
                     owner
@@ -103,12 +126,6 @@ impl FallingBlockTable {
             air: definitions.default_state_of(Block::Air.id()),
             water: definitions.default_state_of(Block::Water.id()),
         }
-    }
-
-    /// The bytes that the table holds.
-    #[must_use]
-    pub fn table_bytes(&self) -> usize {
-        size_of_val(&*self.rows)
     }
 
     /// True when a gravity block above `state` falls (FBK-TRG-004).

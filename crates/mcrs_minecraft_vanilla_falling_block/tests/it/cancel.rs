@@ -43,7 +43,10 @@ fn a_start_that_its_review_cancels_leaves_the_block() {
     run(&mut app, 5);
     let world = app.world_mut();
     assert_eq!(block(world, START), state("sand"));
-    assert!(falling_blocks(world).is_empty());
+    assert!(
+        falling_blocks(world).is_empty(),
+        "a cancelled start makes no falling block"
+    );
 }
 
 #[test]
@@ -58,5 +61,8 @@ fn a_landing_that_its_review_cancels_places_nothing() {
     let world = app.world_mut();
     assert_eq!(block(world, BlockPos::new(0, 0, 0)), state("air"));
     assert_eq!(falling_blocks(world).len(), 1);
-    assert!(item_kinds(world).is_empty());
+    assert!(
+        item_kinds(world).is_empty(),
+        "a cancelled landing drops no item"
+    );
 }

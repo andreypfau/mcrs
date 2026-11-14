@@ -22,7 +22,7 @@ use mcrs_minecraft_protocol_game::block::BlockStateNumber;
 use mcrs_minecraft_replication::SpawnLook;
 use mcrs_voxel::BlockPos;
 
-use crate::FallingBlockEntity;
+use crate::Falling;
 use crate::PendingFall;
 
 /// Applies each start that its review kept: the leftover at the start position, with all the flags
@@ -46,7 +46,6 @@ pub(crate) fn begin_falls(
         let key = births.born(&source, sequences.next(births.tick(), &source));
         let body = Body {
             position: start.position,
-            velocity: start.velocity,
             ..Body::default()
         };
         let mut state = EntityState::new(key, body, None);
@@ -54,7 +53,7 @@ pub(crate) fn begin_falls(
         commands.entity(entity).remove::<PendingFall>().insert((
             MotionState(state),
             MotionKind(MotionRow::falling_block()),
-            FallingBlockEntity(falling_block),
+            Falling(falling_block),
             Appearance {
                 kind: &EntityTypeData::FALLING_BLOCK,
                 look: SpawnLook::FallingBlock {

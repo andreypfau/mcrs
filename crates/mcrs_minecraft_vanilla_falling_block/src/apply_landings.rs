@@ -14,15 +14,15 @@ use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
 use mcrs_minecraft_engine_world::block_update::remove_block;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_falling_block::LandingEvent;
 use mcrs_minecraft_falling_block::LandingOutcome;
-use mcrs_minecraft_falling_block::LevelEvent;
 use mcrs_minecraft_falling_block::Remains;
 use mcrs_minecraft_physics::block_at;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLevelEvent;
 use mcrs_voxel::BlockPos;
 use mcrs_voxel::ColumnPos;
 
-use crate::FallingBlockEntity;
+use crate::Falling;
 use crate::Landed;
 use crate::drop_item::drop_item;
 use crate::falling_block_rules::FallingBlockRules;
@@ -31,19 +31,14 @@ use crate::falling_block_rules::FallingBlockRules;
 /// then the removal of the falling block (FBK-LND-001 to FBK-LND-007).
 pub(crate) fn apply_landings(
     mut commands: Commands,
-    landed: Query<(Entity, &Landed, &FallingBlockEntity, &MotionState)>,
+    landed: Query<(Entity, &Landed, &Falling, &MotionState)>,
     dimension: Single<Entity, With<Dimension>>,
     rules: Res<FallingBlockRules>,
     definitions: Res<Blocks>,
     mut blocks: MessageWriter<BlockSetRequest>,
     mut changes: MessageWriter<ColumnChange>,
 ) {
-    for (
-        entity,
-        Landed { landing, target },
-        FallingBlockEntity(falling_block),
-        MotionState(motion),
-    ) in &landed
+    for (entity, Landed { landing, target }, Falling(falling_block), MotionState(motion)) in &landed
     {
         let position = motion.body.position;
         match landing.outcome {
@@ -81,10 +76,11 @@ pub(crate) fn apply_landings(
         let centre = position + DVec3::Y * f64::from(EntityTypeData::FALLING_BLOCK.height) / 2.0;
         for event in landing.events() {
             let (pos, data) = match event {
-                LevelEvent::BlockBreak => {
+                LandingEvent::BlockBreak => {
                     (block_at(centre), i32::from(falling_block.carried.number()))
                 }
-                LevelEvent::AnvilLand | LevelEvent::AnvilDestroy => (*target, 0),
+                LandingEvent::AnvilLand | LandingEvent::AnvilDestroy => (*target, 0),
+                _ => continue,
             };
             changes.write(level_event(pos, event.id(), data));
         }

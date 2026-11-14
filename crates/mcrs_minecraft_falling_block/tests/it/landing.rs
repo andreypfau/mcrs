@@ -1,10 +1,10 @@
 use glam::IVec3;
 use mcrs_minecraft_falling_block::AtLanding;
 use mcrs_minecraft_falling_block::EntityDrops;
-use mcrs_minecraft_falling_block::FallingBlock;
+use mcrs_minecraft_falling_block::Fall;
+use mcrs_minecraft_falling_block::LandingEvent;
 use mcrs_minecraft_falling_block::LandingOutcome;
 use mcrs_minecraft_falling_block::LandingSite;
-use mcrs_minecraft_falling_block::LevelEvent;
 use mcrs_minecraft_falling_block::Placement;
 use mcrs_minecraft_falling_block::Remains;
 use mcrs_minecraft_falling_block::Replaceable;
@@ -49,14 +49,14 @@ fn fbk_lnd_001_to_007_the_result_of_a_landing() {
     let wet_slab = state("minecraft:oak_slab", &[("waterlogged", "true")]);
     let on_stone = site(air, stone);
     let item = LandingOutcome::Item(Remains::Item);
-    let cases: &[(BlockStateId, LandingSite, LandingOutcome, &[LevelEvent])] = &[
+    let cases: &[(BlockStateId, LandingSite, LandingOutcome, &[LandingEvent])] = &[
         // FBK-LND-001: moving_piston comes first, then the break flag.
         (suspicious, site(piston, stone), LandingOutcome::Wait, &[]),
         (
             suspicious,
             on_stone,
             LandingOutcome::Break,
-            &[LevelEvent::BlockBreak][..],
+            &[LandingEvent::BlockBreak][..],
         ),
         // FBK-LND-002.
         (sand, on_stone, place(sand, None), &[]),
@@ -119,9 +119,14 @@ fn fbk_lnd_001_to_007_the_result_of_a_landing() {
             anvil,
             on_stone,
             place(anvil, None),
-            &[LevelEvent::AnvilLand][..],
+            &[LandingEvent::AnvilLand][..],
         ),
-        (anvil, site(air, air), item, &[LevelEvent::AnvilDestroy][..]),
+        (
+            anvil,
+            site(air, air),
+            item,
+            &[LandingEvent::AnvilDestroy][..],
+        ),
     ];
     for &(falling, site, outcome, event) in cases {
         let block = start(&TABLE, IVec3::ZERO, falling).falling_block;
@@ -147,7 +152,7 @@ fn fbk_lnd_005_006_007_the_game_rule_and_the_silence() {
         EntityDrops,
         Silence,
         LandingOutcome,
-        &[LevelEvent],
+        &[LandingEvent],
     )] = &[
         (
             anvil,
@@ -182,7 +187,7 @@ fn fbk_lnd_005_006_007_the_game_rule_and_the_silence() {
             EntityDrops::Off,
             Silence::Silent,
             LandingOutcome::Break,
-            &[LevelEvent::BlockBreak][..],
+            &[LandingEvent::BlockBreak][..],
         ),
     ];
     for &(falling, below, entity_drops, silence, outcome, event) in cases {
@@ -205,21 +210,21 @@ fn fbk_lnd_005_each_block_with_the_break_flag_sends_the_break_event() {
     let air = state("minecraft:air", &[]);
     let stone = state("minecraft:stone", &[]);
     let anvil = state("minecraft:anvil", &[]);
-    let cases: &[(BlockStateId, Silence, &[LevelEvent])] = &[
+    let cases: &[(BlockStateId, Silence, &[LandingEvent])] = &[
         (
             state("minecraft:sand", &[]),
             Silence::Audible,
-            &[LevelEvent::BlockBreak],
+            &[LandingEvent::BlockBreak],
         ),
         (
             anvil,
             Silence::Audible,
-            &[LevelEvent::BlockBreak, LevelEvent::AnvilDestroy],
+            &[LandingEvent::BlockBreak, LandingEvent::AnvilDestroy],
         ),
-        (anvil, Silence::Silent, &[LevelEvent::BlockBreak]),
+        (anvil, Silence::Silent, &[LandingEvent::BlockBreak]),
     ];
     for &(falling, silence, events) in cases {
-        let block = FallingBlock {
+        let block = Fall {
             at_landing: AtLanding::Break,
             ..start(&TABLE, IVec3::ZERO, falling).falling_block
         };

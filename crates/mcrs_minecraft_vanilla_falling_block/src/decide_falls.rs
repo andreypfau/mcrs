@@ -1,33 +1,36 @@
+use std::collections::HashSet;
+
 use bevy_ecs::entity::Entity;
 use bevy_ecs::query::With;
 use bevy_ecs::system::Commands;
+use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::Single;
-use glam::IVec3;
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_entity_motion::StepOutcome;
+use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
+use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_falling_block::AfterMove;
 use mcrs_minecraft_falling_block::EntityDrops;
-use mcrs_minecraft_falling_block::FallingBlockTable;
+use mcrs_minecraft_falling_block::Fall;
 use mcrs_minecraft_falling_block::Ground;
 use mcrs_minecraft_falling_block::LandingOutcome;
 use mcrs_minecraft_falling_block::LandingSite;
 use mcrs_minecraft_falling_block::Remains;
 use mcrs_minecraft_falling_block::Replaceable;
 use mcrs_minecraft_falling_block::Silence;
-use mcrs_minecraft_falling_block::Support;
-use mcrs_minecraft_falling_block::WaterBeside;
-use mcrs_minecraft_falling_block::WaterContact;
+use mcrs_minecraft_falling_block::TargetCell;
 use mcrs_minecraft_falling_block::WorldHeight;
 use mcrs_minecraft_game_rule::GameRule;
+use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::block_at;
 use mcrs_minecraft_vanilla_block_place::Spot;
 use mcrs_minecraft_vanilla_block_place::replaceable;
@@ -36,26 +39,44 @@ use mcrs_minecraft_volume::Unavailable;
 use mcrs_voxel::BlockPos;
 use mcrs_voxel::BlockStateId;
 
-use crate::FallingBlockEntity;
+use crate::Falling;
 use crate::Landed;
 use crate::drop_item::drop_item;
 use crate::falling_block_rules::FallingBlockRules;
-use crate::water_contact_at::Contact;
-use crate::water_contact_at::water_contact_at;
 
-/// The neighbours of a target cell whose water hardens a concrete powder (FBK-LND-004).
-const WATER_SIDES: [IVec3; 5] = [IVec3::Y, IVec3::X, IVec3::NEG_X, IVec3::Z, IVec3::NEG_Z];
+/// A falling block that lands in this tick, before the landings are decided in order.
+#[derive(Clone, Copy, Debug)]
+struct Touchdown {
+    key: EntityKey,
+    entity: Entity,
+    fall: Fall,
+    cell: TargetCell,
+}
 
-/// Steps 4 to 6 of FBK-TCK-001 after the motion pass: a falling block that lands gets its
-/// [`Landed`], one that a time limit ends drops and is removed (FBK-TCK-004, FBK-TCK-005).
+/// The buffers of the landings of a tick, kept across ticks.
+#[derive(Default)]
+pub(crate) struct LandingBuffers {
+    touchdowns: Vec<Touchdown>,
+    claimed: HashSet<BlockPos>,
+}
+
+/// Steps 4 to 6 of FBK-TCK-001 after the motion pass, for each falling block that the pass stepped
+/// in this tick: a falling block that lands gets its [`Landed`], one that a time limit ends drops
+/// and is removed (FBK-TCK-004, FBK-TCK-005).
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a system takes each resource that it reads"
+)]
 pub(crate) fn decide_falls(
     mut commands: Commands,
-    falls: Query<(Entity, &FallingBlockEntity, &MotionState, &StepOutcome)>,
+    falls: Query<(Entity, &Falling, &MotionState, &StepOutcome)>,
     dimension: Single<(Entity, &DimensionTypeConfig), With<Dimension>>,
     world: WorldView,
     rules: Res<FallingBlockRules>,
     definitions: Res<Blocks>,
+    clock: Res<BirthClock>,
     game_rules: Option<Res<GameRules>>,
+    mut buffers: Local<LandingBuffers>,
 ) {
     let (dimension, config) = *dimension;
     let Some(view) = world.get(dimension) else {
@@ -67,124 +88,160 @@ pub(crate) fn decide_falls(
         Err(Unavailable::Outside) => Some(void_air),
         Err(_) => None,
     };
-    let height = WorldHeight {
-        min_y: config.min_y,
-        height: config.height,
+    let tick = Tick {
+        rules: &rules,
+        definitions: &definitions,
+        state_at,
+        height: WorldHeight {
+            min_y: config.min_y,
+            height: config.height,
+        },
+        entity_drops: entity_drops(game_rules.as_deref()),
     };
-    let entity_drops = if game_rules.is_none_or(|rules| rules.is_on(GameRule::EntityDrops)) {
+    let LandingBuffers {
+        touchdowns,
+        claimed,
+    } = &mut *buffers;
+    touchdowns.clear();
+    for (entity, Falling(fall), MotionState(motion), outcome) in &falls {
+        if outcome.is_of(*clock)
+            && let Some(touchdown) = tick.after_move(&mut commands, entity, fall, motion, outcome)
+        {
+            touchdowns.push(touchdown);
+        }
+    }
+    touchdowns.sort_unstable_by_key(|touchdown| touchdown.key);
+    claimed.clear();
+    tick.land_in_order(&mut commands, touchdowns, claimed);
+}
+
+fn entity_drops(game_rules: Option<&GameRules>) -> EntityDrops {
+    if game_rules.is_none_or(|rules| rules.is_on(GameRule::EntityDrops)) {
         EntityDrops::On
     } else {
         EntityDrops::Off
-    };
-    let table = &rules.table;
-    for (entity, FallingBlockEntity(falling_block), MotionState(motion), outcome) in &falls {
+    }
+}
+
+/// What the decisions of a tick read beside each falling block.
+struct Tick<'a, S> {
+    rules: &'a FallingBlockRules,
+    definitions: &'a BlockDefinitions,
+    state_at: S,
+    height: WorldHeight,
+    entity_drops: EntityDrops,
+}
+
+impl<S: Fn(BlockPos) -> Option<BlockStateId> + Copy> Tick<'_, S> {
+    /// Steps 4 to 6 of FBK-TCK-001 for `fall` after its step: the expiry, or the touchdown of a
+    /// landing.
+    fn after_move(
+        &self,
+        commands: &mut Commands,
+        entity: Entity,
+        fall: &Fall,
+        motion: &EntityState,
+        outcome: &StepOutcome,
+    ) -> Option<Touchdown> {
         let body = motion.body;
-        let contact = if table.is_concrete_powder(falling_block.carried) {
-            // chisle: the motion pass exposes the velocity after the drag, not before it, so a
-            // block with a speed from 1.0 to 1.0 / 0.98 tests only its cell. A velocity before the
-            // drag in the outcome of the pass lifts it.
-            water_contact_at(
-                table,
-                &definitions,
-                state_at,
-                outcome.start,
-                body.position,
-                body.velocity,
-            )
-        } else {
-            Contact {
-                water: WaterContact::Dry,
-                target: block_at(body.position),
-            }
-        };
+        // chisle: the motion pass exposes the velocity after the drag, not before it, so a block
+        // with a speed from 1.0 to 1.0 / 0.98 tests only its cell. A velocity before the drag in
+        // the outcome of the pass lifts it.
+        let cell = TargetCell::find(
+            &self.rules.table,
+            self.definitions,
+            self.state_at,
+            fall,
+            outcome.start,
+            body.position,
+            body.velocity,
+        );
         let ground = if body.flags.on_ground {
             Ground::OnGround
         } else {
             Ground::Airborne
         };
-        let after = falling_block.after_move(
-            rules.settings,
+        let after = fall.after_move(
+            motion.age,
+            self.rules.settings,
             ground,
-            contact.water,
+            cell.water,
             block_at(body.position).y,
-            height,
-            entity_drops,
+            self.height,
+            self.entity_drops,
         );
         match after {
-            AfterMove::Fall => {}
+            AfterMove::Fall => None,
             AfterMove::Expire(remains) => {
                 if remains == Remains::Item {
-                    let carried = falling_block.carried;
                     drop_item(
-                        &mut commands,
-                        &rules,
-                        &definitions,
-                        carried,
+                        commands,
+                        self.rules,
+                        self.definitions,
+                        fall.carried,
                         body.position,
                         motion.key,
                     );
                 }
                 commands.entity(entity).despawn();
+                None
             }
-            AfterMove::Land => {
-                let Some(site) = landing_site(table, &definitions, state_at, contact) else {
-                    continue;
-                };
-                // chisle: the motion pass applies the ground rule of FBK-LND-001 only on the
-                // ground, so a landing by water contact in the air keeps its velocity; an observer
-                // sees it only when the target holds `moving_piston`. The ground rule in the landing
-                // lifts it. Each landing is audible, which entity data entry 4 of a falling block
-                // lifts.
-                let landing = falling_block.land(table, &site, entity_drops, Silence::Audible);
-                if landing.outcome != LandingOutcome::Wait {
-                    commands.entity(entity).insert(Landed {
-                        landing,
-                        target: contact.target,
-                    });
+            AfterMove::Land => Some(Touchdown {
+                key: motion.key,
+                entity,
+                fall: *fall,
+                cell,
+            }),
+        }
+    }
+
+    /// The landings of `touchdowns`, in their order. The world writes of the tick come after every
+    /// landing, so a target cell that an earlier landing of the tick places a block at is `claimed`
+    /// and counts as not replaceable (FBK-LND-002).
+    fn land_in_order(
+        &self,
+        commands: &mut Commands,
+        touchdowns: &[Touchdown],
+        claimed: &mut HashSet<BlockPos>,
+    ) {
+        let table = &self.rules.table;
+        for touchdown in touchdowns {
+            let target = touchdown.cell.pos;
+            let replaceable_at = |state| {
+                // An empty hand: the barrier is never replaceable, so it matches no replaceable
+                // target.
+                if !claimed.contains(&target)
+                    && replaceable(self.definitions, state, Block::Barrier.id(), Spot::Adjacent)
+                {
+                    Replaceable::Replaceable
+                } else {
+                    Replaceable::Occupied
                 }
+            };
+            let Some(site) = LandingSite::read(
+                table,
+                self.definitions,
+                self.state_at,
+                touchdown.cell,
+                replaceable_at,
+            ) else {
+                continue;
+            };
+            // chisle: the motion pass applies the ground rule of FBK-LND-001 only on the ground,
+            // so a landing by water contact in the air keeps its velocity; an observer sees it
+            // only when the target holds `moving_piston`. The ground rule in the landing lifts it.
+            // Each landing is audible, which entity data entry 4 of a falling block lifts.
+            let landing = touchdown
+                .fall
+                .land(table, &site, self.entity_drops, Silence::Audible);
+            if matches!(landing.outcome, LandingOutcome::Place(_)) {
+                claimed.insert(target);
+            }
+            if landing.outcome != LandingOutcome::Wait {
+                commands
+                    .entity(touchdown.entity)
+                    .insert(Landed { landing, target });
             }
         }
     }
-}
-
-/// What a landing reads at the target cell, or `None` when a block it reads is not loaded.
-// chisle: each carried state stays, which a support predicate of SUP-PRED-001 lifts. Only a
-// neighbour with no collision shape counts as water beside, so a waterlogged bottom slab beside the
-// target does not harden a powder; a table of the full face test of SUP-FACE-001 over a state and a
-// direction, in a crate below this one, lifts it.
-fn landing_site(
-    table: &FallingBlockTable,
-    definitions: &BlockDefinitions,
-    state_at: impl Fn(BlockPos) -> Option<BlockStateId>,
-    contact: Contact,
-) -> Option<LandingSite> {
-    let target = state_at(contact.target)?;
-    let below = state_at(contact.target - IVec3::Y)?;
-    // An empty hand: the barrier is never replaceable, so it matches no replaceable target.
-    let replaceable = if replaceable(definitions, target, Block::Barrier.id(), Spot::Adjacent) {
-        Replaceable::Replaceable
-    } else {
-        Replaceable::Occupied
-    };
-    let open_water = |offset: IVec3| {
-        state_at(contact.target + offset).is_some_and(|state| {
-            table.holds_water(state)
-                && definitions
-                    .shape(definitions.state(state).collision_shape)
-                    .is_empty()
-        })
-    };
-    let water_beside = if WATER_SIDES.into_iter().any(open_water) {
-        WaterBeside::Present
-    } else {
-        WaterBeside::Absent
-    };
-    Some(LandingSite {
-        target,
-        below,
-        replaceable,
-        support: Support::Stays,
-        water_contact: contact.water,
-        water_beside,
-    })
 }

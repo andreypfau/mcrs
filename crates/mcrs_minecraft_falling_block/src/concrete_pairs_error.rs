@@ -7,13 +7,17 @@ use crate::concrete_pairs::CONCRETE_PAIRS_PATH;
 /// A pair of the concrete pairs that makes the load of the data packs fail (FBK-TRG-002).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConcretePairsError {
+    /// The name of the pack whose pair fails.
     pub pack: String,
+    /// The block identifier that the error names.
     pub identifier: ResourceLocationBuf,
+    /// Why the pair fails.
     pub kind: ConcretePairsErrorKind,
 }
 
 /// The reason of a [`ConcretePairsError`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ConcretePairsErrorKind {
     /// A key or a value is not a block of the block registry.
     UnknownBlock,

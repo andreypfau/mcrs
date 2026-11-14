@@ -14,8 +14,8 @@ impl StateFlags {
         self.0 & flag.0 == flag.0
     }
 
-    pub(crate) fn set(&mut self, flag: Self, present: bool) {
-        if present {
+    pub(crate) fn insert_if(&mut self, flag: Self, condition: bool) {
+        if condition {
             self.0 |= flag.0;
         }
     }
