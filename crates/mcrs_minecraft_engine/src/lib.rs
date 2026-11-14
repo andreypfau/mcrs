@@ -77,7 +77,7 @@ pub mod player_state;
 mod player_tracker;
 mod player_view;
 mod publish_player_tiles;
-mod random_tick_speed;
+pub mod random_tick_speed;
 mod replicated;
 pub mod server_edit;
 pub mod stored_column;
