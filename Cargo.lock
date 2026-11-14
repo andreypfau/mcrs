@@ -4947,6 +4947,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_engine_attributes"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "glam",
+ "mcrs_minecraft_engine_physics",
+ "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_attribute",
+ "mcrs_minecraft_entity_key",
+ "mcrs_minecraft_entity_rows",
+ "mcrs_minecraft_protocol_game",
+ "mcrs_minecraft_resource",
+ "rustc-hash 2.1.1",
+ "tracing",
+]
+
+[[package]]
 name = "mcrs_minecraft_engine_brain"
 version = "0.5.8"
 dependencies = [
