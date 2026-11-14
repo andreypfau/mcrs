@@ -242,13 +242,8 @@ Milestone: 1 for steps 1 to 3 and 6. `later` for steps 4 and 5.
 
 - **Inputs:** the base value `b` of an attribute; its modifiers, each with an amount and an
   operation; the range `[lo, hi]` of the attribute.
-- **Behavior:** in `f64`:
-  1. Let `b₁ = b +` the sum of the amounts of the modifiers with the operation `add_value`.
-  2. Let `r = b₁ + b₁ ·` the sum of the amounts with the operation `add_multiplied_base`.
-  3. For each modifier with the operation `add_multiplied_total`, `r = r · (1 + amount)`.
-  4. The attribute value is `r`, clamped to `[lo, hi]`.
-- **Postconditions:** the order of the modifiers in one operation does not change the value,
-  apart from rounding.
+- **Behavior:** the attribute value is the result of ATR-VAL-001 to ATR-VAL-003 of
+  `attributes.md`, in `f64`. ATR-VAL-002 gives the order of the modifiers in one operation.
 
 For `minecraft:movement_speed` of a player:
 
@@ -260,7 +255,7 @@ For `minecraft:movement_speed` of a player:
   `add_multiplied_total`. The client removes it when the player stops to sprint.
 - The client narrows the attribute value to `f32` before step 3 of CCAM-FOV-001.
 
-Provenance: `documentation` for steps 1 to 4. `source_suggested` for the values of the player.
+Provenance: that of the ATR-VAL rules for the value. `source_suggested` for the values of the player.
 Kind: semantic. Confidence: high. Experiment: give the player the effect `minecraft:speed` with
 the amplifier 0, stand still and do not fly, with the effect scale at 100 %. The field of view settles at
 `1.1 · O` (`v = 0.12`).

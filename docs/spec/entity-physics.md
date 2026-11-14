@@ -1129,15 +1129,12 @@ If `P` is not more than `1.0E-5F`, the entity does not jump. Else:
    the yaw angle of PHY-NUM-005. Widen the f32 table values before the products.
 
 **PHY-INP-006** (`source_suggested`, client agreement, confidence: medium). The sprint state of a
-player adds a modifier of `0.3F` to the `movement_speed` attribute, with the operation "multiply
-total". To compute the attribute value, do these steps:
+player adds the modifier `minecraft:sprinting` of `0.3F` to the `movement_speed` attribute, with
+the operation `add_multiplied_total` (ATR-SRC-002 of `attributes.md`). The attribute value is the
+result of ATR-VAL-001 to ATR-VAL-003 of `attributes.md`. Those rules state the steps, the order of
+the modifiers and the range, bit for bit.
 
-1. Add the "add value" modifiers to the base.
-2. For each "multiply base" modifier, add `base × amount`.
-3. For each "multiply total" modifier, multiply by `1 + amount`.
-4. Clamp the result to the range of the attribute.
-
-The default base for a player is `0.1F`.
+The default base for a player is `0.1F` (ATR-BASE-003 of `attributes.md`).
 
 **PHY-INP-007** (`source_suggested`, client agreement, confidence: medium). The air speed of a
 player without the flight state is `0.02F`, or `0.025999999F` with the sprint state on.

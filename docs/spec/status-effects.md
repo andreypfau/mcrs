@@ -405,8 +405,8 @@ the air supply are out of scope.
 EFX-ATT-002 gives the entity one modifier on the named attribute. The modifier is permanent. Its
 identifier is `minecraft:<name>`, and the table gives `<name>`, for example `minecraft:effect.speed`. The amount of the modifier
 is `base amount × f64(a + 1)`, in f64. When the effect starts, restarts or changes the amplifier,
-the server first removes the modifier of that identifier, and then adds the new modifier. When the
-effect ends, the server removes the modifier. A modifier is part of the attribute data of the
+the server sets the modifier (ATR-INS-004 of `attributes.md`). When the effect ends, the server
+removes the modifier. A modifier is part of the attribute data of the
 entity, so a player file keeps it (EFX-SAV-001) and the attribute packet sends it.
 
 **EFX-ATT-002** (`source_suggested`, wire, confidence: high). The effect kinds with modifiers are:
@@ -431,25 +431,12 @@ f64. A client sees them in the attribute packet, so the server must send these f
 amount for the amplifier `a` is the f64 product of the value and `a + 1`.
 
 **EFX-ATT-003** (`source_suggested`, semantic, confidence: high). The value of an attribute is
-computed in f64, in this order:
+the result of ATR-VAL-001 to ATR-VAL-003 of `attributes.md`. ATR-DEF-001 of that document gives
+the range of each attribute. ATR-VAL-002 gives the order of the modifiers, so a parity test
+compares the bits of the value.
 
-1. `s = base + the sum of the add_value amounts`.
-2. `r = s + the sum of (s × amount) for each add_multiplied_base modifier`.
-3. For each `add_multiplied_total` modifier: `r = r × (1 + amount)`.
-4. The result clamps to the range of the attribute.
-
-These are the ranges:
-
-- `movement_speed` 0 to 1024, `attack_speed` 0 to 1024, `attack_damage` 0 to 2048;
-- `max_health` 1 to 1024, `max_absorption` 0 to 2048;
-- `safe_fall_distance` -1024 to 1024, `luck` -1024 to 1024;
-- `waypoint_transmit_range` 0 to 60000000.
-
-Thus `slowness` with `a` of 6 or more
-gives a `movement_speed` of 0, because `1 - 0.15 × 7` is below 0. The order of the multipliers
-does not change the product, but it can change the last f64 bits. A parity test compares the value
-with a tolerance of one f64 ulp. This rule is the full modifier rule that `entity-damage.md`,
-DMG-ATT-002, leaves open for effects.
+Thus `slowness` with `a` of 6 or more and no other modifier
+gives a `movement_speed` of 0, because `1 - 0.15 × 7` is below 0.
 
 ## 8. Packets that a client sees
 

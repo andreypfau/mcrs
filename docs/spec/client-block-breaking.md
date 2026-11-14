@@ -126,12 +126,12 @@ The value of the attribute `minecraft:scale` multiplies the eye height.
 the view direction. Its length is the larger of the block range and the entity range.
 
 **CBK-TGT-004** (`source_suggested`, semantic). The client does not add a range for creative mode
-itself. It uses the attribute values that the server sends in `update_attributes`. The base value
-of the block range is 4.5, and the base value of the entity range is 3.0. In creative mode, the
-vanilla server adds the modifier `minecraft:creative_mode_block_range` with the value 0.5 to the
-block range. It also adds `minecraft:creative_mode_entity_range` with the value 2.0 to the entity
-range. Thus a vanilla client in creative mode on a vanilla server has a block range of 5.0. On a
-server that sends no `update_attributes`, the block range stays 4.5.
+itself. It uses the attribute values that the server sends in `update_attributes`. The base
+values of the block range and the entity range of a player are the attribute defaults of
+ATR-DEF-001 of `attributes.md` (ATR-BASE-003). In creative mode, the vanilla server adds the two
+modifiers of ATR-SRC-003 of that document. Thus a vanilla client in creative mode on a vanilla
+server has a block range of 5.0, when the server sends no other base value and no other modifier. On a server that sends no `update_attributes`, the block range
+stays 4.5.
 
 **CBK-TGT-005** (`source_suggested`, semantic). The block test visits the block positions that the
 ray crosses, in order from the eye position. The first position is the position that holds the eye

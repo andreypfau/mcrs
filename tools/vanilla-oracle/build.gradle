@@ -254,6 +254,13 @@ tasks.register('dumpNumeric', JavaExec) {
 	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/numeric-out".toString()]
 }
 
+tasks.register('dumpAttributes', JavaExec) {
+	group = 'oracle'
+	classpath = sourceSets.data.runtimeClasspath
+	mainClass = 'mcrs.data.AttributeOracle'
+	args = [project.findProperty('oracleOut') ?: "${layout.buildDirectory.get()}/attribute-out".toString()]
+}
+
 tasks.register('dumpBlockModels', JavaExec) {
 	group = 'oracle'
 	classpath = sourceSets.data.runtimeClasspath
