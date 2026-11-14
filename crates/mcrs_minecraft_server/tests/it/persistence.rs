@@ -413,6 +413,36 @@ fn a_dimension_change_and_a_leave_capture_the_player_with_their_cause() {
     let _ = std::fs::remove_dir_all(save_dir);
 }
 
+#[test]
+fn a_leave_without_a_world_save_still_captures_the_player() {
+    let mut app = host_app::make_host_app();
+    app.add_persistence_plugin(CauseRecorderPlugin);
+    let mut server = PlayServer::start_in(
+        app,
+        &[("minecraft:overworld", "minecraft:overworld")],
+        &[],
+        0,
+    );
+    let (anchor, _) = server.join(Uuid::new_v4(), "Leaver");
+    let overworld = server.dim;
+    assert!(
+        server
+            .world_in(overworld)
+            .get_resource::<WorldSave>()
+            .is_none()
+    );
+
+    let session = server.session_of(anchor).unwrap();
+    server.submit_to(overworld, ToDim::Despawn(InboundPlayerDespawn { session }));
+    server.ticks_all(2);
+
+    let captured = server
+        .world_in(overworld)
+        .get_resource::<Captured>()
+        .map(|captured| captured.0.clone());
+    assert_eq!(captured, Some(vec![CaptureCause::Leave]));
+}
+
 const SEED: i64 = 4;
 
 fn overworld_disk(app: &App, save_dir: &std::path::Path) -> RegionDisk {

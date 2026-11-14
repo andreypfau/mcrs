@@ -1,3 +1,4 @@
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::observer::On;
 use bevy_ecs::system::Commands;
@@ -16,6 +17,7 @@ use mcrs_minecraft_protocol_game::serverbound::ServerboundContainerClose;
 
 use crate::InventoryInput;
 use crate::PlayerHolders;
+use crate::click_drag::ClickDrag;
 use crate::close_inventory_menu::Carried;
 use crate::close_inventory_menu::CloseMove;
 use crate::close_inventory_menu::Destination;
@@ -37,12 +39,13 @@ pub(crate) fn close_container(
 }
 
 /// Closes the open menu of the player: the moves of INV-CLS-001 become one request, and the
-/// comparison sends what they change (INV-CLS-002). The open menu is always the inventory menu.
+/// comparison sends what they change (INV-CLS-002). A drag in progress ends. The open menu is
+/// always the inventory menu.
 // chisle: a close with more than 128 moves rejects and leaves the cursor and the craft grid as
 // they are; a request without a bound on its operations lifts it.
 pub(crate) fn apply_close(
     InRef(input): InRef<InventoryInput>,
-    players: Query<(&Slots, &Selected, &PlayerHolders)>,
+    mut players: Query<(&Slots, &Selected, &PlayerHolders, &mut ClickDrag)>,
     holder_slots: Query<&Slots>,
     mut stacks: Stacks,
     table: Res<ItemTable>,
@@ -51,9 +54,10 @@ pub(crate) fn apply_close(
     let &InventoryInput::Close { player } = input else {
         return;
     };
-    let Ok((inventory, selected, holders)) = players.get(player) else {
+    let Ok((inventory, selected, holders, mut drag)) = players.get_mut(player) else {
         return;
     };
+    drag.set_if_neq(ClickDrag::default());
     let values = PlayerStacks::from_holders(
         inventory,
         selected.0,

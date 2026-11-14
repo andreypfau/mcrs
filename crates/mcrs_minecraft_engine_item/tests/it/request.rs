@@ -446,3 +446,39 @@ fn a_drop_takes_its_items_out_of_the_slot_as_one_stack_without_placement() {
         assert_eq!(slot_after, case.slot_after, "{}", case.count);
     }
 }
+
+#[test]
+fn a_set_then_a_full_drop_of_an_unplaced_stack_drops_that_stack() {
+    let mut app = app();
+    let world = app.world_mut();
+    let player = world.spawn(Slots::new(1)).id();
+    let unplaced = spawn(world, rare(40));
+    let at = SlotRef {
+        holder: player,
+        index: 0,
+    };
+
+    let results = request(
+        world,
+        player,
+        Request::new(ID).set(at, Some(unplaced), 12).drop(at, 12),
+    );
+
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].outcome, Ok(()));
+    let drops: Vec<RequestDrop> = world
+        .resource_mut::<Messages<RequestDrop>>()
+        .drain()
+        .collect();
+    let [drop] = drops[..] else {
+        panic!("drops: {drops:?}");
+    };
+    assert_eq!(drop.stack, unplaced, "the unplaced stack itself drops");
+    assert_eq!(value(world, unplaced), Some(rare(12)));
+    assert_eq!(slots(world, player), [None]);
+    assert_eq!(
+        world.query::<&Kind>().iter(world).count(),
+        1,
+        "no stack is left behind"
+    );
+}

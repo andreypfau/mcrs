@@ -30,7 +30,7 @@ pub(crate) fn capture_carried(
     else {
         return Ok(None);
     };
-    let carried = stacks.write_carried(&table);
+    let carried = stacks.write_carried(&table)?;
     Ok((!carried.is_empty()).then_some(NbtTag::Compound(carried)))
 }
 
@@ -44,7 +44,7 @@ pub(crate) fn apply_carried(
         return Err(decode_error(CURSOR_KEY, "expected a compound"));
     };
     let mut stacks = PlayerStacks::empty();
-    stacks.read_carried(carried, &table);
+    stacks.read_carried(carried, &table)?;
     world
         .run_system_cached_with(restore_carried, (player, stacks))
         .map_err(|error| decode_error(CURSOR_KEY, error))

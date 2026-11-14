@@ -23,6 +23,7 @@ use mcrs_minecraft_menu::InventoryMenu;
 use mcrs_minecraft_player_slots::Holder;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundContainerSetSlot;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundSetCursorItem;
+use mcrs_minecraft_vanilla_item_entity::PickedUp;
 use mcrs_minecraft_wire::VarInt;
 
 use crate::InventoryMenuSync;
@@ -41,8 +42,8 @@ pub(crate) struct SyncScratch {
 }
 
 /// Sends the inventory menu of each queued player: in full, or each entry and the cursor that
-/// do not match the client view (INV-SYN-003, INV-SYN-004, ITX-JAV-004). A request result or a
-/// give on a holder of a player queues the player for a comparison.
+/// do not match the client view (INV-SYN-003, INV-SYN-004, ITX-JAV-004). A request result, a
+/// give or a pickup on a holder of a player queues the player for a comparison.
 #[expect(
     clippy::too_many_arguments,
     reason = "the sync reads the touched holders and their stacks, and writes the view and packets"
@@ -50,6 +51,7 @@ pub(crate) struct SyncScratch {
 pub(crate) fn sync_menus(
     mut results: MessageReader<RequestResult>,
     mut given: MessageReader<Given>,
+    mut picked: MessageReader<PickedUp>,
     mut queue: ResMut<MenuQueue>,
     parents: Query<&ChildOf>,
     players: Query<(&Owner, &Slots, &PlayerHolders)>,
@@ -61,8 +63,9 @@ pub(crate) fn sync_menus(
     mut scratch: Local<SyncScratch>,
 ) {
     let queue = &mut *queue;
-    let touched =
-        (results.read().map(|result| result.holder)).chain(given.read().map(|given| given.holder));
+    let touched = (results.read().map(|result| result.holder))
+        .chain(given.read().map(|given| given.holder))
+        .chain(picked.read().map(|picked| picked.collector));
     for holder in touched {
         let player = if players.contains(holder) {
             Some(holder)

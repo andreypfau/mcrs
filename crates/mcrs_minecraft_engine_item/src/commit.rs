@@ -237,11 +237,28 @@ fn apply(world: &mut World, holder: Entity, id: RequestId) {
             placed.source = Source::Same(stack);
         }
     }
-    for dropped in &mut settlement.dropped {
-        if let Source::CopyOf(original) = dropped.source
-            && let Some(copy) = spawn_copy(world, original, dropped.count)
-        {
-            dropped.source = Source::Same(copy);
+    for index in 0..settlement.dropped.len() {
+        let Some(&Taken {
+            source: Source::CopyOf(original),
+            count,
+        }) = settlement.dropped.get(index)
+        else {
+            continue;
+        };
+        let reused = |source: &Source| matches!(*source, Source::Same(same) if same == original);
+        let unplaced = Placement::of(world, original) == Some(Placement::Nowhere)
+            && !settlement
+                .placed
+                .iter()
+                .any(|placed| reused(&placed.source))
+            && !(settlement.dropped.iter().take(index)).any(|earlier| reused(&earlier.source));
+        let stack = if unplaced {
+            Some(original)
+        } else {
+            spawn_copy(world, original, count)
+        };
+        if let (Some(stack), Some(dropped)) = (stack, settlement.dropped.get_mut(index)) {
+            dropped.source = Source::Same(stack);
         }
     }
     for &stack in &settlement.despawned {

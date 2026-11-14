@@ -1,10 +1,13 @@
 use std::collections::BTreeMap;
 
 use bevy_ecs::hierarchy::Children;
+use mcrs_minecraft_engine::UnreadablePlayerDat;
+use mcrs_minecraft_engine::apply_join_snapshot;
 use mcrs_minecraft_engine::persisted_registry::CaptureCause;
 use mcrs_minecraft_engine::persisted_registry::PersistedSnapshot;
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_item::Slots;
+use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_protocol_game::item::ItemStackValue;
 use mcrs_minecraft_protocol_game::item::ItemStackWithSlot;
 use mcrs_minecraft_registries::Named;
@@ -121,4 +124,28 @@ fn inv_slt_002_a_player_without_a_file_gets_four_empty_holders() {
         "41 slots, the cursor, the craft grid and the craft result, all empty"
     );
     assert_eq!(world.get::<Selected>(player), Some(&Selected(0)));
+}
+
+/// A file with a stack that does not load is not applied, so the server never writes over it.
+#[test]
+fn a_file_with_a_stack_that_does_not_load_is_unreadable() {
+    let inventory = vec![
+        ItemStackWithSlot {
+            slot: 0,
+            stack: saved("stone", 5),
+        },
+        ItemStackWithSlot {
+            slot: 1,
+            stack: saved("no_such_item", 1),
+        },
+    ];
+    let mut app = app();
+    let world = app.world_mut();
+    let mut file = PersistedSnapshot::new();
+    file.put(&["Inventory"], &inventory).expect("the inventory");
+    let player = world.spawn(Player).id();
+
+    apply_join_snapshot(world, player, &file);
+
+    assert!(world.get::<UnreadablePlayerDat>(player).is_some());
 }

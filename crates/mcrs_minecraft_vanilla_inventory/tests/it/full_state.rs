@@ -11,6 +11,7 @@ use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_inventory_view::SlotView;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
@@ -19,12 +20,14 @@ use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::item::ItemStackWithSlot;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundSetCarriedItem;
 use mcrs_minecraft_vanilla_inventory::InventoryMenuSync;
+use mcrs_minecraft_vanilla_item_entity::PickedUp;
 use mcrs_minecraft_wire::Encode;
 
 use crate::fixture::DIRT;
 use crate::fixture::STONE;
 use crate::fixture::app;
 use crate::fixture::apply;
+use crate::fixture::put;
 use crate::fixture::restore;
 use crate::fixture::saved;
 
@@ -177,4 +180,30 @@ fn inv_syn_005_a_restored_player_gets_its_full_state_and_a_client_view() {
         [2],
         "a later restore sends under the next state id"
     );
+}
+
+/// INV-SYN-004: a pickup into the inventory reaches the client of the collector.
+#[test]
+fn inv_syn_004_a_pickup_sends_the_slot_it_filled() {
+    let mut app = app();
+    let world = app.world_mut();
+    let player = world.spawn((Player, Owner(SESSION))).id();
+    apply(world, player, &PersistedSnapshot::new());
+    world.run_schedule(FixedUpdate);
+    sent(world);
+
+    put(world, player, 0, STONE, 3);
+    world.write_message(PickedUp {
+        item: EntityId(9),
+        collector: player,
+        count: 3,
+    });
+    world.run_schedule(FixedUpdate);
+
+    let packets = sent(world);
+    let [PacketPayload::ContainerSetSlot(set)] = packets.as_slice() else {
+        panic!("one container_set_slot packet, not {packets:?}");
+    };
+    assert_eq!(set.slot, 36, "P[0] at its menu index");
+    assert_eq!((set.item.id.number(), set.item.count), (1, 3));
 }

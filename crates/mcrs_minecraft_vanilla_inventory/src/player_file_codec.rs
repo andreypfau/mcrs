@@ -30,7 +30,7 @@ pub(crate) fn capture_player_file(
         return Ok(None);
     };
     let mut file = PlayerFile::default();
-    stacks.write(&mut file, &table);
+    stacks.write(&mut file, &table)?;
     if let Some(kept) = world.get::<KeptEquipment>(player) {
         for (key, saved) in &kept.0.child_tags {
             file.equipment.put(key, saved.clone());
@@ -55,7 +55,7 @@ pub(crate) fn apply_player_file(
             key: INVENTORY_KEY,
             source,
         })?;
-    let stacks = PlayerStacks::read(&file, &table);
+    let stacks = PlayerStacks::read(&file, &table)?;
     let mut kept = file.equipment;
     kept.child_tags.retain(|(key, _)| !is_slot_key(key));
     world

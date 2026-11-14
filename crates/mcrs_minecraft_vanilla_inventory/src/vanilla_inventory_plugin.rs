@@ -10,6 +10,7 @@ use mcrs_minecraft_engine_item::RequestDrop;
 use mcrs_minecraft_engine_item::RequestResult;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::tick::TickSet;
+use mcrs_minecraft_vanilla_item_entity::PickedUp;
 
 use crate::InventoryInput;
 use crate::InventorySet;
@@ -55,12 +56,16 @@ impl Plugin for VanillaInventoryPlugin {
             .init_resource::<FullSends>()
             .init_resource::<MenuQueue>()
             .init_resource::<BirthClock>()
+            .add_message::<PickedUp>()
             .configure_sets(
                 FixedUpdate,
-                (InventorySet::Input, InventorySet::Sync)
-                    .chain()
-                    .after(TickSet::Project)
-                    .before(TickSet::Output),
+                (
+                    InventorySet::Input.in_set(TickSet::ClientInput),
+                    InventorySet::Sync
+                        .after(TickSet::Project)
+                        .before(TickSet::Output),
+                )
+                    .chain(),
             )
             .add_systems(
                 FixedUpdate,
@@ -76,6 +81,7 @@ impl Plugin for VanillaInventoryPlugin {
                         sync_menus.run_if(
                             on_message::<RequestResult>
                                 .or_eager(on_message::<Given>)
+                                .or_eager(on_message::<PickedUp>)
                                 .or_eager(any_queued),
                         ),
                     )

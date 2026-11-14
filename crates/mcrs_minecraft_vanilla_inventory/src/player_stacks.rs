@@ -1,4 +1,5 @@
 use bevy_ecs::system::Query;
+use mcrs_minecraft_engine::persisted_registry::PersistedError;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_item_stack::ItemStack;
@@ -12,6 +13,8 @@ use mcrs_minecraft_player_slots::MAIN;
 use mcrs_minecraft_player_slots::OFF_HAND;
 
 use crate::PlayerHolders;
+use crate::player_file::EQUIPMENT_KEY;
+use crate::player_file::INVENTORY_KEY;
 use crate::player_file::PlayerFile;
 use crate::saved_stack;
 
@@ -97,13 +100,12 @@ impl PlayerStacks {
     }
 
     /// The stacks that `file` gives, with no filter and no slot limit (INV-SAV-001, INV-SAV-002).
-    /// The cursor and the craft grid are empty.
-    pub(crate) fn read(file: &PlayerFile, table: &ItemTable) -> Self {
+    /// The cursor and the craft grid are empty. A stack that does not load fails the read, so the
+    /// next write does not lose it.
+    pub(crate) fn read(file: &PlayerFile, table: &ItemTable) -> Result<Self, PersistedError> {
         let mut stacks = Self::empty();
         for entry in &file.inventory {
-            let Some(slotted) = saved_stack::from_saved_with_slot(entry, table) else {
-                continue;
-            };
+            let slotted = saved_stack::from_saved_with_slot(INVENTORY_KEY, entry, table)?;
             if !MAIN.contains(&u16::from(slotted.slot)) {
                 tracing::error!(
                     slot = slotted.slot,
@@ -119,77 +121,85 @@ impl PlayerStacks {
             if let Some(value) = file.equipment.get_compound(key)
                 && let Some(slot) = stacks.inventory.get_mut(usize::from(index))
             {
-                *slot = saved_stack::from_saved(value, table);
+                *slot = Some(saved_stack::from_saved(EQUIPMENT_KEY, value, table)?);
             }
         }
         stacks.selected = u8::try_from(file.selected_item_slot)
             .ok()
             .filter(|selected| HOTBAR.contains(&u16::from(*selected)))
             .unwrap_or(0);
-        stacks
+        Ok(stacks)
     }
 
     /// Puts the cursor and the craft grid that `carried` holds into these stacks.
-    pub(crate) fn read_carried(&mut self, carried: &NbtCompound, table: &ItemTable) {
-        self.cursor = carried
-            .get_compound(CURSOR_KEY)
-            .and_then(|saved| saved_stack::from_saved_with_slot(saved, table))
-            .map(|slotted| slotted.stack);
+    pub(crate) fn read_carried(
+        &mut self,
+        carried: &NbtCompound,
+        table: &ItemTable,
+    ) -> Result<(), PersistedError> {
+        if let Some(saved) = carried.get_compound(CURSOR_KEY) {
+            self.cursor = Some(saved_stack::from_saved_with_slot(CURSOR_KEY, saved, table)?.stack);
+        }
         if let Some(NbtTag::List(craft_grid)) = carried.get(CRAFT_GRID_KEY) {
             for tag in craft_grid {
-                if let NbtTag::Compound(saved) = tag
-                    && let Some(slotted) = saved_stack::from_saved_with_slot(saved, table)
-                    && let Some(slot) = self.craft_grid.get_mut(usize::from(slotted.slot))
-                {
+                let NbtTag::Compound(saved) = tag else {
+                    continue;
+                };
+                let slotted = saved_stack::from_saved_with_slot(CRAFT_GRID_KEY, saved, table)?;
+                if let Some(slot) = self.craft_grid.get_mut(usize::from(slotted.slot)) {
                     *slot = Some(slotted.stack);
                 }
             }
         }
+        Ok(())
     }
 
     /// Writes the player inventory and the selected slot into `file` (INV-SAV-001).
-    pub(crate) fn write(&self, file: &mut PlayerFile, table: &ItemTable) {
+    pub(crate) fn write(
+        &self,
+        file: &mut PlayerFile,
+        table: &ItemTable,
+    ) -> Result<(), PersistedError> {
         file.inventory.clear();
         let main = self.inventory.iter().take(usize::from(MAIN.end));
         for (slot, stack) in (0..=u8::MAX).zip(main) {
-            if let Some(stack) = stack
-                && let Some(saved) = saved_stack::to_saved_with_slot(slot, stack, table)
-            {
-                file.inventory.push(saved);
+            if let Some(stack) = stack {
+                file.inventory.push(saved_stack::to_saved_with_slot(
+                    INVENTORY_KEY,
+                    slot,
+                    stack,
+                    table,
+                )?);
             }
         }
         for EquipmentKey { key, index } in EQUIPMENT {
-            let saved = self
-                .inventory
-                .get(usize::from(index))
-                .and_then(Option::as_ref)
-                .and_then(|stack| saved_stack::to_saved(stack, table));
-            if let Some(saved) = saved {
+            if let Some(Some(stack)) = self.inventory.get(usize::from(index)) {
+                let saved = saved_stack::to_saved(EQUIPMENT_KEY, stack, table)?;
                 file.equipment.put(key, NbtTag::Compound(saved));
             }
         }
         file.selected_item_slot = i32::from(self.selected);
+        Ok(())
     }
 
     /// The cursor and the craft grid as the values that cross to another cell.
-    pub(crate) fn write_carried(&self, table: &ItemTable) -> NbtCompound {
+    pub(crate) fn write_carried(&self, table: &ItemTable) -> Result<NbtCompound, PersistedError> {
         let mut carried = NbtCompound::new();
-        if let Some(cursor) = &self.cursor
-            && let Some(saved) = saved_stack::to_saved_with_slot(0, cursor, table)
-        {
+        if let Some(cursor) = &self.cursor {
+            let saved = saved_stack::to_saved_with_slot(CURSOR_KEY, 0, cursor, table)?;
             carried.put(CURSOR_KEY, NbtTag::Compound(saved));
         }
-        let craft_grid: Vec<NbtTag> = (0..=u8::MAX)
-            .zip(&self.craft_grid)
-            .filter_map(|(slot, stack)| {
-                saved_stack::to_saved_with_slot(slot, stack.as_ref()?, table)
-            })
-            .map(NbtTag::Compound)
-            .collect();
+        let mut craft_grid = Vec::new();
+        for (slot, stack) in (0..=u8::MAX).zip(&self.craft_grid) {
+            if let Some(stack) = stack {
+                let saved = saved_stack::to_saved_with_slot(CRAFT_GRID_KEY, slot, stack, table)?;
+                craft_grid.push(NbtTag::Compound(saved));
+            }
+        }
         if !craft_grid.is_empty() {
             carried.put_list(CRAFT_GRID_KEY, craft_grid);
         }
-        carried
+        Ok(carried)
     }
 
     /// True when the cursor or the craft grid holds a stack.

@@ -744,24 +744,36 @@ pub fn save_player(
     Ok(PlayerDat::new(VERSION.world_version, root))
 }
 
-/// The file of `player`, or `None` when the player has no file to write.
+/// The file of `player`, or `None` when the player has no file to write. A leave captures the
+/// player even without a file, because its capture closes what the player holds open.
 fn player_file(
     world: &mut World,
     player: Entity,
     cause: CaptureCause,
 ) -> Option<(PathBuf, Uuid, PlayerDat)> {
-    let save = world.get_resource::<WorldSave>()?.0.clone();
-    let uuid = world.get::<GameProfile>(player)?.id;
-    if world.get::<UnreadablePlayerDat>(player).is_some() {
+    let target = file_target(world, player);
+    if target.is_none() && cause != CaptureCause::Leave {
         return None;
     }
-    match save_player(world, player, cause) {
+    let dat = save_player(world, player, cause);
+    let (save, uuid) = target?;
+    match dat {
         Ok(dat) => Some((save, uuid, dat)),
         Err(err) => {
             error!(%uuid, "player data not encoded: {err}");
             None
         }
     }
+}
+
+/// The save folder and the uuid of the file of `player`, or `None` when it has no file to write.
+fn file_target(world: &World, player: Entity) -> Option<(PathBuf, Uuid)> {
+    let save = world.get_resource::<WorldSave>()?.0.clone();
+    let uuid = world.get::<GameProfile>(player)?.id;
+    if world.get::<UnreadablePlayerDat>(player).is_some() {
+        return None;
+    }
+    Some((save, uuid))
 }
 
 /// Snapshots `player` and queues its file for the I/O pool. The session in `release` is
