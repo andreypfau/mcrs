@@ -45,6 +45,7 @@ pub struct Font {
     pub cell_size: IVec2,
     glyphs: HashMap<char, Glyph>,
     spaces: HashMap<char, i32>,
+    missing_advance: i32,
 }
 
 impl Font {
@@ -117,8 +118,23 @@ impl Font {
         if let Some(&space) = self.spaces.get(&ch) {
             return space;
         }
-        self.glyph(ch)
-            .map_or(0, |glyph| glyph.advance + i32::from(bold))
+        let base = self
+            .glyph(ch)
+            .map_or(self.missing_advance, |glyph| glyph.advance);
+        base + i32::from(bold)
+    }
+
+    /// The advance of a code point the font has no glyph for. It is 0 unless set, so a font that
+    /// draws only some pages measures the rest as nothing.
+    #[must_use]
+    pub fn with_missing_advance(mut self, advance: i32) -> Self {
+        self.missing_advance = advance;
+        self
+    }
+
+    /// Whether `ch` has neither a glyph nor a space advance.
+    pub fn is_missing(&self, ch: char) -> bool {
+        !self.spaces.contains_key(&ch) && !self.glyphs.contains_key(&ch)
     }
 
     pub fn width(&self, spans: &[Span]) -> i32 {
@@ -324,6 +340,14 @@ mod tests {
             assert_eq!(font.advance('A', true), 7);
             assert_eq!(font.glyph('A').unwrap().cell, IVec2::new(8, 32));
             assert_eq!(font.width(&[Span::new("F4", 0)]), 12);
+        }
+
+        #[test]
+        fn a_missing_glyph_is_one_wider_in_bold_like_a_drawn_one() {
+            let font = Font::default().with_missing_advance(6);
+            assert!(font.is_missing('\u{4e00}'));
+            assert_eq!(font.advance('\u{4e00}', false), 6);
+            assert_eq!(font.advance('\u{4e00}', true), 7);
         }
 
         #[test]

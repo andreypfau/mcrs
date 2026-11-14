@@ -10,11 +10,13 @@ use bevy::ecs::prelude::{
     Commands, Entity, IntoScheduleConfigs, Local, On, Res, ResMut, Resource, Single,
 };
 use bevy::ecs::schedule::SystemSet;
-use bevy::log::error;
+use bevy::log::{error, warn};
 use bevy::math::IVec3;
 use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use mcrs_minecraft_biome_file::BiomeFile;
+use mcrs_minecraft_block::block_entity_type_keys::BlockEntityType;
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_block_entity::{SignTexts, SignUpdate};
 use mcrs_minecraft_chunk::section::Biomes;
 use mcrs_minecraft_chunk::{LightStorage, PalettedContainer, SectionKind};
 use mcrs_minecraft_core::BoundingBox;
@@ -22,11 +24,12 @@ use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
 use mcrs_minecraft_light_engine::block_light::block_light_registry;
 use mcrs_minecraft_protocol::{Decode, WritePacket};
 use mcrs_minecraft_protocol_game::ColumnPos;
-use mcrs_minecraft_protocol_game::chunk::{ChunkData, LightChunk, LightData};
+use mcrs_minecraft_protocol_game::chunk::{ChunkData, ChunkDataBlockEntity, LightChunk, LightData};
 use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundBlockChangedAck, ClientboundBlockUpdate, ClientboundChunkBatchFinished,
-    ClientboundChunkBatchStart, ClientboundForgetLevelChunk, ClientboundLevelChunkWithLight,
-    ClientboundLightUpdate, ClientboundLogin, ClientboundRespawn, ClientboundSectionBlocksUpdate,
+    ClientboundBlockChangedAck, ClientboundBlockEntityData, ClientboundBlockUpdate,
+    ClientboundChunkBatchFinished, ClientboundChunkBatchStart, ClientboundForgetLevelChunk,
+    ClientboundLevelChunkWithLight, ClientboundLightUpdate, ClientboundLogin, ClientboundRespawn,
+    ClientboundSectionBlocksUpdate,
 };
 use mcrs_minecraft_protocol_game::light_codec::{ColumnLight, RowLight, unpack_light_data};
 use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
@@ -37,6 +40,7 @@ use mcrs_voxel::{BlockPos, BlockStateId, LocalPos, SectionPos};
 use crate::block_prediction::BlockPredictions;
 use crate::client_light;
 use crate::joined_game::CurrentDimension;
+use crate::sign::sign_block;
 use mcrs_minecraft_network::Instant;
 use mcrs_minecraft_network::client::{
     ClientConnection, ClientNetworkSystems, DeferredRows, close_connection_later,
@@ -110,6 +114,14 @@ pub struct Column {
     /// One row per section plus the padding row the light packet carries at
     /// each end, so row `i` holds section `min_section_y + i - 1`.
     light: Vec<Option<Box<[u8; SectionPos::VOLUME]>>>,
+    signs: Vec<SignEntity>,
+}
+
+/// The block entity of a sign or a hanging sign: where it is and the text of its two sides.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SignEntity {
+    pub pos: BlockPos,
+    pub texts: SignTexts,
 }
 
 /// A column the server sent or took back, in the order it happened. A column sent again
@@ -126,6 +138,8 @@ pub enum ColumnChange {
     Filled(SectionPos),
     /// The block at the position now holds the state.
     Reblocked(BlockPos, BlockStateId),
+    /// The sign entity at the position was set or dropped.
+    Signed(BlockPos),
 }
 
 /// The columns the server has sent and not taken back, keyed by position, and the changes
@@ -291,6 +305,47 @@ impl ColumnStore {
                 .into_iter()
                 .filter(|pos| self.unlit_arrivals.remove(pos)),
         );
+    }
+
+    /// A side `update` leaves out keeps its stored text. `set_block` does not drop the sign: the
+    /// caller uses [`ColumnStore::remove_sign`] when the new block is no sign.
+    pub fn set_sign(&mut self, at: BlockPos, update: SignUpdate) -> bool {
+        let Some(column) = self.columns.get_mut(&ColumnPos::from(at)) else {
+            return false;
+        };
+        let index = usize::try_from(SectionPos::from(at).y - column.min_section_y);
+        if !index.is_ok_and(|index| index < column.sections.len()) {
+            return false;
+        }
+        let column = Arc::make_mut(column);
+        match column.signs.iter_mut().find(|sign| sign.pos == at) {
+            Some(sign) => sign.texts = update.applied_to(std::mem::take(&mut sign.texts)),
+            None => column.signs.push(SignEntity {
+                pos: at,
+                texts: update.applied_to(SignTexts::default()),
+            }),
+        }
+        self.changes.push(ColumnChange::Signed(at));
+        true
+    }
+
+    /// Drops the sign at `at`. Answers whether there was one.
+    pub fn remove_sign(&mut self, at: BlockPos) -> bool {
+        let Some(column) = self.columns.get_mut(&ColumnPos::from(at)) else {
+            return false;
+        };
+        if !column.signs.iter().any(|sign| sign.pos == at) {
+            return false;
+        }
+        Arc::make_mut(column).signs.retain(|sign| sign.pos != at);
+        self.changes.push(ColumnChange::Signed(at));
+        true
+    }
+
+    pub fn has_sign(&self, at: BlockPos) -> bool {
+        self.columns
+            .get(&ColumnPos::from(at))
+            .is_some_and(|column| column.signs.iter().any(|sign| sign.pos == at))
     }
 
     pub(crate) fn has_light_checks(&self) -> bool {
@@ -526,6 +581,7 @@ impl Column {
             min_section_y,
             sections,
             light,
+            signs: Vec::new(),
         }
     }
 
@@ -541,6 +597,46 @@ impl Column {
                 .any(|row| row.iter().any(|cell| cell >> 4 != 0)),
             UnlitColumnLight::BlockAndSky => self.light.iter().all(Option::is_none),
         }
+    }
+
+    /// The column with these sign entities, for an embedder that builds columns without packets.
+    /// The positions are block positions of the world, not of the column.
+    #[must_use]
+    pub fn with_signs(mut self, signs: Vec<SignEntity>) -> Column {
+        self.signs = signs;
+        self
+    }
+
+    /// The signs of a chunk packet's block entities, as [`Column::with_signs`] holds them. An
+    /// entry that is no sign, or whose compound does not read, is skipped.
+    #[must_use]
+    pub fn with_chunk_signs(self, at: ColumnPos, entries: &[ChunkDataBlockEntity<'_>]) -> Column {
+        let origin = IVec3::new(at.x, 0, at.z) * SectionPos::SIZE as i32;
+        let signs = entries
+            .iter()
+            .filter(|entry| {
+                matches!(
+                    entry.kind,
+                    BlockEntityType::Sign | BlockEntityType::HangingSign
+                )
+            })
+            .filter_map(|entry| {
+                let packed = entry.packed_xz as u8;
+                let pos = BlockPos::new(
+                    origin.x + i32::from(packed >> 4),
+                    i32::from(entry.y),
+                    origin.z + i32::from(packed & 15),
+                );
+                let texts = SignTexts::from_compound(&entry.data).ok()?;
+                Some(SignEntity { pos, texts })
+            })
+            .collect();
+        self.with_signs(signs)
+    }
+
+    /// The sign entities of the column.
+    pub fn signs(&self) -> &[SignEntity] {
+        &self.signs
     }
 
     pub fn decode(
@@ -755,6 +851,7 @@ impl Plugin for ColumnCachePlugin {
         app.add_observer(on_level_chunk);
         app.add_observer(on_light_update);
         app.add_observer(on_block_update);
+        app.add_observer(on_block_entity_data);
         app.add_observer(on_section_blocks_update);
         app.add_observer(on_block_changed_ack);
         app.add_observer(on_forget);
@@ -830,6 +927,7 @@ enum Arrival {
     Column(Task<Result<Option<(ColumnPos, Column)>>>),
     Light(ColumnPos, ColumnLight),
     Blocks(Vec<BlockChange>),
+    Sign(BlockPos, SignUpdate),
     Acknowledge(i32),
     Forget(ColumnPos),
     BatchStart,
@@ -984,6 +1082,7 @@ fn on_level_chunk(
             biome_count,
         )
         .with_context(|| format!("column {:?}", packet.pos))?;
+        let column = column.with_chunk_signs(packet.pos, &packet.chunk_data.block_entities);
         Ok(Some((packet.pos, column)))
     });
     arrivals.queue.push_back(Arrival::Column(task));
@@ -1015,6 +1114,42 @@ fn on_block_update(
             state: sent_state(update.block_state_id.0, &blocks),
         };
         arrivals.queue.push_back(Arrival::Blocks(vec![change]));
+    }
+}
+
+/// A sign entity update waits in the queue behind the column it lands in, as a block update does.
+fn on_block_entity_data(
+    event: On<Received<ClientboundBlockEntityData>>,
+    mut arrivals: ResMut<Arrivals>,
+) {
+    let Some(update) = event.packet() else {
+        return;
+    };
+    let Some((kind, data)) = &update.data else {
+        warn!(
+            "block entity update at {:?} that this client cannot read",
+            update.pos
+        );
+        return;
+    };
+    if !matches!(kind, BlockEntityType::Sign | BlockEntityType::HangingSign) {
+        return;
+    }
+    match SignUpdate::from_compound(data) {
+        Ok(texts) => arrivals.queue.push_back(Arrival::Sign(update.pos, texts)),
+        Err(error) => error!("sign update at {:?}: {error}", update.pos),
+    }
+}
+
+/// A block that stops being a sign takes its entity with it, as the server removes it.
+fn drop_replaced_sign(
+    store: &mut ColumnStore,
+    blocks: Option<&Blocks>,
+    at: BlockPos,
+    state: BlockStateId,
+) {
+    if store.has_sign(at) && !blocks.is_some_and(|blocks| sign_block(blocks, state).is_some()) {
+        store.remove_sign(at);
     }
 }
 
@@ -1183,16 +1318,26 @@ fn settle_columns(
                 store.remove(pos);
             }
             Arrival::Light(pos, update) => light.server.push(ServerLight { pos, update }),
+            Arrival::Sign(at, texts) => {
+                store.set_sign(at, texts);
+            }
             Arrival::Blocks(changes) => {
                 for change in changes {
                     if let Some(state) = predictions.server_update(change.pos, change.state) {
                         store.set_block(change.pos, state);
+                        drop_replaced_sign(&mut store, blocks.as_deref(), change.pos, state);
                     }
                 }
             }
             Arrival::Acknowledge(sequence) => {
                 for settled in predictions.acknowledge(sequence) {
                     store.set_block(settled.pos, settled.server_state);
+                    drop_replaced_sign(
+                        &mut store,
+                        blocks.as_deref(),
+                        settled.pos,
+                        settled.server_state,
+                    );
                 }
             }
             Arrival::BatchStart => arrivals.batch_started_at = Some(Instant::now()),
@@ -1667,6 +1812,7 @@ mod tests {
             ColumnChange::Relit(pos, rows) => ("relit", *pos, rows.clone()),
             ColumnChange::Filled(at) => ("filled", ColumnPos::from(*at), Vec::new()),
             ColumnChange::Reblocked(at, _) => ("reblocked", ColumnPos::from(*at), Vec::new()),
+            ColumnChange::Signed(at) => ("signed", ColumnPos::from(*at), Vec::new()),
         }
     }
 
@@ -1675,6 +1821,60 @@ mod tests {
         mut seen: ResMut<Seen<READER>>,
     ) {
         seen.0.extend(changes.read().map(observed));
+    }
+
+    fn sign_compound(color: &str) -> mcrs_minecraft_nbt::compound::NbtCompound {
+        let mut front = mcrs_minecraft_nbt::compound::NbtCompound::new();
+        front.put_list(
+            "messages",
+            vec![mcrs_minecraft_nbt::tag::NbtTag::String(String::new()); 4],
+        );
+        front.put_string("color", color.to_owned());
+        let mut compound = mcrs_minecraft_nbt::compound::NbtCompound::new();
+        compound.put(
+            "front_text",
+            mcrs_minecraft_nbt::tag::NbtTag::Compound(front),
+        );
+        compound
+    }
+
+    #[test]
+    fn a_sign_entity_comes_with_its_column_and_follows_its_updates() {
+        let mut store = ColumnStore::default();
+        store.enter(EXTENT);
+        let at = BlockPos::new(17, 3, -2);
+        let entries = [
+            ChunkDataBlockEntity {
+                packed_xz: 0x1e,
+                y: 3,
+                kind: BlockEntityType::Sign,
+                data: Cow::Owned(sign_compound("red")),
+            },
+            ChunkDataBlockEntity {
+                packed_xz: 0,
+                y: 0,
+                kind: BlockEntityType::Chest,
+                data: Cow::Owned(Default::default()),
+            },
+        ];
+        let column = Column::unlit(EXTENT.min_section_y, vec![None, None])
+            .with_chunk_signs(ColumnPos::from(at), &entries);
+        assert_eq!(column.signs().len(), 1);
+        assert_eq!(column.signs()[0].pos, at);
+        assert_eq!(column.signs()[0].texts.front_text.color, "red");
+        store.insert(ColumnPos::from(at), column);
+        assert!(store.has_sign(at));
+
+        let texts = SignUpdate::from_compound(&sign_compound("blue")).unwrap();
+        assert!(store.set_sign(at, texts.clone()));
+        assert!(!store.set_sign(BlockPos::new(500, 3, 0), texts.clone()));
+        assert!(!store.set_sign(BlockPos::new(17, 200, -2), texts));
+        let sign = &store.get(ColumnPos::from(at)).unwrap().signs()[0];
+        assert_eq!(sign.texts.front_text.color, "blue");
+
+        assert!(store.remove_sign(at));
+        assert!(!store.remove_sign(at));
+        assert!(!store.has_sign(at));
     }
 
     #[test]
