@@ -4361,6 +4361,7 @@ dependencies = [
  "mcrs_minecraft_client_world",
  "mcrs_minecraft_core",
  "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_attribute",
  "mcrs_minecraft_entity_visual",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_network",
@@ -4896,6 +4897,7 @@ dependencies = [
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_entity_attribute",
  "mcrs_minecraft_entity_key",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_game_mode",
@@ -5140,6 +5142,7 @@ version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_biome",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_entity_attribute",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_registries",
@@ -5161,6 +5164,17 @@ dependencies = [
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_pack_file",
  "mcrs_molang",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_entity_attribute"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_resource",
+ "mcrs_minecraft_wire",
  "serde",
  "serde_json",
 ]
@@ -5330,6 +5344,7 @@ dependencies = [
  "mcrs_minecraft_enchantment",
  "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_attribute",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_registries",
@@ -5471,6 +5486,7 @@ dependencies = [
  "mcrs_minecraft_decorated_pot_pattern",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_attribute",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_item_key",
  "mcrs_minecraft_loot",
@@ -5516,6 +5532,7 @@ name = "mcrs_minecraft_item_stack"
 version = "0.5.8"
 dependencies = [
  "bevy_ecs",
+ "mcrs_minecraft_entity_attribute",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_resource",
@@ -5883,9 +5900,11 @@ dependencies = [
  "glam",
  "mcrs_minecraft_client_ticks",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_entity_attribute",
  "mcrs_minecraft_entity_key",
  "mcrs_minecraft_numeric",
  "mcrs_minecraft_physics",
+ "mcrs_minecraft_resource",
  "mcrs_voxel",
  "rustc-hash 2.1.1",
 ]
@@ -5986,6 +6005,7 @@ dependencies = [
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_attribute",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_game_registries",

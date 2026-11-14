@@ -16,6 +16,7 @@ bevy_ecs.workspace = true
 glam = { workspace = true, features = ["std"] }
 mcrs_minecraft_client_world.workspace = true
 mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_attribute.workspace = true
 mcrs_minecraft_entity_visual.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol_game.workspace = true

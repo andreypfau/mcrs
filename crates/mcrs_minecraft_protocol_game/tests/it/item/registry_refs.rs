@@ -189,8 +189,9 @@ fn unknown_fields_are_rejected_at_load() {
 
 #[test]
 fn out_of_range_wire_ids_read_as_the_first_entry() {
+    use mcrs_minecraft_entity_attribute::ModifierOperation;
     use mcrs_minecraft_protocol_game::entity::EquipmentSlot;
-    use mcrs_minecraft_protocol_game::item::{AttributeDisplay, AttributeOperation, Equippable};
+    use mcrs_minecraft_protocol_game::item::{AttributeDisplay, Equippable};
 
     let lookup = lookup();
     let head = try_from_json(DataComponentType::Equippable, r#"{"slot":"head"}"#).unwrap();
@@ -227,7 +228,7 @@ fn out_of_range_wire_ids_read_as_the_first_entry() {
     };
     assert_eq!(
         modifiers.0[0].modifier.operation,
-        AttributeOperation::AddValue
+        ModifierOperation::AddValue
     );
     assert_eq!(
         modifiers.0[0].slot,

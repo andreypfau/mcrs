@@ -1,6 +1,11 @@
 use mcrs_minecraft_client_ticks::Attribute;
 use mcrs_minecraft_client_ticks::Event;
 use mcrs_minecraft_client_ticks::Recording;
+use mcrs_minecraft_entity_attribute::HomeSlot;
+use mcrs_minecraft_entity_attribute::Modifier;
+use mcrs_minecraft_entity_attribute::ModifierOperation;
+use mcrs_minecraft_entity_attribute::fold;
+use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_voxel::BlockStateId;
 
 use crate::MotionAttributes;
@@ -37,25 +42,20 @@ pub fn sprint_modifiers(recording: &Recording) -> Vec<String> {
 }
 
 /// The value of an attribute without the sprint modifiers, which the kernel applies itself from
-/// the sprint state: the base plus the additions, times the base multipliers, times each total
-/// multiplier.
+/// the sprint state. A modifier with an unknown operation or an invalid identifier is skipped.
 pub fn set_attribute(attributes: &mut MotionAttributes, attribute: &Attribute, sprint: &[String]) {
-    let modifiers = || {
-        attribute
-            .modifiers
-            .iter()
-            .filter(|modifier| !sprint.contains(&modifier.id))
-    };
-    let sum = |operation| -> f64 {
-        modifiers()
-            .filter(|modifier| modifier.operation == operation)
-            .map(|modifier| modifier.amount)
-            .sum()
-    };
-    let total = modifiers()
-        .filter(|modifier| modifier.operation == 2)
-        .fold(1.0, |product, modifier| product * (1.0 + modifier.amount));
-    let value = (attribute.base + sum(0)) * (1.0 + sum(1)) * total;
+    let modifiers = attribute
+        .modifiers
+        .iter()
+        .filter(|modifier| !sprint.contains(&modifier.id))
+        .filter_map(|modifier| {
+            Some(Modifier {
+                operation: ModifierOperation::try_from(modifier.operation).ok()?,
+                amount: modifier.amount,
+                slot: HomeSlot::from(ResourceLocation::read(&modifier.id).ok()?),
+            })
+        });
+    let value = fold(attribute.base, modifiers);
     let field = match attribute.name.as_str() {
         "minecraft:gravity" => &mut attributes.gravity,
         "minecraft:step_height" => &mut attributes.step_height,

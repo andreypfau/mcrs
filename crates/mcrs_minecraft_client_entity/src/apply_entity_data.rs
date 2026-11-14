@@ -1,7 +1,10 @@
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::Modifier;
+use mcrs_minecraft_entity_attribute::ValueRange;
+use mcrs_minecraft_entity_attribute::fold;
 use mcrs_minecraft_entity_visual::{SCALE_RANGE, SyncedData, UPSIDE_DOWN_NAMES, VariantId};
-use mcrs_minecraft_protocol_game::clientbound::{AttributeOperation, AttributeSnapshot};
+use mcrs_minecraft_protocol_game::clientbound::AttributeSnapshot;
 use mcrs_minecraft_protocol_game::entity::{MetaDataValue, MetadataEntry};
 use mcrs_minecraft_protocol_game::entity_data_index::{
     AGE_LOCKED, BABY, CUSTOM_NAME, HEALTH, LIVING_FLAGS, MOB_FLAGS, NAME_VISIBLE, POSE,
@@ -74,31 +77,12 @@ fn push_plain(text: &Text, plain: &mut String) {
     }
 }
 
-/// The base plus each added value `b′`, plus `b′` times the sum of the base multipliers, then
-/// times one plus each total multiplier, clamped to [`SCALE_RANGE`]. NaN gives the smallest
-/// scale.
+/// The value of the attribute by the modifiers that the packet holds, limited to
+/// [`SCALE_RANGE`].
 fn attribute_value(attribute: &AttributeSnapshot<'_>) -> f64 {
-    let sum = |operation: AttributeOperation| -> f64 {
-        attribute
-            .modifiers
-            .iter()
-            .filter(|modifier| modifier.operation == operation)
-            .map(|modifier| modifier.amount)
-            .sum()
-    };
-    let added = attribute.base + sum(AttributeOperation::AddValue);
-    let mut value = added + added * sum(AttributeOperation::AddMultipliedBase);
-    for modifier in &attribute.modifiers {
-        if modifier.operation == AttributeOperation::AddMultipliedTotal {
-            value *= 1.0 + modifier.amount;
-        }
-    }
     let (min, max) = SCALE_RANGE;
-    if value.is_nan() {
-        min
-    } else {
-        value.clamp(min, max)
-    }
+    let modifiers = attribute.modifiers.iter().copied().map(Modifier::from);
+    ValueRange { min, max }.clamp(fold(attribute.base, modifiers))
 }
 
 #[cfg(test)]

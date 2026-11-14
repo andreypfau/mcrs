@@ -21,7 +21,6 @@ use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::component::attribute::AttributeOperation;
 use crate::component::common::{
     CompactList, EquipmentSlotGroup, MinMaxBounds, NbtPredicate, ValueMatcher, deserialize_unit,
     map_only, serialize_entries, serialize_unit,
@@ -33,6 +32,7 @@ use crate::data_component_type_keys::DataComponentType;
 use crate::harness::Sample;
 use crate::harness::{entry, list_set, one_set, tag_set};
 use crate::patch::ComponentMap;
+use mcrs_minecraft_entity_attribute::ModifierOperation;
 use mcrs_minecraft_text::IntoText;
 
 use crate::Text;
@@ -706,7 +706,7 @@ pub struct AttributeModifierPredicate<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub amount: MinMaxBounds<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub operation: Option<AttributeOperation>,
+    pub operation: Option<ModifierOperation>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub slot: Option<EquipmentSlotGroup>,
 }
@@ -1110,7 +1110,7 @@ fn sample_matchers() -> DataComponentMatchers {
                                     min: Some(1.5),
                                     max: None,
                                 },
-                                operation: Some(AttributeOperation::AddValue),
+                                operation: Some(ModifierOperation::AddValue),
                                 slot: Some(EquipmentSlotGroup::Mainhand),
                             },
                             AttributeModifierPredicate {

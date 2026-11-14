@@ -4,9 +4,10 @@ use core::hash::Hasher;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 
+use mcrs_minecraft_entity_attribute::ModifierOperation;
+
 use crate::AttributeId;
 use crate::ModifierDisplay;
-use crate::ModifierOperation;
 use crate::SlotGroup;
 use crate::float_key;
 use crate::identifier::Identifier;
