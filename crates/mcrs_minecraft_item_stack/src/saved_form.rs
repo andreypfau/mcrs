@@ -193,7 +193,7 @@ impl<L: NameLookup> Walk<'_, L> {
             Field::new("amount", sink.leaf(Leaf::Double(modifier.amount))),
             Field::new(
                 "operation",
-                sink.leaf(Leaf::String(modifier.operation.name())),
+                sink.leaf(Leaf::String(modifier.operation.as_str())),
             ),
             Field::optional("slot", slot),
             Field::optional("display", display),

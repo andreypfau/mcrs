@@ -152,10 +152,9 @@ pub(crate) fn spawn_extras(
         }
     };
     let movement_speed = kind
-        .base_attributes
-        .map_or(Attribute::MovementSpeed.definition().default, |base| {
-            base.movement_speed
-        });
+        .attribute_bases()
+        .and_then(|bases| bases.base(Attribute::MovementSpeed))
+        .unwrap_or(Attribute::MovementSpeed.definition().default);
     let mut bytes = BytesMut::new();
     write_record(
         &mut bytes,

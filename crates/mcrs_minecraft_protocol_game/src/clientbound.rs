@@ -19,13 +19,13 @@ use mcrs_minecraft_command_tree::CommandNode;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_entity::{attribute_keys::Attribute, entity_type_keys::EntityType};
+use mcrs_minecraft_entity_attribute::AttributeModifier;
 use mcrs_minecraft_menu::menu_keys::MenuType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_particle::ParticleOptions;
 use mcrs_minecraft_protocol::{Bounded, Result, VarInt, VarLong};
 use mcrs_minecraft_registries::Wire;
 
-use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_wire::{Decode, Encode};
 use mcrs_voxel::BlockPos;
 use mcrs_voxel::SectionPos;
@@ -699,20 +699,6 @@ pub struct ClientboundTakeItemEntity {
     pub item_id: VarInt,
     pub player_id: VarInt,
     pub amount: VarInt,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode)]
-pub enum AttributeOperation {
-    AddValue,
-    AddMultipliedBase,
-    AddMultipliedTotal,
-}
-
-#[derive(Clone, Debug, PartialEq, Encode, Decode)]
-pub struct AttributeModifier<'a> {
-    pub id: ResourceLocation<'a>,
-    pub amount: f64,
-    pub operation: AttributeOperation,
 }
 
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]

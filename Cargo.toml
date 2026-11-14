@@ -177,6 +177,7 @@ mcrs_minecraft_lang = { path = "crates/mcrs_minecraft_lang" }
 mcrs_minecraft_text_flatten = { path = "crates/mcrs_minecraft_text_flatten" }
 mcrs_minecraft_server_settings = { path = "crates/mcrs_minecraft_server_settings" }
 mcrs_minecraft_entity = { path = "crates/mcrs_minecraft_entity" }
+mcrs_minecraft_entity_attribute = { path = "crates/mcrs_minecraft_entity_attribute" }
 mcrs_minecraft_entity_model = { path = "crates/mcrs_minecraft_entity_model" }
 mcrs_minecraft_pack_file = { path = "crates/mcrs_minecraft_pack_file" }
 mcrs_minecraft_assets = { path = "crates/mcrs_minecraft_assets" }

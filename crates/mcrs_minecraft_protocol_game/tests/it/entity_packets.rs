@@ -6,14 +6,15 @@ use mcrs_minecraft_entity::{
     attribute_keys::Attribute, entity_type_keys::EntityType,
     villager_profession_keys::VillagerProfession, villager_type_keys::VillagerType,
 };
+use mcrs_minecraft_entity_attribute::AttributeModifier;
+use mcrs_minecraft_entity_attribute::ModifierOperation;
 use mcrs_minecraft_item::PaintingVariantValue;
 use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_protocol::{Decode, Encode, VarInt};
 use mcrs_minecraft_protocol_game::block::BlockStateNumber;
 use mcrs_minecraft_protocol_game::clientbound::{
-    AttributeModifier, AttributeOperation, AttributeSnapshot, ClientboundAddEntity,
-    ClientboundSetEntityData, ClientboundSetEquipment, ClientboundSetPassengers,
-    ClientboundUpdateAttributes,
+    AttributeSnapshot, ClientboundAddEntity, ClientboundSetEntityData, ClientboundSetEquipment,
+    ClientboundSetPassengers, ClientboundUpdateAttributes,
 };
 use mcrs_minecraft_protocol_game::entity::{
     DyeColor, EquipmentSlot, MetaDataValue, Metadata, MetadataEntry, OptionalBlockState,
@@ -244,7 +245,7 @@ fn attributes_round_trip_with_modifiers() {
                 modifiers: vec![AttributeModifier {
                     id: ResourceLocation::read("minecraft:random_spawn_bonus").unwrap(),
                     amount: 0.025,
-                    operation: AttributeOperation::AddValue,
+                    operation: ModifierOperation::AddValue,
                 }],
             },
         ],

@@ -115,6 +115,3 @@ impl SyncedData {
         self.ticks_frozen >= FULLY_FROZEN_TICKS
     }
 }
-
-/// The smallest and the largest value of the attribute `minecraft:scale`.
-pub const SCALE_RANGE: (f64, f64) = (0.0625, 16.0);

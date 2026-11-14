@@ -5,6 +5,7 @@ use std::cell::Cell;
 use std::collections::BTreeMap;
 
 use bevy_ecs::component::Component;
+use mcrs_minecraft_entity_attribute::ModifierOperation;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_int_array;
 use mcrs_minecraft_text::Text;
@@ -100,16 +101,6 @@ pub enum NoMemory {}
 pub struct Brain {
     #[serde(default)]
     pub memories: BTreeMap<String, NoMemory>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ModifierOperation {
-    #[serde(rename = "add_value")]
-    AddValue,
-    #[serde(rename = "add_multiplied_base")]
-    AddMultipliedBase,
-    #[serde(rename = "add_multiplied_total")]
-    AddMultipliedTotal,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

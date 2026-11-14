@@ -36,7 +36,6 @@ use crate::Kind;
 use crate::MaxDamage;
 use crate::MaxStackSize;
 use crate::ModifierDisplay;
-use crate::ModifierOperation;
 use crate::NameLookup;
 use crate::NameTable;
 use crate::PatchEntry;
@@ -68,6 +67,7 @@ use crate::saved_text::read_lore;
 use crate::saved_text::read_text;
 use crate::tag_number::TagNumber;
 use crate::tag_sink::TagSink;
+use mcrs_minecraft_entity_attribute::ModifierOperation;
 
 const ID: &str = "id";
 const COUNT: &str = "count";
@@ -400,7 +400,7 @@ impl<L: NameLookup> Reader<'_, L> {
             let id = self.identifier(self.necessary(entry, "id")?)?.to_buf();
             let amount = self.number(self.necessary(entry, "amount")?)?.to_double();
             let operation = self.string(self.necessary(entry, "operation")?)?;
-            let operation = ModifierOperation::from_name(operation).ok_or(self.bad())?;
+            let operation: ModifierOperation = operation.parse().map_err(|_| self.bad())?;
             let mut modifier = AttributeModifier::new(attribute, id, amount, operation);
             if let Some(slot) = entry.get("slot") {
                 modifier.slot = SlotGroup::from_name(self.string(slot)?).ok_or(self.bad())?;

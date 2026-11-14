@@ -29,7 +29,6 @@ use crate::Lore;
 use crate::MaxDamage;
 use crate::MaxStackSize;
 use crate::ModifierDisplay;
-use crate::ModifierOperation;
 use crate::NameLookup;
 use crate::NameTable;
 use crate::Rarity;
@@ -43,6 +42,7 @@ use crate::WireError;
 use crate::lore::MAX_LINES;
 use crate::wire_text::read_text;
 use crate::wire_text::write_text;
+use mcrs_minecraft_entity_attribute::ModifierOperation;
 
 const DISPLAY_DEFAULT: i32 = 0;
 const DISPLAY_HIDDEN: i32 = 1;
@@ -203,7 +203,10 @@ impl<L: NameLookup> Reader<'_, L> {
             let attribute = AttributeId(self.id(input, NameTable::Attribute)?);
             let id = self.identifier(input)?.to_buf();
             let amount = f64::from_be_bytes(self.bytes(input)?);
-            let operation = self.list_entry(input, &ModifierOperation::ALL)?;
+            let operation = u8::try_from(self.var_int(input)?)
+                .ok()
+                .and_then(|operation| ModifierOperation::try_from(operation).ok())
+                .ok_or(self.bad())?;
             let mut modifier = AttributeModifier::new(attribute, id, amount, operation);
             modifier.slot = self.list_entry(input, &SlotGroup::ALL)?;
             modifier.display = match self.var_int(input)? {
@@ -381,7 +384,7 @@ impl<L: NameLookup> Writer<'_, L> {
             put_var_int(output, i32::from(modifier.attribute.0));
             self.identifier(modifier.id(), output)?;
             output.extend_from_slice(&modifier.amount.to_be_bytes());
-            self.list_id(&ModifierOperation::ALL, modifier.operation, output)?;
+            put_var_int(output, i32::from(u8::from(modifier.operation)));
             self.list_id(&SlotGroup::ALL, modifier.slot, output)?;
             match &modifier.display {
                 ModifierDisplay::Default => put_var_int(output, DISPLAY_DEFAULT),

@@ -108,13 +108,13 @@ fn attributes_match_the_registry_entry_for_entry() {
             theirs.id
         );
         assert_eq!(
-            ours.min.to_bits(),
+            ours.range.min.to_bits(),
             theirs.min.to_bits(),
             "{} min",
             theirs.id
         );
         assert_eq!(
-            ours.max.to_bits(),
+            ours.range.max.to_bits(),
             theirs.max.to_bits(),
             "{} max",
             theirs.id
