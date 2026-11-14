@@ -332,6 +332,7 @@ fn tick_other<W: CollisionWorld, B: BodyView>(
         let velocity = body.velocity;
         let moved = move_body(view, &mover, body, MoverKind::Own, velocity, scratch);
         dy = applied_dy(&moved.resolved, start, body.position);
+        outcome.bounced = moved.bounce.is_some();
         entity.last_path = MovePath {
             start,
             end: body.position,

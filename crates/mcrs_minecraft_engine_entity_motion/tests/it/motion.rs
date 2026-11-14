@@ -34,17 +34,20 @@ use mcrs_minecraft_physics::Rest;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_physics::TestBlocks;
 use mcrs_minecraft_protocol_game::entity::MobLooks;
+use mcrs_minecraft_replication::MobReport;
+use mcrs_minecraft_replication::ReplicationData;
 use mcrs_minecraft_replication::SpawnLook;
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 use mcrs_voxel::BlockPos;
 use mcrs_voxel::BlockStateId;
 use mcrs_voxel::SectionPos;
 
-/// A dimension from `y = -64` with stone under `y = 0` and air above it, its sections loaded
-/// from `x, z = -16` to `31`, and the motion plugin.
-fn app() -> App {
+/// A dimension from `y = -64` with the floor block under `y = 0` and air above it, its sections
+/// loaded from `x, z = -16` to `31`, and the motion plugin.
+fn app(floor: fn(&TestBlocks) -> BlockStateId) -> App {
     ComputeTaskPool::get_or_init(TaskPool::default);
     let blocks = TestBlocks::new();
+    let floor = floor(&blocks);
     let mut ids = CellEntityIds::default();
     ids.add(EntityIdRange::starting_at(2).expect("a small range"));
     let mut app = App::new();
@@ -74,11 +77,7 @@ fn app() -> App {
     for x in -1..=1 {
         for z in -1..=1 {
             for y in -4..=3 {
-                let state = if y < 0 {
-                    blocks.stone
-                } else {
-                    BlockStateId::AIR
-                };
+                let state = if y < 0 { floor } else { BlockStateId::AIR };
                 let pos = SectionPos::new(x, y, z);
                 let section = world.spawn_empty().id();
                 index.insert(pos, section);
@@ -144,7 +143,7 @@ fn state(app: &App, entity: Entity) -> EntityState {
 
 #[test]
 fn a_falling_block_lands_on_the_floor_and_falls_silent_at_rest() {
-    let mut app = app();
+    let mut app = app(|blocks| blocks.stone);
     let block = spawn(
         app.world_mut(),
         MotionRow::falling_block(),
@@ -182,7 +181,7 @@ fn a_falling_block_lands_on_the_floor_and_falls_silent_at_rest() {
 
 #[test]
 fn a_block_placed_under_a_resting_item_wakes_it() {
-    let mut app = app();
+    let mut app = app(|blocks| blocks.stone);
     let item = spawn(
         app.world_mut(),
         MotionRow::item(),
@@ -210,4 +209,42 @@ fn a_block_placed_under_a_resting_item_wakes_it() {
         !matches!(rest, Rest::Resting(_)),
         "the item wakes: {rest:?}"
     );
+}
+
+#[test]
+fn an_item_that_bounces_on_slime_reports_the_bounce_in_that_tick_only() {
+    let mut app = app(|blocks| blocks.slime);
+    let item = spawn(
+        app.world_mut(),
+        MotionRow::item(),
+        DVec3::new(0.5, 3.0, 0.5),
+    );
+    tick(&mut app);
+    let mut bounces = 0;
+    for at in 1..60 {
+        let before = state(&app, item).body.velocity.y;
+        app.world_mut().run_schedule(FixedUpdate);
+        let deltas = app.world_mut().resource_mut::<TileEvents>().take();
+        let after = state(&app, item).body.velocity.y;
+        let reported = deltas
+            .tiles
+            .iter()
+            .flat_map(|delta| &delta.events)
+            .find_map(|event| match &event.event {
+                EntityEvent::Move(ReplicationData::Mob(MobReport::Move(state))) => {
+                    Some(state.bounced)
+                }
+                _ => None,
+            });
+        let Some(bounced) = reported else {
+            continue;
+        };
+        let turned_up = before <= 0.0 && after > 0.0;
+        assert_eq!(
+            bounced, turned_up,
+            "tick {at}: velocity {before} to {after}"
+        );
+        bounces += usize::from(bounced);
+    }
+    assert!(bounces > 0, "the item bounces on the slime block");
 }

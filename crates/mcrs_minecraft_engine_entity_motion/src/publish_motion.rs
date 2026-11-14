@@ -5,6 +5,7 @@ use mcrs_engine_muxer::EntityEvent;
 use mcrs_minecraft_engine::tile_events::TileEvents;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::EntityState;
+use mcrs_minecraft_physics::TickOutcome;
 use mcrs_minecraft_replication::MobReport;
 use mcrs_minecraft_replication::MobSpawn;
 use mcrs_minecraft_replication::MobState;
@@ -38,7 +39,7 @@ pub(crate) fn publish_motion(
             .is_ok()
     };
     for subject in assigned.iter() {
-        let Ok((state, _, appearance)) = entities.get(subject.entity) else {
+        let Ok((state, outcome, appearance)) = entities.get(subject.entity) else {
             continue;
         };
         let Some(appearance) = appearance else {
@@ -49,7 +50,7 @@ pub(crate) fn publish_motion(
         let spawn = MobSpawn {
             kind: appearance.kind,
             uuid: Uuid::from_u128(state.key.0),
-            state: viewed(state),
+            state: viewed(state, &outcome.kernel),
             look: appearance.look.clone(),
         };
         events.push(
@@ -78,7 +79,7 @@ pub(crate) fn publish_motion(
         events.push(
             tile,
             subject.id,
-            EntityEvent::Move(MobReport::Move(viewed(state)).into()),
+            EntityEvent::Move(MobReport::Move(viewed(state, &outcome.kernel)).into()),
         );
     }
     let departures = &mut departures.0;
@@ -91,16 +92,14 @@ pub(crate) fn publish_motion(
     assigned.clear();
 }
 
-fn viewed(state: &EntityState) -> MobState {
+fn viewed(state: &EntityState, outcome: &TickOutcome) -> MobState {
     MobState {
         position: state.body.position,
         velocity: state.body.velocity,
         on_ground: state.body.flags.on_ground,
         horizontal_collision: state.body.flags.horizontal_collision,
         vertical_collision: state.body.flags.vertical_collision,
-        // chisle: the kernel does not report the bounce of PHY-RST-004 in its tick outcome, so no
-        // tracker tick jumps its counter (TRK-UPD-011); a bounce field on that outcome lifts this.
-        bounced: false,
+        bounced: outcome.bounced,
         ..MobState::default()
     }
 }
