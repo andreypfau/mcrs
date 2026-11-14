@@ -4,82 +4,9 @@
 
 mod colour;
 mod light_color_plugin;
+mod light_volume_render_plugin;
 mod volume;
 
-use bevy::core_pipeline::schedule::Core3d;
-use bevy::prelude::*;
-use bevy::render::extract_resource::ExtractResourcePlugin;
-use bevy::render::render_resource::BindGroup;
-use bevy::render::renderer::{RenderAdapter, RenderDevice};
-use bevy::render::{Render, RenderApp, RenderSystems};
-use mcrs_minecraft_render::{LightTint, RenderPath, WorldPass};
-
 pub use light_color_plugin::{HeldItemLights, LightColorPlugin};
+pub use light_volume_render_plugin::LightVolumeRenderPlugin;
 pub use volume::{VolumeCommand, VolumeQueue, VolumeSettings};
-
-pub struct LightVolumeRenderPlugin {
-    pub settings: VolumeSettings,
-}
-
-impl Plugin for LightVolumeRenderPlugin {
-    fn build(&self, app: &mut App) {
-        bevy::shader::load_shader_library!(app, "shaders/volume.wesl");
-        bevy::asset::embedded_asset!(app, "shaders/colour.wgsl");
-        let queue = VolumeQueue::default();
-        app.insert_resource(self.settings)
-            .insert_resource(queue)
-            .add_plugins(ExtractResourcePlugin::<VolumeSettings>::default());
-    }
-
-    /// The volume is coloured by compute passes over storage buffers, so without them (WebGL2)
-    /// the render part is left out: the lighting pass then draws block light without a tint, and
-    /// the volume, never opened, asks the feeder for nothing.
-    fn finish(&self, app: &mut App) {
-        let world = app.world();
-        match (
-            world.get_resource::<RenderDevice>(),
-            world.get_resource::<RenderAdapter>(),
-        ) {
-            (Some(device), Some(adapter)) if RenderPath::of(device, adapter).is_full() => {}
-            (Some(_), Some(_)) => {
-                info!("no compute passes: block light is drawn without a tint");
-                return;
-            }
-            _ => {
-                warn!("the light volume plugin finished before the renderer: no light tint");
-                return;
-            }
-        }
-        let queue = world.resource::<VolumeQueue>().clone();
-        let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
-            return;
-        };
-        render_app
-            .insert_resource(queue)
-            .insert_resource(LightTint {
-                layout: volume::volume_layout(),
-                bind_group: None,
-            })
-            .init_resource::<colour::ColourPipelines>()
-            .add_systems(
-                Render,
-                (
-                    colour::prepare_colour_pipelines.in_set(RenderSystems::Prepare),
-                    (volume::apply_volume_commands, volume::write_volume_terms)
-                        .chain()
-                        .in_set(RenderSystems::Prepare),
-                    (volume::fit_volume, publish_tint)
-                        .chain()
-                        .in_set(RenderSystems::PrepareBindGroups),
-                ),
-            )
-            .add_systems(Core3d, colour::propagate_colour.in_set(WorldPass::Upload));
-    }
-}
-
-fn publish_tint(volume: Option<Res<volume::Volume>>, mut tint: ResMut<LightTint>) {
-    let bind_group = volume.as_deref().map(|volume| &volume.bind_group);
-    if bind_group.map(BindGroup::id) != tint.bind_group.as_ref().map(BindGroup::id) {
-        tint.bind_group = bind_group.cloned();
-    }
-}
