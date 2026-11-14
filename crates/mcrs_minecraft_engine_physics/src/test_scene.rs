@@ -6,7 +6,6 @@ use mcrs_minecraft_entity_rows::BodyGrid;
 use mcrs_minecraft_entity_rows::Pass;
 use mcrs_minecraft_entity_rows::RowStore;
 use mcrs_minecraft_physics::Body;
-use mcrs_minecraft_physics::CollisionWorld;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::Living;
 use mcrs_minecraft_physics::MotionRow;
@@ -117,14 +116,6 @@ impl<M: Send> TestScene<M> {
             tick: 0,
             push: PushRules::default(),
             crowd_damage_type: None,
-        }
-    }
-
-    /// The blocks of the scene as the pass reads them.
-    pub fn block_world(&self) -> impl CollisionWorld + Sync + '_ {
-        BlockWorld {
-            blocks: &self.blocks,
-            table: &self.tables.collision,
         }
     }
 

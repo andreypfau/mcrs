@@ -30,7 +30,7 @@ Section 14 is the implementation plan.
 | Writes and claims | binned by target tile; applied and arbitrated per target tile in parallel; writes at the start of the next tick (PHY-CMP-015), claims after the block domain (PHY-CMP-017) | §3.7 |
 | Frozen state | the grid is written inside the pass into a back buffer; the freeze patches only tiles that changed after the pass | §3.4 |
 | AI | eight reflexes in the hot tick; decisions in an AI stage on an isolated pool at the vanilla periods; versioned snapshot; late decisions applied per tile; proposals per component; `max_lag` 2; `AiDelay::Inline` in exact-parity mode | §5 |
-| Data layout | hybrid: the hot state of mobs in SoA rows of the kernel crate, their cold state in ECS; the moving entities that are not living (items, falling blocks, primed TNT, orbs, projectiles) are ECS entities with components, which one parallel pass steps with a section cache per batch; players are rows | §6, §6.9 |
+| Data layout | hybrid: the hot state of mobs in SoA rows of the kernel crate, their cold state in ECS; the moving entities that are not living (items, falling blocks, primed TNT, orbs, projectiles) are ECS entities with components, which one parallel pass steps with a section window per entity; players are rows | §6, §6.9 |
 | Partition | one world per dimension in a process; tiles as work units; cells for placement across processes | §7 |
 | Block domain | block tiles of 4 × 4 columns, 2 × 2 colours, dependency-driven phases, region-only access, undo and re-run for chains that leave the region | §7.4, §7.5 |
 | Players | L0 and L1 on the network threads, per connection in stream order; L2 in the world before the entity pass, so entities see the moves of this tick (PHY-CMP-021); the server copy follows PHY-CMP-023 | §8 |
@@ -519,41 +519,37 @@ L0/L1. It waits for the AI stage only at `T + max_lag`, or always in `AiDelay::F
 
 ### 6.1 Options
 
-The bench `ecs_pass` of `mcrs_minecraft_engine_physics` measures both options on the scene of
-`TestScene`, with the same kernel, the same blocks and the same task pool. `PERF.md`, section
-"Moving entities: rows against components", gives the machine, the method and the load.
+The bench `motion_pass` of `mcrs_minecraft_engine_entity_motion` measures both options on the
+items of `TestScene`, with the same kernel, the same blocks and the same task pool. The component
+side is the production `EntityMotionPlugin`; the rows side is `TestScene::step`. Neither side holds
+a mob. `PERF.md`, section "Moving entities: rows against components", gives the machine, the
+method, the load and the work that is not equal.
 
-| Case | Rows | Components, section cache per batch | Components, direct block reads |
-|------|------|-------------------------------------|--------------------------------|
-| steady tick, 50k walkers and 50k items | 2.18 ms | 3.35 ms | 4.60 ms |
-| 100k items at rest | 0.65 ms | 0.83 ms | 1.57 ms |
-| 1M entities, about 27% awake, median tick | 30.6 ms | 35.3 ms | 51.3 ms |
-| spawn of 10k items | 1.27 ms (`RowStore::spawn`) | 0.31 ms (`spawn_batch`), 1.74 ms (`Commands`) | — |
-| list of movers at 100k | a slice read | a `Changed` scan: 0.10 ms at rest, 0.23 ms in the steady tick | — |
-
-A rest marker brings the 100k items at rest to 0.045 ms, and a wake of 10k items costs 0.29 ms.
-The pass does not use a rest marker today.
-
-The work of the two sides is not equal. The component side bins the mobs into the neighbour grid
-on one thread. The rows pass does not skip a quiet tile: it visits each row and returns early for
-a row at rest. The bench has mobs on both sides; the production pass of components holds no mobs.
+| Case | Rows | Components | Components / rows |
+|------|------|------------|-------------------|
+| 100k items at rest | 0.608 ms | 0.972 ms | 1.60 |
+| 100k items in flight | 2.38 ms | 3.42 ms | 1.44 |
+| 1M items, 25% awake, median tick | 15.7 ms | 16.5 ms | 1.05 |
+| spawn of 10k items | 1.25 ms (`RowStore::spawn`) | 0.356 ms (`spawn_batch`) | 0.28 |
 
 The measurement refutes three claims of the first estimate:
 
 | Claim | Result |
 |-------|--------|
-| a quiet tile costs zero | refuted: the rows pass visits each row; 100k items at rest cost 0.65 ms with rows and 0.83 ms with components |
-| only rows can cache block reads | refuted: a section cache per `par_iter` batch brings the components from 51.3 ms to 35.3 ms at 1M |
-| an ECS spawn per item is serial and slow | refuted: `spawn_batch` spawns 10k items in 0.31 ms, against 1.27 ms for the rows; only `Commands` is slower, at 1.74 ms |
+| a quiet tile costs zero | refuted: the rows pass visits each row; 100k items at rest cost 0.608 ms with rows and 0.972 ms with components |
+| only rows can cache block reads | refuted: the component pass reads the blocks through a section window of 8 slots for each entity, and at 1M it costs 16.5 ms against 15.7 ms with rows |
+| an ECS spawn per item is serial and slow | refuted: `spawn_batch` spawns 10k items in 0.356 ms, against 1.25 ms for the rows |
 
-The estimate of 1–2 ms for each `Changed<T>` scan is also too high: a scan over 100k costs 0.10
-to 0.23 ms.
+The estimate of 1–2 ms for each `Changed<T>` scan is also too high: an earlier bench, on a copy
+of the pass, measured 0.10 to 0.23 ms for a scan over 100k. The pass does not scan: each thread
+queues the movers, and one system sorts them.
 
 Decision: mobs stay on rows, because the body grid, the push groups and the AI link read rows. The
 moving entities that are not living are ECS entities with components (§6.3). They push nothing, so
 their pass reads no body grid. A kind from a vanilla plugin or a third-party plugin is then a set
-of components, with no store of its own (§6.9). The cost is about 15% of the pass time at 1M
-against rows (35.3 ms against 30.6 ms). Each hot field has one home.
+of components, with no store of its own (§6.9). At 100k the components cost 1.44 to 1.60 times the
+rows pass; at 1M with a quarter awake, they cost 5% more (16.5 ms against 15.7 ms). Each hot field
+has one home.
 
 ### 6.2 Resources
 

@@ -1108,33 +1108,42 @@ outside the noise, and that a change in a dependent crate does not rebuild it.
 
 ## Moving entities: rows against components
 
-Scenario: the bench `crates/mcrs_minecraft_engine_physics/benches/ecs_pass.rs`, on the scene of
-`TestScene` with no item lifetime. Both sides use the same kernel, the same blocks and the same
-task pool. The rows side is the rows pass. The component side steps plain Bevy components with
-`par_iter_mut().for_each_init`, either with a section cache per batch or with a direct block read.
-Criterion readings, bench profile, Apple M4 Max with 16 threads, 2026-11-14.
+Scenario: the bench `crates/mcrs_minecraft_engine_entity_motion/benches/motion_pass.rs`, on the
+items of `TestScene` with seed 11 and no walkers. The component side runs the production
+`EntityMotionPlugin` alone in an `App`, on the sections of the scene. The rows side runs
+`TestScene::step` on the same items with no lifetime. Both sides use the same kernel and the same
+task pool of 16 threads, and warm up for 400 ticks. Criterion readings, bench profile, Apple M4 Max,
+2026-11-15.
 
-| case | rows | components, section cache per batch | components, direct block reads |
+| case | rows | components (`EntityMotionPlugin`) | components / rows |
 |---|---|---|---|
-| steady tick, 50k walkers and 50k items | 2.18 ms | 3.35 ms | 4.60 ms |
-| 100k items at rest | 0.65 ms | 0.83 ms | 1.57 ms |
-| 1M entities, about 27% awake, median tick | 30.6 ms | 35.3 ms | 51.3 ms |
-| spawn of 10k items | 1.27 ms (`RowStore::spawn`) | 0.31 ms (`spawn_batch`), 1.74 ms (`Commands`) | not applicable |
-| list of movers at 100k | a slice read | a `Changed` scan: 0.10 ms at rest, 0.23 ms in the steady tick | not applicable |
+| 100k items at rest (99,959 rest on each side) | 0.608 ms | 0.972 ms | 1.60 |
+| 100k items in flight | 2.38 ms | 3.42 ms | 1.44 |
+| 1M items, 25% awake, median of 20 ticks | 15.7 ms | 16.5 ms | 1.05 |
+| spawn of 10k items | 1.25 ms (`RowStore::spawn`) | 0.356 ms (`spawn_batch`) | 0.28 |
 
-A rest marker brings the 100k items at rest to 0.045 ms, and a wake of 10k items costs 0.29 ms.
-The motion pass does not use a rest marker.
+Method of the cases in flight: before each measured tick, and outside the measure, the bench puts
+each launched item back at its start body: above the floor, rising, awake. Thus each sample measures
+the same tick, the first tick of a launch, and no item lands. At 100k each item is launched. At 1M
+one item in four is launched, and the other items rest.
 
-The machine was not idle: the 1-minute load average was 5 at the start and 27 at the end, so each
-time is an upper bound. The work of the two sides is not equal. The component side bins the mobs
-into the neighbour grid on one thread. The rows pass does not skip a quiet tile: it visits each row
-and returns early for a row at rest. The bench has mobs on both sides; the production pass of
-components holds no mobs.
+The machine was not idle. The 1-minute load average did not fall below 6 in 15 minutes: it was 9.0
+at the start and 12.0 at the end. Thus each time is an upper bound.
 
-With the section cache per batch, the components cost about 15% of the pass time at 1M against
-rows. The moving entities that are not living (items, falling blocks, later primed TNT, experience
-orbs and projectiles) therefore are components in `mcrs_minecraft_engine_entity_motion`. Mobs stay
-on rows. `docs/physics-architecture.md` §6.1 records the decision.
+The work of the two sides is not equal:
+
+- The rows side writes the body grid of each dirty tile in the freeze, and a launch makes the tile
+  of each launched item dirty. It also runs the merge point with no writes and the tile moves.
+- The component side runs a schedule of three systems. It fills a section window of 8 slots for
+  each entity, through the section index of the dimension. It writes `StepOutcome`, and it sorts
+  the list of movers.
+- Neither side holds a mob, so the rows side has no push work and no neighbour reads.
+
+The rows pass is faster at 100k: the components cost 1.60 times the rows at rest and 1.44 times in
+flight. At 1M with a quarter awake, the difference is 5%. A spawn through `spawn_batch` costs 0.28
+times a spawn of rows. The moving entities that are not living therefore stay components in
+`mcrs_minecraft_engine_entity_motion`, and mobs stay on rows. `docs/physics-architecture.md` §6.1
+records the decision.
 
 ## Findings not yet acted on
 
