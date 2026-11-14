@@ -1,8 +1,12 @@
 use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
+use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
 use mcrs_engine_muxer::EntityEvent;
 use mcrs_minecraft_engine::tile_events::TileEvents;
+use mcrs_minecraft_engine_entity_motion::MotionState;
+use mcrs_minecraft_engine_entity_motion::Movers;
+use mcrs_minecraft_engine_entity_motion::StepOutcome;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::EntityState;
 use mcrs_minecraft_physics::TickOutcome;
@@ -12,12 +16,10 @@ use mcrs_minecraft_replication::MobState;
 use uuid::Uuid;
 
 use crate::Appearance;
-use crate::MotionState;
+use crate::MotionId;
 use crate::PublishedTile;
-use crate::StepOutcome;
 use crate::assign_ids::Assigned;
 use crate::departures::Departures;
-use crate::step_motion::Movers;
 use crate::subject::Subject;
 
 /// Records the tile events of the tick in the order of the ids: the spawn of each entity that got
@@ -32,8 +34,9 @@ pub(crate) fn publish_motion(
         Option<&Appearance>,
         &mut PublishedTile,
     )>,
+    ids: Query<&MotionId>,
     mut assigned: ResMut<Assigned>,
-    mut movers: ResMut<Movers>,
+    movers: Res<Movers>,
     mut moved: Local<Vec<Subject>>,
     mut departures: ResMut<Departures>,
     mut events: ResMut<TileEvents>,
@@ -70,7 +73,11 @@ pub(crate) fn publish_motion(
         );
     }
     moved.clear();
-    movers.0.drain_into(&mut moved);
+    for &entity in movers.entities() {
+        if let Ok(id) = ids.get(entity) {
+            moved.push(Subject { id: id.0, entity });
+        }
+    }
     moved.sort_unstable();
     for subject in moved.iter() {
         if spawned(subject.id) {

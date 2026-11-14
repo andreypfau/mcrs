@@ -4,11 +4,11 @@ use bevy_ecs::observer::On;
 use bevy_ecs::system::Commands;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::ResMut;
-use mcrs_minecraft_engine_entity_motion::Appearance;
-use mcrs_minecraft_engine_entity_motion::MotionId;
 use mcrs_minecraft_engine_entity_motion::MotionKind;
 use mcrs_minecraft_engine_entity_motion::MotionState;
-use mcrs_minecraft_engine_entity_motion::PublishedTile;
+use mcrs_minecraft_engine_entity_motion_replication::Appearance;
+use mcrs_minecraft_engine_entity_motion_replication::MotionId;
+use mcrs_minecraft_engine_entity_motion_replication::PublishedTile;
 use mcrs_minecraft_engine_item::Dropped;
 use mcrs_minecraft_item_entity::ItemEntity;
 

@@ -4,11 +4,11 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Commands;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::ResMut;
+use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::TileKey;
 
 use crate::MotionId;
-use crate::MotionState;
 use crate::PublishedTile;
 
 /// An entity that lost its motion, with the tile in which its viewers know it.

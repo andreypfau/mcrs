@@ -10,7 +10,7 @@ use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
 use bevy_ecs::world::World;
-use mcrs_minecraft_engine_entity_motion::MotionId;
+use mcrs_minecraft_engine_entity_motion_replication::MotionId;
 use mcrs_minecraft_engine_item::Dropped;
 use mcrs_minecraft_engine_item::ItemCommandsExt;
 use mcrs_minecraft_engine_item::Selected;

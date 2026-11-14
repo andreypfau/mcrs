@@ -6,7 +6,7 @@ use bevy_ecs::schedule::SystemSet;
 use bevy_ecs::schedule::common_conditions::any_with_component;
 use mcrs_minecraft_engine::tile_events::TileEvents;
 use mcrs_minecraft_engine_entity_motion::MotionPass;
-use mcrs_minecraft_engine_entity_motion::MotionPublish;
+use mcrs_minecraft_engine_entity_motion_replication::MotionPublish;
 use mcrs_minecraft_engine_physics::MobPublish;
 use mcrs_minecraft_engine_world::block_drops::ItemDropped;
 use mcrs_minecraft_engine_world::tick::TickSet;

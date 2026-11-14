@@ -13,6 +13,7 @@ use bevy_tasks::ComputeTaskPool;
 use bevy_tasks::TaskPool;
 use glam::DVec3;
 use mcrs_minecraft_engine_entity_motion::EntityMotionPlugin;
+use mcrs_minecraft_engine_entity_motion_replication::EntityMotionReplicationPlugin;
 use mcrs_minecraft_engine_item::Dropped;
 use mcrs_minecraft_engine_item::ItemCommandsExt;
 use mcrs_minecraft_engine_item::ItemPlugin;
@@ -106,6 +107,7 @@ pub fn app() -> App {
     .add_plugins((
         ItemPlugin::new(*TABLE),
         EntityMotionPlugin,
+        EntityMotionReplicationPlugin,
         ItemEntityPlugin,
     ))
     .add_systems(FixedUpdate, advance_clock.in_set(TickSet::DomainInput));

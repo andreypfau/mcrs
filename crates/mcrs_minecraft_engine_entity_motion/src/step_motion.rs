@@ -3,13 +3,12 @@ use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::query::With;
-use bevy_ecs::resource::Resource;
+use bevy_ecs::query::Without;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
 use bevy_ecs::system::Single;
 use bevy_ecs::world::Mut;
-use bevy_utils::Parallel;
 use glam::DVec3;
 use mcrs_minecraft_engine_physics::BlockWorld;
 use mcrs_minecraft_engine_physics::PhysicsTables;
@@ -29,29 +28,24 @@ use mcrs_minecraft_physics::same_bits;
 use mcrs_minecraft_physics::tick_entity;
 use mcrs_voxel::SectionPos;
 
-use crate::MotionId;
+use crate::MotionHold;
 use crate::MotionKind;
 use crate::MotionState;
+use crate::Movers;
 use crate::StepOutcome;
 use crate::section_cache::SectionCache;
 use crate::stirred_tiles::StirredTiles;
-use crate::subject::Subject;
 
 const SERVER: Side = Side::Server { authority: true };
-
-/// The entities whose body the pass changed in this tick, one queue per thread.
-#[derive(Resource, Default)]
-pub(crate) struct Movers(pub(crate) Parallel<Vec<Subject>>);
 
 type Moving<'a> = (
     Entity,
     Mut<'a, MotionState>,
     &'a MotionKind,
-    &'a MotionId,
     Mut<'a, StepOutcome>,
 );
 
-/// Steps each entity with a motion and an id once, in parallel. Each batch reads the blocks
+/// Steps each entity with a motion and no hold once, in parallel. Each batch reads the blocks
 /// through its own section cache and keeps its own scratch buffers.
 pub(crate) fn step_motion(
     dimension: Single<Entity, With<Dimension>>,
@@ -59,13 +53,10 @@ pub(crate) fn step_motion(
     tables: Res<PhysicsTables>,
     stirred: Res<StirredTiles>,
     movers: ResMut<Movers>,
-    mut entities: Query<(
-        Entity,
-        &mut MotionState,
-        &MotionKind,
-        &MotionId,
-        &mut StepOutcome,
-    )>,
+    mut entities: Query<
+        (Entity, &mut MotionState, &MotionKind, &mut StepOutcome),
+        Without<MotionHold>,
+    >,
 ) {
     let Some(blocks) = world.get(*dimension) else {
         return;
@@ -77,7 +68,7 @@ pub(crate) fn step_motion(
     let world = &world;
     let tables = tables.tables();
     let stirred = &*stirred;
-    let movers = &movers.0;
+    let movers = &movers.queues;
     entities
         .par_iter_mut()
         .batching_strategy(BatchingStrategy::new().batches_per_thread(4))
@@ -101,13 +92,13 @@ pub(crate) fn step_motion(
 /// One step of one entity, as the rows pass steps a row that is not living: no push, the block
 /// actions of the tick dropped, and the age counted. Gives the entity when its body changed.
 fn step<W: CollisionWorld>(
-    (entity, mut state, kind, id, mut outcome): Moving<'_>,
+    (entity, mut state, kind, mut outcome): Moving<'_>,
     cache: &mut SectionCache<'_, W>,
     tables: &Tables,
     stirred: &StirredTiles,
     scratch: &mut Scratch,
     actions: &mut Vec<BlockAction>,
-) -> Option<Subject> {
+) -> Option<Entity> {
     let written = state.is_changed();
     let motion = &mut state.bypass_change_detection().0;
     let start = motion.body;
@@ -135,7 +126,7 @@ fn step<W: CollisionWorld>(
         || kernel.bounced
         || wake && body.velocity != start.velocity;
     // The velocity of an item cycles while it rests; a viewer does not see it (TRK-UPD-017).
-    moved.then_some(Subject { id: id.0, entity })
+    moved.then_some(entity)
 }
 
 /// True when the section of `position` is loaded or outside the world: an entity in a section

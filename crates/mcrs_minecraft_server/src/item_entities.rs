@@ -4,6 +4,7 @@ use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine_entity_motion::EntityMotionPlugin;
+use mcrs_minecraft_engine_entity_motion_replication::EntityMotionReplicationPlugin;
 use mcrs_minecraft_engine_item::{ItemPlugin, ItemSet};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
@@ -38,6 +39,9 @@ fn build_dimension_items(host: &World, _: &DimensionBuild<'_>, sub_app: &mut Sub
     };
     if !sub_app.is_plugin_added::<EntityMotionPlugin>() {
         sub_app.add_plugins(EntityMotionPlugin);
+    }
+    if !sub_app.is_plugin_added::<EntityMotionReplicationPlugin>() {
+        sub_app.add_plugins(EntityMotionReplicationPlugin);
     }
     sub_app.add_plugins((
         ItemPlugin::new(table),

@@ -17,6 +17,7 @@ glam.workspace = true
 mcrs_engine_muxer.workspace = true
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_engine_entity_motion.workspace = true
+mcrs_minecraft_engine_entity_motion_replication.workspace = true
 mcrs_minecraft_engine_item.workspace = true
 mcrs_minecraft_engine_physics.workspace = true
 mcrs_minecraft_engine_world.workspace = true
