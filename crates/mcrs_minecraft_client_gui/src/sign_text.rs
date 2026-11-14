@@ -1,13 +1,15 @@
 //! Sign text layout (`docs/spec/client-sign-text.md`): glyph quads in block space for a pass.
 
-use bevy::math::{DMat4, DVec3, IVec2, Vec3};
+use bevy::math::{DMat4, DVec3, IVec2, Vec2, Vec3};
 use mcrs_minecraft_block_entity::{SignText, Text as StoredText};
 use mcrs_minecraft_client_world::sign::{SignFamily, SignMount};
 use mcrs_minecraft_protocol_game::text::{IntoText, Text};
 use mcrs_voxel::BlockPos;
 
-use crate::font::{Font, Span};
+use crate::font::{Font, Span, draw_glyphs};
+use crate::font_glyph::ImageSource;
 use crate::language::ClientLanguage;
+use crate::scene::GuiQuad;
 use crate::text::{Wrap, text_spans, wrap};
 
 /// SIGN-LIGHT-001 item 1: block light 15, sky light 15.
@@ -16,11 +18,6 @@ pub const FULL_BRIGHT_LIGHT: u32 = 15_728_880;
 pub const BLACK_GLOW_OUTLINE: u32 = 0xFFF0_EBCC;
 /// SIGN-COL-003: the squared distance, in blocks, under which a glowing sign has its outline.
 pub const OUTLINE_DISTANCE_SQUARED: f64 = 256.0;
-/// SIGN-FONT-002 item 2: a hollow rectangle 5 texels wide and 8 high, and its advance. The advance
-/// is the spec's open item 3, taken as the width plus one.
-pub const MISSING_ADVANCE: i32 = 6;
-const MISSING_SIZE: IVec2 = IVec2::new(5, 8);
-
 /// How far the line stands before its outline copies, in text units. A pass that cannot offset
 /// depth draws the outline behind the line with this (SIGN-LIGHT-001 item 3).
 const LINE_LIFT: f64 = 0.02;
@@ -260,12 +257,12 @@ pub fn lines(
 }
 
 /// A glyph drawn on a sign: the corners in block space, in the order top left, top right, bottom
-/// right, bottom left of the text plane, and what to sample.
+/// right, bottom left of the text plane, and the picture to sample.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SignQuad {
     pub corners: [Vec3; 4],
-    /// The top left texel of the glyph cell of the font page, or `None` for a solid fill.
-    pub cell: Option<IVec2>,
+    pub glyph: char,
+    pub source: ImageSource,
     pub color: u32,
     pub light: u32,
 }
@@ -282,92 +279,63 @@ const OUTLINE_OFFSETS: [IVec2; 8] = [
 ];
 
 /// SIGN-COL-002 items 7 and 8, SIGN-FONT-002: the quads of the lines of one side. The outline
-/// copies come first, so the line lies over them.
+/// copies come first, so the line lies over them. A glyph is drawn as the GUI draws it
+/// (`client-font.md`, FONT-DRAW-001) without a shadow; a code point the font lacks draws the
+/// missing glyph.
 pub fn quads(font: &Font, lines: &[Line], matrix: &DMat4, paint: &Paint, out: &mut Vec<SignQuad>) {
-    let size = font.cell_size;
-    let mut rect = |at: IVec2, extent: IVec2, lift: f64, cell: Option<IVec2>, color: u32| {
-        let corner = |dx: i32, dy: i32| {
-            let point = DVec3::new(f64::from(at.x + dx), f64::from(at.y + dy), lift);
-            matrix.transform_point3(point).as_vec3()
-        };
-        out.push(SignQuad {
-            corners: [
-                corner(0, 0),
-                corner(extent.x, 0),
-                corner(extent.x, extent.y),
-                corner(0, extent.y),
-            ],
-            cell,
-            color,
-            light: paint.light,
-        });
-    };
-    let mut draw = |line: &Line, shift: IVec2, lift: f64, forced: Option<u32>| {
-        let mut x = line.origin.x + shift.x;
-        let y = line.origin.y + shift.y;
-        for span in &line.spans {
-            let color = forced.unwrap_or(span.color);
-            for ch in span.text.chars() {
-                let strikes = if span.bold { 2 } else { 1 };
-                if font.is_missing(ch) {
-                    for strike in 0..strikes {
-                        hollow(IVec2::new(x + strike, y), lift, color, &mut rect);
-                    }
-                } else if let Some(glyph) = font.glyph(ch) {
-                    for strike in 0..strikes {
-                        rect(
-                            IVec2::new(x + strike, y),
-                            size,
-                            lift,
-                            Some(glyph.cell),
-                            color,
-                        );
-                    }
-                }
-                x += font.advance(ch, span.bold);
-            }
-        }
-    };
+    let mut glyphs = Vec::new();
     for line in lines {
-        if let Some(outline) = paint.outline {
-            for shift in OUTLINE_OFFSETS {
-                draw(line, shift, 0.0, Some(outline));
+        let outline = paint
+            .outline
+            .into_iter()
+            .flat_map(|color| OUTLINE_OFFSETS.map(|shift| (shift, 0.0, Some(color))));
+        for (shift, lift, forced) in outline.chain([(IVec2::ZERO, LINE_LIFT, None)]) {
+            let start = (line.origin + shift).as_vec2();
+            let mut x = start.x;
+            glyphs.clear();
+            for span in &line.spans {
+                let chars = span.text.chars().map(|ch| (ch, span.bold));
+                let color = forced.unwrap_or(span.color);
+                x = draw_glyphs(
+                    font,
+                    Vec2::new(x, start.y),
+                    chars,
+                    color,
+                    false,
+                    &mut glyphs,
+                );
+            }
+            for quad in &glyphs {
+                let GuiQuad::Glyph {
+                    pen,
+                    glyph,
+                    image,
+                    color,
+                    weight,
+                } = *quad
+                else {
+                    continue;
+                };
+                let rect = image.strike(pen, weight);
+                let corner = |x: f32, y: f32| {
+                    let point = DVec3::new(f64::from(x), f64::from(y), lift);
+                    matrix.transform_point3(point).as_vec3()
+                };
+                out.push(SignQuad {
+                    corners: [
+                        corner(rect.min.x, rect.min.y),
+                        corner(rect.max.x, rect.min.y),
+                        corner(rect.max.x, rect.max.y),
+                        corner(rect.min.x, rect.max.y),
+                    ],
+                    glyph,
+                    source: image.source,
+                    color,
+                    light: paint.light,
+                });
             }
         }
-        draw(line, IVec2::ZERO, LINE_LIFT, None);
     }
-}
-
-/// The missing glyph: four bars one unit thick around a 5 by 8 rectangle.
-fn hollow(
-    at: IVec2,
-    lift: f64,
-    color: u32,
-    rect: &mut impl FnMut(IVec2, IVec2, f64, Option<IVec2>, u32),
-) {
-    let (w, h) = (MISSING_SIZE.x, MISSING_SIZE.y);
-    rect(at, IVec2::new(w, 1), lift, None, color);
-    rect(
-        at + IVec2::new(0, h - 1),
-        IVec2::new(w, 1),
-        lift,
-        None,
-        color,
-    );
-    rect(
-        at + IVec2::new(0, 1),
-        IVec2::new(1, h - 2),
-        lift,
-        None,
-        color,
-    );
-    rect(
-        at + IVec2::new(w - 1, 1),
-        IVec2::new(1, h - 2),
-        lift,
-        None,
-        color,
-    );
 }
 
 #[cfg(test)]
@@ -749,16 +717,13 @@ mod tests {
 
         #[test]
         fn a_glowing_line_is_drawn_under_its_outline_copies_and_a_missing_glyph_is_a_frame() {
-            let pack = mcrs_minecraft_model::resource_set::ResourceSet::corpus();
-            let bytes = pack.read(crate::font::ASCII_TEXTURE).unwrap();
-            let (pixels, width, height) =
-                mcrs_minecraft_model::atlas::decode_png(bytes, crate::font::ASCII_TEXTURE).unwrap();
-            let font = Font::load(pack, &pixels, width, height)
-                .unwrap()
-                .with_missing_advance(MISSING_ADVANCE);
+            let font = corpus_font();
             let line = Line {
-                spans: vec![Span::new("a\u{e000}", 0xFF00_00FF)],
-                width: font.str_width("a\u{e000}"),
+                spans: vec![
+                    Span::new("a\u{e000}", 0xFF00_00FF),
+                    Span::new("ж", 0xFF00_00FF).bold(),
+                ],
+                width: 0,
                 origin: IVec2::ZERO,
             };
             let paint = Paint {
@@ -767,15 +732,18 @@ mod tests {
                 light: FULL_BRIGHT_LIGHT,
             };
             let mut out = Vec::new();
-            quads(&font, &[line], &DMat4::IDENTITY, &paint, &mut out);
-            // eight copies of two drawn things, then the line: one glyph and four bars.
-            assert_eq!(out.len(), 8 * 5 + 5);
-            assert!(out[..40].iter().all(|quad| quad.color == 0xFF11_2233));
-            assert!(out[40..].iter().all(|quad| quad.color == 0xFF00_00FF));
-            assert!(out[40].cell.is_some());
-            assert!(out[41..].iter().all(|quad| quad.cell.is_none()));
-            assert!(out[40].corners[0].z > out[0].corners[0].z);
-            assert_eq!(font.advance('\u{e000}', false), MISSING_ADVANCE);
+            quads(font, &[line], &DMat4::IDENTITY, &paint, &mut out);
+            // eight outline copies, then the line: `a`, the missing glyph, and bold `ж` twice.
+            assert_eq!(out.len(), 9 * 4);
+            assert!(out[..32].iter().all(|quad| quad.color == 0xFF11_2233));
+            let line = &out[32..];
+            assert!(line.iter().all(|quad| quad.color == 0xFF00_00FF));
+            assert!(matches!(line[0].source, ImageSource::Bitmap { .. }));
+            assert_eq!(line[1].source, ImageSource::Missing);
+            assert_eq!(line[1].corners[0].x, font.advance('a', false));
+            assert!(matches!(line[2].source, ImageSource::Bitmap { .. }));
+            assert_eq!(line[3].corners[0].x - line[2].corners[0].x, 1.0);
+            assert!(line[0].corners[0].z > out[0].corners[0].z);
         }
     }
 }

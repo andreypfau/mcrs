@@ -18,6 +18,7 @@ mcrs_minecraft_block_entity.workspace = true
 mcrs_minecraft_chat_client.workspace = true
 mcrs_minecraft_client_options = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_client_widget.workspace = true
+mcrs_minecraft_client_jar.workspace = true
 mcrs_minecraft_client_world.workspace = true
 mcrs_minecraft_command.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }

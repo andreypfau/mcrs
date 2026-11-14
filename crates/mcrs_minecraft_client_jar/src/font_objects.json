@@ -1,0 +1,27 @@
+[
+  {
+    "path": "minecraft/font/include/unifont.json",
+    "sha1": "402ded0eebd448033ef415e861a17513075f80e7",
+    "size": 3993
+  },
+  {
+    "path": "minecraft/font/include/unifont_pua.json",
+    "sha1": "db5582c177aca966ba1a9b062cead233a262a939",
+    "size": 136
+  },
+  {
+    "path": "minecraft/font/unifont.zip",
+    "sha1": "ccd5ac4767ce0a9c71d1dd62f2dc25449789b5dd",
+    "size": 1559654
+  },
+  {
+    "path": "minecraft/font/unifont_jp.zip",
+    "sha1": "590470ab0f17afb73a4e41d9cb56fdbe069d275a",
+    "size": 234900
+  },
+  {
+    "path": "minecraft/font/unifont_pua.zip",
+    "sha1": "d7caa0e3aa5eb656c51817ae4bfbf3c4d72cdaad",
+    "size": 100360
+  }
+]

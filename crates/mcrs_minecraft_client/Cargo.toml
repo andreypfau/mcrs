@@ -93,6 +93,7 @@ bevy = { version = "0.20.1", default-features = false, features = ["x11"] }
 bevy = { version = "0.20.1", default-features = false, features = ["web", "bevy_clipboard"] }
 console_error_panic_hook = "0.1"
 wasm-bindgen-futures = "0.4"
+futures-lite.workspace = true
 # The rustflag in .cargo/config.toml picks the backend; without the crate
 # feature of the same name getrandom refuses to build at all. Only 0.4 reaches
 # the wasm dependency graph.

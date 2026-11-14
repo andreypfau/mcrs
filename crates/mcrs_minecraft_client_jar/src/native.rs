@@ -12,8 +12,8 @@ use std::time::Duration;
 
 use crate::schedule::{self, Chunk, Queue, REST, Ranges, Source};
 use crate::{
-    Artifact, Directory, Files, Progress, RELEASE, Release, VanillaDataError, font_files, lock,
-    verify,
+    Artifact, AssetObject, Directory, FONT_OBJECTS, Files, Progress, RELEASE, Release,
+    VanillaDataError, font_files, lock, verify,
 };
 
 const CHUNK: u64 = 1 << 20;
@@ -21,6 +21,9 @@ const READ: usize = 64 << 10;
 pub const WORKERS: usize = 4;
 pub(crate) const FIRST_BACKOFF: Duration = Duration::from_secs(1);
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
+/// The Unifont archive is 1.5 MB: a link must be allowed minutes for it, not seconds.
+const OBJECT_BODY_TIMEOUT: Duration = Duration::from_secs(60);
+const OBJECT_ATTEMPTS: u32 = 4;
 
 pub(crate) fn home() -> Option<PathBuf> {
     std::env::home_dir()
@@ -137,6 +140,91 @@ pub fn resolve(
             fonts,
         ),
     }
+}
+
+/// The asset index layer's font files, laid over the jar's by path. Each comes from the official
+/// launcher's object store when it holds it, else from the object server into that store. The
+/// objects are fetched side by side, each retried with a growing wait; one that still fails fails
+/// the layer, since the definition without its archive does not load.
+pub fn font_assets() -> Result<Files, String> {
+    let store = official_dir().map(|dir| dir.join("assets").join("objects"));
+    std::thread::scope(|scope| {
+        let tasks: Vec<_> = FONT_OBJECTS
+            .iter()
+            .map(|object| scope.spawn(|| font_object(object, store.as_deref())))
+            .collect();
+        tasks
+            .into_iter()
+            .zip(FONT_OBJECTS)
+            .map(|(task, object)| {
+                let bytes = task
+                    .join()
+                    .map_err(|_| format!("fetching {} panicked", object.path))??;
+                Ok((object.path.to_owned(), bytes))
+            })
+            .collect()
+    })
+}
+
+fn font_object(object: &AssetObject, store: Option<&Path>) -> Result<Vec<u8>, String> {
+    let kept = store.map(|store| store.join(object.directory()).join(object.sha1));
+    if let Some(bytes) = kept
+        .as_ref()
+        .and_then(|path| fs::read(path).ok())
+        .filter(|bytes| object.holds(bytes))
+    {
+        return Ok(bytes);
+    }
+    let bytes = fetch_object(object)?;
+    if let Some(path) = &kept
+        && let Err(error) = keep_object(path, &bytes)
+    {
+        tracing::warn!(path = %path.display(), "cannot keep a font object: {error}");
+    }
+    Ok(bytes)
+}
+
+/// The object from the object server, checked against its pinned digest; a slow link gets a long
+/// time to read the body, and a cut or wrong answer is asked for again.
+fn fetch_object(object: &AssetObject) -> Result<Vec<u8>, String> {
+    let url = object.url();
+    let agent = agent_with(OBJECT_BODY_TIMEOUT);
+    let mut backoff = FIRST_BACKOFF;
+    let mut failure = String::new();
+    for attempt in 0..OBJECT_ATTEMPTS {
+        if attempt > 0 {
+            std::thread::sleep(backoff);
+            backoff = (backoff * 2).min(MAX_BACKOFF);
+        }
+        let body = agent
+            .get(&url)
+            .call()
+            .map_err(|error| error.to_string())
+            .and_then(|response| {
+                response
+                    .into_body()
+                    .with_config()
+                    .limit(u64::MAX)
+                    .read_to_vec()
+                    .map_err(|error| error.to_string())
+            });
+        match body {
+            Ok(bytes) if object.holds(&bytes) => return Ok(bytes),
+            Ok(_) => failure = "it is not the pinned object".to_owned(),
+            Err(error) => failure = error,
+        }
+        tracing::debug!(%url, attempt, "a font object failed: {failure}");
+    }
+    Err(format!("{url}: {failure}"))
+}
+
+fn keep_object(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(dir)?;
+    }
+    let staging = with_suffix(path, ".part");
+    fs::write(&staging, bytes)?;
+    fs::rename(&staging, path)
 }
 
 fn local(
@@ -363,12 +451,16 @@ impl Shared {
 }
 
 fn agent() -> ureq::Agent {
+    agent_with(Duration::from_secs(30))
+}
+
+fn agent_with(body: Duration) -> ureq::Agent {
     ureq::Agent::config_builder()
         .timeout_connect(Some(Duration::from_secs(10)))
         .timeout_recv_response(Some(Duration::from_secs(15)))
         // ureq has no idle timeout, so a stalled socket would hang forever; capping each request
         // costs nothing because the next one resumes where this one stopped.
-        .timeout_recv_body(Some(Duration::from_secs(30)))
+        .timeout_recv_body(Some(body))
         .build()
         .into()
 }
