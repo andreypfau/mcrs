@@ -142,3 +142,46 @@ pose program and the clip tables. The bone names and the pivots that a layer add
 final (CPR-MODEL-002, CPR-MODEL-005). `PlayerModel` selects the pivots of the model. `PlayerSkin`
 and `host_living_entity` have no part in the pose. A bend adds lower bones and one channel, and
 it changes no present name.
+
+## 5. Order of work
+
+Each step is one commit of one agent. A step starts when the step before it is green. The steps
+1 to 5 touch the same crates and run in sequence. Step 6 touches only the model test and two
+asset files.
+
+1. **Move `Pose`.** Move the enum from `mcrs_minecraft_protocol_game` to
+   `mcrs_minecraft_entity`, and change each import. Check:
+   `cargo nextest run -p mcrs_minecraft_entity -p mcrs_minecraft_protocol_game -p mcrs_minecraft_client_entity`.
+2. **Add `mcrs_minecraft_entity_visual`.** Move the files of section 1.1. Add `TickingArea` and
+   `EntityTickPlugin`. Implement `TickingArea` for `ColumnStore` in
+   `mcrs_minecraft_client_world`. Keep the packet functions of `SyncedData` in
+   `mcrs_minecraft_client_entity` as free functions. Change the imports of
+   `mcrs_minecraft_client_entity`, `mcrs_minecraft_entity_render` and `mcrs_minecraft_client`.
+   Check:
+   `cargo nextest run -p mcrs_minecraft_entity_visual -p mcrs_minecraft_client_entity -p mcrs_minecraft_entity_render -p mcrs_minecraft_client`.
+3. **Make the light an input.** Add `EntityLight` to `mcrs_minecraft_entity_visual`. Write it in
+   `mcrs_minecraft_client_entity` after the tick, for each entity whose eye enters another block.
+   Read it in `write_ticks` of the renderer, and remove `mcrs_minecraft_client_world` from the
+   renderer. Check:
+   `cargo nextest run -p mcrs_minecraft_client_entity -p mcrs_minecraft_entity_render`.
+4. **Make `PlayerModel` an enum.** Change `player_skin.rs` of the renderer and
+   `player_skins.rs` of the client. Remove `mcrs_minecraft_profile`,
+   `mcrs_minecraft_client_entity` and `mcrs_minecraft_protocol_game` from the manifest of the
+   renderer. Check: `cargo nextest run -p mcrs_minecraft_entity_render -p mcrs_minecraft_client`.
+5. **Hold the layers.** Add a rule to the `layers` check of `xtask`:
+   `mcrs_minecraft_entity_render` and `mcrs_minecraft_entity_visual` link no
+   `mcrs_minecraft_network`, `mcrs_minecraft_protocol_game`, `mcrs_minecraft_client`,
+   `mcrs_minecraft_client_entity`, `mcrs_minecraft_client_world`, `mcrs_minecraft_server` or
+   `mcrs_minecraft_engine_server`. Check: `cargo nextest run -p xtask`, and the `layers` check
+   passes.
+6. **Give the player its bones.** In `crates/mcrs_minecraft_entity_model/tests/it/mob_assets.rs`,
+   generate the player geometry with the bones and the parents of CPR-MODEL-002, for the two
+   model types. Write `assets/mcrs/entity/geometry/player.json` again. The animation file does
+   not change. Add one case to the player test of the renderer: a turn of `waist` moves the
+   head and leaves a leg. Check:
+   `cargo nextest run -p mcrs_minecraft_entity_model -p mcrs_minecraft_entity_render`.
+7. **Review and the full run.** One review of the branch in a new agent, then
+   `cargo nextest run --workspace` before the push.
+
+A step stops and reports when its check fails for a cause outside its files, or when the
+specification does not answer a question.
