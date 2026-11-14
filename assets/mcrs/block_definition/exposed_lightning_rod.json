@@ -98,7 +98,8 @@
           ],
           "minecraft:selection_box": [
             { "origin": [-2, 6, -8], "size": [4, 4, 16] }
-          ]
+          ],
+          "mcrs:solid": true
         }
       },
       {
@@ -109,7 +110,8 @@
           ],
           "minecraft:selection_box": [
             { "origin": [-8, 6, -2], "size": [16, 4, 4] }
-          ]
+          ],
+          "mcrs:solid": true
         }
       },
       {
@@ -120,7 +122,8 @@
           ],
           "minecraft:selection_box": [
             { "origin": [-2, 6, -8], "size": [4, 4, 16] }
-          ]
+          ],
+          "mcrs:solid": true
         }
       },
       {
@@ -131,7 +134,8 @@
           ],
           "minecraft:selection_box": [
             { "origin": [-8, 6, -2], "size": [16, 4, 4] }
-          ]
+          ],
+          "mcrs:solid": true
         }
       },
       {

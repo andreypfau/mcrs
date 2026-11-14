@@ -275,7 +275,10 @@ pub(crate) fn survive_rules(resolver: &Resolver<'_>) -> Compiled<HashMap<Id<Bloc
         let Some(block) = blocks.block_index(entry.default_state_id) else {
             continue;
         };
-        if let Some(conditions) = short_form(blocks, entry.default_state_id) {
+        // A family wins: the corpus filter of `small_dripleaf` covers only its dry states.
+        if family_of(entry.identifier.as_str()).is_none()
+            && let Some(conditions) = short_form(blocks, entry.default_state_id)
+        {
             let rule =
                 placement_rule(resolver, conditions).map_err(|e| e.within(&entry.identifier))?;
             rules.insert(block, rule);

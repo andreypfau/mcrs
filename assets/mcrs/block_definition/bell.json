@@ -61,6 +61,13 @@
           "minecraft:selection_box": [
             { "origin": [-8, 0, -4], "size": [16, 16, 8] }
           ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, -1, 0],
+              "direction": "up"
+            }
+          },
           "mcrs:occlusion_shape": [
             { "origin": [-8, 0, -4], "size": [16, 16, 8] }
           ]
@@ -75,6 +82,13 @@
           "minecraft:selection_box": [
             { "origin": [-8, 0, -4], "size": [16, 16, 8] }
           ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, -1, 0],
+              "direction": "up"
+            }
+          },
           "mcrs:occlusion_shape": [
             { "origin": [-8, 0, -4], "size": [16, 16, 8] }
           ]
@@ -89,6 +103,13 @@
           "minecraft:selection_box": [
             { "origin": [-4, 0, -8], "size": [8, 16, 16] }
           ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, -1, 0],
+              "direction": "up"
+            }
+          },
           "mcrs:occlusion_shape": [
             { "origin": [-4, 0, -8], "size": [8, 16, 16] }
           ]
@@ -103,6 +124,13 @@
           "minecraft:selection_box": [
             { "origin": [-4, 0, -8], "size": [8, 16, 16] }
           ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, -1, 0],
+              "direction": "up"
+            }
+          },
           "mcrs:occlusion_shape": [
             { "origin": [-4, 0, -8], "size": [8, 16, 16] }
           ]
@@ -121,6 +149,14 @@
             { "origin": [-3, 6, -3], "size": [6, 7, 6] },
             { "origin": [-1, 13, -1], "size": [2, 3, 2] }
           ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, 1, 0],
+              "direction": "down",
+              "face_test": "center"
+            }
+          },
           "mcrs:occlusion_shape": [
             { "origin": [-4, 4, -4], "size": [8, 2, 8] },
             { "origin": [-3, 6, -3], "size": [6, 7, 6] },
@@ -141,6 +177,14 @@
             { "origin": [-3, 6, -3], "size": [6, 7, 6] },
             { "origin": [-1, 13, -1], "size": [2, 3, 2] }
           ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, 1, 0],
+              "direction": "down",
+              "face_test": "center"
+            }
+          },
           "mcrs:occlusion_shape": [
             { "origin": [-4, 4, -4], "size": [8, 2, 8] },
             { "origin": [-3, 6, -3], "size": [6, 7, 6] },
@@ -161,6 +205,14 @@
             { "origin": [-3, 6, -3], "size": [6, 7, 6] },
             { "origin": [-1, 13, -1], "size": [2, 3, 2] }
           ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, 1, 0],
+              "direction": "down",
+              "face_test": "center"
+            }
+          },
           "mcrs:occlusion_shape": [
             { "origin": [-4, 4, -4], "size": [8, 2, 8] },
             { "origin": [-3, 6, -3], "size": [6, 7, 6] },
@@ -181,6 +233,14 @@
             { "origin": [-3, 6, -3], "size": [6, 7, 6] },
             { "origin": [-1, 13, -1], "size": [2, 3, 2] }
           ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, 1, 0],
+              "direction": "down",
+              "face_test": "center"
+            }
+          },
           "mcrs:occlusion_shape": [
             { "origin": [-4, 4, -4], "size": [8, 2, 8] },
             { "origin": [-3, 6, -3], "size": [6, 7, 6] },
@@ -201,6 +261,13 @@
             { "origin": [-3, 6, -3], "size": [6, 7, 6] },
             { "origin": [-1, 13, -8], "size": [2, 2, 13] }
           ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, 0, -1],
+              "direction": "south"
+            }
+          },
           "mcrs:occlusion_shape": [
             { "origin": [-4, 4, -4], "size": [8, 2, 8] },
             { "origin": [-3, 6, -3], "size": [6, 7, 6] },
@@ -221,6 +288,13 @@
             { "origin": [-3, 6, -3], "size": [6, 7, 6] },
             { "origin": [-1, 13, -5], "size": [2, 2, 13] }
           ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, 0, 1],
+              "direction": "north"
+            }
+          },
           "mcrs:occlusion_shape": [
             { "origin": [-4, 4, -4], "size": [8, 2, 8] },
             { "origin": [-3, 6, -3], "size": [6, 7, 6] },
@@ -241,6 +315,13 @@
             { "origin": [-3, 6, -3], "size": [6, 7, 6] },
             { "origin": [-8, 13, -1], "size": [13, 2, 2] }
           ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [-1, 0, 0],
+              "direction": "east"
+            }
+          },
           "mcrs:occlusion_shape": [
             { "origin": [-4, 4, -4], "size": [8, 2, 8] },
             { "origin": [-3, 6, -3], "size": [6, 7, 6] },
@@ -261,6 +342,13 @@
             { "origin": [-3, 6, -3], "size": [6, 7, 6] },
             { "origin": [-5, 13, -1], "size": [13, 2, 2] }
           ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [1, 0, 0],
+              "direction": "west"
+            }
+          },
           "mcrs:occlusion_shape": [
             { "origin": [-4, 4, -4], "size": [8, 2, 8] },
             { "origin": [-3, 6, -3], "size": [6, 7, 6] },
@@ -346,6 +434,18 @@
             { "origin": [-3, 6, -3], "size": [6, 7, 6] },
             { "origin": [-8, 13, -1], "size": [16, 2, 2] }
           ]
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027attachment\u0027) \u003d\u003d \u0027ceiling\u0027",
+        "components": {
+          "mcrs:solid": true
+        }
+      },
+      {
+        "condition": "q.block_state(\u0027attachment\u0027) \u003d\u003d \u0027single_wall\u0027",
+        "components": {
+          "mcrs:solid": true
         }
       }
     ]

@@ -56,6 +56,13 @@
         "seconds_to_destroy": 1
       },
       "minecraft:loot": "minecraft:blocks/brown_banner",
+      "minecraft:placement_filter": {
+        "predicate": {
+          "type": "minecraft:solid",
+          "offset": [0, -1, 0]
+        }
+      },
+      "mcrs:solid": true,
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
       "mcrs:emissive_rendering": false,

@@ -11,9 +11,7 @@ use serde_json::{Value, json};
 
 const P: BlockPos = BlockPos::new(0, 64, 0);
 
-/// The vanilla corpus with the components of block-support.md section 5 that the next recapture
-/// writes. The plants keep the short form the corpus holds; `short_grass` also gets the tested
-/// directions of R4, and `lilac` has its filter only on its lower part.
+/// The vanilla corpus, with the components below laid over it for the cases the tests need.
 static WORLD: LazyLock<(BlockDefinitions, BlockSupport, Vec<SupportIssue>)> = LazyLock::new(|| {
     let below = |predicate: Value| json!({ "predicate": predicate });
     let face_below = |test: &str| json!({"type": "minecraft:has_sturdy_face", "offset": [0, -1, 0], "direction": "up", "face_test": test});
@@ -97,26 +95,6 @@ static WORLD: LazyLock<(BlockDefinitions, BlockSupport, Vec<SupportIssue>)> = La
             "conditions": [{"allowed_faces": ["up"], "block_filter": ["#minecraft:supports_vegetation"]}]}}),
         ),
     ]);
-    let on_wall = |facing: &str| {
-        let normal = Direction::all()
-            .into_iter()
-            .find(|direction| direction.name() == facing)
-            .expect("a direction")
-            .normal();
-        json!({
-            "condition": format!("q.block_state('facing') == '{facing}'"),
-            "components": {"minecraft:placement_filter": {"predicate": {"type": "minecraft:has_sturdy_face",
-                "offset": [-normal.x, 0, -normal.z], "direction": facing}}}
-        })
-    };
-    let solid_wall = |facing: &str| {
-        let mut permutation = on_wall(facing);
-        let predicate = &mut permutation["components"]["minecraft:placement_filter"]["predicate"];
-        let offset = predicate["offset"].clone();
-        *predicate = json!({"type": "minecraft:solid", "offset": offset});
-        permutation
-    };
-    let facings = ["north", "south", "west", "east"];
     let directory = concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../assets/mcrs/block_definition"
@@ -140,26 +118,6 @@ static WORLD: LazyLock<(BlockDefinitions, BlockSupport, Vec<SupportIssue>)> = La
             if let Some(Value::Object(added)) = block_wide.get(name.as_str()) {
                 let components = block["components"].as_object_mut().expect("components");
                 components.extend(added.clone());
-            }
-            let walls: Option<Vec<Value>> = match name.as_str() {
-                "minecraft:wall_torch" => Some(facings.map(on_wall).to_vec()),
-                "minecraft:oak_wall_sign" => Some(facings.map(solid_wall).to_vec()),
-                _ => None,
-            };
-            if let Some(walls) = walls {
-                let permutations = block["permutations"].as_array_mut().expect("permutations");
-                permutations.extend(walls);
-            }
-            if name == "minecraft:lilac" {
-                let components = block["components"].as_object_mut().expect("components");
-                let filter = components
-                    .remove("minecraft:placement_filter")
-                    .expect("a filter");
-                let permutations = block["permutations"].as_array_mut().expect("permutations");
-                permutations.push(json!({
-                    "condition": "q.block_state('half') == 'lower'",
-                    "components": {"minecraft:placement_filter": filter},
-                }));
             }
             (
                 path.display().to_string(),
@@ -255,7 +213,7 @@ fn a_subject_stays_on_the_bases_its_predicate_accepts() {
         ("oak_sign", &[(Down, "stone")], true),
         ("oak_sign", &[(Down, "stone_pressure_plate")], true),
         ("oak_sign", &[(Down, "short_grass")], false),
-        ("oak_sign", &[(Down, "snow[layers=8]")], true),
+        ("oak_sign", &[(Down, "snow[layers=8]")], false),
         ("oak_wall_sign[facing=east]", &[(West, "oak_fence")], true),
         ("oak_wall_sign[facing=east]", &[(Down, "stone")], false),
         ("lily_pad", &[(Down, "water")], true),
@@ -282,7 +240,7 @@ fn a_shape_update_runs_the_test_only_from_a_tested_direction() {
     // In the order down, up, north, south, west, east.
     let cases = [
         ("torch", [false, true, true, true, true, true]),
-        ("poppy", [false, true, true, true, true, true]),
+        ("poppy", [false; 6]),
         ("short_grass", [false; 6]),
         ("snow", [false; 6]),
         (

@@ -48,6 +48,7 @@
         "seconds_to_destroy": 0
       },
       "minecraft:loot": "minecraft:blocks/dead_bubble_coral_fan",
+      "mcrs:solid": true,
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
       "mcrs:emissive_rendering": false,
@@ -76,7 +77,14 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-8, 4, -3], "size": [16, 8, 11] }
-          ]
+          ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, 0, 1],
+              "direction": "north"
+            }
+          }
         }
       },
       {
@@ -84,7 +92,14 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-8, 4, -8], "size": [16, 8, 11] }
-          ]
+          ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, 0, -1],
+              "direction": "south"
+            }
+          }
         }
       },
       {
@@ -92,7 +107,14 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-3, 4, -8], "size": [11, 8, 16] }
-          ]
+          ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [1, 0, 0],
+              "direction": "west"
+            }
+          }
         }
       },
       {
@@ -100,7 +122,14 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-8, 4, -8], "size": [11, 8, 16] }
-          ]
+          ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [-1, 0, 0],
+              "direction": "east"
+            }
+          }
         }
       }
     ]
