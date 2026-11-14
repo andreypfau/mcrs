@@ -5,7 +5,7 @@ use wgpu::{
 };
 
 use crate::counts_readback::{CountsReadback, EntityFrameCounts};
-use crate::entity_library::{EntityLibrary, MAX_ARRAYS, MAX_DEFINITIONS};
+use crate::entity_library::{EntityLibrary, MAX_ARRAYS, MAX_DEFINITIONS, VariantRecord};
 use crate::frame_uniform::FrameUniform;
 use crate::gpu_buffers::{
     COUNTERS, FrameBuffers, SlotBuffers, StaticBuffers, impostor_draws, impostor_list,
@@ -90,6 +90,9 @@ pub struct EntityGpu {
     pipelines: Pipelines,
     /// The bind group of each texture array.
     arrays: Vec<BindGroup>,
+    array_textures: Vec<wgpu::Texture>,
+    /// The array and the layer of each texture, for the writes of its texels.
+    variants: Vec<VariantRecord>,
     statics: StaticBuffers,
     slots: SlotBuffers,
     frame: FrameBuffers,
@@ -125,7 +128,9 @@ impl EntityGpu {
     ) -> Self {
         let layouts = Layouts::new(device);
         let pipelines = Pipelines::new(device, library, &layouts, targets);
-        let arrays = texture_arrays(device, queue, library, &layouts.texture);
+        let (array_textures, arrays) = texture_arrays(device, queue, library, &layouts.texture)
+            .into_iter()
+            .unzip();
         let statics = StaticBuffers::new(device, library);
         let slots = SlotBuffers::new(device, slot_capacity);
         let frame = FrameBuffers::new(
@@ -149,6 +154,8 @@ impl EntityGpu {
             layouts,
             pipelines,
             arrays,
+            array_textures,
+            variants: library.variants.clone(),
             statics,
             slots,
             frame,
@@ -285,6 +292,46 @@ impl EntityGpu {
                 cuboids: &self.statics.cuboids,
                 variants: &self.statics.variants,
                 arrays: &self.arrays,
+            },
+        );
+    }
+
+    /// Writes the RGBA texels of the texture `variant`, which fill its image from the top left.
+    /// A variant that the library does not hold or texels of another size change nothing.
+    pub fn write_texels(&self, queue: &Queue, variant: u16, rgba: &[u8]) {
+        let Some(record) = self.variants.get(usize::from(variant)) else {
+            return;
+        };
+        let Some(texture) = self.array_textures.get((record.array_layer >> 16) as usize) else {
+            return;
+        };
+        let side = texture.width();
+        let width = (record.uv_scale[0] * side as f32).round() as u32;
+        let height = (record.uv_scale[1] * side as f32).round() as u32;
+        if rgba.len() != (width * height * 4) as usize {
+            return;
+        }
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d {
+                    x: 0,
+                    y: 0,
+                    z: record.array_layer & 0xffff,
+                },
+                aspect: wgpu::TextureAspect::All,
+            },
+            rgba,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(width * 4),
+                rows_per_image: Some(height),
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
             },
         );
     }

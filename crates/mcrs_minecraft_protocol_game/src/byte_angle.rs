@@ -14,8 +14,10 @@ impl ByteAngle {
         ByteAngle((degrees * 256.0 / 360.0).floor() as i32 as u8)
     }
 
+    /// The angle in `[-180, 180)`: a pitch above the horizon is negative, so it must not decode
+    /// to an angle past 180.
     pub fn to_degrees(self) -> f32 {
-        self.0 as f32 / 256.0 * 360.0
+        f32::from(self.0 as i8) / 256.0 * 360.0
     }
 }
 

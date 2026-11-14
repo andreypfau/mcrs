@@ -1,21 +1,19 @@
 use bevy::prelude::*;
-use mcrs_minecraft_client_entity::{
-    Age, ClientEntity, Equipment, EquippableAsset, HURT_TICKS, Living, Motion, RenderInputs,
-    RenderInputsQuery, ServerTicking, SyncedData,
-};
-use mcrs_minecraft_client_world::columns::ColumnStore;
 use mcrs_minecraft_entity_animation::{EntityAnimation, EntityQuery};
+use mcrs_minecraft_entity_visual::{
+    Age, ClientEntity, EntityLight, Equipment, EquippableAsset, HURT_TICKS, Living, Motion,
+    RenderInputs, RenderInputsQuery, ServerTicking, SyncedData,
+};
 use mcrs_minecraft_item::component::equippable::{EquipmentSlot, Equippable};
 use mcrs_minecraft_item::definition::Items;
 use mcrs_minecraft_render_controller::{RenderQuery, TextureChoice};
 use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_volume::LightVolume;
 use mcrs_molang::{ScalarVm, Value, string_hash};
-use mcrs_voxel::BlockPos;
 
 use crate::cpu_inputs::input_record;
 use crate::entity_assets::{EntityAssets, texture_identifier};
-use crate::frame_queries::{FrameQueries, pose_name};
+use crate::frame_queries::{FrameQueries, VariantEntry, pose_name};
+use crate::player_skin::{PlayerModel, SkinSlot, skin_entry};
 use crate::records::{
     CULL_FULL_RIG_ONLY, CULL_VALID, CullRecord, MAX_LAYERS, STATE_BABY, STATE_DYING,
     STATE_HIDDEN_SHIFT, TickRecord, f16_up,
@@ -161,7 +159,6 @@ impl Facing {
 pub(crate) fn write_ticks(
     clock: Res<EntityClock>,
     assets: Option<Res<EntityAssets>>,
-    columns: Option<Res<ColumnStore>>,
     mut arena: ResMut<SlotArena>,
     entities: Query<
         (
@@ -171,12 +168,14 @@ pub(crate) fn write_ticks(
             &Age,
             Option<&Living>,
             &SyncedData,
+            Option<&EntityLight>,
         ),
         Or<(
             Changed<Motion>,
             Changed<Living>,
             Changed<Age>,
             Changed<SyncedData>,
+            Changed<EntityLight>,
             Added<EntitySlot>,
         )>,
     >,
@@ -184,7 +183,7 @@ pub(crate) fn write_ticks(
     let Some(assets) = assets else {
         return;
     };
-    for (slot, client, motion, age, living, data) in &entities {
+    for (slot, client, motion, age, living, data, light) in &entities {
         let position = motion.current.position;
         let block = position.floor();
         let fraction = ((position - block) * 65536.0)
@@ -206,10 +205,6 @@ pub(crate) fn write_ticks(
             walk_speed: facing.walk_speed.to_bits(),
         };
         let fresh = slot.is_added();
-        let moved = arena
-            .tick(slot.slot)
-            .is_none_or(|held| held.block != record.block)
-            || fresh;
         arena.write_tick(slot.slot, clock.tick, record, fresh);
 
         let scale = data.scale as f32;
@@ -254,29 +249,13 @@ pub(crate) fn write_ticks(
             state.flags &= !STATE_DYING;
         }
         state.scale = f16_up(scale);
-        if moved {
-            let type_data = client.type_data();
-            let eye = type_data.map_or(0.0, |type_data| {
-                type_data.eye_height
-                    * if data.baby {
-                        type_data.baby_scale.unwrap_or(1.0)
-                    } else {
-                        1.0
-                    }
-            });
-            let eye = (position + glam::DVec3::Y * f64::from(eye) * data.scale)
-                .floor()
-                .as_ivec3();
-            let light = columns
-                .as_deref()
-                .and_then(|columns| columns.light(BlockPos::new(eye.x, eye.y, eye.z)).ok())
-                .unwrap_or(0x0f);
-            state.sky_light = light & 0x0f;
-            state.block_light = light >> 4;
-            if data.is_on_fire(client.type_data()) {
-                state.block_light = 15;
-            }
-        }
+        let light = light.copied().unwrap_or(EntityLight::OPEN_SKY);
+        state.sky_light = light.sky.min(15);
+        state.block_light = if data.is_on_fire(client.type_data()) {
+            15
+        } else {
+            light.block.min(15)
+        };
         arena.write_state(slot.slot, state);
     }
 }
@@ -299,11 +278,12 @@ fn equipment_asset(
     }
 }
 
-/// The value of a query of a render controller, from the tick state of an entity.
+/// The value of a query of a render controller, from the tick state of an entity and its
+/// variant entry.
 fn render_query(
     query: &RenderQuery,
     assets: &EntityAssets,
-    client: &ClientEntity,
+    variant: Option<VariantEntry>,
     data: &SyncedData,
     equipment: Option<&Equipment>,
     items: Option<&Items>,
@@ -311,9 +291,6 @@ fn render_query(
     let flag = |value: bool| Value::Number(if value { 1.0 } else { 0.0 });
     let text = |value: &str| Value::String(string_hash(value));
     let empty = || Value::String(string_hash(""));
-    let variant = assets
-        .variant(client.kind, data.variant)
-        .map(|variant| variant.entry(data.baby));
     Some(match query {
         RenderQuery::Entity(EntityQuery::IsBaby) => flag(data.baby),
         RenderQuery::Entity(EntityQuery::Variant) => {
@@ -346,19 +323,40 @@ fn render_query(
     })
 }
 
+type LayerInputs = (
+    &'static EntitySlot,
+    &'static ClientEntity,
+    &'static SyncedData,
+    Option<&'static Equipment>,
+    Option<&'static PlayerModel>,
+    Option<&'static SkinSlot>,
+);
+
 /// Evaluates the render controllers of each entity whose tick state changed and writes the
 /// layers of its state record.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and query is its own parameter so the scheduler sees the access"
+)]
 pub(crate) fn write_layers(
     assets: Option<Res<EntityAssets>>,
     items: Option<Res<Items>>,
     mut vm: ResMut<EntityVm>,
     mut arena: ResMut<SlotArena>,
     mut last_generation: Local<Option<u32>>,
+    mut removed_models: RemovedComponents<PlayerModel>,
+    mut removed_slots: RemovedComponents<SkinSlot>,
     changed: Query<
-        (&EntitySlot, &ClientEntity, &SyncedData, Option<&Equipment>),
-        Or<(Changed<SyncedData>, Changed<Equipment>, Added<EntitySlot>)>,
+        LayerInputs,
+        Or<(
+            Changed<SyncedData>,
+            Changed<Equipment>,
+            Added<EntitySlot>,
+            Changed<PlayerModel>,
+            Changed<SkinSlot>,
+        )>,
     >,
-    all: Query<(&EntitySlot, &ClientEntity, &SyncedData, Option<&Equipment>)>,
+    all: Query<LayerInputs>,
 ) {
     let Some(assets) = assets else {
         return;
@@ -366,11 +364,13 @@ pub(crate) fn write_layers(
     let rebuilt = *last_generation != Some(assets.generation);
     *last_generation = Some(assets.generation);
     let items = items.as_deref();
-    let mut write = |(slot, client, data, equipment): (
+    let mut write = |(slot, client, data, equipment, model, skin_slot): (
         &EntitySlot,
         &ClientEntity,
         &SyncedData,
         Option<&Equipment>,
+        Option<&PlayerModel>,
+        Option<&SkinSlot>,
     )| {
         let (Some(entity), Some(tables)) = (
             assets.pack.entities.get(usize::from(slot.definition)),
@@ -378,8 +378,14 @@ pub(crate) fn write_layers(
         ) else {
             return;
         };
+        let variant = match model {
+            Some(model) => Some(skin_entry(*model, skin_slot, &assets)),
+            None => assets
+                .variant(client.kind, data.variant)
+                .map(|variant| variant.entry(data.baby)),
+        };
         let choices = entity.controllers.evaluate(&mut vm.0, |query| {
-            render_query(query, &assets, client, data, equipment, items)
+            render_query(query, &assets, variant, data, equipment, items)
         });
         let Some(mut state) = arena.state(slot.slot).copied() else {
             return;
@@ -430,6 +436,12 @@ pub(crate) fn write_layers(
     } else {
         for entity in &changed {
             write(entity);
+        }
+        // A removal sets no change filter, so an entity that lost its model or its skin writes here.
+        for entity in removed_models.read().chain(removed_slots.read()) {
+            if let Ok(entity) = all.get(entity) {
+                write(entity);
+            }
         }
     }
 }

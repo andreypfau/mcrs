@@ -1,8 +1,7 @@
 use bevy_ecs::prelude::*;
 use glam::{DVec2, DVec3};
-use mcrs_minecraft_client_world::columns::ColumnStore;
 use mcrs_minecraft_entity::Life;
-use mcrs_minecraft_protocol_game::ColumnPos;
+use mcrs_voxel::ColumnPos;
 
 use crate::angle;
 use crate::body_turn;
@@ -11,21 +10,22 @@ use crate::living::Living;
 use crate::motion::{Age, Motion};
 use crate::server_ticking::ServerTicking;
 use crate::synced_data::SyncedData;
+use crate::ticking_area::TickingArea;
 use crate::walk::{self, BABY_WALK_SCALE};
 
 /// One tick of every client entity that ticks.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClientEntityTick;
 
-/// Whether an entity at `position` is in the ticking area: its column is loaded. A client with
-/// no column store ticks every entity.
+/// Whether an entity at `position` is in the ticking area: `area` holds its column. With no
+/// area every entity ticks.
 #[must_use]
-pub fn in_ticking_area(columns: Option<&ColumnStore>, position: DVec3) -> bool {
+pub fn in_ticking_area<A: TickingArea>(area: Option<&A>, position: DVec3) -> bool {
     let column = ColumnPos::new(
         (position.x.floor() as i32) >> 4,
         (position.z.floor() as i32) >> 4,
     );
-    columns.is_none_or(|columns| columns.holds(column))
+    area.is_none_or(|area| area.holds(column))
 }
 
 /// Runs one tick of one entity, in the order of the tick of a living entity.
@@ -92,8 +92,8 @@ fn tick_living(entity: &ClientEntity, motion: &Motion, living: &mut Living, data
     living.previous_body_yaw = angle::unwrap_towards(living.previous_body_yaw, living.body_yaw);
 }
 
-pub(crate) fn tick_entities(
-    columns: Option<Res<ColumnStore>>,
+pub(crate) fn tick_entities<A: TickingArea>(
+    area: Option<Res<A>>,
     ticking: Res<ServerTicking>,
     mut entities: Query<(
         &ClientEntity,
@@ -104,7 +104,7 @@ pub(crate) fn tick_entities(
     )>,
 ) {
     for (entity, mut motion, mut age, living, data) in &mut entities {
-        if !in_ticking_area(columns.as_deref(), motion.current.position) {
+        if !in_ticking_area(area.as_deref(), motion.current.position) {
             continue;
         }
         tick_entity(

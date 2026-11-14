@@ -39,6 +39,7 @@ pub mod light_volume;
 pub mod options;
 #[cfg(not(target_family = "wasm"))]
 mod options_file;
+pub mod player_skins;
 #[cfg(all(feature = "scene", not(target_family = "wasm")))]
 pub mod scene_capture;
 #[cfg(all(feature = "scene", not(target_family = "wasm")))]
@@ -48,6 +49,8 @@ pub mod screenshot;
 #[cfg(not(target_family = "wasm"))]
 pub mod settle;
 pub mod sign_text;
+#[cfg(not(target_family = "wasm"))]
+mod skin_download;
 pub mod sky;
 pub mod sky_state;
 pub mod stream;

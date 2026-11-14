@@ -6,6 +6,7 @@ use crate::player::HumanoidArm;
 use crate::text::Text;
 use crate::{Direction, GlobalPos};
 use glam::{Vec3, Vec4};
+use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::variant::{
     CatSoundVariant, CatVariant, ChickenSoundVariant, ChickenVariant, CowSoundVariant, CowVariant,
     FrogVariant, PigSoundVariant, PigVariant, WolfSoundVariant, WolfVariant, ZombieNautilusVariant,
@@ -202,29 +203,6 @@ impl mcrs_minecraft_protocol::Decode<'_> for OptionalUnsignedInt {
         let raw = VarInt::decode(r)?.0;
         Ok(Self((raw != 0).then(|| raw as u32 - 1)))
     }
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Default, Encode, Decode)]
-pub enum Pose {
-    #[default]
-    Standing,
-    FallFlying,
-    Sleeping,
-    Swimming,
-    SpinAttack,
-    Crouching,
-    LongJumping,
-    Dying,
-    Croaking,
-    UsingTongue,
-    Sitting,
-    Roaring,
-    Sniffing,
-    Emerging,
-    Digging,
-    Sliding,
-    Shooting,
-    Inhaling,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Encode, Decode)]

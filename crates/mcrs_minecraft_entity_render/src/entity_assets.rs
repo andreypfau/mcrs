@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use bevy::prelude::Resource;
-use mcrs_minecraft_client_entity::VariantId;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity_visual::VariantId;
 use mcrs_molang::string_hash;
 
 use crate::entity_library::EntityLibrary;

@@ -1,0 +1,31 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "animation.player.walk": {
+      "loop": true,
+      "bones": {
+        "right_leg": { "rotation": ["math.cos(q.modified_distance_moved * 38.1704) * 80.2141 * q.modified_move_speed", 0, 0] },
+        "left_leg": { "rotation": ["-math.cos(q.modified_distance_moved * 38.1704) * 80.2141 * q.modified_move_speed", 0, 0] },
+        "right_arm": { "rotation": ["-math.cos(q.modified_distance_moved * 38.1704) * 57.2958 * q.modified_move_speed", 0, 0] },
+        "left_arm": { "rotation": ["math.cos(q.modified_distance_moved * 38.1704) * 57.2958 * q.modified_move_speed", 0, 0] }
+      }
+    },
+    "animation.player.look_at_target": {
+      "loop": true,
+      "bones": {
+        "head": { "rotation": ["q.target_x_rotation", "q.target_y_rotation", 0] }
+      }
+    },
+    "animation.player.sneak": {
+      "loop": true,
+      "bones": {
+        "head": { "position": [0, -6.2, 0] },
+        "body": { "rotation": [28.6479, 0, 0], "position": [0, -5.2, 0] },
+        "right_arm": { "rotation": [22.9183, 0, 0], "position": [0, -5.2, 0] },
+        "left_arm": { "rotation": [22.9183, 0, 0], "position": [0, -5.2, 0] },
+        "right_leg": { "position": [0, -2.2, 4] },
+        "left_leg": { "position": [0, -2.2, 4] }
+      }
+    }
+  }
+}

@@ -395,7 +395,7 @@ pub(crate) fn texture_arrays(
     queue: &wgpu::Queue,
     library: &EntityLibrary,
     texture_layout: &BindGroupLayout,
-) -> Vec<wgpu::BindGroup> {
+) -> Vec<(wgpu::Texture, wgpu::BindGroup)> {
     let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
         label: Some("entity textures"),
         ..Default::default()
@@ -406,6 +406,13 @@ pub(crate) fn texture_arrays(
         .take(MAX_ARRAYS)
         .map(|array| {
             let layers = array.layers.len().max(1) as u32;
+            let layer_bytes = (array.side * array.side * 4) as usize;
+            let mut texels = Vec::with_capacity(layer_bytes * array.layers.len());
+            for layer in &array.layers {
+                let start = texels.len();
+                texels.extend_from_slice(layer);
+                texels.resize(start + layer_bytes, 0);
+            }
             let texture = device.create_texture_with_data(
                 queue,
                 &wgpu::TextureDescriptor {
@@ -419,17 +426,17 @@ pub(crate) fn texture_arrays(
                     sample_count: 1,
                     dimension: wgpu::TextureDimension::D2,
                     format: TextureFormat::Rgba8Unorm,
-                    usage: wgpu::TextureUsages::TEXTURE_BINDING,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
                     view_formats: &[],
                 },
                 wgpu::util::TextureDataOrder::LayerMajor,
-                &array.layers.concat(),
+                &texels,
             );
             let view = texture.create_view(&wgpu::TextureViewDescriptor {
                 dimension: Some(wgpu::TextureViewDimension::D2Array),
                 ..Default::default()
             });
-            device.create_bind_group(&wgpu::BindGroupDescriptor {
+            let bind = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("entity texture array"),
                 layout: texture_layout,
                 entries: &[
@@ -442,16 +449,17 @@ pub(crate) fn texture_arrays(
                         resource: BindingResource::Sampler(&sampler),
                     },
                 ],
-            })
+            });
+            (texture, bind)
         })
         .collect()
 }
 
 #[cfg(test)]
 mod tests {
-    use mcrs_minecraft_client_entity::HURT_TICKS;
     use mcrs_minecraft_core::CardinalLight;
     use mcrs_minecraft_entity_model::{BONE_NEVER_RENDER, BoneRecord, ModelRecord, NO_PARENT};
+    use mcrs_minecraft_entity_visual::HURT_TICKS;
     use mcrs_minecraft_mesh::face_shade;
     use naga::{Literal, Module, TypeInner};
 

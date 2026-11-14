@@ -19,6 +19,7 @@ use crate::frame_uniform::FrameUniform;
 use crate::gpu_layouts::tables_fit;
 use crate::height_threshold::HeightThreshold;
 use crate::main_world::EntityClock;
+use crate::player_skin::{SkinSlots, SkinUpload};
 use crate::slot_upload::{SCATTER_FRESH, SlotArena, SlotUpload};
 
 /// The full rigs that one frame draws, in all and of one definition: the full-rig cap of the
@@ -35,6 +36,7 @@ pub(crate) struct EntityRenderState {
     unfit: bool,
     hiz: Option<TextureViewId>,
     pending: SlotUpload,
+    pending_skins: Vec<SkinUpload>,
     clock: EntityClock,
     threshold: HeightThreshold,
 }
@@ -48,6 +50,12 @@ pub(crate) fn extract_entities(mut main: ResMut<MainWorld>, mut state: ResMut<En
     {
         state.generation = Some(assets.generation);
         state.library = Some(assets.library.clone());
+        // The skin variants of the old library can name other textures in the new one.
+        state.pending_skins.clear();
+    }
+    if let Some(mut skins) = main.get_resource_mut::<SkinSlots>() {
+        let uploads = skins.take_uploads();
+        state.pending_skins.extend(uploads);
     }
     let Some(mut arena) = main.get_resource_mut::<SlotArena>() else {
         return;
@@ -123,6 +131,7 @@ pub(crate) fn prepare_entities(
             );
             state.gpu = None;
             state.pending = SlotUpload::default();
+            state.pending_skins.clear();
             return;
         }
         let capacities = Capacities::for_cap(&library, FULL_RIG_CAP);
@@ -149,6 +158,12 @@ pub(crate) fn prepare_entities(
         );
         for diagnostic in &library.diagnostics {
             warn!("{diagnostic}");
+        }
+    }
+    let state = &mut *state;
+    for skin in state.pending_skins.drain(..) {
+        if let Some(gpu) = &state.gpu {
+            gpu.write_texels(&queue, skin.variant, skin.image.rgba());
         }
     }
     if state.hiz != Some(pyramid.id())

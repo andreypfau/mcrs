@@ -1,12 +1,14 @@
 mod bedrock_name_policy;
 mod bedrock_uuid_scheme;
 mod player_identity;
+mod skin_textures;
 mod wire;
 mod xuid;
 
 pub use bedrock_name_policy::{BedrockNameError, BedrockNamePolicy};
 pub use bedrock_uuid_scheme::BedrockUuidScheme;
 pub use player_identity::{BedrockIdentity, PlayerIdentity};
+pub use skin_textures::SkinTextures;
 pub use xuid::Xuid;
 
 use mcrs_minecraft_resource::ResourceLocationBuf;

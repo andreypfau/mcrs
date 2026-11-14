@@ -203,12 +203,6 @@ impl SlotArena {
         true
     }
 
-    /// The tick record that the slot holds.
-    #[must_use]
-    pub fn tick(&self, slot: u32) -> Option<&TickRecord> {
-        self.ticks.get(slot as usize)
-    }
-
     #[must_use]
     pub fn cull(&self, slot: u32) -> Option<&CullRecord> {
         self.culls.get(slot as usize)
