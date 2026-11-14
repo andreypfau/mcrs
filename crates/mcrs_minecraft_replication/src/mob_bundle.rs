@@ -58,9 +58,36 @@ pub(crate) enum Entries {
     Item(ProtoStack<Wire>),
     /// The start position of a falling block.
     FallingBlock(BlockPos),
+    /// The entries of a custom kind, one for each index, in the order of the indices.
+    Custom(Vec<MetadataEntry<'static>>),
 }
 
 impl Entries {
+    /// The entries of a custom kind; a later entry replaces an earlier one of the same index.
+    pub(crate) fn custom(entries: &[MetadataEntry<'static>]) -> Self {
+        let mut custom = Self::Custom(Vec::with_capacity(entries.len()));
+        custom.merge(entries);
+        custom
+    }
+
+    /// Replaces the entries of a custom kind that have the index of an entry of `entries`, and
+    /// adds the others in the order of the indices. Does nothing for another kind.
+    pub(crate) fn merge(&mut self, entries: &[MetadataEntry<'static>]) {
+        let Self::Custom(custom) = self else {
+            return;
+        };
+        for entry in entries {
+            match custom.binary_search_by_key(&entry.index, |held| held.index) {
+                Ok(at) => {
+                    if let Some(held) = custom.get_mut(at) {
+                        held.clone_from(entry);
+                    }
+                }
+                Err(at) => custom.insert(at, entry.clone()),
+            }
+        }
+    }
+
     /// Every entry, for a client that missed updates.
     pub(crate) fn all(&self) -> Vec<MetadataEntry<'static>> {
         match self {
@@ -74,6 +101,7 @@ impl Entries {
             }
             Self::Item(stack) => vec![item_entry(stack)],
             Self::FallingBlock(start) => vec![start_entry(*start)],
+            Self::Custom(entries) => entries.clone(),
         }
     }
 
@@ -90,6 +118,11 @@ impl Entries {
                 }
                 changed
             }
+            (Self::Custom(now), Self::Custom(sent)) => now
+                .iter()
+                .filter(|entry| !sent.contains(entry))
+                .cloned()
+                .collect(),
             _ => self.all(),
         }
     }
@@ -152,7 +185,8 @@ fn start_entry(start: BlockPos) -> MetadataEntry<'static> {
 /// has its `set_entity_data` and its `update_attributes`, whose list is the one that the reference
 /// sends: `movement_speed` with its base and no modifier (TRK-DATA-004). An item entity has the
 /// `set_entity_data` with its stack (IEN-NET-001), and a falling block the one with its start
-/// position when it is not the default (FBK-SPN-002).
+/// position when it is not the default (FBK-SPN-002). A custom kind has the `set_entity_data` with
+/// its entries when it has one.
 pub(crate) fn spawn_extras(
     id: VarInt,
     kind: &EntityTypeData,
@@ -172,6 +206,13 @@ pub(crate) fn spawn_extras(
             return record(&ClientboundSetEntityData {
                 entity_id: id,
                 metadata: Metadata(vec![start_entry(*start)]),
+            });
+        }
+        Entries::Custom(entries) if entries.is_empty() => return Ok(Bytes::new()),
+        Entries::Custom(entries) => {
+            return record(&ClientboundSetEntityData {
+                entity_id: id,
+                metadata: Metadata(entries.clone()),
             });
         }
     };

@@ -172,6 +172,9 @@ impl EntityCodec {
                 EntityEvent::Data(ReplicationData::Mob(MobReport::Stack(stack))) => {
                     self.mobs.record_stack(subject, stack);
                 }
+                EntityEvent::Data(ReplicationData::Mob(MobReport::Entries(entries))) => {
+                    self.mobs.record_entries(subject, entries);
+                }
                 EntityEvent::Enter { .. } | EntityEvent::Despawn if self.mobs.contains(subject) => {
                     if matches!(event, EntityEvent::Despawn) {
                         self.mobs.despawn(subject, &mut self.holds);

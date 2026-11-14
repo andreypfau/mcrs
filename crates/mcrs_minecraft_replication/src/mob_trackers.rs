@@ -22,7 +22,7 @@ use crate::player_input::Backlog;
 use crate::spawn_look::SpawnLook;
 use crate::wire_id::wire_id;
 use mcrs_minecraft_protocol_game::ProtoStack;
-use mcrs_minecraft_protocol_game::entity::MobLooks;
+use mcrs_minecraft_protocol_game::entity::{MetadataEntry, MobLooks};
 use mcrs_minecraft_registries::Wire;
 
 const BLOCKS_PER_COLUMN: u32 = 16;
@@ -79,6 +79,9 @@ impl MobTrackers {
                 Entries::FallingBlock(*start),
                 VarInt(i32::from(state.0)),
             ),
+            SpawnLook::Custom { data, entries } => {
+                (MobLooks::default(), Entries::custom(entries), VarInt(*data))
+            }
         };
         self.mobs.insert(
             subject,
@@ -170,6 +173,12 @@ impl MobTrackers {
     pub(crate) fn record_stack(&mut self, subject: EntityId, stack: &ProtoStack<Wire>) {
         if let Some(mob) = self.mobs.get_mut(&subject) {
             mob.tracker.record_stack(stack.clone());
+        }
+    }
+
+    pub(crate) fn record_entries(&mut self, subject: EntityId, entries: &[MetadataEntry<'static>]) {
+        if let Some(mob) = self.mobs.get_mut(&subject) {
+            mob.tracker.record_entries(entries);
         }
     }
 
@@ -450,6 +459,62 @@ mod tests {
             [add, data],
             "add_entity with the state id, then only the start position"
         );
+    }
+
+    #[test]
+    fn a_custom_kind_spawns_with_its_data_and_sends_a_changed_entry_once() {
+        let entry = |index, value| MetadataEntry {
+            index,
+            value: MetaDataValue::VarInt(VarInt(value)),
+        };
+        let mut world = World::default();
+        let state = at(0.5);
+        let spawn = MobSpawn {
+            kind: &EntityTypeData::ITEM,
+            uuid: Uuid::nil(),
+            state,
+            look: SpawnLook::Custom {
+                data: 7,
+                entries: vec![entry(9, 2), entry(8, 1)],
+            },
+        };
+        world.mobs.spawn(MOB, &spawn, 0);
+
+        let chunks = world.gain(KEEPS_UP, 0);
+        world.tick(0);
+
+        let add = record(&ClientboundAddEntity {
+            id: wire_id(MOB),
+            uuid: Uuid::nil(),
+            kind: EntityType::Item,
+            pos: state.position,
+            movement: LpVec3(DVec3::ZERO),
+            pitch: ByteAngle::default(),
+            yaw: ByteAngle::default(),
+            head_yaw: ByteAngle::default(),
+            data: VarInt(7),
+        })
+        .unwrap();
+        let data = |entries| {
+            record(&ClientboundSetEntityData {
+                entity_id: wire_id(MOB),
+                metadata: Metadata(entries),
+            })
+            .unwrap()
+        };
+        assert_eq!(
+            chunks[1..3],
+            [add, data(vec![entry(8, 1), entry(9, 2)])],
+            "add_entity with the data value, then the entries in the order of the indices"
+        );
+
+        world.mobs.record_entries(MOB, &[entry(8, 1), entry(9, 5)]);
+        assert_eq!(
+            world.tick(1).get(&KEEPS_UP),
+            Some(&vec![data(vec![entry(9, 5)])]),
+            "only the entry that changed"
+        );
+        assert!(world.tick(2).is_empty(), "the entry goes once");
     }
 
     #[test]

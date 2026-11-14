@@ -8,7 +8,7 @@ use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundSetEntityData, ClientboundSetEntityMotion, DeltaStep, PositionPath, PositionStep,
     VecDelta,
 };
-use mcrs_minecraft_protocol_game::entity::Metadata;
+use mcrs_minecraft_protocol_game::entity::{Metadata, MetadataEntry};
 use mcrs_minecraft_protocol_game::{ByteAngle, LpVec3, position_delta};
 use uuid::Uuid;
 
@@ -34,6 +34,8 @@ pub(crate) struct MobTracker {
     latest: MobState,
     /// The latest entity data entries.
     entries: Entries,
+    /// The entity data entries that the viewers last received.
+    sent_entries: Entries,
     sent: Sent,
     /// The updates since the last `entity_position_sync`.
     since_sync: u32,
@@ -41,8 +43,8 @@ pub(crate) struct MobTracker {
     open: u32,
 }
 
-/// The state of a mob that its viewers last received.
-#[derive(Clone, Debug)]
+/// The motion of a mob that its viewers last received.
+#[derive(Clone, Copy, Debug)]
 struct Sent {
     /// The position base.
     position: DVec3,
@@ -51,11 +53,10 @@ struct Sent {
     pitch: ByteAngle,
     head_yaw: ByteAngle,
     on_ground: bool,
-    entries: Entries,
 }
 
 impl Sent {
-    fn of(state: &MobState, entries: &Entries) -> Self {
+    fn of(state: &MobState) -> Self {
         Self {
             position: state.position,
             velocity: state.velocity,
@@ -63,7 +64,6 @@ impl Sent {
             pitch: ByteAngle::from_degrees(state.pitch),
             head_yaw: ByteAngle::from_degrees(state.head_yaw),
             on_ground: state.on_ground,
-            entries: entries.clone(),
         }
     }
 }
@@ -82,7 +82,8 @@ impl MobTracker {
             start: tick,
             last: tick.wrapping_sub(1),
             latest: state,
-            sent: Sent::of(&state, &entries),
+            sent: Sent::of(&state),
+            sent_entries: entries.clone(),
             entries,
             since_sync: 0,
             open: 0,
@@ -95,7 +96,7 @@ impl MobTracker {
 
     /// The entity data entries that the viewers last received.
     pub(crate) fn sent_entries(&self) -> &Entries {
-        &self.sent.entries
+        &self.sent_entries
     }
 
     /// Records `state`; the living entries follow its health and its dying state.
@@ -113,6 +114,11 @@ impl MobTracker {
         }
     }
 
+    /// Records the entries of a custom kind (TRK-DATA-005).
+    pub(crate) fn record_entries(&mut self, entries: &[MetadataEntry<'static>]) {
+        self.entries.merge(entries);
+    }
+
     /// Whether the tracker skipped a tracker tick before `tick`: no client held the mob, so
     /// what its viewers last received is no longer known.
     pub(crate) fn is_stale(&self, tick: u64) -> bool {
@@ -122,14 +128,15 @@ impl MobTracker {
     /// Makes the latest state the state that the viewers last received, for the first viewer of
     /// a mob that no client held.
     pub(crate) fn restart(&mut self) {
-        self.sent = Sent::of(&self.latest, &self.entries);
+        self.sent = Sent::of(&self.latest);
+        self.sent_entries = self.entries.clone();
         self.since_sync = 0;
         self.open = 0;
     }
 
     /// Whether an entity data entry changed after the tracker last sent it (TRK-DATA-005).
     fn dirty(&self) -> bool {
-        self.entries != self.sent.entries
+        self.entries != self.sent_entries
     }
 
     /// The `add_entity` of the spawn bundle: the base and the last sent velocity and angles, with
@@ -161,17 +168,27 @@ impl MobTracker {
             }
         }
         let count = tick.wrapping_sub(self.start);
-        if count.is_multiple_of(interval) || self.dirty() {
-            let mut next = self.clone();
-            all_or_nothing(bytes, |bytes| next.update(id, count, bytes))?;
-            *self = next;
+        let dirty = self.dirty();
+        if count.is_multiple_of(interval) || dirty {
+            let (sent, since_sync) = (self.sent, self.since_sync);
+            if let Err(error) = all_or_nothing(bytes, |bytes| self.update(id, count, dirty, bytes))
+            {
+                self.sent = sent;
+                self.since_sync = since_sync;
+                return Err(error);
+            }
+            if dirty {
+                self.sent_entries = self.entries.clone();
+            }
         }
         self.open = self.open.saturating_add(1);
         self.last = tick;
         Ok(())
     }
 
-    fn update(&mut self, id: VarInt, count: u64, bytes: &mut BytesMut) -> Result<()> {
+    /// Appends the packets of an update and moves the sent motion. The caller moves the sent
+    /// entries, so that an update without a dirty entry copies none of them.
+    fn update(&mut self, id: VarInt, count: u64, dirty: bool, bytes: &mut BytesMut) -> Result<()> {
         let state = self.latest;
         let change = (state.velocity - self.sent.velocity).length_squared();
         let velocity_changed =
@@ -196,15 +213,14 @@ impl MobTracker {
         if !at_rest {
             self.write_move(id, count, yaw, pitch, bytes)?;
         }
-        if self.entries != self.sent.entries {
+        if dirty {
             write_record(
                 bytes,
                 &ClientboundSetEntityData {
                     entity_id: id,
-                    metadata: Metadata(self.entries.changed_from(&self.sent.entries)),
+                    metadata: Metadata(self.entries.changed_from(&self.sent_entries)),
                 },
             )?;
-            self.sent.entries = self.entries.clone();
         }
         let head_yaw = ByteAngle::from_degrees(state.head_yaw);
         if head_yaw != self.sent.head_yaw {
@@ -309,7 +325,7 @@ impl MobTracker {
                 bytes,
                 &ClientboundSetEntityData {
                     entity_id: id,
-                    metadata: Metadata(sent.entries.all()),
+                    metadata: Metadata(self.sent_entries.all()),
                 },
             )
         })
