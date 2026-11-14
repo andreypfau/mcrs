@@ -10,8 +10,9 @@ use bevy::core_pipeline::schedule::Core3d;
 use bevy::prelude::*;
 use bevy::render::extract_resource::ExtractResourcePlugin;
 use bevy::render::render_resource::BindGroup;
+use bevy::render::renderer::{RenderAdapter, RenderDevice};
 use bevy::render::{Render, RenderApp, RenderSystems};
-use mcrs_minecraft_render::{LightTint, WorldPass};
+use mcrs_minecraft_render::{LightTint, RenderPath, WorldPass};
 
 pub use light_color_plugin::{HeldItemLights, LightColorPlugin};
 pub use volume::{VolumeCommand, VolumeQueue, VolumeSettings};
@@ -26,8 +27,27 @@ impl Plugin for LightVolumeRenderPlugin {
         bevy::asset::embedded_asset!(app, "shaders/colour.wgsl");
         let queue = VolumeQueue::default();
         app.insert_resource(self.settings)
-            .insert_resource(queue.clone())
+            .insert_resource(queue)
             .add_plugins(ExtractResourcePlugin::<VolumeSettings>::default());
+    }
+
+    /// The volume is coloured by compute passes over storage buffers, so without them (WebGL2)
+    /// the render part is left out: the lighting pass then draws block light without a tint, and
+    /// the volume, never opened, asks the feeder for nothing.
+    fn finish(&self, app: &mut App) {
+        let world = app.world();
+        let full = match (
+            world.get_resource::<RenderDevice>(),
+            world.get_resource::<RenderAdapter>(),
+        ) {
+            (Some(device), Some(adapter)) => RenderPath::of(device, adapter).is_full(),
+            _ => false,
+        };
+        let queue = world.resource::<VolumeQueue>().clone();
+        if !full {
+            info!("no compute passes: block light keeps its colourless light");
+            return;
+        }
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };

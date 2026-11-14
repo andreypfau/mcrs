@@ -51,11 +51,20 @@ fn lightmap(block: f32, sky: f32) -> vec3<f32> {
     return textureSampleLevel(lightmap_levels, lightmap_sampler, uv, 0.0).rgb;
 }
 
+// The image value of a colour the view target stores: the present pass decodes the world image
+// for the target, so the text is written as the value that comes out as `stored`. A copy of
+// `from_target` in `finish.wesl`, which a WGSL shader cannot import.
+fn from_target(stored: vec3<f32>) -> vec3<f32> {
+    let low = stored * 12.92;
+    let high = 1.055 * pow(stored, vec3<f32>(1.0 / 2.4)) - 0.055;
+    return select(high, low, stored <= vec3<f32>(0.0031308));
+}
+
 @fragment
 fn fragment(in: Fragment) -> @location(0) vec4<f32> {
     let texel = textureSample(font_page, font_sampler, in.uv);
     if texel.a < 0.5 {
         discard;
     }
-    return vec4<f32>(in.color * texel.rgb * lightmap(in.light.x, in.light.y), 1.0);
+    return vec4<f32>(from_target(in.color * texel.rgb * lightmap(in.light.x, in.light.y)), 1.0);
 }

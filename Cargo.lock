@@ -5281,6 +5281,7 @@ dependencies = [
  "serde",
  "serde_json",
  "wgpu",
+ "wgsl-parse",
 ]
 
 [[package]]

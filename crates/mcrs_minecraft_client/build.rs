@@ -70,7 +70,14 @@ fn pack(assets: &Path, path: &Path, blob: &mut Vec<u8>, files: &mut usize) {
         }
         return;
     }
-    let name = path.strip_prefix(assets).unwrap().to_str().unwrap();
+    // The asset paths of the browser use `/`; a Windows host joins the children of a folder
+    // with `\`.
+    let name = path
+        .strip_prefix(assets)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .replace('\\', "/");
     let bytes = std::fs::read(path).unwrap();
     blob.extend_from_slice(&(name.len() as u32).to_le_bytes());
     blob.extend_from_slice(name.as_bytes());

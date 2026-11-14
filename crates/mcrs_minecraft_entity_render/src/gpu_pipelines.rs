@@ -625,9 +625,59 @@ mod tests {
         }
     }
 
+    /// Two rules of the WGSL specification that naga does not hold a shader to and Tint, the
+    /// compiler of Chromium, does; a browser that refuses one shader closes the whole app:
+    /// - the grammar: a bitwise operator takes no unparenthesised operand with another binary
+    ///   operator, so `a * b | c` is refused. `wgsl-parse` follows the grammar of the
+    ///   specification.
+    /// - a constant expression that evaluates to a NaN or an infinity is an error. naga refuses
+    ///   that itself except in `bitcast`, which it does not evaluate, so a `bitcast<f32>` of a
+    ///   literal is checked here.
+    fn check_tint_rules(label: &str, source: &str) {
+        if let Err(error) = source.parse::<wgsl_parse::syntax::TranslationUnit>() {
+            panic!("{label}: {error}");
+        }
+        for (at, _) in source.match_indices("bitcast<f32>(") {
+            let argument = &source[at + "bitcast<f32>(".len()..];
+            let argument = argument[..argument.find(')').unwrap()].trim();
+            let digits = argument.trim_end_matches(['u', 'i']);
+            let bits = match digits.strip_prefix("0x") {
+                Some(hex) => u32::from_str_radix(hex, 16),
+                None => digits.parse::<u32>(),
+            };
+            if let Ok(bits) = bits {
+                assert!(
+                    f32::from_bits(bits).is_finite(),
+                    "{label}: the constant bitcast<f32>({argument}) is not a finite f32"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_tint_rules_catch_what_naga_lets_through() {
+        let mixed = "fn f(a: u32, b: u32) -> u32 { return a * b | 1u; }";
+        naga::front::wgsl::parse_str(mixed).unwrap();
+        assert!(
+            mixed
+                .parse::<wgsl_parse::syntax::TranslationUnit>()
+                .is_err()
+        );
+        let nan = "fn f() -> f32 { return bitcast<f32>(0x7fc00000u); }";
+        naga::front::wgsl::parse_str(nan).unwrap();
+        let caught = std::panic::catch_unwind(|| check_tint_rules("nan", nan));
+        assert!(caught.is_err());
+        check_tint_rules(
+            "runtime nan",
+            "var<private> z: u32; fn f() -> f32 { return bitcast<f32>(0x7fc00000u | z); }",
+        );
+    }
+
     /// Whether each global that an entry point of `source` uses has the binding and the kind of
-    /// binding that the layout of its pass declares.
+    /// binding that the layout of its pass declares, and whether `source` keeps the rules Tint
+    /// adds to naga's.
     fn check_bindings(label: &str, source: &str, passes: &[(&str, &[(u32, layouts::Slot)])]) {
+        check_tint_rules(label, source);
         let module = naga::front::wgsl::parse_str(source).unwrap();
         let info = naga::valid::Validator::new(
             naga::valid::ValidationFlags::all(),
@@ -749,6 +799,14 @@ mod tests {
                 ("figure_fragment", &[(0, layouts::Slot::Frame)]),
                 ("figure_fragment_opaque", &[(0, layouts::Slot::Frame)]),
             ],
+        );
+        check_tint_rules(
+            "impostor",
+            &(COMMON.to_owned() + GBUFFER_ENCODE_WGSL + SHADING + &impostor_constants(IMPOSTOR)),
+        );
+        check_tint_rules(
+            "impostor cover",
+            &impostor_constants(crate::impostor_atlas::COVER).replace("#{FIRST_COVER}", "0"),
         );
         let webgpu = wgpu::Limits::default();
         assert!(layouts::passes_fit(&webgpu));

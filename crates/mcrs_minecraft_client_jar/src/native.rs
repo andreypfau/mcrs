@@ -143,15 +143,16 @@ pub fn resolve(
 }
 
 /// The asset index layer's font files, laid over the jar's by path. Each comes from the official
-/// launcher's object store when it holds it, else from the object server into that store. The
+/// launcher's object store when it holds it, else from `objects`, a server laid out as
+/// [`crate::OBJECTS`], into that store. The
 /// objects are fetched side by side, each retried with a growing wait; one that still fails fails
 /// the layer, since the definition without its archive does not load.
-pub fn font_assets() -> Result<Files, String> {
+pub fn font_assets(objects: &str) -> Result<Files, String> {
     let store = official_dir().map(|dir| dir.join("assets").join("objects"));
     std::thread::scope(|scope| {
         let tasks: Vec<_> = FONT_OBJECTS
             .iter()
-            .map(|object| scope.spawn(|| font_object(object, store.as_deref())))
+            .map(|object| scope.spawn(|| font_object(object, objects, store.as_deref())))
             .collect();
         tasks
             .into_iter()
@@ -166,7 +167,11 @@ pub fn font_assets() -> Result<Files, String> {
     })
 }
 
-fn font_object(object: &AssetObject, store: Option<&Path>) -> Result<Vec<u8>, String> {
+fn font_object(
+    object: &AssetObject,
+    objects: &str,
+    store: Option<&Path>,
+) -> Result<Vec<u8>, String> {
     let kept = store.map(|store| store.join(object.directory()).join(object.sha1));
     if let Some(bytes) = kept
         .as_ref()
@@ -175,7 +180,7 @@ fn font_object(object: &AssetObject, store: Option<&Path>) -> Result<Vec<u8>, St
     {
         return Ok(bytes);
     }
-    let bytes = fetch_object(object)?;
+    let bytes = fetch_object(object, objects)?;
     if let Some(path) = &kept
         && let Err(error) = keep_object(path, &bytes)
     {
@@ -186,8 +191,8 @@ fn font_object(object: &AssetObject, store: Option<&Path>) -> Result<Vec<u8>, St
 
 /// The object from the object server, checked against its pinned digest; a slow link gets a long
 /// time to read the body, and a cut or wrong answer is asked for again.
-fn fetch_object(object: &AssetObject) -> Result<Vec<u8>, String> {
-    let url = object.url();
+fn fetch_object(object: &AssetObject, objects: &str) -> Result<Vec<u8>, String> {
+    let url = object.url(objects);
     let agent = agent_with(OBJECT_BODY_TIMEOUT);
     let mut backoff = FIRST_BACKOFF;
     let mut failure = String::new();
