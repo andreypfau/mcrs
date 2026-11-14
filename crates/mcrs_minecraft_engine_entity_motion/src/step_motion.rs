@@ -4,14 +4,17 @@ use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::query::With;
 use bevy_ecs::query::Without;
+use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
 use bevy_ecs::system::Single;
 use bevy_ecs::world::Mut;
+use bevy_utils::Parallel;
 use glam::DVec3;
 use mcrs_minecraft_engine_physics::BlockWorld;
 use mcrs_minecraft_engine_physics::PhysicsTables;
+use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
 use mcrs_minecraft_entity_key::TileKey;
@@ -45,14 +48,27 @@ type Moving<'a> = (
     Mut<'a, StepOutcome>,
 );
 
-/// Steps each entity with a motion and no hold once, in parallel. Each batch reads the blocks
-/// through its own section cache and keeps its own scratch buffers.
+/// The buffers of one thread of the pass, kept from tick to tick.
+#[derive(Default)]
+pub(crate) struct StepBuffers {
+    scratch: Scratch,
+    actions: Vec<BlockAction>,
+}
+
+/// Steps each entity with a motion and no hold once, in parallel. Each step reads the blocks
+/// through the section cache of its entity, and each thread keeps its own scratch buffers.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a system takes each resource that it reads"
+)]
 pub(crate) fn step_motion(
     dimension: Single<Entity, With<Dimension>>,
     world: WorldView,
     tables: Res<PhysicsTables>,
     stirred: Res<StirredTiles>,
+    clock: Res<BirthClock>,
     movers: ResMut<Movers>,
+    buffers: Local<Parallel<StepBuffers>>,
     mut entities: Query<
         (Entity, &mut MotionState, &MotionKind, &mut StepOutcome),
         Without<MotionHold>,
@@ -68,20 +84,18 @@ pub(crate) fn step_motion(
     let world = &world;
     let tables = tables.tables();
     let stirred = &*stirred;
+    let clock = *clock;
     let movers = &movers.queues;
+    let buffers = &*buffers;
     entities
         .par_iter_mut()
         .batching_strategy(BatchingStrategy::new().batches_per_thread(4))
         .for_each_init(
-            || {
-                (
-                    Scratch::new(),
-                    Vec::<BlockAction>::new(),
-                    SectionCache::new(world),
-                )
-            },
-            |(scratch, actions, cache), moving| {
-                let Some(moved) = step(moving, cache, tables, stirred, scratch, actions) else {
+            || buffers.borrow_local_mut(),
+            |buffers, moving| {
+                let StepBuffers { scratch, actions } = &mut **buffers;
+                let Some(moved) = step(moving, world, tables, stirred, clock, scratch, actions)
+                else {
                     return;
                 };
                 movers.scope(|queue| queue.push(moved));
@@ -93,28 +107,33 @@ pub(crate) fn step_motion(
 /// actions of the tick dropped, and the age counted. Gives the entity when its body changed.
 fn step<W: CollisionWorld>(
     (entity, mut state, kind, mut outcome): Moving<'_>,
-    cache: &mut SectionCache<'_, W>,
+    world: &W,
     tables: &Tables,
     stirred: &StirredTiles,
+    clock: BirthClock,
     scratch: &mut Scratch,
     actions: &mut Vec<BlockAction>,
 ) -> Option<Entity> {
     let written = state.is_changed();
     let motion = &mut state.bypass_change_detection().0;
     let start = motion.body;
-    cache.cover(start.position);
-    if !loaded(&*cache, start.position) {
+    // The kernel decides inside `tick_entity` whether a resting entity skips its tick, so the
+    // window is filled before that call.
+    let cache = SectionCache::cover(world, start.position);
+    if !loaded(&cache, start.position) {
         return None;
     }
     let wake = written || stirred.wakes(TileKey::at(start.position));
-    let view = View::new(&*cache, &NoBodies, tables);
+    let view = View::new(&cache, &NoBodies, tables);
     let kernel = tick_entity(view, SERVER, &kind.0, motion, wake, actions, scratch);
     actions.clear();
     motion.age = motion.age.wrapping_add(1);
+    let stepped_at = Some(clock.0);
+    outcome.bypass_change_detection().stepped_at = stepped_at;
     outcome.set_if_neq(StepOutcome {
         start: start.position,
-        flags: motion.body.flags,
         kernel,
+        stepped_at,
     });
     if same_bits(&start, &motion.body) {
         return None;

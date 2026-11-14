@@ -4969,7 +4969,6 @@ dependencies = [
  "mcrs_minecraft_physics",
  "mcrs_minecraft_simulation",
  "mcrs_voxel",
- "rustc-hash 2.1.1",
 ]
 
 [[package]]

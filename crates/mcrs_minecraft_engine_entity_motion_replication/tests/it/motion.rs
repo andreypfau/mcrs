@@ -152,21 +152,28 @@ fn a_falling_block_lands_on_the_floor_and_falls_silent_at_rest() {
     for _ in 0..60 {
         let events = tick(&mut app);
         let step = *app.world().get::<StepOutcome>(block).expect("a step");
-        ticks.push((events, step));
+        ticks.push((events, step, state(&app, block)));
     }
 
-    assert_eq!(ticks[0].0, ["spawn"], "the first tick spawns the entity");
+    assert_eq!(
+        ticks[0].0,
+        ["spawn", "move"],
+        "the first tick spawns the entity, then moves it"
+    );
     let landing = ticks
         .iter()
-        .position(|(_, step)| step.kernel.landed)
+        .position(|(_, step, _)| step.kernel.landed)
         .expect("the block lands");
-    assert!(ticks[landing].1.flags.on_ground, "it lands on the ground");
+    assert!(
+        ticks[landing].2.body.flags.on_ground,
+        "it lands on the ground"
+    );
     let last_event = ticks
         .iter()
-        .rposition(|(events, _)| !events.is_empty())
+        .rposition(|(events, _, _)| !events.is_empty())
         .expect("events");
     assert!(last_event >= landing, "the landing is published");
-    for (at, (events, _)) in ticks.iter().enumerate().take(last_event + 1).skip(1) {
+    for (at, (events, _, _)) in ticks.iter().enumerate().take(last_event + 1).skip(1) {
         assert_eq!(events, &["move"], "tick {at} moves the block");
     }
     assert!(
@@ -255,5 +262,46 @@ fn an_entity_without_an_appearance_waits_unseen_and_spawns_with_it() {
     assert_eq!(state(&app, block).body.position, start, "it does not move");
 
     app.world_mut().entity_mut(block).insert(appearance);
-    assert_eq!(tick(&mut app), ["spawn"]);
+    assert_eq!(tick(&mut app), ["spawn", "move"]);
+}
+
+#[test]
+fn the_spawn_of_a_falling_block_shows_its_start_and_the_first_step_follows_as_a_move() {
+    let mut app = app(|blocks| blocks.stone);
+    let start = DVec3::new(0.5, 3.0, 0.5);
+    spawn(app.world_mut(), MotionRow::falling_block(), start);
+
+    app.world_mut().run_schedule(FixedUpdate);
+
+    let deltas = app.world_mut().resource_mut::<TileEvents>().take();
+    let states: Vec<(&str, DVec3, DVec3)> = deltas
+        .tiles
+        .iter()
+        .flat_map(|delta| &delta.events)
+        .filter_map(|event| match &event.event {
+            EntityEvent::Spawn(ReplicationData::Mob(MobReport::Spawn(spawn))) => {
+                Some(("spawn", spawn.state.position, spawn.state.velocity))
+            }
+            EntityEvent::Move(ReplicationData::Mob(MobReport::Move(state))) => {
+                Some(("move", state.position, state.velocity))
+            }
+            _ => None,
+        })
+        .collect();
+    let [
+        ("spawn", spawned, spawn_velocity),
+        ("move", moved, move_velocity),
+    ] = states[..]
+    else {
+        panic!("a spawn, then a move: {states:?}");
+    };
+    assert_eq!(
+        (spawned, spawn_velocity),
+        (start, DVec3::ZERO),
+        "FBK-SPN-001: the spawn shows the state before the first step"
+    );
+    assert!(
+        moved.y < start.y && move_velocity.y < 0.0,
+        "the move shows the first step: {moved:?}, {move_velocity:?}"
+    );
 }

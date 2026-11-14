@@ -11,7 +11,9 @@ use glam::DVec3;
 use mcrs_minecraft_engine_entity_motion::EntityMotionPlugin;
 use mcrs_minecraft_engine_entity_motion::MotionKind;
 use mcrs_minecraft_engine_entity_motion::MotionState;
+use mcrs_minecraft_engine_entity_motion::StepOutcome;
 use mcrs_minecraft_engine_physics::PhysicsTables;
+use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
 use mcrs_minecraft_engine_world::palette::SectionStates;
 use mcrs_minecraft_engine_world::tick::TickSet;
@@ -134,5 +136,31 @@ fn a_block_placed_under_a_resting_item_wakes_it() {
     assert!(
         !matches!(rest, Rest::Resting(_)),
         "the item wakes: {rest:?}"
+    );
+}
+
+#[test]
+fn an_entity_in_a_section_that_is_not_loaded_is_not_stepped_and_its_outcome_says_so() {
+    let mut app = app(|blocks| blocks.stone);
+    let start = DVec3::new(100.5, 3.0, 0.5);
+    let unloaded = spawn(app.world_mut(), MotionRow::falling_block(), start);
+    let loaded = spawn(
+        app.world_mut(),
+        MotionRow::falling_block(),
+        DVec3::new(0.5, 3.0, 0.5),
+    );
+    tick(&mut app);
+
+    let clock = *app.world().resource::<BirthClock>();
+    let outcome = |entity| *app.world().get::<StepOutcome>(entity).expect("an outcome");
+    assert!(outcome(loaded).is_of(clock), "the loaded entity is stepped");
+    assert!(
+        !outcome(unloaded).is_of(clock),
+        "the outcome tells that the entity was not stepped"
+    );
+    assert_eq!(
+        state(&app, unloaded).body.position,
+        start,
+        "it does not move"
     );
 }

@@ -17,6 +17,7 @@ pub struct Movers {
 }
 
 impl Movers {
+    /// The entities that moved in the last pass, sorted, each once.
     #[must_use]
     pub fn entities(&self) -> &[Entity] {
         &self.sorted

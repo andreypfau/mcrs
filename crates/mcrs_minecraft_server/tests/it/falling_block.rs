@@ -45,6 +45,8 @@ enum Seen {
         id: i32,
         kind: EntityType,
         data: i32,
+        position: DVec3,
+        velocity: DVec3,
     },
     Motion {
         id: i32,
@@ -130,6 +132,8 @@ impl Viewer {
                 id: add.id.0,
                 kind: add.kind,
                 data: add.data.0,
+                position: add.pos,
+                velocity: add.movement.0,
             },
             ClientboundGamePacket::ClientboundSetEntityMotion(motion) => Seen::Motion {
                 id: motion.entity_id.0,
@@ -186,6 +190,29 @@ fn place(server: &mut PlayServer, pos: BlockPos, state: BlockStateId) {
         });
 }
 
+/// The index of the `add_entity` of the falling block, which FBK-SPN-002 requires at `start` with
+/// the velocity 0.
+fn falling_block_add(seen: &[Seen], start: DVec3) -> usize {
+    let found = seen.iter().enumerate().find_map(|(at, seen)| match *seen {
+        Seen::Add {
+            kind: EntityType::FallingBlock,
+            position,
+            velocity,
+            ..
+        } => Some((at, position, velocity)),
+        _ => None,
+    });
+    let Some((add, position, velocity)) = found else {
+        panic!("a falling block is added: {seen:#?}");
+    };
+    assert_eq!(
+        (position, velocity),
+        (start, DVec3::ZERO),
+        "FBK-SPN-002: the add carries the start and no velocity: {seen:#?}"
+    );
+    add
+}
+
 /// FBK-NET-001, TRK-UPD-015, TRK-UPD-005, TRK-UPD-007: the falling block is added with the state
 /// of sand and no motion in its bundle, then the viewer gets its downward motion and linear moves,
 /// and its removal once it lands as sand on the stone.
@@ -220,17 +247,7 @@ fn fbk_net_001_requested_sand_falls_to_a_viewer_and_lands_on_the_floor() {
     viewer.receive(server.ticks(viewer_anchor, 100));
 
     let seen = &viewer.seen;
-    let Some(add) = seen.iter().position(|seen| {
-        matches!(
-            seen,
-            Seen::Add {
-                kind: EntityType::FallingBlock,
-                ..
-            }
-        )
-    }) else {
-        panic!("a falling block is added: {seen:#?}");
-    };
+    let add = falling_block_add(seen, start.bottom_centre());
     let Seen::Add { id, data, .. } = seen[add] else {
         unreachable!("the position finds an add");
     };

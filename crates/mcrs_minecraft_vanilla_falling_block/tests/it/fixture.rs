@@ -21,7 +21,6 @@ use mcrs_minecraft_engine::block_simulation::InertBlocks;
 use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::column_change::ColumnChange;
 use mcrs_minecraft_engine::coordinator::clock::GameTime;
-use mcrs_minecraft_engine::random_tick_speed::RandomTickSpeed;
 use mcrs_minecraft_engine_entity_motion::EntityMotionPlugin;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_entity_motion_replication::EntityMotionReplicationPlugin;
@@ -136,7 +135,6 @@ pub fn app(settings: Settings) -> App {
     .insert_resource(items.clone())
     .insert_resource(CurrentRegistries::new(test_registries().clone()))
     .insert_resource(PhysicsTables::new(TABLES.clone()))
-    .insert_resource(RandomTickSpeed(0))
     .init_resource::<GameTime>()
     .init_resource::<BirthClock>()
     .add_plugins((

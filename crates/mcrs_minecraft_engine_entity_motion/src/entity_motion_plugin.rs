@@ -5,6 +5,7 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::SystemSet;
 use bevy_ecs::schedule::common_conditions::resource_exists;
 use mcrs_minecraft_engine_physics::PhysicsTables;
+use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::BlockPlaced;
 
@@ -38,6 +39,7 @@ impl Plugin for EntityMotionPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<StirredTiles>();
         app.init_resource::<Movers>();
+        app.init_resource::<BirthClock>();
         app.add_message::<BlockPlaced>();
         app.configure_sets(FixedUpdate, MotionPass.in_set(TickSet::Simulate));
         app.configure_sets(FixedUpdate, MotionRelease.in_set(MotionPass));

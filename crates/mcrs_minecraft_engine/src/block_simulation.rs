@@ -117,6 +117,7 @@ impl<B: BlockBehaviour<WorldKinds> + BlockDrops + Clone + Send + 'static> Plugin
     fn build(&self, app: &mut App) {
         app.insert_resource(BlockRules(self.rules.clone()));
         app.init_resource::<BlockSimulation>();
+        app.init_resource::<RandomTickSpeed>();
         app.init_resource::<LandedTicks>();
         app.init_resource::<BroadcastMarks>();
         app.add_message::<ItemDropped>();

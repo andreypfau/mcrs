@@ -92,11 +92,14 @@ pub struct EntityPass;
 pub struct PhysicsTables(Tables);
 
 impl PhysicsTables {
+    /// The resource of `tables`, which must be built from the block definitions and tags of the
+    /// world that the passes read.
     #[must_use]
     pub fn new(tables: Tables) -> Self {
         Self(tables)
     }
 
+    /// The tables that a pass hands to the kernel for each step.
     #[must_use]
     pub fn tables(&self) -> &Tables {
         &self.0

@@ -8,6 +8,7 @@ use mcrs_minecraft_entity_key::TileKey;
 pub struct PublishedTile(pub(crate) Option<TileKey>);
 
 impl PublishedTile {
+    /// The tile to which an event of the entity goes; `None` before its spawn is published.
     #[must_use]
     pub fn tile(self) -> Option<TileKey> {
         self.0
