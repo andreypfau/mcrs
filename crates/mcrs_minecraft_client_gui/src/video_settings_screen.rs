@@ -54,8 +54,7 @@ pub(crate) fn video_settings_screen(
         i32::from(*VIEW_DISTANCE_RANGE.start()),
         i32::from(*VIEW_DISTANCE_RANGE.end()),
         i32::from(view_distance),
-    )?
-    .deferred();
+    )?;
     let boolean_button = |id, name_key, value| {
         Widget::new(
             id,
@@ -189,16 +188,6 @@ pub(crate) fn write_option(
             options.gui_scale = activated_gui_scale(options.gui_scale, max_gui_scale, modifiers);
         }
         _ => {}
-    }
-}
-
-/// The caption of `widget` at the value that it waits to store (WID-SLD-007, step 3).
-pub(crate) fn pending_caption(language: &ClientLanguage, widget: &Widget) -> Option<String> {
-    match (widget.id(), &widget.kind) {
-        (RENDER_DISTANCE, WidgetKind::Slider(slider)) => {
-            Some(render_distance_caption(language, slider.value()?))
-        }
-        _ => None,
     }
 }
 

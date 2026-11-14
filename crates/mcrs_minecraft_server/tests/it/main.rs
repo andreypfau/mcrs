@@ -65,6 +65,7 @@ mod subapp_lifecycle;
 mod support;
 mod teleport_confirmation;
 mod tick_determinism;
+mod view_distance;
 mod whitelist;
 mod world_cells;
 mod world_server;
