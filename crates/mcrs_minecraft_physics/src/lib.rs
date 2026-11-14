@@ -38,6 +38,8 @@ mod move_body;
 mod move_flags;
 mod move_outcome;
 mod move_path;
+#[cfg(feature = "testing")]
+mod movement_speeds;
 mod mover;
 mod mover_kind;
 mod observed_velocity;
@@ -64,6 +66,7 @@ mod shape;
 mod side;
 mod sight_ray;
 mod sourced_collider;
+mod sprint_speed;
 mod stuck_ignore;
 mod support;
 mod tables;
@@ -168,8 +171,6 @@ pub use recorded_ticks::set_attribute;
 #[cfg(feature = "testing")]
 pub use recorded_ticks::set_effect;
 #[cfg(feature = "testing")]
-pub use recorded_ticks::sprint_modifiers;
-#[cfg(feature = "testing")]
 pub use recorded_ticks::test_state;
 pub use resolve::Probe;
 pub use resolve::Resolved;
@@ -187,6 +188,7 @@ pub use side::Side;
 pub use sight_ray::sight_clear;
 pub use sourced_collider::ColliderSource;
 pub use sourced_collider::SourcedCollider;
+pub use sprint_speed::SprintSpeed;
 pub use stuck_ignore::StuckIgnore;
 pub use support::EFFECT_OFFSET;
 pub use support::MOVEMENT_OFFSET;

@@ -7,13 +7,14 @@ use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Commands, DetectChanges, Entity, Has, Query, Ref, ResMut, With, Without};
 use bytes::Bytes;
 use mcrs_engine_muxer::{EntityEvent, EntityId, TileKey, ViewerId};
+use mcrs_minecraft_engine_attributes::Attributes;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundSystemChatPacket;
-use mcrs_minecraft_replication::{PlayerData, PlayerSpawn, Pose};
+use mcrs_minecraft_replication::{AttributeState, PlayerData, PlayerSpawn, Pose};
 use mcrs_minecraft_text::{Color, IntoText, RawText, Text};
 
 use crate::cell_crossing::CrossedAt;
@@ -62,6 +63,7 @@ pub fn publish_player_tiles(
             Option<&ListedGameMode>,
             Has<AnnounceJoin>,
             Option<&CrossedAt>,
+            Option<&Attributes>,
         ),
         With<Player>,
     >,
@@ -77,6 +79,7 @@ pub fn publish_player_tiles(
         game_mode,
         announce,
         crossed,
+        attributes,
     ) in &mut players
     {
         if crossed.is_some() {
@@ -104,6 +107,7 @@ pub fn publish_player_tiles(
                             .unwrap_or_default(),
                         pose: pose(&transform),
                         game_mode,
+                        attributes: attributes.map(stored_attributes).unwrap_or_default(),
                     })
                     .into(),
                 ),
@@ -151,6 +155,18 @@ pub fn publish_player_tiles(
             );
         }
     }
+}
+
+fn stored_attributes(attributes: &Attributes) -> Vec<AttributeState> {
+    attributes
+        .set()
+        .instances()
+        .filter(|instance| instance.attribute().definition().syncable)
+        .map(|instance| AttributeState {
+            attribute: instance.attribute(),
+            instance: Some(instance.clone()),
+        })
+        .collect()
 }
 
 /// Records the despawn of a player that leaves the world, or stops being published.

@@ -13,6 +13,7 @@ use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, to};
 use mcrs_minecraft_engine::teleport::TeleportState;
 use mcrs_minecraft_engine::use_item_on_request::UseItemOnRequest;
 use mcrs_minecraft_engine::{BlockBreakSet, eye_position, in_reach, reach};
+use mcrs_minecraft_engine_attributes::Attributes;
 use mcrs_minecraft_engine_item::{Selected, Slots, StackCommandsExt};
 use mcrs_minecraft_engine_world::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -73,6 +74,7 @@ const HIGHEST_CURSOR: f32 = 1.5;
 type PlacerItem<'a> = (
     &'a Owner,
     &'a PlayerGameMode,
+    Option<&'a Attributes>,
     &'a InDimension,
     &'a Transform,
     Option<&'a PlayerOpLevel>,
@@ -116,15 +118,27 @@ fn place_blocks(
         if request.sequence.0 < 0 {
             continue;
         }
-        let Ok((owner, mode, dimension, transform, op_level, teleport, slots, selected)) =
-            placers.get(request.entity)
+        let Ok((
+            owner,
+            mode,
+            attributes,
+            dimension,
+            transform,
+            op_level,
+            teleport,
+            slots,
+            selected,
+        )) = placers.get(request.entity)
         else {
             continue;
         };
         let session = owner.0;
         let clicked = request.block_pos;
         let eye = eye_position(transform.translation);
-        if !in_reach(eye, clicked, reach(mode.0)) || !cursor_in_range(request.cursor.to_array()) {
+        let limit = reach(attributes);
+        if !limit.is_some_and(|limit| in_reach(eye, clicked, limit))
+            || !cursor_in_range(request.cursor.to_array())
+        {
             continue;
         }
         let Some(view) = world.get(dimension.0) else {

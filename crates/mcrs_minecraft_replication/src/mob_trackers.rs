@@ -10,6 +10,7 @@ use mcrs_minecraft_protocol_game::clientbound::{
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
 
+use crate::attribute_state::AttributeState;
 use crate::delivery::Delivery;
 use crate::encode::record;
 use crate::hold_set::HoldSet;
@@ -20,6 +21,7 @@ use crate::mob_state::MobState;
 use crate::mob_tracker::MobTracker;
 use crate::player_input::Backlog;
 use crate::spawn_look::SpawnLook;
+use crate::subject_attributes::SubjectAttributes;
 use crate::wire_id::wire_id;
 use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_protocol_game::entity::MobLooks;
@@ -55,6 +57,7 @@ struct Mob {
     uuid: Uuid,
     looks: MobLooks,
     tracker: MobTracker,
+    attributes: SubjectAttributes,
 }
 
 impl MobTrackers {
@@ -77,6 +80,10 @@ impl MobTrackers {
                 uuid: spawn.uuid,
                 looks,
                 tracker: MobTracker::new(spawn.state, entries, spawn.kind.update_interval, tick),
+                attributes: SubjectAttributes::with_stored(
+                    spawn.kind.attribute_bases(),
+                    Vec::new(),
+                ),
             },
         );
     }
@@ -162,6 +169,12 @@ impl MobTrackers {
         }
     }
 
+    pub(crate) fn record_attribute(&mut self, subject: EntityId, attribute: &AttributeState) {
+        if let Some(mob) = self.mobs.get_mut(&subject) {
+            mob.attributes.record(attribute);
+        }
+    }
+
     /// Forgets `subject` and takes it out of `holds`. The muxer removes it from each client that
     /// holds it.
     pub(crate) fn despawn(&mut self, subject: EntityId, holds: &mut HoldSet) {
@@ -209,7 +222,7 @@ impl MobTrackers {
         }
         let id = wire_id(subject);
         let add = record(&mob.tracker.add_entity(id, mob.uuid, mob.kind.entity_type))?;
-        let extras = spawn_extras(id, mob.kind, &mob.looks, mob.tracker.sent_entries())?;
+        let extras = spawn_extras(id, &mob.looks, mob.tracker.sent_entries(), &mob.attributes)?;
         chunks.extend([delimiter.clone(), add, extras, delimiter.clone()]);
         holds.insert(viewer, subject);
         if let Some(missed) = self.missed.get_mut(&viewer) {
@@ -260,7 +273,10 @@ impl MobTrackers {
                 continue;
             };
             scratch.clear();
-            if let Err(error) = mob.tracker.tick(wire_id(subject), tick, scratch) {
+            if let Err(error) =
+                mob.tracker
+                    .tick(wire_id(subject), tick, &mut mob.attributes, scratch)
+            {
                 tracing::warn!("the update of a mob did not encode: {error:#}");
                 continue;
             }
@@ -304,7 +320,10 @@ fn resend_missed(
             let Some(mob) = mobs.get(&subject) else {
                 continue;
             };
-            if let Err(error) = mob.tracker.resend(wire_id(subject), scratch) {
+            if let Err(error) = mob
+                .tracker
+                .resend(wire_id(subject), &mob.attributes, scratch)
+            {
                 tracing::warn!("the state of a mob did not encode: {error:#}");
             }
         }
@@ -320,7 +339,15 @@ mod tests {
     use glam::DVec3;
     use mcrs_engine_muxer::ViewerBytes;
     use mcrs_minecraft_core::Look;
-    use mcrs_minecraft_protocol_game::clientbound::{ClientboundEntityPositionSync, PositionPath};
+    use mcrs_minecraft_entity::attribute_keys::Attribute;
+    use mcrs_minecraft_entity::{AttributeSet, InstanceModifier, ModifierKind};
+    use mcrs_minecraft_entity_attribute::{AttributeModifier, ModifierOperation};
+    use mcrs_minecraft_protocol_game::clientbound::{
+        AttributeSnapshot, ClientboundEntityPositionSync, ClientboundSetEntityData,
+        ClientboundUpdateAttributes, PositionPath,
+    };
+    use mcrs_minecraft_protocol_game::entity::{MetaDataValue, Metadata, MetadataEntry};
+    use mcrs_minecraft_resource::ResourceLocation;
 
     use super::*;
 
@@ -387,6 +414,64 @@ mod tests {
                 .map(|ViewerBytes { viewer, chunks }| (viewer, chunks))
                 .collect()
         }
+    }
+
+    /// TRK-DATA-004, ATR-NET-002, ATR-NET-004.
+    #[test]
+    fn the_spawn_bundle_holds_only_the_instances_that_differ_from_the_type() {
+        let mut world = World::spawned(at(0.5));
+        let data = record(&ClientboundSetEntityData {
+            entity_id: wire_id(MOB),
+            metadata: Metadata(vec![MetadataEntry {
+                index: 9,
+                value: MetaDataValue::Float(10.0),
+            }]),
+        })
+        .unwrap();
+        assert_eq!(
+            world.gain(KEEPS_UP, 0)[2],
+            data,
+            "a mob of the type sends no update_attributes"
+        );
+
+        let bases = EntityTypeData::PIG.attribute_bases().unwrap();
+        let mut set = AttributeSet::new();
+        set.add_modifier(
+            bases,
+            Attribute::MovementSpeed,
+            InstanceModifier::new(
+                "test:slow".parse().unwrap(),
+                -0.5,
+                ModifierOperation::AddMultipliedTotal,
+                ModifierKind::Permanent,
+            ),
+        )
+        .unwrap();
+        world.mobs.record_attribute(
+            MOB,
+            &AttributeState {
+                attribute: Attribute::MovementSpeed,
+                instance: set.instances().next().cloned(),
+            },
+        );
+        let attributes = record(&ClientboundUpdateAttributes {
+            entity_id: wire_id(MOB),
+            attributes: vec![AttributeSnapshot {
+                attribute: Attribute::MovementSpeed,
+                base: 0.25,
+                modifiers: vec![AttributeModifier {
+                    id: ResourceLocation::new_static("test:slow").unwrap(),
+                    amount: -0.5,
+                    operation: ModifierOperation::AddMultipliedTotal,
+                }],
+            }],
+        })
+        .unwrap();
+        assert_eq!(
+            world.gain(BEHIND, 0)[2],
+            Bytes::from([data, attributes].concat()),
+            "the base of the type and the modifier"
+        );
     }
 
     #[test]

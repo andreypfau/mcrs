@@ -21,6 +21,7 @@ use mcrs_minecraft_engine::column_change::ColumnChange;
 use mcrs_minecraft_engine::column_streams::ColumnStreams;
 use mcrs_minecraft_engine::muxer::session::SessionConnection;
 use mcrs_minecraft_engine::network_id::player_network_id;
+use mcrs_minecraft_engine_attributes::{AttributeEdit, AttributeTarget, InstanceEdit};
 use mcrs_minecraft_engine_item::Dropped;
 use mcrs_minecraft_engine_registries::{install_item_table, test_item_table};
 use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
@@ -34,6 +35,10 @@ use mcrs_minecraft_engine_world::world::storage::block_entity::{
 };
 use mcrs_minecraft_engine_world::world::storage::random_ticks::RandomTickIndex;
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
+use mcrs_minecraft_entity::InstanceModifier;
+use mcrs_minecraft_entity::ModifierKind;
+use mcrs_minecraft_entity::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::ModifierOperation;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_rule::GameRule;
 use mcrs_minecraft_item_key::item_keys::Item;
@@ -44,7 +49,8 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol_game::player::PlayerAction;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundPlayerAction;
 use mcrs_minecraft_server::{
-    VanillaBlocksPlugin, VanillaEntityPhysicsPlugin, VanillaItemEntityPlugin,
+    VanillaBlocksPlugin, VanillaCreativeRangePlugin, VanillaEntityAttributesPlugin,
+    VanillaEntityPhysicsPlugin, VanillaItemEntityPlugin,
 };
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, LocalPos, SectionPos};
@@ -393,6 +399,46 @@ fn brk_ord_001_an_abort_out_of_reach_gets_only_the_ack() {
     let answer = answers(&out, &breaker, FAR);
     assert_eq!(answer.breaker, ["ack 5"]);
     assert_eq!(answer.watcher, Vec::<String>::new());
+}
+
+/// BRK-SRV-012: the limit follows `block_interaction_range`, so a modifier on it moves the limit.
+#[test]
+fn brk_srv_012_a_modifier_on_block_interaction_range_lets_a_break_out_of_the_base_reach() {
+    let mut app = host_app::make_host_app();
+    app.add_plugins(VanillaEntityAttributesPlugin);
+    let mut server = PlayServer::start(app, &[], 0);
+    let sub_app = host_app::sub_app(&mut server.app, server.dim);
+    sub_app.init_resource::<Captured>();
+    sub_app.add_systems(Last, capture);
+    let stone = default_state(&mut server, STONE);
+    let breaker = breaker_at(&mut server, GameMode::Creative, stone, NEAR);
+    let player = server.player(breaker.anchor);
+    let eye_level = f64::from(NEAR.y) + 0.5 - 1.62;
+    server
+        .world()
+        .get_mut::<Transform>(player)
+        .unwrap()
+        .translation = DVec3::new(f64::from(NEAR.x) - 6.5, eye_level, f64::from(NEAR.z) + 0.5);
+
+    let refused = send(&mut server, &breaker, &start_action(NEAR, 5));
+    server.world().write_message(AttributeEdit {
+        target: AttributeTarget::Player(player),
+        attribute: Attribute::BlockInteractionRange,
+        edit: InstanceEdit::Put(InstanceModifier::new(
+            "test:reach".parse().unwrap(),
+            2.0,
+            ModifierOperation::AddValue,
+            ModifierKind::Transient,
+        )),
+    });
+    ticks(&mut server, 1);
+    let broken = send(&mut server, &breaker, &start_action(NEAR, 6));
+
+    assert_eq!(answers(&refused, &breaker, NEAR).breaker, ["ack 5"]);
+    assert_eq!(
+        answers(&broken, &breaker, NEAR).breaker,
+        ["block_update 0", "ack 6"]
+    );
 }
 
 #[test]
@@ -1489,6 +1535,43 @@ fn brk_srv_012_the_reach_is_5_5_blocks_in_survival_mode() {
         assert_eq!(answer.watcher, watcher, "{distance}");
         assert_eq!(answer.breaker.last().unwrap(), "ack 10", "{distance}");
     }
+}
+
+/// ATR-SRC-003: creative mode adds 0.5 to `block_interaction_range`, so the reach is 6.0 blocks,
+/// and a change back to survival mode takes the 0.5 away.
+#[test]
+fn atr_src_003_creative_mode_reaches_a_block_that_survival_mode_does_not() {
+    let mut app = host_app::make_host_app();
+    app.add_plugins((VanillaEntityAttributesPlugin, VanillaCreativeRangePlugin));
+    let mut server = PlayServer::start(app, &[], 0);
+    let sub_app = host_app::sub_app(&mut server.app, server.dim);
+    sub_app.init_resource::<Captured>();
+    sub_app.add_systems(Last, capture);
+    let stone = default_state(&mut server, STONE);
+    let breaker = digger_at(&mut server, stone, NEAR);
+    let player = server.player(breaker.anchor);
+    let eye = NEAR.as_dvec3() + DVec3::new(-5.75, 0.5, 0.5);
+    server
+        .world()
+        .get_mut::<Transform>(player)
+        .unwrap()
+        .translation = eye - DVec3::new(0.0, 1.62, 0.0);
+
+    server.world().get_mut::<PlayerGameMode>(player).unwrap().0 = GameMode::Creative;
+    ticks(&mut server, 1);
+    let creative = send(&mut server, &breaker, &start_action(NEAR, 5));
+    place(&mut server, &breaker, NEAR, stone);
+    server.world().get_mut::<PlayerGameMode>(player).unwrap().0 = GameMode::Survival;
+    ticks(&mut server, 1);
+    let survival = step(&mut server, &breaker, &start_action(NEAR, 10));
+
+    assert_eq!(
+        answers(&creative, &breaker, NEAR).breaker,
+        ["block_update 0", "ack 5"]
+    );
+    let survival = answers(&survival, &breaker, NEAR);
+    assert_eq!(survival.breaker, ["ack 10"]);
+    assert_eq!(survival.watcher, Vec::<String>::new());
 }
 
 #[test]

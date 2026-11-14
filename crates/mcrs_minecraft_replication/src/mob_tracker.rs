@@ -16,6 +16,7 @@ use crate::delta_base::all_or_nothing;
 use crate::mob_bundle::{Entries, LivingEntries};
 use crate::mob_state::MobState;
 use crate::move_choice::{Due, MOVED, MoveChoice, POSITION_REFRESH, Resync, UPDATES_PER_SYNC};
+use crate::subject_attributes::SubjectAttributes;
 use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_registries::Wire;
 
@@ -148,20 +149,35 @@ impl MobTracker {
     }
 
     /// Runs the tracker tick of `tick` and appends the packets of its update, if it is one, to
-    /// `bytes`. The tracker and `bytes` stay as they are when an encoding fails.
-    pub(crate) fn tick(&mut self, id: VarInt, tick: u64, bytes: &mut BytesMut) -> Result<()> {
+    /// `bytes`. An update sends the instances of `attributes` that changed after the last one
+    /// (ATR-NET-003); a change of an instance alone does not make an update. The tracker,
+    /// `attributes` and `bytes` stay as they are when an encoding fails.
+    pub(crate) fn tick(
+        &mut self,
+        id: VarInt,
+        tick: u64,
+        attributes: &mut SubjectAttributes,
+        bytes: &mut BytesMut,
+    ) -> Result<()> {
         let count = tick.wrapping_sub(self.start);
         if count.is_multiple_of(self.interval) || self.dirty() {
             let mut next = self.clone();
-            all_or_nothing(bytes, |bytes| next.update(id, count, bytes))?;
+            all_or_nothing(bytes, |bytes| next.update(id, count, attributes, bytes))?;
             *self = next;
+            attributes.mark_sent();
         }
         self.open = self.open.saturating_add(1);
         self.last = tick;
         Ok(())
     }
 
-    fn update(&mut self, id: VarInt, count: u64, bytes: &mut BytesMut) -> Result<()> {
+    fn update(
+        &mut self,
+        id: VarInt,
+        count: u64,
+        attributes: &SubjectAttributes,
+        bytes: &mut BytesMut,
+    ) -> Result<()> {
         let state = self.latest;
         let change = (state.velocity - self.sent.velocity).length_squared();
         if change > VELOCITY_CHANGE || (change > 0.0 && state.velocity.length_squared() == 0.0) {
@@ -220,6 +236,7 @@ impl MobTracker {
             )?;
             self.sent.entries = self.entries.clone();
         }
+        attributes.write_unsent(id, bytes)?;
         let head_yaw = ByteAngle::from_degrees(state.head_yaw);
         if head_yaw != self.sent.head_yaw {
             write_record(
@@ -236,9 +253,15 @@ impl MobTracker {
     }
 
     /// Appends the state that the viewers last received, as absolute values: the position base,
-    /// the velocity, the head yaw and the entity data. A client that missed updates holds the
-    /// same state as every other viewer after it, and the next relative move fits its base.
-    pub(crate) fn resend(&self, id: VarInt, bytes: &mut BytesMut) -> Result<()> {
+    /// the velocity, the head yaw, the entity data and the instances of `attributes`. A client
+    /// that missed updates holds the same state as every other viewer after it, and the next
+    /// relative move fits its base.
+    pub(crate) fn resend(
+        &self,
+        id: VarInt,
+        attributes: &SubjectAttributes,
+        bytes: &mut BytesMut,
+    ) -> Result<()> {
         let sent = &self.sent;
         all_or_nothing(bytes, |bytes| {
             write_record(
@@ -273,7 +296,8 @@ impl MobTracker {
                     entity_id: id,
                     metadata: Metadata(sent.entries.all()),
                 },
-            )
+            )?;
+            attributes.write_all(id, bytes)
         })
     }
 
@@ -405,7 +429,9 @@ mod tests {
         for (tick, state) in (0..).zip(&states) {
             tracker.record(*state);
             let mut out = BytesMut::new();
-            tracker.tick(ID, tick, &mut out).unwrap();
+            tracker
+                .tick(ID, tick, &mut SubjectAttributes::default(), &mut out)
+                .unwrap();
             if !out.is_empty() {
                 updates.push((tick, out.freeze()));
             }
@@ -484,11 +510,15 @@ mod tests {
         };
         let mut tracker = MobTracker::new(state, Entries::Item(stack(3)), 20, 0);
         let mut out = BytesMut::new();
-        tracker.tick(ID, 0, &mut out).unwrap();
+        tracker
+            .tick(ID, 0, &mut SubjectAttributes::default(), &mut out)
+            .unwrap();
         out.clear();
 
         tracker.record_stack(stack(5));
-        tracker.tick(ID, 1, &mut out).unwrap();
+        tracker
+            .tick(ID, 1, &mut SubjectAttributes::default(), &mut out)
+            .unwrap();
 
         let expected = record(&ClientboundSetEntityData {
             entity_id: ID,
@@ -504,7 +534,9 @@ mod tests {
             "between two periodic updates, the change sends only the new stack"
         );
         let mut out = BytesMut::new();
-        tracker.tick(ID, 2, &mut out).unwrap();
+        tracker
+            .tick(ID, 2, &mut SubjectAttributes::default(), &mut out)
+            .unwrap();
         assert!(out.is_empty(), "the stack goes once");
     }
 }

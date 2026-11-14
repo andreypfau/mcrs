@@ -1,3 +1,4 @@
+use crate::attribute_state::AttributeState;
 use crate::delta_base::Pose;
 use mcrs_engine_muxer::ViewerId;
 use mcrs_minecraft_game_mode::GameMode;
@@ -14,4 +15,6 @@ pub struct PlayerSpawn {
     pub properties: Vec<Property>,
     pub pose: Pose,
     pub game_mode: GameMode,
+    /// Each syncable instance that the player holds, one for each attribute (TRK-DATA-004).
+    pub attributes: Vec<AttributeState>,
 }

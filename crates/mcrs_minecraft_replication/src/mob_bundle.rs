@@ -1,11 +1,7 @@
 use bytes::{Bytes, BytesMut};
-use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::Pose;
-use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_protocol::{Result, VarInt, write_record};
-use mcrs_minecraft_protocol_game::clientbound::{
-    AttributeSnapshot, ClientboundSetEntityData, ClientboundUpdateAttributes,
-};
+use mcrs_minecraft_protocol_game::clientbound::ClientboundSetEntityData;
 use mcrs_minecraft_protocol_game::entity::{MetaDataValue, Metadata, MetadataEntry};
 use mcrs_minecraft_protocol_game::entity_data_index::{
     HEALTH, MOB_FLAG_LEFT_HANDED, MOB_FLAG_NO_AI, MOB_FLAGS, POSE,
@@ -13,6 +9,7 @@ use mcrs_minecraft_protocol_game::entity_data_index::{
 
 use crate::encode::record;
 use crate::mob_state::MobState;
+use crate::subject_attributes::SubjectAttributes;
 use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_protocol_game::entity::MobLooks;
 use mcrs_minecraft_registries::Wire;
@@ -133,14 +130,14 @@ fn item_entry(stack: &ProtoStack<Wire>) -> MetadataEntry<'static> {
 }
 
 /// The packets of the spawn bundle of the entity `id` after its `add_entity`, as records. A mob
-/// has its `set_entity_data` and its `update_attributes`, whose list is the one that the reference
-/// sends: `movement_speed` with its base and no modifier (TRK-DATA-004). An item entity has the
-/// `set_entity_data` with its stack (IEN-NET-001).
+/// has its `set_entity_data` and, when an instance differs from that of a new mob of its type, its
+/// `update_attributes` (TRK-DATA-004). An item entity has the `set_entity_data` with its stack
+/// (IEN-NET-001).
 pub(crate) fn spawn_extras(
     id: VarInt,
-    kind: &EntityTypeData,
     looks: &MobLooks,
     entries: &Entries,
+    attributes: &SubjectAttributes,
 ) -> Result<Bytes> {
     let living = match entries {
         Entries::Living(living) => *living,
@@ -151,10 +148,6 @@ pub(crate) fn spawn_extras(
             });
         }
     };
-    let movement_speed = kind
-        .attribute_bases()
-        .and_then(|bases| bases.base(Attribute::MovementSpeed))
-        .unwrap_or(Attribute::MovementSpeed.definition().default);
     let mut bytes = BytesMut::new();
     write_record(
         &mut bytes,
@@ -163,16 +156,6 @@ pub(crate) fn spawn_extras(
             metadata: spawn_data(looks, living),
         },
     )?;
-    write_record(
-        &mut bytes,
-        &ClientboundUpdateAttributes {
-            entity_id: id,
-            attributes: vec![AttributeSnapshot {
-                attribute: Attribute::MovementSpeed,
-                base: movement_speed,
-                modifiers: Vec::new(),
-            }],
-        },
-    )?;
+    attributes.write_spawn(id, &mut bytes)?;
     Ok(bytes.freeze())
 }
