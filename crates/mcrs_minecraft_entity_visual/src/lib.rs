@@ -6,6 +6,7 @@
 pub mod angle;
 mod body_turn;
 mod client_entity;
+mod entity_light;
 mod entity_tick_plugin;
 mod equipment;
 mod head_turn;
@@ -24,6 +25,7 @@ pub mod walk;
 
 pub use body_turn::*;
 pub use client_entity::*;
+pub use entity_light::*;
 pub use entity_tick_plugin::*;
 pub use equipment::*;
 pub use head_turn::*;

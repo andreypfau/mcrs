@@ -167,7 +167,7 @@ pub(crate) fn release_skin(
 #[cfg(test)]
 mod tests {
     use mcrs_minecraft_entity::entity_type_keys::EntityType;
-    use mcrs_minecraft_entity_visual::{Placement, host_living_entity};
+    use mcrs_minecraft_entity_visual::{EntityLight, Placement, host_living_entity};
 
     use super::*;
     use crate::{EntityPack, EntityPasses, EntityRenderPlugin, EntitySlot, SlotArena};
@@ -250,5 +250,17 @@ mod tests {
         app.update();
         assert_eq!(layer(&app), [slim, first_skin]);
         assert!(app.world().resource::<SkinSlots>().free.is_empty());
+
+        let light = |app: &App| {
+            let slot = app.world().get::<EntitySlot>(entity).unwrap().slot;
+            let state = app.world().resource::<SlotArena>().state(slot).unwrap();
+            (state.block_light, state.sky_light)
+        };
+        assert_eq!(light(&app), (0, 15), "an entity with no light has open sky");
+        app.world_mut()
+            .entity_mut(entity)
+            .insert(EntityLight { block: 7, sky: 3 });
+        app.update();
+        assert_eq!(light(&app), (7, 3));
     }
 }

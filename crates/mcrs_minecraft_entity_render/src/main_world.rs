@@ -1,17 +1,14 @@
 use bevy::prelude::*;
-use mcrs_minecraft_client_world::columns::ColumnStore;
 use mcrs_minecraft_entity_animation::{EntityAnimation, EntityQuery};
 use mcrs_minecraft_entity_visual::{
-    Age, ClientEntity, Equipment, EquippableAsset, HURT_TICKS, Living, Motion, RenderInputs,
-    RenderInputsQuery, ServerTicking, SyncedData,
+    Age, ClientEntity, EntityLight, Equipment, EquippableAsset, HURT_TICKS, Living, Motion,
+    RenderInputs, RenderInputsQuery, ServerTicking, SyncedData,
 };
 use mcrs_minecraft_item::component::equippable::{EquipmentSlot, Equippable};
 use mcrs_minecraft_item::definition::Items;
 use mcrs_minecraft_render_controller::{RenderQuery, TextureChoice};
 use mcrs_minecraft_resource::Id;
-use mcrs_minecraft_volume::LightVolume;
 use mcrs_molang::{ScalarVm, Value, string_hash};
-use mcrs_voxel::BlockPos;
 
 use crate::cpu_inputs::input_record;
 use crate::entity_assets::{EntityAssets, texture_identifier};
@@ -162,7 +159,6 @@ impl Facing {
 pub(crate) fn write_ticks(
     clock: Res<EntityClock>,
     assets: Option<Res<EntityAssets>>,
-    columns: Option<Res<ColumnStore>>,
     mut arena: ResMut<SlotArena>,
     entities: Query<
         (
@@ -172,12 +168,14 @@ pub(crate) fn write_ticks(
             &Age,
             Option<&Living>,
             &SyncedData,
+            Option<&EntityLight>,
         ),
         Or<(
             Changed<Motion>,
             Changed<Living>,
             Changed<Age>,
             Changed<SyncedData>,
+            Changed<EntityLight>,
             Added<EntitySlot>,
         )>,
     >,
@@ -185,7 +183,7 @@ pub(crate) fn write_ticks(
     let Some(assets) = assets else {
         return;
     };
-    for (slot, client, motion, age, living, data) in &entities {
+    for (slot, client, motion, age, living, data, light) in &entities {
         let position = motion.current.position;
         let block = position.floor();
         let fraction = ((position - block) * 65536.0)
@@ -207,10 +205,6 @@ pub(crate) fn write_ticks(
             walk_speed: facing.walk_speed.to_bits(),
         };
         let fresh = slot.is_added();
-        let moved = arena
-            .tick(slot.slot)
-            .is_none_or(|held| held.block != record.block)
-            || fresh;
         arena.write_tick(slot.slot, clock.tick, record, fresh);
 
         let scale = data.scale as f32;
@@ -255,29 +249,13 @@ pub(crate) fn write_ticks(
             state.flags &= !STATE_DYING;
         }
         state.scale = f16_up(scale);
-        if moved {
-            let type_data = client.type_data();
-            let eye = type_data.map_or(0.0, |type_data| {
-                type_data.eye_height
-                    * if data.baby {
-                        type_data.baby_scale.unwrap_or(1.0)
-                    } else {
-                        1.0
-                    }
-            });
-            let eye = (position + glam::DVec3::Y * f64::from(eye) * data.scale)
-                .floor()
-                .as_ivec3();
-            let light = columns
-                .as_deref()
-                .and_then(|columns| columns.light(BlockPos::new(eye.x, eye.y, eye.z)).ok())
-                .unwrap_or(0x0f);
-            state.sky_light = light & 0x0f;
-            state.block_light = light >> 4;
-            if data.is_on_fire(client.type_data()) {
-                state.block_light = 15;
-            }
-        }
+        let light = light.copied().unwrap_or(EntityLight { block: 0, sky: 15 });
+        state.sky_light = light.sky;
+        state.block_light = if data.is_on_fire(client.type_data()) {
+            15
+        } else {
+            light.block
+        };
         arena.write_state(slot.slot, state);
     }
 }

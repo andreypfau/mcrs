@@ -4,6 +4,7 @@
 
 mod apply_entity_data;
 pub mod delta;
+mod entity_light;
 mod network_entities;
 mod plugin;
 mod receive;

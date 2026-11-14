@@ -2,7 +2,7 @@ use bevy::core_pipeline::schedule::Core3d;
 use bevy::prelude::*;
 use bevy::render::renderer::{RenderAdapter, RenderDevice};
 use bevy::render::{ExtractSchedule, Render, RenderApp, RenderSystems};
-use mcrs_minecraft_entity_visual::ClientEntityTick;
+use mcrs_minecraft_entity_visual::{ClientEntityTick, EntityLightSystems};
 use mcrs_minecraft_render::{RenderPath, WorldPass};
 
 use crate::gpu_layouts::passes_fit;
@@ -62,7 +62,12 @@ impl Plugin for EntityRenderPlugin {
                     .chain()
                     .in_set(EntitySlotSystems),
             )
-            .configure_sets(PostUpdate, EntitySlotSystems.run_if(entity_passes))
+            .configure_sets(
+                PostUpdate,
+                EntitySlotSystems
+                    .after(EntityLightSystems)
+                    .run_if(entity_passes),
+            )
             .add_observer(release_slot)
             .add_observer(release_skin);
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {

@@ -19,6 +19,8 @@ mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_entity_visual.workspace = true
 mcrs_minecraft_network = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_protocol_game.workspace = true
+mcrs_minecraft_volume.workspace = true
+mcrs_voxel.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
