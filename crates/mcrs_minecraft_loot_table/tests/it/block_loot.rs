@@ -3,10 +3,14 @@ use std::sync::LazyLock;
 
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_engine_registries::{test_corpus, test_item_table};
-use mcrs_minecraft_game_registries::registry_load::test_registries;
+use mcrs_minecraft_game_registries::registry_load::{
+    load_registries, test_additions, test_packs, test_registries,
+};
 use mcrs_minecraft_item::enchantment::Enchantment;
 use mcrs_minecraft_item_key::item_keys::Item;
-use mcrs_minecraft_loot_table::{BlockLoot, LootCause, LootContext, LootIssue, LootSeed, Tool};
+use mcrs_minecraft_loot_table::{
+    BlockLoot, LootCause, LootContext, LootIssue, LootProblem, LootSeed, Tool,
+};
 use mcrs_minecraft_resource::{Id, ResourceLocation};
 use mcrs_voxel::{BlockPos, BlockStateId};
 
@@ -325,4 +329,95 @@ fn loot_rnd_001_the_same_key_gives_the_same_drops() {
     let first: Vec<_> = (0..200).map(|tick| gravel.drops(tick)).collect();
     let again: Vec<_> = (0..200).map(|tick| gravel.drops(tick)).collect();
     assert_eq!(first, again);
+}
+
+/// REG-FLD-701: the terms of `any_of` and `all_of` may be a `#` tag of predicates, which acts as
+/// the list of its members; an unknown tag never passes.
+#[test]
+fn reg_fld_701_the_terms_of_any_of_and_all_of_may_be_a_predicate_tag() {
+    let cases = [
+        ("stone", "any_of", r##""#t:mixed""##, true),
+        ("granite", "any_of", r#"["t:pass", "t:fail"]"#, true),
+        ("diorite", "all_of", r##""#t:mixed""##, false),
+        ("andesite", "all_of", r#"["t:pass", "t:fail"]"#, false),
+        ("dirt", "all_of", r##""#t:passing""##, true),
+        ("coarse_dirt", "any_of", r##""#t:missing""##, false),
+        ("cobblestone", "any_of", r##""#t:loop""##, false),
+    ];
+    let mut additions = test_additions();
+    let files = &mut additions.files;
+    for (name, chance) in [("pass", 1.0), ("fail", 0.0)] {
+        files.insert(
+            "tags",
+            format!("data/t/predicate/{name}.json"),
+            format!(r#"{{"type": "minecraft:random_chance", "chance": {chance:.1}}}"#),
+        );
+    }
+    for name in ["loop_a", "loop_b", "loop_c", "loop_d"] {
+        files.insert(
+            "tags",
+            format!("data/t/predicate/{name}.json"),
+            r##"{"type": "minecraft:any_of", "terms": "#t:loop"}"##,
+        );
+    }
+    for (name, values) in [
+        ("mixed", r#"["t:pass", "t:fail"]"#),
+        ("passing", r#"["t:pass"]"#),
+        (
+            "loop",
+            r#"["t:loop_a", "t:loop_b", "t:loop_c", "t:loop_d"]"#,
+        ),
+    ] {
+        files.insert(
+            "tags",
+            format!("data/t/tags/predicate/{name}.json"),
+            format!(r#"{{"values": {values}}}"#),
+        );
+    }
+    for (block, kind, terms, _) in cases {
+        files.insert(
+            "tags",
+            format!("data/minecraft/loot_table/blocks/{block}.json"),
+            format!(
+                r#"{{"pools": [{{"rolls": 1, "condition": {{"type": "minecraft:{kind}", "terms": {terms}}},
+                "entries": [{{"type": "minecraft:item", "name": "minecraft:stick"}}]}}]}}"#
+            ),
+        );
+    }
+    additions.embedded_packs.push("tags".to_owned());
+    let (registries, _) = load_registries(&test_packs(), additions).expect("the pack loads");
+    let (loot, issues) = BlockLoot::bake(blocks(), &registries, &test_item_table());
+
+    let (looped, issues): (Vec<_>, Vec<_>) = issues
+        .into_iter()
+        .map(|issue| (issue.table.to_string(), issue.problem))
+        .partition(|(table, _)| table == "minecraft:blocks/cobblestone");
+    assert!(!looped.is_empty());
+    assert_eq!(
+        issues,
+        [(
+            "minecraft:blocks/coarse_dirt".to_owned(),
+            LootProblem::UnknownPredicate("#t:missing".to_owned())
+        )]
+    );
+    for (block, kind, terms, passes) in cases {
+        let state = state(&format!("minecraft:{block}"), &[]);
+        let table = blocks().state(state).loot.expect("a block table");
+        let cx = LootContext {
+            origin: ORIGIN,
+            state,
+            tool: EMPTY_HAND,
+            this_entity: true,
+            explosion_radius: None,
+            block_at: |_: BlockPos| None,
+        };
+        let seed = LootSeed {
+            world: 7,
+            tick: 0,
+            cause: LootCause::Break,
+        };
+        let mut out = Vec::new();
+        loot.drops(table, &cx, seed, &mut out);
+        assert_eq!(!out.is_empty(), passes, "{kind} {terms}");
+    }
 }

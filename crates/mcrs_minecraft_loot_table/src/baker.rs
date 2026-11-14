@@ -2,14 +2,15 @@ use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_item::enchantment::Enchantment;
 use mcrs_minecraft_item_key::item_keys::Item;
+use mcrs_minecraft_loot::condition::LootCondition;
 use mcrs_minecraft_registries::{Registries, Registry};
 use mcrs_minecraft_resource::{Id, Registered, ResourceLocation, ResourceLocationBuf, TagKey};
 use mcrs_voxel::BlockPos;
 
 use crate::condition::{Condition, EnchantmentTest, ItemTest, StateSet};
 use crate::condition_file::{
-    BlockPredicateFile, ConditionFile, ItemPredicateFile, LevelsFile, OtherFields, StateValue,
-    TypedCondition,
+    BlockPredicateFile, ConditionFile, ItemPredicateFile, LevelsFile, OtherFields, PredicateTag,
+    StateValue, Terms, TypedCondition,
 };
 use crate::loot_issue::LootProblem;
 use crate::loot_table_file::{EntryFile, EntryKind as EntryKindFile, LootTableFile};
@@ -22,6 +23,10 @@ use crate::table::{Entry, EntryKind, Pool, Table};
 
 /// How deep registered predicates may name each other before the bake takes a cycle.
 const PREDICATE_DEPTH: u8 = 16;
+
+/// How many registered predicates one table may expand, so that siblings which name each other
+/// cannot multiply the work up to the depth limit.
+const PREDICATE_EXPANSIONS: u32 = 4096;
 
 const LOCATION_PARTS: &[&str] = &[
     "position",
@@ -45,6 +50,7 @@ pub(crate) struct Baker<'a> {
     predicates: Option<&'a Registry<ConditionFile>>,
     pub(crate) problems: Vec<LootProblem>,
     depth: u8,
+    expansions: u32,
 }
 
 impl<'a> Baker<'a> {
@@ -55,6 +61,7 @@ impl<'a> Baker<'a> {
             predicates: registries.registry::<ConditionFile>(),
             problems: Vec::new(),
             depth: 0,
+            expansions: 0,
         }
     }
 
@@ -131,8 +138,12 @@ impl<'a> Baker<'a> {
             TypedCondition::Inverted { term } => {
                 Condition::Inverted(Box::new(self.condition(term)))
             }
-            TypedCondition::AnyOf { terms } => Condition::AnyOf(self.conditions(terms)),
-            TypedCondition::AllOf { terms } => Condition::AllOf(self.conditions(terms)),
+            TypedCondition::AnyOf { terms } => self
+                .conditions(terms)
+                .map_or(Condition::Never, Condition::AnyOf),
+            TypedCondition::AllOf { terms } => self
+                .conditions(terms)
+                .map_or(Condition::Never, Condition::AllOf),
             TypedCondition::SurvivesExplosion => Condition::SurvivesExplosion,
             TypedCondition::RandomChance { chance } => Condition::RandomChance(self.number(chance)),
             TypedCondition::TableBonus {
@@ -190,12 +201,26 @@ impl<'a> Baker<'a> {
         }
     }
 
-    fn conditions(&mut self, terms: &OneOrMany<ConditionFile>) -> Box<[Condition]> {
-        terms
-            .as_slice()
-            .iter()
-            .map(|term| self.condition(term))
-            .collect()
+    /// The conditions of `terms`; `None` for an unknown tag.
+    fn conditions(&mut self, terms: &Terms) -> Option<Box<[Condition]>> {
+        let tag = match terms {
+            Terms::List(terms) => {
+                return Some(terms.as_slice().iter().map(|t| self.condition(t)).collect());
+            }
+            Terms::Tag(PredicateTag(tag)) => tag,
+        };
+        let registries = self.registries;
+        let members = registries.tags::<LootCondition>().and_then(|tags| {
+            let names = registries.entries::<LootCondition>()?;
+            let members = tags.members(tags.id(tag.as_key())?);
+            members.map(|id| names.name(id)).collect::<Option<Vec<_>>>()
+        });
+        let Some(members) = members else {
+            self.problems
+                .push(LootProblem::UnknownPredicate(format!("#{}", tag.as_str())));
+            return None;
+        };
+        Some(members.into_iter().map(|key| self.predicate(key)).collect())
     }
 
     fn predicate(&mut self, key: &ResourceLocationBuf) -> Condition {
@@ -203,7 +228,10 @@ impl<'a> Baker<'a> {
             .predicates
             .and_then(|predicates| predicates.get(predicates.by_name(key.as_location())?));
         match file {
-            Some(file) if self.depth < PREDICATE_DEPTH => {
+            Some(file)
+                if self.depth < PREDICATE_DEPTH && self.expansions < PREDICATE_EXPANSIONS =>
+            {
+                self.expansions += 1;
                 self.depth += 1;
                 let condition = self.condition(file);
                 self.depth -= 1;
