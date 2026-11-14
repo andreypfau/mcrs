@@ -1,0 +1,38 @@
+[package]
+name = "mcrs_minecraft_engine_entity_motion"
+description = "The motion of the moving entities that are not living, such as items and falling blocks, as Bevy components: one parallel pass with the physics kernel and their tile events"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+# std: bevy_utils::Parallel holds the per-thread queues of the pass
+[dependencies]
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+bevy_utils.workspace = true
+glam = { workspace = true, features = ["std"] }
+mcrs_engine_muxer.workspace = true
+mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_physics.workspace = true
+mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_key.workspace = true
+mcrs_minecraft_physics.workspace = true
+mcrs_minecraft_replication.workspace = true
+mcrs_voxel.workspace = true
+rustc-hash.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+# Without it `par_iter` runs on one thread.
+bevy_ecs = { workspace = true, features = ["multi_threaded"] }
+bevy_tasks = { workspace = true, features = ["multi_threaded"] }
+mcrs_minecraft_physics = { workspace = true, features = ["testing"] }
+mcrs_minecraft_protocol_game.workspace = true
+mcrs_minecraft_simulation.workspace = true

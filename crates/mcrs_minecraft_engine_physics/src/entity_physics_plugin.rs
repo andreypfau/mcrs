@@ -89,7 +89,7 @@ pub struct EntityPass;
 
 /// The tables of the kernel, from the block definitions and tags of the world.
 #[derive(Resource, Debug)]
-pub struct PhysicsTables(pub(crate) Tables);
+pub struct PhysicsTables(pub Tables);
 
 impl PhysicsTables {
     /// The block shapes, flags and path types that the entity pass and the mob AI read.
