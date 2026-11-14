@@ -96,6 +96,11 @@ fn viewed(state: &EntityState) -> MobState {
         position: state.body.position,
         velocity: state.body.velocity,
         on_ground: state.body.flags.on_ground,
+        horizontal_collision: state.body.flags.horizontal_collision,
+        vertical_collision: state.body.flags.vertical_collision,
+        // chisle: the kernel does not report the bounce of PHY-RST-004 in its tick outcome, so no
+        // tracker tick jumps its counter (TRK-UPD-011); a bounce field on that outcome lifts this.
+        bounced: false,
         ..MobState::default()
     }
 }

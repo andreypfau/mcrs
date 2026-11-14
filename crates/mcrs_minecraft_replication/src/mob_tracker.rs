@@ -1,7 +1,7 @@
 use bytes::BytesMut;
 use glam::DVec3;
 use mcrs_minecraft_core::Look;
-use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity::{ClientMotion, EntityTypeData, PreciseSync};
 use mcrs_minecraft_protocol::{Result, VarInt, write_record};
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundAddEntity, ClientboundEntityPositionSync, ClientboundRotateHead,
@@ -26,7 +26,7 @@ const VELOCITY_CHANGE: f64 = 1.0e-7;
 /// viewers last received, and the open step of the path of the next update.
 #[derive(Clone, Debug)]
 pub(crate) struct MobTracker {
-    interval: u64,
+    kind: &'static EntityTypeData,
     /// The tick of the first tracker tick.
     start: u64,
     /// The tick of the last tracker tick that ran.
@@ -71,9 +71,14 @@ impl Sent {
 impl MobTracker {
     /// The tracker of an entity that `state` and `entries` show, whose first tracker tick is
     /// `tick`.
-    pub(crate) fn new(state: MobState, entries: Entries, interval: u32, tick: u64) -> Self {
+    pub(crate) fn new(
+        state: MobState,
+        entries: Entries,
+        kind: &'static EntityTypeData,
+        tick: u64,
+    ) -> Self {
         Self {
-            interval: u64::from(interval.max(1)),
+            kind,
             start: tick,
             last: tick.wrapping_sub(1),
             latest: state,
@@ -127,31 +132,36 @@ impl MobTracker {
         self.entries != self.sent.entries
     }
 
-    /// The `add_entity` of the spawn bundle: the base and the last sent velocity and angles.
-    pub(crate) fn add_entity(
-        &self,
-        id: VarInt,
-        uuid: Uuid,
-        kind: EntityType,
-    ) -> ClientboundAddEntity {
+    /// The `add_entity` of the spawn bundle: the base and the last sent velocity and angles, with
+    /// the field `data` of the type.
+    pub(crate) fn add_entity(&self, id: VarInt, uuid: Uuid, data: VarInt) -> ClientboundAddEntity {
         ClientboundAddEntity {
             id,
             uuid,
-            kind,
+            kind: self.kind.entity_type,
             pos: self.sent.position,
             movement: LpVec3(self.sent.velocity),
             pitch: self.sent.pitch,
             yaw: self.sent.yaw,
             head_yaw: self.sent.head_yaw,
-            data: VarInt(0),
+            data,
         }
     }
 
     /// Runs the tracker tick of `tick` and appends the packets of its update, if it is one, to
     /// `bytes`. The tracker and `bytes` stay as they are when an encoding fails.
     pub(crate) fn tick(&mut self, id: VarInt, tick: u64, bytes: &mut BytesMut) -> Result<()> {
+        let interval = u64::from(self.kind.update_interval.max(1));
+        if self.latest.bounced {
+            self.latest.bounced = false;
+            if !self.kind.is_living() {
+                let count = tick.wrapping_sub(self.start);
+                let jumped = (count / interval).wrapping_add(1).wrapping_mul(interval);
+                self.start = tick.wrapping_sub(jumped);
+            }
+        }
         let count = tick.wrapping_sub(self.start);
-        if count.is_multiple_of(self.interval) || self.dirty() {
+        if count.is_multiple_of(interval) || self.dirty() {
             let mut next = self.clone();
             all_or_nothing(bytes, |bytes| next.update(id, count, bytes))?;
             *self = next;
@@ -164,7 +174,9 @@ impl MobTracker {
     fn update(&mut self, id: VarInt, count: u64, bytes: &mut BytesMut) -> Result<()> {
         let state = self.latest;
         let change = (state.velocity - self.sent.velocity).length_squared();
-        if change > VELOCITY_CHANGE || (change > 0.0 && state.velocity.length_squared() == 0.0) {
+        let velocity_changed =
+            change > VELOCITY_CHANGE || (change > 0.0 && state.velocity.length_squared() == 0.0);
+        if self.kind.tracks_velocity && velocity_changed {
             write_record(
                 bytes,
                 &ClientboundSetEntityMotion {
@@ -176,40 +188,14 @@ impl MobTracker {
         }
         let yaw = ByteAngle::from_degrees(state.yaw);
         let pitch = ByteAngle::from_degrees(state.pitch);
-        let resync = if self.since_sync > UPDATES_PER_SYNC || state.on_ground != self.sent.on_ground
-        {
-            Resync::Due
-        } else {
-            Resync::NotDue
-        };
-        let due = Due {
-            position: (state.position - self.sent.position).length_squared() >= MOVED
-                || count.is_multiple_of(POSITION_REFRESH),
-            rotation: (yaw, pitch) != (self.sent.yaw, self.sent.pitch),
-        };
-        let synced = match MoveChoice::choose(resync, due, || self.delta(state.position)) {
-            MoveChoice::Sync => {
-                self.sync(id, bytes)?;
-                true
-            }
-            MoveChoice::Relative(relative) => {
-                relative.write(id, yaw, pitch, state.on_ground, bytes)?;
-                false
-            }
-            MoveChoice::Still => false,
-        };
-        if due.position {
-            self.sent.position = state.position;
+        let rotated = (yaw, pitch) != (self.sent.yaw, self.sent.pitch);
+        let at_rest = matches!(self.kind.client_motion, ClientMotion::Simulated(_))
+            && state.position == self.sent.position
+            && state.on_ground == self.sent.on_ground
+            && !rotated;
+        if !at_rest {
+            self.write_move(id, count, yaw, pitch, bytes)?;
         }
-        if due.rotation {
-            self.sent.yaw = yaw;
-            self.sent.pitch = pitch;
-        }
-        self.since_sync = if synced {
-            0
-        } else {
-            self.since_sync.saturating_add(1)
-        };
         if self.entries != self.sent.entries {
             write_record(
                 bytes,
@@ -233,6 +219,56 @@ impl MobTracker {
         }
         self.open = 0;
         Ok(())
+    }
+
+    /// Appends the move packet of an update that TRK-UPD-003 selects, and moves the sent values.
+    fn write_move(
+        &mut self,
+        id: VarInt,
+        count: u64,
+        yaw: ByteAngle,
+        pitch: ByteAngle,
+        bytes: &mut BytesMut,
+    ) -> Result<()> {
+        let state = self.latest;
+        self.since_sync = self.since_sync.saturating_add(1);
+        let precise = self.kind.client_motion
+            == ClientMotion::Simulated(PreciseSync::AfterCollision)
+            && (state.horizontal_collision || state.vertical_collision);
+        let resync = if precise
+            || self.since_sync > UPDATES_PER_SYNC
+            || state.on_ground != self.sent.on_ground
+        {
+            Resync::Due
+        } else {
+            Resync::NotDue
+        };
+        let due = Due {
+            position: (state.position - self.sent.position).length_squared() >= MOVED
+                || count.is_multiple_of(POSITION_REFRESH),
+            rotation: (yaw, pitch) != (self.sent.yaw, self.sent.pitch),
+        };
+        match MoveChoice::choose(resync, due, || self.delta(state.position)) {
+            MoveChoice::Sync => self.sync(id, resync, bytes)?,
+            MoveChoice::Relative(relative) => {
+                relative.write(id, yaw, pitch, state.on_ground, bytes)?;
+            }
+            MoveChoice::Still => {}
+        }
+        if due.position {
+            self.sent.position = state.position;
+        }
+        if due.rotation {
+            self.sent.yaw = yaw;
+            self.sent.pitch = pitch;
+        }
+        Ok(())
+    }
+
+    /// The tracker ticks of the open step; an entity that is not living has the linear path
+    /// (TRK-UPD-005).
+    fn open_ticks(&self) -> u32 {
+        if self.kind.is_living() { self.open } else { 0 }
     }
 
     /// Appends the state that the viewers last received, as absolute values: the position base,
@@ -260,13 +296,15 @@ impl MobTracker {
                     velocity: LpVec3(sent.velocity),
                 },
             )?;
-            write_record(
-                bytes,
-                &ClientboundRotateHead {
-                    entity_id: id,
-                    y_head_rot: sent.head_yaw,
-                },
-            )?;
+            if self.kind.is_living() {
+                write_record(
+                    bytes,
+                    &ClientboundRotateHead {
+                        entity_id: id,
+                        y_head_rot: sent.head_yaw,
+                    },
+                )?;
+            }
             write_record(
                 bytes,
                 &ClientboundSetEntityData {
@@ -278,10 +316,16 @@ impl MobTracker {
     }
 
     /// The relative path from the base to `position`: one step of the open ticks, or a linear
-    /// move when the step is empty (TRK-UPD-005). `None` when it does not fit (TRK-WIRE-001).
+    /// move when the step is empty (TRK-UPD-005). `None` when it does not fit (TRK-WIRE-001), or
+    /// when the type syncs a move that loses precision and this one does (TRK-UPD-013).
     fn delta(&self, position: DVec3) -> Option<VecDelta> {
         let delta = position_delta::encode(self.sent.position, position)?;
-        Some(match self.open {
+        if self.kind.client_motion == ClientMotion::Simulated(PreciseSync::LostPrecision)
+            && slides_imprecisely(&self.latest, delta)
+        {
+            return None;
+        }
+        Some(match self.open_ticks() {
             0 => VecDelta::Linear(delta),
             ticks => VecDelta::Stepped {
                 steps: vec![DeltaStep {
@@ -293,10 +337,12 @@ impl MobTracker {
         })
     }
 
-    /// Writes the absolute position and the rotation, and moves every sent value there.
-    fn sync(&mut self, id: VarInt, bytes: &mut BytesMut) -> Result<()> {
+    /// Writes the absolute position and the rotation, and moves the sent position and rotation
+    /// there. Only a resync also moves the sent on-ground flag and ends the update count
+    /// (TRK-UPD-003).
+    fn sync(&mut self, id: VarInt, resync: Resync, bytes: &mut BytesMut) -> Result<()> {
         let state = self.latest;
-        let position = match self.open {
+        let position = match self.open_ticks() {
             0 => PositionPath::Linear(state.position),
             ticks => PositionPath::Stepped {
                 steps: vec![PositionStep {
@@ -321,9 +367,28 @@ impl MobTracker {
         self.sent.position = state.position;
         self.sent.yaw = ByteAngle::from_degrees(state.yaw);
         self.sent.pitch = ByteAngle::from_degrees(state.pitch);
-        self.sent.on_ground = state.on_ground;
+        if resync == Resync::Due {
+            self.sent.on_ground = state.on_ground;
+            self.since_sync = 0;
+        }
         Ok(())
     }
+}
+
+/// The item condition of TRK-UPD-013: the move `delta` along the face of a collision of the last
+/// move ends on a coordinate that the wire does not hold. The axes of a horizontal collision
+/// cross.
+fn slides_imprecisely(state: &MobState, delta: [i16; 3]) -> bool {
+    let [dx, _, dz] = delta;
+    let x = loses_precision(state.position.x);
+    let z = loses_precision(state.position.z);
+    (state.vertical_collision && ((dx != 0 && x) || (dz != 0 && z)))
+        || (state.horizontal_collision && ((dx != 0 && z) || (dz != 0 && x)))
+}
+
+fn loses_precision(coordinate: f64) -> bool {
+    let steps = (coordinate * position_delta::STEPS_PER_BLOCK + 0.5).floor();
+    steps / position_delta::STEPS_PER_BLOCK != coordinate
 }
 
 #[cfg(test)]
@@ -335,6 +400,7 @@ mod tests {
     use mcrs_minecraft_protocol_game::clientbound::ClientboundMoveEntityPos;
     use mcrs_minecraft_protocol_game::entity::{MetaDataValue, MetadataEntry};
     use mcrs_minecraft_wire::Decode;
+    use mcrs_voxel::BlockPos;
 
     const ID: VarInt = VarInt(51);
     const FLOOR: f64 = -60.0;
@@ -398,7 +464,7 @@ mod tests {
         let mut tracker = MobTracker::new(
             states[0],
             Entries::Living(LivingEntries::of(&states[0])),
-            3,
+            &EntityTypeData::ZOMBIFIED_PIGLIN,
             0,
         );
         let mut updates: Vec<(u64, Bytes)> = Vec::new();
@@ -470,6 +536,230 @@ mod tests {
         );
     }
 
+    fn sync(position: DVec3, on_ground: bool) -> Bytes {
+        record(&ClientboundEntityPositionSync {
+            entity_id: ID,
+            position: PositionPath::Linear(position),
+            look: Look::default(),
+            on_ground,
+        })
+        .unwrap()
+    }
+
+    fn linear(from: DVec3, to: DVec3, on_ground: bool) -> Bytes {
+        let delta = position_delta::encode(from, to).unwrap();
+        moved(VecDelta::Linear(delta), on_ground)
+    }
+
+    /// The tracker of a subject of `kind` that starts as `spawn`, with entries that do not change.
+    fn simulated(kind: &'static EntityTypeData, spawn: MobState) -> MobTracker {
+        MobTracker::new(
+            spawn,
+            Entries::FallingBlock(BlockPos::new(0, 0, 0)),
+            kind,
+            0,
+        )
+    }
+
+    /// The ticks of each update and their bytes, for one state per tick from tick 0.
+    fn updates(tracker: &mut MobTracker, states: &[MobState]) -> Vec<(u64, Bytes)> {
+        let mut updates = Vec::new();
+        for (tick, state) in (0..).zip(states) {
+            tracker.record(*state);
+            let mut out = BytesMut::new();
+            tracker.tick(ID, tick, &mut out).unwrap();
+            if !out.is_empty() {
+                updates.push((tick, out.freeze()));
+            }
+        }
+        updates
+    }
+
+    #[test]
+    fn trk_upd_012_013_a_collision_selects_the_sync_of_a_simulated_subject() {
+        const LOSES: f64 = 16.158_561_036_770_337;
+        let at = |x: f64, z: f64| DVec3::new(x, -60.0, z);
+        let item = &EntityTypeData::ITEM;
+        let falling_block = &EntityTypeData::FALLING_BLOCK;
+        #[derive(Clone, Copy, PartialEq, Debug)]
+        enum Form {
+            Sync,
+            Relative,
+        }
+        let rows = [
+            (
+                item,
+                at(16.0, 4.5),
+                at(LOSES, 4.5),
+                [false, true],
+                Form::Sync,
+                "TRK-UPD-013 vector",
+            ),
+            (
+                item,
+                at(4.0, 4.5),
+                at(4.5, 4.5),
+                [false, true],
+                Form::Relative,
+                "x = 4.5 is exact",
+            ),
+            (
+                item,
+                at(16.0, 4.5),
+                at(LOSES, 4.5),
+                [false, false],
+                Form::Relative,
+                "no collision",
+            ),
+            (
+                item,
+                at(16.0, 4.5),
+                at(LOSES, 4.5),
+                [true, false],
+                Form::Relative,
+                "a wall crosses the axes",
+            ),
+            (
+                item,
+                at(LOSES, 4.0),
+                at(LOSES, 4.5),
+                [true, false],
+                Form::Sync,
+                "a slide along a wall",
+            ),
+            (
+                falling_block,
+                at(4.5, 4.5),
+                at(4.5, 4.5) - DVec3::Y * 0.5,
+                [false, false],
+                Form::Relative,
+                "a move without a collision",
+            ),
+            (
+                falling_block,
+                at(4.5, 4.5),
+                at(4.5, 4.5) - DVec3::Y * 0.5,
+                [false, true],
+                Form::Sync,
+                "the precise mark",
+            ),
+            (
+                falling_block,
+                at(4.5, 4.5),
+                at(4.7, 4.5),
+                [true, false],
+                Form::Sync,
+                "a horizontal collision",
+            ),
+        ];
+        for (kind, base, position, [horizontal, vertical], form, case) in rows {
+            let spawn = MobState {
+                position: base,
+                on_ground: true,
+                ..MobState::default()
+            };
+            let mut tracker = simulated(kind, spawn);
+            let state = MobState {
+                position,
+                on_ground: true,
+                horizontal_collision: horizontal,
+                vertical_collision: vertical,
+                ..MobState::default()
+            };
+            let updates = updates(&mut tracker, &[state]);
+            let expected = match form {
+                Form::Sync => sync(position, true),
+                Form::Relative => linear(base, position, true),
+            };
+            assert_eq!(updates, [(0, expected)], "{case}");
+        }
+    }
+
+    #[test]
+    fn trk_upd_011_016_the_cadence_of_a_simulated_subject() {
+        let air = |tick: u32| MobState {
+            position: DVec3::new(0.5, -40.0 + 0.01 * f64::from(tick), 4.5),
+            ..MobState::default()
+        };
+        let ground = MobState {
+            position: DVec3::new(0.5, -60.0, 4.5),
+            on_ground: true,
+            vertical_collision: true,
+            ..MobState::default()
+        };
+        let moving: Vec<MobState> = (1..71).map(air).collect();
+        let mut bounced = moving.clone();
+        bounced[23].bounced = true;
+        let rows: [(
+            &'static EntityTypeData,
+            MobState,
+            Vec<MobState>,
+            &[u64],
+            &str,
+        ); 5] = [
+            (
+                &EntityTypeData::ITEM,
+                air(0),
+                moving.clone(),
+                &[0, 20, 40, 60],
+                "a moving item",
+            ),
+            (
+                &EntityTypeData::ITEM,
+                air(0),
+                bounced,
+                &[0, 20, 23, 43, 63],
+                "a bounce at c = 23",
+            ),
+            (
+                &EntityTypeData::ITEM,
+                air(0),
+                vec![ground; 450],
+                &[0],
+                "an item that lands, then rests",
+            ),
+            (
+                &EntityTypeData::ITEM,
+                ground,
+                vec![ground; 450],
+                &[],
+                "an item at rest",
+            ),
+            (
+                &EntityTypeData::FALLING_BLOCK,
+                ground,
+                vec![ground; 450],
+                &[],
+                "a falling block at rest",
+            ),
+        ];
+        for (kind, spawn, states, expected, case) in rows {
+            let mut tracker = simulated(kind, spawn);
+            let ticks: Vec<u64> = updates(&mut tracker, &states)
+                .into_iter()
+                .map(|(tick, _)| tick)
+                .collect();
+            assert_eq!(ticks, expected, "{case}");
+        }
+    }
+
+    #[test]
+    fn trk_upd_005_an_item_moves_on_the_linear_path() {
+        let states: Vec<MobState> = (0..21)
+            .map(|tick| MobState {
+                position: DVec3::new(0.5, -40.0 - 0.1 * f64::from(tick), 4.5),
+                ..MobState::default()
+            })
+            .collect();
+        let mut tracker = simulated(&EntityTypeData::ITEM, states[0]);
+        let updates = updates(&mut tracker, &states);
+        assert_eq!(
+            updates.last(),
+            Some(&(20, linear(states[0].position, states[20].position, false))),
+            "one linear move over the interval, not a step of 20 ticks"
+        );
+    }
+
     /// A stack of `count` items of the item with the wire id 1 and an empty patch.
     fn stack(count: u8) -> ProtoStack<Wire> {
         ProtoStack::decode(&mut &[count, 1, 0, 0][..]).unwrap()
@@ -482,7 +772,7 @@ mod tests {
             on_ground: true,
             ..MobState::default()
         };
-        let mut tracker = MobTracker::new(state, Entries::Item(stack(3)), 20, 0);
+        let mut tracker = MobTracker::new(state, Entries::Item(stack(3)), &EntityTypeData::ITEM, 0);
         let mut out = BytesMut::new();
         tracker.tick(ID, 0, &mut out).unwrap();
         out.clear();

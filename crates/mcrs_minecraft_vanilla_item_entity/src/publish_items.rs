@@ -151,6 +151,8 @@ fn item_state(state: &EntityState) -> MobState {
         position: state.body.position,
         velocity: state.body.velocity,
         on_ground: state.body.flags.on_ground,
+        horizontal_collision: state.body.flags.horizontal_collision,
+        vertical_collision: state.body.flags.vertical_collision,
         ..MobState::default()
     }
 }

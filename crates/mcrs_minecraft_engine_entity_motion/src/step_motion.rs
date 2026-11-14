@@ -72,10 +72,10 @@ pub(crate) fn step_motion(
     };
     let world = BlockWorld {
         blocks: &blocks,
-        table: &tables.0.collision,
+        table: tables.collision(),
     };
     let world = &world;
-    let tables = &tables.0;
+    let tables = tables.tables();
     let stirred = &*stirred;
     let movers = &movers.0;
     entities

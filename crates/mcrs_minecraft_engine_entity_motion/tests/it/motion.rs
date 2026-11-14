@@ -61,7 +61,7 @@ fn app() -> App {
             .chain(),
     )
     .insert_resource(ids)
-    .insert_resource(PhysicsTables(Tables::new(blocks.table)))
+    .insert_resource(PhysicsTables::new(Tables::new(blocks.table)))
     .add_plugins(EntityMotionPlugin);
     app.edit_schedule(FixedUpdate, |schedule| {
         schedule.set_build_settings(ScheduleBuildSettings {

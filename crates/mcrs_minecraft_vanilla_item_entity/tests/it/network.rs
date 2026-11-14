@@ -101,7 +101,7 @@ fn ien_net_001_003_004_the_spawns_the_merged_stack_and_the_take_before_the_remov
                 assert_eq!(spawn.kind, &EntityTypeData::ITEM);
                 match &spawn.look {
                     SpawnLook::Item(stack) => Some(stack.count),
-                    SpawnLook::Mob(_) => None,
+                    _ => None,
                 }
             }
             _ => None,

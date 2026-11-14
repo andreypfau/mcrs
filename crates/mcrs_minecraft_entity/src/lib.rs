@@ -1,9 +1,11 @@
 pub mod attribute;
 mod base_attributes;
+mod client_motion;
 pub mod damage_type;
 mod entity_type_data;
 mod life;
 mod mob_data;
+mod precise_sync;
 mod variant_indices;
 #[rustfmt::skip]
 pub mod attribute_keys;
@@ -61,9 +63,11 @@ mod wire;
 
 pub use attribute::AttributeDefinition;
 pub use base_attributes::BaseAttributes;
+pub use client_motion::ClientMotion;
 pub use entity_type_data::EntityTypeData;
 pub use life::Life;
 pub use mob_data::MobData;
+pub use precise_sync::PreciseSync;
 pub use variant_indices::VariantIndices;
 
 pub const PLAYER_WIDTH: f64 = 0.6;

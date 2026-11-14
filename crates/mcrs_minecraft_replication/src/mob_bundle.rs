@@ -15,9 +15,16 @@ use crate::mob_state::MobState;
 use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_protocol_game::entity::MobLooks;
 use mcrs_minecraft_registries::Wire;
+use mcrs_voxel::BlockPos;
 
 /// The index of the stack in the entity data of an item entity.
 const ITEM_STACK: u8 = 8;
+
+/// The index of the start position in the entity data of a falling block (FBK-DAT-003).
+const FALLING_BLOCK_START: u8 = 8;
+
+/// The default start position of a falling block (FBK-DAT-003).
+const NO_START: BlockPos = BlockPos::new(0, 0, 0);
 
 /// The living entries of a mob that change in its life.
 #[derive(Clone, Copy, Debug)]
@@ -49,6 +56,8 @@ pub(crate) enum Entries {
     Living(LivingEntries),
     /// The stack of an item entity (IEN-NET-003).
     Item(ProtoStack<Wire>),
+    /// The start position of a falling block.
+    FallingBlock(BlockPos),
 }
 
 impl Entries {
@@ -64,6 +73,7 @@ impl Entries {
                 entries
             }
             Self::Item(stack) => vec![item_entry(stack)],
+            Self::FallingBlock(start) => vec![start_entry(*start)],
         }
     }
 
@@ -131,10 +141,18 @@ fn item_entry(stack: &ProtoStack<Wire>) -> MetadataEntry<'static> {
     }
 }
 
+fn start_entry(start: BlockPos) -> MetadataEntry<'static> {
+    MetadataEntry {
+        index: FALLING_BLOCK_START,
+        value: MetaDataValue::BlockPos(start),
+    }
+}
+
 /// The packets of the spawn bundle of the entity `id` after its `add_entity`, as records. A mob
 /// has its `set_entity_data` and its `update_attributes`, whose list is the one that the reference
 /// sends: `movement_speed` with its base and no modifier (TRK-DATA-004). An item entity has the
-/// `set_entity_data` with its stack (IEN-NET-001).
+/// `set_entity_data` with its stack (IEN-NET-001), and a falling block the one with its start
+/// position when it is not the default (FBK-SPN-002).
 pub(crate) fn spawn_extras(
     id: VarInt,
     kind: &EntityTypeData,
@@ -147,6 +165,13 @@ pub(crate) fn spawn_extras(
             return record(&ClientboundSetEntityData {
                 entity_id: id,
                 metadata: Metadata(vec![item_entry(stack)]),
+            });
+        }
+        Entries::FallingBlock(NO_START) => return Ok(Bytes::new()),
+        Entries::FallingBlock(start) => {
+            return record(&ClientboundSetEntityData {
+                entity_id: id,
+                metadata: Metadata(vec![start_entry(*start)]),
             });
         }
     };

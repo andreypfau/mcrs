@@ -6175,6 +6175,7 @@ dependencies = [
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_wire",
+ "mcrs_voxel",
  "rustc-hash 2.1.1",
  "tracing",
  "uuid",
