@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use mcrs_minecraft_profile::PlayerModelType;
 use mcrs_molang::string_hash;
 
 use crate::entity_assets::EntityAssets;
@@ -15,7 +14,10 @@ pub const SKIN_SLOTS: u16 = 256;
 /// The arm model of a player entity (`docs/spec/client-player-render.md`). Without a
 /// [`PlayerSkin`], the entity draws the default skin of its model.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct PlayerModel(pub PlayerModelType);
+pub enum PlayerModel {
+    Wide,
+    Slim,
+}
 
 /// The skin image of a player entity with a [`PlayerModel`].
 #[derive(Component, Clone, Debug, PartialEq)]
@@ -93,9 +95,9 @@ pub(crate) fn skin_entry(
         id: 0.0,
         identifier: empty,
         asset,
-        model: string_hash(match model.0 {
-            PlayerModelType::Wide => "wide",
-            PlayerModelType::Slim => "slim",
+        model: string_hash(match model {
+            PlayerModel::Wide => "wide",
+            PlayerModel::Slim => "slim",
         }),
     }
 }
@@ -218,7 +220,7 @@ mod tests {
         let skin = || PlayerSkin(SkinImage::from_rgba(64, 64, vec![0; 64 * 64 * 4]).unwrap());
         let entity = app
             .world_mut()
-            .spawn((player.unwrap(), PlayerModel(PlayerModelType::Slim), skin()))
+            .spawn((player.unwrap(), PlayerModel::Slim, skin()))
             .id();
         let layer = |app: &App| {
             let slot = app.world().get::<EntitySlot>(entity).unwrap().slot;
@@ -233,13 +235,13 @@ mod tests {
         assert_eq!(layer(&app), [slim, first_skin]);
         assert_eq!(uploads(&app), 1);
 
-        app.world_mut().get_mut::<PlayerModel>(entity).unwrap().0 = PlayerModelType::Wide;
+        *app.world_mut().get_mut::<PlayerModel>(entity).unwrap() = PlayerModel::Wide;
         app.update();
         assert_eq!(layer(&app), [wide, first_skin]);
         assert_eq!(uploads(&app), 1, "a new model sends the same texels again");
 
         // CPR-HOST-001, item 5: a player that loses its skin frees its layer.
-        app.world_mut().get_mut::<PlayerModel>(entity).unwrap().0 = PlayerModelType::Slim;
+        *app.world_mut().get_mut::<PlayerModel>(entity).unwrap() = PlayerModel::Slim;
         app.world_mut().entity_mut(entity).remove::<PlayerSkin>();
         app.update();
         assert_eq!(layer(&app), [slim, alex]);

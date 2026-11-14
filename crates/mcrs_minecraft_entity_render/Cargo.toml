@@ -31,13 +31,11 @@ mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_mesh.workspace = true
 mcrs_minecraft_model.workspace = true
 mcrs_minecraft_model_file.workspace = true
-mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_render.workspace = true
 mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_entity_model.workspace = true
 mcrs_minecraft_pack_file.workspace = true
-mcrs_minecraft_profile.workspace = true
 mcrs_minecraft_render_controller.workspace = true
 mcrs_molang.workspace = true
 mcrs_molang_wgsl.workspace = true

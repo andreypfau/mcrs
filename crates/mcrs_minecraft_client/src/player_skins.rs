@@ -98,7 +98,10 @@ fn dress_players(
             continue;
         }
         let textures = skins.by_player.get(&client.uuid.as_u128());
-        let model = PlayerModel(textures.map_or(PlayerModelType::Wide, |textures| textures.model));
+        let model = match textures.map_or(PlayerModelType::Wide, |textures| textures.model) {
+            PlayerModelType::Wide => PlayerModel::Wide,
+            PlayerModelType::Slim => PlayerModel::Slim,
+        };
         #[cfg(not(target_family = "wasm"))]
         let fetch = textures.and_then(|textures| trusted(&textures.url));
         #[cfg(target_family = "wasm")]
@@ -140,7 +143,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<ProfileSkins>();
         let skin = PlayerSkin(SkinImage::from_rgba(64, 64, vec![255; 64 * 64 * 4]).unwrap());
-        let model = PlayerModel(PlayerModelType::Slim);
+        let model = PlayerModel::Slim;
         let mut spawn = || {
             let player =
                 host_living_entity(EntityType::Player, Default::default(), Placement::default());
@@ -152,10 +155,7 @@ mod tests {
         world.run_system_once(dress_players).unwrap();
         assert_eq!(world.get::<PlayerModel>(host), Some(&model));
         assert_eq!(world.get::<PlayerSkin>(host), Some(&skin));
-        assert_eq!(
-            world.get::<PlayerModel>(server),
-            Some(&PlayerModel(PlayerModelType::Wide))
-        );
+        assert_eq!(world.get::<PlayerModel>(server), Some(&PlayerModel::Wide));
         assert_eq!(world.get::<PlayerSkin>(server), None);
     }
 }

@@ -5209,8 +5209,6 @@ dependencies = [
  "mcrs_minecraft_model",
  "mcrs_minecraft_model_file",
  "mcrs_minecraft_pack_file",
- "mcrs_minecraft_profile",
- "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_render",
  "mcrs_minecraft_render_controller",
