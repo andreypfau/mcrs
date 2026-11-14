@@ -3,6 +3,7 @@ use crate::bus::{
     InboundPlayerSpawn, OutboundPlayerAttached, OutboundPlayerPacket, PacketPayload,
     PlayerInfoEntry, to,
 };
+use crate::client_view_distance::clamp_view_distance;
 use crate::coordinator::clock::GameTime;
 use crate::coordinator::default_game_mode::DefaultGameMode;
 use crate::coordinator::ops::{DefaultOpLevel, OpList};
@@ -35,10 +36,6 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundLogin;
 use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use tracing::{debug, info};
-
-/// The server clamps what a client asks for to its own limit, as vanilla does; ours is three
-/// times vanilla's 32.
-const MAX_VIEW_DISTANCE: u8 = 96;
 
 /// What vanilla's player asks for until its client information arrives.
 const VIEW_DISTANCE_FALLBACK: u8 = 2;
@@ -79,14 +76,15 @@ pub(crate) fn consume_inbound_player_spawn(
         let client_info = spawn.snapshot.client_info();
         let view_distance = spawn.snapshot.view_distance().map_or_else(
             || PlayerViewDistance {
-                distance: client_info
-                    .as_ref()
-                    .map_or(VIEW_DISTANCE_FALLBACK, |info| info.view_distance)
-                    .clamp(2, MAX_VIEW_DISTANCE),
+                distance: clamp_view_distance(
+                    client_info
+                        .as_ref()
+                        .map_or(VIEW_DISTANCE_FALLBACK, |info| info.view_distance),
+                ),
                 ..Default::default()
             },
             |view| PlayerViewDistance {
-                distance: view.distance.clamp(2, MAX_VIEW_DISTANCE),
+                distance: clamp_view_distance(view.distance),
                 ..view
             },
         );
