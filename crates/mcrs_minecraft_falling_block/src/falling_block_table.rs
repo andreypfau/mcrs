@@ -9,9 +9,9 @@ use mcrs_minecraft_registries::Tags;
 use mcrs_minecraft_resource::TagKey;
 use mcrs_voxel::BlockStateId;
 
-use crate::block_tag_keys::BREAKS_AFTER_FALL;
-use crate::block_tag_keys::GRAVITY_BLOCKS;
 use crate::concrete_table::ConcreteTable;
+use crate::gravity_tags::BREAKS_AFTER_FALL;
+use crate::gravity_tags::GRAVITY_BLOCKS;
 use crate::state_flags::StateFlags;
 
 const WATERLOGGED: &str = "waterlogged";

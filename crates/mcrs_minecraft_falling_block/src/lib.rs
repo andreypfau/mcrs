@@ -3,12 +3,12 @@
 // std: mcrs_minecraft_block
 
 mod after_move;
-mod block_tag_keys;
 mod concrete_pairs;
 mod concrete_pairs_error;
 mod concrete_table;
 mod fall;
 mod falling_block_table;
+mod gravity_tags;
 mod ground;
 mod landing;
 mod landing_event;
@@ -25,8 +25,6 @@ mod water_contact;
 mod world_height;
 
 pub use after_move::AfterMove;
-pub use block_tag_keys::BREAKS_AFTER_FALL;
-pub use block_tag_keys::GRAVITY_BLOCKS;
 pub use concrete_pairs::CONCRETE_PAIRS_PATH;
 pub use concrete_pairs::ConcretePairsFile;
 pub use concrete_pairs_error::ConcretePairsError;
@@ -37,6 +35,8 @@ pub use fall::Fall;
 pub use fall::ItemDrop;
 pub use fall::TickStart;
 pub use falling_block_table::FallingBlockTable;
+pub use gravity_tags::BREAKS_AFTER_FALL;
+pub use gravity_tags::GRAVITY_BLOCKS;
 pub use ground::Ground;
 pub use landing::Landing;
 pub use landing::Silence;
