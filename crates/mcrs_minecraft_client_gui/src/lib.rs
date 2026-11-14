@@ -22,7 +22,14 @@ pub mod debug_screen;
 pub mod debug_screen_overlay;
 mod edit_box_draw;
 pub mod font;
+pub mod font_bitmap;
+pub mod font_definition;
+#[cfg(test)]
+mod font_dump_tests;
+pub mod font_glyph;
+mod font_unihex;
 pub mod game_mode_switcher;
+pub mod glyph_cache;
 pub mod gui_items;
 pub mod gui_sprite_id;
 pub mod gui_texture_id;

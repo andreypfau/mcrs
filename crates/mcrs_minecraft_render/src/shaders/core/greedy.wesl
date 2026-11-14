@@ -15,6 +15,9 @@ import package::shaders::include::fields::{
     QUAD_W_WORD, QUAD_W_SHIFT, QUAD_W_BITS,
     QUAD_WORDS,
 };
+import package::shaders::include::fog::{fog_mix, fog_value};
+@if(IMPROVED) import package::shaders::include::fog::fog_values;
+@if(IMPROVED) import package::shaders::include::transparency::transparent_fog;
 import package::shaders::include::frame::{camera, params};
 import package::shaders::include::lighting::face_shade;
 import package::shaders::include::quad::{corner_index, degenerate, face_normal, greedy_corner};
@@ -27,7 +30,7 @@ import package::shaders::include::terrain_bindings::{
 struct GreedyOut {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) quad_uv: vec2<f32>,
-    @location(1) world_xz: vec2<f32>,
+    @location(1) world: vec3<f32>,
     @location(2) @interpolate(flat) face_base: u32,
     @location(3) @interpolate(flat) face_span: vec2<u32>,
     @location(4) @interpolate(flat) directional: f32,
@@ -56,7 +59,7 @@ fn vertex_greedy(in: TerrainVertex) -> GreedyOut {
 
     out.clip_position = camera.clip_from_relative * vec4<f32>(world, 1.0);
     out.quad_uv = quad_uv;
-    out.world_xz = world.xz;
+    out.world = world;
     out.face_base = desc.face_base
         + quad_field(quad, QUAD_FACE_BASE_WORD, QUAD_FACE_BASE_SHIFT, QUAD_FACE_BASE_BITS);
     out.face_span = span;
@@ -100,7 +103,7 @@ fn greedy_surface(in: GreedyOut) -> Surface {
     s.tint_kind = face_field(face.attr, FACE_TINT_WORD, FACE_TINT_SHIFT, FACE_TINT_BITS);
     s.shade = vec3<f32>(1.0);
     s.uv = select(uv, fract(face.uv) * 0.5, fluid);
-    s.world_xz = in.world_xz;
+    s.world_xz = in.world.xz;
     s.ddx = oriented_gradient(dpdx(face.uv), orientation) * scale;
     s.ddy = oriented_gradient(dpdy(face.uv), orientation) * scale;
     return s;
@@ -190,5 +193,12 @@ fn fragment_greedy_translucent(in: GreedyOut) -> @location(0) vec4<f32> {
     }
     let light = greedy_light(in);
     let lit = package::shaders::include::deferred::shade(color.rgb, light.x, light.y, light.z);
-    return vec4<f32>(package::shaders::include::finish::to_target(lit), color.a);
+    @if(IMPROVED) {
+        let values = fog_values(in.world - camera.offset, camera.fog_environmental, camera.fog_render_distance);
+        let pixel = vec2<i32>(in.clip_position.xy);
+        let fogged = transparent_fog(lit, pixel, in.clip_position.z, values, camera.fog_color);
+        return vec4<f32>(fogged, color.a);
+    }
+    let fog = fog_value(in.world - camera.offset, camera.fog_environmental, camera.fog_render_distance);
+    return vec4<f32>(fog_mix(lit, fog, camera.fog_color), color.a);
 }

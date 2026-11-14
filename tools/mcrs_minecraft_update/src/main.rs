@@ -74,6 +74,7 @@ generator stops and names a declaration that is missing.";
 const VERSION_FILE: &str = "assets/minecraft/version.json";
 const DESCRIPTOR: &str = "crates/mcrs_minecraft_client_jar/src/release.json";
 const FONT_HINT: &str = "crates/mcrs_minecraft_client_jar/src/font_hint.json";
+const FONT_OBJECTS: &str = "crates/mcrs_minecraft_client_jar/src/font_objects.json";
 const REPORTS: &str = "assets/mcrs/reports";
 const REPORT_FILES: [&str; 3] = ["registries.json", "packets.json", "datapack.json"];
 const NAMES_FILE: &str = "names.json";
@@ -241,12 +242,22 @@ fn run(options: &Options) -> Result<(), String> {
     release::check_version(&version, &listing.id)?;
     let descriptor = release::descriptor(&download, &jar, &listing, &package)?;
     let font_hint = release::font_hint(&jar)?;
+    let asset_index = release::asset_index(&package)?;
+    let index = get(&asset_index.url)?;
+    release::check(
+        &asset_index.url,
+        &asset_index.sha1,
+        Some(asset_index.size),
+        &index,
+    )?;
+    let font_objects = release::font_objects(&index)?;
 
     if corpus::write_if_changed(&root, VERSION_FILE, &version)? {
         println!("wrote {VERSION_FILE}");
     }
     write(&root.join(DESCRIPTOR), &descriptor)?;
     write(&root.join(FONT_HINT), &font_hint)?;
+    write(&root.join(FONT_OBJECTS), &font_objects)?;
 
     let diff_out = options.diff_out.as_deref();
     with_gradle_output(&root, "dumpReports", "reportsOut", |generated| {
@@ -397,7 +408,7 @@ fn status(root: &Path) -> Result<String, String> {
         .arg(root)
         .args(["status", "--porcelain", "--", VERSION_FILE, REPORTS])
         .args(definitions)
-        .args([DESCRIPTOR, FONT_HINT])
+        .args([DESCRIPTOR, FONT_HINT, FONT_OBJECTS])
         .output()
         .map_err(|error| format!("git: {error}"))?;
     if !output.status.success() {

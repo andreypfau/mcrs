@@ -10,9 +10,11 @@ mod frame;
 mod frame_view;
 mod gbuffer;
 mod hiz;
+mod improved_transparency;
 mod layer;
 mod pass;
 mod pipeline;
+mod present;
 mod reconstruct;
 mod render_path;
 mod shaders;
@@ -24,9 +26,11 @@ mod stats;
 mod terrain;
 mod texture;
 mod timestamps;
+mod transparency_targets;
 mod upload;
 mod views;
 mod words;
+mod world_fog;
 pub mod world_text;
 
 use std::sync::Arc;
@@ -51,6 +55,7 @@ use mcrs_minecraft_mesh::STREAMS;
 pub use frame::{CameraOrigin, TerrainShade, clip_from_relative};
 pub use frame_view::{FrameView, SIDE_PLANES};
 pub use gbuffer::{DeferredFrame, GBUFFER_FORMATS};
+pub use improved_transparency::ImprovedTransparency;
 pub use layer::{LayerGroup, Shape};
 pub use pass::draw_layer_group;
 pub use pipeline::{TERRAIN_PIPELINES, stream_slot, terrain_slot};
@@ -63,6 +68,7 @@ pub use timestamps::{PassSlot, PassTimestamps};
 pub use upload::{Placement, Upload, Uploads};
 pub use views::{DebugView, DebugViews, SelectedView};
 pub use words::Words;
+pub use world_fog::WorldFog;
 
 pub use frame::uniform as uniform_buffer;
 pub use pipeline::common as pipeline_descriptor;
@@ -226,6 +232,7 @@ fn embed_shaders(app: &mut App) {
     load_shader_library!(app, "shaders/include/words.wesl");
     load_shader_library!(app, "shaders/include/section.wesl");
     load_shader_library!(app, "shaders/include/frame.wesl");
+    load_shader_library!(app, "shaders/include/fog.wesl");
     load_shader_library!(app, "shaders/include/sky.wesl");
     load_shader_library!(app, "shaders/include/quad.wesl");
     load_shader_library!(app, "shaders/include/lighting.wesl");
@@ -236,6 +243,7 @@ fn embed_shaders(app: &mut App) {
     load_shader_library!(app, "shaders/include/depth.wesl");
     load_shader_library!(app, "shaders/include/visibility.wesl");
     load_shader_library!(app, "shaders/include/deferred.wesl");
+    load_shader_library!(app, "shaders/include/transparency.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/greedy.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/model.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/cull.wesl");
@@ -243,6 +251,7 @@ fn embed_shaders(app: &mut App) {
     bevy::asset::embedded_asset!(app, "shaders/core/show.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/lighting_pass.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/gbuffer_views.wesl");
+    bevy::asset::embedded_asset!(app, "shaders/core/present.wesl");
 }
 
 /// The stages the world is drawn in, in order. A system joins one with `.in_set`; systems sharing a
@@ -295,6 +304,8 @@ impl Plugin for TerrainPlugin {
             .init_resource::<Occlusion>()
             .init_resource::<QuadCull>()
             .init_resource::<RenderDistance>()
+            .init_resource::<WorldFog>()
+            .init_resource::<ImprovedTransparency>()
             .init_resource::<Brightness>()
             .init_resource::<DrawMask>()
             .init_resource::<DebugViews>()
@@ -305,6 +316,8 @@ impl Plugin for TerrainPlugin {
             .add_plugins(ExtractResourcePlugin::<Occlusion>::default())
             .add_plugins(ExtractResourcePlugin::<QuadCull>::default())
             .add_plugins(ExtractResourcePlugin::<RenderDistance>::default())
+            .add_plugins(ExtractResourcePlugin::<WorldFog>::default())
+            .add_plugins(ExtractResourcePlugin::<ImprovedTransparency>::default())
             .add_plugins(ExtractResourcePlugin::<Brightness>::default())
             .add_plugins(ExtractResourcePlugin::<DrawMask>::default())
             .add_plugins(ExtractResourcePlugin::<PinnedTick>::default())
@@ -370,6 +383,10 @@ impl Plugin for TerrainPlugin {
                         .in_set(WorldPass::Forward)
                         .run_if(pipeline::frame_ready)
                         .run_if(pass::draws_forward),
+                    present::present
+                        .in_set(WorldPass::Forward)
+                        .after(pass::draw_forward_deferred)
+                        .run_if(pipeline::frame_ready),
                 ),
             );
         // Bevy's opaque pass draws nothing here yet still clears and stores colour and depth,

@@ -970,6 +970,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   value when the drag ends.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: WID-EXP-07.
+In mcrs, the option Render Distance applies at once (`client-menu.md`, MENU-VAL-007, step 6).
+`client-menu.md`, MENU-DEV-014, states that deviation and when the client sends the value.
 
 ---
 

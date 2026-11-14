@@ -78,7 +78,8 @@ the world, the eye filter and the projection.
 
 Out of scope: the field of view of the hand and of the held item, view bobbing, the tilt of the
 view when the player takes damage, the nausea and the portal distortion, the smooth camera
-option, the cull frustum, the fog and the panorama mode. Section 7 lists the later camera modes.
+option, the cull frustum, the fog (`client-fog.md`) and the panorama mode. Section 7 lists the
+later camera modes.
 
 ---
 
@@ -295,25 +296,18 @@ The start value of `m` and `m'` is the target modifier of the first camera tick
 ### CCAM-FOV-005: Field of view of a frame
 
 - **Inputs:** the FOV option `O`; `m` and `m'`; `pt`; the effect scale `k`; the dying state and
-  the death time `d` of the local player (CENTS-DEATH-002); the fluid that contains the camera
-  position.
+  the death time `d` of the local player (CENTS-DEATH-002); the camera medium
+  (`client-fog.md`, CFOG-TYPE-001).
 - **Behavior:** in `f32`:
   1. `F = O · lerp(pt, m', m)`.
   2. If the local player is dying, let `t = min(d + pt, 20)`. Then
      `F = F / ((1 − 500 / (t + 500)) · 2 + 1)`.
-  3. If the camera is in water or in lava, `F = F · lerp(k, 1, 6/7)`.
+  3. If the camera medium is water or lava, `F = F · lerp(k, 1, 6/7)`.
 - **Postconditions:** `F` is the vertical field of view of the projection (CCAM-PROJ-001).
 
-The test of step 3 has these steps:
-
-1. Make five points: the camera position plus the centre of the near plane of CCAM-PROJ-001, and
-   the camera position plus each of the four corners of that plane, in the order top left, top
-   right, bottom left, bottom right.
-2. For each point in that order, find the block cell that contains the point. When the cell holds
-   a fluid and the point `y` is at or below the cell bottom plus the height of the fluid surface
-   in that cell, the result is that fluid: water or lava. Stop at the first such point.
-
-The test belongs to the fog rules, which a later document states.
+`client-fog.md`, CFOG-TYPE-001, states the test of the camera medium. Its near plane uses `O`,
+not `F`. A cell of powder snow stops the test with the medium powder snow, and step 3 then does
+not apply.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: with `O = 70`, die.
 The field of view goes down to about `65` in 20 ticks. Swim with the camera under water. The
@@ -444,4 +438,4 @@ Milestone: later.
 
 1. CCAM-FOV-001: the bow use ticks of the reference count from the start of the use on the
    client. This document does not state how a use that the server cancels resets `u`.
-2. CCAM-FOV-005, step 3: the fluid test depends on the fog rules, which no document states yet.
+2. CCAM-FOV-005, step 3: answered. `client-fog.md`, CFOG-TYPE-001, states the test.

@@ -19,12 +19,17 @@ use mcrs_minecraft_environment::MoonPhase;
 use mcrs_minecraft_environment::{WorldClock, WorldClocks};
 
 use crate::camera::PlayerCamera;
+use crate::drawn_columns::DrawnColumn;
+use crate::render_fog::{RenderFog, follow_render_fog, track_drawn_columns};
+use crate::stream::Loader;
 use crate::vanilla::VanillaAssets;
 use mcrs_minecraft_client_world::registries::{SessionSet, entered_configuration};
+use mcrs_minecraft_fog::{FogInputs, FogParameters};
 use mcrs_minecraft_model::vanilla_source;
 use mcrs_minecraft_render::sky::{
     ExtractedSky, SkyDrawsOnly, SkyEffects, SkyRenderPlugin, SkyUniform,
 };
+use mcrs_minecraft_render::{RenderDistance, WorldFog};
 
 const SUN: &str = "minecraft/textures/environment/celestial/sun.png";
 
@@ -80,6 +85,10 @@ impl Plugin for SkyPlugin {
         app.init_resource::<SkyFrame>()
             .init_resource::<PreviousClockTicks>()
             .init_resource::<Clouds>()
+            .init_resource::<WorldFog>()
+            .init_resource::<RenderDistance>()
+            .init_resource::<RenderFog>()
+            .add_message::<DrawnColumn>()
             .add_plugins(SkyRenderPlugin)
             .add_systems(OnEnter(VanillaAssets::Ready), request_sources)
             .add_systems(
@@ -103,9 +112,14 @@ impl Plugin for SkyPlugin {
             )
             .add_systems(
                 PostUpdate,
-                evaluate_sky
-                    .after(TransformSystems::Propagate)
-                    .run_if(resource_exists::<SkyEnvironment>),
+                (
+                    clear_world_fog.run_if(resource_removed::<SkyEnvironment>),
+                    track_drawn_columns.run_if(resource_exists::<Loader>),
+                    follow_render_fog.run_if(resource_exists::<Time>),
+                    evaluate_sky.run_if(resource_exists::<SkyEnvironment>),
+                )
+                    .chain()
+                    .after(TransformSystems::Propagate),
             );
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app.add_systems(ExtractSchedule, extract_sky);
@@ -113,7 +127,13 @@ impl Plugin for SkyPlugin {
     }
 }
 
-const HORIZON: f32 = 63.0;
+// chisle: mcrs has no Cloud Distance option, so the clouds fade at its default; the option lifts it.
+const CLOUD_DISTANCE: u8 = 128;
+
+/// The elevations in degrees over which the sky occluder fades in, from the eye at or above the
+/// lowest block of the dimension and from below it.
+const OCCLUDER_ANGLES: [f32; 2] = [-1.0, -8.0];
+const OCCLUDER_ANGLES_BELOW_MIN_Y: [f32; 2] = [15.0, 10.0];
 
 const CLOUD_BLOCKS_PER_TICK: f64 = 0.030000001;
 
@@ -134,6 +154,7 @@ pub struct SkyEnvironment {
     layout: SkyLayout,
     statics: SkyStatic,
     clock: Option<Id<mcrs_minecraft_environment::WorldClock>>,
+    min_y: f32,
 }
 
 impl SkyEnvironment {
@@ -161,7 +182,7 @@ impl SkyEnvironment {
     fn scalar(&self, frame: &SkyFrame, field: SkyField) -> f32 {
         match self.value(frame, field) {
             SkyValue::Scalar(scalar) => scalar,
-            SkyValue::Color(packed) => packed as f32,
+            SkyValue::Color(_) => 0.0,
         }
     }
 
@@ -169,11 +190,13 @@ impl SkyEnvironment {
         let color = |field| self.value(frame, field).color();
         let sunrise = color(SkyField::SunriseSunsetColor);
         let cloud = color(SkyField::CloudColor);
+        let [occluder_low, occluder_high] = if frame.camera[1] < self.min_y {
+            OCCLUDER_ANGLES_BELOW_MIN_Y
+        } else {
+            OCCLUDER_ANGLES
+        };
         SkyUniform {
-            disc: rgba(
-                color(SkyField::SkyColor),
-                f32::from(frame.camera[1] < HORIZON),
-            ),
+            disc: raw(color(SkyField::SkyColor), 0.0),
             sunrise: rgba(sunrise, alpha(sunrise)),
             angles: [
                 self.scalar(frame, SkyField::SunAngle).to_radians(),
@@ -188,15 +211,14 @@ impl SkyEnvironment {
                 0.0,
                 0.0,
             ],
-            fog: rgba(
-                color(SkyField::FogColor),
-                self.scalar(frame, SkyField::SkyFogEndDistance),
-            ),
+            fog: Vec3::from_array(frame.fog.color)
+                .extend(frame.fog.sky_end)
+                .to_array(),
             cloud_color: rgba(cloud, alpha(cloud)),
             cloud: [
                 self.scalar(frame, SkyField::CloudHeight),
                 drift,
-                self.scalar(frame, SkyField::CloudFogEndDistance),
+                frame.fog.cloud_end,
                 0.0,
             ],
             sky_light: raw(
@@ -205,19 +227,50 @@ impl SkyEnvironment {
             ),
             block_light: raw(color(SkyField::BlockLightTint), BLOCK_LIGHT_FACTOR),
             ambient: raw(color(SkyField::AmbientLightColor), 0.0),
+            occluder: [
+                occluder_low,
+                occluder_high,
+                self.scalar(frame, SkyField::HasSkyOccluder),
+                0.0,
+            ],
         }
     }
 
-    /// The reference clears the frame to the fog colour before the sky disc
-    /// goes down, which is all that shows below the horizon until terrain does.
-    fn fog_color(&self, frame: &SkyFrame) -> Color {
-        let [red, green, blue, _] = rgba(self.value(frame, SkyField::FogColor).color(), 0.0);
-        Color::LinearRgba(LinearRgba::rgb(red, green, blue))
+    fn fog(
+        &self,
+        frame: &SkyFrame,
+        render_distance: u8,
+        render_fog_end: f32,
+        view_east: f32,
+    ) -> FogParameters {
+        let color = |field| self.value(frame, field).color();
+        let sunrise = color(SkyField::SunriseSunsetColor);
+        FogParameters::from_inputs(&FogInputs {
+            fog_color: rgb(color(SkyField::FogColor)).to_array(),
+            sky_color: rgb(color(SkyField::SkyColor)).to_array(),
+            sunrise_color: rgb(sunrise).to_array(),
+            sunrise_alpha: alpha(sunrise),
+            sun_angle: self.scalar(frame, SkyField::SunAngle),
+            fog_start_distance: self.scalar(frame, SkyField::FogStartDistance),
+            fog_end_distance: self.scalar(frame, SkyField::FogEndDistance),
+            sky_fog_end_distance: self.scalar(frame, SkyField::SkyFogEndDistance),
+            cloud_fog_end_distance: self.scalar(frame, SkyField::CloudFogEndDistance),
+            render_distance,
+            render_fog_end,
+            cloud_distance: CLOUD_DISTANCE,
+            view_east,
+            rain_level: frame.rain,
+            thunder_level: frame.thunder * frame.rain,
+        })
     }
 }
 
 fn clear_sky(mut commands: Commands) {
     commands.remove_resource::<SkyEnvironment>();
+}
+
+fn clear_world_fog(mut fog: ResMut<WorldFog>) {
+    fog.set_if_neq(WorldFog::default());
 }
 
 fn build_sky_environment(
@@ -253,9 +306,9 @@ fn build_sky_environment(
     attributes.clock_ticks(&clocks, &mut ticks);
     let statics = layout.constants(&attributes, &EnvironmentContext { ticks: &ticks });
 
-    let clock = type_id
-        .and_then(|id| dimension_types.get(id))
-        .and_then(|file| file.default_clock);
+    let file = type_id.and_then(|id| dimension_types.get(id));
+    let clock = file.and_then(|file| file.default_clock);
+    let min_y = file.map_or(f32::MIN, |file| file.min_y as f32);
 
     info!(
         %dimension,
@@ -274,6 +327,7 @@ fn build_sky_environment(
         layout,
         statics,
         clock,
+        min_y,
     });
 }
 
@@ -298,13 +352,20 @@ struct FrameClocks<'w> {
     fixed: Option<Res<'w, Time<Fixed>>>,
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy system: each resource and writer is its own parameter"
+)]
 fn evaluate_sky(
     environment: Res<SkyEnvironment>,
     frame_clocks: FrameClocks,
     weather: Res<WeatherLevel>,
+    render_distance: Res<RenderDistance>,
+    render_fog: Res<RenderFog>,
     camera: Single<&GlobalTransform, With<PlayerCamera>>,
     mut frame: ResMut<SkyFrame>,
     mut clear: ResMut<ClearColor>,
+    mut world_fog: ResMut<WorldFog>,
     mut ticks: Local<Vec<i64>>,
 ) {
     environment
@@ -333,7 +394,20 @@ fn evaluate_sky(
         *weather,
         &mut frame,
     );
-    clear.0 = environment.fog_color(&frame);
+    let fog = environment.fog(
+        &frame,
+        render_distance.0,
+        render_fog.end(),
+        camera.forward().x,
+    );
+    frame.fog = fog;
+    let [red, green, blue] = fog.color;
+    clear.0 = Color::srgb(red, green, blue);
+    world_fog.set_if_neq(WorldFog {
+        color: fog.color,
+        environmental: fog.environmental,
+        render_distance: fog.render_distance,
+    });
 }
 
 fn extract_sky(
@@ -367,25 +441,21 @@ fn cloud_drift(ticks: f64) -> f32 {
     (ticks * CLOUD_BLOCKS_PER_TICK).rem_euclid(CLOUD_DRIFT_SPAN) as f32
 }
 
-pub(crate) const fn rgb(packed: u32) -> Vec3 {
-    Vec3::new(
-        ((packed >> 16) & 0xff) as f32 / 255.0,
-        ((packed >> 8) & 0xff) as f32 / 255.0,
-        (packed & 0xff) as f32 / 255.0,
-    )
+fn rgb([red, green, blue, _]: [f32; 4]) -> Vec3 {
+    Vec3::new(red, green, blue)
 }
 
-fn rgba(packed: u32, w: f32) -> [f32; 4] {
-    rgb(packed).map(Srgba::gamma_function).extend(w).to_array()
+fn rgba(color: [f32; 4], w: f32) -> [f32; 4] {
+    rgb(color).map(Srgba::gamma_function).extend(w).to_array()
 }
 
 /// The light colours feed vanilla's lightmap, which works on the bytes as they are written.
-fn raw(packed: u32, w: f32) -> [f32; 4] {
-    rgb(packed).extend(w).to_array()
+fn raw(color: [f32; 4], w: f32) -> [f32; 4] {
+    rgb(color).extend(w).to_array()
 }
 
-fn alpha(packed: u32) -> f32 {
-    ((packed >> 24) & 0xff) as f32 / 255.0
+fn alpha([_, _, _, alpha]: [f32; 4]) -> f32 {
+    alpha
 }
 
 fn request_sources(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -589,6 +659,7 @@ mod sky_regression {
     struct Dimension {
         has_skylight: bool,
         has_ceiling: bool,
+        min_y: i32,
         #[serde(default)]
         skybox: Skybox,
         #[serde(default)]
@@ -639,6 +710,7 @@ mod sky_regression {
             layout,
             statics,
             clock: None,
+            min_y: dimension.min_y as f32,
         }
     }
 
@@ -679,15 +751,11 @@ mod sky_regression {
     }
 
     #[test]
-    fn the_dark_disc_is_flagged_only_from_under_the_horizon() {
-        assert_eq!(
-            packed(6000, Vec3::new(0.0, HORIZON + 1.0, 0.0)).disc[3],
-            0.0
-        );
-        assert_eq!(
-            packed(6000, Vec3::new(0.0, HORIZON - 1.0, 0.0)).disc[3],
-            1.0
-        );
+    fn the_occluder_rises_above_the_horizon_only_from_below_the_lowest_block() {
+        for (eye_y, occluder) in [(-64.0, [-1.0, -8.0, 1.0]), (-64.5, [15.0, 10.0, 1.0])] {
+            let packed = packed(6000, Vec3::new(0.0, eye_y, 0.0)).occluder;
+            assert_eq!(packed[..3], occluder, "eye at {eye_y}");
+        }
     }
 
     #[test]

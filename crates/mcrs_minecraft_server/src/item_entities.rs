@@ -1,10 +1,10 @@
 use bevy_app::{App, FixedUpdate, Plugin, SubApp};
-use bevy_ecs::prelude::{Commands, Entity, Has, IntoScheduleConfigs, Query, With, World};
+use bevy_ecs::prelude::{Commands, Entity, IntoScheduleConfigs, Query, With, World};
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine_brain::MobColumn;
-use mcrs_minecraft_engine_item::{ItemPlugin, ItemSet, Selected, Slots};
+use mcrs_minecraft_engine_item::{ItemPlugin, ItemSet};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::Owner;
@@ -15,10 +15,8 @@ use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_physics::Aabb;
+use mcrs_minecraft_vanilla_inventory::VanillaInventoryPlugin;
 use mcrs_minecraft_vanilla_item_entity::{Collect, ItemCollector, ItemEntityPlugin, ItemEntitySet};
-
-/// The slots of a player: the 36 of the inventory, the 4 of the armor and the off hand.
-const PLAYER_SLOTS: usize = 41;
 
 /// Stacks as entities and the item entities in every dimension world, over the item table of the
 /// host. Each player collects item entities into its slots. It needs the entity pass of
@@ -41,6 +39,7 @@ fn build_dimension_items(host: &World, _: &DimensionBuild<'_>, sub_app: &mut Sub
     sub_app.add_plugins((
         ItemPlugin::new(table),
         ItemEntityPlugin::<MobColumn>::default(),
+        VanillaInventoryPlugin,
     ));
     sub_app
         .configure_sets(
@@ -72,13 +71,12 @@ fn track_collectors(
             &Transform,
             Option<&PlayerGameMode>,
             Option<&GameProfile>,
-            Has<Slots>,
             Option<&mut ItemCollector>,
         ),
         With<Player>,
     >,
 ) {
-    for (player, owner, transform, game_mode, profile, has_slots, collector) in &mut players {
+    for (player, owner, transform, game_mode, profile, collector) in &mut players {
         let mode = match game_mode.map_or(GameMode::Survival, |mode| mode.0) {
             GameMode::Survival | GameMode::Adventure => Collect::Survival,
             GameMode::Creative => Collect::Creative,
@@ -109,11 +107,6 @@ fn track_collectors(
             None => {
                 commands.entity(player).insert(next);
             }
-        }
-        if !has_slots {
-            commands
-                .entity(player)
-                .insert((Slots::new(PLAYER_SLOTS), Selected(0)));
         }
     }
 }

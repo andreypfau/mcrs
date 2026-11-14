@@ -18,6 +18,7 @@ mcrs_minecraft_model.workspace = true
 mcrs_minecraft_model_file.workspace = true
 mcrs_minecraft_volume.workspace = true
 mcrs_minecraft_render.workspace = true
+mcrs_minecraft_fog.workspace = true
 mcrs_minecraft_light_render.workspace = true
 mcrs_minecraft_render_probe.workspace = true
 mcrs_minecraft_random.workspace = true
@@ -94,6 +95,7 @@ bevy = { version = "0.20.1", default-features = false, features = ["x11"] }
 bevy = { version = "0.20.1", default-features = false, features = ["web", "bevy_clipboard"] }
 console_error_panic_hook = "0.1"
 wasm-bindgen-futures = "0.4"
+futures-lite.workspace = true
 # The rustflag in .cargo/config.toml picks the backend; without the crate
 # feature of the same name getrandom refuses to build at all. Only 0.4 reaches
 # the wasm dependency graph.

@@ -2,6 +2,7 @@ use crate::ability::{AnnounceOpLevel, AnswerOpLevel, OpLevelAnnounced};
 use crate::block_break::BlockBreakPlugin;
 use crate::bus::OutboundPlayerReleased;
 use crate::client_info::ClientInfoPlugin;
+use crate::client_view_distance::on_client_view_distance;
 use crate::cold_columns::SaveRequest;
 use crate::column_streams::ColumnStreamPlugin;
 use crate::consume_inbound_player_spawn::consume_inbound_player_spawn;
@@ -52,6 +53,7 @@ impl Plugin for DimPlayerPlugin {
         if !app.is_plugin_added::<ClientInfoPlugin>() {
             app.add_plugins(ClientInfoPlugin);
         }
+        app.add_observer(on_client_view_distance);
         app.add_systems(
             FixedPreUpdate,
             receive_transfers

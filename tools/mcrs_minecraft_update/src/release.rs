@@ -1,10 +1,14 @@
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
-use mcrs_minecraft_client_jar::{Artifact, FontHint, Release, directory_digest, sha1_hex, verify};
+use mcrs_minecraft_client_jar::{
+    Artifact, AssetObject, FontHint, Release, directory_digest, sha1_hex, verify,
+};
 use mcrs_minecraft_core::Version;
 use serde::{Deserialize, Serialize};
 
+const FONT_FOLDER: &str = "minecraft/font/";
 pub const MANIFEST_URL: &str = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
 
 #[derive(Deserialize)]
@@ -22,6 +26,12 @@ pub struct Listing {
 #[derive(Deserialize)]
 struct Package {
     downloads: Downloads,
+}
+
+#[derive(Deserialize)]
+struct IndexRef {
+    #[serde(rename = "assetIndex")]
+    asset_index: Download,
 }
 
 #[derive(Deserialize)]
@@ -50,6 +60,44 @@ pub fn client(package: &[u8]) -> Result<Download, String> {
     let package: Package = serde_json::from_slice(package)
         .map_err(|error| format!("the package descriptor has no client jar: {error}"))?;
     Ok(package.downloads.client)
+}
+
+/// The asset index the package descriptor names.
+pub fn asset_index(package: &[u8]) -> Result<Download, String> {
+    let package: IndexRef = serde_json::from_slice(package)
+        .map_err(|error| format!("the package descriptor has no asset index: {error}"))?;
+    Ok(package.asset_index)
+}
+
+#[derive(Deserialize)]
+struct Index {
+    objects: BTreeMap<String, IndexObject>,
+}
+
+#[derive(Deserialize)]
+struct IndexObject {
+    hash: String,
+    size: u64,
+}
+
+/// The objects of the font folder of an asset index, as the JSON `font_objects.json` holds them.
+pub fn font_objects(index: &[u8]) -> Result<String, String> {
+    let index: Index = serde_json::from_slice(index)
+        .map_err(|error| format!("the asset index is not an index: {error}"))?;
+    let objects: Vec<AssetObject> = index
+        .objects
+        .iter()
+        .filter(|(path, _)| path.starts_with(FONT_FOLDER))
+        .map(|(path, object)| AssetObject {
+            path,
+            sha1: &object.hash,
+            size: object.size,
+        })
+        .collect();
+    if objects.is_empty() {
+        return Err(format!("the asset index has no object below {FONT_FOLDER}"));
+    }
+    pretty(&objects)
 }
 
 pub fn check(url: &str, sha1: &str, size: Option<u64>, bytes: &[u8]) -> Result<(), String> {
@@ -191,6 +239,40 @@ mod tests {
         "stable": false,
         "use_editor": false
     }"#;
+
+    #[test]
+    fn the_font_objects_are_the_font_folder_of_the_index() {
+        let index = br#"{"objects":{
+            "minecraft/lang/en_us.json": {"hash": "aa", "size": 1},
+            "minecraft/font/unifont.zip": {"hash": "bb", "size": 2},
+            "minecraft/font/include/unifont.json": {"hash": "cc", "size": 3}
+        }}"#;
+        let text = font_objects(index).unwrap();
+        let listed: Vec<(String, String, u64)> =
+            serde_json::from_str::<Vec<serde_json::Value>>(&text)
+                .unwrap()
+                .iter()
+                .map(|object| {
+                    (
+                        object["path"].as_str().unwrap().to_owned(),
+                        object["sha1"].as_str().unwrap().to_owned(),
+                        object["size"].as_u64().unwrap(),
+                    )
+                })
+                .collect();
+        assert_eq!(
+            listed,
+            [
+                (
+                    "minecraft/font/include/unifont.json".to_owned(),
+                    "cc".to_owned(),
+                    3
+                ),
+                ("minecraft/font/unifont.zip".to_owned(), "bb".to_owned(), 2),
+            ]
+        );
+        assert!(font_objects(br#"{"objects":{}}"#).is_err());
+    }
 
     fn sample_jar() -> Vec<u8> {
         zipped(&[

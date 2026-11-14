@@ -41,6 +41,7 @@ pub struct ClientOptions {
     pub fullscreen: bool,
     /// Frames per second, in `MAX_FRAMERATE_RANGE` and a multiple of `MAX_FRAMERATE_STEP`.
     pub max_framerate: u16,
+    pub improved_transparency: bool,
 }
 
 impl Default for ClientOptions {
@@ -57,6 +58,7 @@ impl Default for ClientOptions {
             vsync: false,
             fullscreen: false,
             max_framerate: 120,
+            improved_transparency: false,
         }
     }
 }

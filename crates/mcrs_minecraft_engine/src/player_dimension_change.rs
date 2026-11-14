@@ -17,6 +17,7 @@ use crate::departure::{CarriedPlayer, Departure, PlayerTransfer};
 use crate::dimension_change::{Arrival, DimensionChangeError};
 use crate::game_mode::ListedGameMode;
 use crate::minecraft_entity::EntityBundle;
+use crate::persisted_registry::CaptureCause;
 use crate::player_order::{DepartureRequest, DepartureRequests};
 use crate::replicated::Replicated;
 use crate::tile_events::TileEvents;
@@ -85,7 +86,7 @@ fn depart(
         .zip(leaving.get::<ListedGameMode>())
         .filter(|(replicated, listed)| replicated.game_mode != listed.0)
         .map(|(replicated, listed)| (replicated.tile, replicated.id, listed.0));
-    let carried = CarriedPlayer::take(&mut leaving)?;
+    let carried = CarriedPlayer::take(&mut leaving, CaptureCause::DimensionChange)?;
     // A game mode that changed in the tick the player leaves reaches its viewers before its
     // despawn, as the publish of the next tick would have sent it.
     if let Some((tile, id, mode)) = listed

@@ -18,6 +18,7 @@ use mcrs_minecraft_engine_server::{DimensionWorldsPlugin, ServerCorePlugin, Serv
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_entity::damage_type_tag_keys::PANIC_CAUSES;
 use mcrs_minecraft_vanilla_block_place::BlockPlacePlugin;
+use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 
 pub use block_loot::{LootBlocks, VanillaBlockLootPlugin};
@@ -117,7 +118,8 @@ pub struct VanillaItemPlugin;
 
 impl Plugin for VanillaItemPlugin {
     fn build(&self, app: &mut App) {
-        app.add_persistence_plugin(ItemPersistencePlugin);
+        app.add_persistence_plugin(ItemPersistencePlugin)
+            .add_persistence_plugin(InventoryPersistencePlugin);
     }
 }
 

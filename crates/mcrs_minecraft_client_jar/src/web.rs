@@ -5,20 +5,24 @@ use std::rc::Rc;
 
 use js_sys::{Array, Promise, Reflect, Uint8Array};
 use wasm_bindgen::{JsCast, JsValue};
-use wasm_bindgen_futures::{JsFuture, spawn_local};
+use wasm_bindgen_futures::{JsFuture, future_to_promise, spawn_local};
 use web_sys::{
     Cache, CacheStorage, Headers, ReadableStreamDefaultReader, Request, RequestInit, Response,
 };
 
 use crate::schedule::{self, Queue, Source};
-use crate::{Files, Progress, RELEASE};
+use crate::{AssetObject, FONT_OBJECTS, Files, Progress, RELEASE};
 
 const WORKERS: usize = 4;
 const CACHE: &str = "mcrs-client-jar";
 const STALL_MS: i32 = 30_000;
+const OBJECT_BODY_MS: i32 = 60_000;
 const IDLE_MS: i32 = 50;
 const MIN_BACKOFF_MS: i32 = 1_000;
 const MAX_BACKOFF_MS: i32 = 30_000;
+const OBJECT_ATTEMPTS: u32 = 4;
+/// The longest wait for the font objects; after it the text keeps to the jar's glyphs.
+const FONT_DEADLINE_MS: i32 = 120_000;
 
 /// The picked `assets/` files of the pinned client jar, fetched in priority order by Range
 /// requests and kept per chunk in Cache Storage. The rest of the jar is never fetched.
@@ -41,6 +45,68 @@ pub async fn fetch(
     let files = schedule::assets(&*source, &RELEASE, progress, pick, fonts).await;
     source.stop.set(true);
     files
+}
+
+/// The asset index layer's font files, laid over the jar's by path. The browser's HTTP cache
+/// keeps them: an object's address is its digest, so a hit is never stale. The objects are
+/// fetched side by side, each retried with a growing wait.
+pub async fn font_assets() -> Result<Files, String> {
+    let promises = Array::new();
+    for object in FONT_OBJECTS {
+        promises.push(&future_to_promise(async move {
+            fetch_object(object)
+                .await
+                .map(|bytes| Uint8Array::from(bytes.as_slice()).into())
+                .map_err(JsValue::from)
+        }));
+    }
+    let bodies = within(Promise::all(&promises), FONT_DEADLINE_MS).await?;
+    Ok(FONT_OBJECTS
+        .iter()
+        .zip(Array::from(&bodies).iter())
+        .map(|(object, body)| (object.path.to_owned(), Uint8Array::new(&body).to_vec()))
+        .collect())
+}
+
+async fn fetch_object(object: &AssetObject<'_>) -> Result<Vec<u8>, String> {
+    let mut backoff = MIN_BACKOFF_MS;
+    let mut failure = String::new();
+    for attempt in 0..OBJECT_ATTEMPTS {
+        if attempt > 0 {
+            sleep(backoff).await;
+            backoff = (backoff * 2).min(MAX_BACKOFF_MS);
+        }
+        match object_body(object).await {
+            Ok(bytes) if object.holds(&bytes) => return Ok(bytes),
+            Ok(_) => failure = "it is not the pinned object".to_owned(),
+            Err(error) => failure = error,
+        }
+    }
+    Err(format!("{}: {failure}", object.url()))
+}
+
+async fn object_body(object: &AssetObject<'_>) -> Result<Vec<u8>, String> {
+    let window = web_sys::window().ok_or("no window")?;
+    // Browser fetch has no timeout of its own, so each wait is raced against a timer.
+    let response: Response = within(window.fetch_with_str(&object.url()), STALL_MS)
+        .await?
+        .unchecked_into();
+    if !response.ok() {
+        return Err(format!("HTTP {}", response.status()));
+    }
+    let buffer = within(response.array_buffer().map_err(describe)?, OBJECT_BODY_MS).await?;
+    Ok(Uint8Array::new(&buffer).to_vec())
+}
+
+/// The promise's value, or an error when it neither settles nor fails within `ms`.
+async fn within(promise: Promise, ms: i32) -> Result<JsValue, String> {
+    let settled = JsFuture::from(Promise::race(&Array::of2(&promise, &timeout(ms))))
+        .await
+        .map_err(describe)?;
+    if settled.is_undefined() {
+        return Err("the download stalled".to_owned());
+    }
+    Ok(settled)
 }
 
 struct WebSource {

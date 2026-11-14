@@ -4285,6 +4285,7 @@ dependencies = [
  "bytes",
  "console_error_panic_hook",
  "flate2",
+ "futures-lite",
  "getrandom 0.4.1",
  "image",
  "mcrs_minecraft_assets",
@@ -4309,6 +4310,7 @@ dependencies = [
  "mcrs_minecraft_entity_render",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_fog",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_game_rule",
@@ -4383,6 +4385,7 @@ dependencies = [
  "mcrs_minecraft_block_entity",
  "mcrs_minecraft_chat",
  "mcrs_minecraft_chat_client",
+ "mcrs_minecraft_client_jar",
  "mcrs_minecraft_client_options",
  "mcrs_minecraft_client_widget",
  "mcrs_minecraft_client_world",
@@ -5274,6 +5277,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_fog"
+version = "0.5.8"
+dependencies = [
+ "libm",
+]
+
+[[package]]
 name = "mcrs_minecraft_game_mode"
 version = "0.5.8"
 dependencies = [
@@ -6103,6 +6113,7 @@ dependencies = [
  "bitflags 2.10.0",
  "bytemuck",
  "mcrs_minecraft_core",
+ "mcrs_minecraft_fog",
  "mcrs_minecraft_mesh",
  "naga",
  "wesl",
@@ -6258,6 +6269,7 @@ dependencies = [
  "mcrs_minecraft_text",
  "mcrs_minecraft_text_flatten",
  "mcrs_minecraft_vanilla_block_place",
+ "mcrs_minecraft_vanilla_inventory",
  "mcrs_minecraft_vanilla_item_entity",
  "mcrs_minecraft_vanilla_light",
  "mcrs_minecraft_vanilla_worldgen",
@@ -6433,6 +6445,37 @@ dependencies = [
  "mcrs_minecraft_volume",
  "mcrs_voxel",
  "rustc-hash 2.1.1",
+]
+
+[[package]]
+name = "mcrs_minecraft_vanilla_inventory"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_item",
+ "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_key",
+ "mcrs_minecraft_game_mode",
+ "mcrs_minecraft_inventory_click",
+ "mcrs_minecraft_inventory_plan",
+ "mcrs_minecraft_inventory_view",
+ "mcrs_minecraft_item_entity",
+ "mcrs_minecraft_item_stack",
+ "mcrs_minecraft_item_table",
+ "mcrs_minecraft_menu",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_network",
+ "mcrs_minecraft_player_slots",
+ "mcrs_minecraft_protocol_game",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_vanilla_item_entity",
+ "mcrs_minecraft_wire",
+ "mcrs_voxel",
+ "serde",
+ "tracing",
 ]
 
 [[package]]

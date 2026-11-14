@@ -23,6 +23,7 @@ use crate::Equipped;
 use crate::Given;
 use crate::InSlot;
 use crate::ItemSet;
+use crate::RequestDrop;
 use crate::RequestResult;
 use crate::Selected;
 use crate::Slots;
@@ -55,9 +56,10 @@ impl ItemPlugin {
     }
 }
 
-/// The stacks of a world and their codecs in the player file, without the systems of
-/// [`ItemPlugin`]. The world gets its [`ItemTable`] elsewhere, such as from its loaded registries,
-/// and a codec fails until it has one.
+/// The stacks of a world and the codec of `EnderItems` in the player file, without the systems of
+/// [`ItemPlugin`]. The codecs of the stacks of a player are in
+/// [`PlayerItemFilePlugin`](crate::PlayerItemFilePlugin). The world gets its [`ItemTable`]
+/// elsewhere, such as from its loaded registries, and a codec fails until it has one.
 #[derive(Clone, Copy, Default)]
 pub struct ItemPersistencePlugin;
 
@@ -75,6 +77,7 @@ impl Plugin for ItemPlugin {
         app.insert_resource(self.table)
             .add_plugins(ItemPersistencePlugin)
             .add_message::<Given>()
+            .add_message::<RequestDrop>()
             .add_message::<RequestResult>()
             .add_systems(
                 self.schedule,

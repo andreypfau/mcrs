@@ -144,7 +144,7 @@ fn draw_rows(
     for text in texts {
         if let Some(bounds) = shown(text.row) {
             let inner = bounds.inflate(-ROW_INSET);
-            draw_str(font, inner.min, &text.text, WHITE, false, out);
+            draw_str(font, inner.min.as_vec2(), &text.text, WHITE, false, out);
         }
     }
 }
@@ -162,9 +162,8 @@ fn shift_up(quads: &mut [GuiQuad], shift: i32) {
                 rect.min = rect.min.saturating_sub(offset);
                 rect.max = rect.max.saturating_sub(offset);
             }
-            GuiQuad::Glyph { origin, .. } | GuiQuad::Item { origin, .. } => {
-                *origin = origin.saturating_sub(offset);
-            }
+            GuiQuad::Glyph { pen, .. } => *pen -= offset.as_vec2(),
+            GuiQuad::Item { origin, .. } => *origin = origin.saturating_sub(offset),
             GuiQuad::EndClip => {}
         }
     }

@@ -7,6 +7,7 @@ use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::view::ExtractedView;
 
 use super::Occlusion;
+use super::WorldFog;
 use super::draws::PARAMS_STRIDE;
 use super::frame_view::{FrameView, SIDE_PLANES};
 use super::terrain::Terrain;
@@ -68,7 +69,11 @@ pub(super) struct CameraUniform {
     viewport: [f32; 2],
     shade_table: u32,
     render_distance: u32,
-    _pad_end: [u32; 2],
+    _pad_render_distance: [u32; 2],
+    fog_color: [f32; 3],
+    _pad_fog_color: f32,
+    fog_environmental: [f32; 2],
+    fog_render_distance: [f32; 2],
 }
 
 pub(super) const CAMERA_SIZE: u64 = size_of::<CameraUniform>() as u64;
@@ -121,6 +126,10 @@ pub(super) fn write_frame_view(
     ));
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a Bevy render system: each resource is its own parameter so the scheduler sees the access"
+)]
 pub(super) fn write_camera(
     terrain: Option<Res<Terrain>>,
     frame_view: Option<Res<FrameView>>,
@@ -128,6 +137,7 @@ pub(super) fn write_camera(
     quad_cull: Res<super::QuadCull>,
     render_distance: Res<super::RenderDistance>,
     shade: Res<TerrainShade>,
+    fog: Res<WorldFog>,
     queue: Res<RenderQueue>,
 ) {
     let (Some(terrain), Some(frame_view)) = (terrain, frame_view) else {
@@ -160,6 +170,9 @@ pub(super) fn write_camera(
             // chisle: only the section cull of the full path reads it; the minimal path draws
             // each held column. A test of the section in its vertex stage lifts this.
             render_distance: u32::from(render_distance.0),
+            fog_color: fog.color,
+            fog_environmental: [fog.environmental.start, fog.environmental.end],
+            fog_render_distance: [fog.render_distance.start, fog.render_distance.end],
             ..default()
         }),
     );
@@ -207,6 +220,15 @@ mod tests {
             (
                 "render_distance",
                 mem::offset_of!(CameraUniform, render_distance),
+            ),
+            ("fog_color", mem::offset_of!(CameraUniform, fog_color)),
+            (
+                "fog_environmental",
+                mem::offset_of!(CameraUniform, fog_environmental),
+            ),
+            (
+                "fog_render_distance",
+                mem::offset_of!(CameraUniform, fog_render_distance),
             ),
         ];
         let shader: Vec<(&str, usize)> = members

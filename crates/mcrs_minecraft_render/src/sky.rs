@@ -18,9 +18,13 @@ use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 use bevy::shader::Shader;
 use bitflags::bitflags;
 
-use crate::{DEPTH_COMPARE, FrameCounts, pipeline_descriptor, uniform_buffer};
+use crate::gbuffer::WORLD_IMAGE_FORMAT;
+use crate::pipeline::descriptor;
+use crate::transparency_targets::CLOUD_IMAGE_FORMAT;
+use crate::{DEPTH_COMPARE, FrameCounts, ImprovedTransparency, uniform_buffer};
 
-/// The per-frame GPU block, in the linear space the render target expects.
+/// The per-frame GPU block. Its colours are in linear light, but `disc` and `fog`, which are image
+/// values; the shader turns the linear ones into image values before the world image blends them.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct SkyUniform {
@@ -34,6 +38,9 @@ pub struct SkyUniform {
     pub sky_light: [f32; 4],
     pub block_light: [f32; 4],
     pub ambient: [f32; 4],
+    /// The two elevations in degrees over which the occluder fades in, then 1 when the frame has
+    /// a sky occluder and 0 when it has none.
+    pub occluder: [f32; 4],
 }
 
 bitflags! {
@@ -46,6 +53,7 @@ bitflags! {
         const CELESTIAL = 1 << 2;
         const STARS = 1 << 3;
         const CLOUDS = 1 << 4;
+        const OCCLUDER = 1 << 5;
     }
 }
 
@@ -95,14 +103,14 @@ struct SkyDraw {
     visible: fn(&SkyUniform) -> bool,
 }
 
-const SKY_DRAWS: [SkyDraw; 5] = [
+const SKY_DRAWS: [SkyDraw; 6] = [
     SkyDraw {
         label: "sky disc",
         effect: SkyEffects::DISC,
         vertex: "vertex_disc",
         fragment: "fragment_disc",
         blend: None,
-        vertices: 48,
+        vertices: 24,
         writes_depth: false,
         visible: |_| true,
     },
@@ -137,6 +145,16 @@ const SKY_DRAWS: [SkyDraw; 5] = [
         visible: |sky| sky.angles[3] > 0.0,
     },
     SkyDraw {
+        label: "sky occluder",
+        effect: SkyEffects::OCCLUDER,
+        vertex: "vertex_occluder",
+        fragment: "fragment_occluder",
+        blend: Some(BlendState::ALPHA_BLENDING),
+        vertices: 3,
+        writes_depth: false,
+        visible: |_| true,
+    },
+    SkyDraw {
         label: "sky clouds",
         effect: SkyEffects::CLOUDS,
         vertex: "vertex_clouds",
@@ -148,7 +166,7 @@ const SKY_DRAWS: [SkyDraw; 5] = [
     },
 ];
 
-const CLOUDS: usize = 4;
+const CLOUDS: usize = 5;
 
 pub struct SkyRenderPlugin;
 
@@ -179,6 +197,8 @@ pub(crate) struct Sky {
         SkyEffects,
         [Option<CachedRenderPipelineId>; SKY_DRAWS.len()],
     )>,
+    /// The clouds into the cloud image, queued on the first frame of Improved Transparency.
+    cloud_image: Option<CachedRenderPipelineId>,
     textures: Option<(AssetId<Image>, AssetId<Image>, BindGroup)>,
     view: Option<(BufferId, BindGroup)>,
 }
@@ -228,6 +248,7 @@ fn init_sky(mut commands: Commands, asset_server: Res<AssetServer>, device: Res<
         shader: asset_server.load("embedded://mcrs_minecraft_render/shaders/sky.wesl"),
         uniform: uniform_buffer("sky", size_of::<SkyUniform>() as u64, &device),
         pipelines: None,
+        cloud_image: None,
         textures: None,
         view: None,
     });
@@ -244,11 +265,23 @@ fn prepare_sky(
     sky: Option<ResMut<Sky>>,
     extracted: Option<Res<ExtractedSky>>,
     views: Query<&ExtractedView, With<Camera3d>>,
+    improved: Option<Res<ImprovedTransparency>>,
     pipeline_cache: Res<PipelineCache>,
 ) {
-    let (Some(mut sky), Some(extracted)) = (sky, extracted) else {
+    let (Some(mut sky), Some(extracted), Some(_)) = (sky, extracted, views.iter().next()) else {
         return;
     };
+    if sky.cloud_image.is_none() && improved.is_some_and(|improved| improved.0) {
+        let mut descriptor = sky_pipeline(&sky, &SKY_DRAWS[CLOUDS]);
+        descriptor.label = Some("cloud image".into());
+        if let Some(fragment) = descriptor.fragment.as_mut() {
+            fragment.entry_point = Some("fragment_cloud_image".into());
+            if let Some(Some(target)) = fragment.targets.first_mut() {
+                target.format = CLOUD_IMAGE_FORMAT;
+            }
+        }
+        sky.cloud_image = Some(pipeline_cache.queue_render_pipeline(descriptor));
+    }
     if sky
         .pipelines
         .as_ref()
@@ -256,44 +289,45 @@ fn prepare_sky(
     {
         return;
     }
-    let Some(view) = views.iter().next() else {
-        return;
-    };
-    let layout = vec![sky.view_layout.clone(), sky.texture_layout.clone()];
     let queued = SKY_DRAWS.each_ref().map(|draw| {
-        extracted.effects.contains(draw.effect).then(|| {
-            pipeline_cache.queue_render_pipeline(RenderPipelineDescriptor {
-                primitive: PrimitiveState {
-                    topology: PrimitiveTopology::TriangleList,
-                    front_face: FrontFace::Ccw,
-                    cull_mode: None,
-                    ..default()
-                },
-                depth_stencil: Some(DepthStencilState {
-                    format: CORE_3D_DEPTH_FORMAT,
-                    depth_write_enabled: Some(draw.writes_depth),
-                    depth_compare: Some(if draw.writes_depth {
-                        DEPTH_COMPARE
-                    } else {
-                        CompareFunction::Always
-                    }),
-                    stencil: default(),
-                    bias: default(),
-                }),
-                ..pipeline_descriptor(
-                    draw.label.into(),
-                    layout.clone(),
-                    &sky.shader,
-                    draw.vertex.into(),
-                    draw.fragment.into(),
-                    view,
-                    draw.blend,
-                )
-            })
-        })
+        extracted
+            .effects
+            .contains(draw.effect)
+            .then(|| pipeline_cache.queue_render_pipeline(sky_pipeline(&sky, draw)))
     });
     info!(?extracted.effects, "queued the sky pipelines");
     sky.pipelines = Some((extracted.effects, queued));
+}
+
+fn sky_pipeline(sky: &Sky, draw: &SkyDraw) -> RenderPipelineDescriptor {
+    RenderPipelineDescriptor {
+        primitive: PrimitiveState {
+            topology: PrimitiveTopology::TriangleList,
+            front_face: FrontFace::Ccw,
+            cull_mode: None,
+            ..default()
+        },
+        depth_stencil: Some(DepthStencilState {
+            format: CORE_3D_DEPTH_FORMAT,
+            depth_write_enabled: Some(draw.writes_depth),
+            depth_compare: Some(if draw.writes_depth {
+                DEPTH_COMPARE
+            } else {
+                CompareFunction::Always
+            }),
+            stencil: default(),
+            bias: default(),
+        }),
+        ..descriptor(
+            draw.label.into(),
+            vec![sky.view_layout.clone(), sky.texture_layout.clone()],
+            &sky.shader,
+            draw.vertex.into(),
+            draw.fragment.into(),
+            WORLD_IMAGE_FORMAT,
+            draw.blend,
+        )
+    }
 }
 
 fn prepare_sky_bind_groups(
@@ -403,6 +437,44 @@ impl SkyDraws<'_> {
             }
         }
         self.counts.sky_draws.store(draws, Ordering::Relaxed);
+    }
+
+    /// The pipeline of the cloud image is compiled, or the dimension draws no clouds.
+    pub fn cloud_image_ready(&self, cache: &PipelineCache) -> bool {
+        let draws_clouds = self
+            .extracted
+            .as_deref()
+            .is_some_and(|extracted| extracted.effects.contains(SkyEffects::CLOUDS));
+        !draws_clouds
+            || self
+                .sky
+                .as_deref()
+                .and_then(|sky| sky.cloud_image)
+                .is_some_and(|id| cache.get_render_pipeline(id).is_some())
+    }
+
+    /// Into the cloud image, with no other draw: the clouds are only tested against themselves.
+    pub fn draw_cloud_image<'pass>(
+        &'pass self,
+        pass: &mut TrackedRenderPass<'pass>,
+        view_offset: u32,
+        cache: &'pass PipelineCache,
+    ) {
+        let (Some((pipelines, extracted, binds)), Some(sky)) = (self.ready(), self.sky.as_deref())
+        else {
+            return;
+        };
+        let pipeline = pipelines[CLOUDS].and(sky.cloud_image);
+        pass.set_bind_group(1, &binds.textures, &[]);
+        issue(
+            pass,
+            &SKY_DRAWS[CLOUDS],
+            pipeline,
+            extracted,
+            binds,
+            view_offset,
+            cache,
+        );
     }
 
     pub fn draw_clouds<'pass>(

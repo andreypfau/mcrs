@@ -158,6 +158,7 @@ Out of scope:
 | Max Framerate: values, default, value with no limit | 10 to 260 in steps of 10, 120, 260 | MENU-VAL-009 |
 | VSync: vanilla default, mcrs default | ON, OFF | MENU-VAL-010 |
 | Fullscreen: default | OFF | MENU-VAL-011 |
+| Improved Transparency: default | OFF | MENU-VAL-012 |
 | Draw test of the client: margin | 1 column | MENU-DIST-001 |
 | Render-distance fog: end, length | `16 · r` blocks, `clamp(16 · r / 10, 4, 64)` blocks | MENU-DIST-001 |
 | View of a player on the server: margin | 2 columns | MENU-DIST-003 |
@@ -449,7 +450,7 @@ mcrs deviates from the last postcondition: MENU-DEV-011.
 | Section label | Wide row | Flat list of options, in order |
 |---------------|----------|--------------------------------|
 | `options.video.display.header` "Display" | Exclusive Fullscreen Mode | **Max Framerate**, **VSync**, Reduce FPS When, **GUI Scale**, **Fullscreen**, Exclusive Fullscreen, **Brightness**, Graphics API; then "Prefer DXGI Present" on Windows, or "Menu/Dock Visibility" on macOS |
-| `options.video.quality.header` "Quality & Performance" | Preset | Biome Blend, **Render Distance**, Chunk Builder, **Simulation Distance**, **Smooth Lighting**, **Clouds**, Particles, Mipmap Levels, Entity Shadows, Entity Distance, Menu Background Blur, Cloud Distance, See-Through Leaves, Improved Transparency, Texture Filtering, Anisotropic Filtering, Weather Effect Radius |
+| `options.video.quality.header` "Quality & Performance" | Preset | Biome Blend, **Render Distance**, Chunk Builder, **Simulation Distance**, **Smooth Lighting**, **Clouds**, Particles, Mipmap Levels, Entity Shadows, Entity Distance, Menu Background Blur, Cloud Distance, See-Through Leaves, **Improved Transparency**, Texture Filtering, Anisotropic Filtering, Weather Effect Radius |
 | `options.video.preferences.header` "Preferences" | none | Autosave Indicator, Show Vignette, Attack Indicator, Chunk Fade Time |
 
 - **Postconditions:**
@@ -458,7 +459,7 @@ mcrs deviates from the last postcondition: MENU-DEV-011.
     index 0 of the fourth row.
   - "Render Distance" is at the index 1 of the first row of "Quality & Performance".
     "Simulation Distance" is at the index 1 of the second row. "Smooth Lighting" and "Clouds"
-    share the third row.
+    share the third row. "Improved Transparency" is at the index 1 of the seventh row.
 - **Edge cases:** the Ctrl wheel on this screen changes the GUI scale (MENU-SCALE-003).
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts. Kind: layout.
@@ -474,7 +475,7 @@ Confidence: medium. Experiment: MENU-EXP-03.
   3. A wide row shows only when its option is an option of mcrs. No wide row shows.
   4. A section label row shows only when its section holds an option of mcrs.
   5. The Ctrl wheel acts as MENU-SCALE-003 states.
-- **Postconditions:** the list holds these seven rows. At W = 427 and H = 240 with the scroll
+- **Postconditions:** the list holds these eight rows. At W = 427 and H = 240 with the scroll
   offset 0:
 
 | Row | Content | Row top | Height | Widgets |
@@ -486,11 +487,15 @@ Confidence: medium. Experiment: MENU-EXP-03.
 | 4 | label "Quality & Performance" | 128 | 36 | label box top 148 |
 | 5 | "Render Distance", "Simulation Distance" | 164 | 25 | (58, 166) and (218, 166) |
 | 6 | "Smooth Lighting", "Clouds" | 189 | 25 | (58, 191) and (218, 191) |
+| 7 | "Improved Transparency" | 214 | 25 | (58, 216) |
 
-  - The content height is 183. The list is 174 high, so it scrolls with `M` = 9
+  - The content height is 208. The list is 174 high, so it scrolls with `M` = 34
     (`client-list.md`, SCRL-AREA-001).
   - At the scroll offset 0, the bottom of row 6 is below the bottom of the list at y = 207.
-  - The scrollbar shows at x = 376 (SCRL-BAR-001). Its thumb is 165 high (SCRL-BAR-002).
+    Row 7 does not show.
+  - At the scroll offset 34, row 7 is at the top 180, and its bottom is 2 above the bottom of
+    the list.
+  - The scrollbar shows at x = 376 (SCRL-BAR-001). Its thumb is 145 high (SCRL-BAR-002).
 
 Provenance: `design` for the set of rows, as MENU-PAUSE-006 states. `source_suggested` for the
 positions. Kind: layout. Confidence: medium. Experiment: MENU-EXP-03.
@@ -555,10 +560,12 @@ The options of mcrs are on these screens:
 | Max Framerate | "Video Settings", section "Display" | MENU-VAL-009 |
 | VSync | "Video Settings", section "Display" | MENU-VAL-010 |
 | Fullscreen | "Video Settings", section "Display" | MENU-VAL-011 |
+| Improved Transparency | "Video Settings", section "Quality & Performance" | MENU-VAL-012 |
 
 The rules MENU-DIST-001 to MENU-DIST-005 state the effect of Render Distance and Simulation
 Distance. The rules MENU-DISP-001 to MENU-DISP-005 state the effect of Max Framerate, VSync and
-Fullscreen. `client-controls.md`, CTRL-VAL-001, states the option Sensitivity.
+Fullscreen. `client-fog.md` states the effect of Improved Transparency.
+`client-controls.md`, CTRL-VAL-001, states the option Sensitivity.
 
 ### MENU-VAL-001: FOV
 
@@ -694,14 +701,15 @@ Confidence: medium. Experiment: MENU-EXP-07.
   4. The caption is `options.generic_value` with `options.renderDistance`, "Render Distance",
      and the value text `options.chunks`, "%s Chunks", with the number.
   5. The slider has no tooltip.
-  6. The slider waits (WID-SLD-007, step 2).
+  6. In vanilla, the slider waits (WID-SLD-007, step 2). In mcrs, it applies at once
+     (WID-SLD-007, step 1; MENU-DEV-014).
   7. The stored value is the option `o` of MENU-DIST-001 to MENU-DIST-004.
 - **Postconditions:** the captions are "Render Distance: 2 Chunks" and "Render Distance: 12
   Chunks". In mcrs, the right end shows "Render Distance: 96 Chunks".
 
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts. `design` for step
-3: the owner decided the range and the default of mcrs on 2026-11-13. Kind: semantic.
-Confidence: medium. Experiment: MENU-EXP-11.
+3: the owner decided the range and the default of mcrs on 2026-11-13. `design` for step 6 in
+mcrs: MENU-DEV-014. Kind: semantic. Confidence: medium. Experiment: MENU-EXP-11.
 
 ### MENU-VAL-008: Simulation Distance
 
@@ -771,6 +779,34 @@ Experiment: MENU-EXP-13.
 Provenance: `source_suggested`; `black_box_confirmed` for the English texts. Kind: semantic.
 Confidence: medium. Experiment: MENU-EXP-14.
 
+### MENU-VAL-012: Improved Transparency
+
+- **Behavior:**
+  1. The widget is a Boolean cycle button (WID-CYC-001, step 4), with the caption form "name
+     and value". Its name is `options.improvedTransparency`, "Improved Transparency". The
+     default is OFF.
+  2. For each value, the tooltip is `options.improvedTransparency.oitWithImprovedFog.tooltip`,
+     "An experimental approach that uses an order-independent transparency algorithm to avoid
+     graphical issues normally present when looking through multiple layers of translucent
+     objects.\nThis option will also blend the sky background and the clouds with render
+     distance-based fog to make the boundary between the terrain and the sky invisible.\nThis
+     will impact performance." Each `\n` is a line break, U+000A (`client-tooltip.md`,
+     section 0.3).
+  3. Each change applies from the next frame. ON: `client-fog.md`, CFOG-TIME-002 step 3 and
+     CFOG-DRAW-002. OFF: CFOG-TIME-002 step 2 and CFOG-DRAW-001 step 1.
+  4. In mcrs, a change does not build the chunk meshes again (MENU-DEV-013).
+  5. Each change writes the options file (MENU-SAVE-001).
+  6. The stored value is the option Improved Transparency of `client-fog.md`, section 0.1.
+- **Postconditions:**
+  - The captions are "Improved Transparency: ON" and "Improved Transparency: OFF".
+  - In the frame after a change to ON, the terrain at the end of the render distance has the
+    colour of the sky and the clouds behind it. After a change to OFF, it has the fog colour.
+
+Provenance: `source_suggested`; `black_box_confirmed` for the English texts. The language file
+has two other tooltip keys of the option, `options.improvedTransparency.oit.tooltip` and
+`options.improvedTransparency.tooltip`. The button shows neither of them. `design` for step 4.
+Kind: semantic. Confidence: medium. Experiment: MENU-EXP-06.
+
 ### MENU-DIST-001: The render distance of the client
 
 - **Inputs:** the stored value `o` of Render Distance, and the server radius `v`. `v` is the
@@ -784,8 +820,11 @@ Confidence: medium. Experiment: MENU-EXP-14.
   5. The render-distance fog uses `r`. Let (`dx`, `dy`, `dz`) be the offset from the camera to
      a point. The fog distance of the point is `max(√(dx² + dz²), |dy|)`.
   6. The fog value is 0 at the start or nearer, 1 at the end or farther, and linear between.
-     The end is `16 · r` blocks. The start is `16 · r − clamp(16 · r / 10, 4, 64)` blocks.
-  7. The fog of a point is the larger of this value and the value of the environmental fog.
+     The end is `16 · r` blocks. The start is `16 · r − clamp(16 · r / 10, 4, 64)` blocks. The
+     client computes the start, the end and the value in `f32`, not in integers. In mcrs the
+     end is the drawn end `e` in place of `16 · r` (`client-fog.md`, CFOG-MCRS-004).
+  7. The fog of a point is the larger of this value and the value of the environmental fog
+     (`client-fog.md`, CFOG-MIX-001). The environmental fog uses the spherical distance.
   8. The client keeps each column that it got until `forget_level_chunk` for that column
      arrives. A change of `r` removes no column.
 - **Postconditions:**
@@ -800,7 +839,8 @@ Confidence: medium. Experiment: MENU-EXP-14.
 
 Provenance: `source_suggested`; `black_box_confirmed` for the form of the fog of steps 5 to 7 in
 `assets/minecraft/shaders/include/fog.glsl` of the client jar. Kind: semantic. Confidence:
-medium. Experiment: MENU-EXP-11.
+medium. Experiment: MENU-EXP-11. mcrs deviates from step 2 for a change of `o` by the slider:
+MENU-DEV-014.
 
 ### MENU-DIST-002: The view distance that the client sends
 
@@ -826,7 +866,8 @@ medium. Experiment: MENU-EXP-11.
   - In mcrs, `o` can be up to 96. A vanilla server clamps it (MENU-DIST-003).
 
 Provenance: `source_suggested`. Kind: wire. Confidence: medium. Experiment: MENU-EXP-11. mcrs
-deviates from steps 2, 3 and 5 and from the first two postconditions: MENU-DEV-011.
+deviates from steps 2, 3 and 5 and from the first two postconditions: MENU-DEV-011. mcrs deviates
+from step 4 in the play state and from the first postcondition: MENU-DEV-014.
 
 ### MENU-DIST-003: The view of a player on the server
 
@@ -851,6 +892,11 @@ deviates from steps 2, 3 and 5 and from the first two postconditions: MENU-DEV-0
   - With `V` = 10, a change of `q` from 20 to 30 sends nothing.
   - With `V` = 10, a change of `q` from 12 to 6 sends `forget_level_chunk` for each column of
     the view of `d` = 10 that is not in the view of `d` = 6.
+  - When several `client_information` arrive between two ticks, only the `q` of the last one
+    counts. The tick compares the view of the new `d` with the view of the `d` of the previous
+    tick, one time. Example: with `V` = 32, `q` = 12 and then 13, 14 and 15 in one tick, the
+    server computes `d` = 15 one time. A change of `q` from 16 to 10 and back to 16 in one tick
+    sends nothing.
 - **Edge cases:**
   - The load tickets of the player use `V`, not `d` (`block-simulation.md`, SIM-TICK-005).
   - The tracking range of entities uses `d` (`entity-tracking.md`, TRK-RNG-001). The server
@@ -889,7 +935,7 @@ columns. Confidence: medium. Experiment: MENU-EXP-11.
 
 Provenance: `source_suggested`. `design` for the edge case: the server of mcrs accepts the range
 of Render Distance of mcrs (MENU-VAL-007, step 3). Kind: wire. Confidence: medium. Experiment:
-MENU-EXP-12. mcrs deviates from the last postcondition: MENU-DEV-011.
+MENU-EXP-12. mcrs deviates from the last postcondition: MENU-DEV-011 and MENU-DEV-014.
 
 ### MENU-DIST-005: Simulation Distance in a local world
 
@@ -1087,7 +1133,7 @@ mcrs deviates from the last postcondition: MENU-DEV-011.
 - **Observer:** the options file, as the client reads it at the next start.
 - **Behavior:** the client writes the options file at these moments:
   1. after each change of the value of an option cycle button by an activation. Smooth
-     Lighting, Clouds, GUI Scale, VSync and Fullscreen are such buttons;
+     Lighting, Clouds, GUI Scale, VSync, Fullscreen and Improved Transparency are such buttons;
   2. each time that the options screen or an option sub-screen is removed: it closes, or
      another screen replaces it. For example, the options screen is removed when a sub-screen
      opens;
@@ -1198,7 +1244,7 @@ content after a loss of power. Experiment: MENU-EXP-10. mcrs deviates: MENU-DEV-
 |--------|----------------|----------------|------------|--------------------------|-----------------|-------------------|
 | Pause screen | no | no | none | builds its widgets again | 0 | none |
 | Options screen | no | no | none | keeps its widgets | 0 | none |
-| "Video Settings" | no | no | of the list (LIST-BG-002) | keeps its widgets | 0 | vanilla: Biome Blend, Render Distance, Simulation Distance; mcrs: Render Distance, Simulation Distance |
+| "Video Settings" | no | no | of the list (LIST-BG-002) | keeps its widgets | 0 | vanilla: Biome Blend, Render Distance, Simulation Distance; mcrs: Simulation Distance |
 | "Accessibility Settings" | no | no | of the list (LIST-BG-002) | keeps its widgets | 0 | none |
 
 - **Postconditions:**
@@ -1206,8 +1252,8 @@ content after a loss of power. Experiment: MENU-EXP-10. mcrs deviates: MENU-DEV-
     is the blur of WID-SCR-005 and then the texture `inworld_menu_background.png`.
   - The pause screen and the options screen draw no separators of WID-SCR-006.
   - No screen of this document names an initial widget (WID-FOC-002, step 1).
-  - Of the options of mcrs, only Render Distance and Simulation Distance wait 600 ms
-    (WID-SLD-007, step 2). Each other option applies at once.
+  - Of the options of mcrs, only Simulation Distance waits 600 ms (WID-SLD-007, step 2). Each
+    other option applies at once. Render Distance applies at once only in mcrs (MENU-DEV-014).
 
 Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: MENU-EXP-03.
 
@@ -1274,14 +1320,17 @@ Decides: MENU-ACC-001, and the positions of MENU-ACC-002.
 
 Decides: MENU-VAL-001, MENU-VAL-002, MENU-VAL-003.
 
-### MENU-EXP-06: Smooth Lighting and Clouds
+### MENU-EXP-06: Smooth Lighting, Clouds and Improved Transparency
 
 1. Look at a block in a corner with light from one side. Press "Smooth Lighting". Record a
    screenshot after each press.
 2. Press "Clouds" three times. Record the caption and a screenshot of the sky after each press.
-3. Record the file time after each press.
+3. Look at a hill at the end of the render distance, with the sky behind it. Put the mouse on
+   "Improved Transparency" and record the tooltip. Press the button two times. After each
+   press, record the caption, a screenshot, and whether the chunk meshes build again.
+4. Record the file time after each press.
 
-Decides: MENU-VAL-004, MENU-VAL-005.
+Decides: MENU-VAL-004, MENU-VAL-005, MENU-VAL-012.
 
 ### MENU-EXP-07: GUI scale
 
@@ -1613,7 +1662,8 @@ Decides: MENU-VAL-011, MENU-DISP-003, MENU-DISP-005.
   7. In the play state, the client sends `client_information` (play, serverbound 14) in each
      frame in which the client information made from the stored options differs from the last
      `client_information` that the client sent, in the configuration state or in the play state.
-     The left button and a write that runs do not delay this.
+     The left button and a write that runs do not delay this. The field "view distance" of that
+     client information holds the value `p` of MENU-DEV-014, step 4.
   8. Step 7 applies from the first frame of the play state. Thus, after a change of the stored
      options while the connection is not in the play state, the client sends one
      `client_information` in the first frame of the play state only when the client information
@@ -1624,27 +1674,29 @@ Decides: MENU-VAL-011, MENU-DISP-003, MENU-DISP-005.
   9. When the client information is equal to the last `client_information`, the client sends
      nothing. This applies to the start of the play state, a write of the options file, the
      removal of a screen and the stop of the client.
-  10. Steps 1 and 4 of MENU-DIST-002 apply to mcrs. Step 1 states what the client sends in the
-      configuration state.
-  11. Render Distance is the only option of mcrs in the client information. Its slider waits, so
-      a pending value does not go. Thus each wait of the slider sends at most one
-      `client_information`.
+  10. Steps 1 and 4 of MENU-DIST-002 apply to mcrs in the configuration state. Step 1 states
+      what the client sends in that state. MENU-DEV-014 replaces step 4 in the play state.
+  11. Render Distance is the only option of mcrs in the client information. Its slider applies at
+      once (MENU-DEV-014). A larger view distance goes in the frame of its change. A smaller view
+      distance goes after a wait of 600 ms.
 - **Postconditions in mcrs:** these replace the postconditions of the rules of the field "Rule"
   that name "Done", the removal of a screen or a write that waits.
-  - A drag of Render Distance sends nothing while the value is pending. The end of the wait
-    stores the value and sends one `client_information` with it. "Done" then sends nothing.
-  - "Done" or Escape before the end of the wait stores the pending value (MENU-SUB-002, step 1).
-    That store sends one `client_information`.
-  - When a drag of Render Distance ends at the stored value, its store is not a change. It sends
-    nothing and writes nothing.
+  - A drag of Render Distance sends each value above the last sent view distance in the frame of
+    its change. It sends a smaller value 600 ms after the last change. MENU-DEV-014 gives an
+    example.
+  - "Done" and Escape send nothing. A smaller value that waits goes at the end of its wait, also
+    after the close of the screen.
+  - A drag of Render Distance that ends at its start value writes the options file one time, at
+    the release. When the drag went above the last sent view distance, the client sends the start
+    value at the end of the wait. Else it sends nothing.
   - A press of a cycle button sends nothing. No option of a cycle button is in the client
     information.
-  - In a local world, when the host raises `o`, the new columns arrive after the end of the wait
-    (MENU-DIST-004). The screen can still be open.
-  - A change of Render Distance while the connection is not in the play state sends one
-    `client_information` with the stored value in the first frame of the play state. When the
-    stored value is equal to the value of the last `client_information` at that frame, nothing
-    goes.
+  - In a local world, when the host raises `o`, the client sends the new value in the frame of
+    the change. The new columns arrive after the next tick of the server (MENU-DIST-004).
+  - After a change of Render Distance while the connection is not in the play state, a larger
+    stored value goes in the first frame of the play state. A smaller stored value goes in the
+    first frame of the play state at least 600 ms after its last change. When the stored value
+    is equal to the value of the last `client_information`, nothing goes.
   - After a drag of FOV, the write starts at the release. The close of the options screen then
     writes nothing.
   - A change by the Ctrl wheel writes the options file at once.
@@ -1653,28 +1705,30 @@ Decides: MENU-VAL-011, MENU-DISP-003, MENU-DISP-005.
   wait for the removal of a screen. The reference writes a change of a slider only at the removal
   of a screen. After a crash or a kill of the process, the options file holds the options of the
   last write that came to its end. A change that still waited (steps 2 and 3) is lost. The wait of
-  the slider and the comparison with the last `client_information` put a limit on the traffic to
-  the server.
+  a smaller view distance (MENU-DEV-014) and the comparison with the last `client_information`
+  put a limit on the traffic to the server.
 - **Visible to the client:** yes.
   - The time of the options file differs. A crash or a kill of the process can occur while the
     options screen or an option sub-screen is open. Then mcrs starts with the options of the last
     write that came to its end. A change that still waited for the release of the left button or
     for a write that ran is lost. The reference starts with the values of its last write.
-  - A server gets `client_information` at the end of the wait of Render Distance, while the
-    screen is still open. The reference sends it at the next moment of MENU-SAVE-001, for
-    example at "Done". Thus in mcrs, the view of the player changes before the close.
-  - A server gets no `client_information` in the play state while the stored options are equal
-    to the last `client_information`. The reference sends one at the first moment of
+  - A server gets a larger view distance in the frame of the change, and a smaller one 600 ms
+    after its last change (MENU-DEV-014). The reference sends it at the next moment of
+    MENU-SAVE-001, for example at "Done". Thus in mcrs, the view of the player changes while
+    the screen is open.
+  - A server gets no `client_information` in the play state while the client information of
+    step 7 is equal to the last `client_information`. The reference sends one at the first moment of
     MENU-SAVE-001 in the play state.
   - After a change of Render Distance outside the play state, a server gets the new value in the
-    first frame of the play state when that value differs from the value of the last
-    `client_information`. The reference sends it at the first moment of MENU-SAVE-001 in the
-    play state.
+    first frame of the play state, or after the wait of a smaller value (MENU-DEV-014). This
+    occurs only when that value differs from the value of the last `client_information`. The
+    reference sends it at the first moment of MENU-SAVE-001 in the play state.
 - **Test:** a differential test does not compare the time of the options file. It does not
   compare the moments of `client_information` in the play state (MENU-EXP-08, MENU-EXP-11,
   MENU-EXP-12). It compares the values in the file after the left button is up and each write
-  ended. It compares the view distance of the last `client_information` after the end of each
-  wait and the close of the screen. A conformance test of mcrs uses the moments of this entry.
+  ended. It compares the view distance of the last `client_information` after the close of the
+  screen and at least 600 ms after the last change of each slider. A conformance test of mcrs
+  uses the moments of this entry.
 
 Provenance: `design`. Kind: semantic for the options file, wire for `client_information`.
 Confidence: high.
@@ -1715,8 +1769,110 @@ Confidence: high.
   change of the window size. Else it does not compare the option, the options file or the
   Fullscreen button after a change by the system with no change of the size.
 
+### MENU-DEV-013: A change of Improved Transparency does not build the chunk meshes again
+
+- **Rule:** MENU-VAL-012, step 4.
+- **Reference:** each change of Improved Transparency builds each chunk mesh again, as a change
+  of Smooth Lighting does (MENU-VAL-004, step 3).
+- **mcrs:** the world keeps its chunk meshes. The new value shows in the next frame.
+- **Reason:** the rules of `client-fog.md` that the option selects change only how the client
+  draws a frame. They do not change the content of a chunk mesh.
+- **Visible to the client:** yes. In vanilla, the chunk meshes build again over some frames
+  after a change. MENU-EXP-06, step 3, records what the player sees in those frames. In mcrs,
+  the world shows only the effect of the option.
+- **Test:** after a change of the option, a differential test compares the frames only after
+  each chunk mesh of the reference is built again.
+
+### MENU-DEV-014: Render Distance applies at once, and a smaller value goes to the server later
+
+- **Rule:** MENU-VAL-007, step 6; MENU-DIST-001, step 2, for a change of `o` by the slider; step
+  4 in the play state and the first postcondition of MENU-DIST-002; the last postcondition of
+  MENU-DIST-004. MENU-DEV-011, steps 7 and 11, use this entry.
+- **Reference:** the slider of Render Distance waits (WID-SLD-007, step 2). It stores `o` in the
+  first frame at least 600 ms after the last change, or at the close of the screen. The drawn world
+  and the render-distance fog change only then. The client sends `o` at a moment of
+  MENU-SAVE-001.
+- **mcrs:**
+  1. The slider of Render Distance applies at once (WID-SLD-007, step 1). Each change of the
+     slider changes `o`. Render Distance has no pending value.
+  2. The image of the frame in which `o` changes uses the new `r` of MENU-DIST-001. This
+     applies to the draw test, the far plane and the render-distance fog. No image with the old
+     `r` follows the change. The fog uses `r` through the drawn end `e` (`client-fog.md`,
+     CFOG-MCRS-004). Thus a smaller `r` lowers the fog end in that frame.
+  3. A drag causes one write of the options file, at the release of the left button
+     (MENU-DEV-011, step 5).
+  4. Let `s` be the view distance of the last `client_information` that the client sent, in the
+     configuration state or in the play state. In each frame of the play state, the view
+     distance to send `p` is:
+     - `o`, when `o` ≥ `s`;
+     - `o`, when `o` < `s` and at least 600 ms passed since the last change of `o`;
+     - `s` in each other case.
+  5. The field "view distance" of the client information of MENU-DEV-011, step 7, holds `p`.
+     Thus the client sends a value above `s` in the frame of its change. It sends a value below
+     `s` in the first frame at least 600 ms after the last change of `o`.
+  6. Each change of `o` starts the wait again. This applies also to a change to a value that is
+     still below `s`.
+  7. A value above `s` goes at once, also while a value below `s` waits. Then no value waits.
+     When `o` becomes equal to `s` again, nothing goes and no value waits.
+  8. The client sends at most one `client_information` in a frame. When the pointer passes over
+     several values in one frame, only the value of that frame goes.
+  9. The left button, a write that runs, "Done" and Escape do not change these moments. The close
+     of the screen does not send a value that waits.
+- **Postconditions in mcrs:**
+  - This example is on a server with `v` = 32. Before the drag, `o` = 12 and `s` = 12. The
+    player drags the handle from 12 to 16, then down to 10, and releases it. The pointer passes
+    over one value in each frame. `T` is the time of the change to 10.
+
+| Frame | Input | `o`, and `r` of the image | `client_information` | Options file |
+|-------|-------|---------------------------|----------------------|--------------|
+| 1 | press on the handle | 12 | none | none |
+| 2 to 5 | moves to 13, 14, 15, 16 | 13, 14, 15, 16 | one in each frame: 13, 14, 15, 16 | none |
+| 6 to 11 | moves to 15, 14, 13, 12, 11, 10 | 15 to 10 | none: each value is below `s` = 16 | none |
+| 12, at `T` + 200 ms | release | 10 | none | one write starts, with 10 |
+| first frame at or after `T` + 600 ms | none | 10 | one, with 10 | none |
+
+  - In that example, the server takes the last of the values 13 to 16 at each of its ticks
+    during the drag (MENU-DIST-003). It sends the new columns. At its next tick after the
+    `client_information` with 10, it sends `forget_level_chunk` for each column outside the view
+    of `d` = 10. From frame 11 to that tick, the client draws only `r` = 10 and keeps the far
+    columns.
+  - When the release comes later than `T` + 600 ms, the value 10 goes before the release.
+  - A drag from 12 to 16, then to 10 and then to 14 sends 13 to 16 as in the table. Then it
+    sends 14 in the first frame at least 600 ms after the change to 14. It sends no 10.
+  - A drag from 12 to 16, then to 10 and then to 18 sends 13 to 16 as in the table. Then it
+    sends 17 and 18 in the frames of their change. Nothing goes later.
+  - A drag from 12 to 10 and back to 12 sends nothing. It writes the options file one time, at
+    the release.
+- **Reason:** the owner decided this on 2026-11-14. The render-distance fog hides the far
+  columns at once, so the server can drop them later. A larger value must reach the server at
+  once, so that the columns load while the slider moves. A drag that goes down and up again
+  does not make the server drop and send the same columns again.
+- **Visible to the client:** yes.
+  - The drawn world and the fog follow the slider during a drag. In the reference, they change
+    600 ms after the last move, or at "Done".
+  - A server gets a value above `s` in the frame of the change, while the screen is open. A drag
+    can send many `client_information`, at most one in each frame. The reference sends one, at
+    a moment of MENU-SAVE-001.
+  - A server gets a value below `s` 600 ms after the last change of `o`, also after the close of
+    the screen.
+  - In a local world, the server takes the stored `o` at the end of each tick (MENU-DIST-004).
+    Thus each player of that world gets `set_chunk_cache_radius` for the values that `o` has at
+    the ends of the ticks of a drag. A smaller `o` lowers `V`, and thus the view of the host, at
+    the next tick. Section 10, item 1, asks if this is correct.
+- **Test:** a differential test does not compare the images or the packets during a drag of
+  Render Distance, and in the 600 ms after the last change of `o`. It compares the image and the
+  view distance of the last `client_information` after that time. A conformance test of mcrs
+  uses the moments of this entry and the example of the postconditions.
+
+Provenance: `design`. Kind: semantic for the image, wire for `client_information`. Confidence:
+high.
+
 ---
 
 ## 10. Unresolved
 
-No point of this document is open.
+1. A local world takes the stored value `o` of the host at each tick (MENU-DIST-004). With
+   MENU-DEV-014, a drag of Render Distance thus changes the server radius `v` of each player of
+   the world many times, and a smaller `o` lowers the view of the host at the next tick. Must the
+   server of a local world take a smaller `o` only after the wait of MENU-DEV-014, step 4? A
+   question to the owner. Until an answer, MENU-DIST-004 applies as it is.

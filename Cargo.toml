@@ -198,6 +198,7 @@ mcrs_minecraft_item = { path = "crates/mcrs_minecraft_item" }
 mcrs_minecraft_item_entity = { path = "crates/mcrs_minecraft_item_entity" }
 mcrs_minecraft_vanilla_item_entity = { path = "crates/mcrs_minecraft_vanilla_item_entity" }
 mcrs_minecraft_vanilla_block_place = { path = "crates/mcrs_minecraft_vanilla_block_place" }
+mcrs_minecraft_vanilla_inventory = { path = "crates/mcrs_minecraft_vanilla_inventory" }
 mcrs_minecraft_inventory_plan = { path = "crates/mcrs_minecraft_inventory_plan" }
 mcrs_minecraft_player_slots = { path = "crates/mcrs_minecraft_player_slots" }
 mcrs_minecraft_inventory_view = { path = "crates/mcrs_minecraft_inventory_view" }
@@ -212,6 +213,7 @@ mcrs_minecraft_client_entity = { path = "crates/mcrs_minecraft_client_entity" }
 mcrs_minecraft_client_gui = { path = "crates/mcrs_minecraft_client_gui" }
 mcrs_minecraft_client_options = { path = "crates/mcrs_minecraft_client_options" }
 mcrs_minecraft_client_widget = { path = "crates/mcrs_minecraft_client_widget" }
+mcrs_minecraft_fog = { path = "crates/mcrs_minecraft_fog" }
 mcrs_minecraft_mesh = { path = "crates/mcrs_minecraft_mesh" }
 mcrs_minecraft_model = { path = "crates/mcrs_minecraft_model" }
 mcrs_minecraft_model_file = { path = "crates/mcrs_minecraft_model_file" }
