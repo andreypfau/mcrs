@@ -88,6 +88,7 @@ mcrs_minecraft_command.workspace = true
 mcrs_minecraft_biome_file.workspace = true
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item_key.workspace = true
+mcrs_minecraft_item_entity.workspace = true
 mcrs_minecraft_game_rule.workspace = true
 mcrs_minecraft_dimension_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }

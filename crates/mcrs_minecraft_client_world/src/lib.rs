@@ -16,6 +16,7 @@ pub mod clock_sync;
 pub mod columns;
 pub mod game_mode;
 pub mod game_packets;
+pub mod inventory_packets;
 pub mod joined_game;
 pub mod local_player;
 pub mod movement_input;
