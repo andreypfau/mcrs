@@ -1,6 +1,6 @@
 use mcrs_minecraft_core::codec::{NonNegativeInt, PositiveInt, is_default};
 use mcrs_minecraft_entity::attribute_keys::Attribute;
-use mcrs_minecraft_item::AttributeOperation;
+use mcrs_minecraft_entity_attribute::ModifierOperation;
 use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registries::{Refs, Resolved, registry_value};
@@ -36,7 +36,7 @@ pub struct AttributeEntry<M: Refs = Resolved> {
     pub attribute: M::Id<Attribute>,
     pub id: ResourceLocationBuf,
     pub amount: f64,
-    pub operation: AttributeOperation,
+    pub operation: ModifierOperation,
 }
 
 #[registry_value]

@@ -1,8 +1,8 @@
-mod block_loot;
 mod entity_motion;
 mod falling_blocks;
 mod item_entities;
 pub mod operator_broadcast;
+mod vanilla_blocks;
 mod vanilla_brains;
 
 use bevy_app::{App, Plugin, PluginGroup, PluginGroupBuilder};
@@ -11,6 +11,7 @@ use mcrs_minecraft_command_engine::CommandPlugin;
 use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_command_world::WorldCommandsPlugin;
 use mcrs_minecraft_engine::persisted_registry::PersistedAppExt;
+use mcrs_minecraft_engine_attributes::EntityAttributesPlugin;
 use mcrs_minecraft_engine_brain::MobBrainPlugin;
 use mcrs_minecraft_engine_brain::MobColumn;
 use mcrs_minecraft_engine_item::ItemPersistencePlugin;
@@ -19,14 +20,15 @@ use mcrs_minecraft_engine_physics::EntityPhysicsPlugin;
 use mcrs_minecraft_engine_server::{DimensionWorldsPlugin, ServerCorePlugin, ServerNetworkPlugin};
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_entity::damage_type_tag_keys::PANIC_CAUSES;
+use mcrs_minecraft_vanilla_attributes::{CreativeRangePlugin, SprintAttributePlugin};
 use mcrs_minecraft_vanilla_block_place::BlockPlacePlugin;
 use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 
-pub use block_loot::{LootBlocks, VanillaBlockLootPlugin};
 pub use falling_blocks::VanillaFallingBlockPlugin;
 pub use item_entities::VanillaItemEntityPlugin;
 use mcrs_minecraft_vanilla_worldgen::{WorldGenPlugin, WorldgenRegistriesPlugin};
+pub use vanilla_blocks::{VanillaBlocks, VanillaBlocksPlugin};
 
 /// The vanilla server: the engine's server plugins with every vanilla member, each one a
 /// member that can be disabled or replaced through [`PluginGroup::build`]. A member that needs
@@ -81,9 +83,12 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(self.worlds)
             .add(VanillaChatPlugin)
             .add(VanillaEntityPhysicsPlugin)
+            .add(VanillaEntityAttributesPlugin)
+            .add(VanillaSprintAttributePlugin)
+            .add(VanillaCreativeRangePlugin)
             .add(VanillaItemEntityPlugin)
             .add(VanillaFallingBlockPlugin)
-            .add(VanillaBlockLootPlugin)
+            .add(VanillaBlocksPlugin)
             .add(VanillaMobBrainPlugin)
             .add(VanillaItemPlugin)
             .add(VanillaBlockPlacePlugin)
@@ -100,6 +105,35 @@ impl Plugin for VanillaEntityPhysicsPlugin {
     fn build(&self, app: &mut App) {
         app.add_dimension_plugin(EntityPhysicsPlugin::<MobColumn>::default());
         app.add_dimension_plugin(MobReplicationPlugin::<MobColumn>::default());
+    }
+}
+
+/// The attribute instances of the players and the mob rows in every dimension world.
+pub struct VanillaEntityAttributesPlugin;
+
+impl Plugin for VanillaEntityAttributesPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_dimension_plugin(EntityAttributesPlugin::<MobColumn>::default());
+    }
+}
+
+/// The modifier of the sprint state on `movement_speed` in every dimension world. It edits the
+/// instances of [`VanillaEntityAttributesPlugin`].
+pub struct VanillaSprintAttributePlugin;
+
+impl Plugin for VanillaSprintAttributePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_dimension_plugin(SprintAttributePlugin);
+    }
+}
+
+/// The range modifiers of creative mode in every dimension world. It edits the instances of
+/// [`VanillaEntityAttributesPlugin`].
+pub struct VanillaCreativeRangePlugin;
+
+impl Plugin for VanillaCreativeRangePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_dimension_plugin(CreativeRangePlugin);
     }
 }
 

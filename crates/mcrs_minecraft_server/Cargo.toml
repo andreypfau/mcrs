@@ -16,6 +16,7 @@ mcrs_minecraft_command_engine.workspace = true
 mcrs_minecraft_command_vanilla.workspace = true
 mcrs_minecraft_command_world.workspace = true
 mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_attributes.workspace = true
 mcrs_minecraft_engine_brain.workspace = true
 mcrs_minecraft_engine_entity_motion.workspace = true
 mcrs_minecraft_engine_entity_motion_replication.workspace = true
@@ -33,11 +34,14 @@ mcrs_minecraft_item.workspace = true
 mcrs_minecraft_item_table = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_loot_table.workspace = true
+mcrs_minecraft_block_support = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_core.workspace = true
 mcrs_minecraft_physics.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_simulation.workspace = true
 mcrs_voxel.workspace = true
 mcrs_minecraft_text.workspace = true
+mcrs_minecraft_vanilla_attributes.workspace = true
 mcrs_minecraft_vanilla_block_place.workspace = true
 mcrs_minecraft_vanilla_falling_block.workspace = true
 mcrs_minecraft_vanilla_inventory.workspace = true
@@ -57,6 +61,7 @@ bevy_ecs = { workspace = true, features = ["multi_threaded"] }
 bevy_asset = { workspace = true, features = ["multi_threaded"] }
 
 [dev-dependencies]
+mcrs_minecraft_entity_attribute.workspace = true
 mcrs_minecraft_probe.workspace = true
 mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_lang.workspace = true

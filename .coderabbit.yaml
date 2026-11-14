@@ -11,3 +11,4 @@ reviews:
     - "!crates/*/src/*_keys.rs"
     - "!crates/mcrs_minecraft_keys/src/**"
     - "!crates/mcrs_minecraft_registry_catalog/src/**"
+    - "!assets/mcrs/block_definition/*.json"

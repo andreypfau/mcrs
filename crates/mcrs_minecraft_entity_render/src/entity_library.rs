@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::Range;
 
 use bytemuck::{Pod, Zeroable};
 use glam::Vec3;
@@ -57,7 +58,7 @@ pub struct VariantRecord {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TextureArray {
     pub side: u32,
-    /// RGBA pixels of each layer, `side` by `side`.
+    /// RGBA pixels of each layer, `side` by `side`, or empty for a transparent layer.
     pub layers: Vec<Vec<u8>>,
 }
 
@@ -132,6 +133,8 @@ pub struct EntityLibrary {
     pub arrays: Vec<TextureArray>,
     /// The variant of each texture identifier.
     pub textures: HashMap<String, u16>,
+    /// The variants whose texels a frame can write: the skin layers. They have no impostor.
+    pub skin_variants: Range<u16>,
     /// The diagnostics of the build.
     pub diagnostics: Vec<String>,
 }
@@ -416,8 +419,12 @@ fn rest_corners(geometry: &BakedGeometry) -> impl Iterator<Item = Vec3> + '_ {
     })
 }
 
-/// The image in the top left corner of a transparent square of `side`.
+/// The image in the top left corner of a transparent square of `side`, or no texels for an
+/// image with none.
 fn pad(image: &TextureImage, side: u32) -> Vec<u8> {
+    if image.rgba.is_empty() {
+        return Vec::new();
+    }
     let side = side as usize;
     let row = image.width as usize * 4;
     let mut out = vec![0; side * side * 4];

@@ -6,10 +6,9 @@ use serde::de::{self, MapAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+pub use super::placement_filter::{PlacementCondition, PlacementFilter, PlacementRule, Support};
 use crate::material::PushReaction;
 use crate::material::map::MapColor;
-use mcrs_minecraft_core::direction::Direction;
-use mcrs_minecraft_registries::TagEntry;
 use mcrs_minecraft_sound::BlockSoundSet;
 use mcrs_minecraft_value_provider::IntProvider;
 
@@ -493,28 +492,6 @@ impl Serialize for MapColor {
     }
 }
 
-/// The survival rule as data: the block stands when, for some condition, the
-/// neighbour on one of its `allowed_faces` is in `block_filter`. A face names
-/// the side of the neighbour the block is placed against, so `up` is the block
-/// below.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct PlacementFilter {
-    pub conditions: Vec<PlacementCondition>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct PlacementCondition {
-    #[serde(default = "every_face")]
-    pub allowed_faces: Vec<Direction>,
-    pub block_filter: Vec<TagEntry>,
-}
-
-fn every_face() -> Vec<Direction> {
-    Direction::all().to_vec()
-}
-
 macro_rules! components {
     ($($name:literal => $field:ident : $ty:ty),+ $(,)?) => {
         /// Every component the corpus may carry, in either the block-wide map,
@@ -602,6 +579,8 @@ components! {
     "minecraft:redstone_producer" => redstone_producer: RedstoneProducer,
     "minecraft:loot" => loot: ResourceLocationBuf,
     "minecraft:placement_filter" => placement_filter: PlacementFilter,
+    "minecraft:support" => support: Support,
+    "mcrs:solid" => solid: bool,
     "mcrs:experience_drop" => experience_drop: IntProvider,
     "mcrs:use_shape_for_light_occlusion" => use_shape_for_light_occlusion: bool,
     "mcrs:fluid_state" => fluid_state: FluidStateDef,
@@ -620,6 +599,8 @@ pub const OPTIONAL_COMPONENTS: &[&str] = &[
     "mcrs:experience_drop",
     "minecraft:loot",
     "minecraft:placement_filter",
+    "minecraft:support",
+    "mcrs:solid",
     "minecraft:replaceable",
     "minecraft:flammable",
     "minecraft:block_entity",

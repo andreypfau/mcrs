@@ -1,0 +1,16 @@
+# The entries of update_attributes for the own player with slowness and the sprint modifier.
+# Experiment A5 of docs/spec/attributes.md: ATR-NET-002, ATR-NET-003. The tracking player of A5
+# needs a second client; the recorder accepts one client.
+experiment A5
+arena -16 98 -16 48 110 16
+
+step slowness_sprint
+instruction After Go, hold Ctrl and W for 1 second, then release both.
+input 61 forward,sprint
+input 81 none
+fill -16 99 -16 48 99 16 minecraft:stone
+run gamemode survival @a
+run effect clear @a
+start 0.5 100 0.5 -90 0
+at 50 effect give @a minecraft:slowness infinite 0 true
+ticks 120

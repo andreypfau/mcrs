@@ -16,6 +16,7 @@ use crate::delta_base::all_or_nothing;
 use crate::mob_bundle::{Entries, LivingEntries};
 use crate::mob_state::MobState;
 use crate::move_choice::{Due, MOVED, MoveChoice, POSITION_REFRESH, Resync, UPDATES_PER_SYNC};
+use crate::subject_attributes::SubjectAttributes;
 use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_registries::Wire;
 
@@ -156,8 +157,16 @@ impl MobTracker {
     }
 
     /// Runs the tracker tick of `tick` and appends the packets of its update, if it is one, to
-    /// `bytes`. The tracker and `bytes` stay as they are when an encoding fails.
-    pub(crate) fn tick(&mut self, id: VarInt, tick: u64, bytes: &mut BytesMut) -> Result<()> {
+    /// `bytes`. An update sends the instances of `attributes` that changed after the last one
+    /// (ATR-NET-003); a change of an instance alone does not make an update. The tracker,
+    /// `attributes` and `bytes` stay as they are when an encoding fails.
+    pub(crate) fn tick(
+        &mut self,
+        id: VarInt,
+        tick: u64,
+        attributes: &mut SubjectAttributes,
+        bytes: &mut BytesMut,
+    ) -> Result<()> {
         let interval = u64::from(self.kind.update_interval.max(1));
         let start = if self.latest.bounced && !self.kind.is_living() {
             let count = tick.wrapping_sub(self.start);
@@ -170,8 +179,9 @@ impl MobTracker {
         let dirty = self.dirty();
         if count.is_multiple_of(interval) || dirty {
             let (sent, since_sync) = (self.sent, self.since_sync);
-            if let Err(error) = all_or_nothing(bytes, |bytes| self.update(id, count, dirty, bytes))
-            {
+            if let Err(error) = all_or_nothing(bytes, |bytes| {
+                self.update(id, count, dirty, attributes, bytes)
+            }) {
                 self.sent = sent;
                 self.since_sync = since_sync;
                 return Err(error);
@@ -179,6 +189,7 @@ impl MobTracker {
             if dirty {
                 self.sent_entries = self.entries.clone();
             }
+            attributes.mark_sent();
         }
         self.start = start;
         self.latest.bounced = false;
@@ -188,8 +199,16 @@ impl MobTracker {
     }
 
     /// Appends the packets of an update and moves the sent motion. The caller moves the sent
-    /// entries, so that an update without a dirty entry copies none of them.
-    fn update(&mut self, id: VarInt, count: u64, dirty: bool, bytes: &mut BytesMut) -> Result<()> {
+    /// entries and marks `attributes` sent, so that an update without a dirty entry copies none of
+    /// them.
+    fn update(
+        &mut self,
+        id: VarInt,
+        count: u64,
+        dirty: bool,
+        attributes: &SubjectAttributes,
+        bytes: &mut BytesMut,
+    ) -> Result<()> {
         let state = self.latest;
         let change = (state.velocity - self.sent.velocity).length_squared();
         let velocity_changed =
@@ -223,6 +242,7 @@ impl MobTracker {
                 },
             )?;
         }
+        attributes.write_unsent(id, bytes)?;
         let head_yaw = ByteAngle::from_degrees(state.head_yaw);
         if head_yaw != self.sent.head_yaw {
             write_record(
@@ -289,9 +309,15 @@ impl MobTracker {
     }
 
     /// Appends the state that the viewers last received, as absolute values: the position base,
-    /// the velocity, the head yaw and the entity data. A client that missed updates holds the
-    /// same state as every other viewer after it, and the next relative move fits its base.
-    pub(crate) fn resend(&self, id: VarInt, bytes: &mut BytesMut) -> Result<()> {
+    /// the velocity, the head yaw, the entity data and the instances of `attributes`. A client
+    /// that missed updates holds the same state as every other viewer after it, and the next
+    /// relative move fits its base.
+    pub(crate) fn resend(
+        &self,
+        id: VarInt,
+        attributes: &SubjectAttributes,
+        bytes: &mut BytesMut,
+    ) -> Result<()> {
         let sent = &self.sent;
         all_or_nothing(bytes, |bytes| {
             write_record(
@@ -328,7 +354,8 @@ impl MobTracker {
                     entity_id: id,
                     metadata: Metadata(self.sent_entries.all()),
                 },
-            )
+            )?;
+            attributes.write_all(id, bytes)
         })
     }
 
@@ -488,7 +515,9 @@ mod tests {
         for (tick, state) in (0..).zip(&states) {
             tracker.record(*state);
             let mut out = BytesMut::new();
-            tracker.tick(ID, tick, &mut out).unwrap();
+            tracker
+                .tick(ID, tick, &mut SubjectAttributes::default(), &mut out)
+                .unwrap();
             if !out.is_empty() {
                 updates.push((tick, out.freeze()));
             }
@@ -584,7 +613,9 @@ mod tests {
         for (tick, state) in (0..).zip(states) {
             tracker.record(*state);
             let mut out = BytesMut::new();
-            tracker.tick(ID, tick, &mut out).unwrap();
+            tracker
+                .tick(ID, tick, &mut SubjectAttributes::default(), &mut out)
+                .unwrap();
             if !out.is_empty() {
                 updates.push((tick, out.freeze()));
             }
@@ -870,7 +901,14 @@ mod tests {
             ..MobState::default()
         };
         let mut tracker = MobTracker::new(spawn, Entries::custom(&[]), &EntityTypeData::ITEM, 0);
-        tracker.tick(ID, 0, &mut BytesMut::new()).unwrap();
+        tracker
+            .tick(
+                ID,
+                0,
+                &mut SubjectAttributes::default(),
+                &mut BytesMut::new(),
+            )
+            .unwrap();
         tracker.record(MobState {
             position: DVec3::new(0.5, -41.0, 4.5),
             bounced: true,
@@ -883,7 +921,7 @@ mod tests {
         let before = tracker.clone();
         let mut out = BytesMut::new();
 
-        let result = tracker.tick(ID, 5, &mut out);
+        let result = tracker.tick(ID, 5, &mut SubjectAttributes::default(), &mut out);
 
         assert!(
             result.is_err(),
@@ -910,11 +948,15 @@ mod tests {
         };
         let mut tracker = MobTracker::new(state, Entries::Item(stack(3)), &EntityTypeData::ITEM, 0);
         let mut out = BytesMut::new();
-        tracker.tick(ID, 0, &mut out).unwrap();
+        tracker
+            .tick(ID, 0, &mut SubjectAttributes::default(), &mut out)
+            .unwrap();
         out.clear();
 
         tracker.record_stack(stack(5));
-        tracker.tick(ID, 1, &mut out).unwrap();
+        tracker
+            .tick(ID, 1, &mut SubjectAttributes::default(), &mut out)
+            .unwrap();
 
         let expected = record(&ClientboundSetEntityData {
             entity_id: ID,
@@ -930,7 +972,9 @@ mod tests {
             "between two periodic updates, the change sends only the new stack"
         );
         let mut out = BytesMut::new();
-        tracker.tick(ID, 2, &mut out).unwrap();
+        tracker
+            .tick(ID, 2, &mut SubjectAttributes::default(), &mut out)
+            .unwrap();
         assert!(out.is_empty(), "the stack goes once");
     }
 }

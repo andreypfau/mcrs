@@ -305,7 +305,6 @@ fn grv_002_slow_falling_reads_the_vertical_velocity_after_the_move() {
 
 #[test]
 fn inv_011_horizontal_speed_decays_by_the_ground_factor() {
-    assert_eq!(f64::from(0.6_f32 * 0.91_f32), 0.546000063419342);
     let mut fixture = TestFixture::new();
     fixture.world.fill(
         BlockPos::new(-64, 0, -64),
@@ -334,7 +333,7 @@ fn inv_011_horizontal_speed_decays_by_the_ground_factor() {
                 if start.abs() < 0.003 {
                     assert_eq!(after, 0.0);
                 } else {
-                    assert_eq!(after, start * 0.546000063419342);
+                    assert_eq!(after, start * f64::from(0.6_f32 * 0.91_f32));
                 }
             }
         }

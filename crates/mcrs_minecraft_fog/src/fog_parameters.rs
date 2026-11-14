@@ -33,8 +33,7 @@ impl FogParameters {
     #[must_use]
     pub fn from_inputs(inputs: &FogInputs) -> Self {
         let render_end = BLOCKS_PER_CHUNK * f32::from(inputs.render_distance);
-        let render_fog_end = inputs.render_fog_end;
-        let render_length = (render_fog_end / 10.0).clamp(4.0, 64.0);
+        let render_length = (render_end / 10.0).clamp(4.0, 64.0);
         let cloud_end = BLOCKS_PER_CHUNK * f32::from(inputs.cloud_distance);
         Self {
             color: color(inputs),
@@ -47,8 +46,8 @@ impl FogParameters {
                 }
             },
             render_distance: FogRamp {
-                start: render_fog_end - render_length,
-                end: render_fog_end,
+                start: render_end - render_length,
+                end: render_end,
             },
             sky_end: render_end.min(inputs.sky_fog_end_distance),
             cloud_end: cloud_end.min(inputs.cloud_fog_end_distance),

@@ -8,11 +8,16 @@ use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_engine::bus::{PacketPayload, to};
 use mcrs_minecraft_engine::muxer::bridge::dispatch_encode;
 use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
+use mcrs_minecraft_engine_attributes::{
+    AttributeEdit, AttributeTarget, InstanceEdit, RowAttributes,
+};
 use mcrs_minecraft_engine_brain::EntityRows;
 use mcrs_minecraft_engine_physics::Mobs;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity::{InstanceModifier, ModifierKind, Pose};
+use mcrs_minecraft_entity_attribute::ModifierOperation;
 use mcrs_minecraft_lang::Language;
 use mcrs_minecraft_network::metrics::BridgeTelemetry;
 use mcrs_minecraft_network::{OutboundReceiver, ServerSideConnection};
@@ -21,12 +26,12 @@ use mcrs_minecraft_protocol::packets::table::game_clientbound::ClientboundGamePa
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, Decode, VarInt};
 use mcrs_minecraft_protocol_game::clientbound::{PositionPath, VecDelta};
-use mcrs_minecraft_protocol_game::entity::{MetaDataValue, Pose};
+use mcrs_minecraft_protocol_game::entity::MetaDataValue;
 use mcrs_minecraft_protocol_game::position_delta;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundChatCommand;
 use mcrs_minecraft_protocol_game::table::game_clientbound::{self, ClientboundGamePacket};
 use mcrs_minecraft_protocol_game::text::{Text, TextContent, TranslateArg};
-use mcrs_minecraft_server::VanillaEntityPhysicsPlugin;
+use mcrs_minecraft_server::{VanillaEntityAttributesPlugin, VanillaEntityPhysicsPlugin};
 
 use crate::commands::{chats, load_stone_column};
 use crate::host_app::{self, PlayServer};
@@ -50,7 +55,7 @@ enum Seen {
     },
     Attributes {
         id: i32,
-        speed: Option<f64>,
+        entries: Vec<SeenEntry>,
     },
     Move {
         id: i32,
@@ -76,6 +81,14 @@ enum Seen {
     Remove {
         ids: Vec<i32>,
     },
+}
+
+/// An entry of an `update_attributes`, with the identifiers of its modifiers.
+#[derive(Debug, PartialEq)]
+struct SeenEntry {
+    attribute: Attribute,
+    base: f64,
+    modifiers: Vec<String>,
 }
 
 struct Viewer {
@@ -183,11 +196,19 @@ impl Viewer {
             }
             ClientboundGamePacket::ClientboundUpdateAttributes(update) => Seen::Attributes {
                 id: update.entity_id.0,
-                speed: update
+                entries: update
                     .attributes
                     .iter()
-                    .find(|attribute| attribute.attribute == Attribute::MovementSpeed)
-                    .map(|attribute| attribute.base),
+                    .map(|entry| SeenEntry {
+                        attribute: entry.attribute,
+                        base: entry.base,
+                        modifiers: entry
+                            .modifiers
+                            .iter()
+                            .map(|modifier| modifier.id.to_string())
+                            .collect(),
+                    })
+                    .collect(),
             },
             ClientboundGamePacket::ClientboundMoveEntityPos(step) => {
                 self.step(step.entity_id.0, &step.delta);
@@ -254,8 +275,8 @@ fn pig_rows(server: &mut PlayServer) -> Vec<DVec3> {
         .collect()
 }
 
-/// TRK-SPN-001, TRK-SPN-002, TRK-DATA-006, TRK-SUM-004, TRK-SUM-006: the bundle of a summoned pig
-/// is the add, its health and its speed between two delimiters, at the centre of the block;
+/// TRK-SPN-001, TRK-SPN-002, TRK-DATA-004, TRK-DATA-006, TRK-SUM-004, TRK-SUM-006: the bundle of a
+/// summoned pig is the add and its health between two delimiters, at the centre of the block;
 /// the pig falls onto the stone, and the client ends where the row ends.
 #[test]
 fn trk_spn_001_a_summoned_pig_reaches_a_viewer_as_one_bundle_and_falls_onto_the_floor() {
@@ -285,7 +306,7 @@ fn trk_spn_001_a_summoned_pig_reaches_a_viewer_as_one_bundle_and_falls_onto_the_
     let id = row_id.0 as i32;
     let uuid = Uuid::from_u128(mob.uuid);
     assert_eq!(
-        viewer.seen.get(..5),
+        viewer.seen.get(..4),
         Some(
             &[
                 Seen::Delimiter,
@@ -298,10 +319,6 @@ fn trk_spn_001_a_summoned_pig_reaches_a_viewer_as_one_bundle_and_falls_onto_the_
                 Seen::Data {
                     id,
                     health: Some(10.0)
-                },
-                Seen::Attributes {
-                    id,
-                    speed: Some(0.25)
                 },
                 Seen::Delimiter,
             ][..]
@@ -326,6 +343,86 @@ fn trk_spn_001_a_summoned_pig_reaches_a_viewer_as_one_bundle_and_falls_onto_the_
         viewer.positions,
         [(id, rows[0])],
         "the client shows the row"
+    );
+}
+
+/// ATR-NET-003: a modifier on `movement_speed` of a tracked pig reaches its viewer in one entry of
+/// the next update and only there; a change of the non-syncable `follow_range` sends nothing.
+#[test]
+fn atr_net_003_a_changed_instance_of_a_tracked_mob_reaches_its_viewer_once() {
+    let mut app = host_app::make_host_app();
+    app.add_plugins(CommandPlugin::<VanillaCommands>::new());
+    app.add_plugins(VanillaCommandsPlugin);
+    app.add_plugins((VanillaEntityPhysicsPlugin, VanillaEntityAttributesPlugin));
+    let mut server = PlayServer::start(app, &[(OPERATOR, 2)], 0);
+    load_stone_column(&mut server);
+    let (operator, _) = server.join(OPERATOR, "op");
+    let mut viewer = Viewer::new();
+    viewer.receive(server.ticks(operator, 2));
+    run(
+        &mut server,
+        operator,
+        &mut viewer,
+        "summon minecraft:pig 4 64 4",
+    );
+    viewer.receive(server.ticks(operator, 5));
+    let row = *server.world().resource::<Mobs>().0.keys().next().unwrap();
+    let id = row.0 as i32;
+    let attribute_updates = |viewer: &mut Viewer| -> Vec<Seen> {
+        viewer
+            .seen
+            .drain(..)
+            .filter(|seen| matches!(seen, Seen::Attributes { .. }))
+            .collect()
+    };
+    let slow = |attribute| AttributeEdit {
+        target: AttributeTarget::Row(row),
+        attribute,
+        edit: InstanceEdit::Put(InstanceModifier::new(
+            "test:slow".parse().unwrap(),
+            -0.5,
+            ModifierOperation::AddMultipliedTotal,
+            ModifierKind::Permanent,
+        )),
+    };
+    assert_eq!(
+        attribute_updates(&mut viewer),
+        [],
+        "a pig of its type has no entry"
+    );
+
+    server.world().write_message(slow(Attribute::MovementSpeed));
+    viewer.receive(server.ticks(operator, 3));
+    assert_eq!(
+        attribute_updates(&mut viewer),
+        [Seen::Attributes {
+            id,
+            entries: vec![SeenEntry {
+                attribute: Attribute::MovementSpeed,
+                base: 0.25,
+                modifiers: vec!["test:slow".into()],
+            }],
+        }],
+        "the next update holds the entry"
+    );
+    viewer.receive(server.ticks(operator, 10));
+    assert_eq!(attribute_updates(&mut viewer), [], "the entry goes once");
+
+    server.world().write_message(slow(Attribute::FollowRange));
+    viewer.receive(server.ticks(operator, 10));
+    assert_eq!(
+        server
+            .world()
+            .resource::<RowAttributes>()
+            .get(row)
+            .map(|set| set.instances().count()),
+        Some(2),
+        "the edit of follow_range applies"
+    );
+    assert_eq!(
+        attribute_updates(&mut viewer),
+        [],
+        "follow_range is not syncable"
     );
 }
 

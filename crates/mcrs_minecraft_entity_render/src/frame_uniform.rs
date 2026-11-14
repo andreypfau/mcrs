@@ -3,6 +3,8 @@ use mcrs_minecraft_core::CardinalLight;
 use mcrs_minecraft_mesh::face_shade;
 use mcrs_minecraft_render::{FrameView, SIDE_PLANES};
 
+use crate::entity_views::EntityViews;
+
 /// The uniform of the entity passes in one frame. `shaders/common.wgsl` declares the same
 /// layout as `Frame`.
 #[repr(C)]
@@ -31,16 +33,21 @@ pub struct FrameUniform {
     pub bone_capacity: u32,
     pub visible_capacity: u32,
     pub face_capacity: u32,
+    /// The bit of the view that the frame draws: a slot whose [`crate::EntityViews`] lacks it
+    /// is not visible.
+    pub view: u32,
+    /// Pads the struct to the 16-byte size of a WGSL uniform.
+    pub spare: [u32; 3],
 }
 
 /// The height threshold of a full rig before any feedback, in pixels.
 pub const FULL_RIG_HEIGHT: f32 = 12.0;
 
-const _: () = assert!(size_of::<FrameUniform>() == 224);
+const _: () = assert!(size_of::<FrameUniform>() == 240);
 
 impl FrameUniform {
-    /// The camera fields of `view`, with the tick, the partial tick and the cardinal light of the
-    /// dimension.
+    /// The camera fields of `view` in the world view, with the tick, the partial tick and the
+    /// cardinal light of the dimension.
     #[must_use]
     pub fn new(view: &FrameView, tick: u32, partial_tick: f32, light: CardinalLight) -> Self {
         Self {
@@ -54,6 +61,7 @@ impl FrameUniform {
             projection_scale: view.focal_y * view.viewport.y * 0.5,
             height_threshold: FULL_RIG_HEIGHT,
             shade_table: face_shade::shader_index(light),
+            view: EntityViews::WORLD.frame_bit(),
             ..Self::default()
         }
     }

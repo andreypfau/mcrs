@@ -66,6 +66,7 @@ snap = "1.1.1"
 thiserror = "2.0.17"
 unicode_names2 = { version = "3.1.0", default-features = false }
 tracing = "0.1.41"
+ureq = "3.4"
 uuid = "1.18.1"
 rand = "0.10.0-rc.5"
 indexmap = "2.12.0"
@@ -178,6 +179,7 @@ mcrs_minecraft_lang = { path = "crates/mcrs_minecraft_lang" }
 mcrs_minecraft_text_flatten = { path = "crates/mcrs_minecraft_text_flatten" }
 mcrs_minecraft_server_settings = { path = "crates/mcrs_minecraft_server_settings" }
 mcrs_minecraft_entity = { path = "crates/mcrs_minecraft_entity" }
+mcrs_minecraft_entity_attribute = { path = "crates/mcrs_minecraft_entity_attribute" }
 mcrs_minecraft_entity_model = { path = "crates/mcrs_minecraft_entity_model" }
 mcrs_minecraft_pack_file = { path = "crates/mcrs_minecraft_pack_file" }
 mcrs_minecraft_assets = { path = "crates/mcrs_minecraft_assets" }
@@ -187,11 +189,13 @@ mcrs_minecraft_engine_registries = { path = "crates/mcrs_minecraft_engine_regist
 mcrs_minecraft_environment = { path = "crates/mcrs_minecraft_environment" }
 mcrs_minecraft_block = { path = "crates/mcrs_minecraft_block" }
 mcrs_minecraft_block_break = { path = "crates/mcrs_minecraft_block_break" }
+mcrs_minecraft_block_support = { path = "crates/mcrs_minecraft_block_support" }
 mcrs_molang = { path = "crates/mcrs_molang" }
 mcrs_molang_wgsl = { path = "crates/mcrs_molang_wgsl" }
 mcrs_minecraft_entity_animation = { path = "crates/mcrs_minecraft_entity_animation" }
 mcrs_minecraft_render_controller = { path = "crates/mcrs_minecraft_render_controller" }
 mcrs_minecraft_entity_render = { path = "crates/mcrs_minecraft_entity_render" }
+mcrs_minecraft_entity_visual = { path = "crates/mcrs_minecraft_entity_visual" }
 mcrs_minecraft_biome = { path = "crates/mcrs_minecraft_biome" }
 mcrs_minecraft_dimension = { path = "crates/mcrs_minecraft_dimension" }
 mcrs_minecraft_dimension_environment = { path = "crates/mcrs_minecraft_dimension_environment" }
@@ -201,6 +205,7 @@ mcrs_minecraft_falling_block = { path = "crates/mcrs_minecraft_falling_block" }
 mcrs_minecraft_vanilla_item_entity = { path = "crates/mcrs_minecraft_vanilla_item_entity" }
 mcrs_minecraft_vanilla_falling_block = { path = "crates/mcrs_minecraft_vanilla_falling_block" }
 mcrs_minecraft_vanilla_block_place = { path = "crates/mcrs_minecraft_vanilla_block_place" }
+mcrs_minecraft_vanilla_attributes = { path = "crates/mcrs_minecraft_vanilla_attributes" }
 mcrs_minecraft_vanilla_inventory = { path = "crates/mcrs_minecraft_vanilla_inventory" }
 mcrs_minecraft_inventory_plan = { path = "crates/mcrs_minecraft_inventory_plan" }
 mcrs_minecraft_player_slots = { path = "crates/mcrs_minecraft_player_slots" }
@@ -209,6 +214,7 @@ mcrs_minecraft_inventory_click = { path = "crates/mcrs_minecraft_inventory_click
 mcrs_minecraft_item_stack = { path = "crates/mcrs_minecraft_item_stack" }
 mcrs_minecraft_item_table = { path = "crates/mcrs_minecraft_item_table" }
 mcrs_minecraft_engine_item = { path = "crates/mcrs_minecraft_engine_item" }
+mcrs_minecraft_engine_attributes = { path = "crates/mcrs_minecraft_engine_attributes" }
 mcrs_minecraft_server = { path = "crates/mcrs_minecraft_server" }
 mcrs_minecraft_client = { path = "crates/mcrs_minecraft_client", default-features = false }
 mcrs_minecraft_client_world = { path = "crates/mcrs_minecraft_client_world" }

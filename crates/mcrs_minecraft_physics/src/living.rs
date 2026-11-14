@@ -31,6 +31,11 @@ pub struct Living {
     pub death_time: Option<u8>,
 }
 
+const _: () = assert!(
+    size_of::<Living>() == 160,
+    "a mob row pays nothing for its attribute instances: they live in a side table"
+);
+
 /// The movement intent of a living entity in its own frame, as f32 values.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct MoveInput {

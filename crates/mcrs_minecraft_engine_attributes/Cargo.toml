@@ -1,0 +1,30 @@
+[package]
+name = "mcrs_minecraft_engine_attributes"
+description = "The attribute instances of the players and the mob rows of a dimension world: one edit message, one apply system and one message for each changed instance"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+# std: the row table is a hash map, and bevy_app
+[dependencies]
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+mcrs_minecraft_engine_physics.workspace = true
+mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_key.workspace = true
+mcrs_minecraft_entity_rows = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_physics.workspace = true
+mcrs_minecraft_resource.workspace = true
+rustc-hash.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+glam = { workspace = true, features = ["std"] }
+mcrs_minecraft_entity_attribute.workspace = true
+mcrs_minecraft_protocol_game.workspace = true

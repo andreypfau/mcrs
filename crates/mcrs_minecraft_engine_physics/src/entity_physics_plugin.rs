@@ -87,6 +87,11 @@ pub struct MobPublish;
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct EntityPass;
 
+/// The tile moves of the rows in `Project`: after it, each living row is in the tile of its
+/// position and [`RowStore::tile_of`] gives that tile.
+#[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct RowMoves;
+
 /// The tables of the kernel, from the block definitions and tags of the world.
 #[derive(Resource, Debug)]
 pub struct PhysicsTables(Tables);
@@ -166,7 +171,7 @@ impl<M: Send + Sync + 'static> Plugin for EntityPhysicsPlugin<M> {
         );
         app.add_systems(
             FixedUpdate,
-            (move_rows::<M>, end_mob_changes::<M>)
+            (move_rows::<M>.in_set(RowMoves), end_mob_changes::<M>)
                 .chain()
                 .in_set(TickSet::Project),
         );

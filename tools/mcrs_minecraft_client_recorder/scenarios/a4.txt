@@ -1,0 +1,19 @@
+# The entries of update_attributes for the own player after a base value change, an effect, a
+# death and the respawn. Experiment A4 of docs/spec/attributes.md: ATR-NET-005, PLD-RST-004.
+# The leave and the join of A4 need a client that joins again; the recorder cannot do that yet.
+experiment A4
+arena -16 98 -16 16 110 16
+
+step respawn
+instruction Release all keys. The console sets the attributes and kills the player; the client respawns at once.
+input 61 none
+fill -16 99 -16 16 99 16 minecraft:stone
+run gamemode survival @a
+run effect clear @a
+run gamerule immediate_respawn true
+start 0.5 100 0.5 -90 0
+at 65 attribute @p minecraft:max_health base set 30
+at 68 attribute @p minecraft:luck modifier add test:a 1 add_value
+at 70 effect give @a minecraft:speed infinite 0 true
+at 90 kill @a
+ticks 200

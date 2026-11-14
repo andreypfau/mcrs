@@ -1,6 +1,7 @@
 use std::io::Cursor;
 use std::num::NonZeroU8;
 
+use mcrs_minecraft_entity_attribute::ModifierOperation;
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_item_stack::AttributeId;
 use mcrs_minecraft_item_stack::AttributeModifier;
@@ -26,7 +27,6 @@ use mcrs_minecraft_item_stack::Lore;
 use mcrs_minecraft_item_stack::MaxDamage;
 use mcrs_minecraft_item_stack::MaxStackSize;
 use mcrs_minecraft_item_stack::ModifierDisplay;
-use mcrs_minecraft_item_stack::ModifierOperation;
 use mcrs_minecraft_item_stack::NameLookup;
 use mcrs_minecraft_item_stack::NameTable;
 use mcrs_minecraft_item_stack::PatchEntry;

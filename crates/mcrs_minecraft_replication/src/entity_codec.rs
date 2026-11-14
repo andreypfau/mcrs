@@ -11,6 +11,7 @@ use crate::player_input::PlayerInput;
 use crate::player_list::{Dispatch, Member, PlayerList, ProfileNeed};
 use crate::player_spawn::PlayerSpawn;
 use crate::replication_data::ReplicationData;
+use crate::subject_attributes::SubjectAttributes;
 use crate::wire_id::wire_id;
 use bytes::{Bytes, BytesMut};
 use glam::DVec3;
@@ -18,6 +19,7 @@ use mcrs_engine_muxer::{
     BlobKind, EntityEvent, EntityId, Hold, ReplicationCodec, SubjectEvent, SubjectRange, Tier,
     TileBlob, TileDelta, ViewerBytes, ViewerId,
 };
+use mcrs_minecraft_entity::AttributeBases;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_profile::Property;
@@ -53,6 +55,8 @@ pub struct EntityCodec {
     delivery: Delivery,
     dispatches: Vec<Dispatch>,
     mobs: MobTrackers,
+    /// The players whose attribute instances changed in the tick.
+    attributed: Vec<EntityId>,
 }
 
 #[derive(Debug)]
@@ -63,6 +67,7 @@ struct Subject {
     properties: Vec<Property>,
     motion: Motion,
     game_mode: GameMode,
+    attributes: SubjectAttributes,
 }
 
 impl Subject {
@@ -106,6 +111,10 @@ impl EntityCodec {
                 properties: spawn.properties.clone(),
                 motion: Motion::new(&spawn.pose, self.tick),
                 game_mode: spawn.game_mode,
+                attributes: SubjectAttributes::with_stored(
+                    AttributeBases::of(EntityType::Player),
+                    spawn.attributes.clone(),
+                ),
             },
         );
     }
@@ -175,6 +184,9 @@ impl EntityCodec {
                 EntityEvent::Data(ReplicationData::Mob(MobReport::Entries(entries))) => {
                     self.mobs.record_entries(subject, entries);
                 }
+                EntityEvent::Data(ReplicationData::Mob(MobReport::Attribute(attribute))) => {
+                    self.mobs.record_attribute(subject, attribute);
+                }
                 EntityEvent::Enter { .. } | EntityEvent::Despawn if self.mobs.contains(subject) => {
                     if matches!(event, EntityEvent::Despawn) {
                         self.mobs.despawn(subject, &mut self.holds);
@@ -193,6 +205,12 @@ impl EntityCodec {
                         subject,
                         packet: packet.clone(),
                     });
+                }
+                EntityEvent::Data(ReplicationData::Player(PlayerData::Attribute(attribute))) => {
+                    if let Some(state) = self.subjects.get_mut(&subject) {
+                        state.attributes.record(attribute);
+                        self.attributed.push(subject);
+                    }
                 }
                 EntityEvent::Data(ReplicationData::Player(PlayerData::Left(packet))) => {
                     for &viewer in self.holds.holders(subject) {
@@ -296,9 +314,46 @@ impl EntityCodec {
         chunks.push(delimiter.clone());
         chunks.extend(profile);
         chunks.push(add_player);
+        let mut attributes = BytesMut::new();
+        state
+            .attributes
+            .write_spawn(wire_id(subject), &mut attributes)?;
+        if !attributes.is_empty() {
+            chunks.push(attributes.freeze());
+        }
         chunks.push(delimiter);
         self.holds.insert(viewer, subject);
         Ok(())
+    }
+
+    /// Owes each viewer that holds a player the instances of the player that changed in the tick,
+    /// after its moves (TRK-UPD-002).
+    fn send_attributes(&mut self) {
+        let Self {
+            attributed,
+            subjects,
+            holds,
+            delivery,
+            ..
+        } = self;
+        for subject in attributed.drain(..) {
+            let Some(state) = subjects.get_mut(&subject) else {
+                continue;
+            };
+            let mut bytes = BytesMut::new();
+            if let Err(error) = state.attributes.write_unsent(wire_id(subject), &mut bytes) {
+                tracing::warn!("the attributes of a player did not encode: {error:#}");
+                continue;
+            }
+            state.attributes.mark_sent();
+            if bytes.is_empty() {
+                continue;
+            }
+            let packet = bytes.freeze();
+            for &viewer in holds.holders(subject) {
+                delivery.owe(viewer, packet.clone());
+            }
+        }
     }
 
     fn update_list(&mut self) -> Result<()> {
@@ -439,6 +494,7 @@ impl ReplicationCodec for EntityCodec {
                 self.delivery.owe(viewer, packet.clone());
             }
         }
+        self.send_attributes();
         self.mobs.finish_tick(tick, &self.holds, &mut self.delivery);
         if let Err(error) = self.update_list() {
             tracing::warn!("the player list did not encode: {error:#}");

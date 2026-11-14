@@ -9,11 +9,12 @@ use mcrs_minecraft_assets::packs::PackLayers;
 use mcrs_minecraft_dimension_environment::environment::WeatherLevel;
 use mcrs_minecraft_environment::{AdvanceTime, WorldClocks};
 use mcrs_minecraft_network::browser::target_from_query;
-use mcrs_minecraft_network::client::ClientNetworkPlugin;
+use mcrs_minecraft_network::client::{ClientNetworkPlugin, offline_player_uuid};
 use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::config::{Knobs, TerrainLimits};
 use crate::{ClientPlugins, ClientTerrainPlugin, vanilla};
+use mcrs_minecraft_client_gui::inventory_figure::inventory_figure;
 use mcrs_minecraft_client_world::registries::SessionSet;
 use mcrs_minecraft_client_world::{local_player, player};
 
@@ -164,6 +165,10 @@ pub fn run() {
     }
     let (yaw, pitch) = knobs.look_override().unwrap_or((0.0, 0.0));
     player::spawn_player(app.world_mut(), SPAWN, yaw, pitch);
+    let local_uuid = offline_player_uuid(&knobs.username());
+    if let Some(figure) = inventory_figure(local_uuid) {
+        app.world_mut().spawn(figure);
+    }
     app.run();
 }
 

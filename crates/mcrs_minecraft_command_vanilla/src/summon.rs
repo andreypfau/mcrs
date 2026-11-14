@@ -95,6 +95,18 @@ enum Summon {
     Item(SummonedItem),
 }
 
+/// The type data of `entity_type` when this server makes mobs of it (TRK-TYPE-002).
+fn server_mob(entity_type: EntityType) -> Option<&'static EntityTypeData> {
+    match entity_type {
+        EntityType::Pig
+        | EntityType::Cow
+        | EntityType::Sheep
+        | EntityType::Chicken
+        | EntityType::ZombifiedPiglin => EntityTypeData::of(entity_type),
+        _ => None,
+    }
+}
+
 /// The summon of `entity_type` with the keys of `nbt`, and the UUID that the keys give. `None`
 /// when the server makes no such entity or a key does not load.
 fn read_summon(
@@ -107,7 +119,7 @@ fn read_summon(
         let uuid = item.uuid;
         return Some((Summon::Item(item), uuid));
     }
-    let kind = EntityTypeData::server_mob(entity_type)?;
+    let kind = server_mob(entity_type)?;
     Some(match nbt {
         None => (
             Summon::Mob {

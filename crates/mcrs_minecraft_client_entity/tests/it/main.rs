@@ -3,6 +3,8 @@
     clippy::panic,
     reason = "a test reports a failure by panicking"
 )]
+mod attributes;
+mod entity_light;
 mod packets;
 mod pig_walk;
 mod replay;
@@ -10,11 +12,11 @@ mod replay;
 use bevy_app::{App, FixedUpdate};
 use bevy_ecs::entity::Entity;
 use glam::DVec3;
-use mcrs_minecraft_client_entity::{
-    ClientEntityPlugin, NetworkEntities, RenderInputs, RenderInputsQuery, ServerTicking,
-};
+use mcrs_minecraft_client_entity::{ClientEntityPlugin, NetworkEntities};
 use mcrs_minecraft_client_world::game_packets::GAME_CLIENTBOUND;
+use mcrs_minecraft_client_world::joined_game::JoinedGame;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity_visual::{RenderInputs, RenderInputsQuery, ServerTicking};
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::metrics::PacketDispatcher;
 use mcrs_minecraft_protocol::{Encode, Packet, VarInt};
@@ -51,6 +53,14 @@ impl Client {
             data.into(),
         );
         self.app.world_mut().flush();
+    }
+
+    /// Marks the connection as joined, as the login does in the full client.
+    pub fn join(&mut self, joined: JoinedGame) {
+        self.app
+            .world_mut()
+            .entity_mut(self.connection)
+            .insert(joined);
     }
 
     pub fn tick(&mut self) {

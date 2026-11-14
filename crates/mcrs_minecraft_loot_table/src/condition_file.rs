@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
-use mcrs_minecraft_resource::ResourceLocationBuf;
+use mcrs_minecraft_loot::condition::LootCondition;
+use mcrs_minecraft_resource::{ResourceLocationBuf, TagKeyBuf};
 use serde::Deserialize;
 use serde::de::IgnoredAny;
 
@@ -22,6 +23,28 @@ impl mcrs_minecraft_resource::RegistryValue for ConditionFile {
 
 mcrs_minecraft_registries::resolve_as_is!(ConditionFile);
 
+/// The terms of `any_of` and `all_of`: a `#` tag of predicates, or conditions.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum Terms {
+    Tag(PredicateTag),
+    List(OneOrMany<ConditionFile>),
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(try_from = "String")]
+pub struct PredicateTag(pub TagKeyBuf<LootCondition>);
+
+impl TryFrom<String> for PredicateTag {
+    type Error = String;
+
+    fn try_from(text: String) -> Result<Self, String> {
+        let tag = text.strip_prefix('#').ok_or("not a #tag")?;
+        let tag = ResourceLocationBuf::read(tag).map_err(|error| error.to_string())?;
+        Ok(PredicateTag(TagKeyBuf::from_location(tag)))
+    }
+}
+
 /// The fields a part of a predicate does not name.
 pub type OtherFields = BTreeMap<String, IgnoredAny>;
 
@@ -31,9 +54,9 @@ pub enum TypedCondition {
     #[serde(rename = "minecraft:inverted", alias = "inverted")]
     Inverted { term: ConditionFile },
     #[serde(rename = "minecraft:any_of", alias = "any_of")]
-    AnyOf { terms: OneOrMany<ConditionFile> },
+    AnyOf { terms: Terms },
     #[serde(rename = "minecraft:all_of", alias = "all_of")]
-    AllOf { terms: OneOrMany<ConditionFile> },
+    AllOf { terms: Terms },
     #[serde(rename = "minecraft:survives_explosion", alias = "survives_explosion")]
     SurvivesExplosion,
     #[serde(rename = "minecraft:random_chance", alias = "random_chance")]

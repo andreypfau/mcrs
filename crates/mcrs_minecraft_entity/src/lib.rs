@@ -1,11 +1,20 @@
 pub mod attribute;
-mod base_attributes;
+mod attribute_base_table;
+mod attribute_bases;
+mod attribute_error;
+mod attribute_instance;
+mod attribute_set;
 mod client_motion;
 pub mod damage_type;
 mod entity_type_data;
+mod instance_change;
+mod instance_modifier;
 mod life;
 mod mob_data;
+mod modifier_kind;
+mod pose;
 mod precise_sync;
+mod sprint_modifier;
 mod variant_indices;
 #[rustfmt::skip]
 pub mod attribute_keys;
@@ -62,12 +71,20 @@ pub mod villager;
 mod wire;
 
 pub use attribute::AttributeDefinition;
-pub use base_attributes::BaseAttributes;
+pub use attribute_bases::AttributeBases;
+pub use attribute_error::AttributeError;
+pub use attribute_instance::AttributeInstance;
+pub use attribute_set::AttributeSet;
 pub use client_motion::ClientMotion;
 pub use entity_type_data::EntityTypeData;
+pub use instance_change::InstanceChange;
+pub use instance_modifier::InstanceModifier;
 pub use life::Life;
 pub use mob_data::MobData;
+pub use modifier_kind::ModifierKind;
+pub use pose::Pose;
 pub use precise_sync::PreciseSync;
+pub use sprint_modifier::SPRINT_MODIFIER;
 pub use variant_indices::VariantIndices;
 
 pub const PLAYER_WIDTH: f64 = 0.6;

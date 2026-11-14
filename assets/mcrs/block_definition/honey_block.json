@@ -33,6 +33,11 @@
       },
       "minecraft:destructible_by_mining": true,
       "minecraft:loot": "minecraft:blocks/honey_block",
+      "minecraft:support": {
+        "boxes": [
+          { "origin": [-8, 0, -8], "size": [16, 16, 16] }
+        ]
+      },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
       "mcrs:emissive_rendering": false,

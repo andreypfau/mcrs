@@ -10,6 +10,7 @@ use mcrs_minecraft_damage::HitOutcome;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::entity_ids::CellEntityIds;
 use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::chicken_sound_variant_keys;
 use mcrs_minecraft_entity::cow_sound_variant_keys;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
@@ -117,9 +118,13 @@ pub fn mob_body(
     position: DVec3,
 ) -> EntityState {
     let mut living = Living::of(row);
-    if let Some(base) = kind.base_attributes {
-        living.attributes.movement_speed = base.movement_speed;
-        living.health = base.max_health;
+    if let Some(bases) = kind.attribute_bases() {
+        if let Some(movement_speed) = bases.base(Attribute::MovementSpeed) {
+            living.attributes.movement_speed = movement_speed;
+        }
+        if let Some(max_health) = bases.base(Attribute::MaxHealth) {
+            living.health = max_health as f32;
+        }
     }
     let body = Body {
         position,

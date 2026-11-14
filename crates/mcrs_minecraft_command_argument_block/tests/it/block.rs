@@ -341,7 +341,6 @@ fn entry(identifier: &str, properties: Vec<BlockProperty>, base: u16) -> BlockEn
         default_state_id: BlockStateId::checked(base, usize::MAX).unwrap(),
         state_count: count,
         properties: BlockProperties(properties),
-        placement_filter: None,
         container_slots: None,
     }
 }

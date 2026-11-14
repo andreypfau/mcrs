@@ -19,9 +19,6 @@ use mcrs_minecraft_environment::MoonPhase;
 use mcrs_minecraft_environment::{WorldClock, WorldClocks};
 
 use crate::camera::PlayerCamera;
-use crate::drawn_columns::DrawnColumn;
-use crate::render_fog::{RenderFog, follow_render_fog, track_drawn_columns};
-use crate::stream::Loader;
 use crate::vanilla::VanillaAssets;
 use mcrs_minecraft_client_world::registries::{SessionSet, entered_configuration};
 use mcrs_minecraft_fog::{FogInputs, FogParameters};
@@ -87,8 +84,6 @@ impl Plugin for SkyPlugin {
             .init_resource::<Clouds>()
             .init_resource::<WorldFog>()
             .init_resource::<RenderDistance>()
-            .init_resource::<RenderFog>()
-            .add_message::<DrawnColumn>()
             .add_plugins(SkyRenderPlugin)
             .add_systems(OnEnter(VanillaAssets::Ready), request_sources)
             .add_systems(
@@ -114,8 +109,6 @@ impl Plugin for SkyPlugin {
                 PostUpdate,
                 (
                     clear_world_fog.run_if(resource_removed::<SkyEnvironment>),
-                    track_drawn_columns.run_if(resource_exists::<Loader>),
-                    follow_render_fog.run_if(resource_exists::<Time>),
                     evaluate_sky.run_if(resource_exists::<SkyEnvironment>),
                 )
                     .chain()
@@ -236,13 +229,7 @@ impl SkyEnvironment {
         }
     }
 
-    fn fog(
-        &self,
-        frame: &SkyFrame,
-        render_distance: u8,
-        render_fog_end: f32,
-        view_east: f32,
-    ) -> FogParameters {
+    fn fog(&self, frame: &SkyFrame, render_distance: u8, view_east: f32) -> FogParameters {
         let color = |field| self.value(frame, field).color();
         let sunrise = color(SkyField::SunriseSunsetColor);
         FogParameters::from_inputs(&FogInputs {
@@ -256,7 +243,6 @@ impl SkyEnvironment {
             sky_fog_end_distance: self.scalar(frame, SkyField::SkyFogEndDistance),
             cloud_fog_end_distance: self.scalar(frame, SkyField::CloudFogEndDistance),
             render_distance,
-            render_fog_end,
             cloud_distance: CLOUD_DISTANCE,
             view_east,
             rain_level: frame.rain,
@@ -361,7 +347,6 @@ fn evaluate_sky(
     frame_clocks: FrameClocks,
     weather: Res<WeatherLevel>,
     render_distance: Res<RenderDistance>,
-    render_fog: Res<RenderFog>,
     camera: Single<&GlobalTransform, With<PlayerCamera>>,
     mut frame: ResMut<SkyFrame>,
     mut clear: ResMut<ClearColor>,
@@ -394,12 +379,7 @@ fn evaluate_sky(
         *weather,
         &mut frame,
     );
-    let fog = environment.fog(
-        &frame,
-        render_distance.0,
-        render_fog.end(),
-        camera.forward().x,
-    );
+    let fog = environment.fog(&frame, render_distance.0, camera.forward().x);
     frame.fog = fog;
     let [red, green, blue] = fog.color;
     clear.0 = Color::srgb(red, green, blue);

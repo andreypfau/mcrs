@@ -286,6 +286,11 @@ A record whose `xPos` and `zPos` do not equal the column position of its slot in
 unreadable column (SAVE-QUARANTINE-001). Provenance: `design`. Reason: a record at the wrong slot
 must not land at another position.
 
+A record whose `entities` list is not empty is an unreadable column (SAVE-QUARANTINE-001). An empty
+or absent list reads as no entity. Provenance: `design`. Reason: an entity save compound has no typed
+layout in the server (SAVE-LIMITS-001), and the server must not drop the entities of a column in
+silence.
+
 The key `yPos` is the lowest section index of the dimension, for example `-4`. The key `status` has
 a lowercase first letter. The key `isLightOn` is false or missing when the game must light the
 column again. An entry of `entities` has the layout of an entity save compound. The game writes
@@ -760,7 +765,8 @@ a position near `spawn.pos`, and the yaw and pitch of `spawn`.
 An attribute compound has the string `id` (required), the double `base` (default 0) and the list
 `modifiers` (default empty). A modifier is a compound with the string `id`, the double `amount` and
 the string `operation`. All three are required. `operation` is `add_value`, `add_multiplied_base`
-or `add_multiplied_total`.
+or `add_multiplied_total`. ATR-SAV-002 of `attributes.md` states the load of a compound with an
+unknown attribute, a bad field, or two modifiers with one `id`.
 
 An effect compound has the string `id` (required), the ubyte `amplifier` (default 0), the int
 `duration` (default 0), the byte `ambient` (default false) and the byte `show_particles` (default
@@ -900,7 +906,9 @@ The server does not persist the activity mask of a chunk. It does not write the 
 column, the points of interest (the `poi` directory), the statistics and advancements of a player or `session.lock`. It
 does not write the other saved data files of the game, for example the scoreboard, the raids and
 the world border.
-Thus the game starts such a world with no saved entity and with no saved scoreboard. A save from
+Thus the game starts such a world with no saved entity and with no saved scoreboard. The server
+does not read the entities of a column either: a column record with a non-empty `entities` list is
+unreadable (SAVE-CHUNK-001). A save from
 another world version is rejected and not upgraded. The server does not run a datafixer. The order
 in which a full region cache releases files is not part of the contract.
 

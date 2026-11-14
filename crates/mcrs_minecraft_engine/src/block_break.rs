@@ -23,6 +23,7 @@ use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags, Blocks
 use mcrs_minecraft_block::fluid_keys::Fluid;
 use mcrs_minecraft_block_break::{Dig, Finish};
 use mcrs_minecraft_core::Direction;
+use mcrs_minecraft_engine_attributes::Attributes;
 use mcrs_minecraft_engine_world::block_drops::BlockBroken;
 use mcrs_minecraft_engine_world::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -32,6 +33,7 @@ use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::VoxelUpdateSet;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
+use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol::VarInt;
@@ -50,8 +52,6 @@ use smallvec::SmallVec;
 pub struct BlockBreakPlugin;
 
 const STANDING_EYE_HEIGHT: f64 = 1.62;
-const REACH: f64 = 5.5;
-const CREATIVE_REACH: f64 = 6.0;
 const BREAK_EVENT: i32 = 2001;
 const EXTINGUISH_EVENT: i32 = 1009;
 const HIGHEST_STAYING_LEVEL: i32 = 8;
@@ -139,12 +139,15 @@ fn send_acks(
     );
 }
 
-pub fn reach(mode: GameMode) -> f64 {
-    if mode == GameMode::Creative {
-        CREATIVE_REACH
-    } else {
-        REACH
-    }
+/// The reach limit of BRK-RCH-001: the value of `block_interaction_range` plus 1. A player
+/// without [`Attributes`] has the base of the type `player`; `None` when that base is missing.
+#[must_use]
+pub fn reach(attributes: Option<&Attributes>) -> Option<f64> {
+    let fresh = Attributes::default();
+    let range = attributes
+        .unwrap_or(&fresh)
+        .value(Attribute::BlockInteractionRange)?;
+    Some(range + 1.0)
 }
 
 pub fn in_reach(eye: DVec3, block: BlockPos, limit: f64) -> bool {
@@ -317,7 +320,10 @@ pub(crate) fn break_block(
 
     if let Some((other, other_state)) = paired_part(block_at, definitions, hit.state, hit.pos) {
         events.push((other.pos, other_state));
-        changed.push((other.pos, other_state));
+        // The part that is not the main part goes first: the removal of the main part for
+        // support (SUP-VEG-002) then drops what the table of the main part gives.
+        let at = usize::from(!other.hit_is_main);
+        changed.insert(at, (other.pos, other_state));
         if other.hit_is_main {
             events.push(hit_part);
         }
@@ -385,6 +391,7 @@ fn break_blocks(
     mut players: Query<(
         &Owner,
         &PlayerGameMode,
+        Option<&Attributes>,
         &InDimension,
         &Transform,
         &ClientOnGround,
@@ -405,14 +412,15 @@ fn break_blocks(
     };
     broken.clear();
     for request in requests.read() {
-        let Ok((&Owner(session), mode, dimension, transform, &on_ground, mut digging)) =
+        let Ok((&Owner(session), mode, attributes, dimension, transform, &on_ground, mut digging)) =
             players.get_mut(request.entity)
         else {
             continue;
         };
         let pos = request.block_pos;
         let eye = eye_position(transform.translation);
-        if !in_reach(eye, pos, reach(mode.0)) {
+        let limit = reach(attributes);
+        if !limit.is_some_and(|limit| in_reach(eye, pos, limit)) {
             let aborts = request.action == PlayerAction::AbortDestroyBlock;
             if mode.0 == GameMode::Survival && aborts && digging.dig.is_some() {
                 remove_cracks(&mut changes, session, digging.dig.take(), pos);
@@ -569,13 +577,15 @@ fn handle_player_action(
 mod tests {
     use super::*;
 
+    const CREATIVE_LIMIT: f64 = 6.0;
+
     #[test]
     fn brk_rch_001_a_distance_of_six_is_out_of_reach() {
         let block = BlockPos::new(10, 0, 0);
         let eye = |gap: f64| DVec3::new(10.0 - gap, 0.5, 0.5);
 
-        assert!(in_reach(eye(5.99), block, CREATIVE_REACH));
-        assert!(!in_reach(eye(6.0), block, CREATIVE_REACH));
+        assert!(in_reach(eye(5.99), block, CREATIVE_LIMIT));
+        assert!(!in_reach(eye(6.0), block, CREATIVE_LIMIT));
     }
 
     #[test]
@@ -583,19 +593,19 @@ mod tests {
         let block = BlockPos::new(0, 0, 0);
         let eye = |gap: f64| DVec3::new(0.5, 1.0 + gap, 0.5);
 
-        assert!(in_reach(eye(5.95), block, CREATIVE_REACH));
-        assert!(!in_reach(eye(6.05), block, CREATIVE_REACH));
+        assert!(in_reach(eye(5.95), block, CREATIVE_LIMIT));
+        assert!(!in_reach(eye(6.05), block, CREATIVE_LIMIT));
     }
 
     #[test]
     fn brk_rch_001_on_a_diagonal_the_distance_is_to_the_corner_of_the_cube() {
         let block = BlockPos::new(0, 0, 0);
 
-        assert!(in_reach(DVec3::new(-4.0, 0.5, -4.0), block, CREATIVE_REACH));
+        assert!(in_reach(DVec3::new(-4.0, 0.5, -4.0), block, CREATIVE_LIMIT));
         assert!(!in_reach(
             DVec3::new(-4.3, 0.5, -4.3),
             block,
-            CREATIVE_REACH
+            CREATIVE_LIMIT
         ));
     }
 

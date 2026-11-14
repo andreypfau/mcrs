@@ -1,0 +1,2797 @@
+{
+  "version": {
+    "name": "26.4 Snapshot 7",
+    "protocol": 1073742169
+  },
+  "steps": [
+    {
+      "id": "operator_joins",
+      "observed": "joined"
+    },
+    {
+      "id": "survival",
+      "observed": {
+        "command": {
+          "replies": [],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "speed_value",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.attribute.value.get.success",
+              "with": [
+                {
+                  "translate": "attribute.name.movement_speed"
+                },
+                {
+                  "text": "atoperator",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell atoperator "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      360183741,
+                      546191450,
+                      -1565121556,
+                      -587524885
+                    ],
+                    "name": "atoperator"
+                  },
+                  "insertion": "atoperator"
+                },
+                0.10000000149011612
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "speed_base",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.attribute.base_value.get.success",
+              "with": [
+                {
+                  "translate": "attribute.name.movement_speed"
+                },
+                {
+                  "text": "atoperator",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell atoperator "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      360183741,
+                      546191450,
+                      -1565121556,
+                      -587524885
+                    ],
+                    "name": "atoperator"
+                  },
+                  "insertion": "atoperator"
+                },
+                0.10000000149011612
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "attribute_not_in_set",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "text": "",
+              "extra": [
+                {
+                  "translate": "commands.attribute.failed.no_attribute",
+                  "with": [
+                    {
+                      "text": "atoperator",
+                      "click_event": {
+                        "action": "suggest_command",
+                        "command": "/tell atoperator "
+                      },
+                      "hover_event": {
+                        "action": "show_entity",
+                        "id": "minecraft:player",
+                        "uuid": [
+                          360183741,
+                          546191450,
+                          -1565121556,
+                          -587524885
+                        ],
+                        "name": "atoperator"
+                      },
+                      "insertion": "atoperator"
+                    },
+                    {
+                      "translate": "attribute.name.follow_range"
+                    }
+                  ]
+                }
+              ],
+              "color": "red"
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "saved_new_player",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "text": "atoperator",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell atoperator "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      360183741,
+                      546191450,
+                      -1565121556,
+                      -587524885
+                    ],
+                    "name": "atoperator"
+                  },
+                  "insertion": "atoperator"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:entity_interaction_range",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "base",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "3.0",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:movement_speed",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "base",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "0.10000000149011612",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:block_interaction_range",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "base",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "4.5",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:waypoint_transmit_range",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "base",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "6.0E7",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    "}",
+                    "]"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "base_above_maximum",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.attribute.base_value.set.success",
+              "with": [
+                {
+                  "translate": "attribute.name.max_health"
+                },
+                {
+                  "text": "atoperator",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell atoperator "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      360183741,
+                      546191450,
+                      -1565121556,
+                      -587524885
+                    ],
+                    "name": "atoperator"
+                  },
+                  "insertion": "atoperator"
+                },
+                5000.0
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "base_above_maximum_base",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.attribute.base_value.get.success",
+              "with": [
+                {
+                  "translate": "attribute.name.max_health"
+                },
+                {
+                  "text": "atoperator",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell atoperator "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      360183741,
+                      546191450,
+                      -1565121556,
+                      -587524885
+                    ],
+                    "name": "atoperator"
+                  },
+                  "insertion": "atoperator"
+                },
+                5000.0
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "base_above_maximum_value",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.attribute.value.get.success",
+              "with": [
+                {
+                  "translate": "attribute.name.max_health"
+                },
+                {
+                  "text": "atoperator",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell atoperator "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      360183741,
+                      546191450,
+                      -1565121556,
+                      -587524885
+                    ],
+                    "name": "atoperator"
+                  },
+                  "insertion": "atoperator"
+                },
+                1024.0
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "base_above_maximum_saved",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "text": "atoperator",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell atoperator "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      360183741,
+                      546191450,
+                      -1565121556,
+                      -587524885
+                    ],
+                    "name": "atoperator"
+                  },
+                  "insertion": "atoperator"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "{",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:max_health",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "base",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "5000.0",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    "}"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "base_restored",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.attribute.base_value.set.success",
+              "with": [
+                {
+                  "translate": "attribute.name.max_health"
+                },
+                {
+                  "text": "atoperator",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell atoperator "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      360183741,
+                      546191450,
+                      -1565121556,
+                      -587524885
+                    ],
+                    "name": "atoperator"
+                  },
+                  "insertion": "atoperator"
+                },
+                20.0
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "modifier_add",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.attribute.modifier.add.success",
+              "with": [
+                "test:a",
+                {
+                  "translate": "attribute.name.luck"
+                },
+                {
+                  "text": "atoperator",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell atoperator "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      360183741,
+                      546191450,
+                      -1565121556,
+                      -587524885
+                    ],
+                    "name": "atoperator"
+                  },
+                  "insertion": "atoperator"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "modifier_add_again",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "text": "",
+              "extra": [
+                {
+                  "translate": "commands.attribute.failed.modifier_already_present",
+                  "with": [
+                    "test:a",
+                    {
+                      "translate": "attribute.name.luck"
+                    },
+                    {
+                      "text": "atoperator",
+                      "click_event": {
+                        "action": "suggest_command",
+                        "command": "/tell atoperator "
+                      },
+                      "hover_event": {
+                        "action": "show_entity",
+                        "id": "minecraft:player",
+                        "uuid": [
+                          360183741,
+                          546191450,
+                          -1565121556,
+                          -587524885
+                        ],
+                        "name": "atoperator"
+                      },
+                      "insertion": "atoperator"
+                    }
+                  ]
+                }
+              ],
+              "color": "red"
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "modifier_value",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.attribute.modifier.value.get.success",
+              "with": [
+                "test:a",
+                {
+                  "translate": "attribute.name.luck"
+                },
+                {
+                  "text": "atoperator",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell atoperator "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      360183741,
+                      546191450,
+                      -1565121556,
+                      -587524885
+                    ],
+                    "name": "atoperator"
+                  },
+                  "insertion": "atoperator"
+                },
+                1.0
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "modifier_saved",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "text": "atoperator",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell atoperator "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      360183741,
+                      546191450,
+                      -1565121556,
+                      -587524885
+                    ],
+                    "name": "atoperator"
+                  },
+                  "insertion": "atoperator"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "{",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:luck",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "modifiers",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "amount",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "1.0",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "test:a",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "operation",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "add_value",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    "]",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "base",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "0.0",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    "}"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "modifier_remove",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.attribute.modifier.remove.success",
+              "with": [
+                "test:a",
+                {
+                  "translate": "attribute.name.luck"
+                },
+                {
+                  "text": "atoperator",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell atoperator "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      360183741,
+                      546191450,
+                      -1565121556,
+                      -587524885
+                    ],
+                    "name": "atoperator"
+                  },
+                  "insertion": "atoperator"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "modifier_remove_again",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "text": "",
+              "extra": [
+                {
+                  "translate": "commands.attribute.failed.no_modifier",
+                  "with": [
+                    {
+                      "translate": "attribute.name.luck"
+                    },
+                    {
+                      "text": "atoperator",
+                      "click_event": {
+                        "action": "suggest_command",
+                        "command": "/tell atoperator "
+                      },
+                      "hover_event": {
+                        "action": "show_entity",
+                        "id": "minecraft:player",
+                        "uuid": [
+                          360183741,
+                          546191450,
+                          -1565121556,
+                          -587524885
+                        ],
+                        "name": "atoperator"
+                      },
+                      "insertion": "atoperator"
+                    },
+                    "test:a"
+                  ]
+                }
+              ],
+              "color": "red"
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "creative",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.gamemode.success.self",
+              "with": [
+                {
+                  "translate": "gameMode.creative"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "creative_block_range",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.attribute.value.get.success",
+              "with": [
+                {
+                  "translate": "attribute.name.block_interaction_range"
+                },
+                {
+                  "text": "atoperator",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell atoperator "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      360183741,
+                      546191450,
+                      -1565121556,
+                      -587524885
+                    ],
+                    "name": "atoperator"
+                  },
+                  "insertion": "atoperator"
+                },
+                5.0
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "creative_entity_range",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.attribute.value.get.success",
+              "with": [
+                {
+                  "translate": "attribute.name.entity_interaction_range"
+                },
+                {
+                  "text": "atoperator",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell atoperator "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      360183741,
+                      546191450,
+                      -1565121556,
+                      -587524885
+                    ],
+                    "name": "atoperator"
+                  },
+                  "insertion": "atoperator"
+                },
+                5.0
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "creative_saved",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "text": "atoperator",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell atoperator "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      360183741,
+                      546191450,
+                      -1565121556,
+                      -587524885
+                    ],
+                    "name": "atoperator"
+                  },
+                  "insertion": "atoperator"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "{",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:block_interaction_range",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "base",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "4.5",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    "}"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "survival_again",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.gamemode.success.self",
+              "with": [
+                {
+                  "translate": "gameMode.survival"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "survival_block_range",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.attribute.value.get.success",
+              "with": [
+                {
+                  "translate": "attribute.name.block_interaction_range"
+                },
+                {
+                  "text": "atoperator",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell atoperator "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      360183741,
+                      546191450,
+                      -1565121556,
+                      -587524885
+                    ],
+                    "name": "atoperator"
+                  },
+                  "insertion": "atoperator"
+                },
+                4.5
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "speed_effect",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.effect.give.success.single",
+              "with": [
+                1,
+                {
+                  "text": "atoperator",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell atoperator "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      360183741,
+                      546191450,
+                      -1565121556,
+                      -587524885
+                    ],
+                    "name": "atoperator"
+                  },
+                  "insertion": "atoperator"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "slowness_effect",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.effect.give.success.single",
+              "with": [
+                1,
+                {
+                  "text": "atoperator",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell atoperator "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      360183741,
+                      546191450,
+                      -1565121556,
+                      -587524885
+                    ],
+                    "name": "atoperator"
+                  },
+                  "insertion": "atoperator"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "effects_value",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.attribute.value.get.success",
+              "with": [
+                {
+                  "translate": "attribute.name.movement_speed"
+                },
+                {
+                  "text": "atoperator",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell atoperator "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      360183741,
+                      546191450,
+                      -1565121556,
+                      -587524885
+                    ],
+                    "name": "atoperator"
+                  },
+                  "insertion": "atoperator"
+                },
+                0.06599999900162216
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "effects_saved",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "text": "atoperator",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell atoperator "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      360183741,
+                      546191450,
+                      -1565121556,
+                      -587524885
+                    ],
+                    "name": "atoperator"
+                  },
+                  "insertion": "atoperator"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "{",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:movement_speed",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "modifiers",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "amount",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "0.20000000298023224",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:effect.speed",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "operation",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "add_multiplied_total",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "amount",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "-0.45000001788139343",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:effect.slowness",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "operation",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "add_multiplied_total",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    "]",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "base",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "0.10000000149011612",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    "}"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "effects_cleared",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.effect.clear.everything.success.single",
+              "with": [
+                {
+                  "text": "atoperator",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell atoperator "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      360183741,
+                      546191450,
+                      -1565121556,
+                      -587524885
+                    ],
+                    "name": "atoperator"
+                  },
+                  "insertion": "atoperator"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "pig_with_bases",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.summon.success",
+              "with": [
+                {
+                  "translate": "entity.minecraft.pig",
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:pig",
+                    "uuid": [
+                      0,
+                      0,
+                      0,
+                      1
+                    ],
+                    "name": {
+                      "translate": "entity.minecraft.pig"
+                    }
+                  },
+                  "insertion": "00000000-0000-0000-0000-000000000001"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "pig_with_bases_saved",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "translate": "entity.minecraft.pig",
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:pig",
+                    "uuid": [
+                      0,
+                      0,
+                      0,
+                      1
+                    ],
+                    "name": {
+                      "translate": "entity.minecraft.pig"
+                    }
+                  },
+                  "insertion": "00000000-0000-0000-0000-000000000001"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:max_health",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "base",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "30.0",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:movement_speed",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "base",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "0.25",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    "}",
+                    "]"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "pig_unknown_attribute",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.summon.success",
+              "with": [
+                {
+                  "translate": "entity.minecraft.pig",
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:pig",
+                    "uuid": [
+                      0,
+                      0,
+                      0,
+                      2
+                    ],
+                    "name": {
+                      "translate": "entity.minecraft.pig"
+                    }
+                  },
+                  "insertion": "00000000-0000-0000-0000-000000000002"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "pig_unknown_attribute_saved",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "translate": "entity.minecraft.pig",
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:pig",
+                    "uuid": [
+                      0,
+                      0,
+                      0,
+                      2
+                    ],
+                    "name": {
+                      "translate": "entity.minecraft.pig"
+                    }
+                  },
+                  "insertion": "00000000-0000-0000-0000-000000000002"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:scale",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "base",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "2.0",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:movement_speed",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "base",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "0.25",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    "}",
+                    "]"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "pig_base_out_of_range",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.summon.success",
+              "with": [
+                {
+                  "translate": "entity.minecraft.pig",
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:pig",
+                    "uuid": [
+                      0,
+                      0,
+                      0,
+                      3
+                    ],
+                    "name": {
+                      "translate": "entity.minecraft.pig"
+                    }
+                  },
+                  "insertion": "00000000-0000-0000-0000-000000000003"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "pig_base_out_of_range_base",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.attribute.base_value.get.success",
+              "with": [
+                {
+                  "translate": "attribute.name.scale"
+                },
+                {
+                  "translate": "entity.minecraft.pig",
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:pig",
+                    "uuid": [
+                      0,
+                      0,
+                      0,
+                      3
+                    ],
+                    "name": {
+                      "translate": "entity.minecraft.pig"
+                    }
+                  },
+                  "insertion": "00000000-0000-0000-0000-000000000003"
+                },
+                100.0
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "pig_base_out_of_range_value",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.attribute.value.get.success",
+              "with": [
+                {
+                  "translate": "attribute.name.scale"
+                },
+                {
+                  "translate": "entity.minecraft.pig",
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:pig",
+                    "uuid": [
+                      0,
+                      0,
+                      0,
+                      3
+                    ],
+                    "name": {
+                      "translate": "entity.minecraft.pig"
+                    }
+                  },
+                  "insertion": "00000000-0000-0000-0000-000000000003"
+                },
+                16.0
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "pig_two_modifiers_one_id",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.summon.success",
+              "with": [
+                {
+                  "translate": "entity.minecraft.pig",
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:pig",
+                    "uuid": [
+                      0,
+                      0,
+                      0,
+                      4
+                    ],
+                    "name": {
+                      "translate": "entity.minecraft.pig"
+                    }
+                  },
+                  "insertion": "00000000-0000-0000-0000-000000000004"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "pig_two_modifiers_one_id_saved",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "translate": "entity.minecraft.pig",
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:pig",
+                    "uuid": [
+                      0,
+                      0,
+                      0,
+                      4
+                    ],
+                    "name": {
+                      "translate": "entity.minecraft.pig"
+                    }
+                  },
+                  "insertion": "00000000-0000-0000-0000-000000000004"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:scale",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "modifiers",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "amount",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "2.0",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "test:m",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "operation",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "add_value",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    "]",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "base",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "1.0",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:movement_speed",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "base",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "0.25",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    "}",
+                    "]"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "pig_bad_operation",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.summon.success",
+              "with": [
+                {
+                  "translate": "entity.minecraft.pig",
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:pig",
+                    "uuid": [
+                      0,
+                      0,
+                      0,
+                      5
+                    ],
+                    "name": {
+                      "translate": "entity.minecraft.pig"
+                    }
+                  },
+                  "insertion": "00000000-0000-0000-0000-000000000005"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "pig_bad_operation_saved",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "translate": "entity.minecraft.pig",
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:pig",
+                    "uuid": [
+                      0,
+                      0,
+                      0,
+                      5
+                    ],
+                    "name": {
+                      "translate": "entity.minecraft.pig"
+                    }
+                  },
+                  "insertion": "00000000-0000-0000-0000-000000000005"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:scale",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "base",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "1.0",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:movement_speed",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "base",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "0.25",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    "}",
+                    "]"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "pig_good_and_bad_modifier",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.summon.success",
+              "with": [
+                {
+                  "translate": "entity.minecraft.pig",
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:pig",
+                    "uuid": [
+                      0,
+                      0,
+                      0,
+                      6
+                    ],
+                    "name": {
+                      "translate": "entity.minecraft.pig"
+                    }
+                  },
+                  "insertion": "00000000-0000-0000-0000-000000000006"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "pig_good_and_bad_modifier_saved",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "translate": "entity.minecraft.pig",
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:pig",
+                    "uuid": [
+                      0,
+                      0,
+                      0,
+                      6
+                    ],
+                    "name": {
+                      "translate": "entity.minecraft.pig"
+                    }
+                  },
+                  "insertion": "00000000-0000-0000-0000-000000000006"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:scale",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "modifiers",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "amount",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "1.0",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "test:g",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "operation",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "add_value",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    "]",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "base",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "2.0",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:movement_speed",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "base",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "0.25",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    "}",
+                    "]"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "pig_bad_base",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.summon.success",
+              "with": [
+                {
+                  "translate": "entity.minecraft.pig",
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:pig",
+                    "uuid": [
+                      0,
+                      0,
+                      0,
+                      7
+                    ],
+                    "name": {
+                      "translate": "entity.minecraft.pig"
+                    }
+                  },
+                  "insertion": "00000000-0000-0000-0000-000000000007"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "pig_bad_base_saved",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "translate": "entity.minecraft.pig",
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:pig",
+                    "uuid": [
+                      0,
+                      0,
+                      0,
+                      7
+                    ],
+                    "name": {
+                      "translate": "entity.minecraft.pig"
+                    }
+                  },
+                  "insertion": "00000000-0000-0000-0000-000000000007"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:scale",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "modifiers",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "amount",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "1.0",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "test:g",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "operation",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "add_value",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    "]",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "base",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "0.0",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:max_health",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "base",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "30.0",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:movement_speed",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "base",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "0.25",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    "}",
+                    "]"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "pigs_removed",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.kill.success.multiple",
+              "with": [
+                7
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "baby_zombie",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.summon.success",
+              "with": [
+                {
+                  "translate": "entity.minecraft.zombie",
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:zombie",
+                    "uuid": [
+                      0,
+                      0,
+                      0,
+                      8
+                    ],
+                    "name": {
+                      "translate": "entity.minecraft.zombie"
+                    }
+                  },
+                  "insertion": "00000000-0000-0000-0000-000000000008"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "baby_zombie_speed",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.attribute.value.get.success",
+              "with": [
+                {
+                  "translate": "attribute.name.movement_speed"
+                },
+                {
+                  "translate": "entity.minecraft.zombie",
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:zombie",
+                    "uuid": [
+                      0,
+                      0,
+                      0,
+                      8
+                    ],
+                    "name": {
+                      "translate": "entity.minecraft.zombie"
+                    }
+                  },
+                  "insertion": "00000000-0000-0000-0000-000000000008"
+                },
+                0.3450000062584877
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "baby_zombie_modifier",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.attribute.modifier.value.get.success",
+              "with": [
+                "minecraft:baby",
+                {
+                  "translate": "attribute.name.movement_speed"
+                },
+                {
+                  "translate": "entity.minecraft.zombie",
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:zombie",
+                    "uuid": [
+                      0,
+                      0,
+                      0,
+                      8
+                    ],
+                    "name": {
+                      "translate": "entity.minecraft.zombie"
+                    }
+                  },
+                  "insertion": "00000000-0000-0000-0000-000000000008"
+                },
+                0.5
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "baby_zombie_saved",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "translate": "entity.minecraft.zombie",
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:zombie",
+                    "uuid": [
+                      0,
+                      0,
+                      0,
+                      8
+                    ],
+                    "name": {
+                      "translate": "entity.minecraft.zombie"
+                    }
+                  },
+                  "insertion": "00000000-0000-0000-0000-000000000008"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:movement_speed",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "base",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "0.23000000417232513",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "d",
+                      "color": "red"
+                    },
+                    "}",
+                    "]"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "baby_zombie_removed",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.kill.success.single",
+              "with": [
+                {
+                  "translate": "entity.minecraft.zombie",
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:zombie",
+                    "uuid": [
+                      0,
+                      0,
+                      0,
+                      8
+                    ],
+                    "name": {
+                      "translate": "entity.minecraft.zombie"
+                    }
+                  },
+                  "insertion": "00000000-0000-0000-0000-000000000008"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      }
+    },
+    {
+      "id": "operator_leaves",
+      "observed": "left"
+    }
+  ]
+}

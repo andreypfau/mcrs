@@ -18,13 +18,18 @@ use crate::op_level::{refresh_op_levels, send_op_level};
 use crate::persistence;
 use crate::player_dimension_change::receive_transfers;
 use crate::player_order::{OrderedPlayer, obey_orders};
+use crate::player_sprinting::{PlayerSprinting, handle_player_command};
+use crate::send_own_attributes::send_own_attributes;
 use bevy_app::{App, FixedPreUpdate, FixedUpdate, Plugin, Update};
-use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::common_conditions::{
     on_message, resource_exists, resource_exists_and_changed,
 };
+use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition};
+use mcrs_minecraft_engine_attributes::{AttributeChanged, AttributeEdits};
+use mcrs_minecraft_engine_physics::MobPublish;
 use mcrs_minecraft_engine_world::entity::add_entity_to_chunk;
 use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
+use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::tick::TickSet;
 
 /// Plugin for per-dimension worlds. Registers only the bus-driven and
@@ -54,6 +59,10 @@ impl Plugin for DimPlayerPlugin {
             app.add_plugins(ClientInfoPlugin);
         }
         app.add_observer(on_client_view_distance);
+        if let Err(error) = app.try_register_required_components::<Player, PlayerSprinting>() {
+            tracing::error!("a player does not require its sprint state: {error}");
+        }
+        app.add_observer(handle_player_command);
         app.add_systems(
             FixedPreUpdate,
             receive_transfers
@@ -91,6 +100,17 @@ impl Plugin for DimPlayerPlugin {
                     .after(consume_inbound_player_spawn)
                     .after(game_mode::send_game_mode),
             ),
+        );
+        app.add_message::<AttributeChanged>();
+        app.add_systems(
+            FixedUpdate,
+            send_own_attributes
+                .run_if(on_message::<AttributeChanged>.or_else(on_message::<OpLevelAnnounced>))
+                .in_set(TickSet::Project)
+                .after(AttributeEdits)
+                // The publishers of other subjects follow `MobPublish`, and the take of the tile
+                // events sorts the subjects; the order only settles the ambiguity check.
+                .before(MobPublish),
         );
         app.add_message::<OutboundPlayerReleased>();
         app.add_systems(

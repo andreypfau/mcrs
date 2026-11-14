@@ -18,7 +18,6 @@ use mcrs_minecraft_protocol::packets::table::game_serverbound;
 use mcrs_minecraft_protocol_game::LpVec3;
 use mcrs_minecraft_protocol_game::MoveFlags;
 use mcrs_minecraft_protocol_game::Position;
-use mcrs_minecraft_protocol_game::clientbound::AttributeOperation;
 use mcrs_minecraft_protocol_game::clientbound::AttributeSnapshot;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundBlockUpdate;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundForgetLevelChunk;
@@ -242,11 +241,7 @@ fn attribute(snapshot: &AttributeSnapshot<'_>) -> Event {
         .map(|modifier| Modifier {
             id: modifier.id.to_string(),
             amount: modifier.amount,
-            operation: match modifier.operation {
-                AttributeOperation::AddValue => 0,
-                AttributeOperation::AddMultipliedBase => 1,
-                AttributeOperation::AddMultipliedTotal => 2,
-            },
+            operation: u8::from(modifier.operation),
         })
         .collect();
     Event::Attribute(Attribute {

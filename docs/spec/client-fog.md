@@ -56,15 +56,6 @@ draw takes the fog. The document does not prescribe an architecture.
 - `lerp(t, a, b)`: `a + t · (b − a)`. For a colour, `lerp` applies to each channel.
 - `smoothstep(a, b, x)`: let `t = clamp((x − a) / (b − a), 0, 1)`. The result is `t² · (3 − 2t)`.
   The formula also applies when `a > b`.
-- **Draw test**: the test of MENU-DIST-001 step 3 that selects the columns that the client
-  draws.
-- **Ring** (`k`) of a column: its distance from the column of the camera in columns, as the draw
-  test measures it (CFOG-MCRS-004, step 1).
-- **Drawn column**: a column that the client holds and whose sections with blocks have their
-  meshes in the frame. CFOG-MCRS-004, the input "the drawn columns of the frame", states when a
-  column becomes drawn and when it stops being drawn.
-- **Drawn end** (`e`): the end of the render-distance fog in mcrs, a value that the client keeps
-  between frames (CFOG-MCRS-004).
 - `f32` is a 32-bit IEEE 754 value. `f64` is a 64-bit IEEE 754 value.
 
 ### 0.2 Provenance, confidence and observer
@@ -104,7 +95,7 @@ It is not a mix in linear light.
 
 In scope: a world with the camera medium air, and a camera entity with no effect. The
 render-distance fog is in MENU-DIST-001, steps 5 and 6. This document refers to it and does not
-state it again. In mcrs, the render-distance fog ends at the drawn end `e` (CFOG-MCRS-004).
+state it again.
 
 Out of scope, one line for each:
 
@@ -198,7 +189,7 @@ Milestone: later.
   2. The values of steps 3 to 7 use the attribute values, `R`, `T` and `r` of this frame.
   3. `C`: CFOG-COL-001, then CFOG-COL-002.
   4. `es` and `ee`: CFOG-ENV-001.
-  5. `rs` and `re`: MENU-DIST-001, step 6. mcrs: CFOG-MCRS-004, step 5 (CFOG-DEV-005).
+  5. `rs` and `re`: MENU-DIST-001, step 6.
   6. `se = min(16 · r, A(sky_fog_end_distance))`.
   7. `ce = min(16 · c, A(cloud_fog_end_distance))`.
   8. Each draw of the world in the frame reads these values. The hand and the item in the hand
@@ -672,10 +663,6 @@ Confidence: high. Experiment: CFOG-EXP-03. Milestone: 1.
 | occluder angles, normal | −1, −8 | degrees | CFOG-SKY-003 |
 | occluder angles, eye below `min_y` | 15, 10 | degrees | CFOG-SKY-003 |
 | blocks per chunk of the cloud end | 16 | blocks | CFOG-TIME-001 |
-| blocks per ring of the drawn target | 16 | blocks | CFOG-MCRS-004 |
-| rate of the drawn end | 0.1 | per tick | CFOG-MCRS-004 |
-| snap of the drawn end to the target | 0.01 | blocks | CFOG-MCRS-004 |
-| span of the render-distance fog in mcrs | `clamp(e / 10, 4, 64)` | blocks | CFOG-MCRS-004 |
 
 ---
 
@@ -685,8 +672,7 @@ Each test is in the overworld in the plains biome, with the camera at `y = 80` a
 15 at the camera cell. The camera looks north. `A(sky_fog_end_distance) = 512`, `c = 128`. The
 values are those of the game. In the overworld, `A(fog_end_distance) = 1024 > 512`, so mcrs has no
 environmental fog (CFOG-DEV-003). A line that starts with "mcrs:" gives the value of mcrs where it
-is not that of the game. Each other value is the same in mcrs. In mcrs, each test has each column
-of the draw test drawn, and `e = 16 · r` (CFOG-MCRS-004; CFOG-DEV-005).
+is not that of the game. Each other value is the same in mcrs.
 
 ### CFOG-TEST-001: Noon in clear weather
 
@@ -892,21 +878,6 @@ be of `26.4-snapshot-7`.
 - **Test:** a differential test in a dimension with `A(fog_end_distance) > 512` compares the fog
   values of mcrs with `vr` alone. Section 10 gives the values of mcrs on the lines "mcrs:".
 
-### CFOG-DEV-005: mcrs ends the render-distance fog at the edge of the drawn columns
-
-- **Rule:** CFOG-MCRS-004. The owner decided on 2026-11-13 that the render-distance fog follows
-  the drawn columns. The render distance of mcrs goes to 96 chunks (`client-menu.md`, the range
-  of Render Distance). At such distances the columns arrive over many seconds. The fog at the
-  edge of the drawn columns hides their arrival.
-- **Reference:** the render-distance fog ends at `16 · r` in each frame, also while columns that
-  pass the draw test are not drawn. A column that is not drawn shows as a hole in the terrain,
-  with the sky or the clear colour behind it.
-- **Visible to the client:** yes, while a column that passes the draw test is not drawn: after
-  a join, after a change of the dimension, after a larger `r`, and while the camera moves into
-  new columns. In mcrs the fog then ends nearer than `16 · r`.
-- **Test:** a differential test compares frames only after each column that passes the draw
-  test is drawn and `e = 16 · r`.
-
 ### CFOG-DEV-006: mcrs computes the fog distances of each pixel
 
 - **Rule:** CFOG-MCRS-003.
@@ -954,35 +925,6 @@ be of `26.4-snapshot-7`.
    Recommendation: (a). It is continuous, it keeps the fog of the game in full rain, and it
    needs no new constant. The same question applies when a data pack moves `E` across 512, for
    example with a timeline: the fog of mcrs then jumps at 512.
-5. CFOG-MCRS-004: a column that passes the draw test and never becomes drawn keeps the fog at 16
-   times its ring. A server that does not send each column of the draw test causes this, for
-   example a server for a minigame with a small map. A vanilla server sends each such column
-   (`client-menu.md`, MENU-DIST-003, the margin of 2 columns). The options are:
-   - (a) no tolerance, as in this release;
-   - (b) a column that the client does not hold does not count for `m` when no column arrived in
-     the last 40 ticks. A column that the client holds and that is not drawn counts;
-   - (c) a column does not count for `m` after it passed the draw test for 200 ticks and is
-     still not drawn.
-
-   Recommendation: (b). It keeps the fog over the columns that arrive, and it frees the fog when
-   the server sends no more columns. A column that the client holds always becomes drawn, so (b)
-   needs no limit for the meshes.
-6. CFOG-MCRS-004: when the camera goes into the next column, the columns that come into the draw
-   test can lower `e` to `16 · (r − 1)` or less until their meshes are built. The client already
-   holds these columns (item 5). The owner decides if the client must build the mesh of a column
-   that it holds before that column passes the draw test, so that the fog end does not move when
-   the camera walks. Recommendation: yes, for the columns of the next ring outside the draw test.
-7. CFOG-MCRS-004: mcrs counts the mesh of a section as drawn in the frame from the moment the
-   client places it for the frame. When the client places many meshes at once, the upload of
-   their geometry and of their draw records to the GPU can come some frames later. A section can
-   also stay out of the draw list when its stream has no room. In those frames the fog end can
-   move past a column that the image does not show yet. The options are:
-   - (a) a column becomes drawn only when the draw records of its sections are applied for the
-     frame;
-   - (b) mcrs keeps this limit, because the fog end moves with a time constant of 10 ticks and
-     the upload usually comes first.
-
-   Recommendation: (a), in a later release.
 
 ---
 
@@ -1024,7 +966,7 @@ not state what mcrs draws now. Each item is in the past, at the base of CFOG-MCR
         `ee = 96`.
      3. The limit 512 is 16 blocks times 32 chunks, the largest render distance of the game. It
         does not depend on `r`.
-  4. MENU-DIST-001 steps 5 to 7, with the start and the end of CFOG-MCRS-004 (CFOG-DEV-005);
+  4. MENU-DIST-001 steps 5 to 7;
   5. CFOG-DRAW-001 steps 1 and 2, CFOG-DRAW-002, and the rows of CFOG-DRAW-003 with the
      milestone 1;
   6. CFOG-SKY-001 to CFOG-SKY-003, in place of the black disc of CFOG-MCRS-001;
@@ -1040,8 +982,6 @@ not state what mcrs draws now. Each item is in the past, at the base of CFOG-MCR
     translucent layer with the alpha from 0.01 to 0.98, the image is that of the game
     (CFOG-TIME-002, the second postcondition).
   - In the overworld, a point nearer than `rs` has no fog (item 3).
-  - While a column that passes the draw test is not drawn, the render-distance fog ends at the
-    edge of the drawn columns (item 4).
 
 Provenance: `design`. These rules give the render-distance fog with a colour that meets the
 sky at the horizon. The limit of item 3 is CFOG-DEV-003. The rain fog and the void darkness
@@ -1050,8 +990,7 @@ Transparency is in this release, because the owner decided on 2026-11-13 that th
 its effect from the first release. It changes the colour of the far terrain only in some
 scenes: where the sky behind the terrain is not `C`. Examples are terrain above the horizon,
 the sunrise and the sunset, and clouds behind the terrain. The fixed order of item 1 is
-CFOG-DEV-002. The fog end of item 4 is CFOG-DEV-005. Kind: semantic. Confidence: high.
-Milestone: 1.
+CFOG-DEV-002. Kind: semantic. Confidence: high. Milestone: 1.
 
 ### CFOG-MCRS-003: Fog distances for each pixel
 
@@ -1067,82 +1006,3 @@ Outside them, mcrs gives the value of the point itself and the vanilla client th
 value (CFOG-DEV-006). A face of mcrs can be longer than one block. The sky disc keeps the
 interpolation of CFOG-SKY-001, because the image shows it. Kind: semantic. Confidence: high.
 Milestone: 1.
-
-### CFOG-MCRS-004: The render-distance fog follows the drawn columns
-
-- **Observer:** a player: while the columns load, the terrain ends in the fog at the edge of the
-  drawn columns. The player sees no hole at the place of a column that is not drawn.
-- **Inputs:**
-  - `r` (MENU-DIST-001, step 1);
-  - the column (`cx`, `cz`) of the camera of the frame;
-  - the drawn columns of the frame:
-    - A column becomes drawn when the client holds it and the mesh of each of its sections that
-      has blocks is drawn in the frame. A column whose sections have nothing to draw is drawn.
-    - A drawn column stops being drawn when the client lets the column go, or when the mesh of
-      one of its sections leaves the frame with no mesh in its place.
-    - A drawn column stays drawn while the client builds the mesh of a section again with the
-      old mesh still in the frame. It also stays drawn when a section that had no blocks gets
-      its first blocks.
-    - In this release, a mesh is drawn in the frame from the moment the client places it for
-      the frame, also when its upload to the GPU comes in a later frame or its section stays out
-      of the draw list for lack of room. The fog end can then move past a column that the image
-      does not show yet (section 13, item 7);
-  - the drawn end `e` of the previous frame. `e` is 0 when the client joins a world and when it
-    changes the dimension;
-  - the time `Δ` since the previous frame, in ticks, as CFOG-ENV-002 defines it.
-- **Behavior:** in each frame, before CFOG-TIME-001 step 5. `e` is `f32`.
-  1. The ring of the column (`x`, `z`) is the largest integer `k` with
-     `k² ≤ max(0, |x − cx| − 1)² + max(0, |z − cz| − 1)²`. Thus
-     `k = floor(√(max(0, |x − cx| − 1)² + max(0, |z − cz| − 1)²))`. The draw test uses the same
-     sum, so a column passes the draw test when `k < r`, and only then.
-  2. Let `m` be the smallest ring of a column that passes the draw test and is not a drawn
-     column. The target is `t = 16 · m` blocks. When each column that passes the draw test is a
-     drawn column, `t = 16 · r`.
-  3. When `t ≤ e`, `e = t`. Else `e = e + (t − e) · min(1, 0.1 · Δ)`.
-  4. When `t − e < 0.01` after step 3, `e = t`.
-  5. The render-distance fog of the frame ends at `re = e`. It starts at
-     `rs = e − clamp(e / 10, 4, 64)`. These values replace the end and the start of
-     MENU-DIST-001 step 6. The fog distance of step 5, the ramp of step 6 and the larger value
-     of step 7 do not change.
-  6. The fog colour (CFOG-COL-001), the sky end `se` and the cloud end `ce` (CFOG-TIME-001) use
-     `r`, not `e`.
-- **Postconditions:**
-  - After step 4, `e ≤ t ≤ 16 · r`. A column that passes the draw test has `k ≤ r − 1`. Thus
-    `t ≤ 16 · (r − 1)` while such a column is not drawn.
-  - A point at the horizontal distance `h < t` from the camera is in a drawn column. Reason:
-    each column between the column of the camera and the column of the point is 16 blocks wide.
-    Thus `16 · max(0, |x − cx| − 1) ≤ |dx|`, and the same for `z`. The ring of the column of the
-    point is then at most `floor(h / 16)`, which is below `m` and below `r`.
-  - Each point with a fog value `vr < 1` is in a drawn column, because `h ≤ dc < re = e ≤ t`.
-  - When each column that passes the draw test is drawn and stays drawn, `t − e` falls by the
-    factor `1 − 0.1 · Δ` in each frame. This is a time constant of 10 ticks, 0.5 s at 20 ticks a
-    second. From `e = 0` with `r = 12` and frames of 1 tick, `e = 192` after 94 frames. With
-    `r = 96`, `e = 1536` after 114 frames. From then on, the fog is that of MENU-DIST-001 step 6.
-  - When the client joins a world, `e = 0`. The world comes out of the fog from the camera
-    outward.
-  - When a column of the ring `k` with `16 · k < e` stops being drawn, `e` falls to `16 · k` or
-    less in the same frame. When `r` falls, `e` falls to `16 · r` or less in the same frame.
-  - Example: `r = 12`. Each column of the rings 0 to 4 is drawn, and one column of the ring 5 is
-    not drawn. Then `t = 80`. From `e = 0` with `Δ = 1`, the next values of `e` are 8, 15.2 and
-    21.68. From `e = 192`, when that column stops being drawn, `e = 80` in the same frame. With
-    `e = 80`, `rs = 72` and `re = 80`.
-- **Edge cases:**
-  - With no drawn column, `t = 0` and `e = 0`. Then `rs = −4` and `re = 0`, and each point is in
-    the fog (CFOG-MIX-001, the ramp at `dc ≥ re`).
-  - A block change does not make a column stop being drawn. The client builds the mesh of the
-    section again, and the old mesh stays in the frame until the new mesh replaces it. When the
-    change puts the first blocks into a section with no blocks, the column also stays drawn
-    while the client builds the first mesh of that section. Else one block change in the ring 0
-    sets `e = 0`.
-  - A section whose mesh leaves the frame with no mesh in its place makes its column stop being
-    drawn, also while the client builds a new mesh for it.
-  - A column that passes the draw test and never becomes drawn keeps `t` at 16 times its ring.
-    This release has no tolerance for it (section 13, item 5).
-  - When the camera goes into the next column, the columns that come into the draw test lower
-    `t` until they are drawn (section 13, item 6).
-  - The terrain (CFOG-DRAW-001, CFOG-DRAW-002), the entities and the other draws of
-    CFOG-DRAW-003 read `rs` and `re` of step 5. With Improved Transparency on, the terrain thus
-    fades into the sky image at `e`.
-
-Provenance: `design`. The owner decided on 2026-11-13 that the render-distance fog follows the
-drawn columns (CFOG-DEV-005). Kind: semantic. Confidence: high. Milestone: 1.

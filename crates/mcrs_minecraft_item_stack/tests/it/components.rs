@@ -3,6 +3,7 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use std::num::NonZeroU8;
 
+use mcrs_minecraft_entity_attribute::ModifierOperation;
 use mcrs_minecraft_item_stack::AttributeId;
 use mcrs_minecraft_item_stack::AttributeModifier;
 use mcrs_minecraft_item_stack::BlockSet;
@@ -17,7 +18,6 @@ use mcrs_minecraft_item_stack::ItemModel;
 use mcrs_minecraft_item_stack::Lore;
 use mcrs_minecraft_item_stack::MaxDamage;
 use mcrs_minecraft_item_stack::MaxStackSize;
-use mcrs_minecraft_item_stack::ModifierOperation;
 use mcrs_minecraft_item_stack::RepairCost;
 use mcrs_minecraft_item_stack::Tool;
 use mcrs_minecraft_item_stack::ToolRule;

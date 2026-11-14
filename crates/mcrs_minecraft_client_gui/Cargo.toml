@@ -24,6 +24,9 @@ mcrs_minecraft_command.workspace = true
 mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_engine_world.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_render.workspace = true
+mcrs_minecraft_entity_visual.workspace = true
 mcrs_minecraft_game_mode.workspace = true
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item_key.workspace = true
@@ -41,6 +44,7 @@ mcrs_minecraft_volume.workspace = true
 mcrs_voxel.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+uuid.workspace = true
 # Bevy gives no name to the texture data order a layered upload needs.
 wgpu = { version = "30", default-features = false }
 bevy = { version = "0.20.1", default-features = false, features = [

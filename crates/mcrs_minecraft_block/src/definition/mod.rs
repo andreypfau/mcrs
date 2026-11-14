@@ -1,3 +1,4 @@
+pub mod placement_filter;
 pub mod schema;
 pub mod state_condition;
 
@@ -137,7 +138,6 @@ pub struct BlockEntry {
     pub default_state_id: BlockStateId,
     pub state_count: u16,
     pub properties: BlockProperties,
-    pub placement_filter: Option<PlacementFilter>,
     pub container_slots: Option<u8>,
 }
 
@@ -238,6 +238,9 @@ pub struct BlockDefinitions {
     loot: Vec<ResourceLocationBuf>,
     experience: Vec<IntProvider>,
     sound_sets: Vec<ResourceKeyBuf<BlockSoundSet>>,
+    filters: Vec<PlacementFilter>,
+    filter_of: FxHashMap<BlockStateId, u16>,
+    support_of: FxHashMap<BlockStateId, ShapeId>,
     blocks: Vec<BlockEntry>,
     owners: Vec<Id<Block>>,
     ids: hashbrown::HashMap<ResourceLocationBuf, Id<Block>>,
@@ -282,6 +285,20 @@ impl BlockDefinitions {
 
     pub fn state_count(&self) -> usize {
         self.states.len()
+    }
+
+    /// The support predicate of the state (SUP-DATA-001), when it has one.
+    pub fn placement_filter(&self, id: BlockStateId) -> Option<&PlacementFilter> {
+        let index = self.filter_of.get(&id)?;
+        self.filters.get(usize::from(*index))
+    }
+
+    /// The shape the face tests of a support predicate read (SUP-FACE-002).
+    pub fn support_shape(&self, id: BlockStateId) -> ShapeId {
+        self.support_of
+            .get(&id)
+            .copied()
+            .unwrap_or(self.state(id).collision_shape)
     }
 
     pub fn states(&self) -> impl Iterator<Item = BlockStateId> + use<> {
@@ -346,7 +363,10 @@ impl BlockDefinitions {
             .iter()
             .map(|s| size_of::<Box<[Aabb]>>() + s.len() * size_of::<Aabb>())
             .sum();
-        states + shapes
+        let support = (self.filter_of.capacity() + self.support_of.capacity())
+            * size_of::<(BlockStateId, u32)>()
+            + self.filters.capacity() * size_of::<PlacementFilter>();
+        states + shapes + support
     }
 }
 
@@ -578,6 +598,9 @@ struct Builder {
     loot: Vec<ResourceLocationBuf>,
     experience: Vec<IntProvider>,
     sound_sets: Vec<ResourceKeyBuf<BlockSoundSet>>,
+    filters: Vec<PlacementFilter>,
+    filter_of: FxHashMap<BlockStateId, u16>,
+    support_of: FxHashMap<BlockStateId, ShapeId>,
     names: Vec<ResourceLocationBuf>,
     ids: hashbrown::HashMap<ResourceLocationBuf, Id<Block>>,
     blocks: Vec<Option<BlockEntry>>,
@@ -606,6 +629,9 @@ impl Builder {
             loot: Vec::new(),
             experience: Vec::new(),
             sound_sets: Vec::new(),
+            filters: Vec::new(),
+            filter_of: FxHashMap::default(),
+            support_of: FxHashMap::default(),
             blocks: std::iter::repeat_with(|| None).take(names.len()).collect(),
             names: read,
             ids,
@@ -757,6 +783,15 @@ impl Builder {
             let mut data = self.resolve(&resolved).map_err(missing)?;
             data.flags.set(BlockStateFlags::IS_AIR, air);
             *self.states.get_mut(state).ok_or_else(space)? = data;
+            let id = BlockStateId::checked(state as u16, end).ok_or_else(space)?;
+            if let Some(support) = &resolved.support {
+                let shape = self.intern_shape(&support.boxes.0);
+                self.support_of.insert(id, shape);
+            }
+            if let Some(filter) = &resolved.placement_filter {
+                let filter = intern(&mut self.filters, filter);
+                self.filter_of.insert(id, filter);
+            }
         }
 
         let identifier = description.identifier.clone();
@@ -766,7 +801,6 @@ impl Builder {
             default_state_id,
             state_count: state_count as u16,
             properties,
-            placement_filter: components.placement_filter,
             container_slots: components
                 .block_entity
                 .as_ref()
@@ -852,7 +886,12 @@ impl Builder {
             fills_the_cube(collision_box),
             BlockStateFlags::IS_COLLISION_SHAPE_FULL_BLOCK,
         );
-        flag(legacy_solid(collision_box), BlockStateFlags::LEGACY_SOLID);
+        flag(
+            components
+                .solid
+                .unwrap_or_else(|| legacy_solid(collision_box)),
+            BlockStateFlags::LEGACY_SOLID,
+        );
         flag(
             components
                 .occlusion_shade
@@ -952,6 +991,9 @@ impl Builder {
             loot: std::mem::take(&mut self.loot),
             experience: std::mem::take(&mut self.experience),
             sound_sets: std::mem::take(&mut self.sound_sets),
+            filters: std::mem::take(&mut self.filters),
+            filter_of: std::mem::take(&mut self.filter_of),
+            support_of: std::mem::take(&mut self.support_of),
             blocks,
             owners,
             ids: std::mem::take(&mut self.ids),
@@ -995,13 +1037,9 @@ fn fills_the_cube(boxes: &[ModelBox]) -> bool {
     (volume - 16.0 * 16.0 * 16.0).abs() < 0.5
 }
 
-/// Whether the block is solid: the collision shape's bounds are
-/// either large enough on average or a full block tall.
-///
-/// The corpus carries no component that forces solidity on or off, so this is
-/// the shape derivation alone and answers differently from the reference for
-/// the blocks it overrides by hand — signs, pressure plates, cobweb, snow,
-/// azalea, ladders, amethyst clusters, pointed dripstone and corals.
+/// Whether the block is solid when the corpus states no `mcrs:solid`: the
+/// collision shape's bounds are either large enough on average or a full block
+/// tall (SUP-SOLID-001).
 fn legacy_solid(boxes: &[ModelBox]) -> bool {
     let Some((first, rest)) = boxes.split_first() else {
         return false;
@@ -1313,6 +1351,42 @@ mod tests {
         };
         assert_eq!(light(0), 15);
         assert_eq!(light(1), 0);
+    }
+
+    #[test]
+    fn a_permutation_gives_the_support_data_of_the_states_it_selects() {
+        let source = file(
+            "minecraft:test",
+            0,
+            r#", "properties": { "lit": [true, false] }"#,
+            r#", "permutations": [{
+                "condition": "q.block_state('lit') == true",
+                "components": {
+                    "minecraft:placement_filter": { "predicate": { "type": "minecraft:solid", "offset": [0, -1, 0] } },
+                    "minecraft:support": { "boxes": [] },
+                    "mcrs:solid": false
+                }
+            }]"#,
+        );
+        let definitions = build(&[source]).unwrap();
+        let block = &definitions.blocks()[0];
+        let [lit, unlit] = [0, 1].map(|offset| block.state_at(offset).unwrap());
+
+        assert!(definitions.placement_filter(lit).is_some());
+        assert!(definitions.placement_filter(unlit).is_none());
+        assert!(definitions.shape(definitions.support_shape(lit)).is_empty());
+        assert_eq!(
+            definitions.support_shape(unlit),
+            definitions.state(unlit).collision_shape
+        );
+        let solid = |state| {
+            definitions
+                .state(state)
+                .flags
+                .contains(BlockStateFlags::LEGACY_SOLID)
+        };
+        assert!(!solid(lit));
+        assert!(solid(unlit));
     }
 
     #[test]

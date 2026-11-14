@@ -16,6 +16,7 @@ use mcrs_minecraft_volume::BlockVolume;
 use mcrs_voxel::{BlockPos, BlockStateId};
 
 use crate::attack_input::AttackInput;
+use crate::attribute_instances::AttributeInstances;
 use crate::block_prediction::BlockPredictions;
 use crate::block_target::{BlockHit, Reach, block_target};
 use crate::columns::{AIR, ColumnStore};
@@ -228,6 +229,7 @@ fn attack(
     player: Single<
         (
             &PhysicsTransform,
+            Option<&AttributeInstances>,
             Option<&LocalGameMode>,
             Option<&PermissionLevel>,
         ),
@@ -239,9 +241,22 @@ fn attack(
     predictions: Option<ResMut<BlockPredictions>>,
 ) {
     let input = input.take();
-    let (transform, mode, permission) = player.into_inner();
-    let (Some(connection), Some(mode), Some(blocks), Some(mut store), Some(mut predictions)) =
-        (connection, mode, blocks, store, predictions)
+    let (transform, instances, mode, permission) = player.into_inner();
+    let (
+        Some(reach),
+        Some(connection),
+        Some(mode),
+        Some(blocks),
+        Some(mut store),
+        Some(mut predictions),
+    ) = (
+        instances.and_then(Reach::from_instances),
+        connection,
+        mode,
+        blocks,
+        store,
+        predictions,
+    )
     else {
         return;
     };
@@ -254,7 +269,7 @@ fn attack(
     let direction = look_direction(rotation.yaw(), rotation.pitch())
         .as_dvec3()
         .normalize();
-    let target = block_target(eye, direction, Reach::of(mode.current), |pos| {
+    let target = block_target(eye, direction, reach, |pos| {
         let state = store.block(pos).unwrap_or(AIR);
         blocks.shape(blocks.state(state).selection_shape)
     });

@@ -20,6 +20,10 @@ struct Frame {
     bone_capacity: u32,
     visible_capacity: u32,
     face_capacity: u32,
+    view: u32,
+    spare0: u32,
+    spare1: u32,
+    spare2: u32,
 }
 
 const SHADE_TABLE_NETHER: u32 = 1u;
@@ -44,6 +48,7 @@ struct CullRecord {
 
 const CULL_VALID: u32 = 1u;
 const CULL_FULL_RIG_ONLY: u32 = 2u;
+const CULL_VIEWS_SHIFT: u32 = 8u;
 
 struct StateRecord {
     definition_mask: u32,

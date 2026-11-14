@@ -473,12 +473,17 @@ fn every_simple_block_state_is_decided() {
             simple_block_states(&simple_block["to_place"], &mut states);
         }
         for state in states {
-            let by_definition = blocks()
-                .0
-                .block(&state)
-                .is_some_and(|block| block.placement_filter.is_some());
+            let entry = blocks().0.block(&state);
+            let by_definition = entry.is_some_and(|block| {
+                crate::trees::short_form(&blocks().0, block.default_state_id).is_some()
+            });
+            let every_state = entry.is_some_and(|block| {
+                (0..block.state_count)
+                    .filter_map(|offset| block.state_at(offset))
+                    .all(|id| crate::trees::short_form(&blocks().0, id).is_some())
+            });
             match (by_definition, family_of(&state)) {
-                (true, Some(_)) => panic!("{state} is decided twice"),
+                (true, Some(_)) if every_state => panic!("{state} is decided twice"),
                 (false, None) => {
                     by_default.insert(state);
                 }

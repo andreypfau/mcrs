@@ -1,6 +1,7 @@
 use bytes::Bytes;
 use mcrs_minecraft_game_mode::GameMode;
 
+use crate::attribute_state::AttributeState;
 use crate::delta_base::Pose;
 use crate::player_spawn::PlayerSpawn;
 
@@ -18,4 +19,7 @@ pub enum PlayerData {
     /// A message that the player left, as a record. It goes to every viewer that holds the
     /// player at that event.
     Left(Bytes),
+    /// The instance of a syncable attribute of the player after a change (ATR-NET-003). It goes
+    /// to every viewer that holds the player at the end of the tick, not to the player.
+    Attribute(AttributeState),
 }

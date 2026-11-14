@@ -6,6 +6,7 @@ use crate::MotionAttributes;
 use crate::MotionEffects;
 use crate::Pose;
 use crate::QueryEntity;
+use crate::SprintSpeed;
 
 /// The state of a player at the start of a tick: the values that one tick reads and writes.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -28,7 +29,9 @@ pub struct PlayerState {
     pub crouching: bool,
     pub swimming: bool,
     pub item_use: ItemUse,
+    /// The attribute values without the sprint modifier.
     pub attributes: MotionAttributes,
+    pub sprint_speed: SprintSpeed,
     pub effects: MotionEffects,
     pub may_fly: bool,
     pub flight_speed: f32,

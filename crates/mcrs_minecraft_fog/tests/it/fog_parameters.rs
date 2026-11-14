@@ -37,7 +37,6 @@ fn parity_scene(render_distance: u8) -> FogInputs {
         sky_fog_end_distance: 512.0,
         cloud_fog_end_distance: 2048.0,
         render_distance,
-        render_fog_end: 16.0 * f32::from(render_distance),
         cloud_distance: 128,
         view_east: 0.0,
         rain_level: 0.0,
@@ -188,61 +187,6 @@ fn parity_tests_give_the_fog_parameters() {
             color: [0.711644, 0.818954, 1.0],
             environmental: Some(FogRamp::NONE),
             render_distance: TWELVE_CHUNKS,
-            sky_end: 192.0,
-            cloud_end: 2048.0,
-        },
-    ];
-
-    for case in cases {
-        assert_parity(&case);
-    }
-}
-
-#[test]
-fn render_fog_end_sets_the_render_distance_ramp() {
-    let cases = [
-        ParityCase {
-            name: "render fog end at 80 blocks",
-            inputs: FogInputs {
-                render_fog_end: 80.0,
-                ..parity_scene(12)
-            },
-            color: [0.711644, 0.818954, 1.0],
-            environmental: Some(FogRamp::NONE),
-            render_distance: FogRamp {
-                start: 72.0,
-                end: 80.0,
-            },
-            sky_end: 192.0,
-            cloud_end: 2048.0,
-        },
-        ParityCase {
-            name: "render fog end at 20 blocks",
-            inputs: FogInputs {
-                render_fog_end: 20.0,
-                ..parity_scene(12)
-            },
-            color: [0.711644, 0.818954, 1.0],
-            environmental: Some(FogRamp::NONE),
-            render_distance: FogRamp {
-                start: 16.0,
-                end: 20.0,
-            },
-            sky_end: 192.0,
-            cloud_end: 2048.0,
-        },
-        ParityCase {
-            name: "render fog end at 0 blocks",
-            inputs: FogInputs {
-                render_fog_end: 0.0,
-                ..parity_scene(12)
-            },
-            color: [0.711644, 0.818954, 1.0],
-            environmental: Some(FogRamp::NONE),
-            render_distance: FogRamp {
-                start: -4.0,
-                end: 0.0,
-            },
             sky_end: 192.0,
             cloud_end: 2048.0,
         },

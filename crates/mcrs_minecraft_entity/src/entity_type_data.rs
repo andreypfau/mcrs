@@ -1,4 +1,4 @@
-use crate::base_attributes::BaseAttributes;
+use crate::attribute_bases::AttributeBases;
 use crate::client_motion::ClientMotion;
 use crate::entity_type_keys::EntityType;
 use crate::life::Life;
@@ -32,8 +32,6 @@ pub struct EntityTypeData {
     /// The factor from the horizontal movement of a tick to the walk target speed.
     pub walk_target_factor: f32,
     pub life: Life,
-    /// `None` for a type that the server does not make.
-    pub base_attributes: Option<BaseAttributes>,
     /// Where the variant entries of the type are in its entity data.
     pub variant_indices: VariantIndices,
 }
@@ -52,7 +50,6 @@ const MOB_DEFAULTS: EntityTypeData = EntityTypeData {
     // client-entities.md, CENTS-WALK-001, item 3.
     walk_target_factor: 4.0,
     life: Life::Mob(MobData::DEFAULT),
-    base_attributes: None,
     variant_indices: VariantIndices::NONE,
 };
 
@@ -73,10 +70,6 @@ impl EntityTypeData {
         // mob-pig.md: the size of a baby is the adult values times 0.5.
         baby_scale: Some(0.5),
         life: ANIMAL,
-        base_attributes: Some(BaseAttributes {
-            max_health: 10.0,
-            movement_speed: 0.25,
-        }),
         variant_indices: VariantIndices::PIG,
         ..MOB_DEFAULTS
     };
@@ -89,10 +82,6 @@ impl EntityTypeData {
         // mob-animals.md, ANIM-TYPE-001: the baby box is half the adult box on each axis.
         baby_scale: Some(0.5),
         life: ANIMAL,
-        base_attributes: Some(BaseAttributes {
-            max_health: 10.0,
-            movement_speed: 0.2_f32 as f64,
-        }),
         variant_indices: VariantIndices::COW,
         ..MOB_DEFAULTS
     };
@@ -105,10 +94,6 @@ impl EntityTypeData {
         // mob-animals.md, ANIM-TYPE-001: the baby box is half the adult box on each axis.
         baby_scale: Some(0.5),
         life: ANIMAL,
-        base_attributes: Some(BaseAttributes {
-            max_health: 8.0,
-            movement_speed: 0.23_f32 as f64,
-        }),
         ..MOB_DEFAULTS
     };
 
@@ -118,10 +103,6 @@ impl EntityTypeData {
         height: 0.7,
         eye_height: 0.644,
         life: ANIMAL,
-        base_attributes: Some(BaseAttributes {
-            max_health: 4.0,
-            movement_speed: 0.25,
-        }),
         variant_indices: VariantIndices::CHICKEN,
         ..MOB_DEFAULTS
     };
@@ -133,10 +114,6 @@ impl EntityTypeData {
         eye_height: 1.79,
         tracking_range: 8,
         fire_immune: true,
-        base_attributes: Some(BaseAttributes {
-            max_health: 20.0,
-            movement_speed: 0.23_f32 as f64,
-        }),
         ..MOB_DEFAULTS
     };
 
@@ -248,10 +225,10 @@ impl EntityTypeData {
         }
     }
 
-    /// The type data of `entity_type` when the server makes mobs of it (TRK-TYPE-002).
+    /// The attribute set and the bases of the type, or `None` for a type that is not living.
     #[must_use]
-    pub fn server_mob(entity_type: EntityType) -> Option<&'static Self> {
-        Self::of(entity_type).filter(|data| data.mob().is_some() && data.base_attributes.is_some())
+    pub const fn attribute_bases(&self) -> Option<AttributeBases> {
+        AttributeBases::of(self.entity_type)
     }
 
     #[must_use]
