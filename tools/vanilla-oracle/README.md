@@ -802,3 +802,19 @@ update. Two mixins record them on the client thread. `docs/spec/client-entities.
 
 The task opens a game window and takes about one minute for each scene. The fixture
 `client_frames` copies the output to `crates/mcrs_minecraft_client/tests/fixtures/vanilla/frames/`.
+
+## Fonts (`dumpFont`)
+
+One file, `font.json`, in `crates/mcrs_minecraft_client_gui/tests/fixtures/vanilla`. The task loads the
+font definitions of the client from the resources it has, without a window: the jar layer and the
+asset index layer above it. The jar holds only an empty placeholder of `include/unifont.json`. The
+real definition and the hex archives are objects of the asset index. The task fetches the objects
+under `font/` into `build/font-assets`, checks each SHA-1 against the index, and writes nothing
+that depends on that directory.
+
+For `minecraft:default` with no option, with `uniform`, with `jp`, and for `minecraft:uniform`, the
+file lists the providers in search order and, for a set of code points, the provider that draws
+each one, its advance (normal and bold), the offsets of the bold strike and of the shadow, the
+bitmap size and the box of the glyph. The first configuration also lists the winner of every code
+point of the basic plane as runs, the advance of every bitmap glyph, the widths of the Unifont
+glyphs, and the widths of sample strings (the sum before rounding and the width the client uses).
