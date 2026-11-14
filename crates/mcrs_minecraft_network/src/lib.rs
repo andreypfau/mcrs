@@ -8,6 +8,7 @@ mod disconnect_reason;
 #[cfg(feature = "bevy")]
 pub mod event;
 pub mod identity;
+mod inbound;
 #[cfg(feature = "bevy")]
 pub mod inbound_rate;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
