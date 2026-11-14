@@ -1,4 +1,5 @@
 mod block_loot;
+mod falling_blocks;
 mod item_entities;
 pub mod operator_broadcast;
 mod vanilla_brains;
@@ -22,6 +23,7 @@ use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 
 pub use block_loot::{LootBlocks, VanillaBlockLootPlugin};
+pub use falling_blocks::VanillaFallingBlockPlugin;
 pub use item_entities::VanillaItemEntityPlugin;
 use mcrs_minecraft_vanilla_worldgen::{WorldGenPlugin, WorldgenRegistriesPlugin};
 
@@ -79,6 +81,7 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(VanillaChatPlugin)
             .add(VanillaEntityPhysicsPlugin)
             .add(VanillaItemEntityPlugin)
+            .add(VanillaFallingBlockPlugin)
             .add(VanillaBlockLootPlugin)
             .add(VanillaMobBrainPlugin)
             .add(VanillaItemPlugin)

@@ -42,6 +42,7 @@ mod disconnect;
 mod entity_ids;
 mod entity_replication;
 mod epoch_round_trip;
+mod falling_block;
 mod host_app;
 mod host_subapp_handoff;
 mod hostile_commands;
