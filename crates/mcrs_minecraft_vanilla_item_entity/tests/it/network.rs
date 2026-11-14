@@ -290,6 +290,12 @@ fn an_item_at_rest_whose_velocity_changes_at_the_same_position_sends_a_move() {
     let rest = app.world().get::<MotionState>(item).expect("a motion").0;
     assert!(matches!(rest.rest, Rest::Resting(_)), "the item rests");
     let rest = rest.body;
+    app.world_mut()
+        .get_mut::<MotionState>(item)
+        .expect("a motion")
+        .0
+        .body
+        .velocity = DVec3::new(0.1, 0.0, 0.0);
 
     let woken = run_publishing(&mut app, 1);
 
@@ -303,13 +309,21 @@ fn an_item_at_rest_whose_velocity_changes_at_the_same_position_sends_a_move() {
     let [moved] = moves[..] else {
         panic!("one move: {woken:?}");
     };
-    assert_eq!(
-        moved.position, rest.position,
-        "the item stays where it rests"
+    assert!(
+        moved.position.x > rest.position.x && moved.velocity.x > 0.0,
+        "the move carries the written velocity: {moved:?}"
     );
-    assert_ne!(
-        moved.velocity, rest.velocity,
-        "the rest cycle changed the velocity"
+
+    run_publishing(&mut app, 100);
+    let rest = app.world().get::<MotionState>(item).expect("a motion").0;
+    assert!(
+        matches!(rest.rest, Rest::Resting(_)),
+        "the item rests again"
+    );
+    let silent = run_publishing(&mut app, 40);
+    assert!(
+        silent.is_empty(),
+        "an item at rest publishes nothing: {silent:?}"
     );
 }
 

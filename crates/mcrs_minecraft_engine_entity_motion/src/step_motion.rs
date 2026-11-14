@@ -128,8 +128,14 @@ fn step<W: CollisionWorld>(
     if same_bits(&start, &motion.body) {
         return None;
     }
+    let body = motion.body;
     state.set_changed();
-    Some(Subject { id: id.0, entity })
+    let moved = body.position != start.position
+        || body.flags != start.flags
+        || kernel.bounced
+        || wake && body.velocity != start.velocity;
+    // The velocity of an item cycles while it rests; a viewer does not see it (TRK-UPD-017).
+    moved.then_some(Subject { id: id.0, entity })
 }
 
 /// True when the section of `position` is loaded or outside the world: an entity in a section

@@ -181,6 +181,29 @@ fn a_falling_block_lands_on_the_floor_and_falls_silent_at_rest() {
 }
 
 #[test]
+fn an_item_at_rest_on_the_floor_publishes_nothing() {
+    let mut app = app(|blocks| blocks.stone);
+    let item = spawn(
+        app.world_mut(),
+        MotionRow::item(),
+        DVec3::new(0.5, 0.0, 0.5),
+    );
+    for _ in 0..100 {
+        tick(&mut app);
+    }
+    let rest = state(&app, item).rest;
+    assert!(matches!(rest, Rest::Resting(_)), "the item rests: {rest:?}");
+
+    for at in 0..40 {
+        assert_eq!(
+            tick(&mut app),
+            [""; 0],
+            "tick {at} at rest publishes nothing"
+        );
+    }
+}
+
+#[test]
 fn a_block_placed_under_a_resting_item_wakes_it() {
     let mut app = app(|blocks| blocks.stone);
     let item = spawn(
