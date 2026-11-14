@@ -12,6 +12,7 @@ use mcrs_minecraft_engine::persisted_registry::PersistedAppExt;
 use mcrs_minecraft_engine_brain::MobBrainPlugin;
 use mcrs_minecraft_engine_brain::MobColumn;
 use mcrs_minecraft_engine_item::ItemPersistencePlugin;
+use mcrs_minecraft_engine_item::PlayerItemFilePlugin;
 use mcrs_minecraft_engine_mob_replication::MobReplicationPlugin;
 use mcrs_minecraft_engine_physics::EntityPhysicsPlugin;
 use mcrs_minecraft_engine_server::{DimensionWorldsPlugin, ServerCorePlugin, ServerNetworkPlugin};
@@ -117,7 +118,8 @@ pub struct VanillaItemPlugin;
 
 impl Plugin for VanillaItemPlugin {
     fn build(&self, app: &mut App) {
-        app.add_persistence_plugin(ItemPersistencePlugin);
+        app.add_persistence_plugin(ItemPersistencePlugin)
+            .add_persistence_plugin(PlayerItemFilePlugin);
     }
 }
 

@@ -21,6 +21,7 @@ use mcrs_minecraft_engine::player_state::PlayerFileState;
 use mcrs_minecraft_engine::write_player;
 use mcrs_minecraft_engine_item::EnderItems;
 use mcrs_minecraft_engine_item::ItemPlugin;
+use mcrs_minecraft_engine_item::PlayerItemFilePlugin;
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::WornEquipment;
@@ -51,7 +52,7 @@ fn temp_world() -> PathBuf {
 fn app(dir: &std::path::Path) -> App {
     let mut app = App::new();
     app.add_plugins(PlayerPersistencePlugin)
-        .add_plugins(ItemPlugin::new(test_item_table()))
+        .add_plugins((ItemPlugin::new(test_item_table()), PlayerItemFilePlugin))
         .insert_resource(WorldSave(dir.to_owned()));
     app
 }

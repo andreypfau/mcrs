@@ -94,6 +94,15 @@ impl PersistedForm<Selected> for SelectedItemSlot {
 }
 
 pub(crate) fn register(app: &mut App) {
+    app.register_persisted_codec(
+        &[ENDER_ITEMS],
+        PersistScope::Persisted,
+        capture_ender_items,
+        apply_ender_items,
+    );
+}
+
+pub(crate) fn register_player(app: &mut App) {
     app.register_persisted_as::<Selected, SelectedItemSlot>(
         &[SELECTED_ITEM_SLOT],
         PersistScope::Persisted,
@@ -103,12 +112,6 @@ pub(crate) fn register(app: &mut App) {
         PersistScope::Persisted,
         capture_inventory,
         apply_inventory,
-    )
-    .register_persisted_codec(
-        &[ENDER_ITEMS],
-        PersistScope::Persisted,
-        capture_ender_items,
-        apply_ender_items,
     )
     .register_persisted_codec(
         &[EQUIPMENT],

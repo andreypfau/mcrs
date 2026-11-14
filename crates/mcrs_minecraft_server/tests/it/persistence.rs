@@ -19,7 +19,7 @@ use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::persisted_registry::{
     CaptureCause, PersistedAppExt, PersistedRegistry, PersistedSnapshot,
 };
-use mcrs_minecraft_engine_item::{ItemPersistencePlugin, Slots};
+use mcrs_minecraft_engine_item::{ItemPersistencePlugin, PlayerItemFilePlugin, Slots};
 use mcrs_minecraft_engine_registries::{install_item_table, test_item_table};
 use mcrs_minecraft_engine_server::{Placement, ShutdownRequest};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -272,7 +272,8 @@ fn slot_stack(slot: i8, id: &str, count: i32) -> NbtTag {
 #[test]
 fn an_inventory_crosses_a_dimension_change() {
     let mut app = host_app::make_host_app();
-    app.add_persistence_plugin(ItemPersistencePlugin);
+    app.add_persistence_plugin(ItemPersistencePlugin)
+        .add_persistence_plugin(PlayerItemFilePlugin);
     app.add_dimension_plugin(ChatPlugin);
     install_item_table(app.world_mut(), test_item_table()).unwrap();
     let mut server = PlayServer::start_in(
