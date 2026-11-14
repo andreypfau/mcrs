@@ -1,4 +1,5 @@
 mod entity_motion;
+mod falling_blocks;
 mod item_entities;
 pub mod operator_broadcast;
 mod vanilla_blocks;
@@ -24,6 +25,7 @@ use mcrs_minecraft_vanilla_block_place::BlockPlacePlugin;
 use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
 
+pub use falling_blocks::VanillaFallingBlockPlugin;
 pub use item_entities::VanillaItemEntityPlugin;
 use mcrs_minecraft_vanilla_worldgen::{WorldGenPlugin, WorldgenRegistriesPlugin};
 pub use vanilla_blocks::{VanillaBlocks, VanillaBlocksPlugin};
@@ -85,6 +87,7 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(VanillaSprintAttributePlugin)
             .add(VanillaCreativeRangePlugin)
             .add(VanillaItemEntityPlugin)
+            .add(VanillaFallingBlockPlugin)
             .add(VanillaBlocksPlugin)
             .add(VanillaMobBrainPlugin)
             .add(VanillaItemPlugin)

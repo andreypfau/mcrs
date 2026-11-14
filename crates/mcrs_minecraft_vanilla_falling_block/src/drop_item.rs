@@ -1,0 +1,41 @@
+use bevy_ecs::system::Commands;
+use glam::DVec3;
+use mcrs_minecraft_block::definition::BlockDefinitions;
+use mcrs_minecraft_engine_item::ItemCommandsExt;
+use mcrs_minecraft_entity_key::BirthSource;
+use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_item_entity::Cause;
+use mcrs_minecraft_item_entity::ItemEntity;
+use mcrs_minecraft_item_stack::Count;
+use mcrs_minecraft_item_stack::ItemStack;
+use mcrs_minecraft_vanilla_item_entity::Form;
+use mcrs_minecraft_vanilla_item_entity::ItemEntityCommandsExt;
+use mcrs_minecraft_vanilla_item_entity::Launch;
+use mcrs_voxel::BlockStateId;
+
+use crate::falling_block_rules::FallingBlockRules;
+
+/// The drop of a falling block `key` at `position`: one item of the block of `carried`, in the
+/// default form and with the pickup delay 10 (FBK-LND-006). A block with no item drops nothing.
+pub(crate) fn drop_item(
+    commands: &mut Commands,
+    rules: &FallingBlockRules,
+    definitions: &BlockDefinitions,
+    carried: BlockStateId,
+    position: DVec3,
+    key: EntityKey,
+) {
+    let (Some(kind), Some(count)) = (rules.item_of(definitions, carried), Count::new(1)) else {
+        return;
+    };
+    commands
+        .spawn_stack(ItemStack::new(kind, count))
+        .launch(Launch {
+            source: BirthSource::Entity(key),
+            form: Form::Default(position),
+            values: ItemEntity {
+                pickup_delay: Cause::BlockDrop.pickup_delay(),
+                ..ItemEntity::default()
+            },
+        });
+}

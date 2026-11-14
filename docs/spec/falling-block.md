@@ -75,8 +75,7 @@ the Minecraft EULA in its environment, and the author had no such acceptance.
   `e3_drop_slime_block.json`: captures of `26.4-snapshot-7` (experiment E3 of `entity-physics.md`).
   Each has a falling block of `sand` with the drop flag false.
 - The data pack of mcrs, `assets/mcrs/datapacks/mcrs/`: the tags of FBK-TRG-002 and the file
-  `mcrs/falling_block/concrete_pairs.json`. These files are not in this revision. The second pull
-  request of #97 adds them.
+  `mcrs/falling_block/concrete_pairs.json`.
 - The data pack of the game: the block tags `minecraft:concrete_powders`, `minecraft:anvil`,
   `minecraft:fire` and `minecraft:water` (a fluid tag), and the game rule `minecraft:entity_drops`.
 - The block definitions under `assets/mcrs/block_definition/`: the component
