@@ -36,6 +36,7 @@ use mcrs_minecraft_client::screenshot;
 use mcrs_minecraft_client::{
     ClientPlugins, ClientTerrainPlugin, config, sky, vanilla, window_options,
 };
+use mcrs_minecraft_client_gui::inventory_figure::inventory_figure;
 use mcrs_minecraft_client_gui::menu_plugin::MenuPlugin;
 use mcrs_minecraft_client_gui::menu_screens_plugin::MenuScreensPlugin;
 use mcrs_minecraft_client_gui::{chat_input, game_mode_switcher};
@@ -56,9 +57,7 @@ use mcrs_minecraft_engine_server::{
 use mcrs_minecraft_engine_world::world::lifecycle::trace::ColumnTraceSink;
 use mcrs_minecraft_environment::WorldClock;
 use mcrs_minecraft_mesh::SECTION_SIZE;
-#[cfg(feature = "singleplayer")]
-use mcrs_minecraft_network::client::offline_player_uuid;
-use mcrs_minecraft_network::client::{ClientNetworkPlugin, ExitOnDisconnect};
+use mcrs_minecraft_network::client::{ClientNetworkPlugin, ExitOnDisconnect, offline_player_uuid};
 #[cfg(feature = "singleplayer")]
 use mcrs_minecraft_server::MinecraftServerPlugins;
 #[cfg(feature = "singleplayer")]
@@ -267,6 +266,9 @@ pub fn run() -> AppExit {
     // After `DefaultPlugins`: an embedded server leaves the task pools to its
     // host, so the host has to have built them before the server thread ticks.
     let username = knobs.username();
+    let local_uuid = save_data
+        .player_uuid
+        .unwrap_or_else(|| offline_player_uuid(&username));
     let local_world = cfg!(feature = "singleplayer") && knobs.server().is_none();
     #[cfg(feature = "singleplayer")]
     let server = server_address(&knobs).unwrap_or_else(|| {
@@ -280,9 +282,7 @@ pub fn run() -> AppExit {
         let traces = None;
         let host = SingleplayerProfile {
             name: username.clone(),
-            id: save_data
-                .player_uuid
-                .unwrap_or_else(|| offline_player_uuid(&username)),
+            id: local_uuid,
         };
         host_integrated_server(&knobs, world.as_deref(), &assets, &data_pack, traces, host)
     });
@@ -354,6 +354,7 @@ pub fn run() -> AppExit {
         yaw,
         pitch,
     );
+    app.world_mut().spawn(inventory_figure(local_uuid));
     #[cfg(feature = "dev")]
     mcrs_minecraft_client::dev::script_flight(&mut app, player);
     #[cfg(not(feature = "dev"))]

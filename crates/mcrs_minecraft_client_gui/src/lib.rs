@@ -34,14 +34,7 @@ pub mod gui_items;
 pub mod gui_sprite_id;
 pub mod gui_texture_id;
 pub mod hotbar;
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the figure system of the inventory screen is not built yet"
-    )
-)]
-mod inventory_figure;
+pub mod inventory_figure;
 pub mod inventory_key;
 pub mod inventory_screen;
 pub mod item_decorations;

@@ -1,4 +1,18 @@
 use bevy::math::{IRect, IVec2, Mat4, UVec2, Vec2, Vec3};
+use bevy::prelude::*;
+use bevy::window::PrimaryWindow;
+use mcrs_minecraft_client_world::player::Player;
+use mcrs_minecraft_client_world::screen::Screen;
+use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity_render::{EntityViews, FigureFrame, FigureView, FramePosed};
+use mcrs_minecraft_entity_visual::{
+    Age, ClientEntity, EntityLight, Equipment, HostLight, Living, Motion, Placement, SyncedData,
+};
+use uuid::Uuid;
+
+use crate::inventory_screen::origin;
+use crate::scene::{GuiScene, window_framebuffer};
 
 const GUI_UNITS_PER_BLOCK: f32 = 30.0;
 const RECT_LEFT: i32 = 26;
@@ -13,6 +27,85 @@ const TURN_DEGREES_PER_RADIAN: f32 = 20.0;
 const DEPTH_HALF_RANGE_BLOCKS: f32 = 4.0;
 const LIGHT_0: Vec3 = Vec3::new(0.2, 1.0, 1.0);
 const LIGHT_1: Vec3 = Vec3::new(-0.2, 1.0, 0.0);
+// No packet of a server names an entity with this id.
+const FIGURE_NETWORK_ID: i32 = i32::MIN;
+const FULL_LIGHT: EntityLight = EntityLight { block: 15, sky: 15 };
+
+/// The player figure of the inventory screen. Only the figure view draws it.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct InventoryFigure;
+
+/// The figure of the local player with the UUID `uuid`: a player at the origin of figure space,
+/// in full light, that takes the skin of the profile with that UUID.
+#[must_use]
+pub fn inventory_figure(uuid: Uuid) -> impl Bundle {
+    let placement = Placement::default();
+    (
+        InventoryFigure,
+        ClientEntity {
+            network_id: FIGURE_NETWORK_ID,
+            uuid,
+            kind: EntityType::Player,
+        },
+        Motion::new(placement, placement.position),
+        Age::default(),
+        SyncedData::default(),
+        Living::default(),
+        Equipment::default(),
+        EntityViews::FIGURE,
+        FramePosed,
+        HostLight,
+        FULL_LIGHT,
+    )
+}
+
+/// Turns the figure to the cursor and gives the figure view its frame while the inventory
+/// screen is open, and no frame otherwise or while the local player is invisible.
+pub(crate) fn pose_inventory_figure(
+    screen: Res<Screen>,
+    scene: Res<GuiScene>,
+    window: Single<&Window, With<PrimaryWindow>>,
+    player: Query<Option<&SyncedData>, With<Player>>,
+    mut figures: Query<(&mut Living, &mut Motion), With<InventoryFigure>>,
+    mut view: ResMut<FigureView>,
+) {
+    let invisible = player.iter().flatten().any(SyncedData::is_invisible);
+    if *screen != Screen::Inventory || invisible {
+        view.set_if_neq(FigureView(None));
+        return;
+    }
+    let standing = FigureBox {
+        height: EntityTypeData::PLAYER.height,
+        eye_height: EntityTypeData::PLAYER.eye_height,
+    };
+    let points = figure_points(origin(scene.size), standing);
+    let angles = figure_angles(points.eye, scene.cursor.as_vec2());
+    let frame = clip_from_figure(
+        points.feet,
+        angles.tilt,
+        window_framebuffer(&window),
+        scene.size.scale,
+    )
+    .map(|clip_from_figure| FigureFrame {
+        clip_from_figure,
+        lights: figure_lights(angles.tilt),
+    });
+    view.set_if_neq(FigureView(frame));
+
+    // A yaw of 0 faces +Z, toward the viewer, and a positive yaw turns the front to -X.
+    let body_yaw = -angles.turn;
+    let head_yaw = 2.0 * body_yaw;
+    let pitch = -angles.tilt;
+    for (mut living, motion) in &mut figures {
+        if living.body_yaw != body_yaw || living.head_yaw != head_yaw {
+            living.body_yaw = body_yaw;
+            living.head_yaw = head_yaw;
+        }
+        motion
+            .map_unchanged(|motion| &mut motion.current.pitch)
+            .set_if_neq(pitch);
+    }
+}
 
 /// The box height and the eye height of the local player in its pose, in blocks, before the
 /// scale attribute.

@@ -1,6 +1,7 @@
 use bevy::math::{IRect, IVec2};
 use mcrs_minecraft_item::{SlotTable, slots};
 
+use crate::inventory_figure::figure_rect;
 use crate::scene::{GuiQuad, GuiSize, sprite};
 
 pub const IMAGE_WIDTH: i32 = 176;
@@ -62,6 +63,9 @@ pub fn inventory_screen(size: GuiSize, cursor: IVec2, slots: &SlotTable, out: &m
         IVec2::new(IMAGE_WIDTH, IMAGE_HEIGHT),
         "container/inventory",
     ));
+    out.push(GuiQuad::Figure {
+        rect: figure_rect(top_left),
+    });
     let button = IVec2::new(top_left.x + 104, size.height / 2 - 22);
     let over_button = (button.x..button.x + 20).contains(&cursor.x)
         && (button.y..button.y + 18).contains(&cursor.y);
@@ -199,11 +203,18 @@ mod tests {
         assert!(
             matches!(out[1], GuiQuad::Sprite { rect, region: "container/inventory", .. } if rect.min == top_left)
         );
-        assert!(
-            matches!(out[2], GuiQuad::Sprite { rect, region: "recipe_book/button", .. } if rect.min == IVec2::new(229, 98))
+        assert_eq!(
+            out.get(2),
+            Some(&GuiQuad::Figure {
+                rect: IRect::new(151, 45, 200, 115)
+            }),
+            "the figure draws over the image and under the slots and the carried stack"
         );
         assert!(
-            matches!(out[3], GuiQuad::Sprite { rect, region: "container/slot_highlight_back", .. } if rect.min == top_left + IVec2::new(4, 80))
+            matches!(out[3], GuiQuad::Sprite { rect, region: "recipe_book/button", .. } if rect.min == IVec2::new(229, 98))
+        );
+        assert!(
+            matches!(out[4], GuiQuad::Sprite { rect, region: "container/slot_highlight_back", .. } if rect.min == top_left + IVec2::new(4, 80))
         );
         let armour: Vec<_> = out
             .iter()
