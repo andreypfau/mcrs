@@ -24,7 +24,7 @@ use crate::spawn_look::SpawnLook;
 use crate::subject_attributes::SubjectAttributes;
 use crate::wire_id::wire_id;
 use mcrs_minecraft_protocol_game::ProtoStack;
-use mcrs_minecraft_protocol_game::entity::MobLooks;
+use mcrs_minecraft_protocol_game::entity::{MetadataEntry, MobLooks};
 use mcrs_minecraft_registries::Wire;
 
 const BLOCKS_PER_COLUMN: u32 = 16;
@@ -56,6 +56,8 @@ struct Mob {
     kind: &'static EntityTypeData,
     uuid: Uuid,
     looks: MobLooks,
+    /// The field "data" of `add_entity`.
+    spawn_data: VarInt,
     tracker: MobTracker,
     attributes: SubjectAttributes,
 }
@@ -66,12 +68,23 @@ impl MobTrackers {
     }
 
     pub(crate) fn spawn(&mut self, subject: EntityId, spawn: &MobSpawn, tick: u64) {
-        let (looks, entries) = match &spawn.look {
+        let (looks, entries, spawn_data) = match &spawn.look {
             SpawnLook::Mob(looks) => (
                 looks.clone(),
                 Entries::Living(LivingEntries::of(&spawn.state)),
+                VarInt(0),
             ),
-            SpawnLook::Item(stack) => (MobLooks::default(), Entries::Item(stack.clone())),
+            SpawnLook::Item(stack) => {
+                (MobLooks::default(), Entries::Item(stack.clone()), VarInt(0))
+            }
+            SpawnLook::FallingBlock { state, start } => (
+                MobLooks::default(),
+                Entries::FallingBlock(*start),
+                VarInt(i32::from(state.0)),
+            ),
+            SpawnLook::Custom { data, entries } => {
+                (MobLooks::default(), Entries::custom(entries), VarInt(*data))
+            }
         };
         self.mobs.insert(
             subject,
@@ -79,7 +92,8 @@ impl MobTrackers {
                 kind: spawn.kind,
                 uuid: spawn.uuid,
                 looks,
-                tracker: MobTracker::new(spawn.state, entries, spawn.kind.update_interval, tick),
+                spawn_data,
+                tracker: MobTracker::new(spawn.state, entries, spawn.kind, tick),
                 attributes: SubjectAttributes::with_stored(
                     spawn.kind.attribute_bases(),
                     Vec::new(),
@@ -169,6 +183,12 @@ impl MobTrackers {
         }
     }
 
+    pub(crate) fn record_entries(&mut self, subject: EntityId, entries: &[MetadataEntry<'static>]) {
+        if let Some(mob) = self.mobs.get_mut(&subject) {
+            mob.tracker.record_entries(entries);
+        }
+    }
+
     pub(crate) fn record_attribute(&mut self, subject: EntityId, attribute: &AttributeState) {
         if let Some(mob) = self.mobs.get_mut(&subject) {
             mob.attributes.record(attribute);
@@ -221,7 +241,7 @@ impl MobTrackers {
             mob.tracker.restart();
         }
         let id = wire_id(subject);
-        let add = record(&mob.tracker.add_entity(id, mob.uuid, mob.kind.entity_type))?;
+        let add = record(&mob.tracker.add_entity(id, mob.uuid, mob.spawn_data))?;
         let extras = spawn_extras(id, &mob.looks, mob.tracker.sent_entries(), &mob.attributes)?;
         chunks.extend([delimiter.clone(), add, extras, delimiter.clone()]);
         holds.insert(viewer, subject);
@@ -340,14 +360,18 @@ mod tests {
     use mcrs_engine_muxer::ViewerBytes;
     use mcrs_minecraft_core::Look;
     use mcrs_minecraft_entity::attribute_keys::Attribute;
+    use mcrs_minecraft_entity::entity_type_keys::EntityType;
     use mcrs_minecraft_entity::{AttributeSet, InstanceModifier, ModifierKind};
     use mcrs_minecraft_entity_attribute::{AttributeModifier, ModifierOperation};
+    use mcrs_minecraft_protocol_game::block::BlockStateNumber;
     use mcrs_minecraft_protocol_game::clientbound::{
-        AttributeSnapshot, ClientboundEntityPositionSync, ClientboundSetEntityData,
-        ClientboundUpdateAttributes, PositionPath,
+        AttributeSnapshot, ClientboundAddEntity, ClientboundEntityPositionSync,
+        ClientboundSetEntityData, ClientboundUpdateAttributes, PositionPath,
     };
     use mcrs_minecraft_protocol_game::entity::{MetaDataValue, Metadata, MetadataEntry};
+    use mcrs_minecraft_protocol_game::{ByteAngle, LpVec3};
     use mcrs_minecraft_resource::ResourceLocation;
+    use mcrs_voxel::BlockPos;
 
     use super::*;
 
@@ -475,6 +499,107 @@ mod tests {
     }
 
     #[test]
+    fn fbk_spn_002_the_spawn_of_a_falling_block_carries_its_state_and_start() {
+        let mut world = World::default();
+        let state = at(0.5);
+        let start = BlockPos::new(0, -59, 0);
+        let spawn = MobSpawn {
+            kind: &EntityTypeData::FALLING_BLOCK,
+            uuid: Uuid::nil(),
+            state,
+            look: SpawnLook::FallingBlock {
+                state: BlockStateNumber(118),
+                start,
+            },
+        };
+        world.mobs.spawn(MOB, &spawn, 0);
+
+        let chunks = world.gain(KEEPS_UP, 0);
+
+        let add = record(&ClientboundAddEntity {
+            id: wire_id(MOB),
+            uuid: Uuid::nil(),
+            kind: EntityType::FallingBlock,
+            pos: state.position,
+            movement: LpVec3(DVec3::ZERO),
+            pitch: ByteAngle::default(),
+            yaw: ByteAngle::default(),
+            head_yaw: ByteAngle::default(),
+            data: VarInt(118),
+        })
+        .unwrap();
+        let data = record(&ClientboundSetEntityData {
+            entity_id: wire_id(MOB),
+            metadata: Metadata(vec![MetadataEntry {
+                index: 8,
+                value: MetaDataValue::BlockPos(start),
+            }]),
+        })
+        .unwrap();
+        assert_eq!(
+            chunks[1..3],
+            [add, data],
+            "add_entity with the state id, then only the start position"
+        );
+    }
+
+    #[test]
+    fn a_custom_kind_spawns_with_its_data_and_sends_a_changed_entry_once() {
+        let entry = |index, value| MetadataEntry {
+            index,
+            value: MetaDataValue::VarInt(VarInt(value)),
+        };
+        let mut world = World::default();
+        let state = at(0.5);
+        let spawn = MobSpawn {
+            kind: &EntityTypeData::ITEM,
+            uuid: Uuid::nil(),
+            state,
+            look: SpawnLook::Custom {
+                data: 7,
+                entries: vec![entry(9, 2), entry(8, 1)],
+            },
+        };
+        world.mobs.spawn(MOB, &spawn, 0);
+
+        let chunks = world.gain(KEEPS_UP, 0);
+        world.tick(0);
+
+        let add = record(&ClientboundAddEntity {
+            id: wire_id(MOB),
+            uuid: Uuid::nil(),
+            kind: EntityType::Item,
+            pos: state.position,
+            movement: LpVec3(DVec3::ZERO),
+            pitch: ByteAngle::default(),
+            yaw: ByteAngle::default(),
+            head_yaw: ByteAngle::default(),
+            data: VarInt(7),
+        })
+        .unwrap();
+        let data = |entries| {
+            record(&ClientboundSetEntityData {
+                entity_id: wire_id(MOB),
+                metadata: Metadata(entries),
+            })
+            .unwrap()
+        };
+        assert_eq!(
+            chunks[1..3],
+            [add, data(vec![entry(8, 1), entry(9, 2)])],
+            "add_entity with the data value, then the entries in the order of the indices"
+        );
+
+        world.mobs.record_entries(MOB, &[entry(8, 1), entry(9, 5)]);
+        assert_eq!(
+            world.tick(1).get(&KEEPS_UP),
+            Some(&vec![data(vec![entry(9, 5)])]),
+            "only the entry that changed"
+        );
+        assert!(world.tick(2).is_empty(), "the entry goes once");
+    }
+
+    #[test]
     fn a_viewer_that_is_behind_misses_the_moves_and_then_gets_the_state_the_others_hold() {
         let mut world = World::spawned(at(0.5));
         for viewer in [KEEPS_UP, BEHIND] {
@@ -538,11 +663,9 @@ mod tests {
 
         world.gain(BEHIND, 10);
 
-        let add = world.mobs.mobs[&MOB].tracker.add_entity(
-            wire_id(MOB),
-            Uuid::nil(),
-            EntityTypeData::PIG.entity_type,
-        );
+        let add = world.mobs.mobs[&MOB]
+            .tracker
+            .add_entity(wire_id(MOB), Uuid::nil(), VarInt(0));
         assert_eq!(
             add.pos,
             at(9.5).position,

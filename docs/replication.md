@@ -480,21 +480,33 @@ items, llama spit, accelerated projectiles and experience orbs from the last sta
 sent. It sets their position with no interpolation. A path of steps (tiers 1 to 3, C5) does not fit
 them: between two steps the client runs its own simulation, and each step is a jump.
 
-The rule for these categories:
+The rule for these categories follows `entity-tracking.md`, section 7.1:
 
-- They use no path of steps. At each tier, the Muxer sends the update of PHY-CMP-002: a relative
-  move or a precise sync, and `set_entity_motion` when the velocity changed by a squared distance
-  of more than `1.0E-7`.
-- The cell decides when an update is due, as PHY-CMP-002 states: a change of at least
-  `7.6293945E-6F` squared from the last sent position, the 60th tick of the subject, a change of
-  the on-ground flag, and a precise sync after a collision tick of a falling block or a primed TNT.
-  The tile delta carries the on-ground flag, a precise bit and the velocity.
-- A tier only lowers the rate to the update interval of the category (item and falling block 20,
-  TNT and thrown item 10, arrow 20, orb 20 ticks) at most. A tier never sends a position between
-  two updates.
-- A subject at rest sends nothing, so a field of items at rest costs zero bytes (principle 6).
+- They use no path of steps. At each tier, an update sends the linear path: a relative move or
+  `entity_position_sync` (TRK-UPD-003). It sends `set_entity_motion` only by TRK-UPD-007: when the
+  type tracks velocity or the subject has the "needs sync" mark, and the velocity changed by a
+  squared distance of more than `1.0E-7`.
+- A tracker tick is an update at the update interval of the category, for a dirty entry, and for
+  the "needs sync" mark of an impulse (TRK-UPD-001). A bounce on a block moves the counter, so
+  that tracker tick is an update (TRK-UPD-011).
+- A change of the position, a change of the on-ground flag and the precise mark of TRK-UPD-012
+  only select the packet of an update. They do not make an update. A falling block and a primed
+  TNT set the precise mark after a tick with a collision; an item uses the precision test of
+  TRK-UPD-013.
+- The spawn bundle is `add_entity` with the velocity, then `set_entity_data` with the entries that
+  are not default. It has no `set_entity_motion` (TRK-UPD-015).
+- A subject at rest sends nothing, at each tier (TRK-UPD-016). This is the recorded deviation
+  TRK-DEV-006: the reference sends a zero move at each 60th tracker tick. A field of items at rest
+  thus costs zero bytes (principle 6).
+- A tier never sends a position between two updates.
 - When the budget binds, the Muxer removes such a subject from the visible set. It never lowers its
   rate below the interval of its category.
+
+The cell decides which subjects changed. The motion pass of `physics-architecture.md` §6.3 lists in
+`Movers` each subject with a new position, new collision flags, a bounce, or a new velocity after a
+wake. `MotionPublish` turns each mover into a tile event with the position, the velocity, the
+on-ground flag, the collision flags and the bounce. The tracker applies the rules above to these
+events.
 
 The codec of `mcrs_minecraft_replication` writes `on_ground: true` for every move today; the codec
 for entities that are not players carries the real flag.
