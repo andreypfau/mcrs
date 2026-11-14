@@ -15,11 +15,21 @@ pub enum Ground {
     OnGround,
 }
 
-/// The minimum and the maximum `y` of a dimension (FBK-TCK-005).
+/// The minimum `y` and the height of a dimension (FBK-TCK-005).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct WorldHeight {
     pub min_y: i32,
-    pub max_y: i32,
+    pub height: u32,
+}
+
+impl WorldHeight {
+    /// True when the cell at `y` is outside: the lowest layer `min_y` counts as outside, the
+    /// highest layer `min_y + height - 1` as inside.
+    #[must_use]
+    pub fn is_outside(self, y: i32) -> bool {
+        let top = i64::from(self.min_y) + i64::from(self.height) - 1;
+        y <= self.min_y || i64::from(y) > top
+    }
 }
 
 /// The decision of a tick after the move (steps 5 and 6 of FBK-TCK-001).
@@ -52,8 +62,7 @@ impl FallingBlock {
             return AfterMove::Land;
         }
         let too_old = settings.max_age > 0 && i64::from(self.age) > i64::from(settings.max_age);
-        let outside = cell_y <= height.min_y || cell_y > height.max_y;
-        if too_old || (outside && self.age > OUTSIDE_AGE) {
+        if too_old || (height.is_outside(cell_y) && self.age > OUTSIDE_AGE) {
             AfterMove::Expire(Remains::of(self.item_drop, entity_drops))
         } else {
             AfterMove::Fall

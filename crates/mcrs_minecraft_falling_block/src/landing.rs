@@ -105,12 +105,24 @@ impl LevelEvent {
     }
 }
 
-/// A landing: the result and the event that goes with it. The host applies the ground rule to the
-/// velocity first, and removes the falling block for each outcome but [`LandingOutcome::Wait`].
+/// A landing: the result and the sound of an anvil that goes with it. The host applies the ground
+/// rule to the velocity first, and removes the falling block for each outcome but
+/// [`LandingOutcome::Wait`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Landing {
     pub outcome: LandingOutcome,
-    pub event: Option<LevelEvent>,
+    /// The event of an anvil that is not silent (FBK-LND-007).
+    pub anvil_event: Option<LevelEvent>,
+}
+
+impl Landing {
+    /// The events that the host sends, in this order: [`LevelEvent::BlockBreak`] for
+    /// [`LandingOutcome::Break`] (FBK-LND-005), then the event of the anvil.
+    pub fn events(&self) -> impl Iterator<Item = LevelEvent> {
+        let block_break =
+            matches!(self.outcome, LandingOutcome::Break).then_some(LevelEvent::BlockBreak);
+        block_break.into_iter().chain(self.anvil_event)
+    }
 }
 
 impl FallingBlock {
@@ -125,22 +137,20 @@ impl FallingBlock {
         entity_drops: EntityDrops,
         silence: Silence,
     ) -> Landing {
-        let carried = table.flags(self.carried);
         if table.flags(site.target).contains(StateFlags::MOVING_PISTON) {
             return Landing {
                 outcome: LandingOutcome::Wait,
-                event: None,
+                anvil_event: None,
             };
         }
+        let audible_anvil =
+            table.flags(self.carried).contains(StateFlags::ANVIL) && silence == Silence::Audible;
         if self.at_landing == AtLanding::Break {
             return Landing {
                 outcome: LandingOutcome::Break,
-                event: carried
-                    .contains(StateFlags::BREAK_PARTICLES)
-                    .then_some(LevelEvent::BlockBreak),
+                anvil_event: audible_anvil.then_some(LevelEvent::AnvilDestroy),
             };
         }
-        let audible_anvil = carried.contains(StateFlags::ANVIL) && silence == Silence::Audible;
         let rests = !table.is_free(site.below) || site.water_contact == WaterContact::Wet;
         if site.replaceable == Replaceable::Replaceable && site.support == Support::Stays && rests {
             let target = table.flags(site.target);
@@ -156,13 +166,14 @@ impl FallingBlock {
                     placed,
                     concrete: table.concrete(self.carried).filter(|_| hardens),
                 }),
-                event: audible_anvil.then_some(LevelEvent::AnvilLand),
+                anvil_event: audible_anvil.then_some(LevelEvent::AnvilLand),
             };
         }
         let remains = Remains::of(self.item_drop, entity_drops);
         Landing {
             outcome: LandingOutcome::Item(remains),
-            event: (audible_anvil && remains == Remains::Item).then_some(LevelEvent::AnvilDestroy),
+            anvil_event: (audible_anvil && remains == Remains::Item)
+                .then_some(LevelEvent::AnvilDestroy),
         }
     }
 }

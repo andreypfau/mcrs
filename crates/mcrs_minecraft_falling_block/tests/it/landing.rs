@@ -1,5 +1,7 @@
 use glam::IVec3;
+use mcrs_minecraft_falling_block::AtLanding;
 use mcrs_minecraft_falling_block::EntityDrops;
+use mcrs_minecraft_falling_block::FallingBlock;
 use mcrs_minecraft_falling_block::LandingOutcome;
 use mcrs_minecraft_falling_block::LandingSite;
 use mcrs_minecraft_falling_block::LevelEvent;
@@ -47,18 +49,18 @@ fn fbk_lnd_001_to_007_the_result_of_a_landing() {
     let wet_slab = state("minecraft:oak_slab", &[("waterlogged", "true")]);
     let on_stone = site(air, stone);
     let item = LandingOutcome::Item(Remains::Item);
-    let cases = [
+    let cases: &[(BlockStateId, LandingSite, LandingOutcome, &[LevelEvent])] = &[
         // FBK-LND-001: moving_piston comes first, then the break flag.
-        (suspicious, site(piston, stone), LandingOutcome::Wait, None),
+        (suspicious, site(piston, stone), LandingOutcome::Wait, &[]),
         (
             suspicious,
             on_stone,
             LandingOutcome::Break,
-            Some(LevelEvent::BlockBreak),
+            &[LevelEvent::BlockBreak][..],
         ),
         // FBK-LND-002.
-        (sand, on_stone, place(sand, None), None),
-        (sand, site(air, air), item, None),
+        (sand, on_stone, place(sand, None), &[]),
+        (sand, site(air, air), item, &[]),
         (
             sand,
             LandingSite {
@@ -66,7 +68,7 @@ fn fbk_lnd_001_to_007_the_result_of_a_landing() {
                 ..site(air, air)
             },
             place(sand, None),
-            None,
+            &[],
         ),
         (
             sand,
@@ -75,7 +77,7 @@ fn fbk_lnd_001_to_007_the_result_of_a_landing() {
                 ..on_stone
             },
             item,
-            None,
+            &[],
         ),
         (
             sand,
@@ -84,22 +86,22 @@ fn fbk_lnd_001_to_007_the_result_of_a_landing() {
                 ..on_stone
             },
             item,
-            None,
+            &[],
         ),
         // FBK-LND-004: a water source waterlogs, water at or beside the cell makes concrete.
-        (dry_slab, site(water, stone), place(wet_slab, None), None),
-        (dry_slab, site(flowing, stone), place(dry_slab, None), None),
+        (dry_slab, site(water, stone), place(wet_slab, None), &[]),
+        (dry_slab, site(flowing, stone), place(dry_slab, None), &[]),
         (
             powder,
             site(water, stone),
             place(powder, Some(concrete)),
-            None,
+            &[],
         ),
         (
             powder,
             site(flowing, stone),
             place(powder, Some(concrete)),
-            None,
+            &[],
         ),
         (
             powder,
@@ -108,24 +110,28 @@ fn fbk_lnd_001_to_007_the_result_of_a_landing() {
                 ..on_stone
             },
             place(powder, Some(concrete)),
-            None,
+            &[],
         ),
-        (powder, site(air, water), item, None),
-        (powder, on_stone, place(powder, None), None),
+        (powder, site(air, water), item, &[]),
+        (powder, on_stone, place(powder, None), &[]),
         // FBK-LND-007.
         (
             anvil,
             on_stone,
             place(anvil, None),
-            Some(LevelEvent::AnvilLand),
+            &[LevelEvent::AnvilLand][..],
         ),
-        (anvil, site(air, air), item, Some(LevelEvent::AnvilDestroy)),
+        (anvil, site(air, air), item, &[LevelEvent::AnvilDestroy][..]),
     ];
-    for (falling, site, outcome, event) in cases {
+    for &(falling, site, outcome, event) in cases {
         let block = start(&TABLE, IVec3::ZERO, falling).falling_block;
         let landing = block.land(&TABLE, &site, EntityDrops::On, Silence::Audible);
         assert_eq!(landing.outcome, outcome, "{falling:?} {site:?}");
-        assert_eq!(landing.event, event, "{falling:?} {site:?}");
+        assert_eq!(
+            landing.events().collect::<Vec<_>>(),
+            event,
+            "{falling:?} {site:?}"
+        );
     }
 }
 
@@ -135,14 +141,21 @@ fn fbk_lnd_005_006_007_the_game_rule_and_the_silence() {
     let stone = state("minecraft:stone", &[]);
     let anvil = state("minecraft:anvil", &[]);
     let suspicious = state("minecraft:suspicious_gravel", &[]);
-    let cases = [
+    let cases: &[(
+        BlockStateId,
+        BlockStateId,
+        EntityDrops,
+        Silence,
+        LandingOutcome,
+        &[LevelEvent],
+    )] = &[
         (
             anvil,
             air,
             EntityDrops::Off,
             Silence::Audible,
             LandingOutcome::Item(Remains::Nothing),
-            None,
+            &[],
         ),
         (
             anvil,
@@ -150,7 +163,7 @@ fn fbk_lnd_005_006_007_the_game_rule_and_the_silence() {
             EntityDrops::On,
             Silence::Silent,
             LandingOutcome::Item(Remains::Item),
-            None,
+            &[],
         ),
         (
             anvil,
@@ -161,7 +174,7 @@ fn fbk_lnd_005_006_007_the_game_rule_and_the_silence() {
                 placed: anvil,
                 concrete: None,
             }),
-            None,
+            &[],
         ),
         (
             suspicious,
@@ -169,10 +182,10 @@ fn fbk_lnd_005_006_007_the_game_rule_and_the_silence() {
             EntityDrops::Off,
             Silence::Silent,
             LandingOutcome::Break,
-            Some(LevelEvent::BlockBreak),
+            &[LevelEvent::BlockBreak][..],
         ),
     ];
-    for (falling, below, entity_drops, silence, outcome, event) in cases {
+    for &(falling, below, entity_drops, silence, outcome, event) in cases {
         let block = start(&TABLE, IVec3::ZERO, falling).falling_block;
         let landing = block.land(&TABLE, &site(air, below), entity_drops, silence);
         assert_eq!(
@@ -180,8 +193,42 @@ fn fbk_lnd_005_006_007_the_game_rule_and_the_silence() {
             "{falling:?} {entity_drops:?} {silence:?}"
         );
         assert_eq!(
-            landing.event, event,
+            landing.events().collect::<Vec<_>>(),
+            event,
             "{falling:?} {entity_drops:?} {silence:?}"
+        );
+    }
+}
+
+#[test]
+fn fbk_lnd_005_each_block_with_the_break_flag_sends_the_break_event() {
+    let air = state("minecraft:air", &[]);
+    let stone = state("minecraft:stone", &[]);
+    let anvil = state("minecraft:anvil", &[]);
+    let cases: &[(BlockStateId, Silence, &[LevelEvent])] = &[
+        (
+            state("minecraft:sand", &[]),
+            Silence::Audible,
+            &[LevelEvent::BlockBreak],
+        ),
+        (
+            anvil,
+            Silence::Audible,
+            &[LevelEvent::BlockBreak, LevelEvent::AnvilDestroy],
+        ),
+        (anvil, Silence::Silent, &[LevelEvent::BlockBreak]),
+    ];
+    for &(falling, silence, events) in cases {
+        let block = FallingBlock {
+            at_landing: AtLanding::Break,
+            ..start(&TABLE, IVec3::ZERO, falling).falling_block
+        };
+        let landing = block.land(&TABLE, &site(air, stone), EntityDrops::Off, silence);
+        assert_eq!(landing.outcome, LandingOutcome::Break, "{falling:?}");
+        assert_eq!(
+            landing.events().collect::<Vec<_>>(),
+            events,
+            "{falling:?} {silence:?}"
         );
     }
 }

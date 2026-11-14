@@ -15,7 +15,7 @@ use mcrs_voxel::BlockStateId;
 
 const HEIGHT: WorldHeight = WorldHeight {
     min_y: -64,
-    max_y: 319,
+    height: 384,
 };
 
 fn falling(age: i32, item_drop: ItemDrop) -> FallingBlock {

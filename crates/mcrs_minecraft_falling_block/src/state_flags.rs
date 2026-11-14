@@ -9,7 +9,6 @@ impl StateFlags {
     pub(crate) const WATER_SOURCE: Self = Self(1 << 4);
     pub(crate) const MOVING_PISTON: Self = Self(1 << 5);
     pub(crate) const ANVIL: Self = Self(1 << 6);
-    pub(crate) const BREAK_PARTICLES: Self = Self(1 << 7);
 
     pub(crate) fn contains(self, flag: Self) -> bool {
         self.0 & flag.0 == flag.0

@@ -82,10 +82,6 @@ impl FallingBlockTable {
                     holds_water && data.fluid.is_some_and(|fluid| fluid.source),
                 );
                 flags.set(StateFlags::MOVING_PISTON, is(Block::MovingPiston));
-                flags.set(
-                    StateFlags::BREAK_PARTICLES,
-                    is(Block::SuspiciousSand) || is(Block::SuspiciousGravel),
-                );
                 let owner = definitions.owner(id);
                 let waterlogged = |value| {
                     owner
