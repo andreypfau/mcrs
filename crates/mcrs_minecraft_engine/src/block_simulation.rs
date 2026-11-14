@@ -650,8 +650,8 @@ fn run_block_simulation<B: BlockBehaviour<WorldKinds> + BlockDrops + Send + 'sta
 /// part with the breaker, when the break harvests it.
 // chisle: these items go out before those of the blocks that the step destroys after the break,
 // and a destroyed block reads the world after the step; LOOT-OUT-004 and LOOT-CND-008 want the
-// reverse order and the world at the removal. No block rule destroys a block with drops yet;
-// evaluating the destroyed blocks inside the step lifts it.
+// reverse order and the world at the removal. Evaluating the destroyed blocks inside the step
+// lifts it.
 #[expect(
     clippy::too_many_arguments,
     reason = "a Bevy system: each message, resource and query is its own parameter"

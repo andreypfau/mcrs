@@ -1,7 +1,7 @@
 //! Block placing as the cell of the placer hands it to the muxer: the packets for the placer
 //! first, then the changes of the columns to their holders, then the acknowledgements.
 
-use bevy_app::Last;
+use bevy_app::{App, Last};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, Messages};
 use bevy_ecs::resource::Resource;
@@ -16,6 +16,7 @@ use mcrs_minecraft_engine::column_change::ColumnChange;
 use mcrs_minecraft_engine::column_streams::ColumnStreams;
 use mcrs_minecraft_engine::teleport::TeleportState;
 use mcrs_minecraft_engine_item::{HolderCommandsExt, Slots};
+use mcrs_minecraft_engine_registries::{install_item_table, test_item_table};
 use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::palette::air_section;
@@ -24,6 +25,7 @@ use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimen
 use mcrs_minecraft_engine_world::world::storage::random_ticks::RandomTickIndex;
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_item_stack::{Count, ItemStack, Kind};
 use mcrs_minecraft_item_table::{DefinitionFile, ItemTable, bake};
 use mcrs_minecraft_protocol::VarInt;
@@ -34,7 +36,8 @@ use mcrs_minecraft_protocol_game::serverbound::{
 };
 use mcrs_minecraft_protocol_game::text::TextContent;
 use mcrs_minecraft_server::{
-    VanillaBlockPlacePlugin, VanillaEntityPhysicsPlugin, VanillaItemEntityPlugin,
+    VanillaBlockPlacePlugin, VanillaBlocksPlugin, VanillaEntityPhysicsPlugin,
+    VanillaItemEntityPlugin,
 };
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, SectionPos};
@@ -133,11 +136,7 @@ fn stone(server: &mut PlayServer) -> BlockStateId {
         .unwrap()
 }
 
-/// A creative placer with stone in its selected slot, standing two blocks north of stone at
-/// `ground`, in a column that the muxer subscribes to.
-fn placer_beside(
-    ground: impl Fn(&DimensionTypeConfig) -> BlockPos,
-) -> (PlayServer, Placer, BlockPos) {
+fn placing_app() -> App {
     let mut app = host_app::make_host_app();
     app.insert_resource(table());
     app.add_plugins((
@@ -145,6 +144,21 @@ fn placer_beside(
         VanillaItemEntityPlugin,
         VanillaBlockPlacePlugin,
     ));
+    app
+}
+
+/// A creative placer with stone in its selected slot, standing two blocks north of stone at
+/// `ground`, in a column that the muxer subscribes to.
+fn placer_beside(
+    ground: impl Fn(&DimensionTypeConfig) -> BlockPos,
+) -> (PlayServer, Placer, BlockPos) {
+    placer_in(placing_app(), ground)
+}
+
+fn placer_in(
+    app: App,
+    ground: impl Fn(&DimensionTypeConfig) -> BlockPos,
+) -> (PlayServer, Placer, BlockPos) {
     let mut server = PlayServer::start(app, &[], 0);
     let sub_app = host_app::sub_app(&mut server.app, server.dim);
     sub_app.init_resource::<Captured>();
@@ -408,4 +422,46 @@ fn plc_inv_006_a_survival_placer_spends_its_last_block_once() {
         server.world().get::<Slots>(placer.player).unwrap().get(0),
         None
     );
+}
+
+/// PLC-SUP-001, SUP-RUN-002, SUP-VEG-001: a poppy is refused on stone, which its tag does not
+/// hold, and placed on dirt.
+#[test]
+fn plc_sup_001_a_poppy_is_placed_only_where_it_can_stay() {
+    let mut app = host_app::make_host_app();
+    install_item_table(app.world_mut(), test_item_table()).unwrap();
+    app.add_plugins((
+        VanillaBlocksPlugin,
+        VanillaEntityPhysicsPlugin,
+        VanillaItemEntityPlugin,
+        VanillaBlockPlacePlugin,
+    ));
+    let (mut server, placer, ground) = placer_in(app, on_the_ground);
+    let stone = stone(&mut server).number();
+    let blocks = server.world().resource::<Blocks>();
+    let dirt = blocks.default_state("minecraft:dirt").unwrap();
+    let poppy = blocks.default_state("minecraft:poppy").unwrap().number();
+    let world = server.world();
+    let stack = world.get::<Slots>(placer.player).unwrap().get(0).unwrap();
+    world
+        .entity_mut(stack)
+        .insert(Kind(Item::Poppy.id().number()));
+
+    let refused = send(&mut server, &placer, &use_on(ground, Direction::Up, 3));
+    assert_refused_with_a_refresh(&refused, stone, 3);
+
+    let dimension = server.world().get::<InDimension>(placer.player).unwrap().0;
+    server
+        .world()
+        .resource_mut::<Messages<BlockSetRequest>>()
+        .write(BlockSetRequest {
+            dimension,
+            pos: ground,
+            new_state: dirt,
+            flags: BlockUpdateFlags::all(),
+            recursion_left: 1,
+        });
+    ticks(&mut server, 2);
+    let placed = send(&mut server, &placer, &use_on(ground, Direction::Up, 4));
+    assert_eq!(placed.watcher, [format!("block_update 65 {poppy}")]);
 }

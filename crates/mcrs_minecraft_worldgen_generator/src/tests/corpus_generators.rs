@@ -473,10 +473,9 @@ fn every_simple_block_state_is_decided() {
             simple_block_states(&simple_block["to_place"], &mut states);
         }
         for state in states {
-            let by_definition = blocks()
-                .0
-                .block(&state)
-                .is_some_and(|block| block.placement_filter.is_some());
+            let by_definition = blocks().0.block(&state).is_some_and(|block| {
+                crate::trees::short_form(&blocks().0, block.default_state_id).is_some()
+            });
             match (by_definition, family_of(&state)) {
                 (true, Some(_)) => panic!("{state} is decided twice"),
                 (false, None) => {

@@ -6,6 +6,7 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::{Commands, Local, Query, Res};
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::{BlockDefinitions, Blocks};
+use mcrs_minecraft_block_support::BlockSupport;
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_engine::ability::{PlayerGameMode, PlayerOpLevel};
 use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, to};
@@ -86,6 +87,10 @@ type PlacerItem<'a> = (
     clippy::too_many_arguments,
     reason = "a Bevy system: each query, writer and resource is its own parameter"
 )]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the checks of PLC-ORD-001 run in their order over one request"
+)]
 fn place_blocks(
     mut requests: MessageReader<UseItemOnRequest>,
     placers: Query<PlacerItem>,
@@ -93,6 +98,7 @@ fn place_blocks(
     stacks: Query<(&Kind, &Count)>,
     world: WorldView,
     definitions: Option<Res<Blocks>>,
+    support: Option<Res<BlockSupport>>,
     items: Option<Res<Items>>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
     mut blocks: MessageWriter<BlockSetRequest>,
@@ -178,7 +184,21 @@ fn place_blocks(
                 .filter(|(_, mode)| mode.0 != GameMode::Spectator)
                 .map(|(transform, _)| body_of(transform));
             let spots = ((clicked, clicked_state), (adjacent, adjacent_state));
-            place(&definitions, &placer, &click, spots, others, heights)
+            let can_stay = |pos, state| {
+                support.as_deref().is_none_or(|support| {
+                    let read = |at| block_at(&placed, at).unwrap_or(void_air);
+                    support.can_stay(state, pos, read)
+                })
+            };
+            place(
+                &definitions,
+                &placer,
+                &click,
+                spots,
+                can_stay,
+                others,
+                heights,
+            )
         });
         if placement.is_none() && held.is_some() && at_limit(request.face, clicked.y, heights) {
             packets.write_batch(height_message(session, request.face, heights));
@@ -219,13 +239,14 @@ fn body_of(transform: &Transform) -> Aabb {
 
 /// Steps 8 to 15 of PLC-ORD-001 for a placer that holds a block item: the position and the state
 /// that the placement writes, or `None` for a refusal.
-// chisle: the clicked block never acts, nothing needs support and only players block a
-// placement; adventure mode refuses each placement until the item reads `can_place_on`.
+// chisle: the clicked block never acts and only players block a placement; adventure mode
+// refuses each placement until the item reads `can_place_on`.
 fn place(
     definitions: &BlockDefinitions,
     placer: &Placer,
     click: &Click,
     (clicked, adjacent): ((BlockPos, BlockStateId), (BlockPos, Option<BlockStateId>)),
+    can_stay: impl FnOnce(BlockPos, BlockStateId) -> bool,
     mut others: impl Iterator<Item = Aabb>,
     (lowest, highest): (i32, i32),
 ) -> Option<(BlockPos, BlockStateId)> {
@@ -247,6 +268,9 @@ fn place(
         return None;
     }
     let state = placed_state(definitions, placer.held, click, replaced)?;
+    if !can_stay(target, state) {
+        return None;
+    }
     let origin = target.as_dvec3();
     let shape = definitions.shape(definitions.state(state).collision_shape);
     let overlaps = |body: &Aabb| {
