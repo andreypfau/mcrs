@@ -195,6 +195,22 @@ const STANDALONE_BAKE_FORBIDDEN: [&str; 7] = [
     "tokio",
 ];
 
+/// The crates that draw an entity, which a viewer takes without a connection.
+const ENTITY_RENDER_PACKAGES: [&str; 2] = [
+    "mcrs_minecraft_entity_render",
+    "mcrs_minecraft_entity_visual",
+];
+
+const ENTITY_RENDER_FORBIDDEN: [&str; 7] = [
+    "mcrs_minecraft_network",
+    "mcrs_minecraft_protocol_game",
+    "mcrs_minecraft_client",
+    "mcrs_minecraft_client_entity",
+    "mcrs_minecraft_client_world",
+    "mcrs_minecraft_server",
+    "mcrs_minecraft_engine_server",
+];
+
 const GAME_DATA_PACKAGES: [&str; 7] = [
     "mcrs_minecraft_block",
     "mcrs_minecraft_chunk",
@@ -471,11 +487,20 @@ fn layers(ctx: &Context) -> Outcome {
     for package in STANDALONE_BAKE_PACKAGES {
         linked_forbidden(ctx, package, &STANDALONE_BAKE_FORBIDDEN, &mut linked)?;
     }
+    if !linked.is_empty() {
+        return Err(format!(
+            "a model bake links the network, a client or a server ({}); a viewer bakes from the pack alone",
+            linked.join(", ")
+        ));
+    }
+    for package in ENTITY_RENDER_PACKAGES {
+        linked_forbidden(ctx, package, &ENTITY_RENDER_FORBIDDEN, &mut linked)?;
+    }
     if linked.is_empty() {
         Ok(String::new())
     } else {
         Err(format!(
-            "a model bake links the network, a client or a server ({}); a viewer bakes from the pack alone",
+            "an entity renderer crate links the network, the play-state packets, a client or a server ({}); a viewer draws an entity with no connection",
             linked.join(", ")
         ))
     }
