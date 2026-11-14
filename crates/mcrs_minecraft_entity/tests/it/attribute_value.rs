@@ -1,11 +1,14 @@
+use mcrs_minecraft_entity::AttributeBases;
+use mcrs_minecraft_entity::AttributeError;
+use mcrs_minecraft_entity::AttributeSet;
+use mcrs_minecraft_entity::InstanceModifier;
+use mcrs_minecraft_entity::ModifierKind;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
-use mcrs_minecraft_entity_attribute::AttributeModifier;
-use mcrs_minecraft_entity_attribute::Modifier;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::ModifierOperation;
-use mcrs_minecraft_entity_attribute::ValueRange;
-use mcrs_minecraft_entity_attribute::fold;
 use mcrs_minecraft_fixtures::fixture;
 use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::Deserialize;
 use serde::de::IgnoredAny;
 
@@ -32,34 +35,35 @@ fn each_value_has_the_bits_of_the_game() {
     let fixture: Fixture = serde_json::from_str(&text).unwrap();
     assert_eq!(fixture.value_cases.len(), 68, "the fixture holds 68 values");
     for ValueCase(name, attribute, base, steps, expected) in &fixture.value_cases {
-        let definition = Attribute::read(attribute).unwrap().definition();
-        let range = ValueRange {
-            min: definition.min,
-            max: definition.max,
-        };
-        let mut sequence: Vec<AttributeModifier<'_>> = Vec::new();
+        let attribute = Attribute::read(attribute).unwrap();
+        let bases = EntityType::ALL
+            .iter()
+            .filter_map(|entity_type| AttributeBases::of(*entity_type))
+            .find(|bases| bases.base(attribute).is_some())
+            .unwrap();
+        let mut set = AttributeSet::new();
+        let _ = set.set_base(bases, attribute, bits(base)).unwrap();
         for step in steps {
             match step {
                 Step::Add(_, id, amount, operation) => {
-                    let id = ResourceLocation::read(id).unwrap();
-                    if sequence.iter().all(|modifier| modifier.id != id) {
-                        sequence.push(AttributeModifier {
-                            id,
-                            amount: bits(amount),
-                            operation: ModifierOperation::try_from(*operation).unwrap(),
-                        });
+                    let modifier = InstanceModifier::new(
+                        ResourceLocationBuf::read(id).unwrap(),
+                        bits(amount),
+                        ModifierOperation::try_from(*operation).unwrap(),
+                        ModifierKind::Permanent,
+                    );
+                    match set.add_modifier(bases, attribute, modifier) {
+                        Ok(()) | Err(AttributeError::ModifierPresent) => {}
+                        Err(error) => panic!("{name}: {error}"),
                     }
                 }
                 Step::Remove(_, id) => {
                     let id = ResourceLocation::read(id).unwrap();
-                    sequence.retain(|modifier| modifier.id != id);
+                    let _ = set.remove_modifier(bases, attribute, id).unwrap();
                 }
             }
         }
-        let value = range.clamp(fold(
-            bits(base),
-            sequence.iter().copied().map(Modifier::from),
-        ));
+        let value = set.value(bases, attribute).unwrap();
         assert_eq!(
             format!("{:016x}", value.to_bits()),
             *expected,

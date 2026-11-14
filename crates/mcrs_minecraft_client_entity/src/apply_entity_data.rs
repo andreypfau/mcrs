@@ -1,9 +1,8 @@
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::Modifier;
-use mcrs_minecraft_entity_attribute::ValueRange;
 use mcrs_minecraft_entity_attribute::fold;
-use mcrs_minecraft_entity_visual::{SCALE_RANGE, SyncedData, UPSIDE_DOWN_NAMES, VariantId};
+use mcrs_minecraft_entity_visual::{SyncedData, UPSIDE_DOWN_NAMES, VariantId};
 use mcrs_minecraft_protocol_game::clientbound::AttributeSnapshot;
 use mcrs_minecraft_protocol_game::entity::{MetaDataValue, MetadataEntry};
 use mcrs_minecraft_protocol_game::entity_data_index::{
@@ -77,12 +76,14 @@ fn push_plain(text: &Text, plain: &mut String) {
     }
 }
 
-/// The value of the attribute by the modifiers that the packet holds, limited to
-/// [`SCALE_RANGE`].
+/// The value of the attribute by the modifiers that the packet holds, limited to the range of
+/// `scale`.
 fn attribute_value(attribute: &AttributeSnapshot<'_>) -> f64 {
-    let (min, max) = SCALE_RANGE;
     let modifiers = attribute.modifiers.iter().copied().map(Modifier::from);
-    ValueRange { min, max }.clamp(fold(attribute.base, modifiers))
+    Attribute::Scale
+        .definition()
+        .range
+        .clamp(fold(attribute.base, modifiers))
 }
 
 #[cfg(test)]
