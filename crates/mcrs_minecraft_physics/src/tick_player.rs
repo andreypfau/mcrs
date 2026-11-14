@@ -37,8 +37,6 @@ const JUMP_DELAY: u8 = 10;
 /// The ticks after a press of the jump key in which a second press toggles the flight state.
 const FLIGHT_WINDOW: u8 = 7;
 const WORLD_EDGE: f64 = 2.999_999_9e7;
-/// The modifier of the sprint state on `movement_speed`, with the operation "multiply total".
-const SPRINT_BOOST: f32 = 0.3;
 const FLIGHT_IMPULSE: f32 = 3.0;
 
 /// What one tick of a player reads besides its state and the world.
@@ -100,7 +98,7 @@ pub fn tick_player<W: CollisionWorld, B: BodyView>(
         attributes: &attributes,
         effects: &out.effects,
         input: move_input,
-        speed: movement_speed(&attributes, sprint),
+        speed: movement_speed(out, sprint),
         air_speed,
         yaw,
         jump: keys.jump,
@@ -263,12 +261,13 @@ pub fn dimensions_of(pose: Pose, attributes: &MotionAttributes) -> Dimensions {
 }
 
 /// `f32(movement_speed)`, with the sprint modifier when the sprint state is on.
-fn movement_speed(attributes: &MotionAttributes, sprint: bool) -> f32 {
-    let mut value = attributes.movement_speed;
-    if sprint {
-        value *= 1.0 + f64::from(SPRINT_BOOST);
-    }
-    value.clamp(0.0, 1024.0) as f32
+fn movement_speed(state: &PlayerState, sprint: bool) -> f32 {
+    let value = if sprint {
+        state.sprint_speed.0
+    } else {
+        state.attributes.movement_speed
+    };
+    value as f32
 }
 
 /// The input vector from the keys, all in f32.

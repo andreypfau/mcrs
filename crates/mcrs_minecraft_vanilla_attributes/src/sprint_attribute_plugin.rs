@@ -5,19 +5,11 @@ use bevy_ecs::query::Changed;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::Query;
 use mcrs_minecraft_engine::player_sprinting::PlayerSprinting;
-use mcrs_minecraft_engine_attributes::{
-    AttributeEdit, AttributeEdits, AttributeTarget, InstanceEdit,
-};
-use mcrs_minecraft_engine_world::tick::TickSet;
+use mcrs_minecraft_engine_attributes::{AttributeEdit, AttributeTarget, InstanceEdit};
 use mcrs_minecraft_entity::attribute_keys::Attribute;
-use mcrs_minecraft_entity::{InstanceModifier, ModifierKind};
-use mcrs_minecraft_entity_attribute::ModifierOperation;
-use mcrs_minecraft_resource::{ResourceLocation, rl};
+use mcrs_minecraft_entity::{InstanceModifier, ModifierKind, SPRINT_MODIFIER};
 
-use crate::attribute_sources::AttributeSources;
-
-const SPRINTING: ResourceLocation<'static> = rl!("minecraft:sprinting");
-const SPRINT_AMOUNT: f32 = 0.3;
+use crate::attribute_sources::{AttributeSources, configure_attribute_sources};
 
 /// The sprint state of a player gives its `movement_speed` the modifier `minecraft:sprinting`
 /// (ATR-SRC-002). Needs the `EntityAttributesPlugin` of the dimension world.
@@ -26,12 +18,8 @@ pub struct SprintAttributePlugin;
 
 impl Plugin for SprintAttributePlugin {
     fn build(&self, app: &mut App) {
-        app.configure_sets(
-            FixedUpdate,
-            AttributeSources
-                .in_set(TickSet::Project)
-                .before(AttributeEdits),
-        );
+        app.add_message::<AttributeEdit>();
+        configure_attribute_sources(app);
         app.add_systems(
             FixedUpdate,
             give_sprint_modifier
@@ -48,13 +36,13 @@ fn give_sprint_modifier(
     for (player, sprinting) in &players {
         let edit = if sprinting.0 {
             InstanceEdit::Put(InstanceModifier::new(
-                SPRINTING.to_buf(),
-                f64::from(SPRINT_AMOUNT),
-                ModifierOperation::AddMultipliedTotal,
+                SPRINT_MODIFIER.id.to_buf(),
+                SPRINT_MODIFIER.amount,
+                SPRINT_MODIFIER.operation,
                 ModifierKind::Transient,
             ))
         } else {
-            InstanceEdit::Remove(SPRINTING.to_buf())
+            InstanceEdit::Remove(SPRINT_MODIFIER.id.to_buf())
         };
         edits.write(AttributeEdit {
             target: AttributeTarget::Player(player),

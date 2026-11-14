@@ -8,7 +8,6 @@ use glam::DVec3;
 use mcrs_minecraft_client_ticks::Event;
 use mcrs_minecraft_client_ticks::Recording;
 use mcrs_minecraft_core::VERSION;
-use mcrs_minecraft_physics::MotionAttributes;
 use mcrs_minecraft_physics::NoBodies;
 use mcrs_minecraft_physics::Orientation;
 use mcrs_minecraft_physics::PlayerInput;
@@ -24,7 +23,6 @@ use mcrs_minecraft_physics::View;
 use mcrs_minecraft_physics::apply_teleport;
 use mcrs_minecraft_physics::set_attribute;
 use mcrs_minecraft_physics::set_effect;
-use mcrs_minecraft_physics::sprint_modifiers;
 use mcrs_minecraft_physics::test_state;
 use mcrs_minecraft_physics::tick_player;
 use mcrs_voxel::BlockPos;
@@ -56,36 +54,6 @@ fn own_player_follows_the_recorded_client_ticks() {
     }
 }
 
-#[test]
-fn the_sprint_modifier_of_the_recording_is_left_to_the_kernel() {
-    let recording: Recording = "client-ticks 2
-version test
-experiment E9
-step sprint
-instruction none
-events
-0 < attribute minecraft:movement_speed 0.1 test:armor 0.5 1
-0 > sprint true
-0 > tick
-0 < attribute minecraft:movement_speed 0.1 test:armor 0.5 1 test:sprint 0.30000001192092896 2
-0 > tick
-0 > sprint false
-0 > tick
-0 < attribute minecraft:movement_speed 0.1 test:armor 0.5 1
-0 > tick
-"
-    .parse()
-    .unwrap();
-    let sprint = sprint_modifiers(&recording);
-    assert_eq!(sprint, ["test:sprint"]);
-    let Some(Event::Attribute(sprinting)) = recording.events.get(3) else {
-        panic!("the fourth event is the update while the client sprints");
-    };
-    let mut attributes = MotionAttributes::default();
-    set_attribute(&mut attributes, sprinting, &sprint);
-    assert_eq!(attributes.movement_speed, 0.1 * (1.0 + 0.5));
-}
-
 fn held_keys(keys: &mcrs_minecraft_client_ticks::Keys) -> mcrs_minecraft_physics::Keys {
     mcrs_minecraft_physics::Keys {
         forward: keys.forward,
@@ -110,7 +78,6 @@ fn replay(name: &str, recording: &Recording) -> Result<(), String> {
         let state = test_state(&blocks, &fill.state)?;
         world.fill(BlockPos::new(x0, y0, z0), BlockPos::new(x1, y1, z1), state);
     }
-    let sprint = sprint_modifiers(recording);
     let mut state = PlayerState::new(DVec3::ZERO);
     let mut input = PlayerInput::default();
     let mut scratch = Scratch::new();
@@ -140,7 +107,7 @@ fn replay(name: &str, recording: &Recording) -> Result<(), String> {
                     state.flight_speed = abilities.flying_speed;
                 }
                 Event::Attribute(attribute) => {
-                    set_attribute(&mut state.attributes, attribute, &sprint);
+                    set_attribute(&mut state.attributes, &mut state.sprint_speed, attribute);
                 }
                 Event::Effect(effect) => {
                     set_effect(&mut state.effects, &effect.name, Some(effect.amplifier));
