@@ -131,6 +131,7 @@ pub(crate) fn prepare_entities(
             );
             state.gpu = None;
             state.pending = SlotUpload::default();
+            state.pending_skins.clear();
             return;
         }
         let capacities = Capacities::for_cap(&library, FULL_RIG_CAP);
@@ -160,8 +161,8 @@ pub(crate) fn prepare_entities(
         }
     }
     let state = &mut *state;
-    if let Some(gpu) = state.gpu.as_ref() {
-        for skin in state.pending_skins.drain(..) {
+    for skin in state.pending_skins.drain(..) {
+        if let Some(gpu) = &state.gpu {
             gpu.write_texels(&queue, skin.variant, skin.image.rgba());
         }
     }

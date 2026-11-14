@@ -66,6 +66,7 @@ snap = "1.1.1"
 thiserror = "2.0.17"
 unicode_names2 = { version = "3.1.0", default-features = false }
 tracing = "0.1.41"
+ureq = "3.4"
 uuid = "1.18.1"
 rand = "0.10.0-rc.5"
 indexmap = "2.12.0"

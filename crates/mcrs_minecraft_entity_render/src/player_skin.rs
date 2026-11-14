@@ -12,13 +12,14 @@ use crate::skin_image::{SKIN_SIDE, SkinImage};
 // chisle: a fixed set of 256 layers of 64 by 64; a texture array that grows lifts it.
 pub const SKIN_SLOTS: u16 = 256;
 
-/// The model and the skin of a player entity (`docs/spec/client-player-render.md`). With no
-/// image, the entity draws the default skin of its model.
+/// The arm model of a player entity (`docs/spec/client-player-render.md`). Without a
+/// [`PlayerSkin`], the entity draws the default skin of its model.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlayerModel(pub PlayerModelType);
+
+/// The skin image of a player entity with a [`PlayerModel`].
 #[derive(Component, Clone, Debug, PartialEq)]
-pub struct PlayerSkin {
-    pub model: PlayerModelType,
-    pub image: Option<SkinImage>,
-}
+pub struct PlayerSkin(pub SkinImage);
 
 /// The skin layer of the entity textures that holds the image of a [`PlayerSkin`].
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
@@ -63,47 +64,43 @@ pub(crate) fn skin_identifier(slot: u16) -> String {
     format!("mcrs:skin/{slot}")
 }
 
-/// The transparent textures that the skin layers start as, in slot order. A transparent texel
-/// gives each face the cutout, so each skin face draws with the alpha test.
+/// The skin layers, in slot order. A layer with no texels starts transparent, so each skin face
+/// has the cutout and draws with the alpha test.
 pub(crate) fn skin_textures() -> impl Iterator<Item = TextureImage> {
     (0..SKIN_SLOTS).map(|slot| TextureImage {
         identifier: skin_identifier(slot),
         width: SKIN_SIDE,
         height: SKIN_SIDE,
-        rgba: vec![0; (SKIN_SIDE * SKIN_SIDE * 4) as usize],
+        rgba: Vec::new(),
     })
-}
-
-/// The hash of the texture identifier of each skin layer.
-pub(crate) fn skin_texture_hashes() -> Vec<u64> {
-    (0..SKIN_SLOTS)
-        .map(|slot| string_hash(&skin_identifier(slot)))
-        .collect()
 }
 
 /// The variant entry that the render controllers of a player read: the model type, and the
 /// texture of its skin layer as the asset, or `""` while the entity has none.
 pub(crate) fn skin_entry(
-    skin: &PlayerSkin,
+    model: PlayerModel,
     slot: Option<&SkinSlot>,
     assets: &EntityAssets,
 ) -> VariantEntry {
     let empty = string_hash("");
+    let asset = match slot {
+        Some(slot) if !assets.library.skin_variants.is_empty() => {
+            string_hash(&skin_identifier(slot.0))
+        }
+        _ => empty,
+    };
     VariantEntry {
         id: 0.0,
         identifier: empty,
-        asset: slot
-            .and_then(|slot| assets.skin_textures.get(usize::from(slot.0)))
-            .copied()
-            .unwrap_or(empty),
-        model: string_hash(match skin.model {
+        asset,
+        model: string_hash(match model.0 {
             PlayerModelType::Wide => "wide",
             PlayerModelType::Slim => "slim",
         }),
     }
 }
 
-/// Gives each entity with a skin image a skin layer and sends its texels to the render world.
+/// Gives each entity with a [`PlayerSkin`] a skin layer and sends its texels to the render world.
 /// New entity assets start with empty layers, so each skin goes again. An entity that found no
 /// free layer tries again when one frees. An entity that loses its [`PlayerSkin`] frees its layer.
 pub(crate) fn assign_skins(
@@ -131,12 +128,6 @@ pub(crate) fn assign_skins(
         slots.waiting = false;
     }
     let mut assign = |(entity, skin, slot): (Entity, &PlayerSkin, Option<&SkinSlot>)| {
-        let Some(image) = &skin.image else {
-            if slot.is_some() {
-                commands.entity(entity).remove::<SkinSlot>();
-            }
-            return;
-        };
         let Some(number) = slot.map(|slot| slot.0).or_else(|| slots.allocate()) else {
             warn_once!("more than {SKIN_SLOTS} player skins; the rest draw a default skin");
             slots.waiting = true;
@@ -147,7 +138,7 @@ pub(crate) fn assign_skins(
         }
         slots.uploads.push(SkinUpload {
             variant: first + number,
-            image: image.clone(),
+            image: skin.0.clone(),
         });
     };
     if rebuilt || retry {
@@ -157,7 +148,9 @@ pub(crate) fn assign_skins(
             }
         }
     } else {
-        changed.iter().for_each(&mut assign);
+        for entity in &changed {
+            assign(entity);
+        }
     }
 }
 
@@ -189,7 +182,7 @@ mod tests {
     }
 
     #[test]
-    fn a_player_draws_its_skin_layer_and_the_default_skin_of_its_model_without_an_image() {
+    fn a_player_draws_its_skin_layer_and_the_default_skin_of_its_model_without_a_skin() {
         let mut assets = EntityAssets::default();
         let defaults = ["wide/steve", "slim/alex"]
             .map(|name| texture(&format!("minecraft:entity/player/{name}")));
@@ -202,13 +195,16 @@ mod tests {
         let (definition, player) = assets.pack.entity("minecraft:player").unwrap();
         let tables = &assets.library.definitions[definition];
         assert!(tables.program.is_ok(), "{:?}", tables.program);
-        let at = player
-            .resources
-            .geometries
-            .iter()
-            .position(|(name, _)| name.as_str() == "slim")
-            .unwrap();
-        let slim = tables.models[at].unwrap();
+        let model = |name: &str| {
+            let at = player
+                .resources
+                .geometries
+                .iter()
+                .position(|(geometry, _)| geometry.as_str() == name)
+                .unwrap();
+            tables.models[at].unwrap()
+        };
+        let (wide, slim) = (model("default"), model("slim"));
         let alex = assets.library.textures["minecraft:entity/player/slim/alex"];
         let first_skin = assets.library.skin_variants.start;
 
@@ -216,19 +212,13 @@ mod tests {
         app.add_plugins((MinimalPlugins, EntityRenderPlugin))
             .insert_resource(assets);
         app.finish();
-        app.insert_resource(EntityPasses(true));
+        app.insert_resource(EntityPasses::ON);
         let player =
             host_living_entity(EntityType::Player, Default::default(), Placement::default());
-        let image = SkinImage::from_rgba(64, 64, vec![0; 64 * 64 * 4]).unwrap();
+        let skin = || PlayerSkin(SkinImage::from_rgba(64, 64, vec![0; 64 * 64 * 4]).unwrap());
         let entity = app
             .world_mut()
-            .spawn((
-                player.unwrap(),
-                PlayerSkin {
-                    model: PlayerModelType::Slim,
-                    image: Some(image),
-                },
-            ))
+            .spawn((player.unwrap(), PlayerModel(PlayerModelType::Slim), skin()))
             .id();
         let layer = |app: &App| {
             let slot = app.world().get::<EntitySlot>(entity).unwrap().slot;
@@ -238,22 +228,27 @@ mod tests {
                 .unwrap()
                 .layers[0]
         };
+        let uploads = |app: &App| app.world().resource::<SkinSlots>().uploads.len();
         app.update();
         assert_eq!(layer(&app), [slim, first_skin]);
+        assert_eq!(uploads(&app), 1);
 
-        app.world_mut().get_mut::<PlayerSkin>(entity).unwrap().image = None;
+        app.world_mut().get_mut::<PlayerModel>(entity).unwrap().0 = PlayerModelType::Wide;
         app.update();
-        assert_eq!(layer(&app), [slim, alex]);
-        assert_eq!(app.world().resource::<SkinSlots>().free, [0]);
+        assert_eq!(layer(&app), [wide, first_skin]);
+        assert_eq!(uploads(&app), 1, "a new model sends the same texels again");
 
         // CPR-HOST-001, item 5: a player that loses its skin frees its layer.
-        app.world_mut().get_mut::<PlayerSkin>(entity).unwrap().image =
-            SkinImage::from_rgba(64, 64, vec![0; 64 * 64 * 4]).ok();
-        app.update();
-        assert!(app.world().resource::<SkinSlots>().free.is_empty());
+        app.world_mut().get_mut::<PlayerModel>(entity).unwrap().0 = PlayerModelType::Slim;
         app.world_mut().entity_mut(entity).remove::<PlayerSkin>();
         app.update();
+        assert_eq!(layer(&app), [slim, alex]);
         assert_eq!(app.world().get::<SkinSlot>(entity), None);
         assert_eq!(app.world().resource::<SkinSlots>().free, [0]);
+
+        app.world_mut().entity_mut(entity).insert(skin());
+        app.update();
+        assert_eq!(layer(&app), [slim, first_skin]);
+        assert!(app.world().resource::<SkinSlots>().free.is_empty());
     }
 }

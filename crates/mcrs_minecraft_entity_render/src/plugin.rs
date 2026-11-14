@@ -20,7 +20,12 @@ pub struct EntitySlotSystems;
 
 /// Whether this device runs the entity passes, in the main world and the render world alike.
 #[derive(Resource, Clone, Copy, PartialEq, Eq, Debug)]
-pub struct EntityPasses(pub(crate) bool);
+pub struct EntityPasses(bool);
+
+#[cfg(test)]
+impl EntityPasses {
+    pub(crate) const ON: Self = Self(true);
+}
 
 /// A run condition: the device runs the entity passes.
 pub fn entity_passes(passes: Option<Res<EntityPasses>>) -> bool {

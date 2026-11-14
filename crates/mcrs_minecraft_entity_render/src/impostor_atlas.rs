@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::ops::Range;
 
 use bytemuck::{Pod, Zeroable};
 use mcrs_minecraft_entity_model::{
@@ -82,7 +83,7 @@ pub(crate) struct ImpostorAtlas {
     seen: HashSet<(u16, u16)>,
     noted: Vec<Pair>,
     /// The variants whose texels change, so that no image set of theirs stays true.
-    skin_variants: std::ops::Range<u16>,
+    skin_variants: Range<u16>,
     pub(crate) images: BindGroup,
     /// The [`ImpostorView`] of each model and view, then for each layer and view the centroid of
     /// the covered texels in the image and their share. One buffer holds both, so that the

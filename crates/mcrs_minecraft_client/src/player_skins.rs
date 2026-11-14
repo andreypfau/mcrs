@@ -4,9 +4,9 @@
 use std::collections::HashMap;
 
 use bevy::prelude::*;
-use mcrs_minecraft_client_entity::{ClientEntity, HOST_NETWORK_ID};
+use mcrs_minecraft_client_entity::{ClientEntity, HostEntity};
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
-use mcrs_minecraft_entity_render::PlayerSkin;
+use mcrs_minecraft_entity_render::{PlayerModel, PlayerSkin};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_profile::{PlayerModelType, SkinTextures};
 use mcrs_minecraft_protocol_game::clientbound::{
@@ -79,46 +79,45 @@ fn on_player_info_remove(
 fn dress_players(
     mut commands: Commands,
     mut skins: ResMut<ProfileSkins>,
-    added: Query<(Entity, &ClientEntity), Added<ClientEntity>>,
-    all: Query<(Entity, &ClientEntity)>,
-    mut worn: Query<&mut PlayerSkin>,
+    added: Query<(Entity, &ClientEntity), (Added<ClientEntity>, Without<HostEntity>)>,
+    all: Query<(Entity, &ClientEntity), Without<HostEntity>>,
+    mut models: Query<&mut PlayerModel>,
 ) {
     let updated = std::mem::take(&mut skins.updated);
     // chisle: a profile update scans the client entities; an index by UUID lifts it.
     let again = (!updated.is_empty())
         .then(|| {
-            all.iter()
-                .filter(|(_, client)| updated.contains(&client.uuid.as_u128()))
+            all.iter().filter(|(entity, client)| {
+                !added.contains(*entity) && updated.contains(&client.uuid.as_u128())
+            })
         })
         .into_iter()
         .flatten();
     for (entity, client) in added.iter().chain(again) {
-        if client.kind != EntityType::Player || client.network_id == HOST_NETWORK_ID {
+        if client.kind != EntityType::Player {
             continue;
         }
         let textures = skins.by_player.get(&client.uuid.as_u128());
-        let model = textures.map_or(PlayerModelType::Wide, |textures| textures.model);
+        let model = PlayerModel(textures.map_or(PlayerModelType::Wide, |textures| textures.model));
         #[cfg(not(target_family = "wasm"))]
         let fetch = textures.and_then(|textures| trusted(&textures.url));
         #[cfg(target_family = "wasm")]
         // chisle: the web client downloads no skin; a fetch through the browser lifts it.
         let fetch: Option<String> = None;
-        match worn.get_mut(entity) {
-            Ok(mut skin) => {
-                skin.model = model;
-                if fetch.is_none() {
-                    skin.image = None;
-                }
+        let mut player = commands.entity(entity);
+        match models.get_mut(entity) {
+            Ok(mut worn) => {
+                worn.set_if_neq(model);
             }
             Err(_) => {
-                commands
-                    .entity(entity)
-                    .insert(PlayerSkin { model, image: None });
+                player.insert(model);
             }
+        }
+        if fetch.is_none() {
+            player.remove::<PlayerSkin>();
         }
         #[cfg(not(target_family = "wasm"))]
         {
-            let mut player = commands.entity(entity);
             player.remove::<SkinDownload>();
             if let Some(url) = fetch {
                 player.insert(SkinDownload::start(url));
@@ -140,24 +139,23 @@ mod tests {
     fn a_player_of_the_host_keeps_its_skin_and_a_player_of_the_server_takes_its_profile() {
         let mut world = World::new();
         world.init_resource::<ProfileSkins>();
-        let skin = PlayerSkin {
-            model: PlayerModelType::Slim,
-            image: SkinImage::from_rgba(64, 64, vec![255; 64 * 64 * 4]).ok(),
-        };
+        let skin = PlayerSkin(SkinImage::from_rgba(64, 64, vec![255; 64 * 64 * 4]).unwrap());
+        let model = PlayerModel(PlayerModelType::Slim);
         let mut spawn = || {
             let player =
                 host_living_entity(EntityType::Player, Default::default(), Placement::default());
-            world.spawn((player.unwrap(), skin.clone())).id()
+            world.spawn((player.unwrap(), model, skin.clone())).id()
         };
         let host = spawn();
         let server = spawn();
-        world.get_mut::<ClientEntity>(server).unwrap().network_id = 7;
+        world.entity_mut(server).remove::<HostEntity>();
         world.run_system_once(dress_players).unwrap();
+        assert_eq!(world.get::<PlayerModel>(host), Some(&model));
         assert_eq!(world.get::<PlayerSkin>(host), Some(&skin));
-        let dressed = world.get::<PlayerSkin>(server).unwrap();
         assert_eq!(
-            (dressed.model, dressed.image.is_none()),
-            (PlayerModelType::Wide, true)
+            world.get::<PlayerModel>(server),
+            Some(&PlayerModel(PlayerModelType::Wide))
         );
+        assert_eq!(world.get::<PlayerSkin>(server), None);
     }
 }

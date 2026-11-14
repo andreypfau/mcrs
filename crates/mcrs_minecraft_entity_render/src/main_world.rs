@@ -16,7 +16,7 @@ use mcrs_voxel::BlockPos;
 use crate::cpu_inputs::input_record;
 use crate::entity_assets::{EntityAssets, texture_identifier};
 use crate::frame_queries::{FrameQueries, VariantEntry, pose_name};
-use crate::player_skin::{PlayerSkin, SkinSlot, skin_entry};
+use crate::player_skin::{PlayerModel, SkinSlot, skin_entry};
 use crate::records::{
     CULL_FULL_RIG_ONLY, CULL_VALID, CullRecord, MAX_LAYERS, STATE_BABY, STATE_DYING,
     STATE_HIDDEN_SHIFT, TickRecord, f16_up,
@@ -350,7 +350,7 @@ type LayerInputs = (
     &'static ClientEntity,
     &'static SyncedData,
     Option<&'static Equipment>,
-    Option<&'static PlayerSkin>,
+    Option<&'static PlayerModel>,
     Option<&'static SkinSlot>,
 );
 
@@ -366,14 +366,15 @@ pub(crate) fn write_layers(
     mut vm: ResMut<EntityVm>,
     mut arena: ResMut<SlotArena>,
     mut last_generation: Local<Option<u32>>,
-    mut removed: RemovedComponents<PlayerSkin>,
+    mut removed_models: RemovedComponents<PlayerModel>,
+    mut removed_slots: RemovedComponents<SkinSlot>,
     changed: Query<
         LayerInputs,
         Or<(
             Changed<SyncedData>,
             Changed<Equipment>,
             Added<EntitySlot>,
-            Changed<PlayerSkin>,
+            Changed<PlayerModel>,
             Changed<SkinSlot>,
         )>,
     >,
@@ -385,12 +386,12 @@ pub(crate) fn write_layers(
     let rebuilt = *last_generation != Some(assets.generation);
     *last_generation = Some(assets.generation);
     let items = items.as_deref();
-    let mut write = |(slot, client, data, equipment, skin, skin_slot): (
+    let mut write = |(slot, client, data, equipment, model, skin_slot): (
         &EntitySlot,
         &ClientEntity,
         &SyncedData,
         Option<&Equipment>,
-        Option<&PlayerSkin>,
+        Option<&PlayerModel>,
         Option<&SkinSlot>,
     )| {
         let (Some(entity), Some(tables)) = (
@@ -399,8 +400,8 @@ pub(crate) fn write_layers(
         ) else {
             return;
         };
-        let variant = match skin {
-            Some(skin) => Some(skin_entry(skin, skin_slot, &assets)),
+        let variant = match model {
+            Some(model) => Some(skin_entry(*model, skin_slot, &assets)),
             None => assets
                 .variant(client.kind, data.variant)
                 .map(|variant| variant.entry(data.baby)),
@@ -458,8 +459,8 @@ pub(crate) fn write_layers(
         for entity in &changed {
             write(entity);
         }
-        // A removal sets no change filter, so an entity that lost its skin writes here.
-        for entity in removed.read() {
+        // A removal sets no change filter, so an entity that lost its model or its skin writes here.
+        for entity in removed_models.read().chain(removed_slots.read()) {
             if let Ok(entity) = all.get(entity) {
                 write(entity);
             }

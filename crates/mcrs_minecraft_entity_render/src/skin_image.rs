@@ -1,6 +1,7 @@
 use std::fmt;
 
 use mcrs_minecraft_model::atlas::decode_png;
+use mcrs_minecraft_model::sprite_error::SpriteError;
 
 /// The side of a skin in texels.
 pub const SKIN_SIDE: u32 = 64;
@@ -36,7 +37,7 @@ pub struct SkinImage(Vec<u8>);
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SkinError {
     /// The bytes are not a PNG image.
-    Decode(String),
+    Decode(SpriteError),
     /// The image is not 64 by 64 or 64 by 32 texels.
     Size { width: u32, height: u32 },
     /// The RGBA bytes do not hold `width × height` texels.
@@ -46,7 +47,7 @@ pub enum SkinError {
 impl fmt::Display for SkinError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Decode(message) => write!(f, "the skin is not a PNG image: {message}"),
+            Self::Decode(error) => write!(f, "the skin is not a PNG image: {error}"),
             Self::Size { width, height } => {
                 write!(
                     f,
@@ -94,8 +95,7 @@ impl SkinImage {
         {
             return Err(SkinError::Size { width, height });
         }
-        let (rgba, width, height) =
-            decode_png(bytes, "skin").map_err(|error| SkinError::Decode(error.to_string()))?;
+        let (rgba, width, height) = decode_png(bytes, "skin").map_err(SkinError::Decode)?;
         Self::from_rgba(width, height, rgba)
     }
 
@@ -118,11 +118,15 @@ impl SkinImage {
                 mirror_limb(&mut texels, from, to);
             }
             if alphas(&mut texels, HAT).all(|alpha| *alpha >= 128) {
-                alphas(&mut texels, HAT).for_each(|alpha| *alpha = 0);
+                for alpha in alphas(&mut texels, HAT) {
+                    *alpha = 0;
+                }
             }
         }
         for rectangle in OPAQUE {
-            alphas(&mut texels, rectangle).for_each(|alpha| *alpha = 255);
+            for alpha in alphas(&mut texels, rectangle) {
+                *alpha = 255;
+            }
         }
         Ok(Self(texels))
     }

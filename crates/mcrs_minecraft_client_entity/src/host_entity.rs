@@ -1,4 +1,5 @@
 use bevy_ecs::bundle::Bundle;
+use bevy_ecs::component::Component;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use uuid::Uuid;
 
@@ -11,9 +12,12 @@ use crate::placement::Placement;
 use crate::receive::SNAP_DISTANCE;
 use crate::synced_data::SyncedData;
 
-/// The network id of a client entity that the host adds. [`crate::NetworkEntities`] never holds
-/// it, so no packet of a server names the entity.
-pub const HOST_NETWORK_ID: i32 = i32::MIN;
+/// A client entity that the host adds, not a server. No packet of a server names it.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct HostEntity;
+
+/// The network id of a [`HostEntity`]. [`crate::NetworkEntities`] never holds it.
+const HOST_NETWORK_ID: i32 = i32::MIN;
 
 /// The components of a living client entity that the host adds and moves with
 /// [`move_entity`], with no server: it ticks, turns and walks as an entity that a server adds.
@@ -31,6 +35,7 @@ pub fn host_living_entity(
     };
     client.type_data().filter(|data| data.is_living())?;
     Some((
+        HostEntity,
         client,
         Motion::new(placement, placement.position),
         Age::default(),

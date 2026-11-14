@@ -406,6 +406,13 @@ pub(crate) fn texture_arrays(
         .take(MAX_ARRAYS)
         .map(|array| {
             let layers = array.layers.len().max(1) as u32;
+            let layer_bytes = (array.side * array.side * 4) as usize;
+            let mut texels = Vec::with_capacity(layer_bytes * array.layers.len());
+            for layer in &array.layers {
+                let start = texels.len();
+                texels.extend_from_slice(layer);
+                texels.resize(start + layer_bytes, 0);
+            }
             let texture = device.create_texture_with_data(
                 queue,
                 &wgpu::TextureDescriptor {
@@ -423,7 +430,7 @@ pub(crate) fn texture_arrays(
                     view_formats: &[],
                 },
                 wgpu::util::TextureDataOrder::LayerMajor,
-                &array.layers.concat(),
+                &texels,
             );
             let view = texture.create_view(&wgpu::TextureViewDescriptor {
                 dimension: Some(wgpu::TextureViewDimension::D2Array),
