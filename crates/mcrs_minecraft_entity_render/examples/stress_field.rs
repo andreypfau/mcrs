@@ -41,8 +41,8 @@ use glam::{Vec2, Vec3};
 use mcrs_minecraft_core::CardinalLight;
 use mcrs_minecraft_entity_render::{
     CULL_VALID, Capacities, ComputePass, CullRecord, EntityFrameCounts, EntityGpu, EntityLibrary,
-    EntityPack, FULL_RIG_CAP, FrameUniform, HeightThreshold, PassQueries, SlotArena, StateRecord,
-    TextureImage, TickRecord, f16_up,
+    EntityPack, EntityViews, FULL_RIG_CAP, FrameUniform, HeightThreshold, PassQueries, SlotArena,
+    StateRecord, TextureImage, TickRecord, f16_up,
 };
 use mcrs_minecraft_render::{CameraOrigin, FrameView};
 
@@ -127,7 +127,7 @@ fn spawn(
                 CullRecord {
                     block: pig.position.floor().as_ivec3().to_array(),
                     radius: f16_up(1.6),
-                    flags: CULL_VALID,
+                    flags: CULL_VALID | EntityViews::WORLD.cull_flags(),
                 },
             );
             arena.write_state(
@@ -205,7 +205,7 @@ fn write_records(pigs: &[Pig], arena: &mut SlotArena, tick: u32) {
             CullRecord {
                 block: pig.position.floor().as_ivec3().to_array(),
                 radius: f16_up(1.6),
-                flags: CULL_VALID,
+                flags: CULL_VALID | EntityViews::WORLD.cull_flags(),
             },
         );
     }

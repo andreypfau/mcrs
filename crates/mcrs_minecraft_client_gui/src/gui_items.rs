@@ -1,4 +1,5 @@
 use std::num::NonZeroU64;
+use std::ops::Range;
 
 use bevy::camera::NormalizedRenderTarget;
 use bevy::core_pipeline::core_3d::{CORE_3D_DEPTH_FORMAT, main_transparent_pass_3d};
@@ -6,6 +7,7 @@ use bevy::core_pipeline::schedule::{Core3d, Core3dSystems};
 use bevy::mesh::VertexBufferLayout;
 use bevy::prelude::*;
 use bevy::render::camera::ExtractedCamera;
+use bevy::render::render_phase::TrackedRenderPass;
 use bevy::render::render_resource::binding_types::{
     sampler, texture_2d, texture_2d_array, uniform_buffer_sized,
 };
@@ -14,6 +16,7 @@ use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery
 use bevy::render::view::{ExtractedView, ViewDepthStencilTexture, ViewTarget};
 use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 use bevy::shader::Shader;
+use mcrs_minecraft_entity_render::{FigureDraw, FigureTargets, FigureViewSystems};
 use mcrs_minecraft_render::{
     DEPTH_COMPARE, RenderPath, Terrain, Words, WorldPass, pipeline_descriptor, uniform_buffer,
 };
@@ -42,6 +45,7 @@ impl Plugin for GuiItemsPlugin {
                 Core3d,
                 draw_gui
                     .after(WorldPass::Forward)
+                    .after(FigureViewSystems)
                     .before(main_transparent_pass_3d)
                     .in_set(Core3dSystems::MainPass),
             );
@@ -164,10 +168,12 @@ fn srgb_texture(
 }
 
 #[expect(
+    clippy::too_many_arguments,
     clippy::too_many_lines,
-    reason = "one render-world prepare step creates the GUI pass's textures, pipelines and bind group in the order each depends on the last"
+    reason = "a Bevy system: one render-world prepare step creates the GUI pass's textures, pipelines, bind group and figure targets in the order each depends on the last"
 )]
 pub(super) fn prepare_gui_pass(
+    mut commands: Commands,
     pass: Option<ResMut<GuiPass>>,
     atlas: Option<Res<GuiAtlas>>,
     terrain: Option<Res<Terrain>>,
@@ -227,7 +233,7 @@ pub(super) fn prepare_gui_pass(
         let queue_pipeline = |kind: GuiDrawKind| {
             let item = kind == GuiDrawKind::Item;
             let (label, blend, write_mask) = match kind {
-                GuiDrawKind::Flat => (
+                GuiDrawKind::Flat | GuiDrawKind::Figure { .. } => (
                     "gui flat",
                     Some(BlendState::ALPHA_BLENDING),
                     ColorWrites::ALL,
@@ -288,6 +294,12 @@ pub(super) fn prepare_gui_pass(
             });
             pipeline_cache.queue_render_pipeline(descriptor)
         };
+        commands.insert_resource(FigureTargets {
+            color: view.target_format,
+            depth: CORE_3D_DEPTH_FORMAT,
+            depth_compare: DEPTH_COMPARE,
+            sample_count: 1,
+        });
         pass.pipelines = Some(GuiPipelines {
             format: view.target_format,
             flat: queue_pipeline(GuiDrawKind::Flat),
@@ -439,8 +451,9 @@ pub(super) fn write_gui_buffers(
 
 /// The world's depth is cleared first: the items' private bands must not be tested
 /// against terrain, and vanilla likewise draws each GUI item into a fresh atlas slot.
-/// Every item element then gets its own slice of the depth range, so its own geometry is
-/// depth-tested against itself and later elements land over earlier ones by draw order.
+/// Every item element and the figure then get their own slice of the depth range, so their own
+/// geometry is depth-tested against itself and later elements land over earlier ones by draw
+/// order.
 pub fn draw_gui(
     view: ViewQuery<(
         &ViewTarget,
@@ -450,6 +463,7 @@ pub fn draw_gui(
     )>,
     gui: Option<Res<GuiPass>>,
     batch: Option<Res<GuiBatch>>,
+    figure: Option<FigureDraw>,
     pipeline_cache: Res<PipelineCache>,
     mut ctx: RenderContext,
 ) {
@@ -502,35 +516,75 @@ pub fn draw_gui(
     };
     let invert_red_green = pipeline_cache.get_render_pipeline(ids.invert_red_green);
     let full_blue = pipeline_cache.get_render_pipeline(ids.full_blue);
-    let size = extracted.viewport.zw().as_vec2();
-    let is_item = |draw: &&GuiDraw| draw.kind == GuiDrawKind::Item;
-    let items = batch.draws.iter().filter(is_item).count().max(1) as f32;
+    let size = extracted.viewport.zw();
+    let banded =
+        |draw: &&GuiDraw| matches!(draw.kind, GuiDrawKind::Item | GuiDrawKind::Figure { .. });
+    let bands = batch.draws.iter().filter(banded).count().max(1) as f32;
     pass.set_bind_group(0, bind_group, &[]);
     pass.set_vertex_buffer(0, vertices.slice(..));
     let mut band = 0;
+    let band_range = |band: u32| band as f32 / bands..(band + 1) as f32 / bands;
     for draw in &batch.draws {
-        let Some(pipeline) = (match draw.kind {
+        let pipeline = match draw.kind {
             GuiDrawKind::Flat => Some(flat),
             GuiDrawKind::Item => Some(item),
             GuiDrawKind::InvertRedGreen => invert_red_green,
             GuiDrawKind::FullBlue => full_blue,
-        }) else {
+            GuiDrawKind::Figure { rect } => {
+                let depth = band_range(band);
+                band += 1;
+                if let Some(figure) = figure.as_ref() {
+                    let scissor = IRect::from_corners(
+                        rect.min * batch.scale as i32,
+                        rect.max * batch.scale as i32,
+                    );
+                    draw_figure(&mut pass, figure, scissor, size, depth);
+                    pass.set_bind_group(0, bind_group, &[]);
+                    pass.set_vertex_buffer(0, vertices.slice(..));
+                }
+                continue;
+            }
+        };
+        let Some(pipeline) = pipeline else {
             continue;
         };
         pass.set_render_pipeline(pipeline);
         if draw.kind == GuiDrawKind::Item {
+            let depth = band_range(band);
             pass.set_viewport(
                 0.0,
                 0.0,
-                size.x,
-                size.y,
-                band as f32 / items,
-                (band + 1) as f32 / items,
+                size.x as f32,
+                size.y as f32,
+                depth.start,
+                depth.end,
             );
             band += 1;
         } else {
-            pass.set_viewport(0.0, 0.0, size.x, size.y, 0.0, 1.0);
+            pass.set_viewport(0.0, 0.0, size.x as f32, size.y as f32, 0.0, 1.0);
         }
         pass.draw(draw.range.clone(), 0..1);
     }
+}
+
+/// Draws the figure view inside `rect`, in window pixels, and in the depth band `depth`, then
+/// opens the scissor to the whole target of `target` pixels again.
+fn draw_figure(
+    pass: &mut TrackedRenderPass,
+    figure: &FigureDraw,
+    rect: IRect,
+    target: UVec2,
+    depth: Range<f32>,
+) {
+    let scissor = rect.intersect(IRect::from_corners(IVec2::ZERO, target.as_ivec2()));
+    if scissor.is_empty() {
+        return;
+    }
+    let min = scissor.min.as_uvec2();
+    let scissor_size = scissor.size().as_uvec2();
+    let size = target.as_vec2();
+    pass.set_viewport(0.0, 0.0, size.x, size.y, depth.start, depth.end);
+    pass.set_scissor_rect(min.x, min.y, scissor_size.x, scissor_size.y);
+    figure.encode(pass.wgpu_pass());
+    pass.set_scissor_rect(0, 0, target.x, target.y);
 }

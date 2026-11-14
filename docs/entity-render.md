@@ -179,11 +179,13 @@ The entity cull reads only this record for a slot that it rejects.
 |---|---|---|
 | 0 | 12 | block position of the current tick, `vec3<i32>` |
 | 12 | 2 | cull radius, `f16`, in blocks, rounded up (section 5.1) |
-| 14 | 2 | flags, `u16`: valid, full rig only |
+| 14 | 2 | flags, `u16`: valid and full rig only in the low byte, the set of views in the high byte |
 
-The CPU writes the cull record when the block position, the radius or a flag changes. The flag
-`full rig only` is set while the entity dies or is upside down
-(`docs/spec/client-entity-render.md`, CEREN-VIS-003, item 7). The cull needs no fraction, no
+The CPU writes the cull record when the block position, the radius, a flag or the set of views
+changes. The flag `full rig only` is set while the entity dies or is upside down
+(`docs/spec/client-entity-render.md`, CEREN-VIS-003, item 7). The set of views holds one bit for
+each view: bit 0 is the world view, bit 1 is the figure view. An entity with no `EntityViews` has
+only the world bit. The cull of a view drops a slot whose set does not hold the bit of the view. The cull needs no fraction, no
 previous position and no partial tick. For 300,000 slots on the web tier, the cull reads 4.8 MB
 in 0.19 ms with this record, against 29 MB in 1.15 ms with the full tick record (budget note,
 section 4.11). A mob that walks crosses a block boundary every 5 to 10 ticks, so the cull

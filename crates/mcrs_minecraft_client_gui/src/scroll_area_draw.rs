@@ -158,7 +158,8 @@ fn shift_up(quads: &mut [GuiQuad], shift: i32) {
             | GuiQuad::FillGradient { rect, .. }
             | GuiQuad::Texels { rect, .. }
             | GuiQuad::Highlight { rect, .. }
-            | GuiQuad::Clip { rect } => {
+            | GuiQuad::Clip { rect }
+            | GuiQuad::Figure { rect } => {
                 rect.min = rect.min.saturating_sub(offset);
                 rect.max = rect.max.saturating_sub(offset);
             }

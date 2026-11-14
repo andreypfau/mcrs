@@ -14,6 +14,10 @@ impl EntityLight {
     pub const OPEN_SKY: EntityLight = EntityLight { block: 0, sky: 15 };
 }
 
+/// The application writes the [`EntityLight`] of this entity; no column sampler writes it.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct HostLight;
+
 /// The systems in `PostUpdate` that write the [`EntityLight`] of an entity. A system that reads
 /// the light of an entity in the same frame runs after them.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]

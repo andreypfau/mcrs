@@ -66,6 +66,18 @@ pub struct Sprites {
 }
 
 impl Sprites {
+    /// The lightmap of this frame: the colour for each pair of block light and sky light.
+    #[must_use]
+    pub fn lightmap_view(&self) -> &TextureView {
+        &self.lightmap_view
+    }
+
+    /// The sampler of [`Self::lightmap_view`].
+    #[must_use]
+    pub fn lightmap_sampler(&self) -> &Sampler {
+        &self.lightmap_sampler
+    }
+
     pub(crate) fn new(path: RenderPath, budget: &Budget, device: &RenderDevice) -> Self {
         // Sized once for every sprite an id can name, so neither table ever moves.
         let table = |label, row: usize| Words::new(path, label, (MAX_SPRITES * row) as u64, device);

@@ -12,6 +12,8 @@ use mcrs_molang::{ScalarVm, Value, string_hash};
 
 use crate::cpu_inputs::input_record;
 use crate::entity_assets::{EntityAssets, texture_identifier};
+use crate::entity_views::EntityViews;
+use crate::frame_posed::FramePosed;
 use crate::frame_queries::{FrameQueries, VariantEntry, pose_name};
 use crate::player_skin::{PlayerModel, SkinSlot, skin_entry};
 use crate::records::{
@@ -169,6 +171,8 @@ pub(crate) fn write_ticks(
             Option<&Living>,
             &SyncedData,
             Option<&EntityLight>,
+            Option<&EntityViews>,
+            Has<FramePosed>,
         ),
         Or<(
             Changed<Motion>,
@@ -176,6 +180,7 @@ pub(crate) fn write_ticks(
             Changed<Age>,
             Changed<SyncedData>,
             Changed<EntityLight>,
+            Changed<EntityViews>,
             Added<EntitySlot>,
         )>,
     >,
@@ -183,7 +188,7 @@ pub(crate) fn write_ticks(
     let Some(assets) = assets else {
         return;
     };
-    for (slot, client, motion, age, living, data, light) in &entities {
+    for (slot, client, motion, age, living, data, light, views, posed) in &entities {
         let position = motion.current.position;
         let block = position.floor();
         let fraction = ((position - block) * 65536.0)
@@ -205,7 +210,7 @@ pub(crate) fn write_ticks(
             walk_speed: facing.walk_speed.to_bits(),
         };
         let fresh = slot.is_added();
-        arena.write_tick(slot.slot, clock.tick, record, fresh);
+        arena.write_tick(slot.slot, clock.tick, record, fresh || posed);
 
         let scale = data.scale as f32;
         let radius = assets
@@ -222,6 +227,7 @@ pub(crate) fn write_ticks(
                 block: block.to_array(),
                 radius: f16_up(radius),
                 flags: CULL_VALID
+                    | views.copied().unwrap_or(EntityViews::WORLD).cull_flags()
                     | if death_time > 0 || data.upside_down {
                         CULL_FULL_RIG_ONLY
                     } else {
@@ -498,5 +504,70 @@ pub(crate) fn write_inputs(
         }
         let record = input_record(&program.inputs, &entity.rig, &animation.0, frame.clock);
         arena.write_input(slot.slot, record);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use mcrs_minecraft_entity::entity_type_keys::EntityType;
+    use mcrs_minecraft_entity_visual::{Placement, host_living_entity};
+
+    use super::*;
+    use crate::records::CULL_VIEWS_SHIFT;
+    use crate::slot_upload::SCATTER_FRESH;
+    use crate::{EntityPack, EntityPasses, EntityRenderPlugin, TextureImage};
+
+    #[test]
+    fn the_cull_record_holds_the_views_and_a_frame_posed_entity_writes_fresh_ticks() {
+        let mut assets = EntityAssets::default();
+        let white = TextureImage {
+            identifier: "test:white".into(),
+            width: 16,
+            height: 16,
+            rgba: vec![255; 16 * 16 * 4],
+        };
+        assets.add_pack(EntityPack::repository(), vec![white], 2048);
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, EntityRenderPlugin))
+            .insert_resource(assets);
+        app.finish();
+        app.insert_resource(EntityPasses::ON);
+        let pig = || host_living_entity(EntityType::Pig, Default::default(), Placement::default());
+        let world = app.world_mut().spawn(pig().unwrap()).id();
+        let figure = app
+            .world_mut()
+            .spawn((pig().unwrap(), EntityViews::FIGURE, FramePosed))
+            .id();
+        app.update();
+        let slot = |app: &App, entity| app.world().get::<EntitySlot>(entity).unwrap().slot;
+        let views = |app: &App, entity| {
+            let cull = app.world().resource::<SlotArena>().cull(slot(app, entity));
+            cull.map(|cull| cull.flags >> CULL_VIEWS_SHIFT)
+        };
+        assert_eq!(
+            views(&app, world),
+            Some(1),
+            "no EntityViews is the world view"
+        );
+        assert_eq!(views(&app, figure), Some(2));
+
+        app.world_mut().resource_mut::<SlotArena>().take_upload();
+        for entity in [world, figure] {
+            let mut motion = app.world_mut().get_mut::<Motion>(entity).unwrap();
+            motion.current.position.x += 1.0;
+        }
+        app.update();
+        let upload = app.world_mut().resource_mut::<SlotArena>().take_upload();
+        let fresh = |entity| {
+            let slot = slot(&app, entity);
+            let entry = upload.ticks.iter().find(|entry| entry.slot == slot);
+            entry.map(|entry| entry.tick & SCATTER_FRESH != 0)
+        };
+        assert_eq!(fresh(world), Some(false));
+        assert_eq!(
+            fresh(figure),
+            Some(true),
+            "a frame-posed tick record is fresh"
+        );
     }
 }

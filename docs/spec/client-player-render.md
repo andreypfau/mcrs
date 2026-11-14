@@ -8,9 +8,9 @@
 Source of these values: `assets/minecraft/version.json`.
 
 This document states how the client draws a player that is not the local player: the model, the
-skin and the pose. The rules of `client-entity-render.md` apply to a player as to each living
-entity. This document gives only what is particular to a player. It does not prescribe an
-architecture.
+skin and the pose. It also states the figure of the local player in the inventory screen
+(section 5). The rules of `client-entity-render.md` apply to a player as to each living entity.
+This document gives only what is particular to a player. It does not prescribe an architecture.
 
 ## 0. Conventions
 
@@ -27,13 +27,22 @@ architecture.
 - File space, internal space, model unit, box UV, bone and rest pose: as `entity-geometry.md`
   defines them.
 - **Bend**: a turn in the middle of an arm, of a leg or of the body.
+- **GUI unit**, **W**, **H** and **mouse position**: as `client-widget.md`, section 0.1, defines
+  them. The mouse position (`mx`, `my`) is in whole GUI units.
+- **Inventory image**: the background image of the inventory screen of the local player. It is
+  176 by 166 GUI units. Its top left corner is the image origin (`ix`, `iy`).
+- **Figure**: the model of the local player that the client draws on the inventory image, right
+  of the armour slots (section 5).
+- **Cursor stack**: the stack that the player carries with the mouse, as `inventory.md` uses the
+  term.
 
 ### 0.2 Provenance and confidence
 
 The labels of `registry.md`, section 0.3, apply. The kinds of rule are those of `README.md`,
 section "Semantics, not accidents". The skin layout is public documentation of the game. No
 artefact of the game confirms the pose numbers yet. Each pose rule has the label `design` and an
-experiment.
+experiment. The rules of section 5 come from the reference and have the label
+`source_suggested`. No experiment of section 5 has run (section 7).
 
 ### 0.3 ID prefixes
 
@@ -43,7 +52,9 @@ experiment.
 | `CPR-SKIN` | the skin image and where it comes from |
 | `CPR-POSE` | head, walk and crouch |
 | `CPR-HOST` | players that a host adds |
+| `CPR-FIG` | the figure in the inventory screen |
 | `CPR-DEV` | intentional deviations |
+| `CPR-TEST` | experiments |
 
 ### 0.4 Scope
 
@@ -52,6 +63,10 @@ that a host adds. Out of scope: the name tag, the cape, the elytra, items in han
 swing of an arm, sleep, swimming, flight with elytra, the bend and the skin parts that a player
 hides. The bones of the cape, of the elytra and of the items are in scope (CPR-MODEL-002). The
 client draws nothing on them.
+
+The figure of the local player in the inventory screen is in scope (section 5). The list above
+applies also to the figure: it has no name tag, cape, elytra, items in hands or armour. The slots
+and the other parts of the inventory screen are out of scope.
 
 ---
 
@@ -311,7 +326,131 @@ Provenance: `design`. Kind: semantic. Confidence: medium. Experiment: CPR-TEST-0
 
 Provenance: `design`. Kind: semantic. Confidence: high.
 
-## 5. Intentional deviations
+## 5. Figure in the inventory screen
+
+A player expects to see the local player as a figure in the dark rectangle of the inventory
+image. The figure turns its body and its head to the mouse. It shows the skin, the crouch and the
+walk of the local player. It does not take the light of the world.
+
+All positions of this section are GUI positions in GUI units, with `y` down. A direction uses the
+screen axes: +X to the right, +Y to the top of the screen and +Z toward the viewer.
+
+### CPR-FIG-001: Figure rectangle
+
+- **Inputs:** the image origin (`ix`, `iy`).
+- **Behavior:**
+  1. The figure rectangle has the left edge `ix + 26` and the top edge `iy + 8`. It is 49 GUI
+     units wide and 70 GUI units high. The right edge is `ix + 75` and the bottom edge `iy + 78`.
+  2. The client draws the figure only inside the figure rectangle. A part of the model outside
+     the rectangle does not show.
+  3. The client draws the figure at the resolution of window pixels, not of GUI units. An edge of
+     the model can be between two GUI units.
+- **Postconditions:** the figure rectangle is between the armour slots and the crafting grid. The
+  figure never covers a slot.
+
+Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: CPR-TEST-003.
+
+### CPR-FIG-002: Size and position of the figure
+
+- **Inputs:** the image origin (`ix`, `iy`); the pose of the local player; the box height `h` and
+  the eye height `e` of the player in that pose before the scale attribute (`entity-physics.md`,
+  PHY-BOX-004).
+- **Behavior:**
+  1. Let `cx = ix + 50.5` and `cy = iy + 43`. This is the centre of the figure rectangle.
+  2. The feet point is (`cx`, `cy + (h / 2 + 0.0625) · 30`). The client puts the position of the
+     player at the feet point.
+  3. The eye point is (`cx`, `qy`), with `qy` = the `y` of the feet point less `e · 30`.
+  4. The model has the size that it has in the world when the scale attribute is 1. One block
+     is 30 GUI units.
+  5. The projection is parallel. The figure has no perspective.
+  6. With the mouse at the eye point, the front of the figure faces the viewer. The top of the
+     model points to the top of the screen.
+- **Postconditions:** the points of the figure have these `y` values:
+
+| Pose | `h` | `e` | Feet point | Eye point |
+|------|-----|-----|------------|-----------|
+| `standing` | 1.8 | 1.62 | `iy + 71.875` | `iy + 23.275` |
+| `crouching` | 1.5 | 1.27 | `iy + 67.375` | `iy + 29.275` |
+
+Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: CPR-TEST-003.
+Deviation: CPR-DEV-006. See also "Unresolved", item 1.
+
+### CPR-FIG-003: The figure turns to the mouse
+
+- **Inputs:** the mouse position (`mx`, `my`); the eye point (`cx`, `qy`) of CPR-FIG-002.
+- **Behavior:**
+  1. Let `dx = mx − cx` and `dy = qy − my`. `dy` is positive when the mouse is above the eye
+     point.
+  2. Let `a = 20 · atan(dx / 40)` and `t = 20 · atan(dy / 40)`. The function `atan` gives
+     radians. The client uses `a` and `t` as angles in degrees.
+  3. The body turns by `a` degrees about the vertical axis of the model. A positive `a` turns the
+     front of the figure to the right of the screen.
+  4. The head turns by `a` degrees relative to the body, in the direction of the body turn. This
+     angle replaces the head yaw less the body yaw of CPR-POSE-001.
+  5. The head pitch of CPR-POSE-001 is `−t`. A positive `t` turns the head up relative to the
+     body.
+  6. Then the full model turns by `t` degrees about the X axis of the screen through the feet
+     point. A positive `t` moves the top of the model away from the viewer.
+- **Postconditions:**
+  - With the mouse at the eye point, the figure looks straight at the viewer.
+  - Relative to the viewer, the head turns twice as far as the body: `2 · a` and `2 · t`.
+  - `a` and `t` are always less than 31.4159 degrees in magnitude. They change in steps of the
+    mouse position.
+  - The figure turns to the mouse at each position in the window, also outside the inventory
+    image.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: CPR-TEST-003.
+
+### CPR-FIG-004: State of the local player in the figure
+
+- **Inputs:** the frame values of the local player (`client-entities.md`, CENTS-FRAME-001).
+- **Behavior:** the client draws the figure by the rules of sections 1 to 3 and of
+  `client-entity-render.md`, with these values:
+
+| State | The figure |
+|-------|------------|
+| skin and model type | the skin and the model type of the local player: CPR-SKIN-004 and CPR-SKIN-005, with the entry of the player list for the UUID of the local player |
+| second layer | shows (CPR-MODEL-001, item 2) |
+| crouch | shows (CPR-POSE-003), with the box height and the eye height of the pose `crouching` (CPR-FIG-002) |
+| walk | shows (CPR-POSE-002), with the walk position and the walk speed of the local player in the current frame (CPR-DEV-007) |
+| body yaw, head yaw, pitch | CPR-FIG-003 replaces them |
+| hurt | the red overlay of CEREN-SURF-004 shows |
+| on fire | no flames show (CPR-DEV-005); the light does not change (CPR-FIG-005) |
+| invisibility | CEREN-VIS-001 applies, with the local player as the entity and as the viewer |
+| scale attribute | no effect: the model has the scale 1 (CPR-FIG-002) |
+| shadow | none |
+
+- **Postconditions:** an invisible local player with no team sees no model in the figure. In a
+  team that can see friendly invisible members, the figure is translucent.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: CPR-TEST-004.
+
+### CPR-FIG-005: Light of the figure
+
+- **Inputs:** the lightmap of the client world.
+- **Behavior:**
+  1. The figure has the block light 15 and the sky light 15. The client applies the lightmap of
+     CEREN-SURF-003, item 3, to these levels. No coloured light tint and no fog apply.
+  2. The face factor of CEREN-SURF-002, items 3 to 5, applies with two other light directions.
+     In screen axes, they are `L0 = normalize(0.2, 1, 1)` and `L1 = normalize(−0.2, 1, 0)`.
+  3. The light directions stay fixed on the screen. They do not turn with the figure, and the
+     dimension does not change them.
+- **Postconditions:** the face factor is 0.8201 for a face that points to the viewer, 1 for a face
+  that points up, 0.4840 to the right, 0.5177 to the left and 0.4 down.
+
+Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: CPR-TEST-005.
+
+### CPR-FIG-006: Draw order of the figure
+
+- **Inputs:** the inventory screen.
+- **Behavior:** the figure is in front of the inventory image. The cursor stack and a tooltip are
+  in front of the figure.
+- **Postconditions:** a tooltip or the cursor stack over the figure rectangle covers the figure.
+
+Provenance: `source_suggested`. Kind: layout. Confidence: medium. Experiment: CPR-TEST-003,
+steps 5 and 6.
+
+## 6. Intentional deviations
 
 ### CPR-DEV-001: One default skin for each model type
 
@@ -343,7 +482,32 @@ Provenance: `design`. Kind: semantic. Confidence: high.
 - **Visible to the client:** yes, only in the web client. Each player there is Steve or Alex.
 - **Test:** none.
 
-## 6. Experiments
+### CPR-DEV-005: No flames on the figure
+
+- **Rule:** CPR-FIG-004, the row "on fire".
+- **Reference:** the reference draws the flames of a burning entity over the figure.
+- **Visible to the client:** yes, while the local player burns and the inventory screen is open.
+- **Test:** a screenshot test against the reference uses a local player that does not burn.
+
+### CPR-DEV-006: The eye point with the scale attribute
+
+- **Rule:** CPR-FIG-002, item 3.
+- **Reference:** the reference draws the model with a scale of 1, but it computes the eye point
+  with the eye height after the scale attribute. With a scale of 2, the eye point is 48.6 GUI
+  units above the eye of the figure. The figure then does not look at the mouse.
+- **Visible to the client:** yes, only when the scale attribute of the local player is not 1.
+- **Test:** a screenshot test against the reference uses a scale attribute of 1.
+
+### CPR-DEV-007: The figure moves in each frame
+
+- **Rule:** CPR-FIG-004, the row "walk".
+- **Reference:** the reference draws the figure with the values at the end of the current tick.
+  The arms and the legs of the figure move only 20 times each second.
+- **Visible to the client:** yes, while the local player walks with the inventory screen open, at
+  more than 20 frames each second.
+- **Test:** a screenshot test against the reference uses a local player that stands still.
+
+## 7. Experiments
 
 ### CPR-TEST-001: Skin images
 
@@ -357,3 +521,71 @@ face shows no hole.
 Record a vanilla client that watches a player walk 10 blocks and then crouch
 (`tools/mcrs_minecraft_client_recorder`). Compare each bone angle of the frames with the rules
 of section 3.
+
+### CPR-TEST-003: Rectangle, size and turn of the figure
+
+The experiments CPR-TEST-003 to CPR-TEST-005 did not run. The input agent of
+`tools/vanilla-client` does not open a screen, set the mouse position or take a screenshot.
+
+1. Start a vanilla client with a window of 854 by 480 window pixels and the GUI scale 2. Then
+   `W` is 427 and `H` is 240.
+2. Join a flat world in creative mode with a skin that has a different colour on each face of
+   the head. Stand still.
+3. Open the inventory screen with the recipe book closed. The image origin is (125, 37). The
+   figure rectangle is from (151, 45) to (200, 115). The eye point is (175.5, 60.275).
+4. Put the mouse at each position of the table. Take a screenshot at each position.
+5. Pick up a stack and hold it over the figure. Take a screenshot.
+6. Put the stack in the left slot of the top row of the main inventory. Hover over it, so that
+   its tooltip covers a part of the figure rectangle. Take a screenshot.
+
+| Mouse position | `a` | `t` |
+|----------------|-----|-----|
+| (175, 60) | −0.25 | 0.14 |
+| (215, 60) | 15.58 | 0.14 |
+| (135, 60) | −15.83 | 0.14 |
+| (175, 20) | −0.25 | 15.78 |
+| (175, 100) | −0.25 | −15.64 |
+| (426, 0) | 28.25 | 19.70 |
+
+Record these values from each screenshot:
+
+- the lowest window pixel of the feet. CPR-FIG-002 gives the `y` of 217.75 window pixels;
+- the highest window pixel of the hat;
+- the columns where the front face and the side faces of the head and of the body start and end;
+- each window pixel outside the figure rectangle that differs from the inventory image.
+
+Compare each screenshot with an mcrs screenshot at the same mouse position. The difference of a
+position is at most 0.5 window pixel.
+
+### CPR-TEST-004: State of the local player in the figure
+
+Use the setup of CPR-TEST-003, steps 1 to 3, with the mouse at (175, 60). Take a screenshot in
+each of these states:
+
+1. The local player crouches.
+2. The local player walks forward. Take a screenshot in 10 frames that follow each other.
+3. A zombie hits the local player in survival mode. Take a screenshot in the next frame.
+4. The local player stands in fire.
+5. The local player has the effect `minecraft:invisibility`, first with no team, then in a team
+   that has the option `seeFriendlyInvisibles` set to `true` (`/team modify`).
+6. The scale attribute of the local player is 2 (`/attribute @s minecraft:scale base set 2`).
+   Move the mouse up and down. Record the mouse `y` at which the head looks straight ahead.
+
+Compare each screenshot with the rows of the table of CPR-FIG-004. For step 6, compare the
+result with CPR-DEV-006.
+
+### CPR-TEST-005: Light of the figure
+
+Use the setup of CPR-TEST-003, steps 1 to 3. Take a screenshot with the mouse at (175, 60) and
+at (175, 100), at noon and at midnight, in the overworld and in the nether. Compare the colour of
+a texel of the front face and of the top face of the head with the skin. The ratios agree with
+the face factors of CPR-FIG-005 in each dimension. Record the colour at noon and at midnight.
+
+## 8. Unresolved
+
+1. The reference draws each player at 15/16 of the size of the model, in the world and in the
+   figure. While a player crouches, it also draws the model 2/16 block lower. CPR-MODEL-001 and
+   CPR-POSE-003 do not state this, and the postcondition of CPR-MODEL-001 gives 2 blocks. Without
+   the scale, the top of the head in the figure is 3.75 GUI units higher than in the game.
+   Recommended: add both values to sections 1 and 3 in a separate change. The figure then gets
+   them through CPR-FIG-002, item 4.

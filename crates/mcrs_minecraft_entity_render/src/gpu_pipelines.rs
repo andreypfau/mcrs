@@ -7,6 +7,8 @@ use wgpu::{
 
 use crate::entity_gpu::DrawTargets;
 use crate::entity_library::{EntityLibrary, MAX_ARRAYS};
+use crate::figure_gpu::DrawTables;
+use crate::figure_targets::FigureTargets;
 use crate::gpu_layouts::Layouts;
 use crate::impostor_frame::{
     IMPOSTOR_ELEVATIONS, IMPOSTOR_SMALL_HEIGHT, IMPOSTOR_TILE, IMPOSTOR_VIEWS, IMPOSTOR_YAWS,
@@ -18,6 +20,7 @@ const POSE: &str = include_str!("shaders/pose.wgsl");
 const EXPAND: &str = include_str!("shaders/expand.wgsl");
 const DRAW: &str = include_str!("shaders/draw.wgsl");
 const SHADING: &str = include_str!("shaders/shading.wgsl");
+const FIGURE: &str = include_str!("shaders/figure.wgsl");
 const IMPOSTOR: &str = include_str!("shaders/impostor.wgsl");
 const IMPOSTOR_PREPARE: &str = include_str!("shaders/impostor_prepare.wgsl");
 /// The format of the colour and of the normal images of an impostor.
@@ -197,14 +200,73 @@ fn compute_header(library: &EntityLibrary) -> String {
             .replace("#{FIRST_COVER}", &first_cover.to_string())
 }
 
-/// The draw shader, with the sizes of the tables of `library`.
-fn draw_source(library: &EntityLibrary) -> String {
+/// The draw shader, with the sizes of the model and the variant tables, for a depth target with
+/// the compare `depth_compare`: a later layer steps toward the side that the compare lets pass.
+fn draw_source(models: usize, variants: usize, depth_compare: wgpu::CompareFunction) -> String {
+    let layer_depth_step = match depth_compare {
+        wgpu::CompareFunction::Greater | wgpu::CompareFunction::GreaterEqual => "1.0 / 65536.0",
+        _ => "-1.0 / 65536.0",
+    };
     COMMON.to_owned()
         + GBUFFER_ENCODE_WGSL
         + SHADING
         + &DRAW
-            .replace("#{MODELS}", &library.models.len().max(1).to_string())
-            .replace("#{VARIANTS}", &library.variants.len().max(1).to_string())
+            .replace("#{MODELS}", &models.max(1).to_string())
+            .replace("#{VARIANTS}", &variants.max(1).to_string())
+            .replace("#{LAYER_DEPTH_STEP}", layer_depth_step)
+}
+
+/// The forward draw shader of the figure view into `targets`.
+fn figure_source(tables: DrawTables, targets: FigureTargets) -> String {
+    draw_source(tables.models, tables.variants, targets.depth_compare)
+        + &FIGURE.replace("#{TARGET_ENCODES}", &targets.color.is_srgb().to_string())
+}
+
+/// The forward draws of the figure view: the face records with no cutout texel, then the others.
+pub(crate) struct FigurePipelines {
+    pub(crate) draw: RenderPipeline,
+    pub(crate) draw_opaque: RenderPipeline,
+}
+
+impl FigurePipelines {
+    /// The forward pipelines into `targets`; `figure` is the layout of the light and the lightmap.
+    pub(crate) fn new(
+        device: &Device,
+        layouts: &Layouts,
+        figure: &BindGroupLayout,
+        tables: DrawTables,
+        targets: FigureTargets,
+    ) -> Self {
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("entity figure"),
+            source: wgpu::ShaderSource::Wgsl(figure_source(tables, targets).into()),
+        });
+        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("entity figure"),
+            bind_group_layouts: &[Some(&layouts.draw), Some(&layouts.texture), Some(figure)],
+            immediate_size: 0,
+        });
+        let colour = [Some(color_target(targets.color))];
+        let pipeline = |fragment: &str| {
+            render_pipeline(
+                device,
+                &layout,
+                Stages {
+                    module: &module,
+                    vertex: "vertex",
+                    fragment,
+                    topology: wgpu::PrimitiveTopology::TriangleStrip,
+                },
+                &colour,
+                depth_state(targets.depth, targets.depth_compare),
+                targets.sample_count,
+            )
+        };
+        Self {
+            draw: pipeline("figure_fragment"),
+            draw_opaque: pipeline("figure_fragment_opaque"),
+        }
+    }
 }
 
 pub(crate) fn impostor_constants(source: &str) -> String {
@@ -246,7 +308,14 @@ fn render_pipelines(
             source: wgpu::ShaderSource::Wgsl(source.into()),
         })
     };
-    let draw_module = module("entity draw", &draw_source(library));
+    let draw_module = module(
+        "entity draw",
+        &draw_source(
+            library.models.len(),
+            library.variants.len(),
+            targets.depth_compare,
+        ),
+    );
     let draw_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("entity draw"),
         bind_group_layouts: &[Some(&layouts.draw), Some(&layouts.texture)],
@@ -265,6 +334,7 @@ fn render_pipelines(
         },
         &gbuffer,
         depth.clone(),
+        1,
     );
     let draw_opaque = render_pipeline(
         device,
@@ -277,6 +347,7 @@ fn render_pipelines(
         },
         &gbuffer,
         depth.clone(),
+        1,
     );
     let bake = render_pipeline(
         device,
@@ -292,6 +363,7 @@ fn render_pipelines(
             Some(color_target(IMPOSTOR_FORMAT)),
         ],
         depth_state(BAKE_DEPTH_FORMAT, wgpu::CompareFunction::GreaterEqual),
+        1,
     );
     let impostor_source =
         COMMON.to_owned() + GBUFFER_ENCODE_WGSL + SHADING + &impostor_constants(IMPOSTOR);
@@ -312,6 +384,7 @@ fn render_pipelines(
         },
         &gbuffer,
         depth.clone(),
+        1,
     );
     let impostor_small = render_pipeline(
         device,
@@ -324,6 +397,7 @@ fn render_pipelines(
         },
         &gbuffer,
         depth,
+        1,
     );
     (draw, draw_opaque, bake, impostor, impostor_small)
 }
@@ -354,13 +428,14 @@ fn depth_state(format: TextureFormat, compare: wgpu::CompareFunction) -> wgpu::D
     }
 }
 
-/// An opaque render pipeline with no vertex buffers and no face culling.
+/// An opaque render pipeline with no vertex buffers and no face culling, with `samples` samples.
 fn render_pipeline(
     device: &Device,
     layout: &wgpu::PipelineLayout,
     stages: Stages<'_>,
     targets: &[Option<wgpu::ColorTargetState>],
     depth: wgpu::DepthStencilState,
+    samples: u32,
 ) -> RenderPipeline {
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some(stages.vertex),
@@ -377,7 +452,10 @@ fn render_pipeline(
             ..Default::default()
         },
         depth_stencil: Some(depth),
-        multisample: Default::default(),
+        multisample: wgpu::MultisampleState {
+            count: samples,
+            ..Default::default()
+        },
         fragment: Some(wgpu::FragmentState {
             module: stages.module,
             entry_point: Some(stages.fragment),
@@ -471,8 +549,8 @@ mod tests {
     use crate::frame_uniform::FrameUniform;
     use crate::gpu_layouts as layouts;
     use crate::records::{
-        CULL_FULL_RIG_ONLY, CULL_VALID, CullRecord, InputRecord, STATE_BABY, STATE_DYING,
-        STATE_HIDDEN_SHIFT, ScatterEntry, StateRecord, TickRecord,
+        CULL_FULL_RIG_ONLY, CULL_VALID, CULL_VIEWS_SHIFT, CullRecord, InputRecord, STATE_BABY,
+        STATE_DYING, STATE_HIDDEN_SHIFT, ScatterEntry, StateRecord, TickRecord,
     };
     use crate::slot_upload::SCATTER_FRESH;
 
@@ -499,7 +577,8 @@ mod tests {
 
     #[test]
     fn the_draw_shader_with_the_shared_gbuffer_include_is_valid_wgsl() {
-        naga::front::wgsl::parse_str(&draw_source(&EntityLibrary::default())).unwrap();
+        naga::front::wgsl::parse_str(&draw_source(0, 0, wgpu::CompareFunction::GreaterEqual))
+            .unwrap();
     }
 
     #[test]
@@ -523,6 +602,7 @@ mod tests {
         let constants = [
             ("CULL_VALID", i64::from(CULL_VALID)),
             ("CULL_FULL_RIG_ONLY", i64::from(CULL_FULL_RIG_ONLY)),
+            ("CULL_VIEWS_SHIFT", i64::from(CULL_VIEWS_SHIFT)),
             ("STATE_BABY", i64::from(STATE_BABY)),
             ("STATE_DYING", i64::from(STATE_DYING)),
             ("STATE_HIDDEN_SHIFT", i64::from(STATE_HIDDEN_SHIFT)),
@@ -639,11 +719,35 @@ mod tests {
         }
         check_bindings(
             "draw",
-            &draw_source(&library),
+            &draw_source(
+                library.models.len(),
+                library.variants.len(),
+                wgpu::CompareFunction::GreaterEqual,
+            ),
             &[
                 ("vertex", &layouts::DRAW),
                 ("fragment", &[(0, layouts::Slot::Frame)]),
                 ("fragment_opaque", &[(0, layouts::Slot::Frame)]),
+            ],
+        );
+        check_bindings(
+            "figure",
+            &figure_source(
+                DrawTables {
+                    models: library.models.len(),
+                    variants: library.variants.len(),
+                },
+                FigureTargets {
+                    color: wgpu::TextureFormat::Rgba8UnormSrgb,
+                    depth: wgpu::TextureFormat::Depth32Float,
+                    depth_compare: wgpu::CompareFunction::LessEqual,
+                    sample_count: 1,
+                },
+            ),
+            &[
+                ("vertex", &layouts::DRAW),
+                ("figure_fragment", &[(0, layouts::Slot::Frame)]),
+                ("figure_fragment_opaque", &[(0, layouts::Slot::Frame)]),
             ],
         );
         let webgpu = wgpu::Limits::default();

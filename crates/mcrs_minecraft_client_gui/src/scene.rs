@@ -24,6 +24,7 @@ use crate::glyph_cache::{self, GlyphCache};
 use crate::gui_sprite_id::GuiSpriteId;
 use crate::gui_texture_id::GuiTextureId;
 use crate::hotbar::hotbar;
+use crate::inventory_figure::pose_inventory_figure;
 use crate::inventory_screen::inventory_screen;
 use crate::item_decorations::{Decorated, WHITE, decorations};
 use crate::item_resolve::{GuiVertex, ItemRenderLayers};
@@ -32,6 +33,7 @@ use crate::sprite::{GuiSprite, Scaling};
 use crate::tooltip::Tooltip;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
+use mcrs_minecraft_entity_render::{EntitySlotSystems, FigureView};
 use mcrs_minecraft_model::atlas::{MISSING_SIZE, decode_png, missing_pixels, rgba};
 use mcrs_minecraft_model::resource_set::ResourceSet;
 
@@ -106,6 +108,10 @@ pub enum GuiQuad {
     },
     /// Ends the innermost `Clip`.
     EndClip,
+    /// The figure of the local player, cut to `rect`.
+    Figure {
+        rect: IRect,
+    },
 }
 
 /// What the screens emit each frame, in draw order.
@@ -471,6 +477,9 @@ pub enum GuiDrawKind {
     InvertRedGreen,
     /// Quads that set the blue of what is drawn to full.
     FullBlue,
+    /// The figure view, cut to `rect` in GUI units and depth-tested in a band of its own. It
+    /// takes no vertices of the batch.
+    Figure { rect: IRect },
 }
 
 /// The scene flattened to what the pass draws: triangle-list vertices in GUI units
@@ -702,6 +711,18 @@ fn build_gui_batch(
             GuiQuad::EndClip => {
                 clips.pop();
             }
+            GuiQuad::Figure { rect } => {
+                let rect = clips.last().map_or(rect, |clip| clip.intersect(rect));
+                if rect.is_empty() {
+                    continue;
+                }
+                let end = vertices.len() as u32;
+                close_flat(&mut flat_start, end, &mut batch.draws);
+                batch.draws.push(GuiDraw {
+                    range: end..end,
+                    kind: GuiDrawKind::Figure { rect },
+                });
+            }
             flat => {
                 if flat_start.is_none() {
                     flat_start = Some(vertices.len() as u32);
@@ -796,7 +817,8 @@ fn push_flat_quad(
         GuiQuad::Item { .. }
         | GuiQuad::Highlight { .. }
         | GuiQuad::Clip { .. }
-        | GuiQuad::EndClip => return,
+        | GuiQuad::EndClip
+        | GuiQuad::Figure { .. } => return,
     };
     let clipped = match clip {
         Some(clip) => flat.clip(clip),
@@ -833,6 +855,15 @@ impl Plugin for GuiPlugin {
                     build_gui_batch,
                 )
                     .chain(),
+            )
+            .add_systems(
+                PostUpdate,
+                pose_inventory_figure
+                    .after(begin_gui_frame)
+                    .before(EntitySlotSystems)
+                    .run_if(resource_exists::<FigureView>.and_then(
+                        resource_equals(Screen::Inventory).or_else(resource_changed::<Screen>),
+                    )),
             );
     }
 }

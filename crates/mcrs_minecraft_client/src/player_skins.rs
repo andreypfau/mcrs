@@ -4,6 +4,7 @@
 use std::collections::HashMap;
 
 use bevy::prelude::*;
+use mcrs_minecraft_client_gui::inventory_figure::InventoryFigure;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_render::{PlayerModel, PlayerSkin};
 use mcrs_minecraft_entity_visual::{ClientEntity, HostEntity};
@@ -73,14 +74,18 @@ fn on_player_info_remove(
     }
 }
 
+/// A player of a server, or the inventory figure, which takes the skin of the profile of the
+/// local player.
+type Dressed = Or<(Without<HostEntity>, With<InventoryFigure>)>;
+
 /// Gives each new player entity, and each player whose profile came again, the model of its
 /// profile and starts the download of its image. A player keeps its image until the new one
 /// arrives. A player of the host keeps the skin that the host gives.
 fn dress_players(
     mut commands: Commands,
     mut skins: ResMut<ProfileSkins>,
-    added: Query<(Entity, &ClientEntity), (Added<ClientEntity>, Without<HostEntity>)>,
-    all: Query<(Entity, &ClientEntity), Without<HostEntity>>,
+    added: Query<(Entity, &ClientEntity), (Added<ClientEntity>, Dressed)>,
+    all: Query<(Entity, &ClientEntity), Dressed>,
     mut models: Query<&mut PlayerModel>,
 ) {
     let updated = std::mem::take(&mut skins.updated);
@@ -151,11 +156,18 @@ mod tests {
         };
         let host = spawn();
         let server = spawn();
+        let figure = spawn();
         world.entity_mut(server).remove::<HostEntity>();
+        world.entity_mut(figure).insert(InventoryFigure);
         world.run_system_once(dress_players).unwrap();
         assert_eq!(world.get::<PlayerModel>(host), Some(&model));
         assert_eq!(world.get::<PlayerSkin>(host), Some(&skin));
         assert_eq!(world.get::<PlayerModel>(server), Some(&PlayerModel::Wide));
         assert_eq!(world.get::<PlayerSkin>(server), None);
+        assert_eq!(
+            world.get::<PlayerModel>(figure),
+            Some(&PlayerModel::Wide),
+            "the inventory figure takes the profile of the local player"
+        );
     }
 }

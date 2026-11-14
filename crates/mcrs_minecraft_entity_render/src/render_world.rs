@@ -15,6 +15,8 @@ use mcrs_minecraft_render::{
 use crate::entity_assets::EntityAssets;
 use crate::entity_gpu::{Capacities, DrawTargets, EntityGpu, PassQueries};
 use crate::entity_library::EntityLibrary;
+use crate::figure_targets::FigureTargets;
+use crate::figure_view::{FigureFrame, FigureView};
 use crate::frame_uniform::FrameUniform;
 use crate::gpu_layouts::tables_fit;
 use crate::height_threshold::HeightThreshold;
@@ -39,12 +41,27 @@ pub(crate) struct EntityRenderState {
     pending_skins: Vec<SkinUpload>,
     clock: EntityClock,
     threshold: HeightThreshold,
+    /// The figure frame of this frame, or none while no host draws a figure.
+    figure: Option<FigureFrame>,
+}
+
+impl EntityRenderState {
+    pub(crate) fn gpu(&self) -> Option<&EntityGpu> {
+        self.gpu.as_ref()
+    }
+
+    pub(crate) fn has_figure(&self) -> bool {
+        self.figure.is_some()
+    }
 }
 
 pub(crate) fn extract_entities(mut main: ResMut<MainWorld>, mut state: ResMut<EntityRenderState>) {
     if let Some(clock) = main.get_resource::<EntityClock>() {
         state.clock = *clock;
     }
+    state.figure = main
+        .get_resource::<FigureView>()
+        .and_then(|figure| figure.0);
     if let Some(assets) = main.get_resource::<EntityAssets>()
         && state.generation != Some(assets.generation)
     {
@@ -111,6 +128,7 @@ fn merge(pending: &mut SlotUpload, next: SlotUpload) {
 pub(crate) fn prepare_entities(
     mut state: ResMut<EntityRenderState>,
     terrain: Option<Res<Terrain>>,
+    figure_targets: Option<Res<FigureTargets>>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
 ) {
@@ -171,6 +189,15 @@ pub(crate) fn prepare_entities(
     {
         gpu.set_hiz(device.wgpu_device(), (**pyramid).clone());
         state.hiz = Some(pyramid.id());
+    }
+    if let (Some(targets), Some(gpu)) = (figure_targets, state.gpu.as_mut()) {
+        let sprites = &terrain.sprites;
+        gpu.prepare_figure(
+            device.wgpu_device(),
+            *targets,
+            sprites.lightmap_view(),
+            sprites.lightmap_sampler(),
+        );
     }
 }
 
@@ -268,6 +295,26 @@ pub(crate) fn draw_entities(
     gpu.encode_draw(&mut pass);
     drop(pass);
     state.threshold = threshold;
+}
+
+/// A run condition: a host asks for the figure view in this frame.
+pub(crate) fn figure_requested(state: Res<EntityRenderState>) -> bool {
+    state.figure.is_some()
+}
+
+/// The figure run of the cull, the pose and the expand, into the frame buffers of the figure
+/// view, after the world view has uploaded the slots of the frame.
+pub(crate) fn run_figure_view(
+    state: Res<EntityRenderState>,
+    queue: Res<RenderQueue>,
+    mut ctx: RenderContext,
+) {
+    let (Some(figure), Some(gpu)) = (state.figure, state.gpu.as_ref()) else {
+        return;
+    };
+    let clock = state.clock;
+    gpu.write_figure_frame(&queue, &figure, clock.tick, clock.partial_tick);
+    gpu.encode_figure_compute(ctx.command_encoder());
 }
 
 #[cfg(test)]

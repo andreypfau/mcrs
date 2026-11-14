@@ -5,18 +5,27 @@ use bevy::render::{ExtractSchedule, Render, RenderApp, RenderSystems};
 use mcrs_minecraft_entity_visual::{ClientEntityTick, EntityLightSystems};
 use mcrs_minecraft_render::{RenderPath, WorldPass};
 
+use crate::figure_view::FigureView;
 use crate::gpu_layouts::passes_fit;
 use crate::main_world::{
     EntityClock, EntityVm, advance_clock, assign_slots, frame_clock, release_slot, server_ticks,
     write_inputs, write_layers, write_ticks,
 };
 use crate::player_skin::{SkinSlots, assign_skins, release_skin};
-use crate::render_world::{EntityRenderState, draw_entities, extract_entities, prepare_entities};
+use crate::render_world::{
+    EntityRenderState, draw_entities, extract_entities, figure_requested, prepare_entities,
+    run_figure_view,
+};
 use crate::slot_upload::SlotArena;
 
 /// The systems that keep the slot of each client entity, in `PostUpdate`.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EntitySlotSystems;
+
+/// The compute passes of the figure view, in `Core3d` after the entity passes of the world view.
+/// A host pass that draws the figure with [`crate::FigureDraw`] runs after this set.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FigureViewSystems;
 
 /// Whether this device runs the entity passes, in the main world and the render world alike.
 #[derive(Resource, Clone, Copy, PartialEq, Eq, Debug)]
@@ -45,6 +54,7 @@ impl Plugin for EntityRenderPlugin {
             .init_resource::<EntityClock>()
             .init_resource::<EntityVm>()
             .init_resource::<SkinSlots>()
+            .init_resource::<FigureView>()
             .add_systems(
                 FixedUpdate,
                 advance_clock.before(ClientEntityTick).run_if(server_ticks),
@@ -84,9 +94,19 @@ impl Plugin for EntityRenderPlugin {
             )
             .add_systems(
                 Core3d,
-                draw_entities
-                    .in_set(WorldPass::Entities)
-                    .run_if(entity_passes),
+                (
+                    draw_entities
+                        .in_set(WorldPass::Entities)
+                        .run_if(entity_passes),
+                    run_figure_view.in_set(FigureViewSystems),
+                ),
+            )
+            .configure_sets(
+                Core3d,
+                FigureViewSystems
+                    .after(WorldPass::Entities)
+                    .run_if(entity_passes)
+                    .run_if(figure_requested),
             );
     }
 
