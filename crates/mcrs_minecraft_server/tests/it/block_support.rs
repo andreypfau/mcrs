@@ -6,15 +6,21 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::query::With;
 use bevy_math::IVec3;
-use mcrs_minecraft_block::definition::Blocks;
+use std::sync::Arc;
+
+use mcrs_minecraft_block::block_keys::Block;
+use mcrs_minecraft_block::definition::{Blocks, build_block_definitions};
 use mcrs_minecraft_engine::column_streams::ColumnStreams;
 use mcrs_minecraft_engine_item::Dropped;
-use mcrs_minecraft_engine_registries::{install_item_table, test_item_table};
+use mcrs_minecraft_engine_registries::{
+    install_item_table, install_registries, test_corpus, test_item_table,
+};
 use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
 use mcrs_minecraft_engine_world::palette::air_section;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::storage::random_ticks::RandomTickIndex;
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
+use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_item_stack::{Count, Kind};
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -23,6 +29,7 @@ use mcrs_minecraft_server::{
 };
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, LocalPos, SectionPos};
+use serde_json::{Value, json};
 
 use crate::host_app::{self, PlayServer};
 
@@ -38,7 +45,15 @@ struct World {
 
 impl World {
     fn new() -> Self {
+        Self::with_blocks(None)
+    }
+
+    fn with_blocks(blocks: Option<Blocks>) -> Self {
         let mut app = host_app::make_host_app();
+        if let Some(blocks) = blocks {
+            let items = test_corpus().1.clone();
+            install_registries(app.world_mut(), test_registries().clone(), blocks, items);
+        }
         install_item_table(app.world_mut(), test_item_table()).unwrap();
         app.add_plugins((
             VanillaBlocksPlugin,
@@ -214,11 +229,50 @@ fn sup_veg_002_both_parts_of_a_sunflower_go_with_its_base() {
     assert_eq!(world.item_entities(), one(Item::Sunflower));
 }
 
+/// The corpus with a poppy whose filter has the predicate form and tests all directions, as a plant
+/// of SUP-PRED-003 does, so that a change beside it reads the block below it.
+fn poppy_testing_all_directions() -> Blocks {
+    let directory = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../assets/mcrs/block_definition"
+    );
+    let files = std::fs::read_dir(directory)
+        .expect("the corpus")
+        .map(|entry| entry.expect("a corpus file").path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "json")
+        })
+        .map(|path| {
+            let mut file: Value =
+                serde_json::from_slice(&std::fs::read(&path).expect("a corpus file"))
+                    .expect("json");
+            let block = &mut file["minecraft:block"];
+            if block["description"]["identifier"] == "minecraft:poppy" {
+                block["components"]["minecraft:placement_filter"] = json!({
+                    "predicate": {"type": "minecraft:matching_blocks", "offset": [0, -1, 0],
+                        "blocks": "minecraft:dirt"},
+                    "tested_directions": "all",
+                });
+            }
+            (
+                path.display().to_string(),
+                serde_json::to_vec(&file).expect("json"),
+            )
+        });
+    let names: Vec<&str> = Block::ALL
+        .iter()
+        .map(|block| block.as_static_str())
+        .collect();
+    let (definitions, _) = build_block_definitions(&names, files).expect("the patched corpus");
+    Blocks(Arc::new(definitions))
+}
+
 /// SUP-RUN-001: a shape update whose support read reaches a section that is not available keeps
 /// the subject; only the void outside the world reads as void air.
 #[test]
 fn sup_run_001_an_unavailable_base_keeps_the_plant() {
-    let mut world = World::new();
+    let mut world = World::with_blocks(Some(poppy_testing_all_directions()));
     let stone = world.state("minecraft:stone", &[]);
     let poppy = world.state("minecraft:poppy", &[]);
     let lowest = BlockPos::new(P.x, BELOW.y - 15, P.z);
