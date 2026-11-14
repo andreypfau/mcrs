@@ -14,11 +14,13 @@ use crate::recipe::{RecipeBookEntry, RecipeBookSettings, RecipePropertySet, Sele
 use crate::text::RawText;
 use crate::{ColumnPos, LpVec3, PositionFlags};
 use glam::DVec3;
+use mcrs_minecraft_block::block_entity_type_keys::BlockEntityType;
 use mcrs_minecraft_command_tree::CommandNode;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_entity::{attribute_keys::Attribute, entity_type_keys::EntityType};
 use mcrs_minecraft_menu::menu_keys::MenuType;
+use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_particle::ParticleOptions;
 use mcrs_minecraft_protocol::{Bounded, Result, VarInt, VarLong};
 use mcrs_minecraft_registries::Wire;
@@ -54,6 +56,40 @@ pub struct ClientboundBlockDestruction {
     pub id: VarInt,
     pub pos: BlockPos,
     pub progress: i8,
+}
+
+/// The data of one block entity, sent when it changes after its column arrived.
+///
+/// A frame whose type this build does not know, or whose NBT it cannot read, decodes with `data`
+/// `None` instead of failing: a malformed frame ends the connection, and a block entity this
+/// client never draws is not worth that.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ClientboundBlockEntityData {
+    pub pos: BlockPos,
+    pub data: Option<(BlockEntityType, NbtCompound)>,
+}
+
+impl Decode<'_> for ClientboundBlockEntityData {
+    fn decode(r: &mut &[u8]) -> Result<Self> {
+        let pos = BlockPos::decode(r)?;
+        let mut body = std::mem::take(r);
+        let data = BlockEntityType::decode(&mut body).ok().and_then(|kind| {
+            let data = NbtCompound::decode(&mut body).ok()?;
+            body.is_empty().then_some((kind, data))
+        });
+        Ok(Self { pos, data })
+    }
+}
+
+impl Encode for ClientboundBlockEntityData {
+    fn encode(&self, mut w: impl Write) -> Result<()> {
+        let (kind, data) = self.data.as_ref().ok_or_else(|| {
+            mcrs_minecraft_protocol::Error::invalid("a block entity update without its data")
+        })?;
+        self.pos.encode(&mut w)?;
+        kind.encode(&mut w)?;
+        data.encode(&mut w)
+    }
 }
 
 /// A block event that a block took, for the clients that show its effect. The client gets only

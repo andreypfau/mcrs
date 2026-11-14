@@ -27,6 +27,7 @@ mod timestamps;
 mod upload;
 mod views;
 mod words;
+pub mod world_text;
 
 use std::sync::Arc;
 
@@ -256,6 +257,8 @@ pub enum WorldPass {
     /// The entity passes: after the depth pyramid of the full frame, before the lighting.
     Entities,
     Lighting,
+    /// Drawn over the lit frame with the depth of the opaque world, before the translucent layers.
+    Overlay,
     Forward,
 }
 
@@ -269,6 +272,7 @@ impl WorldPass {
             Self::OpaqueSecond,
             Self::Entities,
             Self::Lighting,
+            Self::Overlay,
             Self::Forward,
         )
             .chain()
@@ -285,6 +289,7 @@ pub struct TerrainPlugin {
 impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
         embed_shaders(app);
+        app.add_plugins(world_text::WorldTextPlugin);
 
         app.init_resource::<CameraOrigin>()
             .init_resource::<Occlusion>()

@@ -26,10 +26,10 @@ fn layer_entry(state: StateRecord, layer: u32) -> u32 {
 
 fn layer_rect(state: StateRecord, layer: u32, view: u32) -> vec4<f32> {
     let at = (layer_word(state, layer) & 0xffffu) * VIEWS + view;
-    if ((layer_mask(state) & (1u << layer)) == 0u || at >= arrayLength(&impostor_frames)) {
+    if ((layer_mask(state) & (1u << layer)) == 0u || at >= FIRST_COVER) {
         return vec4<f32>(0.0);
     }
-    return impostor_frames[at];
+    return impostor_covers[at];
 }
 
 @compute @workgroup_size(64)
@@ -40,10 +40,10 @@ fn prepare(@builtin(global_invocation_id) id: vec3<u32>) {
     }
     let slot = impostors[id.x];
     let state = states[slot];
-    let current = ticks[slot];
+    let current = ticks[current_tick(slot)];
     var previous = current;
     if (tick_of_record[slot] == frame.tick) {
-        previous = previous_ticks[slot];
+        previous = ticks[previous_tick(slot)];
     }
     let pt = frame.partial_tick;
     let body_yaw = wrap_degrees(alerp(pt, turn_degrees(previous.fraction_z_body >> 16u), turn_degrees(current.fraction_z_body >> 16u)));
@@ -95,7 +95,7 @@ fn prepare(@builtin(global_invocation_id) id: vec3<u32>) {
         // A small impostor draws a rectangle with the covered area of its image, about the
         // centroid of the covered texels, so its pixels cover about what the image covers.
         let rect = draw.rects[first];
-        let cover = impostor_covers[layer_entry(state, first) * VIEWS + view];
+        let cover = impostor_covers[FIRST_COVER + layer_entry(state, first) * VIEWS + view];
         if (cover.z > 0.0) {
             let shrink = sqrt(cover.z) * 0.5;
             let size = vec2<f32>(rect.y - rect.x, rect.w - rect.z);

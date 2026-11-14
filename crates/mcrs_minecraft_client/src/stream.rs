@@ -626,6 +626,7 @@ impl Loader {
                     }
                 }
                 ColumnChange::Filled(_) => self.sections_total += 1,
+                ColumnChange::Signed(_) => {}
                 ColumnChange::Reblocked(at, state) => {
                     catalog.owe(state.number());
                     self.mark_stale_around(at);

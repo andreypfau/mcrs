@@ -57,6 +57,7 @@ crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_poses.json linguist-ge
 crates/mcrs_minecraft_model/tests/fixtures/vanilla/entity_types.json linguist-generated
 crates/mcrs_minecraft_model/tests/fixtures/vanilla/block_entity_poses.json linguist-generated
 crates/mcrs_minecraft_model/tests/fixtures/vanilla/sign_text.json linguist-generated
+crates/mcrs_minecraft_client_gui/tests/fixtures/vanilla/font.json linguist-generated
 crates/mcrs_minecraft_numeric/tests/fixtures/vanilla/numeric.json linguist-generated
 crates/mcrs_minecraft_model/tests/fixtures/vanilla/block_models.json linguist-generated
 crates/mcrs_minecraft_model/tests/fixtures/vanilla/block_faces.json linguist-generated

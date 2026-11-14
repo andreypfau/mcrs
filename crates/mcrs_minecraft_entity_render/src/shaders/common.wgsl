@@ -69,8 +69,9 @@ struct InputRecord {
     clips: array<vec2<u32>, 4>,
 }
 
+// A uniform array takes elements aligned to 16 bytes; these records are multiples of 16.
 struct ModelRecord {
-    bound_x: f32,
+    @align(16) bound_x: f32,
     bound_y: f32,
     bound_z: f32,
     bound_radius: f32,
@@ -89,7 +90,7 @@ struct ModelRecord {
 }
 
 struct BoneRecord {
-    pivot_x: f32,
+    @align(16) pivot_x: f32,
     pivot_y: f32,
     pivot_z: f32,
     parent_palette: u32,
@@ -123,7 +124,7 @@ const CUBOID_EXPLICIT: u32 = 128u;
 const INFLATE_STEP: f32 = 1.0 / 8192.0;
 
 struct Variant {
-    array_layer: u32,
+    @align(16) array_layer: u32,
     uv_scale_x: f32,
     uv_scale_y: f32,
     cutout_first: u32,

@@ -48,6 +48,7 @@ mod options_screen;
 mod pause_screen;
 pub mod scene;
 mod scroll_area_draw;
+pub mod sign_text;
 pub mod sprite;
 mod tab_bar_draw;
 pub mod text;

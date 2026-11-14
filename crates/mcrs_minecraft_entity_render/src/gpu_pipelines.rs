@@ -59,8 +59,6 @@ impl Pipelines {
         layouts: &Layouts,
         targets: DrawTargets,
     ) -> Self {
-        let compute_layout = &layouts.compute;
-        let args_layout = &layouts.args;
         let header = compute_header(library);
         let compute_layout_of = |layout: &BindGroupLayout| {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -69,8 +67,12 @@ impl Pipelines {
                 immediate_size: 0,
             })
         };
-        let main_pipeline_layout = compute_layout_of(compute_layout);
-        let args_pipeline_layout = compute_layout_of(args_layout);
+        let scatter_layout = compute_layout_of(&layouts.scatter);
+        let cull_layout = compute_layout_of(&layouts.cull);
+        let pose_layout = compute_layout_of(&layouts.pose);
+        let expand_layout = compute_layout_of(&layouts.expand);
+        let prepare_layout = compute_layout_of(&layouts.prepare);
+        let args_pipeline_layout = compute_layout_of(&layouts.args);
         let module = |label: &str, source: &str| {
             device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some(label),
@@ -88,14 +90,14 @@ impl Pipelines {
                 cache: None,
             })
         };
-        let scatter = pipeline(&main_pipeline_layout, &compute_module, "scatter_ticks");
-        let cull = pipeline(&main_pipeline_layout, &compute_module, "cull");
+        let scatter = pipeline(&scatter_layout, &compute_module, "scatter_ticks");
+        let cull = pipeline(&cull_layout, &compute_module, "cull");
         let dispatch_args = pipeline(&args_pipeline_layout, &compute_module, "dispatch_args");
         let draw_args = pipeline(&args_pipeline_layout, &compute_module, "draw_args");
         let impostor_draw_args =
             pipeline(&args_pipeline_layout, &compute_module, "impostor_draw_args");
         let impostor_prepare = pipeline(
-            &main_pipeline_layout,
+            &prepare_layout,
             &module(
                 "entity impostor prepare",
                 &(header.clone() + &impostor_constants(IMPOSTOR_PREPARE)),
@@ -116,23 +118,19 @@ impl Pipelines {
                             .replace("#{DEFINITION}", &index.to_string())
                             .replace("#{DEATH_FLIP}", &format!("{:?}", definition.death_flip));
                     let module = module(&definition.identifier, &source);
-                    pipeline(&main_pipeline_layout, &module, "pose")
+                    pipeline(&pose_layout, &module, "pose")
                 });
                 let source = header.clone()
                     + &EXPAND
                         .replace("#{DEFINITION}", &index.to_string())
                         .replace("#{LANES}", &definition.expand_lanes.to_string());
-                let expand = pipeline(
-                    &main_pipeline_layout,
-                    &module("entity expand", &source),
-                    "expand",
-                );
+                let expand = pipeline(&expand_layout, &module("entity expand", &source), "expand");
                 DefinitionGpu { pose, expand }
             })
             .collect();
 
         let (draw, draw_opaque, bake, impostor, impostor_small) =
-            render_pipelines(device, layouts, targets);
+            render_pipelines(device, library, layouts, targets);
         Self {
             scatter,
             cull,
@@ -176,6 +174,7 @@ fn compute_header(library: &EntityLibrary) -> String {
         })
         .collect();
     let variants_count = library.variants.len().max(1);
+    let first_cover = library.impostor_frames.len() * IMPOSTOR_VIEWS;
     COMMON.to_owned()
         + VISIBILITY_WGSL
         + &COMPUTE
@@ -193,11 +192,19 @@ fn compute_header(library: &EntityLibrary) -> String {
                 ),
             )
             .replace("#{VARIANTS}", &variants_count.to_string())
+            .replace("#{MODELS}", &library.models.len().max(1).to_string())
+            .replace("#{BONES}", &library.bones.len().max(1).to_string())
+            .replace("#{FIRST_COVER}", &first_cover.to_string())
 }
 
-/// `source` with the constants of the impostor image sets.
-fn draw_source() -> String {
-    COMMON.to_owned() + GBUFFER_ENCODE_WGSL + SHADING + DRAW
+/// The draw shader, with the sizes of the tables of `library`.
+fn draw_source(library: &EntityLibrary) -> String {
+    COMMON.to_owned()
+        + GBUFFER_ENCODE_WGSL
+        + SHADING
+        + &DRAW
+            .replace("#{MODELS}", &library.models.len().max(1).to_string())
+            .replace("#{VARIANTS}", &library.variants.len().max(1).to_string())
 }
 
 pub(crate) fn impostor_constants(source: &str) -> String {
@@ -223,6 +230,7 @@ pub(crate) fn impostor_constants(source: &str) -> String {
 /// of the impostor draw.
 fn render_pipelines(
     device: &Device,
+    library: &EntityLibrary,
     layouts: &Layouts,
     targets: DrawTargets,
 ) -> (
@@ -238,7 +246,7 @@ fn render_pipelines(
             source: wgpu::ShaderSource::Wgsl(source.into()),
         })
     };
-    let draw_module = module("entity draw", &draw_source());
+    let draw_module = module("entity draw", &draw_source(library));
     let draw_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("entity draw"),
         bind_group_layouts: &[Some(&layouts.draw), Some(&layouts.texture)],
@@ -454,6 +462,7 @@ mod tests {
     };
     use crate::entity_library::{NO_PALETTE, VariantRecord};
     use crate::frame_uniform::FrameUniform;
+    use crate::gpu_layouts as layouts;
     use crate::records::{
         CULL_FULL_RIG_ONLY, CULL_VALID, CullRecord, InputRecord, STATE_BABY, STATE_DYING,
         STATE_HIDDEN_SHIFT, ScatterEntry, StateRecord, TickRecord,
@@ -483,7 +492,7 @@ mod tests {
 
     #[test]
     fn the_draw_shader_with_the_shared_gbuffer_include_is_valid_wgsl() {
-        naga::front::wgsl::parse_str(&draw_source()).unwrap();
+        naga::front::wgsl::parse_str(&draw_source(&EntityLibrary::default())).unwrap();
     }
 
     #[test]
@@ -527,5 +536,111 @@ mod tests {
         for (name, value) in constants {
             assert_eq!(constant(&module, name), Some(value), "the value of {name}");
         }
+    }
+
+    /// Whether each global that an entry point of `source` uses has the binding and the kind of
+    /// binding that the layout of its pass declares.
+    fn check_bindings(label: &str, source: &str, passes: &[(&str, &[(u32, layouts::Slot)])]) {
+        let module = naga::front::wgsl::parse_str(source).unwrap();
+        let info = naga::valid::Validator::new(
+            naga::valid::ValidationFlags::all(),
+            naga::valid::Capabilities::all(),
+        )
+        .validate(&module)
+        .unwrap();
+        for (index, entry) in module.entry_points.iter().enumerate() {
+            let Some((_, layout)) = passes.iter().find(|(name, _)| *name == entry.name) else {
+                continue;
+            };
+            let function = info.get_entry_point(index);
+            for (handle, global) in module.global_variables.iter() {
+                let Some(binding) = &global.binding else {
+                    continue;
+                };
+                if binding.group != 0 || function[handle].is_empty() {
+                    continue;
+                }
+                let declared = match global.space {
+                    naga::AddressSpace::Uniform => {
+                        if binding.binding == 0 {
+                            layouts::Slot::Frame
+                        } else {
+                            layouts::Slot::Table
+                        }
+                    }
+                    naga::AddressSpace::Storage { access } => layouts::Slot::Storage {
+                        read_only: !access.contains(naga::StorageAccess::STORE),
+                    },
+                    _ => layouts::Slot::Pyramid,
+                };
+                assert!(
+                    layout.contains(&(binding.binding, declared)),
+                    "{label} {}: binding {} as {declared:?} is not in the layout of its pass",
+                    entry.name,
+                    binding.binding
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn each_pass_binds_what_its_shader_uses_within_the_limits_of_webgpu() {
+        let pack = crate::EntityPack::repository();
+        let white = crate::TextureImage {
+            identifier: "test:white".into(),
+            width: 16,
+            height: 16,
+            rgba: vec![255; 16 * 16 * 4],
+        };
+        let library = EntityLibrary::build(&pack.sources(), &[white], 2048);
+        let header = compute_header(&library);
+        check_bindings(
+            "compute",
+            &header,
+            &[
+                ("scatter_ticks", &layouts::SCATTER),
+                ("cull", &layouts::CULL),
+                ("dispatch_args", &layouts::ARGS),
+                ("draw_args", &layouts::ARGS),
+                ("impostor_draw_args", &layouts::ARGS),
+            ],
+        );
+        check_bindings(
+            "prepare",
+            &(header.clone() + &impostor_constants(IMPOSTOR_PREPARE)),
+            &[("prepare", &layouts::PREPARE)],
+        );
+        for (index, definition) in library.definitions.iter().enumerate() {
+            let program = definition.program.as_ref().unwrap();
+            let pose = header.clone()
+                + mcrs_molang_wgsl::LIBRARY
+                + &program.wgsl
+                + &POSE
+                    .replace("#{PALETTE}", &definition.palette.len().max(1).to_string())
+                    .replace("#{DEFINITION}", &index.to_string())
+                    .replace("#{DEATH_FLIP}", &format!("{:?}", definition.death_flip));
+            check_bindings(&definition.identifier, &pose, &[("pose", &layouts::POSE)]);
+            let expand = header.clone()
+                + &EXPAND
+                    .replace("#{DEFINITION}", &index.to_string())
+                    .replace("#{LANES}", &definition.expand_lanes.to_string());
+            check_bindings(
+                &definition.identifier,
+                &expand,
+                &[("expand", &layouts::EXPAND)],
+            );
+        }
+        check_bindings(
+            "draw",
+            &draw_source(&library),
+            &[
+                ("vertex", &layouts::DRAW),
+                ("fragment", &[(0, layouts::Slot::Frame)]),
+                ("fragment_opaque", &[(0, layouts::Slot::Frame)]),
+            ],
+        );
+        let webgpu = wgpu::Limits::default();
+        assert!(layouts::passes_fit(&webgpu));
+        assert!(layouts::tables_fit(&library, &webgpu));
     }
 }

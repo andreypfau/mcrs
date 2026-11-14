@@ -27,7 +27,7 @@ pub use generated_block_entity::GeneratedBlockEntity;
 pub use hopper_data::HopperData;
 pub use jigsaw::{EMPTY_LABEL, Joint};
 pub use saved_item::{SavedItem, one};
-pub use sign_text::SignText;
+pub use sign_text::{SignText, SignTexts, SignUpdate};
 pub use spawn_data::SpawnData;
 pub use text::Text;
 pub use uuid::Uuid;
