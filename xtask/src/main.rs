@@ -17,6 +17,7 @@
 )]
 
 mod checks;
+mod example_dependencies;
 mod git;
 mod keys;
 mod metadata;

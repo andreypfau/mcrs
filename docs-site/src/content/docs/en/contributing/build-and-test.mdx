@@ -83,7 +83,7 @@ Each trigger runs a fixed set of checks. Run `scripts/hooks/run-checks` with no 
 | `lint` | `parity`, `fmt`, `keys` |
 | `clippy` | `clippy` |
 | `test` | The tests of the changed crates and their dependents. |
-| `portability` | `no-bevy`, `layers`, `wasm32`, `no-std` |
+| `portability` | `no-bevy`, `layers`, `example-dependencies`, `wasm32`, `no-std` |
 
 `fmt` and `clippy` run the Cargo commands of the same names. The other checks are specific to mcrs, and the package lists they use are in `xtask/src/checks.rs`.
 
@@ -94,6 +94,7 @@ Each trigger runs a fixed set of checks. Run `scripts/hooks/run-checks` with no 
 | `no-bevy` | 100 packages must build without Bevy. |
 | `no-std` | 9 packages must build for a target without std. |
 | `wasm32` | 11 packages must build for wasm32. |
+| `example-dependencies` | Each package under `examples/` obeys its normal dependency policy in `examples/dependencies.json`. A failure shows the dependency path. |
 | `layers` | The wire and network crates must not link game data, so a proxy or a bot can use them alone. |
 
 ## Rewrite a stale blessed file with MCRS_BLESS

@@ -1,0 +1,23 @@
+# Library examples
+
+Each example is a package under `examples/<name>/` with its own `Cargo.toml`.
+Add its path to the root `workspace.members` when you add the package. Use
+`publish = false` and inherit the workspace edition and lints.
+
+Add the package name to `examples/dependencies.json`. Its value is a list of
+forbidden normal dependencies, including transitive dependencies. Names match
+exactly, or by prefix with a final `*`. For example, a network client can forbid
+`bevy` and `bevy_*`. An empty list explicitly permits every dependency.
+
+The table starts empty until the first example is added. Every example must have
+an entry, and every entry must name an example workspace member.
+
+Run `cargo nextest run -p xtask` to check the policies. The `portability` trigger
+also checks them in CI. The check reads workspace membership through Cargo
+metadata and resolves each example's normal dependency tree with its own default
+features, across all targets. Build and development dependencies are excluded.
+A failure reports the example and the dependency path to the forbidden crate.
+
+Put behavior tests in `tests/it/main.rs` and its modules. Share expensive fixtures,
+such as an embedded server, through `LazyLock`. Server dependencies belong in
+`dev-dependencies` so the executable keeps its declared library boundary.
