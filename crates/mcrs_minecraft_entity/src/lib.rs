@@ -12,6 +12,7 @@ mod life;
 mod mob_data;
 mod modifier_kind;
 mod pose;
+mod sprint_modifier;
 mod variant_indices;
 #[rustfmt::skip]
 pub mod attribute_keys;
@@ -79,6 +80,7 @@ pub use life::Life;
 pub use mob_data::MobData;
 pub use modifier_kind::ModifierKind;
 pub use pose::Pose;
+pub use sprint_modifier::SPRINT_MODIFIER;
 pub use variant_indices::VariantIndices;
 
 pub const PLAYER_WIDTH: f64 = 0.6;

@@ -29,6 +29,7 @@ use mcrs_minecraft_physics::NoBodies;
 use mcrs_minecraft_physics::Orientation;
 use mcrs_minecraft_physics::PlayerState;
 use mcrs_minecraft_physics::Relative;
+use mcrs_minecraft_physics::SprintSpeed;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_physics::Teleport;
 use mcrs_minecraft_physics::TestBlocks;
@@ -37,7 +38,6 @@ use mcrs_minecraft_physics::View;
 use mcrs_minecraft_physics::apply_teleport;
 use mcrs_minecraft_physics::set_attribute;
 use mcrs_minecraft_physics::set_effect;
-use mcrs_minecraft_physics::sprint_modifiers;
 use mcrs_minecraft_physics::test_state;
 use mcrs_voxel::BlockPos;
 
@@ -190,8 +190,8 @@ struct Server {
     tables: Tables,
     world: TestWorld,
     prediction: Prediction,
-    sprint: Vec<String>,
     attributes: MotionAttributes,
+    sprint_speed: SprintSpeed,
     effects: MotionEffects,
     rotation: Orientation,
     tick: ClientTick,
@@ -216,8 +216,8 @@ fn replay(recording: &Recording) -> Result<Tally, String> {
         blocks,
         world,
         prediction: Prediction::new(PlayerState::new(DVec3::ZERO), Limits::default()),
-        sprint: sprint_modifiers(recording),
         attributes: MotionAttributes::default(),
+        sprint_speed: SprintSpeed::default(),
         effects: MotionEffects::default(),
         rotation: Orientation::default(),
         tick: ClientTick::default(),
@@ -299,8 +299,11 @@ impl Server {
                 flight_speed: abilities.flying_speed,
             },
             Event::Attribute(attribute) => {
-                set_attribute(&mut self.attributes, attribute, &self.sprint);
-                Change::Attributes(self.attributes)
+                set_attribute(&mut self.attributes, &mut self.sprint_speed, attribute);
+                Change::Attributes {
+                    attributes: self.attributes,
+                    sprint_speed: self.sprint_speed,
+                }
             }
             Event::Effect(effect) => {
                 set_effect(&mut self.effects, &effect.name, Some(effect.amplifier));

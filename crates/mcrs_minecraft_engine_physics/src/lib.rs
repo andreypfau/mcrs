@@ -18,6 +18,7 @@ pub use entity_physics_plugin::EntityPass;
 pub use entity_physics_plugin::EntityPhysicsPlugin;
 pub use entity_physics_plugin::MobPublish;
 pub use entity_physics_plugin::PhysicsTables;
+pub use entity_physics_plugin::RowMoves;
 pub use entity_writes::EntityWrites;
 pub use mob_damage::hurt_mob;
 pub use mob_life::MobChanges;

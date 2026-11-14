@@ -1,0 +1,191 @@
+use mcrs_minecraft_engine_attributes::{
+    AttributeChanged, AttributeTarget, Attributes, InstanceEdit, RowAttributes,
+};
+use mcrs_minecraft_entity::attribute_keys::Attribute;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity::{InstanceModifier, ModifierKind};
+use mcrs_minecraft_entity_attribute::ModifierOperation;
+use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_entity_rows::{Placed, RowStore};
+use mcrs_minecraft_physics::Rest;
+use mcrs_minecraft_resource::ResourceLocationBuf;
+
+use crate::fixture::{app, despawn_row, edit, spawn_pig, spawn_player, tick};
+
+fn id() -> ResourceLocationBuf {
+    "test:a".parse().expect("a valid identifier")
+}
+
+fn add_four() -> InstanceEdit {
+    InstanceEdit::Put(InstanceModifier::new(
+        id(),
+        4.0,
+        ModifierOperation::AddValue,
+        ModifierKind::Transient,
+    ))
+}
+
+#[test]
+fn a_put_and_a_remove_on_a_player_each_announce_one_change_and_an_equal_put_none() {
+    let mut app = app();
+    let player = spawn_player(&mut app);
+    let target = AttributeTarget::Player(player);
+    let max_health = |app: &bevy_app::App| {
+        app.world()
+            .get::<Attributes>(player)
+            .expect("a player has its attributes from its spawn")
+            .value(Attribute::MaxHealth)
+    };
+    let changed = vec![AttributeChanged {
+        target,
+        attribute: Attribute::MaxHealth,
+    }];
+
+    assert_eq!(
+        edit(&mut app, target, Attribute::MaxHealth, add_four()),
+        changed
+    );
+    assert_eq!(max_health(&app), Some(24.0), "the default 20 and 4");
+
+    assert_eq!(
+        edit(&mut app, target, Attribute::MaxHealth, add_four()),
+        [],
+        "an equal modifier leaves the instance as it is"
+    );
+    assert_eq!(max_health(&app), Some(24.0));
+
+    assert_eq!(
+        edit(
+            &mut app,
+            target,
+            Attribute::MaxHealth,
+            InstanceEdit::Remove(id())
+        ),
+        changed
+    );
+    assert_eq!(max_health(&app), Some(20.0));
+}
+
+#[test]
+fn a_row_has_an_entry_only_from_its_first_change_until_it_leaves_the_world() {
+    let mut app = app();
+    let pig = EntityId(7);
+    spawn_pig(&mut app, pig);
+    let speed = |app: &bevy_app::App| {
+        app.world().resource::<RowAttributes>().value(
+            pig,
+            EntityType::Pig,
+            Attribute::MovementSpeed,
+        )
+    };
+    tick(&mut app);
+    assert!(app.world().resource::<RowAttributes>().get(pig).is_none());
+    assert_eq!(speed(&app), Some(0.25), "the base of the type pig");
+
+    let changed = edit(
+        &mut app,
+        AttributeTarget::Row(pig),
+        Attribute::MovementSpeed,
+        InstanceEdit::SetBase(0.375),
+    );
+    assert_eq!(changed.len(), 1);
+    assert!(app.world().resource::<RowAttributes>().get(pig).is_some());
+    assert_eq!(speed(&app), Some(0.375));
+
+    despawn_row(&mut app, pig);
+    tick(&mut app);
+    assert!(
+        app.world().resource::<RowAttributes>().get(pig).is_none(),
+        "the entry leaves with its row"
+    );
+}
+
+#[test]
+fn an_edit_of_an_attribute_outside_the_set_changes_nothing() {
+    let mut app = app();
+    let player = spawn_player(&mut app);
+    let pig = EntityId(7);
+    spawn_pig(&mut app, pig);
+    let cases = [
+        (AttributeTarget::Player(player), Attribute::FollowRange),
+        (AttributeTarget::Row(pig), Attribute::AttackDamage),
+    ];
+    for (target, attribute) in cases {
+        assert_eq!(
+            edit(&mut app, target, attribute, add_four()),
+            [],
+            "{target:?} {attribute:?}"
+        );
+    }
+    let attributes = app
+        .world()
+        .get::<Attributes>(player)
+        .expect("a player has its attributes from its spawn");
+    assert_eq!(attributes.value(Attribute::FollowRange), None);
+    assert_eq!(attributes.set().instances().count(), 0);
+    assert!(app.world().resource::<RowAttributes>().get(pig).is_none());
+}
+
+#[test]
+fn a_modifier_on_the_speed_of_a_row_reaches_its_motion_and_its_removal_restores_the_base() {
+    let mut app = app();
+    let pig = EntityId(7);
+    spawn_pig(&mut app, pig);
+    let target = AttributeTarget::Row(pig);
+    let motion_speed = |app: &bevy_app::App| {
+        let rows = app.world().resource::<RowStore<()>>();
+        let tile = rows.tile_of(pig).expect("the row is living");
+        rows.state_of(Placed { tile, id: pig })
+            .and_then(|state| state.living)
+            .expect("a pig row is living")
+            .attributes
+            .movement_speed
+    };
+    let half_more = InstanceEdit::Put(InstanceModifier::new(
+        id(),
+        0.5,
+        ModifierOperation::AddMultipliedTotal,
+        ModifierKind::Transient,
+    ));
+
+    edit(&mut app, target, Attribute::MovementSpeed, half_more);
+    assert_eq!(
+        motion_speed(&app),
+        0.375,
+        "the base 0.25 of a pig times 1.5"
+    );
+
+    edit(
+        &mut app,
+        target,
+        Attribute::MovementSpeed,
+        InstanceEdit::Remove(id()),
+    );
+    assert_eq!(motion_speed(&app), 0.25, "the base of the type pig");
+}
+
+#[test]
+fn a_new_gravity_wakes_a_resting_row() {
+    let mut app = app();
+    let pig = EntityId(7);
+    spawn_pig(&mut app, pig);
+    let mut rows = app.world_mut().resource_mut::<RowStore<()>>();
+    let tile = rows.tile_of(pig).expect("the row is living");
+    let state = rows
+        .state_mut(Placed { tile, id: pig })
+        .expect("the tile holds the row");
+    state.rest = Rest::Resting(state.body);
+
+    edit(
+        &mut app,
+        AttributeTarget::Row(pig),
+        Attribute::Gravity,
+        InstanceEdit::SetBase(0.01),
+    );
+
+    let rows = app.world().resource::<RowStore<()>>();
+    let rest = rows
+        .state_of(Placed { tile, id: pig })
+        .map(|state| state.rest);
+    assert_eq!(rest, Some(Rest::Awake));
+}

@@ -135,7 +135,9 @@ impl AttributeSet {
         })
     }
 
-    fn instance(&self, attribute: Attribute) -> Option<&AttributeInstance> {
+    /// The instance of `attribute`, or `None` when it has the base of the type and no modifier.
+    #[must_use]
+    pub fn instance(&self, attribute: Attribute) -> Option<&AttributeInstance> {
         self.instances
             .iter()
             .find(|instance| instance.attribute == attribute)

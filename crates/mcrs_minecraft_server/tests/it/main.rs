@@ -56,6 +56,7 @@ mod mob_replication;
 #[path = "common/mock_connection.rs"]
 mod mock_connection;
 mod op_level;
+mod own_attributes;
 mod persistence;
 mod play_state_delivery;
 mod player_file;
@@ -63,6 +64,7 @@ mod probe_bans;
 mod run_server_loop_exit;
 mod schedule_ambiguity;
 mod session_lifecycle;
+mod sprint_attribute;
 mod subapp_lifecycle;
 mod support;
 mod teleport_confirmation;

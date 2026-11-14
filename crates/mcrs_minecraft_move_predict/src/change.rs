@@ -2,6 +2,7 @@ use glam::DVec3;
 use mcrs_minecraft_physics::MotionAttributes;
 use mcrs_minecraft_physics::MotionEffects;
 use mcrs_minecraft_physics::PlayerState;
+use mcrs_minecraft_physics::SprintSpeed;
 use mcrs_voxel::BlockPos;
 use mcrs_voxel::BlockStateId;
 
@@ -19,8 +20,12 @@ pub enum Change {
         flying: bool,
         flight_speed: f32,
     },
-    /// The attributes after an `update_attributes`, without the sprint modifier.
-    Attributes(MotionAttributes),
+    /// The values after an `update_attributes`: the attributes without the sprint modifier, and
+    /// `movement_speed` with it.
+    Attributes {
+        attributes: MotionAttributes,
+        sprint_speed: SprintSpeed,
+    },
     /// The effects after an `update_mob_effect` or a `remove_mob_effect`.
     Effects(MotionEffects),
     /// A block that the server sends: `block_update` or one entry of `section_blocks_update`.
@@ -48,7 +53,13 @@ impl Change {
                 state.flight0 = flying;
                 state.flight_speed = flight_speed;
             }
-            Change::Attributes(attributes) => state.attributes = attributes,
+            Change::Attributes {
+                attributes,
+                sprint_speed,
+            } => {
+                state.attributes = attributes;
+                state.sprint_speed = sprint_speed;
+            }
             Change::Effects(effects) => state.effects = effects,
             Change::Block { .. } | Change::BlockAck => {}
         }
