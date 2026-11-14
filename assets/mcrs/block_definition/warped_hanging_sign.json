@@ -57,6 +57,15 @@
         "seconds_to_destroy": 1
       },
       "minecraft:loot": "minecraft:blocks/warped_hanging_sign",
+      "minecraft:placement_filter": {
+        "predicate": {
+          "type": "minecraft:has_sturdy_face",
+          "offset": [0, 1, 0],
+          "direction": "down",
+          "face_test": "center"
+        }
+      },
+      "mcrs:solid": true,
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
       "mcrs:emissive_rendering": false,
@@ -85,7 +94,12 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-7, 0, -1], "size": [14, 10, 2] }
-          ]
+          ],
+          "minecraft:support": {
+            "boxes": [
+              { "origin": [-7, 0, -1], "size": [14, 10, 2] }
+            ]
+          }
         }
       },
       {
@@ -93,7 +107,12 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-5, 0, -5], "size": [10, 16, 10] }
-          ]
+          ],
+          "minecraft:support": {
+            "boxes": [
+              { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+            ]
+          }
         }
       },
       {
@@ -101,7 +120,12 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-5, 0, -5], "size": [10, 16, 10] }
-          ]
+          ],
+          "minecraft:support": {
+            "boxes": [
+              { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+            ]
+          }
         }
       },
       {
@@ -109,7 +133,12 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-5, 0, -5], "size": [10, 16, 10] }
-          ]
+          ],
+          "minecraft:support": {
+            "boxes": [
+              { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+            ]
+          }
         }
       },
       {
@@ -117,7 +146,12 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-1, 0, -7], "size": [2, 10, 14] }
-          ]
+          ],
+          "minecraft:support": {
+            "boxes": [
+              { "origin": [-1, 0, -7], "size": [2, 10, 14] }
+            ]
+          }
         }
       },
       {
@@ -125,7 +159,12 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-5, 0, -5], "size": [10, 16, 10] }
-          ]
+          ],
+          "minecraft:support": {
+            "boxes": [
+              { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+            ]
+          }
         }
       },
       {
@@ -133,7 +172,12 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-5, 0, -5], "size": [10, 16, 10] }
-          ]
+          ],
+          "minecraft:support": {
+            "boxes": [
+              { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+            ]
+          }
         }
       },
       {
@@ -141,7 +185,12 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-5, 0, -5], "size": [10, 16, 10] }
-          ]
+          ],
+          "minecraft:support": {
+            "boxes": [
+              { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+            ]
+          }
         }
       },
       {
@@ -149,7 +198,12 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-7, 0, -1], "size": [14, 10, 2] }
-          ]
+          ],
+          "minecraft:support": {
+            "boxes": [
+              { "origin": [-7, 0, -1], "size": [14, 10, 2] }
+            ]
+          }
         }
       },
       {
@@ -157,7 +211,12 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-5, 0, -5], "size": [10, 16, 10] }
-          ]
+          ],
+          "minecraft:support": {
+            "boxes": [
+              { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+            ]
+          }
         }
       },
       {
@@ -165,7 +224,12 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-5, 0, -5], "size": [10, 16, 10] }
-          ]
+          ],
+          "minecraft:support": {
+            "boxes": [
+              { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+            ]
+          }
         }
       },
       {
@@ -173,7 +237,12 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-5, 0, -5], "size": [10, 16, 10] }
-          ]
+          ],
+          "minecraft:support": {
+            "boxes": [
+              { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+            ]
+          }
         }
       },
       {
@@ -181,7 +250,12 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-1, 0, -7], "size": [2, 10, 14] }
-          ]
+          ],
+          "minecraft:support": {
+            "boxes": [
+              { "origin": [-1, 0, -7], "size": [2, 10, 14] }
+            ]
+          }
         }
       },
       {
@@ -189,7 +263,12 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-5, 0, -5], "size": [10, 16, 10] }
-          ]
+          ],
+          "minecraft:support": {
+            "boxes": [
+              { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+            ]
+          }
         }
       },
       {
@@ -197,7 +276,12 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-5, 0, -5], "size": [10, 16, 10] }
-          ]
+          ],
+          "minecraft:support": {
+            "boxes": [
+              { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+            ]
+          }
         }
       },
       {
@@ -205,7 +289,12 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-5, 0, -5], "size": [10, 16, 10] }
-          ]
+          ],
+          "minecraft:support": {
+            "boxes": [
+              { "origin": [-5, 0, -5], "size": [10, 16, 10] }
+            ]
+          }
         }
       }
     ]

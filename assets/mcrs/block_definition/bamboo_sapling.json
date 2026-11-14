@@ -45,8 +45,10 @@
               "#minecraft:supports_bamboo"
             ]
           }
-        ]
+        ],
+        "tested_directions": "all"
       },
+      "mcrs:solid": true,
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
       "mcrs:emissive_rendering": false,

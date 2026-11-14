@@ -39,23 +39,30 @@
       },
       "minecraft:destructible_by_mining": true,
       "minecraft:loot": "minecraft:blocks/rose_bush",
-      "minecraft:placement_filter": {
-        "conditions": [
-          {
-            "allowed_faces": [
-              "up"
-            ],
-            "block_filter": [
-              "#minecraft:supports_vegetation"
-            ]
-          }
-        ]
-      },
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
       "mcrs:emissive_rendering": false,
       "mcrs:block_sound_set": "minecraft:grass"
     },
-    "permutations": []
+    "permutations": [
+      {
+        "condition": "q.block_state(\u0027half\u0027) \u003d\u003d \u0027lower\u0027",
+        "components": {
+          "minecraft:placement_filter": {
+            "conditions": [
+              {
+                "allowed_faces": [
+                  "up"
+                ],
+                "block_filter": [
+                  "#minecraft:supports_vegetation"
+                ]
+              }
+            ],
+            "tested_directions": "all"
+          }
+        }
+      }
+    ]
   }
 }

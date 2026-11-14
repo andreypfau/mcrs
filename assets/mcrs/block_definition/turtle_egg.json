@@ -51,7 +51,8 @@
           ],
           "minecraft:selection_box": [
             { "origin": [-5, 0, -5], "size": [9, 7, 9] }
-          ]
+          ],
+          "mcrs:solid": true
         }
       },
       {

@@ -66,7 +66,14 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-8, 4, -3], "size": [16, 8, 11] }
-          ]
+          ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, 0, 1],
+              "direction": "north"
+            }
+          }
         }
       },
       {
@@ -74,7 +81,14 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-8, 4, -8], "size": [16, 8, 11] }
-          ]
+          ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [0, 0, -1],
+              "direction": "south"
+            }
+          }
         }
       },
       {
@@ -82,7 +96,14 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-3, 4, -8], "size": [11, 8, 16] }
-          ]
+          ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [1, 0, 0],
+              "direction": "west"
+            }
+          }
         }
       },
       {
@@ -90,7 +111,14 @@
         "components": {
           "minecraft:selection_box": [
             { "origin": [-8, 4, -8], "size": [11, 8, 16] }
-          ]
+          ],
+          "minecraft:placement_filter": {
+            "predicate": {
+              "type": "minecraft:has_sturdy_face",
+              "offset": [-1, 0, 0],
+              "direction": "east"
+            }
+          }
         }
       }
     ]

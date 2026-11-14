@@ -44,6 +44,12 @@
         "seconds_to_destroy": 0.4
       },
       "minecraft:loot": "minecraft:blocks/chorus_flower",
+      "minecraft:support": {
+        "boxes": [
+          { "origin": [-7, 0, -7], "size": [14, 15, 14] }
+        ]
+      },
+      "mcrs:solid": false,
       "mcrs:use_shape_for_light_occlusion": false,
       "mcrs:occlusion_shape": [],
       "mcrs:emissive_rendering": false,
