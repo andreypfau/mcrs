@@ -21,6 +21,7 @@ use mcrs_minecraft_chunk::section::Biomes;
 use mcrs_minecraft_chunk::{LightStorage, PalettedContainer, SectionKind};
 use mcrs_minecraft_core::BoundingBox;
 use mcrs_minecraft_dimension_environment::dimension_type::DimensionTypeFile;
+use mcrs_minecraft_entity_visual::TickingArea;
 use mcrs_minecraft_light_engine::block_light::block_light_registry;
 use mcrs_minecraft_protocol::{Decode, WritePacket};
 use mcrs_minecraft_protocol_game::ColumnPos;
@@ -457,6 +458,12 @@ impl Columns for ColumnStore {
     #[inline]
     fn column(&self, sx: i32, sz: i32) -> Option<&Column> {
         self.columns.get(&ColumnPos::new(sx, sz)).map(Arc::as_ref)
+    }
+}
+
+impl TickingArea for ColumnStore {
+    fn holds(&self, column: ColumnPos) -> bool {
+        ColumnStore::holds(self, column)
     }
 }
 

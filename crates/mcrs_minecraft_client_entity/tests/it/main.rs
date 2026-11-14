@@ -10,11 +10,10 @@ mod replay;
 use bevy_app::{App, FixedUpdate};
 use bevy_ecs::entity::Entity;
 use glam::DVec3;
-use mcrs_minecraft_client_entity::{
-    ClientEntityPlugin, NetworkEntities, RenderInputs, RenderInputsQuery, ServerTicking,
-};
+use mcrs_minecraft_client_entity::{ClientEntityPlugin, NetworkEntities};
 use mcrs_minecraft_client_world::game_packets::GAME_CLIENTBOUND;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity_visual::{RenderInputs, RenderInputsQuery, ServerTicking};
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::metrics::PacketDispatcher;
 use mcrs_minecraft_protocol::{Encode, Packet, VarInt};

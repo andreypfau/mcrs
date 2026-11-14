@@ -1,6 +1,10 @@
 use bevy_ecs::prelude::*;
 use glam::DVec3;
 use mcrs_minecraft_client_world::columns::ColumnStore;
+use mcrs_minecraft_entity_visual::{
+    Age, ClientEntity, Equipment, Living, Motion, PacketPath, Placement, Rotation, SNAP_DISTANCE,
+    ServerTicking, SyncedData, in_ticking_area, move_entity,
+};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundAddEntity, ClientboundDamageEvent, ClientboundEntityEvent,
@@ -12,20 +16,10 @@ use mcrs_minecraft_protocol_game::clientbound::{
 };
 use mcrs_minecraft_protocol_game::{ByteAngle, PositionFlag};
 
-use crate::client_entity::{ClientEntity, NetworkEntities};
+use crate::apply_entity_data::{apply_attributes, apply_entity_data};
 use crate::delta;
-use crate::equipment::Equipment;
-use crate::host_entity::move_entity;
-use crate::living::Living;
-use crate::motion::{Age, Motion};
-use crate::path::PacketPath;
-use crate::placement::{Placement, Rotation};
-use crate::server_ticking::ServerTicking;
-use crate::synced_data::SyncedData;
-use crate::tick::in_ticking_area;
+use crate::network_entities::NetworkEntities;
 
-/// A position farther than this from the current one is a jump, not a movement.
-pub const SNAP_DISTANCE: f64 = 64.0;
 /// The largest X and Z of an added entity.
 pub const WORLD_LIMIT: f64 = 3.0e7;
 /// The entity event that sets the health of a living entity to 0.
@@ -317,7 +311,7 @@ fn on_set_entity_data(
         && let Some(entity) = entities.get(packet.entity_id.0)
         && let Ok((client, mut data)) = query.get_mut(entity)
     {
-        data.apply(client.type_data(), &packet.metadata.0);
+        apply_entity_data(&mut data, client.type_data(), &packet.metadata.0);
     }
 }
 
@@ -345,7 +339,7 @@ fn on_update_attributes(
         && let Some(entity) = entities.get(packet.entity_id.0)
         && let Ok(mut data) = data.get_mut(entity)
     {
-        data.apply_attributes(&packet.attributes);
+        apply_attributes(&mut data, &packet.attributes);
     }
 }
 

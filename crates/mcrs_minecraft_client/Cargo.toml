@@ -12,6 +12,7 @@ mcrs_minecraft_engine_registries.workspace = true
 mcrs_minecraft_resource.workspace = true
 mcrs_voxel.workspace = true
 mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_visual.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_mesh.workspace = true
 mcrs_minecraft_model.workspace = true

@@ -166,8 +166,8 @@ pub(crate) fn release_skin(
 
 #[cfg(test)]
 mod tests {
-    use mcrs_minecraft_client_entity::{Placement, host_living_entity};
     use mcrs_minecraft_entity::entity_type_keys::EntityType;
+    use mcrs_minecraft_entity_visual::{Placement, host_living_entity};
 
     use super::*;
     use crate::{EntityPack, EntityPasses, EntityRenderPlugin, EntitySlot, SlotArena};

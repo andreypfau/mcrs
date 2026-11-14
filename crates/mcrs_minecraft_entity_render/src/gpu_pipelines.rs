@@ -457,9 +457,9 @@ pub(crate) fn texture_arrays(
 
 #[cfg(test)]
 mod tests {
-    use mcrs_minecraft_client_entity::HURT_TICKS;
     use mcrs_minecraft_core::CardinalLight;
     use mcrs_minecraft_entity_model::{BONE_NEVER_RENDER, BoneRecord, ModelRecord, NO_PARENT};
+    use mcrs_minecraft_entity_visual::HURT_TICKS;
     use mcrs_minecraft_mesh::face_shade;
     use naga::{Literal, Module, TypeInner};
 

@@ -1,26 +1,18 @@
-use bevy_app::{App, FixedUpdate, Plugin};
-use bevy_ecs::prelude::*;
+use bevy_app::{App, Plugin};
+use mcrs_minecraft_client_world::columns::ColumnStore;
+use mcrs_minecraft_entity_visual::EntityTickPlugin;
 
-use crate::client_entity::NetworkEntities;
+use crate::network_entities::NetworkEntities;
 use crate::receive;
-use crate::server_ticking::ServerTicking;
-use crate::tick::{ClientEntityTick, consume_step, run_world_ticks, tick_entities};
 
 /// Keeps the client entities that the server adds, and ticks them in `FixedUpdate` in
-/// [`ClientEntityTick`]. Packets apply when they arrive, before the next tick.
+/// [`ClientEntityTick`](mcrs_minecraft_entity_visual::ClientEntityTick). Packets apply when they arrive, before the next tick.
 pub struct ClientEntityPlugin;
 
 impl Plugin for ClientEntityPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<NetworkEntities>()
-            .init_resource::<ServerTicking>()
-            .add_systems(
-                FixedUpdate,
-                (tick_entities, consume_step)
-                    .chain()
-                    .in_set(ClientEntityTick)
-                    .run_if(run_world_ticks),
-            );
+            .add_plugins(EntityTickPlugin::<ColumnStore>::default());
         receive::add_observers(app);
     }
 }

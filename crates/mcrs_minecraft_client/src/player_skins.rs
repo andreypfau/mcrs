@@ -4,9 +4,9 @@
 use std::collections::HashMap;
 
 use bevy::prelude::*;
-use mcrs_minecraft_client_entity::{ClientEntity, HostEntity};
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_render::{PlayerModel, PlayerSkin};
+use mcrs_minecraft_entity_visual::{ClientEntity, HostEntity};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_profile::{PlayerModelType, SkinTextures};
 use mcrs_minecraft_protocol_game::clientbound::{
@@ -129,8 +129,8 @@ fn dress_players(
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce as _;
-    use mcrs_minecraft_client_entity::{Placement, host_living_entity};
     use mcrs_minecraft_entity_render::SkinImage;
+    use mcrs_minecraft_entity_visual::{Placement, host_living_entity};
 
     use super::*;
 

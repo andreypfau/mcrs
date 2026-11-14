@@ -22,11 +22,11 @@ bevy = { version = "0.20.1", default-features = false, features = [
 bytemuck = { version = "1", features = ["derive"] }
 glam = { workspace = true, features = ["std"] }
 half = "2"
-mcrs_minecraft_client_entity.workspace = true
 mcrs_minecraft_client_world.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_entity_animation.workspace = true
+mcrs_minecraft_entity_visual.workspace = true
 mcrs_minecraft_game_registries.workspace = true
 mcrs_minecraft_item = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_mesh.workspace = true

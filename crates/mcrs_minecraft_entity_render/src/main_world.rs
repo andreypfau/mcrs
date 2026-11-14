@@ -1,10 +1,10 @@
 use bevy::prelude::*;
-use mcrs_minecraft_client_entity::{
+use mcrs_minecraft_client_world::columns::ColumnStore;
+use mcrs_minecraft_entity_animation::{EntityAnimation, EntityQuery};
+use mcrs_minecraft_entity_visual::{
     Age, ClientEntity, Equipment, EquippableAsset, HURT_TICKS, Living, Motion, RenderInputs,
     RenderInputsQuery, ServerTicking, SyncedData,
 };
-use mcrs_minecraft_client_world::columns::ColumnStore;
-use mcrs_minecraft_entity_animation::{EntityAnimation, EntityQuery};
 use mcrs_minecraft_item::component::equippable::{EquipmentSlot, Equippable};
 use mcrs_minecraft_item::definition::Items;
 use mcrs_minecraft_render_controller::{RenderQuery, TextureChoice};

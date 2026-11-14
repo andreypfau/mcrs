@@ -2,7 +2,7 @@ use bevy::core_pipeline::schedule::Core3d;
 use bevy::prelude::*;
 use bevy::render::renderer::{RenderAdapter, RenderDevice};
 use bevy::render::{ExtractSchedule, Render, RenderApp, RenderSystems};
-use mcrs_minecraft_client_entity::ClientEntityTick;
+use mcrs_minecraft_entity_visual::ClientEntityTick;
 use mcrs_minecraft_render::{RenderPath, WorldPass};
 
 use crate::gpu_layouts::passes_fit;

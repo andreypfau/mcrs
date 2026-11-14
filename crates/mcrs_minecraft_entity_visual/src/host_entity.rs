@@ -9,15 +9,17 @@ use crate::living::Living;
 use crate::motion::{Age, Motion};
 use crate::path::PacketPath;
 use crate::placement::Placement;
-use crate::receive::SNAP_DISTANCE;
 use crate::synced_data::SyncedData;
 
 /// A client entity that the host adds, not a server. No packet of a server names it.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct HostEntity;
 
-/// The network id of a [`HostEntity`]. [`crate::NetworkEntities`] never holds it.
+/// The network id of a [`HostEntity`]. The network entities of a client never hold it.
 const HOST_NETWORK_ID: i32 = i32::MIN;
+
+/// A position farther than this from the current one is a jump, not a movement.
+pub const SNAP_DISTANCE: f64 = 64.0;
 
 /// The components of a living client entity that the host adds and moves with
 /// [`move_entity`], with no server: it ticks, turns and walks as an entity that a server adds.
