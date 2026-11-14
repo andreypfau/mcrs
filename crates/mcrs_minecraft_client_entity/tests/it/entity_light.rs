@@ -19,9 +19,11 @@ fn store_lit_at_origin(lit: EntityLight) -> ColumnStore {
     let mut store = ColumnStore::default();
     store.insert(pos, Column::unlit(0, vec![None]));
     let row = |level: u8| {
-        let mut rows = vec![RowLight::Unchanged; 3];
-        rows[1] = RowLight::Filled(LightChunk([level | level << 4; 2048]));
-        rows
+        vec![
+            RowLight::Unchanged,
+            RowLight::Filled(LightChunk([level | level << 4; 2048])),
+            RowLight::Unchanged,
+        ]
     };
     store.relight(
         pos,
