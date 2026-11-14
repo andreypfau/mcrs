@@ -4,6 +4,7 @@ pub mod damage_type;
 mod entity_type_data;
 mod life;
 mod mob_data;
+mod pose;
 mod variant_indices;
 #[rustfmt::skip]
 pub mod attribute_keys;
@@ -64,6 +65,7 @@ pub use base_attributes::BaseAttributes;
 pub use entity_type_data::EntityTypeData;
 pub use life::Life;
 pub use mob_data::MobData;
+pub use pose::Pose;
 pub use variant_indices::VariantIndices;
 
 pub const PLAYER_WIDTH: f64 = 0.6;

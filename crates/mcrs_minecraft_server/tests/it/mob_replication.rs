@@ -11,6 +11,7 @@ use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
 use mcrs_minecraft_engine_brain::EntityRows;
 use mcrs_minecraft_engine_physics::Mobs;
 use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_lang::Language;
@@ -21,7 +22,7 @@ use mcrs_minecraft_protocol::packets::table::game_clientbound::ClientboundGamePa
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, Decode, VarInt};
 use mcrs_minecraft_protocol_game::clientbound::{PositionPath, VecDelta};
-use mcrs_minecraft_protocol_game::entity::{MetaDataValue, Pose};
+use mcrs_minecraft_protocol_game::entity::MetaDataValue;
 use mcrs_minecraft_protocol_game::position_delta;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundChatCommand;
 use mcrs_minecraft_protocol_game::table::game_clientbound::{self, ClientboundGamePacket};

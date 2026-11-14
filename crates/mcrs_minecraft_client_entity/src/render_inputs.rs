@@ -1,6 +1,6 @@
 use glam::DVec3;
+use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_numeric as numeric;
-use mcrs_minecraft_protocol_game::entity::Pose;
 
 use crate::angle;
 use crate::client_entity::ClientEntity;

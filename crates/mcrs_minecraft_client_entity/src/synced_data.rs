@@ -1,9 +1,10 @@
 use bevy_ecs::component::Component;
 use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::variant::{FrogVariant, PigVariant};
 use mcrs_minecraft_protocol_game::clientbound::{AttributeOperation, AttributeSnapshot};
-use mcrs_minecraft_protocol_game::entity::{MetaDataValue, MetadataEntry, Pose};
+use mcrs_minecraft_protocol_game::entity::{MetaDataValue, MetadataEntry};
 use mcrs_minecraft_protocol_game::entity_data_index::{
     AGE_LOCKED, BABY, CUSTOM_NAME, HEALTH, LIVING_FLAGS, MOB_FLAGS, NAME_VISIBLE, POSE,
     SHARED_FLAGS, TICKS_FROZEN,

@@ -1,6 +1,6 @@
 use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
-use mcrs_minecraft_protocol_game::entity::Pose;
 
 /// The part of the gap to the target speed that the walk speed closes in each tick.
 pub const WALK_SMOOTHING: f32 = 0.4;

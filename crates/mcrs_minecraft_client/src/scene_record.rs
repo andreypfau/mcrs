@@ -9,6 +9,7 @@ use bevy::prelude::*;
 use mcrs_minecraft_client_entity::{
     Age, ClientEntity, Equipment, Living, Motion, Placement, SyncedData, VariantId,
 };
+use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::variant::{FrogVariant, PigVariant};
 use mcrs_minecraft_entity_render::{RecordedClip, RecordedClips, pose_from_name};
@@ -16,7 +17,6 @@ use mcrs_minecraft_game_registries::variant::{FrogVariantFile, PigVariantFile};
 use mcrs_minecraft_item::ProtoStack;
 use mcrs_minecraft_item::component::equippable::EquipmentSlot;
 use mcrs_minecraft_item::definition::Items;
-use mcrs_minecraft_protocol_game::entity::Pose;
 use mcrs_minecraft_registries::{CurrentRegistries, Wire, WireId};
 use mcrs_minecraft_resource::{Id, ResourceLocation};
 use serde::Deserialize;

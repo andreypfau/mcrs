@@ -1,5 +1,6 @@
 use crate::item::harness::wire_form;
 use glam::DVec3;
+use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::variant::{CatSoundVariant, CatVariant, ZombieNautilusVariant};
 use mcrs_minecraft_entity::{
     attribute_keys::Attribute, entity_type_keys::EntityType,
@@ -16,7 +17,7 @@ use mcrs_minecraft_protocol_game::clientbound::{
 };
 use mcrs_minecraft_protocol_game::entity::{
     DyeColor, EquipmentSlot, MetaDataValue, Metadata, MetadataEntry, OptionalBlockState,
-    OptionalUnsignedInt, Pose, VillagerData,
+    OptionalUnsignedInt, VillagerData,
 };
 use mcrs_minecraft_protocol_game::{ByteAngle, LpVec3, ProtoStack};
 use mcrs_minecraft_resource::{Id, ResourceLocation};
