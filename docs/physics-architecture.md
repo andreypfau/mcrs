@@ -729,17 +729,16 @@ depend on the replication crate. A plugin adds a kind in these steps:
    `PublishedTile`. Thus the viewers get the spawn before the events of the plugin, and the events
    reach the viewers that know the entity.
 
-`mcrs_minecraft_vanilla_item_entity` follows these steps. The falling block plugin
-`mcrs_minecraft_vanilla_falling_block` is not in this revision; the second pull request of #97 adds
-it. It will follow the same steps and give review points: `FallingBlockSet::StartReview` with a
-`PendingFall`, and `FallingBlockSet::LandingReview` with a `Landed`. A system in these sets will
-change or cancel a start or a landing.
+`mcrs_minecraft_vanilla_item_entity` and the falling block plugin
+`mcrs_minecraft_vanilla_falling_block` follow these steps. The falling block plugin gives two review
+points: `FallingBlockSet::StartReview` with a `PendingFall`, and `FallingBlockSet::LandingReview`
+with a `Landed`. A system in these sets changes or cancels a start or a landing.
 
 | Consumer | What it takes |
 |----------|---------------|
 | a bot | the kernel alone: `tick_entity` with its own block source |
 | a headless client, a replay viewer, an online map | the motion pass without the replication crate |
-| a minigame server | its own kinds and `MotionRow` values; later, a cancel of a fall or a landing in the review sets of the falling block |
+| a minigame server | its own kinds and `MotionRow` values; a cancel of a fall or a landing in the review sets of the falling block |
 | a proxy, another server | the tracker; it is not public yet (#784) |
 
 Open points:
