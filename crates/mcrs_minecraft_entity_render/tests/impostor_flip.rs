@@ -428,7 +428,6 @@ fn render(
     entity_gpu.upload(&gpu.device, &gpu.queue, &mut encoder, &upload);
     let uniform = FrameUniform {
         height_threshold: threshold,
-        view: u32::from(EntityViews::WORLD.0),
         ..FrameUniform::new(view, TICK, 0.0, CardinalLight::Default)
     };
     entity_gpu.write_frame(&gpu.queue, &uniform, upload.slot_count.max(1));

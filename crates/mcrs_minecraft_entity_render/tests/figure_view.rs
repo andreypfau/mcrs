@@ -1,0 +1,264 @@
+//! The figure view draws a player into a target of its host with the fixed light of the figure.
+//!
+//! ```sh
+//! cargo nextest run -p mcrs_minecraft_entity_render --test figure_view --run-ignored all
+//! ```
+#![expect(clippy::unwrap_used, reason = "a test reports a failure by panicking")]
+
+#[expect(dead_code, reason = "the test uses a part of the test support")]
+mod support;
+
+use glam::{Mat4, Vec3};
+use mcrs_minecraft_entity_render::{
+    CULL_VALID, Capacities, CullRecord, EntityLibrary, EntityPack, EntityViews, FigureFrame,
+    FigureTargets, SlotArena, StateRecord, TextureImage, TickRecord, f16_up,
+};
+
+const TICK: u32 = 1000;
+const SIDE: u32 = 64;
+const SKIN: [u8; 4] = [200, 120, 60, 255];
+const CLEAR: [u8; 4] = [0, 0, 0, 0];
+
+/// The face factor of a face whose seen side has the normal `m`, with the light directions of
+/// the figure in screen axes.
+fn face_factor(m: Vec3) -> f32 {
+    let light0 = Vec3::new(0.2, 1.0, 1.0).normalize();
+    let light1 = Vec3::new(-0.2, 1.0, 0.0).normalize();
+    ((m.dot(light0).max(0.0) + m.dot(light1).max(0.0)) * 0.6 + 0.4).min(1.0)
+}
+
+#[test]
+#[ignore = "needs a GPU"]
+fn a_player_in_the_figure_view_draws_with_the_face_factor_of_the_figure_inside_the_scissor() {
+    let Some(gpu) = support::Gpu::new() else {
+        eprintln!("skipped: no adapter, the figure view test needs a GPU");
+        return;
+    };
+    let pack = support::pack();
+    let steve = TextureImage {
+        identifier: "minecraft:entity/player/wide/steve".into(),
+        width: SIDE,
+        height: SIDE,
+        rgba: SKIN.repeat((SIDE * SIDE) as usize),
+    };
+    let library = EntityLibrary::build(&pack.sources(), &[steve], 2048);
+    let mut arena = player_arena(&pack, &library);
+
+    let targets = FigureTargets {
+        color: wgpu::TextureFormat::Rgba8Unorm,
+        depth: wgpu::TextureFormat::Depth32Float,
+        depth_compare: wgpu::CompareFunction::GreaterEqual,
+        sample_count: 1,
+    };
+    let capacities = Capacities::for_cap(&library, 64);
+    let mut entity_gpu = gpu.entity_gpu(&library, capacities, arena.capacity());
+    let upload = arena.take_upload();
+    let mut encoder = gpu.device.create_command_encoder(&Default::default());
+    entity_gpu.upload(&gpu.device, &gpu.queue, &mut encoder, &upload);
+    gpu.queue.submit([encoder.finish()]);
+
+    // Figure space x and y map to the screen, z points to the viewer: x in [-1, 1] and y in
+    // [0, 2] fill the target, and the depth grows toward the viewer.
+    let figure = FigureFrame {
+        clip_from_figure: Mat4::from_cols_array(&[
+            1.0, 0.0, 0.0, 0.0, //
+            0.0, 1.0, 0.0, 0.0, //
+            0.0, 0.0, 0.1, 0.0, //
+            0.0, -1.0, 0.5, 1.0,
+        ]),
+        lights: [Vec3::new(0.2, 1.0, 1.0), Vec3::new(-0.2, 1.0, 0.0)],
+    };
+    entity_gpu.prepare_figure(&gpu.device, targets);
+    entity_gpu.write_figure_frame(&gpu.queue, &figure, TICK, 0.0);
+    let mut encoder = gpu.device.create_command_encoder(&Default::default());
+    entity_gpu.encode_figure_compute(&mut encoder);
+
+    let target = texture(&gpu, targets.color, wgpu::TextureUsages::COPY_SRC);
+    let depth = texture(&gpu, targets.depth, wgpu::TextureUsages::empty());
+    let sampler = gpu.device.create_sampler(&Default::default());
+    // The head fills the rows above 16; the scissor leaves it out.
+    let scissor_top = 20;
+    {
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("figure test"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &target.create_view(&Default::default()),
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &depth.create_view(&Default::default()),
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(0.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+        pass.set_scissor_rect(0, scissor_top, SIDE, SIDE - scissor_top);
+        entity_gpu.encode_figure_draw(&gpu.device, &mut pass, &white_lightmap(&gpu), &sampler);
+    }
+    let texels = read_texture(&gpu, encoder, &target);
+    let texel = |x: u32, y: u32| -> [u8; 4] {
+        let at = ((y * SIDE + x) * 4) as usize;
+        texels.get(at..at + 4).unwrap().try_into().unwrap()
+    };
+
+    // The front of the body at the middle of the target, below the scissor top. Its face points
+    // to the viewer; a unorm target rounds each channel, so it may differ by one step.
+    let front = face_factor(Vec3::Z);
+    let expected = SKIN.map(|channel| (f32::from(channel) * front).round() as i16);
+    let drawn = texel(SIDE / 2, 28);
+    for (channel, (&got, want)) in drawn.iter().zip(expected).take(3).enumerate() {
+        assert!(
+            (i16::from(got) - want).abs() <= 1,
+            "channel {channel} of the front: {drawn:?}, expected {expected:?} with the factor {front}"
+        );
+    }
+    assert_eq!(
+        drawn.get(3),
+        Some(&255),
+        "the figure writes an opaque colour"
+    );
+    assert_eq!(texel(SIDE / 2, 8), CLEAR, "the head is outside the scissor");
+    assert_eq!(
+        texel(2, 40),
+        CLEAR,
+        "no part of the player is at the left edge"
+    );
+}
+
+/// An arena with one player with the model `default` and the skin of the library, at the
+/// origin of figure space, in the figure view only, at the light levels 15 and 15.
+fn player_arena(pack: &EntityPack, library: &EntityLibrary) -> SlotArena {
+    let (definition, player) = pack.entity("minecraft:player").unwrap();
+    let at = player
+        .resources
+        .geometries
+        .iter()
+        .position(|(geometry, _)| geometry.as_str() == "default")
+        .unwrap();
+    let model = library
+        .definitions
+        .get(definition)
+        .and_then(|tables| tables.models.get(at).copied().flatten())
+        .unwrap();
+    let variant = *library
+        .textures
+        .get("minecraft:entity/player/wide/steve")
+        .unwrap();
+
+    let mut arena = SlotArena::new();
+    let slot = arena.allocate();
+    arena.write_state(
+        slot,
+        StateRecord {
+            definition: definition as u16,
+            layer_mask: 1,
+            layers: [[model, variant], [0; 2], [0; 2], [0; 2]],
+            hurt_start: -1e9,
+            block_light: 15,
+            sky_light: 15,
+            scale: f16_up(1.0),
+            section: u32::MAX,
+            clock_offset: TICK as i32,
+            input: u32::MAX,
+            ..StateRecord::default()
+        },
+    );
+    arena.write_tick(slot, TICK, TickRecord::default(), true);
+    arena.write_cull(
+        slot,
+        CullRecord {
+            block: [0, 0, 0],
+            radius: f16_up(2.0),
+            flags: CULL_VALID | EntityViews::FIGURE.cull_flags(),
+        },
+    );
+    arena
+}
+
+/// A lightmap of white texels, so the light of the figure keeps its colour.
+fn white_lightmap(gpu: &support::Gpu) -> wgpu::TextureView {
+    let lightmap = gpu.device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("white lightmap"),
+        size: wgpu::Extent3d {
+            width: 16,
+            height: 16,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    gpu.queue.write_texture(
+        lightmap.as_image_copy(),
+        &[255; 16 * 16 * 4],
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(16 * 4),
+            rows_per_image: None,
+        },
+        lightmap.size(),
+    );
+    lightmap.create_view(&Default::default())
+}
+
+/// The texels of `target` after the commands of `encoder`.
+fn read_texture(
+    gpu: &support::Gpu,
+    mut encoder: wgpu::CommandEncoder,
+    target: &wgpu::Texture,
+) -> Vec<u8> {
+    let readback = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("figure readback"),
+        size: u64::from(SIDE * SIDE * 4),
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
+        mapped_at_creation: false,
+    });
+    encoder.copy_texture_to_buffer(
+        target.as_image_copy(),
+        wgpu::TexelCopyBufferInfo {
+            buffer: &readback,
+            layout: wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(SIDE * 4),
+                rows_per_image: None,
+            },
+        },
+        target.size(),
+    );
+    gpu.queue.submit([encoder.finish()]);
+    gpu.read(&readback)
+}
+
+fn texture(
+    gpu: &support::Gpu,
+    format: wgpu::TextureFormat,
+    usage: wgpu::TextureUsages,
+) -> wgpu::Texture {
+    gpu.device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("figure target"),
+        size: wgpu::Extent3d {
+            width: SIDE,
+            height: SIDE,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | usage,
+        view_formats: &[],
+    })
+}

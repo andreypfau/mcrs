@@ -6,6 +6,9 @@ use wgpu::{
 
 use crate::counts_readback::{CountsReadback, EntityFrameCounts};
 use crate::entity_library::{EntityLibrary, MAX_ARRAYS, MAX_DEFINITIONS, VariantRecord};
+use crate::figure_gpu::{DrawTables, FIGURE_RIGS, FigureGpu, figure_uniform};
+use crate::figure_targets::FigureTargets;
+use crate::figure_view::FigureFrame;
 use crate::frame_uniform::FrameUniform;
 use crate::gpu_buffers::{
     COUNTERS, FrameBuffers, SlotBuffers, StaticBuffers, impostor_draws, impostor_list,
@@ -102,6 +105,12 @@ pub struct EntityGpu {
     binds: Binds,
     cull_grid: u32,
     scatter_count: u32,
+    /// The slot count of the last upload.
+    slot_count: u32,
+    models: usize,
+    figure_capacities: Capacities,
+    /// The figure view, from its first frame on.
+    figure: Option<FigureGpu>,
 }
 
 /// The color formats and the depth format of the targets of the entity draw.
@@ -162,19 +171,39 @@ impl EntityGpu {
             hiz,
             cull_grid,
             scatter_count: 0,
+            slot_count: 0,
+            models: library.models.len(),
+            figure_capacities: Capacities::for_cap(library, FIGURE_RIGS),
+            figure: None,
         }
     }
 
     fn rebind(&mut self, device: &Device) {
-        self.binds = Binds::new(
+        self.binds = self.binds_of(device, &self.frame);
+        if let Some(mut figure) = self.figure.take() {
+            figure.binds = self.binds_of(device, &figure.frame);
+            self.figure = Some(figure);
+        }
+    }
+
+    /// The bind groups of the passes that write into `frame`.
+    fn binds_of(&self, device: &Device, frame: &FrameBuffers) -> Binds {
+        Binds::new(
             device,
             &self.layouts,
             &self.slots,
             &self.statics,
-            &self.frame,
+            frame,
             &self.atlas,
             &self.hiz,
-        );
+        )
+    }
+
+    fn draw_tables(&self) -> DrawTables {
+        DrawTables {
+            models: self.models,
+            variants: self.variants.len(),
+        }
     }
 
     /// Replaces the depth pyramid that the cull reads.
@@ -255,6 +284,7 @@ impl EntityGpu {
             queue.write_buffer(&self.frame.scatter, 0, bytemuck::cast_slice(&upload.ticks));
         }
         self.scatter_count = ticks;
+        self.slot_count = upload.slot_count;
         for range in &upload.culls {
             queue.write_buffer(
                 &self.slots.culls,
@@ -396,52 +426,7 @@ impl EntityGpu {
                 pass.dispatch_workgroups(self.scatter_count.div_ceil(64), 1, 1);
             }
         }
-        {
-            let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor {
-                label: Some(ComputePass::Cull.name()),
-                timestamp_writes: writes(ComputePass::Cull),
-            });
-            pass.set_pipeline(&self.pipelines.cull);
-            pass.set_bind_group(0, &self.binds.cull, &[]);
-            pass.dispatch_workgroups(self.slots.capacity.div_ceil(64).min(self.cull_grid), 1, 1);
-            pass.set_pipeline(&self.pipelines.dispatch_args);
-            pass.set_bind_group(0, &self.binds.args, &[]);
-            pass.dispatch_workgroups(1, 1, 1);
-        }
-        {
-            let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor {
-                label: Some(ComputePass::Pose.name()),
-                timestamp_writes: writes(ComputePass::Pose),
-            });
-            pass.set_bind_group(0, &self.binds.pose, &[]);
-            for (index, definition) in self.pipelines.definitions.iter().enumerate() {
-                if let Some(pose) = &definition.pose {
-                    pass.set_pipeline(pose);
-                    pass.dispatch_workgroups_indirect(&self.frame.indirect, index as u64 * 12);
-                }
-            }
-        }
-        {
-            let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor {
-                label: Some(ComputePass::Expand.name()),
-                timestamp_writes: writes(ComputePass::Expand),
-            });
-            pass.set_bind_group(0, &self.binds.expand, &[]);
-            let expand_base =
-                MAX_DEFINITIONS.min(self.pipelines.definitions.len().max(1)) as u64 * 12;
-            for (index, definition) in self.pipelines.definitions.iter().enumerate() {
-                if definition.pose.is_some() {
-                    pass.set_pipeline(&definition.expand);
-                    pass.dispatch_workgroups_indirect(
-                        &self.frame.indirect,
-                        expand_base + index as u64 * 12,
-                    );
-                }
-            }
-            pass.set_pipeline(&self.pipelines.draw_args);
-            pass.set_bind_group(0, &self.binds.args, &[]);
-            pass.dispatch_workgroups(1, 1, 1);
-        }
+        self.encode_rigs(encoder, &self.frame, &self.binds, writes);
         {
             let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor {
                 label: Some("entity impostor prepare"),
@@ -457,6 +442,62 @@ impl EntityGpu {
         self.readback.encode(&self.frame.counters, encoder);
     }
 
+    /// Encodes the cull, the pose and the expand of the view whose frame buffers are `frame`.
+    fn encode_rigs<'a>(
+        &self,
+        encoder: &mut CommandEncoder,
+        frame: &FrameBuffers,
+        binds: &Binds,
+        writes: impl Fn(ComputePass) -> Option<ComputePassTimestampWrites<'a>>,
+    ) {
+        {
+            let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor {
+                label: Some(ComputePass::Cull.name()),
+                timestamp_writes: writes(ComputePass::Cull),
+            });
+            pass.set_pipeline(&self.pipelines.cull);
+            pass.set_bind_group(0, &binds.cull, &[]);
+            pass.dispatch_workgroups(self.slots.capacity.div_ceil(64).min(self.cull_grid), 1, 1);
+            pass.set_pipeline(&self.pipelines.dispatch_args);
+            pass.set_bind_group(0, &binds.args, &[]);
+            pass.dispatch_workgroups(1, 1, 1);
+        }
+        {
+            let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor {
+                label: Some(ComputePass::Pose.name()),
+                timestamp_writes: writes(ComputePass::Pose),
+            });
+            pass.set_bind_group(0, &binds.pose, &[]);
+            for (index, definition) in self.pipelines.definitions.iter().enumerate() {
+                if let Some(pose) = &definition.pose {
+                    pass.set_pipeline(pose);
+                    pass.dispatch_workgroups_indirect(&frame.indirect, index as u64 * 12);
+                }
+            }
+        }
+        {
+            let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor {
+                label: Some(ComputePass::Expand.name()),
+                timestamp_writes: writes(ComputePass::Expand),
+            });
+            pass.set_bind_group(0, &binds.expand, &[]);
+            let expand_base =
+                MAX_DEFINITIONS.min(self.pipelines.definitions.len().max(1)) as u64 * 12;
+            for (index, definition) in self.pipelines.definitions.iter().enumerate() {
+                if definition.pose.is_some() {
+                    pass.set_pipeline(&definition.expand);
+                    pass.dispatch_workgroups_indirect(
+                        &frame.indirect,
+                        expand_base + index as u64 * 12,
+                    );
+                }
+            }
+            pass.set_pipeline(&self.pipelines.draw_args);
+            pass.set_bind_group(0, &binds.args, &[]);
+            pass.dispatch_workgroups(1, 1, 1);
+        }
+    }
+
     /// Draws the face records of each texture array, then the impostors, into the render pass
     /// of the gbuffer.
     pub fn encode_draw(&self, pass: &mut RenderPass<'_>) {
@@ -467,18 +508,129 @@ impl EntityGpu {
     /// Draws the face records of each texture array into the render pass of the gbuffer: first
     /// the faces with no cutout texel, then the others.
     pub fn encode_draw_full_rigs(&self, pass: &mut RenderPass<'_>) {
-        pass.set_pipeline(&self.pipelines.draw_opaque);
-        pass.set_bind_group(0, &self.binds.draw, &[]);
+        self.draw_rigs(
+            pass,
+            [&self.pipelines.draw_opaque, &self.pipelines.draw],
+            &self.binds.draw,
+            &self.frame.indirect,
+        );
+    }
+
+    /// Draws the face records of the view with the draw bind group `draw` and the draw
+    /// arguments `indirect`: first with the pipeline of the faces with no cutout texel, then with
+    /// the pipeline of the others.
+    fn draw_rigs(
+        &self,
+        pass: &mut RenderPass<'_>,
+        [opaque, cutout]: [&wgpu::RenderPipeline; 2],
+        draw: &BindGroup,
+        indirect: &Buffer,
+    ) {
+        pass.set_pipeline(opaque);
+        pass.set_bind_group(0, draw, &[]);
         for (index, array) in self.arrays.iter().enumerate() {
             pass.set_bind_group(1, array, &[]);
-            pass.draw_indirect(&self.frame.indirect, self.draw_base() + index as u64 * 16);
+            pass.draw_indirect(indirect, self.draw_base() + index as u64 * 16);
         }
-        pass.set_pipeline(&self.pipelines.draw);
+        pass.set_pipeline(cutout);
         let cutout_base = self.impostor_args() + 48;
         for (index, array) in self.arrays.iter().enumerate() {
             pass.set_bind_group(1, array, &[]);
-            pass.draw_indirect(&self.frame.indirect, cutout_base + index as u64 * 16);
+            pass.draw_indirect(indirect, cutout_base + index as u64 * 16);
         }
+    }
+
+    /// Makes the frame buffers, the bind groups and the forward pipelines of the figure view at
+    /// its first frame, and the pipelines again when `targets` change.
+    pub fn prepare_figure(&mut self, device: &Device, targets: FigureTargets) {
+        let tables = self.draw_tables();
+        match &mut self.figure {
+            Some(figure) if figure.targets == targets => {}
+            Some(figure) => figure.retarget(device, &self.layouts, tables, targets),
+            None => {
+                let frame = FrameBuffers::new(
+                    device,
+                    self.figure_capacities,
+                    1,
+                    self.pipelines.definitions.len(),
+                    self.arrays.len(),
+                );
+                let binds = self.binds_of(device, &frame);
+                self.figure = Some(FigureGpu::new(
+                    device,
+                    &self.layouts,
+                    frame,
+                    binds,
+                    tables,
+                    targets,
+                ));
+            }
+        }
+    }
+
+    /// Writes the frame uniform and the light of the figure view, after
+    /// [`Self::prepare_figure`], with the slot count of the last upload.
+    pub fn write_figure_frame(
+        &self,
+        queue: &Queue,
+        figure: &FigureFrame,
+        tick: u32,
+        partial_tick: f32,
+    ) {
+        let Some(gpu) = &self.figure else {
+            return;
+        };
+        let frame = FrameUniform {
+            slot_count: self.slot_count.min(self.slots.capacity),
+            bone_capacity: self.figure_capacities.bones,
+            visible_capacity: self.figure_capacities.full_rigs,
+            face_capacity: self.figure_capacities.faces,
+            ..figure_uniform(figure, gpu.targets.depth_compare, tick, partial_tick)
+        };
+        queue.write_buffer(&gpu.frame.uniform, 0, bytemuck::bytes_of(&frame));
+        gpu.write_light(queue, figure);
+    }
+
+    /// Encodes the cull, the pose and the expand of the figure view, after the compute passes
+    /// of the world view of the frame. It encodes nothing before [`Self::prepare_figure`].
+    pub fn encode_figure_compute(&self, encoder: &mut CommandEncoder) {
+        let Some(figure) = &self.figure else {
+            return;
+        };
+        encoder.copy_buffer_to_buffer(
+            &figure.frame.counters_zero,
+            0,
+            &figure.frame.counters,
+            0,
+            COUNTERS * 4,
+        );
+        self.encode_rigs(encoder, &figure.frame, &figure.binds, |_| None);
+    }
+
+    /// Draws the face records of the figure view into `pass`, lit by `lightmap`, within the
+    /// scissor rectangle and the viewport that the caller has set. It draws nothing before
+    /// [`Self::prepare_figure`].
+    pub fn encode_figure_draw(
+        &mut self,
+        device: &Device,
+        pass: &mut RenderPass<'_>,
+        lightmap: &wgpu::TextureView,
+        sampler: &wgpu::Sampler,
+    ) {
+        let Some(mut figure) = self.figure.take() else {
+            return;
+        };
+        figure.bind_lightmap(device, lightmap, sampler);
+        if let Some(light) = figure.lightmap() {
+            pass.set_bind_group(2, light, &[]);
+            self.draw_rigs(
+                pass,
+                [&figure.pipelines.draw_opaque, &figure.pipelines.draw],
+                &figure.binds.draw,
+                &figure.frame.indirect,
+            );
+        }
+        self.figure = Some(figure);
     }
 
     /// Draws the impostors into the render pass of the gbuffer.
@@ -504,14 +656,14 @@ impl EntityGpu {
 }
 
 /// The bind group of each pass.
-struct Binds {
+pub(crate) struct Binds {
     scatter: BindGroup,
     cull: BindGroup,
     pose: BindGroup,
     expand: BindGroup,
     prepare: BindGroup,
     args: BindGroup,
-    draw: BindGroup,
+    pub(crate) draw: BindGroup,
     impostor: BindGroup,
 }
 

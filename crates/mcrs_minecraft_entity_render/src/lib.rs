@@ -15,6 +15,10 @@ mod entity_gpu;
 mod entity_library;
 mod entity_pack;
 mod entity_views;
+mod figure_draw;
+mod figure_gpu;
+mod figure_targets;
+mod figure_view;
 mod frame_posed;
 mod frame_queries;
 mod frame_uniform;
@@ -44,6 +48,9 @@ pub use entity_library::{
 };
 pub use entity_pack::{EntityPack, PackEntity};
 pub use entity_views::EntityViews;
+pub use figure_draw::FigureDraw;
+pub use figure_targets::FigureTargets;
+pub use figure_view::{FigureFrame, FigureView};
 pub use frame_posed::FramePosed;
 pub use frame_queries::{FrameQueries, VariantEntry, pose_from_name};
 pub use frame_uniform::FrameUniform;
@@ -51,7 +58,9 @@ pub use height_threshold::HeightThreshold;
 pub use impostor_frame::{IMPOSTOR_VIEWS, ImpostorFrames, ImpostorView};
 pub use main_world::{CpuAnimation, EntityClock, EntitySlot, RecordedClip, RecordedClips};
 pub use player_skin::{PlayerModel, PlayerSkin, SKIN_SLOTS};
-pub use plugin::{EntityPasses, EntityRenderPlugin, EntitySlotSystems, entity_passes};
+pub use plugin::{
+    EntityPasses, EntityRenderPlugin, EntitySlotSystems, FigureViewSystems, entity_passes,
+};
 pub use pose_program::{EntryInputs, InputLayout, PoseProgram, PoseProgramError};
 pub use records::{
     CULL_VALID, ClipSlot, CullRecord, InputRecord, STATE_BABY, STATE_HIDDEN_SHIFT, ScatterEntry,

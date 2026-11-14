@@ -511,7 +511,6 @@ fn main() {
         }
         let uniform = FrameUniform {
             height_threshold: threshold.pixels(),
-            view: u32::from(EntityViews::WORLD.0),
             ..FrameUniform::new(&frame_view, tick, partial, CardinalLight::Default)
         };
         entity_gpu.write_frame(&gpu.queue, &uniform, upload.slot_count);

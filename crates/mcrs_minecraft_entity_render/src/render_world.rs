@@ -15,7 +15,8 @@ use mcrs_minecraft_render::{
 use crate::entity_assets::EntityAssets;
 use crate::entity_gpu::{Capacities, DrawTargets, EntityGpu, PassQueries};
 use crate::entity_library::EntityLibrary;
-use crate::entity_views::EntityViews;
+use crate::figure_targets::FigureTargets;
+use crate::figure_view::{FigureFrame, FigureView};
 use crate::frame_uniform::FrameUniform;
 use crate::gpu_layouts::tables_fit;
 use crate::height_threshold::HeightThreshold;
@@ -40,12 +41,27 @@ pub(crate) struct EntityRenderState {
     pending_skins: Vec<SkinUpload>,
     clock: EntityClock,
     threshold: HeightThreshold,
+    /// The figure frame of this frame, or none while no host draws a figure.
+    figure: Option<FigureFrame>,
+}
+
+impl EntityRenderState {
+    pub(crate) fn gpu_mut(&mut self) -> Option<&mut EntityGpu> {
+        self.gpu.as_mut()
+    }
+
+    pub(crate) fn figure(&self) -> Option<FigureFrame> {
+        self.figure
+    }
 }
 
 pub(crate) fn extract_entities(mut main: ResMut<MainWorld>, mut state: ResMut<EntityRenderState>) {
     if let Some(clock) = main.get_resource::<EntityClock>() {
         state.clock = *clock;
     }
+    state.figure = main
+        .get_resource::<FigureView>()
+        .and_then(|figure| figure.0);
     if let Some(assets) = main.get_resource::<EntityAssets>()
         && state.generation != Some(assets.generation)
     {
@@ -230,7 +246,6 @@ pub(crate) fn draw_entities(
     let mut uniform = FrameUniform::new(view, clock.tick, clock.partial_tick, light);
     uniform.hiz_levels = terrain.depth_pyramid_levels(&params.occlusion, &params.cache);
     uniform.height_threshold = threshold.pixels();
-    uniform.view = u32::from(EntityViews::WORLD.0);
     gpu.write_frame(&params.queue, &uniform, pending.slot_count);
     let queries = params
         .timestamps
@@ -270,6 +285,32 @@ pub(crate) fn draw_entities(
     gpu.encode_draw(&mut pass);
     drop(pass);
     state.threshold = threshold;
+}
+
+/// A run condition: a host asks for the figure view in this frame.
+pub(crate) fn figure_requested(state: Res<EntityRenderState>) -> bool {
+    state.figure.is_some()
+}
+
+/// The figure run of the cull, the pose and the expand, into the frame buffers of the figure
+/// view, after the world view has uploaded the slots of the frame.
+pub(crate) fn run_figure_view(
+    mut state: ResMut<EntityRenderState>,
+    targets: Option<Res<FigureTargets>>,
+    device: Res<RenderDevice>,
+    queue: Res<RenderQueue>,
+    mut ctx: RenderContext,
+) {
+    let (Some(targets), Some(figure)) = (targets, state.figure) else {
+        return;
+    };
+    let clock = state.clock;
+    let Some(gpu) = state.gpu.as_mut() else {
+        return;
+    };
+    gpu.prepare_figure(device.wgpu_device(), *targets);
+    gpu.write_figure_frame(&queue, &figure, clock.tick, clock.partial_tick);
+    gpu.encode_figure_compute(ctx.command_encoder());
 }
 
 #[cfg(test)]
