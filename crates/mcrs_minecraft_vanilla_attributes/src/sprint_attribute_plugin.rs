@@ -7,7 +7,7 @@ use bevy_ecs::system::Query;
 use mcrs_minecraft_engine::player_sprinting::PlayerSprinting;
 use mcrs_minecraft_engine_attributes::{AttributeEdit, AttributeTarget, InstanceEdit};
 use mcrs_minecraft_entity::attribute_keys::Attribute;
-use mcrs_minecraft_entity::{InstanceModifier, ModifierKind, SPRINT_MODIFIER};
+use mcrs_minecraft_entity::{InstanceModifier, SPRINT_MODIFIER};
 
 use crate::attribute_sources::{AttributeSources, configure_attribute_sources};
 
@@ -35,12 +35,7 @@ fn give_sprint_modifier(
 ) {
     for (player, sprinting) in &players {
         let edit = if sprinting.0 {
-            InstanceEdit::Put(InstanceModifier::new(
-                SPRINT_MODIFIER.id.to_buf(),
-                SPRINT_MODIFIER.amount,
-                SPRINT_MODIFIER.operation,
-                ModifierKind::Transient,
-            ))
+            InstanceEdit::Put(InstanceModifier::transient(&SPRINT_MODIFIER))
         } else {
             InstanceEdit::Remove(SPRINT_MODIFIER.id.to_buf())
         };

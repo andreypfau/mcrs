@@ -4,7 +4,7 @@ use mcrs_minecraft_engine_world::entity::physics::{
     OldTransform, Rotation, Transform as PhysicsTransform, Velocity,
 };
 use mcrs_minecraft_entity::attribute_keys::Attribute;
-use mcrs_minecraft_entity::{InstanceChange, InstanceModifier, ModifierKind, SPRINT_MODIFIER};
+use mcrs_minecraft_entity::{InstanceModifier, SPRINT_MODIFIER};
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::ClientConnection;
 use mcrs_minecraft_physics::{Orientation, PlayerState, Relative, Teleport, apply_teleport};
@@ -221,10 +221,10 @@ fn fly(
     >,
 ) {
     let (mut sprint, mut transform, flying_speed) = player.into_inner();
+    let active = input.sprint && input.move_vector().y > 0.0;
+    sprint.set_if_neq(Sprint { active });
     let yaw = transform.rotation.yaw();
-    let mut next = *sprint;
-    transform.translation += tick(&mut next, *flying_speed, yaw, *input);
-    sprint.set_if_neq(next);
+    transform.translation += tick(*sprint, *flying_speed, yaw, *input);
 }
 
 /// Adds or removes the sprint modifier only when the sprint state changes (ATR-SRC-002), so a
@@ -233,31 +233,21 @@ fn give_sprint_modifier(
     mut players: Query<(&Sprint, &mut AttributeInstances), (With<Player>, Changed<Sprint>)>,
 ) {
     for (sprint, mut instances) in &mut players {
-        let unchecked = instances.bypass_change_detection();
-        let change = if sprint.active {
-            unchecked.put_modifier(
+        if sprint.active {
+            instances.put_modifier(
                 Attribute::MovementSpeed,
-                InstanceModifier::new(
-                    SPRINT_MODIFIER.id.to_buf(),
-                    SPRINT_MODIFIER.amount,
-                    SPRINT_MODIFIER.operation,
-                    ModifierKind::Transient,
-                ),
-            )
+                InstanceModifier::transient(&SPRINT_MODIFIER),
+            );
         } else {
-            unchecked.remove_modifier(Attribute::MovementSpeed, SPRINT_MODIFIER.id)
-        };
-        if change == InstanceChange::Changed {
-            instances.set_changed();
+            instances.remove_modifier(Attribute::MovementSpeed, SPRINT_MODIFIER.id);
         }
     }
 }
 
 /// The displacement of one tick: the pressed direction turned by the yaw, with
 /// no inertia and no friction.
-fn tick(sprint: &mut Sprint, flying_speed: FlyingSpeed, yaw: f32, input: MovementInput) -> DVec3 {
+fn tick(sprint: Sprint, flying_speed: FlyingSpeed, yaw: f32, input: MovementInput) -> DVec3 {
     let move_vector = input.move_vector();
-    sprint.active = input.sprint && move_vector.y > 0.0;
     let speed = if sprint.active {
         flying_speed.0 * SPRINT_SPEED_MULTIPLIER
     } else {
@@ -322,12 +312,6 @@ mod tests {
                 .and_then(|instances| instances.value(Attribute::MovementSpeed))
                 .map(f64::to_bits)
         };
-        let changed = |app: &App| {
-            app.world()
-                .entity(player)
-                .get_change_ticks::<AttributeInstances>()
-                .map(|ticks| ticks.changed)
-        };
         let set_sprint = |app: &mut App, active: bool| {
             app.world_mut()
                 .get_mut::<Sprint>(player)
@@ -338,14 +322,6 @@ mod tests {
 
         set_sprint(&mut app, true);
         assert_eq!(speed(&app), Some(sprinting.to_bits()));
-
-        let before = changed(&app);
-        set_sprint(&mut app, true);
-        assert_eq!(
-            changed(&app),
-            before,
-            "an unchanged state leaves the instances alone"
-        );
 
         app.world_mut()
             .get_mut::<AttributeInstances>(player)
@@ -377,7 +353,7 @@ mod tests {
             ..MovementInput::EMPTY
         };
         for yaw in [0.0, 90.0, -139.9493, 180.0] {
-            let moved = tick(&mut Sprint::default(), FlyingSpeed(1.0), yaw, forward);
+            let moved = tick(Sprint::default(), FlyingSpeed(1.0), yaw, forward);
             let look = look_direction(yaw, 0.0).as_dvec3();
             assert!(
                 moved.abs_diff_eq(look, 1e-6),

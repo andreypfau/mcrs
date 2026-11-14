@@ -211,29 +211,27 @@ mod tests {
     /// (ATR-SRC-003).
     fn creative() -> AttributeInstances {
         let mut instances = player();
-        for (attribute, base, id, amount) in [
-            (
-                Attribute::BlockInteractionRange,
-                4.5,
-                rl!("minecraft:creative_mode_block_range"),
-                0.5,
-            ),
-            (
-                Attribute::EntityInteractionRange,
-                3.0,
-                rl!("minecraft:creative_mode_entity_range"),
-                2.0,
-            ),
-        ] {
-            instances.receive(&AttributeSnapshot {
-                attribute,
-                base,
+        for entry in [
+            AttributeSnapshot {
+                attribute: Attribute::BlockInteractionRange,
+                base: 4.5,
                 modifiers: vec![AttributeModifier {
-                    id,
-                    amount,
+                    id: rl!("minecraft:creative_mode_block_range"),
+                    amount: 0.5,
                     operation: ModifierOperation::AddValue,
                 }],
-            });
+            },
+            AttributeSnapshot {
+                attribute: Attribute::EntityInteractionRange,
+                base: 3.0,
+                modifiers: vec![AttributeModifier {
+                    id: rl!("minecraft:creative_mode_entity_range"),
+                    amount: 2.0,
+                    operation: ModifierOperation::AddValue,
+                }],
+            },
+        ] {
+            instances.receive(&entry);
         }
         instances
     }

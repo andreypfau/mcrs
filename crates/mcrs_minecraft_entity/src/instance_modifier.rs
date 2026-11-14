@@ -1,3 +1,4 @@
+use mcrs_minecraft_entity_attribute::AttributeModifier;
 use mcrs_minecraft_entity_attribute::HomeSlot;
 use mcrs_minecraft_entity_attribute::Modifier;
 use mcrs_minecraft_entity_attribute::ModifierOperation;
@@ -33,6 +34,17 @@ impl InstanceModifier {
             kind,
             slot,
         }
+    }
+
+    /// A transient modifier with the identifier, amount and operation of `modifier`.
+    #[must_use]
+    pub fn transient(modifier: &AttributeModifier<'_>) -> Self {
+        Self::new(
+            modifier.id.to_buf(),
+            modifier.amount,
+            modifier.operation,
+            ModifierKind::Transient,
+        )
     }
 
     #[must_use]

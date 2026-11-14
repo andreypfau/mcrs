@@ -1,5 +1,6 @@
 use bevy_app::{App, Plugin, PostUpdate};
 use bevy_ecs::prelude::*;
+use mcrs_minecraft_client_world::attribute_instances::AttributeInstancesPlugin;
 use mcrs_minecraft_client_world::columns::ColumnStore;
 use mcrs_minecraft_entity_visual::{EntityLightSystems, EntityTickPlugin};
 
@@ -23,6 +24,9 @@ impl Plugin for ClientEntityPlugin {
                     .in_set(EntityLightSystems)
                     .run_if(resource_exists::<ColumnStore>),
             );
+        if !app.is_plugin_added::<AttributeInstancesPlugin>() {
+            app.add_plugins(AttributeInstancesPlugin);
+        }
         receive::add_observers(app);
     }
 }

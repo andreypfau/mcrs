@@ -577,6 +577,11 @@ pub struct ClientboundRespawn {
     pub data_to_keep: u8,
 }
 
+impl ClientboundRespawn {
+    /// The bit of `data_to_keep` that keeps the attribute modifiers of the player.
+    pub const KEEP_ATTRIBUTE_MODIFIERS: u8 = 0x01;
+}
+
 #[derive(Clone, Debug, Encode, Decode)]
 pub struct ClientboundRotateHead {
     pub entity_id: VarInt,

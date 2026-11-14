@@ -1,10 +1,14 @@
-use bevy::ecs::component::Component;
+use bevy::prelude::*;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
-use mcrs_minecraft_entity::{
-    AttributeBases, AttributeSet, InstanceChange, InstanceModifier, ModifierKind,
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity::{AttributeBases, AttributeInstance, AttributeSet, InstanceModifier};
+use mcrs_minecraft_network::event::Received;
+use mcrs_minecraft_protocol_game::clientbound::{
+    AttributeSnapshot, ClientboundLogin, ClientboundRespawn,
 };
-use mcrs_minecraft_protocol_game::clientbound::AttributeSnapshot;
 use mcrs_minecraft_resource::ResourceLocation;
+
+use crate::player::Player;
 
 /// The attribute instances of a living entity on the client, with the bases of its type. A new
 /// living entity has the base of the type and no modifier for each attribute (ATR-CLI-001).
@@ -14,14 +18,8 @@ pub struct AttributeInstances {
     set: AttributeSet,
 }
 
-/// What a new local player takes from the old one at a respawn (ATR-CLI-005).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RespawnKeep {
-    BasesAndModifiers,
-    Bases,
-}
-
 impl AttributeInstances {
+    /// The instances of a new entity with the bases `bases` of its type.
     #[must_use]
     pub fn new(bases: AttributeBases) -> Self {
         Self {
@@ -34,11 +32,6 @@ impl AttributeInstances {
     #[must_use]
     pub fn value(&self, attribute: Attribute) -> Option<f64> {
         self.set.value(self.bases, attribute)
-    }
-
-    #[must_use]
-    pub fn bases(&self) -> AttributeBases {
-        self.bases
     }
 
     /// The instances that differ from those of a new entity of the type.
@@ -59,70 +52,72 @@ impl AttributeInstances {
         {
             return;
         }
-        self.remove_modifiers(attribute);
+        let _in_set = self.set.clear_modifiers(self.bases, attribute);
         for modifier in &entry.modifiers {
-            let modifier = InstanceModifier::new(
-                modifier.id.to_buf(),
-                modifier.amount,
-                modifier.operation,
-                ModifierKind::Transient,
-            );
-            let _ignored_duplicate = self.set.add_modifier(self.bases, attribute, modifier);
+            let _ignored_duplicate =
+                self.set
+                    .add_modifier(self.bases, attribute, InstanceModifier::transient(modifier));
         }
     }
 
-    #[must_use]
-    pub fn respawned(&self, keep: RespawnKeep) -> Self {
-        match keep {
-            RespawnKeep::BasesAndModifiers => self.clone(),
-            RespawnKeep::Bases => {
-                let mut respawned = Self::new(self.bases);
-                for instance in self.set.instances() {
-                    let _in_set =
-                        respawned
-                            .set
-                            .set_base(self.bases, instance.attribute(), instance.base());
-                }
-                respawned
-            }
-        }
+    /// Leaves an equal modifier in place (ATR-INS-004); changes nothing when the attribute is not
+    /// in the set of the type.
+    pub(crate) fn put_modifier(&mut self, attribute: Attribute, modifier: InstanceModifier) {
+        let _in_set = self.set.set_modifier(self.bases, attribute, modifier);
     }
 
-    /// Leaves an equal modifier in place (ATR-INS-004); `Unchanged` also when the attribute is
-    /// not in the set of the type.
-    pub(crate) fn put_modifier(
-        &mut self,
-        attribute: Attribute,
-        modifier: InstanceModifier,
-    ) -> InstanceChange {
-        self.set
-            .set_modifier(self.bases, attribute, modifier)
-            .unwrap_or(InstanceChange::Unchanged)
+    pub(crate) fn remove_modifier(&mut self, attribute: Attribute, id: ResourceLocation<'_>) {
+        let _in_set = self.set.remove_modifier(self.bases, attribute, id);
     }
 
-    pub(crate) fn remove_modifier(
-        &mut self,
-        attribute: Attribute,
-        id: ResourceLocation<'_>,
-    ) -> InstanceChange {
-        self.set
-            .remove_modifier(self.bases, attribute, id)
-            .unwrap_or(InstanceChange::Unchanged)
-    }
-
-    fn remove_modifiers(&mut self, attribute: Attribute) {
-        while let Some(id) = self
+    /// Drops every modifier and keeps every base.
+    pub(crate) fn clear_modifiers(&mut self) {
+        let attributes: Vec<Attribute> = self
             .set
-            .instance(attribute)
-            .and_then(|instance| instance.modifiers().first())
-            .map(|modifier| modifier.id().to_buf())
-        {
-            let removed = self
-                .set
-                .remove_modifier(self.bases, attribute, id.as_location());
-            if !matches!(removed, Ok(InstanceChange::Changed)) {
-                break;
-            }
+            .instances()
+            .map(AttributeInstance::attribute)
+            .collect();
+        for attribute in attributes {
+            let _in_set = self.set.clear_modifiers(self.bases, attribute);
         }
+    }
+}
+
+/// Gives the local [`Player`] the attribute instances of a new player at a login, and drops their
+/// modifiers at a respawn that does not keep them (ATR-CLI-005).
+pub struct AttributeInstancesPlugin;
+
+impl Plugin for AttributeInstancesPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_observer(on_login).add_observer(on_respawn);
+    }
+}
+
+fn on_login(
+    _event: On<Received<ClientboundLogin>>,
+    player: Query<Entity, With<Player>>,
+    mut commands: Commands,
+) {
+    if let Ok(player) = player.single()
+        && let Some(bases) = AttributeBases::of(EntityType::Player)
+    {
+        commands
+            .entity(player)
+            .insert(AttributeInstances::new(bases));
+    }
+}
+
+fn on_respawn(
+    event: On<Received<ClientboundRespawn>>,
+    mut player: Query<&mut AttributeInstances, With<Player>>,
+) {
+    let Some(packet) = event.packet() else {
+        return;
+    };
+    if packet.data_to_keep & ClientboundRespawn::KEEP_ATTRIBUTE_MODIFIERS != 0 {
+        return;
+    }
+    if let Ok(mut instances) = player.single_mut() {
+        instances.clear_modifiers();
     }
 }

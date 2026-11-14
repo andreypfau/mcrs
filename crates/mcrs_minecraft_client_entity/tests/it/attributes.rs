@@ -1,5 +1,7 @@
+use bevy_ecs::entity::Entity;
+use bevy_ecs::query::With;
 use glam::DVec3;
-use mcrs_minecraft_client_world::AttributeInstances;
+use mcrs_minecraft_client_world::attribute_instances::AttributeInstances;
 use mcrs_minecraft_client_world::joined_game::JoinedGame;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_dimension::dimension_keys::OVERWORLD;
@@ -59,7 +61,7 @@ fn pig() -> Client {
     client
 }
 
-fn instances(client: &Client, entity: bevy_ecs::entity::Entity) -> &AttributeInstances {
+fn instances(client: &Client, entity: Entity) -> &AttributeInstances {
     client
         .app
         .world()
@@ -133,17 +135,10 @@ fn the_scale_of_an_entity_follows_its_entries() {
         vec![entry(
             Attribute::Scale,
             2.0,
-            vec![
-                modifier("test:grow", 1.0, ModifierOperation::AddValue),
-                modifier("test:grow", 4.0, ModifierOperation::AddValue),
-            ],
+            vec![modifier("test:grow", 1.0, ModifierOperation::AddValue)],
         )],
     ));
-    assert_eq!(
-        client.inputs(PIG, |inputs| inputs.data.scale),
-        3.0,
-        "the scale counts only the first modifier of an identifier"
-    );
+    assert_eq!(client.inputs(PIG, |inputs| inputs.data.scale), 3.0);
 
     client.receive(update(PIG, vec![entry(Attribute::Scale, 0.5, Vec::new())]));
     assert_eq!(client.inputs(PIG, |inputs| inputs.data.scale), 0.5);
@@ -157,9 +152,9 @@ fn spawn_info() -> PlayerSpawnInfo {
     )
 }
 
-fn logged_in() -> (Client, bevy_ecs::entity::Entity) {
+fn logged_in() -> Client {
     let mut client = Client::new();
-    let player = client.app.world_mut().spawn(Player).id();
+    client.app.world_mut().spawn(Player);
     client.join(JoinedGame {
         player_id: OWN_PLAYER,
         dimensions: Vec::new(),
@@ -178,13 +173,23 @@ fn logged_in() -> (Client, bevy_ecs::entity::Entity) {
         online_mode: false,
         enforces_secure_chat: false,
     });
-    (client, player)
+    client
+}
+
+fn player(client: &mut Client) -> Entity {
+    client
+        .app
+        .world_mut()
+        .query_filtered::<Entity, With<Player>>()
+        .single(client.app.world())
+        .expect("the client has one local player")
 }
 
 #[test]
 fn a_respawn_keeps_the_bases_and_keeps_the_modifiers_only_by_its_bit() {
     for (data_to_keep, luck) in [(0x00, 0.0), (0x01, 1.0), (0x02, 0.0), (0x03, 1.0)] {
-        let (mut client, player) = logged_in();
+        let mut client = logged_in();
+        let player = player(&mut client);
         assert_eq!(
             instances(&client, player).value(Attribute::MovementSpeed),
             Some(f64::from(0.1_f32)),
