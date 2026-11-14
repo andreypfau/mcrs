@@ -537,8 +537,13 @@ order, the client does these steps on the instance of the attribute:
 2. Remove each modifier of the instance.
 3. Add each modifier of the entry, in the order of the entry.
 
-Step 2 also removes a sprint modifier that the client added itself (ATR-SRC-002). An instance that
-has no entry in the packet does not change. The client then reads values by ATR-VAL-001.
+Step 2 also removes a sprint modifier that the client added itself (ATR-SRC-002). ATR-CLI-004
+states when the client adds it again. An instance that has no entry in the packet does not change.
+The client then reads values by ATR-VAL-001.
+
+An entry does not state the kind of a modifier. The client of this project holds each modifier of
+an entry as a transient modifier, because the client never saves an instance. Provenance of this
+paragraph: `design`. Kind: semantic. Confidence: high.
 
 **ATR-CLI-003** (`source_suggested`, client agreement, confidence: medium). These packets and
 entries have no effect on a client:
@@ -558,6 +563,24 @@ them.
 removes the sprint modifier of its local player by itself (ATR-SRC-002). The client adds no other
 modifier by itself. Each other modifier comes from an entry of a packet.
 
+An entry of `movement_speed` removes the sprint modifier (ATR-CLI-002, step 2). The client of this
+project does not keep the sprint modifier and does not restore it after the entry. The client adds
+it again only in the next tick in which the local sprint state changes to on. Thus an entry that
+the server made before it got the sprint input removes the modifier while the player sprints. The
+client then has no sprint modifier until an entry holds it or the sprint state changes again.
+
+A `login` packet and a `respawn` packet each make a new local player (ATR-CLI-005). The sprint
+state of the new local player is off. When the player holds the sprint input and can sprint, the
+sprint state changes to on in the first client tick after the packet. In that tick the client adds
+the sprint modifier again.
+
+MVC-LAT-010 of `movement-checks.md` depends on this rule. The server uses the modifiers of each
+entry as the client applies them, with or without the sprint modifier.
+
+Provenance of the second and the third paragraph: `design`. The owner decided on 2026-11-15 that
+the client of this project does not keep or restore the sprint modifier. Kind: client agreement.
+Confidence: medium.
+
 **ATR-CLI-005** (`source_suggested`, client agreement, confidence: medium). For a `respawn`
 packet, the client makes a new local player. The bit `0x01` of the field "data to keep" selects
 what the new local player gets (DIM-CHG-004 of `dimension-change.md`).
@@ -565,7 +588,8 @@ what the new local player gets (DIM-CHG-004 of `dimension-change.md`).
 - When the bit is set, the new local player gets each base value and each modifier of the old one.
 - When the bit is clear, it gets each base value of the old one, and no modifier.
 
-For a `login` packet, the new local player has the instances of ATR-CLI-001.
+For a `login` packet, the new local player has the instances of ATR-CLI-001. ATR-CLI-004 states
+the sprint modifier of the new local player.
 
 A recording of the packets does not show the instances of the client itself. In `a4_respawn.txt`
 the entries of ATR-NET-005 come in the client tick of the respawn. Thus no client tick reads the
@@ -708,12 +732,6 @@ health when `max_health` becomes less than the health.
   changes the f64 in 3 of the 42 combinations. An earlier count of 13 is not reproducible from a
   set that has the sprint modifier present and absent. The owner must decide: keep ATR-VAL-002 as it
   is, or make the order unspecified with a tolerance of one unit in the last place.
-- **U2.** ATR-CLI-002 removes the local sprint modifier when an entry of `movement_speed` comes.
-  An entry that the server made before it got the sprint input removes the modifier while the
-  player sprints. The speed on the client is then wrong until the next entry comes. MVC-LAT-010 of
-  `movement-checks.md` depends on this behaviour: the server uses the modifiers of each entry as the
-  client applies them. The owner must decide if the client of this project keeps its local sprint
-  modifier in that case.
 - **U5.** Experiments A4 and A5 show the time of an entry to the own player after a change
   (ATR-NET-003) and after a respawn (ATR-NET-005). Two points stay open, because the client
   recorder accepts one client and no client that joins again:
