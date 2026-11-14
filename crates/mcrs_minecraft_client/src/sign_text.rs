@@ -5,14 +5,19 @@ use std::collections::HashMap;
 
 use bevy::asset::RenderAssetUsages;
 use bevy::image::ImageSampler;
-use bevy::math::{DVec3, IVec2, Vec2};
+use bevy::math::{DVec3, Rect, UVec2, Vec2};
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use mcrs_minecraft_block::definition::Blocks;
-use mcrs_minecraft_client_gui::font::{ASCII_TEXTURE, Font};
+use mcrs_minecraft_client_gui::font::Font;
+use mcrs_minecraft_client_gui::font_definition::FontOptions;
+use mcrs_minecraft_client_gui::font_glyph::{
+    ImageSource, MISSING_GLYPH_SIZE, missing_glyph_pixels,
+};
+use mcrs_minecraft_client_gui::glyph_cache::{self, CELL, COLUMNS, ROWS, SLOTS};
 use mcrs_minecraft_client_gui::language::ClientLanguage;
 use mcrs_minecraft_client_gui::sign_text::{
-    self, Glow, MISSING_ADVANCE, OutlineRange, Paint, Side, Sight, SignQuad, packed_light,
+    self, Glow, OutlineRange, Paint, Side, Sight, SignQuad, packed_light,
 };
 use mcrs_minecraft_client_world::columns::{ColumnChange, ColumnStore, Columns, SignEntity};
 use mcrs_minecraft_client_world::sign::{SignBlock, sign_block};
@@ -43,15 +48,131 @@ impl Plugin for SignTextPlugin {
     }
 }
 
-/// The font page, the font and the language the lines are measured and drawn with.
+/// The font, its pictures and the language the lines are measured and drawn with.
 #[derive(Resource)]
 struct SignAssets {
     font: Font,
     language: ClientLanguage,
-    page: Handle<Image>,
-    /// The size of the page image in texels. It is one row taller than the font page: the extra
-    /// row is opaque and gives the solid fill of the missing glyph.
-    page_size: Vec2,
+    page: SignPage,
+    image: Handle<Image>,
+}
+
+/// Where the glyphs lie in the texture the sign text samples: the textures of the bitmap
+/// providers one under the other, the missing glyph, then a region of Unifont cells that the
+/// lines fill as they need them.
+struct SignPage {
+    width: u32,
+    size: Vec2,
+    /// The top left of the texture of each bitmap provider, by the provider's index.
+    bitmaps: Vec<(usize, Vec2)>,
+    missing: Vec2,
+    unifont: Vec2,
+    cells: HashMap<char, usize>,
+    /// The cells taken since the texture was last written.
+    pending: Vec<(usize, char)>,
+}
+
+impl SignPage {
+    /// Lays out the pictures of `font` and gives the pixels of the texture.
+    fn new(font: &Font) -> (Self, Vec<u8>, u32) {
+        let region = UVec2::new((COLUMNS * CELL) as u32, (ROWS * CELL) as u32);
+        let missing = UVec2::from(MISSING_GLYPH_SIZE);
+        let bitmaps: Vec<_> = font.bitmap_pages().collect();
+        let width = bitmaps
+            .iter()
+            .map(|(_, page)| page.size().0)
+            .chain([region.x, missing.x])
+            .max()
+            .unwrap_or(region.x);
+        let height =
+            bitmaps.iter().map(|(_, page)| page.size().1).sum::<u32>() + missing.y + region.y;
+        let mut pixels = vec![0; (width * height * 4) as usize];
+        let mut y = 0;
+        let mut place = |pixels: &mut Vec<u8>, source: &[u8], size: UVec2| {
+            let at = UVec2::new(0, y);
+            blit(pixels, width, at, source, size.x);
+            y += size.y;
+            at.as_vec2()
+        };
+        let bitmaps = bitmaps
+            .into_iter()
+            .map(|(index, page)| {
+                let size = UVec2::from(page.size());
+                (index, place(&mut pixels, page.pixels(), size))
+            })
+            .collect();
+        let missing = place(&mut pixels, &missing_glyph_pixels(), missing);
+        let unifont = place(&mut pixels, &[], region);
+        let page = Self {
+            width,
+            size: Vec2::new(width as f32, height as f32),
+            bitmaps,
+            missing,
+            unifont,
+            cells: HashMap::new(),
+            pending: Vec::new(),
+        };
+        (page, pixels, height)
+    }
+
+    /// The texels of the picture of `glyph`. A Unifont glyph takes a free cell the first time;
+    /// `None` when every cell is taken.
+    // chisle: a cell stays taken after its signs are gone, so the signs of a session show at
+    // most `SLOTS` distinct Unifont glyphs; freeing the cells of departed columns lifts it.
+    fn texels(&mut self, source: ImageSource, glyph: char) -> Option<Rect> {
+        let (min, size) = match source {
+            ImageSource::Bitmap { source, texels } => {
+                let (_, origin) = self.bitmaps.iter().find(|(page, _)| *page == source)?;
+                return Some(Rect::from_corners(
+                    texels.min + *origin,
+                    texels.max + *origin,
+                ));
+            }
+            ImageSource::Missing => (self.missing, UVec2::from(MISSING_GLYPH_SIZE).as_vec2()),
+            ImageSource::Unifont { columns, .. } => {
+                let cell = match self.cells.get(&glyph) {
+                    Some(&cell) => cell,
+                    None if self.cells.len() < SLOTS => {
+                        let cell = self.cells.len();
+                        self.cells.insert(glyph, cell);
+                        self.pending.push((cell, glyph));
+                        cell
+                    }
+                    None => return None,
+                };
+                let (x, y) = glyph_cache::cell_origin(cell);
+                (
+                    self.unifont + Vec2::new(x as f32, y as f32),
+                    Vec2::new(columns.min(CELL as u32) as f32, CELL as f32),
+                )
+            }
+        };
+        Some(Rect::from_corners(min, min + size))
+    }
+
+    /// Draws the Unifont glyphs of the cells taken since the last call into `pixels`.
+    fn write_pending(&mut self, font: &Font, pixels: &mut [u8]) {
+        for (cell, glyph) in self.pending.drain(..) {
+            let Some(cell_pixels) = font.unifont_cell(glyph) else {
+                continue;
+            };
+            let (x, y) = glyph_cache::cell_origin(cell);
+            let at = self.unifont.as_uvec2() + UVec2::new(x, y);
+            blit(pixels, self.width, at, &cell_pixels, CELL as u32);
+        }
+    }
+}
+
+/// Copies the rows of `source`, `width` texels wide, into `target`, a texture `stride` texels
+/// wide, from `at`.
+fn blit(target: &mut [u8], stride: u32, at: UVec2, source: &[u8], width: u32) {
+    let row = width as usize * 4;
+    for (line, source_row) in source.chunks_exact(row).enumerate() {
+        let start = ((at.y as usize + line) * stride as usize + at.x as usize) * 4;
+        if let Some(target) = target.get_mut(start..start + row) {
+            target.copy_from_slice(source_row);
+        }
+    }
 }
 
 fn load_assets(
@@ -68,32 +189,28 @@ fn load_assets(
         return;
     };
     let loaded = (|| {
-        let bytes = pack
-            .read(ASCII_TEXTURE)
-            .map_err(|error| error.to_string())?;
-        let (mut pixels, width, height) =
-            mcrs_minecraft_model::atlas::decode_png(bytes, ASCII_TEXTURE)
-                .map_err(|error| error.to_string())?;
-        let font = Font::load(pack, &pixels, width, height)?.with_missing_advance(MISSING_ADVANCE);
-        pixels.extend(std::iter::repeat_n(255, width as usize * 4));
+        let font = Font::load(pack, FontOptions::default())?;
+        let (page, pixels, height) = SignPage::new(&font);
         let mut image = Image::new(
             Extent3d {
-                width,
-                height: height + 1,
+                width: page.width,
+                height,
                 depth_or_array_layers: 1,
             },
             TextureDimension::D2,
             pixels,
             TextureFormat::Rgba8Unorm,
-            RenderAssetUsages::RENDER_WORLD,
+            // The main world keeps the pixels: a Unifont glyph is drawn into them when a line
+            // first needs it.
+            RenderAssetUsages::default(),
         );
         image.sampler = ImageSampler::nearest();
         let language = ClientLanguage::load(pack)?;
         Ok::<_, String>(SignAssets {
             font,
             language,
-            page: images.add(image),
-            page_size: Vec2::new(width as f32, (height + 1) as f32),
+            page,
+            image: images.add(image),
         })
     })();
     match loaded {
@@ -130,21 +247,18 @@ fn lightmap_levels(light: u32) -> [f32; 2] {
     [(light & 0xFF) as f32, ((light >> 20) & 15) as f32 * 16.0]
 }
 
-fn push_quad(quad: &SignQuad, cell: [i32; 3], assets: &SignAssets, out: &mut Vec<TextVertex>) {
-    let size = assets.font.cell_size;
-    let page = assets.page_size;
-    let uv = |cell: IVec2, dx: i32, dy: i32| {
-        [(cell.x + dx) as f32 / page.x, (cell.y + dy) as f32 / page.y]
+fn push_quad(quad: &SignQuad, cell: [i32; 3], page: &mut SignPage, out: &mut Vec<TextVertex>) {
+    let Some(texels) = page.texels(quad.source, quad.glyph) else {
+        return;
     };
-    let corners = match quad.cell {
-        Some(cell) => [
-            uv(cell, 0, 0),
-            uv(cell, size.x, 0),
-            uv(cell, size.x, size.y),
-            uv(cell, 0, size.y),
-        ],
-        None => [[0.5 / page.x, (page.y - 0.5) / page.y]; 4],
-    };
+    let uv = |x: f32, y: f32| [x / page.size.x, y / page.size.y];
+    let (min, max) = (texels.min, texels.max);
+    let corners = [
+        uv(min.x, min.y),
+        uv(max.x, min.y),
+        uv(max.x, max.y),
+        uv(min.x, max.y),
+    ];
     let color = linear(quad.color);
     let light = lightmap_levels(quad.light);
     let vertex = |index: usize| TextVertex {
@@ -164,7 +278,7 @@ fn build_sign(
     block: SignBlock,
     light: u8,
     camera: Option<DVec3>,
-    assets: &SignAssets,
+    assets: &mut SignAssets,
 ) -> Built {
     // A client with no account has the profanity filter off.
     const FILTERING: bool = false;
@@ -196,7 +310,7 @@ fn build_sign(
         let mut quads = Vec::new();
         sign_text::quads(&assets.font, &lines, &matrix, &paint, &mut quads);
         for quad in &quads {
-            push_quad(quad, cell, assets, &mut vertices);
+            push_quad(quad, cell, &mut assets.page, &mut vertices);
         }
     }
     Built {
@@ -212,7 +326,7 @@ fn build_column(
     blocks: &Blocks,
     at: ColumnPos,
     camera: Option<DVec3>,
-    assets: &SignAssets,
+    assets: &mut SignAssets,
 ) -> Vec<Built> {
     let Some(column) = store.get(at) else {
         return Vec::new();
@@ -245,7 +359,8 @@ fn holds_signs(store: &ColumnStore, scene: &SignScene, pos: ColumnPos) -> bool {
 fn sync_signs(
     store: Res<ColumnStore>,
     blocks: Res<Blocks>,
-    assets: Res<SignAssets>,
+    mut assets: ResMut<SignAssets>,
+    mut images: ResMut<Assets<Image>>,
     camera: Option<Single<&Transform, With<PlayerCamera>>>,
     mut changes: MessageReader<ColumnChange>,
     mut scene: ResMut<SignScene>,
@@ -291,12 +406,19 @@ fn sync_signs(
         return;
     }
     for pos in stale.drain(..) {
-        let built = build_column(&store, &blocks, pos, camera, &assets);
+        let built = build_column(&store, &blocks, pos, camera, &mut assets);
         if built.is_empty() {
             scene.columns.remove(&pos);
         } else {
             scene.columns.insert(pos, built);
         }
+    }
+    let assets = &mut *assets;
+    if !assets.page.pending.is_empty()
+        && let Some(mut image) = images.get_mut(&assets.image)
+        && let Some(pixels) = image.data.as_mut()
+    {
+        assets.page.write_pending(&assets.font, pixels);
     }
     scene.revision += 1;
     // chisle: a change uploads the vertices of every sign again; ranges per column in the
@@ -309,6 +431,6 @@ fn sync_signs(
             .flatten()
             .flat_map(|built| built.vertices.iter().copied()),
     );
-    text.texture = Some(assets.page.clone());
+    text.texture = Some(assets.image.clone());
     text.revision = scene.revision;
 }

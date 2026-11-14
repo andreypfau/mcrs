@@ -255,7 +255,7 @@ pub(crate) fn draw_str_without_shadow(
     draw_glyphs(font, origin, styled(text, false), color, false, out);
 }
 
-fn draw_glyphs(
+pub(crate) fn draw_glyphs(
     font: &Font,
     origin: Vec2,
     glyphs: impl Iterator<Item = (char, bool)>,

@@ -5,7 +5,7 @@ use crate::font_definition::{CodePoint, Filter};
 use crate::font_glyph::{Glyph, GlyphImage, ImageSource};
 
 /// Rows of a Unifont glyph, and the columns the glyph cache holds for one.
-pub(crate) const CELL: usize = 16;
+pub const CELL: usize = 16;
 pub(crate) const CELL_BYTES: usize = CELL * CELL * 4;
 
 #[derive(Deserialize)]

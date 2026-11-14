@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use bevy::prelude::Resource;
 
-use crate::font_unihex::CELL;
+pub use crate::font_unihex::CELL;
 
 /// Cells of the atlas region the Unifont glyphs on screen take turns in.
 pub const COLUMNS: usize = 32;
