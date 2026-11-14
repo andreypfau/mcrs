@@ -20,6 +20,7 @@ use crate::departure::{Carriable, CarriedPlayer};
 use crate::dimension_change::DimensionChangeError;
 use crate::hot_ticket;
 use crate::hot_ticket::{CellCrossing, HotTicket, RemoteTicket, RemoteTickets};
+use crate::persisted_registry::CaptureCause;
 use crate::player_dimension_change;
 use crate::replicated::Replicated;
 
@@ -70,7 +71,7 @@ fn cross(world: &mut World, player: Entity) -> Result<Crossing, DimensionChangeE
         return Err(DimensionChangeError::NoPlayer);
     };
     leaving.insert(CellCrossing);
-    let carried = match CarriedPlayer::take(&mut leaving) {
+    let carried = match CarriedPlayer::take(&mut leaving, CaptureCause::CellCrossing) {
         Ok(carried) => carried,
         Err(error) => {
             leaving.remove::<CellCrossing>();

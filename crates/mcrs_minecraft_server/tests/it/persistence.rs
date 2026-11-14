@@ -17,7 +17,7 @@ use mcrs_minecraft_block_entity::{ContainerData, GeneratedBlockEntity};
 use mcrs_minecraft_chat_server::ChatPlugin;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::persisted_registry::{
-    PersistedAppExt, PersistedRegistry, PersistedSnapshot,
+    CaptureCause, PersistedAppExt, PersistedRegistry, PersistedSnapshot,
 };
 use mcrs_minecraft_engine_item::{ItemPersistencePlugin, Slots};
 use mcrs_minecraft_engine_registries::{install_item_table, test_item_table};
@@ -318,7 +318,9 @@ fn an_inventory_crosses_a_dimension_change() {
         .expect("the player is in the End");
     let world = server.world_in(end);
     let registry = world.remove_resource::<PersistedRegistry>().unwrap();
-    let saved = registry.capture_file(world, arrived).unwrap();
+    let saved = registry
+        .capture_file(world, arrived, CaptureCause::Autosave)
+        .unwrap();
     world.insert_resource(registry);
     assert_eq!(saved.get("Inventory"), Some(&NbtTag::List(items)));
 }

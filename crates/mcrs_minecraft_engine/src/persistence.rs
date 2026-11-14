@@ -29,7 +29,7 @@ use crate::game_mode::ListedGameMode;
 use crate::game_profile::GameProfile;
 use crate::op_level::AnnouncedOpLevel;
 use crate::persisted_registry::{
-    PersistScope, PersistedAppExt, PersistedError, PersistedForm, PersistedRegistry,
+    CaptureCause, PersistScope, PersistedAppExt, PersistedError, PersistedForm, PersistedRegistry,
     PersistedSnapshot,
 };
 use crate::player_state::{Ints, PlayerFileState, player_state_keys};
@@ -120,7 +120,11 @@ impl PersistedForm<Transform> for Pose {
     }
 }
 
-fn capture_pose(world: &mut World, player: Entity) -> Result<Option<NbtTag>, PersistedError> {
+fn capture_pose(
+    world: &mut World,
+    player: Entity,
+    _: CaptureCause,
+) -> Result<Option<NbtTag>, PersistedError> {
     let Some(transform) = world.get::<Transform>(player) else {
         return Ok(None);
     };
@@ -157,7 +161,11 @@ fn apply_pose(world: &mut World, player: Entity, tag: &NbtTag) -> Result<(), Per
 }
 
 /// The file holds the UUID of the profile. A load checks the value and keeps the profile.
-fn capture_uuid(world: &mut World, player: Entity) -> Result<Option<NbtTag>, PersistedError> {
+fn capture_uuid(
+    world: &mut World,
+    player: Entity,
+    _: CaptureCause,
+) -> Result<Option<NbtTag>, PersistedError> {
     let Some(profile) = world.get::<GameProfile>(player) else {
         return Ok(None);
     };
@@ -278,7 +286,11 @@ struct ReadAbilities {
     mode: Option<GameMode>,
 }
 
-fn capture_abilities(world: &mut World, player: Entity) -> Result<Option<NbtTag>, PersistedError> {
+fn capture_abilities(
+    world: &mut World,
+    player: Entity,
+    _: CaptureCause,
+) -> Result<Option<NbtTag>, PersistedError> {
     let (Some(mode), Some(flying)) = (
         world.get::<PlayerGameMode>(player),
         world.get::<PlayerFlying>(player),
@@ -325,7 +337,11 @@ fn apply_abilities(world: &mut World, player: Entity, tag: &NbtTag) -> Result<()
     Ok(())
 }
 
-fn capture_dimension(world: &mut World, player: Entity) -> Result<Option<NbtTag>, PersistedError> {
+fn capture_dimension(
+    world: &mut World,
+    player: Entity,
+    _: CaptureCause,
+) -> Result<Option<NbtTag>, PersistedError> {
     Ok(world
         .get::<InDimension>(player)
         .and_then(|dim| world.get::<ResourceKeyBuf<Dimension>>(dim.0))
@@ -706,11 +722,15 @@ pub fn apply_join_snapshot(world: &mut World, player: Entity, snapshot: &Persist
     }
 }
 
-pub fn save_player(world: &mut World, player: Entity) -> Result<PlayerDat, PersistedError> {
+pub fn save_player(
+    world: &mut World,
+    player: Entity,
+    cause: CaptureCause,
+) -> Result<PlayerDat, PersistedError> {
     let Some(registry) = world.remove_resource::<PersistedRegistry>() else {
         return Err(PersistedError::NoRegistry);
     };
-    let snapshot = registry.capture_file(world, player);
+    let snapshot = registry.capture_file(world, player, cause);
     world.insert_resource(registry);
     let mut root = mcrs_minecraft_nbt::compound::NbtCompound::new();
     for (key, tag) in snapshot? {
@@ -725,13 +745,17 @@ pub fn save_player(world: &mut World, player: Entity) -> Result<PlayerDat, Persi
 }
 
 /// The file of `player`, or `None` when the player has no file to write.
-fn player_file(world: &mut World, player: Entity) -> Option<(PathBuf, Uuid, PlayerDat)> {
+fn player_file(
+    world: &mut World,
+    player: Entity,
+    cause: CaptureCause,
+) -> Option<(PathBuf, Uuid, PlayerDat)> {
     let save = world.get_resource::<WorldSave>()?.0.clone();
     let uuid = world.get::<GameProfile>(player)?.id;
     if world.get::<UnreadablePlayerDat>(player).is_some() {
         return None;
     }
-    match save_player(world, player) {
+    match save_player(world, player, cause) {
         Ok(dat) => Some((save, uuid, dat)),
         Err(err) => {
             error!(%uuid, "player data not encoded: {err}");
@@ -743,8 +767,13 @@ fn player_file(world: &mut World, player: Entity) -> Option<(PathBuf, Uuid, Play
 /// Snapshots `player` and queues its file for the I/O pool. The session in `release` is
 /// reported as [`OutboundPlayerReleased`] once the file is on disk, or at once when no file is
 /// written.
-pub fn queue_player_save(world: &mut World, player: Entity, release: Option<PlayerSession>) {
-    let Some((dir, uuid, dat)) = player_file(world, player) else {
+pub fn queue_player_save(
+    world: &mut World,
+    player: Entity,
+    release: Option<PlayerSession>,
+    cause: CaptureCause,
+) {
+    let Some((dir, uuid, dat)) = player_file(world, player, cause) else {
         if let Some(session) = release {
             world.write_message(OutboundPlayerReleased { session });
         }
@@ -767,8 +796,8 @@ fn report_released(world: &mut World) {
 
 /// Writes a player and waits for the file. A tick queues the write with [`queue_player_save`]
 /// instead; this is for tests and tools.
-pub fn write_player(world: &mut World, player: Entity) {
-    queue_player_save(world, player, None);
+pub fn write_player(world: &mut World, player: Entity, cause: CaptureCause) {
+    queue_player_save(world, player, None, cause);
     flush_player_saves(world);
 }
 
@@ -779,7 +808,7 @@ pub fn autosave_players(world: &mut World) {
         .iter(world)
         .collect();
     for player in players {
-        if let Some((dir, uuid, dat)) = player_file(world, player) {
+        if let Some((dir, uuid, dat)) = player_file(world, player, CaptureCause::Autosave) {
             world
                 .get_resource_or_init::<PlayerSaveQueue>()
                 .queue(dir, uuid, dat, None);
@@ -875,7 +904,7 @@ pub(crate) mod tests {
                 PlayerFlying(true),
             ))
             .id();
-        write_player(saving.world_mut(), player);
+        write_player(saving.world_mut(), player, CaptureCause::Autosave);
 
         let mut loading = app(&dir);
         let player = loading.world_mut().spawn(profile()).id();
@@ -909,7 +938,7 @@ pub(crate) mod tests {
                 TeleportState::default(),
             ))
             .id();
-        write_player(app.world_mut(), player);
+        write_player(app.world_mut(), player, CaptureCause::Autosave);
 
         let dat = read_player_dat(&dir, profile().id).unwrap().unwrap();
         assert_eq!(dat.pos(), Some([1.0, 2.0, 3.0]));
@@ -963,7 +992,7 @@ pub(crate) mod tests {
             .id();
         load_player(app.world_mut(), player);
         let written = |app: &mut App| {
-            let dat = save_player(app.world_mut(), player).unwrap();
+            let dat = save_player(app.world_mut(), player, CaptureCause::Autosave).unwrap();
             let abilities = dat.get("abilities").and_then(NbtTag::extract_compound);
             let abilities = abilities.expect("abilities").clone();
             (
@@ -1007,7 +1036,7 @@ pub(crate) mod tests {
             .world_mut()
             .spawn((profile(), Transform::default(), client_info("de_de")))
             .id();
-        write_player(saving.world_mut(), player);
+        write_player(saving.world_mut(), player, CaptureCause::Autosave);
 
         let mut loading = app(&dir);
         let mut live = TeleportState::default();
@@ -1045,7 +1074,7 @@ pub(crate) mod tests {
             load_player(app.world_mut(), player);
             assert!(app.world().get::<UnreadablePlayerDat>(player).is_some());
 
-            write_player(app.world_mut(), player);
+            write_player(app.world_mut(), player, CaptureCause::Autosave);
             let unchanged = read_player_dat(&dir, profile().id).unwrap().unwrap();
             assert_eq!(
                 unchanged.get(key).and_then(NbtTag::extract_string),

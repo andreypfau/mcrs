@@ -7,6 +7,7 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::In;
 use bevy_ecs::world::World;
+use mcrs_minecraft_engine::persisted_registry::CaptureCause;
 use mcrs_minecraft_engine::persisted_registry::PersistScope;
 use mcrs_minecraft_engine::persisted_registry::PersistedAppExt;
 use mcrs_minecraft_engine::persisted_registry::PersistedError;
@@ -155,7 +156,11 @@ fn read_stack_values(
         .map_err(|error| encode_error(key, error))
 }
 
-fn capture_inventory(world: &mut World, holder: Entity) -> Result<Option<NbtTag>, PersistedError> {
+fn capture_inventory(
+    world: &mut World,
+    holder: Entity,
+    _: CaptureCause,
+) -> Result<Option<NbtTag>, PersistedError> {
     let Some(slots) = world.get::<Slots>(holder) else {
         return Ok(None);
     };
@@ -214,6 +219,7 @@ fn apply_inventory(world: &mut World, holder: Entity, tag: &NbtTag) -> Result<()
 fn capture_ender_items(
     world: &mut World,
     holder: Entity,
+    _: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {
     let Some(items) = world.get::<EnderItems>(holder) else {
         return Ok(None);
@@ -246,7 +252,11 @@ fn apply_ender_items(
     Ok(())
 }
 
-fn capture_equipment(world: &mut World, holder: Entity) -> Result<Option<NbtTag>, PersistedError> {
+fn capture_equipment(
+    world: &mut World,
+    holder: Entity,
+    _: CaptureCause,
+) -> Result<Option<NbtTag>, PersistedError> {
     let worn = world.get::<WornEquipment>(holder).cloned();
     let selected_holds_stack = match (world.get::<Slots>(holder), world.get::<Selected>(holder)) {
         (Some(slots), Some(selected)) => slots.get(usize::from(selected.0)).is_some(),

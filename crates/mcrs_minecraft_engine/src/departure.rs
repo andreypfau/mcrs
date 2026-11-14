@@ -17,7 +17,7 @@ use tracing::error;
 use crate::ability::{PlayerFlying, PlayerGameMode, PlayerOpLevel};
 use crate::coordinator::clock::GameTime;
 use crate::dimension_change::{Arrival, DimensionChangeError};
-use crate::persisted_registry::{PersistedRegistry, PersistedSnapshot};
+use crate::persisted_registry::{CaptureCause, PersistedRegistry, PersistedSnapshot};
 use crate::persistence::UnreadablePlayerDat;
 use crate::teleport::TeleportState;
 
@@ -65,9 +65,12 @@ pub(crate) type Carriable = (
 );
 
 impl CarriedPlayer {
-    /// Takes the registered components out of `player`. Takes nothing when `player` is no player
-    /// or lacks the state its arrival sends.
-    pub(crate) fn take(player: &mut EntityWorldMut<'_>) -> Result<Self, DimensionChangeError> {
+    /// Takes the registered components out of `player`, captured for `cause`. Takes nothing when
+    /// `player` is no player or lacks the state its arrival sends.
+    pub(crate) fn take(
+        player: &mut EntityWorldMut<'_>,
+        cause: CaptureCause,
+    ) -> Result<Self, DimensionChangeError> {
         if !(player.contains::<Player>()
             && player.contains::<EntityUuid>()
             && player.contains::<Transform>()
@@ -88,7 +91,7 @@ impl CarriedPlayer {
                 error!("player transfer has no persisted-component registry");
                 return Err(DimensionChangeError::NoArrivalState);
             };
-            let snapshot = registry.capture(world, id);
+            let snapshot = registry.capture(world, id, cause);
             world.insert_resource(registry);
             let snapshot = snapshot.map_err(|err| {
                 error!(?id, "player transfer state not captured: {err}");
@@ -197,7 +200,7 @@ mod tests {
 
         let carried = {
             let mut leaving = world.entity_mut(old);
-            CarriedPlayer::take(&mut leaving).unwrap()
+            CarriedPlayer::take(&mut leaving, CaptureCause::DimensionChange).unwrap()
         };
         world.despawn(old);
         let arrived = world
@@ -225,13 +228,14 @@ mod tests {
         load_player(world, old);
         assert!(world.get::<UnreadablePlayerDat>(old).is_some());
 
-        let carried = CarriedPlayer::take(&mut world.entity_mut(old)).unwrap();
+        let carried =
+            CarriedPlayer::take(&mut world.entity_mut(old), CaptureCause::DimensionChange).unwrap();
         world.despawn(old);
         let arrived = world
             .spawn((Player, EntityUuid(Uuid::nil()), Transform::default()))
             .id();
         carried.insert_into(world, arrived);
-        write_player(world, arrived);
+        write_player(world, arrived, CaptureCause::Autosave);
 
         assert_eq!(std::fs::read(&path).unwrap(), b"not a player file");
         let _ = std::fs::remove_dir_all(dir);
@@ -247,7 +251,8 @@ mod tests {
         let old = world
             .spawn((player_bundle(), profile(), CarriedMarker(9)))
             .id();
-        let carried = CarriedPlayer::take(&mut world.entity_mut(old)).unwrap();
+        let carried =
+            CarriedPlayer::take(&mut world.entity_mut(old), CaptureCause::DimensionChange).unwrap();
 
         let mut destination = app(&dir);
         let world = destination.world_mut();
@@ -256,7 +261,7 @@ mod tests {
             .id();
         carried.insert_into(world, arrived);
         assert!(world.get::<UnreadablePlayerDat>(arrived).is_some());
-        write_player(world, arrived);
+        write_player(world, arrived, CaptureCause::Autosave);
 
         assert!(!path.exists());
         let _ = std::fs::remove_dir_all(dir);
@@ -268,14 +273,15 @@ mod tests {
         let mut app = app(&dir);
         let world = app.world_mut();
         let old = world.spawn((player_bundle(), profile())).id();
-        let carried = CarriedPlayer::take(&mut world.entity_mut(old)).unwrap();
+        let carried =
+            CarriedPlayer::take(&mut world.entity_mut(old), CaptureCause::DimensionChange).unwrap();
         world.despawn(old);
         let arrived = world
             .spawn((Player, EntityUuid(Uuid::nil()), Transform::default()))
             .id();
         carried.insert_into(world, arrived);
         assert!(world.get::<UnreadablePlayerDat>(arrived).is_none());
-        write_player(world, arrived);
+        write_player(world, arrived, CaptureCause::Autosave);
 
         assert!(read_player_dat(&dir, profile().id).unwrap().is_some());
         let _ = std::fs::remove_dir_all(dir);
