@@ -1,22 +1,16 @@
-use mcrs_minecraft_engine_attributes::AttributeChanged;
-use mcrs_minecraft_engine_attributes::AttributeTarget;
-use mcrs_minecraft_engine_attributes::Attributes;
-use mcrs_minecraft_engine_attributes::InstanceEdit;
-use mcrs_minecraft_engine_attributes::RowAttributes;
-use mcrs_minecraft_entity::InstanceModifier;
-use mcrs_minecraft_entity::ModifierKind;
+use mcrs_minecraft_engine_attributes::{
+    AttributeChanged, AttributeTarget, Attributes, InstanceEdit, RowAttributes,
+};
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity::{InstanceModifier, ModifierKind};
 use mcrs_minecraft_entity_attribute::ModifierOperation;
 use mcrs_minecraft_entity_key::EntityId;
+use mcrs_minecraft_entity_rows::{Placed, RowStore};
+use mcrs_minecraft_physics::Rest;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 
-use crate::fixture::app;
-use crate::fixture::despawn_row;
-use crate::fixture::edit;
-use crate::fixture::spawn_pig;
-use crate::fixture::spawn_player;
-use crate::fixture::tick;
+use crate::fixture::{app, despawn_row, edit, spawn_pig, spawn_player, tick};
 
 fn id() -> ResourceLocationBuf {
     "test:a".parse().expect("a valid identifier")
@@ -130,4 +124,68 @@ fn an_edit_of_an_attribute_outside_the_set_changes_nothing() {
     assert_eq!(attributes.value(Attribute::FollowRange), None);
     assert_eq!(attributes.set().instances().count(), 0);
     assert!(app.world().resource::<RowAttributes>().get(pig).is_none());
+}
+
+#[test]
+fn a_modifier_on_the_speed_of_a_row_reaches_its_motion_and_its_removal_restores_the_base() {
+    let mut app = app();
+    let pig = EntityId(7);
+    spawn_pig(&mut app, pig);
+    let target = AttributeTarget::Row(pig);
+    let motion_speed = |app: &bevy_app::App| {
+        let rows = app.world().resource::<RowStore<()>>();
+        let tile = rows.tile_of(pig).expect("the row is living");
+        rows.state_of(Placed { tile, id: pig })
+            .and_then(|state| state.living)
+            .expect("a pig row is living")
+            .attributes
+            .movement_speed
+    };
+    let half_more = InstanceEdit::Put(InstanceModifier::new(
+        id(),
+        0.5,
+        ModifierOperation::AddMultipliedTotal,
+        ModifierKind::Transient,
+    ));
+
+    edit(&mut app, target, Attribute::MovementSpeed, half_more);
+    assert_eq!(
+        motion_speed(&app),
+        0.375,
+        "the base 0.25 of a pig times 1.5"
+    );
+
+    edit(
+        &mut app,
+        target,
+        Attribute::MovementSpeed,
+        InstanceEdit::Remove(id()),
+    );
+    assert_eq!(motion_speed(&app), 0.25, "the base of the type pig");
+}
+
+#[test]
+fn a_new_gravity_wakes_a_resting_row() {
+    let mut app = app();
+    let pig = EntityId(7);
+    spawn_pig(&mut app, pig);
+    let mut rows = app.world_mut().resource_mut::<RowStore<()>>();
+    let tile = rows.tile_of(pig).expect("the row is living");
+    let state = rows
+        .state_mut(Placed { tile, id: pig })
+        .expect("the tile holds the row");
+    state.rest = Rest::Resting(state.body);
+
+    edit(
+        &mut app,
+        AttributeTarget::Row(pig),
+        Attribute::Gravity,
+        InstanceEdit::SetBase(0.01),
+    );
+
+    let rows = app.world().resource::<RowStore<()>>();
+    let rest = rows
+        .state_of(Placed { tile, id: pig })
+        .map(|state| state.rest);
+    assert_eq!(rest, Some(Rest::Awake));
 }
