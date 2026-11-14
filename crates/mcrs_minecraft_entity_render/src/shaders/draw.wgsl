@@ -43,7 +43,7 @@ struct FaceCorner {
 /// The relative step of depth toward the camera for each later layer. Two layers can lie on one
 /// surface, as the saddle on the inflated fur of a cold pig, and a later layer draws over an
 /// earlier one there; the order of the face records in a draw is not the order of the layers.
-const LAYER_DEPTH_STEP: f32 = 1.0 / 65536.0;
+const LAYER_DEPTH_STEP: f32 = #{LAYER_DEPTH_STEP};
 
 /// The corners of a face in the order of a triangle strip, which makes the triangles of
 /// `TRIANGLE_CORNERS`.

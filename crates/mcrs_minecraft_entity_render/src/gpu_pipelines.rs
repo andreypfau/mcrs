@@ -200,20 +200,26 @@ fn compute_header(library: &EntityLibrary) -> String {
             .replace("#{FIRST_COVER}", &first_cover.to_string())
 }
 
-/// The draw shader, with the sizes of the model and the variant tables.
-fn draw_source(models: usize, variants: usize) -> String {
+/// The draw shader, with the sizes of the model and the variant tables, for a depth target with
+/// the compare `depth_compare`: a later layer steps toward the side that the compare lets pass.
+fn draw_source(models: usize, variants: usize, depth_compare: wgpu::CompareFunction) -> String {
+    let layer_depth_step = match depth_compare {
+        wgpu::CompareFunction::Greater | wgpu::CompareFunction::GreaterEqual => "1.0 / 65536.0",
+        _ => "-1.0 / 65536.0",
+    };
     COMMON.to_owned()
         + GBUFFER_ENCODE_WGSL
         + SHADING
         + &DRAW
             .replace("#{MODELS}", &models.max(1).to_string())
             .replace("#{VARIANTS}", &variants.max(1).to_string())
+            .replace("#{LAYER_DEPTH_STEP}", layer_depth_step)
 }
 
-/// The forward draw shader of the figure view into a target of `color`.
-fn figure_source(tables: DrawTables, color: wgpu::TextureFormat) -> String {
-    draw_source(tables.models, tables.variants)
-        + &FIGURE.replace("#{TARGET_ENCODES}", &color.is_srgb().to_string())
+/// The forward draw shader of the figure view into `targets`.
+fn figure_source(tables: DrawTables, targets: FigureTargets) -> String {
+    draw_source(tables.models, tables.variants, targets.depth_compare)
+        + &FIGURE.replace("#{TARGET_ENCODES}", &targets.color.is_srgb().to_string())
 }
 
 /// The forward draws of the figure view: the face records with no cutout texel, then the others.
@@ -233,7 +239,7 @@ impl FigurePipelines {
     ) -> Self {
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("entity figure"),
-            source: wgpu::ShaderSource::Wgsl(figure_source(tables, targets.color).into()),
+            source: wgpu::ShaderSource::Wgsl(figure_source(tables, targets).into()),
         });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("entity figure"),
@@ -304,7 +310,11 @@ fn render_pipelines(
     };
     let draw_module = module(
         "entity draw",
-        &draw_source(library.models.len(), library.variants.len()),
+        &draw_source(
+            library.models.len(),
+            library.variants.len(),
+            targets.depth_compare,
+        ),
     );
     let draw_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("entity draw"),
@@ -567,7 +577,8 @@ mod tests {
 
     #[test]
     fn the_draw_shader_with_the_shared_gbuffer_include_is_valid_wgsl() {
-        naga::front::wgsl::parse_str(&draw_source(0, 0)).unwrap();
+        naga::front::wgsl::parse_str(&draw_source(0, 0, wgpu::CompareFunction::GreaterEqual))
+            .unwrap();
     }
 
     #[test]
@@ -708,7 +719,11 @@ mod tests {
         }
         check_bindings(
             "draw",
-            &draw_source(library.models.len(), library.variants.len()),
+            &draw_source(
+                library.models.len(),
+                library.variants.len(),
+                wgpu::CompareFunction::GreaterEqual,
+            ),
             &[
                 ("vertex", &layouts::DRAW),
                 ("fragment", &[(0, layouts::Slot::Frame)]),
@@ -722,7 +737,12 @@ mod tests {
                     models: library.models.len(),
                     variants: library.variants.len(),
                 },
-                wgpu::TextureFormat::Rgba8UnormSrgb,
+                FigureTargets {
+                    color: wgpu::TextureFormat::Rgba8UnormSrgb,
+                    depth: wgpu::TextureFormat::Depth32Float,
+                    depth_compare: wgpu::CompareFunction::LessEqual,
+                    sample_count: 1,
+                },
             ),
             &[
                 ("vertex", &layouts::DRAW),

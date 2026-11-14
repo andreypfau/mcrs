@@ -1,13 +1,9 @@
 //! The cull of a view keeps only the slots whose view set holds the bit of the view.
 //!
 //! ```sh
-//! cargo nextest run -p mcrs_minecraft_entity_render --run-ignored all
+//! cargo nextest run -p mcrs_minecraft_entity_render --test it --run-ignored all
 //! ```
-#![expect(clippy::unwrap_used, reason = "a test reports a failure by panicking")]
-
-#[expect(dead_code, reason = "the test uses a part of the test support")]
-mod support;
-
+use crate::support;
 use mcrs_minecraft_entity_render::{
     CULL_VALID, Capacities, CullRecord, EntityFrameCounts, EntityLibrary, EntityViews,
     FrameUniform, SlotArena, StateRecord, TickRecord, f16_up,

@@ -1,13 +1,9 @@
 //! The figure view draws a player into a target of its host with the fixed light of the figure.
 //!
 //! ```sh
-//! cargo nextest run -p mcrs_minecraft_entity_render --test figure_view --run-ignored all
+//! cargo nextest run -p mcrs_minecraft_entity_render --test it --run-ignored all
 //! ```
-#![expect(clippy::unwrap_used, reason = "a test reports a failure by panicking")]
-
-#[expect(dead_code, reason = "the test uses a part of the test support")]
-mod support;
-
+use crate::support;
 use glam::{Mat4, Vec3};
 use mcrs_minecraft_entity_render::{
     CULL_VALID, Capacities, CullRecord, EntityGpu, EntityLibrary, EntityPack, EntityViews,
