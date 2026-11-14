@@ -1,167 +1,129 @@
 use bevy_ecs::change_detection::DetectChanges;
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageReader;
+use bevy_ecs::query::Added;
+use bevy_ecs::query::Changed;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
 use bevy_ecs::world::Ref;
-use glam::DVec3;
 use mcrs_engine_muxer::EntityEvent;
 use mcrs_minecraft_engine::tile_events::TileEvents;
-use mcrs_minecraft_engine_item::Dropped;
+use mcrs_minecraft_engine_entity_motion_replication::Appearance;
+use mcrs_minecraft_engine_entity_motion_replication::MotionId;
+use mcrs_minecraft_engine_entity_motion_replication::PublishedTile;
 use mcrs_minecraft_engine_item::Stacks;
-use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::TileKey;
-use mcrs_minecraft_entity_rows::Placed;
-use mcrs_minecraft_entity_rows::RowStore;
 use mcrs_minecraft_item_stack::Count;
-use mcrs_minecraft_item_stack::ItemStack;
-use mcrs_minecraft_item_stack::write_wire;
 use mcrs_minecraft_item_table::ItemTable;
-use mcrs_minecraft_physics::EntityState;
-use mcrs_minecraft_protocol_game::ProtoStack;
-use mcrs_minecraft_registries::Wire;
 use mcrs_minecraft_replication::MobReport;
 use mcrs_minecraft_replication::MobSignal;
-use mcrs_minecraft_replication::MobSpawn;
-use mcrs_minecraft_replication::MobState;
-use mcrs_minecraft_replication::ReplicationData;
 use mcrs_minecraft_replication::SpawnLook;
-use mcrs_minecraft_wire::Decode;
-use rustc_hash::FxHashMap;
-use uuid::Uuid;
 
 use crate::ItemCollector;
 use crate::PickedUp;
-use crate::item_row::ItemRow;
-use crate::step_items::Stepped;
+use crate::wire_stack::wire_stack_of;
 
-/// The rows of the item entities that left the world in this tick, each in its tile.
+/// An item entity that left the world in this tick, with the tile in which its viewers know it.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Release {
+    pub(crate) id: EntityId,
+    pub(crate) tile: TileKey,
+}
+
+/// The item entities that left the world in this tick.
 #[derive(Resource, Debug, Default)]
-pub(crate) struct Released(pub(crate) Vec<Placed>);
+pub(crate) struct Released(pub(crate) Vec<Release>);
 
-/// Records the tile events of the item entities of the tick (IEN-NET-001 to IEN-NET-004): a
-/// spawn with the stack, the change of tile, a move, a new stack, and the removal, after the take
-/// of a pickup. The rows of item entities are not living, so the row store keeps no tile, move or
-/// crossing of them: the tile before the tick is the one of [`Dropped`], the tile after it the
-/// one of the position in [`Stepped`].
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one system reads each source of the events of the tick"
-)]
-pub(crate) fn publish_items<M: Send + Sync + 'static>(
-    rows: Res<RowStore<M>>,
-    stepped: Res<Stepped>,
-    items: Query<(Entity, Ref<ItemRow>, &Dropped, Ref<Count>)>,
-    collectors: Query<&ItemCollector>,
-    mut stacks: Stacks,
-    table: Res<ItemTable>,
+/// The takes of the pickups of this tick, by the network id of the item entity.
+#[derive(Resource, Debug, Default)]
+pub(crate) struct Takes(Vec<Take>);
+
+#[derive(Clone, Copy, Debug)]
+struct Take {
+    item: EntityId,
+    signal: MobSignal,
+}
+
+impl Takes {
+    fn of(&self, item: EntityId) -> Option<MobSignal> {
+        let at = self.0.binary_search_by_key(&item, |take| take.item).ok()?;
+        self.0.get(at).map(|take| take.signal)
+    }
+}
+
+/// Before the tile events of the motion: the take of each item entity that a pickup removed, so
+/// that it goes before the removal (IEN-NET-004), and the count of the stack in the spawn of each
+/// item entity whose stack changed before its spawn (IEN-NET-001).
+pub(crate) fn publish_takes(
     mut picked: MessageReader<PickedUp>,
+    collectors: Query<&ItemCollector>,
+    mut spawning: Query<(&Count, &mut Appearance), Added<MotionId>>,
+    mut takes: ResMut<Takes>,
     mut released: ResMut<Released>,
     mut events: ResMut<TileEvents>,
 ) {
-    let takes: FxHashMap<EntityId, EntityEvent<ReplicationData>> = picked
-        .read()
-        .filter_map(|pickup| {
-            let collector = collectors.get(pickup.collector).ok()?;
-            let take = MobReport::Signal(MobSignal::Taken {
+    takes.0.clear();
+    takes.0.extend(picked.read().filter_map(|pickup| {
+        let collector = collectors.get(pickup.collector).ok()?;
+        Some(Take {
+            item: pickup.item,
+            signal: MobSignal::Taken {
                 collector: collector.id,
                 amount: i32::from(pickup.count),
-            });
-            Some((pickup.item, EntityEvent::Data(take.into())))
+            },
         })
-        .collect();
-    let positions: FxHashMap<Entity, DVec3> = stepped
-        .0
-        .iter()
-        .map(|item| (item.stack, item.position))
-        .collect();
-    for (stack, row, dropped, count) in &items {
-        let Some(&position) = positions.get(&stack) else {
-            continue;
-        };
-        let tile = TileKey::at(position);
-        let Some(state) = rows.state_of(Placed { tile, id: row.id }) else {
-            continue;
-        };
-        if row.is_added() {
-            if let Some(wire) = stacks
-                .to_value(stack)
-                .and_then(|value| wire_stack(&value, &table))
-            {
-                events.push(
-                    tile,
-                    row.id,
-                    EntityEvent::Spawn(
-                        MobReport::Spawn(MobSpawn {
-                            kind: &EntityTypeData::ITEM,
-                            uuid: Uuid::from_u128(row.key.0),
-                            state: item_state(state),
-                            look: SpawnLook::Item(wire),
-                        })
-                        .into(),
-                    ),
-                );
-            }
-            continue;
-        }
-        let before = TileKey::at(dropped.pos);
-        if before != tile {
-            events.push(before, row.id, EntityEvent::Leave { to: tile });
-            events.push(tile, row.id, EntityEvent::Enter { from: before });
-        }
-        // ponytail: an item at rest on the ground sends no move; a velocity change at rest is not
-        // seen until it moves.
-        if position != dropped.pos || !state.body.flags.on_ground {
+    }));
+    takes.0.sort_unstable_by_key(|take| take.item);
+    for release in released.0.drain(..) {
+        if let Some(take) = takes.of(release.id) {
             events.push(
-                tile,
-                row.id,
-                EntityEvent::Move(MobReport::Move(item_state(state)).into()),
+                release.tile,
+                release.id,
+                EntityEvent::Data(MobReport::Signal(take).into()),
             );
         }
-        if count.is_changed()
-            && let Some(wire) = stacks
-                .to_value(stack)
-                .and_then(|value| wire_stack(&value, &table))
+    }
+    for (count, mut appearance) in &mut spawning {
+        let count = i32::from(count.get());
+        if let SpawnLook::Item(stack) = &mut appearance.bypass_change_detection().look
+            && stack.count != count
         {
-            // The take of a partial pickup goes first: the client subtracts it from the stack
-            // that it shows (IEN-PCK-005).
-            if let Some(take) = takes.get(&row.id) {
-                events.push(tile, row.id, take.clone());
-            }
+            stack.count = count;
+            appearance.set_changed();
+        }
+    }
+}
+
+/// After the tile events of the motion: the new stack of each item entity whose count changed
+/// after its spawn (IEN-NET-003), after the take of a partial pickup (IEN-PCK-005).
+pub(crate) fn publish_stacks(
+    items: Query<(Entity, Ref<MotionId>, &PublishedTile), Changed<Count>>,
+    mut stacks: Stacks,
+    table: Res<ItemTable>,
+    takes: Res<Takes>,
+    mut events: ResMut<TileEvents>,
+) {
+    for (stack, id, published) in &items {
+        if id.is_added() {
+            continue;
+        }
+        let Some(tile) = published.tile() else {
+            continue;
+        };
+        let Some(wire) = wire_stack_of(&mut stacks, &table, stack) else {
+            continue;
+        };
+        if let Some(take) = takes.of(id.0) {
             events.push(
                 tile,
-                row.id,
-                EntityEvent::Data(MobReport::Stack(wire).into()),
+                id.0,
+                EntityEvent::Data(MobReport::Signal(take).into()),
             );
         }
+        events.push(tile, id.0, EntityEvent::Data(MobReport::Stack(wire).into()));
     }
-    for at in core::mem::take(&mut released.0) {
-        if let Some(take) = takes.get(&at.id) {
-            events.push(at.tile, at.id, take.clone());
-        }
-        events.push(at.tile, at.id, EntityEvent::Despawn);
-    }
-}
-
-fn item_state(state: &EntityState) -> MobState {
-    MobState {
-        position: state.body.position,
-        velocity: state.body.velocity,
-        on_ground: state.body.flags.on_ground,
-        ..MobState::default()
-    }
-}
-
-// ponytail: the two stack models meet through the bytes of the wire; a direct conversion when
-// the protocol holds `ItemStack`.
-fn wire_stack(stack: &ItemStack, table: &ItemTable) -> Option<ProtoStack<Wire>> {
-    let mut bytes = Vec::new();
-    if let Err(error) = write_wire(Some(stack), table, &mut bytes) {
-        tracing::warn!("the stack of an item entity has no wire form: {error:?}");
-        return None;
-    }
-    ProtoStack::decode(&mut bytes.as_slice()).ok()
 }

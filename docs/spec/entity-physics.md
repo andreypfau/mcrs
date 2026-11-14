@@ -851,8 +851,9 @@ Here `g` is the effective gravity (PHY-GRV-002) and `drag` is the vertical air d
 
 **PHY-RST-004** (`source_suggested`, semantic, confidence: medium). A bounce occurs when `e > 0`
 gives a horizontal or a vertical change. A bounce calls the bounce action of the block at the
-effect position and emits the game event `bounce`. The server then sends the position of the
-entity to the clients immediately.
+effect position and emits the game event `bounce`. The tracker tick of the entity in the same server tick,
+after the entity ticks, is then an update (`entity-tracking.md`, TRK-UPD-011). A living entity
+does not get an update from the bounce; its path gets a step (TRK-UPD-005, step 2).
 
 ## 6. Gravity, drag and block effects
 
@@ -1522,8 +1523,8 @@ The parameters of the rows:
 - Item, push: on the server, shrink the box of an item by `1.0E-7`. If that box has a collision,
   the item has no physics in that tick, and the server pushes it to a free side.
 - `falling_block`, ground rule: on the server, before the drag, if the on-ground flag is true,
-  multiply `v` by `(0.7, -0.5, 0.7)`. Then the entity tries to become a block. This document
-  does not state that step.
+  multiply `v` by `(0.7, -0.5, 0.7)`. Then the entity tries to become a block:
+  `falling-block.md`, FBK-LND-001, states that step.
 - Primed TNT, ground rule: after the drag, if the on-ground flag is true, multiply `v` by
   `(0.7, -0.5, 0.7)`.
 - Experience orb: `G` applies only when the box has no collision and the eyes are not in water.
@@ -2460,33 +2461,40 @@ two position updates of the server.
 | own player | yes, with this model | only a teleport (PHY-SRV-010), with no interpolation | none |
 | other player | no | interpolation over 3 ticks | 2 |
 | living entity that is not a player | no. When no interpolation is active, the client multiplies its velocity by 0.98 in each tick. The client does not move it by the velocity. | interpolation over the update interval of the type | 3 by default |
-| item, falling block, primed TNT, arrow, thrown item, llama spit, accelerated projectile | yes, with this model, from the last state that the server sent | the client sets the position with no interpolation | item 20, falling block 20, TNT 10, arrow 20, thrown item 10 |
+| item, falling block, primed TNT, arrow, thrown item, llama spit, accelerated projectile | yes, with this model, from the last state that the server sent | the client sets the position with no interpolation | item 20, falling block 20, TNT 10, arrow 20, thrown item 10, llama spit 10, accelerated projectile 10 |
 | experience orb | yes, with this model | linear interpolation over 3 ticks | 20 |
 
-When the update is more than 64 blocks from the position of the client, the client sets the
-position with no interpolation.
+When an `entity_position_sync` is more than 64 blocks from the position of the client, the client
+sets the position with no interpolation. A relative move has no such check. The update interval is
+the periodic interval only: `entity-tracking.md`, section 7.1, adds updates between two periodic
+ones. TRK-TYPE-005 and TRK-CLI-003 of that document give the values and the client side of each
+type.
 
-**PHY-CMP-002** (`source_suggested`, wire, confidence: medium). The server sends a position update
-in one of two forms:
+**PHY-CMP-002** (`source_suggested_black_box_confirmed`, wire, confidence: high). The server sends
+a position update in one of two forms:
 
 - `move_entity_pos` and `move_entity_pos_rot` carry a change of position in units of `1/4096`
-  block. The unit value is `round(x × 4096)` of each coordinate. A change of more than 32767
-  units, about 8 blocks, needs the other form.
+  block. The unit value is `e(a) = floor(a × 4096 + 0.5)` of each coordinate
+  (`entity-tracking.md`, TRK-WIRE-001). A change outside `[−32768, 32767]` units on an axis, about
+  8 blocks, needs the other form.
 - `entity_position_sync` carries the position as three f64 values.
 
-The server also uses the f64 form in these cases:
+`entity-tracking.md` states the rule: TRK-UPD-001 and TRK-UPD-011 give the ticks of an update, and
+TRK-UPD-003 selects the form at an update. In short:
 
-- the on-ground flag changed;
-- the entity needs a precise position;
-- more than 400 updates occurred after the last f64 form;
-- the entity stopped a ride.
+- The position is due when the change from the last sent position has a squared length of at
+  least `7.6293945E-6F`, about `0.00276` block, or when the tick is each 60th tracker tick. An
+  arrow has the position due at each update (TRK-UPD-014).
+- The f64 form comes at an update, also when the position is not due, when the on-ground flag
+  changed, the precise mark is set, the update count is more than 400, or the entity stopped a
+  ride. Only these cases set the count to 0.
+- A `falling_block` and a primed TNT set the precise mark from the collision flags of their last
+  move (TRK-UPD-012). The mark selects the form; it does not make an update.
+- An item uses the f64 form when its relative move fits but the condition of TRK-UPD-013 is true.
 
-A `falling_block` and a primed TNT need a precise position after each tick with a collision flag.
-An item needs it when it collides and the unit value loses precision. The server sends a position
-only in two cases. In the first case, the change from the last sent position has a squared length
-of at least `7.6293945E-6F`, about `0.00276` block. In the second case, the tick is each 60th tick
-of the tracker. It sends `set_entity_motion` at an update when
-the velocity changed by a squared distance of more than `1.0E-7`.
+The server sends `set_entity_motion` at an update when the type tracks velocity or the entity has
+the "needs sync" mark, and the velocity changed by a squared distance of more than `1.0E-7`, or
+changed to zero (TRK-UPD-007).
 
 **PHY-CMP-003** (`source_suggested`, semantic, confidence: medium). Let `δ` be the difference
 between the position of the server and the result of the exact model. A player sees this:

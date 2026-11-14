@@ -94,9 +94,22 @@ pub struct RowMoves;
 
 /// The tables of the kernel, from the block definitions and tags of the world.
 #[derive(Resource, Debug)]
-pub struct PhysicsTables(pub(crate) Tables);
+pub struct PhysicsTables(Tables);
 
 impl PhysicsTables {
+    /// The resource of `tables`, which must be built from the block definitions and tags of the
+    /// world that the passes read.
+    #[must_use]
+    pub fn new(tables: Tables) -> Self {
+        Self(tables)
+    }
+
+    /// The tables that a pass hands to the kernel for each step.
+    #[must_use]
+    pub fn tables(&self) -> &Tables {
+        &self.0
+    }
+
     /// The block shapes, flags and path types that the entity pass and the mob AI read.
     #[must_use]
     pub fn collision(&self) -> &CollisionTable {
@@ -170,7 +183,9 @@ fn build_tables(mut commands: Commands, blocks: Res<Blocks>, registries: Res<Cur
         tracing::error!("the registries declare no block tags; entities keep their tables");
         return;
     };
-    commands.insert_resource(PhysicsTables(Tables::new(collision_table(&blocks, &tags))));
+    commands.insert_resource(PhysicsTables::new(Tables::new(collision_table(
+        &blocks, &tags,
+    ))));
 }
 
 fn find_crowd_damage_type(mut found: ResMut<CrowdDamageType>, registries: Res<CurrentRegistries>) {

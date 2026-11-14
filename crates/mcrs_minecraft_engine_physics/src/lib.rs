@@ -14,6 +14,8 @@ mod mobs;
 #[cfg(feature = "testing")]
 mod test_scene;
 
+pub use block_world::BlockSection;
+pub use block_world::BlockWorld;
 pub use entity_physics_plugin::EntityPass;
 pub use entity_physics_plugin::EntityPhysicsPlugin;
 pub use entity_physics_plugin::MobPublish;

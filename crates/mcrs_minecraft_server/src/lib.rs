@@ -1,3 +1,4 @@
+mod entity_motion;
 mod item_entities;
 pub mod operator_broadcast;
 mod vanilla_blocks;
