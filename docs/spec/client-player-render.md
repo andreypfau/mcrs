@@ -24,7 +24,9 @@ architecture.
   skin of the player.
 - **Host**: a program that uses the client crates with no server, and that adds and moves the
   players itself.
-- File space, internal space and box UV: as `entity-geometry.md` defines them.
+- File space, internal space, model unit, box UV, bone and rest pose: as `entity-geometry.md`
+  defines them.
+- **Bend**: a turn in the middle of an arm, of a leg or of the body.
 
 ### 0.2 Provenance and confidence
 
@@ -37,7 +39,7 @@ experiment.
 
 | Prefix | Subject |
 |--------|---------|
-| `CPR-MODEL` | the boxes of the model |
+| `CPR-MODEL` | the boxes and the bones of the model |
 | `CPR-SKIN` | the skin image and where it comes from |
 | `CPR-POSE` | head, walk and crouch |
 | `CPR-HOST` | players that a host adds |
@@ -47,7 +49,9 @@ experiment.
 
 In scope: a player that the server adds with the entity type `minecraft:player`, and a player
 that a host adds. Out of scope: the name tag, the cape, the elytra, items in hands, armour, the
-swing of an arm, sleep, swimming, flight with elytra and the skin parts that a player hides.
+swing of an arm, sleep, swimming, flight with elytra, the bend and the skin parts that a player
+hides. The bones of the cape, of the elytra and of the items are in scope (CPR-MODEL-002). The
+client draws nothing on them.
 
 ---
 
@@ -72,15 +76,91 @@ swing of an arm, sleep, swimming, flight with elytra and the skin parts that a p
 | left leg | `(1.9, 12, 0)` | `(−0.1, 0, −2)` | `(4, 12, 4)` | `[16, 48]` | `[0, 48]` |
 
   2. Each box of the second layer has the box of its part, grown by `0.5` on each side for the
-     head and by `0.25` for the other parts. It moves with its part.
-  3. `assets/mcrs/entity/geometry/player.json` is generated from the model artefact
-     `entity_models.json`, layers `minecraft:player` / `main` and `minecraft:player_slim` /
-     `main`.
+     head and by `0.25` for the other parts.
+  3. `assets/mcrs/entity/geometry/player.json` is generated. The boxes come from the model
+     artefact `entity_models.json`, layers `minecraft:player` / `main` and
+     `minecraft:player_slim` / `main`. The bones and their parents come from CPR-MODEL-002.
 - **Postconditions:** the top of the head is 2 blocks above the feet. A slim model is 1 texel
   narrower at each arm.
 
 Provenance: `black_box_confirmed` (the model artefact `entity_models.json`). Kind: semantic.
 Confidence: high.
+
+### CPR-MODEL-002: Bones of the model
+
+- **Inputs:** the model type.
+- **Behavior:**
+  1. The model has these bones. The name of a bone is the address that an animation and a
+     resource pack use.
+  2. A pivot is in file space, in model units. A model type that the table does not name
+     separately has the pivot of the column "Pivot, wide".
+
+| Bone | Parent | Pivot, wide | Pivot, slim | Boxes |
+|------|--------|-------------|-------------|-------|
+| `root` | none | `(0, 0, 0)` | | none |
+| `waist` | `root` | `(0, 12, 0)` | | none |
+| `body` | `waist` | `(0, 24, 0)` | | body, first layer |
+| `jacket` | `body` | `(0, 24, 0)` | | body, second layer |
+| `head` | `waist` | `(0, 24, 0)` | | head, first layer |
+| `hat` | `head` | `(0, 24, 0)` | | head, second layer |
+| `cape` | `waist` | `(0, 24, 2)` | | none |
+| `elytra` | `waist` | `(0, 24, 2)` | | none |
+| `right_arm` | `waist` | `(−5, 22, 0)` | | right arm, first layer |
+| `right_sleeve` | `right_arm` | `(−5, 22, 0)` | | right arm, second layer |
+| `right_item` | `right_arm` | `(−6, 12, −2)` | `(−5.5, 12, −2)` | none |
+| `left_arm` | `waist` | `(5, 22, 0)` | | left arm, first layer |
+| `left_sleeve` | `left_arm` | `(5, 22, 0)` | | left arm, second layer |
+| `left_item` | `left_arm` | `(6, 12, −2)` | `(5.5, 12, −2)` | none |
+| `right_leg` | `root` | `(−1.9, 12, 0)` | | right leg, first layer |
+| `right_pants` | `right_leg` | `(−1.9, 12, 0)` | | right leg, second layer |
+| `left_leg` | `root` | `(1.9, 12, 0)` | | left leg, first layer |
+| `left_pants` | `left_leg` | `(1.9, 12, 0)` | | left leg, second layer |
+
+  3. No bone has a rest rotation.
+  4. A bone with no box draws nothing. An animation can turn it and move it, and its children
+     follow.
+  5. The body, the head and each arm are children of `waist`, not of each other. A turn of
+     `body` does not turn the head or an arm.
+- **Postconditions:** a turn of `root` turns the full model about the feet. A turn of `waist`
+  turns the body, the head and the arms about the hip, and the legs stay. The front of the model
+  is the side of negative Z.
+
+Provenance: `black_box_confirmed` for the pivots of the bones with boxes (the model artefact
+`entity_models.json`); `design` for the parents and for the bones with no box. Kind: semantic.
+Confidence: high.
+
+### CPR-MODEL-003: The second layer follows the first layer
+
+- **Inputs:** the pose of a bone of the first layer.
+- **Behavior:** each bone of the second layer is a child of the bone of the first layer of the
+  same part. It has the same pivot. The client does not animate a bone of the second layer.
+- **Postconditions:** a hat, a jacket, a sleeve and a trouser leg stay around their part in each
+  pose.
+
+Provenance: `design`. Kind: semantic. Confidence: high.
+
+### CPR-MODEL-004: No bend
+
+- **Inputs:** none.
+- **Behavior:** each arm and each leg is one box of 12 model units on one bone. The body is one
+  box on one bone. The model has no bend.
+- **Postconditions:** an arm, a leg and the body stay straight in each pose.
+
+Provenance: `design`. Kind: semantic. Confidence: high.
+
+### CPR-MODEL-005: The bone set is stable
+
+- **Inputs:** a later version of this document.
+- **Behavior:**
+  1. A later version can add a bone. A new bone has no rest rotation.
+  2. A later version does not change the name or the pivot of a bone of CPR-MODEL-002, and it
+     does not remove such a bone.
+  3. A later version can put a new bone between a bone and its parent. In the rest pose, each
+     box stays where it is.
+- **Postconditions:** an animation that names only bones of CPR-MODEL-002 gives the same pose
+  after such a change. A bend can come later with new bones for the lower half of a part.
+
+Provenance: `design`. Kind: semantic. Confidence: high.
 
 ## 2. Skin
 
@@ -163,12 +243,14 @@ and 2, design for items 3 to 5. Confidence: high.
 All rotations are animation rotations in file space (`entity-animation.md`): a positive X
 rotation turns the front of a bone down.
 
+No rule of this section moves `root` or `waist`. Thus each angle and each move of this section
+is relative to the model.
+
 ### CPR-POSE-001: Head
 
 - **Inputs:** the frame values of `client-entities.md`, CENTS-FRAME-001.
 - **Behavior:** the head turns by the head pitch about X and by the head yaw less the body yaw
-  about Y. These are the queries `target_x_rotation` and `target_y_rotation`. The second layer of
-  the head turns with it.
+  about Y. These are the queries `target_x_rotation` and `target_y_rotation`.
 - **Postconditions:** the body follows the movement and the head keeps its own yaw
   (`client-entities.md`, CENTS-BODY-002).
 
