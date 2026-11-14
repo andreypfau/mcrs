@@ -18,6 +18,7 @@ use mcrs_minecraft_engine_physics::EntityPhysicsPlugin;
 use mcrs_minecraft_engine_server::{DimensionWorldsPlugin, ServerCorePlugin, ServerNetworkPlugin};
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_entity::damage_type_tag_keys::PANIC_CAUSES;
+use mcrs_minecraft_vanilla_attributes::{CreativeRangePlugin, SprintAttributePlugin};
 use mcrs_minecraft_vanilla_block_place::BlockPlacePlugin;
 use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
 use mcrs_minecraft_vanilla_light::LightingPlugin;
@@ -80,6 +81,8 @@ impl PluginGroup for MinecraftServerPlugins {
             .add(VanillaChatPlugin)
             .add(VanillaEntityPhysicsPlugin)
             .add(VanillaEntityAttributesPlugin)
+            .add(VanillaSprintAttributePlugin)
+            .add(VanillaCreativeRangePlugin)
             .add(VanillaItemEntityPlugin)
             .add(VanillaBlocksPlugin)
             .add(VanillaMobBrainPlugin)
@@ -107,6 +110,26 @@ pub struct VanillaEntityAttributesPlugin;
 impl Plugin for VanillaEntityAttributesPlugin {
     fn build(&self, app: &mut App) {
         app.add_dimension_plugin(EntityAttributesPlugin::<MobColumn>::default());
+    }
+}
+
+/// The modifier of the sprint state on `movement_speed` in every dimension world. It edits the
+/// instances of [`VanillaEntityAttributesPlugin`].
+pub struct VanillaSprintAttributePlugin;
+
+impl Plugin for VanillaSprintAttributePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_dimension_plugin(SprintAttributePlugin);
+    }
+}
+
+/// The range modifiers of creative mode in every dimension world. It edits the instances of
+/// [`VanillaEntityAttributesPlugin`].
+pub struct VanillaCreativeRangePlugin;
+
+impl Plugin for VanillaCreativeRangePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_dimension_plugin(CreativeRangePlugin);
     }
 }
 

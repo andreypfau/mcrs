@@ -6342,6 +6342,7 @@ dependencies = [
  "mcrs_minecraft_simulation",
  "mcrs_minecraft_text",
  "mcrs_minecraft_text_flatten",
+ "mcrs_minecraft_vanilla_attributes",
  "mcrs_minecraft_vanilla_block_place",
  "mcrs_minecraft_vanilla_inventory",
  "mcrs_minecraft_vanilla_item_entity",
@@ -6492,6 +6493,21 @@ dependencies = [
  "mcrs_minecraft_snbt",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "mcrs_minecraft_vanilla_attributes"
+version = "0.5.8"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "mcrs_minecraft_engine",
+ "mcrs_minecraft_engine_attributes",
+ "mcrs_minecraft_engine_world",
+ "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_attribute",
+ "mcrs_minecraft_game_mode",
+ "mcrs_minecraft_resource",
 ]
 
 [[package]]

@@ -73,6 +73,7 @@ mod player_bundle;
 mod player_dimension_change;
 pub mod player_order;
 pub mod player_roster;
+pub mod player_sprinting;
 pub mod player_state;
 mod player_tracker;
 mod player_view;

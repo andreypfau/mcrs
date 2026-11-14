@@ -63,6 +63,7 @@ mod probe_bans;
 mod run_server_loop_exit;
 mod schedule_ambiguity;
 mod session_lifecycle;
+mod sprint_attribute;
 mod subapp_lifecycle;
 mod support;
 mod teleport_confirmation;

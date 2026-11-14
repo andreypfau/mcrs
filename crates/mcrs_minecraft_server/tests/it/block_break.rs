@@ -49,8 +49,8 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol_game::player::PlayerAction;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundPlayerAction;
 use mcrs_minecraft_server::{
-    VanillaBlocksPlugin, VanillaEntityAttributesPlugin, VanillaEntityPhysicsPlugin,
-    VanillaItemEntityPlugin,
+    VanillaBlocksPlugin, VanillaCreativeRangePlugin, VanillaEntityAttributesPlugin,
+    VanillaEntityPhysicsPlugin, VanillaItemEntityPlugin,
 };
 use mcrs_minecraft_simulation::BlockUpdateFlags;
 use mcrs_voxel::{BlockPos, BlockStateId, ColumnPos, LocalPos, SectionPos};
@@ -1535,6 +1535,43 @@ fn brk_srv_012_the_reach_is_5_5_blocks_in_survival_mode() {
         assert_eq!(answer.watcher, watcher, "{distance}");
         assert_eq!(answer.breaker.last().unwrap(), "ack 10", "{distance}");
     }
+}
+
+/// ATR-SRC-003: creative mode adds 0.5 to `block_interaction_range`, so the reach is 6.0 blocks,
+/// and a change back to survival mode takes the 0.5 away.
+#[test]
+fn atr_src_003_creative_mode_reaches_a_block_that_survival_mode_does_not() {
+    let mut app = host_app::make_host_app();
+    app.add_plugins((VanillaEntityAttributesPlugin, VanillaCreativeRangePlugin));
+    let mut server = PlayServer::start(app, &[], 0);
+    let sub_app = host_app::sub_app(&mut server.app, server.dim);
+    sub_app.init_resource::<Captured>();
+    sub_app.add_systems(Last, capture);
+    let stone = default_state(&mut server, STONE);
+    let breaker = digger_at(&mut server, stone, NEAR);
+    let player = server.player(breaker.anchor);
+    let eye = NEAR.as_dvec3() + DVec3::new(-5.75, 0.5, 0.5);
+    server
+        .world()
+        .get_mut::<Transform>(player)
+        .unwrap()
+        .translation = eye - DVec3::new(0.0, 1.62, 0.0);
+
+    server.world().get_mut::<PlayerGameMode>(player).unwrap().0 = GameMode::Creative;
+    ticks(&mut server, 1);
+    let creative = send(&mut server, &breaker, &start_action(NEAR, 5));
+    place(&mut server, &breaker, NEAR, stone);
+    server.world().get_mut::<PlayerGameMode>(player).unwrap().0 = GameMode::Survival;
+    ticks(&mut server, 1);
+    let survival = step(&mut server, &breaker, &start_action(NEAR, 10));
+
+    assert_eq!(
+        answers(&creative, &breaker, NEAR).breaker,
+        ["block_update 0", "ack 5"]
+    );
+    let survival = answers(&survival, &breaker, NEAR);
+    assert_eq!(survival.breaker, ["ack 10"]);
+    assert_eq!(survival.watcher, Vec::<String>::new());
 }
 
 #[test]
