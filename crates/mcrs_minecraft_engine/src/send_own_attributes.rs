@@ -1,6 +1,7 @@
 use bevy_ecs::change_detection::{DetectChanges, Ref};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
+use bevy_ecs::schedule::SystemSet;
 use bevy_ecs::system::{Local, Query, ResMut};
 use mcrs_engine_muxer::EntityEvent;
 use mcrs_minecraft_engine_attributes::{AttributeChanged, AttributeTarget, Attributes};
@@ -14,6 +15,11 @@ use crate::bus::{OutboundPlayerPacket, PacketPayload, to};
 use crate::network_id::player_network_id;
 use crate::replicated::Replicated;
 use crate::tile_events::TileEvents;
+
+/// The system that sends each player its own attribute instances and records the changed
+/// instances of a published player in the tile events.
+#[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct OwnAttributesSet;
 
 /// Gives the client of each player one `update_attributes` about its own entity, inside the
 /// probes of its prediction (MVC-PKT-031). It holds the state of each syncable instance that an

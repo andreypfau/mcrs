@@ -8,10 +8,9 @@ use mcrs_minecraft_command_vanilla::{VanillaCommands, VanillaCommandsPlugin};
 use mcrs_minecraft_engine::bus::{PacketPayload, to};
 use mcrs_minecraft_engine::muxer::bridge::dispatch_encode;
 use mcrs_minecraft_engine::muxer::bridge_queue::OutboundQueue;
-use mcrs_minecraft_engine_attributes::{
-    AttributeEdit, AttributeTarget, InstanceEdit, RowAttributes,
-};
+use mcrs_minecraft_engine_attributes::{AttributeEdit, AttributeTarget, InstanceEdit};
 use mcrs_minecraft_engine_brain::EntityRows;
+use mcrs_minecraft_engine_mob_attributes::RowAttributes;
 use mcrs_minecraft_engine_physics::Mobs;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
