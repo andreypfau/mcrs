@@ -1,9 +1,5 @@
 use mcrs_minecraft_entity::EntityTypeData;
-use mcrs_minecraft_entity::attribute_keys::Attribute;
-use mcrs_minecraft_entity_attribute::Modifier;
-use mcrs_minecraft_entity_attribute::fold;
 use mcrs_minecraft_entity_visual::{SyncedData, UPSIDE_DOWN_NAMES, VariantId};
-use mcrs_minecraft_protocol_game::clientbound::AttributeSnapshot;
 use mcrs_minecraft_protocol_game::entity::{MetaDataValue, MetadataEntry};
 use mcrs_minecraft_protocol_game::entity_data_index::{
     AGE_LOCKED, BABY, CUSTOM_NAME, HEALTH, LIVING_FLAGS, MOB_FLAGS, NAME_VISIBLE, POSE,
@@ -49,18 +45,6 @@ fn apply_entry(synced: &mut SyncedData, data: Option<&EntityTypeData>, entry: &M
     }
 }
 
-/// Takes the scale from the attributes of an attributes packet into `synced`.
-pub fn apply_attributes<'a>(
-    synced: &mut SyncedData,
-    attributes: impl IntoIterator<Item = &'a AttributeSnapshot<'a>>,
-) {
-    for attribute in attributes {
-        if attribute.attribute == Attribute::Scale {
-            synced.scale = attribute_value(attribute);
-        }
-    }
-}
-
 fn is_upside_down_name(name: &Text) -> bool {
     let mut plain = String::new();
     push_plain(name, &mut plain);
@@ -74,16 +58,6 @@ fn push_plain(text: &Text, plain: &mut String) {
     for child in &text.extra {
         push_plain(child, plain);
     }
-}
-
-/// The value of the attribute by the modifiers that the packet holds, limited to the range of
-/// `scale`.
-fn attribute_value(attribute: &AttributeSnapshot<'_>) -> f64 {
-    let modifiers = attribute.modifiers.iter().copied().map(Modifier::from);
-    Attribute::Scale
-        .definition()
-        .range
-        .clamp(fold(attribute.base, modifiers))
 }
 
 #[cfg(test)]

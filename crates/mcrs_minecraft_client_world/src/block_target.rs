@@ -1,8 +1,10 @@
 use bevy::math::{DVec3, IVec3};
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::voxel_shape::Aabb;
-use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_voxel::BlockPos;
+
+use crate::attribute_instances::AttributeInstances;
 
 /// The ranges of the player, as the attributes `minecraft:block_interaction_range` and
 /// `minecraft:entity_interaction_range` give them.
@@ -13,24 +15,13 @@ pub struct Reach {
 }
 
 impl Reach {
-    const BASE: Reach = Reach {
-        block: 4.5,
-        entity: 3.0,
-    };
-    const CREATIVE: Reach = Reach {
-        block: 5.0,
-        entity: 5.0,
-    };
-
-    /// The client does not read `update_attributes` yet, so it takes the values that a vanilla
-    /// server gives each game mode: the base values, and in creative mode the creative range
-    /// modifiers added to them.
+    /// The values of both range attributes, or `None` when the type of the entity lacks either one.
     #[must_use]
-    pub fn of(mode: GameMode) -> Reach {
-        match mode {
-            GameMode::Creative => Reach::CREATIVE,
-            _ => Reach::BASE,
-        }
+    pub fn from_instances(instances: &AttributeInstances) -> Option<Reach> {
+        Some(Reach {
+            block: instances.value(Attribute::BlockInteractionRange)?,
+            entity: instances.value(Attribute::EntityInteractionRange)?,
+        })
     }
 
     fn ray_length(self) -> f64 {
@@ -191,6 +182,11 @@ fn facing_against(direction: DVec3, axis: usize) -> Direction {
 mod tests {
     use super::*;
     use bevy::math::Vec3;
+    use mcrs_minecraft_entity::AttributeBases;
+    use mcrs_minecraft_entity::entity_type_keys::EntityType;
+    use mcrs_minecraft_entity_attribute::{AttributeModifier, ModifierOperation};
+    use mcrs_minecraft_protocol_game::clientbound::AttributeSnapshot;
+    use mcrs_minecraft_resource::rl;
 
     const FULL: &[Aabb] = &[Aabb {
         min: Vec3::ZERO,
@@ -201,6 +197,45 @@ mod tests {
         max: Vec3::new(1.0, 0.5, 1.0),
     }];
 
+    fn player() -> AttributeInstances {
+        AttributeInstances::new(
+            AttributeBases::of(EntityType::Player).expect("a player has attributes"),
+        )
+    }
+
+    fn reach(instances: &AttributeInstances) -> Reach {
+        Reach::from_instances(instances).expect("a player has both ranges")
+    }
+
+    /// The instances after the entries that a vanilla server sends a player in creative mode
+    /// (ATR-SRC-003).
+    fn creative() -> AttributeInstances {
+        let mut instances = player();
+        for entry in [
+            AttributeSnapshot {
+                attribute: Attribute::BlockInteractionRange,
+                base: 4.5,
+                modifiers: vec![AttributeModifier {
+                    id: rl!("minecraft:creative_mode_block_range"),
+                    amount: 0.5,
+                    operation: ModifierOperation::AddValue,
+                }],
+            },
+            AttributeSnapshot {
+                attribute: Attribute::EntityInteractionRange,
+                base: 3.0,
+                modifiers: vec![AttributeModifier {
+                    id: rl!("minecraft:creative_mode_entity_range"),
+                    amount: 2.0,
+                    operation: ModifierOperation::AddValue,
+                }],
+            },
+        ] {
+            instances.receive(&entry);
+        }
+        instances
+    }
+
     fn one_block(at: BlockPos, shape: &'static [Aabb]) -> impl Fn(BlockPos) -> &'static [Aabb] {
         move |pos| if pos == at { shape } else { &[] }
     }
@@ -210,13 +245,8 @@ mod tests {
         let block = BlockPos::new(3, 64, -2);
         let eye = DVec3::new(0.5, 66.62, -1.5);
         let direction = (DVec3::new(3.5, 65.0, -1.5) - eye).normalize();
-        let hit = block_target(
-            eye,
-            direction,
-            Reach::of(GameMode::Creative),
-            one_block(block, FULL),
-        )
-        .expect("the ray reaches the top of the block");
+        let hit = block_target(eye, direction, reach(&creative()), one_block(block, FULL))
+            .expect("the ray reaches the top of the block");
         assert_eq!((hit.pos, hit.face), (block, Direction::Up));
         assert!((hit.point.y - 65.0).abs() < 1e-9, "{:?}", hit.point);
     }
@@ -230,7 +260,7 @@ mod tests {
             pos if pos == behind => FULL,
             _ => &[],
         };
-        let reach = Reach::of(GameMode::Creative);
+        let reach = reach(&creative());
         let east = DVec3::X;
 
         let above_the_slab = block_target(DVec3::new(0.5, 0.75, 0.5), east, reach, outline_at);
@@ -247,9 +277,10 @@ mod tests {
         let block = BlockPos::new(0, 0, 5);
         let north = DVec3::Z;
         let eye = |z: f64| DVec3::new(0.5, 0.25, z);
-        let creative = Reach::of(GameMode::Creative);
-        let survival = Reach::of(GameMode::Survival);
+        let survival = reach(&player());
+        let creative = reach(&creative());
 
+        assert!(block_target(eye(0.01), north, survival, one_block(block, FULL)).is_none());
         assert!(block_target(eye(0.01), north, creative, one_block(block, FULL)).is_some());
         assert!(block_target(eye(0.0), north, creative, one_block(block, FULL)).is_none());
         assert!(block_target(eye(0.0), north, survival, one_block(block, FULL)).is_none());
@@ -264,7 +295,7 @@ mod tests {
         let hit = block_target(
             eye,
             down_and_east,
-            Reach::of(GameMode::Creative),
+            reach(&creative()),
             one_block(block, FULL),
         )
         .expect("the eye is inside the block");

@@ -5,6 +5,7 @@
 #[cfg(not(target_family = "wasm"))]
 pub mod asset_source;
 pub mod attack_input;
+pub mod attribute_instances;
 pub mod block_breaking;
 pub mod block_prediction;
 pub mod block_target;

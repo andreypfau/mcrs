@@ -135,6 +135,21 @@ impl AttributeSet {
         })
     }
 
+    /// Removes every modifier of the instance and keeps its base; `Unchanged` when it has none.
+    pub fn clear_modifiers(
+        &mut self,
+        bases: AttributeBases,
+        attribute: Attribute,
+    ) -> Result<InstanceChange, AttributeError> {
+        self.change(bases, attribute, |instance| {
+            if instance.modifiers.is_empty() {
+                return InstanceChange::Unchanged;
+            }
+            instance.modifiers.clear();
+            InstanceChange::Changed
+        })
+    }
+
     /// The instance of `attribute`, or `None` when it has the base of the type and no modifier.
     #[must_use]
     pub fn instance(&self, attribute: Attribute) -> Option<&AttributeInstance> {

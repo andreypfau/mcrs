@@ -1,6 +1,9 @@
 use bevy_ecs::prelude::*;
 use glam::DVec3;
+use mcrs_minecraft_client_world::attribute_instances::AttributeInstances;
 use mcrs_minecraft_client_world::columns::ColumnStore;
+use mcrs_minecraft_client_world::joined_game::JoinedGame;
+use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity_visual::{
     Age, ClientEntity, Equipment, Living, Motion, PacketPath, Placement, Rotation, SNAP_DISTANCE,
     ServerTicking, SyncedData, in_ticking_area, move_entity,
@@ -16,7 +19,7 @@ use mcrs_minecraft_protocol_game::clientbound::{
 };
 use mcrs_minecraft_protocol_game::{ByteAngle, PositionFlag};
 
-use crate::apply_entity_data::{apply_attributes, apply_entity_data};
+use crate::apply_entity_data::apply_entity_data;
 use crate::delta;
 use crate::network_entities::NetworkEntities;
 
@@ -82,6 +85,9 @@ fn on_add_entity(
     match client.type_data() {
         Some(data) if data.is_living() => {
             spawned.insert((Living::new(degrees(packet.head_yaw)), Equipment::default()));
+            if let Some(bases) = data.attribute_bases() {
+                spawned.insert(AttributeInstances::new(bases));
+            }
         }
         Some(_) => {}
         None => tracing::debug!(
@@ -333,13 +339,32 @@ fn on_set_equipment(
 fn on_update_attributes(
     event: On<Received<ClientboundUpdateAttributes<'static>>>,
     entities: Res<NetworkEntities>,
-    mut data: Query<&mut SyncedData>,
+    connections: Query<&JoinedGame>,
+    mut living: Query<(&mut AttributeInstances, Option<&mut SyncedData>)>,
 ) {
-    if let Some(packet) = event.packet()
-        && let Some(entity) = entities.get(packet.entity_id.0)
-        && let Ok(mut data) = data.get_mut(entity)
+    let Some(packet) = event.packet() else {
+        return;
+    };
+    let network_id = packet.entity_id.0;
+    let own = connections
+        .get(event.entity)
+        .is_ok_and(|joined| joined.player_id == network_id);
+    if own {
+        return;
+    }
+    let Some(entity) = entities.get(network_id) else {
+        return;
+    };
+    let Ok((mut instances, data)) = living.get_mut(entity) else {
+        return;
+    };
+    for entry in &packet.attributes {
+        instances.receive(entry);
+    }
+    if let Some(data) = data
+        && let Some(scale) = instances.value(Attribute::Scale)
     {
-        apply_attributes(&mut data, &packet.attributes);
+        data.map_unchanged(|data| &mut data.scale).set_if_neq(scale);
     }
 }
 
