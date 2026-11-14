@@ -32,7 +32,6 @@ pub fn check(root: &Path) -> Result<String, String> {
             .args([
                 "tree",
                 "--locked",
-                "--offline",
                 "--config",
                 "resolver.feature-unification=\"selected\"",
                 "--package",
@@ -43,7 +42,6 @@ pub fn check(root: &Path) -> Result<String, String> {
                 "depth",
                 "--format",
                 "{p}",
-                "--no-dedupe",
                 "--color",
                 "never",
                 "--target",
@@ -128,6 +126,10 @@ mod tests {
                 Some("ping -> bevy"),
             ),
             ("0ping v0.1.0\n1network v0.1.0\n2tokio v0.1.0\n", None),
+            (
+                "0ping v0.1.0\n1network v0.1.0\n2tokio v0.1.0\n1tokio v0.1.0 (*)\n1bevy v0.1.0\n",
+                Some("ping -> bevy"),
+            ),
         ] {
             let result = check_tree("ping", &forbidden, tree);
             match expected {
@@ -150,10 +152,29 @@ mod tests {
 #[cfg(test)]
 #[test]
 fn resolves_normal_dependencies_without_test_features() {
-    use std::sync::LazyLock;
-    static FIXTURE: LazyLock<std::path::PathBuf> = LazyLock::new(|| {
-        let root =
-            std::env::temp_dir().join(format!("mcrs-example-dependencies-{}", std::process::id()));
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct Fixture(PathBuf);
+
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    let root = std::env::temp_dir().join(format!(
+        "mcrs-example-dependencies-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir(&root).unwrap();
+    let fixture = Fixture(root);
+    {
+        let root = &fixture.0;
         fs::create_dir_all(root.join("examples/probe/src")).unwrap();
         fs::create_dir_all(root.join("bridge/src")).unwrap();
         fs::create_dir_all(root.join("forbidden/src")).unwrap();
@@ -182,8 +203,7 @@ fn resolves_normal_dependencies_without_test_features() {
             "{\"probe\":[\"forbidden\"]}",
         )
         .unwrap();
-        root
-    });
+    }
     for (dependencies, expected) in [
         (
             "[dependencies]\nbridge = { path = \"../../bridge\" }\n[dev-dependencies]\nbridge = { path = \"../../bridge\", features = [\"forbidden\"] }\n",
@@ -201,17 +221,17 @@ fn resolves_normal_dependencies_without_test_features() {
         let manifest = format!(
             "[package]\nname = \"probe\"\nversion = \"0.1.0\"\nedition = \"2024\"\n{dependencies}"
         );
-        fs::write(FIXTURE.join("examples/probe/Cargo.toml"), manifest).unwrap();
+        fs::write(fixture.0.join("examples/probe/Cargo.toml"), manifest).unwrap();
         let status = Command::new("cargo")
             .args(["generate-lockfile", "--offline"])
-            .current_dir(&*FIXTURE)
+            .current_dir(&fixture.0)
             .status()
             .unwrap();
         assert!(
             status.success(),
             "the local fixture must resolve without a registry"
         );
-        let result = check(&FIXTURE);
+        let result = check(&fixture.0);
         match expected {
             Some(path) => assert!(
                 result.unwrap_err().contains(path),
@@ -223,4 +243,10 @@ fn resolves_normal_dependencies_without_test_features() {
             ),
         }
     }
+    let path = fixture.0.clone();
+    drop(fixture);
+    assert!(
+        !path.exists(),
+        "the fixture must remove its temporary workspace"
+    );
 }
