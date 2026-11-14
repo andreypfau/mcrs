@@ -3,6 +3,7 @@ use bevy_ecs::query::With;
 use glam::DVec3;
 use mcrs_minecraft_client_world::attribute_instances::AttributeInstances;
 use mcrs_minecraft_client_world::joined_game::JoinedGame;
+use mcrs_minecraft_client_world::local_player::LocalPlayerPlugin;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_dimension::dimension_keys::OVERWORLD;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
@@ -89,18 +90,26 @@ fn an_entry_replaces_the_base_and_the_modifiers_in_its_order() {
     let entity = client.entity(PIG).expect("the pig was added");
     client.receive(update(
         PIG,
-        vec![entry(
-            Attribute::MovementSpeed,
-            0.5,
-            vec![
-                modifier("test:b", 1.0, ModifierOperation::AddMultipliedTotal),
-                modifier("test:a", 0.25, ModifierOperation::AddValue),
-                modifier("test:b", 100.0, ModifierOperation::AddValue),
-            ],
-        )],
+        vec![
+            entry(Attribute::BlockInteractionRange, 9.0, Vec::new()),
+            entry(
+                Attribute::MovementSpeed,
+                0.5,
+                vec![
+                    modifier("test:b", 1.0, ModifierOperation::AddMultipliedTotal),
+                    modifier("test:a", 0.25, ModifierOperation::AddValue),
+                    modifier("test:b", 100.0, ModifierOperation::AddValue),
+                ],
+            ),
+        ],
     ));
     let speed = instances(&client, entity);
-    assert_eq!(speed.value(Attribute::MovementSpeed), Some(1.5));
+    assert_eq!(speed.value(Attribute::BlockInteractionRange), None);
+    assert_eq!(
+        speed.value(Attribute::MovementSpeed),
+        Some(1.5),
+        "an entry of an attribute that a pig lacks does not stop the next entry"
+    );
     assert_eq!(
         modifier_ids(speed, Attribute::MovementSpeed),
         ["test:b", "test:a"],
@@ -154,6 +163,7 @@ fn spawn_info() -> PlayerSpawnInfo {
 
 fn logged_in() -> Client {
     let mut client = Client::new();
+    client.app.add_plugins(LocalPlayerPlugin);
     client.app.world_mut().spawn(Player);
     client.join(JoinedGame {
         player_id: OWN_PLAYER,

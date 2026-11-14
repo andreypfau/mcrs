@@ -3,7 +3,6 @@ use glam::DVec3;
 use mcrs_minecraft_client_world::attribute_instances::AttributeInstances;
 use mcrs_minecraft_client_world::columns::ColumnStore;
 use mcrs_minecraft_client_world::joined_game::JoinedGame;
-use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity_visual::{
     Age, ClientEntity, Equipment, Living, Motion, PacketPath, Placement, Rotation, SNAP_DISTANCE,
@@ -341,7 +340,6 @@ fn on_update_attributes(
     event: On<Received<ClientboundUpdateAttributes<'static>>>,
     entities: Res<NetworkEntities>,
     connections: Query<&JoinedGame>,
-    player: Query<Entity, With<Player>>,
     mut living: Query<(&mut AttributeInstances, Option<&mut SyncedData>)>,
 ) {
     let Some(packet) = event.packet() else {
@@ -351,12 +349,10 @@ fn on_update_attributes(
     let own = connections
         .get(event.entity)
         .is_ok_and(|joined| joined.player_id == network_id);
-    let entity = if own {
-        player.single().ok()
-    } else {
-        entities.get(network_id)
-    };
-    let Some(entity) = entity else {
+    if own {
+        return;
+    }
+    let Some(entity) = entities.get(network_id) else {
         return;
     };
     let Ok((mut instances, data)) = living.get_mut(entity) else {

@@ -4,10 +4,12 @@ use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::{AttributeBases, AttributeInstance, AttributeSet, InstanceModifier};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::clientbound::{
-    AttributeSnapshot, ClientboundLogin, ClientboundRespawn,
+    AttributeSnapshot, ClientboundLogin, ClientboundRespawn, ClientboundUpdateAttributes,
 };
 use mcrs_minecraft_resource::ResourceLocation;
 
+use crate::joined_game::JoinedGame;
+use crate::local_player::Sprint;
 use crate::player::Player;
 
 /// The attribute instances of a living entity on the client, with the bases of its type. A new
@@ -83,41 +85,67 @@ impl AttributeInstances {
     }
 }
 
-/// Gives the local [`Player`] the attribute instances of a new player at a login, and drops their
-/// modifiers at a respawn that does not keep them (ATR-CLI-005).
-pub struct AttributeInstancesPlugin;
-
-impl Plugin for AttributeInstancesPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_observer(on_login).add_observer(on_respawn);
-    }
-}
-
-fn on_login(
+/// Gives the local [`Player`] the attribute instances of a new player, which does not sprint
+/// (ATR-CLI-005).
+pub(crate) fn on_login(
     _event: On<Received<ClientboundLogin>>,
-    player: Query<Entity, With<Player>>,
+    mut player: Query<(Entity, Option<&mut Sprint>), With<Player>>,
     mut commands: Commands,
 ) {
-    if let Ok(player) = player.single()
-        && let Some(bases) = AttributeBases::of(EntityType::Player)
-    {
+    let Ok((player, sprint)) = player.single_mut() else {
+        return;
+    };
+    if let Some(mut sprint) = sprint {
+        sprint.set_if_neq(Sprint::default());
+    }
+    if let Some(bases) = AttributeBases::of(EntityType::Player) {
         commands
             .entity(player)
             .insert(AttributeInstances::new(bases));
     }
 }
 
-fn on_respawn(
+/// Makes the local [`Player`] a new player, which does not sprint and keeps its modifiers only by
+/// the bit of the packet (ATR-CLI-005).
+pub(crate) fn on_respawn(
     event: On<Received<ClientboundRespawn>>,
+    mut player: Query<(Option<&mut AttributeInstances>, Option<&mut Sprint>), With<Player>>,
+) {
+    let Some(packet) = event.packet() else {
+        return;
+    };
+    let Ok((instances, sprint)) = player.single_mut() else {
+        return;
+    };
+    if let Some(mut sprint) = sprint {
+        sprint.set_if_neq(Sprint::default());
+    }
+    if packet.data_to_keep & ClientboundRespawn::KEEP_ATTRIBUTE_MODIFIERS == 0
+        && let Some(mut instances) = instances
+    {
+        instances.clear_modifiers();
+    }
+}
+
+/// Applies the entries of an `update_attributes` for the own entity id to the local [`Player`]
+/// (ATR-CLI-002).
+pub(crate) fn on_update_attributes(
+    event: On<Received<ClientboundUpdateAttributes<'static>>>,
+    connections: Query<&JoinedGame>,
     mut player: Query<&mut AttributeInstances, With<Player>>,
 ) {
     let Some(packet) = event.packet() else {
         return;
     };
-    if packet.data_to_keep & ClientboundRespawn::KEEP_ATTRIBUTE_MODIFIERS != 0 {
+    let own = connections
+        .get(event.entity)
+        .is_ok_and(|joined| joined.player_id == packet.entity_id.0);
+    if !own {
         return;
     }
     if let Ok(mut instances) = player.single_mut() {
-        instances.clear_modifiers();
+        for entry in &packet.attributes {
+            instances.receive(entry);
+        }
     }
 }

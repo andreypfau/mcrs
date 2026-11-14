@@ -15,7 +15,7 @@ pub struct Reach {
 }
 
 impl Reach {
-    /// The values of both range attributes, or `None` when the type of the entity has neither.
+    /// The values of both range attributes, or `None` when the type of the entity lacks either one.
     #[must_use]
     pub fn from_instances(instances: &AttributeInstances) -> Option<Reach> {
         Some(Reach {

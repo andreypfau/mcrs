@@ -15,7 +15,7 @@ use mcrs_minecraft_protocol_game::serverbound::{
     ServerboundMovePlayerPosRot, ServerboundMovePlayerRot,
 };
 
-use crate::attribute_instances::AttributeInstances;
+use crate::attribute_instances::{self, AttributeInstances};
 use crate::movement_input::MovementInput;
 use crate::player::Player;
 use crate::player_view::{PendingTeleports, PlayerViewPlugin, ServerTeleport};
@@ -102,16 +102,20 @@ impl Plugin for LocalPlayerPlugin {
         if !app.is_plugin_added::<PlayerViewPlugin>() {
             app.add_plugins(PlayerViewPlugin);
         }
-        app.init_resource::<MovementInput>().add_systems(
-            FixedUpdate,
-            (
-                accept_teleports.before(LocalPlayerTick),
-                (capture_old_transform, fly, give_sprint_modifier)
-                    .chain()
-                    .in_set(LocalPlayerTick),
-                send_movement.after(LocalPlayerTick),
-            ),
-        );
+        app.init_resource::<MovementInput>()
+            .add_observer(attribute_instances::on_login)
+            .add_observer(attribute_instances::on_respawn)
+            .add_observer(attribute_instances::on_update_attributes)
+            .add_systems(
+                FixedUpdate,
+                (
+                    accept_teleports.before(LocalPlayerTick),
+                    (capture_old_transform, fly, give_sprint_modifier)
+                        .chain()
+                        .in_set(LocalPlayerTick),
+                    send_movement.after(LocalPlayerTick),
+                ),
+            );
     }
 }
 
@@ -266,12 +270,21 @@ fn tick(sprint: Sprint, flying_speed: FlyingSpeed, yaw: f32, input: MovementInpu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::player::look_direction;
+    use crate::player::{look_direction, spawn_player};
     use mcrs_minecraft_core::Look;
+    use mcrs_minecraft_dimension::dimension_keys::OVERWORLD;
     use mcrs_minecraft_entity::AttributeBases;
     use mcrs_minecraft_entity::entity_type_keys::EntityType;
+    use mcrs_minecraft_game_mode::GameMode;
+    use mcrs_minecraft_network::event::Received;
+    use mcrs_minecraft_protocol::Encode;
+    use mcrs_minecraft_protocol::packets::table::Row;
     use mcrs_minecraft_protocol_game::PositionFlag;
-    use mcrs_minecraft_protocol_game::clientbound::AttributeSnapshot;
+    use mcrs_minecraft_protocol_game::clientbound::{
+        AttributeSnapshot, ClientboundLogin, ClientboundRespawn,
+    };
+    use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
+    use mcrs_minecraft_resource::Id;
 
     #[test]
     fn no_move_is_sent_before_the_first_accepted_teleport() {
@@ -340,10 +353,76 @@ mod tests {
 
         set_sprint(&mut app, false);
         assert_eq!(speed(&app), Some(base.to_bits()));
-        set_sprint(&mut app, true);
-        assert_eq!(speed(&app), Some(sprinting.to_bits()));
-        set_sprint(&mut app, false);
-        assert_eq!(speed(&app), Some(base.to_bits()));
+    }
+
+    #[test]
+    fn a_held_sprint_key_sprints_again_after_a_respawn_and_a_login() {
+        let sprinting = (0.1_f32 as f64 * (1.0 + 0.3_f32 as f64)).to_bits();
+        let mut app = App::new();
+        app.add_plugins(LocalPlayerPlugin);
+        app.insert_resource(MovementInput {
+            forward: true,
+            sprint: true,
+            ..MovementInput::EMPTY
+        });
+        let player = spawn_player(app.world_mut(), DVec3::ZERO, 0.0, 0.0);
+        let connection = app.world_mut().spawn_empty().id();
+        let speed = |app: &App| {
+            app.world()
+                .get::<AttributeInstances>(player)
+                .and_then(|instances| instances.value(Attribute::MovementSpeed))
+                .map(f64::to_bits)
+        };
+        let login = login();
+        let respawn = ClientboundRespawn {
+            player_spawn_info: spawn_info(),
+            data_to_keep: 0,
+        };
+
+        trigger(&mut app, connection, &login);
+        app.world_mut().run_schedule(FixedUpdate);
+        assert_eq!(speed(&app), Some(sprinting));
+
+        trigger(&mut app, connection, &respawn);
+        app.world_mut().run_schedule(FixedUpdate);
+        assert_eq!(speed(&app), Some(sprinting), "after the respawn");
+
+        trigger(&mut app, connection, &login);
+        app.world_mut().run_schedule(FixedUpdate);
+        assert_eq!(speed(&app), Some(sprinting), "after the second login");
+    }
+
+    fn trigger<P: Row + Encode>(app: &mut App, connection: Entity, packet: &P) {
+        let mut data = Vec::new();
+        packet.encode(&mut data).expect("the test packet encodes");
+        app.world_mut()
+            .trigger(Received::<P>::new(connection, data.into()));
+        app.world_mut().flush();
+    }
+
+    fn spawn_info() -> PlayerSpawnInfo {
+        PlayerSpawnInfo::new(
+            Id::checked(0, 1).expect("the dimension type id is in range"),
+            OVERWORLD.into(),
+            GameMode::Survival,
+        )
+    }
+
+    fn login() -> ClientboundLogin {
+        ClientboundLogin {
+            player_id: 7,
+            hardcore: false,
+            dimensions: Vec::new(),
+            max_players: VarInt(20),
+            chunk_radius: VarInt(8),
+            simulation_distance: VarInt(8),
+            reduced_debug_info: false,
+            show_death_screen: true,
+            do_limited_crafting: false,
+            player_spawn_info: spawn_info(),
+            online_mode: false,
+            enforces_secure_chat: false,
+        }
     }
 
     #[test]
