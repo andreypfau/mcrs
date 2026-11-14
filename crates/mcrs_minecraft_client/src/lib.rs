@@ -32,7 +32,6 @@ pub mod cave;
 pub mod config;
 #[cfg(feature = "dev")]
 pub mod dev;
-mod drawn_columns;
 pub mod entities;
 pub mod frozen_clocks;
 pub mod input;
@@ -40,7 +39,6 @@ pub mod light_volume;
 pub mod options;
 #[cfg(not(target_family = "wasm"))]
 mod options_file;
-mod render_fog;
 #[cfg(all(feature = "scene", not(target_family = "wasm")))]
 pub mod scene_capture;
 #[cfg(all(feature = "scene", not(target_family = "wasm")))]
