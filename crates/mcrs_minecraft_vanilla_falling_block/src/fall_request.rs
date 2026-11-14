@@ -23,17 +23,28 @@ pub struct FallRequest {
     pub state: BlockStateId,
 }
 
+/// A request with the order in which it arrived in the tick.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Arrival {
+    order: usize,
+    request: FallRequest,
+}
+
 pub(crate) fn propose_falls(
     mut requests: MessageReader<FallRequest>,
     rules: Res<FallingBlockRules>,
     mut commands: Commands,
-    mut ordered: Local<Vec<FallRequest>>,
+    mut ordered: Local<Vec<Arrival>>,
 ) {
     ordered.clear();
-    ordered.extend(requests.read().copied());
-    ordered.sort_by_key(|request| request.pos.to_array());
-    ordered.dedup_by_key(|request| request.pos);
-    for request in ordered.iter() {
+    let arrivals = requests.read().enumerate().map(|(order, request)| Arrival {
+        order,
+        request: *request,
+    });
+    ordered.extend(arrivals);
+    ordered.sort_unstable_by_key(|arrival| (arrival.request.pos.to_array(), arrival.order));
+    ordered.dedup_by_key(|arrival| arrival.request.pos);
+    for Arrival { request, .. } in ordered.iter() {
         commands.spawn(PendingFall(start(
             &rules.table,
             *request.pos,

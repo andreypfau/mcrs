@@ -1,9 +1,6 @@
-use std::collections::HashSet;
-
 use bevy_ecs::entity::Entity;
 use bevy_ecs::query::With;
 use bevy_ecs::system::Commands;
-use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::Single;
@@ -17,7 +14,6 @@ use mcrs_minecraft_engine_world::game_rules::GameRules;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
-use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_falling_block::AfterMove;
 use mcrs_minecraft_falling_block::EntityDrops;
 use mcrs_minecraft_falling_block::Fall;
@@ -44,20 +40,12 @@ use crate::Landed;
 use crate::drop_item::drop_item;
 use crate::falling_block_rules::FallingBlockRules;
 
-/// A falling block that lands in this tick, before the landings are decided in order.
+/// A falling block that lands in this tick.
 #[derive(Clone, Copy, Debug)]
 struct Touchdown {
-    key: EntityKey,
     entity: Entity,
     fall: Fall,
     cell: TargetCell,
-}
-
-/// The buffers of the landings of a tick, kept across ticks.
-#[derive(Default)]
-pub(crate) struct LandingBuffers {
-    touchdowns: Vec<Touchdown>,
-    claimed: HashSet<BlockPos>,
 }
 
 /// Steps 4 to 6 of FBK-TCK-001 after the motion pass, for each falling block that the pass stepped
@@ -76,7 +64,6 @@ pub(crate) fn decide_falls(
     definitions: Res<Blocks>,
     clock: Res<BirthClock>,
     game_rules: Option<Res<GameRules>>,
-    mut buffers: Local<LandingBuffers>,
 ) {
     let (dimension, config) = *dimension;
     let Some(view) = world.get(dimension) else {
@@ -98,24 +85,16 @@ pub(crate) fn decide_falls(
         },
         entity_drops: entity_drops(game_rules.as_deref()),
     };
-    let LandingBuffers {
-        touchdowns,
-        claimed,
-    } = &mut *buffers;
-    touchdowns.clear();
     for (entity, Falling(fall), MotionState(motion), outcome) in &falls {
         if outcome.is_of(*clock)
             && let Some(touchdown) = tick.after_move(&mut commands, entity, fall, motion, outcome)
         {
-            touchdowns.push(touchdown);
+            tick.land(&mut commands, touchdown);
         }
     }
-    touchdowns.sort_unstable_by_key(|touchdown| touchdown.key);
-    claimed.clear();
-    tick.land_in_order(&mut commands, touchdowns, claimed);
 }
 
-fn entity_drops(game_rules: Option<&GameRules>) -> EntityDrops {
+pub(crate) fn entity_drops(game_rules: Option<&GameRules>) -> EntityDrops {
     if game_rules.is_none_or(|rules| rules.is_on(GameRule::EntityDrops)) {
         EntityDrops::On
     } else {
@@ -187,7 +166,6 @@ impl<S: Fn(BlockPos) -> Option<BlockStateId> + Copy> Tick<'_, S> {
                 None
             }
             AfterMove::Land => Some(Touchdown {
-                key: motion.key,
                 entity,
                 fall: *fall,
                 cell,
@@ -195,53 +173,40 @@ impl<S: Fn(BlockPos) -> Option<BlockStateId> + Copy> Tick<'_, S> {
         }
     }
 
-    /// The landings of `touchdowns`, in their order. The world writes of the tick come after every
-    /// landing, so a target cell that an earlier landing of the tick places a block at is `claimed`
-    /// and counts as not replaceable (FBK-LND-002).
-    fn land_in_order(
-        &self,
-        commands: &mut Commands,
-        touchdowns: &[Touchdown],
-        claimed: &mut HashSet<BlockPos>,
-    ) {
+    /// The landing of `touchdown` against the world before the writes of this tick. The plugin
+    /// resolves two placements at one cell when it applies the landings, after their review.
+    fn land(&self, commands: &mut Commands, touchdown: Touchdown) {
         let table = &self.rules.table;
-        for touchdown in touchdowns {
-            let target = touchdown.cell.pos;
-            let replaceable_at = |state| {
-                // An empty hand: the barrier is never replaceable, so it matches no replaceable
-                // target.
-                if !claimed.contains(&target)
-                    && replaceable(self.definitions, state, Block::Barrier.id(), Spot::Adjacent)
-                {
-                    Replaceable::Replaceable
-                } else {
-                    Replaceable::Occupied
-                }
-            };
-            let Some(site) = LandingSite::read(
-                table,
-                self.definitions,
-                self.state_at,
-                touchdown.cell,
-                replaceable_at,
-            ) else {
-                continue;
-            };
-            // chisle: the motion pass applies the ground rule of FBK-LND-001 only on the ground,
-            // so a landing by water contact in the air keeps its velocity; an observer sees it
-            // only when the target holds `moving_piston`. The ground rule in the landing lifts it.
-            // Each landing is audible, which entity data entry 4 of a falling block lifts.
-            let landing = touchdown
-                .fall
-                .land(table, &site, self.entity_drops, Silence::Audible);
-            if matches!(landing.outcome, LandingOutcome::Place(_)) {
-                claimed.insert(target);
+        let target = touchdown.cell.pos;
+        let replaceable_at = |state| {
+            // An empty hand: the barrier is never replaceable, so it matches no replaceable
+            // target.
+            if replaceable(self.definitions, state, Block::Barrier.id(), Spot::Adjacent) {
+                Replaceable::Replaceable
+            } else {
+                Replaceable::Occupied
             }
-            if landing.outcome != LandingOutcome::Wait {
-                commands
-                    .entity(touchdown.entity)
-                    .insert(Landed { landing, target });
-            }
+        };
+        let Some(site) = LandingSite::read(
+            table,
+            self.definitions,
+            self.state_at,
+            touchdown.cell,
+            replaceable_at,
+        ) else {
+            return;
+        };
+        // chisle: the motion pass applies the ground rule of FBK-LND-001 only on the ground,
+        // so a landing by water contact in the air keeps its velocity; an observer sees it
+        // only when the target holds `moving_piston`. The ground rule in the landing lifts it.
+        // Each landing is audible, which entity data entry 4 of a falling block lifts.
+        let landing = touchdown
+            .fall
+            .land(table, &site, self.entity_drops, Silence::Audible);
+        if landing.outcome != LandingOutcome::Wait {
+            commands
+                .entity(touchdown.entity)
+                .insert(Landed { landing, target });
         }
     }
 }
