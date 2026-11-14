@@ -1,9 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{Artifact, verify};
+use crate::sha1_hex;
 
-/// The official object server. It sends no CORS header, so a page fetches the objects through a
-/// server of its own laid out the same way: `<server>/<first two digits>/<SHA-1>`.
+/// The official object server; it sends no CORS header, so a page serves the objects itself.
 pub const OBJECTS: &str = "https://resources.download.minecraft.net";
 
 /// A file of the asset index layer, which sits above the jar. Pinned to the release like
@@ -36,14 +35,7 @@ impl AssetObject<'_> {
     }
 
     pub fn holds(&self, bytes: &[u8]) -> bool {
-        verify(
-            &Artifact {
-                url: &self.url(OBJECTS),
-                sha1: self.sha1,
-                size: self.size,
-            },
-            bytes,
-        )
+        bytes.len() as u64 == self.size && sha1_hex(bytes) == self.sha1
     }
 }
 

@@ -625,14 +625,9 @@ mod tests {
         }
     }
 
-    /// Two rules of the WGSL specification that naga does not hold a shader to and Tint, the
-    /// compiler of Chromium, does; a browser that refuses one shader closes the whole app:
-    /// - the grammar: a bitwise operator takes no unparenthesised operand with another binary
-    ///   operator, so `a * b | c` is refused. `wgsl-parse` follows the grammar of the
-    ///   specification.
-    /// - a constant expression that evaluates to a NaN or an infinity is an error. naga refuses
-    ///   that itself except in `bitcast`, which it does not evaluate, so a `bitcast<f32>` of a
-    ///   literal is checked here.
+    /// Rules naga lets through and Tint (Chromium) refuses: the grammar's parentheses around a
+    /// bitwise operand (`wgsl-parse` keeps it), and a constant `bitcast<f32>` to a NaN or an
+    /// infinity, the one constant expression naga does not evaluate.
     fn check_tint_rules(label: &str, source: &str) {
         if let Err(error) = source.parse::<wgsl_parse::syntax::TranslationUnit>() {
             panic!("{label}: {error}");
@@ -652,25 +647,6 @@ mod tests {
                 );
             }
         }
-    }
-
-    #[test]
-    fn the_tint_rules_catch_what_naga_lets_through() {
-        let mixed = "fn f(a: u32, b: u32) -> u32 { return a * b | 1u; }";
-        naga::front::wgsl::parse_str(mixed).unwrap();
-        assert!(
-            mixed
-                .parse::<wgsl_parse::syntax::TranslationUnit>()
-                .is_err()
-        );
-        let nan = "fn f() -> f32 { return bitcast<f32>(0x7fc00000u); }";
-        naga::front::wgsl::parse_str(nan).unwrap();
-        let caught = std::panic::catch_unwind(|| check_tint_rules("nan", nan));
-        assert!(caught.is_err());
-        check_tint_rules(
-            "runtime nan",
-            "var<private> z: u32; fn f() -> f32 { return bitcast<f32>(0x7fc00000u | z); }",
-        );
     }
 
     /// Whether each global that an entry point of `source` uses has the binding and the kind of

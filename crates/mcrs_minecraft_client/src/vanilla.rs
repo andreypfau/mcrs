@@ -36,10 +36,8 @@ struct Fetch {
     worker: Option<JoinHandle<()>>,
 }
 
-/// The server the font objects of the asset index come from, laid out as [`client_jar::OBJECTS`]
-/// is. The official one sends no CORS header, so a page that wants the Unicode glyphs serves the
-/// objects itself and inserts this before [`register`]:
-/// `app.insert_resource(AssetObjects("https://example.com/objects".into()))`.
+/// The server the font objects come from, laid out as [`client_jar::OBJECTS`]. Inserted before
+/// [`register`]; a page serves them itself, since the official server sends no CORS header.
 #[derive(Resource, Clone, Debug)]
 pub struct AssetObjects(pub String);
 
