@@ -90,9 +90,11 @@ impl FigureGpu {
 
     /// Writes the light directions of `figure`.
     pub(crate) fn write_light(&self, queue: &Queue, figure: &FigureFrame) {
+        // The fourth component of the first light tells the shader that the target encodes.
+        let encodes = if self.targets.color.is_srgb() { 1.0 } else { 0.0 };
         let [light0, light1] = figure
             .lights
-            .map(|light| light.normalize_or_zero().extend(0.0).to_array());
+            .map(|light| light.normalize_or_zero().extend(encodes).to_array());
         queue.write_buffer(
             &self.light,
             0,

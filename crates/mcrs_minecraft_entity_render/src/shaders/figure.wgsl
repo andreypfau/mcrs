@@ -26,7 +26,16 @@ fn figure_colour(in: VertexOutput, texel: vec3<f32>) -> vec4<f32> {
     let m = select(n, -n, dot(n, frame.camera_offset - in.world) < 0.0);
     let factor = face_factor(m, figure_light.light0.xyz, figure_light.light1.xyz);
     let colour = mix(in.overlay.rgb, texel * factor, in.overlay.a);
-    return vec4<f32>(colour * figure_lightmap(in.light.x, in.light.y), 1.0);
+    let lit = colour * figure_lightmap(in.light.x, in.light.y);
+    return vec4<f32>(select(lit, to_target(lit), figure_light.light0.w > 0.5), 1.0);
+}
+
+// The arithmetic above is on the stored texel bytes, as in the terrain; a target that encodes on
+// write takes the decoded result. A copy of `to_target` in `finish.wesl`.
+fn to_target(raw: vec3<f32>) -> vec3<f32> {
+    let low = raw / 12.92;
+    let high = pow((raw + 0.055) / 1.055, vec3<f32>(2.4));
+    return select(high, low, raw <= vec3<f32>(0.04045));
 }
 
 @fragment
