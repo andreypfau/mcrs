@@ -157,6 +157,26 @@ fn sup_run_001_a_plant_whose_base_goes_is_destroyed_and_drops_its_item() {
     assert_eq!(world.item_entities(), one(Item::Poppy));
 }
 
+/// SUP-RUN-001, SIM-SET-004, R5: a waterlogged subject that loses its support changes to a water
+/// source, not to air, and still drops its item. A propagule drops only at age 4.
+#[test]
+fn sim_set_004_a_waterlogged_plant_whose_base_goes_leaves_a_water_source() {
+    let mut world = World::new();
+    let dirt = world.state("minecraft:dirt", &[]);
+    let propagule = world.state(
+        "minecraft:mangrove_propagule",
+        &[("age", "4"), ("hanging", "false"), ("waterlogged", "true")],
+    );
+    let source = world.state("minecraft:water", &[("level", "0")]);
+    world.build(&[(BELOW, dirt), (P, propagule)]);
+    assert_eq!(world.block_at(P), propagule);
+
+    world.set(BELOW, BlockStateId::AIR, BlockUpdateFlags::ALL);
+
+    assert_eq!(world.block_at(P), source);
+    assert_eq!(world.item_entities(), one(Item::MangrovePropagule));
+}
+
 /// SUP-RUN-001: a set with keep-shape makes no shape update, so the plant stays without its
 /// base until a shape update comes from below.
 #[test]
