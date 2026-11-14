@@ -201,9 +201,7 @@ mcrs_minecraft_dimension = { path = "crates/mcrs_minecraft_dimension" }
 mcrs_minecraft_dimension_environment = { path = "crates/mcrs_minecraft_dimension_environment" }
 mcrs_minecraft_item = { path = "crates/mcrs_minecraft_item" }
 mcrs_minecraft_item_entity = { path = "crates/mcrs_minecraft_item_entity" }
-mcrs_minecraft_falling_block = { path = "crates/mcrs_minecraft_falling_block" }
 mcrs_minecraft_vanilla_item_entity = { path = "crates/mcrs_minecraft_vanilla_item_entity" }
-mcrs_minecraft_vanilla_falling_block = { path = "crates/mcrs_minecraft_vanilla_falling_block" }
 mcrs_minecraft_vanilla_block_place = { path = "crates/mcrs_minecraft_vanilla_block_place" }
 mcrs_minecraft_vanilla_attributes = { path = "crates/mcrs_minecraft_vanilla_attributes" }
 mcrs_minecraft_vanilla_inventory = { path = "crates/mcrs_minecraft_vanilla_inventory" }
