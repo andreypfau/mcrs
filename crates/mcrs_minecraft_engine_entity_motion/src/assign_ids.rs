@@ -7,6 +7,7 @@ use bevy_ecs::system::Query;
 use bevy_ecs::system::ResMut;
 use mcrs_minecraft_engine_world::entity_ids::CellEntityIds;
 
+use crate::Appearance;
 use crate::MotionId;
 use crate::MotionState;
 use crate::subject::Subject;
@@ -15,11 +16,12 @@ use crate::subject::Subject;
 #[derive(Resource, Debug, Default)]
 pub(crate) struct Assigned(pub(crate) Vec<Subject>);
 
-/// Gives each entity with a motion and no id the next id of the cell. When the cell has no id
-/// left, the entity waits for the next tick.
+/// Gives each entity with a motion, an appearance and no id the next id of the cell, so that no
+/// entity moves before its spawn. When the cell has no id left, the entity waits for the next
+/// tick.
 pub(crate) fn assign_ids(
     mut commands: Commands,
-    pending: Query<Entity, (With<MotionState>, Without<MotionId>)>,
+    pending: Query<Entity, (With<MotionState>, With<Appearance>, Without<MotionId>)>,
     mut ids: ResMut<CellEntityIds>,
     mut assigned: ResMut<Assigned>,
 ) {

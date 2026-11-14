@@ -12,6 +12,7 @@ use mcrs_engine_muxer::EntityEvent;
 use mcrs_minecraft_engine::tile_events::TileEvents;
 use mcrs_minecraft_engine_entity_motion::Appearance;
 use mcrs_minecraft_engine_entity_motion::EntityMotionPlugin;
+use mcrs_minecraft_engine_entity_motion::MotionId;
 use mcrs_minecraft_engine_entity_motion::MotionKind;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_entity_motion::StepOutcome;
@@ -247,4 +248,23 @@ fn an_item_that_bounces_on_slime_reports_the_bounce_in_that_tick_only() {
         bounces += usize::from(bounced);
     }
     assert!(bounces > 0, "the item bounces on the slime block");
+}
+
+#[test]
+fn an_entity_without_an_appearance_waits_unseen_and_spawns_with_it() {
+    let mut app = app(|blocks| blocks.stone);
+    let start = DVec3::new(0.5, 3.0, 0.5);
+    let block = spawn(app.world_mut(), MotionRow::falling_block(), start);
+    let appearance = app
+        .world_mut()
+        .entity_mut(block)
+        .take::<Appearance>()
+        .expect("an appearance");
+
+    assert!(tick(&mut app).is_empty(), "no event without an appearance");
+    assert!(app.world().get::<MotionId>(block).is_none(), "no id");
+    assert_eq!(state(&app, block).body.position, start, "it does not move");
+
+    app.world_mut().entity_mut(block).insert(appearance);
+    assert_eq!(tick(&mut app), ["spawn"]);
 }

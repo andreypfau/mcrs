@@ -10,6 +10,7 @@ use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
 use bevy_ecs::world::World;
+use mcrs_minecraft_engine_entity_motion::MotionId;
 use mcrs_minecraft_engine_item::Dropped;
 use mcrs_minecraft_engine_item::ItemCommandsExt;
 use mcrs_minecraft_engine_item::Selected;
@@ -30,7 +31,6 @@ use crate::Collect;
 use crate::ItemCollector;
 use crate::Owner;
 use crate::PickedUp;
-use crate::item_row::ItemRow;
 use crate::max_count::max_count;
 use crate::merge_items::ITEM_SIZE;
 use crate::step_items::Stepped;
@@ -94,7 +94,7 @@ fn pick_up(
     In(offer): In<Offer>,
     mut commands: Commands,
     collectors: Query<(&Slots, Option<&Selected>, &ItemCollector)>,
-    dropped: Query<&ItemRow, With<Dropped>>,
+    dropped: Query<&MotionId, With<Dropped>>,
     mut stacks: ParamSet<(Stacks, Query<&mut Count>)>,
     mut picked: MessageWriter<PickedUp>,
     mut claimed: ResMut<Claimed>,
@@ -102,7 +102,7 @@ fn pick_up(
     if claimed.0.contains(&offer.stack) {
         return;
     }
-    let (Ok((slots, selected, collector)), Ok(row)) =
+    let (Ok((slots, selected, collector)), Ok(id)) =
         (collectors.get(offer.collector), dropped.get(offer.stack))
     else {
         return;
@@ -191,7 +191,7 @@ fn pick_up(
         }
     }
     picked.write(PickedUp {
-        item: row.id,
+        item: id.0,
         collector: offer.collector,
         count: count - stays,
     });

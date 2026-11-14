@@ -22,15 +22,16 @@ use crate::stirred_tiles::StirredTiles;
 use crate::stirred_tiles::stir_tiles;
 
 /// The motion of the moving entities of a dimension world that are not living. In
-/// `DomainInput` it gives each new [`MotionState`](crate::MotionState) its id and keeps the tiles
-/// of the changed blocks; in [`MotionPass`] it steps each entity; in [`MotionPublish`] it records
-/// their tile events. The embedder inserts [`CellEntityIds`]; the entities move once
-/// [`PhysicsTables`] exists.
+/// `DomainInput` it keeps the tiles of the changed blocks; in [`MotionPass`] it gives each new
+/// [`MotionState`](crate::MotionState) with an [`Appearance`](crate::Appearance) its id, then
+/// steps each entity; in [`MotionPublish`] it records their tile events. The embedder inserts
+/// [`CellEntityIds`]; the entities move once [`PhysicsTables`] exists.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct EntityMotionPlugin;
 
 /// The pass in `Simulate`: after it, each stepped entity holds the state and the
-/// [`StepOutcome`](crate::StepOutcome) of this tick.
+/// [`StepOutcome`](crate::StepOutcome) of this tick. An entity that gets its motion before the
+/// pass, through commands, gets its id and moves in the same tick.
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct MotionPass;
 
@@ -53,18 +54,14 @@ impl Plugin for EntityMotionPlugin {
             FixedUpdate,
             MotionPublish.in_set(TickSet::Project).after(MobPublish),
         );
+        app.add_systems(FixedUpdate, stir_tiles.in_set(TickSet::DomainInput));
         app.add_systems(
             FixedUpdate,
             (
-                stir_tiles,
                 assign_ids.run_if(resource_exists::<CellEntityIds>),
+                step_motion.run_if(resource_exists::<PhysicsTables>),
             )
-                .in_set(TickSet::DomainInput),
-        );
-        app.add_systems(
-            FixedUpdate,
-            step_motion
-                .run_if(resource_exists::<PhysicsTables>)
+                .chain()
                 .in_set(MotionPass),
         );
         app.add_systems(FixedUpdate, publish_motion.in_set(MotionPublish));

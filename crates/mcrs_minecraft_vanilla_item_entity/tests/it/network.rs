@@ -2,16 +2,20 @@ use bevy_ecs::world::World;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityEvent;
 use mcrs_minecraft_engine::tile_events::TileEvents;
+use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity_key::BirthSource;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_key::EntityKey;
+use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_item_entity::Cause;
 use mcrs_minecraft_item_entity::HandVelocity;
 use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_item_entity::Start;
+use mcrs_minecraft_physics::Rest;
 use mcrs_minecraft_replication::MobReport;
 use mcrs_minecraft_replication::MobSignal;
+use mcrs_minecraft_replication::MobState;
 use mcrs_minecraft_replication::ReplicationData;
 use mcrs_minecraft_replication::SpawnLook;
 use mcrs_minecraft_vanilla_item_entity::Collect;
@@ -210,4 +214,120 @@ fn ien_pck_005_a_partial_pickup_sends_the_take_of_the_part_before_the_new_stack(
         [format!("take 4 by {}", PLAYER_ID.0), "stack 6".to_owned()],
         "the take of the 4 items that moved, then the stack of the rest, and no removal"
     );
+}
+
+#[test]
+fn the_take_and_the_removal_of_an_item_that_crosses_a_tile_edge_go_to_the_tile_of_its_spawn() {
+    let mut app = app();
+    let world = app.world_mut();
+    collector(world, DVec3::new(1.0, FLOOR, 0.5), Collect::Survival);
+    launch(
+        world,
+        STONE,
+        1,
+        Launch {
+            source: BirthSource::Block(BlockPos::new(0, 0, 0)),
+            form: Form::Fixed(Start {
+                position: DVec3::new(-1.0, FLOOR + 1.0, 0.5),
+                velocity: DVec3::new(0.6, 0.0, 0.0),
+            }),
+            values: ItemEntity::with_pickup_delay(2),
+        },
+    );
+    let spawn_tile = TileKey::at(DVec3::new(-1.0, FLOOR, 0.5));
+    let spawned = published_by_tile(&mut app);
+    assert!(
+        spawned
+            .iter()
+            .any(|(tile, _, event)| *tile == spawn_tile && matches!(event, EntityEvent::Spawn(_))),
+        "the item spawns west of the edge: {spawned:?}"
+    );
+
+    let crossing = published_by_tile(&mut app);
+
+    let kinds: Vec<(TileKey, &str)> = crossing
+        .iter()
+        .filter(|(_, subject, _)| *subject != PLAYER_ID)
+        .map(|(tile, _, event)| {
+            let kind = match event {
+                EntityEvent::Data(ReplicationData::Mob(MobReport::Signal(MobSignal::Taken {
+                    ..
+                }))) => "take",
+                EntityEvent::Despawn => "despawn",
+                EntityEvent::Leave { .. } => "leave",
+                EntityEvent::Enter { .. } => "enter",
+                EntityEvent::Move(_) => "move",
+                _ => "other",
+            };
+            (*tile, kind)
+        })
+        .collect();
+    assert_eq!(
+        kinds,
+        [(spawn_tile, "take"), (spawn_tile, "despawn")],
+        "the viewers of the spawn tile know the item"
+    );
+}
+
+#[test]
+fn an_item_at_rest_whose_velocity_changes_at_the_same_position_sends_a_move() {
+    let mut app = app();
+    let feet = DVec3::new(0.5, FLOOR, 0.5);
+    let item = launch(
+        app.world_mut(),
+        STONE,
+        1,
+        Launch {
+            source: BirthSource::Block(BlockPos::new(0, 0, 0)),
+            form: Form::Fixed(Start {
+                position: feet,
+                velocity: DVec3::ZERO,
+            }),
+            values: ItemEntity::default(),
+        },
+    );
+    run_publishing(&mut app, 100);
+    let rest = app.world().get::<MotionState>(item).expect("a motion").0;
+    assert!(matches!(rest.rest, Rest::Resting(_)), "the item rests");
+    let rest = rest.body;
+
+    let woken = run_publishing(&mut app, 1);
+
+    let moves: Vec<MobState> = woken
+        .iter()
+        .filter_map(|(_, event)| match event {
+            EntityEvent::Move(ReplicationData::Mob(MobReport::Move(state))) => Some(*state),
+            _ => None,
+        })
+        .collect();
+    let [moved] = moves[..] else {
+        panic!("one move: {woken:?}");
+    };
+    assert_eq!(
+        moved.position, rest.position,
+        "the item stays where it rests"
+    );
+    assert_ne!(
+        moved.velocity, rest.velocity,
+        "the rest cycle changed the velocity"
+    );
+}
+
+/// What the item entities published in one tick, with the tile of each event.
+fn published_by_tile(
+    app: &mut bevy_app::App,
+) -> Vec<(TileKey, EntityId, EntityEvent<ReplicationData>)> {
+    run(app, 1);
+    let deltas = app.world_mut().resource_mut::<TileEvents>().take();
+    deltas
+        .tiles
+        .into_iter()
+        .flat_map(|delta| {
+            let tile = delta.tile;
+            delta
+                .events
+                .into_iter()
+                .map(move |event| (tile, event.subject, event.event))
+        })
+        .collect()
 }

@@ -13,6 +13,7 @@ use uuid::Uuid;
 
 use crate::Appearance;
 use crate::MotionState;
+use crate::PublishedTile;
 use crate::StepOutcome;
 use crate::assign_ids::Assigned;
 use crate::departures::Departures;
@@ -22,9 +23,15 @@ use crate::subject::Subject;
 /// Records the tile events of the tick in the order of the ids: the spawn of each entity that got
 /// its id, the change of tile and the move of each entity whose body changed, and the removal of
 /// each entity that lost its motion. An entity that got its id in this tick sends no move, and
-/// one that left before its spawn sends nothing.
+/// one that left before its spawn sends nothing. A change of tile and a removal start from the
+/// [`PublishedTile`], so that they reach the viewers that know the entity.
 pub(crate) fn publish_motion(
-    entities: Query<(&MotionState, &StepOutcome, Option<&Appearance>)>,
+    mut entities: Query<(
+        &MotionState,
+        &StepOutcome,
+        Option<&Appearance>,
+        &mut PublishedTile,
+    )>,
     mut assigned: ResMut<Assigned>,
     mut movers: ResMut<Movers>,
     mut moved: Local<Vec<Subject>>,
@@ -39,7 +46,8 @@ pub(crate) fn publish_motion(
             .is_ok()
     };
     for subject in assigned.iter() {
-        let Ok((state, outcome, appearance)) = entities.get(subject.entity) else {
+        let Ok((state, outcome, appearance, mut published)) = entities.get_mut(subject.entity)
+        else {
             continue;
         };
         let Some(appearance) = appearance else {
@@ -47,6 +55,8 @@ pub(crate) fn publish_motion(
             continue;
         };
         let state = &state.0;
+        let tile = TileKey::at(state.body.position);
+        published.0 = Some(tile);
         let spawn = MobSpawn {
             kind: appearance.kind,
             uuid: Uuid::from_u128(state.key.0),
@@ -54,7 +64,7 @@ pub(crate) fn publish_motion(
             look: appearance.look.clone(),
         };
         events.push(
-            TileKey::at(state.body.position),
+            tile,
             subject.id,
             EntityEvent::Spawn(MobReport::Spawn(spawn).into()),
         );
@@ -66,13 +76,16 @@ pub(crate) fn publish_motion(
         if spawned(subject.id) {
             continue;
         }
-        let Ok((state, outcome, _)) = entities.get(subject.entity) else {
+        let Ok((state, outcome, _, mut published)) = entities.get_mut(subject.entity) else {
+            continue;
+        };
+        let Some(before) = published.0 else {
             continue;
         };
         let state = &state.0;
-        let before = TileKey::at(outcome.start);
         let tile = TileKey::at(state.body.position);
         if before != tile {
+            published.0 = Some(tile);
             events.push(before, subject.id, EntityEvent::Leave { to: tile });
             events.push(tile, subject.id, EntityEvent::Enter { from: before });
         }
@@ -85,9 +98,7 @@ pub(crate) fn publish_motion(
     let departures = &mut departures.0;
     departures.sort_unstable();
     for departure in departures.drain(..) {
-        if !spawned(departure.id) {
-            events.push(departure.tile, departure.id, EntityEvent::Despawn);
-        }
+        events.push(departure.tile, departure.id, EntityEvent::Despawn);
     }
     assigned.clear();
 }
