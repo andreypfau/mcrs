@@ -4199,6 +4199,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_block_support"
+version = "0.5.8"
+dependencies = [
+ "bevy_ecs",
+ "fixedbitset",
+ "glam",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_game_registries",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+ "mcrs_voxel",
+ "serde_json",
+]
+
+[[package]]
 name = "mcrs_minecraft_block_transformer"
 version = "0.5.8"
 dependencies = [
@@ -6200,6 +6216,7 @@ dependencies = [
  "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block",
  "mcrs_minecraft_block_entity",
+ "mcrs_minecraft_block_support",
  "mcrs_minecraft_chat_client",
  "mcrs_minecraft_chat_server",
  "mcrs_minecraft_chunk",
@@ -6410,6 +6427,7 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "mcrs_minecraft_block",
+ "mcrs_minecraft_block_support",
  "mcrs_minecraft_core",
  "mcrs_minecraft_engine",
  "mcrs_minecraft_engine_item",

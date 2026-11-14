@@ -317,7 +317,10 @@ pub(crate) fn break_block(
 
     if let Some((other, other_state)) = paired_part(block_at, definitions, hit.state, hit.pos) {
         events.push((other.pos, other_state));
-        changed.push((other.pos, other_state));
+        // The part that is not the main part goes first: the removal of the main part for
+        // support (SUP-VEG-002) then drops what the table of the main part gives.
+        let at = usize::from(!other.hit_is_main);
+        changed.insert(at, (other.pos, other_state));
         if other.hit_is_main {
             events.push(hit_part);
         }

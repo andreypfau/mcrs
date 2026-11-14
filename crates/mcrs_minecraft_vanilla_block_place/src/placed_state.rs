@@ -10,7 +10,7 @@ use crate::Click;
 /// The state of `block` that a click places over `replaced` (PLC-STA-001, PLC-STA-002,
 /// PLC-STA-004, PLC-STA-005). `None` for a block of two parts, which this placement does not
 /// place yet.
-// chisle: no support, no wall forms, no connections and no merges; each needs its own rules.
+// chisle: no wall forms, no connections and no merges; each needs its own rules.
 pub fn placed_state(
     definitions: &BlockDefinitions,
     block: Id<Block>,
