@@ -821,8 +821,7 @@ Kind: semantic. Confidence: medium. Experiment: MENU-EXP-06.
      a point. The fog distance of the point is `max(√(dx² + dz²), |dy|)`.
   6. The fog value is 0 at the start or nearer, 1 at the end or farther, and linear between.
      The end is `16 · r` blocks. The start is `16 · r − clamp(16 · r / 10, 4, 64)` blocks. The
-     client computes the start, the end and the value in `f32`, not in integers. In mcrs the
-     end is the drawn end `e` in place of `16 · r` (`client-fog.md`, CFOG-MCRS-004).
+     client computes the start, the end and the value in `f32`, not in integers.
   7. The fog of a point is the larger of this value and the value of the environmental fog
      (`client-fog.md`, CFOG-MIX-001). The environmental fog uses the spherical distance.
   8. The client keeps each column that it got until `forget_level_chunk` for that column
@@ -1797,8 +1796,7 @@ Confidence: high.
      slider changes `o`. Render Distance has no pending value.
   2. The image of the frame in which `o` changes uses the new `r` of MENU-DIST-001. This
      applies to the draw test, the far plane and the render-distance fog. No image with the old
-     `r` follows the change. The fog uses `r` through the drawn end `e` (`client-fog.md`,
-     CFOG-MCRS-004). Thus a smaller `r` lowers the fog end in that frame.
+     `r` follows the change.
   3. A drag causes one write of the options file, at the release of the left button
      (MENU-DEV-011, step 5).
   4. Let `s` be the view distance of the last `client_information` that the client sent, in the
