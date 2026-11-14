@@ -10,11 +10,10 @@ use mcrs_minecraft_protocol_game::clientbound::{
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
 
+use crate::attribute_state::AttributeState;
 use crate::delivery::Delivery;
 use crate::encode::record;
 use crate::hold_set::HoldSet;
-use crate::mob_attribute::MobAttribute;
-use crate::mob_attributes::MobAttributes;
 use crate::mob_bundle::{Entries, LivingEntries, spawn_extras};
 use crate::mob_signal::MobSignal;
 use crate::mob_spawn::MobSpawn;
@@ -22,6 +21,7 @@ use crate::mob_state::MobState;
 use crate::mob_tracker::MobTracker;
 use crate::player_input::Backlog;
 use crate::spawn_look::SpawnLook;
+use crate::subject_attributes::SubjectAttributes;
 use crate::wire_id::wire_id;
 use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_protocol_game::entity::MobLooks;
@@ -57,7 +57,7 @@ struct Mob {
     uuid: Uuid,
     looks: MobLooks,
     tracker: MobTracker,
-    attributes: MobAttributes,
+    attributes: SubjectAttributes,
 }
 
 impl MobTrackers {
@@ -80,7 +80,10 @@ impl MobTrackers {
                 uuid: spawn.uuid,
                 looks,
                 tracker: MobTracker::new(spawn.state, entries, spawn.kind.update_interval, tick),
-                attributes: MobAttributes::new(spawn.kind.attribute_bases()),
+                attributes: SubjectAttributes::with_stored(
+                    spawn.kind.attribute_bases(),
+                    Vec::new(),
+                ),
             },
         );
     }
@@ -166,7 +169,7 @@ impl MobTrackers {
         }
     }
 
-    pub(crate) fn record_attribute(&mut self, subject: EntityId, attribute: &MobAttribute) {
+    pub(crate) fn record_attribute(&mut self, subject: EntityId, attribute: &AttributeState) {
         if let Some(mob) = self.mobs.get_mut(&subject) {
             mob.attributes.record(attribute);
         }
@@ -446,7 +449,7 @@ mod tests {
         .unwrap();
         world.mobs.record_attribute(
             MOB,
-            &MobAttribute {
+            &AttributeState {
                 attribute: Attribute::MovementSpeed,
                 instance: set.instances().next().cloned(),
             },

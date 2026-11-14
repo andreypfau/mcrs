@@ -8,8 +8,8 @@ use mcrs_minecraft_protocol_game::entity_data_index::{
 };
 
 use crate::encode::record;
-use crate::mob_attributes::MobAttributes;
 use crate::mob_state::MobState;
+use crate::subject_attributes::SubjectAttributes;
 use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_protocol_game::entity::MobLooks;
 use mcrs_minecraft_registries::Wire;
@@ -137,7 +137,7 @@ pub(crate) fn spawn_extras(
     id: VarInt,
     looks: &MobLooks,
     entries: &Entries,
-    attributes: &MobAttributes,
+    attributes: &SubjectAttributes,
 ) -> Result<Bytes> {
     let living = match entries {
         Entries::Living(living) => *living,

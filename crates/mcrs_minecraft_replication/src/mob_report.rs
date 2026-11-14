@@ -1,4 +1,4 @@
-use crate::mob_attribute::MobAttribute;
+use crate::attribute_state::AttributeState;
 use crate::mob_signal::MobSignal;
 use crate::mob_spawn::MobSpawn;
 use crate::mob_state::MobState;
@@ -17,5 +17,5 @@ pub enum MobReport {
     /// The new stack of an item entity (IEN-NET-003).
     Stack(ProtoStack<Wire>),
     /// The instance of a syncable attribute of a mob after a change (ATR-NET-003).
-    Attribute(MobAttribute),
+    Attribute(AttributeState),
 }

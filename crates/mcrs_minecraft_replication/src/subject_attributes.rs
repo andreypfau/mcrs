@@ -5,34 +5,37 @@ use mcrs_minecraft_protocol::{Result, VarInt, write_record};
 use mcrs_minecraft_protocol_game::clientbound::{AttributeSnapshot, ClientboundUpdateAttributes};
 
 use crate::attribute_snapshot::attribute_snapshot;
-use crate::mob_attribute::MobAttribute;
+use crate::attribute_state::AttributeState;
 
-/// The syncable attribute instances of a mob that changed after its spawn, with the latest state
-/// of each, and the ones that its next update owes its viewers (ATR-NET-003).
+/// The syncable attribute instances of a mob or a player that its spawn gave or that changed
+/// after it, with the latest state of each, and the ones that its next update owes its viewers
+/// (ATR-NET-003).
 #[derive(Clone, Debug, Default)]
-pub(crate) struct MobAttributes {
+pub(crate) struct SubjectAttributes {
     bases: Option<AttributeBases>,
-    changed: Vec<MobAttribute>,
+    held: Vec<AttributeState>,
     unsent: Vec<Attribute>,
 }
 
-impl MobAttributes {
-    pub(crate) fn new(bases: Option<AttributeBases>) -> Self {
+impl SubjectAttributes {
+    /// The instances of `stored`, one for each attribute, that no update owes.
+    pub(crate) fn with_stored(bases: Option<AttributeBases>, stored: Vec<AttributeState>) -> Self {
         Self {
             bases,
-            changed: Vec::new(),
+            held: stored,
             unsent: Vec::new(),
         }
     }
 
-    pub(crate) fn record(&mut self, state: &MobAttribute) {
+    /// Holds `state` and owes it to the next update.
+    pub(crate) fn record(&mut self, state: &AttributeState) {
         match self
-            .changed
+            .held
             .iter_mut()
             .find(|held| held.attribute == state.attribute)
         {
             Some(held) => held.clone_from(state),
-            None => self.changed.push(state.clone()),
+            None => self.held.push(state.clone()),
         }
         if !self.unsent.contains(&state.attribute) {
             self.unsent.push(state.attribute);
@@ -52,8 +55,8 @@ impl MobAttributes {
         self.unsent.clear();
     }
 
-    /// Appends the `update_attributes` of the spawn bundle (TRK-DATA-004): each instance that
-    /// differs from that of a new mob of the type, when one does.
+    /// Appends the `update_attributes` of the spawn bundle (TRK-DATA-004): each held instance
+    /// that is not that of a new entity of the type, when one is.
     pub(crate) fn write_spawn(&self, id: VarInt, bytes: &mut BytesMut) -> Result<()> {
         self.write(id, |held| held.instance.is_some(), bytes)
     }
@@ -67,11 +70,11 @@ impl MobAttributes {
     fn write(
         &self,
         id: VarInt,
-        keep: impl Fn(&MobAttribute) -> bool,
+        keep: impl Fn(&AttributeState) -> bool,
         bytes: &mut BytesMut,
     ) -> Result<()> {
         let attributes: Vec<AttributeSnapshot<'_>> = self
-            .changed
+            .held
             .iter()
             .filter(|held| keep(held))
             .map(|held| attribute_snapshot(self.bases, held.attribute, held.instance.as_ref()))

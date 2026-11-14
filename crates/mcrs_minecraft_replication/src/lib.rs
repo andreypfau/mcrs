@@ -3,14 +3,13 @@
 //! is a record: its length, then its id and its body, not framed.
 
 mod attribute_snapshot;
+mod attribute_state;
 mod delivery;
 mod delta_base;
 mod encode;
 mod entity_codec;
 mod hold_set;
 mod list_packets;
-mod mob_attribute;
-mod mob_attributes;
 mod mob_bundle;
 mod mob_report;
 mod mob_signal;
@@ -28,12 +27,13 @@ mod player_list;
 mod player_spawn;
 mod replication_data;
 mod spawn_look;
+mod subject_attributes;
 mod wire_id;
 
+pub use attribute_state::AttributeState;
 pub use delta_base::Pose;
 pub use encode::record;
 pub use entity_codec::EntityCodec;
-pub use mob_attribute::MobAttribute;
 pub use mob_report::MobReport;
 pub use mob_signal::MobSignal;
 pub use mob_spawn::MobSpawn;

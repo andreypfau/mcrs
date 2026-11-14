@@ -26,6 +26,7 @@ use bevy_ecs::schedule::common_conditions::{
 };
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition};
 use mcrs_minecraft_engine_attributes::{AttributeChanged, AttributeEdits};
+use mcrs_minecraft_engine_physics::MobPublish;
 use mcrs_minecraft_engine_world::entity::add_entity_to_chunk;
 use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
 use mcrs_minecraft_engine_world::entity::player::Player;
@@ -106,7 +107,10 @@ impl Plugin for DimPlayerPlugin {
             send_own_attributes
                 .run_if(on_message::<AttributeChanged>.or_else(on_message::<OpLevelAnnounced>))
                 .in_set(TickSet::Project)
-                .after(AttributeEdits),
+                .after(AttributeEdits)
+                // The mobs of the set write other subjects, which the take of the tile events
+                // sorts.
+                .ambiguous_with(MobPublish),
         );
         app.add_message::<OutboundPlayerReleased>();
         app.add_systems(

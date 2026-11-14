@@ -13,10 +13,10 @@ use mcrs_minecraft_protocol_game::{ByteAngle, LpVec3, position_delta};
 use uuid::Uuid;
 
 use crate::delta_base::all_or_nothing;
-use crate::mob_attributes::MobAttributes;
 use crate::mob_bundle::{Entries, LivingEntries};
 use crate::mob_state::MobState;
 use crate::move_choice::{Due, MOVED, MoveChoice, POSITION_REFRESH, Resync, UPDATES_PER_SYNC};
+use crate::subject_attributes::SubjectAttributes;
 use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_registries::Wire;
 
@@ -156,7 +156,7 @@ impl MobTracker {
         &mut self,
         id: VarInt,
         tick: u64,
-        attributes: &mut MobAttributes,
+        attributes: &mut SubjectAttributes,
         bytes: &mut BytesMut,
     ) -> Result<()> {
         let count = tick.wrapping_sub(self.start);
@@ -175,7 +175,7 @@ impl MobTracker {
         &mut self,
         id: VarInt,
         count: u64,
-        attributes: &MobAttributes,
+        attributes: &SubjectAttributes,
         bytes: &mut BytesMut,
     ) -> Result<()> {
         let state = self.latest;
@@ -259,7 +259,7 @@ impl MobTracker {
     pub(crate) fn resend(
         &self,
         id: VarInt,
-        attributes: &MobAttributes,
+        attributes: &SubjectAttributes,
         bytes: &mut BytesMut,
     ) -> Result<()> {
         let sent = &self.sent;
@@ -430,7 +430,7 @@ mod tests {
             tracker.record(*state);
             let mut out = BytesMut::new();
             tracker
-                .tick(ID, tick, &mut MobAttributes::default(), &mut out)
+                .tick(ID, tick, &mut SubjectAttributes::default(), &mut out)
                 .unwrap();
             if !out.is_empty() {
                 updates.push((tick, out.freeze()));
@@ -511,13 +511,13 @@ mod tests {
         let mut tracker = MobTracker::new(state, Entries::Item(stack(3)), 20, 0);
         let mut out = BytesMut::new();
         tracker
-            .tick(ID, 0, &mut MobAttributes::default(), &mut out)
+            .tick(ID, 0, &mut SubjectAttributes::default(), &mut out)
             .unwrap();
         out.clear();
 
         tracker.record_stack(stack(5));
         tracker
-            .tick(ID, 1, &mut MobAttributes::default(), &mut out)
+            .tick(ID, 1, &mut SubjectAttributes::default(), &mut out)
             .unwrap();
 
         let expected = record(&ClientboundSetEntityData {
@@ -535,7 +535,7 @@ mod tests {
         );
         let mut out = BytesMut::new();
         tracker
-            .tick(ID, 2, &mut MobAttributes::default(), &mut out)
+            .tick(ID, 2, &mut SubjectAttributes::default(), &mut out)
             .unwrap();
         assert!(out.is_empty(), "the stack goes once");
     }

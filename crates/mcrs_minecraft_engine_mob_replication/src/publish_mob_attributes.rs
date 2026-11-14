@@ -10,7 +10,7 @@ use mcrs_minecraft_engine_attributes::RowAttributes;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_rows::RowStore;
-use mcrs_minecraft_replication::MobAttribute;
+use mcrs_minecraft_replication::AttributeState;
 use mcrs_minecraft_replication::MobReport;
 
 /// Records the state at the end of the tick of each syncable instance of a mob that an edit
@@ -38,16 +38,13 @@ pub(crate) fn publish_mob_attributes<M: Send + Sync + 'static>(
         };
         let instance = attributes
             .get(id)
-            .and_then(|set| {
-                set.instances()
-                    .find(|instance| instance.attribute() == attribute)
-            })
+            .and_then(|set| set.instance(attribute))
             .cloned();
         events.push(
             tile,
             id,
             EntityEvent::Data(
-                MobReport::Attribute(MobAttribute {
+                MobReport::Attribute(AttributeState {
                     attribute,
                     instance,
                 })

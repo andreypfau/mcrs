@@ -1,10 +1,7 @@
-use bytes::BufMut;
-use bytes::Bytes;
-use bytes::BytesMut;
-use mcrs_minecraft_entity::AttributeBases;
-use mcrs_minecraft_entity::AttributeSet;
+use bytes::{BufMut, Bytes, BytesMut};
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity::{AttributeBases, AttributeSet};
 use mcrs_minecraft_protocol::{Packet, Result, VarInt};
 use mcrs_minecraft_protocol_game::clientbound::{AttributeSnapshot, ClientboundUpdateAttributes};
 
@@ -22,12 +19,7 @@ pub fn own_attributes(
     let bases = AttributeBases::of(EntityType::Player);
     let attributes: Vec<AttributeSnapshot<'_>> = attributes
         .into_iter()
-        .map(|attribute| {
-            let instance = set
-                .instances()
-                .find(|instance| instance.attribute() == attribute);
-            attribute_snapshot(bases, attribute, instance)
-        })
+        .map(|attribute| attribute_snapshot(bases, attribute, set.instance(attribute)))
         .collect();
     if attributes.is_empty() {
         return Ok(None);
