@@ -231,6 +231,7 @@ mod tests {
             ("WORLD_SEED", "18446744073709551615"),
             ("DEFAULT_GAMEMODE", "hardcore"),
             ("MOB_AI", "2"),
+            ("FORWARDING", "enabled"),
         ]);
         assert_eq!(settings.world_seed, u64::MAX, "an unsigned seed reads");
         assert_eq!(
@@ -244,7 +245,13 @@ mod tests {
         );
         assert_eq!(
             rejected,
-            ["PORT", "COMPUTE_THREADS", "DEFAULT_GAMEMODE", "MOB_AI"]
+            [
+                "PORT",
+                "COMPUTE_THREADS",
+                "DEFAULT_GAMEMODE",
+                "MOB_AI",
+                "FORWARDING"
+            ]
         );
     }
 }

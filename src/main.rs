@@ -68,10 +68,22 @@ fn serve() -> AppExit {
             return AppExit::error();
         }
     };
+    let mut unreadable_forwarding = None;
     let settings = ServerSettings::read(
         |name| std::env::var(format!("MCRS_{name}")).ok(),
-        |error| bevy_log::warn!("{error}"),
+        |error| {
+            if error.name == "FORWARDING" {
+                unreadable_forwarding = Some(error.value);
+            } else {
+                bevy_log::warn!("{error}");
+            }
+        },
     );
+    // Falling back to off would let players log in directly, past the proxy.
+    if let Some(value) = unreadable_forwarding {
+        bevy_log::error!("MCRS_FORWARDING={value:?} is not on or off; the server does not start");
+        return AppExit::error();
+    }
     let network = match network(&settings) {
         Ok(network) => network,
         Err(error) => {
