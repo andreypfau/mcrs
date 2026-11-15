@@ -3,6 +3,7 @@
 mod block_loot;
 mod fixture;
 mod loot_tables;
+mod replay;
 
 use mcrs_test_alloc::CountingAllocator;
 
