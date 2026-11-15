@@ -57,6 +57,16 @@ impl Interpolation {
         !self.segments.is_empty()
     }
 
+    /// The target of the latest start while the interpolation is active, else `current`.
+    #[must_use]
+    pub fn reference(&self, current: Placement) -> Placement {
+        if self.is_active() {
+            self.target
+        } else {
+            current
+        }
+    }
+
     fn clear(&mut self) {
         self.segments.clear();
         self.remaining_time = 0.0;
@@ -73,11 +83,7 @@ impl Interpolation {
         rotation: Option<Rotation>,
         length: u32,
     ) -> Start {
-        let reference = if self.is_active() {
-            self.target
-        } else {
-            current
-        };
+        let reference = self.reference(current);
         let path = path.unwrap_or(PacketPath::Linear(reference.position));
         let rotation = rotation.unwrap_or(reference.rotation());
         let end = Placement::new(

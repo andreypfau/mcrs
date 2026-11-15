@@ -5,10 +5,10 @@ use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_entity_visual::{ClientEntity, Motion, PacketPath, Placement, Rotation};
 
 use crate::orb_interpolation::OrbInterpolation;
-use crate::velocity::Velocity;
+use crate::tracked_velocity::TrackedVelocity;
 
 /// A client entity that a packet moves. The position and the velocity of a simulated entity are
-/// in its [`MotionState`]; every other entity keeps them in [`Motion`] and [`Velocity`].
+/// in its [`MotionState`]; every other entity keeps them in [`Motion`] and [`TrackedVelocity`].
 #[derive(QueryData)]
 #[query_data(mutable)]
 pub(crate) struct MovedEntity {
@@ -16,14 +16,15 @@ pub(crate) struct MovedEntity {
     pub(crate) motion: &'static mut Motion,
     simulated: Option<&'static mut MotionState>,
     orb: Option<&'static mut OrbInterpolation>,
-    velocity: Option<&'static mut Velocity>,
+    velocity: Option<&'static mut TrackedVelocity>,
 }
 
-fn set_position(state: &mut Mut<MotionState>, position: DVec3) {
-    state
-        .reborrow()
-        .map_unchanged(|state| &mut state.0.body.position)
-        .set_if_neq(position);
+fn set_field<T, V: PartialEq>(
+    component: &mut Mut<T>,
+    field: impl FnOnce(&mut T) -> &mut V,
+    value: V,
+) {
+    component.reborrow().map_unchanged(field).set_if_neq(value);
 }
 
 impl MovedEntityItem<'_, '_> {
@@ -33,6 +34,16 @@ impl MovedEntityItem<'_, '_> {
             current.position = state.0.body.position;
         }
         current
+    }
+
+    /// The target of the active interpolation, else the current placement.
+    pub(crate) fn reference(&self) -> Placement {
+        let current = self.current();
+        match (&self.simulated, &self.orb) {
+            (Some(_), Some(orb)) => orb.reference(current),
+            (Some(_), None) => current,
+            (None, _) => self.motion.interpolation.reference(current),
+        }
     }
 
     /// Moves the entity towards the end of `path` and `rotation` without a snap: a living entity
@@ -45,7 +56,7 @@ impl MovedEntityItem<'_, '_> {
             (Some(_), Some(orb)) => orb.start(current, end, rotation),
             (Some(state), None) => {
                 if let Some(end) = end {
-                    set_position(state, end);
+                    set_field(state, |state| &mut state.0.body.position, end);
                 }
                 if let Some(rotation) = rotation {
                     self.motion.current.yaw = rotation.yaw;
@@ -63,7 +74,11 @@ impl MovedEntityItem<'_, '_> {
     /// previous rotation at the new rotation. A path or an orb interpolation stays.
     pub(crate) fn snap(&mut self, placement: Placement, previous_position: DVec3) {
         if let Some(state) = self.simulated.as_mut() {
-            set_position(state, placement.position);
+            set_field(
+                state,
+                |state| &mut state.0.body.position,
+                placement.position,
+            );
             self.motion.current.yaw = placement.yaw;
             self.motion.current.pitch = placement.pitch;
         } else {
@@ -74,12 +89,7 @@ impl MovedEntityItem<'_, '_> {
 
     pub(crate) fn set_on_ground(&mut self, on_ground: bool) {
         match self.simulated.as_mut() {
-            Some(state) => {
-                state
-                    .reborrow()
-                    .map_unchanged(|state| &mut state.0.body.flags.on_ground)
-                    .set_if_neq(on_ground);
-            }
+            Some(state) => set_field(state, |state| &mut state.0.body.flags.on_ground, on_ground),
             None => self.motion.on_ground = on_ground,
         }
     }
@@ -95,18 +105,8 @@ impl MovedEntityItem<'_, '_> {
     /// Sets the velocity at once. An approach of another player continues from the new value.
     pub(crate) fn set_velocity(&mut self, value: DVec3) {
         match (self.simulated.as_mut(), self.velocity.as_mut()) {
-            (Some(state), _) => {
-                state
-                    .reborrow()
-                    .map_unchanged(|state| &mut state.0.body.velocity)
-                    .set_if_neq(value);
-            }
-            (None, Some(velocity)) => {
-                velocity
-                    .reborrow()
-                    .map_unchanged(|velocity| &mut velocity.value)
-                    .set_if_neq(value);
-            }
+            (Some(state), _) => set_field(state, |state| &mut state.0.body.velocity, value),
+            (None, Some(velocity)) => set_field(velocity, |velocity| &mut velocity.value, value),
             (None, None) => {}
         }
     }

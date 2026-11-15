@@ -19,7 +19,7 @@ mod interpolation;
 mod sine;
 mod sine_table;
 
-pub use angle::{radians_from_degrees, wrap_degrees};
+pub use angle::{radians_from_degrees, wrap_degrees, wrap_degrees_f64};
 pub use atan::{atan2, inverse_sqrt_estimate};
 pub use colour::hsv_to_rgb;
 pub use comparison::{clamp_f32, max_f32, min_f32, sign_f32};

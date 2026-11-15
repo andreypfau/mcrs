@@ -21,7 +21,7 @@ use crate::remove_spent_entities::remove_spent_entities;
 use crate::simulated_step::{
     hold_entities_that_do_not_step, step_simulated_entities, stir_changed_blocks,
 };
-use crate::velocity::tick_velocities;
+use crate::tracked_velocity::tick_velocities;
 
 /// Keeps the client entities that the server adds, and ticks them in `FixedUpdate` in
 /// [`ClientEntityTick`](mcrs_minecraft_entity_visual::ClientEntityTick). Packets apply when they arrive, before the next tick.

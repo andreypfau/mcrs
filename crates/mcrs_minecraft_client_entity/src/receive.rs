@@ -1,36 +1,33 @@
 use bevy_ecs::prelude::*;
 use glam::DVec3;
 use mcrs_minecraft_client_world::attribute_instances::AttributeInstances;
-use mcrs_minecraft_client_world::columns::ColumnStore;
 use mcrs_minecraft_client_world::joined_game::JoinedGame;
+use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_visual::{
-    Age, ClientEntity, Equipment, Living, Motion, PacketPath, Placement, Rotation, SNAP_DISTANCE,
-    ServerTicking, SyncedData, in_ticking_area,
+    Age, ClientEntity, Equipment, Living, Motion, Placement, ServerTicking, SyncedData,
 };
 use mcrs_minecraft_network::event::Received;
+use mcrs_minecraft_protocol_game::ByteAngle;
 use mcrs_minecraft_protocol_game::clientbound::{
-    ClientboundAddEntity, ClientboundDamageEvent, ClientboundEntityEvent,
-    ClientboundEntityPositionSync, ClientboundHurtAnimation, ClientboundLogin,
-    ClientboundMoveEntityPos, ClientboundMoveEntityPosRot, ClientboundMoveEntityRot,
-    ClientboundRemoveEntities, ClientboundRespawn, ClientboundRotateHead, ClientboundSetEntityData,
-    ClientboundSetEntityMotion, ClientboundSetEquipment, ClientboundTeleportEntity,
-    ClientboundTickingState, ClientboundTickingStep, ClientboundUpdateAttributes, VecDelta,
+    ClientboundAddEntity, ClientboundDamageEvent, ClientboundEntityEvent, ClientboundHurtAnimation,
+    ClientboundLogin, ClientboundRemoveEntities, ClientboundRespawn, ClientboundRotateHead,
+    ClientboundSetEntityData, ClientboundSetEquipment, ClientboundTickingState,
+    ClientboundTickingStep, ClientboundUpdateAttributes,
 };
 use mcrs_minecraft_protocol_game::entity::MetaDataValue;
-use mcrs_minecraft_protocol_game::{ByteAngle, PositionFlag};
+use mcrs_minecraft_protocol_game::entity_data_index;
 
 use crate::add_entity_data::AddEntityData;
 use crate::apply_entity_data::apply_entity_data;
-use crate::delta;
 use crate::fuse::{FUSE_INDEX, Fuse};
 use crate::item_entity_stack::{ITEM_STACK_INDEX, ItemEntityStack};
-use crate::moved_entity::MovedEntity;
 use crate::network_entities::NetworkEntities;
 use crate::orb_interpolation::OrbInterpolation;
+use crate::receive_movement;
 use crate::simulated_motion::simulated_motion;
-use crate::velocity::Velocity;
+use crate::tracked_velocity::TrackedVelocity;
 
 /// The largest X and Z of an added entity.
 pub const WORLD_LIMIT: f64 = 3.0e7;
@@ -40,12 +37,6 @@ pub const DEATH_EVENT: i8 = ClientboundEntityEvent::DIED;
 pub(crate) fn add_observers(app: &mut bevy_app::App) {
     app.add_observer(on_add_entity)
         .add_observer(on_remove_entities)
-        .add_observer(on_move_entity_pos)
-        .add_observer(on_move_entity_pos_rot)
-        .add_observer(on_move_entity_rot)
-        .add_observer(on_position_sync)
-        .add_observer(on_teleport_entity)
-        .add_observer(on_set_entity_motion)
         .add_observer(on_rotate_head)
         .add_observer(on_set_entity_data)
         .add_observer(on_set_equipment)
@@ -57,9 +48,10 @@ pub(crate) fn add_observers(app: &mut bevy_app::App) {
         .add_observer(on_ticking_step)
         .add_observer(on_login)
         .add_observer(on_respawn);
+    receive_movement::add_observers(app);
 }
 
-fn degrees(angle: ByteAngle) -> f32 {
+pub(crate) fn degrees(angle: ByteAngle) -> f32 {
     angle.to_degrees()
 }
 
@@ -91,7 +83,6 @@ fn on_add_entity(
         Motion::new(placement, packet.pos),
         Age::default(),
         SyncedData::default(),
-        AddEntityData(packet.data.0),
     ));
     let velocity = packet.movement.0;
     match simulated_motion(&client, position, velocity) {
@@ -107,11 +98,14 @@ fn on_add_entity(
                 EntityType::Item => {
                     spawned.insert(ItemEntityStack::default());
                 }
+                EntityType::FallingBlock => {
+                    spawned.insert(AddEntityData(packet.data.0));
+                }
                 _ => {}
             }
         }
         None => {
-            spawned.insert(Velocity::new(velocity));
+            spawned.insert(TrackedVelocity::new(velocity));
         }
     }
     match client.type_data() {
@@ -170,227 +164,6 @@ fn on_respawn(
     clear_entities(&mut entities, &mut commands);
 }
 
-/// Applies a relative move to the entity `network_id`.
-fn relative_move(
-    network_id: i32,
-    motion_delta: Option<&VecDelta>,
-    rotation: Option<Rotation>,
-    on_ground: bool,
-    entities: &NetworkEntities,
-    query: &mut Query<MovedEntity>,
-) {
-    let Some(entity) = entities.get(network_id) else {
-        return;
-    };
-    let Ok(mut moved) = query.get_mut(entity) else {
-        return;
-    };
-    let path =
-        motion_delta.map(|motion_delta| delta::motion_path(moved.motion.delta_base, motion_delta));
-    if let Some(end) = path.as_ref().and_then(PacketPath::end) {
-        moved.motion.delta_base = end;
-    }
-    moved.update(path, rotation);
-    moved.set_on_ground(on_ground);
-}
-
-fn on_move_entity_pos(
-    event: On<Received<ClientboundMoveEntityPos>>,
-    entities: Res<NetworkEntities>,
-    mut query: Query<MovedEntity>,
-) {
-    if let Some(packet) = event.packet() {
-        relative_move(
-            packet.entity_id.0,
-            Some(&packet.delta),
-            None,
-            packet.on_ground,
-            &entities,
-            &mut query,
-        );
-    }
-}
-
-fn on_move_entity_pos_rot(
-    event: On<Received<ClientboundMoveEntityPosRot>>,
-    entities: Res<NetworkEntities>,
-    mut query: Query<MovedEntity>,
-) {
-    if let Some(packet) = event.packet() {
-        let rotation = Rotation {
-            yaw: degrees(packet.y_rot),
-            pitch: degrees(packet.x_rot),
-        };
-        relative_move(
-            packet.entity_id.0,
-            Some(&packet.delta),
-            Some(rotation),
-            packet.on_ground,
-            &entities,
-            &mut query,
-        );
-    }
-}
-
-fn on_move_entity_rot(
-    event: On<Received<ClientboundMoveEntityRot>>,
-    entities: Res<NetworkEntities>,
-    mut query: Query<MovedEntity>,
-) {
-    if let Some(packet) = event.packet() {
-        let rotation = Rotation {
-            yaw: degrees(packet.y_rot),
-            pitch: degrees(packet.x_rot),
-        };
-        relative_move(
-            packet.entity_id.0,
-            None,
-            Some(rotation),
-            packet.on_ground,
-            &entities,
-            &mut query,
-        );
-    }
-}
-
-fn snaps(from: DVec3, to: DVec3) -> bool {
-    from.distance_squared(to) > SNAP_DISTANCE * SNAP_DISTANCE
-}
-
-fn on_position_sync(
-    event: On<Received<ClientboundEntityPositionSync>>,
-    entities: Res<NetworkEntities>,
-    columns: Option<Res<ColumnStore>>,
-    mut query: Query<MovedEntity>,
-) {
-    let Some(packet) = event.packet() else {
-        return;
-    };
-    let Some(entity) = entities.get(packet.entity_id.0) else {
-        return;
-    };
-    let Ok(mut moved) = query.get_mut(entity) else {
-        return;
-    };
-    let path = delta::sync_path(&packet.position);
-    let Some(end) = path.end() else {
-        return;
-    };
-    moved.motion.delta_base = end;
-    let rotation = Rotation {
-        yaw: packet.look.yaw,
-        pitch: packet.look.pitch,
-    };
-    let current = moved.current().position;
-    // A frozen entity stays in the ticking area: a capture shows a frozen pig that keeps its path.
-    if !in_ticking_area(columns.as_deref(), current) || snaps(current, end) {
-        moved.snap(Placement::new(end, rotation.yaw, rotation.pitch), end);
-    } else {
-        moved.update(Some(path), Some(rotation));
-    }
-    moved.set_on_ground(packet.on_ground);
-}
-
-fn on_teleport_entity(
-    event: On<Received<ClientboundTeleportEntity>>,
-    entities: Res<NetworkEntities>,
-    mut query: Query<MovedEntity>,
-) {
-    let Some(packet) = event.packet() else {
-        return;
-    };
-    let Some(entity) = entities.get(packet.entity_id.0) else {
-        return;
-    };
-    let Ok(mut moved) = query.get_mut(entity) else {
-        return;
-    };
-    let current = moved.current();
-    let current_velocity = moved.velocity();
-    let relative = |flag: PositionFlag, value: f64, base: f64| {
-        if packet.relatives.contains(flag) {
-            base + value
-        } else {
-            value
-        }
-    };
-    let position = DVec3::new(
-        relative(PositionFlag::X, packet.position.x, current.position.x),
-        relative(PositionFlag::Y, packet.position.y, current.position.y),
-        relative(PositionFlag::Z, packet.position.z, current.position.z),
-    );
-    let yaw = relative(
-        PositionFlag::YRot,
-        f64::from(packet.look.yaw),
-        f64::from(current.yaw),
-    ) as f32;
-    let pitch = relative(
-        PositionFlag::XRot,
-        f64::from(packet.look.pitch),
-        f64::from(current.pitch),
-    ) as f32;
-    let velocity = DVec3::new(
-        relative(PositionFlag::DeltaX, packet.velocity.x, current_velocity.x),
-        relative(PositionFlag::DeltaY, packet.velocity.y, current_velocity.y),
-        relative(PositionFlag::DeltaZ, packet.velocity.z, current_velocity.z),
-    );
-    let placement = Placement::new(position, yaw, pitch);
-    if snaps(current.position, position) {
-        let previous = moved.motion.previous.position;
-        let moved_by = position - current.position;
-        let previous_axis = |flag: PositionFlag, previous: f64, moved_by: f64, new: f64| {
-            if packet.relatives.contains(flag) {
-                previous + moved_by
-            } else {
-                new
-            }
-        };
-        let previous_position = DVec3::new(
-            previous_axis(PositionFlag::X, previous.x, moved_by.x, position.x),
-            previous_axis(PositionFlag::Y, previous.y, moved_by.y, position.y),
-            previous_axis(PositionFlag::Z, previous.z, moved_by.z, position.z),
-        );
-        moved.snap(placement, previous_position);
-    } else {
-        moved.update(
-            Some(PacketPath::Linear(position)),
-            Some(placement.rotation()),
-        );
-    }
-    moved.set_velocity(velocity);
-    moved.set_on_ground(packet.on_ground);
-}
-
-fn on_set_entity_motion(
-    event: On<Received<ClientboundSetEntityMotion>>,
-    entities: Res<NetworkEntities>,
-    connections: Query<&JoinedGame>,
-    mut query: Query<MovedEntity>,
-) {
-    let Some(packet) = event.packet() else {
-        return;
-    };
-    let network_id = packet.entity_id.0;
-    let Some(entity) = entities.get(network_id) else {
-        return;
-    };
-    let own = connections
-        .get(event.entity)
-        .is_ok_and(|joined| joined.player_id == network_id);
-    if own {
-        return;
-    }
-    let Ok(mut moved) = query.get_mut(entity) else {
-        return;
-    };
-    let velocity = packet.velocity.0;
-    if moved.client.kind == EntityType::Player {
-        moved.approach_velocity(velocity);
-    } else {
-        moved.set_velocity(velocity);
-    }
-}
-
 fn on_rotate_head(
     event: On<Received<ClientboundRotateHead>>,
     entities: Res<NetworkEntities>,
@@ -412,6 +185,7 @@ fn on_set_entity_data(
         &mut SyncedData,
         Option<&mut Fuse>,
         Option<&mut ItemEntityStack>,
+        Option<&mut MotionState>,
     )>,
 ) {
     let Some(packet) = event.packet() else {
@@ -420,15 +194,33 @@ fn on_set_entity_data(
     let Some(entity) = entities.get(packet.entity_id.0) else {
         return;
     };
-    let Ok((client, mut data, mut fuse, mut stack)) = query.get_mut(entity) else {
+    let Ok((client, mut data, mut fuse, mut stack, mut motion)) = query.get_mut(entity) else {
         return;
     };
     apply_entity_data(&mut data, client.type_data(), &packet.metadata.0);
     for entry in &packet.metadata.0 {
-        match (entry.index, &entry.value, fuse.as_mut(), stack.as_mut()) {
-            (FUSE_INDEX, MetaDataValue::VarInt(ticks), Some(fuse), _) => fuse.0 = ticks.0,
-            (ITEM_STACK_INDEX, MetaDataValue::Slot(item), _, Some(stack)) => {
+        match (
+            entry.index,
+            &entry.value,
+            fuse.as_mut(),
+            stack.as_mut(),
+            motion.as_mut(),
+        ) {
+            (FUSE_INDEX, MetaDataValue::VarInt(ticks), Some(fuse), _, _) => fuse.0 = ticks.0,
+            (ITEM_STACK_INDEX, MetaDataValue::Slot(item), _, Some(stack), _) => {
                 stack.0 = item.clone();
+            }
+            (
+                entity_data_index::NO_GRAVITY,
+                MetaDataValue::Boolean(no_gravity),
+                _,
+                _,
+                Some(motion),
+            ) => {
+                motion
+                    .reborrow()
+                    .map_unchanged(|MotionState(state)| &mut state.no_gravity)
+                    .set_if_neq(*no_gravity);
             }
             _ => {}
         }

@@ -23,6 +23,7 @@ const ITEM: i32 = 1;
 const FALLING_BLOCK: i32 = 2;
 /// The entity data index of the stack of an item and of the fuse of a primed TNT.
 const TYPE_ENTRY: u8 = 8;
+const NO_GRAVITY_ENTRY: u8 = 5;
 const FLOOR: BlockPos = BlockPos::new(8, 0, 8);
 const SPAWN_Y: f64 = 10.0;
 /// The lowest block of the world of [`client_over_a_floor`].
@@ -58,12 +59,13 @@ fn stack(count: u8) -> ProtoStack<Wire> {
 }
 
 fn set_type_entry(client: &mut Client, id: i32, value: MetaDataValue<'static>) {
+    set_entry(client, id, TYPE_ENTRY, value);
+}
+
+fn set_entry(client: &mut Client, id: i32, index: u8, value: MetaDataValue<'static>) {
     client.receive(ClientboundSetEntityData {
         entity_id: VarInt(id),
-        metadata: Metadata(vec![MetadataEntry {
-            index: TYPE_ENTRY,
-            value,
-        }]),
+        metadata: Metadata(vec![MetadataEntry { index, value }]),
     });
 }
 
@@ -237,6 +239,32 @@ fn the_client_removes_a_spent_entity_in_the_tick_that_its_type_ends_it() {
         );
         assert!(client.app.world().resource::<NetworkEntities>().is_empty());
     }
+}
+
+#[test]
+fn an_item_without_gravity_stays_in_the_air_until_the_server_gives_it_back() {
+    let mut client = client_over_a_floor();
+    add(&mut client, ITEM, EntityType::Item, SPAWN_Y, 0);
+    set_type_entry(&mut client, ITEM, MetaDataValue::Slot(stack(1)));
+    set_entry(
+        &mut client,
+        ITEM,
+        NO_GRAVITY_ENTRY,
+        MetaDataValue::Boolean(true),
+    );
+    let start = motion(&client, ITEM).0.body.position;
+    ticks(&mut client, 10);
+    assert_eq!(motion(&client, ITEM).0.body.position, start);
+
+    set_entry(
+        &mut client,
+        ITEM,
+        NO_GRAVITY_ENTRY,
+        MetaDataValue::Boolean(false),
+    );
+    ticks(&mut client, 10);
+    let fallen = motion(&client, ITEM).0.body.position;
+    assert!(fallen.y < start.y - 0.1, "the item falls: {fallen}");
 }
 
 #[test]

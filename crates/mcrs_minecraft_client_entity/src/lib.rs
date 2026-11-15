@@ -21,7 +21,7 @@ mod remove_spent_entities;
 mod simulated_motion;
 mod simulated_step;
 mod ticked;
-mod velocity;
+mod tracked_velocity;
 
 pub use add_entity_data::*;
 pub use apply_entity_data::*;
@@ -31,4 +31,4 @@ pub use network_entities::*;
 pub use orb_interpolation::OrbInterpolation;
 pub use plugin::*;
 pub use receive::{DEATH_EVENT, WORLD_LIMIT};
-pub use velocity::TrackedVelocity;
+pub use tracked_velocity::TrackedVelocity;

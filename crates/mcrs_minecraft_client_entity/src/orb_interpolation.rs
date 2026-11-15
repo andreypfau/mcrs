@@ -1,9 +1,10 @@
 use bevy_ecs::prelude::*;
 use glam::DVec3;
 use mcrs_minecraft_engine_entity_motion::MotionState;
-use mcrs_minecraft_entity_visual::{Age, Motion, Placement, Rotation, angle};
+use mcrs_minecraft_entity_visual::{Age, Motion, Placement, Rotation};
+use mcrs_minecraft_numeric::wrap_degrees_f64;
 
-use crate::velocity::ticked;
+use crate::ticked::ticked;
 
 const STEPS: u8 = 3;
 /// A movement from another cause smaller than this, squared, does not move the target.
@@ -25,19 +26,25 @@ impl OrbInterpolation {
         self.remaining_steps > 0
     }
 
+    /// The target while the movement is active, else `current`.
+    #[must_use]
+    pub(crate) fn reference(&self, current: Placement) -> Placement {
+        if self.is_active() {
+            self.target
+        } else {
+            current
+        }
+    }
+
     /// Starts the movement to `position` and `rotation`; each one that is missing keeps the value
     /// of the active target, or of `current` when no movement is active.
-    pub fn start(
+    pub(crate) fn start(
         &mut self,
         current: Placement,
         position: Option<DVec3>,
         rotation: Option<Rotation>,
     ) {
-        let reference = if self.is_active() {
-            self.target
-        } else {
-            current
-        };
+        let reference = self.reference(current);
         let rotation = rotation.unwrap_or(reference.rotation());
         let target = Placement::new(
             position.unwrap_or(reference.position),
@@ -55,7 +62,7 @@ impl OrbInterpolation {
     /// The placement after one step from `current`. The target first moves with any change of
     /// `current` since the last step.
     #[must_use]
-    pub fn step(&mut self, current: Placement) -> Placement {
+    pub(crate) fn step(&mut self, current: Placement) -> Placement {
         if !self.is_active() {
             return current;
         }
@@ -66,11 +73,13 @@ impl OrbInterpolation {
         self.target.yaw += current.yaw - self.last.yaw;
         self.target.pitch += current.pitch - self.last.pitch;
         let fraction = 1.0 / f64::from(self.remaining_steps);
-        let angle_fraction = fraction as f32;
+        let (yaw, pitch) = (f64::from(current.yaw), f64::from(current.pitch));
+        let yaw = (yaw + fraction * wrap_degrees_f64(f64::from(self.target.yaw) - yaw)) as f32;
+        let pitch = (pitch + fraction * (f64::from(self.target.pitch) - pitch)) as f32;
         let next = Placement::new(
             current.position.lerp(self.target.position, fraction),
-            angle::alerp(angle_fraction, current.yaw, self.target.yaw),
-            current.pitch + angle_fraction * (self.target.pitch - current.pitch),
+            yaw % 360.0,
+            (pitch % 360.0).clamp(-90.0, 90.0),
         );
         self.remaining_steps = self.remaining_steps.saturating_sub(1);
         self.last = next;

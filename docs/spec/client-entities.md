@@ -1085,6 +1085,8 @@ Confidence: high. Milestone: later.
   3. The stack of an item and the fuse of a TNT are the values of the entity data
      (CENTS-DATA-001). A later `minecraft:set_entity_data` replaces the fuse that the client
      counts.
+     The entry "no gravity" of the entity data (`entity-tracking.md`, index 5) is the
+     no-gravity value of the step: while it is true, the step applies no gravity.
   4. In its first tick after the add, an orb does not do the step of its type. Steps 1 to 3 of
      CENTS-SIM-001 occur.
   5. For an orb, the client does the move of the row "experience orb" of PHY-ORD-005, the skip
