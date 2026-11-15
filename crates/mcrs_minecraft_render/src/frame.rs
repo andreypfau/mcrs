@@ -269,7 +269,7 @@ mod tests {
     /// the same projection built on absolute f32 coordinates drifts by more than one.
     #[test]
     fn the_relative_projection_survives_a_coordinate_f32_cannot_hold() {
-        let eye = DVec3::new(30_000_000.5, 16_777_216.25, -30_000_000.5);
+        let eye = DVec3::new(30_000_000.9, 16_777_216.9, -30_000_000.9);
         let origin = CameraOrigin::of(eye);
         let block = (origin.section + IVec3::new(96, -4, -96)) * SECTION_SIZE as i32;
         let rotation =
