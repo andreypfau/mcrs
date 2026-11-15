@@ -19,7 +19,7 @@ pub const STATIC_REGISTRIES: &[(ResourceLocation<'static>, &[ResourceLocation<'s
     (mcrs_minecraft_inventory_menu::registry_keys::MENU.location(), mcrs_minecraft_inventory_menu::menu_keys::MenuType::ENTRIES),
     (mcrs_minecraft_keys::RECIPE_TYPE, mcrs_minecraft_keys::recipe_type::ENTRIES),
     (mcrs_minecraft_recipe::registry_keys::RECIPE_SERIALIZER.location(), mcrs_minecraft_recipe::recipe_serializer_keys::RecipeSerializer::ENTRIES),
-    (mcrs_minecraft_entity::registry_keys::ATTRIBUTE.location(), mcrs_minecraft_entity::attribute_keys::Attribute::ENTRIES),
+    (mcrs_minecraft_entity_attribute::registry_keys::ATTRIBUTE.location(), mcrs_minecraft_entity_attribute::attribute_keys::Attribute::ENTRIES),
     (mcrs_minecraft_particle::registry_keys::POSITION_SOURCE_TYPE.location(), mcrs_minecraft_particle::position_source_type_keys::PositionSourceType::ENTRIES),
     (mcrs_minecraft_keys::COMMAND_ARGUMENT_TYPE, mcrs_minecraft_keys::command_argument_type::ENTRIES),
     (mcrs_minecraft_predicate::registry_keys::STAT_TYPE.location(), mcrs_minecraft_predicate::stat_type_keys::StatType::ENTRIES),

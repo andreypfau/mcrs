@@ -1,7 +1,7 @@
 use bevy_ecs::component::Component;
-use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::{AttributeBases, AttributeSet};
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 
 /// The attribute instances of a player, with the bases of the type `player`. Each player has it
 /// from its spawn. In a dimension world only [`AttributeEdit`](crate::AttributeEdit) changes it;

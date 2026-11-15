@@ -359,9 +359,9 @@ mod tests {
     use glam::DVec3;
     use mcrs_engine_muxer::ViewerBytes;
     use mcrs_minecraft_core::Look;
-    use mcrs_minecraft_entity::attribute_keys::Attribute;
     use mcrs_minecraft_entity::entity_type_keys::EntityType;
     use mcrs_minecraft_entity::{AttributeSet, InstanceModifier, ModifierKind};
+    use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
     use mcrs_minecraft_entity_attribute::{AttributeModifier, ModifierOperation};
     use mcrs_minecraft_protocol_game::block::BlockStateNumber;
     use mcrs_minecraft_protocol_game::clientbound::{

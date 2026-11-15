@@ -3,8 +3,8 @@ use glam::DVec3;
 use mcrs_minecraft_client_world::attribute_instances::AttributeInstances;
 use mcrs_minecraft_client_world::joined_game::JoinedGame;
 use mcrs_minecraft_engine_entity_motion::MotionState;
-use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_visual::{
     Age, ClientEntity, Equipment, Living, Motion, Placement, ServerTicking, SyncedData,
 };

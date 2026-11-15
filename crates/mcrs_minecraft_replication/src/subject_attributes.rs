@@ -1,6 +1,6 @@
 use bytes::BytesMut;
 use mcrs_minecraft_entity::AttributeBases;
-use mcrs_minecraft_entity::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_protocol::{Result, VarInt, write_record};
 use mcrs_minecraft_protocol_game::clientbound::{AttributeSnapshot, ClientboundUpdateAttributes};
 

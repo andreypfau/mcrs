@@ -1,5 +1,5 @@
-use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::{AttributeBases, AttributeSet, InstanceChange, InstanceModifier};
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 
 /// A change of one attribute instance (ATR-INS-002 and ATR-INS-004).

@@ -6,9 +6,9 @@ use mcrs_minecraft_resource::ResourceLocation;
 use crate::attribute_bases::AttributeBases;
 use crate::attribute_error::AttributeError;
 use crate::attribute_instance::AttributeInstance;
-use crate::attribute_keys::Attribute;
 use crate::instance_change::InstanceChange;
 use crate::instance_modifier::InstanceModifier;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 
 /// The attribute instances of one entity that differ from those of a new entity of its type
 /// (`attributes.md`, section 3). An attribute of the set of the type with no entry has the base

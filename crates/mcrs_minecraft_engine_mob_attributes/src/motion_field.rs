@@ -1,4 +1,4 @@
-use mcrs_minecraft_entity::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_physics::MotionAttributes;
 
 /// The field of [`MotionAttributes`] that holds the value of `attribute`; `None` when motion

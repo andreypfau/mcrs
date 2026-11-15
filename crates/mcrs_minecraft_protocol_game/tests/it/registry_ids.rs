@@ -88,7 +88,8 @@ fn encoded(packet: &impl Encode) -> Vec<u8> {
 fn a_static_registry_number_past_its_table_does_not_decode() {
     use glam::DVec3;
     use mcrs_minecraft_block::block_entity_type_keys::BlockEntityType;
-    use mcrs_minecraft_entity::{attribute_keys::Attribute, entity_type_keys::EntityType};
+    use mcrs_minecraft_entity::entity_type_keys::EntityType;
+    use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
     use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
     use mcrs_minecraft_protocol_game::chunk::ChunkDataBlockEntity;
     use mcrs_minecraft_protocol_game::clientbound::{

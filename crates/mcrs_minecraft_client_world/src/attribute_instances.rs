@@ -1,7 +1,7 @@
 use bevy::prelude::*;
-use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::{AttributeBases, AttributeInstance, AttributeSet, InstanceModifier};
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{AttributeModifier, HomeSlot, Modifier, fold};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::clientbound::{

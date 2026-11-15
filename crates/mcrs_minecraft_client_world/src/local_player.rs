@@ -3,8 +3,8 @@ use bevy::prelude::*;
 use mcrs_minecraft_engine_world::entity::physics::{
     OldTransform, Rotation, Transform as PhysicsTransform, Velocity,
 };
-use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::{InstanceModifier, SPRINT_MODIFIER};
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::ClientConnection;
 use mcrs_minecraft_physics::{Orientation, PlayerState, Relative, Teleport, apply_teleport};

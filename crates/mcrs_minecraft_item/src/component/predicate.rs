@@ -8,9 +8,9 @@ use crate::enchantment::Enchantment;
 use mcrs_minecraft_block::block_keys::Block;
 pub use mcrs_minecraft_block_predicate::state_properties::StatePropertiesPredicate;
 use mcrs_minecraft_core::codec::unique_entries;
-use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 use mcrs_minecraft_entity::villager_type_keys::VillagerType;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_potion::potion_keys::Potion;
 use mcrs_minecraft_registries::{

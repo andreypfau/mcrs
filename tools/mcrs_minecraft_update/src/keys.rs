@@ -26,7 +26,17 @@ pub struct Owner {
 pub enum ValueType {
     Defined(&'static str),
     Enum(&'static str),
+    /// The enum in a `no_std` owner: lookup, the wire codec and serde come with its feature `std`.
+    NoStdEnum(&'static str),
 }
+
+const ENUM_MACRO: &str = "mcrs_minecraft_registries::static_registry!";
+const NO_STD_ENUM_MACRO: &str = "#[cfg(feature = \"std\")]\n\
+     use mcrs_minecraft_static_registry::static_registry;\n\
+     #[cfg(not(feature = \"std\"))]\n\
+     use mcrs_minecraft_static_registry::static_registry_core as static_registry;\n\
+     \n\
+     static_registry!";
 
 const KEYS_CRATE: &str = "mcrs_minecraft_keys";
 const CATALOG_CRATE: &str = "mcrs_minecraft_registry_catalog";
@@ -158,8 +168,9 @@ pub fn generate(
         let owner = owner_of.get(registry.as_str());
         let static_entries = report.is_some_and(|report| !report.entries.is_empty());
         let enumerated = match owner.map(|owner| &owner.value) {
-            Some(ValueType::Enum(name)) if static_entries => Some(*name),
-            Some(ValueType::Enum(_)) => {
+            Some(ValueType::Enum(name)) if static_entries => Some((*name, ENUM_MACRO)),
+            Some(ValueType::NoStdEnum(name)) if static_entries => Some((*name, NO_STD_ENUM_MACRO)),
+            Some(ValueType::Enum(_) | ValueType::NoStdEnum(_)) => {
                 return Err(format!(
                     "{registry}: only a static registry with entries is keyed by an enum of them"
                 ));
@@ -174,7 +185,9 @@ pub fn generate(
         let krate = owner.map_or(KEYS_CRATE, |owner| owner.krate);
         let value = owner.map(|owner| match owner.value {
             ValueType::Defined(value) => value.to_owned(),
-            ValueType::Enum(name) => format!("crate::{module}_keys::{name}"),
+            ValueType::Enum(name) | ValueType::NoStdEnum(name) => {
+                format!("crate::{module}_keys::{name}")
+            }
         });
         let value = value.as_deref();
         let target = targets
@@ -185,8 +198,8 @@ pub fn generate(
 
         let text = match (report, entries) {
             (Some(report), _) if !report.entries.is_empty() => {
-                if let Some(name) = enumerated {
-                    Some(enum_module(registry, name, report)?)
+                if let Some((name, invocation)) = enumerated {
+                    Some(enum_module(registry, invocation, name, report)?)
                 } else {
                     Some(static_names_module(registry, report)?)
                 }
@@ -208,7 +221,7 @@ pub fn generate(
             let entries_module = target.entries_module(&module);
             let entries = match enumerated {
                 _ if report.entries.is_empty() => None,
-                Some(name) => Some(format!("{entries_module}::{name}::ENTRIES")),
+                Some((name, _)) => Some(format!("{entries_module}::{name}::ENTRIES")),
                 None => Some(format!("{entries_module}::ENTRIES")),
             };
             if own_lists.contains(krate) {
@@ -589,12 +602,11 @@ fn static_names_module(registry: &str, report: &registries::Registry) -> Result<
 
 fn enum_module(
     registry: &str,
+    invocation: &str,
     marker: &str,
     report: &registries::Registry,
 ) -> Result<String, String> {
-    let mut out = format!(
-        "{HEADER}\nmcrs_minecraft_registries::static_registry! {{\n    pub enum {marker};\n"
-    );
+    let mut out = format!("{HEADER}\n{invocation} {{\n    pub enum {marker};\n");
     let names = by_protocol_id(registry, report)?;
     let mut seen: BTreeMap<String, &str> = BTreeMap::new();
     for (constant, name) in constants(registry, names.into_iter(), &[])? {

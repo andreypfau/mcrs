@@ -1,7 +1,7 @@
 use bevy::math::{DVec3, IVec3};
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::voxel_shape::Aabb;
-use mcrs_minecraft_entity::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_voxel::BlockPos;
 
 use crate::attribute_instances::AttributeInstances;

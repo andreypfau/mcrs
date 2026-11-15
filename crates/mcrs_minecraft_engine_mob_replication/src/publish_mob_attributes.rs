@@ -7,7 +7,7 @@ use mcrs_minecraft_engine::tile_events::TileEvents;
 use mcrs_minecraft_engine_attributes::AttributeChanged;
 use mcrs_minecraft_engine_attributes::AttributeTarget;
 use mcrs_minecraft_engine_mob_attributes::RowAttributes;
-use mcrs_minecraft_entity::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_rows::RowStore;
 use mcrs_minecraft_replication::AttributeState;

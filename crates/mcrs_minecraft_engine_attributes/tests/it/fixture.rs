@@ -5,7 +5,7 @@ use mcrs_minecraft_engine_attributes::{
     AttributeChanged, AttributeEdit, AttributeTarget, InstanceEdit, PlayerAttributesPlugin,
 };
 use mcrs_minecraft_engine_world::entity::player::Player;
-use mcrs_minecraft_entity::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 
 pub fn app() -> App {
     let mut app = App::new();

@@ -1,6 +1,6 @@
 use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine_attributes::Attributes;
-use mcrs_minecraft_entity::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol_game::serverbound::{PlayerCommandAction, ServerboundPlayerCommand};

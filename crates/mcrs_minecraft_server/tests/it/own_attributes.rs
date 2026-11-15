@@ -12,9 +12,9 @@ use mcrs_minecraft_engine_attributes::{AttributeEdit, AttributeTarget, Attribute
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
 use mcrs_minecraft_engine_world::session::PlayerSession;
-use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::{InstanceModifier, ModifierKind};
 use mcrs_minecraft_entity_attribute::ModifierOperation;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBundleDelimiter;
 use mcrs_minecraft_protocol::uuid::Uuid;

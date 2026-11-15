@@ -1,5 +1,5 @@
-use crate::attribute_keys::Attribute;
 use crate::instance_modifier::InstanceModifier;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 
 /// The instance of one attribute on one entity: a base value and a sequence of modifiers
 /// (`attributes.md`, ATR-INS-001).

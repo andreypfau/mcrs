@@ -1,7 +1,7 @@
 use crate::attribute_bases::AttributeBases;
 use crate::attribute_bases::TypeBase;
-use crate::attribute_keys::Attribute;
 use crate::entity_type_keys::EntityType;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 
 /// The bases of `entity_type`, or `None` for a type that is not living.
 pub(crate) const fn of(entity_type: EntityType) -> Option<AttributeBases> {

@@ -4,9 +4,9 @@ use mcrs_minecraft_entity::AttributeSet;
 use mcrs_minecraft_entity::InstanceChange;
 use mcrs_minecraft_entity::InstanceModifier;
 use mcrs_minecraft_entity::ModifierKind;
-use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::ModifierOperation;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 

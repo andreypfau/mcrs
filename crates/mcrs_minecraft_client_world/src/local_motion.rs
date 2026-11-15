@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
 use mcrs_minecraft_entity::SPRINT_MODIFIER;
-use mcrs_minecraft_entity::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_physics::{MotionAttributes, PlayerState, SprintSpeed};
