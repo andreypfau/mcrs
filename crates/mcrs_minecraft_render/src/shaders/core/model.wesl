@@ -16,7 +16,7 @@ import package::shaders::include::fog::{fog_mix, fog_value};
 import package::shaders::include::frame::{camera, params};
 import package::shaders::include::quad::{
     CORNERS_PER_QUAD, GREEDY_EDGE_OVERLAP, MODEL_WORDS_PER_VERTEX, corner_index, corner_uv,
-    degenerate, expanded_quad_uv, model_position,
+    affine_quad_uv, degenerate, expanded_quad_uv, model_position,
 };
 @if(SOLID) import package::shaders::include::quad_coverage::{quad_projection, quad_uv_at, quad_contains};
 import package::shaders::include::section::section_origin;
@@ -84,16 +84,21 @@ fn vertex_model(in: TerrainVertex) -> ModelOut {
     let is_parallelogram = all(abs(p0 + u_vec + v_vec - p2) < vec3<f32>(1e-4))
         && dot(u_vec, u_vec) > 1e-8
         && dot(v_vec, v_vec) > 1e-8;
+    let uv0 = model_corner_uv(at.quad, 0u);
+    let uv1 = model_corner_uv(at.quad, 1u);
+    let uv2 = model_corner_uv(at.quad, 2u);
+    let uv3 = model_corner_uv(at.quad, 3u);
+    // A non-affine mapping needs the original two triangles and their four UVs.
+    let affine_uv = affine_quad_uv(uv0, uv1, uv2, uv3);
     var quad_uv = corner_uv(corner);
     var world: vec3<f32>;
     var uv: vec2<f32>;
     @if(SOLID) {
-        if (is_parallelogram) {
+        if (is_parallelogram && affine_uv) {
             quad_uv = expanded_quad_uv(u_vec, v_vec, quad_uv, GREEDY_EDGE_OVERLAP);
             world = origin + (p0 + u_vec * quad_uv.x + v_vec * quad_uv.y) * scale;
-            let uv0 = model_corner_uv(at.quad, 0u);
-            let uv_u = model_corner_uv(at.quad, 3u) - uv0;
-            let uv_v = model_corner_uv(at.quad, 1u) - uv0;
+            let uv_u = uv3 - uv0;
+            let uv_v = uv1 - uv0;
             uv = uv0 + uv_u * quad_uv.x + uv_v * quad_uv.y;
             let projection = quad_projection(
                 camera.clip_from_relative * vec4<f32>(origin + p0 * scale, 1.0),
@@ -185,8 +190,8 @@ fn model_coverage(in: ModelOut) -> ModelCoverage {
     @if(SOLID) {
         if (any(in.projection_w != vec3<f32>(0.0))) {
             let projection = mat3x3<f32>(in.projection_u, in.projection_v, in.projection_w);
-            surface.quad_uv = quad_uv_at(projection, in.clip_position.xy, camera.viewport);
-            return ModelCoverage(surface, !quad_contains(surface.quad_uv));
+            surface.quad_uv = quad_uv_at(projection, in.clip_position.xy, camera.viewport, camera.viewport_origin);
+            return ModelCoverage(surface, !quad_contains(projection, surface.quad_uv, in.clip_position.xy - camera.viewport_origin, camera.viewport));
         }
     }
     return ModelCoverage(surface, false);

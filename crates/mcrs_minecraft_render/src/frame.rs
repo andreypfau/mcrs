@@ -69,7 +69,7 @@ pub(super) struct CameraUniform {
     viewport: [f32; 2],
     shade_table: u32,
     render_distance: u32,
-    _pad_render_distance: [u32; 2],
+    viewport_origin: [f32; 2],
     fog_color: [f32; 3],
     _pad_fog_color: f32,
     fog_environmental: [f32; 2],
@@ -133,6 +133,7 @@ pub(super) fn write_frame_view(
 pub(super) fn write_camera(
     terrain: Option<Res<Terrain>>,
     frame_view: Option<Res<FrameView>>,
+    views: Query<&ExtractedView, With<Camera3d>>,
     occlusion: Res<Occlusion>,
     quad_cull: Res<super::QuadCull>,
     render_distance: Res<super::RenderDistance>,
@@ -165,6 +166,10 @@ pub(super) fn write_camera(
             ],
             hiz_levels: terrain.hiz_levels(&occlusion),
             viewport: frame_view.viewport.to_array(),
+            viewport_origin: views
+                .iter()
+                .next()
+                .map_or([0.0; 2], |view| view.viewport.xy().as_vec2().to_array()),
             quad_cull: quad_cull.0 as u32,
             shade_table: face_shade::shader_index(shade.0),
             // chisle: only the section cull of the full path reads it; the minimal path draws
@@ -220,6 +225,10 @@ mod tests {
             (
                 "render_distance",
                 mem::offset_of!(CameraUniform, render_distance),
+            ),
+            (
+                "viewport_origin",
+                mem::offset_of!(CameraUniform, viewport_origin),
             ),
             ("fog_color", mem::offset_of!(CameraUniform, fog_color)),
             (

@@ -23,6 +23,10 @@ const CORNERS_PER_QUAD: u32 = 4u;
 const MODEL_WORDS_PER_VERTEX: u32 = 3u;
 const GREEDY_EDGE_OVERLAP: f32 = 1.0 / 128.0;
 
+fn affine_quad_uv(a: vec2<f32>, b: vec2<f32>, c: vec2<f32>, d: vec2<f32>) -> bool {
+    return all(abs(a + c - b - d) < vec2<f32>(1e-6));
+}
+
 /// Two triangles a quad, wound over its corners as 1, 2, 0 and 0, 2, 3.
 fn corner_index(vertex: u32) -> u32 {
     switch vertex % VERTICES_PER_QUAD {

@@ -198,8 +198,8 @@ fn greedy_coverage(in: GreedyOut) -> GreedyCoverage {
     var surface = in;
     @if(SOLID) {
         let projection = mat3x3<f32>(in.projection_u, in.projection_v, in.projection_w);
-        surface.quad_uv = quad_uv_at(projection, in.clip_position.xy, camera.viewport);
-        return GreedyCoverage(surface, !quad_contains(surface.quad_uv));
+        surface.quad_uv = quad_uv_at(projection, in.clip_position.xy, camera.viewport, camera.viewport_origin);
+        return GreedyCoverage(surface, !quad_contains(projection, surface.quad_uv, in.clip_position.xy - camera.viewport_origin, camera.viewport));
     } @else {
         return GreedyCoverage(surface, false);
     }
