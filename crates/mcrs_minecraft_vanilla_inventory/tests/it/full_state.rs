@@ -15,11 +15,14 @@ use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_inventory_client_view::SlotView;
 use mcrs_minecraft_item_stack::Count;
+use mcrs_minecraft_item_stack::CustomName;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::item::ItemStackWithSlot;
+use mcrs_minecraft_protocol_game::item::kind::ItemComponentValue;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundSetCarriedItem;
+use mcrs_minecraft_text::Text;
 use mcrs_minecraft_vanilla_inventory::InventoryMenuSync;
 use mcrs_minecraft_wire::Encode;
 
@@ -253,4 +256,43 @@ fn a_stack_without_a_wire_form_is_sent_once_per_change() {
     }
 
     assert_eq!(slots, [(9, true)], "one empty stack in P[9] in two ticks");
+}
+
+/// INV-SYN-003: a stack with a component patch reaches the client with its patch.
+#[test]
+fn inv_syn_003_a_stack_with_a_patch_is_sent_with_its_patch() {
+    let mut app = app();
+    let world = app.world_mut();
+    let player = world.spawn((Player, Owner(SESSION))).id();
+    apply(world, player, &PersistedSnapshot::new());
+    world.run_schedule(FixedUpdate);
+    sent(world);
+    let named = ItemStack::new(STONE, Count::new(3).expect("a count above 0"))
+        .set(CustomName(Text::text("Rock")));
+    world.commands().spawn_stack(named).put_at(player, 9);
+    world.flush();
+
+    world.run_schedule(FixedUpdate);
+    let packets = sent(world);
+
+    let [PacketPayload::ContainerSetSlot(set)] = packets.as_slice() else {
+        panic!("one container_set_slot packet, not {packets:?}");
+    };
+    assert_eq!(
+        (set.slot, set.item.id.number(), set.item.count),
+        (9, 1, 3),
+        "the named stone in P[9]"
+    );
+    assert!(
+        matches!(
+            set.item.components.added.as_slice(),
+            [ItemComponentValue::CustomName(_)]
+        ),
+        "the patch holds the custom name, not {:?}",
+        set.item.components
+    );
+    assert!(
+        set.item.components.removed.is_empty(),
+        "the patch removes nothing"
+    );
 }

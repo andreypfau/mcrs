@@ -2,20 +2,19 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
-use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::bus::to;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::Stacks;
+use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_inventory_client_view::SlotView;
 use mcrs_minecraft_inventory_menu::InventoryMenu;
 use mcrs_minecraft_inventory_player::Holder;
 use mcrs_minecraft_item_stack::HashScratch;
 use mcrs_minecraft_item_stack::ItemStack;
-use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundContainerSetSlot;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundSetCursorItem;
 use mcrs_minecraft_wire::VarInt;
@@ -26,6 +25,7 @@ use crate::holder_slots::HolderSlots;
 use crate::menu_content::menu_content;
 use crate::menu_queue::MenuQueue;
 use crate::sent_stack::SentStack;
+use crate::wire_names::WireNames;
 
 #[derive(Default)]
 pub(crate) struct SyncScratch {
@@ -48,16 +48,17 @@ pub(crate) fn sync_menus(
     )>,
     holders: Query<&Slots>,
     mut stacks: Stacks,
-    table: Res<ItemTable>,
+    wire_names: WireNames,
     mut packets: MessageWriter<OutboundPlayerPacket>,
     mut scratch: Local<SyncScratch>,
 ) {
     queue.settle();
     let SyncScratch { hashes, bytes } = &mut *scratch;
+    let names = wire_names.names();
     for (player, &Owner(session), inventory, player_holders, mut sync) in &mut players {
         let slots = HolderSlots::read(player, inventory, player_holders, &holders);
         if queue.content.binary_search(&player).is_ok() {
-            let content = menu_content(&mut sync, &slots, &mut stacks, &table, bytes);
+            let content = menu_content(&mut sync, &slots, &mut stacks, &names, bytes);
             packets.write(to(session, PacketPayload::ContainerSetContent(content)));
             continue;
         }
@@ -67,7 +68,7 @@ pub(crate) fn sync_menus(
             let Some(view) = sync.view.entry(usize::from(index)) else {
                 continue;
             };
-            let send = match check(view, stack, &mut stacks, &table, hashes) {
+            let send = match check(view, stack, &mut stacks, &names, hashes) {
                 Check::Matches => continue,
                 Check::Confirmed(value) => {
                     if let Some(view) = sync.view.entry_mut(usize::from(index)) {
@@ -80,7 +81,7 @@ pub(crate) fn sync_menus(
             let Ok(slot) = i16::try_from(index) else {
                 continue;
             };
-            let sent = SentStack::of(send, &table, bytes);
+            let sent = SentStack::of(send, &names, bytes);
             sync.state_id = sync.state_id.next();
             if let Some(view) = sync.view.entry_mut(usize::from(index)) {
                 *view = SlotView::Stack(sent.stack);
@@ -94,7 +95,7 @@ pub(crate) fn sync_menus(
             packets.write(to(session, PacketPayload::ContainerSetSlot(packet)));
         }
         let cursor = slots.stack(Holder::Cursor, 0);
-        let send = match check(sync.view.cursor(), cursor, &mut stacks, &table, hashes) {
+        let send = match check(sync.view.cursor(), cursor, &mut stacks, &names, hashes) {
             Check::Matches => continue,
             Check::Confirmed(value) => {
                 *sync.view.cursor_mut() = SlotView::Stack(value);
@@ -102,7 +103,7 @@ pub(crate) fn sync_menus(
             }
             Check::Differs(value) => value,
         };
-        let sent = SentStack::of(send, &table, bytes);
+        let sent = SentStack::of(send, &names, bytes);
         *sync.view.cursor_mut() = SlotView::Stack(sent.stack);
         let packet = ClientboundSetCursorItem {
             contents: sent.wire,
@@ -125,7 +126,7 @@ fn check(
     view: &SlotView,
     stack: Option<Entity>,
     stacks: &mut Stacks,
-    table: &ItemTable,
+    names: &RegistryNames<'_>,
     hashes: &mut HashScratch,
 ) -> Check {
     let matches = match (view, stack) {
@@ -136,7 +137,7 @@ fn check(
         (SlotView::Stack(Some(_)), None) => false,
         (SlotView::Hashed(_), _) => {
             let value = stack.and_then(|stack| stacks.to_value(stack));
-            return if view.matches(value.as_ref(), table, hashes) {
+            return if view.matches(value.as_ref(), names, hashes) {
                 Check::Confirmed(value)
             } else {
                 Check::Differs(value)
