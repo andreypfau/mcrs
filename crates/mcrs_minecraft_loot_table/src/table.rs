@@ -3,6 +3,7 @@ use mcrs_minecraft_loot_condition::{Condition, DynamicName, LootContext, NumberP
 use mcrs_minecraft_predicate::LocationView;
 use mcrs_minecraft_random::Random;
 
+use crate::item_rules::ItemRules;
 use crate::loot_scratch::LootScratch;
 use crate::modifier::Modifier;
 use crate::work_stack::WorkStack;
@@ -87,7 +88,7 @@ pub(crate) struct Evaluation<'e, 'c, E, W> {
     pub(crate) tables: &'e [Table],
     pub(crate) context: &'e LootContext<'c, E>,
     pub(crate) world: &'e W,
-    pub(crate) max_stack: &'e [u8],
+    pub(crate) rules: &'e ItemRules,
 }
 
 /// The selected leaf whose stacks the evaluation makes, and the place of its table in the
@@ -312,36 +313,36 @@ impl<E, W: LocationView> Evaluation<'_, '_, E, W> {
     fn emit<R: Random>(
         &self,
         place: &Place<'_>,
-        mut stack: WorkStack<'_>,
+        mut stack: WorkStack,
         random: &mut R,
         stacks: &mut Vec<Option<ItemStack>>,
     ) {
         let mut at = Some(place);
         while let Some(place) = at {
-            stack.count = self.modify(place, stack.count, random);
+            self.modify(place, &mut stack, random);
             at = place.outer;
         }
-        stack.divide(stack.max_stack_size(self.max_stack), stacks);
+        stack.divide(&self.rules.items, stacks);
     }
 
-    fn modify<R: Random>(&self, place: &Place<'_>, count: i32, random: &mut R) -> i32 {
+    fn modify<R: Random>(&self, place: &Place<'_>, stack: &mut WorkStack, random: &mut R) {
         let Some(entry) = place.table.entry(place.leaf) else {
-            return count;
+            return;
         };
-        let mut count = self.apply(&entry.modifiers, count, random);
+        self.apply(&entry.modifiers, stack, random);
         let mut parent = entry.parent;
         while let Some(composite) = parent.and_then(|index| place.table.entry(index)) {
-            count = self.apply(&composite.modifiers, count, random);
+            self.apply(&composite.modifiers, stack, random);
             parent = composite.parent;
         }
-        count = self.apply(&place.pool.modifiers, count, random);
-        self.apply(&place.table.modifiers, count, random)
+        self.apply(&place.pool.modifiers, stack, random);
+        self.apply(&place.table.modifiers, stack, random);
     }
 
-    fn apply<R: Random>(&self, modifiers: &[Modifier], count: i32, random: &mut R) -> i32 {
-        modifiers.iter().fold(count, |count, modifier| {
-            modifier.apply(count, self.context, self.world, random)
-        })
+    fn apply<R: Random>(&self, modifiers: &[Modifier], stack: &mut WorkStack, random: &mut R) {
+        for modifier in modifiers {
+            modifier.apply(stack, self, random);
+        }
     }
 
     fn passes<R: Random>(&self, condition: Option<&Condition>, random: &mut R) -> bool {

@@ -3,6 +3,7 @@
 mod block_loot;
 mod entry_types;
 mod fixture;
+mod item_modifiers;
 mod loot_tables;
 mod replay;
 

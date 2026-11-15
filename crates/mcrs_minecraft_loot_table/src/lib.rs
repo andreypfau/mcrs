@@ -1,12 +1,16 @@
 // std: mcrs_minecraft_registries
 
 mod baker;
+mod item_rules;
+mod keyed_numbers;
 mod keyed_seed;
+mod list_operation;
 mod loot_issue;
 mod loot_scratch;
 mod loot_table_file;
 mod loot_tables;
 mod modifier;
+mod modifier_bake;
 mod modifier_file;
 mod roll_error;
 mod table;

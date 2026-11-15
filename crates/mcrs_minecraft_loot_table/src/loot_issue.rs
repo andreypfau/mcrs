@@ -22,6 +22,8 @@ pub enum LootProblem {
     MissingTable,
     UnknownItem(String),
     UnknownEnchantment(String),
+    /// A `set_item` names `minecraft:air` (REG-FLD-744).
+    SetItemAir,
     /// A `loot_table` entry names a table that the load does not hold.
     UnknownTable(String),
     /// A tag of items or of tables that the load does not hold.
@@ -56,6 +58,7 @@ impl fmt::Display for LootIssue {
             LootProblem::MissingTable => f.write_str("the loot table is not loaded"),
             LootProblem::UnknownItem(name) => write!(f, "no item {name}"),
             LootProblem::UnknownEnchantment(name) => write!(f, "no enchantment {name}"),
+            LootProblem::SetItemAir => f.write_str("set_item names minecraft:air"),
             LootProblem::UnknownTable(name) => write!(f, "no loot table {name}"),
             LootProblem::UnknownTag(name) => write!(f, "no tag #{name}"),
             LootProblem::Condition(problem) => write!(f, "{problem}"),
