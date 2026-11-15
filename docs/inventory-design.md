@@ -506,6 +506,25 @@ network id to each changed slot.
 **Commands `give`, `clear`, `item`.** Crate: `mcrs_minecraft_command_vanilla` over `give`,
 `clear_items`, `put_at` and `load_inventory`. They need a specification first (section 9, point 9).
 
+## 5.1 Examples
+
+**(decided)** Three example packages under `examples/` prove the boundaries of the inventory crates.
+
+| Example | Boundary | Content | Delivered by |
+|-|-|-|-|
+| `inventory_save_viewer` | no Bevy, no tokio | reads the inventory of a player file | step 2 |
+| `inventory_minigame` | no protocol crate, no network crate, no `mcrs_minecraft_inventory_server` | one headless app; each feature is one small plugin of it: a kit with snapshot and restore (step 2), a locked slot and a veto (step 3), a shop menu with button entries (step 4), a request source of its own that reads `RequestResult` (step 6) | steps 2, 3, 4, 6 |
+| `inventory_bot_click` | no render crate, no server crate | a headless client predicts a click and encodes the packet | step 8 |
+
+- Each package has an entry in `examples/dependencies.json` with its forbidden dependencies. The
+  dependency check of `xtask` enforces the boundary; `examples/README.md` states the mechanism.
+- Each boundary has its own package. The check resolves an example with its default features
+  only, so a feature gate inside one package proves nothing.
+- Each package has one behaviour test binary `tests/it/`. `inventory_minigame` has one case for
+  each plugin.
+- The proxy use case gets no inventory example. It needs no inventory crate, so the item
+  migration gives its proof.
+
 # 6. The tick: input, cancel point, change source, sync
 
 ## 6.1 Phases
@@ -756,9 +775,10 @@ dependents.
 - New in `vanilla_inventory`: `PlayerInventoryCommandsExt`, `PlayerInventories`.
 - Done: `vanilla_inventory` has no dependency on a packet crate, a network crate,
   `inventory_click` or `inventory_client_view`, and the dependency check of `xtask` states it. A test app
-  with `ItemPlugin` and `VanillaInventoryPlugin` only runs a hand swap and a close. An example
-  under `examples/` reads the inventory of a player file with no Bevy dependency. The server
-  behaves as before.
+  with `ItemPlugin` and `VanillaInventoryPlugin` only runs a hand swap and a close. The example
+  `inventory_save_viewer` reads the inventory of a player file with no Bevy dependency. The
+  example `inventory_minigame` gets its kit plugin with snapshot and restore. The server behaves
+  as before.
 
 **Step 3: the slot policy and the cancel point.**
 
@@ -771,7 +791,8 @@ dependents.
 - Done: a request to a locked slot gives `Reason::TakeDenied` or `Reason::PlaceDenied`. A hand
   swap under the off-hand rule "tagged items" has a rejection for an item outside the tag. An
   observer denies a request, and no slot changes. The click path and the commit read the same
-  policy; `ClickSlots` holds no filter of its own.
+  policy; `ClickSlots` holds no filter of its own. The example `inventory_minigame` gets a plugin
+  with a locked slot and a veto.
 
 **Step 4: the menu as data.**
 
@@ -783,7 +804,8 @@ dependents.
 - Done: the inventory menu is the value `MenuLayout::INVENTORY`, and the tests of the click kernel
   pass over it without a change of their tables. A test opens a second menu over a holder with 27
   slots, clicks a button entry and reads `EntryPressed`. A close gives the client views back to
-  the inventory menu (INV-SYN-007). `InventoryMenu` and `MenuSlot` are deleted.
+  the inventory menu (INV-SYN-007). `InventoryMenu` and `MenuSlot` are deleted. The example
+  `inventory_minigame` gets a shop menu plugin with button entries.
 
 **Step 5: `equippable` and the game rules.**
 
@@ -806,7 +828,8 @@ dependents.
 - Files: `engine_item/src/request_id.rs`, `item_app_ext.rs`; `vanilla_inventory/src/request_ids.rs`;
   each caller of `Request::new`.
 - Done: no crate makes a `RequestSource` without `allocate_request_source`. Two plugins in one
-  test app get two sources. `request_ids.rs` holds serial numbers only.
+  test app get two sources. `request_ids.rs` holds serial numbers only. The example
+  `inventory_minigame` gets a plugin with a request source of its own that reads `RequestResult`.
 
 **Step 7: the experiments.**
 
@@ -823,7 +846,8 @@ dependents.
 - Before: groups 4 and 8 of `item-design.md` section 10.3.5 (gate W2).
 - Done: a headless client predicts a click with the kernel that the server uses, and sends the
   `container_click` packet with hashed stacks. A test runs the client and the server in one
-  process: after a click, the server sends no slot packet.
+  process: after a click, the server sends no slot packet. The example `inventory_bot_click`
+  predicts a click and encodes the packet with no render crate and no server crate.
 
 ## 10.1 The migration from the old stack crate, in parallel
 
@@ -852,6 +876,6 @@ step 8 also waits for them.
 1. A `put_at` or a `consume` of a plugin reaches the client in the sync of the same tick.
 2. `mcrs_minecraft_vanilla_inventory` builds and runs in a test app that has no Java packet crate.
 3. An example outside the workspace crates reads the inventory of a player file with no Bevy
-   dependency.
+   dependency. The example `inventory_save_viewer` shows it.
 4. A plugin locks a slot, denies a request and opens a menu with button entries, with no change
-   to a crate of this document.
+   to a crate of this document. The example `inventory_minigame` shows it.
