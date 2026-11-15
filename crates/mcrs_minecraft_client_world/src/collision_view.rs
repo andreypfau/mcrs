@@ -17,21 +17,21 @@ use crate::columns::Extent;
 /// of the dimension is outside, a section of a column the client does not hold is unloaded, and
 /// a section the server sent with only air is air.
 #[derive(Clone, Copy, Debug)]
-pub struct ClientBlocks<'a, C> {
+pub(crate) struct ClientBlocks<'a, C> {
     columns: &'a C,
     tables: &'a Tables,
 }
 
 impl<'a, C: Columns> ClientBlocks<'a, C> {
     #[must_use]
-    pub fn new(columns: &'a C, tables: &'a Tables) -> Self {
+    pub(crate) fn new(columns: &'a C, tables: &'a Tables) -> Self {
         Self { columns, tables }
     }
 }
 
 /// A loaded section of [`ClientBlocks`], with its masks from the states of its palette list.
 #[derive(Clone, Copy, Debug)]
-pub struct ClientSection<'a> {
+pub(crate) struct ClientSection<'a> {
     blocks: DenseSection<'a>,
     masks: SectionMasks,
 }

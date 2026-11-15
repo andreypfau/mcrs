@@ -16,7 +16,7 @@ mod chat_packets;
 mod client_light;
 pub mod clock_sync;
 pub mod collision_tables;
-pub mod collision_view;
+mod collision_view;
 pub mod columns;
 pub mod game_mode;
 pub mod game_packets;
@@ -34,3 +34,4 @@ pub mod screen;
 pub mod sign;
 #[cfg(test)]
 mod test_session;
+mod walk;

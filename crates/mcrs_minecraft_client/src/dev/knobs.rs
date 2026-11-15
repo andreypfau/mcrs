@@ -90,13 +90,13 @@ impl Knobs {
         }
     }
 
-    /// `FLY=<speed>` holds forward and sprint down from the first tick at that flying speed, in
-    /// blocks per tick, so a flight can be repeated exactly.
-    pub fn scripted_flight(&self) -> Option<f64> {
+    /// `FLY=<speed>` flies with forward and sprint down from the first tick, at that flying speed
+    /// of the abilities (0.05 in vanilla), so a flight can be repeated exactly.
+    pub fn scripted_flight(&self) -> Option<f32> {
         self.parsed(
             "FLY",
             |&speed| speed > 0.0,
-            "expected a flying speed above zero, in blocks per tick",
+            "expected a flying speed above zero",
         )
     }
 

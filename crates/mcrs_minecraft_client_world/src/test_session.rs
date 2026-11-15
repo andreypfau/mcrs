@@ -1,17 +1,44 @@
 use bevy::math::DVec3;
 use bevy::prelude::*;
+#[cfg(not(target_family = "wasm"))]
+use bytes::BytesMut;
 use mcrs_minecraft_chunk::PalettedContainer;
 use mcrs_minecraft_dimension::dimension_keys::OVERWORLD;
+use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::metrics::PacketDispatcher;
 use mcrs_minecraft_physics::{PlayerState, Tables, TestBlocks};
+#[cfg(not(target_family = "wasm"))]
+use mcrs_minecraft_protocol::Bounded;
+#[cfg(not(target_family = "wasm"))]
+use mcrs_minecraft_protocol::decode::{PacketDecoder, PacketFrame};
+#[cfg(not(target_family = "wasm"))]
+use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundFinishConfiguration;
+#[cfg(not(target_family = "wasm"))]
+use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundClientInformation;
+#[cfg(not(target_family = "wasm"))]
+use mcrs_minecraft_protocol::packets::login::clientbound::{
+    ClientboundLoginFinishedWithOptions, OptionFlags,
+};
+#[cfg(not(target_family = "wasm"))]
+use mcrs_minecraft_protocol::profile::GameProfile;
+#[cfg(not(target_family = "wasm"))]
+use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Encode, Packet, VarInt};
+#[cfg(not(target_family = "wasm"))]
+use mcrs_minecraft_protocol::{PacketEncoder, WritePacket};
 use mcrs_minecraft_protocol_game::ColumnPos;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLogin;
 use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
 use mcrs_minecraft_resource::Id;
 use mcrs_voxel::SectionPos;
+#[cfg(not(target_family = "wasm"))]
+use std::io::{Read, Write};
+#[cfg(not(target_family = "wasm"))]
+use std::net::{TcpListener, TcpStream};
+#[cfg(not(target_family = "wasm"))]
+use std::time::Duration;
 
 use crate::collision_tables::ClientPhysicsTables;
 use crate::columns::{AIR, Column, ColumnStore, Extent, Section};
@@ -130,6 +157,17 @@ impl TestSession {
         }
     }
 
+    /// # Panics
+    ///
+    /// When the player has no transform.
+    pub(crate) fn position(&self) -> DVec3 {
+        self.app
+            .world()
+            .get::<PhysicsTransform>(self.player)
+            .unwrap()
+            .translation
+    }
+
     /// The kernel state of the player.
     ///
     /// # Panics
@@ -137,5 +175,87 @@ impl TestSession {
     /// Before the `login`, which gives the player its kernel state.
     pub(crate) fn motion(&self) -> PlayerState {
         self.app.world().get::<LocalMotion>(self.player).unwrap().0
+    }
+}
+
+/// The server end of a connection of a client under test.
+#[cfg(not(target_family = "wasm"))]
+pub(crate) struct Server {
+    stream: TcpStream,
+    decoder: PacketDecoder,
+}
+
+#[cfg(not(target_family = "wasm"))]
+impl Server {
+    /// The server end of the next connection to `listener`.
+    ///
+    /// # Panics
+    ///
+    /// When the accept fails.
+    pub(crate) fn accept(listener: &TcpListener) -> Self {
+        let (stream, _) = listener.accept().unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(10)))
+            .unwrap();
+        Self {
+            stream,
+            decoder: PacketDecoder::new(),
+        }
+    }
+
+    /// Accepts the next connection to `listener`, answers its login and ends its configuration.
+    /// Returns the `client_information` of the configuration state.
+    ///
+    /// # Panics
+    ///
+    /// When the accept fails, or the configuration does not start with the client information.
+    pub(crate) fn join(listener: &TcpListener) -> (Self, PacketFrame) {
+        let mut server = Self::accept(listener);
+        let _handshake = server.next_frame();
+        let _hello = server.next_frame();
+        server.send(&ClientboundLoginFinishedWithOptions {
+            profile: GameProfile {
+                id: Uuid::nil(),
+                username: Bounded("Steve"),
+                properties: Default::default(),
+            },
+            session_id: Uuid::nil(),
+            options: OptionFlags::new(),
+        });
+        let _acknowledged = server.next_frame();
+        let _brand = server.next_frame();
+        let _mod_list = server.next_frame();
+        let information = server.next_frame();
+        assert_eq!(
+            information.id,
+            ServerboundClientInformation::ID,
+            "the configuration starts with the client information"
+        );
+        server.send(&ClientboundFinishConfiguration);
+        (server, information)
+    }
+
+    /// # Panics
+    ///
+    /// When no frame comes within ten seconds or the client closes the connection.
+    pub(crate) fn next_frame(&mut self) -> PacketFrame {
+        loop {
+            if let Some(frame) = self.decoder.try_next_packet().unwrap() {
+                return frame;
+            }
+            let mut buffer = [0; 1024];
+            let read = self.stream.read(&mut buffer).unwrap();
+            assert_ne!(read, 0, "the client closed the connection");
+            self.decoder.queue_bytes(BytesMut::from(&buffer[..read]));
+        }
+    }
+
+    /// # Panics
+    ///
+    /// When the write fails.
+    pub(crate) fn send(&mut self, packet: &(impl Encode + Packet)) {
+        let mut encoder = PacketEncoder::new();
+        encoder.write_packet(packet);
+        self.stream.write_all(&encoder.take()).unwrap();
     }
 }

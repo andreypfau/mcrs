@@ -6,7 +6,7 @@ use mcrs_minecraft_engine_world::entity::physics::{
 };
 use mcrs_minecraft_item::{SelectedHotbarSlot, SlotTable, slots};
 
-use crate::local_player::{Flying, FlyingSpeed, LastSentMovement, Sprint};
+use crate::local_player::{LastSentMovement, Sprint};
 
 #[derive(Component)]
 pub struct Player;
@@ -31,8 +31,6 @@ pub fn spawn_player(world: &mut World, position: DVec3, yaw: f32, pitch: f32) ->
             physics,
             OldTransform(physics),
             Velocity(DVec3::ZERO),
-            Flying,
-            FlyingSpeed::default(),
             Sprint::default(),
             LastSentMovement::default(),
             SlotTable::fixed(slots::COUNT),

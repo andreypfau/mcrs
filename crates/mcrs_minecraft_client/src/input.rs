@@ -5,15 +5,16 @@ use mcrs_minecraft_engine_world::entity::physics::{OldTransform, Transform as Ph
 
 use mcrs_minecraft_client_gui::menu_screens_plugin::MenuScreensPlugin;
 use mcrs_minecraft_client_options::ClientOptions;
+use mcrs_minecraft_client_world::abilities::Abilities;
 use mcrs_minecraft_client_world::attack_input::AttackInput;
-use mcrs_minecraft_client_world::local_player::{FlyingSpeed, LocalPlayerTick};
+use mcrs_minecraft_client_world::local_player::LocalPlayerTick;
 use mcrs_minecraft_client_world::movement_input::MovementInput;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
 
-const FLY_SPEED_STEP: f64 = 0.05;
-const FLY_SPEED_MIN: f64 = 0.0;
-const FLY_SPEED_MAX: f64 = 2.0;
+const FLY_SPEED_STEP: f32 = 0.05;
+const FLY_SPEED_MIN: f32 = 0.0;
+const FLY_SPEED_MAX: f32 = 2.0;
 
 /// Degrees of turn for each unit of mouse motion at a turn factor of 1.
 const DEGREES_PER_MOTION_UNIT: f32 = 0.15;
@@ -85,19 +86,24 @@ fn read_attack_input(
     }
 }
 
-fn adjust_fly_speed(speed: f64, wheel: f64) -> f64 {
+fn adjust_fly_speed(speed: f32, wheel: f32) -> f32 {
     (speed + wheel * FLY_SPEED_STEP).clamp(FLY_SPEED_MIN, FLY_SPEED_MAX)
 }
 
+/// A developer override of the flying speed of the abilities.
 fn read_fly_speed_wheel(
     scroll: Res<AccumulatedMouseScroll>,
     cursor: Single<&CursorOptions, With<PrimaryWindow>>,
-    mut speed: Single<&mut FlyingSpeed, With<Player>>,
+    mut abilities: Single<&mut Abilities, With<Player>>,
 ) {
     if cursor.grab_mode == CursorGrabMode::None || scroll.delta.y == 0.0 {
         return;
     }
-    speed.0 = adjust_fly_speed(speed.0, f64::from(scroll.delta.y));
+    let next = Abilities {
+        flying_speed: adjust_fly_speed(abilities.flying_speed, scroll.delta.y),
+        ..**abilities
+    };
+    abilities.set_if_neq(next);
 }
 
 /// Grabbing after the look has been applied drops the motion the pointer made

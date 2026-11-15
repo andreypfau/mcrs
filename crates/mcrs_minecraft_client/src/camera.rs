@@ -5,7 +5,9 @@ use bevy::prelude::*;
 use bevy::render::render_resource::TextureUsages;
 use bevy::render::view::Msaa;
 use mcrs_minecraft_client_options::{ClientOptions, VIEW_DISTANCE_DEFAULT};
-use mcrs_minecraft_client_world::local_player::{Flying, LocalPlayerTick, Sprint};
+use mcrs_minecraft_client_world::abilities::Abilities;
+use mcrs_minecraft_client_world::local_motion::LocalMotion;
+use mcrs_minecraft_client_world::local_player::{LocalPlayerTick, Sprint};
 use mcrs_minecraft_client_world::player::{Player, look_direction};
 use mcrs_minecraft_client_world::player_view::{ChunkCacheRadius, RequestedViewDistance};
 use mcrs_minecraft_engine_world::entity::physics::{
@@ -257,17 +259,25 @@ fn follow_render_distance(
     }
 }
 
+fn flies(motion: Option<&LocalMotion>) -> bool {
+    motion.is_some_and(|motion| motion.0.flight0)
+}
+
+fn walking_speed(abilities: Option<&Abilities>) -> f32 {
+    abilities.map_or(DEFAULT_WALKING_SPEED, |abilities| abilities.walking_speed)
+}
+
 fn tick_camera(
     options: Res<FovOptions>,
-    player: Single<(Has<Flying>, &Sprint), With<Player>>,
+    player: Single<(Option<&LocalMotion>, Option<&Abilities>, &Sprint), With<Player>>,
     mut filters: Single<&mut CameraFilters, With<PlayerCamera>>,
 ) {
-    let (flying, sprint) = *player;
+    let (motion, abilities, sprint) = *player;
     let motion = Motion {
-        flying,
+        flying: flies(motion),
         sprinting: sprint.active,
     };
-    let zoom = target_zoom(motion, DEFAULT_WALKING_SPEED, options.effect_scale);
+    let zoom = target_zoom(motion, walking_speed(abilities), options.effect_scale);
     filters
         .get_or_settle(STANDING_EYE_HEIGHT, zoom)
         .tick(STANDING_EYE_HEIGHT, zoom);
@@ -280,7 +290,8 @@ fn place_camera(
         (
             &PhysicsTransform,
             &OldTransform,
-            Has<Flying>,
+            Option<&LocalMotion>,
+            Option<&Abilities>,
             &Sprint,
             &mut Transform,
         ),
@@ -292,15 +303,15 @@ fn place_camera(
     >,
     origin: Option<ResMut<CameraOrigin>>,
 ) {
-    let (current, previous, flying, sprint, mut body) = player.into_inner();
+    let (current, previous, motion, abilities, sprint, mut body) = player.into_inner();
     let (mut filters, mut camera, mut projection) = camera.into_inner();
     let motion = Motion {
-        flying,
+        flying: flies(motion),
         sprinting: sprint.active,
     };
     let filters = *filters.get_or_settle(
         STANDING_EYE_HEIGHT,
-        target_zoom(motion, DEFAULT_WALKING_SPEED, options.effect_scale),
+        target_zoom(motion, walking_speed(abilities), options.effect_scale),
     );
     let partial_tick = time.overstep_fraction();
 

@@ -348,7 +348,7 @@ pub fn run() -> AppExit {
     if let Some(position) = position {
         app.insert_resource(local_player::PositionOverride(position));
     }
-    let player = player::spawn_player(
+    player::spawn_player(
         app.world_mut(),
         position.unwrap_or(save_data.position),
         yaw,
@@ -358,9 +358,7 @@ pub fn run() -> AppExit {
         app.world_mut().spawn(figure);
     }
     #[cfg(feature = "dev")]
-    mcrs_minecraft_client::dev::script_flight(&mut app, player);
-    #[cfg(not(feature = "dev"))]
-    let _ = player;
+    mcrs_minecraft_client::dev::script_flight(&mut app);
 
     app.run()
 }

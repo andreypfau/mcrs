@@ -168,85 +168,17 @@ fn on_login(event: On<Received<ClientboundLogin>>, mut commands: Commands) {
 #[cfg(not(target_family = "wasm"))]
 mod tests {
     use super::*;
+    use crate::test_session::Server;
     use bevy::ecs::prelude::{DetectChangesMut, Entity, With};
-    use bytes::BytesMut;
     use mcrs_minecraft_network::client::{ClientNetworkPlugin, finish_configuration};
-    use mcrs_minecraft_protocol::decode::{PacketDecoder, PacketFrame};
     use mcrs_minecraft_protocol::packets::common::serverbound::ClientInformation;
-    use mcrs_minecraft_protocol::packets::configuration::clientbound::ClientboundFinishConfiguration;
-    use mcrs_minecraft_protocol::packets::configuration::serverbound::{
-        ServerboundClientInformation as ConfigurationInformation, ServerboundFinishConfiguration,
-    };
-    use mcrs_minecraft_protocol::packets::login::clientbound::{
-        ClientboundLoginFinishedWithOptions, OptionFlags,
-    };
-    use mcrs_minecraft_protocol::profile::GameProfile;
-    use mcrs_minecraft_protocol::uuid::Uuid;
-    use mcrs_minecraft_protocol::{Bounded, Decode, Encode, Packet, PacketEncoder};
-    use std::io::{Read, Write};
-    use std::net::{TcpListener, TcpStream};
+    use mcrs_minecraft_protocol::packets::configuration::serverbound::ServerboundFinishConfiguration;
+    use mcrs_minecraft_protocol::{Decode, Packet};
+    use std::net::TcpListener;
     use std::thread;
     use std::time::Duration;
 
-    struct Server {
-        stream: TcpStream,
-        decoder: PacketDecoder,
-    }
-
     impl Server {
-        /// Answers the login and ends the configuration. Returns the `client_information` of the
-        /// configuration state.
-        fn join(listener: &TcpListener) -> (Server, PacketFrame) {
-            let (stream, _) = listener.accept().unwrap();
-            stream
-                .set_read_timeout(Some(Duration::from_secs(10)))
-                .unwrap();
-            let mut server = Server {
-                stream,
-                decoder: PacketDecoder::new(),
-            };
-            let _handshake = server.next_frame();
-            let _hello = server.next_frame();
-            server.send(&ClientboundLoginFinishedWithOptions {
-                profile: GameProfile {
-                    id: Uuid::nil(),
-                    username: Bounded("Steve"),
-                    properties: Default::default(),
-                },
-                session_id: Uuid::nil(),
-                options: OptionFlags::new(),
-            });
-            let _acknowledged = server.next_frame();
-            let _brand = server.next_frame();
-            let _mod_list = server.next_frame();
-            let information = server.next_frame();
-            assert_eq!(
-                information.id,
-                ConfigurationInformation::ID,
-                "the configuration starts with the client information"
-            );
-            server.send(&ClientboundFinishConfiguration);
-            (server, information)
-        }
-
-        fn next_frame(&mut self) -> PacketFrame {
-            loop {
-                if let Some(frame) = self.decoder.try_next_packet().unwrap() {
-                    return frame;
-                }
-                let mut buffer = [0; 1024];
-                let read = self.stream.read(&mut buffer).unwrap();
-                assert_ne!(read, 0, "the client closed the connection");
-                self.decoder.queue_bytes(BytesMut::from(&buffer[..read]));
-            }
-        }
-
-        fn send(&mut self, packet: &(impl Encode + Packet)) {
-            let mut encoder = PacketEncoder::new();
-            encoder.write_packet(packet);
-            self.stream.write_all(&encoder.take()).unwrap();
-        }
-
         fn assert_next_information(&mut self, configured: ClientInformation, view_distance: u8) {
             let frame = self.next_frame();
             assert_eq!(
