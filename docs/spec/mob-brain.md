@@ -257,8 +257,6 @@ The rows share the update-count result. Their game-tick labels differ because of
 **BRAIN-VAN-005** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
 Observation scope: [E-B2](mob-brain-experiments.md#e-b2-injected-expiry-zero-boundary-freeze-and-ai-suspension) covers `NoAI` and ordinary freeze.
 [E-B8](mob-brain-experiments.md#e-b8-player-passenger-freeze-and-the-dying-camel-exception) covers only the dying camel, camel husk and goat.
-The direct-passenger freeze and saddle-control clauses keep `source_suggested`, confidence: medium.
-Other clauses keep `source_suggested`, confidence: medium.
 
 Without a brain update, expiry and sensor countdowns must not advance.
 Each condition below must prevent a brain update:
@@ -279,7 +277,6 @@ brain update. A schedule clock change alone must not change expiry.
 
 **BRAIN-VAN-006** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
 Observation scope: [E-B2](mob-brain-experiments.md#e-b2-injected-expiry-zero-boundary-freeze-and-ai-suspension) and [E-B4](mob-brain-experiments.md#e-b4-damaged-entries-ignored-registration-and-complete-replacement) cover the tested persisted entries, finite `ttl`, permanent omission and rejected transient input.
-Other clauses keep `source_suggested`, confidence: medium.
 
 A living entity's save must contain `Brain:{memories:{...}}`, including the empty form.
 Only registered, present memories of a persisted kind must appear in `memories`.
@@ -312,7 +309,6 @@ A species can carry one memory outside `Brain` (section 7.3).
 
 **BRAIN-VAN-007** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
 Observation scope: [E-B4](mob-brain-experiments.md#e-b4-damaged-entries-ignored-registration-and-complete-replacement) covers complete command replacement, independent entry rejection and the listed `ttl` conversions.
-Other clauses keep `source_suggested`, confidence: medium.
 
 A usable `Brain.memories` compound must create a fresh brain (BRAIN-VAN-008). Omitted values must
 not survive. The loader must ignore valid persisted kinds that this body does not register.
@@ -574,7 +570,6 @@ It must give these results:
 
 **BRAIN-VAN-033** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
 Observation scope: [E-B3](mob-brain-experiments.md#e-b3-schedule-change-with-sleep-as-the-observable) covers same-update wake when rest ends.
-Other clauses keep `source_suggested`, confidence: medium.
 
 Inactive activities must prevent new starts but must not cancel running behaviours.
 A forced stop-all must include running behaviours of inactive activities and running group

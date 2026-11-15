@@ -11,7 +11,6 @@ The base value of F is a parameter of the body type, with the default 16.
 **BRAIN-VAN-010** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
 Observation scope: [E-B5](mob-brain-experiments.md#e-b5-sensor-written-expiry-and-first-appearance) covers first water scans in 1..19 and a subsequent scan after exactly 20 updates.
 The distribution estimate is consistent with the stated probabilities; it does not prove their exact values.
-Other clauses retain `source_suggested`, confidence: medium.
 
 Sensors must use the periods and initial phase distribution of AIT-VAN-016.
 For P=20, first tick 1 must have probability 2/20, and ticks 2..19 each 1/20.
@@ -200,7 +199,6 @@ then form a set without order. Equal-quality target choice and POI encounter ord
 
 **BRAIN-VAN-018** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
 Observation scope: [E-B5](mob-brain-experiments.md#e-b5-sensor-written-expiry-and-first-appearance) covers deep-water unit writes without expiry and erasure after water removal.
-Other clauses retain `source_suggested`, confidence: medium.
 
 `minecraft:is_in_water` must read current water-contact state without a fresh block-area query.
 Water contact must write a unit value to `minecraft:is_in_water`; no contact must erase it.
