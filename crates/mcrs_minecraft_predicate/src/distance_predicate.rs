@@ -36,7 +36,7 @@ impl DistancePredicate {
 }
 
 /// Each bound is squared, so a negative bound acts as its absolute value.
-fn matches_squared(bounds: &MinMaxBounds<f64>, squared: f64) -> bool {
+pub(crate) fn matches_squared(bounds: &MinMaxBounds<f64>, squared: f64) -> bool {
     bounds.min.is_none_or(|min| min * min <= squared)
         && bounds.max.is_none_or(|max| squared <= max * max)
 }

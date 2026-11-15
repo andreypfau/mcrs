@@ -6,7 +6,9 @@
 )]
 
 mod allocation;
+mod crowd;
 mod distance;
+mod entity;
 mod grid;
 mod item_predicate;
 mod location;
