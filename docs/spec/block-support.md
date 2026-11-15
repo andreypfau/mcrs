@@ -415,7 +415,7 @@ commands to the console only. No client is necessary. Force-load the columns of 
 `forceload`.
 
 Put each case of E1 to E4 in its own column, 3 blocks from the next case. Run all commands of one family
-from one function, so that one level tick runs them. A command of the form
+from one function, so that one dimension tick runs them. A command of the form
 `execute if block <P> <subject> run data modify storage ...` records each result. Use the nether, above
 its bedrock roof (`y` 200): the light there is 0 at each position.
 
@@ -540,7 +540,7 @@ still goes.
 
 The supporting position of the two wall blocks is the neighbour to the west.
 
-**R5.** In one level tick: the two carpets and the snow layer are air. Both parts of the sunflower are air.
+**R5.** In one dimension tick: the two carpets and the snow layer are air. Both parts of the sunflower are air.
 An item entity is within 1.5 blocks of the torch position. The waterlogged sign and the waterlogged wall
 sign changed to `water[level=0]`, a source. A sign that is not waterlogged changed to air.
 

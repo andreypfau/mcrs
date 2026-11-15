@@ -22,9 +22,9 @@ draw takes the fog. The document does not prescribe an architecture.
 - **Attribute value** `A(name)`: the value in the frame of the environment attribute
   `minecraft:visual/<name>`, at the camera position (`environment-attributes.md`,
   ENVA-LAYER-007).
-- **Rain level** (`R`) and **thunder level** (`T`): the two weather levels of
-  ENVA-LAYER-005, for the partial tick of the frame. `T` is the thunder level multiplied by the
-  rain level.
+- **Rain strength** (`R`) and **thunder strength** (`T`): the two weather strengths of
+  ENVA-LAYER-005, for the partial tick of the frame. `T` is the thunder strength multiplied by the
+  rain strength.
 - **Camera medium**: air, water, lava or powder snow (CFOG-TYPE-001).
 - **Fog parameters**: the seven values of a frame that the draws read: the fog colour `C`, the
   environmental start `es` and end `ee`, the render-distance start `rs` and end `re`, the sky
@@ -786,7 +786,7 @@ be of `26.4-snapshot-7`.
 ### CFOG-EXP-04: Rain (not run)
 
 - **Steps:** a scene without `tick freeze`. Run `weather rain`. Capture at 1, 5, 10, 20 and 60
-  ticks after the rain level reaches 1. Then capture under a stone roof after 40 ticks.
+  ticks after the rain strength reaches 1. Then capture under a stone roof after 40 ticks.
 - **Record:** `C` and the fog on a block at 10 blocks. After 60 ticks, they must be those of
   CFOG-TEST-004. Under the roof, `es` and `ee` must go back to 0 and 1024.
 

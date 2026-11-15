@@ -306,7 +306,7 @@ reference, with the block of the copy. The damage of the step and fall actions i
 ### 3.8 Exact-parity mode
 
 Exact-parity mode is one world with every link `Inline` (ARCH Decision 20). It uses none of
-PHY-CMP-008, 009, 012, 014, 015, 017, 018 or 020. One sequential driver runs the level tick in the
+PHY-CMP-008, 009, 012, 014, 015, 017, 018 or 020. One sequential driver runs the dimension tick in the
 order of PHY-ORD-010:
 
 1. The client packets of the tick, in arrival order; a move packet changes its player when it is
@@ -821,7 +821,7 @@ Random ticks are the first block domain to step in parallel inside one world, be
 fixes only a distribution (SIM-MODEL-106). The kernel already draws the picks of a section and the
 values of its handlers from a stream keyed by section and step (`StreamKey::Section`).
 
-**Order in the level tick.** The driver runs `random_step` after the scheduled block and fluid ticks
+**Order in the dimension tick.** The driver runs `random_step` after the scheduled block and fluid ticks
 and before the block events (SIM-TICK-002, A.4). The colour phases and the serial step stay inside
 that slot. The client broadcast comes after the random ticks and before the block events
 (SIM-MODEL-107(a)); today the block step publishes all writes at the end, block events included
@@ -1732,7 +1732,7 @@ E1..E8, T1 (any time)   D1 ─ D2 ─ D3 ─ D4 ─ D5 ─ D6 ─ D7
     `update_attributes` go to the viewer about itself; they count as predicted changes.
 34. Decided: the player spawn info of `login` and `respawn` has one world flag in
     `26.4-snapshot-7`, not two. We keep the flat world flag and remove the debug world flag.
-    Evidence: snapshot 7 makes debug worlds ordinary editable worlds, and the level of the game
+    Evidence: snapshot 7 makes debug worlds ordinary editable worlds, and the world of the game
     also lost its debug flag. The bytes on the wire do not depend on this choice. Experiment:
     record the `login` packet of a vanilla server with `level-type=flat`; the flag must be true.
 35. Open: the density functions `upscale` and `domain_warp` of `26.4-snapshot-7`. We read

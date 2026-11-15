@@ -56,7 +56,7 @@ a rule of this document.
 - **Explosion**, **power**, **block interaction mode**, **causing entity**, **source entity**: as
   `explosions.md`, section 0.1, and EXP-SRC-001 define them.
 - **Orb**: as `experience.md`, section 0.1, defines it.
-- **Level random**: as `block-simulation.md`, section 0.1, defines it (SIM-RNG-001).
+- **Dimension random**: as `block-simulation.md`, section 0.1, defines it (SIM-RNG-001).
 - **Value effect**: an enchantment value effect (REG-FLD-356 of `registry-fields.md`).
 - **Neighbour removal**: the removal of a block because a change of a neighbour makes the block
   invalid, for example a torch without support. It is the second row of LOOT-SRC-002.
@@ -74,8 +74,8 @@ a rule of this document.
   positions (BDR-EXL-002). A collected stack has the position of the block that started it.
 
 Each draw uses the notation of LOOT-RND-006 of `loot.md`: `F`, `B(n)` and `between(a, b)`. A draw of
-the experience or of the held items comes from the level random. It is not a draw of a loot
-evaluation, and a parity test compares only its distribution.
+the experience or of the held items comes from the dimension random. It is not a draw
+of a loot evaluation, and a parity test compares only its distribution.
 
 ### 0.2 Provenance
 
@@ -174,7 +174,7 @@ experience to iron ore, but not to stone.
 A result of 0 or less makes no orb. A NaN gives 0. A value above 2³¹ − 1 gives 2³¹ − 1. The empty
 stack has no enchantments, so it keeps the amount. The component `minecraft:stored_enchantments` has
 no effect. In the vanilla data pack, only Silk Touch has this effect: `set` with the value 0.0 and no
-`requirements`. The draws of `requirements` and of the value effects come from the level random.
+`requirements`. The draws of `requirements` and of the value effects come from the dimension random.
 
 The order of the enchantments in step 4 is unspecified (kind: unspecified). The reference does not
 take them in the order of the component. The order changes the result only when two enchantments of

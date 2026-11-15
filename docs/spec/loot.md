@@ -50,6 +50,7 @@ Other documents state the parts that a table contains and the sources that evalu
 - **Candidate**: a leaf result that one roll can select (LOOT-EVL-003).
 - **Generator**: the random number generator that one evaluation takes its draws from
   (LOOT-RND-004).
+- **Dimension random**: as `block-simulation.md`, section 0.1, defines it (SIM-RNG-001).
 - **Draw**: one value that the evaluation takes from the generator. LOOT-RND-006 states the kinds
   and their notation. Each loot document uses this notation.
 - **Keyed stream**: a sequence of random values that is a function of a key. The `i`-th draw of an
@@ -602,10 +603,10 @@ generator.
 
 | Condition | Generator |
 |-----------|-----------|
-| the source gives a generator, for example the level random for the display item of a vault | that generator |
+| the source gives a generator, for example the dimension random (SIM-RNG-001) for the display item of a vault | that generator |
 | the source gives a seed that is not 0, for example the save field `LootTableSeed` of a container or `DeathLootTableSeed` of a mob | a new 48-bit generator (BMR-PICK-003), set to that seed |
 | the table has a `random_sequence` | the sequence stream of that id (LOOT-RND-005) |
-| otherwise | the level random of the dimension (SIM-RNG-001) |
+| otherwise | the dimension random (SIM-RNG-001) |
 
 The seed 0 means "no seed". A nested table uses the generator of the table that contains it
 (LOOT-EVL-010). The spread over a container continues with the same generator (LOOT-CTR-001). In
@@ -665,7 +666,7 @@ There is no draw `B(n)` for a bound `n` outside `1..2³¹ − 1`. A rule that ca
 states its result for it, and that result takes no draw (LOOT-EVL-003, LOOT-NUM-009 of
 `loot-conditions.md`, LOOT-MOD-004 of `loot-functions.md`).
 
-The 48-bit generator and the level random make each kind as follows:
+The 48-bit generator and the dimension random make each kind as follows:
 
 - `B(n)` is `next_int(n)` of BMR-PICK-003;
 - `F` is `next(24) / 2²⁴`;
@@ -756,9 +757,9 @@ These experiments need the vanilla server and a scripted player:
 
 - **Rule**: LOOT-RND-009.
 - **Reference**: an evaluation without a seed in the save continues the sequence stream of the
-  `random_sequence` of the table (LOOT-RND-005), or takes the level random. The world saves the
-  sequence streams. The drops thus depend on the order of all earlier evaluations of the same
-  sequence, also in other dimensions.
+  `random_sequence` of the table (LOOT-RND-005), or takes the dimension random
+  (SIM-RNG-001). The world saves the sequence streams. The drops thus depend on the order of all
+  earlier evaluations of the same sequence, also in other dimensions.
 - **Visible to the client**: no, as a distribution. A player cannot repeat a drop of the vanilla
   server from the world seed alone.
 - **Test**: a differential test compares the distribution of the results over many evaluations. A

@@ -163,12 +163,12 @@ for the next death.
 **PLD-SCR-004** (`documentation`, client agreement, confidence: medium). The death screen of the
 vanilla client shows these items:
 
-- The title: the translation `deathScreen.title`, or `deathScreen.title.hardcore` when the level
+- The title: the translation `deathScreen.title`, or `deathScreen.title.hardcore` when the world
   is hardcore.
 - The death message of the packet, below the title.
 - The score: the translation `deathScreen.score.value` with the experience score of the player.
 - A button that sends the respawn request. Its text is `deathScreen.respawn`, or
-  `deathScreen.spectate` in a hardcore level.
+  `deathScreen.spectate` in a hardcore world.
 - A button `deathScreen.titleScreen` that leaves the world.
 
 The buttons are not active in the first 20 ticks of the screen. The server does not check the
