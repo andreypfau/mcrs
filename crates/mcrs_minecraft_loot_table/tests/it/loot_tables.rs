@@ -16,7 +16,7 @@ use mcrs_test_alloc::allocations;
 
 use crate::fixture::{LOOT, block_table, blocks, context, names, state, stream, tool};
 
-const TABLES: [(&str, &str); 7] = [
+const TABLES: &[(&str, &str)] = &[
     ("t:blocks/a_first", r#"{"pools": []}"#),
     (
         "t:untyped",
@@ -62,16 +62,138 @@ const TABLES: [(&str, &str); 7] = [
             "bonus_rolls": {"type": "minecraft:uniform", "min": 0, "max": 2},
             "entries": [{"type": "minecraft:item", "name": "minecraft:stick"}]}]}"#,
     ),
+    (
+        "t:tag_all",
+        r##"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:tag", "items": "#t:pair"}]}]}"##,
+    ),
+    (
+        "t:tag_each",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:tag", "expand": true,
+            "items": ["minecraft:stick", "minecraft:snowball"]}]}]}"#,
+    ),
+    (
+        "t:nested_in_order",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:loot_table", "value": [
+            "t:modifier_order",
+            {"pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:snowball"}]}]}
+        ]}]}]}"#,
+    ),
+    (
+        "t:nested_undivided",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:loot_table", "value": "t:gift",
+            "modifier": {"type": "minecraft:set_count", "count": -60, "add": true}}]}]}"#,
+    ),
+    (
+        "t:nested_each",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:loot_table", "expand": true, "value": [
+            "t:untyped",
+            {"pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:snowball"}]}]}
+        ]}]}]}"#,
+    ),
+    (
+        "t:dynamic",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:dynamic", "name": "minecraft:contents"}]}]}"#,
+    ),
+    (
+        "t:dynamic_unknown",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:dynamic", "name": "t:contents"}]}]}"#,
+    ),
+    (
+        "t:quality",
+        r#"{"pools": [{"rolls": 1, "entries": [
+            {"type": "minecraft:item", "name": "minecraft:stick"},
+            {"type": "minecraft:item", "name": "minecraft:snowball", "weight": 3, "quality": -1}]}]}"#,
+    ),
+    (
+        "t:luck_rolls",
+        r#"{"pools": [{"rolls": 1, "bonus_rolls": 1.5,
+            "entries": [{"type": "minecraft:item", "name": "minecraft:stick"}]}]}"#,
+    ),
+    (
+        "f:a",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:loot_table", "value": "f:b"}]}]}"#,
+    ),
+    (
+        "f:b",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:loot_table", "value":
+            {"pools": [{"rolls": 1, "entries": [{"type": "minecraft:loot_table", "value": "f:a"}]}]}}]}]}"#,
+    ),
+    (
+        "f:self",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:group", "children": [
+            {"type": "minecraft:item", "name": "minecraft:stick"},
+            {"type": "minecraft:loot_table", "value": "f:self"}]}]}]}"#,
+    ),
+    (
+        "f:twice",
+        r#"{"pools": [
+            {"rolls": 1, "entries": [{"type": "minecraft:loot_table", "value": "t:untyped"}]},
+            {"rolls": 1, "entries": [{"type": "minecraft:loot_table", "value": "t:untyped"}]}]}"#,
+    ),
+    (
+        "f:no_children",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:sequence"}]}]}"#,
+    ),
+    (
+        "f:alternatives",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:alternatives", "children": [
+            {"type": "minecraft:item", "name": "minecraft:stick"},
+            {"type": "minecraft:item", "name": "minecraft:snowball"}]}]}]}"#,
+    ),
+    (
+        "f:chest_nests",
+        r#"{"type": "minecraft:chest", "pools": [{"rolls": 1, "entries": [
+            {"type": "minecraft:loot_table", "value": "f:reads_tool"}]}]}"#,
+    ),
+    (
+        "f:reads_tool",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:stick",
+            "condition": {"type": "minecraft:match_tool"}}]}]}"#,
+    ),
+    (
+        "f:unknown_table",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:loot_table", "value": "f:missing"}]}]}"#,
+    ),
+    (
+        "f:unknown_tag",
+        r##"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:tag", "items": "#f:missing"}]}]}"##,
+    ),
 ];
 
-static ADDED: LazyLock<(Registries, LootTables, Vec<LootIssue>)> = LazyLock::new(|| {
+/// The length of the chain `d:chain/0` to `d:chain/{CHAIN - 1}`: each table nests the next, and
+/// the last makes one stick.
+pub const CHAIN: usize = 100;
+
+fn chain_table(link: usize) -> String {
+    let entry = if link + 1 == CHAIN {
+        r#"{"type": "minecraft:item", "name": "minecraft:stick"}"#.to_owned()
+    } else {
+        let next = link + 1;
+        format!(r#"{{"type": "minecraft:loot_table", "value": "d:chain/{next}"}}"#)
+    };
+    format!(r#"{{"pools": [{{"rolls": 1, "entries": [{entry}]}}]}}"#)
+}
+
+pub static ADDED: LazyLock<(Registries, LootTables, Vec<LootIssue>)> = LazyLock::new(|| {
     let mut additions = test_additions();
-    for (name, table) in TABLES {
+    additions.files.insert(
+        "t",
+        "data/t/tags/item/pair.json".to_owned(),
+        r#"{"values": ["minecraft:snowball", "minecraft:stick"]}"#,
+    );
+    for &(name, table) in TABLES {
         let (namespace, path) = name.split_once(':').expect("a table name");
         additions.files.insert(
             "t",
             format!("data/{namespace}/loot_table/{path}.json"),
             table,
+        );
+    }
+    for link in 0..CHAIN {
+        additions.files.insert(
+            "t",
+            format!("data/d/loot_table/chain/{link}.json"),
+            chain_table(link),
         );
     }
     additions.embedded_packs.push("t".to_owned());
@@ -80,7 +202,7 @@ static ADDED: LazyLock<(Registries, LootTables, Vec<LootIssue>)> = LazyLock::new
     (registries, loot, issues)
 });
 
-fn added_table(name: &str) -> Id<mcrs_minecraft_loot::loot::LootTable> {
+pub fn added_table(name: &str) -> Id<mcrs_minecraft_loot::loot::LootTable> {
     let name = ResourceLocation::read(name).expect("a table name");
     ADDED
         .0
@@ -156,7 +278,7 @@ fn roll_added(name: &str) -> Vec<(String, u8)> {
     roll_with_stream(name).0
 }
 
-fn roll_with_stream(name: &str) -> (Vec<(String, u8)>, XoroshiroRandom) {
+pub fn roll_with_stream(name: &str) -> (Vec<(String, u8)>, XoroshiroRandom) {
     let table = added_table(name);
     let mut random = stream(&ADDED.1, table, 0);
     let mut stacks = Vec::new();
