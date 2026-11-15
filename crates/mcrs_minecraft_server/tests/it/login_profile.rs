@@ -15,8 +15,12 @@ use mcrs_minecraft_engine::whitelist::{
     EditWhitelist, Whitelist, WhitelistEntry, WhitelistHostPlugin,
 };
 use mcrs_minecraft_engine_server::configuration::on_configuration_ack;
-use mcrs_minecraft_engine_server::login::{LoginPlugin, LoginState, SingleplayerProfile};
-use mcrs_minecraft_engine_server::{LoopbackOps, ShutdownPlugin, ShutdownRequest};
+use mcrs_minecraft_engine_server::login::{
+    LoginPlugin, LoginState, ProxyForwarding, SingleplayerProfile,
+};
+use mcrs_minecraft_engine_server::{
+    ForwardingSecret, LoopbackOps, ShutdownPlugin, ShutdownRequest,
+};
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_network::OutboundReceiver;
 use mcrs_minecraft_network::event::run_event_loop;
@@ -31,17 +35,17 @@ use mcrs_minecraft_protocol::packets::configuration::serverbound::{
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundDisconnect;
 use mcrs_minecraft_protocol::packets::login::clientbound::{
     ClientboundLoginDisconnect, ClientboundLoginFinished, ClientboundLoginFinishedWithOptions,
-    LoginCompression, OptionFlags,
+    CustomQuery, LoginCompression, OptionFlags,
 };
 use mcrs_minecraft_protocol::packets::login::serverbound::{
-    ServerboundHello, ServerboundLoginAcknowledged,
+    ServerboundCustomQueryAnswer, ServerboundHello, ServerboundLoginAcknowledged,
 };
 use mcrs_minecraft_protocol::setting::{ChatMode, DisplayedSkinParts, MainArm, ParticleStatus};
 use mcrs_minecraft_protocol::uuid::{Uuid, uuid};
 use mcrs_minecraft_protocol::{
-    Bounded, CompressionThreshold, Decode, Encode, Packet, VarInt, WritePacket,
+    Bounded, CompressionThreshold, Decode, Encode, Packet, RawBytes, VarInt, WritePacket,
 };
-use mcrs_minecraft_text::Text;
+use mcrs_minecraft_text::{ItemHover, Text};
 
 use crate::mock_connection;
 
@@ -1104,4 +1108,134 @@ fn wl_enf_003_an_add_does_not_disconnect_an_operator_that_is_not_listed() {
     app.update();
 
     assert!(connected(&app, &client));
+}
+
+fn forwarding_server() -> App {
+    let mut app = server(Some(SingleplayerProfile {
+        name: "Steve".to_owned(),
+        id: OPERATOR,
+    }));
+    app.insert_resource(ProxyForwarding(
+        ForwardingSecret::new(crate::proxy_forwarding::SECRET).unwrap(),
+    ));
+    app
+}
+
+fn send_answer(app: &mut App, client: &Client, message_id: i32, payload: Option<&[u8]>) {
+    send(
+        app,
+        client,
+        &ServerboundCustomQueryAnswer {
+            message_id: VarInt(message_id),
+            payload: payload.map(|bytes| Bounded(RawBytes(bytes))),
+        },
+    );
+}
+
+/// A hello under the host's name, from a proxy on this machine: neither the name nor the
+/// address may decide anything once the proxy forwards the player.
+fn forwarded_hello(app: &mut App) -> (Client, i32) {
+    let client = connect(app);
+    app.world_mut()
+        .get_mut::<ServerSideConnection>(client.connection)
+        .unwrap()
+        .raw
+        .remote_addr = "127.0.0.1:40000".parse().unwrap();
+    send_hello(app, &client, "Steve", Uuid::nil());
+    let mut client = client;
+    let frames = client.received(app);
+    assert_eq!(ids(&frames), [CustomQuery::ID], "only the forwarding query");
+    let query = CustomQuery::decode(&mut &frames[0].body[..]).unwrap();
+    assert_eq!(query.channel.to_string(), "velocity:player_info");
+    assert_eq!(query.data.0.0, [4]);
+    (client, query.message_id.0)
+}
+
+#[test]
+fn fwd_use_001_002_a_forwarded_login_takes_the_profile_and_the_address_of_the_proxy() {
+    let mut app = forwarding_server();
+    app.insert_resource(LoopbackOps::Grant);
+    let (mut client, message_id) = forwarded_hello(&mut app);
+    assert!(app.world().get::<GameProfile>(client.connection).is_none());
+
+    let payload = crate::proxy_forwarding::forwarded_payload();
+    send_answer(&mut app, &client, message_id, Some(&payload));
+
+    let profile = app
+        .world()
+        .get::<GameProfile>(client.connection)
+        .expect("the forwarded login is accepted")
+        .clone();
+    assert_eq!(
+        (profile.id, profile.username.as_str()),
+        (crate::proxy_forwarding::FORWARDED_ID, "Steve")
+    );
+    assert_eq!(
+        profile.properties,
+        crate::proxy_forwarding::forwarded_properties()
+    );
+    let remote_addr = app
+        .world()
+        .get::<ServerSideConnection>(client.connection)
+        .unwrap()
+        .remote_addr();
+    assert_eq!(remote_addr, "203.0.113.7:40000".parse().unwrap());
+    assert!(
+        app.world().resource::<OpList>().get(&profile.id).is_none(),
+        "the forwarded address is not loopback"
+    );
+    assert_eq!(
+        app.world().get::<LoginState>(client.connection),
+        Some(&LoginState::Accepted)
+    );
+    assert_eq!(
+        ids(&client.received(&mut app)),
+        [LoginCompression::ID, ClientboundLoginFinished::ID]
+    );
+}
+
+#[test]
+fn fwd_chk_001_a_refused_forwarding_answer_ends_the_login_with_its_reason() {
+    let payload = crate::proxy_forwarding::forwarded_payload();
+    let mut flipped = payload.clone();
+    *flipped.last_mut().unwrap() ^= 1;
+    let unexpected = serde_json::json!({
+        "translate": "multiplayer.disconnect.unexpected_query_response"
+    });
+    let cases: [(Option<i32>, Option<&[u8]>, serde_json::Value); 3] = [
+        (Some(1), Some(&payload), unexpected),
+        (
+            None,
+            None,
+            serde_json::to_value(Text::<ItemHover>::text(
+                "This server requires you to connect with Velocity.",
+            ))
+            .unwrap(),
+        ),
+        (
+            None,
+            Some(&flipped),
+            serde_json::to_value(Text::<ItemHover>::text("Unable to verify player details"))
+                .unwrap(),
+        ),
+    ];
+    for (message_id, payload, reason) in cases {
+        let mut app = forwarding_server();
+        let (mut client, sent_id) = forwarded_hello(&mut app);
+        send_answer(&mut app, &client, message_id.unwrap_or(sent_id), payload);
+        assert_eq!(login_disconnect_reason(&client.received(&mut app)), reason);
+        assert!(!connected(&app, &client), "{reason}");
+    }
+}
+
+#[test]
+fn login_oth_002_a_custom_query_answer_without_forwarding_ends_the_login() {
+    let mut app = server(None);
+    let mut client = connect(&mut app);
+    send_answer(&mut app, &client, 0, None);
+    assert_eq!(
+        login_disconnect_reason(&client.received(&mut app)),
+        serde_json::json!({ "translate": "multiplayer.disconnect.unexpected_query_response" })
+    );
+    assert!(!connected(&app, &client));
 }

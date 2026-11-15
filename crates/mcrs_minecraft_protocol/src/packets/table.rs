@@ -72,7 +72,7 @@ macro_rules! for_each_packet_table {
                 "key" => ClientboundHello<'a>,
                 "login_finished" => ClientboundLoginFinished<'a>,
                 "setup_compression" => LoginCompression,
-                "custom_query",
+                "custom_query" => CustomQuery<'a>,
                 "cookie_request",
                 "apply_options",
             }

@@ -2,19 +2,22 @@ use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::{Add, Insert};
 use bevy_ecs::prelude::{On, Query};
-use bevy_ecs::query::{With, Without};
+use bevy_ecs::query::{Has, With, Without};
 use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::common_conditions::any_with_component;
 use bevy_ecs::system::{Commands, Res, ResMut, SystemParam};
 use mcrs_minecraft_network::client::offline_player_uuid;
 use mcrs_minecraft_network::event::Received;
-use mcrs_minecraft_network::{ConnectionState, ServerSideConnection};
-use mcrs_minecraft_protocol::packets::login::serverbound::{
-    ServerboundHello, ServerboundLoginAcknowledged,
+use mcrs_minecraft_network::{
+    ConnectionState, ForwardingRefusal, ForwardingSecret, ServerSideConnection, forwarding_query,
 };
-use mcrs_minecraft_protocol::{CompressionThreshold, uuid};
+use mcrs_minecraft_protocol::packets::login::serverbound::{
+    ServerboundCustomQueryAnswer, ServerboundHello, ServerboundLoginAcknowledged,
+};
+use mcrs_minecraft_protocol::{CompressionThreshold, WritePacket, uuid};
 use mcrs_minecraft_text::Text;
+use std::net::SocketAddr;
 
 use crate::loopback_ops::{LoopbackOps, grant_loopback_ops};
 
@@ -60,6 +63,7 @@ impl bevy_app::Plugin for LoginPlugin {
         );
         app.add_observer(start_login_clock);
         app.add_observer(handle_hello_packet);
+        app.add_observer(handle_custom_query_answer);
         app.add_observer(handle_login_acknowledged);
         app.add_observer(on_login_accepted);
         app.add_observer(grant_loopback_ops);
@@ -331,76 +335,159 @@ impl LoginReplies<'_> {
     }
 }
 
+/// The secret of the proxy that forwards every player; while it is present, a login takes the
+/// player's profile and address from the proxy.
+#[derive(Resource, Clone, Debug)]
+pub struct ProxyForwarding(pub ForwardingSecret);
+
+/// The forwarding query is sent and its answer has not arrived.
+#[derive(Component, Debug)]
+pub struct AwaitingForwarding;
+
+/// What a login runs through once it knows the player's profile.
+#[derive(SystemParam)]
+pub struct Admission<'w, 's> {
+    session_connections: Query<
+        'w,
+        's,
+        (
+            &'static mut ServerSideConnection,
+            &'static ConnectionState,
+            &'static LoginState,
+        ),
+    >,
+    sessions: SessionsById<'w, 's>,
+    replies: LoginReplies<'w>,
+    join_check: JoinCheck<'w>,
+    commands: Commands<'w, 's>,
+}
+
+impl Admission<'_, '_> {
+    fn refuse(&mut self, connection: Entity, con: &mut ServerSideConnection, reason: Text) {
+        disconnect(con, ConnectionState::Login, reason);
+        self.commands
+            .entity(connection)
+            .remove::<ServerSideConnection>();
+    }
+
+    fn admit(&mut self, connection: Entity, con: &mut ServerSideConnection, profile: GameProfile) {
+        if let Some(ban) = self.join_check.bans.active(&profile.id) {
+            tracing::info!(name = %profile.username, "login refused: banned");
+            let reason = banned_reason(ban);
+            self.refuse(connection, con, reason);
+            return;
+        }
+        if !self.join_check.allows(&profile.id) {
+            tracing::info!(name = %profile.username, "login refused: not whitelisted");
+            self.refuse(connection, con, not_whitelisted_reason());
+            return;
+        }
+        tracing::debug!(?profile, "login hello");
+        self.replies.announce_compression(con);
+        let mut must_wait = self.sessions.saving(profile.id);
+        for (_, place, other) in self.sessions.of(profile.id) {
+            let other = other.and_then(|entity| {
+                let (con, &state, _) = self.session_connections.get_mut(entity).ok()?;
+                Some((entity, con, state))
+            });
+            let in_play = matches!(other, Some((_, _, ConnectionState::Game)));
+            if place == Place::Unplaced && !in_play {
+                continue;
+            }
+            must_wait = true;
+            if let Some((other_connection, mut other, state)) = other {
+                tracing::info!(name = %profile.username, "a new login under the same id ends the session");
+                disconnect(&mut other, state, duplicate_login_reason());
+                self.commands
+                    .entity(other_connection)
+                    .remove::<ServerSideConnection>();
+            }
+        }
+        if must_wait {
+            self.commands
+                .entity(connection)
+                .insert((profile, LoginState::AwaitingDeparture));
+        } else {
+            self.replies.finish(con, &profile);
+            self.commands
+                .entity(connection)
+                .insert((profile, LoginState::Accepted));
+        }
+    }
+}
+
 pub fn handle_hello_packet(
     event: On<Received<ServerboundHello<'static>>>,
-    mut query: Query<&mut ServerSideConnection, Without<LoginState>>,
-    mut session_connections: Query<(&mut ServerSideConnection, &ConnectionState), With<LoginState>>,
-    sessions: SessionsById,
-    replies: LoginReplies,
-    join_check: JoinCheck,
-    mut commands: Commands,
+    mut query: Query<&mut ServerSideConnection, (Without<LoginState>, Without<AwaitingForwarding>)>,
+    forwarding: Option<Res<ProxyForwarding>>,
+    mut admission: Admission,
 ) {
     let (Ok(mut con), Some(pkt)) = (query.get_mut(event.entity), event.packet()) else {
         return;
     };
     if !is_valid_player_name(&pkt.username) {
         tracing::info!(name = ?pkt.username.0, "login refused: invalid characters in username");
-        disconnect(
-            &mut con,
-            ConnectionState::Login,
-            invalid_player_name_reason(),
-        );
-        commands
-            .entity(event.entity)
-            .remove::<ServerSideConnection>();
+        admission.refuse(event.entity, &mut con, invalid_player_name_reason());
         return;
     }
-    let profile = hello_profile(&pkt.username, join_check.host.as_deref());
-    if let Some(ban) = join_check.bans.active(&profile.id) {
-        tracing::info!(name = %profile.username, "login refused: banned");
-        disconnect(&mut con, ConnectionState::Login, banned_reason(ban));
-        commands
+    if forwarding.is_some() {
+        con.write_packet(&forwarding_query());
+        admission
+            .commands
             .entity(event.entity)
-            .remove::<ServerSideConnection>();
+            .insert(AwaitingForwarding);
         return;
     }
-    if !join_check.allows(&profile.id) {
-        tracing::info!(name = %profile.username, "login refused: not whitelisted");
-        disconnect(&mut con, ConnectionState::Login, not_whitelisted_reason());
-        commands
-            .entity(event.entity)
-            .remove::<ServerSideConnection>();
-        return;
-    }
-    tracing::debug!(?profile, "login hello");
-    replies.announce_compression(&mut con);
-    let mut must_wait = sessions.saving(profile.id);
-    for (_, place, connection) in sessions.of(profile.id) {
-        let other = connection.and_then(|entity| {
-            let (con, &state) = session_connections.get_mut(entity).ok()?;
-            Some((entity, con, state))
-        });
-        let in_play = matches!(other, Some((_, _, ConnectionState::Game)));
-        if place == Place::Unplaced && !in_play {
-            continue;
+    let profile = hello_profile(&pkt.username, admission.join_check.host.as_deref());
+    admission.admit(event.entity, &mut con, profile);
+}
+
+/// The answer to the forwarding query; any other `custom_query_answer` ends the login.
+pub fn handle_custom_query_answer(
+    event: On<Received<ServerboundCustomQueryAnswer<'static>>>,
+    mut query: Query<(&mut ServerSideConnection, Has<AwaitingForwarding>), Without<LoginState>>,
+    forwarding: Option<Res<ProxyForwarding>>,
+    mut admission: Admission,
+) {
+    let connection = event.entity;
+    let Ok((mut con, awaiting)) = query.get_mut(connection) else {
+        if let Ok((mut con, &state, &login)) = admission.session_connections.get_mut(connection) {
+            disconnect(
+                &mut con,
+                client_protocol(state, Some(&login)),
+                ForwardingRefusal::UnexpectedAnswer.reason(),
+            );
+            admission
+                .commands
+                .entity(connection)
+                .remove::<ServerSideConnection>();
         }
-        must_wait = true;
-        if let Some((connection, mut other, state)) = other {
-            tracing::info!(name = %profile.username, "a new login under the same id ends the session");
-            disconnect(&mut other, state, duplicate_login_reason());
-            commands.entity(connection).remove::<ServerSideConnection>();
+        return;
+    };
+    let checked = match (awaiting, forwarding, event.packet()) {
+        (true, Some(forwarding), Some(answer)) => forwarding.0.check(&answer),
+        _ => Err(ForwardingRefusal::UnexpectedAnswer),
+    };
+    let player = match checked {
+        Ok(player) => player,
+        Err(refusal) => {
+            tracing::info!(?refusal, "login refused: forwarding answer");
+            admission.refuse(connection, &mut con, refusal.reason());
+            return;
         }
-    }
-    if must_wait {
-        commands
-            .entity(event.entity)
-            .insert((profile, LoginState::AwaitingDeparture));
-    } else {
-        replies.finish(&mut con, &profile);
-        commands
-            .entity(event.entity)
-            .insert((profile, LoginState::Accepted));
-    }
+    };
+    let port = con.remote_addr().port();
+    con.raw.remote_addr = SocketAddr::new(player.address, port);
+    admission
+        .commands
+        .entity(connection)
+        .remove::<AwaitingForwarding>();
+    let profile = GameProfile {
+        id: player.id,
+        username: player.name,
+        properties: player.properties,
+    };
+    admission.admit(connection, &mut con, profile);
 }
 
 fn slow_login_reason() -> Text {

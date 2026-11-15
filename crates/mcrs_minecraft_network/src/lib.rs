@@ -7,6 +7,7 @@ pub mod connect;
 mod disconnect_reason;
 #[cfg(feature = "bevy")]
 pub mod event;
+mod forwarding_secret;
 pub mod identity;
 mod inbound;
 #[cfg(feature = "bevy")]
@@ -34,6 +35,10 @@ pub use std::time::Instant;
 #[cfg(target_family = "wasm")]
 pub use web_time::Instant;
 
+pub use crate::forwarding_secret::{
+    EmptyForwardingSecret, FORWARDING_CHANNEL, FORWARDING_QUERY_ID, ForwardedPlayer,
+    ForwardingRefusal, ForwardingSecret, REQUESTED_FORWARDING_VERSION, forwarding_query,
+};
 #[cfg(not(target_family = "wasm"))]
 pub use crate::outbound::OutboundReceiver;
 pub use crate::packet_io::{Inbound, MAX_QUEUED_BYTES_PER_SOCKET, RawConnection};
