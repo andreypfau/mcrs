@@ -79,7 +79,7 @@ fn prepare(@builtin(global_invocation_id) id: vec3<u32>) {
     let overlay = entity_overlay(state, whole_age, false);
     let light = entity_light(state);
     draw.origin_yaw = vec4<f32>(position, body_yaw);
-    draw.axes = vec4<f32>(facing.y * scale, -facing.x * scale, scale, bitcast<f32>(yaw * TILE | ((row * TILE) << 16u)));
+    draw.axes = vec4<f32>(facing.y * scale, -facing.x * scale, scale, bitcast<f32>((yaw * TILE) | ((row * TILE) << 16u)));
     draw.bounds = bounds;
     draw.words = vec4<u32>(
         layer_entry(state, 0u) | (layer_entry(state, 1u) << 16u),

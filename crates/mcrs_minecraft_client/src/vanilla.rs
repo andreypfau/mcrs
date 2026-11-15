@@ -36,8 +36,22 @@ struct Fetch {
     worker: Option<JoinHandle<()>>,
 }
 
+/// The server the font objects come from, laid out as [`client_jar::OBJECTS`]. Inserted before
+/// [`register`]; a page serves them itself, since the official server sends no CORS header.
+#[derive(Resource, Clone, Debug)]
+pub struct AssetObjects(pub String);
+
+impl Default for AssetObjects {
+    fn default() -> Self {
+        Self(client_jar::OBJECTS.to_owned())
+    }
+}
+
 /// Registers the `vanilla` source and starts filling it. Must run before `AssetPlugin` builds.
+/// The font objects come from the [`AssetObjects`] the app holds by then, else the official server.
 pub fn register(app: &mut App) {
+    let objects = app.world().get_resource::<AssetObjects>().cloned();
+    let objects = objects.unwrap_or_default().0;
     let root = Dir::default();
     register_source(app, root.clone());
     let progress = Arc::<Progress>::default();
@@ -46,13 +60,20 @@ pub fn register(app: &mut App) {
     #[cfg(not(target_family = "wasm"))]
     let worker = Some(spawn(
         root,
+        objects,
         progress.clone(),
         fonts.clone(),
         unpacked.clone(),
     ));
     #[cfg(target_family = "wasm")]
     let worker = {
-        spawn_web(root, progress.clone(), fonts.clone(), unpacked.clone());
+        spawn_web(
+            root,
+            objects,
+            progress.clone(),
+            fonts.clone(),
+            unpacked.clone(),
+        );
         None
     };
     app.insert_resource(Fetch {
@@ -68,6 +89,7 @@ pub fn register(app: &mut App) {
 #[cfg(not(target_family = "wasm"))]
 fn spawn(
     root: Dir,
+    objects: String,
     progress: Arc<Progress>,
     fonts: Arc<Mutex<Option<Files>>>,
     unpacked: Arc<AtomicBool>,
@@ -78,7 +100,7 @@ fn spawn(
             // The font objects come from another host, so they are fetched while the jar is.
             let (sender, font_layer) = std::sync::mpsc::channel();
             std::thread::spawn(move || {
-                let _ = sender.send(client_jar::font_assets());
+                let _ = sender.send(client_jar::font_assets(&objects));
             });
             let resolved = client_jar::resolve(&progress, is_resource, |files| {
                 *fonts.lock().unwrap() = Some(files);
@@ -125,6 +147,7 @@ fn await_layer(
 #[cfg(target_family = "wasm")]
 fn spawn_web(
     root: Dir,
+    objects: String,
     progress: Arc<Progress>,
     fonts: Arc<Mutex<Option<Files>>>,
     unpacked: Arc<AtomicBool>,
@@ -135,7 +158,7 @@ fn spawn_web(
             client_jar::fetch(&progress, is_resource, |files| {
                 *fonts.lock().unwrap() = Some(files);
             }),
-            client_jar::font_assets(),
+            client_jar::font_assets(&objects),
         )
         .await;
         fill(&root, files);

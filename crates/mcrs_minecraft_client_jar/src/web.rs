@@ -47,14 +47,16 @@ pub async fn fetch(
     files
 }
 
-/// The asset index layer's font files, laid over the jar's by path. The browser's HTTP cache
-/// keeps them: an object's address is its digest, so a hit is never stale. The objects are
-/// fetched side by side, each retried with a growing wait.
-pub async fn font_assets() -> Result<Files, String> {
+/// The asset index layer's font files from `objects`, a server laid out as [`crate::OBJECTS`],
+/// laid over the jar's by path. The browser's HTTP cache keeps them: an object's address is its
+/// digest, so a hit is never stale. The objects are fetched side by side, each retried with a
+/// growing wait unless the browser refuses the request.
+pub async fn font_assets(objects: &str) -> Result<Files, String> {
     let promises = Array::new();
     for object in FONT_OBJECTS {
+        let url = object.url(objects);
         promises.push(&future_to_promise(async move {
-            fetch_object(object)
+            fetch_object(object, &url)
                 .await
                 .map(|bytes| Uint8Array::from(bytes.as_slice()).into())
                 .map_err(JsValue::from)
@@ -68,7 +70,16 @@ pub async fn font_assets() -> Result<Files, String> {
         .collect())
 }
 
-async fn fetch_object(object: &AssetObject<'_>) -> Result<Vec<u8>, String> {
+/// Why an attempt at an object brought nothing.
+enum Miss {
+    /// The fetch itself failed: the network is down, or the server sends no CORS header, which a
+    /// page cannot tell apart. Asking again only keeps the text from the jar's glyphs longer.
+    Refused(String),
+    /// A stall, an HTTP error or a cut body, which a later attempt can mend.
+    Failed(String),
+}
+
+async fn fetch_object(object: &AssetObject<'_>, url: &str) -> Result<Vec<u8>, String> {
     let mut backoff = MIN_BACKOFF_MS;
     let mut failure = String::new();
     for attempt in 0..OBJECT_ATTEMPTS {
@@ -76,25 +87,34 @@ async fn fetch_object(object: &AssetObject<'_>) -> Result<Vec<u8>, String> {
             sleep(backoff).await;
             backoff = (backoff * 2).min(MAX_BACKOFF_MS);
         }
-        match object_body(object).await {
+        match object_body(url).await {
             Ok(bytes) if object.holds(&bytes) => return Ok(bytes),
             Ok(_) => failure = "it is not the pinned object".to_owned(),
-            Err(error) => failure = error,
+            Err(Miss::Refused(error)) => return Err(format!("{url}: {error}")),
+            Err(Miss::Failed(error)) => failure = error,
         }
     }
-    Err(format!("{}: {failure}", object.url()))
+    Err(format!("{url}: {failure}"))
 }
 
-async fn object_body(object: &AssetObject<'_>) -> Result<Vec<u8>, String> {
-    let window = web_sys::window().ok_or("no window")?;
+async fn object_body(url: &str) -> Result<Vec<u8>, Miss> {
+    let window = web_sys::window().ok_or_else(|| Miss::Refused("no window".to_owned()))?;
     // Browser fetch has no timeout of its own, so each wait is raced against a timer.
-    let response: Response = within(window.fetch_with_str(&object.url()), STALL_MS)
-        .await?
-        .unchecked_into();
-    if !response.ok() {
-        return Err(format!("HTTP {}", response.status()));
+    let fetched = Promise::race(&Array::of2(&window.fetch_with_str(url), &timeout(STALL_MS)));
+    let response = JsFuture::from(fetched)
+        .await
+        .map_err(|error| Miss::Refused(describe(error)))?;
+    if response.is_undefined() {
+        return Err(Miss::Failed("the download stalled".to_owned()));
     }
-    let buffer = within(response.array_buffer().map_err(describe)?, OBJECT_BODY_MS).await?;
+    let response: Response = response.unchecked_into();
+    if !response.ok() {
+        return Err(Miss::Failed(format!("HTTP {}", response.status())));
+    }
+    let body = response
+        .array_buffer()
+        .map_err(|error| Miss::Failed(describe(error)))?;
+    let buffer = within(body, OBJECT_BODY_MS).await.map_err(Miss::Failed)?;
     Ok(Uint8Array::new(&buffer).to_vec())
 }
 

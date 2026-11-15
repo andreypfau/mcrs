@@ -129,6 +129,8 @@ the reference implementation. No experiment has confirmed them yet. Section 15 g
   with a captured result in section 16.
 - `source_suggested`: taken from the reference implementation, with no captured result. The
   confidence is at most medium. Section 15 attaches an experiment.
+- `design`: an mcrs choice where the documentation and the reference state nothing. The rule
+  states the reason.
 - `unresolved`: not decided. Section 14 collects these items.
 
 Each rule states its kind and its confidence, for example
@@ -851,8 +853,9 @@ Here `g` is the effective gravity (PHY-GRV-002) and `drag` is the vertical air d
 
 **PHY-RST-004** (`source_suggested`, semantic, confidence: medium). A bounce occurs when `e > 0`
 gives a horizontal or a vertical change. A bounce calls the bounce action of the block at the
-effect position and emits the game event `bounce`. The server then sends the position of the
-entity to the clients immediately.
+effect position and emits the game event `bounce`. The tracker tick of the entity in the same server tick,
+after the entity ticks, is then an update (`entity-tracking.md`, TRK-UPD-011). A living entity
+does not get an update from the bounce; its path gets a step (TRK-UPD-005, step 2).
 
 ## 6. Gravity, drag and block effects
 
@@ -890,7 +893,8 @@ moves in this way when a chunk near the player is not loaded:
    levitation.
 3. The horizontal rules do not change. The ground friction uses the block at the movement position.
    In a chunk that is not loaded, this block is air.
-4. The client does not tick its player before the client has loaded the level.
+4. The client does not tick its player during a load. MVC-PKT-012 of `movement-checks.md` states
+   when a load starts and ends.
 
 On the server, a move can keep the fall distance of a player. This occurs when the box of the
 player, grown by 1 on each side, touches a chunk that is not loaded (PHY-FALL-003).
@@ -1136,6 +1140,22 @@ the modifiers and the range, bit for bit.
 
 The default base for a player is `0.1F` (ATR-BASE-003 of `attributes.md`).
 
+The travel step of the player reads `speed` as `f32` of the value of the `movement_speed` instance
+(PHY-GRV-010). It reads the instance as it is in step 13 of PHY-ORD-001:
+
+1. Before the tick, `update_attributes` can replace the base value and the modifiers
+   (ATR-CLI-002). An entry of `movement_speed` removes the sprint modifier.
+2. In step 6, the client sets the sprint modifier when the sprint state changes to on. It removes
+   it when the sprint state changes to off (ATR-SRC-002).
+3. The client does not set the modifier again in a tick in which the sprint state does not change
+   (ATR-CLI-004).
+
+Thus, after an entry without the sprint modifier, a player with the sprint state on moves at the
+speed without the sprint modifier. The air speed of PHY-INP-007 and the jump boost of PHY-INP-005
+read the sprint state, not the modifier. They keep their sprint values. Provenance of this
+paragraph and the list: `source_suggested` for steps 1 and 2, and the `design` of ATR-CLI-004 for
+step 3. Kind: client agreement. Confidence: medium.
+
 **PHY-INP-007** (`source_suggested`, client agreement, confidence: medium). The air speed of a
 player without the flight state is `0.02F`, or `0.025999999F` with the sprint state on.
 
@@ -1144,7 +1164,8 @@ sprint state when all these conditions are true:
 
 - the sprint state is off, and the forward value of the input is more than `1.0E-5F`;
 - the player does not have the effect `blindness`;
-- the food level is more than 6, or the player has the fly permission;
+- the food level is more than 6, or the player has the fly permission. HNG-NET-004 of
+  `hunger.md` states the food level before the first `set_health`;
 - the player is not in shallow water, unless the flight state is on;
 - the player does not use an item that slows it;
 - the player is not in elytra flight and does not crouch or crawl, unless its eyes are in water;
@@ -1522,8 +1543,8 @@ The parameters of the rows:
 - Item, push: on the server, shrink the box of an item by `1.0E-7`. If that box has a collision,
   the item has no physics in that tick, and the server pushes it to a free side.
 - `falling_block`, ground rule: on the server, before the drag, if the on-ground flag is true,
-  multiply `v` by `(0.7, -0.5, 0.7)`. Then the entity tries to become a block. This document
-  does not state that step.
+  multiply `v` by `(0.7, -0.5, 0.7)`. Then the entity tries to become a block:
+  `falling-block.md`, FBK-LND-001, states that step.
 - Primed TNT, ground rule: after the drag, if the on-ground flag is true, multiply `v` by
   `(0.7, -0.5, 0.7)`.
 - Experience orb: `G` applies only when the box has no collision and the eyes are not in water.
@@ -1729,6 +1750,34 @@ applies before step 1. The push of PHY-PSH-008 changes the velocity of `S` befor
 The old position and the old rotation are not in `S`. Step 1 of PHY-ORD-001 sets them before a
 rule reads them. Thus they do not change the result of the tick, and step 7 of PHY-SRV-010 does
 not change the physics. An implementation can keep these values outside `S`.
+
+**PHY-ORD-015** (`design`, client agreement, confidence: medium). A `login` packet and each
+`respawn` packet make a new local player (ATR-CLI-005 of `attributes.md`). The new local player
+starts with these values of `S`. A later packet or tick changes them.
+
+| Value | Start value |
+|-------|-------------|
+| the velocity | `(0, 0, 0)` |
+| the fly permission, and the abilities "invulnerable" and "instant build" | the table of CMD-GM-007 of `command-gamemode.md`, for the game mode of the packet |
+| the flight state | the `flying` column of that table. The value "keep" is off |
+| the flight speed and the walking speed | `0.05F` and `0.1F` |
+| the sprint state | off (ATR-CLI-004 of `attributes.md`) |
+| the attributes | ATR-CLI-005 of `attributes.md` |
+| the food level | HNG-NET-004 of `hunger.md` |
+
+No player tick reads the abilities and the velocity of this table when the server sends these
+packets:
+
+- `player_abilities` after the `login` or `respawn` packet and before event 13 of `game_event`.
+  CMD-GM-008 and DIM-CHG-003 of `dimension-change.md` state this order. The recording
+  `crates/mcrs_minecraft_entity/tests/fixtures/vanilla/a4_respawn.txt` shows it for a respawn
+  after a death.
+- `player_position` with an empty relative set before event 13 (PLD-NET-001 of
+  `player-death.md`). It replaces the velocity.
+
+The load of MVC-PKT-012 of `movement-checks.md` cannot end before event 13, except by its
+timeout. Thus the start values above matter only for a server that omits these packets. U12 lists
+the values of `S` that the first player tick reads and that no artefact decides.
 
 **PHY-ORD-008** (`source_suggested`, semantic, confidence: medium). This model does not cover the
 effects in this list. A tick in which one of them can act is not exact. A checker must treat such
@@ -2460,33 +2509,40 @@ two position updates of the server.
 | own player | yes, with this model | only a teleport (PHY-SRV-010), with no interpolation | none |
 | other player | no | interpolation over 3 ticks | 2 |
 | living entity that is not a player | no. When no interpolation is active, the client multiplies its velocity by 0.98 in each tick. The client does not move it by the velocity. | interpolation over the update interval of the type | 3 by default |
-| item, falling block, primed TNT, arrow, thrown item, llama spit, accelerated projectile | yes, with this model, from the last state that the server sent | the client sets the position with no interpolation | item 20, falling block 20, TNT 10, arrow 20, thrown item 10 |
+| item, falling block, primed TNT, arrow, thrown item, llama spit, accelerated projectile | yes, with this model, from the last state that the server sent | the client sets the position with no interpolation | item 20, falling block 20, TNT 10, arrow 20, thrown item 10, llama spit 10, accelerated projectile 10 |
 | experience orb | yes, with this model | linear interpolation over 3 ticks | 20 |
 
-When the update is more than 64 blocks from the position of the client, the client sets the
-position with no interpolation.
+When an `entity_position_sync` is more than 64 blocks from the position of the client, the client
+sets the position with no interpolation. A relative move has no such check. The update interval is
+the periodic interval only: `entity-tracking.md`, section 7.1, adds updates between two periodic
+ones. TRK-TYPE-005 and TRK-CLI-003 of that document give the values and the client side of each
+type.
 
-**PHY-CMP-002** (`source_suggested`, wire, confidence: medium). The server sends a position update
-in one of two forms:
+**PHY-CMP-002** (`source_suggested_black_box_confirmed`, wire, confidence: high). The server sends
+a position update in one of two forms:
 
 - `move_entity_pos` and `move_entity_pos_rot` carry a change of position in units of `1/4096`
-  block. The unit value is `round(x × 4096)` of each coordinate. A change of more than 32767
-  units, about 8 blocks, needs the other form.
+  block. The unit value is `e(a) = floor(a × 4096 + 0.5)` of each coordinate
+  (`entity-tracking.md`, TRK-WIRE-001). A change outside `[−32768, 32767]` units on an axis, about
+  8 blocks, needs the other form.
 - `entity_position_sync` carries the position as three f64 values.
 
-The server also uses the f64 form in these cases:
+`entity-tracking.md` states the rule: TRK-UPD-001 and TRK-UPD-011 give the ticks of an update, and
+TRK-UPD-003 selects the form at an update. In short:
 
-- the on-ground flag changed;
-- the entity needs a precise position;
-- more than 400 updates occurred after the last f64 form;
-- the entity stopped a ride.
+- The position is due when the change from the last sent position has a squared length of at
+  least `7.6293945E-6F`, about `0.00276` block, or when the tick is each 60th tracker tick. An
+  arrow has the position due at each update (TRK-UPD-014).
+- The f64 form comes at an update, also when the position is not due, when the on-ground flag
+  changed, the precise mark is set, the update count is more than 400, or the entity stopped a
+  ride. Only these cases set the count to 0.
+- A `falling_block` and a primed TNT set the precise mark from the collision flags of their last
+  move (TRK-UPD-012). The mark selects the form; it does not make an update.
+- An item uses the f64 form when its relative move fits but the condition of TRK-UPD-013 is true.
 
-A `falling_block` and a primed TNT need a precise position after each tick with a collision flag.
-An item needs it when it collides and the unit value loses precision. The server sends a position
-only in two cases. In the first case, the change from the last sent position has a squared length
-of at least `7.6293945E-6F`, about `0.00276` block. In the second case, the tick is each 60th tick
-of the tracker. It sends `set_entity_motion` at an update when
-the velocity changed by a squared distance of more than `1.0E-7`.
+The server sends `set_entity_motion` at an update when the type tracks velocity or the entity has
+the "needs sync" mark, and the velocity changed by a squared distance of more than `1.0E-7`, or
+changed to zero (TRK-UPD-007).
 
 **PHY-CMP-003** (`source_suggested`, semantic, confidence: medium). Let `δ` be the difference
 between the position of the server and the result of the exact model. A player sees this:
@@ -3180,6 +3236,18 @@ for client agreement. A server that computes another result gives false setbacks
   packets.
 - **U11**: two cells of one dimension can accept the same given UUID, because each cell refuses
   only the UUIDs of its own entities (PHY-CMP-024).
+- **U12**: the start values of a new local player that the first player tick reads
+  (PHY-ORD-015). No artefact gives them after a `login` or a `respawn` packet:
+  - the on-ground flag and the other result flags;
+  - the pose and the crouch state;
+  - `shift0`, `jump0` and the forward value of the previous tick;
+  - the sprint timer, the jump timer and the jump delay;
+  - the fall distance, also after a respawn for a dimension change.
+
+  With each key up and a teleport with an empty relative set, each start value gives the same
+  first tick. A key that the player holds across the packet makes the difference. Experiment E56
+  decides the values after a respawn. For a `login`, the client recorder needs a client that joins
+  again (`attributes.md`, section 13, A6).
 
 ## 15. Experiments
 
@@ -3248,6 +3316,7 @@ values are f64 values. Compare them bit for bit with the model.
 | E53 | From the server console, summon an item with `Motion` `[0.1, 0, 0.07]` and `Age` -32768 on stone, ice and a slime block. Read `Motion` and `Pos` after each of the first 400 ticks, then after each 1000 ticks up to 12,000 ticks. | PHY-ORD-005, PHY-SKIP-003, PHY-DEV-014 |
 | E54 | From the server console, with the tick frozen, put dirt in the air and destroy it with `/setblock … air destroy`. Read `Pos` and `Motion` of the item, then remove it. Do this 1000 times. | PHY-CMP-025 |
 | E55 | Set `max_entity_cramming` to 100. With the tick frozen, summon 64 pigs with the base `movement_speed` 0 at one point on a flat floor, then one more at the offset `(-0.0442, +0.0442)`. Step 200 ticks and read `Pos` of each. | PHY-PSH-006, PHY-CMP-027, PHY-DEV-004 |
+| E56 | Run `tools/mcrs_minecraft_client_recorder/record.sh e56` with `AUTOPLAY=true`. In each step, the input agent holds keys from before a death through an immediate respawn: jump; forward; forward and shift; forward and sprint. The respawn rotation has the yaw 0, so forward moves along `+z`. Read the move packets of the first 3 player ticks after the respawn. A `y` above 100 in the first tick means that the on-ground flag starts true. A first step along `z` of `0.098` means the ground speed, and `0.0196` means the air speed. A factor of 0.3 on that step means that the crouch state starts from the held shift key. Also read the tick of `player_command` with action 1. | PHY-ORD-015, U12, ATR-CLI-004 |
 
 The experiment of a supported rule also covers each `source_suggested` rule without a row above:
 

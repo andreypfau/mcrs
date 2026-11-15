@@ -19,14 +19,13 @@ use crate::persistence;
 use crate::player_dimension_change::receive_transfers;
 use crate::player_order::{OrderedPlayer, obey_orders};
 use crate::player_sprinting::{PlayerSprinting, handle_player_command};
-use crate::send_own_attributes::send_own_attributes;
+use crate::send_own_attributes::{OwnAttributesSet, send_own_attributes};
 use bevy_app::{App, FixedPreUpdate, FixedUpdate, Plugin, Update};
 use bevy_ecs::schedule::common_conditions::{
     on_message, resource_exists, resource_exists_and_changed,
 };
 use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition};
 use mcrs_minecraft_engine_attributes::{AttributeChanged, AttributeEdits};
-use mcrs_minecraft_engine_physics::MobPublish;
 use mcrs_minecraft_engine_world::entity::add_entity_to_chunk;
 use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
 use mcrs_minecraft_engine_world::entity::player::Player;
@@ -108,9 +107,7 @@ impl Plugin for DimPlayerPlugin {
                 .run_if(on_message::<AttributeChanged>.or_else(on_message::<OpLevelAnnounced>))
                 .in_set(TickSet::Project)
                 .after(AttributeEdits)
-                // The mobs of the set write other subjects, which the take of the tile events
-                // sorts.
-                .ambiguous_with(MobPublish),
+                .in_set(OwnAttributesSet),
         );
         app.add_message::<OutboundPlayerReleased>();
         app.add_systems(

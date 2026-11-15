@@ -1,23 +1,21 @@
-//! The attribute instances of the players and the mob rows of a dimension world
-//! (`attributes.md`, section 3): one edit message, one apply system, and one message for each
-//! instance that an edit changed.
+//! The attribute instances of the players of a dimension world (`attributes.md`, section 3): one
+//! edit message, one apply system, and one message for each instance that an edit changed.
 
-mod apply_attribute_edits;
+mod apply_player_attribute_edits;
 mod attribute_changed;
 mod attribute_edit;
+mod attribute_edits;
 mod attribute_target;
 mod attributes;
-mod entity_attributes_plugin;
-mod forget_removed_rows;
 mod instance_edit;
-mod motion_field;
-mod project_row_motion;
-mod row_attributes;
+mod player_attribute_edits;
+mod player_attributes_plugin;
 
 pub use attribute_changed::AttributeChanged;
 pub use attribute_edit::AttributeEdit;
+pub use attribute_edits::AttributeEdits;
 pub use attribute_target::AttributeTarget;
 pub use attributes::Attributes;
-pub use entity_attributes_plugin::{AttributeEdits, EntityAttributesPlugin};
 pub use instance_edit::InstanceEdit;
-pub use row_attributes::RowAttributes;
+pub use player_attribute_edits::PlayerAttributeEdits;
+pub use player_attributes_plugin::PlayerAttributesPlugin;

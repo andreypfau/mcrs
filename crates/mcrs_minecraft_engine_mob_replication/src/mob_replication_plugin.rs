@@ -5,9 +5,10 @@ use bevy_app::FixedUpdate;
 use bevy_app::Plugin;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::common_conditions::on_message;
+use mcrs_minecraft_engine::OwnAttributesSet;
 use mcrs_minecraft_engine::tile_events::TileEvents;
 use mcrs_minecraft_engine_attributes::AttributeChanged;
-use mcrs_minecraft_engine_attributes::RowAttributes;
+use mcrs_minecraft_engine_mob_attributes::RowAttributes;
 use mcrs_minecraft_engine_physics::MobPublish;
 
 use crate::publish_mob_attributes::publish_mob_attributes;
@@ -42,6 +43,9 @@ impl<M: Send + Sync + 'static> Plugin for MobReplicationPlugin<M> {
         app.init_resource::<TileEvents>();
         app.init_resource::<RowAttributes>();
         app.add_message::<AttributeChanged>();
+        // The take of the tile events sorts the subjects; the order only settles the ambiguity
+        // check.
+        app.configure_sets(FixedUpdate, OwnAttributesSet.before(MobPublish));
         app.add_systems(
             FixedUpdate,
             (

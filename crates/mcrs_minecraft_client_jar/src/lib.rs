@@ -25,7 +25,7 @@ mod schedule;
 #[cfg(target_family = "wasm")]
 mod web;
 
-pub use asset_object::{AssetObject, FONT_OBJECTS};
+pub use asset_object::{AssetObject, FONT_OBJECTS, OBJECTS};
 #[cfg(not(target_family = "wasm"))]
 pub use data::{ClientJar, VanillaDataError, vanilla_data};
 pub use fonts::{FontHint, font_files};

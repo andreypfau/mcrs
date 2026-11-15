@@ -3,7 +3,6 @@ use bevy_ecs::prelude::{Commands, Entity, IntoScheduleConfigs, Query, With, Worl
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::network_id::player_network_id;
-use mcrs_minecraft_engine_brain::MobColumn;
 use mcrs_minecraft_engine_item::{ItemPlugin, ItemSet};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
@@ -18,9 +17,11 @@ use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_vanilla_inventory::VanillaInventoryPlugin;
 use mcrs_minecraft_vanilla_item_entity::{Collect, ItemCollector, ItemEntityPlugin, ItemEntitySet};
 
+use crate::entity_motion::add_entity_motion;
+
 /// Stacks as entities and the item entities in every dimension world, over the item table of the
-/// host. Each player collects item entities into its slots. It needs the entity pass of
-/// [`VanillaEntityPhysicsPlugin`](crate::VanillaEntityPhysicsPlugin).
+/// host, moved by the motion pass. Each player collects item entities into its slots. It needs
+/// the tables and the tile events of [`VanillaEntityPhysicsPlugin`](crate::VanillaEntityPhysicsPlugin).
 pub struct VanillaItemEntityPlugin;
 
 impl Plugin for VanillaItemEntityPlugin {
@@ -36,9 +37,10 @@ fn build_dimension_items(host: &World, _: &DimensionBuild<'_>, sub_app: &mut Sub
         tracing::warn!("the host has no item table; the dimension world has no item entities");
         return;
     };
+    add_entity_motion(sub_app);
     sub_app.add_plugins((
         ItemPlugin::new(table),
-        ItemEntityPlugin::<MobColumn>::default(),
+        ItemEntityPlugin,
         VanillaInventoryPlugin,
     ));
     sub_app

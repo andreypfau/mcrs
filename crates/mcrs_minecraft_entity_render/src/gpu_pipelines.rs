@@ -625,9 +625,35 @@ mod tests {
         }
     }
 
+    /// Rules naga lets through and Tint (Chromium) refuses: the grammar's parentheses around a
+    /// bitwise operand (`wgsl-parse` keeps it), and a constant `bitcast<f32>` to a NaN or an
+    /// infinity, the one constant expression naga does not evaluate.
+    fn check_tint_rules(label: &str, source: &str) {
+        if let Err(error) = source.parse::<wgsl_parse::syntax::TranslationUnit>() {
+            panic!("{label}: {error}");
+        }
+        for (at, _) in source.match_indices("bitcast<f32>(") {
+            let argument = &source[at + "bitcast<f32>(".len()..];
+            let argument = argument[..argument.find(')').unwrap()].trim();
+            let digits = argument.trim_end_matches(['u', 'i']);
+            let bits = match digits.strip_prefix("0x") {
+                Some(hex) => u32::from_str_radix(hex, 16),
+                None => digits.parse::<u32>(),
+            };
+            if let Ok(bits) = bits {
+                assert!(
+                    f32::from_bits(bits).is_finite(),
+                    "{label}: the constant bitcast<f32>({argument}) is not a finite f32"
+                );
+            }
+        }
+    }
+
     /// Whether each global that an entry point of `source` uses has the binding and the kind of
-    /// binding that the layout of its pass declares.
+    /// binding that the layout of its pass declares, and whether `source` keeps the rules Tint
+    /// adds to naga's.
     fn check_bindings(label: &str, source: &str, passes: &[(&str, &[(u32, layouts::Slot)])]) {
+        check_tint_rules(label, source);
         let module = naga::front::wgsl::parse_str(source).unwrap();
         let info = naga::valid::Validator::new(
             naga::valid::ValidationFlags::all(),
@@ -749,6 +775,14 @@ mod tests {
                 ("figure_fragment", &[(0, layouts::Slot::Frame)]),
                 ("figure_fragment_opaque", &[(0, layouts::Slot::Frame)]),
             ],
+        );
+        check_tint_rules(
+            "impostor",
+            &(COMMON.to_owned() + GBUFFER_ENCODE_WGSL + SHADING + &impostor_constants(IMPOSTOR)),
+        );
+        check_tint_rules(
+            "impostor cover",
+            &impostor_constants(crate::impostor_atlas::COVER).replace("#{FIRST_COVER}", "0"),
         );
         let webgpu = wgpu::Limits::default();
         assert!(layouts::passes_fit(&webgpu));

@@ -51,6 +51,8 @@ assigns each rule to one layer.
 - **Reported flags**: the on-ground bit and the horizontal collision bit of the last move packet.
 - **Reference position**: the reported position of the last position packet after the last
   respawn. The client measures a silent tick against this position (MVC-PKT-003).
+- **Load**: the client ticks after a `login` or `respawn` packet in which the client does not tick
+  its player (MVC-PKT-012).
 - **Candidate**: one possible player state of the client after a client tick.
 - **Candidate set**: the candidates that the server keeps after a client tick.
 - **Accepted state**: the candidate set after the last client tick that the server accepted.
@@ -96,6 +98,10 @@ assigns each rule to one layer.
   attaches an experiment.
 - `black_box_confirmed`: shown by a captured result. In this document, only rules of
   `teleport-confirmation.md` have this label, and this document cites them.
+- `source_suggested_black_box_confirmed`: taken from the reference implementation, and consistent
+  with a recording that the rule cites by path.
+- `documentation`: stated by the public documentation of the protocol on the community wiki
+  (minecraft.wiki, the pages "Java Edition protocol/Packets" and "Java Edition protocol/FAQ").
 - `design`: a rule of this server's own design. It does not state vanilla behaviour, and a vanilla
   server can behave differently. A comparison with a vanilla server cannot confirm it. A conformance
   test in section 14 confirms that a legit client does not fail the rule. The rule states
@@ -169,15 +175,34 @@ selects the packet in this order:
 The rotation changed when the yaw or the pitch is not equal to the last sent value. See experiment
 E2.
 
-**MVC-PKT-003** (`source_suggested`, client agreement, confidence: medium). The position changed
-when one of these conditions is true:
+**MVC-PKT-003** (`source_suggested_black_box_confirmed`, client agreement, confidence: medium). The
+position changed when one of these conditions is true:
 
 - The squared distance from the reference position is more than `(2.0E-4)²`.
 - 20 client ticks have passed after the last position packet.
 
 The count of client ticks starts again at each position packet. Thus at most 19 silent ticks follow
-a position packet. A teleport does not change the reference position. A respawn sets the reference
-position to `(0, 0, 0)`. See experiment E3.
+a position packet. A respawn sets the reference position to `(0, 0, 0)`. See experiment E3.
+
+A teleport does not change the reference position, the last sent rotation, the reported flags or
+the count of client ticks. For a teleport, the client sends only the accept (MVC-PKT-020). Thus the
+first client tick after a teleport compares its position and its rotation with the values of the
+last move packet before the teleport. An accept is not a move packet.
+
+These recordings of the vanilla client agree with this rule:
+
+- In `crates/mcrs_minecraft_physics/tests/fixtures/player/e21_teleport_while_falling.txt`, a
+  teleport adds 10 degrees to the yaw. The client sends no move packet between the teleport and
+  the end of the next client tick. That tick sends `move_player_pos_rot` with the new yaw.
+- In `crates/mcrs_minecraft_entity/tests/fixtures/vanilla/a4_respawn.txt`, the player stands still
+  at the destination of the first teleport. The next position packet comes in the third client
+  tick after the teleport, and then each 20 client ticks.
+- In the same recording, the first player tick after the respawn sends a position packet at the
+  destination of the respawn teleport. The player did not move in that tick. Thus the reference
+  position after the respawn is not that destination.
+
+MVC-PKT-003 does not state the reference position and the count of client ticks after a `login`
+packet (U13).
 
 **MVC-PKT-004** (`source_suggested`, wire, confidence: high). `player_input` has one byte of flags:
 
@@ -238,13 +263,34 @@ The client applies clientbound packets only between two client ticks. Thus it se
 tick. See experiment E6.
 
 **MVC-PKT-011** (`source_suggested`, client agreement, confidence: medium). A legit client sends no
-move packet and no `player_input` before it has loaded the world. It sends `client_tick_end` at the
-end of each client tick, also before it has loaded the world.
+move packet and no `player_input` during a load (MVC-PKT-012). It sends `client_tick_end` at the
+end of each client tick, also during a load.
 
 After the load, a legit client sends `player_input` in each client tick in which the keys change.
 It also does this while it rides, and while its camera is another entity. While it rides, it sends
 one `move_player_rot` in each client tick, and no other move packet. While its camera is another
 entity, it sends no move packet. See experiment E7.
+
+**MVC-PKT-012** (`documentation`, client agreement, confidence: medium). A `login` packet and each
+`respawn` packet start a load. During a load, the client does not tick its player (PHY-GRV-020).
+The load ends in the first client tick in which one of these conditions is true:
+
+1. After the packet, the client received `game_event` with the event 13, and one of these is true:
+   - the chunk that contains the position of the player is loaded;
+   - the `y` of the position is below the minimum height or above the maximum height of the
+     dimension;
+   - `player_info_update` gave the player the game mode spectator;
+   - the player is dead: the health of `set_health` is 0 or less, or `player_combat_kill` came.
+2. The client sent 60 `client_tick_end` packets after the packet.
+
+When condition 1 ends the load, the client sends `player_loaded` in that client tick. The packet
+comes before the tick packets of MVC-PKT-010 that the player sends in that tick. That tick is the
+first tick of the player. When condition 2 ends the load, the client sends no `player_loaded`.
+
+The game mode field of the `login` packet does not count for the spectator condition. The
+recording `crates/mcrs_minecraft_entity/tests/fixtures/vanilla/a4_respawn.txt` agrees: after the
+respawn, one client tick has no move packet, and the next client tick sends the first move packet.
+That recording does not show `player_loaded`. Experiment E33 decides the rest of this rule.
 
 ### 1.2 Clientbound packets that change the prediction
 
@@ -1613,6 +1659,10 @@ These entries record where this server differs from a vanilla server.
   most one time. A change in the order of the entity ticks on the client can break this assumption.
 - **U12**: a test that detects a client that ignores the push when the bound contains 0
   (MVC-CHK-025). The defaults of `max_push_width` and `max_pushers` need experiment C15.
+- **U13**: the reference position and the count of client ticks of the new local player after a
+  `login` packet. MVC-PKT-003 states them only after a `respawn` packet. The question: does the
+  first player tick after the load of a join send a position packet when the player does not
+  move? Experiment E33.
 
 ## 14. Experiments
 
@@ -1662,6 +1712,7 @@ For a client agreement rule, use a vanilla client and record the serverbound pac
 | E30 | Ride a boat as the second passenger. Send `move_vehicle` 2 blocks away. | A clientbound `move_vehicle` at the position of the boat. |
 | E31 | Ride a boat. Run `ride <name> dismount`. Record the clientbound packets. | One `player_position` with the velocity bits and the rotation bits of `relative` set. |
 | E32 | With a vanilla client, steer a boat. Record the serverbound packets of one client tick. Send a clientbound `move_vehicle` from a modified server. | One `move_player_rot` and then one `move_vehicle` in each client tick. One extra `move_vehicle` after the clientbound packet, before the next tick packets. |
+| E33 | With a vanilla client, join with the player on the ground at `(10.5, 100, 10.5)`, with no key down. Record each serverbound packet from the `login` packet, with its client tick. Repeat with a proxy that holds the chunk of the player for 5 s. Repeat with a proxy that drops event 13 of `game_event`. Repeat each case with a respawn after a death. The client recorder needs a change for this: it records only from the teleport of a step (`attributes.md`, section 13, A6). | MVC-PKT-012: `player_loaded` in the first client tick after the chunk arrives, before the first move packet of that tick. With the held chunk and with the dropped event: no `player_loaded`, and the first move packet after 60 `client_tick_end` packets. U13: whether the first move packet after the join is a position packet. |
 
 ### 14.2 Conformance tests for this server
 

@@ -4,34 +4,34 @@ use bevy_app::App;
 use bevy_app::FixedUpdate;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
-use bevy_ecs::resource::Resource;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::LogLevel;
 use bevy_ecs::schedule::ScheduleBuildSettings;
-use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
 use bevy_ecs::world::World;
 use bevy_tasks::ComputeTaskPool;
 use bevy_tasks::TaskPool;
 use glam::DVec3;
+use mcrs_minecraft_engine_entity_motion::EntityMotionPlugin;
+use mcrs_minecraft_engine_entity_motion_replication::EntityMotionReplicationPlugin;
 use mcrs_minecraft_engine_item::Dropped;
 use mcrs_minecraft_engine_item::ItemCommandsExt;
 use mcrs_minecraft_engine_item::ItemPlugin;
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::StackCommandsExt;
-use mcrs_minecraft_engine_physics::EntityPass;
 use mcrs_minecraft_engine_physics::MobPublish;
+use mcrs_minecraft_engine_physics::PhysicsTables;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::entity_ids::CellEntityIds;
 use mcrs_minecraft_engine_world::entity_ids::EntityIdRange;
+use mcrs_minecraft_engine_world::palette::ChunkBlocks;
+use mcrs_minecraft_engine_world::palette::SectionStates;
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension::Dimension;
 use mcrs_minecraft_engine_world::world::dimension::DimensionTypeConfig;
+use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_entity_rows::BodyGrid;
-use mcrs_minecraft_entity_rows::Pass;
-use mcrs_minecraft_entity_rows::RowStore;
 use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
@@ -40,17 +40,16 @@ use mcrs_minecraft_item_table::DefinitionFile;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_item_table::bake;
 use mcrs_minecraft_physics::Aabb;
-use mcrs_minecraft_physics::PushRules;
 use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_physics::TestBlocks;
-use mcrs_minecraft_physics::TestWorld;
 use mcrs_minecraft_vanilla_item_entity::Collect;
 use mcrs_minecraft_vanilla_item_entity::ItemCollector;
 use mcrs_minecraft_vanilla_item_entity::ItemEntityCommandsExt;
 use mcrs_minecraft_vanilla_item_entity::ItemEntityPlugin;
 use mcrs_minecraft_vanilla_item_entity::Launch;
 use mcrs_minecraft_vanilla_item_entity::PickedUp;
-use mcrs_voxel::BlockPos;
+use mcrs_voxel::BlockStateId;
+use mcrs_voxel::SectionPos;
 
 pub const STONE: Kind = Kind(1);
 pub const DIRT: Kind = Kind(2);
@@ -80,24 +79,12 @@ static TABLE: LazyLock<ItemTable> = LazyLock::new(|| {
     .table
 });
 
-#[derive(Resource)]
-struct Scene {
-    world: TestWorld,
-    tables: Tables,
-    grid: BodyGrid,
-}
-
-/// A dimension from `y = -64` with a stone floor under `y = 0`, its entity pass, stacks and item
-/// entities.
+/// A dimension from `y = -64` with stone under `y = 0` and air above it, its sections loaded from
+/// `x, z = -16` to `31`, its motion pass, stacks and item entities.
 pub fn app() -> App {
+    ComputeTaskPool::get_or_init(TaskPool::default);
     let blocks = TestBlocks::new();
-    let mut world = TestWorld::new();
-    world.fill(
-        BlockPos::new(-16, -4, -16),
-        BlockPos::new(31, -1, 31),
-        blocks.stone,
-    );
-    world.build_masks(&blocks.table);
+    let stone = blocks.stone;
     let mut ids = CellEntityIds::default();
     ids.add(EntityIdRange::starting_at(2).expect("a small range"));
     let mut app = App::new();
@@ -113,25 +100,37 @@ pub fn app() -> App {
         )
             .chain(),
     )
-    .configure_sets(FixedUpdate, EntityPass.in_set(TickSet::Simulate))
     .configure_sets(FixedUpdate, MobPublish.in_set(TickSet::Project))
-    .insert_resource(Scene {
-        world,
-        tables: Tables::new(blocks.table),
-        grid: BodyGrid::default(),
-    })
     .insert_resource(ids)
+    .insert_resource(PhysicsTables::new(Tables::new(blocks.table)))
     .init_resource::<BirthClock>()
-    .init_resource::<RowStore<()>>()
-    .add_plugins((ItemPlugin::new(*TABLE), ItemEntityPlugin::<()>::default()))
-    .add_systems(FixedUpdate, advance_clock.in_set(TickSet::DomainInput))
-    .add_systems(FixedUpdate, pass.in_set(EntityPass))
-    .add_systems(
-        FixedUpdate,
-        move_rows.in_set(TickSet::Project).before(MobPublish),
-    );
-    app.world_mut()
-        .spawn((Dimension, DimensionTypeConfig::new(-64, 384)));
+    .add_plugins((
+        ItemPlugin::new(*TABLE),
+        EntityMotionPlugin,
+        EntityMotionReplicationPlugin,
+        ItemEntityPlugin,
+    ))
+    .add_systems(FixedUpdate, advance_clock.in_set(TickSet::DomainInput));
+    let world = app.world_mut();
+    let mut index = SectionIndex::new();
+    for x in -1..=1 {
+        for z in -1..=1 {
+            for y in -4..=3 {
+                let state = if y < 0 { stone } else { BlockStateId::AIR };
+                let pos = SectionPos::new(x, y, z);
+                let section = world.spawn_empty().id();
+                index.insert(pos, section);
+                index.land(
+                    pos,
+                    section,
+                    ChunkBlocks::new(SectionStates::homogeneous(state)),
+                    None,
+                    false,
+                );
+            }
+        }
+    }
+    world.spawn((Dimension, DimensionTypeConfig::new(-64, 384), index));
     app.edit_schedule(FixedUpdate, |schedule| {
         schedule.set_build_settings(ScheduleBuildSettings {
             ambiguity_detection: LogLevel::Error,
@@ -143,25 +142,6 @@ pub fn app() -> App {
 
 fn advance_clock(mut clock: ResMut<BirthClock>) {
     clock.0 += 1;
-}
-
-fn pass(mut scene: ResMut<Scene>, mut rows: ResMut<RowStore<()>>, clock: Res<BirthClock>) {
-    let pool: &TaskPool = ComputeTaskPool::get_or_init(TaskPool::default);
-    let scene = &mut *scene;
-    rows.freeze(pool, &mut scene.grid);
-    let pass = Pass {
-        world: &scene.world,
-        tables: &scene.tables,
-        tick: clock.0,
-        push: PushRules::default(),
-        tiles_per_task: 1,
-        crowd_damage_type: None,
-    };
-    rows.tick(&pass, pool, &scene.grid);
-}
-
-fn move_rows(mut rows: ResMut<RowStore<()>>) {
-    rows.move_rows();
 }
 
 pub fn run(app: &mut App, ticks: u32) {

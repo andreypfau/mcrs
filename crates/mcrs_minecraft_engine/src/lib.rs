@@ -116,6 +116,7 @@ pub use persistence::{
     AutosaveCadence, AutosavePlugin, PlayerPersistencePlugin, UnreadablePlayerDat,
     apply_join_snapshot, load_player, write_player,
 };
+pub use send_own_attributes::OwnAttributesSet;
 pub use world_state::{
     SavedSpawn, WorldStatePlugin, WorldStateSources, WorldStateWrite, WorldStateWriter,
 };

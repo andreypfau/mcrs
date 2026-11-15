@@ -20,6 +20,9 @@ pub(crate) fn mob_state(state: &EntityState) -> MobState {
         pitch: living.orientation.pitch,
         head_yaw: living.orientation.head_yaw,
         on_ground: state.body.flags.on_ground,
+        horizontal_collision: state.body.flags.horizontal_collision,
+        vertical_collision: state.body.flags.vertical_collision,
+        bounced: false,
         health: living.health,
         dying: !living.is_alive(),
     }

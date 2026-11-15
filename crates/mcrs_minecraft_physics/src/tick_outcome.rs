@@ -5,4 +5,6 @@ pub struct TickOutcome {
     pub landed: bool,
     /// An item inside a collision shape, which the server pushes to a free side.
     pub stuck_in_block: bool,
+    /// An entity that is not living bounced on a block (PHY-RST-004).
+    pub bounced: bool,
 }

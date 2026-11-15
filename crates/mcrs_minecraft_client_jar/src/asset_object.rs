@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{Artifact, verify};
+use crate::sha1_hex;
 
-const OBJECTS: &str = "https://resources.download.minecraft.net";
+/// The official object server; it sends no CORS header, so a page serves the objects itself.
+pub const OBJECTS: &str = "https://resources.download.minecraft.net";
 
 /// A file of the asset index layer, which sits above the jar. Pinned to the release like
 /// `release.json` is: the index lists each object by SHA-1 and size.
@@ -22,8 +23,10 @@ pub const FONT_OBJECTS: &[AssetObject<'static>] =
     &include!(concat!(env!("OUT_DIR"), "/font_objects.rs"));
 
 impl AssetObject<'_> {
-    pub fn url(&self) -> String {
-        format!("{OBJECTS}/{}/{}", self.directory(), self.sha1)
+    /// The address of the object on `objects`, a server laid out as [`OBJECTS`] is.
+    pub fn url(&self, objects: &str) -> String {
+        let objects = objects.trim_end_matches('/');
+        format!("{objects}/{}/{}", self.directory(), self.sha1)
     }
 
     /// The first two digits of the SHA-1, the folder the launcher keeps the object in.
@@ -32,14 +35,7 @@ impl AssetObject<'_> {
     }
 
     pub fn holds(&self, bytes: &[u8]) -> bool {
-        verify(
-            &Artifact {
-                url: &self.url(),
-                sha1: self.sha1,
-                size: self.size,
-            },
-            bytes,
-        )
+        bytes.len() as u64 == self.size && sha1_hex(bytes) == self.sha1
     }
 }
 
@@ -55,8 +51,12 @@ mod tests {
             size: 3,
         };
         assert_eq!(
-            object.url(),
+            object.url(OBJECTS),
             "https://resources.download.minecraft.net/cc/ccd5ac4767ce0a9c71d1dd62f2dc25449789b5dd"
+        );
+        assert_eq!(
+            object.url("https://studio.example/objects/"),
+            "https://studio.example/objects/cc/ccd5ac4767ce0a9c71d1dd62f2dc25449789b5dd"
         );
         assert!(!object.holds(b"not the archive"));
     }

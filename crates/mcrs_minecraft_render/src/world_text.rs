@@ -1,4 +1,5 @@
-//! Textured quads in world space, drawn over the lit frame against the opaque world's depth.
+//! Textured quads in world space, drawn into the world image over the lit frame against the
+//! opaque world's depth, before the present pass copies that image to the view target.
 
 use bevy::asset::embedded_asset;
 use bevy::core_pipeline::core_3d::CORE_3D_DEPTH_FORMAT;
@@ -11,15 +12,18 @@ use bevy::render::render_resource::binding_types::{sampler, texture_2d, uniform_
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
 use bevy::render::texture::GpuImage;
-use bevy::render::view::{ExtractedView, ViewDepthStencilTexture, ViewTarget};
+use bevy::render::view::ViewDepthStencilTexture;
 use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 use bevy::shader::Shader;
 use std::num::NonZeroU64;
 
 use crate::frame::write_frame_view;
 use crate::frame_view::FrameView;
+use crate::gbuffer::{DeferredFrame, WORLD_IMAGE_FORMAT};
+use crate::pass::loaded;
+use crate::pipeline::descriptor;
 use crate::terrain::Terrain;
-use crate::{DEPTH_COMPARE, WorldPass, pipeline_descriptor};
+use crate::{DEPTH_COMPARE, WorldPass};
 
 /// One corner of a quad: the block it belongs to and its place inside that block, a point of the
 /// texture, a linear colour, and the block and sky light to look up in the lightmap of the
@@ -142,7 +146,6 @@ fn prepare_text(
     pass: Option<ResMut<TextPass>>,
     text: Option<Res<WorldText>>,
     frame_view: Option<Res<FrameView>>,
-    views: Query<&ExtractedView, With<Camera3d>>,
     cache: Res<PipelineCache>,
     device: Res<RenderDevice>,
     queue: Res<RenderQueue>,
@@ -162,17 +165,14 @@ fn prepare_text(
         );
     }
     if pass.pipeline.is_none() {
-        let Some(view) = views.iter().next() else {
-            return;
-        };
         let layout = vec![pass.view_layout.clone(), pass.texture_layout.clone()];
-        let descriptor = pipeline_descriptor(
+        let descriptor = descriptor(
             "world text".into(),
             layout,
             &pass.shader,
             "vertex".into(),
             "fragment".into(),
-            view,
+            WORLD_IMAGE_FORMAT,
             None,
         );
         pass.pipeline = Some(cache.queue_render_pipeline(RenderPipelineDescriptor {
@@ -296,15 +296,15 @@ fn prepare_text_bind_groups(
     pass.texture = Some((texture.id(), lightmap.id(), bind_group));
 }
 
-type TextTarget = (&'static ViewTarget, &'static ViewDepthStencilTexture);
-
 fn draw_world_text(
-    view: ViewQuery<TextTarget>,
+    view: ViewQuery<&ViewDepthStencilTexture>,
+    frame: Option<Res<DeferredFrame>>,
     pass: Res<TextPass>,
     cache: Res<PipelineCache>,
     mut ctx: RenderContext,
 ) {
-    let (Some(id), Some(buffer), Some(view_group), Some((_, _, texture_group))) = (
+    let (Some(frame), Some(id), Some(buffer), Some(view_group), Some((_, _, texture_group))) = (
+        frame,
         pass.pipeline,
         pass.buffer.as_ref(),
         pass.view.as_ref(),
@@ -318,8 +318,8 @@ fn draw_world_text(
     if pass.count == 0 {
         return;
     }
-    let (target, depth) = view.into_inner();
-    let color_attachments = [Some(target.get_color_attachment())];
+    let depth = view.into_inner();
+    let color_attachments = [Some(loaded(&frame.world))];
     let mut render = ctx.begin_tracked_render_pass(RenderPassDescriptor {
         label: Some("world text"),
         color_attachments: &color_attachments,

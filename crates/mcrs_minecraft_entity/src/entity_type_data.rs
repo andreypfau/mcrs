@@ -1,7 +1,9 @@
 use crate::attribute_bases::AttributeBases;
+use crate::client_motion::ClientMotion;
 use crate::entity_type_keys::EntityType;
 use crate::life::Life;
 use crate::mob_data::MobData;
+use crate::precise_sync::PreciseSync;
 use crate::variant_indices::VariantIndices;
 
 /// The type data of an entity type (`entity-tracking.md`, TRK-TYPE-001), with the look and body
@@ -19,6 +21,10 @@ pub struct EntityTypeData {
     pub tracking_range: u32,
     /// The tracker ticks between two periodic position updates.
     pub update_interval: u32,
+    /// Each update compares the velocity with the last sent velocity (TRK-UPD-007).
+    pub tracks_velocity: bool,
+    /// How the client moves the entity between two updates, which selects the move packets.
+    pub client_motion: ClientMotion,
     pub fire_immune: bool,
     /// The size of a baby relative to the adult, which the renderer applies; `None` for a type
     /// with no baby form or with no uniform baby scale in its mob document.
@@ -37,6 +43,8 @@ const MOB_DEFAULTS: EntityTypeData = EntityTypeData {
     eye_height: 0.0,
     tracking_range: 10,
     update_interval: EntityTypeData::DEFAULT_UPDATE_INTERVAL,
+    tracks_velocity: true,
+    client_motion: ClientMotion::Replayed,
     fire_immune: false,
     baby_scale: None,
     // client-entities.md, CENTS-WALK-001, item 3.
@@ -131,6 +139,7 @@ impl EntityTypeData {
         eye_height: 1.62,
         tracking_range: 32,
         update_interval: 2,
+        tracks_velocity: false,
         life: Life::Living,
         ..MOB_DEFAULTS
     };
@@ -142,12 +151,48 @@ impl EntityTypeData {
         eye_height: 0.2125,
         tracking_range: 6,
         update_interval: 20,
+        client_motion: ClientMotion::Simulated(PreciseSync::LostPrecision),
+        life: Life::Lifeless,
+        ..MOB_DEFAULTS
+    };
+
+    pub const FALLING_BLOCK: Self = Self {
+        entity_type: EntityType::FallingBlock,
+        width: 0.98,
+        height: 0.98,
+        eye_height: 0.833_000_06,
+        update_interval: 20,
+        client_motion: ClientMotion::Simulated(PreciseSync::AfterCollision),
+        life: Life::Lifeless,
+        ..MOB_DEFAULTS
+    };
+
+    pub const TNT: Self = Self {
+        entity_type: EntityType::Tnt,
+        width: 0.98,
+        height: 0.98,
+        eye_height: 0.15,
+        update_interval: 10,
+        client_motion: ClientMotion::Simulated(PreciseSync::AfterCollision),
+        fire_immune: true,
+        life: Life::Lifeless,
+        ..MOB_DEFAULTS
+    };
+
+    pub const EXPERIENCE_ORB: Self = Self {
+        entity_type: EntityType::ExperienceOrb,
+        width: 0.5,
+        height: 0.5,
+        eye_height: 0.425,
+        tracking_range: 6,
+        update_interval: 20,
+        client_motion: ClientMotion::Simulated(PreciseSync::Never),
         life: Life::Lifeless,
         ..MOB_DEFAULTS
     };
 
     /// Every row of the table.
-    pub const ALL: [&'static Self; 8] = [
+    pub const ALL: [&'static Self; 11] = [
         &Self::PIG,
         &Self::COW,
         &Self::SHEEP,
@@ -156,6 +201,9 @@ impl EntityTypeData {
         &Self::FROG,
         &Self::PLAYER,
         &Self::ITEM,
+        &Self::FALLING_BLOCK,
+        &Self::TNT,
+        &Self::EXPERIENCE_ORB,
     ];
 
     /// The type data of `entity_type`, or `None` for a type that the table does not list yet.
@@ -170,6 +218,9 @@ impl EntityTypeData {
             EntityType::Frog => Some(&Self::FROG),
             EntityType::Player => Some(&Self::PLAYER),
             EntityType::Item => Some(&Self::ITEM),
+            EntityType::FallingBlock => Some(&Self::FALLING_BLOCK),
+            EntityType::Tnt => Some(&Self::TNT),
+            EntityType::ExperienceOrb => Some(&Self::EXPERIENCE_ORB),
             _ => None,
         }
     }

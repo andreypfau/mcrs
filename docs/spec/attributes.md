@@ -430,6 +430,17 @@ and the client agree on the speed while the sprint state is the same on both.
 The recording `e9_sprint_stone.txt` shows the modifier in a packet to the own player after the
 sprint starts. It shows a packet with no modifier after the sprint stops.
 
+The client of this project sets its own sprint modifier with the call set of ATR-INS-004. Thus the
+modifier goes to the end of the sequence. A sprint modifier in an entry takes its position in the
+entry (ATR-CLI-002, step 3). PHY-INP-006 of `entity-physics.md` states the speed that the movement
+reads. Provenance of this paragraph: `design`. Kind: client agreement. Confidence: medium.
+
+The position changes the value only when two modifiers of the operation `add_multiplied_total`
+have a home slot conflict (ATR-VAL-002). In normal play, `movement_speed` gets modifiers of that
+operation from the sprint state, `speed` and `slowness`. Their home slots 23, 19 and 2 do not
+conflict. A conflict needs a modifier of a command or of an item component. No artefact shows the
+position that the vanilla client uses.
+
 **ATR-SRC-003** (`source_suggested_black_box_confirmed`, semantic, confidence: medium). While the
 game mode of a player is creative, the player has these two modifiers. Each is transient and has
 the operation `add_value`.
@@ -571,8 +582,8 @@ client then has no sprint modifier until an entry holds it or the sprint state c
 
 A `login` packet and a `respawn` packet each make a new local player (ATR-CLI-005). The sprint
 state of the new local player is off. When the player holds the sprint input and can sprint, the
-sprint state changes to on in the first client tick after the packet. In that tick the client adds
-the sprint modifier again.
+sprint state changes to on in the first player tick after the load (MVC-PKT-012 of
+`movement-checks.md`). In that tick the client adds the sprint modifier again.
 
 MVC-LAT-010 of `movement-checks.md` depends on this rule. The server uses the modifiers of each
 entry as the client applies them, with or without the sprint modifier.

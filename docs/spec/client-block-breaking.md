@@ -359,8 +359,8 @@ the `player_action` of the same step. A `set_carried_item` for a new hotbar slot
 `player_action` of the tick (CBK-INP-002).
 
 **CBK-PKT-005** (`source_suggested`, semantic). The server ignores `player_action` until the client
-has loaded, as `block-breaking.md` states. The client sends `player_loaded` for this. This document does not state
-when the client sends it.
+has loaded, as `block-breaking.md` states. The client sends `player_loaded` for this. MVC-PKT-012 of
+`movement-checks.md` states when the client sends it.
 
 ## 5. The sequence
 
@@ -835,6 +835,5 @@ and the server. The proxy logs each packet with the time, and it can hold or cha
   on the break speed.
 - The particles, the sounds and the crack textures as graphics and audio.
 - The animation of the arm swing.
-- The time when the client sends `player_loaded`.
 - Block placement with `use_item_on`, and the use of an item with `use_item`. They share the
   sequence of section 5.
