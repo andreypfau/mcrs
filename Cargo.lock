@@ -6220,6 +6220,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_player_attributes"
+version = "0.5.8"
+dependencies = [
+ "anyhow",
+ "mcrs_minecraft_entity",
+ "mcrs_minecraft_entity_attribute",
+ "mcrs_minecraft_nbt",
+ "mcrs_minecraft_save",
+]
+
+[[package]]
 name = "mcrs_minecraft_potion"
 version = "0.5.8"
 dependencies = [
@@ -6547,7 +6558,6 @@ dependencies = [
  "mcrs_minecraft_game_rule",
  "mcrs_minecraft_item",
  "mcrs_minecraft_nbt",
- "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
  "serde",

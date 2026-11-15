@@ -1,7 +1,7 @@
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{
     AttributeBases, AttributeInstances, InstanceEdit, InstanceModifier, ModifierKind,
-    ModifierOperation, SavedAttributes, TypeBase,
+    ModifierOperation, SavedAttribute, SavedAttributes, SavedModifier, TypeBase,
 };
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_resource::ResourceLocationBuf;
@@ -293,4 +293,31 @@ fn a_save_and_a_load_keep_the_permanent_state_and_the_bits_of_a_base() {
         loaded.base(Luck).map(f64::to_bits),
         Some((-0.0f64).to_bits())
     );
+}
+
+fn saved(base: f64, amount: f64) -> SavedAttributes {
+    SavedAttributes {
+        attributes: vec![SavedAttribute {
+            id: Attribute::MaxHealth,
+            base,
+            modifiers: vec![SavedModifier {
+                id: ResourceLocationBuf::read("minecraft:test").unwrap(),
+                amount,
+                operation: ModifierOperation::AddValue,
+            }],
+        }],
+    }
+}
+
+#[test]
+fn the_saved_base_and_amount_compare_by_bits() {
+    let cases = [
+        (saved(-0.0, 1.0), saved(0.0, 1.0), false),
+        (saved(f64::NAN, 1.0), saved(f64::NAN, 1.0), true),
+        (saved(1.0, -0.0), saved(1.0, 0.0), false),
+        (saved(1.0, f64::NAN), saved(1.0, f64::NAN), true),
+    ];
+    for (left, right, equal) in cases {
+        assert_eq!(left == right, equal, "{left:?} == {right:?}");
+    }
 }

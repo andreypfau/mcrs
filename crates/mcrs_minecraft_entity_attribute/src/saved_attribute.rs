@@ -10,7 +10,7 @@ use crate::tolerant::{Lenient, Tolerant};
 
 /// An attribute compound of the save (`persistence.md`): the attribute, its stored base value
 /// and its permanent modifiers in the order of the sequence (ATR-SAV-001).
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct SavedAttribute {
     /// The attribute; a load leaves out a compound whose `id` names none (ATR-SAV-002).
     pub id: Attribute,
@@ -19,6 +19,14 @@ pub struct SavedAttribute {
     /// The permanent modifiers; the save leaves the field out when there is none.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub modifiers: Vec<SavedModifier>,
+}
+
+impl PartialEq for SavedAttribute {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+            && self.base.to_bits() == other.base.to_bits()
+            && self.modifiers == other.modifiers
+    }
 }
 
 const FIELDS: &[&str] = &["id", "base", "modifiers"];
