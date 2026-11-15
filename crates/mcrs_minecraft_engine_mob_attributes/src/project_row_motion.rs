@@ -1,11 +1,10 @@
 use bevy_ecs::message::MessageReader;
 use bevy_ecs::system::{Res, ResMut};
+use mcrs_minecraft_engine_attributes::{AttributeChanged, AttributeTarget};
 use mcrs_minecraft_engine_physics::Mobs;
 use mcrs_minecraft_entity_rows::{Placed, RowStore};
 use mcrs_minecraft_physics::Rest;
 
-use crate::attribute_changed::AttributeChanged;
-use crate::attribute_target::AttributeTarget;
 use crate::motion_field::motion_field;
 use crate::row_attributes::RowAttributes;
 

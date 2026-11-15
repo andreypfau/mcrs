@@ -1,54 +1,20 @@
 use bevy_app::{App, FixedUpdate};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
-use glam::DVec3;
 use mcrs_minecraft_engine_attributes::{
-    AttributeChanged, AttributeEdit, AttributeTarget, EntityAttributesPlugin, InstanceEdit,
+    AttributeChanged, AttributeEdit, AttributeTarget, InstanceEdit, PlayerAttributesPlugin,
 };
-use mcrs_minecraft_engine_physics::{Mob, Mobs, mob_body, mob_row};
 use mcrs_minecraft_engine_world::entity::player::Player;
-use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
-use mcrs_minecraft_entity_key::{EntityId, EntityKey};
-use mcrs_minecraft_entity_rows::RowStore;
-use mcrs_minecraft_protocol_game::entity::MobLooks;
 
 pub fn app() -> App {
     let mut app = App::new();
-    app.add_plugins(EntityAttributesPlugin::<()>::default());
+    app.add_plugins(PlayerAttributesPlugin);
     app
 }
 
 pub fn spawn_player(app: &mut App) -> Entity {
     app.world_mut().spawn(Player).id()
-}
-
-pub fn spawn_pig(app: &mut App, id: EntityId) {
-    let world = app.world_mut();
-    let row = mob_row(&EntityTypeData::PIG);
-    let state = mob_body(
-        &EntityTypeData::PIG,
-        &row,
-        EntityKey(u128::from(id.0)),
-        DVec3::new(0.5, 64.0, 0.5),
-    );
-    world.resource_mut::<RowStore<()>>().spawn(id, state, row);
-    world.resource_mut::<Mobs>().0.insert(
-        id,
-        Mob {
-            kind: &EntityTypeData::PIG,
-            uuid: u128::from(id.0),
-            looks: MobLooks::default(),
-            custom_name: None,
-            tags: Vec::new(),
-        },
-    );
-}
-
-pub fn despawn_row(app: &mut App, id: EntityId) {
-    let mut rows = app.world_mut().resource_mut::<RowStore<()>>();
-    let tile = rows.tile_of(id).expect("the row is living");
-    rows.despawn(tile, id).expect("the tile holds the row");
 }
 
 /// Writes `edit`, runs one tick and gives the instances that the tick announced as changed.
@@ -63,10 +29,6 @@ pub fn edit(
         attribute,
         edit,
     });
-    tick(app)
-}
-
-pub fn tick(app: &mut App) -> Vec<AttributeChanged> {
     app.world_mut().run_schedule(FixedUpdate);
     app.world_mut()
         .resource_mut::<Messages<AttributeChanged>>()
