@@ -7,11 +7,14 @@ use mcrs_minecraft_block::fluid_keys::Fluid;
 use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_item_stack::Enchantments;
 use mcrs_minecraft_predicate::ItemSubject;
-use mcrs_minecraft_predicate::{LocationPredicate, PredicateScratch};
+use mcrs_minecraft_predicate::{
+    ActiveEffect, EntityPredicate, LocationPredicate, PredicateScratch,
+};
 use mcrs_minecraft_registries::Resolve;
 use mcrs_voxel::BlockPos;
 
-use crate::grid::{Grid, definitions, registries, smoke, state};
+use crate::crowd::{Crowd, Mob};
+use crate::grid::{Grid, definitions, id, registries, smoke, state};
 use crate::item_predicate::TABLE;
 use crate::item_predicate::bake;
 use crate::item_predicate::enchantment;
@@ -130,4 +133,58 @@ fn an_item_match_allocates_nothing() {
 
     assert!(passes, "the stack meets each test");
     assert_eq!(allocations, 0, "an item match allocated");
+}
+
+#[test]
+fn an_entity_match_that_reads_no_saved_data_allocates_nothing_after_warm_up() {
+    let json = r#"{
+        "vehicle": {"entity_type": "minecraft:pig"},
+        "passenger": {"entity_tags": {"all_of": ["red"]}},
+        "effects": {"minecraft:speed": {"amplifier": 1}},
+        "entity_tags": {"any_of": ["blue"], "none_of": ["green"]}
+    }"#;
+    let named = serde_json::from_str(json).unwrap();
+    let predicate = EntityPredicate::resolve(named, registries())
+        .unwrap()
+        .bake(registries(), definitions())
+        .unwrap();
+    let speed = ActiveEffect {
+        amplifier: 1,
+        duration: 20,
+        ambient: false,
+        visible: true,
+    };
+    let world = Crowd {
+        grid: Grid::default(),
+        mobs: vec![
+            Mob {
+                living: Some(true),
+                effects: vec![(id("minecraft:mob_effect", "minecraft:speed"), speed)],
+                tags: Some(vec!["blue".to_owned()]),
+                vehicle: Some(1),
+                passengers: Some(vec![2]),
+                ..Mob::default()
+            },
+            Mob {
+                entity_type: Some(id("minecraft:entity_type", "minecraft:pig")),
+                ..Mob::default()
+            },
+            Mob {
+                tags: Some(vec!["red".to_owned()]),
+                ..Mob::default()
+            },
+        ],
+    };
+    let smoke = smoke();
+    let mut scratch = PredicateScratch::default();
+    assert!(
+        predicate.matches(&world, None, Some(0), smoke, &mut scratch),
+        "the crowd meets each test"
+    );
+
+    let (passes, allocations) =
+        allocations_during(|| predicate.matches(&world, None, Some(0), smoke, &mut scratch));
+
+    assert!(passes, "the crowd meets each test");
+    assert_eq!(allocations, 0, "a match allocated after warm-up");
 }
