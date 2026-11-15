@@ -443,8 +443,20 @@ of the length `k`. Some modifiers give a maximum length.
 | `insert` | `old[0..offset)`, then `new`, then `old[offset..n)` | `offset > n`, or `n + k` is larger than the maximum |
 | `append` | `old`, then `new` | `n + k` is larger than the maximum |
 
-Without `size`, `replace_section` uses `k`. A section that ends after `n` ends at `n`. These
-modifiers use a list operation:
+Without `size`, `replace_section` uses `k`. A section that ends after `n` ends at `n`. When the
+result is `old`, the server writes an error line to its log, and the evaluation continues. The
+modifier still sets the component to the result. Thus a stack without lore gets an empty
+`minecraft:lore` after an `insert` with `offset` 1.
+
+The maximum also bounds the decode (REG-FLD-769). A list `new` that is longer than the maximum
+fails the load. A `size` that is larger than the maximum fails the load. `offset` has no maximum at
+the load. Thus `replace_all` never gives `old`, because `k` is at most the maximum.
+
+These examples use the maximum 256 of `set_lore`. `old` has 255 lines. An `append` of 2 lines gives
+`old`, and an `append` of 1 line gives 256 lines. For `set_writable_book_pages`, `old` has 99 pages.
+An `append` of 2 pages gives `old`, and a `replace_all` of 100 pages gives 100 pages.
+
+These modifiers use a list operation:
 
 | Modifier | List | Maximum |
 |----------|------|---------|
@@ -1140,7 +1152,7 @@ It records the result stack and the state of the generator after the chain.
 | E10 | `set_attributes` with two elements, one with one slot and one with three slots, and a `uniform` amount. | LOOT-MOD-026 |
 | E11 | `set_random_dyes` with 1 and 3 dyes on a leather tunic with and without a colour, with the count 2, and on a stick. | LOOT-MOD-034, LOOT-MOD-035 |
 | E12 | `set_random_potion` with and without `options`, `set_instrument` with a tag, and `set_stew_effect` on a stew and on a bowl. | LOOT-MOD-033, LOOT-MOD-036, LOOT-MOD-037 |
-| E13 | `set_lore` and `set_writable_book_pages` with each `mode`, with an `offset` above the length and with a result above the maximum. | LOOT-MOD-029, LOOT-MOD-030 |
+| E13 | `set_lore` and `set_writable_book_pages` with each `mode`, with an `offset` above the length and with a result above the maximum. Apply each modifier of the examples of LOOT-MOD-030 to a stack with the given list, and record the length of the list and the log. Load a pack with a `set_lore` of 257 lines and a `set_writable_book_pages` with `size` 101, and record the load fault. | LOOT-MOD-029, LOOT-MOD-030, REG-FLD-769 |
 | E14 | `set_custom_model_data` with `uniform` providers in `floats` and `colors`, and an `insert` whose `offset` is above the length. | LOOT-MOD-041 |
 | E15 | `copy_custom_data` from a storage, with each `op` and with each node form in `source` and in `target`. One case has a target that fails. | LOOT-MOD-044 to LOOT-MOD-051 |
 | E16 | `copy_name` and `copy_components` from a named mob, from a player and from the tool. `fill_player_head` on a player head and on a stick. | LOOT-MOD-006, LOOT-MOD-007, LOOT-MOD-042, LOOT-MOD-043 |

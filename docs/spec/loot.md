@@ -210,9 +210,10 @@ A table can name the same nested table two times in different places, for exampl
 That is not a reference back to itself, because each place continues its own reference chain.
 
 **LOOT-CTX-017** (`design`, semantic). A **reference chain** is a sequence of tables, item
-modifiers, predicates and named providers. A named provider is an entry of the registry
-`context_int_provider` or `context_float_provider`. An evaluation enters each member of the sequence
-from the member before it. The **length** of a reference chain is the number of its members. These
+modifiers, predicates, named providers and nested inline providers. A named provider is an entry of
+the registry `context_int_provider` or `context_float_provider`. A nested inline provider is an
+inline provider in a provider place inside another provider, as the statements below define it. An
+evaluation enters each member of the sequence from the member before it. The **length** of a reference chain is the number of its members. These
 statements define the length:
 
 - A reference chain starts at each table, item modifier, predicate and named provider that the load
@@ -228,8 +229,21 @@ statements define the length:
 - Each named provider that an evaluation enters adds 1. The evaluation enters a named provider when
   a key of a provider is in the place of a provider (REG-FLD-722, REG-FLD-723, and section 0.1 of
   `loot-conditions.md`).
-- A key, a tag and a list add 0 by themselves. An inline modifier, an inline condition and an
-  inline provider add 0.
+- A key, a tag and a list add 0 by themselves. An inline modifier and an inline condition add 0.
+- A **provider place** is a field, or an element of a list field, whose rule in `registry-fields.md`
+  names the registry `context_int_provider` or `context_float_provider` as its target. A field that
+  takes a plain number is not a provider place, for example `weight` of `weighted_list`
+  (REG-FLD-732). An inline provider is the value in a provider place that is not a key: an object
+  with `type`, or a bare number.
+- The **scope** of a provider is its value: its fields, the elements of its list fields, and each
+  inline condition in them, at each level of nesting. The scope ends at a key. Thus the scope does
+  not continue into a named predicate, a named provider or any other member that a key names.
+- An inline provider in the scope of another provider adds 1. The other provider can be a named
+  provider or an inline provider. A bare number in such a place adds 1.
+- An inline provider in no scope of a provider adds 0, for example a provider in a field of a table,
+  of an item modifier or of a condition of a pool. This also applies to the outermost inline
+  provider of a named predicate that a provider names by key: the key of the predicate adds 1, and
+  the scope starts again in the predicate.
 - A `loot_table` entry that names several tables starts one reference chain for each table. A tag
   or a list of item modifiers, of predicates or of named providers does the same.
 - The modifier `set_loot_table` names a table, but no evaluation enters that table. It adds 0.
@@ -237,7 +251,7 @@ statements define the length:
 A reference chain has a length of at most 64. A reference chain that gets the length 65 is a fault
 of the load, as a fatal problem of REG-ERR-001. The place of the fault is the part that gives the
 length 65: the `loot_table` entry that names or holds the table, or the key of the item modifier, of
-the predicate or of the named provider. The load reports the fault one time for each place where a reference chain from
+the predicate or of the named provider, or the inline provider. The load reports the fault one time for each place where a reference chain from
 some start gets the length 65.
 
 For example, take these parts of a data pack:
@@ -256,9 +270,26 @@ In a second example, each table `t:ci` names `t:c(i+1)`. The tables `t:c1` to `t
 tables `t:c1` to `t:c66` give two faults: at the entry of `t:c64` from the start `t:c1`, and at the
 entry of `t:c65` from the start `t:c2`.
 
+In a third example, the named provider `t:n` is a `number_dispatcher` whose `default` is a
+`weighted_list`. The `data` of one element of its `distribution` is the bare number `2`. A pool of the table `t:d` has
+`rolls` equal to the key `t:n`. From the start `t:d`, the reference chain `t:d`, `t:n`, the
+`weighted_list`, the number `2` has the length 4. The same provider written inline in `rolls` gives
+the length 3: the `number_dispatcher` adds 0, the `weighted_list` adds 1 and the number adds 1.
+
+A reference back to itself (LOOT-CTX-014) needs a key. An inline provider cannot name itself, so it
+cannot make such a cycle by itself. An inline provider can be a member of a cycle only between two
+members that keys name.
+
+Inline conditions and inline item modifiers add 0. An inline condition inside an inline condition,
+for example `inverted` inside `inverted`, is a step of the evaluation that the chain does not count.
+The nesting depth of one file bounds these steps (REG-FLD-010 of `registry-fields.md`).
+
 Reason: an evaluation must not exhaust the stack of its thread, and the check of the load must
-stop. The longest reference chain of the vanilla data pack has the length 3, for example from
-`equipment/trial_chamber_melee`. LOOT-DEV-105 records the difference from the vanilla server.
+stop. An inline provider is a step of the evaluation like a named provider, so the limit must count
+it. Otherwise a provider with deep inline nesting passes the check and can exhaust the stack. The
+longest reference chain of the vanilla data pack has the length 3, also when inline providers count,
+for example from `equipment/trial_chamber_melee` and from the named provider
+`cooking/time_wool_slabs`. LOOT-DEV-105 records the difference from the vanilla server.
 
 **LOOT-CTX-016** (`design`, semantic). Each loot validation problem that the server finds at the
 load is a fault of the load, as a fatal problem of REG-ERR-001. The load or the reload fails. The
@@ -705,7 +736,7 @@ These experiments need the vanilla server and a scripted player:
 | X12 | Place a cracked `decorated_pot` with `setblock`, with decorations on the sides left and front only. Break it with an empty hand. Record the order of `add_entity` and the items. Repeat with no decorations. | the stacks and the order of `minecraft:sherds` | LOOT-EVL-007 |
 | X13 | Place a chest with `{LootTable: "minecraft:chests/simple_dungeon", LootTableSeed: 5L}` twice, in two worlds. Open each chest with a player with the luck 0. Compare the contents with the result of X8 for the same table and seed. | the generator of a saved seed | LOOT-RND-004, LOOT-CTR-001 |
 | X15 | Install a data pack with the table `t:luck`: one pool with `rolls` 0, `bonus_rolls` 1 and one `item` entry. Set the attribute `minecraft:luck` of the player to 2. Open a chest with `t:luck`, kill a mob with `DeathLootTable` `t:luck`, and break a block whose table `t:luck` replaces. Record the count of items from each source. | the luck of each source | LOOT-CTX-015 |
-| X17 | Install a data pack with a chain of tables `t:c1` to `t:cN`. Each `t:ci` has one pool with one `loot_table` entry for `t:c(i+1)`, and `t:cN` has one `item` entry `stick`. Use N = 64, 65, 1000 and 10000. Start the server, then run `loot spawn ~ ~ ~ loot t:c1`. Record the log of the load, the reply of the command and the items. | the result of the vanilla server for a long chain | LOOT-CTX-017, LOOT-DEV-105 |
+| X17 | Install a data pack with a chain of tables `t:c1` to `t:cN`. Each `t:ci` has one pool with one `loot_table` entry for `t:c(i+1)`, and `t:cN` has one `item` entry `stick`. Use N = 64, 65, 1000 and 10000. Start the server, then run `loot spawn ~ ~ ~ loot t:c1`. Record the log of the load, the reply of the command and the items. Then install a table `t:n` with one pool whose `rolls` is a chain of N inline `negate` providers around the bare number `1`, for N = 63, 64 and 200. Expected in mcrs: N = 63 loads, because the table, the 62 inner providers and the number give the length 64. N = 64 is a fault of the load. Record the result of the vanilla server for each N. | the result of the vanilla server for a long chain | LOOT-CTX-017, LOOT-DEV-105 |
 | X18 | Install a data pack that replaces `blocks/shulker_box` with one pool and the `random_sequence` `t:x18`. The pool has one `dynamic` entry `minecraft:contents` with two modifiers: `set_count` with a `uniform` count from 1 to 64, then `set_name` `"N"` with the condition `random_chance` 0.5. Run A: put one `stone` in the slots 0 and 26 of a shulker box, and leave the other slots empty. Run `random reset t:x18 1`, then break the box with an empty hand. Run B: put one `stone` in each slot, and do the same steps. Record the item entities of each run in the order in which they spawn. | the modifiers of an empty stack of a `dynamic` entry: when the empty slots take the draws of B, the stack of slot 26 in A equals the stack of slot 26 in B; no item entity comes from an empty slot | LOOT-EVL-007, LOOT-MOD-011 |
 | X16 | Install a table with one `slots` entry. Its slot source is a `group` of a `slot_range` `hotbar.*` of `this`, a `contents` of `minecraft:bundle_contents` over `hotbar.*`, and a `limit_slots` 2 over `hotbar.*`. Put a bundle with two stacks in hotbar slot 0, a stick in slot 2, and nothing in slot 1. Run `loot spawn ~ ~ ~ loot t:slots` as the player. Record the items. | the selection of each slot source; a stack without the component; empty slots | LOOT-EVL-013 |
 
@@ -772,7 +803,8 @@ These experiments need the vanilla server and a scripted player:
   chain of 65 tables loads, and its evaluation gives the stacks of the last table. A much longer
   reference chain exhausts the stack of the thread, at the check of the load or at the evaluation.
   This applies also to a reference chain through keys of item modifiers, of predicates and of
-  providers.
+  providers. The vanilla server also has no limit for inline providers inside a provider. Only the
+  nesting limit of its JSON reader bounds them.
   Experiment X17 records the length and the result.
 - **Visible to the client**: no. The author of a data pack sees a load fault for a reference chain
   with a length of 65 or more. No vanilla reference chain has a length of more than 3.
