@@ -11,6 +11,8 @@ exactly, or by prefix with a final `*`. For example, a network client can forbid
 
 Every example must have an entry, and every entry must name an example workspace
 member. [Status ping](status_ping/) queries a server without Bevy.
+[Inventory save viewer](inventory_save_viewer/) reads a player file without Bevy.
+[Inventory minigame](inventory_minigame/) runs inventory plugins without the network.
 
 Run `cargo nextest run -p xtask` to check the policies. The `portability` trigger
 also checks them in CI. The check reads workspace membership through Cargo

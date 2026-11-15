@@ -1,4 +1,22 @@
 {
+  "mcrs_minecraft_inventory_minigame": [
+    "mcrs_minecraft_inventory_server",
+    "mcrs_minecraft_inventory_click",
+    "mcrs_minecraft_inventory_client_view",
+    "mcrs_minecraft_server*",
+    "mcrs_minecraft_client*"
+  ],
+  "mcrs_minecraft_inventory_save_viewer": [
+    "bevy",
+    "bevy_*",
+    "tokio",
+    "mcrs",
+    "mcrs_minecraft_engine*",
+    "mcrs_engine*",
+    "mcrs_minecraft_server*",
+    "mcrs_minecraft_vanilla*",
+    "mcrs_minecraft_inventory_server"
+  ],
   "mcrs_minecraft_status_ping": [
     "bevy",
     "bevy_*",
