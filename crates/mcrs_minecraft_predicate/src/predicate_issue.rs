@@ -28,6 +28,8 @@ pub enum PredicateIssue {
     UnloadedEntityTypeTags,
     /// The registry set has no entity type registry.
     UnloadedEntityTypes,
+    /// The registry set has no tags of damage types.
+    UnloadedDamageTypeTags,
     /// One path of nested entity predicates holds more entity predicates than the bake accepts.
     NestingTooDeep,
 }
@@ -54,6 +56,7 @@ impl fmt::Display for PredicateIssue {
             }
             PredicateIssue::UnloadedEntityTypeTags => "entity type tags",
             PredicateIssue::UnloadedEntityTypes => "entity type registry",
+            PredicateIssue::UnloadedDamageTypeTags => "damage type tags",
         };
         write!(f, "the registry set has no {missing}")
     }

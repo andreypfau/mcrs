@@ -8,12 +8,14 @@ use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 use mcrs_minecraft_entity::spawn_condition::Structure;
+use mcrs_minecraft_item::component::equippable::EquipmentSlot;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_resource::Id;
 use mcrs_voxel::{BlockPos, BlockStateId};
 
 use crate::active_effect::ActiveEffect;
 use crate::entity_view::EntityView;
+use crate::item_subject::ItemSubject;
 use crate::location_view::LocationView;
 
 /// A host without a world and without entities: each value is absent.
@@ -134,6 +136,14 @@ impl EntityView for NoWorld {
     }
 
     fn active_effect(&self, (): (), _: Id<MobEffect>) -> Option<ActiveEffect> {
+        None
+    }
+
+    fn equipment(&self, (): (), _: EquipmentSlot) -> Option<ItemSubject<'_>> {
+        None
+    }
+
+    fn slot(&self, (): (), _: u16) -> Option<ItemSubject<'_>> {
         None
     }
 

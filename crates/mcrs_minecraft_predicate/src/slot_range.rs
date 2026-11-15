@@ -111,6 +111,18 @@ const SINGLE: [SingleName; 12] = [
     },
 ];
 
+const ARMOR: [u16; 5] = [100, 101, 102, 103, 105];
+
+impl SlotRange {
+    /// `true` when `test` passes for one slot number of the range.
+    pub(crate) fn any_slot(self, test: impl FnMut(u16) -> bool) -> bool {
+        match self {
+            SlotRange::Run { first, len } => (first..first.saturating_add(len)).any(test),
+            SlotRange::Armor => ARMOR.into_iter().any(test),
+        }
+    }
+}
+
 /// A text that is not a slot range name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct UnknownSlotRange;

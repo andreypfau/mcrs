@@ -2,18 +2,20 @@ use glam::DVec3;
 use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
+use mcrs_minecraft_item::component::equippable::EquipmentSlot;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_resource::Id;
 use mcrs_voxel::BlockPos;
 
 use crate::active_effect::ActiveEffect;
+use crate::item_subject::ItemSubject;
 
 /// The entities as an entity predicate reads them. `None` means that the host does not have the
 /// value; the test that reads it fails. A method marked "living" is read only for an entity for
 /// which [`EntityView::is_living`] answers `Some(true)`.
 pub trait EntityView {
     /// A handle of one entity, valid for the evaluation.
-    type Entity: Copy;
+    type Entity: Copy + PartialEq;
 
     /// The type, as its id in the entity type registry of the registry set of the bake.
     fn entity_type(&self, entity: Self::Entity) -> Option<Id<EntityType>>;
@@ -67,6 +69,14 @@ pub trait EntityView {
     /// Living: the active effect of the kind `effect`; `None` also when the entity does not
     /// have it.
     fn active_effect(&self, entity: Self::Entity, effect: Id<MobEffect>) -> Option<ActiveEffect>;
+
+    /// Living: the stack in the equipment slot `slot`, [`ItemSubject::Empty`] for an empty slot.
+    fn equipment(&self, entity: Self::Entity, slot: EquipmentSlot) -> Option<ItemSubject<'_>>;
+
+    /// The stack of the slot number `slot`, [`ItemSubject::Empty`] for an empty slot. `None` when
+    /// the host does not have the stack, or when the entity has no such slot. A `slots` entry
+    /// passes when any slot of its range passes, whatever the other slots of the range answer.
+    fn slot(&self, entity: Self::Entity, slot: u16) -> Option<ItemSubject<'_>>;
 
     /// The number of ticks that the entity has lived.
     fn tick_count(&self, entity: Self::Entity) -> Option<u32>;

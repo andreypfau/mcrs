@@ -6,12 +6,17 @@ use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 use mcrs_minecraft_entity::spawn_condition::Structure;
+use mcrs_minecraft_item::component::equippable::EquipmentSlot;
+use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_predicate::{ActiveEffect, EntityView, LocationView};
+use mcrs_minecraft_predicate::{
+    ActiveEffect, EntityView, ItemSubject, LocationView, PredicateTables,
+};
 use mcrs_minecraft_resource::Id;
 use mcrs_voxel::{BlockPos, BlockStateId};
 
-use crate::grid::Grid;
+use crate::grid::{Grid, smoke};
+use crate::item_predicate::TABLE;
 
 /// One entity of a [`Crowd`]; each value that is `None` is absent.
 #[derive(Clone, Default)]
@@ -40,6 +45,36 @@ pub struct Mob {
     pub attack_target: Option<usize>,
     pub team: Option<String>,
     pub tags: Option<Vec<String>>,
+    /// A slot that the list leaves out is empty.
+    pub equipment: Option<Vec<Worn>>,
+    /// The entity has only the slots of the list.
+    pub slots: Option<Vec<Held>>,
+}
+
+/// The stack of an equipment slot; `None` is the empty stack.
+#[derive(Clone)]
+pub struct Worn {
+    pub slot: EquipmentSlot,
+    pub stack: Option<ItemStack>,
+}
+
+/// The stack of a slot number; `None` is the empty stack.
+#[derive(Clone)]
+pub struct Held {
+    pub slot: u16,
+    pub stack: Option<ItemStack>,
+}
+
+/// The tables of the test registries.
+pub fn tables() -> PredicateTables<'static> {
+    PredicateTables::new(smoke(), &TABLE)
+}
+
+fn subject(stack: Option<&ItemStack>) -> ItemSubject<'_> {
+    match stack {
+        Some(stack) => ItemSubject::Stack(stack),
+        None => ItemSubject::Empty,
+    }
 }
 
 /// A [`Grid`] with entities; an entity is its index in `mobs`.
@@ -139,6 +174,18 @@ impl EntityView for Crowd {
             .iter()
             .find(|(kind, _)| *kind == effect)
             .map(|&(_, active)| active)
+    }
+
+    fn equipment(&self, entity: usize, slot: EquipmentSlot) -> Option<ItemSubject<'_>> {
+        let worn = self.mob(entity).equipment.as_deref()?;
+        let stack = worn.iter().find(|worn| worn.slot == slot);
+        Some(subject(stack.and_then(|worn| worn.stack.as_ref())))
+    }
+
+    fn slot(&self, entity: usize, slot: u16) -> Option<ItemSubject<'_>> {
+        let held = self.mob(entity).slots.as_deref()?;
+        let held = held.iter().find(|held| held.slot == slot)?;
+        Some(subject(held.stack.as_ref()))
     }
 
     fn tick_count(&self, entity: usize) -> Option<u32> {

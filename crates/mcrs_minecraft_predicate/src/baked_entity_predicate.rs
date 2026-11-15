@@ -11,10 +11,12 @@ use crate::distance_predicate::DistancePredicate;
 use crate::entity_flags_predicate::EntityFlagsPredicate;
 use crate::entity_tags_predicate::EntityTagsPredicate;
 use crate::entity_view::EntityView;
+use crate::equipment_predicate::BakedEquipmentTest;
 use crate::location_view::LocationView;
 use crate::movement_predicate::MovementPredicate;
 use crate::predicate_scratch::PredicateScratch;
-use crate::smoke_table::SmokeTable;
+use crate::predicate_tables::PredicateTables;
+use crate::slots_predicate::BakedSlotTest;
 
 /// An entity predicate in its matching form; [`crate::EntityPredicate::bake`] makes it.
 #[derive(Clone, Debug, PartialEq)]
@@ -29,11 +31,13 @@ pub struct BakedEntityPredicate {
     pub(crate) nbt: Option<NbtCompound>,
     pub(crate) flags: Option<EntityFlagsPredicate>,
     pub(crate) living: LivingTest,
+    pub(crate) equipment: Box<[BakedEquipmentTest]>,
     pub(crate) periodic_tick: Option<NonZeroU32>,
     pub(crate) vehicle: Option<Box<BakedEntityPredicate>>,
     pub(crate) passenger: Option<Box<BakedEntityPredicate>>,
     pub(crate) targeted_entity: Option<Box<BakedEntityPredicate>>,
     pub(crate) team: Option<String>,
+    pub(crate) slots: Box<[BakedSlotTest]>,
     pub(crate) entity_tags: Option<EntityTagsPredicate>,
     pub(crate) deferred: DeferredTest,
 }
@@ -57,15 +61,15 @@ const MAX_NESTED_MATCHES: u32 = 1 << 16;
 impl BakedEntityPredicate {
     /// Fails for an absent `entity`, also for `{}`. `world` reads the dimension of the caller;
     /// only `distance` reads `origin`, and it fails when `origin` is absent. Each nested
-    /// predicate receives the same `origin`. `smoke` comes from the registry set of the bake.
-    /// The match fails when it evaluates more than 65 536 nested entities.
+    /// predicate receives the same `origin`. The match fails when it evaluates more than 65 536
+    /// nested entities.
     #[must_use]
     pub fn matches<W: LocationView + EntityView>(
         &self,
         world: &W,
         origin: Option<DVec3>,
         entity: Option<W::Entity>,
-        smoke: &SmokeTable,
+        tables: PredicateTables<'_>,
         scratch: &mut PredicateScratch,
     ) -> bool {
         let Some(entity) = entity else {
@@ -74,11 +78,10 @@ impl BakedEntityPredicate {
         let context = Context {
             world,
             origin,
-            smoke,
+            tables,
         };
-        scratch.nested_matches = 0;
-        self.matches_entity(&context, entity, scratch)
-            && scratch.nested_matches <= MAX_NESTED_MATCHES
+        start_budget(scratch);
+        self.matches_entity(&context, entity, scratch) && within_budget(scratch)
     }
 
     fn matches_nested<W: LocationView + EntityView>(
@@ -110,14 +113,13 @@ impl BakedEntityPredicate {
             && self
                 .movement
                 .is_none_or(|movement| movement.matches(world, entity))
-            && self.matches_state(world, entity, scratch)
+            && self.matches_state(context, entity, scratch)
             && self.matches_relatives(context, entity, scratch)
             && match self.deferred {
                 DeferredTest::Absent => true,
-                // chisle: a slot of `equipment` and an entry of `slots` fail until the item
-                // predicate matches a stack, `components` and `predicates` until the data
-                // component predicates match an entity, and `raider` and a `type_specific` field
-                // off its default until the host gives the values of each entity kind.
+                // chisle: `components` and `predicates` fail until the data component predicates
+                // match an entity, and `raider` and a `type_specific` field off its default until
+                // the host gives the values of each entity kind.
                 DeferredTest::Unmatched => false,
             }
     }
@@ -132,8 +134,9 @@ impl BakedEntityPredicate {
         let at = |predicate: &BakedLocationPredicate,
                   position: Option<DVec3>,
                   scratch: &mut PredicateScratch| {
-            position
-                .is_some_and(|position| predicate.matches(world, position, context.smoke, scratch))
+            position.is_some_and(|position| {
+                predicate.matches(world, position, context.tables.smoke, scratch)
+            })
         };
         if let Some(location) = &self.location
             && !at(location, world.position(entity), scratch)
@@ -166,12 +169,13 @@ impl BakedEntityPredicate {
         })
     }
 
-    fn matches_state<W: EntityView>(
+    fn matches_state<W: LocationView + EntityView>(
         &self,
-        world: &W,
+        context: &Context<'_, W>,
         entity: W::Entity,
         scratch: &mut PredicateScratch,
     ) -> bool {
+        let world = context.world;
         let living = match self.living {
             LivingTest::Any => true,
             LivingTest::Living => world.is_living(entity) == Some(true),
@@ -199,6 +203,10 @@ impl BakedEntityPredicate {
         living
             && effects
             && nbt
+            && self
+                .equipment
+                .iter()
+                .all(|test| test.matches(world, entity, context.tables.items))
             && self.flags.is_none_or(|flags| flags.matches(world, entity))
             && self.periodic_tick.is_none_or(|period| {
                 world
@@ -209,6 +217,10 @@ impl BakedEntityPredicate {
                 .team
                 .as_deref()
                 .is_none_or(|team| world.team(entity) == Some(team))
+            && self
+                .slots
+                .iter()
+                .all(|test| test.matches(world, entity, context.tables.items))
             && self
                 .entity_tags
                 .as_ref()
@@ -242,7 +254,18 @@ impl BakedEntityPredicate {
 struct Context<'a, W> {
     world: &'a W,
     origin: Option<DVec3>,
-    smoke: &'a SmokeTable,
+    tables: PredicateTables<'a>,
+}
+
+/// Starts the budget of nested entity tests of one match.
+fn start_budget(scratch: &mut PredicateScratch) {
+    scratch.nested_matches = 0;
+}
+
+/// `false` when the match that [`start_budget`] started needed more nested entity tests than its
+/// budget.
+fn within_budget(scratch: &PredicateScratch) -> bool {
+    scratch.nested_matches <= MAX_NESTED_MATCHES
 }
 
 fn block_centre(pos: BlockPos) -> DVec3 {
