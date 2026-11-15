@@ -1,0 +1,26 @@
+name: Bug
+description: A behaviour that differs from the specification, the game or a documented result.
+labels: [bug]
+body:
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed
+      description: What happens. Add the log line, the screenshot or the test output.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: What must happen, and where that is stated - a rule id in `docs/spec/`, the game, or a test.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduce
+      description: The command or the steps, and the commit of `main`.
+      render: text
+    validations:
+      required: true
