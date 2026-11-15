@@ -207,6 +207,17 @@ this file wins.
   means no speculative code, never less than the data and the reference
   behaviour require.
 - Do the item you were asked for. No rename and no cleanup outside it.
+- One issue is one pull request, and its body closes the issue with
+  `Closes #N`. A pull request into another branch closes nothing; it names the
+  issue with `Refs #N`. An umbrella issue lists its steps as issues.
+- No code before the issue's Decision is settled and its specification has no
+  open question.
+- A design note with the crate names, the layers and the migration path comes
+  before the first code pull request of a new subsystem.
+- Split a pull request above about 3k added lines, generated data excluded, or
+  across more than one crate group (crates of one domain prefix, such as
+  `mcrs_minecraft_worldgen_*`). A draft never merges.
+- A `refactor` pull request changes no behaviour.
 - Never delete or weaken a test to go green. Test when the change is done; if
   something fails, check that single test at `HEAD` to see whether you broke it.
 - Report outcomes with the actual output. If something did not work, say so.
