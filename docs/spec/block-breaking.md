@@ -610,7 +610,8 @@ item stack becomes one item entity at a random position. The `x` and `z` coordin
 to 0.75 inside the block cube. The `y` coordinate is from 0.125 to 0.625 above the bottom of the
 cube: the centre minus half the item height of 0.25, then plus or minus 0.25. The observed `y`
 offsets were from 0.13 to 0.57. A block that gives experience also drops experience orbs at the centre
-of the block, after the items. A survival break without a harvest drops nothing from the loot table.
+of the block, after the items. The orbs of a creaking heart are an exception: they come before the
+items (BRK-LOOT-006). A survival break without a harvest drops nothing from the loot table.
 See result R37.
 
 **BRK-LOOT-002** (`black_box_confirmed`, semantic). A survival break with a harvest adds 0.005 to the
@@ -625,12 +626,19 @@ the items of the broken block, then `section_blocks_update` with both changes. A
 does so one tick later, as in BRK-DRP-006. See result R45.
 
 **BRK-LOOT-004** (`black_box_confirmed`, semantic). A survival break with a harvest and without Silk
-Touch drops the experience of this table. A range is a random integer from the first value to the
-second value, both included. Other blocks drop no experience, for example iron ore, copper ore, gold
-ore, their deepslate forms and ancient debris. BRK-LOOT-006 states one exception. A break with Silk
-Touch or without a harvest drops no experience. The `minecraft:block_experience` effect of the Silk
-Touch enchantment sets the experience to 0. An implementation must read this effect from the
-enchantment of the main-hand item. See result R46.
+Touch drops the experience of this table. A range is a uniform random integer from the first value
+to the second value, both included, except for the spawner. Other blocks drop no experience, for
+example iron ore, copper ore, gold ore, their deepslate forms and ancient debris. BRK-LOOT-006 states
+one exception. A break without a harvest drops no experience. A break with Silk Touch drops no
+experience, except from a spawner. The
+`minecraft:block_experience` effect of the Silk Touch enchantment sets the experience to 0. An
+implementation must read this effect from the enchantment of the main-hand item. These statements
+are for the enchantments of the vanilla data pack. With another enchantment, BDR-XP-002 of
+`block-drops.md` gives the experience, also for iron ore and after Silk Touch. See result R46.
+
+The spawner is `source_suggested`, from the reference of the game version above. Its experience is
+the sum of 15 and two uniform integers from 0 to 14, so it is not uniform. Silk Touch has no effect
+on it. BDR-XP-002 of `block-drops.md` states the draws and the effect of each enchantment.
 
 | Block | Experience |
 |-------|------------|
@@ -657,7 +665,9 @@ without a harvest, for example a furnace with an empty hand. See experiment E62.
 **BRK-LOOT-006** (`source_suggested`, semantic). A survival break of a creaking heart with the
 property `natural=true` drops a random integer of experience from 20 to 24, both included. A harvest
 and Silk Touch have no effect on this experience. The game rule `block_drops` applies, as in
-BRK-LOOT-005. A creaking heart with `natural=false` drops no experience. See experiment E63.
+BRK-LOOT-005. A creaking heart with `natural=false` drops no experience. The server pays this
+experience before it removes the block. Thus its orbs reach the client before the items of the
+break, as BDR-ORD-001 of `block-drops.md` states. See experiment E63.
 
 ## 8. Intentional deviations
 

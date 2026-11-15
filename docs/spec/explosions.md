@@ -22,9 +22,11 @@ own power, damage source and options (section 6).
 - **Impact radius**: `2P` blocks, for the power `P`.
 - **Source entity**: the entity that explodes. It is the direct entity of the damage source.
 - **Owner**: the living entity that is the causing entity of a primed TNT, or none.
-- **Block interaction mode**: `destroy`, `destroy_with_decay` or `keep`. Primed TNT uses
+- **Block interaction mode**: `destroy`, `destroy_with_decay`, `keep` or `trigger`. Primed TNT uses
   `destroy_with_decay` when the game rule `tnt_explosion_drop_decay` is true, and `destroy` when it
-  is false.
+  is false. In the mode `trigger`, no block becomes air and no block drops, but a block can act on
+  the hit, for example a door that opens. BDR-EXL-001 (`block-drops.md`) gives the mode of each
+  exploder.
 - **Resistance**: the explosion resistance of a block or of a fluid, from the block data.
 - **Seen fraction**: the part of an entity that the centre can see (EXP-DMG-001).
 - **Prime**: replace a TNT block, or a dispensed TNT item, with a primed TNT entity.
@@ -222,20 +224,24 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: high.
 
 ### EXP-BLK-003: The destruction
 
-When the block interaction mode is `keep`, no block changes. Otherwise the explosion handles the
-positions of the set in a random order. For each position with a block that is not air:
+When the block interaction mode is `keep`, this step destroys no block. EXP-FIRE-001 can still place
+fire. In the mode `trigger`, no block becomes
+air, no block table is evaluated and no experience is paid. A block can act on the hit
+(BDR-EXL-001 of `block-drops.md`). In the modes `destroy` and `destroy_with_decay`, the explosion
+handles the positions of the set in a random order. For each position with a block that is not air:
 
-1. If the block drops items from an explosion, it computes its loot with an empty tool. The loot
-   knows the direct source entity. In the mode `destroy_with_decay`, the loot also knows the power,
-   and each stack survives the condition `survives_explosion` with the chance `1 / P`. The block
-   `tnt` drops nothing from an explosion.
-2. When the causing entity is a player, a block that gives experience when broken gives it.
+1. When the causing entity is a player, an experience block pays its experience (BDR-XP-001 of
+   `block-drops.md`).
+2. The explosion evaluates the block table, with the empty stack as `tool`. When the explosion has a source
+   entity, that entity is `this_entity`. In the mode `destroy_with_decay`, the context also has `explosion_radius`, with
+   the power as its value (BDR-EXL-001). The drop list goes into the collected stacks.
 3. The block becomes air, with a block update to the neighbours.
 4. The block runs its was-exploded behaviour. For `tnt`, this is EXP-TNT-003.
 
-After all positions, the drops are merged: a stack joins a collected stack of the same item and
-components, up to 16 items. Each collected stack spawns as one item entity at the first position
-that gave it.
+The block `tnt` skips steps 1 and 2, so it pays nothing and drops nothing from an explosion.
+BDR-EXL-003 of `block-drops.md` adds the experience of a creaking heart, the held items and the
+neighbour removals to these steps. After the last position, the collected stacks become item
+entities when the game rule `block_drops` is true. BDR-EXL-002 of `block-drops.md` states the merge.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment E4.
 
