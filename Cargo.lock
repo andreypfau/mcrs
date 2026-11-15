@@ -6530,6 +6530,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_status_ping"
+version = "0.5.8"
+dependencies = [
+ "anyhow",
+ "bevy_app",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_network",
+ "mcrs_minecraft_protocol",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "mcrs_minecraft_text"
 version = "0.5.8"
 dependencies = [

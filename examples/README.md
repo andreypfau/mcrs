@@ -9,8 +9,8 @@ forbidden normal dependencies, including transitive dependencies. Names match
 exactly, or by prefix with a final `*`. For example, a network client can forbid
 `bevy` and `bevy_*`. An empty list explicitly permits every dependency.
 
-The table starts empty until the first example is added. Every example must have
-an entry, and every entry must name an example workspace member.
+Every example must have an entry, and every entry must name an example workspace
+member. [Status ping](status_ping/) queries a server without Bevy.
 
 Run `cargo nextest run -p xtask` to check the policies. The `portability` trigger
 also checks them in CI. The check reads workspace membership through Cargo

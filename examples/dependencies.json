@@ -1,1 +1,11 @@
-{}
+{
+  "mcrs_minecraft_status_ping": [
+    "bevy",
+    "bevy_*",
+    "mcrs",
+    "mcrs_minecraft_engine*",
+    "mcrs_engine*",
+    "mcrs_minecraft_server*",
+    "mcrs_minecraft_client"
+  ]
+}
