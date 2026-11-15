@@ -269,8 +269,9 @@ found no room. The caller decides what these items become. This table lists the 
 | the cursor stack and the craft grid at a menu close, a leave or a dimension change (INV-CLS-001, INV-CLS-003) | an item entity, IEN-SPN-001 |
 
 **INV-INS-003** (`design`, semantic). The insert rule reads no place filter. This includes the
-place filter of the off-hand slot (INV-SLT-005). Reason: the insert adds only to a stack that the
-slot holds now, and the main slots have no filter.
+place filter of the off-hand slot (INV-SLT-005). The insert of a close is the one exception
+(INV-CLS-005). Reason: the insert adds only to a stack that the slot holds now, and the main slots
+have no filter. See section 11, U3.
 
 ## 5. The creative inventory
 
@@ -401,7 +402,8 @@ steps:
 3. The open menu becomes the inventory menu.
 
 The inventory menu continues to exist after the packet. IEN-SPN-006 states the same result for the
-cursor stack. A plugin cannot deny the moves of steps 1 and 2 (ITX-ATM-012). See experiment E9.
+cursor stack. A plugin cannot deny the moves of steps 1 and 2 (ITX-ATM-012). INV-CLS-004 and
+INV-CLS-005 state the slots that these moves fill. See experiment E9.
 
 **INV-CLS-002** (`source_suggested`, semantic). The server sends no packet as an answer to
 `container_close`. The comparison of INV-SYN-003 sends the slots that step 1 and step 2 changed.
@@ -430,6 +432,34 @@ stack and the stacks of the craft grid move with the player to the new cell.
 Reason: issue 521 decides that a dimension change closes the menus as a leave does. Thus the
 stacks stay with the player. A cell crossing changes nothing, because the player does not see it.
 See deviations D4 and D6.
+
+**INV-CLS-004** (`source_suggested`, semantic). The moves of a close fill only the slots that the
+insert rule selects, in the order of INV-INS-001. Thus a close can fill only these slots:
+
+1. the selected slot, when it holds an alike stack;
+2. the off-hand slot, when it holds an alike stack;
+3. a main slot.
+
+A close never fills an armour slot, an off-hand slot that holds the empty stack, a slot of the craft
+grid or the craft result. The vanilla server reads no take filter and no place filter for these
+moves. Its main slots and its off-hand slot have no place filter. Thus no destination of a close
+refuses a stack on the vanilla server. See experiment E11.
+
+**INV-CLS-005** (`design`, semantic). The moves of a close read no take filter. Thus each stack of
+the cursor and of the craft grid leaves its slot. At each step of INV-INS-001, the insert of a close
+does not select a slot whose place filter refuses the stack `T`. The items that find no room become
+one item entity, as step 1 of INV-CLS-001 states. Thus the moves of a close never have a rejection
+of ITX-REJ-001, and a close never loses a stack.
+
+| Before the close | After the close |
+|------------------|-----------------|
+| `mcrs:offhand_accepts_any_item` is false. `P[40]` holds 10 of an item that is not in `mcrs:offhand_allowed`. The cursor holds 20 of that item. | `P[40]` holds 10. The 20 items go to the main slots by steps 3 and 4 of INV-INS-001. |
+| A plugin refuses each stack in `P[3]`, which holds 10 stone. The cursor holds 20 stone. | `P[3]` holds 10. The 20 stone go to the other main slots. |
+| As the row above, and each other main slot holds dirt. | `P[3]` holds 10. The 20 stone become one item entity. |
+
+With the default value of `mcrs:offhand_accepts_any_item` and with no filter of a plugin, the
+result is that of INV-CLS-004. Reason: a slot that a plugin locks stays locked, and the stack still
+leaves the cursor. See deviation D7.
 
 ## 8. The player file
 
@@ -540,6 +570,15 @@ A later specification states each of these items.
 - **Test**: a differential test must not compare the slots, the cursor or the item entities after
   a dimension change with a stack in the cursor or in the craft grid.
 
+**D7.**
+
+- **Rule**: INV-CLS-005.
+- **Reference**: the close adds the cursor stack to an alike stack of the off-hand slot. The
+  reference has no place filter on the off-hand slot or on a main slot.
+- **Visible to the client**: only when `mcrs:offhand_accepts_any_item` is false or a plugin gives
+  a slot a place filter. The reference has no such rule and no such plugin.
+- **Test**: a differential test uses the default value of the rule and no plugin filter.
+
 ## 11. Unresolved
 
 For the owner:
@@ -548,6 +587,10 @@ For the owner:
   that Bedrock Edition permits in the off hand. No artefact of this repository lists them. This
   point does not stop the implementation for Java Edition: with the default value of the rule,
   the server does not read the tag. The work on the Bedrock edge gives the list.
+- **U3**: INV-INS-003. The pickup of an item entity and row 9 of ITX-JAV-010 also use the insert
+  rule. The insert then can select a slot whose place filter refuses the stack. Must these callers
+  also skip such a slot, as the close does (INV-CLS-005)? The vanilla server has no such slot, so
+  the answer has no effect with the default configuration.
 
 Not decided by an experiment yet:
 
@@ -573,3 +616,4 @@ clientbound packet of the names that this document uses.
 | E8 | Open a chest. Run `item replace entity @s armor.head` and `item replace entity @s hotbar.0`. Close the chest. | The packets while the chest is open and after the close, with their container ids and state ids. |
 | E9 | Hold 10 stone in the cursor of the inventory menu and send `container_close`. Repeat with a full player inventory. Repeat with stone in the craft grid. | The slots and the item entities after each case. |
 | E10 | Fill each slot of the player inventory, select the slot 5, hold a stack in the cursor, and stop the server. Start it and join. | The player file, and the first `container_set_content` and `set_held_slot` after the join. |
+| E11 | Put 64 dirt in each main slot. Keep the armour slots and `P[40]` empty. Hold an iron helmet in the cursor and send `container_close`. Repeat with the helmet in the slot 0 of the craft grid. Put 10 stone in `P[40]`, hold 60 stone and close. Put 10 stone in `P[0]`, `P[5]` and `P[40]`, select `P[5]`, hold 60 stone and close. | The slots of the player inventory and the item entities after each close. |
