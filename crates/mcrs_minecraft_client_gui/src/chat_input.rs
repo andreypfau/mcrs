@@ -6,12 +6,13 @@ use bevy::input::InputSystems;
 use bevy::input::keyboard::KeyboardInput;
 use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::prelude::*;
+use bevy::time::Real;
 use bevy::window::{CursorOptions, PrimaryWindow};
 use mcrs_minecraft_chat_client::{
     ChatScreen, ClickMode, Closed, Context, History, HistoryChange, InputStyle, Key, Outcome,
     StyleClick, TabDirection, Tag, UnsentDraft,
 };
-use mcrs_minecraft_client_widget::{Anchor, Step};
+use mcrs_minecraft_client_widget::{Anchor, KeyModifiers, Step};
 use mcrs_minecraft_command::Source;
 use mcrs_minecraft_protocol_game::text::Text;
 
@@ -82,32 +83,45 @@ fn project_lines(
     }
 }
 
-#[derive(Clone, Copy)]
-struct Modifiers {
-    control: bool,
-    shift: bool,
-}
+const MODIFIER_KEYS: [KeyCode; 8] = [
+    KeyCode::ControlLeft,
+    KeyCode::ControlRight,
+    KeyCode::SuperLeft,
+    KeyCode::SuperRight,
+    KeyCode::ShiftLeft,
+    KeyCode::ShiftRight,
+    KeyCode::AltLeft,
+    KeyCode::AltRight,
+];
 
-fn modifiers(keys: &ButtonInput<KeyCode>) -> Modifiers {
-    let control = keys.any_pressed([
-        KeyCode::ControlLeft,
-        KeyCode::ControlRight,
-        KeyCode::SuperLeft,
-        KeyCode::SuperRight,
-    ]);
-    let shift = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
-    Modifiers { control, shift }
+fn capture_keys(keys: &mut ButtonInput<KeyCode>) {
+    let held = MODIFIER_KEYS.map(|key| keys.pressed(key));
+    keys.reset_all();
+    for (key, held) in MODIFIER_KEYS.into_iter().zip(held) {
+        if held {
+            keys.press(key);
+        }
+    }
+    keys.clear();
 }
 
 /// The key of the chat screen, or `None` for a key that types text or does nothing.
-fn screen_key(code: KeyCode, Modifiers { control, shift }: Modifiers) -> Option<Key> {
-    let step = if control { Step::Word } else { Step::Char };
-    let anchor = if shift { Anchor::Keep } else { Anchor::Move };
+fn screen_key(code: KeyCode, modifiers: KeyModifiers) -> Option<Key> {
+    let step = if modifiers.control {
+        Step::Word
+    } else {
+        Step::Char
+    };
+    let anchor = if modifiers.shift {
+        Anchor::Keep
+    } else {
+        Anchor::Move
+    };
     Some(match code {
         KeyCode::ArrowUp => Key::Up,
         KeyCode::ArrowDown => Key::Down,
         KeyCode::Tab => Key::Tab {
-            direction: if shift {
+            direction: if modifiers.shift {
                 TabDirection::Backward
             } else {
                 TabDirection::Forward
@@ -123,9 +137,9 @@ fn screen_key(code: KeyCode, Modifiers { control, shift }: Modifiers) -> Option<
         KeyCode::End => Key::End { anchor },
         KeyCode::PageUp => Key::PageUp,
         KeyCode::PageDown => Key::PageDown,
-        KeyCode::KeyA if control => Key::SelectAll,
-        KeyCode::KeyC if control => Key::Copy,
-        KeyCode::KeyX if control => Key::Cut,
+        KeyCode::KeyA if modifiers.is_shortcut() => Key::SelectAll,
+        KeyCode::KeyC if modifiers.is_shortcut() => Key::Copy,
+        KeyCode::KeyX if modifiers.is_shortcut() => Key::Cut,
         _ => return None,
     })
 }
@@ -138,8 +152,9 @@ struct ChatKeys<'w, 's> {
     scroll: Res<'w, AccumulatedMouseScroll>,
     clipboard: Option<ResMut<'w, bevy::clipboard::Clipboard>>,
     scene: Res<'w, GuiScene>,
-    atlas: Option<Res<'w, GuiAtlas>>,
     last_cursor: Local<'s, IVec2>,
+    input_dragging: Local<'s, bool>,
+    last_input_click: Local<'s, Option<u128>>,
 }
 
 #[derive(SystemParam)]
@@ -188,6 +203,8 @@ fn chat_keys(
     mut keys: ChatKeys,
     mut state: ChatState,
     world: CommandWorld,
+    atlas: Option<Res<GuiAtlas>>,
+    time: Res<Time<Real>>,
     mut cursor: Single<&mut CursorOptions, With<PrimaryWindow>>,
     mut sends: MessageWriter<SendChat>,
 ) {
@@ -213,31 +230,45 @@ fn chat_keys(
         *state.screen = Screen::Chat;
         grab(&mut cursor, false);
         keys.keyboard.clear();
-        keys.keys.reset_all();
+        *keys.input_dragging = false;
+        *keys.last_input_click = None;
+        capture_keys(&mut keys.keys);
         return;
     }
-    let modifiers = modifiers(&keys.keys);
+    let modifiers = crate::menu_input::modifiers(&keys.keys);
     let screen = &mut state.input.0;
     let typed = type_keys(&mut keys, modifiers, screen, &mut chat.history, &cx);
     let moved = *keys.last_cursor != keys.scene.cursor;
     *keys.last_cursor = keys.scene.cursor;
-    if let Some(atlas) = keys.atlas.as_deref() {
-        mouse(
-            &keys,
-            moved,
+    if let Some(atlas) = atlas.as_deref() {
+        let font = &atlas.0.font;
+        let rect = chat_view::input_bounds(keys.scene.size);
+        screen.scroll_input(rect, &|text| font.str_width(text));
+        if !input_mouse(
+            &mut keys,
             screen,
-            &mut state.lines.0,
+            moved,
             modifiers.shift,
-            &atlas.0.font,
-            &cx,
-        );
+            font,
+            time.elapsed().as_millis(),
+        ) {
+            mouse(
+                &keys,
+                moved,
+                screen,
+                &mut state.lines.0,
+                modifiers.shift,
+                font,
+                &cx,
+            );
+        }
     }
     if typed.page != 0 {
         let page = chat_view::per_page(ChatFocus::Focused);
         let lines = page.saturating_sub(1) as isize;
         state.lines.0.scroll_by(typed.page * lines, page);
     }
-    keys.keys.reset_all();
+    capture_keys(&mut keys.keys);
     if let Some(closed) = typed.closed {
         close(&mut state, closed, &mut sends);
         grab(&mut cursor, true);
@@ -252,7 +283,7 @@ struct Typed {
 
 fn type_keys(
     keys: &mut ChatKeys,
-    modifiers: Modifiers,
+    modifiers: KeyModifiers,
     screen: &mut ChatScreen,
     history: &mut History,
     cx: &Context<'_, ClientLookup<'_>>,
@@ -268,7 +299,7 @@ fn type_keys(
         }
         let outcome = if let Some(key) = screen_key(event.key_code, modifiers) {
             screen.key(key, history, cx)
-        } else if control && event.key_code == KeyCode::KeyV {
+        } else if modifiers.is_shortcut() && event.key_code == KeyCode::KeyV {
             match keys.clipboard.as_deref_mut().map(|c| c.fetch_text()) {
                 Some(bevy::clipboard::ClipboardRead::Ready(Ok(text))) => {
                     screen.type_text(&text, cx)
@@ -319,6 +350,50 @@ fn close(state: &mut ChatState, closed: Closed, sends: &mut MessageWriter<SendCh
         .then(|| screen.input().to_owned());
     state.lines.0.reset_scroll();
     *state.screen = Screen::None;
+}
+
+fn input_mouse(
+    keys: &mut ChatKeys,
+    screen: &mut ChatScreen,
+    moved: bool,
+    shift: bool,
+    font: &Font,
+    now_ms: u128,
+) -> bool {
+    let cursor = keys.scene.cursor;
+    let size = keys.scene.size;
+    let rect = chat_view::input_bounds(size);
+    let width = |text: &str| font.str_width(text);
+    if !keys.buttons.pressed(MouseButton::Left) {
+        *keys.input_dragging = false;
+    }
+    if keys.buttons.just_pressed(MouseButton::Left) {
+        let inside = cursor.x >= rect.x
+            && cursor.x < rect.x + rect.width
+            && cursor.y >= rect.y
+            && cursor.y < rect.y + rect.height;
+        if !inside {
+            *keys.last_input_click = None;
+            return false;
+        }
+        let double = keys
+            .last_input_click
+            .is_some_and(|previous| now_ms.saturating_sub(previous) <= 250);
+        *keys.last_input_click = Some(now_ms);
+        *keys.input_dragging = true;
+        if double {
+            screen.select_input_word(rect, f64::from(cursor.x), &width);
+        } else {
+            let anchor = if shift { Anchor::Keep } else { Anchor::Move };
+            screen.click_input(rect, f64::from(cursor.x), anchor, &width);
+        }
+        return true;
+    }
+    if *keys.input_dragging && moved && keys.buttons.pressed(MouseButton::Left) {
+        screen.drag_input(rect, f64::from(cursor.x), &width);
+        return true;
+    }
+    false
 }
 
 /// The wheel and the left button over the open chat.
@@ -385,4 +460,51 @@ fn mouse(
         ClickMode::Plain
     };
     screen.click_style(style, mode, cx);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn held_modifiers_survive_chat_capture_across_frames() {
+        let mut keys = ButtonInput::<KeyCode>::default();
+        keys.press(KeyCode::ControlLeft);
+        capture_keys(&mut keys);
+
+        keys.press(KeyCode::KeyA);
+        let modifiers = crate::menu_input::modifiers(&keys);
+        assert_eq!(screen_key(KeyCode::KeyA, modifiers), Some(Key::SelectAll));
+        assert_eq!(
+            screen_key(KeyCode::Backspace, modifiers),
+            Some(Key::Backspace { step: Step::Word })
+        );
+        capture_keys(&mut keys);
+        assert!(!keys.pressed(KeyCode::KeyA), "chat captures the typed key");
+        assert!(
+            keys.pressed(KeyCode::ControlLeft),
+            "the held modifier remains down"
+        );
+        assert!(
+            !keys.just_pressed(KeyCode::ControlLeft),
+            "capture does not synthesize a press"
+        );
+
+        keys.release(KeyCode::ControlLeft);
+        keys.press(KeyCode::ShiftLeft);
+        capture_keys(&mut keys);
+        assert_eq!(
+            screen_key(KeyCode::ArrowLeft, crate::menu_input::modifiers(&keys)),
+            Some(Key::Left {
+                step: Step::Char,
+                anchor: Anchor::Keep
+            })
+        );
+        keys.release(KeyCode::ShiftLeft);
+        capture_keys(&mut keys);
+        assert!(
+            !keys.pressed(KeyCode::ShiftLeft),
+            "released modifiers do not remain stuck"
+        );
+    }
 }

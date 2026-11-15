@@ -454,20 +454,16 @@ impl EditBox {
         Some(false)
     }
 
-    pub(crate) fn click(
-        &mut self,
-        rect: GuiRect,
-        x: f64,
-        anchor: Anchor,
-        width: &impl Fn(&str) -> i32,
-    ) {
+    /// Places the caret at a pointer press, optionally retaining the selection anchor (EDIT-PTR-001).
+    pub fn click(&mut self, rect: GuiRect, x: f64, anchor: Anchor, width: &impl Fn(&str) -> i32) {
         let position = self.position_at(rect, x, width);
         self.set_caret(position, anchor);
         self.editing = true;
         self.scroll(rect, width);
     }
 
-    pub(crate) fn select_word(&mut self, rect: GuiRect, x: f64, width: &impl Fn(&str) -> i32) {
+    /// Selects the word at a pointer press (EDIT-PTR-002).
+    pub fn select_word(&mut self, rect: GuiRect, x: f64, width: &impl Fn(&str) -> i32) {
         let position = self.position_at(rect, x, width);
         self.anchor = previous_word(&self.text, position);
         self.caret = next_word(&self.text, position);
@@ -475,13 +471,15 @@ impl EditBox {
         self.scroll(rect, width);
     }
 
-    pub(crate) fn drag(&mut self, rect: GuiRect, x: f64, width: &impl Fn(&str) -> i32) {
+    /// Extends the selection to a pointer position (EDIT-PTR-003).
+    pub fn drag(&mut self, rect: GuiRect, x: f64, width: &impl Fn(&str) -> i32) {
         let position = self.position_at(rect, x, width);
         self.set_caret(position, Anchor::Keep);
         self.scroll(rect, width);
     }
 
-    pub(crate) fn scroll(&mut self, rect: GuiRect, width: &impl Fn(&str) -> i32) {
+    /// Keeps the caret visible inside the bounds after an edit or cursor move (EDIT-SCROLL-001).
+    pub fn scroll(&mut self, rect: GuiRect, width: &impl Fn(&str) -> i32) {
         self.first = self.text.floor_char_boundary(self.first);
         let view = self.view(rect, width);
         let (first, last) = (view.visible.start, view.visible.end);

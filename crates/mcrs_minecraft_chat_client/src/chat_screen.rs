@@ -11,7 +11,7 @@ use crate::signing::Signing;
 use crate::style_click::StyleClick;
 use crate::tab_direction::TabDirection;
 use mcrs_minecraft_chat::{MAX_INPUT, normalize};
-use mcrs_minecraft_client_widget::{Anchor, EditBox, LengthUnit};
+use mcrs_minecraft_client_widget::{Anchor, EditBox, GuiRect, LengthUnit};
 use mcrs_minecraft_command_argument_vanilla::VanillaLookup;
 use mcrs_minecraft_protocol_game::text::{ClickEvent, TextTypes};
 use mcrs_minecraft_wire::utf16_len;
@@ -31,6 +31,7 @@ pub struct ChatScreen {
 impl Default for ChatScreen {
     fn default() -> Self {
         let mut edit = EditBox::default();
+        edit.border = false;
         edit.set_max_length(MAX_INPUT, LengthUnit::Characters);
         Self {
             edit,
@@ -73,6 +74,32 @@ impl ChatScreen {
     /// The input box.
     pub fn edit(&self) -> &EditBox {
         &self.edit
+    }
+
+    /// Places the caret at a pointer press in the input (EDIT-PTR-001).
+    pub fn click_input(
+        &mut self,
+        rect: GuiRect,
+        x: f64,
+        anchor: Anchor,
+        width: &impl Fn(&str) -> i32,
+    ) {
+        self.edit.click(rect, x, anchor, width);
+    }
+
+    /// Selects the word at a double click in the input (EDIT-PTR-002).
+    pub fn select_input_word(&mut self, rect: GuiRect, x: f64, width: &impl Fn(&str) -> i32) {
+        self.edit.select_word(rect, x, width);
+    }
+
+    /// Extends the input selection with the pointer (EDIT-PTR-003).
+    pub fn drag_input(&mut self, rect: GuiRect, x: f64, width: &impl Fn(&str) -> i32) {
+        self.edit.drag(rect, x, width);
+    }
+
+    /// Keeps the input caret visible after a key or pointer action (EDIT-SCROLL-001).
+    pub fn scroll_input(&mut self, rect: GuiRect, width: &impl Fn(&str) -> i32) {
+        self.edit.scroll(rect, width);
     }
 
     /// Whether the input still shows in the draft style.
