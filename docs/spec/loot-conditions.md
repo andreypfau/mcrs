@@ -52,9 +52,8 @@ document does not repeat the decode. Section 6 lists what this document does not
 - **Generator**: the random generator of the evaluation. `loot.md` states which generator an
   evaluation uses, and how the generator makes each draw (LOOT-RND).
 - **Draw**: one value that the generator gives. Each draw advances the generator. This document
-  uses two draws:
-  - `F`: one **float draw**, a uniform f32 in `[0, 1)`.
-  - `B(n)`: one **bounded draw** with the bound `n ≥ 1`, a uniform integer in `0..n − 1`.
+  uses the float draw `F` and the bounded draw `B(n)`, with the notation of LOOT-RND-006
+  (`loot.md`).
 - **Entity target**: the enum string of a field `entity` or `target` (REG-FLD-706). LOOT-CND-020
   gives the parameter of each target.
 - **Level of an enchantment on an item**, **level of an enchantment on an entity**: as
@@ -75,8 +74,9 @@ Each rule of this document has these observers, unless the rule states other obs
 - a user of the library: the generator state after an evaluation in the exact mode of `loot.md`.
   Each draw of each rule changes that state. The order of the draws is thus part of each rule.
 
-In the keyed mode of `block-loot.md` (LOOT-RND-001 and LOOT-RND-002), only the distribution of
-the results is compared. In that mode, the order and the count of the draws are not compared.
+In the keyed mode of `loot.md` (LOOT-RND-002), only the distribution of the results is compared.
+The block source (LOOT-RND-001 of `block-loot.md`) and each other source without a saved seed
+(LOOT-RND-009) use that mode. In that mode, the order and the count of the draws are not compared.
 
 ### 0.3 Provenance
 
@@ -157,7 +157,7 @@ checks these parameters against the parameter set of the use.
   the test of that condition, with the same context, the same draws and the same order.
 - **Load:** a key that refers, through its entry, back to itself fails the load. This includes a
   key in a nested condition, a term and a provider. The reference also reports this as a fatal
-  problem.
+  problem, except through the field `chance` of `random_chance`. LOOT-CDV-004 records that case.
 - **Example:** `minecraft:tool/can_silk_touch` is a `match_tool` condition. It passes for a tool
   with Silk Touch at level 1 or more. `minecraft:tool/can_shear` passes for the tool `shears`.
   `minecraft:block/fast_cooking` is a `match_block` condition for `smoker` and `blast_furnace`.
@@ -349,12 +349,12 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   (`command-time.md`, terms). A clock that the world does not hold has the total ticks 0
   (CMD-TIME-005).
 - **Result:**
-  1. When `period` `p` is present and is not 0, let `t` be the remainder of `t / p`. The quotient
-     truncates toward zero, so the remainder has the sign of `t`.
+  1. When `period` `p` is present, let `t` be the remainder of `t / p`. The quotient truncates
+     toward zero, so the remainder has the sign of `t`.
   2. Let `v` be the low 32 bits of `t`, as an i32.
   3. The condition passes when `v` is in the range `value` (LOOT-CND-021).
-- **Edge case:** when `period` is 0, the condition fails and reads no range. This is a `design`
-  choice. LOOT-CDV-001 records the reference.
+- **Load:** a `time_check` with `period` 0 fails the decode of its entry (REG-FLD-715). Thus the
+  evaluation never meets `p = 0`. This is a `design` choice. LOOT-CDV-001 records the reference.
 - **Draws:** the draws of the range `value`.
 - **Example:** `"clock": "minecraft:overworld", "period": 24000, "value": {"min": 13000}` passes
   at night.
@@ -491,6 +491,9 @@ evaluation. "Error" means an evaluation error.
     gives 0 for an evaluation error, and for a NaN or an infinity.
   - Inside an evaluation, a float value can be a NaN or an infinity. Only the read, `from_float`
     (LOOT-NUM-004) and `binomial` (LOOT-NUM-018) test it.
+  - Each use of a provider outside another provider is a read. A pool reads `rolls` with the int
+    read and `bonus_rolls` with the float read (LOOT-EVL-002 of `loot.md`). Each condition of this
+    document and each modifier (`loot-functions.md`) reads its providers in the same way.
   - A condition inside a provider (LOOT-NUM-013, LOOT-NUM-014) reads its own providers. An error
     inside such a condition does not reach the outer provider.
 - **Example:** `{"type": "minecraft:div", "left": 1, "right": 0}` reads as 0.
@@ -597,8 +600,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
     power `b` is outside the i32 range, error. Otherwise the value is that exact power.
   - Float: when `a` and `b` are both `0.0` or `-0.0`, the value is a NaN. Otherwise the value is
     the narrow of the f64 power of `widen(a)` and `widen(b)`. The f64 power has the IEEE 754
-    special cases, with two exceptions. The power of 1 to a NaN is a NaN. The power of `-1` to
-    an infinity is a NaN.
+    special cases, with two exceptions. The power of 1 to a NaN is a NaN. The power of 1 or
+    `-1` to an infinity is a NaN.
 - **Draws:** those of `base`, then those of `exponent`.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X7, X8.
@@ -638,6 +641,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 | `max` | the largest element | `−2^31` | none |
 | `avg` | the exact sum divided by the number of elements, truncated toward zero | none | no elements |
 
+- **Note:** an empty `inputs` is a fault of the load (LOOT-CTX-016 of `loot.md`). Only a provider
+  that a library user makes in code meets the column "Value with no elements".
 - **Draws:** those of each element, in order.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X7.
@@ -657,6 +662,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 
 - `min` and `max` give a NaN when one of their arguments is a NaN. For them, `-0.0` is less
   than `0.0`.
+- An empty `inputs` is a fault of the load, as LOOT-NUM-011 states.
 - **Draws:** those of each element, in order.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X8.
@@ -694,8 +700,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
   its `data`.
 - **Draws:** one `B(W)`, then those of the selected `data`. The provider does not evaluate the
   other elements.
-- **Note:** the decode makes sure that `W` is at least 1 and at most `2^31 − 1`. An element with
-  the weight 0 is never selected.
+- **Note:** the decode makes sure that `W` is at least 1 and at most `2^31 − 1` (REG-FLD-732). An
+  element with the weight 0 is never selected.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X6.
 
@@ -780,7 +786,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 | a bare number `v` | `v` |
 | `linear` | `base + per_level_above_first × toF32(L − 1)` |
 | `levels_squared` | `toF32(L × L) + added`. `L × L` is an i32 step that keeps the low 32 bits. |
-| `clamped` | the value of `value`, limited to the range `min..max`. A NaN stays a NaN. |
+| `clamped` | the value of `value`, limited to the range `min..max`. A NaN stays a NaN. The decode rejects `max ≤ min` (REG-FLD-387). |
 | `fraction` | 0 when the value of `denominator` is `0.0` or `-0.0`. Otherwise the value of `numerator` divided by the value of `denominator`. |
 | `exponent` | the narrow of the f64 power of the widen of the value of `base` and the widen of the value of `power`, as LOOT-NUM-008 states for f64 |
 | `lookup` | the element `L − 1` of `values` when `1 ≤ L ≤ len`. Otherwise the value of `fallback` at `L`. `len` is the number of elements. |
@@ -807,8 +813,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 ### LOOT-NUM-023: The number providers of the block tables
 
 - **Behavior:** the block tables use the bare number (LOOT-NUM-003), `uniform` (LOOT-NUM-009,
-  LOOT-NUM-010) and `binomial` (LOOT-NUM-018). LOOT-MOD-008 of `block-loot.md` refers to these
-  rules.
+  LOOT-NUM-010) and `binomial` (LOOT-NUM-018). Earlier versions of `block-loot.md` stated these
+  providers in LOOT-MOD-008. That id is now in `loot-functions.md`, and it cites this rule.
 - **Note:** a float `uniform` with `min ≥ max` takes no draw (LOOT-NUM-010).
 
 Provenance: `source_suggested_black_box_confirmed` (results L2 and L3 of `block-loot.md`). Kind:
@@ -846,10 +852,14 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 **LOOT-CDV-001.**
 
 - **Rule**: LOOT-CND-015.
-- **Reference**: a `time_check` with `period` 0 stops the evaluation with an arithmetic error
-  that nothing catches. The command or the action that evaluates it fails.
-- **Visible to the client**: no. A data pack author sees an error in place of a result.
-- **Test**: a differential test skips a `time_check` with `period` 0.
+- **Reference**: a `time_check` with `period` 0 loads. Its test stops with an arithmetic error.
+  When the condition is inside a provider, the nearest read that contains the condition catches
+  the error. That read gives 0, as for an evaluation error (LOOT-NUM-001). Otherwise nothing catches the error, and
+  the command or the action that evaluates the condition fails.
+- **Visible to the client**: no. A data pack author sees a load fault in place of an error at the
+  evaluation.
+- **Test**: a differential test does not use a `time_check` with `period` 0. A test of the load
+  expects a fault.
 
 **LOOT-CDV-002.**
 
@@ -868,14 +878,21 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Visible to the client**: no. A data pack author sees an error in place of a result.
 - **Test**: a differential test skips a `lookup` at a level less than 1.
 
+**LOOT-CDV-004.**
+
+- **Rule**: LOOT-CND-001, and LOOT-CTX-013 and LOOT-CTX-016 of `loot.md`.
+- **Reference**: the load does not check the provider in the field `chance` of `random_chance`. A
+  reference back to itself through that provider loads, and its evaluation fails with a stack
+  overflow. A parameter that the provider reads gives no warning, also when the type of the table
+  does not allow it.
+- **Visible to the client**: no. A data pack author sees a load fault in place of a failed
+  evaluation. No vanilla `random_chance` has a `chance` that is not a bare number.
+- **Test**: a differential test does not use such a provider. A test of the load expects a fault.
+
 ### 7.2 Open questions
 
-- **Q1**: REG-FLD-387 does not state that the decode of `clamped` rejects `max ≤ min`. The
-  reference rejects it. LOOT-NUM-021 thus never meets `max ≤ min`. The author of
-  `registry-fields.md` should add this check.
-- **Q2**: LOOT-CND-015 makes a `time_check` with `period` 0 fail. A load issue for `period` 0
-  is an alternative. The decode of REG-FLD-715 accepts each long, so the choice here keeps the
-  decode as it is.
+No open question remains. Q1 and Q2 are closed: REG-FLD-387 rejects a `clamped` with `max ≤ min`,
+and REG-FLD-715 rejects a `time_check` with `period` 0.
 
 ### 7.3 Unresolved
 
@@ -891,16 +908,18 @@ No experiment of this document ran. `tools/vanilla-server` needs the acceptance 
 the environment, and the environment of the author did not have it. The loot dumper of
 `tools/vanilla-oracle` (#387) is not ready. Each experiment of this table is a fixture for that
 dumper, or a command for `tools/vanilla-server`. A fixture of the dumper has a table, a context and a
-seed. It records the stacks of a roll and the state of the generator after the roll.
+seed. It records the stacks of a roll and the state of the generator after the roll. The context
+has a key set of LOOT-CTX-011 (`loot.md`) and holds each required parameter of that key set. A row
+that names no key set uses the key set `chest`, with `origin` and a player as `this_entity`.
 
 | Id | Steps | Record | Rules |
 |----|-------|--------|-------|
-| X1 | Roll a table with one pool and one entry `item`, with the condition `random_chance` 0.5. Repeat with `table_bonus`, `survives_explosion` with the radius 4 and without a radius, and `random_chance_with_enchanted_bonus` with a killer with Looting II. Use the same seed. | the stacks and the generator state after each roll | LOOT-CND-003, LOOT-CND-004, LOOT-CND-005, LOOT-CND-010, LOOT-CND-022, LOOT-NUM-024 |
+| X1 | Roll a table with one pool and one entry `item`, with the condition `random_chance` 0.5. Repeat with `table_bonus`, and with `survives_explosion` with the radius 4 and without a radius. For these rolls, use the key set `block`, with the state `stone`, an origin, a pickaxe with Fortune II as `tool`, and `explosion_radius` 4 or no `explosion_radius`. Roll `random_chance_with_enchanted_bonus` with the key set `entity`: a zombie as `this_entity`, an origin, a player attack as `damage_source`, and the player with a sword with Looting II as `attacking_entity`. Use the same seed. | the stacks and the generator state after each roll | LOOT-CND-003, LOOT-CND-004, LOOT-CND-005, LOOT-CND-010, LOOT-CND-022, LOOT-NUM-024 |
 | X2 | Roll `any_of` and `all_of` with two `random_chance` 0.5 terms, for 20 seeds. Repeat with a tag of two predicates. | the generator state, which shows one or two draws | LOOT-CND-002 |
 | X3 | Roll `int_value_check` with the value `uniform` 0 to 10 and the range `{"min": {"type": "minecraft:uniform", "min": 0, "max": 10}, "max": {"type": "minecraft:uniform", "min": 0, "max": 10}}`. Repeat with `{}` as the range, and with the point form. Set two scores and roll `entity_scores` with two objectives, the first of which does not exist. Roll `score` with a fallback `uniform`. | the generator state | LOOT-CND-012, LOOT-CND-016, LOOT-CND-017, LOOT-CND-021, LOOT-CND-023, LOOT-NUM-019 |
 | X4 | Roll `set_count` with the float `mod` of `right` 0 and `left` `uniform`. Repeat with `right` 3. | the generator state, which shows no draw for `right` 0 | LOOT-NUM-002, LOOT-NUM-007 |
 | X5 | Roll `set_count` with an int `uniform` 3 to 3, an int `uniform` 1 to 6, a float `uniform` 2 to 1, and `binomial` with `n` `uniform` 1 to 3 and `p` 0.5. | the counts and the generator state | LOOT-NUM-009, LOOT-NUM-010, LOOT-NUM-018 |
-| X6 | Roll `set_count` with `weighted_list` of two `uniform` elements, `conditional` with `random_chance` 0.5, `number_dispatcher` with two `random_chance` cases, and `enchantment_level` with each level-based value type at the levels 0, 1 and 5. | the counts and the generator state | LOOT-NUM-013, LOOT-NUM-014, LOOT-NUM-015, LOOT-NUM-020, LOOT-NUM-021, LOOT-NUM-022 |
+| X6 | Roll `set_count` with `weighted_list` of two `uniform` elements, `conditional` with `random_chance` 0.5, `number_dispatcher` with two `random_chance` cases, and `enchantment_level` with each level-based value type at the levels 0, 1 and 5. For `enchantment_level`, use the key set `enchanted_item`, with a stick as `tool` and the level as `enchantment_level`. | the counts and the generator state | LOOT-NUM-013, LOOT-NUM-014, LOOT-NUM-015, LOOT-NUM-020, LOOT-NUM-021, LOOT-NUM-022 |
 | X7 | Roll `set_count` with the int providers of LOOT-NUM-004, LOOT-NUM-006, LOOT-NUM-008 and LOOT-NUM-011 at the edge values of their error column. | the counts | LOOT-NUM-001, LOOT-NUM-004, LOOT-NUM-006, LOOT-NUM-008, LOOT-NUM-011 |
 | X8 | Roll `float_value_check` with the float providers of LOOT-NUM-005, LOOT-NUM-007, LOOT-NUM-008 and LOOT-NUM-012 at NaN, an infinity, `-0.0` and `±2^31`, against the point form. | the result of each check | LOOT-NUM-001, LOOT-NUM-005, LOOT-NUM-007, LOOT-NUM-012 |
 | X9 | Roll `set_count` with `add` of 1 and the int `div` 1 by 0. | the count 0 | LOOT-NUM-001 |

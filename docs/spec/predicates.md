@@ -180,7 +180,7 @@ case.
 
 **PRED-NUM-005** (`source_suggested`, semantic, confidence medium). Bounds with `min` larger than
 `max` pass for no value. The decoder of integer bounds and of double bounds rejects such bounds, so
-a loaded predicate does not hold them (section 12.2, Q1).
+a loaded predicate does not hold them (REG-FLD-646).
 
 ## 3. The item predicate
 
@@ -595,8 +595,7 @@ add these tests.
 | `type` | the damage source predicate passes for the source |
 
 The dimension of the entity predicate and of the damage source predicate is the dimension of the
-player. Their origin is the position of the player. `registry-fields.md` does not list the field
-`blocked` (section 12.2, Q1).
+player. Their origin is the position of the player. REG-FLD-620 states the decode of `blocked`.
 
 ## 9. The entity predicate
 
@@ -710,7 +709,6 @@ are correct. The test `is_sneaking` reads the pose, and not the shift key state 
 when the entity is not a living entity, also for `{}`. Each of the fields `head`, `chest`, `legs`,
 `feet`, `body`, `saddle`, `mainhand` and `offhand` is an item predicate. A field that is present
 must pass for the stack of that equipment slot. An empty slot gives the empty stack (PRED-ITM-003).
-`registry-fields.md` does not list the field `saddle` (section 12.2, Q1).
 
 **PRED-ENT-016** (`source_suggested`, semantic, confidence medium). `periodic_tick` (REG-FLD-633)
 has a positive integer `n`. The sub-predicate passes when the entity tick count is a multiple of
@@ -943,11 +941,10 @@ rules of section 9 must give the same result on each host.
 
 ### 12.2 Open questions
 
-- **Q1**: four facts about the decode are not in `registry-fields.md`. They are questions to the
-  author of that document. REG-FLD-632 does not list the field `saddle` of `equipment`. REG-FLD-620
-  does not list the optional boolean `blocked`. REG-FLD-646 does not state that integer bounds and
-  double bounds with `min` larger than `max` fail the load. REG-FLD-636 has no table of the slot
-  range names; PRED-ENT-020 has one.
+Q1 is closed. `registry-fields.md` now states the decode facts that it asked for: `blocked`
+(REG-FLD-620), `saddle` (REG-FLD-632), the slot range names (REG-FLD-636) and the bounds with `min`
+larger than `max` (REG-FLD-646).
+
 - **Q2**: PRED-GEN-004 is a design rule. The vanilla server has no absent value except a position
   that is not loaded and an absent entity. The owner can select a different result for an absent
   value, for example an error that the caller sees.
@@ -991,25 +988,29 @@ with one scripted client as an operator (`tools/mcrs_minecraft_client_recorder`)
 
 | Id | Steps | Rules |
 |----|-------|-------|
-| E1 | Run `execute positioned ~3 ~ ~ as @p` with EP and `distance.absolute` equal to `{max: 3.0}`, `{max: 2.99}`, `{min: 3.0}`, `{min: -4.0}` and `{}`. Repeat with `horizontal` and with `x`. | PRED-NUM-002, PRED-NUM-003, PRED-NUM-004, PRED-DST-001, PRED-ENT-009 |
+| E1 | Run `execute positioned ~3 ~ ~ as @p` with EP and `distance.absolute` equal to `{max: 3.0}`, `{max: 2.99}`, `{min: 3.0}`, `{min: -4.0}` and `{}`. Repeat with `horizontal` and with `x`. Run it also with `{min: 3.0, max: 2.0}`, and record that the command fails to parse. | PRED-NUM-002, PRED-NUM-003, PRED-NUM-004, PRED-NUM-005, PRED-DST-001, PRED-ENT-003, PRED-ENT-009 |
 | E2 | Hold a diamond pickaxe with the damage 100 and Efficiency II. Run `execute if items entity @s weapon.mainhand` with `*[damage~{durability:{min:1461}}]`, with `enchantments` elements of each row of PRED-ITM-012, and with `*[custom_data~{}]`. Repeat the last test with an empty hand. | PRED-ITM-002, PRED-ITM-003, PRED-ITM-010 to PRED-ITM-014 |
 | E3 | Hold a bundle with 3 dirt, 2 stone and 1 stick. Test `bundle_contents` with `contains` of two predicates that one stack satisfies, with `count` and `max: 0`, and with `size`. | PRED-COL-001 to PRED-COL-004, PRED-ITM-015 |
-| E4 | Place a chest with the name `Box`. Run LC with `block` and `nbt: {x: <x>}`, with `components` that hold the custom name, and with `{}` on a stone block. Run LC with `block: {}` at `100000 64 100000`. | PRED-BLK-001 to PRED-BLK-004, PRED-NBT-001, PRED-LOC-002 |
+| E4 | Place a chest with the name `Box`. Run LC with `block` and `nbt: {x: <x>}`, with `components` that hold the custom name, and with `{}` on a stone block. Run LC with `block: {}` at `100000 64 100000`, where no chunk is loaded. | PRED-GEN-001, PRED-BLK-001 to PRED-BLK-004, PRED-NBT-001, PRED-NBT-002, PRED-LOC-001, PRED-LOC-002 |
 | E5 | Place a furnace for each value of `facing`. Run LC with `block.state` equal to `{facing: {min: "north", max: "south"}}` at each furnace. Repeat with `{lit: {min: "false", max: "false"}}` and with `{facing: "up"}`. | PRED-BLK-006 to PRED-BLK-009, U1 |
 | E6 | Run LC with `fluid` at a water source, at flowing water and at air. Run LC with `light` and with `can_see_sky` under a roof, in the open at noon and at midnight, and in the Nether. | PRED-BLK-010, PRED-LOC-005, PRED-LOC-006, PRED-LOC-007 |
 | E7 | Build a column with a lit campfire. Run LC with `smokey: true` at 1 to 7 blocks over it. Repeat with a hay bale, with a top slab and with a fence over the campfire, and with an unlit campfire. | PRED-LOC-004 |
 | E8 | Stand on soul sand, on a bottom slab over soul sand, and on a fence. Run EP with `stepping_on` and with `movement_affected_by`, each with `block` and with `position.y`. Repeat in a jump. | PRED-ENT-007, PRED-ENT-008 |
 | E9 | Run EP with `movement` bounds from a repeating command block while the client walks, sprints, stands, falls and rides a pig and a boat. Repeat for an armor stand that falls. | PRED-ENT-010, PRED-ENT-011, U3 |
 | E10 | Run EP as an item entity with `flags` equal to `{is_baby: true}`, `{is_baby: false}`, `{is_fall_flying: true}` and `{is_flying: true}`. Run EP as the player with `is_sneaking` in flight with the shift key down. | PRED-ENT-014, U2 |
-| E11 | Run EP as an item entity with `effects: {}`, `equipment: {}`, `vehicle: {}`, `team: ""` and `entity_tags` with an empty `any_of`. Repeat as a zombie. | PRED-GEN-005, PRED-EFX-001, PRED-ENT-015 to PRED-ENT-018, PRED-ENT-022 |
-| E12 | Run EP as the player with `slots` for `weapon.*`, `hotbar.*`, `armor.*`, `horse.0` and `player.crafting.*`, each with `{}` and with an item. | PRED-ENT-019, PRED-ENT-020 |
+| E11 | Run EP as an item entity with `effects: {}`, `equipment: {}`, `vehicle: {}`, `team: ""` and `entity_tags` with an empty `any_of`. Repeat as a zombie. | PRED-GEN-002, PRED-GEN-005, PRED-EFX-001, PRED-ENT-012, PRED-ENT-015 to PRED-ENT-018, PRED-ENT-022 |
+| E12 | Run EP as the player with `slots` for `weapon.*`, `hotbar.*`, `armor.*`, `horse.0` and `player.crafting.*`, each with `{}` and with an item. | PRED-ITM-001, PRED-ENT-019, PRED-ENT-020 |
 | E13 | Run EP as a pig with `type_specific/fishing_hook: {}`, `type_specific/sheep: {}` and `type_specific/raider: {}`. Run the last one as a pillager, as a patrol leader and as a raider in a raid. Run `type_specific/cube_mob` as a slime of size 2. | PRED-ENT-031 to PRED-ENT-034 |
 | E14 | Summon a lightning bolt over a pig on grass. Run EP as the bolt from a repeating command block with `blocks_set_on_fire` and `entity_struck`. | PRED-ENT-030 |
 | E15 | Run EP as the player with `looking_at` while the client looks at a pig at 99 and at 101 blocks, through glass, through stone, and past a fireball. Nest `distance` in `looking_at` with an `origin` far from the player. | PRED-ENT-004, PRED-ENT-042, U4 |
-| E16 | Run EP as the player with `gamemode`, `level`, `food`, `stats`, `recipes`, `advancements` with an unknown id and with an unknown criterion, and `input` with each key down. | PRED-ENT-040, PRED-ENT-041, PRED-ENT-043 |
+| E16 | Run EP as the player with `gamemode`, `level`, `food`, `stats`, `recipes`, `advancements` with an unknown id and with an unknown criterion, and `input` with each key down. | PRED-NUM-001, PRED-ENT-040, PRED-ENT-041, PRED-ENT-043 |
 | E17 | Install a data pack whose pig loot table has pools with `damage_source_properties`. Kill pigs with a fall, a sword and an arrow of the player. Record the dropped items. | PRED-DMG-001 to PRED-DMG-003 |
 | E18 | Install a data pack with advancements of the trigger `entity_hurt_player` with `dealt`, `taken`, `blocked` and `source_entity.distance`. Take damage with and without a shield. Record the granted advancements. | PRED-DMG-004, PRED-DMG-005 |
 | E19 | Hold a written book, a firework rocket, a potion with a custom effect, a trimmed helmet and a music disc. Test each data component predicate of section 3.3 with `execute if items`. | PRED-ITM-016 to PRED-ITM-023, PRED-EFX-002 |
+| E20 | Run EP with `{}` from the console, with no entity. Run EP as a pig and as the player with `type: "minecraft:pig"`. Summon a pig with `Invulnerable:1b` and the custom name `Bob`. Run EP as that pig with `nbt: "{Invulnerable:1b}"`, with `components: {"minecraft:custom_name": "Bob"}`, and with `type` and `nbt` together. Run EP as the player with `nbt: "{SelectedItem:{}}"`, with an item in the hand and with an empty hand. Run each command two times. | PRED-GEN-003, PRED-ENT-001, PRED-ENT-002, PRED-ENT-005, PRED-ENT-013, PRED-ENT-021 |
+| E21 | In a world with a plains village, run LC with `structures: "minecraft:village_plains"` inside a house, and between two houses inside the box of the village. Stand on a bottom slab at the height `y`. Run EP with `location.position.y` equal to `{min: y + 0.5}` and to `{min: y + 0.51}`. | PRED-LOC-003, PRED-ENT-006 |
+| E22 | Hold a stick with the custom name `A`. Run EP with `equipment.mainhand` equal to `{components: {"minecraft:custom_name": "A"}}`, to `{components: {"minecraft:custom_name": "B"}}`, to `{predicates: {}}`, to `{predicates: {"minecraft:custom_name": "Z"}}` and to `{predicates: {"minecraft:damage": {}}}`. | PRED-ITM-004, PRED-ITM-005, PRED-ITM-006, PRED-ITM-007 |
+| E23 | Put the client in adventure mode. Give it a stone with `can_place_on` `{blocks: "minecraft:dirt"}`, and a pickaxe with `can_break` `{blocks: "minecraft:stone"}`. Place the stone on dirt and on grass. Break a stone and a dirt block. Record the blocks that change, and the block updates that the client receives. | PRED-BLK-005 |
 
 ## 14. Captured results
 

@@ -24,7 +24,8 @@ not state.
 ### Rules that moved
 
 Earlier versions of this document held the rules of this table. Each rule keeps its id in its new
-document.
+document. LOOT-MOD-008 keeps its meaning, but the table of the number providers is now LOOT-NUM-023
+(last row), and LOOT-MOD-008 cites it.
 
 | Rule ids | Document |
 |----------|----------|
@@ -32,8 +33,8 @@ document.
 | LOOT-OUT-001 | `loot.md` |
 | LOOT-RND-002 | `loot.md` |
 | LOOT-CND-001 to LOOT-CND-009 | `loot-conditions.md` |
-| LOOT-MOD-001 to LOOT-MOD-007 | `loot-functions.md` |
-| LOOT-MOD-008, the number providers | `loot-conditions.md` |
+| LOOT-MOD-001 to LOOT-MOD-008 | `loot-functions.md` |
+| the number providers of the block tables, earlier a part of LOOT-MOD-008 | `loot-conditions.md`, LOOT-NUM-023 |
 
 ## 0. Conventions
 
@@ -208,7 +209,8 @@ evaluation is the `i`-th value of its stream. The draws, their order and their k
 `loot.md` (LOOT-RND-006, LOOT-RND-008). This is the keyed mode of LOOT-RND-002. Thus a drop does not
 depend on the order of the breaks in a tick or on the thread count. Reason: the keyed random values
 of `entity-ai-timing.md` (AIT-LAG-008) and `entity-physics.md` (PHY-CMP-025). LOOT-DEV-001 records
-the difference from the vanilla server.
+the difference from the vanilla server. LOOT-RND-009 of `loot.md` applies the same choice to each
+other source without a saved seed.
 
 **LOOT-RND-003** (`source_suggested`, semantic, confidence medium). The position and the velocity of
 an item entity of a drop take their own random values (PHY-CMP-025, PHY-DEV-013). They are not draws
@@ -280,7 +282,7 @@ from loot table minecraft:blocks/coal_ore`.
 | Id | Steps | Result | Rules |
 |----|-------|--------|-------|
 | E1 | Evaluate the table of `coal_ore` 1000 times with a diamond pickaxe with Fortune III. | L1 | LOOT-MOD-004 |
-| E2 | Evaluate the table of `oak_leaves` 2000 times with an empty hand. | L2 | LOOT-CND-004, LOOT-MOD-008 |
+| E2 | Evaluate the table of `oak_leaves` 2000 times with an empty hand. | L2 | LOOT-CND-004, LOOT-NUM-023 |
 | E3 | Evaluate the tables of `glowstone` and `brown_mushroom_block` 500 times each with an empty hand. | L3 | LOOT-MOD-001, LOOT-MOD-003 |
 | E8 | Evaluate the table of `wheat` with `age=7` 500 times with an empty hand. Count the items of each evaluation. | L3 | LOOT-SRC-005, LOOT-MOD-004 |
 | E4 | Break each part of `oak_door` and `red_bed` with an empty hand, and each part of `tall_grass` with shears. Record `add_entity` and the item. | L4 | LOOT-SRC-006 |

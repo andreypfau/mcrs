@@ -50,7 +50,10 @@ Other documents state the parts that a table contains and the sources that evalu
 - **Candidate**: a leaf result that one roll can select (LOOT-EVL-003).
 - **Generator**: the random number generator that one evaluation takes its draws from
   (LOOT-RND-004).
-- **Draw**: one value that the evaluation takes from the generator. LOOT-RND-006 states the kinds.
+- **Draw**: one value that the evaluation takes from the generator. LOOT-RND-006 states the kinds
+  and their notation. Each loot document uses this notation.
+- **Keyed stream**: a sequence of random values that is a function of a key. The `i`-th draw of an
+  evaluation is the `i`-th value of the stream. LOOT-RND-001 and LOOT-RND-009 state the keys.
 - **Free slot**: a slot of a container that holds the empty stack when the spread starts.
 
 An integer range `a..b` includes `a` and `b`. `floor` rounds toward negative infinity.
@@ -167,6 +170,12 @@ that it can hold. A parameter in neither column is not allowed.
 The names of the key sets come from `assets/mcrs/reports/registries.json`. The contents come from
 the reference.
 
+`generic` is the default type of a table (LOOT-CTX-013). The load also checks each entry of the
+registries `predicate`, `item_modifier`, `slot_source`, `context_int_provider` and
+`context_float_provider` against `generic`. Thus such an entry can read each parameter. No vanilla
+source evaluates a table with the key set `generic`. A context for `generic` must hold each
+parameter of LOOT-CTX-010, so an experiment uses the key set of a source in its place.
+
 **LOOT-CTX-012** (`source_suggested`, semantic, confidence medium). A source makes the context of
 an evaluation with one key set, which the source document states. The context must hold each
 required parameter of that key set. It must not hold a parameter that the key set does not allow. A
@@ -195,6 +204,31 @@ other tables, through tags of tables, through the key of a table, and through in
 example, a table `t:a` with the entry `{"type": "minecraft:loot_table", "value": "t:a"}` fails the
 load. A table can name the same nested table two times in different places, for example in two
 pools. That is not a reference back to itself.
+
+**LOOT-CTX-016** (`design`, semantic). Each loot validation problem that the server finds at the
+load is a fault of the load, as a fatal problem of REG-ERR-001. The load or the reload fails. The
+check of the validation goes over all loaded tables, predicates, item modifiers, slot sources and
+providers. These are the loot validation problems:
+
+| Problem | Rule |
+|---------|------|
+| a part reads a parameter that the type of its table does not allow | LOOT-CTX-013 |
+| a table, a predicate, an item modifier or a provider refers back to itself | LOOT-CTX-014, REG-ERR-001 |
+| a composite entry without children | this rule |
+| a child of an `alternatives` entry, other than the last child, that has no `condition` | this rule |
+| an aggregate provider (LOOT-NUM-011, LOOT-NUM-012) whose `inputs` is empty | this rule |
+
+These faults of the load are not loot validation problems, and REG-ERR-001 lists them in other rows:
+
+- A key of a table, a predicate, an item modifier or a provider that has no entry is an unresolved
+  reference (REG-REF-002).
+- A `time_check` with `period` 0 fails the decode of its entry (REG-FLD-715).
+- An NBT path that the grammar of LOOT-MOD-047 (`loot-functions.md`) does not accept fails the
+  decode of its entry.
+
+Reason: the owner decided in issue #72 that a load with a loot validation issue is refused. The
+vanilla data pack has none of these problems. LOOT-DEV-100 and LOOT-DEV-102 record the differences
+from the vanilla server.
 
 **LOOT-CTX-015** (`source_suggested`, semantic, confidence medium). The luck of a context is a
 32-bit float. The source gives it. A source that gives no luck gives 0. The vanilla sources give
@@ -229,9 +263,11 @@ the draws.
 
 1. Test the condition of the pool, when the pool has one. When it fails, the pool gives nothing and
    takes no other draw.
-2. Get the int value `a` of `rolls`, with the draws of the provider (`loot-conditions.md`).
-3. Get the float value `b` of `bonus_rolls`, with the draws of the provider (`loot-conditions.md`).
-   The default is the constant 0. The pool gets `b` also when the luck is 0.
+2. Let `a` be the int read of `rolls` (LOOT-NUM-001 of `loot-conditions.md`), with the draws of
+   the provider. An evaluation error gives 0.
+3. Let `b` be the float read of `bonus_rolls` (LOOT-NUM-001), with the draws of the provider. An
+   evaluation error, a NaN and an infinity give 0. The default is the constant 0. The pool reads
+   `b` also when the luck is 0.
 4. Let `n` be `a + floor(b × luck)`. The product is a 32-bit float product.
 5. Do LOOT-EVL-003 `n` times. When `n` is 0 or less, the pool does no roll.
 6. Each stack that a roll gives goes through the modifier of the pool, when the pool has one.
@@ -246,9 +282,11 @@ steps:
 3. Remove each candidate with the weight 0.
 4. When no candidate remains, the roll gives nothing. This takes no draw.
 5. When one candidate remains, it makes its stacks. This takes no draw.
-6. When more candidates remain, let `t` be the sum of their weights. Take the draw `k = int(t)`
-   (LOOT-RND-006). Go through the candidates in order, and subtract the weight of each from `k`.
-   The first candidate for which `k` becomes less than 0 makes its stacks.
+6. When more candidates remain, let `t` be the sum of their weights. When `t` is more than
+   2³¹ − 1, the roll gives nothing and takes no draw. LOOT-DEV-103 records the reference.
+7. Otherwise take the draw `k = B(t)` (LOOT-RND-006). Go through the candidates in order, and
+   subtract the weight of each from `k`. The first candidate for which `k` becomes less than 0
+   makes its stacks.
 
 Thus one roll makes the stacks of at most one candidate. A candidate with the weight 0 still had its
 condition tested in step 1. A `tag` or `loot_table` entry with `expand` true can give more than one
@@ -267,11 +305,16 @@ has one. When the condition fails, the expansion gives no leaf result and gives 
 - `sequence` expands its children in order, until one gives false. The leaf results that the earlier
   children gave stay. It gives false when a child gave false. It gives true otherwise, and also when
   it has no children;
-- `group` expands each child in order. It gives true.
+- `group` expands each child in order. It gives true, also when it has one child that gives false.
+  LOOT-DEV-104 records the reference.
 
 A child that the expansion does not reach is not tested and takes no draw. The expansion tests each
 condition again in each roll. A leaf result of a child keeps the modifier of each composite entry
 that contains it (LOOT-EVL-011).
+
+In a roll, the expansion of each entry of the pool ends before a candidate makes its stacks
+(LOOT-EVL-003). The modifier `set_contents` uses the same expansion, but each leaf result makes its
+stacks when the expansion gives it (LOOT-MOD-053 of `loot-functions.md`).
 
 **LOOT-EVL-005** (`source_suggested_black_box_confirmed`, semantic, confidence high). An
 `alternatives` entry thus selects the first child whose condition passes. For example, the table of
@@ -298,7 +341,7 @@ names, and only in the evaluation of a block table for a block with this block e
 
 | Name | Block entity | Stacks, in order |
 |------|--------------|------------------|
-| `minecraft:sherds` | a decorated pot | the item of each side that has a decoration in the component `minecraft:pot_decorations`, in the order left, back, front, right |
+| `minecraft:sherds` | a decorated pot | a stack of the decoration of each side that has one in the component `minecraft:pot_decorations`, with the item, the count and the components of the decoration, in the order left, back, front, right |
 | `minecraft:contents` | a shulker box | the stack of each slot, in the order of the slots, also the empty stacks |
 
 A side without a decoration gives no stack. A pot from an item without changes has `brick` on each
@@ -348,9 +391,14 @@ For a stack of a nested table, steps 1 to 4 of the nested table come first. Then
 through the modifiers of the `loot_table` entry and of the parts around it. `loot-functions.md`
 states what each modifier does and its draws.
 
+A stack whose count becomes 0 or less keeps its item and its component patch through all these
+modifiers, also through the modifiers around a nested table (LOOT-MOD-011 of `loot-functions.md`).
+A later modifier can make its count more than 0 again. The division (LOOT-OUT-001) is the one point
+where a stack with a count of 0 or less becomes the empty stack.
+
 **LOOT-EVL-012** (`source_suggested`, semantic, confidence medium). The evaluation makes one stack at
-a time. Each stack goes through all its modifiers and through the division (LOOT-OUT-001), and
-reaches the drop list, before the evaluation makes the next stack. Thus the draws of the modifiers
+a time. Each stack goes through all its modifiers of LOOT-EVL-011 and then through the division
+(LOOT-OUT-001), and reaches the drop list, before the evaluation makes the next stack. Thus the draws of the modifiers
 of a stack come before each draw that the evaluation takes for the next stack. For example, a
 `loot_table` entry evaluates the first pool of its nested table. The modifiers of the outer pool
 apply to each stack of that first pool before the nested table tests the condition of its second
@@ -367,7 +415,7 @@ draw.
 | `group` | the slots of each source of `terms`, in order, one after the other |
 | `filtered` | the slots of `slot_source` whose stack matches the item predicate `item_filter` (`predicates.md`) |
 | `limit_slots` | the first `limit` slots of `slot_source` |
-| `contents` | for each slot of `slot_source`, in order, the slots of the contents of its stack in the component `component`, in the order of that component |
+| `contents` | for each slot of `slot_source`, in order, the slots of the contents of its stack in the component `component`, in the order of that component. A stack without the effective component `component` gives no slot. |
 | `empty` | nothing |
 
 The names of a slot range are those of the command `/item`, for example `container.*` and
@@ -379,9 +427,10 @@ only at the end.
 **LOOT-OUT-001** (`source_suggested`, semantic, confidence medium). The evaluation of a table that is
 not a nested table divides each stack, after the modifier of the table:
 
-- When the item of the stack is not enabled by the feature flags of the world, the stack is removed.
-- A stack with a count less than its maximum stack size stays one stack. An empty stack also stays,
-  so the drop list can hold empty stacks. Each source states what it does with them.
+- A stack with a count of 0 or less becomes the empty stack. It stays in the drop list, so the drop
+  list can hold empty stacks. Each source states what it does with them.
+- Another stack whose item is not enabled by the feature flags of the world is removed.
+- Another stack with a count less than its maximum stack size stays one stack.
 - A larger stack becomes stacks of the maximum stack size, in order, and then the rest when it is
   not 0.
 
@@ -410,13 +459,13 @@ from the drop list. It goes through the drop list in order:
 Let `f` be the number of free slots. While `f` minus the length of both lists is more than 0, and the
 split list is not empty, the spread does these steps:
 
-1. Take the draw `i = I(0, s − 1)`, where `s` is the length of the split list. Remove the stack at
-   the position `i` of the split list. Call it A, with the count `c`.
-2. Take the draw `k = I(1, floor(c / 2))`. Make a new stack B with the count `k`. B is a copy of A
-   with all its components. The count of A becomes `c − k`.
-3. When the count of A is more than 1, take a boolean draw. When it is true, put A at the end of the
-   split list. Otherwise, or when the count of A is 1, put A at the end of the kept list.
-4. Do step 3 for B.
+1. Take the draw `i = between(0, s − 1)`, where `s` is the length of the split list. Remove the
+   stack at the position `i` of the split list. Call it P, with the count `c`.
+2. Take the draw `k = between(1, floor(c / 2))`. Make a new stack Q with the count `k`. Q is a copy
+   of P with all its components. The count of P becomes `c − k`.
+3. When the count of P is more than 1, take the draw `Bool`. When it is true, put P at the end of
+   the split list. Otherwise, or when the count of P is 1, put P at the end of the kept list.
+4. Do step 3 for Q.
 
 When the loop stops, the spread puts the stacks of the split list, in order, at the end of the kept
 list. Then it shuffles the kept list (LOOT-RND-007).
@@ -443,8 +492,9 @@ this one sequence:
 - Exact mode. The caller gives the generator of LOOT-RND-004 in its state before the evaluation.
   The drop list, the contents of the container and the state of the generator after the evaluation
   must be those of the vanilla server.
-- Keyed mode. The caller gives a keyed stream, for example the stream of LOOT-RND-001 for a block.
-  The support and the probability of each result must be those of the vanilla server.
+- Keyed mode. The caller gives a keyed stream, for example the stream of LOOT-RND-001 for a block or
+  of LOOT-RND-009 for another source. The support and the probability of each result must be those
+  of the vanilla server.
 
 A parity test in exact mode compares the stacks and the state of the generator. A parity test in
 keyed mode compares the distribution of the results over many evaluations.
@@ -455,13 +505,36 @@ generator.
 
 | Condition | Generator |
 |-----------|-----------|
+| the source gives a generator, for example the level random for the display item of a vault | that generator |
 | the source gives a seed that is not 0, for example the save field `LootTableSeed` of a container or `DeathLootTableSeed` of a mob | a new 48-bit generator (BMR-PICK-003), set to that seed |
 | the table has a `random_sequence` | the sequence stream of that id (LOOT-RND-005) |
 | otherwise | the level random of the dimension (SIM-RNG-001) |
 
 The seed 0 means "no seed". A nested table uses the generator of the table that contains it
-(LOOT-EVL-010). The spread over a container continues with the same generator (LOOT-CTR-001). A
-source document can replace the generator by design. LOOT-RND-001 does that for the block source.
+(LOOT-EVL-010). The spread over a container continues with the same generator (LOOT-CTR-001). In
+mcrs, LOOT-RND-009 replaces the generators of the first, the third and the fourth row by a keyed
+stream.
+
+**LOOT-RND-009** (`design`, semantic). In mcrs, an evaluation for a source without a seed in the
+save takes its draws from a keyed stream. A seed of 0 is no seed. This applies to each source, for
+example the death of a mob without `DeathLootTableSeed`. LOOT-RND-001 states the stream of the
+block source. For each other source, the key holds these values:
+
+- the world seed;
+- the id of the table;
+- the game tick of the evaluation;
+- a value that the source document states, which tells the source apart from each other source of
+  the same table in the same tick, for example the UUID of the mob.
+
+This is the keyed mode of LOOT-RND-002. A source with a seed that is not 0 keeps the 48-bit
+generator of LOOT-RND-004. mcrs keeps no sequence stream and saves none, and `random_sequence` has
+no effect on the draws. Thus a result does not depend on the order of the evaluations in a tick, on
+the thread count, or on the earlier evaluations of the same table. Reason: the owner decided in
+issue #367 that loot is at the tier "independent of the scheduler".
+
+A caller that holds the state of a sequence stream (LOOT-RND-005) can give that generator in exact
+mode (LOOT-RND-002). The result is then the result of the vanilla server. LOOT-DEV-101 records the
+difference from the vanilla server.
 
 **LOOT-RND-005** (`source_suggested`, semantic, confidence medium). The vanilla server keeps one
 sequence stream for each sequence id. There is one set of streams for the server, and the world
@@ -479,32 +552,43 @@ the id, as follows. All operations are on 64-bit integers, modulo 2⁶⁴.
 0x94D049BB133111EB`, then gives `z XOR (z >> 31)`. Each shift is a logical shift. The command
 `/random reset` can change this derivation. That command is out of the scope of this document.
 
-**LOOT-RND-006** (`source_suggested`, semantic, confidence medium). A draw is of one of these kinds:
+**LOOT-RND-006** (`source_suggested`, semantic, confidence medium). A draw is of one of the kinds of
+this table. The loot documents (`docs/spec/README.md`, section "Loot documents") use this notation
+and no other kind of draw. A rule can give the value of a draw a name, for example `k = B(t)`.
 
-- `int(n)`, for `n ≥ 1`: a uniform int in `0..n − 1`.
-- `I(a, b)`: when `a ≥ b`, the value is `a`, and it takes no draw. Otherwise it is `a + int(b − a +
-  1)`.
-- `float`: a uniform 32-bit float in `[0, 1)`.
-- `boolean`: true or false, with the chance 0.5 each.
+| Notation | Kind | Value | Draws |
+|----------|------|-------|-------|
+| `F` | float draw | a uniform 32-bit float in `[0, 1)` | one |
+| `B(n)`, for `1 ≤ n ≤ 2³¹ − 1` | bounded draw | a uniform int in `0..n − 1`. `B(1)` gives 0. | one |
+| `between(a, b)` | draw in a range | `a` when `a ≥ b`. Otherwise `a + B(b − a + 1)`. | none when `a ≥ b`; otherwise one `B` |
+| `Bool` | boolean draw | true or false, with the chance 0.5 each | one |
+| `shuffle` of a list | shuffle | LOOT-RND-007 | the `B` draws of LOOT-RND-007 |
+
+There is no draw `B(n)` for a bound `n` outside `1..2³¹ − 1`. A rule that can meet such a bound
+states its result for it, and that result takes no draw (LOOT-EVL-003, LOOT-NUM-009 of
+`loot-conditions.md`, LOOT-MOD-004 of `loot-functions.md`).
 
 The 48-bit generator and the level random make each kind as follows:
 
-- `int(n)` is `next_int(n)` of BMR-PICK-003;
-- `float` is `next(24) / 2²⁴`;
-- `boolean` is true when `next(1)` is not 0.
+- `B(n)` is `next_int(n)` of BMR-PICK-003;
+- `F` is `next(24) / 2²⁴`;
+- `Bool` is true when `next(1)` is not 0.
 
 A Xoroshiro128++ generator makes the 64-bit value `x` and changes its state as follows: `x =
 rotl(lo + hi, 17) + lo`; `h = hi XOR lo`; the new `lo` is `rotl(lo, 49) XOR h XOR (h << 21)`; the
 new `hi` is `rotl(h, 28)`. It makes each kind as follows:
 
-- `int(n)`: let `r` be the low 32 bits of `x`, as an unsigned value, and `m = r × n`. When the low
+- `B(n)`: let `u` be the low 32 bits of `x`, as an unsigned value, and `m = u × n`. When the low
   32 bits of `m` are less than `n`, let `t = (2³² − n) mod n`. While the low 32 bits of `m` are
-  less than `t`, take a new `x` and calculate `r` and `m` again. The value is `m >> 32`.
-- `float`: `(x >> 40) / 2²⁴`, with a logical shift.
-- `boolean`: true when the lowest bit of `x` is 1.
+  less than `t`, take a new `x` and calculate `u` and `m` again. The value is `m >> 32`.
+- `F`: `(x >> 40) / 2²⁴`, with a logical shift.
+- `Bool`: true when the lowest bit of `x` is 1.
+
+A keyed stream makes each kind with the distribution of the table above. Its method is unspecified,
+because keyed mode compares only the distribution (LOOT-RND-002).
 
 **LOOT-RND-007** (`source_suggested`, semantic, confidence medium). A shuffle of a list of length
-`n` does these steps. For each `i` from `n` down to 2, take the draw `j = int(i)`. Then swap the
+`n` does these steps. For each `i` from `n` down to 2, take the draw `j = B(i)`. Then swap the
 elements at the positions `i − 1` and `j`. Positions start at 0. Thus a shuffle takes `n − 1` draws
 when `n ≥ 2`, and no draw otherwise.
 
@@ -514,7 +598,7 @@ table come in this order:
 1. For each pool, in order: the draws of the condition of the pool, then of `rolls`, then of
    `bonus_rolls` (LOOT-EVL-002).
 2. For each roll: the draws of the conditions of the expansion, in the order of LOOT-EVL-004. Then
-   the draw `int(t)` of LOOT-EVL-003, when two or more candidates remain.
+   the draw `B(t)` of LOOT-EVL-003, when two or more candidates remain.
 3. For the selected candidate: the draws of the nested tables that it evaluates (LOOT-EVL-010). For
    each stack, as LOOT-EVL-012 states, the draws of its modifiers in the order of LOOT-EVL-011.
 4. For a spread: the draws of LOOT-CTR-005, after all draws above.
@@ -528,13 +612,14 @@ It writes the stacks and the state of the generator after the evaluation. It is 
 vanilla server of `tools/vanilla-server` needs the acceptance of the Minecraft EULA in the
 environment, and this environment does not have it. Thus no experiment of this section ran.
 
-Each fixture of the dumper uses the generator of LOOT-RND-004 with a seed, the key set `generic`
-unless it states another, and a test data pack. Record the stacks of the drop list, with their
-components, and the state of the generator after the evaluation.
+Each fixture of the dumper uses the generator of LOOT-RND-004 with a seed and a test data pack. The
+context has the key set `chest` and holds only `origin`, unless the fixture states another key set.
+Record the stacks of the drop list, with their components, and the state of the generator after the
+evaluation.
 
 | Id | Input | What it decides | Rules |
 |----|-------|-----------------|-------|
-| X1 | A table with two pools. Pool 1: `rolls` `uniform` 1 to 3, four `item` entries with the weights 1, 2, 3, 4. Pool 2: `rolls` 2, one `item` entry. Seeds 1 to 20, luck 0. | the order of the draws of a pool and of a roll; no draw for one candidate | LOOT-EVL-002, LOOT-EVL-003, LOOT-RND-006, LOOT-RND-008 |
+| X1 | A table with two pools. Pool 1: `rolls` `uniform` 1 to 3, four `item` entries with the weights 1, 2, 3, 4. Pool 2: `rolls` 2, one `item` entry. Seeds 1 to 20, luck 0. | the order of the draws of a pool and of a roll; no draw for one candidate; the stacks of a table | LOOT-EVL-001, LOOT-EVL-002, LOOT-EVL-003, LOOT-EVL-006, LOOT-RND-002, LOOT-RND-006, LOOT-RND-008 |
 | X2 | The table `gameplay/fishing`, key set `fishing`, luck 0 and luck 3. Seeds 1 to 20. | the weight with the quality and the luck; the nested tables | LOOT-EVL-003, LOOT-EVL-010 |
 | X3 | A pool with `rolls` 1 and `bonus_rolls` `uniform` 0 to 2, luck 0 and luck 1.5. | `bonus_rolls` takes its draw also with the luck 0 | LOOT-EVL-002 |
 | X4 | Two `tag` entries over a list of three items, one with `expand` false and one with `expand` true. | the stacks of each form | LOOT-EVL-009 |
@@ -543,8 +628,9 @@ components, and the state of the generator after the evaluation.
 | X7 | A table with two pools. Pool 1 has a `loot_table` entry whose nested table gives two stacks. Pool 1 has the modifier `enchant_randomly`. Pool 2 has a `random_chance` condition. | the order of the draws of LOOT-EVL-012 | LOOT-EVL-012 |
 | X8 | Fill a container of 27 empty slots with a table that gives stacks with the counts 1, 1, 5, 64 and 70 of `ender_pearl`. Seeds 1 to 20. Record the item of each slot. | the spread and its draws | LOOT-CTR-002 to LOOT-CTR-005, LOOT-RND-007 |
 | X9 | Fill a container of 27 slots, with items in the slots 0 to 9, from a table that gives 30 stacks with the count 1. | only free slots; the stacks that do not fit are lost | LOOT-CTR-004 |
-| X10 | Evaluate `blocks/stone` with the world seed 42 and no saved streams. Record the state of the sequence stream `minecraft:blocks/stone` after the evaluation. | the seed of a sequence stream | LOOT-RND-005 |
-| X11 | Load a pack with an `entity` table that has a `match_tool` condition. Then load a pack with a table that names itself through a tag of tables. | the load faults | LOOT-CTX-013, LOOT-CTX-014 |
+| X10 | Evaluate `blocks/stone` with the world seed 42 and no saved streams. Use the key set `block`, with the state `stone`, an origin and the empty stack as `tool`. Record the state of the sequence stream `minecraft:blocks/stone` after the evaluation. | the seed of a sequence stream | LOOT-RND-005 |
+| X11 | Load a pack with an `entity` table that has a `match_tool` condition. Then load a pack with a table that names itself through a tag of tables. | the load faults | LOOT-CTX-011, LOOT-CTX-013, LOOT-CTX-014 |
+| X14 | A table of the type `block` with one pool and one `item` entry with a `match_tool` condition. Evaluate it with the key set `chest`. Then evaluate a table with one `entity_properties` condition for each name of the column "Name in data" of LOOT-CTX-010, with the key set `entity` and each optional parameter. Then call the dumper with a context of the key set `entity` that does not hold `damage_source`. | a part that reads an absent parameter; the names in data; a context without a required parameter | LOOT-CTX-010, LOOT-CTX-011, LOOT-CTX-012 |
 
 These experiments need the vanilla server and a scripted player:
 
@@ -552,8 +638,10 @@ These experiments need the vanilla server and a scripted player:
 |----|-------|-----------------|-------|
 | X12 | Place a cracked `decorated_pot` with `setblock`, with decorations on the sides left and front only. Break it with an empty hand. Record the order of `add_entity` and the items. Repeat with no decorations. | the stacks and the order of `minecraft:sherds` | LOOT-EVL-007 |
 | X13 | Place a chest with `{LootTable: "minecraft:chests/simple_dungeon", LootTableSeed: 5L}` twice, in two worlds. Open each chest with a player with the luck 0. Compare the contents with the result of X8 for the same table and seed. | the generator of a saved seed | LOOT-RND-004, LOOT-CTR-001 |
+| X15 | Install a data pack with the table `t:luck`: one pool with `rolls` 0, `bonus_rolls` 1 and one `item` entry. Set the attribute `minecraft:luck` of the player to 2. Open a chest with `t:luck`, kill a mob with `DeathLootTable` `t:luck`, and break a block whose table `t:luck` replaces. Record the count of items from each source. | the luck of each source | LOOT-CTX-015 |
+| X16 | Install a table with one `slots` entry. Its slot source is a `group` of a `slot_range` `hotbar.*` of `this`, a `contents` of `minecraft:bundle_contents` over `hotbar.*`, and a `limit_slots` 2 over `hotbar.*`. Put a bundle with two stacks in hotbar slot 0, a stick in slot 2, and nothing in slot 1. Run `loot spawn ~ ~ ~ loot t:slots` as the player. Record the items. | the selection of each slot source; a stack without the component; empty slots | LOOT-EVL-013 |
 
-## 8. Intentional deviations, unresolved items
+## 8. Intentional deviations, open questions and unresolved items
 
 ### 8.1 Intentional deviations
 
@@ -565,17 +653,62 @@ These experiments need the vanilla server and a scripted player:
 - **Visible to the client**: no. The author of the data pack sees a load fault in place of a warning.
 - **Test**: a differential test does not use a pack with such a table.
 
-### 8.2 Unresolved
+**LOOT-DEV-101.**
 
-- **U1**: the generator of a source other than a block, when the source gives no seed. LOOT-RND-004
-  states the vanilla generator: the sequence stream of the table, which the world saves. The owner
-  decides whether mcrs keeps these streams, or uses keyed values as LOOT-RND-001 does for blocks.
-- **U2**: a decorated pot side without a decoration gives no stack (LOOT-EVL-007). The reference of
-  this version shows this. The reference of an earlier release gave `brick` for such a side. A pot
-  that `setblock` places without decorations looks like brick on each side. The owner decides
-  whether the missing `brick` is a defect. Experiment X12 shows the vanilla result.
-- **U3**: REG-ERR-001 classes a part that reads a parameter outside the type as a non-fatal problem.
-  LOOT-CTX-013 makes it a fault of the load. `registry.md` must change to agree. The owner also
-  decides whether the other non-fatal problems of REG-ERR-001 become faults of the load: a composite
-  entry without children, an `alternatives` child that the expansion cannot reach, and a list below
-  its minimum length. The vanilla data pack has none of these problems.
+- **Rule**: LOOT-RND-009.
+- **Reference**: an evaluation without a seed in the save continues the sequence stream of the
+  `random_sequence` of the table (LOOT-RND-005), or takes the level random. The world saves the
+  sequence streams. The drops thus depend on the order of all earlier evaluations of the same
+  sequence, also in other dimensions.
+- **Visible to the client**: no, as a distribution. A player cannot repeat a drop of the vanilla
+  server from the world seed alone.
+- **Test**: a differential test compares the distribution of the results over many evaluations. A
+  test in exact mode gives the state of the sequence stream as the generator.
+
+**LOOT-DEV-102.**
+
+- **Rule**: LOOT-CTX-016.
+- **Reference**: a composite entry without children, a child of `alternatives` without `condition`
+  before the last child, and an aggregate provider with an empty `inputs` give a warning in the log.
+  The load does not fail.
+- **Visible to the client**: no. The author of the data pack sees a load fault in place of a warning.
+- **Test**: a differential test does not use a pack with such a part. A test of the load expects a
+  fault.
+
+**LOOT-DEV-103.**
+
+- **Rule**: LOOT-EVL-003.
+- **Reference**: the sum of the weights is a 32-bit int, and a sum above 2³¹ − 1 wraps. A negative
+  sum after the wrap stops the evaluation with an error that nothing catches. The action that
+  evaluates the table fails. A sum of 0 after the wrap gives nothing. A positive sum after the wrap
+  takes a draw with that bound and selects a candidate with other chances.
+- **Visible to the client**: no. The author of the data pack sees no stack in place of an error or
+  a different selection. No vanilla table has such weights.
+- **Test**: a differential test does not use a pool whose weights have a sum above 2³¹ − 1.
+
+**LOOT-DEV-104.**
+
+- **Rule**: LOOT-EVL-004.
+- **Reference**: a `group` with exactly one child gives the result of that child. Thus it gives
+  false when the condition of the child fails. A `group` with no child or with two or more
+  children gives true.
+- **Visible to the client**: no. The author of the data pack sees a different selection when such
+  a `group` is a child of `alternatives` or `sequence`. No vanilla table uses `group`.
+- **Test**: a differential test does not use a `group` with one child in `alternatives` or
+  `sequence`.
+
+### 8.2 Open questions
+
+None.
+
+### 8.3 Unresolved
+
+- **U2**: the stacks of `minecraft:sherds` (LOOT-EVL-007). The reference of this version gives no
+  stack for a side without a decoration. It gives the stacks in the order left, back, front,
+  right. An earlier text of this rule followed the reference of an earlier release. That text gave
+  `brick` for a side without a decoration, and the order back, left, right, front. A pot that
+  `setblock` places without decorations looks like brick on each side. The owner decides whether
+  the missing `brick` is a defect. LOOT-EVL-007 states the order of this version. Experiment X12
+  shows the vanilla result for both points.
+
+Items U1 and U3 are closed: LOOT-RND-009 and LOOT-CTX-016 state the decisions of the owner.

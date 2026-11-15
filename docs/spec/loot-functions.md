@@ -8,17 +8,17 @@
 Source of these values: `assets/minecraft/version.json`.
 
 This document states what each item modifier does to a stack. For each type, it states the change
-of the item, of the count and of the component patch. It states the context values that the type
-reads, and the result when a value is absent. It states each random draw, with its order and its
-method. It does not prescribe an architecture.
+of the item, of the count and of the component patch. It states the parameters that the type
+reads, and the result when a parameter is absent. It states each random draw, with its order and its
+kind. It does not prescribe an architecture.
 
 Scope: each type of the registry `minecraft:loot_function_type`, a list of modifiers, and a key of
 the registry `minecraft:item_modifier`. These documents state the parts that this document cites:
 
 - `registry-fields.md`, REG-FLD-741 to REG-FLD-789: how the server decodes each type. This document
   does not repeat a decode rule.
-- `loot.md`: the context, the entries, the evaluation of a table and the stream (LOOT-CTX, LOOT-EVL,
-  LOOT-RND).
+- `loot.md`: the context, the entries, the evaluation of a table and the generator (LOOT-CTX,
+  LOOT-EVL, LOOT-RND).
 - `loot-conditions.md`: the conditions and the number providers (LOOT-CND, LOOT-NUM).
 - `predicates.md`: the item predicate (PRED).
 - `item-stack.md`: the stack, the component patch and the validation (STK).
@@ -38,12 +38,13 @@ Section 10 lists what this document does not state. This document replaces secti
 - **Work stack**: the value that a chain changes. It has an item, a count and a component patch.
   Its count can be 0 or less, and it can be larger than the maximum stack size.
 - **Empty work stack**: a work stack with a count of 0 or less (LOOT-MOD-011).
-- **`c`**: the count of the work stack before the modifier of the rule.
-- **Context**: the values that one evaluation can read (LOOT-CTX). A **context value** is one of
-  them, for example `tool`. This document names a context value by its id without the namespace.
-- **Entity target**: a string that names one context value that holds an entity:
+- **`c`**: the count of the work stack before the modifier of the rule. `c` is 0 for an empty work
+  stack (LOOT-MOD-011).
+- **Context**, **parameter**, **generator**: as `loot.md`, section 0.1, defines them. A parameter is
+  for example `tool`. This document names a parameter by its id without the namespace.
+- **Entity target**: a string that names one parameter that holds an entity:
 
-  | Entity target | Context value |
+  | Entity target | Parameter |
   |---------------|---------------|
   | `this` | `this_entity` |
   | `attacker` | `attacking_entity` |
@@ -52,19 +53,15 @@ Section 10 lists what this document does not state. This document replaces secti
   | `target_entity` | `target_entity` |
   | `interacting_entity` | `interacting_entity` |
 
-- **Block entity target**: the string `block_entity`. It names the context value `block_entity`.
-- **Item stack target**: the string `tool`. It names the context value `tool`.
-- **Provider**: a number provider (REG-FLD-722, REG-FLD-723). Its **int value** and its **float
-  value** are the results of one evaluation (LOOT-NUM).
-- **Stream**: the random generator of one evaluation. `loot.md` states its seed and how each method
-  makes a value (LOOT-RND).
-- **Draw**: one value that a rule takes from the stream. A rule names the method of each draw:
-  - `F`: the float method. It gives an f32 value in `[0, 1)`. In a rule, `r` is the value of one
-    draw of `F`.
-  - `B(n)`: the bounded int method, for `n ≥ 1`. It gives an integer in `0..n - 1`. `B(1)` gives 0,
-    and it takes one draw.
-  - `between(a, b)`: for `a ≥ b`, it gives `a` and takes no draw. Otherwise it gives
-    `a + B(b - a + 1)`.
+- **Block entity target**: the string `block_entity`. It names the parameter `block_entity`.
+- **Item stack target**: the string `tool`. It names the parameter `tool`.
+- **Provider**: a number provider (REG-FLD-722, REG-FLD-723).
+- **Read**: the **int read** or the **float read** of a provider, as LOOT-NUM-001
+  (`loot-conditions.md`) states. An evaluation error gives 0. A float read also gives 0 for a NaN
+  or an infinity.
+- **Draw**: one value that a rule takes from the generator. A rule names the kind of each draw with the
+  notation of LOOT-RND-006 (`loot.md`): the float draw `F`, the bounded draw `B(n)` and the draw in
+  a range `between(a, b)`.
 - **Registry order**: the order of the numeric ids of a registry (REG-SET-001, REG-ENTRY-004).
 - **Set order**: the order of the entries of an entry set. A tag has its resolved order
   (REG-TAG-005). A list has the order of the list.
@@ -86,14 +83,14 @@ Where a rule says f32, each operation of the formula gives an f32 value.
 - `source_suggested`: taken from the reference implementation, with no captured result. The
   confidence is at most medium.
 - `design`: a choice of this project. The rule states the reason.
-- `unresolved`: not decided. Section 11.2 collects these items.
+- `unresolved`: not decided. Section 11.3 collects these items.
 
 The reference that the author read has the game version above. No experiment of this document ran
 (section 12). Each rule states its kind, as `docs/spec/README.md` defines it.
 
 The observer of a draw is a player who opens a container whose loot has a seed. With the same seed,
 the player gets the same stacks from the vanilla server. A test of the library sees the same thing:
-it compares the state of the stream after an evaluation. Each draw thus has a rule.
+it compares the state of the generator after an evaluation. Each draw thus has a rule.
 
 ### 0.3 Artefacts cited
 
@@ -114,8 +111,9 @@ The vanilla data pack uses these 23 types: `apply_bonus`, `copy_components`, `co
 | Prefix | Topic |
 |--------|-------|
 | `LOOT-MOD` | The modifiers, the NBT providers and the NBT paths |
+| `LOOT-MDV` | The intentional deviations of this document |
 
-`D1`, `U1` and `E1` name a deviation, an unresolved item and an experiment of this document.
+`U1` and `E1` name an unresolved item and an experiment of this document.
 
 ## 1. The chain
 
@@ -137,33 +135,44 @@ modifier has one of four forms:
 A command can apply a registry entry to a stack with the same rules. `loot.md` states the order of
 the chains of a table, of a pool and of an entry.
 
-**LOOT-MOD-011** (`source_suggested`, semantic, confidence low). A chain keeps the item and the
-component patch of a work stack whose count becomes 0 or less. A later `set_count` with `add` can
-make the count positive again. For an empty work stack, these rules apply:
+**LOOT-MOD-011** (`source_suggested`, semantic, confidence low). A work stack whose count becomes 0
+or less keeps its item and its component patch. In the evaluation of a table, it stays a work stack
+through each modifier of LOOT-EVL-011 (`loot.md`). These are the modifiers of the entry, of each
+composite entry, of the pool and of the table, and for a nested table also the modifiers around its
+`loot_table` entry. For an empty work stack, these rules apply:
 
+- `c` is 0.
 - A modifier that reads the item reads `minecraft:air`.
 - A modifier that reads an effective component finds none.
 - A modifier that writes a component writes it to the component patch.
 
-At the end of the chain, an empty work stack becomes the empty stack (STK-EMP-001). No modifier
-limits the count to the maximum stack size. Experiment E2 tests this rule.
+A later modifier can thus make the count more than 0 again. The work stack then has its item and
+its component patch again. For example, `set_count` to `-1` and then `set_count` with `add` and 2
+give the count 2. In the evaluation of a table, the division (LOOT-OUT-001) is the one point where
+an empty work stack becomes the empty stack (STK-EMP-001). For a content stack of `set_contents`,
+that point is the division of LOOT-MOD-053. For each other chain, for example a chain of
+`modify_contents`, that point is the end of the chain. No modifier limits the count to the maximum
+stack size. Experiment E2 tests this rule.
 
 **LOOT-MOD-012** (`source_suggested`, semantic, confidence medium). A modifier takes its draws from
-the stream in the order that its rule states. A modifier takes no other draw. Where a rule says "no
-draw", the state of the stream does not change. A bound `n` below 1 for `B(n)` does not occur with
-the vanilla data pack, and this document does not state its result. Section 9 lists the draws of
-each type.
+the generator in the order that its rule states. A modifier takes no other draw. Where a rule says
+"no draw", the state of the generator does not change. A rule that can meet a bound `n` outside
+`1..2³¹ − 1` for `B(n)` states its result for that bound, and that result takes no draw
+(LOOT-MOD-004). Section 9 lists the draws of each type.
 
-**LOOT-MOD-008** (`source_suggested`, semantic, confidence medium). A modifier evaluates each of its
+**LOOT-MOD-008** (`source_suggested_black_box_confirmed`, semantic, confidence high). The number
+providers of a modifier are the providers of `loot-conditions.md` (LOOT-NUM). The block tables use
+the bare number, `uniform` and `binomial` (LOOT-NUM-023). Results L2 and L3 of `block-loot.md` show
+them.
+
+**LOOT-MOD-059** (`source_suggested`, semantic, confidence medium). A modifier evaluates each of its
 providers one time, at the place that its rule states. A rule that says "the draws of the provider"
-refers to the draws of that one evaluation. `loot-conditions.md` states the int value, the float
-value and the draws of each provider type (LOOT-NUM). A modifier that does not apply evaluates no
-provider.
+refers to the draws of that one evaluation. A modifier that does not apply evaluates no provider.
 
 ## 2. Count, item and damage
 
 **LOOT-MOD-001** (`source_suggested_black_box_confirmed`, semantic, confidence high). `set_count`
-(REG-FLD-743) sets the count to `v`, or to `c + v` when `add` is true. `v` is the int value of the
+(REG-FLD-743) sets the count to `v`, or to `c + v` when `add` is true. `v` is the int read of the
 provider `count`. The draws are the draws of the provider. The count can become 0 or less. For
 example, the tables of `glow_lichen` and `sculk_vein` add 1 for each face and then `-1`. Result L3
 of `block-loot.md` shows counts below 1, which make no item.
@@ -178,15 +187,15 @@ of `block-loot.md` shows counts below 1, which make no item.
 | present | absent | the larger of `c` and `min` | the provider `min` |
 | present | present | `clamp(c, min, h)`, where `h` is the larger of `min` and `max` | the provider `min`, then the provider `max` |
 
-Each bound is the int value of its provider. For example, the table of `glowstone` limits
+Each bound is the int read of its provider. For example, the table of `glowstone` limits
 `glowstone_dust` to `1..4`, and the table of `brown_mushroom_block` limits the count to 0 or more.
 Result L3 of `block-loot.md` shows both.
 
 **LOOT-MOD-002** (`source_suggested`, semantic, confidence medium). `explosion_decay` (REG-FLD-767)
 does nothing and takes no draw when the context has no `explosion_radius`. Otherwise `p` is `1 /
 explosion_radius` as f32. The modifier takes `c` draws of `F`, one for each item. It keeps an item
-when its draw `r ≤ p`. The count becomes the number of items that it keeps. For `c ≤ 0`, it takes no
-draw and the count becomes 0.
+when its draw gives `F ≤ p`. The count becomes the number of items that it keeps. For `c ≤ 0`, it
+takes no draw and the count becomes 0.
 
 **LOOT-MOD-004** (`source_suggested_black_box_confirmed`, semantic, confidence high). `apply_bonus`
 (REG-FLD-765) does nothing and takes no draw when the context has no `tool`. Otherwise `L` is the
@@ -196,23 +205,25 @@ one formula, also with `L = 0`:
 | `formula` | `parameters` | New count | Draws |
 |-----------|--------------|-----------|-------|
 | `minecraft:ore_drops` | none | `c` when `L ≤ 0`; otherwise `c × (max(b - 1, 0) + 1)` with `b = B(L + 2)` | none when `L ≤ 0`; otherwise one `B(L + 2)` |
-| `minecraft:uniform_bonus_count` | `bonusMultiplier` `m` | `c + B(m × L + 1)` | one `B(m × L + 1)`, also when the bound is 1 |
-| `minecraft:binomial_with_bonus_count` | `extra` `e`, `probability` `p` | `c` plus the number of draws `r < p` | `L + e` draws of `F` |
+| `minecraft:uniform_bonus_count` | `bonusMultiplier` `m` | `c + B(m × L + 1)`; `c` when `m × L + 1` is outside `1..2³¹ − 1` | one `B(m × L + 1)`, also when the bound is 1; none when the bound is outside `1..2³¹ − 1` |
+| `minecraft:binomial_with_bonus_count` | `extra` `e`, `probability` `p` | `c` plus the number of draws that give `F < p` | `L + e` draws of `F` |
 
 For `ore_drops` with `L > 0`, the factor is 1 with the chance `2 / (L + 2)`, and each value of `2..L
 + 1` with the chance `1 / (L + 2)`. Result L1 of `block-loot.md` shows `ore_drops` with `L = 3`.
 Result L3 shows `binomial_with_bonus_count` with `L = 0`. The draw of `uniform_bonus_count` for a
-bound of 1 has the label `source_suggested`.
+bound of 1 has the label `source_suggested`. The bound `m × L + 1` is an exact integer. It is
+outside `1..2³¹ − 1` only for a negative `m` or a very large `m`, which no vanilla table has.
+LOOT-MDV-003 records the reference for such a bound.
 
 **LOOT-MOD-013** (`source_suggested`, semantic, confidence medium). `enchanted_count_increase`
-(REG-FLD-751) reads the context value `attacking_entity`. It does these steps:
+(REG-FLD-751) reads the parameter `attacking_entity`. It does these steps:
 
 1. When the value is absent or is not a living entity, the modifier stops. It takes no draw.
 2. `L` is the level of `enchantment` on the entity. For this level, take each equipment slot that
    the field `slots` of the enchantment definition names. `L` is the highest level of the
    enchantment in the component `minecraft:enchantments` of the stacks in these slots.
 3. When `L` is 0, the modifier stops. It does not evaluate the provider.
-4. `v` is the float value of the provider `count`. The draws are the draws of the provider.
+4. `v` is the float read of the provider `count`. The draws are the draws of the provider.
 5. The count becomes `c + round(L × v)`, with the product as f32.
 6. When `limit` is larger than 0 and the count is larger than `limit`, the count becomes `limit`.
 
@@ -230,7 +241,7 @@ applies only to a work stack that can take damage (STK-DMG-001). For other work 
 nothing and does not evaluate the provider. Otherwise, with the maximum damage `M` and the damage
 `d` of the stack, it does these steps in f32:
 
-1. `v` is the float value of the provider `damage`. The draws are the draws of the provider.
+1. `v` is the float read of the provider `damage`. The draws are the draws of the provider.
 2. `base` is `1 - d / M` when `add` is true. Otherwise `base` is 0.
 3. `p` is `1 - clamp(v + base, 0, 1)`.
 4. The modifier writes the damage value `floor(p × M)` (STK-DMG-003).
@@ -291,7 +302,7 @@ result.
 **LOOT-MOD-020** (`source_suggested`, semantic, confidence medium). `enchant_with_levels`
 (REG-FLD-745) does these steps:
 
-1. `n` is the int value of the provider `levels`. The draws are the draws of the provider.
+1. `n` is the int read of the provider `levels`. The draws are the draws of the provider.
 2. When the work stack has no effective component `minecraft:enchantable`, go to step 9. The
    modifier takes no more draws. Otherwise `e` is the `value` of that component.
 3. Take four draws in this order: `b1 = B(e / 4 + 1)`, `b2 = B(e / 4 + 1)`, `f1 = F`, `f2 = F`. The
@@ -328,7 +339,7 @@ does these steps:
 The selection does these steps:
 
 1. Do one weighted pick. Add its result to the results.
-2. Draw `d = B(50)`. When `d > q`, the selection ends. The stream keeps this draw.
+2. Draw `d = B(50)`. When `d > q`, the selection ends. The draw stays taken.
 3. Remove from the candidate list each enchantment that is not compatible with the last result.
 4. When the candidate list is empty, the selection ends with no more draws.
 5. Do one weighted pick. Add its result to the results.
@@ -346,15 +357,16 @@ the other. Step 3 does nothing when there is no result yet.
    `minecraft:enchantments`.
 3. When the work stack has no such effective component, the modifier stops. It evaluates no
    provider.
-4. For each entry of `enchantments`, `v` is the int value of its provider. With `add` true, the new
+4. For each entry of `enchantments`, `v` is the int read of its provider. With `add` true, the new
    level is `clamp(l + v, 0, 255)`, where `l` is the current level. Otherwise it is `clamp(v, 0,
    255)`.
 5. A new level of 0 removes the enchantment from the component.
 
 **LOOT-MOD-023** (`design`, unspecified). `set_enchantments` evaluates the providers of its entries
 in the order of the keys in the file. The reference gives no stable order. A parity test must not
-compare the stream after a `set_enchantments` with more than one provider that takes a draw. No
-`set_enchantments` of the vanilla data pack has a provider that takes a draw. Entry D2 records the
+compare the generator state after a `set_enchantments` with more than one provider that takes a
+draw. No `set_enchantments` of the vanilla data pack has a provider that takes a draw. Entry
+LOOT-MDV-002 records the
 reference.
 
 ## 4. Components that the modifier states
@@ -381,7 +393,7 @@ component `minecraft:attribute_modifiers`, or from an empty list. For each eleme
 
 1. Draw `B(k)`, where `k` is the length of `slot`. The draw is the index of the slot group. It also
    takes this draw when `k` is 1.
-2. `v` is the float value of the provider `amount`. The draws are the draws of the provider.
+2. `v` is the float read of the provider `amount`. The draws are the draws of the provider.
 3. Remove from the list each entry with the same `attribute` and the same `id`.
 4. Append an entry with `attribute`, `id`, the amount `v`, `operation` and the slot group.
 
@@ -445,7 +457,7 @@ it draws `B(n)`, where `n` is the number of candidates. The draw is the index of
 **LOOT-MOD-034** (`source_suggested`, semantic, confidence medium). `set_random_dyes` (REG-FLD-777)
 does these steps:
 
-1. `n` is the int value of the provider `number_of_dyes`. The draws are the draws of the provider.
+1. `n` is the int read of the provider `number_of_dyes`. The draws are the draws of the provider.
 2. When `n` is 0 or less, the modifier stops.
 3. Take `n` draws of `B(16)`. Each draw is the index of a dye in the table below.
 4. Make the colour list: the colour of the effective `minecraft:dyed_color` when the work stack has
@@ -491,7 +503,7 @@ does nothing and takes no draw. It does these steps:
 
 1. Draw `B(n)`, where `n` is the length of `effects`. The draw is the index of the entry
    (REG-FLD-758).
-2. `t` is the int value of the provider `duration` of the entry. The draws are the draws of the
+2. `t` is the int read of the provider `duration` of the entry. The draws are the draws of the
    provider.
 3. When the effect is not instantaneous, `t` becomes `t × 20`.
 4. Append the effect with the duration `t` to the component `minecraft:suspicious_stew_effects`, or
@@ -499,7 +511,7 @@ does nothing and takes no draw. It does these steps:
 
 **LOOT-MOD-038** (`source_suggested`, semantic, confidence medium). `set_ominous_bottle_amplifier`
 (REG-FLD-788) sets the component `minecraft:ominous_bottle_amplifier` to `clamp(v, 0, 4)`. `v` is
-the int value of the provider `amplifier`. The draws are the draws of the provider.
+the int read of the provider `amplifier`. The draws are the draws of the provider.
 
 **LOOT-MOD-039** (`source_suggested`, semantic, confidence medium). `set_loot_table` (REG-FLD-766)
 sets the component `minecraft:container_loot` to the loot table key and the seed of the modifier. It
@@ -639,9 +651,10 @@ name       = 1*unquoted-char / quoted-string
 - A `quoted-string` starts with `"` or `'` and has a quoted string body (CMD-RD-007).
 - An `integer` is a decimal int with an optional `-`.
 
-A string that this grammar does not accept is a load fault of the modifier. A path that is empty,
-that ends with `.`, or that has a space after a node is thus a load fault. Entry D1 records the
-reference.
+A string that this grammar does not accept fails the decode of its entry, as REG-ERR-001 states for
+an entry that fails to decode. A path that is empty, that ends with `.`, or that has a space after a
+node thus fails the decode. The rejection of these three forms is a `design` choice. Entry
+LOOT-MDV-001 records the reference.
 
 **LOOT-MOD-048** (`source_suggested`, semantic, confidence medium). The selection of a path starts
 with one tag, the root. Each node replaces the current tags with the tags that it selects from each
@@ -718,15 +731,22 @@ discards a stack without `minecraft:map_id`.
 does not change an empty work stack, and then takes no draw. Otherwise it makes a list of stacks:
 
 1. Expand each entry of `entries` in list order, as LOOT-EVL-004 states.
-2. Each leaf entry that the expansion selects makes its stacks, as LOOT-EVL-006 states. There is no
-   weighted selection and no roll.
-3. Drop each stack whose item is not enabled.
-4. Keep a stack whose count is less than its maximum stack size as it is. Divide each other stack
-   into stacks of the maximum stack size, and one more stack for a rest above 0.
+2. Each leaf result makes its stacks at the time when the expansion gives it, as LOOT-EVL-006 states.
+   Each stack goes through the modifier of its leaf entry and of each composite entry that contains
+   it (LOOT-EVL-011, steps 1 and 2). This occurs before the expansion tests the condition of the
+   next child or of the next entry.
+3. Each stack then goes through the division of LOOT-OUT-001 (`loot.md`), and the results go at the
+   end of the list.
 
-The draws are the draws of the steps 1 and 2, in that order for each entry. The modifier then writes
-the list to the component `component` (LOOT-MOD-055). The contents from before the modifier do not
-stay.
+There is no weight, no selection and no roll: each leaf result makes its stacks. `weight` and
+`quality` have no effect. The draws thus follow the order of the expansion. For example, take a
+`group` with two `item` children A and B. Each child has a `random_chance` condition and a
+`set_count` with a `uniform` count. When both conditions pass, the draws are the `F` of A, the draw
+of the count of A, the `F` of B and the draw of the count of B. A roll of a pool takes the `F` of A and the `F` of B first
+(LOOT-EVL-003).
+
+The modifier then writes the list to the component `component` (LOOT-MOD-055). The contents from
+before the modifier do not stay.
 
 **LOOT-MOD-054** (`source_suggested`, semantic, confidence medium). `modify_contents` (REG-FLD-761)
 does not change an empty work stack. It also does nothing when the work stack has no effective
@@ -746,29 +766,26 @@ value of a contents component in this way:
 
 ## 8. Services
 
-**LOOT-MOD-056** (`design`, semantic). A modifier is a function of the work stack, the context, the
-loaded data and the stream, with the exceptions of this table. The reason is issue #74: the
-evaluation gives the stack and a request for each effect that it cannot do.
+**LOOT-MOD-056** (`design`, semantic). A modifier reads the work stack, its own fields, the
+registries, the generator and the parameters that its rule names. It changes only the work stack
+and the state of the generator. The modifiers of this table also read or change other values. The
+result of each modifier is the work stack that its rule states. Reason: issue #74 asks for an
+evaluation in the library, and this table names each value of the world that a modifier observes.
 
-| Modifier | What it needs | Kind |
-|----------|---------------|------|
-| `exploration_map` | a search for a structure, a new map id, new map data | service (LOOT-MOD-057) |
-| `set_name`, `set_lore` with `entity` | the resolution of a text against the world | service (LOOT-MOD-028, item U4) |
-| `copy_custom_data` with a `storage` provider | the compound of a command storage | world value, read before the evaluation |
-| `copy_custom_data` with a `context` provider | the saved form of an entity or of a block entity | context value |
-| `copy_components`, `copy_name`, `fill_player_head`, `enchanted_count_increase` | components, name, profile or equipment of a context value | context value |
-| `furnace_smelt` | the smelting recipes | loaded data |
-| `set_contents` | the entries and their conditions | evaluation (`loot.md`) |
-
-Each other type reads only the work stack, its own fields, the registries and the context values
-that its rule names.
+| Modifier | What it reads or changes | Kind |
+|----------|--------------------------|------|
+| `exploration_map` | It reads the structures of the dimension. It adds new map data with a new map id to the world. | service (LOOT-MOD-057) |
+| `set_name`, `set_lore` with `entity` | It reads the values of the world that the text resolves against. | service (LOOT-MOD-028, item U4) |
+| `copy_custom_data` with a `storage` provider | It reads the compound of a command storage of the world. | world value (LOOT-MOD-044) |
+| `copy_custom_data` with a `context` provider | It reads the saved form of the entity or of the block entity of a parameter. | parameter (LOOT-MOD-044) |
+| `copy_components`, `copy_name`, `fill_player_head`, `enchanted_count_increase` | It reads the components, the name, the profile or the equipment of a parameter. | parameter |
+| `furnace_smelt` | It reads the smelting recipes. | loaded data |
+| `set_contents` | It evaluates its entries and their conditions, which can read each part of the context. | evaluation (`loot.md`) |
 
 **LOOT-MOD-057** (`source_suggested`, semantic, confidence medium). `exploration_map` (REG-FLD-756)
 takes no draw. It does not change an empty work stack, and it does nothing when the context has no
-`origin`. In these two cases there is no request. Otherwise it makes one request for the service.
-The work stack before the service is the input of the modifier, with no change. The item can be
-each item. The service does these steps at the block position of `origin`, in the dimension of the
-context:
+`origin`. Otherwise it uses the service of LOOT-MOD-056. The item can be each item. The service does
+these steps at the block position of `origin`, in the dimension of the context:
 
 1. Search a start of one of the structures of `destination`, as CMD-LOC-006 states. The limit of
    the area is `search_radius` cells in place of 100 cells.
@@ -779,27 +796,24 @@ context:
    its scale is `zoom`. The map tracks the position, also without a limit. Its dimension is the
    dimension of the context.
 5. Set the component `minecraft:map_id` of the work stack to the new map id.
-6. Draw the preview of the biomes into the map data.
+6. Write the preview of the biomes into the map data.
 7. Take the component `minecraft:map_decorations`, or an empty one. Set its key `+` to the type
    `decoration`, the x and the z of the found position, and the rotation 180.
 
-The work stack after the service is the input with the two components of steps 5 and 7, or the
-input with no change. The count and the other components stay. Because of step 2, a second map from
+When the search finds a start, the work stack after the modifier is the input with the two
+components of steps 5 and 7. When the search finds nothing, the work stack is the input with no
+change. The count and the other components stay in both cases. Because of step 2, a second map from
 the same position can show a different structure. The number of references that a start can take
 is world data, and this document does not state it.
 
-**LOOT-MOD-058** (`design`, semantic). The rest of a chain applies to the work stack after the
-service. The reason is that a later modifier can read the result. In the vanilla data pack, each
-`exploration_map` has exactly one modifier after it: a `filtered` that tests `minecraft:map_id`,
-with `on_fail` `discard`. An implementation that returns a request thus keeps these parts in it:
-
-- the work stack before the service;
-- the fields of the modifier, the position of `origin` and the dimension;
-- the modifiers of the chain that come after the service.
-
-A request does not change the stream when the rest of its chain takes no draw. This is true for the
-vanilla data pack. For a custom chain whose rest takes a draw, the service must run before the
-evaluation continues. Item U7 records the same constraint for the fill of a container.
+**LOOT-MOD-058** (`source_suggested`, semantic, confidence medium). The modifiers after
+`exploration_map` apply to the work stack of LOOT-MOD-057, with or without a found start. The
+modifiers around the entry (LOOT-EVL-011 of `loot.md`), the division (LOOT-OUT-001) and, for a
+container, the spread (LOOT-CTR-001) then use that result. For example, each `exploration_map` of
+the vanilla data pack has exactly one modifier after it: a `filtered` that tests
+`minecraft:map_id`, with `on_fail` `discard`. When the search finds nothing, that modifier
+discards the map. The drop list then has one stack less, and the spread takes other draws. Thus an
+implementation must have the result of the search before it evaluates the rest of the chain.
 
 ## 9. The draws of each type
 
@@ -833,17 +847,17 @@ each type (LOOT-MOD-009). A type that this table does not list takes no draw.
 - The conditions and the number providers: `loot-conditions.md`.
 - The item predicate of `filtered`: `predicates.md`.
 - The context of each table type, the entries, the order of the chains of a table, the division of
-  the result and the stream: `loot.md`.
+  the result and the generator: `loot.md`.
 - The format and the meaning of each component: `item-stack.md` and the documents that it cites.
 - The NBT path as a command argument, and its errors in a command.
 - The command that applies a modifier to a slot.
 - The trade of a villager that uses `additional_trade_cost`.
 
-## 11. Intentional deviations and unresolved items
+## 11. Intentional deviations, open questions and unresolved items
 
 ### 11.1 Intentional deviations
 
-**D1.**
+**LOOT-MDV-001.**
 
 - **Rule**: LOOT-MOD-047.
 - **Reference**: the read of a path stops at a space and accepts the text before it. The reference
@@ -852,16 +866,31 @@ each type (LOOT-MOD-009). A type that this table does not list takes no draw.
 - **Visible to the client**: no. The path is a field of a data pack.
 - **Test**: a differential test does not use such a path. A test of the load expects a fault.
 
-**D2.**
+**LOOT-MDV-002.**
 
 - **Rule**: LOOT-MOD-023.
 - **Reference**: the order of the entries of `enchantments` is the order of an unordered map. It is
   not stable between two starts of the server.
 - **Visible to the client**: no. The result differs only when two entries have a provider that
   takes a draw.
-- **Test**: a differential test does not compare the stream for such a modifier.
+- **Test**: a differential test does not compare the generator state for such a modifier.
 
-### 11.2 Unresolved
+**LOOT-MDV-003.**
+
+- **Rule**: LOOT-MOD-004.
+- **Reference**: `uniform_bonus_count` calculates `m × L + 1` as a 32-bit int, which wraps. A
+  bound of 0 or less after the wrap stops the evaluation with an error that nothing catches. The
+  action that evaluates the modifier fails. A positive bound after the wrap takes a draw with that
+  bound.
+- **Visible to the client**: no. The author of the data pack sees the count `c` in place of an
+  error. No vanilla table has a negative `bonusMultiplier`.
+- **Test**: a differential test does not use a bound outside `1..2³¹ − 1`.
+
+### 11.2 Open questions
+
+None.
+
+### 11.3 Unresolved
 
 - **U1**: `enchant_randomly` and `enchant_with_levels` replace a `book` with a new `enchanted_book`
   (LOOT-MOD-019, LOOT-MOD-020). The count and the component patch of the book do not stay, but
@@ -877,30 +906,29 @@ each type (LOOT-MOD-009). A type that this table does not list takes no draw.
 - **U5**: the smelting recipe that `furnace_smelt` uses when more than one recipe accepts the stack
   (LOOT-MOD-017). No specification of recipes exists.
 - **U6**: the rule for an insert into a bundle (LOOT-MOD-055). No specification states it.
-- **U7**: `loot.md` must state the methods `F` and `B(n)` of the stream, and must keep the ids
-  LOOT-EVL-004 and LOOT-EVL-006. The fill of a container takes draws that depend on the number of
-  stacks. The result of the service of `exploration_map` decides whether its stack is empty. An
-  exact evaluation thus needs the result of the service before the fill.
 - **U8**: `set_fireworks` has no maximum for `explosions` at the time of the evaluation
   (LOOT-MOD-030). The component holds at most 256 explosions. Does the result stay as the old list
   above 256?
 - **U9**: the reads of an empty work stack (LOOT-MOD-011). The confidence is low until experiment E2
   runs.
 
+Item U7 is closed: LOOT-RND-006 of `loot.md` states the draws, and LOOT-MOD-058 states the order of
+the search and the spread.
+
 ## 12. Experiments
 
 No experiment of this document ran. At the base commit of this document, `tools/vanilla-oracle` has
 no task that applies a modifier. Each experiment below is a fixture for that task. A fixture has
-these inputs: the modifier as JSON, the start stack, the context values and the seed of the stream.
-It records the result stack and the state of the stream after the chain.
+these inputs: the modifier as JSON, the start stack, the parameters and the seed of the generator.
+It records the result stack and the state of the generator after the chain.
 
 | Id | Fixture | Rules |
 |----|---------|-------|
-| E1 | A modifier with a `condition` that fails, for each type of section 9. Record that the stream does not change after the draws of the condition. | LOOT-MOD-009 |
-| E2 | `set_count` to `-1`, then `set_damage`, `set_potion` and `set_enchantments`, then `set_count` with `add` and 2. | LOOT-MOD-011 |
+| E1 | A modifier with a `condition` that fails, for each type of section 9. Record that the generator state does not change after the draws of the condition. | LOOT-MOD-009, LOOT-MOD-012, LOOT-MOD-059 |
+| E2 | `set_count` to `-1`, then `set_damage`, `set_potion` and `set_enchantments`, then `set_count` with `add` and 2. Repeat in a table, with the last `set_count` as the modifier of the pool. | LOOT-MOD-011 |
 | E3 | `set_count`, `limit_count` with `min` above `max`, and `set_damage` with `add` on a tool with damage. | LOOT-MOD-001, LOOT-MOD-003, LOOT-MOD-016 |
 | E4 | `explosion_decay` with the counts 0, 1 and 64 and the radius 4. | LOOT-MOD-002 |
-| E5 | `apply_bonus` with each formula and the levels 0 and 3. Record the stream for `uniform_bonus_count` with the level 0. | LOOT-MOD-004 |
+| E5 | `apply_bonus` with each formula and the levels 0 and 3. Record the generator state for `uniform_bonus_count` with the level 0. | LOOT-MOD-004 |
 | E6 | `enchanted_count_increase` with no attacker, with the level 0 and with the level 3 and a `limit`. | LOOT-MOD-013 |
 | E7 | `enchant_randomly` on a book with the count 3 and a custom name, on a sword, and with one option whose `max_level` is 1. One case has the cost component. | LOOT-MOD-018, LOOT-MOD-019 |
 | E8 | `enchant_with_levels` with the levels 5 and 30 on a book, on a diamond sword and on a stick. Use `#minecraft:on_random_loot`. | LOOT-MOD-020, LOOT-MOD-021 |
@@ -910,9 +938,11 @@ It records the result stack and the state of the stream after the chain.
 | E12 | `set_random_potion` with and without `options`, `set_instrument` with a tag, and `set_stew_effect` on a stew and on a bowl. | LOOT-MOD-033, LOOT-MOD-036, LOOT-MOD-037 |
 | E13 | `set_lore` and `set_writable_book_pages` with each `mode`, with an `offset` above the length and with a result above the maximum. | LOOT-MOD-029, LOOT-MOD-030 |
 | E14 | `set_custom_model_data` with `uniform` providers in `floats` and `colors`, and an `insert` whose `offset` is above the length. | LOOT-MOD-041 |
-| E15 | `copy_custom_data` from a storage, with each `op` and with each node form in `source` and in `target`. One case has a target that fails. | LOOT-MOD-045 to LOOT-MOD-051 |
-| E16 | `copy_name` and `copy_components` from a named mob, from a player and from the tool. `fill_player_head` on a player head and on a stick. | LOOT-MOD-006, LOOT-MOD-042, LOOT-MOD-043 |
-| E17 | `set_contents` with an `alternatives` entry and an item of the count 200, for each `component`. `modify_contents` with `set_count` on a container. | LOOT-MOD-053 to LOOT-MOD-055 |
+| E15 | `copy_custom_data` from a storage, with each `op` and with each node form in `source` and in `target`. One case has a target that fails. | LOOT-MOD-044 to LOOT-MOD-051 |
+| E16 | `copy_name` and `copy_components` from a named mob, from a player and from the tool. `fill_player_head` on a player head and on a stick. | LOOT-MOD-006, LOOT-MOD-007, LOOT-MOD-042, LOOT-MOD-043 |
+| E17 | `set_contents` with an `alternatives` entry and an item of the count 200, for each `component`. `set_contents` with a `group` of two `item` children, each with a `random_chance` 0.5 condition and a `set_count` `uniform` 1 to 3, for 20 seeds. Record the generator state. `modify_contents` with `set_count` on a container. | LOOT-MOD-053 to LOOT-MOD-055 |
 | E18 | `furnace_smelt` on raw iron with the count 3, for each value of `use_input_count`, and on a stick. | LOOT-MOD-017 |
-| E19 | `exploration_map` in a world with and without the structure in the radius, with the `filtered` of the vanilla tables after it. Record the stack and the stream. This fixture needs a server with a world. | LOOT-MOD-057, LOOT-MOD-058 |
+| E19 | `exploration_map` in a world with and without the structure in the radius, with the `filtered` of the vanilla tables after it. Record the stack and the generator state. This fixture needs a server with a world. | LOOT-MOD-052, LOOT-MOD-057, LOOT-MOD-058 |
 | E20 | `set_components` with a patch that the validation rejects, and `set_custom_data` that makes an empty compound. | LOOT-MOD-024, LOOT-MOD-025 |
+| E21 | Apply each modifier of this list to a stack with the count 2 and a custom name, and to an empty work stack: `copy_state` with a block state, `discard`, `set_item`, `set_name`, `set_banner_pattern`, `set_potion`, `set_ominous_bottle_amplifier` with `uniform` 0 to 9, `set_loot_table`, and each type of LOOT-MOD-040. Apply them as one list, as a `sequence` with a `condition` that passes and one that fails, and as a key of `minecraft:item_modifier`. | LOOT-MOD-005, LOOT-MOD-008, LOOT-MOD-010, LOOT-MOD-014, LOOT-MOD-015, LOOT-MOD-027, LOOT-MOD-031, LOOT-MOD-032, LOOT-MOD-038, LOOT-MOD-039, LOOT-MOD-040 |
+| E22 | Start `tools/vanilla-server` with a data pack of item modifiers. Run `item modify entity @s weapon.mainhand` with `set_name` and `set_lore`, each with `entity` `this` and a text with a `selector` `@s` and a `score` component. Record the name and the lore of the stack. | LOOT-MOD-027, LOOT-MOD-028 |

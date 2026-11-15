@@ -175,11 +175,10 @@ that moves to another document keeps its id.
 | `LOOT-DEV` | 100 to 199 | `loot.md` |
 | `LOOT-CND` | all | `loot-conditions.md` |
 | `LOOT-NUM` | all | `loot-conditions.md` |
-| `LOOT-MOD` | 001 to 007 | `loot-functions.md` |
-| `LOOT-MOD` | 008 | `loot-conditions.md` |
+| `LOOT-CDV` | all | `loot-conditions.md` |
+| `LOOT-MOD` | all | `loot-functions.md` |
+| `LOOT-MDV` | all | `loot-functions.md` |
 | `PRED` | all | `predicates.md` |
-
-`LOOT-MOD` numbers from 009 are in `loot-functions.md`.
 
 ## Where these rules do not apply
 
