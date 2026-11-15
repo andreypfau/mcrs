@@ -1,10 +1,10 @@
-use crate::attribute_bases::AttributeBases;
 use crate::client_motion::ClientMotion;
 use crate::entity_type_keys::EntityType;
 use crate::life::Life;
 use crate::mob_data::MobData;
 use crate::precise_sync::PreciseSync;
 use crate::variant_indices::VariantIndices;
+use mcrs_minecraft_entity_attribute::AttributeBases;
 
 /// The type data of an entity type (`entity-tracking.md`, TRK-TYPE-001), with the look and body
 /// values of a mob type and the values that a client reads to tick and draw the type.
@@ -228,7 +228,7 @@ impl EntityTypeData {
     /// The attribute set and the bases of the type, or `None` for a type that is not living.
     #[must_use]
     pub const fn attribute_bases(&self) -> Option<AttributeBases> {
-        AttributeBases::of(self.entity_type)
+        crate::attribute_bases(self.entity_type)
     }
 
     #[must_use]

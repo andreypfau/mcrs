@@ -1,10 +1,9 @@
-use mcrs_minecraft_entity::AttributeBases;
-use mcrs_minecraft_entity::AttributeError;
-use mcrs_minecraft_entity::AttributeSet;
-use mcrs_minecraft_entity::InstanceChange;
-use mcrs_minecraft_entity::InstanceModifier;
-use mcrs_minecraft_entity::ModifierKind;
-use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity_attribute::AttributeBases;
+use mcrs_minecraft_entity_attribute::AttributeError;
+use mcrs_minecraft_entity_attribute::AttributeSet;
+use mcrs_minecraft_entity_attribute::InstanceChange;
+use mcrs_minecraft_entity_attribute::InstanceModifier;
+use mcrs_minecraft_entity_attribute::ModifierKind;
 use mcrs_minecraft_entity_attribute::ModifierOperation;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_resource::ResourceLocation;
@@ -27,7 +26,6 @@ enum Outcome {
 
 struct Case {
     name: &'static str,
-    entity_type: EntityType,
     attribute: Attribute,
     calls: &'static [(Call, Outcome)],
     base: Option<f64>,
@@ -41,10 +39,12 @@ use InstanceChange::*;
 use ModifierOperation::*;
 use Outcome::*;
 
+/// The set of every living type and luck, each attribute with its default base.
+const BASES: AttributeBases = AttributeBases::new(&[Attribute::Luck], &[]);
+
 const CASES: &[Case] = &[
     Case {
         name: "attribute_not_in_set",
-        entity_type: EntityType::Player,
         attribute: Attribute::FollowRange,
         calls: &[
             (SetBase(16.0), Refused(AttributeError::NotInSet)),
@@ -60,7 +60,6 @@ const CASES: &[Case] = &[
     },
     Case {
         name: "base_above_maximum",
-        entity_type: EntityType::Player,
         attribute: Attribute::MaxHealth,
         calls: &[
             (SetBase(5000.0), Change(Changed)),
@@ -73,7 +72,6 @@ const CASES: &[Case] = &[
     },
     Case {
         name: "base_above_maximum_then_add_value",
-        entity_type: EntityType::Player,
         attribute: Attribute::MaxHealth,
         calls: &[
             (SetBase(5000.0), Change(Changed)),
@@ -86,7 +84,6 @@ const CASES: &[Case] = &[
     },
     Case {
         name: "base_restored_leaves_the_set",
-        entity_type: EntityType::Player,
         attribute: Attribute::MaxHealth,
         calls: &[
             (SetBase(5000.0), Change(Changed)),
@@ -98,8 +95,7 @@ const CASES: &[Case] = &[
         entries: 0,
     },
     Case {
-        name: "pig_base_out_of_range",
-        entity_type: EntityType::Pig,
+        name: "base_out_of_range",
         attribute: Attribute::Scale,
         calls: &[(SetBase(100.0), Change(Changed))],
         base: Some(100.0),
@@ -109,7 +105,6 @@ const CASES: &[Case] = &[
     },
     Case {
         name: "modifier_add_again",
-        entity_type: EntityType::Player,
         attribute: Attribute::Luck,
         calls: &[
             (Add("test:a", 1.0, AddValue), Added),
@@ -125,7 +120,6 @@ const CASES: &[Case] = &[
     },
     Case {
         name: "modifier_remove_again_leaves_the_set",
-        entity_type: EntityType::Player,
         attribute: Attribute::Luck,
         calls: &[
             (Add("test:a", 1.0, AddValue), Added),
@@ -139,7 +133,6 @@ const CASES: &[Case] = &[
     },
     Case {
         name: "set_of_an_equal_modifier_keeps_its_place",
-        entity_type: EntityType::Player,
         attribute: Attribute::Luck,
         calls: &[
             (Set("test:a", 1.0, AddValue), Change(Changed)),
@@ -153,7 +146,6 @@ const CASES: &[Case] = &[
     },
     Case {
         name: "set_of_a_changed_modifier_moves_it_to_the_end",
-        entity_type: EntityType::Player,
         attribute: Attribute::Luck,
         calls: &[
             (Set("test:a", 1.0, AddValue), Change(Changed)),
@@ -179,7 +171,7 @@ fn each_call_changes_the_instance_as_the_rules_state() {
     };
     for case in CASES {
         let name = case.name;
-        let bases = AttributeBases::of(case.entity_type).unwrap();
+        let bases = BASES;
         let mut set = AttributeSet::new();
         for (call, expected) in case.calls {
             let outcome = match *call {

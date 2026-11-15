@@ -1,16 +1,18 @@
+use alloc::vec::Vec;
+
+use crate::attribute_keys::Attribute;
 use crate::instance_modifier::InstanceModifier;
-use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 
 /// The instance of one attribute on one entity: a base value and a sequence of modifiers
 /// (`attributes.md`, ATR-INS-001).
 #[derive(Clone, Debug, PartialEq)]
-pub struct AttributeInstance {
+pub struct Instance {
     pub(crate) attribute: Attribute,
     pub(crate) base: f64,
     pub(crate) modifiers: Vec<InstanceModifier>,
 }
 
-impl AttributeInstance {
+impl Instance {
     #[must_use]
     pub fn attribute(&self) -> Attribute {
         self.attribute

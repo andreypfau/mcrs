@@ -1,9 +1,8 @@
-use mcrs_minecraft_entity::AttributeBases;
-use mcrs_minecraft_entity::AttributeError;
-use mcrs_minecraft_entity::AttributeSet;
-use mcrs_minecraft_entity::InstanceModifier;
-use mcrs_minecraft_entity::ModifierKind;
-use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity_attribute::AttributeBases;
+use mcrs_minecraft_entity_attribute::AttributeError;
+use mcrs_minecraft_entity_attribute::AttributeSet;
+use mcrs_minecraft_entity_attribute::InstanceModifier;
+use mcrs_minecraft_entity_attribute::ModifierKind;
 use mcrs_minecraft_entity_attribute::ModifierOperation;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_fixtures::fixture;
@@ -36,11 +35,7 @@ fn each_value_has_the_bits_of_the_game() {
     assert_eq!(fixture.value_cases.len(), 68, "the fixture holds 68 values");
     for ValueCase(name, attribute, base, steps, expected) in &fixture.value_cases {
         let attribute = Attribute::read(attribute).unwrap();
-        let bases = EntityType::ALL
-            .iter()
-            .filter_map(|entity_type| AttributeBases::of(*entity_type))
-            .find(|bases| bases.base(attribute).is_some())
-            .unwrap();
+        let bases = AttributeBases::new(Attribute::ALL, &[]);
         let mut set = AttributeSet::new();
         let _ = set.set_base(bases, attribute, bits(base)).unwrap();
         for step in steps {

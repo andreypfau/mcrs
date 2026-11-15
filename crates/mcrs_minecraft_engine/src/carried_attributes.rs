@@ -1,8 +1,9 @@
 use mcrs_minecraft_engine_attributes::Attributes;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
-use mcrs_minecraft_entity::{AttributeBases, AttributeSet, InstanceModifier, ModifierKind};
-use mcrs_minecraft_entity_attribute::ModifierOperation;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::{
+    AttributeSet, InstanceModifier, ModifierKind, ModifierOperation,
+};
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::{Deserialize, Serialize};
 
@@ -51,7 +52,7 @@ impl PersistedForm<Attributes> for CarriedAttributes {
     }
 
     fn into_value(self) -> Result<Attributes, String> {
-        let bases = AttributeBases::of(EntityType::Player)
+        let bases = mcrs_minecraft_entity::attribute_bases(EntityType::Player)
             .ok_or("the type `player` has no attribute bases")?;
         let mut set = AttributeSet::new();
         for instance in self.instances {

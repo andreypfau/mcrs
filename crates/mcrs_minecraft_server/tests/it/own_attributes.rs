@@ -8,13 +8,14 @@ use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::coordinator::default_game_mode::DefaultGameMode;
 use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine::player_sprinting::PlayerSprinting;
-use mcrs_minecraft_engine_attributes::{AttributeEdit, AttributeTarget, Attributes, InstanceEdit};
+use mcrs_minecraft_engine_attributes::{AttributeEdit, AttributeTarget, Attributes};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
 use mcrs_minecraft_engine_world::session::PlayerSession;
-use mcrs_minecraft_entity::{InstanceModifier, ModifierKind};
-use mcrs_minecraft_entity_attribute::ModifierOperation;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::{
+    InstanceEdit, InstanceModifier, ModifierKind, ModifierOperation,
+};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBundleDelimiter;
 use mcrs_minecraft_protocol::uuid::Uuid;

@@ -182,7 +182,6 @@ fn facing_against(direction: DVec3, axis: usize) -> Direction {
 mod tests {
     use super::*;
     use bevy::math::Vec3;
-    use mcrs_minecraft_entity::AttributeBases;
     use mcrs_minecraft_entity::entity_type_keys::EntityType;
     use mcrs_minecraft_entity_attribute::{AttributeModifier, ModifierOperation};
     use mcrs_minecraft_protocol_game::clientbound::AttributeSnapshot;
@@ -199,7 +198,8 @@ mod tests {
 
     fn player() -> AttributeInstances {
         AttributeInstances::new(
-            AttributeBases::of(EntityType::Player).expect("a player has attributes"),
+            mcrs_minecraft_entity::attribute_bases(EntityType::Player)
+                .expect("a player has attributes"),
         )
     }
 

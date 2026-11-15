@@ -7,7 +7,6 @@ mod attribute_edit;
 mod attribute_edits;
 mod attribute_target;
 mod attributes;
-mod instance_edit;
 mod player_attribute_edits;
 mod player_attributes_plugin;
 
@@ -16,6 +15,5 @@ pub use attribute_edit::AttributeEdit;
 pub use attribute_edits::AttributeEdits;
 pub use attribute_target::AttributeTarget;
 pub use attributes::Attributes;
-pub use instance_edit::InstanceEdit;
 pub use player_attribute_edits::PlayerAttributeEdits;
 pub use player_attributes_plugin::PlayerAttributesPlugin;

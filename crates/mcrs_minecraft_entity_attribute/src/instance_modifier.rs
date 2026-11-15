@@ -1,7 +1,7 @@
-use mcrs_minecraft_entity_attribute::AttributeModifier;
-use mcrs_minecraft_entity_attribute::HomeSlot;
-use mcrs_minecraft_entity_attribute::Modifier;
-use mcrs_minecraft_entity_attribute::ModifierOperation;
+use crate::attribute_modifier::AttributeModifier;
+use crate::home_slot::HomeSlot;
+use crate::modifier::Modifier;
+use crate::modifier_operation::ModifierOperation;
 use mcrs_minecraft_resource::ResourceLocation;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 

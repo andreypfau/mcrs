@@ -2,9 +2,10 @@ use bevy_app::{App, FixedUpdate};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use mcrs_minecraft_engine_attributes::{
-    AttributeChanged, AttributeEdit, AttributeTarget, InstanceEdit, PlayerAttributesPlugin,
+    AttributeChanged, AttributeEdit, AttributeTarget, PlayerAttributesPlugin,
 };
 use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_entity_attribute::InstanceEdit;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 
 pub fn app() -> App {

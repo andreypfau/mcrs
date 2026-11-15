@@ -1,6 +1,10 @@
-use mcrs_minecraft_entity::{AttributeBases, AttributeSet, InstanceChange, InstanceModifier};
-use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_resource::ResourceLocationBuf;
+
+use crate::attribute_bases::AttributeBases;
+use crate::attribute_keys::Attribute;
+use crate::attribute_set::AttributeSet;
+use crate::instance_change::InstanceChange;
+use crate::instance_modifier::InstanceModifier;
 
 /// A change of one attribute instance (ATR-INS-002 and ATR-INS-004).
 #[derive(Clone, Debug, PartialEq)]

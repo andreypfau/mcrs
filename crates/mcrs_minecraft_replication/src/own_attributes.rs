@@ -1,6 +1,6 @@
 use bytes::{BufMut, Bytes, BytesMut};
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
-use mcrs_minecraft_entity::{AttributeBases, AttributeSet};
+use mcrs_minecraft_entity_attribute::AttributeSet;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_protocol::{Packet, Result, VarInt};
 use mcrs_minecraft_protocol_game::clientbound::{AttributeSnapshot, ClientboundUpdateAttributes};
@@ -16,7 +16,7 @@ pub fn own_attributes(
     set: &AttributeSet,
     attributes: impl IntoIterator<Item = Attribute>,
 ) -> Result<Option<Bytes>> {
-    let bases = AttributeBases::of(EntityType::Player);
+    let bases = mcrs_minecraft_entity::attribute_bases(EntityType::Player);
     let attributes: Vec<AttributeSnapshot<'_>> = attributes
         .into_iter()
         .map(|attribute| attribute_snapshot(bases, attribute, set.instance(attribute)))
