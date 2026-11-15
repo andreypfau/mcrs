@@ -175,7 +175,11 @@ Out of scope:
 - the velocity of the local player. A `set_entity_motion` for the local player, knockback to the
   local player and each other impulse to the local player are in `entity-physics.md`,
   PHY-SRV-009;
-- the effects that a simulated entity has on the world. The server does them (CENTS-SIM-002).
+- the effects that a simulated entity has on the world. The server does them (CENTS-SIM-002);
+- the attraction of an experience orb to the players (`experience.md`, XP-ATT-001, XP-ATT-002)
+  and the lava step of an orb (XP-ORB-003), until the orb behaviour has an implementation issue.
+  The server of mcrs has no orb behaviour yet, other than the row "experience orb" of
+  `entity-physics.md`, PHY-ORD-005. CENTS-SIM-002, item 5, states what the client does.
 
 ### 0.5 Differences in 26.4-snapshot-4
 
@@ -1058,7 +1062,7 @@ Confidence: high. Milestone: later.
 | item | `item-entity.md`, IEN-MOV-006: step 2 (remove the item when its stack is empty), the fluid update of step 3, the removal below the world of step 4 (IEN-MOV-004), and the move of step 6 with the row "item" of `entity-physics.md`, PHY-ORD-005 | the portal, the burn, the pickup delay, the push out of a solid block, the merge, the removal at the age 6000, the pickup, the damage of the block effects |
 | falling block | `falling-block.md`, FBK-TCK-001: step 1 (remove the falling block when its state is `air`), the gravity, the move and the block effects of step 3, and the drag `0.98F` of step 7 | the ground rule of the row "falling block" of PHY-ORD-005, the target cell, the landing, the drop, the time limits |
 | primed TNT | the row "primed TNT" of PHY-ORD-005, the ground rule included; then the fuse of `explosions.md`, EXP-TNT-001: the fuse decreases by 1, and when it is 0 or less the client removes the TNT | the explosion |
-| experience orb | `experience.md`, XP-ORB-001, steps 1 to 4, 6 and 8 to 10, with the removal below the world of the base tick of step 1; the attraction (XP-ATT-001, XP-ATT-002) to the players that the client knows | step 5 (the merge), step 7 (the push), the removal at the age 6000 of step 11 (section 18, U1), the pickup |
+| experience orb | `experience.md`, XP-ORB-001, steps 1 to 3 and the move of steps 8 to 10 with the row "experience orb" of PHY-ORD-005; the removal below the world of the base tick of step 1 | step 4 (the lava step, XP-ORB-003) and step 6 (the attraction, XP-ATT-001, XP-ATT-002), which are out of scope (section 0.4); step 5 (the merge), step 7 (the push), the removal at the age 6000 of step 11 (CENTS-DEV-002), the pickup |
 
   Additional rules:
   1. The block effects of a move change only the movement on the client, for example the slow
@@ -1072,8 +1076,11 @@ Confidence: high. Milestone: later.
      counts.
   4. In its first tick after the add, an orb does not do the step of its type. Steps 1 to 3 of
      CENTS-SIM-001 occur.
-  5. The lava step of an orb (XP-ORB-003) uses a random value that the client selects. Its
-     result can be different from the server.
+  5. For an orb, the client does the move of the row "experience orb" of PHY-ORD-005, the skip
+     of the first tick (item 4) and the interpolation of CENTS-SIM-004. It does not do the lava step (XP-ORB-003) or the
+     attraction (XP-ATT-001, XP-ATT-002), because they are out of scope (section 0.4). Against a
+     vanilla server, an orb in lava or near a player thus departs from the server position. The
+     next update of the server corrects the position through CENTS-SIM-004.
   6. A falling block that lands on the client stays, with drag only, until
      `minecraft:remove_entities` arrives. The removal below the world does not apply to a
      falling block or to a TNT.
@@ -1081,8 +1088,9 @@ Confidence: high. Milestone: later.
      client. The stop of `entity-physics.md`, PHY-DEV-014, is unspecified on the client. Both
      change the position of an item at rest by less than `1e-5` block in a tick.
 - **Postconditions:** between two updates, the client position of an entity that moves through
-  air is equal to the server position. Only the server removes an item at the age 6000, an orb
-  that a player takes, and a falling block that lands.
+  air is equal to the server position. An orb that the server attracts to a player is an
+  exception (item 5). Only the server removes an item or an orb at the age 6000, an orb that a
+  player takes, and a falling block that lands.
 
 Provenance: `source_suggested`; the move through air of the four types, item 4 and the removal of
 the TNT `source_suggested_black_box_confirmed` by CENTS-E1, the removal below the world by
@@ -1169,18 +1177,27 @@ is visible only when a snap during a path puts the entity into a block.
 Provenance: `design`. Reason: the block collision shapes are not part of milestones 1 and 2.
 Milestone: 1.
 
+### CENTS-DEV-002: No removal of an orb at the client age 6000
+
+- **Rule**: CENTS-SIM-002. The client does not remove an orb by its age. Only
+  `minecraft:remove_entities` and the removal below the world remove it.
+- **Reference**: the vanilla client removes an orb when the age of its own step reaches 6000.
+  That age counts only the ticks of the client since the add. The server removes the orb at its
+  own age 6000 and sends `minecraft:remove_entities`. CENTS-E4 (section 19) shows the reference
+  behaviour.
+- **Visible to the client**: yes. When the client ticks an orb that the server keeps, for
+  example an orb that the server does not tick, the vanilla client shows the orb disappear. The
+  orb comes back only when the server adds it again. The client of mcrs keeps the orb.
+- **Test**: a differential test ignores an orb that the vanilla client removes at its client age
+  6000 while the server keeps it.
+
+Provenance: `design`. Reason: decision of the owner. Milestone: later.
+
 ---
 
 ## 18. Unresolved
 
-**U1. The removal of an orb at the client age 6000.** The vanilla client removes an orb when the
-age of its own step reaches 6000. That age counts only the ticks of the client since the add. The
-server removes the orb at its own age 6000 and sends `minecraft:remove_entities`. When the client
-ticks an orb that the server keeps, for example an orb that the server does not tick, the player
-sees the orb disappear. The orb comes back only when the server adds it again. Question to the
-owner: is this a defect? Until the owner decides, CENTS-SIM-002 states that the client does not
-remove an orb by its age. Only `minecraft:remove_entities` and the removal below the world remove
-it. CENTS-E4 shows the vanilla behaviour.
+None.
 
 ---
 
@@ -1267,8 +1284,8 @@ Results with `26.4-snapshot-7`:
   update 98, at `y` −128.92. The client removes each one in the next update.
   `minecraft:remove_entities` for each one arrives after that update.
 - The orb of step 2 has its last row in update 6011, with the age 6000. Then the client removes
-  it. The server sends no `minecraft:remove_entities` for it. This is the vanilla behaviour of
-  section 18, U1.
+  it. The server sends no `minecraft:remove_entities` for it. This is the reference behaviour of
+  CENTS-DEV-002. The client of mcrs keeps the orb.
 
 ### CENTS-E5: Decay of the velocity of a living entity (not run)
 
