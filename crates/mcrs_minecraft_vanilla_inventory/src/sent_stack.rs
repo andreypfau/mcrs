@@ -5,7 +5,7 @@ use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_registries::Wire;
 use mcrs_minecraft_wire::Decode;
 
-/// The wire form of a stack and the stack that it gives the client.
+/// The wire form of a stack and the stack that the client view records for it.
 pub(crate) struct SentStack {
     pub(crate) wire: ProtoStack<Wire>,
     pub(crate) stack: Option<ItemStack>,
@@ -19,7 +19,15 @@ impl SentStack {
         }
     }
 
-    /// A stack without a wire form goes as the empty stack.
+    fn unsendable(stack: ItemStack) -> Self {
+        Self {
+            wire: ProtoStack::default(),
+            stack: Some(stack),
+        }
+    }
+
+    /// A stack without a wire form goes as the empty stack, but the view records the stack, so
+    /// that it goes again only after the slot changes.
     // chisle: the two stack models meet through the bytes of the wire; a direct conversion
     // lifts it when the protocol holds `ItemStack`.
     pub(crate) fn of(stack: Option<ItemStack>, table: &ItemTable, bytes: &mut Vec<u8>) -> Self {
@@ -29,7 +37,7 @@ impl SentStack {
         bytes.clear();
         if let Err(error) = write_wire(Some(&stack), table, bytes) {
             tracing::warn!("a stack of a player has no wire form: {error:?}");
-            return Self::empty();
+            return Self::unsendable(stack);
         }
         match ProtoStack::decode(&mut bytes.as_slice()) {
             Ok(wire) => Self {
@@ -38,7 +46,7 @@ impl SentStack {
             },
             Err(error) => {
                 tracing::warn!("a stack of a player does not decode from its wire form: {error:?}");
-                Self::empty()
+                Self::unsendable(stack)
             }
         }
     }

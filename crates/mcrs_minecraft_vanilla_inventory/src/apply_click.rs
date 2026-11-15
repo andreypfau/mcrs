@@ -113,7 +113,6 @@ pub(crate) fn apply_click(
                 }
             }
             sync.view.cursor_mut().clone_from(carried);
-            queue.compare.push(player);
         }
     }
 }

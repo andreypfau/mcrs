@@ -26,6 +26,7 @@ use crate::ItemSet;
 use crate::RequestDrop;
 use crate::RequestResult;
 use crate::Selected;
+use crate::SlotChanged;
 use crate::Slots;
 use crate::item_components::ItemComponents;
 use crate::request_scratch::RequestScratch;
@@ -79,6 +80,7 @@ impl Plugin for ItemPlugin {
             .add_message::<Given>()
             .add_message::<RequestDrop>()
             .add_message::<RequestResult>()
+            .add_message::<SlotChanged>()
             .add_systems(
                 self.schedule,
                 project_equipped.in_set(ItemSet).run_if(changed),

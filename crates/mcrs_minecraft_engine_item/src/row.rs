@@ -36,6 +36,7 @@ pub(crate) struct Row {
     equal: fn(&Row, &Cells, &Cells) -> bool,
     hash: fn(&Row, &Cells, usize, &mut FxHasher),
     diff: fn(&Row, &Cells, Option<&'static Prototype>, ItemStack) -> ItemStack,
+    gives: fn(&Row, &Cells, Option<&'static Prototype>, Option<&PatchEntry>) -> bool,
     insert_entry: fn(&mut EntityWorldMut, &PatchEntry) -> bool,
     insert_static: fn(&mut EntityWorldMut, &'static Builtin),
 }
@@ -52,6 +53,7 @@ impl Row {
             equal: equal::<T>,
             hash: hash::<T>,
             diff: diff::<T>,
+            gives: gives::<T>,
             insert_entry: insert_builtin::<T>,
             insert_static: insert_static::<T>,
         }
@@ -65,6 +67,7 @@ impl Row {
             equal: equal::<C>,
             hash: hash::<C>,
             diff: diff::<C>,
+            gives: |_, _, _, _| false,
             insert_entry: insert_custom::<C>,
             insert_static: |_, _| {},
         }
@@ -89,6 +92,7 @@ impl Row {
                     .fold(stack, |stack, entry| stack.with_entry(entry.clone())),
                 None => stack,
             },
+            gives: |_, _, _, _| false,
             insert_entry: |_, _| false,
             insert_static: |_, _| {},
         }
@@ -124,6 +128,17 @@ impl Row {
         stack: ItemStack,
     ) -> ItemStack {
         (self.diff)(self, cells, prototype, stack)
+    }
+
+    /// True when [`diff`](Self::diff) adds exactly `entry`, or nothing for `None`. It builds no
+    /// value. A custom or undecoded row never tells: it gives false.
+    pub(crate) fn gives(
+        &self,
+        cells: &Cells,
+        prototype: Option<&'static Prototype>,
+        entry: Option<&PatchEntry>,
+    ) -> bool {
+        (self.gives)(self, cells, prototype, entry)
     }
 
     /// Inserts the component of a patch entry of the type. False when the entry does not decode.
@@ -185,19 +200,57 @@ fn hash<T: ItemComponent + Component>(
     }
 }
 
+/// The patch entry that the effective value of the type needs on top of the prototype.
+enum Needed<'value, T> {
+    Nothing,
+    Value(&'value T),
+    Removal,
+}
+
+fn needed<'cells, T: ItemComponent + Component>(
+    row: &Row,
+    cells: &Cells<'cells>,
+    prototype: Option<&'static Prototype>,
+) -> Needed<'cells, T> {
+    let value = cells.effective(column::<T>(row));
+    match (value, prototype.and_then(Prototype::get::<T>)) {
+        (None, None) => Needed::Nothing,
+        (Some(value), None) if Some(value) == T::neutral() => Needed::Nothing,
+        (Some(value), Some(base)) if value == base => Needed::Nothing,
+        (Some(value), _) => Needed::Value(value),
+        (None, Some(_)) => Needed::Removal,
+    }
+}
+
 fn diff<T: ItemComponent + Component>(
     row: &Row,
     cells: &Cells,
     prototype: Option<&'static Prototype>,
     stack: ItemStack,
 ) -> ItemStack {
-    let value = cells.effective(column::<T>(row));
-    match (value, prototype.and_then(Prototype::get::<T>)) {
-        (None, None) => stack,
-        (Some(value), None) if Some(value) == T::neutral() => stack,
-        (Some(value), Some(base)) if value == base => stack,
-        (Some(value), _) => stack.set(value.clone()),
-        (None, Some(_)) => stack.unset::<T>(),
+    match needed::<T>(row, cells, prototype) {
+        Needed::Nothing => stack,
+        Needed::Value(value) => stack.set(value.clone()),
+        Needed::Removal => stack.unset::<T>(),
+    }
+}
+
+fn gives<T: ItemComponent + Component>(
+    row: &Row,
+    cells: &Cells,
+    prototype: Option<&'static Prototype>,
+    entry: Option<&PatchEntry>,
+) -> bool {
+    match needed::<T>(row, cells, prototype) {
+        Needed::Nothing => entry.is_none(),
+        Needed::Value(value) => matches!(
+            entry,
+            Some(PatchEntry::Value(builtin)) if T::from_builtin(builtin) == Some(value)
+        ),
+        Needed::Removal => matches!(
+            entry,
+            Some(PatchEntry::Removal(key)) if T::builtin_key() == Some(*key)
+        ),
     }
 }
 

@@ -12,6 +12,7 @@ use crate::give::put_in;
 use crate::placement::Placement;
 use crate::placement::put_at;
 use crate::placement::swap;
+use crate::slot_changed::touch;
 use crate::store::Target;
 use crate::store::store;
 
@@ -45,6 +46,10 @@ pub trait StackCommandsExt {
 
     /// Puts the stack in the world at `pos`.
     fn drop_at(&mut self, pos: DVec3) -> &mut Self;
+
+    /// Writes [`SlotChanged`](crate::SlotChanged) for the slot of the stack. A system that writes
+    /// the count or an item component of a stack in a slot in place calls it.
+    fn touch(&mut self) -> &mut Self;
 }
 
 impl StackCommandsExt for EntityCommands<'_> {
@@ -90,5 +95,9 @@ impl StackCommandsExt for EntityCommands<'_> {
             let stack = entity.id();
             Placement::World(Dropped { pos }).apply(entity.into_world_mut(), stack);
         })
+    }
+
+    fn touch(&mut self) -> &mut Self {
+        self.queue_silenced(|mut entity: EntityWorldMut| touch(&mut entity))
     }
 }

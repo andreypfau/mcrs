@@ -7,7 +7,6 @@ use bevy_ecs::system::InRef;
 use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
-use bevy_ecs::system::ResMut;
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::game_profile::GameProfile;
@@ -35,7 +34,6 @@ use crate::PlayerHolders;
 use crate::creative_drops::CreativeDrops;
 use crate::insert_stack::max_stack_size;
 use crate::launch_drops::launch_from_player;
-use crate::menu_queue::MenuQueue;
 use crate::request_ids::CREATIVE_REQUEST;
 
 /// Writes the [`InventoryInput::CreativeSet`] of each `set_creative_mode_slot` packet whose stack
@@ -83,7 +81,6 @@ pub(crate) fn apply_creative_set(
     )>,
     table: Res<ItemTable>,
     clock: Res<BirthClock>,
-    mut queue: ResMut<MenuQueue>,
     mut commands: Commands,
 ) {
     let &InventoryInput::CreativeSet {
@@ -132,9 +129,7 @@ pub(crate) fn apply_creative_set(
         set_view(&mut sync, slot, stack);
         return;
     }
-    if set_view(&mut sync, slot, stack) {
-        queue.compare.push(player);
-    }
+    set_view(&mut sync, slot, stack);
 }
 
 /// Despawns `stack` when the last request result is a rejection of the creative set of `player`,
@@ -150,15 +145,12 @@ fn despawn_if_rejected(world: &mut World, player: Entity, stack: Entity) {
     }
 }
 
-/// Makes `stack` the client view of the entry `slot`. Gives false when the inventory menu has no
-/// such entry.
-fn set_view(sync: &mut InventoryMenuSync, slot: i16, stack: Option<&ItemStack>) -> bool {
+/// Makes `stack` the client view of the entry `slot`, when the inventory menu has such an entry.
+fn set_view(sync: &mut InventoryMenuSync, slot: i16, stack: Option<&ItemStack>) {
     let view = usize::try_from(slot)
         .ok()
         .and_then(|index| sync.view.entry_mut(index));
-    let Some(view) = view else {
-        return false;
-    };
-    *view = SlotView::Stack(stack.cloned());
-    true
+    if let Some(view) = view {
+        *view = SlotView::Stack(stack.cloned());
+    }
 }

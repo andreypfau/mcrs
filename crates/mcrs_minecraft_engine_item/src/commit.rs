@@ -3,6 +3,7 @@ use core::mem;
 
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
+use bevy_ecs::message::Messages;
 use bevy_ecs::system::In;
 use bevy_ecs::system::InRef;
 use bevy_ecs::system::Query;
@@ -23,6 +24,7 @@ use crate::Request;
 use crate::RequestDrop;
 use crate::RequestId;
 use crate::RequestResult;
+use crate::SlotChanged;
 use crate::SlotRef;
 use crate::Slots;
 use crate::StackRows;
@@ -31,12 +33,15 @@ use crate::capacity::SLOT_LIMIT;
 use crate::capacity::capacity;
 use crate::placement::Placement;
 use crate::request_scratch::RequestScratch;
+use crate::slot_changed::write_slot_changed;
 use crate::spawn_stack::spawn_stack;
 
-/// What an applied request does to the entities: the stack of each changed slot that is not
-/// empty after it, the dropped stacks in the order of the operations, and the stacks that end.
+/// What an applied request does to the entities: each changed slot, the stack of each changed
+/// slot that is not empty after it, the dropped stacks in the order of the operations, and the
+/// stacks that end.
 #[derive(Default)]
 pub(crate) struct Settlement {
+    changed: Vec<SlotRef>,
     placed: Vec<Placed>,
     dropped: Vec<Taken>,
     despawned: Vec<Entity>,
@@ -44,6 +49,7 @@ pub(crate) struct Settlement {
 
 impl Settlement {
     fn clear(&mut self) {
+        self.changed.clear();
         self.placed.clear();
         self.dropped.clear();
         self.despawned.clear();
@@ -70,8 +76,9 @@ enum Source {
     CopyOf(Entity),
 }
 
-/// Plans `request` and, when it applies, changes the stacks to its result. Writes a
-/// [`RequestDrop`] for each dropped stack, then writes and triggers [`RequestResult`] for `holder`.
+/// Plans `request` and, when it applies, changes the stacks to its result. Writes
+/// [`SlotChanged`] for each changed slot and a [`RequestDrop`] for each dropped stack, then writes
+/// and triggers [`RequestResult`] for `holder`.
 pub(crate) fn commit(world: &mut World, holder: Entity, request: &Request) {
     let Ok(outcome) = world.run_system_cached_with(plan_request, request) else {
         return;
@@ -159,6 +166,7 @@ fn planned(stacks: &mut Stacks, stack: Entity) -> Option<Planned<Entity>> {
 /// stack when it is the claimant of that stack, and a new copy in the other case.
 fn settle(plan: &Plan<SlotRef, Entity>, settlement: &mut Settlement) {
     for (index, entry) in plan.changes().enumerate() {
+        settlement.changed.push(entry.slot);
         if let Some(before) = entry.before
             && !(plan.changes()).any(|other| holds(other.after, before.stack))
         {
@@ -280,6 +288,9 @@ fn apply(world: &mut World, holder: Entity, id: RequestId) {
         set_count(world, stack, placed.count);
         let slot = InSlot::new(placed.slot.holder, placed.slot.index);
         Placement::Slot(slot).apply(world, stack);
+    }
+    for &slot in &settlement.changed {
+        write_slot_changed(world.get_resource_mut::<Messages<SlotChanged>>(), slot);
     }
     for dropped in &settlement.dropped {
         if let Source::Same(stack) = dropped.source {

@@ -8,10 +8,15 @@ use mcrs_minecraft_item_stack::ItemComponent;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_item_stack::Neutral;
+use mcrs_minecraft_item_stack::PatchEntry;
 use mcrs_minecraft_item_table::ItemTable;
+use mcrs_minecraft_item_table::Prototype;
 
 use crate::ComponentState;
 use crate::StackRows;
+use crate::row::RowKey;
+use crate::row::bit;
+use crate::row::bits;
 
 /// Reads everything of a stack: its kind, its count and its effective components.
 #[derive(SystemParam)]
@@ -74,6 +79,49 @@ impl<'w> Stacks<'w, '_> {
             row.diff(&cells, prototype, value)
         });
         Some(value)
+    }
+
+    /// True when [`to_value`](Self::to_value) gives a stack equal to `value`. A stack without a
+    /// custom or an undecoded component is compared in place and builds no value.
+    #[must_use]
+    pub fn equals_value(&mut self, stack: Entity, value: &ItemStack) -> bool {
+        if self.kind(stack) != Some(value.kind) || self.count(stack) != Some(value.count) {
+            return false;
+        }
+        let prototype = self.table.prototype(value.kind);
+        let columns = self.rows.columns();
+        let Some(cells) = columns.cells(stack) else {
+            return false;
+        };
+        let mut candidates = cells.present();
+        for component in prototype.map_or(&[][..], Prototype::components) {
+            candidates |= bit(component.key().index());
+        }
+        let mut in_place = true;
+        for entry in value.patch() {
+            match entry {
+                PatchEntry::Value(component) => candidates |= bit(component.key().index()),
+                PatchEntry::Removal(key) => candidates |= bit(key.index()),
+                _ => in_place = false,
+            }
+        }
+        let rows = columns.rows();
+        let builtin = |index: usize| match rows.get(index).map(|row| (row, row.key())) {
+            Some((row, RowKey::Builtin(key))) => Some((row, key)),
+            _ => None,
+        };
+        if in_place && bits(candidates).all(|index| builtin(index).is_some()) {
+            return bits(candidates).all(|index| {
+                builtin(index).is_some_and(|(row, key)| {
+                    let entry =
+                        (value.patch().iter()).find(|entry| entry.builtin_key() == Some(key));
+                    row.gives(&cells, prototype, entry)
+                })
+            });
+        }
+        // chisle: a stack with a custom or an undecoded component builds its value on each call,
+        // so the sync allocates in each tick for it; an in-place `gives` for those rows lifts it.
+        self.to_value(stack).as_ref() == Some(value)
     }
 
     #[must_use]

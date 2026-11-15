@@ -2,17 +2,15 @@ use bevy_app::App;
 use bevy_app::FixedUpdate;
 use bevy_app::Plugin;
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_ecs::schedule::SystemCondition;
+use bevy_ecs::schedule::common_conditions::any_with_component;
 use bevy_ecs::schedule::common_conditions::on_message;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
-use mcrs_minecraft_engine_item::Given;
 use mcrs_minecraft_engine_item::RequestDrop;
-use mcrs_minecraft_engine_item::RequestResult;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::tick::TickSet;
-use mcrs_minecraft_vanilla_item_entity::PickedUp;
 
 use crate::InventoryInput;
+use crate::InventoryMenuSync;
 use crate::InventorySet;
 use crate::apply_inventory_input::apply_inventory_input;
 use crate::close_container::close_container;
@@ -23,7 +21,6 @@ use crate::full_sends::any_full_send;
 use crate::hand_action::decode_hand_action;
 use crate::launch_drops::launch_drops;
 use crate::menu_queue::MenuQueue;
-use crate::menu_queue::any_queued;
 use crate::restore_holders::hold_new_player;
 use crate::send_full_state::send_full_state;
 use crate::set_carried_item::set_carried_item;
@@ -39,9 +36,10 @@ use crate::sync_menus::sync_menus;
 /// (ITX-JAV-001 to ITX-JAV-005), the drop keys and the hand swap of the `player_action` packet
 /// are requests too (INV-SEL-004, INV-SEL-005), the `container_close` packet closes the inventory
 /// menu by a request (INV-CLS-001), and the `set_creative_mode_slot` packet sets an entry or
-/// throws a stack (INV-CRE-003, INV-CRE-004). [`InventorySet::Sync`] then sends each stack of the
-/// inventory menu that the client does not hold (INV-SYN-003, INV-SYN-004), and each stack that a
-/// drop takes out of a holder of a player becomes an item entity.
+/// throws a stack (INV-CRE-003, INV-CRE-004). In each tick, [`InventorySet::Sync`] then sends each
+/// stack of the inventory menu that the client does not hold, whatever wrote it (INV-SYN-003,
+/// INV-SYN-004), and each stack that a drop takes out of a holder of a player becomes an item
+/// entity.
 ///
 /// Add it to each dimension world, beside
 /// [`ItemPlugin`](mcrs_minecraft_engine_item::ItemPlugin), which it needs. The player file and a
@@ -56,7 +54,6 @@ impl Plugin for VanillaInventoryPlugin {
             .init_resource::<FullSends>()
             .init_resource::<MenuQueue>()
             .init_resource::<BirthClock>()
-            .add_message::<PickedUp>()
             .configure_sets(
                 FixedUpdate,
                 (
@@ -78,12 +75,7 @@ impl Plugin for VanillaInventoryPlugin {
                         .in_set(InventorySet::Sync),
                     (
                         send_full_state.run_if(any_full_send),
-                        sync_menus.run_if(
-                            on_message::<RequestResult>
-                                .or_eager(on_message::<Given>)
-                                .or_eager(on_message::<PickedUp>)
-                                .or_eager(any_queued),
-                        ),
+                        sync_menus.run_if(any_with_component::<InventoryMenuSync>),
                     )
                         .chain()
                         .in_set(InventorySet::Sync),

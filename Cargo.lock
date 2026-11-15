@@ -5589,8 +5589,6 @@ name = "mcrs_minecraft_inventory_client_view"
 version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_item_stack",
- "mcrs_minecraft_resource",
- "mcrs_test_alloc",
 ]
 
 [[package]]
@@ -6712,6 +6710,7 @@ dependencies = [
  "mcrs_minecraft_registries",
  "mcrs_minecraft_vanilla_item_entity",
  "mcrs_minecraft_wire",
+ "mcrs_test_alloc",
  "mcrs_voxel",
  "serde",
  "tracing",

@@ -1,5 +1,4 @@
-use bevy_ecs::hierarchy::ChildOf;
-use bevy_ecs::message::MessageReader;
+use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
@@ -8,13 +7,9 @@ use bevy_ecs::system::ResMut;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::bus::to;
-use mcrs_minecraft_engine_item::Given;
-use mcrs_minecraft_engine_item::RequestResult;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_engine_world::session::Owner;
-use mcrs_minecraft_inventory_client_view::Agreement;
-use mcrs_minecraft_inventory_client_view::Mismatches;
 use mcrs_minecraft_inventory_client_view::SlotView;
 use mcrs_minecraft_inventory_menu::InventoryMenu;
 use mcrs_minecraft_inventory_player::Holder;
@@ -23,7 +18,6 @@ use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundContainerSetSlot;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundSetCursorItem;
-use mcrs_minecraft_vanilla_item_entity::PickedUp;
 use mcrs_minecraft_wire::VarInt;
 
 use crate::InventoryMenuSync;
@@ -35,104 +29,60 @@ use crate::sent_stack::SentStack;
 
 #[derive(Default)]
 pub(crate) struct SyncScratch {
-    entries: Vec<Option<ItemStack>>,
     hashes: HashScratch,
-    mismatches: Mismatches,
     bytes: Vec<u8>,
 }
 
-/// Sends the inventory menu of each queued player: in full, or each entry and the cursor that
-/// do not match the client view (INV-SYN-003, INV-SYN-004, ITX-JAV-004). A request result, a
-/// give or a pickup on a holder of a player queues the player for a comparison.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the sync reads the touched holders and their stacks, and writes the view and packets"
-)]
+/// Compares the inventory menu of each player with its client view in each tick, and sends each
+/// entry and the cursor that do not match (INV-SYN-003, INV-SYN-004, ITX-JAV-004). The comparison
+/// reads the stacks in place and builds a stack value only to send it. A player in [`MenuQueue`]
+/// gets the content of the menu instead (INV-SYN-005).
 pub(crate) fn sync_menus(
-    mut results: MessageReader<RequestResult>,
-    mut given: MessageReader<Given>,
-    mut picked: MessageReader<PickedUp>,
     mut queue: ResMut<MenuQueue>,
-    parents: Query<&ChildOf>,
-    players: Query<(&Owner, &Slots, &PlayerHolders)>,
+    mut players: Query<(
+        Entity,
+        &Owner,
+        &Slots,
+        &PlayerHolders,
+        &mut InventoryMenuSync,
+    )>,
     holders: Query<&Slots>,
-    mut syncs: Query<&mut InventoryMenuSync>,
     mut stacks: Stacks,
     table: Res<ItemTable>,
     mut packets: MessageWriter<OutboundPlayerPacket>,
     mut scratch: Local<SyncScratch>,
 ) {
-    let queue = &mut *queue;
-    let touched = (results.read().map(|result| result.holder))
-        .chain(given.read().map(|given| given.holder))
-        .chain(picked.read().map(|picked| picked.collector));
-    for holder in touched {
-        let player = if players.contains(holder) {
-            Some(holder)
-        } else {
-            (parents.get(holder).ok().map(ChildOf::parent))
-                .filter(|parent| players.contains(*parent))
-        };
-        if let Some(player) = player {
-            queue.compare.push(player);
-        }
-    }
     queue.settle();
-    let SyncScratch {
-        entries,
-        hashes,
-        mismatches,
-        bytes,
-    } = &mut *scratch;
-    let queued = (queue
-        .content
-        .drain(..)
-        .map(|player| (player, MenuSend::Content)))
-    .chain(
-        queue
-            .compare
-            .drain(..)
-            .map(|player| (player, MenuSend::Mismatches)),
-    );
-    for (player, send) in queued {
-        let (Ok((&Owner(session), inventory, player_holders)), Ok(mut sync)) =
-            (players.get(player), syncs.get_mut(player))
-        else {
-            continue;
-        };
-        let sync = &mut *sync;
+    let SyncScratch { hashes, bytes } = &mut *scratch;
+    for (player, &Owner(session), inventory, player_holders, mut sync) in &mut players {
         let slots = HolderSlots::read(player, inventory, player_holders, &holders);
-        if send == MenuSend::Content {
-            let content = menu_content(sync, &slots, &mut stacks, &table, bytes);
+        if queue.content.binary_search(&player).is_ok() {
+            let content = menu_content(&mut sync, &slots, &mut stacks, &table, bytes);
             packets.write(to(session, PacketPayload::ContainerSetContent(content)));
             continue;
         }
-        // chisle: each compared player costs 46 stack values built from their rows, mismatch or
-        // not; a view comparison that reads the stack rows in place lifts it.
-        entries.clear();
         for index in 0..InventoryMenu::LEN {
-            let stack = InventoryMenu::slot(index)
-                .and_then(|slot| slots.stack(slot.holder, slot.index))
-                .and_then(|stack| stacks.to_value(stack));
-            entries.push(stack);
-        }
-        let cursor = slots
-            .stack(Holder::Cursor, 0)
-            .and_then(|stack| stacks.to_value(stack));
-        sync.view.compare(
-            entries.iter().map(Option::as_ref),
-            cursor.as_ref(),
-            &*table,
-            hashes,
-            mismatches,
-        );
-        for &index in mismatches.entries() {
-            let (Ok(slot), Some(stack)) = (i16::try_from(index), entries.get_mut(index)) else {
+            let stack =
+                InventoryMenu::slot(index).and_then(|slot| slots.stack(slot.holder, slot.index));
+            let Some(view) = sync.view.entry(usize::from(index)) else {
                 continue;
             };
-            let sent = SentStack::of(stack.take(), &table, bytes);
+            let send = match check(view, stack, &mut stacks, &table, hashes) {
+                Check::Matches => continue,
+                Check::Confirmed(value) => {
+                    if let Some(view) = sync.view.entry_mut(usize::from(index)) {
+                        *view = SlotView::Stack(value);
+                    }
+                    continue;
+                }
+                Check::Differs(value) => value,
+            };
+            let Ok(slot) = i16::try_from(index) else {
+                continue;
+            };
+            let sent = SentStack::of(send, &table, bytes);
             sync.state_id = sync.state_id.next();
-            if let Some(view) = sync.view.entry_mut(index) {
+            if let Some(view) = sync.view.entry_mut(usize::from(index)) {
                 *view = SlotView::Stack(sent.stack);
             }
             let packet = ClientboundContainerSetSlot {
@@ -143,19 +93,59 @@ pub(crate) fn sync_menus(
             };
             packets.write(to(session, PacketPayload::ContainerSetSlot(packet)));
         }
-        if mismatches.cursor() == Agreement::Differs {
-            let sent = SentStack::of(cursor, &table, bytes);
-            *sync.view.cursor_mut() = SlotView::Stack(sent.stack);
-            let packet = ClientboundSetCursorItem {
-                contents: sent.wire,
-            };
-            packets.write(to(session, PacketPayload::SetCursorItem(packet)));
-        }
+        let cursor = slots.stack(Holder::Cursor, 0);
+        let send = match check(sync.view.cursor(), cursor, &mut stacks, &table, hashes) {
+            Check::Matches => continue,
+            Check::Confirmed(value) => {
+                *sync.view.cursor_mut() = SlotView::Stack(value);
+                continue;
+            }
+            Check::Differs(value) => value,
+        };
+        let sent = SentStack::of(send, &table, bytes);
+        *sync.view.cursor_mut() = SlotView::Stack(sent.stack);
+        let packet = ClientboundSetCursorItem {
+            contents: sent.wire,
+        };
+        packets.write(to(session, PacketPayload::SetCursorItem(packet)));
     }
+    queue.content.clear();
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum MenuSend {
-    Content,
-    Mismatches,
+enum Check {
+    Matches,
+    /// A hashed view matches this value; the view becomes the value, so that the next
+    /// comparison reads the stack in place.
+    Confirmed(Option<ItemStack>),
+    /// The view does not match; the value is the stack to send.
+    Differs(Option<ItemStack>),
+}
+
+fn check(
+    view: &SlotView,
+    stack: Option<Entity>,
+    stacks: &mut Stacks,
+    table: &ItemTable,
+    hashes: &mut HashScratch,
+) -> Check {
+    let matches = match (view, stack) {
+        (SlotView::Unknown, _) => false,
+        (SlotView::Stack(None), None) => true,
+        (SlotView::Stack(Some(sent)), Some(stack)) => stacks.equals_value(stack, sent),
+        (SlotView::Stack(None), Some(stack)) => stacks.kind(stack).is_none(),
+        (SlotView::Stack(Some(_)), None) => false,
+        (SlotView::Hashed(_), _) => {
+            let value = stack.and_then(|stack| stacks.to_value(stack));
+            return if view.matches(value.as_ref(), table, hashes) {
+                Check::Confirmed(value)
+            } else {
+                Check::Differs(value)
+            };
+        }
+    };
+    if matches {
+        Check::Matches
+    } else {
+        Check::Differs(stack.and_then(|stack| stacks.to_value(stack)))
+    }
 }
