@@ -321,7 +321,7 @@ particular arrangement of text nodes when the same visible content and hover dat
 
 - **Rule**: `CMD-GIVE-008`; the shared item-entity rule is `IEN-SPN-004`.
 - **Reference**: For a creative target with no room, vanilla destroys the items and shows a display item.
-- **Visible to the client**: Yes. In vanilla the player gets nothing and no message; under `D6`, uninserted items drop on the ground.
+- **Visible to the client**: Yes. In vanilla the player gets no item; under `D6`, uninserted items drop on the ground. Command feedback follows `CMD-GIVE-012`.
 - **Test**: A differential test skips `give` to a creative player with a full inventory, as specified for `IEN-SPN-004` in [item-entity.md](item-entity.md).
 
 Under `D6`, `mcrs` uses the uniform survival overflow rule. See `Q6` in [item-entity.md](item-entity.md) for the interaction between `D6` and `IEN-PCK-006`.
