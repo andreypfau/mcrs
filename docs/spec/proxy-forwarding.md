@@ -1,8 +1,10 @@
 # Proxy forwarding: behavioural specification
 
 This document states how a backend server accepts a player that the Velocity proxy forwards in
-the "modern" forwarding mode. In this mode the proxy authenticates the player. The backend gets
-the profile and the address of the player in a signed answer to a LOGIN custom query.
+the "modern" forwarding mode. The backend gets the profile and the address of the player in a
+signed answer to a LOGIN custom query. The backend does not authenticate the player. The proxy
+authenticates the player only when the proxy runs in online mode. The signature proves that
+the data comes from the proxy. It does not prove the identity of the player.
 
 Velocity is not the game. It is an open-source proxy. The sources of this document are the
 public Velocity documentation, the public source of Velocity, and the public source of the
@@ -108,8 +110,9 @@ format forge a login. Kind: semantic. Confidence: high.
   key data of `login.md`, LOGIN-SEQ-005, and it never calls the session server.
 - **Behavior:** a configuration that turns on both forwarding and online mode is a
   configuration error. The server does not start.
-- **Reason:** the proxy authenticates the player. When a backend sends key data, the proxy
-  ends the connection to the backend. The player cannot join.
+- **Reason:** the proxy, not the backend, authenticates the player when it runs in online
+  mode. When a backend sends key data, the proxy ends the connection to the backend. The
+  player cannot join.
 
 Provenance: `documentation` (the backend must have online mode off), `source_suggested` for
 the result in the proxy. `design` for the configuration error. Kind: semantic. Confidence: high.
@@ -294,6 +297,8 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium.
     signatures.
 - **Behavior:** the backend ignores the name and the profile id of the serverbound `hello`
   for the profile.
+- **Behavior:** the owner profile of `login.md`, LOGIN-CFG-002, does not apply. A forwarded
+  login with the owner's name gets the forwarded profile.
 - **Behavior:** a property keeps its signature. A property without a signature stays without
   a signature.
 - **Behavior:** the backend uses the forwarded profile in `login_finished` and in every later
@@ -391,24 +396,49 @@ No tool of `docs/spec/README.md`, section "Experiments", starts a proxy. E2 to E
 Velocity release that supports the protocol version of the client. Use a 26.3 client when no
 release supports 26.4.
 
-- **E1: direct client.** Start mcrs with forwarding on and the secret `example-secret`. Let
-  the input agent of `tools/vanilla-client` join mcrs directly. Record the `custom_query`, the
-  answer and the `login_disconnect`. Expect the data `0x04`, an answer with no payload, and
-  the text of FWD-CHK-004 on the screen of the client.
-- **E2: real proxy.** Start Velocity with `player-info-forwarding-mode = "modern"`, the secret
-  `example-secret`, and mcrs as its only server. Let a vanilla client join the proxy. Record
-  that the player joins, the profile id and the skin that a second client sees, and the
-  address that mcrs reports for the player. Then add an address ban for the address of the
-  player and join again. Expect the reason of BAN-JOIN-005.
-- **E3: bytes on the backend link.** In the setup of E2, capture the loopback TCP traffic
-  between the proxy and mcrs. Decode the LOGIN frames. Record the data byte of the query and
-  the payload of the answer. Check the signature with the key. Compare the layout with
-  FWD-ANS-001. Repeat with Paper in place of mcrs, with `proxies.velocity.enabled` true and
-  the same secret. Expect the same query data and the same payload layout.
-- **E4: failures.** In the setup of E2, change the secret of mcrs to `other-secret` and join.
-  Expect the text of row 3 of FWD-CHK-001 in the proxy disconnect message. Then let a script
-  send `intention` and `hello` to mcrs and no answer. Measure the time to `login_disconnect`
-  with `multiplayer.disconnect.slow_login`.
+**E1: direct client.**
+
+1. Configure mcrs with online mode off, forwarding on and the secret `example-secret`.
+2. Start mcrs.
+3. Let the input agent of `tools/vanilla-client` join mcrs directly.
+4. Record the `custom_query`, the answer and the `login_disconnect`.
+5. Expect the data `0x04`, an answer with no payload, and the text of FWD-CHK-004 on the
+   screen of the client.
+
+**E2: real proxy.**
+
+1. Configure mcrs with online mode off, forwarding on and the secret `example-secret`.
+2. Start mcrs.
+3. Start Velocity in online mode, with `player-info-forwarding-mode = "modern"`, the secret
+   `example-secret`, and mcrs as its only server.
+4. Let a vanilla client join the proxy.
+5. Record that the player joins.
+6. Record the profile id and the skin that a second client sees.
+7. Record the address that mcrs reports for the player.
+8. Add an address ban for the address of the player.
+9. Join again. Expect the reason of BAN-JOIN-005.
+
+**E3: bytes on the backend link.**
+
+1. Prepare the setup of E2.
+2. Capture the loopback TCP traffic between the proxy and mcrs while a player joins.
+3. Decode the LOGIN frames.
+4. Record the data byte of the query and the payload of the answer.
+5. Check the signature with the key.
+6. Compare the layout with FWD-ANS-001.
+7. Replace mcrs with Paper, with `proxies.velocity.enabled` true and the same secret.
+8. Do steps 2 to 6 again. Expect the same query data and the same payload layout.
+
+**E4: failures.**
+
+1. Prepare the setup of E2.
+2. Change the secret of mcrs to `other-secret`.
+3. Join through the proxy. Expect the text of row 3 of FWD-CHK-001 in the proxy disconnect
+   message.
+4. Let a script send `intention` and `hello` to mcrs directly, and then send nothing.
+5. Measure the time to the end of the connection.
+6. Expect one of the two results of FWD-CHK-005: `login_disconnect` with
+   `multiplayer.disconnect.slow_login`, or a close with no packet at the read limit.
 
 ## 8. Intentional deviations
 
