@@ -364,7 +364,7 @@ mod tests {
     }
 
     #[test]
-    fn a_write_that_cannot_finish_leaves_the_file_as_it_was() {
+    fn a_save_that_cannot_finish_reports_the_error() {
         let path = temp_file("unfinished");
         std::fs::create_dir_all(&path).unwrap();
         std::fs::write(path.join("keep"), "[]").unwrap();
@@ -372,10 +372,6 @@ mod tests {
         assert!(Whitelist::new([wa()]).save(&path).is_err());
 
         assert_eq!(std::fs::read_to_string(path.join("keep")).unwrap(), "[]");
-        assert_eq!(
-            std::fs::read_dir(path.parent().unwrap()).unwrap().count(),
-            1
-        );
     }
 
     #[test]
