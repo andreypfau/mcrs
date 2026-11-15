@@ -344,6 +344,7 @@ fn the_matchers_read_the_effective_components_pred_itm_004_to_007() {
 #[expect(clippy::too_many_lines, reason = "one table of cases")]
 fn the_data_component_predicates_test_their_component_pred_itm_010_to_014() {
     let worn = Held::Stack(sword().set(Damage(100)));
+    let overused = Held::Stack(sword().set(MaxDamage(1561)).set(Damage(2000)));
     let enchanted =
         Held::Stack(sword().set(
             Enchantments::new([enchantment("minecraft:sharpness", 2)]).expect("one sharpness"),
@@ -373,6 +374,24 @@ fn the_data_component_predicates_test_their_component_pred_itm_010_to_014() {
             r#"{"predicates": {"minecraft:damage": {"damage": 99}}}"#,
             worn,
             false,
+        ),
+        (
+            "PRED-ITM-010",
+            r#"{"predicates": {"minecraft:damage": {"durability": {"max": -439}, "damage": {"min": 2000}}}}"#,
+            overused.clone(),
+            true,
+        ),
+        (
+            "PRED-ITM-010",
+            r#"{"predicates": {"minecraft:damage": {"durability": {"min": 0}}}}"#,
+            overused,
+            false,
+        ),
+        (
+            "PRED-ITM-010",
+            r#"{"predicates": {"minecraft:damage": {"durability": {"min": 0}}}}"#,
+            Held::Stack(sword().set(MaxDamage(i32::MAX)).set(Damage(i32::MIN))),
+            true,
         ),
         (
             "PRED-ITM-012",

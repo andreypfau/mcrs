@@ -1,9 +1,11 @@
 use glam::DVec3;
 use mcrs_minecraft_block::definition::FluidState;
 use mcrs_minecraft_block::fluid_keys::Fluid;
+use mcrs_minecraft_item::component::predicate::BlockPredicate;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_predicate::{
-    BakedLocationPredicate, LocationPredicate, LocationView, NoWorld, PredicateScratch,
+    BakedBlockPredicate, BakedLocationPredicate, LocationPredicate, LocationView, NoWorld,
+    PredicateScratch,
 };
 use mcrs_minecraft_registries::{Declaration, Registries, Resolve};
 use mcrs_minecraft_resource::{Id, ResourceLocationBuf};
@@ -42,6 +44,14 @@ fn column(at: &str, below: &[BlockStateId]) -> Grid {
 
 fn air() -> Grid {
     column("minecraft:air", &[])
+}
+
+/// A loaded position whose block state the host does not give.
+fn stateless() -> Grid {
+    Grid {
+        stateless: vec![BlockPos::new(0, 64, 0)],
+        ..Grid::default()
+    }
 }
 
 #[test]
@@ -202,6 +212,22 @@ fn each_field_of_the_location_predicate_adds_its_test_pred_loc_002() {
             false,
         ),
         ("PRED-BLK-001", r#"{"block": {}}"#, Grid::default(), false),
+        ("PRED-GEN-005", r#"{"block": {}}"#, stateless(), true),
+        (
+            "PRED-GEN-004",
+            r#"{"block": {"blocks": "minecraft:stone"}}"#,
+            stateless(),
+            false,
+        ),
+        (
+            "PRED-BLK-003",
+            r#"{"block": {"nbt": "{CustomName: \"Box\"}"}}"#,
+            Grid {
+                block_entity: Some(saved.clone()),
+                ..stateless()
+            },
+            true,
+        ),
         (
             "PRED-BLK-003",
             r#"{"block": {"nbt": "{CustomName: \"Box\"}"}}"#,
@@ -314,6 +340,38 @@ fn the_dimension_test_compares_the_id_that_the_world_answers_pred_loc_002() {
         };
         let passes = baked.matches(&world, AT, smoke(), &mut PredicateScratch::default());
         assert_eq!(passes, expected, "the world answers dimension {number}");
+    }
+}
+
+#[test]
+fn a_block_predicate_matches_a_state_and_its_block_entity_data_pred_blk_002() {
+    let stone = state("minecraft:stone", &[]);
+    let dirt = state("minecraft:dirt", &[]);
+    let mut saved = NbtCompound::new();
+    saved.put_string("CustomName", "Box".to_owned());
+    let cases: [(&str, BlockStateId, Option<&NbtCompound>, bool); 5] = [
+        (r#"{"blocks": "minecraft:stone"}"#, dirt, None, false),
+        (r#"{"blocks": "minecraft:stone"}"#, stone, None, true),
+        (r#"{"nbt": "{CustomName: \"Box\"}"}"#, stone, None, false),
+        (
+            r#"{"nbt": "{CustomName: \"Box\"}"}"#,
+            stone,
+            Some(&saved),
+            true,
+        ),
+        (
+            r#"{"predicates": {"minecraft:damage": {}}}"#,
+            stone,
+            Some(&saved),
+            false,
+        ),
+    ];
+    for (json, at, block_entity, expected) in cases {
+        let named = serde_json::from_str(json).unwrap_or_else(|error| panic!("{json}: {error}"));
+        let predicate = BlockPredicate::resolve(named, registries()).unwrap();
+        let baked = BakedBlockPredicate::bake(&predicate, registries(), definitions()).unwrap();
+        let passes = baked.matches_state(Some(at), block_entity);
+        assert_eq!(passes, expected, "{json}");
     }
 }
 

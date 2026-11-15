@@ -362,7 +362,18 @@ fn an_entry_file_is_decoded_as_text_then_as_its_value() {
         Field(&'static str),
         Fails,
     }
-    let cases: [(&[u8], Expected); 7] = [
+    let nested = |depth: usize| {
+        let lists = depth - 1;
+        format!(
+            r#"{{"message_id":"\"[{{","exhaustion":0.1,"x":{}{}}}"#,
+            "[".repeat(lists),
+            "]".repeat(lists)
+        )
+    };
+    let (deepest, too_deep) = (nested(128), nested(129));
+    let cases: [(&[u8], Expected); 9] = [
+        (deepest.as_bytes(), Expected::Loads("\"[{")),
+        (too_deep.as_bytes(), Expected::Fails),
         (
             b"\xEF\xBB\xBF{\"message_id\":\"bom\",\"exhaustion\":0.1}",
             Expected::Loads("bom"),
