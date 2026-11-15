@@ -4,7 +4,7 @@ This file is part of [mob-brain.md](mob-brain.md). Its terms, target version, fi
 provenance conventions, hooks and experiments apply here. All sensor ids use `minecraft:`.
 F means current effective `minecraft:follow_range`; Q means `minecraft:tempt_range` rounded
 to binary32. Attribute defaults are F=32 and Q=10 blocks, each with range [0,2048].
-The ordinary mob base for F is 16; species overrides remain hooks.
+The base value of F is a parameter of the body type, with the default 16.
 
 ## 1. Cadence and world queries
 
@@ -65,32 +65,18 @@ A shared visibility check must reject the body, dead entities and spectators.
 An attack check must also reject an entity the body cannot attack and an ally.
 Ordinary attack restrictions include invulnerability, player invulnerable ability and players
 on peaceful difficulty. Peaceful must not prohibit all attacks on nonplayers.
-Ordinary mobs must exclude ghasts; additional species restrictions remain hooks.
+The set of entity types that the body cannot attack is a parameter of the body type.
+Its default contains only `minecraft:ghast`.
 
 Noncombat visibility must allow allies, creative players and invulnerable candidates.
 
-For range R>0, a candidate must have squared feet distance <= `max(R*V,2)^2`.
-For R<=0, the shared check must skip the distance test. Equality must pass.
+A range test must be the test of GOAL-QRY-002, with its visibility factor V.
 An earlier sensor-specific strict filter must still apply. Follow-range checks must use this
 observer's F as BRAIN-DEV-001 requires. Temptation must independently use Q.
 
-The visibility factor V must be the product of these inputs, clamped to [0,10]:
-
-- 0.8 when the candidate's sneak input is active;
-- `0.7*max(0.1,A)` when invisible, where A is the fraction of four occupied armour slots;
-- the `minecraft:mob_visibility` multiplier of each applicable item in its `minecraft:equippable` slot.
-
-Any nonempty item must count toward A, including non-armour items. The floor 0.1 must use
-binary32. Default head disguises that match must contribute 0.5 for these observer types:
-
-- `minecraft:skeleton_skull` against `minecraft:skeleton`;
-- `minecraft:zombie_head` against `minecraft:zombie`;
-- `minecraft:creeper_head` against `minecraft:creeper`;
-- `minecraft:piglin_head` against `minecraft:piglin` or `minecraft:piglin_brute`.
-
-Other default heads must not contribute that factor. Data-pack component values can change it.
-For the body's current `minecraft:attack_target`, shared checks other than temptation (BRAIN-VAN-020) must use V=1 instead of these
-factors. All other range, life, spectator, attack and sight requirements must still apply.
+For the body's current `minecraft:attack_target`, shared checks other than temptation
+(BRAIN-VAN-020) must use V=1. All other range, life, spectator, attack and sight requirements
+must still apply.
 
 A sight-required check must satisfy GOAL-QRY-003: same dimension, eye distance <=128 blocks,
 and no block collision shape between the eyes. Fluids and entities must not block that segment.
@@ -149,7 +135,8 @@ For a living responsible entity, the sensor must also write `minecraft:hurt_by_e
 An environmental or nonliving source must leave the old attacker memory unchanged.
 Without an available source, the sensor must erase only the source memory.
 
-Every due scan must erase the attacker if it is dead or in another dimension.
+Every due scan must erase the attacker if it is dead, removed from the world or in another
+dimension. Removal includes despawn, discard and unload.
 It must not erase it for distance, lost sight, source age, creative status or alliance.
 The attacker must have no sensor-imposed timeout. Without another hit or writer, source erasure
 must occur on the first scan in T+41..T+60 with uninterrupted updates.
@@ -166,7 +153,8 @@ It must sort all candidates by feet distance. In order, it must test these condi
 
 It must write the first eligible item to `minecraft:nearest_visible_wanted_item`, or erase it
 when no candidate passes. Follow range must not change this query.
-No independent pickup-delay or ownership filter must apply. Item desire remains a species hook.
+No independent pickup-delay or ownership filter must apply. The item-desire predicate is a
+parameter of the body type.
 There must be no candidate cap.
 
 **BRAIN-VAN-017** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
@@ -207,8 +195,8 @@ The sensor must filter candidates before cleanup. Thus the earliest retry must b
 respectively.
 
 Success or scans with at least five new positions can postpone retry indefinitely.
-Equal-quality target choice and POI encounter order remain U6.
-Accepted targets must retain POI encounter order.
+The selection of the first four new positions uses POI encounter order. The accepted targets
+then form a set without order. Equal-quality target choice and POI encounter order remain U6.
 
 **BRAIN-VAN-018** (`source_suggested_black_box_confirmed`, semantic, confidence: high, fidelity: exact).
 Confirmation scope: [E-B5](mob-brain-experiments.md#e-b5-sensor-written-expiry-and-first-appearance) covers deep-water unit writes without expiry and erasure after water removal.
@@ -237,8 +225,8 @@ earlier expanded-F box; visibility supplies the effective distance and sight lim
 **BRAIN-VAN-020** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
 `minecraft:food_temptations`, `minecraft:frog_temptations` and `minecraft:nautilus_temptations`
 must select from all players in the current dimension and reject spectators. For Q>0, any query that gives the same result in the same encounter order is allowed.
-They must use noncombat visibility at range Q without sight or the attack-target exemption.
-For Q>0, squared feet distance <= `max(Q*V,2)^2` must pass. Q=0 must remove the distance limit.
+They must use noncombat visibility with the range test of GOAL-QRY-002 at range Q, without sight
+or the attack-target exemption.
 
 Alive must be required. Creative status, invulnerability, allies and peaceful must not exclude.
 Main-hand food must be tested before off-hand food; either passing hand must suffice.
@@ -258,4 +246,5 @@ There must be no count cap. Food predicates must be as follows:
 | `minecraft:nautilus_temptations` | item tag `#minecraft:nautilus_food`, default fishes and nautilus bucket food tags |
 
 Item tags must not be confused with identically named entity-type tags. No fourth temptation
-sensor exists in the target registry. Per-species food predicates remain hooks.
+sensor exists in the target registry. A body type can supply its own food predicate; the table
+gives the defaults.

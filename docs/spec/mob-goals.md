@@ -81,7 +81,7 @@ each animal type, for example its attributes, its food items, its love state and
 - **Damage record**: the damage type and the game time of the last hit on a living entity. Only a
   hit that the cooldown accepts and that a shield does not block fully sets it (GOAL-PNC-001).
 - **Fresh**: a damage record is fresh when the game time minus its game time is 40 or less.
-- **Visibility factor**: a number of a target entity toward one mob, from 0 to 1 (GOAL-QRY-002).
+- **Visibility factor**: a number of a target entity toward one mob, from 0 to 10 (GOAL-QRY-002).
 - **Qualified player**: a player that is not a spectator and is alive.
 - **Adult**, **baby**: a mob of age 0 or more, and a mob of age less than 0 (ANIM-AGE-001).
 - **In love**: the love state of an animal. It is true while the love time is more than 0
@@ -453,16 +453,31 @@ uses the box of the mob grown by the stated amounts on each side. An entity is i
 its own box intersects it.
 
 **GOAL-QRY-002** (`source_suggested`, semantic, confidence: medium, fidelity: exact). The
-visibility factor of a target entity toward a mob is the product of these factors:
+visibility factor of a target entity toward a mob is the product of these factors, clamped to the
+range from 0 to 10:
 
 - 0.8, when the target sneaks;
 - `0.7 × max(c, 0.1)`, when the target is invisible. `c` is the number of its armor slots for the
-  head, the chest, the legs and the feet that hold an item, divided by 4;
+  head, the chest, the legs and the feet that hold an item, divided by 4. Each item counts, also
+  an item that is not armor. `c` and the floor 0.1 are binary32 values;
 - for each equipped item with the component `mob_visibility`, in the slot of its `equippable`
   component, whose entity types contain the type of the mob: the visibility value of the component.
 
-A query with a range `R` and a visibility test accepts a target at a feet distance of at most
-`max(R × v, 2)`, where `v` is the visibility factor.
+The product uses binary64. Only the components of the item stacks give the item factors; no list
+of items or mob types adds a factor. In `26.4-snapshot-7`, these prototypes (STK-PRO-002) have the
+component. The table is the pinned data, not a rule: a component patch of a stack can add, change
+or remove the factor.
+
+| Item | `targeting_entity_types` | `visibility` | `equippable` slot |
+|------|--------------------------|--------------|-------------------|
+| `minecraft:skeleton_skull` | `minecraft:skeleton` | 0.5 | head |
+| `minecraft:zombie_head` | `minecraft:zombie` | 0.5 | head |
+| `minecraft:creeper_head` | `minecraft:creeper` | 0.5 | head |
+| `minecraft:piglin_head` | `minecraft:piglin`, `minecraft:piglin_brute` | 0.5 | head |
+
+A query with a range `R` > 0 and a visibility test accepts a target when its squared feet distance
+is at most `max(R × v, 2)²`, where `v` is the visibility factor. A range of 0 or less removes the
+distance test.
 
 **GOAL-QRY-003** (`source_suggested`, semantic, confidence: high, fidelity: exact). A line of sight
 check from a mob to a target is true when all these conditions are true:
@@ -490,10 +505,9 @@ look query read only these values:
 
 The visibility factor of GOAL-QRY-002 is 0.8 for a player whose shift key is down, and 1 for each
 other player. The rule is exact for a player that is not invisible and wears no item with `mob_visibility` for
-the type of the mob. The vanilla items give `mob_visibility` only for
-the skeleton, the zombie, the creeper, the piglin and the piglin brute. Thus the rule is exact for
-the four animals of section 5 and each vanilla item, while the player is not invisible. Section 9,
-U3, records the parts that are deferred.
+the type of the mob. No prototype in the table of GOAL-QRY-002 names an animal of section 5. Thus
+the rule is exact for these four animals and each item prototype, while the player is not
+invisible. Section 9, U3, records the parts that are deferred.
 
 A benchmark with a watcher player meets the conditions when the player has no effect
 `invisibility`. A watcher in the game mode `spectator` is not a qualified player. It does not
