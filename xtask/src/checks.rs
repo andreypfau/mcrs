@@ -47,7 +47,7 @@ const NO_STD_PACKAGES: [&str; 16] = [
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 131] = [
+const NO_BEVY_PACKAGES: [&str; 132] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -155,6 +155,7 @@ const NO_BEVY_PACKAGES: [&str; 131] = [
     "mcrs_minecraft_simulation",
     "mcrs_minecraft_snbt",
     "mcrs_minecraft_sound",
+    "mcrs_minecraft_static_registry",
     "mcrs_minecraft_text",
     "mcrs_minecraft_text_bedrock",
     "mcrs_minecraft_text_flatten",
