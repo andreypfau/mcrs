@@ -2,7 +2,6 @@ use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::resource::Resource;
 use bevy_ecs::world::World;
-use mcrs_minecraft_engine_item::Filter;
 use mcrs_minecraft_engine_item::Gate;
 use mcrs_minecraft_engine_item::GateId;
 use mcrs_minecraft_engine_item::GateQuery;
@@ -16,6 +15,7 @@ use mcrs_minecraft_engine_item::SlotAccess;
 use mcrs_minecraft_engine_item::SlotPolicy;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
+use mcrs_minecraft_inventory_transaction::Filter;
 use mcrs_minecraft_item_stack::ItemStack;
 
 use crate::fixture::PLAIN;

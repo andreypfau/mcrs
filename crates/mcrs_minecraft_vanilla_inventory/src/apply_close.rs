@@ -45,7 +45,7 @@ pub(crate) fn apply_close(
     if !has_carried(&values) {
         return;
     }
-    let mut request = Request::new(CLOSE_REQUEST);
+    let mut request = Request::close(CLOSE_REQUEST);
     for CloseMove { from, to, count } in close_inventory_menu(&values, &table) {
         let from = match from {
             Carried::Cursor => SlotRef {

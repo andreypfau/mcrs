@@ -4,3 +4,4 @@ mod capture;
 mod commands;
 mod fixture;
 mod player_file;
+mod slot_policy;

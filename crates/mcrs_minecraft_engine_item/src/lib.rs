@@ -78,8 +78,6 @@ pub use item_commands_ext::ItemCommandsExt;
 pub use item_plugin::ItemPersistencePlugin;
 pub use item_plugin::ItemPlugin;
 pub use item_set::ItemSet;
-pub use mcrs_minecraft_inventory_transaction::Filter;
-pub use mcrs_minecraft_inventory_transaction::Op;
 pub use mcrs_minecraft_inventory_transaction::Reason;
 pub use mcrs_minecraft_inventory_transaction::Rejected;
 pub use occupant::Occupant;

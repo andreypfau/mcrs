@@ -42,7 +42,6 @@ use crate::capacity::capacity;
 use crate::placement::Placement;
 use crate::request_scratch::RequestScratch;
 use crate::slot_changed::write_slot_changed;
-use crate::slot_gates;
 use crate::spawn_stack::spawn_stack;
 
 /// What an applied request does to the entities: each changed slot, the stack of each changed
@@ -179,7 +178,7 @@ fn plan_request(
                     actor,
                     stack: stack.stack,
                 };
-                slot_gates::answer(gate, world, &query)
+                gate.answer(world, &query)
             }
         };
         Some(Loaded {
@@ -192,7 +191,7 @@ fn plan_request(
         let policy = holders.get(slot.holder).ok().and_then(|(_, policy)| policy);
         let access = access(policy, slot);
         let query = GateQuery { slot, actor, stack };
-        slot_gates::answer(access.place, world, &query)
+        access.place.answer(world, &query)
     };
     let equal = |left, right| rows.mergeable(left, right);
     let outcome = plan(

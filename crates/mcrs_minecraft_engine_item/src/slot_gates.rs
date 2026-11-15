@@ -1,13 +1,9 @@
 use alloc::vec::Vec;
 
 use bevy_ecs::resource::Resource;
-use bevy_ecs::world::World;
-use mcrs_minecraft_inventory_transaction::Filter;
 
-use crate::Gate;
 use crate::GateFn;
 use crate::GateId;
-use crate::GateQuery;
 use crate::RegisterError;
 
 /// The gate functions of a world, in the order of their registration.
@@ -25,16 +21,8 @@ impl SlotGates {
         self.gates.push(gate);
         Ok(GateId(index))
     }
-}
 
-pub(crate) fn answer(gate: Gate, world: &World, query: &GateQuery) -> Filter {
-    match gate {
-        Gate::Permits => Filter::Permits,
-        Gate::Refuses => Filter::Refuses,
-        Gate::Ask(id) => {
-            let gates = world.get_resource::<SlotGates>();
-            let function = gates.and_then(|gates| gates.gates.get(usize::from(id.0)));
-            function.map_or(Filter::Refuses, |function| function(world, query))
-        }
+    pub(crate) fn get(&self, id: GateId) -> Option<GateFn> {
+        self.gates.get(usize::from(id.0)).copied()
     }
 }

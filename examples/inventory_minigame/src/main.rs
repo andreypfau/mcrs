@@ -9,7 +9,7 @@ fn main() {
     App::new()
         .add_plugins((
             ItemPlugin::new(ItemTable::leak([])),
-            VanillaInventoryPlugin,
+            VanillaInventoryPlugin::default(),
             KitPlugin::new(PlayerItems::default()),
         ))
         .run();
