@@ -14,6 +14,16 @@ Stop only for:
 - a check that fails for a reason the change did not cause;
 - a merge that the rules below do not allow.
 
+## A task that names an existing pull request
+
+- Fix that pull request. Never open a new one in its place, also when it comes from a fork.
+- Check it out in a worktree of your own: `gh pr checkout <pr>`. Push the fixes to its branch.
+  A fork allows this when its author allows edits from maintainers. If the push is refused,
+  stop and report.
+- Do not rewrite the commits of a contributor. Add your commits on top; the squash merge joins
+  them.
+- Run stages 3 to 8 below on that pull request.
+
 ## 1. Branch
 
 - One issue is one branch and one pull request. Cut the branch from the current `origin/main`:
@@ -64,19 +74,34 @@ One pass, in a new agent, before the pull request exists: the skill `review-pr`.
 
 - Wait with one background `gh pr checks <pr> --watch` or `gh run watch <id>`. Never with a
   `sleep` loop, and never with a turn for each poll.
+- The runs of a pull request from a fork wait in `action_required` until a maintainer approves
+  them. Read the code of the pull request first. Then approve each run:
+  `gh api --method POST repos/<repo>/actions/runs/<id>/approve`, or give `pr-land` the head
+  that you read: `pr-land <pr> <sha>`.
 - A red check: read the log, decide whether the change caused it. If it did, fix and fold. If
   it did not (a flaky test, a moved `main`), say so with the log line; rerun once.
-- When `main` moves and the branch conflicts or a required check wants a current branch, rebase
-  onto `origin/main`. Do not rebase for any other reason.
+- When `main` moves and the branch conflicts or a required check wants a current branch, bring
+  it up to date. Your own branch: rebase onto `origin/main`. A branch of a contributor:
+  `gh pr update-branch <pr>`. Do not rebase for any other reason.
 - Check each review thread against the code. Fix the valid ones and reply with the commit.
   Reply to the others with the reason. Do not accept a suggestion that pushes commits for you.
+- Threads come from more than one reviewer. `pr-review threads` lists only CodeRabbit; read
+  the others with `gh api graphql` (`pullRequest.reviewThreads { isResolved }`).
 
-## 7. Merge
+## 7. Before you report done
 
-- The repository allows only squash merges: `gh pr merge <pr> --squash --subject "<title> (#<pr>)"
-  --body "<body>"`. The squash drops the commit footers, so the body repeats each `Closes #N`
+- A pull request that changes a crate `*client*`, `*render*`, `mesh` or `model` needs a run of
+  the skill `run-client`. Look at the screenshot before you say that the change works.
+- Say "ready" only for what you ran. Name what you did not run.
+
+## 8. Merge
+
+- Land with `scripts/agent/pr-land <pr>` in one background command. It approves the fork
+  runs of the head you name, updates a branch that is behind, waits for the checks and the bot,
+  requires zero unresolved review threads of any reviewer, and merges. Without `pr-review` on
+  PATH it skips the bot wait. `pr-land --help` lists its exit codes; act on the code it returns.
+- `pr-land` is the only way to merge. It squash merges, and the body repeats each `Closes #N`
   and `Refs #N` of the commits.
-- Merge when every required check is green and no review thread is open.
 - After the merge, report the merge commit and stop.
 
 ## Not yours
