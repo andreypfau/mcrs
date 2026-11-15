@@ -2,13 +2,16 @@ use bevy::prelude::*;
 use mcrs_minecraft_engine_world::entity::physics::Transform as PhysicsTransform;
 use mcrs_minecraft_entity::SPRINT_MODIFIER;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::{
+    AttributeInstances, AttributeModifier, HomeSlot, Instance, InstanceModifier, Modifier, fold,
+};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_physics::{MotionAttributes, PlayerState, SprintSpeed};
 use mcrs_minecraft_protocol_game::clientbound::{ClientboundLogin, ClientboundRespawn};
+use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::abilities::{self, Abilities};
-use crate::attribute_instances::AttributeInstances;
 use crate::local_player::Sprint;
 use crate::player::Player;
 
@@ -94,7 +97,8 @@ fn speeds(instances: &AttributeInstances, sprint: Sprint) -> Option<Speeds> {
     let current = instances.value(Attribute::MovementSpeed)?;
     let speeds = if sprint.active {
         Speeds {
-            walking: instances.value_replacing(
+            walking: value_replacing(
+                instances,
                 Attribute::MovementSpeed,
                 SPRINT_MODIFIER.id,
                 None,
@@ -104,7 +108,8 @@ fn speeds(instances: &AttributeInstances, sprint: Sprint) -> Option<Speeds> {
     } else {
         Speeds {
             walking: current,
-            sprint: instances.value_replacing(
+            sprint: value_replacing(
+                instances,
                 Attribute::MovementSpeed,
                 SPRINT_MODIFIER.id,
                 Some(SPRINT_MODIFIER),
@@ -112,6 +117,33 @@ fn speeds(instances: &AttributeInstances, sprint: Sprint) -> Option<Speeds> {
         }
     };
     Some(speeds)
+}
+
+/// The value of ATR-VAL-001 for the instance of `attribute` without its modifier `id` and with
+/// `replacement` at the end of the sequence (ATR-INS-004), which this call does not store; `None`
+/// when the attribute is not in the set of the type.
+fn value_replacing(
+    instances: &AttributeInstances,
+    attribute: Attribute,
+    id: ResourceLocation<'_>,
+    replacement: Option<AttributeModifier<'static>>,
+) -> Option<f64> {
+    let base = instances.base(attribute)?;
+    let modifiers: &[InstanceModifier] = instances
+        .set()
+        .instance(attribute)
+        .map_or(&[], Instance::modifiers);
+    let appended = replacement.map(Modifier::from);
+    let kept = modifiers
+        .iter()
+        .filter(move |kept| kept.id() != id)
+        .map(|kept| Modifier {
+            operation: kept.operation(),
+            amount: kept.amount(),
+            slot: HomeSlot::from(kept.id()),
+        });
+    let value = fold(base, kept.chain(appended));
+    Some(attribute.definition().range.clamp(value))
 }
 
 fn motion_attributes(
@@ -148,7 +180,7 @@ mod tests {
 
     fn movement_speed(base: f64, sprinting: bool) -> AttributeSnapshot<'static> {
         AttributeSnapshot {
-            attribute: Attribute::MovementSpeed,
+            attribute: Attribute::MovementSpeed.into(),
             base,
             modifiers: if sprinting {
                 vec![SPRINT_MODIFIER]
@@ -160,7 +192,7 @@ mod tests {
 
     fn entry(attribute: Attribute, base: f64) -> AttributeSnapshot<'static> {
         AttributeSnapshot {
-            attribute,
+            attribute: attribute.into(),
             base,
             modifiers: Vec::new(),
         }

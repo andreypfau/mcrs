@@ -201,7 +201,10 @@ impl Viewer {
                     .attributes
                     .iter()
                     .map(|entry| SeenEntry {
-                        attribute: entry.attribute,
+                        attribute: entry
+                            .attribute
+                            .resolve()
+                            .expect("the server sends known ids"),
                         base: entry.base,
                         modifiers: entry
                             .modifiers

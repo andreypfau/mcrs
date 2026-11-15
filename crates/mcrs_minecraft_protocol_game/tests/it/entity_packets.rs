@@ -235,12 +235,12 @@ fn attributes_round_trip_with_modifiers() {
         entity_id: VarInt(5),
         attributes: vec![
             AttributeSnapshot {
-                attribute: Attribute::MaxHealth,
+                attribute: Attribute::MaxHealth.into(),
                 base: 26.0,
                 modifiers: vec![],
             },
             AttributeSnapshot {
-                attribute: Attribute::KnockbackResistance,
+                attribute: Attribute::KnockbackResistance.into(),
                 base: 0.0,
                 modifiers: vec![AttributeModifier {
                     id: ResourceLocation::read("minecraft:random_spawn_bonus").unwrap(),

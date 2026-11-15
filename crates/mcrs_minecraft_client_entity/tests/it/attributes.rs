@@ -1,14 +1,16 @@
 use bevy_ecs::entity::Entity;
-use bevy_ecs::query::With;
+use bevy_ecs::query::{Changed, With};
+use bevy_ecs::system::Query;
 use glam::DVec3;
-use mcrs_minecraft_client_world::attribute_instances::AttributeInstances;
 use mcrs_minecraft_client_world::joined_game::JoinedGame;
 use mcrs_minecraft_client_world::local_player::LocalPlayerPlugin;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_dimension::dimension_keys::OVERWORLD;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
-use mcrs_minecraft_entity_attribute::{AttributeModifier, ModifierOperation};
+use mcrs_minecraft_entity_attribute::{
+    AttributeId, AttributeInstances, AttributeModifier, ModifierOperation,
+};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol_game::clientbound::{
@@ -50,7 +52,7 @@ fn entry(
     modifiers: Vec<AttributeModifier<'static>>,
 ) -> AttributeSnapshot<'static> {
     AttributeSnapshot {
-        attribute,
+        attribute: attribute.into(),
         base,
         modifiers,
     }
@@ -82,58 +84,6 @@ fn modifier_ids(instances: &AttributeInstances, attribute: Attribute) -> Vec<Str
                 .collect()
         })
         .unwrap_or_default()
-}
-
-#[test]
-fn an_entry_replaces_the_base_and_the_modifiers_in_its_order() {
-    let mut client = pig();
-    let entity = client.entity(PIG).expect("the pig was added");
-    client.receive(update(
-        PIG,
-        vec![
-            entry(Attribute::BlockInteractionRange, 9.0, Vec::new()),
-            entry(
-                Attribute::MovementSpeed,
-                0.5,
-                vec![
-                    modifier("test:b", 1.0, ModifierOperation::AddMultipliedTotal),
-                    modifier("test:a", 0.25, ModifierOperation::AddValue),
-                    modifier("test:b", 100.0, ModifierOperation::AddValue),
-                ],
-            ),
-        ],
-    ));
-    let speed = instances(&client, entity);
-    assert_eq!(speed.value(Attribute::BlockInteractionRange), None);
-    assert_eq!(
-        speed.value(Attribute::MovementSpeed),
-        Some(1.5),
-        "an entry of an attribute that a pig lacks does not stop the next entry"
-    );
-    assert_eq!(
-        modifier_ids(speed, Attribute::MovementSpeed),
-        ["test:b", "test:a"],
-        "the modifiers keep the order of the entry, and a second test:b is ignored"
-    );
-
-    client.receive(update(
-        PIG,
-        vec![entry(
-            Attribute::MovementSpeed,
-            0.25,
-            vec![modifier("test:a", 0.5, ModifierOperation::AddValue)],
-        )],
-    ));
-    let speed = instances(&client, entity);
-    assert_eq!(speed.value(Attribute::MovementSpeed), Some(0.75));
-    assert_eq!(modifier_ids(speed, Attribute::MovementSpeed), ["test:a"]);
-
-    client.receive(update(PIG, vec![entry(Attribute::Scale, 1.0, Vec::new())]));
-    assert_eq!(
-        instances(&client, entity).value(Attribute::MovementSpeed),
-        Some(0.75),
-        "an instance with no entry does not change"
-    );
 }
 
 #[test]
@@ -230,6 +180,97 @@ fn a_respawn_keeps_the_bases_and_keeps_the_modifiers_only_by_its_bit() {
             respawned.value(Attribute::Luck),
             Some(luck),
             "bits {data_to_keep:#x}"
+        );
+    }
+}
+
+#[test]
+fn an_unknown_attribute_id_skips_only_its_entry() {
+    let unknown = AttributeSnapshot {
+        attribute: AttributeId(i32::try_from(Attribute::ALL.len()).expect("the table is small")),
+        base: 9.0,
+        modifiers: Vec::new(),
+    };
+    for target in ["pig", "own player"] {
+        let (mut client, entity, id) = if target == "pig" {
+            let client = pig();
+            let entity = client.entity(PIG).expect("the pig was added");
+            (client, entity, PIG)
+        } else {
+            let mut client = logged_in();
+            let entity = player(&mut client);
+            (client, entity, OWN_PLAYER)
+        };
+        client.receive(update(
+            id,
+            vec![entry(Attribute::MaxHealth, 30.0, Vec::new())],
+        ));
+        client.receive(update(
+            id,
+            vec![
+                entry(Attribute::Armor, 2.0, Vec::new()),
+                unknown.clone(),
+                entry(
+                    Attribute::MovementSpeed,
+                    0.25,
+                    vec![modifier("test:a", 0.5, ModifierOperation::AddValue)],
+                ),
+            ],
+        ));
+        let received = instances(&client, entity);
+        assert_eq!(received.value(Attribute::Armor), Some(2.0), "{target}");
+        assert_eq!(
+            received.value(Attribute::MovementSpeed),
+            Some(0.75),
+            "{target}: the entry after the unknown id applies"
+        );
+        assert_eq!(
+            modifier_ids(received, Attribute::MovementSpeed),
+            ["test:a"],
+            "{target}"
+        );
+        assert_eq!(
+            received.value(Attribute::MaxHealth),
+            Some(30.0),
+            "{target}: an attribute named by no entry keeps its value"
+        );
+    }
+}
+
+fn changed(entities: Query<Entity, Changed<AttributeInstances>>) -> Vec<Entity> {
+    entities.iter().collect()
+}
+
+#[test]
+fn an_entry_that_changes_nothing_leaves_the_instances_unchanged() {
+    for target in ["pig", "own player"] {
+        let (mut client, entity, id) = if target == "pig" {
+            let client = pig();
+            let entity = client.entity(PIG).expect("the pig was added");
+            (client, entity, PIG)
+        } else {
+            let mut client = logged_in();
+            let entity = player(&mut client);
+            (client, entity, OWN_PLAYER)
+        };
+        let armor = || update(id, vec![entry(Attribute::Armor, 2.0, Vec::new())]);
+        let system = client.app.world_mut().register_system(changed);
+        let run = |client: &mut Client| {
+            client
+                .app
+                .world_mut()
+                .run_system(system)
+                .expect("the system is registered")
+        };
+
+        let _since_spawn = run(&mut client);
+        client.receive(armor());
+        assert_eq!(run(&mut client), [entity], "{target}: a new base");
+        client.receive(armor());
+        assert_eq!(
+            run(&mut client),
+            [],
+            "{target}: the same entry again changes nothing"
         );
     }
 }
