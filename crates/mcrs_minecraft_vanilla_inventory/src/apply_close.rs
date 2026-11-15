@@ -1,0 +1,72 @@
+use bevy_ecs::entity::Entity;
+use bevy_ecs::system::Commands;
+use bevy_ecs::system::In;
+use bevy_ecs::system::Query;
+use bevy_ecs::system::Res;
+use mcrs_minecraft_engine_item::HolderCommandsExt;
+use mcrs_minecraft_engine_item::Request;
+use mcrs_minecraft_engine_item::Selected;
+use mcrs_minecraft_engine_item::SlotRef;
+use mcrs_minecraft_engine_item::Slots;
+use mcrs_minecraft_engine_item::Stacks;
+use mcrs_minecraft_item_table::ItemTable;
+
+use crate::PlayerHolders;
+use crate::carried_codec::has_carried;
+use crate::close_inventory_menu::Carried;
+use crate::close_inventory_menu::CloseMove;
+use crate::close_inventory_menu::Destination;
+use crate::close_inventory_menu::close_inventory_menu;
+use crate::from_holders::from_holders;
+use crate::request_ids::CLOSE_REQUEST;
+
+/// Closes the open menu of the player: the moves of INV-CLS-001 become one request, and the
+/// comparison sends what they change (INV-CLS-002). The open menu is always the inventory menu.
+// chisle: a close with more than 128 moves rejects and leaves the cursor and the craft grid as
+// they are; a request without a bound on its operations lifts it.
+pub(crate) fn apply_close(
+    In(player): In<Entity>,
+    players: Query<(&Slots, &Selected, &PlayerHolders)>,
+    holder_slots: Query<&Slots>,
+    mut stacks: Stacks,
+    table: Res<ItemTable>,
+    mut commands: Commands,
+) {
+    let Ok((inventory, selected, holders)) = players.get(player) else {
+        return;
+    };
+    let values = from_holders(
+        inventory,
+        selected.0,
+        Some(holders),
+        &holder_slots,
+        &mut stacks,
+    );
+    if !has_carried(&values) {
+        return;
+    }
+    let mut request = Request::new(CLOSE_REQUEST);
+    for CloseMove { from, to, count } in close_inventory_menu(&values, &table) {
+        let from = match from {
+            Carried::Cursor => SlotRef {
+                holder: holders.cursor,
+                index: 0,
+            },
+            Carried::CraftGrid(index) => SlotRef {
+                holder: holders.craft_grid,
+                index,
+            },
+        };
+        request = match to {
+            Destination::Inventory(index) => {
+                let to = SlotRef {
+                    holder: player,
+                    index,
+                };
+                request.split(from, to, count)
+            }
+            Destination::Drop => request.drop(from, count),
+        };
+    }
+    commands.entity(player).request(request);
+}

@@ -7,24 +7,6 @@ use mcrs_minecraft_nbt::compound::NbtCompound;
 use crate::player_file_codec::decode_error;
 use crate::player_file_codec::encode_error;
 
-/// The stack of a saved value under the key `key` of the player file or of a carry.
-pub(crate) fn from_saved(
-    key: &'static str,
-    saved: &NbtCompound,
-    names: &RegistryNames<'_>,
-) -> Result<ItemStack, PersistedError> {
-    mcrs_minecraft_item_stack::read_saved(saved, names).map_err(|error| decode_error(key, error))
-}
-
-/// The saved value of `stack` under the key `key` of the player file or of a carry.
-pub(crate) fn to_saved(
-    key: &'static str,
-    stack: &ItemStack,
-    names: &RegistryNames<'_>,
-) -> Result<NbtCompound, PersistedError> {
-    mcrs_minecraft_item_stack::write_saved(stack, names).map_err(|error| encode_error(key, error))
-}
-
 pub(crate) fn from_saved_with_slot(
     key: &'static str,
     saved: &NbtCompound,

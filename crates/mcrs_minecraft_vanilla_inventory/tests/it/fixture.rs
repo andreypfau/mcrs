@@ -62,13 +62,16 @@ static TABLE: LazyLock<ItemTable> = LazyLock::new(|| {
 });
 
 pub fn app() -> App {
+    let mut app = gameplay_app();
+    app.add_plugins(InventoryPersistencePlugin);
+    app
+}
+
+/// The items and the gameplay of the player inventory, with no persistence.
+pub fn gameplay_app() -> App {
     let mut app = App::new();
     app.insert_resource(CurrentRegistries::new(test_registries().clone()))
-        .add_plugins((
-            ItemPlugin::new(*TABLE),
-            VanillaInventoryPlugin,
-            InventoryPersistencePlugin,
-        ));
+        .add_plugins((ItemPlugin::new(*TABLE), VanillaInventoryPlugin));
     app
 }
 
