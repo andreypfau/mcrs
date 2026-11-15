@@ -39,6 +39,8 @@ Stop when the item is done, or when one of these holds:
 - your context passes 200k tokens;
 - the check fails twice for the same reason;
 - the change needs a file outside the brief, or a design choice the brief does not settle;
+- the specification that the brief cites is not `ready`, or it has a gap: the gap goes back as a
+  question, and you never resolve it in code;
 - a hook or a permission blocks you and only the owner can clear it. Report it once; do not
   repeat the attempt.
 
