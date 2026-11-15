@@ -5,7 +5,6 @@ use std::cell::Cell;
 use std::collections::BTreeMap;
 
 use bevy_ecs::component::Component;
-use mcrs_minecraft_entity_attribute::ModifierOperation;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::nbt_int_array;
 use mcrs_minecraft_text::Text;
@@ -101,24 +100,6 @@ pub enum NoMemory {}
 pub struct Brain {
     #[serde(default)]
     pub memories: BTreeMap<String, NoMemory>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Modifier {
-    pub id: String,
-    pub amount: f64,
-    pub operation: ModifierOperation,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Attribute {
-    pub id: String,
-    #[serde(default)]
-    pub base: f64,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub modifiers: Vec<Modifier>,
 }
 
 fn yes() -> bool {
@@ -397,7 +378,6 @@ pub struct PlayerFileState {
     pub death_time: i16,
     #[serde(rename = "AbsorptionAmount")]
     pub absorption_amount: f32,
-    pub attributes: Vec<Attribute>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub active_effects: Vec<Effect>,
     #[serde(rename = "FallFlying")]
@@ -501,7 +481,6 @@ impl Default for PlayerFileState {
             hurt_time: 0,
             death_time: 0,
             absorption_amount: 0.0,
-            attributes: Vec::new(),
             active_effects: Vec::new(),
             fall_flying: false,
             sleeping_pos: None,
