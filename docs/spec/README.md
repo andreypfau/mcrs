@@ -157,7 +157,7 @@ deviation entry.
 
 ## Loot documents
 
-The loot rules are in five documents. This table gives the document of each prefix. A rule
+The loot rules are in six documents. This table gives the document of each prefix. A rule
 that moves to another document keeps its id.
 
 | Prefix | Numbers | Document |
@@ -179,6 +179,7 @@ that moves to another document keeps its id.
 | `LOOT-MOD` | all | `loot-functions.md` |
 | `LOOT-MDV` | all | `loot-functions.md` |
 | `PRED` | all | `predicates.md` |
+| `CTL` | all | `container-loot.md` |
 
 ## Where these rules do not apply
 
