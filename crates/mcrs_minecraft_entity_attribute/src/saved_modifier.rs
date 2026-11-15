@@ -11,7 +11,7 @@ use crate::tolerant::{Lenient, Tolerant};
 
 /// A permanent modifier in the save (`persistence.md`, the attribute compound): each field is
 /// required, and a load leaves out a modifier with a missing or bad field (ATR-SAV-002).
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct SavedModifier {
     /// The identifier of the modifier.
     pub id: ResourceLocationBuf,
@@ -19,6 +19,14 @@ pub struct SavedModifier {
     pub amount: f64,
     /// The operation, by its name of ATR-INS-003.
     pub operation: ModifierOperation,
+}
+
+impl PartialEq for SavedModifier {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+            && self.amount.to_bits() == other.amount.to_bits()
+            && self.operation == other.operation
+    }
 }
 
 impl SavedModifier {
