@@ -28,23 +28,25 @@ use crate::fixture::{blocks, state};
 
 const MAGIC: &[u8; 8] = b"MCLOOTR0";
 
-const UNEVALUATED_TYPES: [&str; 6] = [
-    "minecraft:set_damage",
-    "minecraft:enchant_randomly",
+const UNEVALUATED_TYPES: [&str; 4] = [
     "minecraft:enchant_with_levels",
     "minecraft:random_chance_with_enchanted_bonus",
     "minecraft:weighted_list",
     "minecraft:add",
 ];
 
-const REPLAYED: usize = 60;
+/// The value-form stack has no typed component for the enchantments of a book, so a case whose
+/// stacks have it compares them without their component patch.
+const STORED_ENCHANTMENTS: &str = "minecraft:stored_enchantments";
 
-const PENDING: [(&str, usize); 7] = [
+const REPLAYED: usize = 69;
+
+const REPLAYED_WITHOUT_STORED_ENCHANTMENTS: usize = 3;
+
+const PENDING: [(&str, usize); 5] = [
     ("minecraft:add", 3),
-    ("minecraft:enchant_randomly", 6),
     ("minecraft:enchant_with_levels", 6),
     ("minecraft:random_chance_with_enchanted_bonus", 3),
-    ("minecraft:set_damage", 3),
     ("minecraft:weighted_list", 6),
     ("the container spread", 80),
 ];
@@ -310,6 +312,15 @@ fn pending(case: &Case) -> Option<String> {
         .map(|&name| name.to_owned())
 }
 
+fn stores_enchantments(case: &Case) -> bool {
+    match &case.outcome {
+        Outcome::Stacks(stacks) => stacks
+            .iter()
+            .any(|stack| stack.patch.contains(STORED_ENCHANTMENTS)),
+        _ => false,
+    }
+}
+
 #[derive(Default)]
 struct TypeNames {
     text: Option<String>,
@@ -526,8 +537,20 @@ fn differences(index: usize, case: &Case, replay: &Replay) -> Result<(), String>
                     &mut stacks,
                 )
                 .expect("the context of the case");
-            let expected: Vec<Option<ItemStack>> =
-                expected.iter().map(|stack| decode(stack, replay)).collect();
+            let expected: Vec<Option<ItemStack>> = expected
+                .iter()
+                .map(|stack| match stack.patch.contains(STORED_ENCHANTMENTS) {
+                    true => decode(
+                        &SavedStack {
+                            item: stack.item.clone(),
+                            count: stack.count,
+                            patch: "{}".to_owned(),
+                        },
+                        replay,
+                    ),
+                    false => decode(stack, replay),
+                })
+                .collect();
             (stacks != expected).then(|| format!("stacks {stacks:?}, expected {expected:?}"))
         }
         Outcome::Tests(expected) => {
@@ -577,6 +600,7 @@ fn differences(index: usize, case: &Case, replay: &Replay) -> Result<(), String>
 fn the_captured_loot_cases_replay_in_exact_mode() {
     let mut pending_by_reason: BTreeMap<String, usize> = BTreeMap::new();
     let mut replayed = 0;
+    let mut without_stored_enchantments = 0;
     let mut differences = Vec::new();
     for (index, case) in CASES.iter().enumerate() {
         if let Some(reason) = pending(case) {
@@ -584,6 +608,7 @@ fn the_captured_loot_cases_replay_in_exact_mode() {
             continue;
         }
         replayed += 1;
+        without_stored_enchantments += usize::from(stores_enchantments(case));
         differences.extend(replay(index, case, &REPLAY));
     }
     let expected: BTreeMap<String, usize> = PENDING
@@ -592,5 +617,9 @@ fn the_captured_loot_cases_replay_in_exact_mode() {
         .collect();
     assert_eq!(pending_by_reason, expected);
     assert_eq!(replayed, REPLAYED);
+    assert_eq!(
+        without_stored_enchantments,
+        REPLAYED_WITHOUT_STORED_ENCHANTMENTS
+    );
     assert_eq!(differences, Vec::<String>::new());
 }

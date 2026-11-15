@@ -1,6 +1,5 @@
 use mcrs_minecraft_block::definition::{BlockDefinitions, LootId};
-use mcrs_minecraft_item_key::item_keys::Item;
-use mcrs_minecraft_item_stack::{ItemStack, Kind, MaxStackSize};
+use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_loot::loot::LootTable;
 use mcrs_minecraft_loot_condition::{ContextParam, ContextParams, LootContext};
@@ -11,6 +10,7 @@ use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_resource::Id;
 
 use crate::baker;
+use crate::item_rules::ItemRules;
 use crate::keyed_seed::{self, KeyedSeed};
 use crate::loot_issue::{LootIssue, LootProblem};
 use crate::loot_scratch::LootScratch;
@@ -20,19 +20,19 @@ use crate::table::{Evaluation, Table};
 
 /// The loot tables of one registry load, baked to ids and addressed by their id in the registry
 /// `loot_table`.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct LootTables {
     /// The tables of the registry at the index of their id, then the inline tables.
     tables: Box<[Table]>,
     named: usize,
     by_block: Box<[Option<Id<LootTable>>]>,
-    max_stack: Box<[u8]>,
+    rules: ItemRules,
 }
 
 impl LootTables {
     /// Bakes each table of the registry `loot_table` of `registries`, maps each loot id of
-    /// `definitions` to the table that it names, and takes the maximum stack size of each item
-    /// from `items` for the division (LOOT-OUT-001).
+    /// `definitions` to the table that it names, and takes the components of each item from `items`
+    /// for the modifiers and the division (LOOT-OUT-001).
     #[must_use]
     pub fn bake(
         definitions: &BlockDefinitions,
@@ -41,6 +41,7 @@ impl LootTables {
     ) -> (Self, Vec<LootIssue>) {
         let mut issues = Vec::new();
         let files = registries.registry::<LootTableFile>();
+        let rules = ItemRules::bake(registries, items);
         let tables = baker::bake(definitions, registries, &mut issues).into_boxed_slice();
         let named = files.map_or(0, |files| files.len());
         let by_block = (0..definitions.loot_table_count())
@@ -59,22 +60,11 @@ impl LootTables {
                 id
             })
             .collect();
-        let item_count = registries.entries::<Item>().map_or(0, |items| items.len());
-        let max_stack = (0..item_count)
-            .map(|number| {
-                u16::try_from(number)
-                    .ok()
-                    .and_then(|number| items.prototype(Kind(number)))
-                    .and_then(|prototype| prototype.get::<MaxStackSize>())
-                    .and_then(|size| u8::try_from(size.0).ok())
-                    .unwrap_or(1)
-            })
-            .collect();
         let loot = Self {
             tables,
             named,
             by_block,
-            max_stack,
+            rules,
         };
         (loot, issues)
     }
@@ -115,7 +105,7 @@ impl LootTables {
             tables: &self.tables,
             context,
             world,
-            max_stack: &self.max_stack,
+            rules: &self.rules,
         };
         evaluation.root(baked, random, scratch, stacks);
         Ok(())

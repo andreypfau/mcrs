@@ -223,6 +223,7 @@ fn loot_ctx_016_entry_faults_are_issues_with_their_path() {
                 "pools[0].entries[0]",
                 LootProblem::NoChildren
             ),
+            ("f:set_item_air", "modifier", LootProblem::SetItemAir),
             (
                 "f:unknown_table",
                 "pools[0].entries[0].value",

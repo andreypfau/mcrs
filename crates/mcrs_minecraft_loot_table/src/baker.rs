@@ -1,7 +1,6 @@
 use core::mem;
 
 use mcrs_minecraft_block::definition::BlockDefinitions;
-use mcrs_minecraft_item::enchantment::Enchantment;
 use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
@@ -19,8 +18,6 @@ use crate::loot_table_file::{
     EntryFile, EntryKind as EntryKindFile, ItemSetFile, LootTableFile, PoolFile, TableFile,
     TableSetFile, TagName,
 };
-use crate::modifier::{Modifier, ModifierOp};
-use crate::modifier_file::{LimitFile, ModifierFile, ModifierKind, ModifierObject};
 use crate::table::{Entry, EntryKind, Pool, Span, Table};
 use crate::table_links::{self, Edge, TableLinks};
 
@@ -100,13 +97,13 @@ struct Baked {
 
 /// Turns the file form of one table of the registry and of its inline tables into tables of
 /// ids, and checks each part against the type of the table (LOOT-CTX-013).
-struct Baker<'a, 'i> {
-    registries: &'a Registries,
+pub(crate) struct Baker<'a, 'i> {
+    pub(crate) registries: &'a Registries,
     files: Option<&'a Registry<LootTableFile>>,
-    conditions: ConditionBaker<'a>,
+    pub(crate) conditions: ConditionBaker<'a>,
     key_set: ContextKeySet,
     owner: usize,
-    problems: Vec<(String, LootProblem)>,
+    pub(crate) problems: Vec<(String, LootProblem)>,
     parts: Parts,
     inline: &'i mut Inline,
 }
@@ -378,86 +375,7 @@ impl Baker<'_, '_> {
         }
     }
 
-    fn modifiers(&mut self, file: Option<&ModifierFile>, path: &str) -> Box<[Modifier]> {
-        match file {
-            None => Box::new([]),
-            Some(ModifierFile::Many(list)) => list
-                .iter()
-                .enumerate()
-                .map(|(number, modifier)| self.modifier(modifier, &format!("{path}[{number}]")))
-                .collect(),
-            Some(ModifierFile::One(one)) => Box::new([self.modifier(one, path)]),
-            // chisle: a registered item modifier changes nothing; no block table names one.
-            Some(ModifierFile::Key(_)) => Box::new([]),
-        }
-    }
-
-    fn modifier(&mut self, file: &ModifierObject, path: &str) -> Modifier {
-        let condition = file
-            .condition
-            .as_ref()
-            .map(|condition| self.condition(condition, &format!("{path}.condition")));
-        let op = match &file.kind {
-            ModifierKind::SetCount { count, add } => ModifierOp::SetCount {
-                count: self.conditions.number(count),
-                add: *add,
-            },
-            ModifierKind::ExplosionDecay => ModifierOp::ExplosionDecay,
-            ModifierKind::LimitCount {
-                limit: LimitFile::Exact(value),
-            } => {
-                #[expect(clippy::cast_precision_loss, reason = "a stack count is small")]
-                let value = NumberProvider::constant(*value as f32);
-                ModifierOp::Limit {
-                    min: Some(value.clone()),
-                    max: Some(value),
-                }
-            }
-            ModifierKind::LimitCount {
-                limit: LimitFile::Range { min, max },
-            } => ModifierOp::Limit {
-                min: min.as_ref().map(|min| self.conditions.number(min)),
-                max: max.as_ref().map(|max| self.conditions.number(max)),
-            },
-            ModifierKind::ApplyBonus {
-                enchantment,
-                formula,
-                parameters,
-            } => {
-                let enchantment = self.enchantment(enchantment.as_location(), path);
-                match formula.as_str() {
-                    "minecraft:ore_drops" => ModifierOp::OreDrops(enchantment),
-                    "minecraft:uniform_bonus_count" => ModifierOp::UniformBonus {
-                        enchantment,
-                        multiplier: parameters.bonus_multiplier.unwrap_or(0),
-                    },
-                    "minecraft:binomial_with_bonus_count" => ModifierOp::BinomialBonus {
-                        enchantment,
-                        extra: parameters.extra.unwrap_or(0),
-                        probability: parameters.probability.unwrap_or(0.0),
-                    },
-                    _ => ModifierOp::Keep,
-                }
-            }
-            ModifierKind::Sequence { functions } => ModifierOp::Sequence(
-                functions
-                    .iter()
-                    .enumerate()
-                    .map(|(number, modifier)| {
-                        self.modifier(modifier, &format!("{path}.functions[{number}]"))
-                    })
-                    .collect(),
-            ),
-            // chisle: a dropped stack holds an item and a count, so `copy_components`,
-            // `copy_state` and the other types change nothing; a stack with components lifts it.
-            ModifierKind::Other => ModifierOp::Keep,
-        };
-        self.take_problems(path);
-        self.check(op.reads(), path);
-        Modifier { condition, op }
-    }
-
-    fn condition(&mut self, file: &ConditionFile, path: &str) -> Condition {
+    pub(crate) fn condition(&mut self, file: &ConditionFile, path: &str) -> Condition {
         let condition = self.conditions.condition(file);
         self.take_problems(path);
         self.check(condition.reads(), path);
@@ -471,7 +389,7 @@ impl Baker<'_, '_> {
         number
     }
 
-    fn take_problems(&mut self, path: &str) {
+    pub(crate) fn take_problems(&mut self, path: &str) {
         let problems = self
             .conditions
             .drain_problems()
@@ -479,7 +397,7 @@ impl Baker<'_, '_> {
         self.problems.extend(problems);
     }
 
-    fn check(&mut self, reads: ContextParams, path: &str) {
+    pub(crate) fn check(&mut self, reads: ContextParams, path: &str) {
         self.parts.reads = self.parts.reads.union(reads);
         if let Err(problem) = reads.check(self.key_set) {
             self.problems
@@ -487,18 +405,7 @@ impl Baker<'_, '_> {
         }
     }
 
-    fn enchantment(&mut self, name: ResourceLocation<'_>, path: &str) -> Option<Id<Enchantment>> {
-        let id = self.lookup::<Enchantment>(name);
-        if id.is_none() {
-            self.problems.push((
-                path.to_owned(),
-                LootProblem::UnknownEnchantment(name.to_string()),
-            ));
-        }
-        id
-    }
-
-    fn lookup<R: Registered>(&self, name: ResourceLocation<'_>) -> Option<Id<R>> {
+    pub(crate) fn lookup<R: Registered>(&self, name: ResourceLocation<'_>) -> Option<Id<R>> {
         self.registries.entries::<R>()?.by_name(name)
     }
 }
