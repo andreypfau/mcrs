@@ -42,7 +42,7 @@ def merge_targets(cmd):
         positional = []
         args = iter(words[1:])
         for word in args:
-            if word in ("-R", "--repo", "--hostname") or word.startswith(("--repo=", "--hostname=")):
+            if word in ("--repo", "--hostname") or word.startswith(("-R", "--repo=", "--hostname=")):
                 deny(PLAIN)
             if word in VALUE_FLAGS:
                 next(args, None)
@@ -64,8 +64,11 @@ except ValueError:
     deny(PLAIN)
 deadline = time.monotonic() + 4
 for number in targets:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        deny("pr-review ready " + number + " timed out. Run it, then merge.")
     try:
-        result = subprocess.run(["pr-review", "ready", number], capture_output=True, text=True, timeout=max(0.1, deadline - time.monotonic()))
+        result = subprocess.run(["pr-review", "ready", number], capture_output=True, text=True, timeout=remaining)
     except subprocess.TimeoutExpired:
         deny("pr-review ready " + number + " timed out. Run it, then merge.")
     if result.returncode != 0:
