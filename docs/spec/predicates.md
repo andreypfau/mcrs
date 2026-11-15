@@ -91,6 +91,9 @@ defines it.
 - The generated block definitions of this repository: `assets/mcrs/block_definition/`.
   `cargo run -p mcrs_minecraft_update` writes them. They list the values of each property of each
   block, in the order of the block report (PRED-BLK-009).
+- The generated item definitions of this repository: `assets/mcrs/item_definition/`.
+  `cargo run -p mcrs_minecraft_update` writes them. They give the components of each prototype
+  (PRED-ITM-007).
 
 ### 0.4 ID prefixes
 
@@ -251,12 +254,35 @@ have the component. The predicate `custom_data` is the one exception (PRED-ITM-0
 | `jukebox_playable` | `minecraft:jukebox_playable` | PRED-ITM-022 |
 | `villager/variant` | `minecraft:villager/variant` | PRED-ITM-023 |
 
+For a stack, the component is the effective component of STK-PAT-002. A stack with no patch entry
+for the component type thus reads the component of the prototype. In this game version, each
+prototype has `minecraft:enchantments` with the empty map `{}`, and
+`minecraft:attribute_modifiers` (STK-PRO-004, STK-SHP-015). Each file of
+`assets/mcrs/item_definition/` shows both components. Thus these results apply:
+
+- `enchantments` with the empty list passes for each stack that is not empty, when the patch has no
+  removal entry for `minecraft:enchantments`. `attribute_modifiers` `{}` acts in the same way.
+- A stack with a removal entry for the component fails. The empty stack fails (STK-PAT-003).
+- An item that a later game version adds can have a prototype without the component. Its stack
+  with no patch entry fails.
+
 ### 3.3 The data component predicates
 
 **PRED-ITM-010** (`source_suggested`, semantic, confidence medium). `damage` (REG-FLD-598). Let `d`
 be the value of the component `minecraft:damage`. Let `m` be the value of `minecraft:max_damage`, or
 0 when the holder does not have it. The predicate passes when `in(durability, m − d)` and
 `in(damage, d)` are true.
+
+The test reads the values of the two components with no limit. It does not use the damage value of
+STK-DMG-002, which the maximum damage limits. When `d` is larger than `m`, `m − d` is negative. For
+example, take a stack with `minecraft:max_damage` 1561 and `minecraft:damage` 2000. It passes
+`durability` `{max: -439}` and `damage` `{min: 2000}`, and it fails `durability` `{min: 0}`. The
+command `give` can make such a stack.
+
+`m − d` is the exact difference, a 64-bit integer. It does not overflow. The reader of the wire form
+does not check the ranges of STK-CMP-004, so a stack from a client can hold any 32-bit values. For
+example, take `minecraft:max_damage` 2147483647 and `minecraft:damage` −2147483648. Then `m − d` is
+4294967295, and the stack passes `durability` `{min: 0}`. PRED-DEV-004 records the reference.
 
 **PRED-ITM-011** (`source_suggested`, semantic, confidence medium). `enchantments` and
 `stored_enchantments` (REG-FLD-599). The value is a list of enchantment predicates. The predicate
@@ -284,6 +310,9 @@ enchantment that the component does not hold is 0. The element passes as this ta
 value is an NBT predicate. The subject tag is the compound of the component
 `minecraft:custom_data`. When the holder does not have the component, the subject tag is the empty
 compound. The predicate `{}` thus passes for each holder.
+
+The match compares the tags of the compound that the component holds (ARG-BLK-011). The result
+depends on these tags, not on the form in which a holder stores them.
 
 **PRED-ITM-015** (`source_suggested`, semantic, confidence medium). `container` and
 `bundle_contents` (REG-FLD-603). The field `items` is a collection predicate with item predicate
@@ -691,6 +720,41 @@ predicate receives. The dimension is always the dimension of the caller.
 | damage source predicate, `direct_entity` and `source_entity` | PRED-DMG-002 | the origin of the caller |
 | damage predicate, `source_entity` | PRED-DMG-005 | the position of the player |
 
+**PRED-ENT-023** (`design`, semantic). An entity predicate holds a nested entity predicate in
+`vehicle`, `passenger`, `targeted_entity`, `type_specific/lightning` `entity_struck` and
+`type_specific/player` `looking_at`. These statements define the nesting depth of an entity
+predicate:
+
+- An entity predicate that holds no nested entity predicate has the nesting depth 1.
+- Another entity predicate has the nesting depth 1 plus the largest nesting depth of the entity
+  predicates that it holds.
+
+An entity predicate with a nesting depth of more than 32 fails the decode of the value that
+contains it. In a data pack file, that is a fault of the load (REG-ERR-001). Reason: the decode and
+the match must not exhaust the stack of the thread. The vanilla data pack has the largest nesting
+depth 2, in the advancements `adventure/spyglass_at_*`. PRED-DEV-003 records the vanilla server.
+
+**PRED-ENT-024** (`design`, semantic). A nested entity test is one evaluation of a nested entity
+predicate for one second entity (PRED-ENT-004). A match is one evaluation of an entity predicate
+that is not nested in an entity predicate, with all its nested entity tests. These statements
+apply:
+
+- A match has a budget of nested entity tests. The budget is a value of the implementation. It is
+  4096 or more.
+- A match that needs more nested entity tests than its budget fails. The caller uses this result as
+  it uses each other failed match, and gets no error. Thus an `inverted` condition around the match
+  passes.
+- A match fails by the budget only when it has more than 4096 nested entity tests with no test
+  skipped. Thus the budget has no effect on a match with 4096 or fewer of these tests.
+
+The budget gives a limit to the work of a match. It does not give the correct result for a match
+that passes the budget. An author of a data pack gets a bound on the work, not a safe result.
+
+An implementation can stop a test at the first result that decides it. Reason: `passenger` tests
+each direct passenger, and `vehicle` of a passenger goes back to the same entity. Thus the number of
+nested entity tests can grow as a power of the number of passengers. PRED-DEV-003 records the
+vanilla server.
+
 ### 9.2 Type, position and movement
 
 **PRED-ENT-005** (`source_suggested`, semantic, confidence medium). `entity_type` (REG-FLD-625)
@@ -893,7 +957,9 @@ tests.
 | `input` | PRED-ENT-043 passes |
 
 A statistic that the player never changed has the value 0. An absent `gamemode` passes for each game
-mode (REG-FLD-642).
+mode (REG-FLD-642). `level`, `food.level` and the `value` of `stats` are integer bounds
+(PRED-NUM-001). `food.saturation` is double bounds, and the saturation is a 32-bit float
+(PRED-NUM-002).
 
 **PRED-ENT-041** (`source_suggested`, semantic, confidence medium). `advancements` is a map from an
 advancement id to a boolean or to a map of criteria. The test passes when each entry passes. An
@@ -1012,6 +1078,32 @@ rules of section 9 must give the same result on each host.
 - **Test**: a differential test does not run a light test after a change of the time or the weather
   in the same tick.
 
+**PRED-DEV-003.**
+
+- **Rule**: PRED-ENT-023, PRED-ENT-024.
+- **Reference**: the vanilla server has no limit of its own on the nesting depth. Its JSON reader
+  refuses a data pack file whose objects and lists nest deeper than a limit of the reader.
+  Experiment E24 records the largest nesting depth that loads. A match has no budget. A predicate
+  that alternates `passenger` and `vehicle`, on an entity with many passengers, can make one tick
+  last many seconds. The watchdog of the server (`max-tick-time` of `server.properties`) can then
+  stop the server.
+- **Visible to the client**: yes, but only with a data pack that has such a predicate. The author of
+  the data pack sees a load fault for a nesting depth of 33 or more. A player sees the result of a
+  failed match in place of a long tick.
+- **Test**: a differential test does not use a nesting depth of more than 32, or a match with more
+  than 4096 nested entity tests.
+
+**PRED-DEV-004.**
+
+- **Rule**: PRED-ITM-010.
+- **Reference**: the vanilla server computes `m − d` as a 32-bit integer, and the difference wraps
+  on overflow. For `minecraft:max_damage` 2147483647 and `minecraft:damage` −2147483648, `m − d` is
+  −1, and the stack fails `durability` `{min: 0}`.
+- **Visible to the client**: no. Only a stack that a modified client sends has such values. A
+  player in normal play cannot make one.
+- **Test**: a differential test does not use a stack whose `m − d` is outside the range of a 32-bit
+  integer.
+
 ### 12.2 Open questions
 
 Q1 is closed. `registry-fields.md` now states the decode facts that it asked for: `blocked`
@@ -1061,7 +1153,7 @@ with one scripted client as an operator (`tools/mcrs_minecraft_client_recorder`)
 | Id | Steps | Rules |
 |----|-------|-------|
 | E1 | Run `execute positioned ~3 ~ ~ as @p` with EP and `distance.absolute` equal to `{max: 3.0}`, `{max: 2.99}`, `{min: 3.0}`, `{min: -4.0}` and `{}`. Repeat with `horizontal` and with `x`. Run it also with `{min: 3.0, max: 2.0}`, and record that the command fails to parse. | PRED-NUM-002, PRED-NUM-003, PRED-NUM-004, PRED-NUM-005, PRED-DST-001, PRED-ENT-003, PRED-ENT-009 |
-| E2 | Hold a diamond pickaxe with the damage 100 and Efficiency II. Run `execute if items entity @s weapon.mainhand` with `*[damage~{durability:{min:1461}}]`, with `enchantments` elements of each row of PRED-ITM-012, and with `*[custom_data~{}]`. Repeat the last test with an empty hand. | PRED-ITM-002, PRED-ITM-003, PRED-ITM-010 to PRED-ITM-014 |
+| E2 | Hold a diamond pickaxe with the damage 100 and Efficiency II. Run `execute if items entity @s weapon.mainhand` with `*[damage~{durability:{min:1461}}]`, with `enchantments` elements of each row of PRED-ITM-012, and with `*[custom_data~{}]`. Repeat the last test with an empty hand. Then hold a diamond pickaxe with the damage 2000, and test `durability` `{max: -439}` and `{min: 0}`, and `damage` `{min: 2000}`. Then hold a stick, and a stick with `[!enchantments]`, and test `*[enchantments~[]]` and `*[attribute_modifiers~{}]` with each. | PRED-ITM-002, PRED-ITM-003, PRED-ITM-007, PRED-ITM-010 to PRED-ITM-014 |
 | E3 | Hold a bundle with 3 dirt, 2 stone and 1 stick. Test `bundle_contents` with `contains` of two predicates that one stack satisfies, with `count` and `max: 0`, and with `size`. | PRED-COL-001 to PRED-COL-004, PRED-ITM-015 |
 | E4 | Place a chest with the name `Box`. Run LC with `block` and `nbt: {x: <x>}`, with `components` that hold the custom name, and with `{}` on a stone block. Run LC with `block: {}` at `100000 64 100000`, where no chunk is loaded. | PRED-GEN-001, PRED-BLK-001 to PRED-BLK-004, PRED-NBT-001, PRED-NBT-002, PRED-LOC-001, PRED-LOC-002 |
 | E5 | Place a furnace for each value of `facing`. Run LC with `block.state` equal to `{facing: {min: "north", max: "south"}}` at each furnace. Repeat with `{facing: {min: "south"}}`, `{facing: {min: "up"}}`, `{facing: {min: "west", max: "north"}}`, `{facing: {}}`, `{lit: {min: "false", max: "false"}}`, `{lit: {max: "false"}}` and `{facing: "up"}`. Place a dispenser for each value of `facing`, and run LC with `{facing: {max: "north"}}` at each. Place a pointed dripstone with each `vertical_direction`, and run LC with `{vertical_direction: {max: "down"}}`. Place wheat with `age` 7, and run LC with `{age: "07"}`, `{age: "+7"}`, `{age: {min: "07"}}`, `{age: {max: "-0"}}` and `{age: {max: "2147483648"}}`. | PRED-BLK-006 to PRED-BLK-009 |
@@ -1075,7 +1167,7 @@ with one scripted client as an operator (`tools/mcrs_minecraft_client_recorder`)
 | E13 | Run EP as a pig with `type_specific/fishing_hook: {}`, `type_specific/sheep: {}` and `type_specific/raider: {}`. Run the last one as a pillager, as a patrol leader and as a raider in a raid. Run `type_specific/cube_mob` as a slime of size 2. | PRED-ENT-031 to PRED-ENT-034 |
 | E14 | Summon a lightning bolt over a pig on grass. Run EP as the bolt from a repeating command block with `blocks_set_on_fire` and `entity_struck`. | PRED-ENT-030 |
 | E15 | Run EP as the player with `looking_at` while the client looks at a pig at 99 and at 101 blocks, through glass, through stone, and past a fireball. Nest `distance` in `looking_at` with an `origin` far from the player. | PRED-ENT-004, PRED-ENT-042, U4 |
-| E16 | Run EP as the player with `gamemode`, `level`, `food`, `stats`, `recipes`, `advancements` with an unknown id and with an unknown criterion, and `input` with each key down. | PRED-NUM-001, PRED-ENT-040, PRED-ENT-041, PRED-ENT-043 |
+| E16 | Run EP as the player with `gamemode`, `level`, `food`, `stats`, `recipes`, `advancements` with an unknown id and with an unknown criterion, and `input` with each key down. Lower the food level to 10 and the saturation to 0 with the effect `hunger`. Eat one sweet berry. Test `food.saturation` with `0.4` and with `{min: 0.39, max: 0.41}`. | PRED-NUM-001, PRED-NUM-002, PRED-ENT-040, PRED-ENT-041, PRED-ENT-043, REG-FLD-642 |
 | E17 | Install a data pack whose pig loot table has pools with `damage_source_properties`. Kill pigs with a fall, a sword and an arrow of the player. Record the dropped items. | PRED-DMG-001 to PRED-DMG-003 |
 | E18 | Install a data pack with advancements of the trigger `entity_hurt_player` with `dealt`, `taken`, `blocked` and `source_entity.distance`. Take damage with and without a shield. Record the granted advancements. | PRED-DMG-004, PRED-DMG-005 |
 | E19 | Hold a written book, a firework rocket, a potion with a custom effect, a trimmed helmet and a music disc. Test each data component predicate of section 3.3 with `execute if items`. | PRED-ITM-016 to PRED-ITM-023, PRED-EFX-002 |
@@ -1083,6 +1175,8 @@ with one scripted client as an operator (`tools/mcrs_minecraft_client_recorder`)
 | E21 | In a world with a plains village, run LC with `structures: "minecraft:village_plains"` inside a house, and between two houses inside the box of the village. Stand on a bottom slab at the height `y`. Run EP with `location.position.y` equal to `{min: y + 0.5}` and to `{min: y + 0.51}`. | PRED-LOC-003, PRED-ENT-006 |
 | E22 | Hold a stick with the custom name `A`. Run EP with `equipment.mainhand` equal to `{components: {"minecraft:custom_name": "A"}}`, to `{components: {"minecraft:custom_name": "B"}}`, to `{predicates: {}}`, to `{predicates: {"minecraft:custom_name": "Z"}}` and to `{predicates: {"minecraft:damage": {}}}`. | PRED-ITM-004, PRED-ITM-005, PRED-ITM-006, PRED-ITM-007 |
 | E23 | Put the client in adventure mode. Give it a stone with `can_place_on` `{blocks: "minecraft:dirt"}`, and a pickaxe with `can_break` `{blocks: "minecraft:stone"}`. Place the stone on dirt and on grass. Break a stone and a dirt block. Record the blocks that change, and the block updates that the client receives. | PRED-BLK-005 |
+| E24 | Make four data packs, each with one predicate file: `t:d32`, `t:d33`, `t:d250` and `t:d300`. Each is EP with an entity predicate of the nesting depth 32, 33, 250 and 300: 31, 32, 249 and 299 levels of nested `vehicle`, with the innermost predicate `{}`. Start the server one time with each pack. Record the log of the load. Run `execute if predicate` with each key that loaded, as the player on a stack of 40 pigs. Expected in mcrs: `t:d32` loads, and `t:d33` is a fault of the load (PRED-ENT-023). | PRED-ENT-023, PRED-DEV-003 |
+| E25 | Summon a pig with 30 armor stands as passengers. Run EP as the pig with a predicate of four levels: `passenger`, `vehicle`, `passenger`, `vehicle`. Then nest a fifth level `passenger` with `entity_tags` `{all_of: ["none"]}`. Record the reply, and the time of the tick from `tick query`. Repeat with 50 armor stands. | PRED-ENT-024, PRED-DEV-003 |
 
 ## 14. Captured results
 

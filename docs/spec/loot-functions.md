@@ -38,7 +38,8 @@ Section 10 lists what this document does not state. This document replaces secti
 - **Chain**: an ordered sequence of modifiers that the server applies to one work stack.
 - **Work stack**: the value that a chain changes. It has an item, a count and a component patch.
   Its count can be 0 or less, and it can be larger than the maximum stack size.
-- **Empty work stack**: a work stack with a count of 0 or less (LOOT-MOD-011).
+- **Empty work stack**: a work stack with a count of 0 or less, or with the item `minecraft:air`
+  (LOOT-MOD-011).
 - **`c`**: the count of the work stack before the modifier of the rule. `c` is 0 for an empty work
   stack (LOOT-MOD-011).
 - **Context**, **parameter**, **generator**: as `loot.md`, section 0.1, defines them. A parameter is
@@ -156,6 +157,15 @@ an empty work stack becomes the empty stack (STK-EMP-001). For a content stack o
 that point is the division of LOOT-MOD-053. For each other chain, for example a chain of
 `modify_contents`, that point is the end of the chain. No modifier limits the count to the maximum
 stack size. Experiment E2 tests this rule.
+
+A work stack with the item `minecraft:air` is an empty work stack for each count, and `c` is 0 for
+it. A `dynamic` entry can give such a work stack, for an empty slot of a shulker box (LOOT-EVL-007
+of `loot.md`). Each modifier of its chain still tests its condition and takes the draws that its
+rule states for an empty work stack. A modifier can give it a count of more than 0 and a component
+patch. No modifier gives it another item, so it stays an empty work stack to the end of the chain.
+At the point that the paragraph above names, it becomes the empty stack, with no component patch.
+This paragraph has the confidence medium. Experiment X18 of `loot.md`
+tests it.
 
 **LOOT-MOD-012** (`source_suggested`, semantic, confidence medium). A modifier takes its draws from
 the generator in the order that its rule states. A modifier takes no other draw. Where a rule says
@@ -841,7 +851,8 @@ does not change an empty work stack, and then takes no draw. Otherwise it makes 
    it (LOOT-EVL-011, steps 1 and 2). This occurs before the expansion tests the condition of the
    next child or of the next entry.
 3. Each stack then goes through the division of LOOT-OUT-001 (`loot.md`), and the results go at the
-   end of the list.
+   end of the list. A stack with a count of 0 or less, or with the item `minecraft:air`, becomes the
+   empty stack there.
 
 There is no weight, no selection and no roll: each leaf result makes its stacks. `weight` and
 `quality` have no effect. The draws thus follow the order of the expansion. For example, take a
