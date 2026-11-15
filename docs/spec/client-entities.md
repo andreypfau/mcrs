@@ -12,7 +12,9 @@ for a capture from `26.4-snapshot-7`.
 
 This document states how the client keeps the state of an entity that the server sends. It
 covers the lifecycle of the entity, its position and rotation, the interpolation of movement,
-the body yaw, the walk accumulator, the hurt time and the death time. It also states the values
+the body yaw, the walk accumulator, the hurt time and the death time. It states the velocity that
+the client keeps. It also states how the client moves an item, a falling block, a primed TNT and
+an experience orb between two updates of the server. It also states the values
 that the renderer (`client-entity-render.md`) and the Molang queries (`molang-queries.md`) read
 in each frame. The document does not prescribe an architecture.
 
@@ -29,6 +31,12 @@ in each frame. The document does not prescribe an architecture.
 - **Living entity**: a client entity of a type that has health. Each mob is a living entity.
 - **Mob**: a living entity with an AI on the server. The pig, the cow, the sheep, the chicken, the
   zombified piglin and the frog are mobs. A player is not a mob.
+- **Simulated entity**: a client entity of the type `minecraft:item`, `minecraft:falling_block`,
+  `minecraft:tnt` or `minecraft:experience_orb`. The client moves a simulated entity with its own
+  step between two updates of the server (section 16).
+- **Velocity**: the change of position in one tick that the client keeps for each client entity,
+  in blocks, as three `f64` values. It is `(0, 0, 0)` until a packet sets it (CENTS-VEL-001).
+- **Local player**: the player that the client controls. Each other client entity is non-local.
 - **Yaw**: a horizontal angle in degrees. Yaw `0` faces +Z. Yaw `90` faces −X. The facing vector
   for yaw `y` and pitch `p` is `(−sin y · cos p, −sin p, cos y · cos p)`.
 - **Pitch**: a vertical angle in degrees. A positive pitch looks down.
@@ -119,6 +127,12 @@ same entity rows. Only the value `updates_before` can change between two runs, a
 that arrives while no entity ticks. A replay test therefore applies each packet before the
 first row with an `update` larger than its `updates_before`.
 
+The rules of sections 15 and 16 cite the experiments of section 19 (`CENTS-E1` and the next
+ones). These experiments use the same harness and the same two artefacts. Their scenes are not in
+`tools/scenes/`: section 19 gives the steps of each scene. An entity row of a simulated entity
+has only the keys `age`, `position`, `previous_position`, `pitch`, `on_ground`,
+`path_before_update` and `path_after_update`. No row has the velocity.
+
 ### 0.3 ID prefixes
 
 | Prefix | Subject |
@@ -137,17 +151,31 @@ first row with an `update` larger than its `updates_before`.
 | `CENTS-EQUIP` | equipment |
 | `CENTS-FLAG` | on ground and in water |
 | `CENTS-FRAME` | the values of one frame |
+| `CENTS-VEL` | the velocity of a client entity |
+| `CENTS-SIM` | the step and the position updates of a simulated entity |
 | `CENTS-DEV` | intentional deviations |
 
 ### 0.4 Scope
 
-In scope: living entities that are not the local player, and that do not ride and are not
-ridden. The rules for the local player are in other documents.
+In scope:
 
-Out of scope: riding and passengers, sleeping, the drawing of items in hands and of armour,
-particles and sounds of entity events, entities that are not living entities, and the movement
-of an entity by the client physics. The equipment that the client keeps (CENTS-EQUIP-001) is in
-scope.
+- living entities that are not the local player, and that do not ride and are not ridden;
+- the four simulated entities, and their movement by the client step (section 16);
+- the velocity that the client keeps for each non-local entity (section 15).
+
+The rules for the local player are in other documents. The equipment that the client keeps
+(CENTS-EQUIP-001) is in scope.
+
+Out of scope:
+
+- riding and passengers, sleeping, the drawing of items in hands and of armour, particles and
+  sounds of entity events;
+- each other entity that is not a living entity: arrows, thrown items, llama spit, accelerated
+  projectiles, minecarts, boats, item frames and the other types;
+- the velocity of the local player. A `set_entity_motion` for the local player, knockback to the
+  local player and each other impulse to the local player are in `entity-physics.md`,
+  PHY-SRV-009;
+- the effects that a simulated entity has on the world. The server does them (CENTS-SIM-002).
 
 ### 0.5 Differences in 26.4-snapshot-4
 
@@ -243,6 +271,8 @@ Milestone: 1.
   7. The delta base (CENTS-MOVE-001) is the position of the packet.
   8. The entity data has the default value of each index (CENTS-DATA-001).
   9. Each equipment slot is empty (CENTS-EQUIP-001).
+  10. The velocity is the velocity of the packet, for each entity type.
+  11. For a simulated entity, CENTS-SIM-002 states how the client reads the data value.
 - **Postconditions:** the first frame shows the entity at its position with no interpolation.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: summon a pig
@@ -326,7 +356,9 @@ Milestone: 1.
   3. A packet with a rotation gives a target yaw and a target pitch, each as a byte angle.
   4. The client starts an interpolation (CENTS-INTERP-001) with the path and the rotation.
      A packet without a delta gives no path. A packet without a rotation gives no rotation.
+     For a simulated entity, CENTS-SIM-003 or CENTS-SIM-004 replaces this item.
   5. The on-ground flag becomes the on-ground flag of the packet.
+  6. The packet does not change the velocity.
 - **Postconditions:** the entity reaches the end of the path through the interpolation.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: lead a pig with
@@ -338,14 +370,19 @@ Milestone: 1.
 - **Inputs:** `minecraft:entity_position_sync` with a path, a rotation and an on-ground flag.
 - **Behavior:**
   1. The delta base becomes the end position of the path.
-  2. Let `D` be the distance from the current position to the end position.
-  3. When the entity is not in the ticking area (section 0.1), or `D` > 64 blocks, the client
-     snaps (CENTS-INTERP-003) to the end position and the rotation of the packet. A frozen tick
-     rate does not cause a snap: a frozen entity in the ticking area starts an interpolation,
-     and the interpolation moves when the entity ticks again.
-  4. Otherwise, the client starts an interpolation with the path and the rotation.
+  2. Let `D²` be the squared Euclidean distance in three axes from the current position to the
+     end position, as an `f64` value.
+  3. The client snaps (CENTS-INTERP-003) to the end position and the rotation of the packet
+     when the entity is not in the ticking area (section 0.1), or when `D²` > 4096. A
+     distance of exactly 64 blocks does not snap. A frozen tick rate does not cause a snap: a
+     frozen entity in the ticking area starts an interpolation, and the interpolation moves when
+     the entity ticks again.
+  4. Otherwise, the client starts an interpolation with the path and the rotation. For a
+     simulated entity, CENTS-SIM-003 or CENTS-SIM-004 replaces this item.
   5. The on-ground flag becomes the flag of the packet.
-- **Postconditions:** a position sync corrects the drift of the delta base.
+  6. The packet does not change the velocity.
+- **Postconditions:** a position sync corrects the drift of the delta base. Item 3 applies to
+  each non-local entity, living or simulated.
 
 Provenance: `source_suggested`; item 3 `source_suggested_black_box_confirmed` (in the
 `pig_walk` capture of `26.4-snapshot-7`, a position sync arrives while the world is frozen, and
@@ -359,23 +396,33 @@ Milestone: 1.
 - **Inputs:** the packet `minecraft:teleport_entity`: a position, a velocity, a yaw, a pitch, a
   set of relative axes and an on-ground flag.
 - **Behavior:**
-  1. The client computes the absolute values. A relative axis adds its value to the current value.
-  2. When the distance from the current position to the new position is more than 64 blocks,
-     the client snaps to the new values.
-  3. Otherwise, the client starts an interpolation with the new position and rotation.
-  4. The on-ground flag becomes the flag of the packet.
-- **Postconditions:** the teleport packet does not change the delta base.
+  1. The client computes the absolute values of the position, the velocity, the yaw and the
+     pitch. A relative axis adds its value to the current value.
+  2. Let `D²` be the squared distance from the current position to the new position, as in
+     CENTS-MOVE-003, item 2. When `D²` > 4096, the client sets the position, the yaw and the
+     pitch to the new values. On an absolute position axis, the previous position becomes the new
+     value. On a relative position axis, the previous position changes by the same amount as the
+     position. The previous yaw and pitch become the new values.
+  3. Otherwise, the client starts an interpolation with the new position and rotation. For a
+     simulated entity, CENTS-SIM-003 or CENTS-SIM-004 replaces this item.
+  4. In both cases, the velocity becomes the absolute velocity of item 1.
+  5. The on-ground flag becomes the flag of the packet.
+- **Postconditions:** the teleport packet does not change the delta base. A relative axis keeps
+  the movement between the previous and the current position, so a frame shows no jump on that
+  axis.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: teleport a pig
-by 2 blocks. The pig moves over 3 ticks.
+Provenance: `source_suggested`; item 2 for absolute axes `source_suggested_black_box_confirmed`
+by CENTS-E2 (section 19), with an item and an orb. Kind: semantic. Confidence:
+medium. Experiment: teleport a pig by 2 blocks. The pig moves over 3 ticks.
 Milestone: 1.
 
 ---
 
 ## 4. Interpolation
 
-The client does not move a non-local entity with its velocity. It moves the entity only along
-the interpolation.
+The client does not move a non-local living entity with its velocity. It moves the entity only
+along the interpolation of this section. CENTS-VEL-002 states how its velocity changes. A
+simulated entity does not use this section: section 16 states its movement.
 
 ### CENTS-INTERP-001: The path after a start
 
@@ -519,7 +566,7 @@ Milestone: 1.
   2. The client does one step of the interpolation (CENTS-INTERP-002). The step occurs in each
      tick, also when the interpolation is not active: then item 1 of CENTS-INTERP-002 empties
      the path. A path can keep a segment after `T` reaches 0, because `T`, `W` and `d` are
-     `f32` values.
+     `f32` values. After the step, the velocity changes as CENTS-VEL-002 states.
   3. The age increases by 1.
   4. When the hurt time is more than 0, it decreases by 1 (CENTS-HURT-001).
   5. When the entity is dying, the death time changes (CENTS-DEATH-002).
@@ -833,8 +880,13 @@ Milestone: 1.
 ### CENTS-FLAG-001: On ground
 
 - **Inputs:** the on-ground flag of a move packet, a position sync or a teleport.
-- **Behavior:** the on-ground flag becomes the value of the last packet. It is false when the
-  client adds the entity.
+- **Behavior:**
+  1. The on-ground flag becomes the value of the last packet. It is false when the client adds
+     the entity.
+  2. For a simulated entity, the move of the client step (CENTS-SIM-002) also sets the flag, as
+     `entity-physics.md`, PHY-FLG-001 and PHY-FLG-002, state. A move with a displacement of zero
+     length does not change the flag. Thus the flag of a packet stays until a later move of the
+     client step changes it.
 - **Postconditions:** the query `is_on_ground` is the on-ground flag.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: push a frog
@@ -906,7 +958,207 @@ Milestone: 2.
 
 ---
 
-## 15. Intentional deviations
+## 15. Velocity
+
+### CENTS-VEL-001: Packets that set the velocity
+
+- **Inputs:** `minecraft:add_entity`; `minecraft:set_entity_motion` with an entity id and a
+  velocity; `minecraft:teleport_entity`. The velocity of each packet is the decoded value, in
+  blocks for each tick.
+- **Behavior:**
+  1. `minecraft:add_entity` sets the velocity (CENTS-LIFE-001, item 10).
+  2. When the entity id of `minecraft:set_entity_motion` has no client entity, the client
+     ignores the packet.
+  3. When the id is the id of the local player, `entity-physics.md`, PHY-SRV-009, applies.
+  4. When the id is the id of another player, CENTS-VEL-003 applies.
+  5. For each other client entity, the velocity becomes the velocity of the packet at once. The
+     packet does not change the position, the rotation, the path or the interpolation.
+  6. `minecraft:teleport_entity` sets the velocity (CENTS-MOVE-004, item 4).
+  7. No other packet of this document changes the velocity.
+- **Postconditions:** the next step of a simulated entity (CENTS-SIM-002) starts from the new
+  velocity. The velocity of a living entity does not move it (section 4). A user of the library
+  reads the velocity of each non-local entity after each packet and each tick.
+
+Provenance: `source_suggested`; item 5 `source_suggested_black_box_confirmed` for an item by
+CENTS-E3 (section 19). Kind: semantic. Confidence: high.
+Milestone: later.
+
+### CENTS-VEL-002: Decay of the velocity of a living entity
+
+- **Inputs:** a non-local living entity that is not a player, in a tick of the entity; the
+  interpolation state after step 2 of CENTS-TICK-001.
+- **Behavior:**
+  1. When the interpolation is active (`T` > 0), the velocity does not change in this tick.
+  2. Otherwise, the velocity becomes `v × 0.98`, in `f64`, on each axis.
+  3. Then each axis of the velocity with an absolute value less than `0.003` becomes 0. The
+     test is separate for X, for Y and for Z.
+- **Postconditions:** the velocity never changes the position of the entity. After a
+  `set_entity_motion` while no interpolation is active, the velocity goes to zero: a value of
+  1 block for each tick becomes 0 after 288 ticks. Another player does not use this
+  rule.
+
+| Constant | Value |
+|----------|-------|
+| decay factor | `0.98` (`f64`) |
+| cutoff of one axis | `0.003` (strict: a value equal to the cutoff stays) |
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: CENTS-E5
+(section 19). Milestone: later.
+
+### CENTS-VEL-003: Velocity of another player
+
+- **Inputs:** `minecraft:set_entity_motion` for a player that is not the local player; the
+  velocity `u` of the packet.
+- **Behavior:**
+  1. The packet sets a target velocity `u` and a count `k` = 3. It does not change the velocity.
+  2. In each tick of the player while `k` > 0, the velocity `v` becomes `v + (u − v) / k`, in
+     `f64`, and `k` decreases by 1.
+  3. The velocity of another player has no decay and no cutoff.
+- **Postconditions:** with no other packet, the velocity is `u` after 3 ticks. A teleport sets
+  the velocity at once (CENTS-MOVE-004). The count that remains then continues to the target `u`.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: low. Experiment: CENTS-E7
+(section 19). Milestone: later.
+
+---
+
+## 16. Simulated entities
+
+The client moves a simulated entity with the step that the server uses for its type. Thus the
+client shows a smooth movement between two updates of the server. The server sends an update
+each 20 ticks for an item, a falling block and an orb, and each 10 ticks for a primed TNT
+(`entity-physics.md`, PHY-CMP-001). The server keeps the authority. A user of the library reads
+the predicted position after each tick.
+
+### CENTS-SIM-001: Tick of a simulated entity
+
+- **Inputs:** a simulated entity that ticks (section 0.1, "Ticking area").
+- **Behavior:** in each tick, the client does these steps in this order:
+  1. The previous position, yaw and pitch become the current values.
+  2. For an orb only, the client does one step of the orb interpolation (CENTS-SIM-004).
+  3. The age increases by 1 (CENTS-TIME-002).
+  4. The client does the step of the type (CENTS-SIM-002).
+- **Postconditions:** a simulated entity has no path, no head yaw, no body yaw, no walk
+  accumulator, no hurt time and no death time. CENTS-INTERP-001 to CENTS-INTERP-004 and
+  CENTS-TICK-001 do not apply to it. The frame position is the position of CENTS-FRAME-001.
+
+Provenance: `source_suggested_black_box_confirmed` by CENTS-E1 (section 19). Kind: semantic.
+Confidence: high. Milestone: later.
+
+### CENTS-SIM-002: Step of the type
+
+- **Inputs:** a simulated entity in step 4 of CENTS-SIM-001; its position, its velocity and its
+  on-ground flag on the client; the blocks and the fluids of the client world (CENTS-SIM-005).
+- **Behavior:** the client does the step of the server for the type, from the client values.
+  The table gives the differences. "Remove" means that the client removes the client entity as
+  CENTS-LIFE-002 does, with no packet.
+
+| Type | Steps that the client does | Steps of the server that the client does not do |
+|------|---------------------------|-------------------------------------------------|
+| item | `item-entity.md`, IEN-MOV-006: step 2 (remove the item when its stack is empty), the fluid update of step 3, the removal below the world of step 4 (IEN-MOV-004), and the move of step 6 with the row "item" of `entity-physics.md`, PHY-ORD-005 | the portal, the burn, the pickup delay, the push out of a solid block, the merge, the removal at the age 6000, the pickup, the damage of the block effects |
+| falling block | `falling-block.md`, FBK-TCK-001: step 1 (remove the falling block when its state is `air`), the gravity, the move and the block effects of step 3, and the drag `0.98F` of step 7 | the ground rule of the row "falling block" of PHY-ORD-005, the target cell, the landing, the drop, the time limits |
+| primed TNT | the row "primed TNT" of PHY-ORD-005, the ground rule included; then the fuse of `explosions.md`, EXP-TNT-001: the fuse decreases by 1, and when it is 0 or less the client removes the TNT | the explosion |
+| experience orb | `experience.md`, XP-ORB-001, steps 1 to 4, 6 and 8 to 10, with the removal below the world of the base tick of step 1; the attraction (XP-ATT-001, XP-ATT-002) to the players that the client knows | step 5 (the merge), step 7 (the push), the removal at the age 6000 of step 11 (section 18, U1), the pickup |
+
+  Additional rules:
+  1. The block effects of a move change only the movement on the client, for example the slow
+     movement in a cobweb. An effect that damages the entity or changes the world is on the
+     server only.
+  2. The block state of a falling block is the block state with the numeric id of the data
+     value of `minecraft:add_entity`. A data value with no block state gives `air`. Thus the
+     client removes such a falling block in its first tick.
+  3. The stack of an item and the fuse of a TNT are the values of the entity data
+     (CENTS-DATA-001). A later `minecraft:set_entity_data` replaces the fuse that the client
+     counts.
+  4. In its first tick after the add, an orb does not do the step of its type. Steps 1 to 3 of
+     CENTS-SIM-001 occur.
+  5. The lava step of an orb (XP-ORB-003) uses a random value that the client selects. Its
+     result can be different from the server.
+  6. A falling block that lands on the client stays, with drag only, until
+     `minecraft:remove_entities` arrives. The removal below the world does not apply to a
+     falling block or to a TNT.
+  7. The phase of the rest cycle of an item (PHY-ORD-005, "Item, rest") is unspecified on the
+     client. The stop of `entity-physics.md`, PHY-DEV-014, is unspecified on the client. Both
+     change the position of an item at rest by less than `1e-5` block in a tick.
+- **Postconditions:** between two updates, the client position of an entity that moves through
+  air is equal to the server position. Only the server removes an item at the age 6000, an orb
+  that a player takes, and a falling block that lands.
+
+Provenance: `source_suggested`; the move through air of the four types, item 4 and the removal of
+the TNT `source_suggested_black_box_confirmed` by CENTS-E1, the removal below the world by
+CENTS-E4 (section 19). Kind: semantic. Confidence: medium. Milestone: later.
+
+### CENTS-SIM-003: Position update of an item, a falling block and a primed TNT
+
+- **Inputs:** an item, a falling block or a primed TNT; a relative move (CENTS-MOVE-002), a
+  position sync that does not snap (CENTS-MOVE-003, item 4) or a teleport that does not snap
+  (CENTS-MOVE-004, item 3).
+- **Behavior:**
+  1. The position becomes the end position of the path, or the new position of the teleport.
+     The client uses only the end position of a stepped path.
+  2. When the packet has a rotation, the yaw and the pitch become the values of the packet.
+  3. The previous position, yaw and pitch do not change.
+  4. The client starts no interpolation.
+- **Postconditions:** the next tick steps from the new position. A frame before that tick
+  interpolates from the old previous position to the new position.
+
+Provenance: `source_suggested_black_box_confirmed` by CENTS-E1, CENTS-E2 and CENTS-E3 (section
+19). Kind: semantic. Confidence: high. Milestone: later.
+
+### CENTS-SIM-004: Interpolation of an orb
+
+- **Inputs:** an experience orb; its target point `Z` (a position, a yaw and a pitch); its count
+  `r` of interpolation steps, an integer that is 0 after the add; its last point `A`. The
+  interpolation is active while `r` > 0.
+- **Behavior:**
+  1. A start occurs for a relative move (CENTS-MOVE-002), a position sync that does not snap
+     (CENTS-MOVE-003, item 4) and a teleport that does not snap (CENTS-MOVE-004, item 3).
+  2. At a start, the reference point is `Z` when the interpolation is active. Otherwise, it is
+     the current position, yaw and pitch. A missing path gives the position of the reference
+     point. A missing rotation gives the yaw and the pitch of the reference point.
+  3. When the interpolation is active and `Z` is equal to the new position, yaw and pitch, the
+     start changes nothing.
+  4. Otherwise, `Z` becomes the new position, yaw and pitch, `r` becomes 3, and `A` becomes the
+     current position, yaw and pitch.
+  5. In step 2 of each tick (CENTS-SIM-001) while `r` > 0:
+     1. `Z` moves by the change of the position and the rotation since `A`, as
+        CENTS-INTERP-004 states for `Z`. The point `A` and the path of that rule do not apply.
+     2. Let `a = 1 / r`, in `f64`. The position becomes `lerp(a, position, position of Z)`. The
+        yaw becomes `alerp(a, yaw, yaw of Z)`. The pitch becomes `lerp(a, pitch, pitch of Z)`.
+     3. `r` decreases by 1. `A` becomes the current position, yaw and pitch.
+  6. A snap (CENTS-MOVE-003, CENTS-MOVE-004) does not change `r` or `Z`.
+- **Postconditions:** with no velocity, an orb reaches `Z` at the end of the third tick, at
+  `1/3`, `2/3` and all of the distance. The step of the type also moves the orb in each tick,
+  and item 5.1 moves `Z` by that movement. A start with no change of position, for example the
+  first relative move after the add, gives an interpolation of 3 ticks that does not move the
+  orb.
+
+| Constant | Value |
+|----------|-------|
+| interpolation steps | 3 |
+| threshold of item 5.1 | `|Δ|²` > `1e-5` (CENTS-INTERP-004) |
+
+Provenance: `source_suggested_black_box_confirmed` by CENTS-E1 and CENTS-E2 (section 19). Kind:
+semantic. Confidence: high. Milestone: later.
+
+### CENTS-SIM-005: Absent chunk data
+
+- **Inputs:** a simulated entity; the loaded chunks of the client.
+- **Behavior:**
+  1. When the chunk that contains the position of the entity is not loaded, the entity does not
+     tick (section 0.1). Its position, velocity and age do not change. The packets of sections 3
+     and 15 still apply. A position sync snaps (CENTS-MOVE-003, item 3).
+  2. When the entity ticks, the step reads each block of a chunk that is not loaded as `air`:
+     no collision shape, no fluid, and the friction `0.6`.
+- **Postconditions:** an entity near the edge of the loaded chunks can move into a place where
+  the server has a block. The next update of the server corrects the position.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: CENTS-E6
+(section 19). Milestone: later.
+
+---
+
+## 17. Intentional deviations
 
 ### CENTS-DEV-001: Collision test of a moved path
 
@@ -916,3 +1168,128 @@ is visible only when a snap during a path puts the entity into a block.
 
 Provenance: `design`. Reason: the block collision shapes are not part of milestones 1 and 2.
 Milestone: 1.
+
+---
+
+## 18. Unresolved
+
+**U1. The removal of an orb at the client age 6000.** The vanilla client removes an orb when the
+age of its own step reaches 6000. That age counts only the ticks of the client since the add. The
+server removes the orb at its own age 6000 and sends `minecraft:remove_entities`. When the client
+ticks an orb that the server keeps, for example an orb that the server does not tick, the player
+sees the orb disappear. The orb comes back only when the server adds it again. Question to the
+owner: is this a defect? Until the owner decides, CENTS-SIM-002 states that the client does not
+remove an orb by its age. Only `minecraft:remove_entities` and the removal below the world remove
+it. CENTS-E4 shows the vanilla behaviour.
+
+---
+
+## 19. Experiments
+
+Each experiment uses the harness of section 0.2 with a scene of `tools/scenes/` in the format of
+`pig_idle.json`: a flat world and the scene commands below. The command
+is `./gradlew :client-capture:captureClientFrames -PoracleOut=<directory> -Pscene=<name>` in
+`tools/vanilla-oracle/`.
+
+### CENTS-E1: Step through air of the four types (run)
+
+Steps:
+
+1. `tp Capture 24.5 -50 24.5`, then `gamerule minecraft:tnt_explodes false`.
+2. `summon minecraft:item 4.5 -50 4.5 {Item:{id:"minecraft:stone",count:1},Motion:[0.2d,0.3d,0.1d],PickupDelay:32767}`.
+3. `summon minecraft:falling_block 8.5 -45 4.5 {BlockState:"minecraft:sand",Time:1}`.
+4. `summon minecraft:tnt 4.5 -50 8.5 {fuse:60,Motion:[0.1d,0.4d,0.0d]}`.
+5. `summon minecraft:experience_orb 8.5 -50 8.5 {Value:3,Motion:[0.0d,0.2d,0.1d]}`.
+6. Wait 120 ticks. Replay the packets with CENTS-SIM-001 to CENTS-SIM-004, and compare each
+   position with the entity rows.
+
+Results with `26.4-snapshot-7`:
+
+- Each row before the landing matches the replay with an error of exactly 0: 30 rows of the
+  item, 28 of the falling block, 33 of the TNT and 33 of the orb.
+- A replay without item 4 of CENTS-SIM-002 (the first tick of the orb) gives an error of
+  0.137 block. A replay without item 5.1 of CENTS-SIM-004 also gives errors.
+- The falling block reaches the floor at `y` −60 in update 70. It stays until
+  `minecraft:remove_entities` arrives before update 71.
+- The fuse value 1 of the TNT arrives before update 100. The client removes the TNT in update
+  100. `minecraft:remove_entities` for the TNT arrives after update 100. No explosion occurs on
+  the client.
+
+### CENTS-E2: Teleport of an item and an orb (run)
+
+Steps:
+
+1. `tp Capture 40.5 -50 24.5`.
+2. Summon an item and an orb with `NoGravity:1b` at `4.5 -55 4.5` and `4.5 -55 8.5`.
+3. Teleport both with `/tp` by 10 blocks on X, then by 70 blocks on X. Each `/tp` sends
+   `minecraft:teleport_entity`.
+
+Results with `26.4-snapshot-7`:
+
+- At 10 blocks, the item has the new position in the next row. The orb has X 7.833, 11.167 and
+  14.5 in the next three rows.
+- At 70 blocks (`D²` = 4900), both snap: the position and the previous position are 84.5.
+- The first move of zero length after the add starts an interpolation of 3 ticks of the orb.
+
+### CENTS-E3: Velocity of an item (run)
+
+Steps:
+
+1. `tp Capture 24.5 -50 24.5`.
+2. `summon minecraft:item 4.5 -55 4.5 {Item:{id:"minecraft:stone",count:1},NoGravity:1b,PickupDelay:32767}`.
+3. Wait 20 ticks, then `data merge entity @e[type=minecraft:item,limit=1] {Motion:[0.0d,0.0d,0.3d]}`.
+4. Wait 40 ticks.
+
+Results with `26.4-snapshot-7`:
+
+- Before update 32, `minecraft:set_entity_motion` with Z velocity `0.2940243` and a relative
+  move to Z `4.8000488` arrive.
+- The rows give Z `5.0940731`, `5.3822169`, `5.6645979`: each tick adds the velocity, then
+  multiplies the velocity by `0.98F`.
+- Before update 52, a velocity and a move to Z `9.6862793` arrive. The next row is Z
+  `9.8825803`, which is `9.6862793 + 0.1963010`.
+
+### CENTS-E4: Orb age and removal below the world (run)
+
+Steps:
+
+1. `tp Capture 24.5 -50 24.5`, then `fill 8 -64 20 9 -61 20 minecraft:air` (a hole through the
+   floor of the world).
+2. `summon minecraft:experience_orb 4.5 -60 4.5 {Value:3,Age:-10000s}`. The server keeps this
+   orb for 16000 ticks.
+3. Summon an item at `8.5 -58 20.5` with `PickupDelay:32767`, and an orb at `9.5 -58 20.5`. Both
+   fall through the hole.
+4. Wait 6150 ticks.
+
+Results with `26.4-snapshot-7`:
+
+- The item has its last row in update 83, at `y` −128.43. The orb of step 3 has its last row in
+  update 98, at `y` −128.92. The client removes each one in the next update.
+  `minecraft:remove_entities` for each one arrives after that update.
+- The orb of step 2 has its last row in update 6011, with the age 6000. Then the client removes
+  it. The server sends no `minecraft:remove_entities` for it. This is the vanilla behaviour of
+  section 18, U1.
+
+### CENTS-E5: Decay of the velocity of a living entity (not run)
+
+Steps: summon a pig with `NoAI:1b` in the air with `NoGravity:1b`. Set its `Motion` to
+`[0.0d,0.0d,0.5d]` with `data merge`. Record the client velocity in each tick. Expected result:
+the velocity is multiplied by 0.98 in each tick with no interpolation, and an axis below 0.003
+becomes 0 (CENTS-VEL-002). Reason not run: the entity rows of the harness have no velocity. The
+harness needs a key `velocity` in a row.
+
+### CENTS-E6: Absent chunk data (not run)
+
+Steps: put an item on a floor at the edge of the loaded chunks of the client, with a velocity
+toward a chunk that the client has not loaded and the server has. Record the rows. Expected
+result: the item falls in the chunk that is not loaded, and the next update corrects it
+(CENTS-SIM-005). Reason not run: the server tracks an item only up to a distance that is less
+than the render distance of the scene. The harness has no step that unloads a chunk on the
+client only.
+
+### CENTS-E7: Velocity of another player (not run)
+
+Steps: connect a second client. Give the second player a knockback. Record the velocity of that
+player on the first client in each tick. Expected result: the velocity reaches the value of the
+packet in 3 ticks (CENTS-VEL-003). Reason not run: the harness has one client and no velocity in
+a row.
