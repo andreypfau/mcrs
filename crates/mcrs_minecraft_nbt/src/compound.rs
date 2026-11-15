@@ -79,6 +79,36 @@ impl NbtCompound {
         })
     }
 
+    /// Merges `source` into this compound: two compound values merge, any other value of
+    /// `source` replaces the value here by a copy. The other keys stay.
+    pub fn merge(&mut self, source: &NbtCompound) {
+        let mut pending: Vec<(&mut NbtCompound, &NbtCompound)> = vec![(self, source)];
+        while let Some((target, source)) = pending.pop() {
+            for (key, value) in &source.child_tags {
+                let existing = target
+                    .child_tags
+                    .iter_mut()
+                    .find(|(existing_key, _)| existing_key == key);
+                let copy = match value {
+                    NbtTag::Compound(_) => NbtTag::Compound(NbtCompound::new()),
+                    _ => value.clone(),
+                };
+                match existing {
+                    Some((_, NbtTag::Compound(_))) if matches!(value, NbtTag::Compound(_)) => {}
+                    Some((_, existing)) => *existing = copy,
+                    None => target.child_tags.push((key.clone(), copy)),
+                }
+            }
+            for (key, value) in target.child_tags.iter_mut() {
+                if let NbtTag::Compound(target_value) = value
+                    && let Some(NbtTag::Compound(source_value)) = source.get(key)
+                {
+                    pending.push((target_value, source_value));
+                }
+            }
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         self.child_tags.is_empty()
     }

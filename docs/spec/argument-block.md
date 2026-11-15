@@ -408,7 +408,9 @@ Send `execute if block P #minecraft:logs[axis=up]`. The reply is
     - if `e` is empty, `a` is empty;
     - otherwise `a` has at least as many elements as `e`, and each element of `e` matches at
       least one element of `a`. Two elements of `e` can match the same element of `a`.
-  - Otherwise `e` equals `a`. Arrays compare element by element, with equal length.
+  - Otherwise `e` equals `a`. Arrays compare element by element, with equal length. Two floats,
+    or two doubles, are equal when they have the same value, with two exceptions. Each NaN is
+    equal to each NaN, and the bits of a NaN do not matter. `0.0` is not equal to `-0.0`.
 - **Edge cases:**
   - `{}` passes for each block entity, and fails where no block entity exists.
   - A list `[x, x]` in `e` fails against a list in `a` with one element `x`, because of the

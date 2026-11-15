@@ -36,6 +36,11 @@ fn numbers_compare_by_tag_kind_and_bit_pattern() {
         (NbtTag::Float(0.0), NbtTag::Float(-0.0), Expected::Unequal),
         (NbtTag::Double(0.0), NbtTag::Double(-0.0), Expected::Unequal),
         (NbtTag::Float(1.0), NbtTag::Double(1.0), Expected::Unequal),
+        (
+            NbtTag::Float(quiet_float),
+            NbtTag::Double(quiet_double),
+            Expected::Unequal,
+        ),
         (NbtTag::Int(1), NbtTag::Byte(1), Expected::Unequal),
     ];
     let hasher = RandomState::new();

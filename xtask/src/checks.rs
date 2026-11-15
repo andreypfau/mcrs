@@ -47,7 +47,7 @@ const NO_STD_PACKAGES: [&str; 16] = [
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 132] = [
+const NO_BEVY_PACKAGES: [&str; 133] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -131,6 +131,7 @@ const NO_BEVY_PACKAGES: [&str; 132] = [
     "mcrs_minecraft_move_predict",
     "mcrs_minecraft_move_validate",
     "mcrs_minecraft_nbt",
+    "mcrs_minecraft_nbt_path",
     "mcrs_minecraft_network",
     "mcrs_minecraft_noise",
     "mcrs_minecraft_pack_file",
