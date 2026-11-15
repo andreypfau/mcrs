@@ -7,7 +7,7 @@ use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 use mcrs_minecraft_loot::loot::LootTable;
 use mcrs_minecraft_loot_condition::{
     Condition, ConditionBaker, ConditionFile, ContextParams, DynamicName, FloatProvider,
-    FloatProviderFile, IntProvider, IntProviderFile, NamedProviders,
+    FloatProviderFile, IntProvider, IntProviderFile, NamedEntries,
 };
 use mcrs_minecraft_registries::{Registries, Registry};
 use mcrs_minecraft_resource::{Id, Registered, ResourceLocation, ResourceLocationBuf, TagKey};
@@ -26,7 +26,7 @@ use crate::table_links::{self, ChainPlace, Edge, TableLinks};
 pub(crate) fn bake(
     definitions: &BlockDefinitions,
     registries: &Registries,
-    providers: &NamedProviders,
+    entries: &NamedEntries,
     issues: &mut Vec<LootIssue>,
 ) -> Vec<Table> {
     let files = registries.registry::<LootTableFile>();
@@ -43,7 +43,7 @@ pub(crate) fn bake(
         let mut baker = Baker {
             registries,
             files,
-            conditions: ConditionBaker::new(definitions, registries, providers),
+            conditions: ConditionBaker::new(definitions, registries, entries),
             key_set: file.key_set,
             owner: id.index(),
             problems: Vec::new(),

@@ -146,7 +146,6 @@ impl Serialize for BlockPredicate<Named> {
 impl<'de> Deserialize<'de> for BlockPredicate<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
         struct Repr {
             #[serde(default)]
             blocks: Option<<Named as Refs>::Set<Block>>,
@@ -206,7 +205,6 @@ impl Serialize for ItemPredicate<Named> {
 impl<'de> Deserialize<'de> for ItemPredicate<Named> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
         struct Repr {
             #[serde(default)]
             items: Option<<Named as Refs>::Set<Item>>,
@@ -467,7 +465,7 @@ named_record_codec! {
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct DamagePredicate {
     #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub durability: MinMaxBounds<i32>,
@@ -482,7 +480,7 @@ pub struct EnchantmentsPredicate<M: Refs = Resolved>(pub Vec<EnchantmentPredicat
 
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct EnchantmentPredicate<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enchantments: Option<M::Set<Enchantment>>,
@@ -492,7 +490,7 @@ pub struct EnchantmentPredicate<M: Refs = Resolved> {
 
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct PotionsPredicate<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub potions: Option<M::Set<Potion>>,
@@ -546,7 +544,7 @@ impl<'de> Deserialize<'de> for MobEffectsPredicate<Named> {
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct MobEffectInstancePredicate {
     #[serde(default, skip_serializing_if = "MinMaxBounds::is_any")]
     pub amplifier: MinMaxBounds<i32>,
@@ -565,7 +563,6 @@ pub struct MobEffectInstancePredicate {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(
     remote = "Self",
-    deny_unknown_fields,
     bound(serialize = "P: Serialize", deserialize = "P: Deserialize<'de>")
 )]
 pub struct CollectionPredicate<P> {
@@ -610,7 +607,6 @@ impl<P: Resolve> Resolve for CollectionPredicate<P> {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(
     remote = "Self",
-    deny_unknown_fields,
     bound(serialize = "P: Serialize", deserialize = "P: Deserialize<'de>")
 )]
 pub struct CountedPredicate<P> {
@@ -638,14 +634,14 @@ impl<P: Resolve> Resolve for CountedPredicate<P> {
 
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct ContainerPredicate<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub items: Option<CollectionPredicate<ItemPredicate<M>>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct FireworkPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shape: Option<FireworkShape>,
@@ -656,7 +652,7 @@ pub struct FireworkPredicate {
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct FireworksPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub explosions: Option<CollectionPredicate<FireworkPredicate>>,
@@ -665,7 +661,7 @@ pub struct FireworksPredicate {
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct WritableBookPredicate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pages: Option<CollectionPredicate<String>>,
@@ -673,7 +669,7 @@ pub struct WritableBookPredicate {
 
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct WrittenBookPredicate<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pages: Option<CollectionPredicate<Text<M>>>,
@@ -689,7 +685,7 @@ pub struct WrittenBookPredicate<M: Refs = Resolved> {
 
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct AttributeModifiersPredicate<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub modifiers: Option<CollectionPredicate<AttributeModifierPredicate<M>>>,
@@ -697,7 +693,7 @@ pub struct AttributeModifiersPredicate<M: Refs = Resolved> {
 
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct AttributeModifierPredicate<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attribute: Option<M::Set<Attribute>>,
@@ -713,7 +709,7 @@ pub struct AttributeModifierPredicate<M: Refs = Resolved> {
 
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct TrimPredicate<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub material: Option<M::Set<TrimMaterial>>,
@@ -723,7 +719,7 @@ pub struct TrimPredicate<M: Refs = Resolved> {
 
 #[registry_value]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(remote = "Self", deny_unknown_fields)]
+#[serde(remote = "Self")]
 pub struct JukeboxPlayablePredicate<M: Refs = Resolved> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub song: Option<M::Set<JukeboxSong>>,

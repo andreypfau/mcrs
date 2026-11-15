@@ -90,7 +90,6 @@ fn predicate_errors_read_like_vanilla() {
             "{\"predicates\":{\"minecraft:max_stack_size\":\"junk\"}}",
             "invalid type: string \"junk\", expected a map",
         ),
-        ("{\"foo\":1}", "unknown field `foo`"),
         (
             "{\"state\":{\"lit\":\"true\",\"lit\":\"false\"}}",
             "Duplicate key 'lit'",
@@ -118,10 +117,6 @@ fn predicate_errors_read_like_vanilla() {
         (
             "{\"predicates\":{\"minecraft:damage\":{\"durability\":{\"min\":\"x\"}}}}",
             "invalid type: string \"x\", expected a number",
-        ),
-        (
-            "{\"predicates\":{\"minecraft:damage\":{\"foo\":1}}}",
-            "unknown field `foo`, expected `durability` or `damage`",
         ),
         (
             "{\"predicates\":{\"minecraft:enchantments\":{}}}",
@@ -314,6 +309,31 @@ fn a_predicate_key_reads_with_or_without_its_namespace() {
         from_json(DataComponentType::CanBreak, &input)
     };
     assert_eq!(read("damage"), read("minecraft:damage"));
+}
+
+#[test]
+fn an_unknown_field_of_a_predicate_is_ignored() {
+    for (with_field, without) in [
+        ("{\"foo\":1}", "{}"),
+        (
+            "[{\"blocks\":\"minecraft:stone\",\"foo\":1}]",
+            "{\"blocks\":\"minecraft:stone\"}",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:damage\":{\"durability\":{\"min\":1},\"foo\":1}}}",
+            "{\"predicates\":{\"minecraft:damage\":{\"durability\":{\"min\":1}}}}",
+        ),
+        (
+            "{\"predicates\":{\"minecraft:enchantments\":[{\"enchantments\":\"minecraft:sharpness\",\"foo\":1}]}}",
+            "{\"predicates\":{\"minecraft:enchantments\":[{\"enchantments\":\"minecraft:sharpness\"}]}}",
+        ),
+    ] {
+        assert_eq!(
+            from_json(DataComponentType::CanBreak, with_field),
+            from_json(DataComponentType::CanBreak, without),
+            "{with_field}"
+        );
+    }
 }
 
 #[test]

@@ -1,23 +1,35 @@
 use std::sync::LazyLock;
 
-use mcrs_minecraft_engine_registries::test_corpus;
+use mcrs_minecraft_engine_registries::{test_corpus, test_item_table};
 use mcrs_minecraft_game_registries::registry_load::{
     load_registries, test_additions, test_packs, test_registries,
 };
 use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 use mcrs_minecraft_loot_condition::{
     ConditionBaker, ConditionProblem, ContextParam, FloatProvider, FloatProviderFile, IntProvider,
-    IntProviderFile, LootContext, NamedProviders, ProviderIssue, bounded,
+    IntProviderFile, LootContext, LootInputs, MemberKind, NamedEntries, NamedIssue, bounded,
 };
-use mcrs_minecraft_predicate::NoWorld;
+use mcrs_minecraft_predicate::{NoWorld, PredicateScratch};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_registries::Registries;
 
 const SEED: u64 = 42;
 
-static VANILLA: LazyLock<NamedProviders> =
-    LazyLock::new(|| NamedProviders::bake(&test_corpus().0.0, test_registries()).0);
+pub static VANILLA: LazyLock<NamedEntries> = LazyLock::new(|| {
+    NamedEntries::bake(&test_corpus().0.0, test_registries(), test_item_table()).0
+});
+
+pub fn inputs<'i, 'c>(
+    named: &'i NamedEntries,
+    context: &'i LootContext<'c, ()>,
+) -> LootInputs<'i, 'c, (), NoWorld> {
+    LootInputs {
+        named,
+        context,
+        world: &NoWorld,
+    }
+}
 
 fn fresh() -> XoroshiroRandom {
     XoroshiroRandom::new(SEED)
@@ -29,7 +41,7 @@ fn empty_context() -> LootContext<'static, ()> {
 
 fn bake<T>(
     registries: &Registries,
-    providers: &NamedProviders,
+    providers: &NamedEntries,
     json: &str,
     bake: impl FnOnce(&mut ConditionBaker, &str) -> T,
 ) -> (T, Vec<ConditionProblem>) {
@@ -56,11 +68,19 @@ fn float(json: &str) -> FloatProvider {
 }
 
 fn read_int(json: &str, context: &LootContext<'_, ()>, random: &mut XoroshiroRandom) -> i32 {
-    int(json).read(&VANILLA, context, &NoWorld, random)
+    int(json).read(
+        inputs(&VANILLA, context),
+        random,
+        &mut PredicateScratch::default(),
+    )
 }
 
 fn read_float(json: &str, context: &LootContext<'_, ()>, random: &mut XoroshiroRandom) -> f32 {
-    float(json).read(&VANILLA, context, &NoWorld, random)
+    float(json).read(
+        inputs(&VANILLA, context),
+        random,
+        &mut PredicateScratch::default(),
+    )
 }
 
 const PASSES: &str = r#"{"type": "minecraft:survives_explosion"}"#;
@@ -396,14 +416,18 @@ fn reg_fld_722_the_decode_is_strict() {
 
 fn int_problems(
     registries: &Registries,
-    providers: &NamedProviders,
+    providers: &NamedEntries,
     json: &str,
 ) -> Vec<ConditionProblem> {
     let (provider, problems) = bake(registries, providers, json, |baker, json| {
         baker.int_provider(&serde_json::from_str(json).expect("an int provider"))
     });
     assert_eq!(
-        provider.read(providers, &empty_context(), &NoWorld, &mut fresh()),
+        provider.read(
+            inputs(providers, &empty_context()),
+            &mut fresh(),
+            &mut PredicateScratch::default()
+        ),
         0
     );
     problems
@@ -425,15 +449,18 @@ fn loot_ctx_017_a_chain_has_at_most_64_members() {
     });
     assert_eq!(problems, []);
     let problems = int_problems(test_registries(), &VANILLA, &nested(64));
-    let [ConditionProblem::ProviderChainTooLong(path)] = problems.as_slice() else {
+    let [ConditionProblem::ChainTooLong(path)] = problems.as_slice() else {
         panic!("{problems:?}");
     };
     assert_eq!(path.split(" > ").count(), 64, "{path}");
 }
 
 /// The test registries with the int providers `t:a` and `t:b` that name each other, `t:one`, and
-/// `t:d/0` to `t:d/13`, where each `t:d/n` adds `t:d/n+1` to itself.
-static PACK: LazyLock<(Registries, NamedProviders, Vec<ProviderIssue>)> = LazyLock::new(|| {
+/// `t:d/0` to `t:d/13`, where each `t:d/n` adds `t:d/n+1` to itself; the predicates `t:x` and
+/// `t:y` that name each other; the int provider `t:c` and the predicate `t:p` that name each
+/// other; and the predicates `t:chain64/0` to `t:chain64/63`, `t:chain65/0` to `t:chain65/64`
+/// and `t:chain66/0` to `t:chain66/65`, where each names the next.
+static PACK: LazyLock<(Registries, NamedEntries, Vec<NamedIssue>)> = LazyLock::new(|| {
     let mut additions = test_additions();
     let mut files = vec![
         (
@@ -446,6 +473,10 @@ static PACK: LazyLock<(Registries, NamedProviders, Vec<ProviderIssue>)> = LazyLo
         ),
         ("one".to_owned(), "1".to_owned()),
         ("d/13".to_owned(), "1".to_owned()),
+        (
+            "c".to_owned(),
+            r#"{"type": "minecraft:conditional", "condition": "t:p", "on_true": 1}"#.to_owned(),
+        ),
     ];
     for level in 0..13 {
         let next = level + 1;
@@ -459,26 +490,81 @@ static PACK: LazyLock<(Registries, NamedProviders, Vec<ProviderIssue>)> = LazyLo
             text,
         );
     }
+    let mut predicates = vec![
+        (
+            "x".to_owned(),
+            r#"{"type": "minecraft:inverted", "term": "t:y"}"#.to_owned(),
+        ),
+        (
+            "y".to_owned(),
+            r#"{"type": "minecraft:inverted", "term": "t:x"}"#.to_owned(),
+        ),
+        (
+            "p".to_owned(),
+            r#"{"type": "minecraft:int_value_check", "value": "t:c", "test": 0}"#.to_owned(),
+        ),
+    ];
+    for (chain, length) in [("chain64", 64), ("chain65", 65), ("chain66", 66)] {
+        for member in 0..length {
+            let next = member + 1;
+            let text = match next == length {
+                true => r#"{"type": "minecraft:survives_explosion"}"#.to_owned(),
+                false => format!(r#"{{"type": "minecraft:inverted", "term": "t:{chain}/{next}"}}"#),
+            };
+            predicates.push((format!("{chain}/{member}"), text));
+        }
+    }
+    for (name, text) in predicates {
+        additions
+            .files
+            .insert("pack", format!("data/t/predicate/{name}.json"), text);
+    }
     additions.embedded_packs.push("pack".to_owned());
     let registries = load_registries(&test_packs(), additions)
         .expect("the pack loads")
         .0;
-    let (providers, issues) = NamedProviders::bake(&test_corpus().0.0, &registries);
+    let (providers, issues) =
+        NamedEntries::bake(&test_corpus().0.0, &registries, test_item_table());
     (registries, providers, issues)
 });
 
-/// LOOT-CTX-014, LOOT-CTX-016: a named provider that refers back to itself is a fault of the load
-/// even when no part names it, and an unknown key and an empty `inputs` are faults of the bake
-/// with their paths.
+/// LOOT-CTX-014, LOOT-CTX-016: a named provider or predicate that refers back to itself, also
+/// through an entry of the other kind, is a fault of the load even when no part names it, and an
+/// unknown key and an empty `inputs` are faults of the bake with their paths.
 #[test]
 fn loot_ctx_014_a_cycle_and_a_missing_key_are_faults() {
     let (registries, providers, issues) = &*PACK;
-    let found: Vec<(&str, &ConditionProblem)> = issues
+    let mut found: Vec<(&str, MemberKind, &ConditionProblem)> = issues
         .iter()
-        .map(|issue| (issue.provider.as_str(), &issue.problem))
+        .filter(|issue| !issue.entry.as_str().starts_with("t:chain"))
+        .map(|issue| (issue.entry.as_str(), issue.kind, &issue.problem))
         .collect();
-    let cycle = ConditionProblem::ProviderCycle("t:a > t:b > t:a".to_owned());
-    assert_eq!(found, [("t:b", &cycle)]);
+    found.sort_by_key(|(entry, ..)| *entry);
+    let cycle = |path: &str| ConditionProblem::Cycle(path.to_owned());
+    assert_eq!(
+        found,
+        [
+            ("t:a", MemberKind::IntProvider, &cycle("t:a > t:b > t:a")),
+            ("t:b", MemberKind::IntProvider, &cycle("t:b > t:a > t:b")),
+            ("t:c", MemberKind::IntProvider, &cycle("t:c > t:p > t:c")),
+            ("t:p", MemberKind::Predicate, &cycle("t:p > t:c > t:p")),
+            ("t:x", MemberKind::Predicate, &cycle("t:x > t:y > t:x")),
+            ("t:y", MemberKind::Predicate, &cycle("t:y > t:x > t:y")),
+        ]
+    );
+    for key in ["t:x", "t:y"] {
+        let json = format!(r#""{key}""#);
+        let (condition, _) = bake(registries, providers, &json, |baker, json| {
+            baker.condition(&serde_json::from_str(json).expect("a condition"))
+        });
+        let context = empty_context();
+        let passed = condition.test(
+            inputs(providers, &context),
+            &mut fresh(),
+            &mut PredicateScratch::default(),
+        );
+        assert!(!passed, "{key}");
+    }
     let cases: [(&str, ConditionProblem); 2] = [
         (
             r#""t:missing""#,
@@ -496,6 +582,30 @@ fn loot_ctx_014_a_cycle_and_a_missing_key_are_faults() {
             "{json}"
         );
     }
+}
+
+/// LOOT-CTX-017: a chain of 64 predicates that name each other bakes. In a chain of 65 the head
+/// starts a chain that is too long, and in a chain of 66 the head and the entry after it do.
+#[test]
+fn loot_ctx_017_a_chain_of_predicates_has_at_most_64_members() {
+    let (_, _, issues) = &*PACK;
+    let mut found: Vec<(&str, MemberKind, bool)> = issues
+        .iter()
+        .filter(|issue| issue.entry.as_str().starts_with("t:chain"))
+        .map(|issue| {
+            let chain = matches!(issue.problem, ConditionProblem::ChainTooLong(_));
+            (issue.entry.as_str(), issue.kind, chain)
+        })
+        .collect();
+    found.sort_by_key(|(entry, ..)| *entry);
+    assert_eq!(
+        found,
+        [
+            ("t:chain65/0", MemberKind::Predicate, true),
+            ("t:chain66/0", MemberKind::Predicate, true),
+            ("t:chain66/1", MemberKind::Predicate, true),
+        ]
+    );
 }
 
 /// LOOT-CTX-017: a key of a named provider refers to its one baked entry, so that a provider that
@@ -516,14 +626,20 @@ fn loot_ctx_017_a_key_refers_to_one_baked_entry() {
             baker.int_provider(&serde_json::from_str(json).expect("an int provider"))
         });
         assert_eq!(problems, [], "{json}");
-        let read = provider.read(providers, &empty_context(), &NoWorld, &mut fresh());
+        let context = empty_context();
+        let read = provider.read(
+            inputs(providers, &context),
+            &mut fresh(),
+            &mut PredicateScratch::default(),
+        );
         assert_eq!(read, value, "{json}");
     }
 }
 
-/// REG-FLD-722, REG-FLD-723: each provider of the vanilla data pack bakes without a problem.
+/// REG-FLD-722, REG-FLD-723, LOOT-CTX-016: each provider and each predicate of the vanilla data
+/// pack bakes without a problem.
 #[test]
-fn reg_fld_722_the_vanilla_providers_bake() {
+fn reg_fld_722_the_vanilla_named_entries_bake() {
     let registries = test_registries();
     assert!(
         registries
@@ -535,7 +651,8 @@ fn reg_fld_722_the_vanilla_providers_bake() {
             .registry::<FloatProviderFile>()
             .is_some_and(|floats| !floats.is_empty())
     );
-    assert_eq!(NamedProviders::bake(&test_corpus().0.0, registries).1, []);
+    let issues = NamedEntries::bake(&test_corpus().0.0, registries, test_item_table()).1;
+    assert_eq!(issues, []);
 }
 
 /// LOOT-NUM-009, LOOT-NUM-010, LOOT-NUM-001: a `uniform` takes its draw only for `min < max`,

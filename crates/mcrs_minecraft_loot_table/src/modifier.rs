@@ -8,6 +8,7 @@ use mcrs_minecraft_loot_condition::{
     Condition, ContextParam, ContextParams, FloatProvider, IntProvider, LootWorld, Tool, between,
     binomial, bounded,
 };
+use mcrs_minecraft_predicate::PredicateScratch;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_resource::Id;
 
@@ -118,19 +119,19 @@ impl ModifierOp {
 
 impl Modifier {
     /// Applies the modifier to `stack` with the draws of its rule (LOOT-MOD-009, LOOT-MOD-012).
-    pub(crate) fn apply<E, W: LootWorld<E>, R: Random>(
+    pub(crate) fn apply<E: Copy, W: LootWorld<E>, R: Random>(
         &self,
         stack: &mut WorkStack,
         evaluation: &Evaluation<'_, '_, E, W>,
         random: &mut R,
+        scratch: &mut PredicateScratch,
     ) {
-        let providers = evaluation.providers;
+        let inputs = evaluation.inputs();
         let context = evaluation.context;
-        let world = evaluation.world;
         if self
             .condition
             .as_ref()
-            .is_some_and(|condition| !condition.test(providers, context, world, random))
+            .is_some_and(|condition| !condition.test(inputs, random, scratch))
         {
             return;
         }
@@ -138,7 +139,7 @@ impl Modifier {
         match &self.op {
             ModifierOp::Unresolved | ModifierOp::Pending | ModifierOp::EnchantedCountIncrease => {}
             ModifierOp::SetCount { count: value, add } => {
-                let value = value.read(providers, context, world, random);
+                let value = value.read(inputs, random, scratch);
                 stack.count = if *add {
                     count.saturating_add(value)
                 } else {
@@ -154,12 +155,8 @@ impl Modifier {
                 }
             }
             ModifierOp::Limit { min, max } => {
-                let floor = min
-                    .as_ref()
-                    .map(|min| min.read(providers, context, world, random));
-                let ceiling = max
-                    .as_ref()
-                    .map(|max| max.read(providers, context, world, random));
+                let floor = min.as_ref().map(|min| min.read(inputs, random, scratch));
+                let ceiling = max.as_ref().map(|max| max.read(inputs, random, scratch));
                 stack.count = match (floor, ceiling) {
                     (None, None) => count,
                     (None, Some(ceiling)) => count.min(ceiling),
@@ -181,7 +178,7 @@ impl Modifier {
                 }
             }
             ModifierOp::SetDamage { damage, add } => {
-                set_damage(stack, damage, *add, evaluation, random)
+                set_damage(stack, damage, *add, evaluation, random, scratch)
             }
             ModifierOp::EnchantRandomly {
                 options,
@@ -194,11 +191,11 @@ impl Modifier {
                 random,
             ),
             ModifierOp::SetEnchantments { levels, add } => {
-                set_enchantments(stack, levels, *add, evaluation, random);
+                set_enchantments(stack, levels, *add, evaluation, random, scratch);
             }
             ModifierOp::Sequence(modifiers) => {
                 for modifier in modifiers {
-                    modifier.apply(stack, evaluation, random);
+                    modifier.apply(stack, evaluation, random, scratch);
                 }
             }
         }
@@ -241,12 +238,13 @@ fn apply_bonus<R: Random>(op: &ModifierOp, tool: Tool<'_>, count: i32, random: &
 }
 
 /// LOOT-MOD-016, in f32.
-fn set_damage<E, W: LootWorld<E>, R: Random>(
+fn set_damage<E: Copy, W: LootWorld<E>, R: Random>(
     stack: &mut WorkStack,
     damage: &FloatProvider,
     add: bool,
     evaluation: &Evaluation<'_, '_, E, W>,
     random: &mut R,
+    scratch: &mut PredicateScratch,
 ) {
     let items = &evaluation.rules.items;
     let Some(read) = stack.read() else {
@@ -261,12 +259,7 @@ fn set_damage<E, W: LootWorld<E>, R: Random>(
     ) else {
         return;
     };
-    let value = damage.read(
-        evaluation.providers,
-        evaluation.context,
-        evaluation.world,
-        random,
-    );
+    let value = damage.read(evaluation.inputs(), random, scratch);
     #[expect(clippy::cast_precision_loss, reason = "the rule calculates in f32")]
     let (max_f32, current_f32) = (max as f32, current.clamp(0, max) as f32);
     let base = if add {
@@ -392,12 +385,13 @@ fn raise<E, W: LootWorld<E>>(
 }
 
 /// LOOT-MOD-022.
-fn set_enchantments<E, W: LootWorld<E>, R: Random>(
+fn set_enchantments<E: Copy, W: LootWorld<E>, R: Random>(
     stack: &mut WorkStack,
     levels: &[SetLevel],
     add: bool,
     evaluation: &Evaluation<'_, '_, E, W>,
     random: &mut R,
+    scratch: &mut PredicateScratch,
 ) {
     let rules = evaluation.rules;
     if stack.kind().is_some()
@@ -410,12 +404,7 @@ fn set_enchantments<E, W: LootWorld<E>, R: Random>(
         return;
     };
     for entry in levels {
-        let value = entry.level.read(
-            evaluation.providers,
-            evaluation.context,
-            evaluation.world,
-            random,
-        );
+        let value = entry.level.read(evaluation.inputs(), random, scratch);
         let current = i32::from(level_of(&enchantments, entry.enchantment));
         let new = if add {
             current.saturating_add(value)
@@ -432,10 +421,12 @@ fn set_enchantments<E, W: LootWorld<E>, R: Random>(
 mod tests {
     use super::*;
     use crate::item_rules::ItemRules;
+    use mcrs_minecraft_engine_registries::{test_corpus, test_item_table};
+    use mcrs_minecraft_game_registries::registry_load::test_registries;
     use mcrs_minecraft_item_stack::Builtin;
     use mcrs_minecraft_item_table::ItemTable;
     use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
-    use mcrs_minecraft_loot_condition::{LootContext, NamedProviders};
+    use mcrs_minecraft_loot_condition::{LootContext, NamedEntries};
     use mcrs_minecraft_predicate::NoWorld;
     use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 
@@ -449,9 +440,11 @@ mod tests {
             enchanted_book: None,
         };
         let context = LootContext::<()>::try_new(ContextKeySet::Empty).expect("a source key set");
+        let (named, _) =
+            NamedEntries::bake(&test_corpus().0.0, test_registries(), test_item_table());
         let evaluation = Evaluation {
             tables: &[],
-            providers: &NamedProviders::default(),
+            named: &named,
             context: &context,
             world: &NoWorld,
             rules: &rules,
@@ -477,7 +470,12 @@ mod tests {
             let before = random.clone();
             let mut stack = WorkStack::one(Kind(0));
             stack.count = 2;
-            modifier.apply(&mut stack, &evaluation, &mut random);
+            modifier.apply(
+                &mut stack,
+                &evaluation,
+                &mut random,
+                &mut PredicateScratch::default(),
+            );
             assert_eq!((stack.count, &random), (2, &before), "{modifier:?}");
         }
     }

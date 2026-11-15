@@ -441,7 +441,7 @@ fn loot_ctx_017_a_table_chain_continues_into_its_providers() {
     let mut expected: Vec<_> = ["c:b/31".to_owned()]
         .into_iter()
         .chain(too_long)
-        .map(|table| (table, "pools[0].rolls", &LootProblem::ProviderChainTooLong))
+        .map(|table| (table, "pools[0].rolls", &LootProblem::ChainTooLong))
         .collect();
     expected.sort_by(|left, right| left.0.cmp(&right.0));
     assert_eq!(issues, expected);

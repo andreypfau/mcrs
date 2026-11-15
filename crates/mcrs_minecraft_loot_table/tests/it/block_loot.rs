@@ -324,7 +324,7 @@ fn reg_fld_701_the_terms_of_any_of_and_all_of_may_be_a_predicate_tag() {
     let (looped, issues): (Vec<_>, Vec<_>) = issues
         .into_iter()
         .map(|issue| (issue.table.to_string(), issue.problem))
-        .partition(|(table, _)| table == "minecraft:blocks/cobblestone");
+        .partition(|(entry, _)| entry.starts_with("t:loop_"));
     assert!(!looped.is_empty());
     assert_eq!(
         issues,

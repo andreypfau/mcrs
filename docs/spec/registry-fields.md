@@ -130,12 +130,29 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 
-### REG-FLD-006: Unknown fields and unknown names in entity predicates
+### REG-FLD-006: Unknown fields and unknown names in predicates
 
-- **Inputs:** an entity predicate (REG-FLD-624), a value of one of its sub-predicates (REG-FLD-625 to REG-FLD-645), or a value that they contain, for example an item predicate or number bounds (REG-FLD-646).
+- **Inputs:** one of these values, or a value that it contains, for example number bounds (REG-FLD-646):
+  - an entity predicate (REG-FLD-624), or a value of one of its sub-predicates (REG-FLD-625 to REG-FLD-645);
+  - an item predicate (REG-FLD-613), with the values of its data component predicates (REG-FLD-597 to REG-FLD-611);
+  - a block predicate (REG-FLD-614).
 - **Behavior:**
   - A field of an object that no rule of this document lists is ignored, as REG-ENTRY-003 states. The decode does not fail. For example, `flags` with `"zzz": 1` decodes as `flags` without that field. This applies also to the objects `food` and `input` of REG-FLD-642, and to the object form of number bounds.
-  - The keys of the maps of this table are names, not fields. A key that is not a name of the list fails the decode of the entry (REG-ERR-001).
+  - The decode ignores the unknown field in each place of the table below. In no place of the table does the field fail the decode. The ignored field does not change the result of a test.
+
+| Place | Value at the place | Decoded value |
+|-------|--------------------|---------------|
+| loot condition `match_block` (REG-FLD-709). The fields of the block predicate are in the condition object. | `{"type": "minecraft:match_block", "blocks": "minecraft:stone", "foo": 1}` | a block predicate with `blocks` `minecraft:stone` |
+| field `predicate` of the loot condition `match_tool` (REG-FLD-710) | `{"items": "minecraft:stone", "foo": 1}` | an item predicate with `items` `minecraft:stone` |
+| field `block` of the location predicate (REG-FLD-618) in the loot condition `location_check` | `{"blocks": "minecraft:stone", "foo": 1}` | a block predicate with `blocks` `minecraft:stone` |
+| persistent form of the item components `can_break` and `can_place_on` (REG-FLD-517), in the object form and in each element of the list form | `{"blocks": "minecraft:stone", "foo": 1}` | one block predicate with `blocks` `minecraft:stone` |
+| the same place | `{"foo": 1}` | one block predicate with no field, the same value as `{}` |
+| data component predicate `damage` (REG-FLD-598), in `predicates` of an item predicate | `{"durability": {"min": 1}, "foo": 1}` | `durability` `{"min": 1}` |
+| element of the data component predicate `enchantments` (REG-FLD-599) | `{"enchantments": "minecraft:sharpness", "foo": 1}` | `enchantments` `minecraft:sharpness` |
+| sub-predicate `flags` of an entity predicate | `{"is_baby": true, "foo": 1}` | `is_baby` `true` |
+
+  - The persistent form of a component is the same in a data pack file and in a saved item stack. Thus the two rows of `can_break` and `can_place_on` also apply in a data component patch, for example `{"minecraft:can_break": {"foo": 1}}`.
+  - The keys of the maps of the next table are names, not fields. A key that is not a name of the list fails the decode of the entry (REG-ERR-001).
 
 | Map | Names that the decode accepts |
 |-----|-------------------------------|
@@ -148,8 +165,10 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **Edge cases:**
   - Each kind of `type_specific` is its own key of the entity predicate, for example `type_specific/player`. The key `type_specific`, and a key `type_specific/<x>` whose kind is not in REG-FLD-624, fail the decode.
   - The keys of `recipes` and of `advancements` (REG-FLD-642) are not in the table. REG-FLD-642 states them.
+  - The block predicate of this version has no field `block`. Thus `match_block` with `"block": "minecraft:stone"` decodes as a block predicate with no `blocks`. The decode does not fail, and the predicate passes for each block that PRED-GEN-005 of `predicates.md` lets pass.
+  - A value of `can_break` or `can_place_on` with only unknown fields, for example `{"foo": 1}`, is a valid component value. It is not a fault of the decode.
 
-Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: make one pack for each of these entity predicates, with one predicate file: `flags` with `"zzz": 1`; a top-level key `zzz`; `type_specific` with `{"type": "player"}`; `type_specific/zzz`; `slots` with the key `foo.0`; `predicates` with the key `minecraft:zzz`. Start the server one time with each pack. Expected: the pack with `flags` loads. Each other pack is a fault of the load (REG-ERR-001), and the server does not start.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment (unknown fields in the places of the table): decode each value of the table with the decoder of the game, through `tools/vanilla-oracle`, with no server. Decode a loot condition for the first three rows, the component value and a data component patch for the rows of `can_break` and `can_place_on`, an item predicate for the rows of `damage` and `enchantments`, and an entity predicate for the row of `flags`. Record the decoded value or the error. Expected: each value decodes, as the table states. The decode runs through `tools/vanilla-oracle`. No capture of the run is committed yet. Experiment (names): make one pack for each of these entity predicates, with one predicate file: `flags` with `"zzz": 1`; a top-level key `zzz`; `type_specific` with `{"type": "player"}`; `type_specific/zzz`; `slots` with the key `foo.0`; `predicates` with the key `minecraft:zzz`. Start the server one time with each pack. Expected: the pack with `flags` loads. Each other pack is a fault of the load (REG-ERR-001), and the server does not start.
 
 ### REG-FLD-007: Numbers in an int place
 
@@ -5336,6 +5355,7 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
   - A key that is a predicate type id selects that predicate type. The value has the form of the rule "data component predicate `<id>`".
   - A key that is only a data component id means "the item has this component". The value is `{}`. The encoder writes the component id as the key and `{}` as the value.
   - A component id that is also a predicate type id always selects the predicate type. Examples are `damage`, `enchantments`, `potion_contents` and `trim`.
+  - In the value of a predicate type, a field that no rule lists is ignored (REG-FLD-006).
 - **Nested types:** data component predicate `damage` (REG-FLD-598), data component predicate `enchantments`, `stored_enchantments` (REG-FLD-599), data component predicate `potion_contents` (REG-FLD-601), data component predicate `custom_data` (REG-FLD-602), data component predicate `container`, `bundle_contents` (REG-FLD-603), data component predicate `firework_explosion` (REG-FLD-604), data component predicate `fireworks` (REG-FLD-605), data component predicate `writable_book_content` (REG-FLD-606), data component predicate `written_book_content` (REG-FLD-607), data component predicate `attribute_modifiers` (REG-FLD-608), data component predicate `trim` (REG-FLD-609), data component predicate `jukebox_playable` (REG-FLD-610), data component predicate `villager/variant` (REG-FLD-611).
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
@@ -5585,6 +5605,7 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **Write form notes:**
   - `count` is a number bounds (REG-FLD-646) of integers.
   - `components` and `predicates` come from data component matchers (REG-FLD-596). They are written in this object.
+  - A field that no rule lists is ignored, in each place where an item predicate is decoded (REG-FLD-006).
 - **Nested types:** number bounds (REG-FLD-646), data component matchers (REG-FLD-596).
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
@@ -5609,6 +5630,7 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
   - `components` and `predicates` come from data component matchers (REG-FLD-596). They are written in this object.
   - `state` is optional and has no default. It is a state properties predicate (REG-FLD-615).
   - `nbt` is optional and has no default. It is an nbt predicate (REG-FLD-623).
+  - A field that no rule lists is ignored, in each place where a block predicate is decoded (REG-FLD-006). This includes `can_break` and `can_place_on`.
 - **Nested types:** data component matchers (REG-FLD-596), state properties predicate (REG-FLD-615), nbt predicate (REG-FLD-623).
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.

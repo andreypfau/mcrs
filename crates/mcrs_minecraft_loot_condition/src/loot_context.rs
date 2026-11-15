@@ -1,6 +1,7 @@
 use glam::DVec3;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
+use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_voxel::BlockStateId;
 
 use crate::context_param::ContextParam;
@@ -23,6 +24,8 @@ pub struct LootContext<'a, E> {
     pub interacting_entity: Option<E>,
     pub tool: Option<Tool<'a>>,
     pub block_state: Option<BlockStateId>,
+    /// The saved data of the block entity of the block.
+    pub block_entity: Option<&'a NbtCompound>,
     pub explosion_radius: Option<f32>,
     pub enchantment_level: Option<i32>,
     /// 0 for a source that gives no luck.
@@ -53,6 +56,7 @@ impl<'a, E> LootContext<'a, E> {
             interacting_entity: None,
             tool: None,
             block_state: None,
+            block_entity: None,
             explosion_radius: None,
             enchantment_level: None,
             luck: 0.0,
@@ -99,6 +103,7 @@ impl<'a, E> LootContext<'a, E> {
             interacting_entity,
             tool,
             block_state,
+            block_entity,
             explosion_radius,
             enchantment_level,
             luck: _,
@@ -122,6 +127,7 @@ impl<'a, E> LootContext<'a, E> {
             ),
             (tool.is_some(), ContextParam::Tool),
             (block_state.is_some(), ContextParam::BlockState),
+            (block_entity.is_some(), ContextParam::BlockEntity),
             (explosion_radius.is_some(), ContextParam::ExplosionRadius),
             (enchantment_level.is_some(), ContextParam::EnchantmentLevel),
         ]
