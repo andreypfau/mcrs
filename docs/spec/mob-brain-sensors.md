@@ -8,8 +8,8 @@ The base value of F is a parameter of the body type, with the default 16.
 
 ## 1. Cadence and world queries
 
-**BRAIN-VAN-010** (`source_suggested_black_box_confirmed`, semantic, confidence: high, fidelity: exact).
-Confirmation scope: [E-B5](mob-brain-experiments.md#e-b5-sensor-written-expiry-and-first-appearance) covers first water scans in 1..19 and a subsequent scan after exactly 20 updates.
+**BRAIN-VAN-010** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
+Observation scope: [E-B5](mob-brain-experiments.md#e-b5-sensor-written-expiry-and-first-appearance) covers first water scans in 1..19 and a subsequent scan after exactly 20 updates.
 The distribution estimate is consistent with the stated probabilities; it does not prove their exact values.
 Other clauses retain `source_suggested`, confidence: medium.
 
@@ -198,8 +198,8 @@ Success or scans with at least five new positions can postpone retry indefinitel
 The selection of the first four new positions uses POI encounter order. The accepted targets
 then form a set without order. Equal-quality target choice and POI encounter order remain U6.
 
-**BRAIN-VAN-018** (`source_suggested_black_box_confirmed`, semantic, confidence: high, fidelity: exact).
-Confirmation scope: [E-B5](mob-brain-experiments.md#e-b5-sensor-written-expiry-and-first-appearance) covers deep-water unit writes without expiry and erasure after water removal.
+**BRAIN-VAN-018** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
+Observation scope: [E-B5](mob-brain-experiments.md#e-b5-sensor-written-expiry-and-first-appearance) covers deep-water unit writes without expiry and erasure after water removal.
 Other clauses retain `source_suggested`, confidence: medium.
 
 `minecraft:is_in_water` must read current water-contact state without a fresh block-area query.

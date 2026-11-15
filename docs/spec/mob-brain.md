@@ -57,6 +57,7 @@ each experiment. The captures used the target server and its save metadata on 20
 A rule can name a limited confirmation scope. Its confirmed metadata applies only to that scope.
 Other clauses keep the provenance and confidence stated beside that scope.
 A saved NBT observation does not confirm a transient value or activity id.
+Observation scopes record captures without a committed artefact; they do not raise provenance.
 
 The `source_suggested` rules and clauses come from version `26.3`, world version `5023`.
 A comparison with the target found one difference that these rules depend on: the stuck window of
@@ -230,8 +231,8 @@ operation must determine the value and expiry. A write after the expiry phase mu
 full new expiry until the next update. Storage alone must not validate a referenced entity's
 life, dimension or loaded state. Only an explicit later action can reject that stale reference.
 
-**BRAIN-VAN-004** (`source_suggested_black_box_confirmed`, semantic, confidence: high, fidelity: exact).
-Confirmation: [E-B2](mob-brain-experiments.md#e-b2-injected-expiry-zero-boundary-freeze-and-ai-suspension) and [E-B5](mob-brain-experiments.md#e-b5-sensor-written-expiry-and-first-appearance) cover the countdown, zero boundary, sentinel and write-phase distinction.
+**BRAIN-VAN-004** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
+Observation scope: [E-B2](mob-brain-experiments.md#e-b2-injected-expiry-zero-boundary-freeze-and-ai-suspension) and [E-B5](mob-brain-experiments.md#e-b5-sensor-written-expiry-and-first-appearance) cover the countdown, zero boundary, sentinel and write-phase distinction.
 
 Expiry must be a signed 64-bit count. The value `9223372036854775807` must mean permanent.
 Every other representable value must be finite, including zero and negative values.
@@ -253,9 +254,10 @@ stretch these game-time intervals; no catch-up subtraction is permitted.
 
 The rows share the update-count result. Their game-tick labels differ because of the write phase.
 
-**BRAIN-VAN-005** (`source_suggested_black_box_confirmed`, semantic, confidence: high, fidelity: exact).
-Confirmation scope: [E-B2](mob-brain-experiments.md#e-b2-injected-expiry-zero-boundary-freeze-and-ai-suspension) covers `NoAI` and ordinary freeze.
-[E-B8](mob-brain-experiments.md#e-b8-player-passenger-freeze-and-the-dying-camel-exception) covers a direct player passenger, saddle control and the dying camel, camel husk and goat.
+**BRAIN-VAN-005** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
+Observation scope: [E-B2](mob-brain-experiments.md#e-b2-injected-expiry-zero-boundary-freeze-and-ai-suspension) covers `NoAI` and ordinary freeze.
+[E-B8](mob-brain-experiments.md#e-b8-player-passenger-freeze-and-the-dying-camel-exception) covers only the dying camel, camel husk and goat.
+The direct-passenger freeze and saddle-control clauses keep `source_suggested`, confidence: medium.
 Other clauses keep `source_suggested`, confidence: medium.
 
 Without a brain update, expiry and sensor countdowns must not advance.
@@ -275,8 +277,8 @@ A direct or indirect player passenger can exempt entity ticking from freeze. Cli
 can still prevent that entity's server AI. External events can still write a memory without a
 brain update. A schedule clock change alone must not change expiry.
 
-**BRAIN-VAN-006** (`source_suggested_black_box_confirmed`, semantic, confidence: high, fidelity: exact).
-Confirmation scope: [E-B2](mob-brain-experiments.md#e-b2-injected-expiry-zero-boundary-freeze-and-ai-suspension) and [E-B4](mob-brain-experiments.md#e-b4-damaged-entries-ignored-registration-and-complete-replacement) cover the tested persisted entries, finite `ttl`, permanent omission and rejected transient input.
+**BRAIN-VAN-006** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
+Observation scope: [E-B2](mob-brain-experiments.md#e-b2-injected-expiry-zero-boundary-freeze-and-ai-suspension) and [E-B4](mob-brain-experiments.md#e-b4-damaged-entries-ignored-registration-and-complete-replacement) cover the tested persisted entries, finite `ttl`, permanent omission and rejected transient input.
 Other clauses keep `source_suggested`, confidence: medium.
 
 A living entity's save must contain `Brain:{memories:{...}}`, including the empty form.
@@ -308,8 +310,8 @@ become saved UUID memories.
 Active activities, behaviour states, sensor phases and retry records must not appear in `Brain`.
 A species can carry one memory outside `Brain` (section 7.3).
 
-**BRAIN-VAN-007** (`source_suggested_black_box_confirmed`, semantic, confidence: high, fidelity: exact).
-Confirmation scope: [E-B4](mob-brain-experiments.md#e-b4-damaged-entries-ignored-registration-and-complete-replacement) covers complete command replacement, independent entry rejection and the listed `ttl` conversions.
+**BRAIN-VAN-007** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
+Observation scope: [E-B4](mob-brain-experiments.md#e-b4-damaged-entries-ignored-registration-and-complete-replacement) covers complete command replacement, independent entry rejection and the listed `ttl` conversions.
 Other clauses keep `source_suggested`, confidence: medium.
 
 A usable `Brain.memories` compound must create a fresh brain (BRAIN-VAN-008). Omitted values must
@@ -428,7 +430,7 @@ new starts at priorities that already passed must wait for the next update.
 Both start and running passes must order behaviours by numeric priority first.
 At each priority, activities must take turns in the order in which they first have a behaviour at
 that priority. Within one activity and priority, behaviours must keep declaration order.
-BRAIN-DEV-003 records the reference order. [E-B6](mob-brain-experiments.md#e-b6-partial-observation-of-equal-priority-activity-order) is a partial observation; U2 limits it.
+BRAIN-DEV-003 records the reference order. The mcrs behaviour fixtures of E-B6 and E-B16 test it; no game capture applies.
 
 For starts, active membership must be tested at the beginning of each activity's turn at that
 priority. A transition inside that turn must not cancel its later attempts. A newly enabled
@@ -457,8 +459,8 @@ other vanilla activity and body pairs have empty lists, including all core and v
 
 ## 4. Schedules
 
-**BRAIN-VAN-025** (`source_suggested_black_box_confirmed`, semantic, confidence: high, fidelity: exact).
-Confirmation scope: [E-B3](mob-brain-experiments.md#e-b3-schedule-change-with-sleep-as-the-observable) covers the 21-tick request interval and the wake consequence for both ages.
+**BRAIN-VAN-025** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
+Observation scope: [E-B3](mob-brain-experiments.md#e-b3-schedule-change-with-sleep-as-the-observable) covers the 21-tick request interval and the wake consequence for both ages.
 Other clauses keep `source_suggested`, confidence: low.
 
 A schedule request at game time G must be ignored when G-L <= 20, where L is the last accepted
@@ -477,8 +479,8 @@ request an immediate sample. Ordinary readers must act at priority 99 in idle, w
 and meet. Species actions of panic, hide and raid recovery can also request samples (section 7).
 A villager must not use an unconditional post-brain schedule request.
 
-**BRAIN-VAN-026** (`source_suggested_black_box_confirmed`, semantic, confidence: high, fidelity: exact).
-Confirmation scope: [E-B9](mob-brain-experiments.md#e-b9-schedule-frame-boundaries-by-age-and-dimension) covers both interval tables and the Overworld clock effect on sleep in three dimensions.
+**BRAIN-VAN-026** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
+Observation scope: [E-B9](mob-brain-experiments.md#e-b9-schedule-frame-boundaries-by-age-and-dimension) covers both interval tables and the Overworld clock effect on sleep in three dimensions.
 Other clauses keep `source_suggested`, confidence: low.
 
 Both schedule attributes must default to `minecraft:idle` (ENVA-TYPE-006). The sampled values
@@ -570,8 +572,8 @@ It must give these results:
 - Both modes skip running children.
 - An instant child that acts counts as a child that starts.
 
-**BRAIN-VAN-033** (`source_suggested_black_box_confirmed`, semantic, confidence: high, fidelity: exact).
-Confirmation scope: [E-B3](mob-brain-experiments.md#e-b3-schedule-change-with-sleep-as-the-observable) covers same-update wake when rest ends.
+**BRAIN-VAN-033** (`source_suggested`, semantic, confidence: medium, fidelity: exact).
+Observation scope: [E-B3](mob-brain-experiments.md#e-b3-schedule-change-with-sleep-as-the-observable) covers same-update wake when rest ends.
 Other clauses keep `source_suggested`, confidence: medium.
 
 Inactive activities must prevent new starts but must not cancel running behaviours.
@@ -878,10 +880,10 @@ Provenance: `design`. Kind: semantic. Confidence: medium. Fidelity: exact.
 
 - **U1:** work/play/meet activity membership and their actions stay proposal under [E-B3](mob-brain-experiments.md#e-b3-schedule-change-with-sleep-as-the-observable) and [E-B9](mob-brain-experiments.md#e-b9-schedule-frame-boundaries-by-age-and-dimension).
   Environment values do not expose active activity ids.
-- **U2:** BRAIN-VAN-027 equal-priority order has no complete observation. [E-B6](mob-brain-experiments.md#e-b6-partial-observation-of-equal-priority-activity-order) cannot certify it. The captured display/sleep trial did not identify activity or behaviour-stop order.
+- **U2:** BRAIN-VAN-027 equal-priority order has no complete observation. E-B6 did not identify the activity transition or the stop condition of each display.
   Ordinary commands cannot configure arbitrary activity sets or expose all transient states.
-- **U3:** [E-B8](mob-brain-experiments.md#e-b8-player-passenger-freeze-and-the-dying-camel-exception) confirms the dying camel-family exception, direct-passenger freeze and saddle control.
-  Indirect passengers, the saddled dying camel with a passenger and the grazing and rearing ticks have no capture.
+- **U3:** [E-B8](mob-brain-experiments.md#e-b8-player-passenger-freeze-and-the-dying-camel-exception) confirms the dying camel-family exception.
+  Direct-passenger freeze, saddle control, indirect passengers, the saddled dying camel with a passenger and the grazing and rearing ticks have no capture.
 - **U4:** a generic conversion can carry `minecraft:angry_at` as permanent, but no natural source
   and destination pair was established. Applicability stays low; no universal transfer rule is stated.
 - **U5:** [E-B7](mob-brain-experiments.md#e-b7-stuck-pursuit-pause-and-target-displacement) can observe a pursuit pause but cannot identify every eligible attempt or exact stuck
@@ -922,9 +924,9 @@ E-B10 through E-B19 need a brain capture facility that does not yet exist. Secti
 | [E-B3](mob-brain-experiments.md#e-b3-schedule-change-with-sleep-as-the-observable) | BRAIN-VAN-025, BRAIN-VAN-026, BRAIN-VAN-033 | captured (sleep and wake); activity membership stays proposal (U1) |
 | [E-B4](mob-brain-experiments.md#e-b4-damaged-entries-ignored-registration-and-complete-replacement) | BRAIN-VAN-001, BRAIN-VAN-006, BRAIN-VAN-007 | captured (listed cases, U12) |
 | [E-B5](mob-brain-experiments.md#e-b5-sensor-written-expiry-and-first-appearance) | BRAIN-VAN-004, BRAIN-VAN-010, BRAIN-VAN-018 | captured (listed probes, U13) |
-| [E-B6](mob-brain-experiments.md#e-b6-partial-observation-of-equal-priority-activity-order) | BRAIN-VAN-027 | proposal; inconclusive trial (U2) |
+| [E-B6](mob-brain-experiments.md#e-b6-running-behaviour-across-an-activity-transition) | BRAIN-VAN-022, BRAIN-VAN-033 (BRAIN-VAN-027 in the mcrs fixture) | proposal; inconclusive trial (U2) |
 | [E-B7](mob-brain-experiments.md#e-b7-stuck-pursuit-pause-and-target-displacement) | BRAIN-VAN-034, BRAIN-VAN-035 | proposal; inconclusive trial (U5, U15) |
-| [E-B8](mob-brain-experiments.md#e-b8-player-passenger-freeze-and-the-dying-camel-exception) | BRAIN-VAN-005 | captured (direct passenger, control and death, U3) |
+| [E-B8](mob-brain-experiments.md#e-b8-player-passenger-freeze-and-the-dying-camel-exception) | BRAIN-VAN-005 | captured (death, U3); passenger, control and saddled-death trials are proposals |
 | [E-B9](mob-brain-experiments.md#e-b9-schedule-frame-boundaries-by-age-and-dimension) | BRAIN-VAN-025, BRAIN-VAN-026 | captured (interval tables and sleep in three dimensions); activity membership stays proposal (U1) |
 | [E-B10](mob-brain-experiments.md#e-b10-status-requests-memory-writes-and-brain-replacement) | BRAIN-VAN-001, BRAIN-VAN-002, BRAIN-VAN-003, BRAIN-VAN-008 | proposal |
 | [E-B11](mob-brain-experiments.md#e-b11-nearest-player-memory-and-its-exact-erasure-scan) | BRAIN-VAN-003, BRAIN-VAN-010, BRAIN-VAN-011, BRAIN-VAN-013 | proposal |
@@ -932,7 +934,7 @@ E-B10 through E-B19 need a brain capture facility that does not yet exist. Secti
 | [E-B13](mob-brain-experiments.md#e-b13-damage-source-age-and-independent-attacker-retention) | BRAIN-VAN-015 | proposal |
 | [E-B14](mob-brain-experiments.md#e-b14-item-query-and-first-eligible-result) | BRAIN-VAN-011, BRAIN-VAN-016 | proposal |
 | [E-B15](mob-brain-experiments.md#e-b15-bed-candidate-cap-retry-and-retained-output) | BRAIN-VAN-017 | proposal |
-| [E-B16](mob-brain-experiments.md#e-b16-activity-requests-and-exit-effects) | BRAIN-VAN-021, BRAIN-VAN-022, BRAIN-VAN-023, BRAIN-VAN-024, BRAIN-VAN-027, BRAIN-VAN-039 | proposal |
+| [E-B16](mob-brain-experiments.md#e-b16-activity-requests-and-exit-effects) | BRAIN-VAN-021, BRAIN-VAN-022, BRAIN-VAN-023, BRAIN-VAN-024, BRAIN-VAN-027 (mcrs fixture only), BRAIN-VAN-039 | proposal |
 | [E-B17](mob-brain-experiments.md#e-b17-behaviour-lifecycle-durations-and-weighted-groups) | BRAIN-VAN-028 through BRAIN-VAN-033, BRAIN-DES-004 | proposal |
 | [E-B18](mob-brain-experiments.md#e-b18-intermediate-destinations-and-home-bias-distribution) | BRAIN-VAN-036 | proposal |
 | [E-B19](mob-brain-experiments.md#e-b19-look-lifetime-and-flotation-probability) | BRAIN-VAN-029, BRAIN-VAN-037, BRAIN-VAN-038 | proposal |
