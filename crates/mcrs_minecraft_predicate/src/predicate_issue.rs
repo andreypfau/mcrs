@@ -14,6 +14,16 @@ pub enum PredicateIssue {
     UnloadedStructureTags,
     /// The registry set has no dimension registry.
     UnloadedDimensions,
+    /// The registry set has no tags of items.
+    UnloadedItemTags,
+    /// The registry set has no tags of enchantments.
+    UnloadedEnchantmentTags,
+    /// The registry set has no tags of attributes.
+    UnloadedAttributeTags,
+    /// An entry of `components` holds an id that the registry set does not name.
+    UnnamedEntry,
+    /// The stack codec rejects the saved form of an entry of `components`.
+    UnreadableComponent,
 }
 
 impl fmt::Display for PredicateIssue {
@@ -24,6 +34,15 @@ impl fmt::Display for PredicateIssue {
             PredicateIssue::UnloadedBiomeTags => "biome tags",
             PredicateIssue::UnloadedStructureTags => "structure tags",
             PredicateIssue::UnloadedDimensions => "dimension registry",
+            PredicateIssue::UnloadedItemTags => "item tags",
+            PredicateIssue::UnloadedEnchantmentTags => "enchantment tags",
+            PredicateIssue::UnloadedAttributeTags => "attribute tags",
+            PredicateIssue::UnnamedEntry => {
+                return f.write_str("a component of the predicate holds an unnamed id");
+            }
+            PredicateIssue::UnreadableComponent => {
+                return f.write_str("the stack codec rejects a component of the predicate");
+            }
         };
         write!(f, "the registry set has no {missing}")
     }

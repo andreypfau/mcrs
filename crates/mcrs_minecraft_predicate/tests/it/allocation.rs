@@ -4,11 +4,18 @@ use std::cell::Cell;
 use glam::DVec3;
 use mcrs_minecraft_block::definition::FluidState;
 use mcrs_minecraft_block::fluid_keys::Fluid;
+use mcrs_minecraft_item_stack::Damage;
+use mcrs_minecraft_item_stack::Enchantments;
+use mcrs_minecraft_predicate::ItemSubject;
 use mcrs_minecraft_predicate::{LocationPredicate, PredicateScratch};
 use mcrs_minecraft_registries::Resolve;
 use mcrs_voxel::BlockPos;
 
 use crate::grid::{Grid, definitions, registries, smoke, state};
+use crate::item_predicate::TABLE;
+use crate::item_predicate::bake;
+use crate::item_predicate::enchantment;
+use crate::item_predicate::sword;
 
 thread_local! {
     static ALLOCATIONS: Cell<usize> = const { Cell::new(0) };
@@ -92,4 +99,35 @@ fn a_match_that_reads_no_block_entity_data_allocates_nothing_after_warm_up() {
 
     assert!(passes, "the world meets each test");
     assert_eq!(allocations, 0, "a match allocated after warm-up");
+}
+
+#[test]
+fn an_item_match_allocates_nothing() {
+    let predicate = bake(
+        r##"{
+            "items": "#minecraft:swords",
+            "count": {"max": 1},
+            "components": {"minecraft:damage": 100},
+            "predicates": {
+                "minecraft:damage": {"durability": {"min": 1}},
+                "minecraft:enchantments": [{"enchantments": "minecraft:sharpness", "levels": {"min": 2}}],
+                "minecraft:attribute_modifiers": {"modifiers": {
+                    "contains": [{"attribute": "minecraft:attack_damage", "id": "minecraft:base_attack_damage"}],
+                    "count": [{"test": {"operation": "add_value"}, "count": 2}]
+                }}
+            }
+        }"##,
+    );
+    let sharpness = Enchantments::new([enchantment("minecraft:sharpness", 2)]).unwrap();
+    let worn = sword().set(Damage(100)).set(sharpness);
+    let subject = ItemSubject::Stack(&worn);
+    assert!(
+        predicate.matches(subject, &TABLE),
+        "the stack meets each test"
+    );
+
+    let (passes, allocations) = allocations_during(|| predicate.matches(subject, &TABLE));
+
+    assert!(passes, "the stack meets each test");
+    assert_eq!(allocations, 0, "an item match allocated");
 }
