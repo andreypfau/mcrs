@@ -149,6 +149,65 @@ impl<F: Fn(BlockPos) -> Option<BlockStateId>> LocationView for BlockAt<F> {
     fn block_state(&self, pos: BlockPos) -> Option<BlockStateId> {
         (self.0)(pos)
     }
+
+    // chisle: a position counts as loaded when its block state is known; the loaded check of the
+    // dimension (build height, coordinate limits, full chunk) lifts it.
+    fn is_loaded(&self, pos: BlockPos) -> bool {
+        (self.0)(pos).is_some()
+    }
+
+    // chisle: the drop reads no fluid; a fluid view of the dimension lifts it.
+    fn fluid_state(&self, _: BlockPos) -> Option<mcrs_minecraft_block::definition::FluidState> {
+        None
+    }
+
+    // chisle: the drop reads no light; the light engine of the dimension lifts it.
+    fn block_light(&self, _: BlockPos) -> Option<u8> {
+        None
+    }
+
+    // chisle: the drop reads no light; the light engine of the dimension lifts it.
+    fn sky_light(&self, _: BlockPos) -> Option<u8> {
+        None
+    }
+
+    // chisle: the drop reads no environment attribute; the attributes of the dimension lift it.
+    fn sky_light_level(&self) -> Option<f32> {
+        None
+    }
+
+    // chisle: the drop reads no biome; the biome storage of the dimension lifts it.
+    fn biome(
+        &self,
+        _: BlockPos,
+    ) -> Option<mcrs_minecraft_resource::Id<mcrs_minecraft_biome::Biome>> {
+        None
+    }
+
+    // chisle: the drop reads no structure; the structure starts of the dimension lift it.
+    fn inside_structure(
+        &self,
+        _: BlockPos,
+        _: mcrs_minecraft_resource::Id<mcrs_minecraft_entity::spawn_condition::Structure>,
+    ) -> Option<bool> {
+        None
+    }
+
+    // chisle: the drop does not know its dimension; the dimension key of the world lifts it.
+    fn dimension(
+        &self,
+    ) -> Option<mcrs_minecraft_resource::Id<mcrs_minecraft_dimension::Dimension>> {
+        None
+    }
+
+    // chisle: the drop reads no block entity; the block entity storage of the dimension lifts it.
+    fn block_entity_data(
+        &self,
+        _: BlockPos,
+        _: &mut mcrs_minecraft_nbt::compound::NbtCompound,
+    ) -> bool {
+        false
+    }
 }
 
 // chisle: the tables are baked once per dimension world at its spawn, so a reload of the data

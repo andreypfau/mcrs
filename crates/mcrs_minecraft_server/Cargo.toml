@@ -42,6 +42,9 @@ mcrs_minecraft_loot_table.workspace = true
 mcrs_minecraft_predicate.workspace = true
 mcrs_minecraft_block_support = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_core.workspace = true
+mcrs_minecraft_biome.workspace = true
+mcrs_minecraft_dimension.workspace = true
+mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_physics.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_resource.workspace = true

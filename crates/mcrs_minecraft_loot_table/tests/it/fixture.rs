@@ -127,4 +127,48 @@ impl LocationView for Around<'_> {
             .find(|(at, _)| *at == pos)
             .map(|&(_, state)| state)
     }
+
+    fn is_loaded(&self, pos: BlockPos) -> bool {
+        self.block_state(pos).is_some()
+    }
+
+    fn fluid_state(&self, _: BlockPos) -> Option<mcrs_minecraft_block::definition::FluidState> {
+        None
+    }
+
+    fn block_light(&self, _: BlockPos) -> Option<u8> {
+        None
+    }
+
+    fn sky_light(&self, _: BlockPos) -> Option<u8> {
+        None
+    }
+
+    fn sky_light_level(&self) -> Option<f32> {
+        None
+    }
+
+    fn biome(&self, _: BlockPos) -> Option<Id<mcrs_minecraft_biome::Biome>> {
+        None
+    }
+
+    fn inside_structure(
+        &self,
+        _: BlockPos,
+        _: Id<mcrs_minecraft_entity::spawn_condition::Structure>,
+    ) -> Option<bool> {
+        None
+    }
+
+    fn dimension(&self) -> Option<Id<mcrs_minecraft_dimension::Dimension>> {
+        None
+    }
+
+    fn block_entity_data(
+        &self,
+        _: BlockPos,
+        _: &mut mcrs_minecraft_nbt::compound::NbtCompound,
+    ) -> bool {
+        false
+    }
 }
