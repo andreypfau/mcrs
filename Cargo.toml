@@ -213,6 +213,7 @@ mcrs_minecraft_vanilla_block_place = { path = "crates/mcrs_minecraft_vanilla_blo
 mcrs_minecraft_vanilla_attributes = { path = "crates/mcrs_minecraft_vanilla_attributes" }
 mcrs_minecraft_vanilla_inventory = { path = "crates/mcrs_minecraft_vanilla_inventory" }
 mcrs_minecraft_inventory_transaction = { path = "crates/mcrs_minecraft_inventory_transaction" }
+mcrs_minecraft_inventory_file = { path = "crates/mcrs_minecraft_inventory_file" }
 mcrs_minecraft_inventory_player = { path = "crates/mcrs_minecraft_inventory_player" }
 mcrs_minecraft_inventory_client_view = { path = "crates/mcrs_minecraft_inventory_client_view" }
 mcrs_minecraft_inventory_click = { path = "crates/mcrs_minecraft_inventory_click" }

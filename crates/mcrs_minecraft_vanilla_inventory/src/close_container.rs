@@ -17,12 +17,13 @@ use mcrs_minecraft_protocol_game::serverbound::ServerboundContainerClose;
 
 use crate::InventoryInput;
 use crate::PlayerHolders;
+use crate::carried_codec::has_carried;
 use crate::click_drag::ClickDrag;
 use crate::close_inventory_menu::Carried;
 use crate::close_inventory_menu::CloseMove;
 use crate::close_inventory_menu::Destination;
 use crate::close_inventory_menu::close_inventory_menu;
-use crate::player_stacks::PlayerStacks;
+use crate::from_holders::from_holders;
 use crate::request_ids::CLOSE_REQUEST;
 
 /// Writes the [`InventoryInput::Close`] of each `container_close` packet.
@@ -58,14 +59,14 @@ pub(crate) fn apply_close(
         return;
     };
     drag.set_if_neq(ClickDrag::default());
-    let values = PlayerStacks::from_holders(
+    let values = from_holders(
         inventory,
         selected.0,
         Some(holders),
         &holder_slots,
         &mut stacks,
     );
-    if !values.has_carried() {
+    if !has_carried(&values) {
         return;
     }
     let mut request = Request::new(CLOSE_REQUEST);

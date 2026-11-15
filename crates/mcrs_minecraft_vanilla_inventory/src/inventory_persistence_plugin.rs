@@ -3,12 +3,12 @@ use bevy_app::Plugin;
 use mcrs_minecraft_engine::persisted_registry::PersistScope;
 use mcrs_minecraft_engine::persisted_registry::PersistedAppExt;
 
+use crate::carried_codec::CARRIED_KEYS;
 use crate::carried_codec::apply_carried;
 use crate::carried_codec::capture_carried;
 use crate::player_file::FILE_KEYS;
 use crate::player_file_codec::apply_player_file;
 use crate::player_file_codec::capture_player_file;
-use crate::player_stacks::CARRIED_KEYS;
 
 /// The codecs of the four holders of each player: `Inventory`, `SelectedItemSlot` and `equipment`
 /// of the player file (INV-SAV-001, INV-SAV-002), and the cursor and the craft grid that a cell

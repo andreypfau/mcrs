@@ -5,16 +5,16 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_engine::persisted_registry::CaptureCause;
 use mcrs_minecraft_engine::persisted_registry::PersistedError;
 use mcrs_minecraft_engine_registries::RegistryNames;
+use mcrs_minecraft_inventory_file::FileError;
+use mcrs_minecraft_inventory_file::PlayerInventoryFile;
 use mcrs_minecraft_item_table::ItemTable;
+use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::capture_holders::capture_holders;
 use crate::kept_equipment::KeptEquipment;
 use crate::player_file::INVENTORY_KEY;
-use crate::player_file::PlayerFile;
-use crate::player_stacks::PlayerStacks;
-use crate::player_stacks::is_slot_key;
 use crate::restore_holders::restore_holders;
 
 /// The player inventory, its selected slot and the kept keys of `equipment`, after the close that
@@ -26,26 +26,24 @@ pub(crate) fn capture_player_file(
 ) -> Result<Option<NbtTag>, PersistedError> {
     // The capture queues moves and drops of stacks, so a missing lookup must fail before it runs.
     registry_names(world).map_err(|missing| encode_error(INVENTORY_KEY, missing))?;
-    let Some(stacks) = world
+    let Some(items) = world
         .run_system_cached_with(capture_holders, (player, cause))
         .map_err(|error| encode_error(INVENTORY_KEY, error))?
     else {
         return Ok(None);
     };
+    let file = PlayerInventoryFile {
+        items,
+        kept_equipment: world
+            .get::<KeptEquipment>(player)
+            .map(|kept| kept.0.clone())
+            .unwrap_or_default(),
+    };
     let names = registry_names(world).map_err(|missing| encode_error(INVENTORY_KEY, missing))?;
-    let mut file = PlayerFile::default();
-    stacks.write(&mut file, &names)?;
-    if let Some(kept) = world.get::<KeptEquipment>(player) {
-        for (key, saved) in &kept.0.child_tags {
-            file.equipment.put(key, saved.clone());
-        }
-    }
-    mcrs_minecraft_nbt::to_nbt_tag(&file)
-        .map(Some)
-        .map_err(|source| PersistedError::Encode {
-            key: INVENTORY_KEY,
-            source,
-        })
+    let mut compound = NbtCompound::new();
+    mcrs_minecraft_inventory_file::write(&file, &names, &mut compound)
+        .map_err(|error| encode_error(file_key(error), error))?;
+    Ok(Some(NbtTag::Compound(compound)))
 }
 
 pub(crate) fn apply_player_file(
@@ -54,20 +52,17 @@ pub(crate) fn apply_player_file(
     tag: &NbtTag,
 ) -> Result<(), PersistedError> {
     let names = registry_names(world).map_err(|missing| decode_error(INVENTORY_KEY, missing))?;
-    let file: PlayerFile =
-        mcrs_minecraft_nbt::from_tag(tag.clone()).map_err(|source| PersistedError::Decode {
-            key: INVENTORY_KEY,
-            source,
-        })?;
-    let stacks = PlayerStacks::read(&file, &names)?;
-    let mut kept = file.equipment;
-    kept.child_tags.retain(|(key, _)| !is_slot_key(key));
+    let NbtTag::Compound(compound) = tag else {
+        return Err(decode_error(INVENTORY_KEY, FileError::NotACompound));
+    };
+    let file = mcrs_minecraft_inventory_file::read(compound, &names)
+        .map_err(|error| decode_error(file_key(error), error))?;
     world
         .get_entity_mut(player)
         .map_err(|_| PersistedError::NoEntity(player))?
-        .insert(KeptEquipment(kept));
+        .insert(KeptEquipment(file.kept_equipment));
     world
-        .run_system_cached_with(restore_holders, (player, stacks))
+        .run_system_cached_with(restore_holders, (player, file.items))
         .map_err(|error| decode_error(INVENTORY_KEY, error))
 }
 
@@ -94,5 +89,12 @@ pub(crate) fn decode_error(key: &'static str, cause: impl Display) -> PersistedE
     PersistedError::Decode {
         key,
         source: mcrs_minecraft_nbt::Error::SerdeError(cause.to_string()),
+    }
+}
+
+fn file_key(error: FileError) -> &'static str {
+    match error {
+        FileError::Stack { key, .. } | FileError::BadShape(key) => key,
+        FileError::NotACompound => INVENTORY_KEY,
     }
 }

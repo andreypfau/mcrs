@@ -9,18 +9,18 @@ use bevy_ecs::system::ResMut;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_inventory_file::PlayerItems;
 
 use crate::InventoryMenuSync;
 use crate::PlayerHolders;
 use crate::click_drag::ClickDrag;
 use crate::creative_drops::CreativeDrops;
 use crate::full_sends::FullSends;
-use crate::player_stacks::PlayerStacks;
 
 /// Gives the player its four holders with `stacks`. The holders that the player had keep their
 /// entities and lose their stacks. The player then waits for the send of its full state.
 pub(crate) fn restore_holders(
-    In((player, stacks)): In<(Entity, PlayerStacks)>,
+    In((player, stacks)): In<(Entity, PlayerItems)>,
     mut commands: Commands,
     mut sends: ResMut<FullSends>,
     players: Query<Option<&PlayerHolders>>,
@@ -31,7 +31,7 @@ pub(crate) fn restore_holders(
     let holders = holders_of(&mut commands, player, holders);
     commands
         .entity(player)
-        .load_inventory(stacks.inventory)
+        .load_inventory(stacks.slots.into())
         .insert(Selected(stacks.selected))
         .insert_if_new((
             InventoryMenuSync::default(),
@@ -52,7 +52,7 @@ pub(crate) fn restore_holders(
 
 /// Puts the cursor and the craft grid of `stacks` into the holders of the player.
 pub(crate) fn restore_carried(
-    In((player, stacks)): In<(Entity, PlayerStacks)>,
+    In((player, stacks)): In<(Entity, PlayerItems)>,
     mut commands: Commands,
     mut sends: ResMut<FullSends>,
     players: Query<Option<&PlayerHolders>>,
@@ -79,7 +79,7 @@ pub(crate) fn hold_new_player(
 ) {
     let player = add.entity;
     if let Ok(None) = players.get(player) {
-        commands.run_system_cached_with(restore_holders, (player, PlayerStacks::empty()));
+        commands.run_system_cached_with(restore_holders, (player, PlayerItems::default()));
     }
 }
 

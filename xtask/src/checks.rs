@@ -47,7 +47,7 @@ const NO_STD_PACKAGES: [&str; 16] = [
     "mcrs_voxel",
 ];
 
-const NO_BEVY_PACKAGES: [&str; 134] = [
+const NO_BEVY_PACKAGES: [&str; 135] = [
     "mcrs_command",
     "mcrs_engine_cell",
     "mcrs_engine_link",
@@ -111,6 +111,7 @@ const NO_BEVY_PACKAGES: [&str; 134] = [
     "mcrs_minecraft_instrument",
     "mcrs_minecraft_inventory_click",
     "mcrs_minecraft_inventory_client_view",
+    "mcrs_minecraft_inventory_file",
     "mcrs_minecraft_inventory_menu",
     "mcrs_minecraft_inventory_player",
     "mcrs_minecraft_inventory_transaction",

@@ -5598,6 +5598,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_inventory_file"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_inventory_player",
+ "mcrs_minecraft_item_stack",
+ "mcrs_minecraft_nbt",
+]
+
+[[package]]
 name = "mcrs_minecraft_inventory_menu"
 version = "0.5.8"
 dependencies = [
@@ -6759,6 +6768,7 @@ dependencies = [
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_inventory_click",
  "mcrs_minecraft_inventory_client_view",
+ "mcrs_minecraft_inventory_file",
  "mcrs_minecraft_inventory_menu",
  "mcrs_minecraft_inventory_player",
  "mcrs_minecraft_inventory_transaction",
@@ -6774,7 +6784,6 @@ dependencies = [
  "mcrs_minecraft_wire",
  "mcrs_test_alloc",
  "mcrs_voxel",
- "serde",
  "tracing",
 ]
 
