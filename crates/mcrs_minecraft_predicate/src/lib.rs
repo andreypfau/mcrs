@@ -55,6 +55,7 @@ mod smoke_table;
 mod type_specific_predicate;
 
 pub use active_effect::ActiveEffect;
+pub use baked_block_predicate::BakedBlockPredicate;
 pub use baked_damage_predicate::BakedDamagePredicate;
 pub use baked_damage_source_predicate::BakedDamageSourcePredicate;
 pub use baked_entity_predicate::BakedEntityPredicate;

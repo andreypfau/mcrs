@@ -49,11 +49,12 @@ pub fn state(block: &str, properties: &[(&str, &str)]) -> BlockStateId {
         })
 }
 
-/// A world of the listed blocks: a position is loaded when it holds a block. Each other value
-/// is the same at each loaded position.
+/// A world of the listed blocks: a position is loaded when it holds a block or is in `stateless`.
+/// Each other value is the same at each loaded position.
 #[derive(Default)]
 pub struct Grid {
     pub blocks: Vec<(BlockPos, BlockStateId)>,
+    pub stateless: Vec<BlockPos>,
     pub fluid: Option<FluidState>,
     pub block_light: Option<u8>,
     pub sky_light: Option<u8>,
@@ -73,7 +74,7 @@ impl LocationView for Grid {
     }
 
     fn is_loaded(&self, pos: BlockPos) -> bool {
-        self.block_state(pos).is_some()
+        self.block_state(pos).is_some() || self.stateless.contains(&pos)
     }
 
     fn fluid_state(&self, pos: BlockPos) -> Option<FluidState> {

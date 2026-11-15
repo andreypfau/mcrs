@@ -559,6 +559,20 @@ fn the_decode_refuses_an_unknown_type_and_ignores_an_unknown_field_reg_fld_624()
 }
 
 #[test]
+fn a_null_fails_only_at_the_top_level_reg_fld_011() {
+    let cases = [
+        (r#"{"location": null}"#, false),
+        (r#"{"periodic_tick": null}"#, false),
+        (r#"{"type_specific/sheep": null}"#, false),
+        (r#"{"vehicle": {"team": null}}"#, false),
+        (r#"{"location": {"block": null}}"#, true),
+    ];
+    for (json, loads) in cases {
+        assert_eq!(decode(json).is_ok(), loads, "{json}");
+    }
+}
+
+#[test]
 fn an_empty_form_tests_only_what_its_rule_names_pred_gen_005() {
     let of_type = |name: &str| Mob {
         entity_type: Some(id("minecraft:entity_type", name)),

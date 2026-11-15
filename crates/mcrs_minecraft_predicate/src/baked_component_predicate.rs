@@ -3,6 +3,7 @@ use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_item_stack::Enchantments;
 use mcrs_minecraft_item_stack::MaxDamage;
 use mcrs_minecraft_registries::Registries;
+use mcrs_minecraft_value_provider::bounds::MinMaxBounds;
 
 use crate::baked_collection::BakedCollection;
 use crate::baked_enchantment_predicate::BakedEnchantmentPredicate;
@@ -80,9 +81,12 @@ impl BakedComponentPredicate {
             Self::Present(kind) => holder.has(*kind),
             Self::Damage(predicate) => holder.effective::<Damage>().is_some_and(|damage| {
                 let max = holder.effective::<MaxDamage>().map_or(0, |max| max.0);
-                max.checked_sub(damage.0)
-                    .is_some_and(|durability| predicate.durability.matches(durability))
-                    && predicate.damage.matches(damage.0)
+                let durability = i64::from(max) - i64::from(damage.0);
+                let bounds = MinMaxBounds {
+                    min: predicate.durability.min.map(i64::from),
+                    max: predicate.durability.max.map(i64::from),
+                };
+                bounds.matches(durability) && predicate.damage.matches(damage.0)
             }),
             Self::Enchantments(elements) => holder
                 .effective::<Enchantments>()
