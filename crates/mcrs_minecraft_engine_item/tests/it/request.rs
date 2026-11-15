@@ -7,6 +7,7 @@ use bevy_ecs::world::World;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
 use mcrs_minecraft_engine_item::InSlot;
 use mcrs_minecraft_engine_item::Reason;
+use mcrs_minecraft_engine_item::Refusal;
 use mcrs_minecraft_engine_item::Rejected;
 use mcrs_minecraft_engine_item::Request;
 use mcrs_minecraft_engine_item::RequestDrop;
@@ -27,20 +28,20 @@ use crate::fixture::count;
 use crate::fixture::spawn;
 use crate::fixture::value;
 
-const ID: RequestId = RequestId(7);
+pub const ID: RequestId = RequestId(7);
 
 fn rare(items: u8) -> ItemStack {
     ItemStack::new(PLAIN, count(items)).set(Rarity::Rare)
 }
 
-fn place(world: &mut World, value: ItemStack, holder: Entity, index: u16) -> Entity {
+pub fn place(world: &mut World, value: ItemStack, holder: Entity, index: u16) -> Entity {
     let stack = spawn(world, value);
     world.commands().entity(stack).put_at(holder, index);
     world.flush();
     stack
 }
 
-fn request(world: &mut World, holder: Entity, request: Request) -> Vec<RequestResult> {
+pub fn request(world: &mut World, holder: Entity, request: Request) -> Vec<RequestResult> {
     world.commands().entity(holder).request(request);
     world.flush();
     world
@@ -58,19 +59,19 @@ fn items(world: &World, stack: Entity) -> Option<u8> {
 }
 
 #[derive(Debug, PartialEq)]
-struct Stack {
+pub struct Stack {
     entity: Entity,
     items: u8,
     slot: Option<InSlot>,
 }
 
 #[derive(Debug, PartialEq)]
-struct Snapshot {
+pub struct Snapshot {
     stacks: Vec<Stack>,
     slots: Vec<Vec<Option<Entity>>>,
 }
 
-fn snapshot(world: &mut World) -> Snapshot {
+pub fn snapshot(world: &mut World) -> Snapshot {
     let mut stacks: Vec<Stack> = world
         .query::<(Entity, &Count, Option<&InSlot>)>()
         .iter(world)
@@ -234,7 +235,7 @@ fn a_rejected_request_changes_nothing_and_reports_its_reason() {
         let expected = RequestResult {
             holder,
             id: ID,
-            outcome: Err(case.rejected),
+            outcome: Err(Refusal::Rejected(case.rejected)),
         };
         assert_eq!(results, [expected], "{}", case.name);
         let drops = world

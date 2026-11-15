@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::mem;
 
@@ -5,9 +6,10 @@ use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::system::In;
+use bevy_ecs::system::InMut;
 use bevy_ecs::system::InRef;
+use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
-use bevy_ecs::system::ResMut;
 use bevy_ecs::world::World;
 use mcrs_minecraft_inventory_transaction::Filter;
 use mcrs_minecraft_inventory_transaction::Loaded;
@@ -18,22 +20,29 @@ use mcrs_minecraft_inventory_transaction::plan;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
 
+use crate::Gate;
+use crate::GateQuery;
 use crate::InSlot;
+use crate::Refusal;
 use crate::Rejected;
 use crate::Request;
+use crate::RequestCheck;
 use crate::RequestDrop;
 use crate::RequestId;
+use crate::RequestKind;
 use crate::RequestResult;
+use crate::SlotAccess;
 use crate::SlotChanged;
+use crate::SlotPolicy;
 use crate::SlotRef;
 use crate::Slots;
 use crate::StackRows;
 use crate::Stacks;
-use crate::capacity::SLOT_LIMIT;
 use crate::capacity::capacity;
 use crate::placement::Placement;
 use crate::request_scratch::RequestScratch;
 use crate::slot_changed::write_slot_changed;
+use crate::slot_gates;
 use crate::spawn_stack::spawn_stack;
 
 /// What an applied request does to the entities: each changed slot, the stack of each changed
@@ -76,19 +85,37 @@ enum Source {
     CopyOf(Entity),
 }
 
-/// Plans `request` and, when it applies, changes the stacks to its result. Writes
-/// [`SlotChanged`] for each changed slot and a [`RequestDrop`] for each dropped stack, then writes
-/// and triggers [`RequestResult`] for `holder`.
-pub(crate) fn commit(world: &mut World, holder: Entity, request: &Request) {
-    let Ok(outcome) = world.run_system_cached_with(plan_request, request) else {
-        return;
-    };
+/// The buffers of the plan of a request, used again by each request.
+#[derive(Default)]
+struct PlanBuffers {
+    ops: Vec<Op<SlotRef, Planned<Entity>>>,
+    plan: Box<Plan<SlotRef, Entity>>,
+}
+
+/// Triggers [`RequestCheck`] on `actor` for an [`RequestKind::Action`] request, then plans the
+/// request unless an observer denied it and, when it applies, changes the stacks to its result.
+/// Writes [`SlotChanged`] for each changed slot and a [`RequestDrop`] for each dropped stack, then
+/// writes and triggers [`RequestResult`] for `actor`.
+pub(crate) fn commit(world: &mut World, actor: Entity, request: Request) {
     let id = request.id();
-    if outcome.is_ok() {
-        apply(world, holder, id);
+    let kind = request.kind();
+    let mut check = RequestCheck::new(actor, request);
+    if kind == RequestKind::Action {
+        world.trigger_ref(&mut check);
     }
+    let outcome = match check.denial() {
+        Some(denial) => Err(Refusal::Denied(denial)),
+        None => {
+            // An observer of the check can queue commands; the plan must read the world after them.
+            world.flush();
+            let Some(outcome) = plan_and_apply(world, actor, check.request()) else {
+                return;
+            };
+            outcome.map_err(Refusal::Rejected)
+        }
+    };
     let result = RequestResult {
-        holder,
+        holder: actor,
         id,
         outcome,
     };
@@ -96,45 +123,94 @@ pub(crate) fn commit(world: &mut World, holder: Entity, request: &Request) {
     world.trigger(result);
 }
 
+fn plan_and_apply(
+    world: &mut World,
+    actor: Entity,
+    request: &Request,
+) -> Option<Result<(), Rejected>> {
+    let mut settlement = world
+        .get_resource_mut::<RequestScratch>()
+        .map(|mut scratch| mem::take(&mut scratch.settlement))
+        .unwrap_or_default();
+    let planned = world.run_system_cached_with(plan_request, (request, actor, &mut settlement));
+    if let Ok(Ok(())) = planned {
+        apply(world, actor, request.id(), &mut settlement);
+    }
+    settlement.clear();
+    if let Some(mut scratch) = world.get_resource_mut::<RequestScratch>() {
+        scratch.settlement = settlement;
+    }
+    planned.ok()
+}
+
+/// Plans with the world lent to the gates: every parameter beside `&World` reads only, so the
+/// gates read the same world as the planner.
 fn plan_request(
-    InRef(request): InRef<Request>,
-    holders: Query<&Slots>,
+    (InRef(request), In(actor), InMut(settlement)): (InRef<Request>, In<Entity>, InMut<Settlement>),
+    world: &World,
+    holders: Query<(&Slots, Option<&SlotPolicy>)>,
     mut stacks: Stacks,
     mut rows: StackRows,
-    mut scratch: ResMut<RequestScratch>,
+    mut buffers: Local<PlanBuffers>,
 ) -> Result<(), Rejected> {
-    let scratch = &mut *scratch;
-    scratch.ops.clear();
+    let buffers = &mut *buffers;
+    buffers.ops.clear();
     for op in request.ops() {
-        scratch.ops.push(resolve(op, &mut stacks));
+        buffers.ops.push(resolve(op, &mut stacks));
     }
     let load = |slot: SlotRef| {
-        let slots = holders.get(slot.holder).ok()?;
+        let (slots, policy) = holders.get(slot.holder).ok()?;
         let index = usize::from(slot.index);
         if index >= slots.len() {
             return None;
         }
         let stack = (slots.get(index)).and_then(|stack| planned(&mut stacks, stack));
+        let access = access(policy, slot);
+        let take = match (access.take, stack) {
+            (Gate::Permits, _) => Filter::Permits,
+            (Gate::Refuses, _) => Filter::Refuses,
+            // chisle: an empty slot has no stack to ask about, so a stack that enters it and
+            // leaves it within one request passes the asking take gate unasked; a planner that
+            // asks at the take lifts it.
+            (Gate::Ask(_), None) => Filter::Permits,
+            (gate @ Gate::Ask(_), Some(stack)) => {
+                let query = GateQuery {
+                    slot,
+                    actor,
+                    stack: stack.stack,
+                };
+                slot_gates::answer(gate, world, &query)
+            }
+        };
         Some(Loaded {
             stack,
-            limit: SLOT_LIMIT,
-            take: Filter::Permits,
+            limit: access.limit,
+            take,
         })
     };
-    let permits = |_, _| Filter::Permits;
+    let place = |slot: SlotRef, stack: Entity| {
+        let policy = holders.get(slot.holder).ok().and_then(|(_, policy)| policy);
+        let access = access(policy, slot);
+        let query = GateQuery { slot, actor, stack };
+        slot_gates::answer(access.place, world, &query)
+    };
     let equal = |left, right| rows.mergeable(left, right);
     let outcome = plan(
-        scratch.ops.iter().copied(),
-        &mut scratch.plan,
+        buffers.ops.iter().copied(),
+        &mut buffers.plan,
         load,
-        permits,
+        place,
         equal,
     );
-    scratch.settlement.clear();
+    settlement.clear();
     if outcome.is_ok() {
-        settle(&scratch.plan, &mut scratch.settlement);
+        settle(&buffers.plan, settlement);
     }
     outcome
+}
+
+fn access(policy: Option<&SlotPolicy>, slot: SlotRef) -> SlotAccess {
+    policy.map_or(SlotAccess::OPEN, |policy| policy.access(slot.index))
 }
 
 fn resolve(op: Op<SlotRef, Entity>, stacks: &mut Stacks) -> Op<SlotRef, Planned<Entity>> {
@@ -218,11 +294,7 @@ fn claimant(plan: &Plan<SlotRef, Entity>, stack: Entity) -> Option<usize> {
     plan.changes().position(|entry| holds(entry.after, stack))
 }
 
-fn apply(world: &mut World, holder: Entity, id: RequestId) {
-    let Some(mut scratch) = world.get_resource_mut::<RequestScratch>() else {
-        return;
-    };
-    let mut settlement = mem::take(&mut scratch.settlement);
+fn apply(world: &mut World, holder: Entity, id: RequestId, settlement: &mut Settlement) {
     for index in 0..settlement.placed.len() {
         let Some(&Placed {
             source: Source::CopyOf(original),
@@ -296,10 +368,6 @@ fn apply(world: &mut World, holder: Entity, id: RequestId) {
         if let Source::Same(stack) = dropped.source {
             world.write_message(RequestDrop { holder, id, stack });
         }
-    }
-    settlement.clear();
-    if let Some(mut scratch) = world.get_resource_mut::<RequestScratch>() {
-        scratch.settlement = settlement;
     }
 }
 
