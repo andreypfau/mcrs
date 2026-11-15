@@ -750,7 +750,7 @@ a position near `spawn.pos`, and the yaw and pitch of `spawn`.
 | `Health` | float | the maximum health | always |
 | `HurtTime`, `DeathTime` | short | 0 | always |
 | `AbsorptionAmount` | float | 0 | always |
-| `attributes` | list of attribute compounds | empty | always |
+| `attributes` | list of attribute compounds | empty | always, when the player has attribute instances |
 | `active_effects` | list of effect compounds | empty | only when not empty |
 | `FallFlying` | byte | false | always |
 | `sleeping_pos` | Position | none | only when the player sleeps |
@@ -769,6 +769,12 @@ An attribute compound has the string `id` (required), the double `base` (default
 the string `operation`. All three are required. `operation` is `add_value`, `add_multiplied_base`
 or `add_multiplied_total`. ATR-SAV-002 of `attributes.md` states the load of a compound with an
 unknown attribute, an unknown key, a bad field, or two modifiers with one `id`.
+
+The key `attributes` is written always for a player that has attribute instances. The list is empty
+when no instance differs from the entity type (ATR-SAV-001 of `attributes.md`). A host without the
+attribute plugin gives a player no attribute instances and writes no key `attributes`. A file that
+holds the list keeps it: the load gives the player the instances. Provenance `design`: the owner
+decided on 2026-11-16 that the engine does not force attributes on a host.
 
 An effect compound has the string `id` (required), the ubyte `amplifier` (default 0), the int
 `duration` (default 0), the byte `ambient` (default false) and the byte `show_particles` (default
