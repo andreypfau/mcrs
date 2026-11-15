@@ -28,7 +28,8 @@ pub fn in_ticking_area<A: TickingArea>(area: Option<&A>, position: DVec3) -> boo
     area.is_none_or(|area| area.holds(column))
 }
 
-/// Runs one tick of one entity, in the order of the tick of a living entity.
+/// Runs one tick of one entity, in the order of the tick of a living entity. A simulated entity
+/// gets only its previous placement and its age here; the systems of its type move it.
 pub fn tick_entity(
     entity: &ClientEntity,
     motion: &mut Motion,
@@ -38,6 +39,10 @@ pub fn tick_entity(
     tick_speed: f32,
 ) {
     motion.previous = motion.current;
+    if entity.is_simulated() {
+        age.0 = age.0.saturating_add(1);
+        return;
+    }
     motion.current = motion.interpolation.step(motion.current, tick_speed);
     age.0 = age.0.saturating_add(1);
     if let Some(living) = living {

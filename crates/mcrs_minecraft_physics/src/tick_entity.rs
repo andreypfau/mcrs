@@ -317,7 +317,7 @@ fn tick_other<W: CollisionWorld, B: BodyView>(
     let fall_velocity = body.velocity.y;
     let mut dy = 0.0;
     if !resting_item {
-        if category == Category::Item && side.has_authority() {
+        if category == Category::Item && side.applies_corrections() {
             let bounds = Aabb::of_body(body.position, mover.width, mover.height).deflate(COLLISION);
             if query::intersects(
                 view,
@@ -352,12 +352,15 @@ fn tick_other<W: CollisionWorld, B: BodyView>(
     if resting_item {
         return outcome;
     }
-    if category == Category::FallingBlock && body.flags.on_ground && side.has_authority() {
+    if category == Category::FallingBlock && body.flags.on_ground && side.applies_corrections() {
         body.velocity *= GROUND_BOUNCE;
         outcome.landed = true;
     }
     drag_and_ground_rule(view, category, body, fall_velocity, gravity);
-    if category == Category::Item && body.flags.on_ground && matches!(side, Side::Server { .. }) {
+    if category == Category::Item
+        && body.flags.on_ground
+        && matches!(side, Side::Server { .. } | Side::Viewer)
+    {
         for component in [&mut body.velocity.x, &mut body.velocity.z] {
             if component.abs() <= ITEM_STOP {
                 *component = 0.0;

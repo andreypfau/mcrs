@@ -18,7 +18,6 @@ mcrs_minecraft_command_world.workspace = true
 mcrs_minecraft_engine.workspace = true
 mcrs_minecraft_engine_attributes.workspace = true
 mcrs_minecraft_engine_brain.workspace = true
-mcrs_minecraft_engine_entity_motion.workspace = true
 mcrs_minecraft_engine_entity_motion_replication.workspace = true
 mcrs_minecraft_engine_item.workspace = true
 mcrs_minecraft_engine_mob_replication.workspace = true
@@ -62,6 +61,7 @@ bevy_ecs = { workspace = true, features = ["multi_threaded"] }
 bevy_asset = { workspace = true, features = ["multi_threaded"] }
 
 [dev-dependencies]
+mcrs_minecraft_engine_entity_motion.workspace = true
 mcrs_minecraft_entity_attribute.workspace = true
 mcrs_minecraft_probe.workspace = true
 mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }

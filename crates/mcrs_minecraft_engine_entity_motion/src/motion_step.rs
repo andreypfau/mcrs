@@ -3,20 +3,14 @@ use bevy_ecs::change_detection::DetectChanges;
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::query::Has;
-use bevy_ecs::query::With;
 use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
 use bevy_ecs::system::ResMut;
-use bevy_ecs::system::Single;
+use bevy_ecs::system::SystemParam;
 use bevy_ecs::world::Mut;
 use bevy_utils::Parallel;
 use glam::DVec3;
-use mcrs_minecraft_engine_physics::BlockWorld;
-use mcrs_minecraft_engine_physics::PhysicsTables;
-use mcrs_minecraft_engine_world::birth_clock::BirthClock;
-use mcrs_minecraft_engine_world::world::dimension::Dimension;
-use mcrs_minecraft_engine_world::world::storage::view::WorldView;
 use mcrs_minecraft_entity_key::TileKey;
 use mcrs_minecraft_physics::BlockAction;
 use mcrs_minecraft_physics::CollisionWorld;
@@ -38,10 +32,8 @@ use crate::MotionKind;
 use crate::MotionState;
 use crate::Movers;
 use crate::StepOutcome;
+use crate::StirredTiles;
 use crate::section_cache::SectionCache;
-use crate::stirred_tiles::StirredTiles;
-
-const SERVER: Side = Side::Server { authority: true };
 
 type Moving<'a> = (
     Entity,
@@ -58,55 +50,70 @@ pub(crate) struct StepBuffers {
     actions: Vec<BlockAction>,
 }
 
-/// Steps each entity with a motion and no hold once, in parallel. Each step reads the blocks
-/// through the section cache of its entity, and each thread keeps its own scratch buffers.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "a system takes each resource that it reads"
-)]
-pub(crate) fn step_motion(
-    dimension: Single<Entity, With<Dimension>>,
-    world: WorldView,
-    tables: Res<PhysicsTables>,
-    stirred: Res<StirredTiles>,
-    clock: Res<BirthClock>,
-    movers: ResMut<Movers>,
-    buffers: Local<Parallel<StepBuffers>>,
-    mut entities: Query<(
-        Entity,
-        &mut MotionState,
-        &MotionKind,
-        &mut StepOutcome,
-        Has<MotionHold>,
-    )>,
-) {
-    let Some(blocks) = world.get(*dimension) else {
-        return;
-    };
-    let world = BlockWorld {
-        blocks: &blocks,
-        table: tables.collision(),
-    };
-    let world = &world;
-    let tables = tables.tables();
-    let stirred = &*stirred;
-    let clock = *clock;
-    let movers = &movers.queues;
-    let buffers = &*buffers;
-    entities
-        .par_iter_mut()
-        .batching_strategy(BatchingStrategy::new().batches_per_thread(4))
-        .for_each_init(
-            || buffers.borrow_local_mut(),
-            |buffers, moving| {
-                let StepBuffers { scratch, actions } = &mut **buffers;
-                let Some(moved) = step(moving, world, tables, stirred, clock, scratch, actions)
-                else {
-                    return;
-                };
-                movers.scope(|queue| queue.push(moved));
-            },
-        );
+/// The step of the motion pass, without the block source: a host runs it in
+/// [`MotionSteps`](crate::MotionSteps).
+#[derive(SystemParam)]
+pub struct MotionStep<'w, 's> {
+    stirred: Res<'w, StirredTiles>,
+    movers: ResMut<'w, Movers>,
+    buffers: Local<'s, Parallel<StepBuffers>>,
+    entities: Query<
+        'w,
+        's,
+        (
+            Entity,
+            &'static mut MotionState,
+            &'static MotionKind,
+            &'static mut StepOutcome,
+            Has<MotionHold>,
+        ),
+    >,
+}
+
+impl MotionStep<'_, '_> {
+    /// Steps each entity with a motion and no hold once, in parallel, over the blocks of `world`
+    /// as `side` sees them, and marks each stepped [`StepOutcome`] with `tick`. Each step reads the
+    /// blocks through the section cache of its entity, and each thread keeps its own scratch
+    /// buffers.
+    pub fn run<W: CollisionWorld + Sync>(
+        &mut self,
+        world: &W,
+        tables: &Tables,
+        side: Side,
+        tick: u64,
+    ) {
+        let pass = &PassInput {
+            world,
+            tables,
+            side,
+            tick,
+            stirred: &self.stirred,
+        };
+        let movers = &self.movers.queues;
+        let buffers = &*self.buffers;
+        self.entities
+            .par_iter_mut()
+            .batching_strategy(BatchingStrategy::new().batches_per_thread(4))
+            .for_each_init(
+                || buffers.borrow_local_mut(),
+                |buffers, moving| {
+                    let StepBuffers { scratch, actions } = &mut **buffers;
+                    let Some(moved) = step(moving, pass, scratch, actions) else {
+                        return;
+                    };
+                    movers.scope(|queue| queue.push(moved));
+                },
+            );
+    }
+}
+
+/// What every step of one pass shares.
+struct PassInput<'a, W> {
+    world: &'a W,
+    tables: &'a Tables,
+    side: Side,
+    tick: u64,
+    stirred: &'a StirredTiles,
 }
 
 /// One step of one entity, as the rows pass steps a row that is not living: no push, the block
@@ -115,10 +122,7 @@ pub(crate) fn step_motion(
 /// its wake for the step after.
 fn step<W: CollisionWorld>(
     (entity, mut state, kind, mut outcome, held): Moving<'_>,
-    world: &W,
-    tables: &Tables,
-    stirred: &StirredTiles,
-    clock: BirthClock,
+    pass: &PassInput<'_, W>,
     scratch: &mut Scratch,
     actions: &mut Vec<BlockAction>,
 ) -> Option<Entity> {
@@ -127,7 +131,7 @@ fn step<W: CollisionWorld>(
     let external = written && !state.is_added();
     let motion = &mut state.bypass_change_detection().0;
     let start = motion.body;
-    let wake = written || stirred.wakes(TileKey::at(start.position));
+    let wake = written || pass.stirred.wakes(TileKey::at(start.position));
     let skipped = |motion: &mut EntityState| {
         if wake {
             motion.rest = Rest::Awake;
@@ -139,15 +143,15 @@ fn step<W: CollisionWorld>(
     }
     // The kernel decides inside `tick_entity` whether a resting entity skips its tick, so the
     // window is filled before that call.
-    let cache = SectionCache::cover(world, start.position);
+    let cache = SectionCache::cover(pass.world, start.position);
     if !loaded(&cache, start.position) {
         return skipped(motion);
     }
-    let view = View::new(&cache, &NoBodies, tables);
-    let kernel = tick_entity(view, SERVER, &kind.0, motion, wake, actions, scratch);
+    let view = View::new(&cache, &NoBodies, pass.tables);
+    let kernel = tick_entity(view, pass.side, &kind.0, motion, wake, actions, scratch);
     actions.clear();
     motion.age = motion.age.wrapping_add(1);
-    let stepped_at = Some(clock.0);
+    let stepped_at = Some(pass.tick);
     outcome.bypass_change_detection().stepped_at = stepped_at;
     outcome.set_if_neq(StepOutcome {
         start: start.position,

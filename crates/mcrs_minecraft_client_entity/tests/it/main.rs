@@ -5,11 +5,13 @@
 )]
 mod attributes;
 mod entity_light;
+mod moving_entities;
 mod packets;
 mod pig_walk;
 mod replay;
+mod simulated_step;
 
-use bevy_app::{App, FixedUpdate};
+use bevy_app::{App, FixedUpdate, PostUpdate};
 use bevy_ecs::entity::Entity;
 use glam::DVec3;
 use mcrs_minecraft_client_entity::{ClientEntityPlugin, NetworkEntities};
@@ -65,6 +67,11 @@ impl Client {
 
     pub fn tick(&mut self) {
         self.app.world_mut().run_schedule(FixedUpdate);
+    }
+
+    /// Runs the end of a frame, after the packets of the frame apply.
+    pub fn frame(&mut self) {
+        self.app.world_mut().run_schedule(PostUpdate);
     }
 
     pub fn ticking(&self) -> ServerTicking {

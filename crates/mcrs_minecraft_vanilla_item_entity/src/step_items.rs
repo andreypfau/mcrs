@@ -53,7 +53,7 @@ pub(crate) fn step_items(
     for (stack, mut item, state, outcome) in &mut items {
         let state = &state.0;
         let position = state.body.position;
-        let before = if outcome.is_of(*clock) {
+        let before = if outcome.is_of(clock.0) {
             outcome.start
         } else {
             position

@@ -89,7 +89,7 @@ pub(crate) fn publish_motion(
             continue;
         };
         let body = &state.0.body;
-        let kernel = if outcome.is_of(*clock) {
+        let kernel = if outcome.is_of(clock.0) {
             outcome.kernel
         } else {
             TickOutcome::default()

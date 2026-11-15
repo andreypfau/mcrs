@@ -21,6 +21,23 @@ pub fn wrap_degrees(degrees: f32) -> f32 {
     wrapped
 }
 
+/// [`wrap_degrees`] in `f64`.
+#[inline]
+#[must_use]
+pub fn wrap_degrees_f64(degrees: f64) -> f64 {
+    if (-180.0..180.0).contains(&degrees) {
+        return degrees;
+    }
+    let mut wrapped = degrees % 360.0;
+    if wrapped >= 180.0 {
+        wrapped -= 360.0;
+    }
+    if wrapped < -180.0 {
+        wrapped += 360.0;
+    }
+    wrapped
+}
+
 /// The angle `degrees` in radians: the f32 product of `degrees` and the f32 value of `π / 180`,
 /// widened.
 #[inline]

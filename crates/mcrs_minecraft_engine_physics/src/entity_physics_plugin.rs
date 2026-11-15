@@ -20,6 +20,7 @@ use bevy_tasks::ComputeTaskPool;
 use bevy_tasks::TaskPool;
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::Blocks;
+use mcrs_minecraft_collision_table::BlockWorld;
 use mcrs_minecraft_collision_table::collision_table;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::game_rules::GameRules;
@@ -41,7 +42,6 @@ use mcrs_minecraft_physics::Tables;
 use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::EntityWrites;
-use crate::block_world::BlockWorld;
 use crate::mob_damage::report_crowd_hits;
 use crate::mob_life::MobChanges;
 use crate::mob_life::PendingSpawns;

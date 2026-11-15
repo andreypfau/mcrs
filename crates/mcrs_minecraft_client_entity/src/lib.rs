@@ -2,14 +2,33 @@
 //! change an entity, and the network id of each entity.
 // std: bevy_ecs
 
+mod add_entity_data;
 mod apply_entity_data;
+mod client_tables;
 pub mod delta;
 mod entity_light;
+mod fuse;
+mod item_entity_stack;
+mod motion_tick;
+mod moved_entity;
 mod network_entities;
+mod orb_interpolation;
 mod plugin;
+mod project_simulated_positions;
 mod receive;
+mod receive_movement;
+mod remove_spent_entities;
+mod simulated_motion;
+mod simulated_step;
+mod ticked;
+mod tracked_velocity;
 
+pub use add_entity_data::*;
 pub use apply_entity_data::*;
+pub use fuse::Fuse;
+pub use item_entity_stack::ItemEntityStack;
 pub use network_entities::*;
+pub use orb_interpolation::OrbInterpolation;
 pub use plugin::*;
 pub use receive::{DEATH_EVENT, WORLD_LIMIT};
+pub use tracked_velocity::TrackedVelocity;
