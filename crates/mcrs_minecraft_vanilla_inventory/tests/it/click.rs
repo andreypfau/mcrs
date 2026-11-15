@@ -7,21 +7,30 @@ use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::persisted_registry::PersistedSnapshot;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
+use mcrs_minecraft_engine_item::ItemCommandsExt;
+use mcrs_minecraft_engine_item::StackCommandsExt;
+use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item_stack::Count;
+use mcrs_minecraft_item_stack::CustomName;
+use mcrs_minecraft_item_stack::HashScratch;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_item_stack::hash_stack;
 use mcrs_minecraft_item_stack::write_hashed;
+use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_protocol_game::item::ContainerInput;
 use mcrs_minecraft_protocol_game::item::HashedStack;
 use mcrs_minecraft_protocol_game::item::ItemStackWithSlot;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundContainerClick;
+use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_registries::Wire;
+use mcrs_minecraft_text::Text;
 use mcrs_minecraft_vanilla_inventory::InventoryMenuSync;
 use mcrs_minecraft_wire::Decode;
 use mcrs_minecraft_wire::Encode;
@@ -62,8 +71,23 @@ pub(crate) fn claim(kind: Kind, count: i32) -> Option<HashedStack> {
         values: Vec::new(),
         removals: Vec::new(),
     };
+    on_wire(Some(&hashed))
+}
+
+/// The claim of a client that holds `stack`, with the hash of each entry of its patch.
+fn claim_of(world: &World, stack: &ItemStack) -> Option<HashedStack> {
+    let names = RegistryNames::new(
+        world.resource::<CurrentRegistries>(),
+        world.resource::<ItemTable>(),
+    );
+    let hashed =
+        hash_stack(Some(stack), &names, &mut HashScratch::default()).expect("the stack hashes");
+    on_wire(hashed.as_ref())
+}
+
+fn on_wire(hashed: Option<&mcrs_minecraft_item_stack::HashedStack>) -> Option<HashedStack> {
     let mut bytes = Vec::new();
-    write_hashed(Some(&hashed), &mut bytes).expect("the hashed stack encodes");
+    write_hashed(hashed, &mut bytes).expect("the hashed stack encodes");
     Option::<HashedStack>::decode(&mut bytes.as_slice()).expect("the hashed stack decodes")
 }
 
@@ -181,6 +205,33 @@ fn itx_jav_004_an_applied_click_with_a_matching_claim_sends_nothing() {
     assert_eq!(stacks(world, cursor), [(0, STONE, 5)], "the cursor took it");
     assert_eq!(sent(world), Vec::<String>::new());
     assert_eq!(state_id(world, player), 1, "no slot packet went out");
+}
+
+/// ITX-JAV-004, INV-SYN-003: a claim with the hash of each component of a patch matches the stack
+/// with that patch, and the server sends nothing for its slot.
+#[test]
+fn itx_jav_004_a_matching_claim_of_a_stack_with_a_patch_sends_nothing() {
+    let mut app = app();
+    let world = app.world_mut();
+    let player = joined(world);
+    let named = ItemStack::new(STONE, Count::new(3).expect("a count above 0"))
+        .set(CustomName(Text::text("Rock")));
+    let named_claim = claim_of(world, &named);
+    world.commands().spawn_stack(named).put_at(player, 9);
+    world.flush();
+    world.run_schedule(FixedUpdate);
+    sent(world);
+    let state = state_id(world, player);
+
+    click(
+        world,
+        player,
+        Packet::pick_up(i32::from(state), HOTBAR_0)
+            .claiming(vec![(HOTBAR_0, None), (9, named_claim)], claim(STONE, 5)),
+    );
+    world.run_schedule(FixedUpdate);
+
+    assert_eq!(sent(world), Vec::<String>::new());
 }
 
 /// ITX-JAV-001 check 2, ITX-JAV-004, INV-SYN-001, INV-SYN-005: a stale state id or a spectator

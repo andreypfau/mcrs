@@ -14,6 +14,7 @@ use mcrs_minecraft_engine_item::ItemPlugin;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::StackCommandsExt;
 use mcrs_minecraft_engine_world::entity::player::Player;
+use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
@@ -24,6 +25,7 @@ use mcrs_minecraft_item_table::bake;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol_game::item::ItemStackValue;
+use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_registries::Named;
 use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
 use mcrs_minecraft_vanilla_inventory::PlayerHolders;
@@ -53,11 +55,12 @@ static TABLE: LazyLock<ItemTable> = LazyLock::new(|| {
 
 pub fn app() -> App {
     let mut app = App::new();
-    app.add_plugins((
-        ItemPlugin::new(*TABLE),
-        VanillaInventoryPlugin,
-        InventoryPersistencePlugin,
-    ));
+    app.insert_resource(CurrentRegistries::new(test_registries().clone()))
+        .add_plugins((
+            ItemPlugin::new(*TABLE),
+            VanillaInventoryPlugin,
+            InventoryPersistencePlugin,
+        ));
     app
 }
 

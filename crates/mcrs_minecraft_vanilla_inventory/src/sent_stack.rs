@@ -1,6 +1,6 @@
+use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::write_wire;
-use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_protocol_game::ProtoStack;
 use mcrs_minecraft_registries::Wire;
 use mcrs_minecraft_wire::Decode;
@@ -30,12 +30,16 @@ impl SentStack {
     /// that it goes again only after the slot changes.
     // chisle: the two stack models meet through the bytes of the wire; a direct conversion
     // lifts it when the protocol holds `ItemStack`.
-    pub(crate) fn of(stack: Option<ItemStack>, table: &ItemTable, bytes: &mut Vec<u8>) -> Self {
+    pub(crate) fn of(
+        stack: Option<ItemStack>,
+        names: &RegistryNames<'_>,
+        bytes: &mut Vec<u8>,
+    ) -> Self {
         let Some(stack) = stack else {
             return Self::empty();
         };
         bytes.clear();
-        if let Err(error) = write_wire(Some(&stack), table, bytes) {
+        if let Err(error) = write_wire(Some(&stack), names, bytes) {
             tracing::warn!("a stack of a player has no wire form: {error:?}");
             return Self::unsendable(stack);
         }

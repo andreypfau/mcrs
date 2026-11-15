@@ -63,7 +63,7 @@ pub fn load_items(
         files
             .iter()
             .map(|(name, bytes)| DefinitionFile { name, bytes }),
-        &RegistryNames::new(registries),
+        &RegistryNames::without_items(registries),
     )?;
     Ok(LoadedItems {
         definitions: from_files(files, registries, blocks)?,

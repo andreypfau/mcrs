@@ -1,13 +1,12 @@
 use bevy_ecs::message::MessageWriter;
 use bevy_ecs::observer::On;
 use bevy_ecs::system::Local;
-use bevy_ecs::system::Res;
+use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_inventory_click::Click;
 use mcrs_minecraft_inventory_click::ClickKind;
 use mcrs_minecraft_inventory_click::Clicked;
 use mcrs_minecraft_inventory_client_view::SlotView;
 use mcrs_minecraft_item_stack::read_hashed;
-use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::item::ContainerInput;
 use mcrs_minecraft_protocol_game::item::HashedStack;
@@ -16,11 +15,12 @@ use mcrs_minecraft_wire::Encode;
 
 use crate::ClaimedSlot;
 use crate::InventoryInput;
+use crate::wire_names::WireNames;
 
 /// Writes the [`InventoryInput::Click`] of each `container_click` packet.
 pub(crate) fn decode_click(
     received: On<Received<ServerboundContainerClick>>,
-    table: Res<ItemTable>,
+    wire_names: WireNames,
     mut inputs: MessageWriter<InventoryInput>,
     mut bytes: Local<Vec<u8>>,
 ) {
@@ -28,10 +28,11 @@ pub(crate) fn decode_click(
         return;
     };
     let bytes = &mut *bytes;
+    let names = wire_names.names();
     let changed = (packet.changed_slots.iter())
         .map(|(index, stack)| ClaimedSlot {
             index: *index,
-            view: claimed_view(stack.as_ref(), &table, bytes),
+            view: claimed_view(stack.as_ref(), &names, bytes),
         })
         .collect();
     inputs.write(InventoryInput::Click {
@@ -44,7 +45,7 @@ pub(crate) fn decode_click(
             clicked: Clicked::from(packet.slot_index),
         },
         changed,
-        carried: claimed_view(packet.carried_item.as_ref(), &table, bytes),
+        carried: claimed_view(packet.carried_item.as_ref(), &names, bytes),
     });
 }
 
@@ -63,12 +64,16 @@ fn click_kind(input: ContainerInput) -> ClickKind {
 /// A hashed stack that the server cannot read gives a view that matches no stack.
 // chisle: the two hashed stack models meet through the bytes of the wire; a direct conversion
 // lifts it when the protocol holds the hashed stack of `mcrs_minecraft_item_stack`.
-fn claimed_view(stack: Option<&HashedStack>, table: &ItemTable, bytes: &mut Vec<u8>) -> SlotView {
+fn claimed_view(
+    stack: Option<&HashedStack>,
+    names: &RegistryNames<'_>,
+    bytes: &mut Vec<u8>,
+) -> SlotView {
     bytes.clear();
     if stack.encode(&mut *bytes).is_err() {
         return SlotView::Unknown;
     }
-    match read_hashed(&mut bytes.as_slice(), table) {
+    match read_hashed(&mut bytes.as_slice(), names) {
         Ok(hashed) => SlotView::Hashed(hashed),
         Err(_) => SlotView::Unknown,
     }

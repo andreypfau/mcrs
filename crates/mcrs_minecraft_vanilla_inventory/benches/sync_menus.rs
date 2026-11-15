@@ -20,12 +20,14 @@ use mcrs_minecraft_engine_item::StackCommandsExt;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_item_table::DefinitionFile;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_item_table::bake;
+use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
 use mcrs_minecraft_vanilla_inventory::VanillaInventoryPlugin;
 
@@ -52,11 +54,12 @@ fn table() -> ItemTable {
 
 fn app(table: ItemTable, players: u64) -> App {
     let mut app = App::new();
-    app.add_plugins((
-        ItemPlugin::new(table),
-        VanillaInventoryPlugin,
-        InventoryPersistencePlugin,
-    ));
+    app.insert_resource(CurrentRegistries::new(test_registries().clone()))
+        .add_plugins((
+            ItemPlugin::new(table),
+            VanillaInventoryPlugin,
+            InventoryPersistencePlugin,
+        ));
     let world = app.world_mut();
     for session in 0..players {
         let player = world.spawn((Player, Owner(PlayerSession(session)))).id();

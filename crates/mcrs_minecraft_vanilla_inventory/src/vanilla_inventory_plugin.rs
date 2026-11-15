@@ -42,7 +42,9 @@ use crate::sync_menus::sync_menus;
 /// entity.
 ///
 /// Add it to each dimension world, beside
-/// [`ItemPlugin`](mcrs_minecraft_engine_item::ItemPlugin), which it needs. The player file and a
+/// [`ItemPlugin`](mcrs_minecraft_engine_item::ItemPlugin), which it needs. It also needs the
+/// [`CurrentRegistries`](mcrs_minecraft_registries::CurrentRegistries) resource in the dimension
+/// world, which the registry snapshot brings. The player file and a
 /// handover reach the holders through [`InventoryPersistencePlugin`](crate::InventoryPersistencePlugin).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct VanillaInventoryPlugin;

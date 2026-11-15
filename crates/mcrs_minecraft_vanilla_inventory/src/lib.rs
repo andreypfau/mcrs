@@ -42,6 +42,7 @@ mod set_carried_item;
 mod set_creative_mode_slot;
 mod sync_menus;
 mod vanilla_inventory_plugin;
+mod wire_names;
 
 pub use claimed_slot::ClaimedSlot;
 pub use hand_action::HandAction;
