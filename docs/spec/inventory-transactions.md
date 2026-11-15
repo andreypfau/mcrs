@@ -397,6 +397,10 @@ Thus the cursor stack and the stacks of the craft grid always go where INV-CLS-0
 Reason: decision of the owner (section 10, Q7). The player file does not hold the cursor and the
 craft grid (INV-SAV-001), so a denial at a leave would destroy them.
 
+The moves of a close also read no take filter, and they enter only a slot whose place filter
+permits the stack (INV-CLS-005). Thus they never have a rejection of ITX-REJ-001, for example
+`take_denied` or `place_denied`.
+
 ## 6. Java Edition: the click
 
 A `container_click` packet has a container id, a state id, a slot index, a button and a click
