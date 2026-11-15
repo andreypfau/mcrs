@@ -1,4 +1,5 @@
 use bevy_app::{App, Plugin, SubApp};
+use glam::DVec3;
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::Blocks;
 use mcrs_minecraft_block_support::BlockSupport;
@@ -10,7 +11,9 @@ use mcrs_minecraft_engine::world_kinds::WorldKinds;
 use mcrs_minecraft_engine_world::block_drops::{BlockDrops, DroppingBlock};
 use mcrs_minecraft_item::ItemStack;
 use mcrs_minecraft_item_table::ItemTable;
-use mcrs_minecraft_loot_table::{BlockLoot, LootCause, LootContext, LootSeed, Tool};
+use mcrs_minecraft_loot_condition::{LootContext, Tool};
+use mcrs_minecraft_loot_table::{BlockLoot, LootCause, LootSeed};
+use mcrs_minecraft_predicate::LocationView;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_simulation::{BlockBehaviour, BlockFacts, Cx, SimulationVolume};
 use mcrs_voxel::{BlockPos, BlockStateId};
@@ -72,18 +75,19 @@ impl BlockDrops for VanillaBlocks {
         let Some(table) = self.blocks.state(block.state).loot else {
             return;
         };
+        let mut context = LootContext::new();
+        context.origin = Some(DVec3::new(
+            f64::from(block.at.x) + 0.5,
+            f64::from(block.at.y) + 0.5,
+            f64::from(block.at.z) + 0.5,
+        ));
+        context.block_state = Some(block.state);
         // chisle: a stack holds no enchantments, so each enchantment of the tool has the level 0.
-        let cx = LootContext {
-            origin: block.at,
-            state: block.state,
-            tool: Tool {
-                item: block.tool.map(|stack| stack.item),
-                enchantments: &[],
-            },
-            this_entity: block.breaker.is_some(),
-            explosion_radius: None,
-            block_at,
-        };
+        context.tool = Some(Tool {
+            item: block.tool.map(|stack| stack.item),
+            enchantments: &[],
+        });
+        context.this_entity = block.breaker;
         let seed = LootSeed {
             world: block.world_seed,
             tick: block.tick,
@@ -93,12 +97,22 @@ impl BlockDrops for VanillaBlocks {
             },
         };
         let mut stacks = Vec::new();
-        self.loot.drops(table, &cx, seed, &mut stacks);
+        self.loot
+            .drops(table, &context, &BlockAt(block_at), seed, &mut stacks);
         drops.extend(
             stacks
                 .into_iter()
                 .map(|stack| ItemStack::new(stack.item, stack.count)),
         );
+    }
+}
+
+/// The world of a drop as a location view: the block states that the drop can read.
+struct BlockAt<F>(F);
+
+impl<F: Fn(BlockPos) -> Option<BlockStateId>> LocationView for BlockAt<F> {
+    fn block_state(&self, pos: BlockPos) -> Option<BlockStateId> {
+        (self.0)(pos)
     }
 }
 

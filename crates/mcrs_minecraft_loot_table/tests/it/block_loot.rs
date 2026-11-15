@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
+use glam::DVec3;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_engine_registries::{test_corpus, test_item_table};
 use mcrs_minecraft_game_registries::registry_load::{
@@ -8,16 +9,16 @@ use mcrs_minecraft_game_registries::registry_load::{
 };
 use mcrs_minecraft_item::enchantment::Enchantment;
 use mcrs_minecraft_item_key::item_keys::Item;
-use mcrs_minecraft_loot_table::{
-    BlockLoot, LootCause, LootContext, LootIssue, LootProblem, LootSeed, Tool,
-};
+use mcrs_minecraft_loot_condition::{ConditionProblem, LootContext, Tool};
+use mcrs_minecraft_loot_table::{BlockLoot, LootCause, LootIssue, LootProblem, LootSeed};
+use mcrs_minecraft_predicate::{LocationView, NoWorld};
 use mcrs_minecraft_resource::{Id, ResourceLocation};
 use mcrs_voxel::{BlockPos, BlockStateId};
 
 static LOOT: LazyLock<(BlockLoot, Vec<LootIssue>)> =
     LazyLock::new(|| BlockLoot::bake(blocks(), test_registries(), &test_item_table()));
 
-const ORIGIN: BlockPos = BlockPos::new(0, 64, 0);
+const ORIGIN: DVec3 = DVec3::new(0.5, 64.5, 0.5);
 const EMPTY_HAND: Tool<'static> = Tool {
     item: None,
     enchantments: &[],
@@ -52,6 +53,27 @@ fn enchantment(name: &str) -> Id<Enchantment> {
         .expect("a vanilla enchantment")
 }
 
+fn context(state: BlockStateId) -> LootContext<'static, ()> {
+    let mut context = LootContext::new();
+    context.origin = Some(ORIGIN);
+    context.block_state = Some(state);
+    context.tool = Some(EMPTY_HAND);
+    context.this_entity = Some(());
+    context
+}
+
+/// The blocks around the origin of a break.
+struct Around<'a>(&'a [(BlockPos, BlockStateId)]);
+
+impl LocationView for Around<'_> {
+    fn block_state(&self, pos: BlockPos) -> Option<BlockStateId> {
+        self.0
+            .iter()
+            .find(|(at, _)| *at == pos)
+            .map(|&(_, state)| state)
+    }
+}
+
 /// A break of `state` at the origin, with the world `around` it.
 struct Break<'a> {
     state: BlockStateId,
@@ -77,26 +99,18 @@ impl<'a> Break<'a> {
         let Some(table) = blocks().state(self.state).loot else {
             return Vec::new();
         };
-        let cx = LootContext {
-            origin: ORIGIN,
-            state: self.state,
-            tool: self.tool,
-            this_entity: self.this_entity,
-            explosion_radius: self.explosion_radius,
-            block_at: |pos: BlockPos| {
-                self.around
-                    .iter()
-                    .find(|(at, _)| *at == pos)
-                    .map(|&(_, state)| state)
-            },
-        };
+        let mut cx = context(self.state);
+        cx.tool = Some(self.tool);
+        cx.this_entity = self.this_entity.then_some(());
+        cx.explosion_radius = self.explosion_radius;
         let seed = LootSeed {
             world: 7,
             tick,
             cause: LootCause::Break,
         };
         let mut out = Vec::new();
-        LOOT.0.drops(table, &cx, seed, &mut out);
+        LOOT.0
+            .drops(table, &cx, &Around(self.around), seed, &mut out);
         let items = test_registries().entries::<Item>().expect("items");
         out.iter()
             .map(|stack| {
@@ -397,27 +411,20 @@ fn reg_fld_701_the_terms_of_any_of_and_all_of_may_be_a_predicate_tag() {
         issues,
         [(
             "minecraft:blocks/coarse_dirt".to_owned(),
-            LootProblem::UnknownPredicate("#t:missing".to_owned())
+            LootProblem::Condition(ConditionProblem::UnknownPredicate("#t:missing".to_owned()))
         )]
     );
     for (block, kind, terms, passes) in cases {
         let state = state(&format!("minecraft:{block}"), &[]);
         let table = blocks().state(state).loot.expect("a block table");
-        let cx = LootContext {
-            origin: ORIGIN,
-            state,
-            tool: EMPTY_HAND,
-            this_entity: true,
-            explosion_radius: None,
-            block_at: |_: BlockPos| None,
-        };
+        let cx = context(state);
         let seed = LootSeed {
             world: 7,
             tick: 0,
             cause: LootCause::Break,
         };
         let mut out = Vec::new();
-        loot.drops(table, &cx, seed, &mut out);
+        loot.drops(table, &cx, &NoWorld, seed, &mut out);
         assert_eq!(!out.is_empty(), passes, "{kind} {terms}");
     }
 }

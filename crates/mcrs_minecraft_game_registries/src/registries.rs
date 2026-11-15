@@ -32,7 +32,8 @@ use mcrs_minecraft_item::dialog::Dialog;
 use mcrs_minecraft_item::{
     InstrumentValue, JukeboxSong, PaintingVariantValue, TrimMaterial, TrimPattern,
 };
-use mcrs_minecraft_loot_table::{ConditionFile, LootTableFile};
+use mcrs_minecraft_loot_condition::ConditionFile;
+use mcrs_minecraft_loot_table::LootTableFile;
 use mcrs_minecraft_registries::{Declaration, Stage};
 use mcrs_minecraft_sound::BlockSoundSet;
 use serde::Deserialize;

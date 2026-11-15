@@ -2,13 +2,14 @@ use mcrs_minecraft_block::definition::{BlockDefinitions, LootId};
 use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_item_stack::{Kind, MaxStackSize};
 use mcrs_minecraft_item_table::ItemTable;
+use mcrs_minecraft_loot_condition::LootContext;
+use mcrs_minecraft_predicate::LocationView;
+use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_resource::Id;
-use mcrs_voxel::{BlockPos, BlockStateId};
+use mcrs_voxel::BlockPos;
 
 use crate::baker::Baker;
-use crate::draws::Draws;
-use crate::loot_context::LootContext;
 use crate::loot_issue::{LootIssue, LootProblem};
 use crate::loot_table_file::LootTableFile;
 use crate::table::Table;
@@ -74,7 +75,7 @@ impl BlockLoot {
             };
             let mut baker = Baker::new(definitions, registries);
             tables.push(Some(baker.table(file, key_of(name.as_str()))));
-            issues.extend(baker.problems.into_iter().map(|problem| LootIssue {
+            issues.extend(baker.into_problems().map(|problem| LootIssue {
                 table: name.clone(),
                 problem,
             }));
@@ -99,11 +100,13 @@ impl BlockLoot {
     }
 
     /// Adds to `out` the stacks of one evaluation of `table`, divided at the maximum stack size
-    /// of each item (LOOT-OUT-001); a count of 0 or less makes nothing (LOOT-OUT-002).
-    pub fn drops<W: Fn(BlockPos) -> Option<BlockStateId>>(
+    /// of each item (LOOT-OUT-001); a count of 0 or less makes nothing (LOOT-OUT-002). A context
+    /// without `origin` makes nothing.
+    pub fn drops<E, W: LocationView>(
         &self,
         table: LootId,
-        cx: &LootContext<'_, W>,
+        context: &LootContext<'_, E>,
+        world: &W,
         seed: LootSeed,
         out: &mut Vec<DroppedStack>,
     ) {
@@ -114,9 +117,13 @@ impl BlockLoot {
         else {
             return;
         };
-        let mut draws = Draws::new(stream_seed(table.key, cx.origin, seed));
+        let Some(origin) = context.origin else {
+            return;
+        };
+        let key = stream_seed(table.key, BlockPos::from(origin), seed);
+        let mut random = XoroshiroRandom::new(key);
         let mut counts = Vec::new();
-        table.evaluate(cx, &mut draws, &mut counts);
+        table.evaluate(context, world, &mut random, &mut counts);
         for (item, mut count) in counts {
             let max = self
                 .max_stack

@@ -125,6 +125,7 @@ const NO_BEVY_PACKAGES: [&str; 133] = [
     "mcrs_minecraft_light_color",
     "mcrs_minecraft_light_engine",
     "mcrs_minecraft_loot",
+    "mcrs_minecraft_loot_condition",
     "mcrs_minecraft_map_decoration",
     "mcrs_minecraft_mesh",
     "mcrs_minecraft_model_file",

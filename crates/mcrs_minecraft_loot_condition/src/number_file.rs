@@ -4,16 +4,23 @@ use serde::Deserialize;
 /// A context number provider as a loot table writes it: a bare number, an inline object or the
 /// key of a registered provider.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(transparent)]
+pub struct NumberFile(pub(crate) NumberForm);
+
+#[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
-pub enum NumberFile {
+pub(crate) enum NumberForm {
     Constant(f32),
     Typed(TypedNumber),
-    Key(ResourceLocationBuf),
+    Key(
+        #[expect(dead_code, reason = "no bake resolves a registered provider yet")]
+        ResourceLocationBuf,
+    ),
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type")]
-pub enum TypedNumber {
+pub(crate) enum TypedNumber {
     #[serde(rename = "minecraft:constant", alias = "constant")]
     Constant { value: f32 },
     #[serde(rename = "minecraft:uniform", alias = "uniform")]
