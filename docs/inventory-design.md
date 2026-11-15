@@ -181,7 +181,10 @@ impl SlotPolicy {
 
 pub struct RequestSource(/* private */);
 pub struct RequestId { pub source: RequestSource, pub serial: u32 }
+pub enum RequestKind { Action, Close }
 impl Request {
+    pub fn close(id: RequestId) -> Self;
+    pub fn kind(&self) -> RequestKind;
     pub fn id(&self) -> RequestId;
     pub fn ops(&self) -> impl Iterator<Item = Op<SlotRef, Entity>> + '_;
 }
@@ -217,7 +220,8 @@ pub trait StackCommandsExt {
 | `SlotPolicy::set` | Changes one entry. An index without an entry changes nothing. |
 | `RequestSource` | The identity of one sender of requests in one world. |
 | `RequestId` | The source and a number that the source selects. The result repeats the two. |
-| `RequestCheck` | Triggered on the actor before the plan, not on the holders of the slots. An observer reads the request and can deny it. |
+| `RequestKind` | **(proposal)** `Action` for a request of a player or a plugin; `Close` for the moves of a close. The commit triggers no `RequestCheck` for `Close`, so the moves of a close never reach the denial point (ITX-ATM-012). `Request::new` gives `Action`, `Request::close` gives `Close`. |
+| `RequestCheck` | Triggered on the actor before the plan of each `Action` request, not on the holders of the slots. An observer reads the request and can deny it. |
 | `Denial` | Who denied and a code of that source. The edge renders it. |
 | `Refusal` | The cause of a request that changed nothing: a rejection of the planner or a denial. |
 | `RegisterError` | Two new variants: `GateTableFull` and `SourcesExhausted`. The other three exist today. |
@@ -537,8 +541,10 @@ Two levels exist. Data decides the regular case; code decides the rare case.
 
 1. **`SlotPolicy`**: the limit and the gates of each slot. The commit reads it. A locked slot is
    two `Gate::Refuses` values and costs no function call.
-2. **`RequestCheck`**: the commit triggers it on the actor before the plan. An observer denies
-   the request. The result is `Refusal::Denied`, and no slot changes.
+2. **`RequestCheck`**: the commit triggers it on the actor before the plan of each `Action`
+   request. An observer denies the request. The result is `Refusal::Denied`, and no slot
+   changes. The observer of a close makes `Close` requests (section 4.1). The commit triggers no
+   `RequestCheck` for them, so the moves of a close never reach this point (ITX-ATM-012).
 
 The check is an observer, not a system set (decision of the owner). Reason: a request of one player must
 commit before the next input of that player reads the slots (ITX-JAV-003). A system set between
@@ -634,8 +640,9 @@ Section 2 names the writer of each stored thing. These rules add to it:
 1. After each command flush, a slot content that differs from the content before the flush has a
    `SlotChanged`, except for a write in place without `touch`.
 2. A request applies in full or not at all (ITX-ATM-002). A denial is "not at all".
-3. Each `Request` has exactly one `RequestResult`. `RequestCheck` comes before the plan, and each
-   `RequestDrop` comes before the result.
+3. Each `Request` has exactly one `RequestResult`. `RequestCheck` comes before the plan of each
+   `Action` request. A `Close` request has no `RequestCheck` (ITX-ATM-012). Each `RequestDrop`
+   comes before the result.
 4. A viewer has one or two menus. The first one is the inventory menu and lives as long as the
    player.
 5. After the sync of a tick, the client view of each entry of the open menu equals the stack of
@@ -686,7 +693,7 @@ list it.
 |-|-|-|
 | 1 | The sync: option (a) or option (b) of section 6. | **Decided: option (b).** It is INV-SYN-003 as written, it finds each writer, and it needs no reverse index. |
 | 2 | The cancel point: the observer `RequestCheck`, or a system set `Validate` over pending requests. | **Decided: the observer.** A set needs requests that wait, and a request that waits breaks ITX-JAV-003 for two clicks of one player in one tick. A set is possible only if the input phase runs one schedule pass for each input. |
-| 3 | `inventory-transactions.md` has no result for a denial. ITX-ATM-006 knows "applied" and "rejection" only. | A question to the specification author: one rule for a denial and for what the edge sends after it. `Refusal::Denied` waits for that rule. |
+| 3 | `inventory-transactions.md` has no result for a denial. ITX-ATM-006 knows "applied" and "rejection" only. | Answered by the specification: ITX-ATM-006 to ITX-ATM-012, ITX-JAV-021, ITX-JAV-022. A denial is a third result. The moves of a close never reach the denial point. |
 | 4 | The signature of `GateFn`. It reads `&World` inside the commit command. | Keep it if the commit can lend the world while it plans. If not, the gate gets the two `EntityRef` values of the actor and the stack. |
 | 5 | Two plugins that write one entry of `SlotPolicy`. | Accept the one-writer rule of section 7.1. A second layer of policy is not built until a user needs it. |
 | 6 | The routes and the entries of each block menu, and of a generic chest. No specification states them (INV section 9). | The specification of #63 states them before `MenuLayout` gets a constructor for a chest. A minigame builds its layout with `MenuLayout::new`. |
@@ -697,7 +704,7 @@ list it.
 | 11 | `mcrs:spectators_open_menus` belongs to the specification of the block menus (INV section 9). | `vanilla_inventory` reads it where it calls `open_menu`. The rule has no effect until #63. |
 | 12 | U1 of `inventory.md`: the entries of the item tag `mcrs:offhand_allowed`. | The Bedrock edge gives the list. Not necessary for the default value of the rule. |
 | 13 | U2 of `inventory.md`: the place of the comparison in the tick. | Experiment E7 and E8. Until then: after `TickSet::Project`. |
-| 14 | Q2 of `inventory-transactions.md`: is 128 the maximum of operations? It also limits a close (`close_container.rs:44`). | Keep 128. A close with more moves sends two requests. Change only when the craft specification needs more. |
+| 14 | Q2 of `inventory-transactions.md`: is 128 the maximum of operations? It also limits a close (`close_container.rs:44`). | Keep 128. A close with more moves sends two `Close` requests. Change only when the craft specification needs more. |
 | 15 | Q3: `docs/item-design.md` section 4.3 differs from the transaction specification. | The code follows the specification (`Op::Drop`, `Op::Set`, the reasons). Section 4.3 of that document changes. |
 | 16 | Q5, Q6, U1, U3 of `inventory-transactions.md`. | Answers of the specification. Q5 needs E16; Q6 is a choice of the owner; U1 needs E4; U3 belongs to the craft. |
 | 17 | `engine_item/src/spawn_stack.rs:16`: one archetype move for each component at a spawn. | Keep the ceiling. Lift it when a profile of `restore_items` or of a join shows it. |
@@ -813,24 +820,32 @@ dependents.
 **Step 8: the clicks of the client (#129).**
 
 - Crates: new `mcrs_minecraft_inventory_predict`; the client crates.
+- Before: groups 4 and 8 of `item-design.md` section 10.3.5 (gate W2).
 - Done: a headless client predicts a click with the kernel that the server uses, and sends the
   `container_click` packet with hashed stacks. A test runs the client and the server in one
   process: after a click, the server sends no slot packet.
 
 ## 10.1 The migration from the old stack crate, in parallel
 
-This is steps 11 and 12 of `docs/item-design.md` section 10. Each group is one pull request. At
-most three migrations are open at one time, this one included.
+This is steps 11 and 12 of `docs/item-design.md` section 10. Section 10.3 of that document gives
+the groups, their order, the new home of each type and the gates. This section states only the
+effect of each group on the inventory. At most three migrations are open at one time, this one
+included.
 
-| Group | Crates | Effect on the inventory |
-|-|-|-|
-| A | `protocol_game`, `save` | The byte round trips of `sent_stack.rs:23` and `decode_click.rs:64` go away. The edge passes `ItemStack` to the packet. |
-| B | `engine`, `engine_world`, `engine_registries`, `server`, `block_entity`, `vanilla_block_place`, `vanilla_falling_block` | none |
-| C | `client`, `client_world`, `client_entity`, `client_gui`, `chat_client`, `entity_render`, `entity_visual`, `light_render`, `light_color`, `model`, `particle` | necessary before step 8 |
-| D | `enchantment`, `recipe`, `game_registries`, `registry_catalog`, `loot_table`, `environment`, `worldgen_structure` | none |
+The protocol crate cannot go first. It gets old types from `particle` and `recipe`, and the bare
+wire form of a stack needs the codec of each component type before a client can read it.
 
-The pull request that moves the last user deletes `mcrs_minecraft_item`. Group A comes first: the
-proxy use case and step 8 need it.
+| Group of `item-design.md` 10.3.5 | Effect on the inventory |
+|-|-|
+| 4, stacks of serverbound packets | The byte round trips of `decode_click.rs:64` and `set_creative_mode_slot.rs:57` go away. The edge reads the hashed stack and the creative stack from the packet. This group can come first. |
+| 5, item links | none |
+| 6, drops and block entities | A container of a block entity holds `SlotStack`. |
+| 8, client state and the stacks and templates of clientbound packets | The client holds its stacks in the entity form. The byte round trips of `sent_stack.rs:23` and `vanilla_item_entity/src/wire_stack.rs:25` go away. The edge passes `ItemStack` to the packet. The proxy use case of section 5 is complete. Necessary before step 8. |
+| 1, 2, 3, 7, 9 | none |
+| 10, the end | The pull request that moves the last user deletes `mcrs_minecraft_item`. |
+
+Step 8 needs groups 4 and 8. Group 8 waits for the wire codecs of all 122 component types, so
+step 8 also waits for them.
 
 # 11. Done conditions of the whole work
 
