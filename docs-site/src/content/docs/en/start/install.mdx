@@ -11,6 +11,7 @@ sources:
   - rust-toolchain.toml
   - README.md
   - crates/mcrs_minecraft_client_jar/src/native.rs
+  - crates/mcrs_minecraft_client/Cargo.toml
   - issue:321
 verified:
   snapshot: 26.4-snapshot-7
@@ -31,6 +32,8 @@ A detailed install guide will come before the alpha. Today only developers use t
 ## What you need
 
 Install Rust through [rustup](https://rustup.rs). You do not pick a version, because [`rust-toolchain.toml`](https://github.com/andreypfau/mcrs/blob/main/rust-toolchain.toml) pins `nightly-2026-09-02` and rustup downloads it on the first `cargo` call. It also adds rustfmt, clippy and the wasm32 targets.
+
+On Linux the client supports both Wayland and X11.
 
 For an IDE, use RustRover, or IntelliJ IDEA with the Rust plugin, and open the repository root as a Cargo project. Check the current licence terms of RustRover yourself.
 
