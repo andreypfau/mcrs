@@ -12,6 +12,7 @@ use mcrs_minecraft_engine::persisted_registry::PersistScope;
 use mcrs_minecraft_engine::persisted_registry::PersistedAppExt;
 use mcrs_minecraft_engine::persisted_registry::PersistedError;
 use mcrs_minecraft_engine::persisted_registry::PersistedForm;
+use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::SlotStack;
 use mcrs_minecraft_item_stack::read_saved;
@@ -22,6 +23,7 @@ use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_nbt::Error;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_registries::CurrentRegistries;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -135,11 +137,17 @@ fn decode_error(key: &'static str, cause: impl ToString) -> PersistedError {
     }
 }
 
-fn table(world: &World, key: &'static str) -> Result<ItemTable, PersistedError> {
-    world
+fn registry_names<'world>(
+    world: &'world World,
+    key: &'static str,
+) -> Result<RegistryNames<'world>, PersistedError> {
+    let table = world
         .get_resource::<ItemTable>()
-        .copied()
-        .ok_or_else(|| encode_error(key, "the world has no item table"))
+        .ok_or_else(|| encode_error(key, "the world has no item table"))?;
+    let registries = world
+        .get_resource::<CurrentRegistries>()
+        .ok_or_else(|| encode_error(key, "the world has no registries"))?;
+    Ok(RegistryNames::new(registries, table))
 }
 
 fn stack_values(In(stacks): In<Vec<Entity>>, mut reader: Stacks) -> Vec<Option<ItemStack>> {
@@ -170,12 +178,12 @@ fn capture_inventory(
     let placed: Vec<(u8, Entity)> = (0..slots.len().min(INVENTORY_SLOTS))
         .filter_map(|index| Some((u8::try_from(index).ok()?, slots.get(index)?)))
         .collect();
-    let names = table(world, INVENTORY)?;
     let values = read_stack_values(
         world,
         placed.iter().map(|(_, stack)| *stack).collect(),
         INVENTORY,
     )?;
+    let names = registry_names(world, INVENTORY)?;
     let mut list = Vec::new();
     for ((slot, _), stack) in placed.into_iter().zip(values) {
         let Some(stack) = stack else {
@@ -190,7 +198,7 @@ fn capture_inventory(
 
 fn slot_stacks(
     tag: &NbtTag,
-    names: &ItemTable,
+    names: &RegistryNames<'_>,
     key: &'static str,
 ) -> Result<Vec<SlotStack>, PersistedError> {
     let NbtTag::List(entries) = tag else {
@@ -208,7 +216,7 @@ fn slot_stacks(
 }
 
 fn apply_inventory(world: &mut World, holder: Entity, tag: &NbtTag) -> Result<(), PersistedError> {
-    let names = table(world, INVENTORY)?;
+    let names = registry_names(world, INVENTORY)?;
     let mut values: Vec<Option<ItemStack>> = alloc::vec![None; INVENTORY_SLOTS];
     for SlotStack { slot, stack } in slot_stacks(tag, &names, INVENTORY)? {
         if let Some(value) = values.get_mut(usize::from(slot)) {
@@ -227,7 +235,7 @@ fn capture_ender_items(
     let Some(items) = world.get::<EnderItems>(holder) else {
         return Ok(None);
     };
-    let names = table(world, ENDER_ITEMS)?;
+    let names = registry_names(world, ENDER_ITEMS)?;
     let list = items
         .0
         .iter()
@@ -245,7 +253,7 @@ fn apply_ender_items(
     holder: Entity,
     tag: &NbtTag,
 ) -> Result<(), PersistedError> {
-    let names = table(world, ENDER_ITEMS)?;
+    let names = registry_names(world, ENDER_ITEMS)?;
     let mut items = slot_stacks(tag, &names, ENDER_ITEMS)?;
     items.retain(|slotted| slotted.slot < ENDER_SLOTS);
     world
@@ -270,7 +278,7 @@ fn capture_equipment(
         None if selected_holds_stack => WornEquipment::default(),
         None => return Ok(None),
     };
-    let names = table(world, EQUIPMENT)?;
+    let names = registry_names(world, EQUIPMENT)?;
     let mut compound = NbtCompound::new();
     for (key, stack) in worn.slots_mut() {
         if let Some(stack) = stack.as_ref() {
@@ -289,7 +297,7 @@ fn apply_equipment(world: &mut World, holder: Entity, tag: &NbtTag) -> Result<()
     let NbtTag::Compound(compound) = tag else {
         return Err(decode_error(EQUIPMENT, "expected a compound"));
     };
-    let names = table(world, EQUIPMENT)?;
+    let names = registry_names(world, EQUIPMENT)?;
     let mut worn = WornEquipment::default();
     for (key, entry) in &compound.child_tags {
         let NbtTag::Compound(saved) = entry else {

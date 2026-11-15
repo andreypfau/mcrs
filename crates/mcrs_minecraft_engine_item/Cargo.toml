@@ -15,10 +15,12 @@ bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_math.workspace = true
 mcrs_minecraft_engine.workspace = true
+mcrs_minecraft_engine_registries.workspace = true
 mcrs_minecraft_inventory_transaction.workspace = true
 mcrs_minecraft_item_stack = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_item_table = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_nbt.workspace = true
+mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
 rustc-hash.workspace = true
 serde.workspace = true
 
@@ -26,6 +28,7 @@ serde.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_resource.workspace = true

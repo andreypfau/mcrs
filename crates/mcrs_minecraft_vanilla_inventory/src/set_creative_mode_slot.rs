@@ -35,12 +35,13 @@ use crate::creative_drops::CreativeDrops;
 use crate::insert_stack::max_stack_size;
 use crate::launch_drops::launch_from_player;
 use crate::request_ids::CREATIVE_REQUEST;
+use crate::wire_names::WireNames;
 
 /// Writes the [`InventoryInput::CreativeSet`] of each `set_creative_mode_slot` packet whose stack
 /// decodes.
 pub(crate) fn set_creative_mode_slot(
     received: On<Received<ServerboundSetCreativeModeSlot>>,
-    table: Res<ItemTable>,
+    wire_names: WireNames,
     mut inputs: MessageWriter<InventoryInput>,
     mut bytes: Local<Vec<u8>>,
 ) {
@@ -52,7 +53,7 @@ pub(crate) fn set_creative_mode_slot(
         return;
     }
     // STK-NET-009: a stack without a saved form is a decode error of the packet.
-    let Ok(stack) = read_wire_with_length(&mut bytes.as_slice(), &*table) else {
+    let Ok(stack) = read_wire_with_length(&mut bytes.as_slice(), &wire_names.names()) else {
         return;
     };
     inputs.write(InventoryInput::CreativeSet {

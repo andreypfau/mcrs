@@ -29,9 +29,11 @@ use mcrs_minecraft_engine_registries::test_item_table;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::world_save::WorldSave;
+use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::uuid::Uuid;
+use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_resource::ResourceKeyBuf;
 use mcrs_minecraft_save::PlayerDat;
 use mcrs_minecraft_save::read_player_dat;
@@ -51,7 +53,8 @@ fn temp_world() -> PathBuf {
 
 fn app(dir: &std::path::Path) -> App {
     let mut app = App::new();
-    app.add_plugins(PlayerPersistencePlugin)
+    app.insert_resource(CurrentRegistries::new(test_registries().clone()))
+        .add_plugins(PlayerPersistencePlugin)
         .add_plugins((ItemPlugin::new(test_item_table()), PlayerItemFilePlugin))
         .insert_resource(WorldSave(dir.to_owned()));
     app
@@ -293,7 +296,18 @@ fn vanilla_player() -> NbtCompound {
         ("SelectedItemSlot", NbtTag::Int(0)),
         (
             "EnderItems",
-            list_of(vec![slot_stack(2, "minecraft:cobblestone", 5)]),
+            list_of(vec![compound(vec![
+                ("Slot", NbtTag::Byte(2)),
+                ("id", s("minecraft:diamond_sword")),
+                ("count", NbtTag::Int(1)),
+                (
+                    "components",
+                    compound(vec![(
+                        "minecraft:enchantments",
+                        compound(vec![("minecraft:sharpness", NbtTag::Int(3))]),
+                    )]),
+                ),
+            ])]),
         ),
         ("SleepTimer", NbtTag::Short(0)),
         (

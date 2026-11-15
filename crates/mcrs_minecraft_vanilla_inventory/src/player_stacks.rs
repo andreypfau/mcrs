@@ -2,13 +2,13 @@ use bevy_ecs::system::Query;
 use mcrs_minecraft_engine::persisted_registry::PersistedError;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::Stacks;
+use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_inventory_player::ArmourSlot;
 use mcrs_minecraft_inventory_player::HOTBAR;
 use mcrs_minecraft_inventory_player::INVENTORY_SLOTS;
 use mcrs_minecraft_inventory_player::MAIN;
 use mcrs_minecraft_inventory_player::OFF_HAND;
 use mcrs_minecraft_item_stack::ItemStack;
-use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
 
@@ -102,10 +102,13 @@ impl PlayerStacks {
     /// The stacks that `file` gives, with no filter and no slot limit (INV-SAV-001, INV-SAV-002).
     /// The cursor and the craft grid are empty. A stack that does not load fails the read, so the
     /// next write does not lose it.
-    pub(crate) fn read(file: &PlayerFile, table: &ItemTable) -> Result<Self, PersistedError> {
+    pub(crate) fn read(
+        file: &PlayerFile,
+        names: &RegistryNames<'_>,
+    ) -> Result<Self, PersistedError> {
         let mut stacks = Self::empty();
         for entry in &file.inventory {
-            let slotted = saved_stack::from_saved_with_slot(INVENTORY_KEY, entry, table)?;
+            let slotted = saved_stack::from_saved_with_slot(INVENTORY_KEY, entry, names)?;
             if !MAIN.contains(&u16::from(slotted.slot)) {
                 tracing::error!(
                     slot = slotted.slot,
@@ -121,7 +124,7 @@ impl PlayerStacks {
             if let Some(value) = file.equipment.get_compound(key)
                 && let Some(slot) = stacks.inventory.get_mut(usize::from(index))
             {
-                *slot = Some(saved_stack::from_saved(EQUIPMENT_KEY, value, table)?);
+                *slot = Some(saved_stack::from_saved(EQUIPMENT_KEY, value, names)?);
             }
         }
         stacks.selected = u8::try_from(file.selected_item_slot)
@@ -135,17 +138,17 @@ impl PlayerStacks {
     pub(crate) fn read_carried(
         &mut self,
         carried: &NbtCompound,
-        table: &ItemTable,
+        names: &RegistryNames<'_>,
     ) -> Result<(), PersistedError> {
         if let Some(saved) = carried.get_compound(CURSOR_KEY) {
-            self.cursor = Some(saved_stack::from_saved_with_slot(CURSOR_KEY, saved, table)?.stack);
+            self.cursor = Some(saved_stack::from_saved_with_slot(CURSOR_KEY, saved, names)?.stack);
         }
         if let Some(NbtTag::List(craft_grid)) = carried.get(CRAFT_GRID_KEY) {
             for tag in craft_grid {
                 let NbtTag::Compound(saved) = tag else {
                     continue;
                 };
-                let slotted = saved_stack::from_saved_with_slot(CRAFT_GRID_KEY, saved, table)?;
+                let slotted = saved_stack::from_saved_with_slot(CRAFT_GRID_KEY, saved, names)?;
                 if let Some(slot) = self.craft_grid.get_mut(usize::from(slotted.slot)) {
                     *slot = Some(slotted.stack);
                 }
@@ -158,7 +161,7 @@ impl PlayerStacks {
     pub(crate) fn write(
         &self,
         file: &mut PlayerFile,
-        table: &ItemTable,
+        names: &RegistryNames<'_>,
     ) -> Result<(), PersistedError> {
         file.inventory.clear();
         let main = self.inventory.iter().take(usize::from(MAIN.end));
@@ -168,13 +171,13 @@ impl PlayerStacks {
                     INVENTORY_KEY,
                     slot,
                     stack,
-                    table,
+                    names,
                 )?);
             }
         }
         for EquipmentKey { key, index } in EQUIPMENT {
             if let Some(Some(stack)) = self.inventory.get(usize::from(index)) {
-                let saved = saved_stack::to_saved(EQUIPMENT_KEY, stack, table)?;
+                let saved = saved_stack::to_saved(EQUIPMENT_KEY, stack, names)?;
                 file.equipment.put(key, NbtTag::Compound(saved));
             }
         }
@@ -183,16 +186,19 @@ impl PlayerStacks {
     }
 
     /// The cursor and the craft grid as the values that cross to another cell.
-    pub(crate) fn write_carried(&self, table: &ItemTable) -> Result<NbtCompound, PersistedError> {
+    pub(crate) fn write_carried(
+        &self,
+        names: &RegistryNames<'_>,
+    ) -> Result<NbtCompound, PersistedError> {
         let mut carried = NbtCompound::new();
         if let Some(cursor) = &self.cursor {
-            let saved = saved_stack::to_saved_with_slot(CURSOR_KEY, 0, cursor, table)?;
+            let saved = saved_stack::to_saved_with_slot(CURSOR_KEY, 0, cursor, names)?;
             carried.put(CURSOR_KEY, NbtTag::Compound(saved));
         }
         let mut craft_grid = Vec::new();
         for (slot, stack) in (0..=u8::MAX).zip(&self.craft_grid) {
             if let Some(stack) = stack {
-                let saved = saved_stack::to_saved_with_slot(CRAFT_GRID_KEY, slot, stack, table)?;
+                let saved = saved_stack::to_saved_with_slot(CRAFT_GRID_KEY, slot, stack, names)?;
                 craft_grid.push(NbtTag::Compound(saved));
             }
         }
