@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::{AttributeBases, AttributeInstance, AttributeSet, InstanceModifier};
+use mcrs_minecraft_entity_attribute::{AttributeModifier, HomeSlot, Modifier, fold};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::clientbound::{
     AttributeSnapshot, ClientboundLogin, ClientboundRespawn, ClientboundUpdateAttributes,
@@ -34,6 +35,33 @@ impl AttributeInstances {
     #[must_use]
     pub fn value(&self, attribute: Attribute) -> Option<f64> {
         self.set.value(self.bases, attribute)
+    }
+
+    /// The value of ATR-VAL-001 for the instance of `attribute` without its modifier `id` and
+    /// with `replacement` at the end of the sequence (ATR-INS-004), which this call does not
+    /// store; `None` when the attribute is not in the set of the type.
+    pub(crate) fn value_replacing(
+        &self,
+        attribute: Attribute,
+        id: ResourceLocation<'_>,
+        replacement: Option<AttributeModifier<'static>>,
+    ) -> Option<f64> {
+        let base = self.set.base(self.bases, attribute)?;
+        let modifiers: &[InstanceModifier] = self
+            .set
+            .instance(attribute)
+            .map_or(&[], AttributeInstance::modifiers);
+        let appended = replacement.map(Modifier::from);
+        let kept = modifiers
+            .iter()
+            .filter(move |kept| kept.id() != id)
+            .map(|kept| Modifier {
+                operation: kept.operation(),
+                amount: kept.amount(),
+                slot: HomeSlot::from(kept.id()),
+            });
+        let value = fold(base, kept.chain(appended));
+        Some(attribute.definition().range.clamp(value))
     }
 
     /// The instances that differ from those of a new entity of the type.

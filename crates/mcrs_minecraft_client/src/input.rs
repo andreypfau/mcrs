@@ -1,19 +1,22 @@
-use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
+use bevy::input::mouse::{AccumulatedMouseMotion, MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use mcrs_minecraft_engine_world::entity::physics::{OldTransform, Transform as PhysicsTransform};
+use mcrs_minecraft_game_mode::GameMode;
 
 use mcrs_minecraft_client_gui::menu_screens_plugin::MenuScreensPlugin;
 use mcrs_minecraft_client_options::ClientOptions;
+use mcrs_minecraft_client_world::abilities::Abilities;
 use mcrs_minecraft_client_world::attack_input::AttackInput;
-use mcrs_minecraft_client_world::local_player::{FlyingSpeed, LocalPlayerTick};
+use mcrs_minecraft_client_world::game_mode::LocalGameMode;
+use mcrs_minecraft_client_world::local_player::LocalPlayerTick;
 use mcrs_minecraft_client_world::movement_input::MovementInput;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
 
-const FLY_SPEED_STEP: f64 = 0.05;
-const FLY_SPEED_MIN: f64 = 0.0;
-const FLY_SPEED_MAX: f64 = 2.0;
+const FLY_SPEED_PER_NOTCH: f32 = 0.005;
+const FLY_SPEED_MIN: f32 = 0.0;
+const FLY_SPEED_MAX: f32 = 0.2;
 
 /// Degrees of turn for each unit of mouse motion at a turn factor of 1.
 const DEGREES_PER_MOTION_UNIT: f32 = 0.15;
@@ -85,19 +88,79 @@ fn read_attack_input(
     }
 }
 
-fn adjust_fly_speed(speed: f64, wheel: f64) -> f64 {
-    (speed + wheel * FLY_SPEED_STEP).clamp(FLY_SPEED_MIN, FLY_SPEED_MAX)
+/// The part of the sum of each wheel axis that is not yet a whole notch (PHY-INP-022).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct WheelSums {
+    horizontal: f64,
+    vertical: f64,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Notches {
+    horizontal: i32,
+    vertical: i32,
+}
+
+impl WheelSums {
+    /// Adds the values of one wheel event, with the scroll options at their defaults.
+    fn add(&mut self, horizontal: f64, vertical: f64) -> Notches {
+        Notches {
+            horizontal: take_notches(&mut self.horizontal, horizontal),
+            vertical: take_notches(&mut self.vertical, vertical),
+        }
+    }
+}
+
+fn take_notches(sum: &mut f64, value: f64) -> i32 {
+    if value.partial_cmp(&0.0) != (*sum).partial_cmp(&0.0) {
+        *sum = 0.0;
+    }
+    *sum += value;
+    let notches = sum.trunc();
+    *sum -= notches;
+    notches as i32
+}
+
+fn fly_speed_after(speed: f32, vertical_notches: i32) -> f32 {
+    (speed + vertical_notches as f32 * FLY_SPEED_PER_NOTCH).clamp(FLY_SPEED_MIN, FLY_SPEED_MAX)
+}
+
+/// The wheel changes the flying speed of a spectator for each event with a notch (PHY-INP-022,
+/// PHY-INP-023). A wheel event while a screen is open or the pointer is free changes no sum.
 fn read_fly_speed_wheel(
-    scroll: Res<AccumulatedMouseScroll>,
+    mut wheel: MessageReader<MouseWheel>,
+    mut sums: Local<WheelSums>,
+    screen: Option<Res<Screen>>,
     cursor: Single<&CursorOptions, With<PrimaryWindow>>,
-    mut speed: Single<&mut FlyingSpeed, With<Player>>,
+    mut player: Query<(&mut Abilities, Option<&LocalGameMode>), With<Player>>,
 ) {
-    if cursor.grab_mode == CursorGrabMode::None || scroll.delta.y == 0.0 {
+    let screen_open = cursor.grab_mode == CursorGrabMode::None || !screen_is_none(screen);
+    let Ok((mut abilities, game_mode)) = player.single_mut() else {
+        wheel.clear();
+        return;
+    };
+    if screen_open {
+        wheel.clear();
         return;
     }
-    speed.0 = adjust_fly_speed(speed.0, f64::from(scroll.delta.y));
+    let spectator = game_mode.is_some_and(|mode| mode.current == GameMode::Spectator);
+    let mut speed = abilities.flying_speed;
+    for event in wheel.read() {
+        // chisle: a trackpad does not change the speed; a scale of pixel values in the
+        // specification lifts this.
+        if event.unit == MouseScrollUnit::Pixel {
+            continue;
+        }
+        let notches = sums.add(f64::from(event.x), f64::from(event.y));
+        if spectator && (notches.horizontal != 0 || notches.vertical != 0) {
+            speed = fly_speed_after(speed, notches.vertical);
+        }
+    }
+    let next = Abilities {
+        flying_speed: speed,
+        ..*abilities
+    };
+    abilities.set_if_neq(next);
 }
 
 /// Grabbing after the look has been applied drops the motion the pointer made
@@ -166,6 +229,44 @@ pub(crate) fn apply_mouse_look(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn each_notch_steps_the_fly_speed_within_its_limits() {
+        for (notch, notches, expected) in [
+            (1, 30, 0.199_999_96_f32),
+            (1, 31, 0.2_f32),
+            (-1, 10, 7.450_581e-9_f32),
+            (-1, 11, 0.0_f32),
+        ] {
+            let speed = (0..notches).fold(0.05_f32, |speed, _| fly_speed_after(speed, notch));
+            assert_eq!(speed.to_bits(), expected.to_bits(), "{notches} x {notch}");
+        }
+    }
+
+    #[test]
+    fn a_wheel_sum_gives_whole_notches_and_resets_on_a_sign_change() {
+        let cases: [(&str, &[f64], i32, f64); 4] = [
+            ("two halves give one notch", &[0.5, 0.5], 1, 0.0),
+            ("a sign change resets the sum", &[0.7, -0.2], 0, -0.2),
+            ("a fraction below one notch", &[0.3], 0, 0.3),
+            ("truncation toward zero", &[-1.5], -1, -0.5),
+        ];
+        for (name, values, notches, rest) in cases {
+            let mut sums = WheelSums::default();
+            let total: i32 = values
+                .iter()
+                .map(|&value| sums.add(0.0, value).vertical)
+                .sum();
+            assert_eq!((total, sums.vertical), (notches, rest), "{name}");
+        }
+        let mut sums = WheelSums::default();
+        let _notches = sums.add(0.4, 0.0);
+        let _notches = sums.add(0.0, 0.0);
+        assert_eq!(
+            sums.horizontal, 0.0,
+            "a horizontal value of 0 resets its sum"
+        );
+    }
 
     #[test]
     fn the_sensitivity_sets_the_degrees_of_each_unit_of_motion() {

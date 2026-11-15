@@ -9,7 +9,7 @@ use crate::terrain_debug_entry;
 use mcrs_minecraft_client_gui::debug_screen::{DebugScreenSet, collecting};
 use mcrs_minecraft_client_gui::{debug_entry_fps, debug_entry_system_specs};
 use mcrs_minecraft_client_world::columns::ClientTerrainSet;
-use mcrs_minecraft_client_world::local_player::{FlyingSpeed, LocalPlayerTick};
+use mcrs_minecraft_client_world::local_player::LocalPlayerTick;
 
 pub mod census;
 pub mod chunk_guard;
@@ -100,12 +100,13 @@ impl Plugin for DevPlugin {
     }
 }
 
-pub fn script_flight(app: &mut App, player: Entity) {
+pub fn script_flight(app: &mut App) {
     let knobs = Knobs::of(app);
     let Some(speed) = knobs.scripted_flight() else {
         return;
     };
     app.insert_resource(flight::ScriptedFlight {
+        flying_speed: speed,
         turn_at: knobs.turn_after(),
         turned: false,
     })
@@ -115,9 +116,6 @@ pub fn script_flight(app: &mut App, player: Entity) {
             .after(crate::input::read_movement_keys)
             .before(LocalPlayerTick),
     );
-    app.world_mut()
-        .entity_mut(player)
-        .insert(FlyingSpeed(speed));
 }
 
 /// Opens the window on the fastest display rather than on the system's primary

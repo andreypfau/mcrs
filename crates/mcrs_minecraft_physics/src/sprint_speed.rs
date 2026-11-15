@@ -1,5 +1,4 @@
-/// The `movement_speed` of a player with the sprint modifier present, which the kernel reads
-/// while the sprint state is on.
+/// The value of `movement_speed` that the kernel reads while the sprint state is on.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SprintSpeed(pub f64);
 

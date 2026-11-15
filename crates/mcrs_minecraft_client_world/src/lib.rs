@@ -2,6 +2,7 @@
 //! registries, the received columns, the local player, the game mode and the chat.
 // std: bevy
 
+pub mod abilities;
 #[cfg(not(target_family = "wasm"))]
 pub mod asset_source;
 pub mod attack_input;
@@ -14,11 +15,14 @@ pub mod chat_history;
 mod chat_packets;
 mod client_light;
 pub mod clock_sync;
+pub mod collision_tables;
+mod collision_view;
 pub mod columns;
 pub mod game_mode;
 pub mod game_packets;
 pub mod inventory_packets;
 pub mod joined_game;
+pub mod local_motion;
 pub mod local_player;
 pub mod movement_input;
 pub mod player;
@@ -28,3 +32,6 @@ mod received;
 pub mod registries;
 pub mod screen;
 pub mod sign;
+#[cfg(test)]
+mod test_session;
+mod walk;
