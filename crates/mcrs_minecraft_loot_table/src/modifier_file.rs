@@ -1,8 +1,6 @@
+use mcrs_minecraft_loot_condition::{ConditionFile, NumberFile};
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::Deserialize;
-
-use crate::condition_file::ConditionFile;
-use crate::number_file::NumberFile;
 
 /// An item modifier as a data pack writes it: a list applied in order, the key of a registered
 /// modifier, or one object.

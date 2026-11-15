@@ -11,8 +11,12 @@ use crate::one_or_many::OneOrMany;
 /// A loot condition as a data pack writes it: the key of a registered predicate, or an inline
 /// object.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(transparent)]
+pub struct ConditionFile(pub(crate) ConditionForm);
+
+#[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
-pub enum ConditionFile {
+pub(crate) enum ConditionForm {
     Key(ResourceLocationBuf),
     Inline(Box<TypedCondition>),
 }
@@ -26,14 +30,14 @@ mcrs_minecraft_registries::resolve_as_is!(ConditionFile);
 /// The terms of `any_of` and `all_of`: a `#` tag of predicates, or conditions.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
-pub enum Terms {
+pub(crate) enum Terms {
     Tag(PredicateTag),
     List(OneOrMany<ConditionFile>),
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(try_from = "String")]
-pub struct PredicateTag(pub TagKeyBuf<LootCondition>);
+pub(crate) struct PredicateTag(pub(crate) TagKeyBuf<LootCondition>);
 
 impl TryFrom<String> for PredicateTag {
     type Error = String;
@@ -46,11 +50,11 @@ impl TryFrom<String> for PredicateTag {
 }
 
 /// The fields a part of a predicate does not name.
-pub type OtherFields = BTreeMap<String, IgnoredAny>;
+pub(crate) type OtherFields = BTreeMap<String, IgnoredAny>;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type")]
-pub enum TypedCondition {
+pub(crate) enum TypedCondition {
     #[serde(rename = "minecraft:inverted", alias = "inverted")]
     Inverted { term: ConditionFile },
     #[serde(rename = "minecraft:any_of", alias = "any_of")]
@@ -93,52 +97,52 @@ pub enum TypedCondition {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct BlockPredicateFile {
-    pub blocks: Option<OneOrMany<String>>,
-    pub state: Option<BTreeMap<String, StateValue>>,
+pub(crate) struct BlockPredicateFile {
+    pub(crate) blocks: Option<OneOrMany<String>>,
+    pub(crate) state: Option<BTreeMap<String, StateValue>>,
     #[serde(flatten)]
-    pub other: OtherFields,
+    pub(crate) other: OtherFields,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
-pub enum StateValue {
+pub(crate) enum StateValue {
     Exact(String),
     Other(IgnoredAny),
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct LocationPredicateFile {
-    pub block: Option<BlockPredicateFile>,
+pub(crate) struct LocationPredicateFile {
+    pub(crate) block: Option<BlockPredicateFile>,
     #[serde(flatten)]
-    pub other: OtherFields,
+    pub(crate) other: OtherFields,
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct ItemPredicateFile {
-    pub items: Option<OneOrMany<String>>,
-    pub predicates: Option<ItemSubPredicates>,
+pub(crate) struct ItemPredicateFile {
+    pub(crate) items: Option<OneOrMany<String>>,
+    pub(crate) predicates: Option<ItemSubPredicates>,
     #[serde(flatten)]
-    pub other: OtherFields,
+    pub(crate) other: OtherFields,
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct ItemSubPredicates {
+pub(crate) struct ItemSubPredicates {
     #[serde(rename = "minecraft:enchantments")]
-    pub enchantments: Option<Vec<EnchantmentPredicateFile>>,
+    pub(crate) enchantments: Option<Vec<EnchantmentPredicateFile>>,
     #[serde(flatten)]
-    pub other: OtherFields,
+    pub(crate) other: OtherFields,
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct EnchantmentPredicateFile {
-    pub enchantments: Option<OneOrMany<String>>,
-    pub levels: Option<LevelsFile>,
+pub(crate) struct EnchantmentPredicateFile {
+    pub(crate) enchantments: Option<OneOrMany<String>>,
+    pub(crate) levels: Option<LevelsFile>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(untagged)]
-pub enum LevelsFile {
+pub(crate) enum LevelsFile {
     Exact(u32),
     Range { min: Option<u32>, max: Option<u32> },
 }

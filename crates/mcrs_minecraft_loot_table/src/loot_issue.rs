@@ -1,5 +1,6 @@
 use core::fmt;
 
+use mcrs_minecraft_loot_condition::ConditionProblem;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 
 /// A name in a block table that the bake could not resolve. The part that names it never
@@ -15,9 +16,8 @@ pub enum LootProblem {
     MissingTable,
     UnknownItem(String),
     UnknownEnchantment(String),
-    UnknownBlock(String),
-    UnknownPredicate(String),
-    UnknownProperty { block: String, property: String },
+    /// A name in a condition or a provider of the table.
+    Condition(ConditionProblem),
 }
 
 impl fmt::Display for LootIssue {
@@ -27,11 +27,7 @@ impl fmt::Display for LootIssue {
             LootProblem::MissingTable => write!(f, "the loot table {table} is not loaded"),
             LootProblem::UnknownItem(name) => write!(f, "{table}: no item {name}"),
             LootProblem::UnknownEnchantment(name) => write!(f, "{table}: no enchantment {name}"),
-            LootProblem::UnknownBlock(name) => write!(f, "{table}: no block {name}"),
-            LootProblem::UnknownPredicate(name) => write!(f, "{table}: no predicate {name}"),
-            LootProblem::UnknownProperty { block, property } => {
-                write!(f, "{table}: the block {block} has no property {property}")
-            }
+            LootProblem::Condition(problem) => write!(f, "{table}: {problem}"),
         }
     }
 }

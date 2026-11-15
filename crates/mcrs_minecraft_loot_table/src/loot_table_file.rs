@@ -1,9 +1,8 @@
+use mcrs_minecraft_loot_condition::{ConditionFile, NumberFile};
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::Deserialize;
 
-use crate::condition_file::ConditionFile;
 use crate::modifier_file::ModifierFile;
-use crate::number_file::NumberFile;
 
 /// A loot table as a data pack writes it.
 #[derive(Debug, Clone, Deserialize)]
