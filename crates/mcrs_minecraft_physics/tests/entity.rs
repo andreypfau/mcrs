@@ -27,6 +27,7 @@ use mcrs_minecraft_physics::TestBlocks;
 use mcrs_minecraft_physics::TestFixture;
 use mcrs_minecraft_physics::TestRng;
 use mcrs_minecraft_physics::TestWorld;
+use mcrs_minecraft_physics::TickOutcome;
 use mcrs_minecraft_physics::View;
 use mcrs_minecraft_physics::in_open_air;
 use mcrs_minecraft_physics::same_bits;
@@ -46,10 +47,20 @@ fn floor(world: &mut TestWorld, state: BlockStateId) {
 }
 
 fn tick(fixture: &mut TestFixture, row: &MotionRow, entity: &mut EntityState, wake: bool) {
+    tick_on(SERVER, fixture, row, entity, wake);
+}
+
+fn tick_on(
+    side: Side,
+    fixture: &mut TestFixture,
+    row: &MotionRow,
+    entity: &mut EntityState,
+    wake: bool,
+) -> TickOutcome {
     fixture.actions.clear();
-    tick_entity(
+    let outcome = tick_entity(
         View::new(&fixture.world, &NoBodies, &fixture.tables),
-        SERVER,
+        side,
         row,
         entity,
         wake,
@@ -57,6 +68,7 @@ fn tick(fixture: &mut TestFixture, row: &MotionRow, entity: &mut EntityState, wa
         &mut fixture.scratch,
     );
     entity.age = entity.age.wrapping_add(1);
+    outcome
 }
 
 fn entity(position: DVec3, velocity: DVec3, living: bool) -> EntityState {
@@ -102,6 +114,37 @@ fn skip_003_rest_states_on_a_flat_block_top() {
     let item = velocity_after(&mut fixture, &MotionRow::item(), false, 41);
     let cycle: Vec<f64> = item[37..41].iter().map(|velocity| velocity.y).collect();
     assert_eq!(cycle, [-0.04, -0.04 - 0.04, -0.04 - 0.04 - 0.04, 0.0]);
+}
+
+#[test]
+fn a_viewer_neither_frees_an_item_from_a_block_nor_lands_a_falling_block() {
+    for (side, corrects) in [(SERVER, true), (Side::Viewer, false)] {
+        let mut fixture = TestFixture::new();
+        floor(&mut fixture.world, fixture.blocks.stone);
+        let mut item = entity(DVec3::new(0.5, 0.2, 0.5), DVec3::ZERO, false);
+        let outcome = tick_on(side, &mut fixture, &MotionRow::item(), &mut item, true);
+        assert_eq!(outcome.stuck_in_block, corrects, "{side:?}: item in stone");
+        let mut block = entity(
+            DVec3::new(0.5, 1.05, 0.5),
+            DVec3::new(0.0, -0.1, 0.0),
+            false,
+        );
+        let outcome = tick_on(
+            side,
+            &mut fixture,
+            &MotionRow::falling_block(),
+            &mut block,
+            true,
+        );
+        assert!(
+            block.body.flags.on_ground,
+            "{side:?}: the block reaches the floor"
+        );
+        assert_eq!(
+            outcome.landed, corrects,
+            "{side:?}: falling block on the floor"
+        );
+    }
 }
 
 /// The fall distance after one tick in which the entity, with a fall distance of 5, falls into

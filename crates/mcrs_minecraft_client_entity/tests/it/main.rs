@@ -9,6 +9,7 @@ mod moving_entities;
 mod packets;
 mod pig_walk;
 mod replay;
+mod simulated_step;
 
 use bevy_app::{App, FixedUpdate, PostUpdate};
 use bevy_ecs::entity::Entity;

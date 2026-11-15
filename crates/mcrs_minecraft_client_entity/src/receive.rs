@@ -18,11 +18,14 @@ use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundSetEntityMotion, ClientboundSetEquipment, ClientboundTeleportEntity,
     ClientboundTickingState, ClientboundTickingStep, ClientboundUpdateAttributes, VecDelta,
 };
+use mcrs_minecraft_protocol_game::entity::MetaDataValue;
 use mcrs_minecraft_protocol_game::{ByteAngle, PositionFlag};
 
 use crate::add_entity_data::AddEntityData;
 use crate::apply_entity_data::apply_entity_data;
 use crate::delta;
+use crate::fuse::{FUSE_INDEX, Fuse};
+use crate::item_entity_stack::{ITEM_STACK_INDEX, ItemEntityStack};
 use crate::moved_entity::MovedEntity;
 use crate::network_entities::NetworkEntities;
 use crate::orb_interpolation::OrbInterpolation;
@@ -94,8 +97,17 @@ fn on_add_entity(
     match simulated_motion(&client, position, velocity) {
         Some(motion) => {
             spawned.insert(motion);
-            if client.kind == EntityType::ExperienceOrb {
-                spawned.insert(OrbInterpolation::default());
+            match client.kind {
+                EntityType::ExperienceOrb => {
+                    spawned.insert(OrbInterpolation::default());
+                }
+                EntityType::Tnt => {
+                    spawned.insert(Fuse::default());
+                }
+                EntityType::Item => {
+                    spawned.insert(ItemEntityStack::default());
+                }
+                _ => {}
             }
         }
         None => {
@@ -395,13 +407,31 @@ fn on_rotate_head(
 fn on_set_entity_data(
     event: On<Received<ClientboundSetEntityData<'static>>>,
     entities: Res<NetworkEntities>,
-    mut query: Query<(&ClientEntity, &mut SyncedData)>,
+    mut query: Query<(
+        &ClientEntity,
+        &mut SyncedData,
+        Option<&mut Fuse>,
+        Option<&mut ItemEntityStack>,
+    )>,
 ) {
-    if let Some(packet) = event.packet()
-        && let Some(entity) = entities.get(packet.entity_id.0)
-        && let Ok((client, mut data)) = query.get_mut(entity)
-    {
-        apply_entity_data(&mut data, client.type_data(), &packet.metadata.0);
+    let Some(packet) = event.packet() else {
+        return;
+    };
+    let Some(entity) = entities.get(packet.entity_id.0) else {
+        return;
+    };
+    let Ok((client, mut data, mut fuse, mut stack)) = query.get_mut(entity) else {
+        return;
+    };
+    apply_entity_data(&mut data, client.type_data(), &packet.metadata.0);
+    for entry in &packet.metadata.0 {
+        match (entry.index, &entry.value, fuse.as_mut(), stack.as_mut()) {
+            (FUSE_INDEX, MetaDataValue::VarInt(ticks), Some(fuse), _) => fuse.0 = ticks.0,
+            (ITEM_STACK_INDEX, MetaDataValue::Slot(item), _, Some(stack)) => {
+                stack.0 = item.clone();
+            }
+            _ => {}
+        }
     }
 }
 
