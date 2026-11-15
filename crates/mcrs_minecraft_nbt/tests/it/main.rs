@@ -7,3 +7,4 @@ mod array_kinds;
 mod declared_lengths;
 mod encodings;
 mod equality;
+mod merge;
