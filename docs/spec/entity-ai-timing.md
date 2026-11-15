@@ -53,8 +53,8 @@ this server. Section 10 gives the experiments.
   `memory_module_type` names each kind.
 - **Sensor**: a part of the brain that scans the world and writes memories. The registry
   `sensor_type` names each kind.
-- **Behaviour**: a unit of the brain with a start condition, a tick and a stop. A one-shot behaviour
-  runs its action in the tick in which it starts, and then stops.
+- **Behaviour**: a unit of the brain with a start condition, a tick and a stop. An instant
+  behaviour runs its action in the tick in which it starts, and then stops.
 - **Path**: a list of block positions (nodes) from the mob to a goal position.
 - **Path search**: the procedure that finds a path.
 - **Next node**: the node of a path that the mob moves to now.
@@ -232,7 +232,7 @@ timers:
 - Reach: the box of the mob, expanded horizontally by `sqrt(2.04F) - 0.6F`, intersects the hit box
   of the target. An item with the component `attack_range` changes the reach.
 
-A mob with a brain attacks with a one-shot behaviour. It checks the reach in each tick, and it reads
+A mob with a brain attacks with an instant behaviour. It checks the reach in each tick, and it reads
 the visible entities from the last sensor scan. The cooldown is a memory with an expiry.
 
 **AIT-VAN-007** (`source_suggested`, semantic, confidence: medium). The creeper swell has these
@@ -424,14 +424,16 @@ runs in each eligible AI step. It does these steps:
    its finite expiry by one. A value that reaches zero remains present until the next update.
 2. Tick each sensor in the mob's declared order (AIT-VAN-016).
 3. Try to start stopped behaviours of active activities, in ascending numeric priority across
-   activities. At equal priority, use the activity and declaration order of BRAIN-VAN-027.
+   activities. At equal priority, the vanilla order of activities is the reference order, which
+   this document does not specify (BRAIN-DEV-003 in `mob-brain.md`).
 4. Tick or stop behaviours that run, including newly started behaviours and old behaviours of
    inactive activities, in that same order. Complete all starts before this running pass.
 
 An ordinary timed start chooses an integer duration uniformly from inclusive minimum and maximum bounds.
-That choice has distribution fidelity. A one-shot or group has no generic duration.
+That choice has distribution fidelity. An instant behaviour or a group has no generic duration.
 Start checks have a period of one brain update. Most inputs are memories that sensors write with periods of five updates or more.
 BRAIN-VAN-004 and BRAIN-VAN-028 through BRAIN-VAN-033 in `mob-brain.md` give exact boundaries.
+BRAIN-DES-005 there states which of them a decision delay can move.
 
 ### 1.5 Items, orbs and despawn
 
@@ -563,7 +565,7 @@ of each part. "Phase" names the value that selects the ticks of the part.
 | path follower and controls | 1 | none | AIT-VAN-012, AIT-VAN-013 |
 | path recompute after a block change | at most 1 in 20 ticks | none | AIT-VAN-015 |
 | path recompute of a brain | 1 | walk target moved more than 2 blocks | AIT-VAN-015 |
-| sensors | 5, 20, 40 or 200 | random start from 0 to `P - 1` | AIT-VAN-016 |
+| sensors | 5, 20, 40 or 200 | first run at update `max(1, O)`, O random from 0 to `P - 1` | AIT-VAN-016 |
 | brain start checks | 1 | inputs from sensors | AIT-VAN-017 |
 | item merge | 2 when it moved, else 40 | `t mod P = 0` | AIT-VAN-018 |
 | orb merge | 20 | `t mod 20 = 1` | AIT-VAN-019 |
