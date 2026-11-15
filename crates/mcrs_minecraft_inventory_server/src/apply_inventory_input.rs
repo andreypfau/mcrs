@@ -30,7 +30,12 @@ fn apply_input(world: &mut World, id: usize) {
             return;
         };
         let applied = match *input {
-            InventoryInput::Click { .. } => world.run_system_cached_with(apply_click, input),
+            InventoryInput::Click { .. } => {
+                if let Err(error) = apply_click(world, input) {
+                    tracing::warn!(%error, "an inventory input did not apply");
+                }
+                Ok(())
+            }
             InventoryInput::CreativeSet { .. } => {
                 world.run_system_cached_with(apply_creative_packet, input)
             }

@@ -10,8 +10,10 @@ mod placement;
 #[cfg(not(miri))]
 mod player_file;
 mod request;
+mod request_check;
 mod round_trip;
 mod slot_changed;
+mod slot_policy;
 mod usage;
 mod write_in_place;
 

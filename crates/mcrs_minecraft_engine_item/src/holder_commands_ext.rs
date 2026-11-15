@@ -25,7 +25,9 @@ pub trait HolderCommandsExt {
     /// As [`give`](Self::give), but the rest that finds no room is dropped at `pos`.
     fn give_or_drop(&mut self, gift: impl Into<Gift>, pos: DVec3) -> &mut Self;
 
-    /// Applies every operation of the request, or none. Writes and triggers
+    /// Applies every operation of the request, or none. The holder is the actor of
+    /// [`RequestCheck`](crate::RequestCheck), and each slot follows the
+    /// [`SlotPolicy`](crate::SlotPolicy) of its holder. Writes and triggers
     /// [`RequestResult`](crate::RequestResult) for the holder. A split to an empty slot spawns one
     /// new stack; a stack that gives all its items to another stack despawns; every other stack
     /// keeps its entity.
@@ -56,7 +58,7 @@ impl HolderCommandsExt for EntityCommands<'_> {
     fn request(&mut self, request: Request) -> &mut Self {
         self.queue_silenced(move |entity: EntityWorldMut| {
             let holder = entity.id();
-            commit(entity.into_world_mut(), holder, &request);
+            commit(entity.into_world_mut(), holder, request);
         })
     }
 

@@ -3,6 +3,7 @@ use bevy_ecs::system::Commands;
 use bevy_ecs::system::In;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
+use bevy_ecs::world::World;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
 use mcrs_minecraft_engine_item::Request;
 use mcrs_minecraft_engine_item::Selected;
@@ -17,6 +18,7 @@ use crate::close_inventory_menu::Carried;
 use crate::close_inventory_menu::CloseMove;
 use crate::close_inventory_menu::Destination;
 use crate::close_inventory_menu::close_inventory_menu;
+use crate::close_place::close_place;
 use crate::from_holders::from_holders;
 use crate::request_ids::CLOSE_REQUEST;
 
@@ -26,6 +28,7 @@ use crate::request_ids::CLOSE_REQUEST;
 // they are; a request without a bound on its operations lifts it.
 pub(crate) fn apply_close(
     In(player): In<Entity>,
+    world: &World,
     players: Query<(&Slots, &Selected, &PlayerHolders)>,
     holder_slots: Query<&Slots>,
     mut stacks: Stacks,
@@ -45,8 +48,9 @@ pub(crate) fn apply_close(
     if !has_carried(&values) {
         return;
     }
-    let mut request = Request::new(CLOSE_REQUEST);
-    for CloseMove { from, to, count } in close_inventory_menu(&values, &table) {
+    let mut request = Request::close(CLOSE_REQUEST);
+    let place = |from, index| close_place(world, player, *holders, from, index);
+    for CloseMove { from, to, count } in close_inventory_menu(&values, &table, place) {
         let from = match from {
             Carried::Cursor => SlotRef {
                 holder: holders.cursor,

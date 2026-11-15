@@ -6,7 +6,7 @@ use mcrs_minecraft_inventory_menu::MenuSlot;
 use crate::click_slots::ClickSlots;
 
 /// The inventory menu over the holders of the player that clicks (INV-MNU-001).
-pub(crate) struct ClickMenu<'slots>(pub(crate) &'slots ClickSlots);
+pub(crate) struct ClickMenu<'slots>(pub(crate) &'slots ClickSlots<'slots>);
 
 impl Menu for ClickMenu<'_> {
     type Slot = MenuSlot;

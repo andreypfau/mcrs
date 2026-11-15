@@ -1,14 +1,15 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::Query;
+use bevy_ecs::world::World;
+use mcrs_minecraft_engine_item::Gate;
+use mcrs_minecraft_engine_item::GateQuery;
+use mcrs_minecraft_engine_item::SlotAccess;
+use mcrs_minecraft_engine_item::SlotPolicy;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_inventory_menu::MenuSlot;
-use mcrs_minecraft_inventory_player::ArmourLock;
 use mcrs_minecraft_inventory_player::Holder;
-use mcrs_minecraft_inventory_player::OffHandRule;
-use mcrs_minecraft_inventory_player::Offer;
-use mcrs_minecraft_inventory_player::PlayerMode;
 use mcrs_minecraft_inventory_player::Stacking;
 use mcrs_minecraft_inventory_transaction::Filter;
 use mcrs_minecraft_inventory_transaction::Loaded;
@@ -28,6 +29,13 @@ const HOLDERS: [Holder; 4] = [
 ];
 const SLOT_COUNT: usize = 47;
 
+/// The access of a slot of a holder without a [`SlotPolicy`], as the commit reads it.
+const OPEN: SlotAccess = SlotAccess {
+    limit: 99,
+    take: Gate::Permits,
+    place: Gate::Permits,
+};
+
 /// A stack of a click: its entity, the first slot that holds a stack with the same item and
 /// components, and whether it can stack beside its maximum stack size.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -40,38 +48,33 @@ pub(crate) struct StackHandle {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SlotState {
     Missing,
-    Holds(Option<Planned<StackHandle>>),
+    Holds {
+        stack: Option<Planned<StackHandle>>,
+        access: SlotAccess,
+    },
 }
 
-/// The four holders of a player as one click reads them, taken before the click.
-// chisle: no stack offers a `minecraft:equippable` slot or an armour lock, because item stacks do
-// not hold these components yet; the armour slots refuse each place and permit each take until
-// they do.
-pub(crate) struct ClickSlots {
+/// The four holders of a player as one click reads them, taken before the click, with the
+/// [`SlotPolicy`] of each holder that the commit reads.
+pub(crate) struct ClickSlots<'w> {
+    world: &'w World,
     player: Entity,
     holders: PlayerHolders,
     slots: [SlotState; SLOT_COUNT],
-    mode: PlayerMode,
 }
 
-impl ClickSlots {
+impl<'w> ClickSlots<'w> {
     pub(crate) fn read(
+        world: &'w World,
         player: Entity,
-        inventory: &Slots,
         holders: PlayerHolders,
-        holder_slots: &Query<&Slots>,
-        mode: PlayerMode,
+        holder_slots: &Query<(&Slots, Option<&SlotPolicy>)>,
         stacks: &mut Stacks,
     ) -> Self {
         let mut slots = [SlotState::Missing; SLOT_COUNT];
         for holder in HOLDERS {
-            let content = match holder {
-                Holder::Inventory => Some(inventory),
-                _ => holder_slots
-                    .get(holder_entity(&holders, player, holder))
-                    .ok(),
-            };
-            let Some(content) = content else {
+            let Ok((content, policy)) = holder_slots.get(holder_entity(&holders, player, holder))
+            else {
                 continue;
             };
             for index in 0..holder.slot_count() {
@@ -81,20 +84,20 @@ impl ClickSlots {
                 if usize::from(index) >= content.len() {
                     continue;
                 }
-                let state = match content.get(usize::from(index)) {
-                    Some(entity) => SlotState::Holds(planned(entity, flat, &slots, stacks)),
-                    None => SlotState::Holds(None),
-                };
+                let stack = content
+                    .get(usize::from(index))
+                    .and_then(|entity| planned(entity, flat, &slots, stacks));
+                let access = policy.map_or(OPEN, |policy| policy.access(index));
                 if let Some(slot) = slots.get_mut(flat) {
-                    *slot = state;
+                    *slot = SlotState::Holds { stack, access };
                 }
             }
         }
         Self {
+            world,
             player,
             holders,
             slots,
-            mode,
         }
     }
 
@@ -106,7 +109,7 @@ impl ClickSlots {
     }
 
     pub(crate) fn holds_empty(&self, slot: MenuSlot) -> bool {
-        self.state(slot) == SlotState::Holds(None)
+        matches!(self.state(slot), SlotState::Holds { stack: None, .. })
     }
 
     fn state(&self, slot: MenuSlot) -> SlotState {
@@ -114,9 +117,18 @@ impl ClickSlots {
             .and_then(|flat| self.slots.get(flat).copied())
             .unwrap_or(SlotState::Missing)
     }
+
+    fn answer(&self, gate: Gate, slot: MenuSlot, stack: Entity) -> Filter {
+        let query = GateQuery {
+            slot: self.slot_ref(slot),
+            actor: self.player,
+            stack,
+        };
+        gate.answer(self.world, &query)
+    }
 }
 
-impl mcrs_minecraft_inventory_click::Slots for ClickSlots {
+impl mcrs_minecraft_inventory_click::Slots for ClickSlots<'_> {
     type Slot = MenuSlot;
     type Stack = StackHandle;
 
@@ -129,21 +141,26 @@ impl mcrs_minecraft_inventory_click::Slots for ClickSlots {
     }
 
     fn load(&self, slot: MenuSlot) -> Option<Loaded<StackHandle>> {
-        let rule = slot.holder.slot(slot.index)?;
-        let SlotState::Holds(stack) = self.state(slot) else {
+        let SlotState::Holds { stack, access } = self.state(slot) else {
             return None;
+        };
+        // As the commit: a gate that asks has no stack to ask about in an empty slot.
+        let take = match stack {
+            Some(stack) => self.answer(access.take, slot, stack.stack.entity),
+            None if access.take == Gate::Refuses => Filter::Refuses,
+            None => Filter::Permits,
         };
         Some(Loaded {
             stack,
-            limit: rule.limit,
-            take: rule.filter.take(ArmourLock::Free, self.mode),
+            limit: access.limit,
+            take,
         })
     }
 
-    fn place(&self, slot: MenuSlot, _stack: StackHandle) -> Filter {
-        match slot.holder.slot(slot.index) {
-            Some(rule) => rule.filter.place(Offer::default(), OffHandRule::AnyItem),
-            None => Filter::Refuses,
+    fn place(&self, slot: MenuSlot, stack: StackHandle) -> Filter {
+        match self.state(slot) {
+            SlotState::Holds { access, .. } => self.answer(access.place, slot, stack.entity),
+            SlotState::Missing => Filter::Refuses,
         }
     }
 
@@ -190,7 +207,9 @@ fn planned(
     };
     let alike = (slots.iter())
         .filter_map(|state| match state {
-            SlotState::Holds(Some(stack)) => Some(stack.stack),
+            SlotState::Holds {
+                stack: Some(stack), ..
+            } => Some(stack.stack),
             _ => None,
         })
         .find(|other| stacks.mergeable(other.entity, entity))

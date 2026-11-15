@@ -3,6 +3,7 @@ use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_table::ItemTable;
 
+use crate::close_place::Place;
 use crate::insert_stack::insert_stack;
 
 /// A slot of the player whose stack a close moves into the player inventory.
@@ -29,9 +30,14 @@ pub(crate) struct CloseMove {
 
 /// The moves of the steps 1 and 2 of INV-CLS-001 for the inventory menu: the cursor stack, then
 /// each stack of the craft grid from the slot 0 to the slot 3, enters the player inventory by the
-/// insert rule, and the rest of each one drops. After the moves the cursor and the craft grid
-/// hold the empty stack.
-pub(crate) fn close_inventory_menu(stacks: &PlayerItems, table: &ItemTable) -> Vec<CloseMove> {
+/// insert rule, and the rest of each one drops. `place` answers for the stack of a source in a
+/// slot of the player inventory. After the moves the cursor and the craft grid hold the empty
+/// stack.
+pub(crate) fn close_inventory_menu(
+    stacks: &PlayerItems,
+    table: &ItemTable,
+    mut place: impl FnMut(Carried, u16) -> Place,
+) -> Vec<CloseMove> {
     let mut after = stacks.clone();
     let mut moves = Vec::new();
     let craft_grid = (0..stacks.craft_grid.len()).filter_map(|index| u16::try_from(index).ok());
@@ -43,13 +49,20 @@ pub(crate) fn close_inventory_menu(stacks: &PlayerItems, table: &ItemTable) -> V
             continue;
         };
         let start = moves.len();
-        let rest = insert_stack(&after.slots, after.selected, &stack, table, |to, count| {
-            moves.push(CloseMove {
-                from,
-                to: Destination::Inventory(to),
-                count,
-            });
-        });
+        let rest = insert_stack(
+            &after.slots,
+            after.selected,
+            &stack,
+            table,
+            |to| place(from, to),
+            |to, count| {
+                moves.push(CloseMove {
+                    from,
+                    to: Destination::Inventory(to),
+                    count,
+                });
+            },
+        );
         if rest > 0 {
             moves.push(CloseMove {
                 from,

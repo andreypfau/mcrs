@@ -3,6 +3,7 @@ use bevy_ecs::system::Commands;
 use bevy_ecs::system::In;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
+use bevy_ecs::world::World;
 use mcrs_minecraft_engine::game_profile::GameProfile;
 use mcrs_minecraft_engine::persisted_registry::CaptureCause;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
@@ -21,6 +22,8 @@ use crate::PlayerHolders;
 use crate::carried_codec::has_carried;
 use crate::close_inventory_menu::apply_close_moves;
 use crate::close_inventory_menu::close_inventory_menu;
+use crate::close_place::Place;
+use crate::close_place::close_place;
 use crate::from_holders::from_holders;
 use crate::hand_launch::hand_launch;
 
@@ -33,6 +36,7 @@ use crate::hand_launch::hand_launch;
 )]
 pub(crate) fn capture_holders(
     In((player, cause)): In<(Entity, CaptureCause)>,
+    world: &World,
     mut commands: Commands,
     table: Res<ItemTable>,
     players: Query<(
@@ -55,7 +59,12 @@ pub(crate) fn capture_holders(
     );
     let closes = matches!(cause, CaptureCause::Leave | CaptureCause::DimensionChange);
     if closes && has_carried(&values) {
-        let moves = close_inventory_menu(&values, &table);
+        let place = |from, index| {
+            player_holders.map_or(Place::OPEN, |holders| {
+                close_place(world, player, *holders, from, index)
+            })
+        };
+        let moves = close_inventory_menu(&values, &table, place);
         let rests = apply_close_moves(&mut values, &moves);
         let player_holders = player_holders.copied();
         let transform = transform.copied().unwrap_or(Transform::IDENTITY);

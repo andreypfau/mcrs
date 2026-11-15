@@ -4,10 +4,13 @@ use bevy_ecs::schedule::Schedules;
 use bevy_ecs::schedule::SingleThreadedExecutor;
 use bevy_ecs::system::SystemState;
 use bevy_ecs::world::World;
+use mcrs_minecraft_engine_item::Gate;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
 use mcrs_minecraft_engine_item::ItemCommandsExt;
 use mcrs_minecraft_engine_item::Request;
 use mcrs_minecraft_engine_item::RequestId;
+use mcrs_minecraft_engine_item::SlotAccess;
+use mcrs_minecraft_engine_item::SlotPolicy;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::StackCommandsExt;
@@ -59,8 +62,11 @@ fn an_unpatched_spawn_and_a_merge_check_allocate_nothing() {
     assert_eq!((spawned, merge_checked), (0, 0));
 }
 
-fn holder_with(world: &mut World, items: u8) -> Entity {
+fn holder_with(world: &mut World, items: u8, policy: Option<SlotPolicy>) -> Entity {
     let holder = world.spawn(Slots::new(1)).id();
+    if let Some(policy) = policy {
+        world.entity_mut(holder).insert(policy);
+    }
     let stack = world
         .commands()
         .spawn_stack(ItemStack::new(PLAIN, count(items)))
@@ -70,16 +76,17 @@ fn holder_with(world: &mut World, items: u8) -> Entity {
     holder
 }
 
-#[test]
-fn a_hopper_move_of_an_unpatched_stack_allocates_nothing() {
+/// Moves one item from a holder with 64 items to a holder with one, 35 times, and gives the
+/// allocations of the last 32 moves.
+fn allocations_of_hopper_moves(policy: Option<SlotPolicy>) -> usize {
     let mut app = app();
     // The multi-threaded executor of Bevy allocates on each schedule run, with or without
     // systems; the single-threaded one leaves only the allocations of this crate.
     for (_, schedule) in app.world_mut().resource_mut::<Schedules>().iter_mut() {
         schedule.set_executor(SingleThreadedExecutor::default());
     }
-    let source = holder_with(app.world_mut(), 64);
-    let target = holder_with(app.world_mut(), 1);
+    let source = holder_with(app.world_mut(), 64, policy.clone());
+    let target = holder_with(app.world_mut(), 1, policy);
     let from = SlotRef {
         holder: source,
         index: 0,
@@ -112,5 +119,28 @@ fn a_hopper_move_of_an_unpatched_stack_allocates_nothing() {
     };
     let hops = WARM_UP + MEASURED;
     assert_eq!((items(source), items(target)), (64 - hops, 1 + hops));
-    assert_eq!(moved, 0);
+    moved
+}
+
+#[test]
+fn a_hopper_move_of_an_unpatched_stack_allocates_nothing() {
+    assert_eq!(allocations_of_hopper_moves(None), 0);
+}
+
+#[test]
+fn a_hopper_move_under_a_policy_of_constants_allocates_nothing() {
+    let mut policy = SlotPolicy::uniform(SlotAccess {
+        limit: 64,
+        take: Gate::Permits,
+        place: Gate::Permits,
+    });
+    policy.set(
+        1,
+        SlotAccess {
+            limit: 1,
+            take: Gate::Refuses,
+            place: Gate::Refuses,
+        },
+    );
+    assert_eq!(allocations_of_hopper_moves(Some(policy)), 0);
 }
