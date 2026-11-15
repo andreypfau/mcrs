@@ -195,7 +195,8 @@ a loaded predicate does not hold them (REG-FLD-646).
 **PRED-ITM-001** (`source_suggested`, semantic, confidence medium). The subject of an item predicate
 (REG-FLD-613) is a stack. The predicate reads the item of the stack, the count and the effective
 components. The predicate fails when the stack is an absent value, for example the stack of a slot
-that the entity does not have.
+that the host does not have (PRED-ENT-044). An empty slot holds the empty stack, which is not an
+absent value. A slot that the entity does not have gives no stack, and PRED-ENT-019 skips it.
 
 **PRED-ITM-002** (`source_suggested`, semantic, confidence medium). The fields of an item predicate
 add these tests.
@@ -642,26 +643,54 @@ each effect.
 
 **PRED-DMG-001** (`source_suggested`, semantic, confidence medium). The subject of a damage source
 predicate (REG-FLD-619) is a damage source: a damage type, an optional direct entity and an optional
-causing entity. The caller also supplies the dimension and an origin for the entity predicates. The
-predicate fails when the damage source is absent, also for `{}`.
+causing entity. Each damage source has a damage type. The damage type is never an absent value. The
+caller also supplies the dimension and an origin for the entity predicates. The predicate fails when
+the damage source is absent, also for `{}`.
 
 **PRED-DMG-002** (`source_suggested`, semantic, confidence medium). The fields of a damage source
 predicate add these tests.
 
 | Field | The test passes when |
 |-------|----------------------|
-| `tags` | for each entry, the boolean `expected` equals "the damage type is in the tag `id`" |
+| `tags` | for each entry, the boolean `expected` equals "the damage type is in the entry set `id`" |
 | `direct_entity` | the entity predicate passes for the direct entity |
 | `source_entity` | the entity predicate passes for the causing entity |
 | `is_direct` | the boolean equals the direct result of PRED-DMG-003 |
+
+The entry set `id` of `tags` is a tag with `#`, one damage type key, or a list of keys
+(REG-FLD-619). A key with no `#` is one damage type, not a tag. An empty list holds no type, so the
+entry passes only with `expected: false`. A tag key with no `#` fails the load (REG-FLD-619).
 
 A test `direct_entity` or `source_entity` fails when the damage source does not have that entity,
 also for `{}` (PRED-ENT-001). Each of the two entity predicates receives the origin of the caller.
 
 **PRED-DMG-003** (`source_suggested`, semantic, confidence medium). The direct result of a damage
-source is true when its causing entity and its direct entity are the same entity. It is also true
-when the source has neither entity, for example for the damage of a fall. It is false for an arrow
-that a skeleton shoots: the arrow is the direct entity and the skeleton is the causing entity.
+source compares its direct entity and its causing entity. The entities are the entities of the damage
+source when the damage occurred. The result has these values:
+
+| Damage source | Example | Direct result |
+|---------------|---------|---------------|
+| neither entity | the damage of a fall | true |
+| both entities, and they are the same entity | a zombie hits a player | true |
+| both entities, and they are different entities | an arrow that a skeleton shoots: the arrow is the direct entity and the skeleton is the causing entity | false |
+| a direct entity and no causing entity | the explosion of TNT that redstone ignites; a firework rocket that a dispenser shoots | false |
+| a causing entity and no direct entity | does not occur in the vanilla server: each damage source with a causing entity also has a direct entity. A host that makes such a source gets this result. | false |
+
+A projectile with no owner can have itself as the causing entity. The source then has the same
+entity two times, and the result is true. Examples are an arrow that a dispenser shoots, and a
+fireball with no owner. The removal of an entity after the damage does not change the result.
+
+**PRED-DMG-006** (`design`, semantic). An entity of a damage source that the world removed after the
+damage stays present for the damage source predicate. `direct_entity` and `source_entity` test it.
+For such an entity, the host keeps at least these values for each test in the tick of the damage:
+the entity type, and each value of PRED-HST-002 that the entity had at the moment of the removal.
+The vanilla server has these values, because the damage source holds the entity with its last
+state. Reason: the damage source records the entities of the damage. A removal that occurs later
+must not make a test of `is_direct` and a test of `source_entity` disagree.
+
+A host that cannot keep a value of a removed entity gives an absent value for it, and the test of
+that value fails (PRED-GEN-004). This is a limit of that host, not a behaviour of the game. A
+differential test does not test a removed entity on such a host.
 
 ### 8.4 The damage predicate
 
@@ -857,13 +886,15 @@ for an entity with no team.
 
 **PRED-ENT-019** (`source_suggested`, semantic, confidence medium). `slots` (REG-FLD-636) is a map
 from a slot range name to an item predicate. An entry passes when at least one slot of the range
-that the entity has holds a stack for which the item predicate passes. The sub-predicate passes when
-each entry passes. An entry fails when the entity has no slot of the range. PRED-ENT-020 states the
-slot numbers of each name.
+that the entity has holds a stack for which the item predicate passes. The entry skips each slot
+number of the range that the entity does not have. An entry fails when the entity has no slot of the
+range. The sub-predicate passes when each entry passes. PRED-ENT-020 states the slot numbers of each
+name.
 
 **PRED-ENT-020** (`source_suggested`, semantic, confidence medium). A slot range name selects these
-slot numbers. The host supplies the stack of a slot number of an entity, or an absent value when the
-entity does not have that slot.
+slot numbers. The host supplies the stack of each slot number that the entity has. The host also
+states which slot numbers the entity has. A slot number that the entity does not have is not an empty
+stack and is not an absent value. PRED-ENT-019 skips it.
 
 | Name | Slot numbers |
 |------|--------------|
@@ -886,6 +917,42 @@ entity does not have that slot.
 
 Each name with an index also has a form with `*` in place of the index, for example `container.*`
 and `player.crafting.*`. That form selects each slot number of the row.
+
+PRED-ENT-045 states the slot numbers that each entity type has. These examples show the result:
+
+- An empty equipment slot holds the empty stack. Thus `{"saddle": {}}` passes for a zombie with no
+  saddle.
+- `container.30` selects no slot of a chest minecart, and the entry fails. `container.*` selects
+  the slots 0 to 26 there.
+- `horse.0` selects no slot of a zombie, and the entry fails.
+
+**PRED-ENT-045** (`source_suggested`, semantic, confidence medium). An entity has the slot numbers
+of each row of this table that applies to its type. A type that no row names has no slot number.
+
+| Entity types | Slot numbers |
+|--------------|--------------|
+| each living entity | 98, 99, 100 to 103, 105, 106 |
+| `player` | 0 to 35; 200 to 226; 499 (the cursor stack); 500 to 503 (the crafting grid) |
+| `villager`, `wandering_trader`, `piglin` | 300 to 307 |
+| `pillager` | 300 to 304 |
+| `donkey`, `mule`, `llama`, `trader_llama` | 499 (a chest stack when the entity has a chest, else the empty stack) |
+| `donkey`, `mule` with a chest | 500 to 514 |
+| `llama`, `trader_llama` with a chest | 500 to 500 + 3 × strength − 1 |
+| `chest_minecart`, each chest boat and chest raft | 0 to 26 |
+| `hopper_minecart` | 0 to 4 |
+| `item`, `item_frame`, `glow_item_frame`, `item_display` | 0 |
+| `arrow`, `spectral_arrow`, `trident` | 0 (the stack that a pickup gives) |
+| `fireball`, `small_fireball` | 0 (the item of the projectile) |
+
+A host with an entity type that no row names states the slot numbers of that type. When the host
+states no slot number for it, the type has no slot number. Experiment E12 records the rows.
+
+**PRED-ENT-044** (`design`, semantic). A slot that the entity has, but whose stack the host does not
+have, is an absent value. The item predicate fails for that slot (PRED-GEN-004, PRED-ITM-001). The
+entry of PRED-ENT-019 still passes when another slot of the range passes. Thus a slot with an absent
+value and a skipped slot give the same result for the entry. Reason: a host with fewer values than
+the vanilla server must not make an entry pass that the vanilla server fails. The rule of "any slot
+passes" then stays the same on each host.
 
 **PRED-ENT-021** (`source_suggested`, semantic, confidence medium). `components` (REG-FLD-637) and
 `predicates` (REG-FLD-638) are the data component matchers of section 3.2. The component holder is
@@ -1020,7 +1087,7 @@ the library can have a world with fewer values than the vanilla server.
 | stack | the item; the count; the effective components | PRED-ITM-001 |
 | entity | its type; its position; the on-ground flag; the support position; the movement position; the reported movement; the fall distance | PRED-ENT-005 to PRED-ENT-011 |
 | entity | the saved data; the burning state; the pose; the sprint state; the swim state; the in-water state; the entity tick count | PRED-ENT-013, PRED-ENT-014, PRED-ENT-016 |
-| entity | the vehicle; the direct passengers; the team name; the scoreboard tags; the components; the stack of a slot number | PRED-ENT-017 to PRED-ENT-022 |
+| entity | the vehicle; the direct passengers; the team name; the scoreboard tags; the components; the slot numbers that the entity has (PRED-ENT-045); the stack of a slot number | PRED-ENT-017 to PRED-ENT-022, PRED-ENT-045 |
 | living entity | the active effects; the stacks of the 8 equipment slots; the elytra flight state; the baby flag | PRED-EFX-001, PRED-ENT-014, PRED-ENT-015 |
 | mob | the attack target | PRED-ENT-017 |
 | lightning bolt | the number of blocks set on fire; the hit entities that are alive | PRED-ENT-030 |
@@ -1031,7 +1098,7 @@ the library can have a world with fewer values than the vanilla server.
 | player | the experience level; the food level; the saturation; the game mode; the flying ability; the value of a statistic | PRED-ENT-014, PRED-ENT-040 |
 | player | the recipe book test of a recipe; the state of an advancement and of each criterion | PRED-ENT-040, PRED-ENT-041 |
 | player | the eye position; the view vector; the looked-at entity; the line of sight to an entity; the last input state | PRED-ENT-042, PRED-ENT-043 |
-| damage source | the damage type; the direct entity; the causing entity | PRED-DMG-001 |
+| damage source | the direct entity; the causing entity. The damage type is never an absent value. | PRED-DMG-001, PRED-DMG-006 |
 
 **PRED-HST-003** (`design`, semantic). The type of an entity decides which rows of PRED-HST-002
 apply to it. A value of a row that does not apply is not an absent value. The rule of the
@@ -1108,14 +1175,12 @@ rules of section 9 must give the same result on each host.
 
 Q1 is closed. `registry-fields.md` now states the decode facts that it asked for: `blocked`
 (REG-FLD-620), `saddle` (REG-FLD-632), the slot range names (REG-FLD-636) and the bounds with `min`
-larger than `max` (REG-FLD-646).
+larger than `max` (REG-FLD-646). Q3 is closed. The owner selected the result of the vanilla server
+for `is_direct`, as PRED-DMG-003 states it.
 
 - **Q2**: PRED-GEN-004 is a design rule. The vanilla server has no absent value except a position
   that is not loaded and an absent entity. The owner can select a different result for an absent
   value, for example an error that the caller sees.
-- **Q3**: PRED-DMG-003 gives the direct result true for a damage source with no entity. A data pack
-  author can expect false there. The rule states the reference result. The owner can select the
-  other result.
 
 ### 12.3 Unresolved
 
@@ -1163,12 +1228,12 @@ with one scripted client as an operator (`tools/mcrs_minecraft_client_recorder`)
 | E9 | Run EP with `movement` bounds from a repeating command block while the client walks, sprints, stands, falls and rides a pig and a boat. Repeat for an armor stand that falls. | PRED-ENT-010, PRED-ENT-011, U3 |
 | E10 | Run EP as an item entity with `flags` equal to `{is_baby: true}`, `{is_baby: false}`, `{is_fall_flying: true}` and `{is_flying: true}`. Run EP as the player with `is_sneaking` in flight with the shift key down. | PRED-ENT-014, U2 |
 | E11 | Run EP as an item entity with `effects: {}`, `equipment: {}`, `vehicle: {}`, `team: ""` and `entity_tags` with an empty `any_of`. Repeat as a zombie. | PRED-GEN-002, PRED-GEN-005, PRED-EFX-001, PRED-ENT-012, PRED-ENT-015 to PRED-ENT-018, PRED-ENT-022 |
-| E12 | Run EP as the player with `slots` for `weapon.*`, `hotbar.*`, `armor.*`, `horse.0` and `player.crafting.*`, each with `{}` and with an item. | PRED-ITM-001, PRED-ENT-019, PRED-ENT-020 |
+| E12 | Run EP as the player with `slots` for `weapon.*`, `hotbar.*`, `armor.*`, `horse.0` and `player.crafting.*`, each with `{}` and with an item. Summon a zombie with no equipment and a chest minecart with a stone in slot 0. Run EP as the zombie with `{"saddle": {}}` and `{"horse.0": {}}`. Run EP as the minecart with `{"container.30": {}}`, `{"container.*": {"items": "minecraft:stone"}}` and `{"container.*": {"items": "minecraft:dirt"}}`. Expected: pass, fail, fail, pass, fail. For each row of PRED-ENT-045, summon one entity of a type of the row, and run EP with `container.*`, `mob.inventory.*`, `horse.*`, `horse.chest` and `contents`, each with `{}`. | PRED-ITM-001, PRED-ENT-019, PRED-ENT-020, PRED-ENT-045 |
 | E13 | Run EP as a pig with `type_specific/fishing_hook: {}`, `type_specific/sheep: {}` and `type_specific/raider: {}`. Run the last one as a pillager, as a patrol leader and as a raider in a raid. Run `type_specific/cube_mob` as a slime of size 2. | PRED-ENT-031 to PRED-ENT-034 |
 | E14 | Summon a lightning bolt over a pig on grass. Run EP as the bolt from a repeating command block with `blocks_set_on_fire` and `entity_struck`. | PRED-ENT-030 |
 | E15 | Run EP as the player with `looking_at` while the client looks at a pig at 99 and at 101 blocks, through glass, through stone, and past a fireball. Nest `distance` in `looking_at` with an `origin` far from the player. | PRED-ENT-004, PRED-ENT-042, U4 |
 | E16 | Run EP as the player with `gamemode`, `level`, `food`, `stats`, `recipes`, `advancements` with an unknown id and with an unknown criterion, and `input` with each key down. Lower the food level to 10 and the saturation to 0 with the effect `hunger`. Eat one sweet berry. Test `food.saturation` with `0.4` and with `{min: 0.39, max: 0.41}`. | PRED-NUM-001, PRED-NUM-002, PRED-ENT-040, PRED-ENT-041, PRED-ENT-043, REG-FLD-642 |
-| E17 | Install a data pack whose pig loot table has pools with `damage_source_properties`. Kill pigs with a fall, a sword and an arrow of the player. Record the dropped items. | PRED-DMG-001 to PRED-DMG-003 |
+| E17 | Install a data pack whose pig loot table has pools with `damage_source_properties`. Kill pigs with a fall, a sword and an arrow of the player. Record the dropped items. Then kill pigs with an arrow and with a firework rocket from a dispenser, and with TNT that redstone ignites, with pools for `is_direct` `true` and `false`. Expected: true, false, false. Also add pools whose `tags[].id` is `"minecraft:arrow"`, `["minecraft:arrow"]` and `[]`, each with `expected: true`, and kill a pig with an arrow. Expected: pass, pass, fail. | PRED-DMG-001 to PRED-DMG-003, REG-FLD-619 |
 | E18 | Install a data pack with advancements of the trigger `entity_hurt_player` with `dealt`, `taken`, `blocked` and `source_entity.distance`. Take damage with and without a shield. Record the granted advancements. | PRED-DMG-004, PRED-DMG-005 |
 | E19 | Hold a written book, a firework rocket, a potion with a custom effect, a trimmed helmet and a music disc. Test each data component predicate of section 3.3 with `execute if items`. | PRED-ITM-016 to PRED-ITM-023, PRED-EFX-002 |
 | E20 | Run EP with `{}` from the console, with no entity. Run EP as a pig and as the player with `type: "minecraft:pig"`. Summon a pig with `Invulnerable:1b` and the custom name `Bob`. Run EP as that pig with `nbt: "{Invulnerable:1b}"`, with `components: {"minecraft:custom_name": "Bob"}`, and with `type` and `nbt` together. Run EP as the player with `nbt: "{SelectedItem:{}}"`, with an item in the hand and with an empty hand. Run each command two times. | PRED-GEN-003, PRED-ENT-001, PRED-ENT-002, PRED-ENT-005, PRED-ENT-013, PRED-ENT-021 |
