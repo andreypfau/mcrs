@@ -534,5 +534,15 @@
         "to": "crates/mcrs_minecraft_client/tests/fixtures/vanilla/frames"
       }
     ]
+  },
+  {
+    "name": "loot",
+    "task": "dumpLoot",
+    "outputs": [
+      {
+        "file": "loot.bin",
+        "to": "crates/mcrs_minecraft_loot_table/tests/fixtures/vanilla"
+      }
+    ]
   }
 ]

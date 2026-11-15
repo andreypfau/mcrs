@@ -845,3 +845,90 @@ A step of `value_cases` is `["add", id, amount, operation id]` or `["remove", id
 the operation `n` that the order does not list. The task finds an order with three amounts on the
 attribute `minecraft:luck`: 2^53, -2^53 and 0. With the base value 1, the result is 0 when 2^53
 comes first and 1 when -2^53 comes first.
+
+# Loot dumps
+
+`dumpLoot` (`LootOracle`, in the `data` source set) rolls loot tables through the game's own loot
+code and writes, for each case, the input, the full result and the state of the random generator
+after the call. It runs no server. The data pack is loaded the way a server loads it, loot tables
+and tags included. The level and the server are allocated without a constructor and answer only
+what a roll asks of them: every position is loaded and holds the biome of the case, and there is
+no structure anywhere.
+
+```sh
+cargo run -p mcrs_minecraft_update -- recapture loot
+```
+
+One file, `loot.bin`, deterministic. The cases, what each one pins and what the fixture cannot pin are beside the fixture in
+`crates/mcrs_minecraft_loot_table/tests/fixtures/vanilla/loot_capture_procedure.md`.
+
+Contexts that need an entity (mob loot, archaeology, gifts, equipment) are out of scope for now:
+no case sets `this_entity`, an attacker or a damage source.
+
+## The generator
+
+`generator` 0 is the generator the game makes from a loot seed. Its draws are the ones of
+`java.util.Random` constructed with the same seed. The file always writes 0. The capture does not
+assume it. For each table roll and each fill it calls the game twice: once with the seed, and once
+with a generator of kind 0 that it made itself. It stops with an error unless the two results are
+equal, and records the state of its own generator. The conditions and number providers have no
+seeded entry point in the game, so their cases use a generator of the same kind. No case uses the
+seed 0, which the game reads as "no seed".
+
+## Binary layout
+
+Little-endian, same primitives as the density dumps; `u8` is one raw byte, `f64` is 8 bytes.
+
+```
+magic          8 bytes, ASCII "MCLOOTR0"
+format_version u32   currently 1
+world_version  u32   the data version of the game that wrote the file
+case_count     u32
+
+repeated case_count times:
+  kind         u8    0 roll of a table, 1 fill of a container,
+                     2 condition test, 3 int provider sample, 4 float provider sample
+  name         str   a label; for a data pack case, the table id and a suffix
+  biome        str   the biome at every position of the level
+  source       u8    0 data pack table id, 1 inline JSON
+  source_text  str   the table id, or the inline JSON: a table (kind 0),
+                     a condition (kind 2), a number provider (kind 3 and 4)
+  param_set    str   the context key set, e.g. "minecraft:chest"
+  luck         f32   0 in every case
+  value_count  u32
+  repeated value_count times:
+    key        str   the context key, e.g. "minecraft:origin"
+    value_kind u8    0 vec3, 1 stack, 2 block state, 3 f32
+    value            vec3: f64 * 3; stack: see below;
+                     block state: str, e.g. "minecraft:stone"; f32
+  generator    u8    0, see above
+  seed         i64   never 0
+  kind 0:
+    stack_count  u32
+    stacks       stack * stack_count     in the order the roll gives them
+  kind 1:
+    slot_count   u32   the size of the empty container
+    filled_count u32
+    repeated filled_count times, slot ascending:
+      slot       u32
+      stack      stack
+  kind 2, 3 and 4:
+    sample_count u32
+    results      kind 2: u8 * sample_count (1 when the condition passes)
+                 kind 3: i32 * sample_count
+                 kind 4: f32 * sample_count
+  rng_next_0 i64   the generator's nextLong() after the call returned
+  rng_next_1 i64   the next one
+
+stack:
+  item         str   the item id; "minecraft:air" with count 0 for an empty stack
+  count        i32
+  patch        str   the component patch in its saved form, as SNBT; "{}" when empty
+```
+
+A kind 0 result is one roll of the table as a caller of the table receives it: a stack larger
+than the maximum stack size of its item is already divided. A kind 1 result is the whole fill:
+the roll, the division and the spread over the slots. For kinds 2 to 4, one context and one
+generator serve all samples, in sequence.
+
+The file ends exactly at the last `rng_next_1`; there is no trailer.
