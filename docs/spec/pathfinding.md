@@ -1008,7 +1008,7 @@ all states have the same value, else in the permutations.
 ```
 
 - `pathfindable_land`: the value of the reference for the computation type `LAND`, for the state,
-  in an empty level at the block position `(0, 0, 0)`. The reference gives a default from the
+  in an empty world at the block position `(0, 0, 0)`. The reference gives a default from the
   collision shape and overrides it in 55 block classes, so a dump is the only exact source. The
   value does not depend on the position.
 - `door`: `"none"`, `"by_hand"` or `"not_by_hand"`. Only a door block has a value other than

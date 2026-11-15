@@ -543,7 +543,7 @@ loaded effects when the player joins. The `AbsorptionAmount` of the file keeps t
 
 **EFX-SAV-002** (`source_suggested`, semantic, confidence: high). The time that the server is off does not
 change the duration of a saved effect. The effects tick only while the entity is
-in a loaded level. A player that leaves with the duration `d` rejoins with `d`.
+in a loaded dimension. A player that leaves with the duration `d` rejoins with `d`.
 
 ## 10. Out of scope
 

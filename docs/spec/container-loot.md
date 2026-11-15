@@ -31,6 +31,7 @@ saved layout of each block entity and entity.
   **draw**, **drop list**, **free slot**, **keyed stream**: as `loot.md`, section 0.1, defines them.
 - **Sequence stream**: as LOOT-RND-005 states it. **Exact mode** and **keyed mode**: as LOOT-RND-002
   states them.
+- **Dimension random**: as `block-simulation.md`, section 0.1, defines it (SIM-RNG-001).
 - **Spread**: the steps of LOOT-CTR-001 to LOOT-CTR-005.
 - **Loot container**: a block entity or an entity of a type that CTL-HLD-001 lists.
 - **Table reference**: the key of a loot table that a loot container holds. The save field is
@@ -537,9 +538,10 @@ structure, or the seed 0.
 - **Rule**: CTL-ROL-007.
 - **Reference**: a roll with the seed 0 continues the sequence stream of the `random_sequence` of
   the table (LOOT-RND-005). Each vanilla table of the type `chest` has a `random_sequence`. A table
-  without one takes the level random. Thus the stacks depend on the order of all earlier rolls of
-  the same sequence. Both halves of a double chest continue one stream, and the half `right` rolls
-  first. LOOT-DEV-101 records the same difference for each source.
+  without one takes the dimension random (SIM-RNG-001). Thus the stacks depend on
+  the order of all earlier rolls of the same sequence. Both halves of a double chest continue one
+  stream, and the half `right` rolls first. LOOT-DEV-101 records the same difference for each
+  source.
 - **Visible to the client**: no, as a distribution. A player cannot repeat the stacks of the
   vanilla server for a container with the seed 0. The containers of world generation have a seed,
   and this deviation does not change them.

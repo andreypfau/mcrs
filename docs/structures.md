@@ -189,7 +189,7 @@ consumer sees all three.
 **P4. Rings are a per-dimension constant.** For `concentric_rings` the set of
 start chunks is computed once per dimension from the seed alone
 (`ChunkGeneratorStructureState.generateRingPositions`): a `LegacyRandom` seeded with the
-level seed (zero for flat worlds, `ChunkGeneratorStructureState.createForFlat`, `ChunkGeneratorStructureState.createForNormal`) draws an angle, then for each of
+world seed (zero for flat worlds, `ChunkGeneratorStructureState.createForFlat`, `ChunkGeneratorStructureState.createForNormal`) draws an angle, then for each of
 `count` positions a distance `4·d + 6·d·ring + (nextDouble() − 0.5)·2.5·d` in
 chunks along the current angle, forks a child source, and snaps the position
 to the nearest chunk whose biome is in `preferred_biomes` within 112 blocks of
@@ -527,7 +527,7 @@ the corpus uses `rule` (39 lists), `protected_blocks` (7), `block_rot` (6) and
 block's rules, in rule order, `input → location → position` short-circuited
 (`ProcessorRule.test`; `RuleProcessor`);
 `block_rot` and `block_age` from the settings' positional random; `capped`
-from a positional fork of the level seed at the piece position
+from a positional fork of the world seed at the piece position
 (`CappedProcessor.finalizeProcessing`). Ten rule tests and three position tests are
 `predicate_type`-dispatched enums, of which `RuleTest` already exists as a
 serde type (`crates/mcrs_minecraft_worldgen_feature/src/rule_test.rs`, `RuleTest`), as
@@ -1238,7 +1238,7 @@ mismatch (R5 of `worldgen.md`):
 - the beard term: A2 against the reference's sampler over a piece list, per
   block of a chunk volume;
 - template geometry: one piece placed into an all-air region through the
-  oracle's stub level, the analogue of tree geometry parity, with the
+  oracle's stub world, the analogue of tree geometry parity, with the
   processor chains of the corpus;
 - the hardcoded pieces (`structure_pieces.bin`): every non-jigsaw structure
   over three dimensions, five seeds and the sixteen site chunks, each piece as
@@ -1246,7 +1246,7 @@ mismatch (R5 of `worldgen.md`):
   the reference fills at placement (`HPos`; the shipwreck's, ocean ruin's and igloo's `TPY`)
   dropped from both sides because SD3 fixes them at layout;
 - whole starts placed chunk by chunk (`structure_geometry.bin`): every
-  non-jigsaw type at three chunks into a flat level with a dry, water or cave
+  non-jigsaw type at three chunks into a flat world with a dry, water or cave
   base, 75 starts and 1 751 chunks, comparing the writes, the block entities
   and the spawned entities in arrival order with the UUID and the entity's own
   rolls masked; the packed entity-data bytes the oracle also records are not
@@ -1569,15 +1569,15 @@ source for its generator exists.** §10.2.
 | Ocean ruin floor walk | lowers through air, water and ice | air and water | M3: the density column of layout carries no ice |
 | Order of starts of one structure in a column | hash-table order | ascending start chunk | M5, SD4 |
 | Placement flags on pieces | stored, mutated at placement | derived from which column ran | M4 |
-| Unseeded draws in pyramid cellar and mansion allays | level random | placement stream | St1 |
-| `finalizeSpawn` and the other entity draws | level random; the entity's own random for UUID, yaw and attribute rolls | placement stream; the entity's own values from a positional fork of it | St1, M4, M7 |
+| Unseeded draws in pyramid cellar and mansion allays | dimension random | placement stream | St1 |
+| `finalizeSpawn` and the other entity draws | dimension random; the entity's own random for UUID, yaw and attribute rolls | placement stream; the entity's own values from a positional fork of it | St1, M4, M7 |
 | Difficulty at spawn | `getCurrentDifficultyAt`: clock, moon, inhabited time | Normal at clock 0: the special multiplier is 0, so enchantment rolls draw and never pass; Peaceful does not suppress generation | generation has no difficulty input |
 | Halloween head on a drowned | date check at spawn | never | the same |
 | Loot-seeded data markers (the chests of the shipwreck, igloo, ocean ruin, end city and mansion) | handled from every chunk the piece touches, seed from that chunk's stream | clipped to the placing column, seed from its stream | M1, M5; the drowned markers stay per column, their count is deterministic |
 | Pyramid suspicious-sand list | accumulated on the piece as chunks decorate it | derived from the piece box, sorted `(y, z, x)` and deduplicated | M3, M4: a piece holds no placement state |
 | Nether fossil's dried ghast | written by the first chunk that finds the cell air | written by every touching column from the same positional draw | M1: encapsulated pieces write from every column |
 | Fortress lava well | `scheduleTick` on the lava | no tick; the lava stands where it is placed | D7 of `scattering.md` |
-| Fences, bars and walls in structure pieces | marked for shape post-processing by the live world | not re-shaped | D7 of `scattering.md`; the oracle's stub level does not post-process either |
+| Fences, bars and walls in structure pieces | marked for shape post-processing by the live world | not re-shaped | D7 of `scattering.md`; the oracle's stub world does not post-process either |
 | Mineshaft cave-spider spawner | one per corridor, first decorating chunk wins | one per corridor, from the column nearest the origin that holds a whole candidate window; a nearer column holding only a cut window would win in the reference on a lucky draw | M4 |
 | Ocean monument rooms | regenerated from the seed on load | kept in memory, not written; regeneration on load is owed | §15 |
 | Jigsaw template entities | placed and finalized | frozen, counted, not placed | M7, §15 |

@@ -735,7 +735,7 @@ finite is an error. For a player the game replaces `UUID` with the UUID of the p
 
 Default position: a join reads `Dimension`, `Pos` and `Rotation` of the player file one by one.
 Each missing key takes its own default. A missing `Dimension` gives the dimension of `spawn`. When
-the server has no level for the dimension, the join uses the overworld. A missing `Rotation` gives
+the server does not have that dimension, the join uses the overworld. A missing `Rotation` gives
 the yaw and pitch of `spawn`. A missing `Pos` gives the position that PLD-RSP-004 states for the
 world spawn, in the dimension that the join uses. The block `S` of that rule is `spawn.pos`. The
 key `spawn.pos` has an x, a y and a z. The y of `spawn.pos` is the start of the height fix. In a
@@ -793,7 +793,7 @@ optional int `color`, an RGB value.
 | Key | Type | Default when absent | Written |
 | --- | --- | --- | --- |
 | `DataVersion` | int | none | always. `5127`. |
-| `Dimension` | string | the dimension of the level `spawn` | always |
+| `Dimension` | string | the dimension of `spawn` | always |
 | `playerGameType` | int | the default game mode of the world | always |
 | `previousPlayerGameType` | int | none | only when set |
 | `abilities` | compound | the defaults below | always |

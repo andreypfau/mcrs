@@ -36,8 +36,9 @@ document does not repeat the decode. Section 6 lists what this document does not
   (LOOT-CTX).
 - **Parameter**: one value of the context, by its id, for example `this_entity` or `origin`. A
   parameter is **present** or **absent**.
-- **Level of the evaluation**: the dimension of the context. The weather, the clocks, the
+- **Dimension of the evaluation**: the dimension of the context. The weather, the clocks, the
   environment attributes and the blocks come from this dimension.
+- **Rain strength**, **thunder strength**: as `command-weather.md`, section 0, defines them.
 - **Provider**: a context int provider (REG-FLD-722) or a context float provider (REG-FLD-723).
   An **int provider** gives an i32. A **float provider** gives an f32.
 - **Key of a provider**: a key of the registry `context_int_provider` or `context_float_provider`
@@ -248,7 +249,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Reads:** the parameter `origin`, a position `(x, y, z)` of three f64 values.
 - **Result:** the condition fails when `origin` is absent. Otherwise it passes when `predicate`
   is absent. Otherwise it gives the position `(x + offsetX, y + offsetY, z + offsetZ)` and the
-  level of the evaluation to the location predicate. Each addition is in f64. The condition
+  dimension of the evaluation to the location predicate. Each addition is in f64. The condition
   passes when the location predicate matches.
 - **Timing:** the location predicate reads the world at the time of the test.
 - **Example:** the origin of a block table is the centre of the block. The tables of tall
@@ -263,7 +264,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Reads:** the parameter of `entity` (LOOT-CND-020) and the parameter `origin`.
 - **Result:**
   - When `predicate` is absent, the condition passes. It passes also when the entity is absent.
-  - Otherwise it gives the entity, the position `origin` and the level of the evaluation to the
+  - Otherwise it gives the entity, the position `origin` and the dimension of the evaluation to the
     entity predicate. The entity or the position can be absent. The condition passes when the
     entity predicate matches. The entity predicate does not match an absent entity.
 - **Example:** an empty object `{}` is a `predicate` that is present. The table of `snow` has
@@ -320,32 +321,34 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 - **Reads:** the parameters `damage_source` and `origin`.
 - **Result:** the condition fails when `damage_source` or `origin` is absent. Otherwise it passes
   when `predicate` is absent. Otherwise it gives the damage source, the position `origin` and the
-  level of the evaluation to the damage source predicate. It passes when that predicate matches.
+  dimension of the evaluation to the damage source predicate. It passes when that predicate matches.
 - **Draws:** none.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X10.
 
 ### LOOT-CND-014: `weather_check`
 
-- **Reads:** the weather of the level of the evaluation, as `command-weather.md` states it
+- **Reads:** the weather of the dimension of the evaluation, as `command-weather.md` states it
   (CMD-W-003).
 - **Result:**
-  - The level **has weather** when its dimension type has sky light, has no ceiling, and the
+  - The dimension **has weather** when its dimension type has sky light, has no ceiling, and the
     dimension is not `minecraft:the_end`.
-  - The level **rains** when it has weather and its rain level is more than 0.2.
-  - The level **thunders** when it has weather and the product of its thunder level and its rain
-    level is more than 0.9.
-  - When `raining` is present and differs from "the level rains", the condition fails.
-  - When `thundering` is present and differs from "the level thunders", the condition fails.
+  - It **rains** in the dimension when the dimension has weather and its rain strength is more
+    than 0.2.
+  - It **thunders** in the dimension when the dimension has weather and the product of its
+    thunder strength and its rain strength is more than 0.9.
+  - When `raining` is present and differs from "it rains in the dimension", the condition fails.
+  - When `thundering` is present and differs from "it thunders in the dimension", the condition
+    fails.
   - Otherwise the condition passes. With no `raining` and no `thundering`, it passes.
-- **Timing:** the condition reads the levels of the current tick.
+- **Timing:** the condition reads the rain strength and the thunder strength of the current tick.
 - **Draws:** none.
 
 Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: X11.
 
 ### LOOT-CND-015: `time_check`
 
-- **Reads:** the total ticks `t` of the clock `clock` in the level of the evaluation, an i64
+- **Reads:** the total ticks `t` of the clock `clock` in the dimension of the evaluation, an i64
   (`command-time.md`, terms). A clock that the world does not hold has the total ticks 0
   (CMD-TIME-005).
 - **Result:**
@@ -390,7 +393,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 
 ### LOOT-CND-019: `environment_attribute_check`
 
-- **Reads:** the value of the environment attribute `attribute` in the level of the evaluation.
+- **Reads:** the value of the environment attribute `attribute` in the dimension of the evaluation.
 - **Result:**
   - For a positional attribute (REG-FLD-253), the value is the position value at `origin`
     (ENVA-LAYER-002, ENVA-LAYER-003). The biome layer takes the biome of the cell of `origin`,
