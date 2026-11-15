@@ -243,10 +243,20 @@ fn a_click_puts_the_cursor_before_the_character_under_the_mouse() {
 fn shift_click_keeps_the_anchor_and_a_double_click_selects_a_word() {
     let shift = KeyModifiers::SHIFT;
     let none = KeyModifiers::NONE;
-    let cases: [(&str, &[(f64, KeyModifiers, u64)], _); 5] = [
+    let cases: [(&str, &[(f64, KeyModifiers, u64)], _); 7] = [
         ("click", &[(26.0, none, 0)], 2..2),
         ("Shift+click", &[(26.0, shift, 0)], 2..8),
         ("double click", &[(21.0, none, 0), (21.0, none, 100)], 0..5),
+        (
+            "double click at first character of bar",
+            &[(44.0, none, 0), (44.0, none, 100)],
+            0..8,
+        ),
+        (
+            "double click at distant positions",
+            &[(20.0, none, 0), (50.0, none, 100)],
+            5..8,
+        ),
         (
             "Shift+double click",
             &[(21.0, shift, 0), (21.0, shift, 100)],
@@ -275,6 +285,23 @@ fn shift_click_keeps_the_anchor_and_a_double_click_selects_a_word() {
             );
         }
         assert_eq!(edit_of(&screen).selection(), selection, "{name}");
+    }
+}
+
+#[test]
+fn dragging_beyond_the_right_edge_stops_at_the_visible_end() {
+    let mut edit = EditBox::default();
+    edit.border = false;
+    edit.set("abcdefghijklmnop");
+    let rect = GuiRect::new(0, 0, 30, 10);
+    edit.click(rect, 6.0, Anchor::Move, &mono);
+    for _ in 0..3 {
+        edit.drag(rect, 100.0, &mono);
+        assert_eq!(
+            edit.selection(),
+            1..5,
+            "EDIT-PTR-003 keeps the view at the right edge"
+        );
     }
 }
 
