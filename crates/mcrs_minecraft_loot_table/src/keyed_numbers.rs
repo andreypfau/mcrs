@@ -1,6 +1,6 @@
 use core::fmt;
 
-use mcrs_minecraft_loot_condition::NumberFile;
+use mcrs_minecraft_loot_condition::IntProviderFile;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::de::{MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
@@ -12,7 +12,7 @@ pub struct KeyedNumbers(pub Vec<KeyedNumber>);
 #[derive(Debug, Clone)]
 pub struct KeyedNumber {
     pub key: ResourceLocationBuf,
-    pub number: NumberFile,
+    pub number: IntProviderFile,
 }
 
 impl<'de> Deserialize<'de> for KeyedNumbers {

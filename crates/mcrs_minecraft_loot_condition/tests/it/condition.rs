@@ -2,7 +2,7 @@ use mcrs_minecraft_engine_registries::test_corpus;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 use mcrs_minecraft_loot_condition::{
-    ConditionBaker, ConditionFile, ContextParam, LootContext, ParamNotAllowed,
+    ConditionBaker, ConditionFile, ContextParam, LootContext, NamedProviders, ParamNotAllowed,
 };
 use mcrs_minecraft_predicate::NoWorld;
 use mcrs_minecraft_random::Random;
@@ -48,7 +48,8 @@ fn loot_ctx_013_a_condition_reads_only_allowed_parameters() {
             None,
         ),
     ];
-    let mut baker = ConditionBaker::new(&test_corpus().0.0, test_registries());
+    let providers = NamedProviders::default();
+    let mut baker = ConditionBaker::new(&test_corpus().0.0, test_registries(), &providers);
     for (json, key_set, refused) in cases {
         let file: ConditionFile = serde_json::from_str(json).expect("a condition");
         let reads = baker.condition(&file).reads();
@@ -93,7 +94,8 @@ fn loot_cnd_a_condition_without_its_parameter() {
             fresh(),
         ),
     ];
-    let mut baker = ConditionBaker::new(&test_corpus().0.0, test_registries());
+    let providers = NamedProviders::default();
+    let mut baker = ConditionBaker::new(&test_corpus().0.0, test_registries(), &providers);
     let context: LootContext<'_, ()> =
         LootContext::try_new(ContextKeySet::Empty).expect("a source key set");
     for (rule, json, passes, after) in cases {
@@ -101,7 +103,7 @@ fn loot_cnd_a_condition_without_its_parameter() {
         let condition = baker.condition(&file);
         let mut random = fresh();
         assert_eq!(
-            condition.test(&context, &NoWorld, &mut random),
+            condition.test(&providers, &context, &NoWorld, &mut random),
             passes,
             "{rule}: {json}"
         );

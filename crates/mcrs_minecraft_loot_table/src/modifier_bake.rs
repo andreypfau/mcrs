@@ -1,7 +1,7 @@
 use mcrs_minecraft_item::enchantment::Enchantment;
 use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_item_stack::{EnchantmentId, Kind};
-use mcrs_minecraft_loot_condition::NumberProvider;
+use mcrs_minecraft_loot_condition::IntProvider;
 use mcrs_minecraft_resource::{Id, ResourceLocation, ResourceLocationBuf, TagKey};
 
 use crate::baker::Baker;
@@ -40,15 +40,14 @@ impl Baker<'_, '_> {
             .map(|condition| self.condition(condition, &format!("{path}.condition")));
         let op = match &file.kind {
             ModifierKind::SetCount { count, add } => ModifierOp::SetCount {
-                count: self.conditions.number(count),
+                count: self.conditions.int_provider(count),
                 add: *add,
             },
             ModifierKind::ExplosionDecay => ModifierOp::ExplosionDecay,
             ModifierKind::LimitCount {
                 limit: LimitFile::Exact(value),
             } => {
-                #[expect(clippy::cast_precision_loss, reason = "a stack count is small")]
-                let value = NumberProvider::constant(*value as f32);
+                let value = IntProvider::constant(*value);
                 ModifierOp::Limit {
                     min: Some(value.clone()),
                     max: Some(value),
@@ -57,8 +56,8 @@ impl Baker<'_, '_> {
             ModifierKind::LimitCount {
                 limit: LimitFile::Range { min, max },
             } => ModifierOp::Limit {
-                min: min.as_ref().map(|min| self.conditions.number(min)),
-                max: max.as_ref().map(|max| self.conditions.number(max)),
+                min: min.as_ref().map(|min| self.conditions.int_provider(min)),
+                max: max.as_ref().map(|max| self.conditions.int_provider(max)),
             },
             ModifierKind::ApplyBonus {
                 enchantment,
@@ -71,7 +70,7 @@ impl Baker<'_, '_> {
                 enchantment, count, ..
             } => {
                 self.enchantment(enchantment.as_location(), path);
-                self.conditions.number(count);
+                self.conditions.float_provider(count);
                 ModifierOp::EnchantedCountIncrease
             }
             ModifierKind::Discard => ModifierOp::Discard,
@@ -89,7 +88,7 @@ impl Baker<'_, '_> {
                 }
             },
             ModifierKind::SetDamage { damage, add } => ModifierOp::SetDamage {
-                damage: self.conditions.number(damage),
+                damage: self.conditions.float_provider(damage),
                 add: *add,
             },
             ModifierKind::EnchantRandomly {
@@ -107,7 +106,7 @@ impl Baker<'_, '_> {
                     .0
                     .iter()
                     .filter_map(|entry| {
-                        let level = self.conditions.number(&entry.number);
+                        let level = self.conditions.int_provider(&entry.number);
                         let enchantment = self.enchantment(entry.key.as_location(), path)?;
                         Some(SetLevel {
                             enchantment: enchantment_id(enchantment)?,

@@ -6,8 +6,8 @@ use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 use mcrs_minecraft_loot::loot::LootTable;
 use mcrs_minecraft_loot_condition::{
-    Condition, ConditionBaker, ConditionFile, ContextParams, DynamicName, NumberFile,
-    NumberProvider,
+    Condition, ConditionBaker, ConditionFile, ContextParams, DynamicName, FloatProvider,
+    FloatProviderFile, IntProvider, IntProviderFile, NamedProviders,
 };
 use mcrs_minecraft_registries::{Registries, Registry};
 use mcrs_minecraft_resource::{Id, Registered, ResourceLocation, ResourceLocationBuf, TagKey};
@@ -19,13 +19,14 @@ use crate::loot_table_file::{
     TableSetFile, TagName,
 };
 use crate::table::{Entry, EntryKind, Pool, Span, Table};
-use crate::table_links::{self, Edge, TableLinks};
+use crate::table_links::{self, ChainPlace, Edge, TableLinks};
 
 /// Bakes each table of the registry `loot_table` of `registries`, at the index of its id, and
 /// after them each inline table, and adds the problems of the load to `issues`.
 pub(crate) fn bake(
     definitions: &BlockDefinitions,
     registries: &Registries,
+    providers: &NamedProviders,
     issues: &mut Vec<LootIssue>,
 ) -> Vec<Table> {
     let files = registries.registry::<LootTableFile>();
@@ -42,7 +43,7 @@ pub(crate) fn bake(
         let mut baker = Baker {
             registries,
             files,
-            conditions: ConditionBaker::new(definitions, registries),
+            conditions: ConditionBaker::new(definitions, registries, providers),
             key_set: file.key_set,
             owner: id.index(),
             problems: Vec::new(),
@@ -62,6 +63,7 @@ pub(crate) fn bake(
             inline: false,
             reads: baked.reads,
             edges: baked.edges,
+            chains: baked.chains,
         });
         tables.push(baked.table);
         names.push(name.clone());
@@ -87,12 +89,14 @@ struct Parts {
     nested: Vec<Option<u32>>,
     reads: ContextParams,
     edges: Vec<Edge>,
+    chains: Vec<ChainPlace>,
 }
 
 struct Baked {
     table: Table,
     reads: ContextParams,
     edges: Vec<Edge>,
+    chains: Vec<ChainPlace>,
 }
 
 /// Turns the file form of one table of the registry and of its inline tables into tables of
@@ -125,6 +129,7 @@ impl Baker<'_, '_> {
             nested,
             reads,
             edges,
+            chains,
         } = mem::replace(&mut self.parts, outer);
         let table = Table {
             name_key: 0,
@@ -138,6 +143,7 @@ impl Baker<'_, '_> {
             table,
             reads,
             edges,
+            chains,
         }
     }
 
@@ -147,12 +153,12 @@ impl Baker<'_, '_> {
                 .condition
                 .as_ref()
                 .map(|condition| self.condition(condition, &format!("{path}.condition"))),
-            rolls: self.number(&pool.rolls, &format!("{path}.rolls")),
+            rolls: self.int_provider(&pool.rolls, &format!("{path}.rolls")),
             bonus_rolls: pool
                 .bonus_rolls
                 .as_ref()
-                .map_or(NumberProvider::constant(0.0), |bonus_rolls| {
-                    self.number(bonus_rolls, &format!("{path}.bonus_rolls"))
+                .map_or(FloatProvider::constant(0.0), |bonus_rolls| {
+                    self.float_provider(bonus_rolls, &format!("{path}.bonus_rolls"))
                 }),
             entries: self.entries(&pool.entries, None, &format!("{path}.entries")),
             modifiers: self.modifiers(pool.modifier.as_ref(), &format!("{path}.modifier")),
@@ -357,6 +363,7 @@ impl Baker<'_, '_> {
                     inline: true,
                     reads: baked.reads,
                     edges: baked.edges,
+                    chains: baked.chains,
                 });
                 self.nest(Some(index), path);
             }
@@ -382,11 +389,18 @@ impl Baker<'_, '_> {
         condition
     }
 
-    fn number(&mut self, file: &NumberFile, path: &str) -> NumberProvider {
-        let number = self.conditions.number(file);
+    fn int_provider(&mut self, file: &IntProviderFile, path: &str) -> IntProvider {
+        let provider = self.conditions.int_provider(file);
         self.take_problems(path);
-        self.check(number.reads(), path);
-        number
+        self.check(provider.reads(), path);
+        provider
+    }
+
+    fn float_provider(&mut self, file: &FloatProviderFile, path: &str) -> FloatProvider {
+        let provider = self.conditions.float_provider(file);
+        self.take_problems(path);
+        self.check(provider.reads(), path);
+        provider
     }
 
     pub(crate) fn take_problems(&mut self, path: &str) {
@@ -399,6 +413,13 @@ impl Baker<'_, '_> {
 
     pub(crate) fn check(&mut self, reads: ContextParams, path: &str) {
         self.parts.reads = self.parts.reads.union(reads);
+        let length = self.conditions.take_longest_chain();
+        if length > 0 {
+            self.parts.chains.push(ChainPlace {
+                path: path.to_owned(),
+                length,
+            });
+        }
         if let Err(problem) = reads.check(self.key_set) {
             self.problems
                 .push((path.to_owned(), LootProblem::ParamNotAllowed(problem)));

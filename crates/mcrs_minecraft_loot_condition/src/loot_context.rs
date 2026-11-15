@@ -3,6 +3,8 @@ use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 use mcrs_voxel::BlockStateId;
 
+use crate::context_param::ContextParam;
+use crate::context_params::ContextParams;
 use crate::dynamic_name::DynamicName;
 use crate::tool::Tool;
 
@@ -14,9 +16,15 @@ use crate::tool::Tool;
 pub struct LootContext<'a, E> {
     pub origin: Option<DVec3>,
     pub this_entity: Option<E>,
+    pub attacking_entity: Option<E>,
+    pub direct_attacking_entity: Option<E>,
+    pub last_damage_player: Option<E>,
+    pub target_entity: Option<E>,
+    pub interacting_entity: Option<E>,
     pub tool: Option<Tool<'a>>,
     pub block_state: Option<BlockStateId>,
     pub explosion_radius: Option<f32>,
+    pub enchantment_level: Option<i32>,
     /// 0 for a source that gives no luck.
     pub luck: f32,
     /// The stacks of [`DynamicName::Sherds`], in order; `None` is the empty stack.
@@ -38,9 +46,15 @@ impl<'a, E> LootContext<'a, E> {
         Some(Self {
             origin: None,
             this_entity: None,
+            attacking_entity: None,
+            direct_attacking_entity: None,
+            last_damage_player: None,
+            target_entity: None,
+            interacting_entity: None,
             tool: None,
             block_state: None,
             explosion_radius: None,
+            enchantment_level: None,
             luck: 0.0,
             sherds: &[],
             contents: &[],
@@ -55,6 +69,65 @@ impl<'a, E> LootContext<'a, E> {
             DynamicName::Sherds => self.sherds,
             DynamicName::Contents => self.contents,
         }
+    }
+
+    /// The entity of the parameter `param` (LOOT-CND-020); `None` for an absent entity and for
+    /// a parameter that is not an entity.
+    #[must_use]
+    pub const fn entity(&self, param: ContextParam) -> Option<&E> {
+        match param {
+            ContextParam::ThisEntity => self.this_entity.as_ref(),
+            ContextParam::AttackingEntity => self.attacking_entity.as_ref(),
+            ContextParam::DirectAttackingEntity => self.direct_attacking_entity.as_ref(),
+            ContextParam::LastDamagePlayer => self.last_damage_player.as_ref(),
+            ContextParam::TargetEntity => self.target_entity.as_ref(),
+            ContextParam::InteractingEntity => self.interacting_entity.as_ref(),
+            _ => None,
+        }
+    }
+
+    /// The parameters that the context holds, for the check of LOOT-CTX-012.
+    #[must_use]
+    pub fn held(&self) -> ContextParams {
+        let Self {
+            origin,
+            this_entity,
+            attacking_entity,
+            direct_attacking_entity,
+            last_damage_player,
+            target_entity,
+            interacting_entity,
+            tool,
+            block_state,
+            explosion_radius,
+            enchantment_level,
+            luck: _,
+            sherds: _,
+            contents: _,
+            key_set: _,
+        } = self;
+        [
+            (origin.is_some(), ContextParam::Origin),
+            (this_entity.is_some(), ContextParam::ThisEntity),
+            (attacking_entity.is_some(), ContextParam::AttackingEntity),
+            (
+                direct_attacking_entity.is_some(),
+                ContextParam::DirectAttackingEntity,
+            ),
+            (last_damage_player.is_some(), ContextParam::LastDamagePlayer),
+            (target_entity.is_some(), ContextParam::TargetEntity),
+            (
+                interacting_entity.is_some(),
+                ContextParam::InteractingEntity,
+            ),
+            (tool.is_some(), ContextParam::Tool),
+            (block_state.is_some(), ContextParam::BlockState),
+            (explosion_radius.is_some(), ContextParam::ExplosionRadius),
+            (enchantment_level.is_some(), ContextParam::EnchantmentLevel),
+        ]
+        .into_iter()
+        .filter(|&(present, _)| present)
+        .fold(ContextParams::EMPTY, |held, (_, param)| held.with(param))
     }
 
     /// The key set of the source; a roll checks the parameters of the context against it.

@@ -32,7 +32,7 @@ use mcrs_minecraft_item::dialog::Dialog;
 use mcrs_minecraft_item::{
     InstrumentValue, JukeboxSong, PaintingVariantValue, TrimMaterial, TrimPattern,
 };
-use mcrs_minecraft_loot_condition::ConditionFile;
+use mcrs_minecraft_loot_condition::{ConditionFile, FloatProviderFile, IntProviderFile};
 use mcrs_minecraft_loot_table::LootTableFile;
 use mcrs_minecraft_registries::{Declaration, Stage};
 use mcrs_minecraft_sound::BlockSoundSet;
@@ -111,6 +111,8 @@ fn typed_declarations() -> Vec<Declaration> {
         Declaration::data::<WorldPreset>().into(),
         Declaration::data::<LootTableFile>().into(),
         Declaration::data::<ConditionFile>().into(),
+        Declaration::data::<IntProviderFile>().into(),
+        Declaration::data::<FloatProviderFile>().into(),
     ];
     declarations.extend(spawning_variants!(
         WolfVariantFile as WolfVariant,

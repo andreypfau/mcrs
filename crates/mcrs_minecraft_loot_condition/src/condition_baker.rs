@@ -1,3 +1,4 @@
+use core::mem;
 use std::vec;
 
 use glam::DVec3;
@@ -16,8 +17,10 @@ use crate::condition_file::{
 };
 use crate::condition_problem::ConditionProblem;
 use crate::context_param::ContextParam;
-use crate::number_file::{NumberFile, NumberForm, TypedNumber};
-use crate::number_provider::{NumberProvider, Provider};
+use crate::float_provider_file::FloatProviderFile;
+use crate::int_provider_file::IntProviderFile;
+use crate::named_providers::NamedProviders;
+use crate::named_source::{Dependency, NamedSource};
 use crate::one_or_many::OneOrMany;
 
 /// How deep registered predicates may name each other before the bake takes a cycle.
@@ -42,28 +45,80 @@ fn unsupported(other: &OtherFields, parts: &[&str]) -> bool {
     other.keys().any(|key| parts.contains(&key.as_str()))
 }
 
-/// Turns the file form of conditions and providers into their baked form, with the ids and the
-/// registered predicates of one load. Use one baker for each table.
+/// Turns the file form of conditions and providers into their baked form, with the ids, the
+/// registered predicates and the named providers of one load. Use one baker for each table.
 pub struct ConditionBaker<'a> {
     definitions: &'a BlockDefinitions,
-    registries: &'a Registries,
+    pub(crate) registries: &'a Registries,
     predicates: Option<&'a Registry<ConditionFile>>,
-    problems: Vec<ConditionProblem>,
+    pub(crate) int_providers: Option<&'a Registry<IntProviderFile>>,
+    pub(crate) float_providers: Option<&'a Registry<FloatProviderFile>>,
+    pub(crate) problems: Vec<ConditionProblem>,
     depth: u8,
     expansions: u32,
+    /// The parts of the provider that the bake is in, after the place that holds the provider.
+    pub(crate) chain: Vec<String>,
+    pub(crate) longest: usize,
+    pub(crate) scope: ProviderScope,
+    pub(crate) named: NamedSource<'a>,
+}
+
+/// Whether the bake is in the scope of a provider, where an inline provider is a member of the
+/// reference chain (LOOT-CTX-017).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ProviderScope {
+    Outside,
+    Inside,
 }
 
 impl<'a> ConditionBaker<'a> {
-    /// A baker that resolves names against `definitions` and `registries`, with no problem yet.
+    /// A baker that resolves names against `definitions` and `registries`, and each key of a
+    /// provider to its entry in `providers`, with no problem yet.
     #[must_use]
-    pub fn new(definitions: &'a BlockDefinitions, registries: &'a Registries) -> Self {
+    pub fn new(
+        definitions: &'a BlockDefinitions,
+        registries: &'a Registries,
+        providers: &'a NamedProviders,
+    ) -> Self {
+        Self::with_named(definitions, registries, NamedSource::Baked(providers))
+    }
+
+    /// A baker for the bake of the named providers, which records each key of a provider.
+    pub(crate) fn recording(definitions: &'a BlockDefinitions, registries: &'a Registries) -> Self {
+        Self::with_named(definitions, registries, NamedSource::Recording(Vec::new()))
+    }
+
+    fn with_named(
+        definitions: &'a BlockDefinitions,
+        registries: &'a Registries,
+        named: NamedSource<'a>,
+    ) -> Self {
         Self {
             definitions,
             registries,
             predicates: registries.registry::<ConditionFile>(),
+            int_providers: registries.registry::<IntProviderFile>(),
+            float_providers: registries.registry::<FloatProviderFile>(),
             problems: Vec::new(),
             depth: 0,
             expansions: 0,
+            chain: Vec::new(),
+            longest: 0,
+            scope: ProviderScope::Outside,
+            named,
+        }
+    }
+
+    /// The most members that the providers of the bakes since the last call add to the reference
+    /// chain that leads to the part that holds them (LOOT-CTX-017).
+    pub fn take_longest_chain(&mut self) -> usize {
+        mem::take(&mut self.longest)
+    }
+
+    pub(crate) fn take_dependencies(&mut self) -> Vec<Dependency> {
+        match &mut self.named {
+            NamedSource::Recording(dependencies) => mem::take(dependencies),
+            NamedSource::Baked(_) => Vec::new(),
         }
     }
 
@@ -78,12 +133,7 @@ impl<'a> ConditionBaker<'a> {
         Condition(self.test(file))
     }
 
-    /// Bakes `file`; a provider type that the bake does not evaluate gives 0.
-    pub fn number(&mut self, file: &NumberFile) -> NumberProvider {
-        NumberProvider(provider(file))
-    }
-
-    fn test(&mut self, file: &ConditionFile) -> Test {
+    pub(crate) fn test(&mut self, file: &ConditionFile) -> Test {
         let typed = match &file.0 {
             ConditionForm::Key(key) => return self.predicate(key),
             ConditionForm::Inline(typed) => typed,
@@ -94,7 +144,7 @@ impl<'a> ConditionBaker<'a> {
             TypedCondition::AllOf { terms } => self.terms(terms).map_or(Test::Never, Test::AllOf),
             TypedCondition::SurvivesExplosion => Test::SurvivesExplosion,
             TypedCondition::RandomChance { chance } => {
-                Test::RandomChance(NumberProvider(provider(chance)))
+                Test::RandomChance(self.condition_float("chance", chance))
             }
             TypedCondition::TableBonus {
                 enchantment,
@@ -200,9 +250,11 @@ impl<'a> ConditionBaker<'a> {
             {
                 self.expansions += 1;
                 self.depth += 1;
-                let test = self.test(file);
+                let scope = mem::replace(&mut self.scope, ProviderScope::Outside);
+                let test = self.step(key.as_str(), |baker| baker.test(file));
+                self.scope = scope;
                 self.depth -= 1;
-                test
+                test.unwrap_or(Test::Never)
             }
             _ => {
                 self.problems
@@ -337,7 +389,7 @@ impl<'a> ConditionBaker<'a> {
 }
 
 /// The parameter of an entity target (LOOT-CND-020); `None` for an unknown target.
-fn entity_target(target: &str) -> Option<ContextParam> {
+pub(crate) fn entity_target(target: &str) -> Option<ContextParam> {
     match target.trim_start_matches("minecraft:") {
         "this" => Some(ContextParam::ThisEntity),
         "attacker" => Some(ContextParam::AttackingEntity),
@@ -346,23 +398,6 @@ fn entity_target(target: &str) -> Option<ContextParam> {
         "target_entity" => Some(ContextParam::TargetEntity),
         "interacting_entity" => Some(ContextParam::InteractingEntity),
         _ => None,
-    }
-}
-
-fn provider(file: &NumberFile) -> Provider {
-    match &file.0 {
-        NumberForm::Constant(value) | NumberForm::Typed(TypedNumber::Constant { value }) => {
-            Provider::Constant(*value)
-        }
-        NumberForm::Typed(TypedNumber::Uniform { min, max }) => {
-            Provider::Uniform(Box::new(provider(min)), Box::new(provider(max)))
-        }
-        NumberForm::Typed(TypedNumber::Binomial { n, p }) => {
-            Provider::Binomial(Box::new(provider(n)), Box::new(provider(p)))
-        }
-        // chisle: another provider type and a key of a registered provider count as 0; no block
-        // table names one, and the bake of the provider registries lifts it.
-        NumberForm::Typed(TypedNumber::Other) | NumberForm::Key(_) => Provider::Constant(0.0),
     }
 }
 
@@ -389,7 +424,7 @@ mod tests {
                 .map(|key| ((*key).to_owned(), IgnoredAny))
                 .collect(),
         };
-        ConditionBaker::new(blocks, test_registries()).states(&predicate)
+        ConditionBaker::recording(blocks, test_registries()).states(&predicate)
     }
 
     #[test]
