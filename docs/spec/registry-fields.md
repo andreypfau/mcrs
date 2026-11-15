@@ -130,6 +130,27 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 
+### REG-FLD-006: Unknown fields and unknown names in entity predicates
+
+- **Inputs:** an entity predicate (REG-FLD-624), a value of one of its sub-predicates (REG-FLD-625 to REG-FLD-645), or a value that they contain, for example an item predicate or number bounds (REG-FLD-646).
+- **Behavior:**
+  - A field of an object that no rule of this document lists is ignored, as REG-ENTRY-003 states. The decode does not fail. For example, `flags` with `"zzz": 1` decodes as `flags` without that field. This applies also to the objects `food` and `input` of REG-FLD-642, and to the object form of number bounds.
+  - The keys of the maps of this table are names, not fields. A key that is not a name of the list fails the decode of the entry (REG-ERR-001).
+
+| Map | Names that the decode accepts |
+|-----|-------------------------------|
+| entity predicate (REG-FLD-624) | the sub-predicate type ids of REG-FLD-624 |
+| `slots` (REG-FLD-636) | the slot range names of REG-FLD-636 |
+| `predicates` (REG-FLD-597, REG-FLD-638) | the ids of `data_component_predicate_type` and of `data_component_type` (PRED-ITM-006 of `predicates.md`) |
+| `components` (REG-FLD-595, REG-FLD-637) | the ids of `data_component_type` that have a persistent form (REG-FLD-595) |
+| mob effects predicate (REG-FLD-622) | the keys of `mob_effect` |
+
+- **Edge cases:**
+  - Each kind of `type_specific` is its own key of the entity predicate, for example `type_specific/player`. The key `type_specific`, and a key `type_specific/<x>` whose kind is not in REG-FLD-624, fail the decode.
+  - The keys of `recipes` and of `advancements` (REG-FLD-642) are not in the table. REG-FLD-642 states them.
+
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: make one pack for each of these entity predicates, with one predicate file: `flags` with `"zzz": 1`; a top-level key `zzz`; `type_specific` with `{"type": "player"}`; `type_specific/zzz`; `slots` with the key `foo.0`; `predicates` with the key `minecraft:zzz`. Start the server one time with each pack. Expected: the pack with `flags` loads. Each other pack is a fault of the load (REG-ERR-001), and the server does not start.
+
 ### REG-FLD-009: Experiments
 
 Each rule of this document uses these experiments.
@@ -5901,13 +5922,15 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **Write form notes:**
   - `level` and `stats[].value` are number bounds (REG-FLD-646) of integers.
   - `food` has the fields `level` and `saturation`. Each is a number bounds (REG-FLD-646) with the default `{}`. Each is left out when it equals the default.
+  - `food.level` is a number bounds of integers. Each bound is a 32-bit signed integer, and the test compares it with the food level, a 32-bit integer.
+  - `food.saturation` is a number bounds of doubles. Each bound is a 64-bit float. The test converts the saturation, a 32-bit float, to a 64-bit float with no change of the value (PRED-NUM-002 of `predicates.md`).
   - `gamemode` is left out only when the list holds these four strings in this order.
   - `advancements` map keys are advancement identifiers. They are not references.
   - `looking_at` is an optional entity predicate (REG-FLD-624). It has no default.
   - `input` is optional and has no default. Its fields `forward`, `backward`, `left`, `right`, `jump`, `sneak` and `sprint` are optional booleans.
 - **Nested types:** number bounds (REG-FLD-646), entity predicate (REG-FLD-624).
 
-Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
+Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: REG-FLD-009, and E16 of `predicates.md` for the number kinds of `food`.
 
 ### REG-FLD-643: entity predicate `type_specific/cube_mob`
 
