@@ -133,8 +133,8 @@ experience block is the result of BDR-XP-002.
 
 A creaking heart pays `between(20, 24)`, as in BRK-LOOT-006. It pays nothing for a neighbour removal
 and for a command destroy. The game mode of the player has no effect on the experience blocks in an
-explosion. Item U3 records this difference. An explosion in the block interaction mode `keep` or
-`trigger` pays nothing (BDR-EXL-001).
+explosion. An explosion in the block interaction mode `keep` or `trigger` pays nothing
+(BDR-EXL-001).
 
 When the game rule `block_drops` is false, no cause pays experience. The orbs appear at the centre
 of the block, as BRK-LOOT-001 states, and the split is that of XP-VAL-001.
@@ -355,9 +355,10 @@ step 4 of a survival break state. It does not record the order of the packets.
   Result R46 of `block-breaking.md` (60 breaks, `26.4-snapshot-4`) gave values from 15 to 43, with 15
   and 43 one time each. This result is possible with the draw of BDR-XP-002, but it does not confirm
   it. Experiment E1 tests the draw.
-- **U3**: an explosion whose causing entity is a player in creative mode or spectator mode. The
-  experience blocks pay, but a creaking heart does not (BDR-XP-001). A creative break pays nothing.
-  The owner decides whether such an explosion must pay experience.
+
+Item U3 is closed: BDR-XP-001 states the experience of an explosion that a creative or spectator
+player causes. The experience blocks test only that the causing entity is a player, and the
+creaking heart tests the game mode for a break and for an explosion.
 
 ## 6. Experiments
 
@@ -376,7 +377,7 @@ E11, record the `add_entity` packets with `tools/mcrs_minecraft_client_recorder`
 | E1 | Run `setblock` with `spawner` and then `setblock` with `air` and `destroy`, 400 times. Sum the orb values of each run, and count each sum. With a survival player, break a spawner 20 times with a diamond pickaxe with Silk Touch. Sum the orb values of each break. | BDR-XP-002, BDR-XP-001 |
 | E2 | Do the command destroy 100 times each on `coal_ore`, `diamond_ore`, `sculk_sensor` and `creaking_heart` with `natural=true`. Sum the orb values of each run. | BDR-XP-001 |
 | E3 | In creative mode, break `coal_ore`, `spawner` and `creaking_heart` with `natural=true`. Count the orbs. | BDR-XP-001 |
-| E4 | Put `diamond_ore` and `creaking_heart` with `natural=true` in a stone floor. Summon `tnt` with `fuse` 0 and the UUID of a survival player as `owner`. Repeat with a creative owner, with no owner, and with `block_drops` false. Sum the orb values. | BDR-XP-001, U3 |
+| E4 | Put `diamond_ore` and `creaking_heart` with `natural=true` in a stone floor. Summon `tnt` with `fuse` 0 and the UUID of a survival player as `owner`. Repeat with a creative owner, with no owner, and with `block_drops` false. Sum the orb values. | BDR-XP-001 |
 | E5 | Fill a row of 20 `dirt`, and explode a `tnt` at its centre. Read the count and the position of each item entity. Add a data pack whose table of `dirt` gives 3 `snowball`, and repeat. | BDR-EXL-002 |
 | E6 | Put a chest with 64 `stone` in slot 0 and a torch on a stone. Explode a `tnt` next to both, 20 times. Record the packets. Put `creaking_heart` with `natural=true` and `coal_ore` next to a `tnt` with a survival owner, and record again. Set `block_drops` to false and repeat. | BDR-EXL-003, BDR-CNT-001, BDR-ORD-001 |
 | E7 | Add a data pack whose tables of `oak_door` and `red_bed` have no `match_block` condition. Add a pool that gives `diamond` with a `match_tool` condition for `diamond_pickaxe`, and a pool that gives `emerald` with an `entity_properties` condition on `this` with an empty predicate. Break the upper part of a door and the foot of a bed with a diamond pickaxe. Read each item entity and its position. | U1, LOOT-SRC-006 |

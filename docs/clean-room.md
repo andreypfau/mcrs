@@ -48,8 +48,9 @@ from the original game, or from modifications of the game, by accident.
 ### Community terms
 
 The community of the game uses some names of the game's code as common terms. These names are
-allowed in all places: `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos` and
-`PalettedContainer`. A new name goes into this list only after a review.
+allowed in all places: `ResourceKey`, `TagKey`, `BlockPos`, `SectionPos`, `ColumnPos`,
+`PalettedContainer`, `LootContext` and `NumberProvider`. A new name goes into this list only
+after a review.
 
 The output of the game is evidence and is allowed. A parity test compares our output with an
 artefact the game produced.

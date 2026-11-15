@@ -70,6 +70,8 @@ Section 10 lists what this document does not state. This document replaces secti
   enchantment, or 0 when the component does not hold it.
 - **Service**: an operation that needs more than the context and the loaded data, for example a
   search for a structure (section 8).
+- **Event**: the action that makes a source evaluate a table, for example the open of a container
+  or the death of a mob.
 
 An integer range `a..b` includes `a` and `b`. An integer division drops the fraction. `round(x)` is
 `floor(x + 0.5)`. `clamp(x, a, b)` is `a` when `x < a`; otherwise it is the smaller of `x` and `b`.
@@ -209,12 +211,13 @@ one formula, also with `L = 0`:
 | `minecraft:uniform_bonus_count` | `bonusMultiplier` `m` | `c + B(m × L + 1)`; `c` when `m × L + 1` is outside `1..2³¹ − 1` | one `B(m × L + 1)`, also when the bound is 1; none when the bound is outside `1..2³¹ − 1` |
 | `minecraft:binomial_with_bonus_count` | `extra` `e`, `probability` `p` | `c` plus the number of draws that give `F < p` | `L + e` draws of `F` |
 
-For `ore_drops` with `L > 0`, the factor is 1 with the chance `2 / (L + 2)`, and each value of `2..L
-+ 1` with the chance `1 / (L + 2)`. Result L1 of `block-loot.md` shows `ore_drops` with `L = 3`.
-Result L3 shows `binomial_with_bonus_count` with `L = 0`. The draw of `uniform_bonus_count` for a
-bound of 1 has the label `source_suggested`. The bound `m × L + 1` is an exact integer. It is
-outside `1..2³¹ − 1` only for a negative `m` or a very large `m`, which no vanilla table has.
-LOOT-MDV-003 records the reference for such a bound.
+For `ore_drops`, `L` is at most 255 (STK-SHP-015), so the bound `L + 2` is at most 257. The bound
+is thus always in `1..2³¹ − 1`. For `ore_drops` with `L > 0`, the factor is 1 with the chance
+`2 / (L + 2)`, and each value of `2..L + 1` with the chance `1 / (L + 2)`. Result L1 of
+`block-loot.md` shows `ore_drops` with `L = 3`. Result L3 shows `binomial_with_bonus_count` with
+`L = 0`. The draw of `uniform_bonus_count` for a bound of 1 has the label `source_suggested`. The
+bound `m × L + 1` is an exact integer. It is outside `1..2³¹ − 1` only for a negative `m` or a very
+large `m`, which no vanilla table has. LOOT-MDV-003 records the reference for such a bound.
 
 **LOOT-MOD-013** (`source_suggested`, semantic, confidence medium). `enchanted_count_increase`
 (REG-FLD-751) reads the parameter `attacking_entity`. It does these steps:
@@ -886,27 +889,35 @@ evaluation in the library, and this table names each value of the world that a m
 
 **LOOT-MOD-057** (`source_suggested`, semantic, confidence medium). `exploration_map` (REG-FLD-756)
 takes no draw. It does not change an empty work stack, and it does nothing when the context has no
-`origin`. Otherwise it uses the service of LOOT-MOD-056. The item can be each item. The service does
-these steps at the block position of `origin`, in the dimension of the context:
+`origin`. Otherwise it uses the service of LOOT-MOD-056. The item can be each item. The **search**
+of the modifier finds a start of one of the structures of `destination`, as CMD-LOC-006 states. The
+search starts at the block position of `origin`, in the dimension of the context. The limit of the
+area is `search_radius` cells in place of 100 cells. These are the results:
 
-1. Search a start of one of the structures of `destination`, as CMD-LOC-006 states. The limit of
-   the area is `search_radius` cells in place of 100 cells.
-2. When `skip_existing_chunks` is true, the search skips a start that cannot take one more
-   reference. It adds one reference to the start that it finds.
-3. When the search finds nothing, the work stack does not change. The service ends.
-4. Make new map data with a new map id. Its centre is the x and the z of the found position, and
-   its scale is `zoom`. The map tracks the position, also without a limit. Its dimension is the
-   dimension of the context.
-5. Set the component `minecraft:map_id` of the work stack to the new map id.
-6. Write the preview of the biomes into the map data.
+1. When `skip_existing_chunks` is true, the search skips a start that cannot take one more
+   reference. The world adds one reference to the start that the search finds.
+2. When the search finds nothing, the work stack does not change, and the world does not change.
+3. The world gets new map data with a new map id. LOOT-MOD-060 states the id.
+4. The centre of the map data is the x and the z of the found position, and its scale is `zoom`.
+   The map tracks the position, also without a limit. Its dimension is the dimension of the context.
+5. The component `minecraft:map_id` of the work stack becomes the map id of result 3.
+6. The map data holds the preview of the biomes.
 7. Take the component `minecraft:map_decorations`, or an empty one. Set its key `+` to the type
    `decoration`, the x and the z of the found position, and the rotation 180.
 
 When the search finds a start, the work stack after the modifier is the input with the two
-components of steps 5 and 7. When the search finds nothing, the work stack is the input with no
-change. The count and the other components stay in both cases. Because of step 2, a second map from
-the same position can show a different structure. The number of references that a start can take
-is world data, and this document does not state it.
+components of results 5 and 7. When the search finds nothing, the work stack is the input with no
+change. The count and the other components stay in both cases. Because of result 1, a second map
+from the same position can show a different structure. The number of references that a start can
+take is world data, and this document does not state it.
+
+The world gets the changes of results 1, 3 and 6 when the evaluation is complete (LOOT-MOD-060), in
+the order of the maps. A search sees the references that each earlier search of the same
+evaluation added.
+
+In an evaluation of the block source (`block-loot.md`), of `item modify` and of `loot`,
+`exploration_map` does not change the work stack, and the world does not change. The evaluation
+gives no error. LOOT-MDV-005 and LOOT-MDV-006 record the reference.
 
 **LOOT-MOD-058** (`source_suggested`, semantic, confidence medium). The modifiers after
 `exploration_map` apply to the work stack of LOOT-MOD-057, with or without a found start. The
@@ -914,8 +925,48 @@ modifiers around the entry (LOOT-EVL-011 of `loot.md`), the division (LOOT-OUT-0
 container, the spread (LOOT-CTR-001) then use that result. For example, each `exploration_map` of
 the vanilla data pack has exactly one modifier after it: a `filtered` that tests
 `minecraft:map_id`, with `on_fail` `discard`. When the search finds nothing, that modifier
-discards the map. The drop list then has one stack less, and the spread takes other draws. Thus an
-implementation must have the result of the search before it evaluates the rest of the chain.
+discards the map. The drop list then has one stack less, and the spread takes other draws.
+
+An evaluation that reaches a search gives the result of one evaluation of the table, with the
+generator in the state that it had at the event. For a keyed stream (LOOT-RND-009), the key holds
+the game tick of the event. The same applies to a generator that the source gives and to a sequence
+stream (the rows of LOOT-RND-004). Thus the ticks that the search takes do not change a draw.
+
+**LOOT-MOD-060** (`design`, semantic). A search (LOOT-MOD-057) can end some ticks after the event.
+The number of ticks is unspecified. These sources wait for the search of their evaluation:
+
+- a container (`container-loot.md`, CTL-TRG-001);
+- the death of an entity;
+- fishing;
+- a trade of a villager.
+
+Such a source gives no stack of the evaluation until the evaluation is complete. Then it gives the
+stacks as its own rule states, with the context of the event. An evaluation that reaches no search
+does not wait for an evaluation that reaches a search.
+
+A trade whose modifier reaches a search is not in the trade list of the villager until the
+evaluation is complete. Then the offer is in the list. The other offers of the same level do not
+wait for it. A specification of the villager trades states when the server sends a trade list to a
+player. LOOT-MDV-007 records the reference.
+
+These sources do not wait: the block source (LOOT-MDV-005), and the commands `item modify` and
+`loot` (LOOT-MDV-006). Their stack does not change (LOOT-MOD-057). The result and the feedback of
+such a command are those of the tick of the command. Reason: a function can store the result of a
+command in the same tick.
+
+A map of an evaluation takes the next free map id of the world at the time when the evaluation is
+complete. These rules give the order of the map ids:
+
+- The maps of one evaluation take consecutive ids, in the order of the drop list. A map in the
+  contents of a stack (LOOT-MOD-053) takes its id at the place of that stack, in the order of the
+  contents.
+- Evaluations that are complete in the same tick take their ids in the order of their events.
+- Each other new map id of that tick keeps the order in which the server applies its action, for
+  example a player who fills an empty map.
+
+The search of an evaluation sees the references that each evaluation of an earlier event added.
+Reason: the tick never waits for a search. The map ids and the references then follow the order of
+the events, with no gap in the map ids of one evaluation.
 
 ## 9. The draws of each type
 
@@ -998,6 +1049,37 @@ each type (LOOT-MOD-009). A type that this table does not list takes no draw.
 - **Test**: a differential test does not set a value that is not a numeric tag through `[]` into an
   array.
 
+**LOOT-MDV-005.**
+
+- **Rule**: LOOT-MOD-057.
+- **Reference**: the block source also runs the search during the evaluation. The work stack gets a
+  map of the found structure.
+- **Visible to the client**: yes, only with a data pack that adds `exploration_map` to a block
+  table. No vanilla block table has it. The block then drops the stack with no map. With the
+  `filtered` of the vanilla tables after it, the player gets no map.
+- **Test**: a differential test does not use `exploration_map` in a block table.
+
+**LOOT-MDV-006.**
+
+- **Rule**: LOOT-MOD-060.
+- **Reference**: `item modify` and `loot` with a modifier or a table that reaches a search run the
+  search in the tick of the command. The stack gets a map of the found structure.
+- **Visible to the client**: yes. With `item modify`, only for an item modifier of a data pack
+  that has `exploration_map`: the stack of the slot gets no map. With `loot`, also for a vanilla
+  table, for example `chests/shipwreck_map`: the command gives the stack with no map. With the
+  `filtered` of the vanilla tables after `exploration_map`, the stack is discarded.
+- **Test**: a differential test does not use `exploration_map` with `item modify` or with `loot`.
+
+**LOOT-MDV-007.**
+
+- **Rule**: LOOT-MOD-060, the trade of a villager.
+- **Reference**: the vanilla server runs the search in the tick of the level change of the
+  villager. The offer is in the trade list from that tick.
+- **Visible to the client**: yes. An offer with a map, for example of a cartographer, is in the
+  trade list some ticks after the level change.
+- **Test**: a differential test compares the trade list after each search is complete. It does not
+  compare the tick of the offer.
+
 ### 11.2 Open questions
 
 None.
@@ -1023,7 +1105,6 @@ None.
   above 256?
 - **U9**: the reads of an empty work stack (LOOT-MOD-011). The confidence is low until experiment E2
   runs.
-
 Item U7 is closed: LOOT-RND-006 of `loot.md` states the draws, and LOOT-MOD-058 states the order of
 the search and the spread.
 
@@ -1054,7 +1135,7 @@ It records the result stack and the state of the generator after the chain.
 | E16 | `copy_name` and `copy_components` from a named mob, from a player and from the tool. `fill_player_head` on a player head and on a stick. | LOOT-MOD-006, LOOT-MOD-007, LOOT-MOD-042, LOOT-MOD-043 |
 | E17 | `set_contents` with an `alternatives` entry and an item of the count 200, for each `component`. `set_contents` with a `group` of two `item` children, each with a `random_chance` 0.5 condition and a `set_count` `uniform` 1 to 3, for 20 seeds. Record the generator state. `modify_contents` with `set_count` on a container. | LOOT-MOD-053 to LOOT-MOD-055 |
 | E18 | `furnace_smelt` on raw iron with the count 3, for each value of `use_input_count`, and on a stick. | LOOT-MOD-017 |
-| E19 | `exploration_map` in a world with and without the structure in the radius, with the `filtered` of the vanilla tables after it. Record the stack and the generator state. This fixture needs a server with a world. | LOOT-MOD-052, LOOT-MOD-057, LOOT-MOD-058 |
+| E19 | `exploration_map` in a world with and without the structure in the radius, with the `filtered` of the vanilla tables after it. Record the stack and the generator state. Then put a hopper under each of two chests that roll in one tick, each with a table of two `exploration_map` entries. Record the map id of each map and the chest that holds it. This fixture needs a server with a world. | LOOT-MOD-052, LOOT-MOD-057, LOOT-MOD-058, LOOT-MOD-060 |
 | E20 | `set_components` with a patch that the validation rejects, and `set_custom_data` that makes an empty compound. | LOOT-MOD-024, LOOT-MOD-025 |
 | E21 | Apply each modifier of this list to a stack with the count 2 and a custom name, and to an empty work stack: `copy_state` with a block state, `discard`, `set_item`, `set_name`, `set_banner_pattern`, `set_potion`, `set_ominous_bottle_amplifier` with `uniform` 0 to 9, `set_loot_table`, and each type of LOOT-MOD-040. Apply them as one list, as a `sequence` with a `condition` that passes and one that fails, and as a key of `minecraft:item_modifier`. | LOOT-MOD-005, LOOT-MOD-008, LOOT-MOD-010, LOOT-MOD-014, LOOT-MOD-015, LOOT-MOD-027, LOOT-MOD-031, LOOT-MOD-032, LOOT-MOD-038, LOOT-MOD-039, LOOT-MOD-040 |
 | E22 | Start `tools/vanilla-server` with a data pack of item modifiers. Run `item modify entity @s weapon.mainhand` with `set_name` and `set_lore`, each with `entity` `this` and a text with a `selector` `@s` and a `score` component. Record the name and the lore of the stack. | LOOT-MOD-027, LOOT-MOD-028 |

@@ -69,7 +69,9 @@ rule.
 - The structure templates of the client jar: `data/minecraft/structure/`. In these templates, 569
   block entity compounds have the field `LootTable`: 350 `chest`, 209 `barrel`, 6 `dispenser` and
   4 `decorated_pot`. No compound has the field `LootTableSeed`. No entity of a template has a
-  table.
+  table. 198 of these compounds also have the field `Items` with an empty list. They are all in the
+  templates under `data/minecraft/structure/abandoned_camp/`. No compound with `LootTable` has an
+  `Items` list with a stack, or the field `item`.
 - The dispensers and the decorated pots with a table are all in the templates under
   `data/minecraft/structure/trial_chambers/`. The dispensers name the tables
   `dispensers/trial_chambers/corridor` and `dispensers/trial_chambers/chamber`. The pots name the
@@ -122,15 +124,37 @@ decorated pot. A loot container without a table reference writes no `LootTable` 
 `LootTableSeed`. It writes its stacks as a container without a table does. At the load:
 
 - an absent `LootTableSeed` gives the seed 0;
-- a compound with `LootTable` gives an unrolled container. Its slots are all empty, and the load
-  ignores `Items` and `item`;
-- a compound without `LootTable` gives a container without a table reference. The vanilla server
-  ignores `LootTableSeed` in such a compound, and the next save does not write it.
+- a compound with `LootTable` gives an unrolled container, and its slots are all empty;
+- a compound with `LootTable` can also have an empty `Items` list, or no stack in `item`. The load
+  accepts it, because it holds no stack. 198 compounds of the vanilla templates have this form
+  (section 0.3);
+- a compound with `LootTable` and an `Items` list with a stack, or a stack in `item`, fails the
+  decode;
+- a compound with `LootTableSeed` and without `LootTable` fails the decode;
+- a compound without `LootTable` and without `LootTableSeed` gives a container without a table
+  reference.
+
+Each of the two failures is a separate error of the decode. Reason for the first failure: a
+container holds a table reference with a seed, or the stacks, and never both. A load that accepts
+both drops saved stacks with no report (decision #388). Reason for the second failure: no event
+reads a seed without a table reference. A load that accepts it drops saved data with no report,
+because the next save does not write it. No vanilla template and no vanilla data pack file has
+either form. CTL-DEV-002 records the reference.
+
+A failure of the decode has this result for each carrier of the compound:
+
+| Carrier | Result |
+|---------|--------|
+| a block entity of a saved chunk | the column cannot be decoded. Its region is quarantined, and the column reads as missing (SAVE-QUARANTINE-001) |
+| a block entity of a template | the template does not load. `place template` that names it fails with `commands.place.template.invalid`. The load mode of a structure block that names it shows `structure_block.load_not_found`. No block changes |
+| the compound of a command, for example `data merge`, `setblock`, `fill` or `summon` | the command fails with an error. No block and no entity changes |
+| `minecraft:block_entity_data` of a stack (CTL-HLD-003, CTL-GEN-003) | the player places the block, and the block entity does not get the data of the component. The other components of the stack apply as PLC-INV-008 of `block-placing.md` states |
 
 The key in `LootTable` does not need to name a table that exists (CTL-ROL-004). For a block
 entity, this rule depends on issue #738: until then SAVE-CHUNK-001 and SAVE-FILE-002 of
-`persistence.md` keep the compound of a block entity opaque. Item U3 records the questions about
-the fields that the vanilla server ignores. Experiment C14 decides this rule.
+`persistence.md` keep the compound of a block entity opaque. Issue #738 gives the compound of each
+loot container the typed fields and the decode errors of this rule. Experiment C14 decides this
+rule.
 
 **CTL-HLD-003** (`source_suggested`, semantic, confidence medium). The item component
 `minecraft:container_loot` holds a table reference and a seed. Its fields are `loot_table`, an
@@ -159,10 +183,28 @@ event, before the event reads or changes a slot. Thus the event sees the stacks 
 row of section 2 states whether the context has a player. A later event does not roll again,
 because the roll cleared the table reference (CTL-ROL-005). Experiment C15 decides this rule.
 
+Exception (`design`, semantic): a roll can reach the search of an `exploration_map`
+(LOOT-MOD-057). Then the roll is complete some ticks after the event, and the number of ticks is
+unspecified (LOOT-MOD-060). Until the roll is complete, the container keeps its table reference and
+its seed, and its slots hold no stack of the roll. Each event of this section in that time has no
+effect on the slots, sees no stack and starts no second roll. For example:
+
+- An open by a player (CTL-TRG-002) shows the container to the player when the roll is complete.
+- A hopper, a dropper or a dispenser (CTL-TRG-008) moves no stack from or into the container.
+- A comparator reads the signal of an empty container. It gets an update when the roll is complete.
+- A removal of the block (CTL-TRG-005, CTL-TRG-006) removes the block at the event. The drop of
+  that rule occurs at the block position when the roll is complete.
+- A removal of an entity loot container (CTL-TRG-007) removes the entity at the event. The stacks
+  drop at the position of the entity at the event when the roll is complete.
+
+When the roll is complete, the server clears the table reference and the seed, and writes the
+slots, in one step. Reason: the tick never waits for a search. CTL-DEV-004 records the reference.
+
 **CTL-TRG-002** (`source_suggested`, semantic, confidence medium). A player opens an unrolled
 container. The server rolls the table with that player (CTL-ROL-002), before it sends the contents
 of the container to the client. Thus the first contents that the player sees are the stacks of the
-roll. These actions open a container:
+roll. Exception: a roll that reaches a search shows the container when the roll is complete
+(CTL-TRG-001). These actions open a container:
 
 - a player uses a block loot container, and the block opens its menu;
 - a player uses a chest minecart or a hopper minecart;
@@ -234,6 +276,7 @@ column "Moment" states the event in the tick at which the mechanism reads the sl
 | a dropper that points into the container | the dropper puts a stack into the container | the dispense of the dropper |
 | an unrolled hopper | its next transfer attempt: the hopper is enabled, and it has no cooldown | the transfer of the hopper |
 | a dispenser or a dropper | redstone activates it. It rolls before it selects a slot | the scheduled tick of the dispense, 4 ticks after the activation |
+| a crafter | redstone activates it. It rolls before it reads its slots | the scheduled tick of the craft, 4 ticks after the activation |
 | a comparator | the comparator reads the container. It reads a minecart container through a detector rail that the minecart is on. A comparator reads 0 from a chest with a blocked lid (CTL-TRG-003), and does not roll it | each time the comparator calculates its input: at a neighbour update of the comparator, in its scheduled tick, when an entity places it, and when a player changes its mode |
 | a copper golem | the golem tests the slots of a chest, or changes them | the tick of the golem in which it comes within its interaction range of the chest |
 | a decorated pot | a player uses the pot, with an item or with an empty hand. The pot rolls before it tests the item. A use with the sneak key held and an item in a hand does not roll | the use of the block by the player |
@@ -244,6 +287,10 @@ holds that slot. A comparator reads each slot in ascending order, so it rolls th
 first. A copper golem tests the half `right` first, and it tests the half `left` only when the half
 `right` is empty after its roll.
 
+The row of a crafter is `design`, semantic. Reason: without the roll, a crafter that holds a table
+crafts from its empty slots, and a later open replaces these slots with the stacks of the roll.
+CTL-DEV-003 records the reference for a crafter.
+
 **CTL-TRG-009** (`source_suggested`, semantic, confidence medium). These commands make a slot access
 without a player. Each one rolls the table of an unrolled container without a player, also when the
 command source is a player.
@@ -251,6 +298,10 @@ command source is a player.
 - `loot insert`, `loot replace block` and `loot replace entity` into the container;
 - `item replace block`, `item replace entity` and `item modify` on a slot of the container;
 - `execute if items` and `execute unless items` on a slot of the container.
+
+When the roll of the container reaches a search, each of these commands sees the container as the
+exception of CTL-TRG-001 states. A table that `loot` names, and a modifier that `item modify` names,
+are separate evaluations. LOOT-MOD-060 states which of them waits for its own search.
 
 **CTL-TRG-010** (`source_suggested`, semantic, confidence medium). These events do not roll the
 table. The container keeps its table reference and its seed.
@@ -263,7 +314,6 @@ table. The container keeps its table reference and its seed.
   remove the block without a drop of the contents.
 - The pick of a block with its data (CTL-HLD-003).
 - A refused open (CTL-TRG-003).
-- The activation of a crafter (item U4).
 
 ## 3. The roll
 
@@ -283,12 +333,16 @@ access of the steps 3 and 4 does not roll again, because step 1 cleared the refe
 clears the reference when the table does not exist (CTL-ROL-004) or gives an empty drop list.
 Experiments C12 and C16 decide step 1.
 
+Exception: a roll that reaches a search (LOOT-MOD-057) clears the table reference and the seed when
+the roll is complete. The server writes the slots of step 4 in the same step (CTL-TRG-001). The
+result of steps 3 and 4 is the result that LOOT-MOD-058 states for the generator at the event.
+
 **CTL-ROL-002** (`source_suggested`, semantic, confidence medium). The context of a roll holds
 these values and no other parameter:
 
 | Value | Block loot container | Entity loot container |
 |-------|----------------------|-----------------------|
-| `origin` | the centre of the block position: `(x + 0.5, y + 0.5, z + 0.5)` | the position of the entity at the roll |
+| `origin` | the centre of the block position: `(x + 0.5, y + 0.5, z + 0.5)` | the position of the entity at the event of the roll |
 | `this_entity` | the player of the event, when the event has one | the same |
 | luck | the luck of that player (LOOT-CTX-015); 0 without a player | the same |
 
@@ -440,13 +494,13 @@ player the luck 0 unless the experiment states another value. LOOT-RND-004 calls
 | C5 | Place four unrolled chests with a seed. Break the first in survival mode and the second in creative mode. Run `setblock` with `air` and `replace` on the third, and with `destroy` on the fourth. | the `add_entity` packets of the item entities, with their items | CTL-TRG-005, CTL-TRG-010 |
 | C6 | Place three unrolled shulker boxes with a seed. Break one in survival mode, one in creative mode, and one with TNT. Place the item of the TNT break and open it. | the components of each shulker box item; the stacks after the open | CTL-TRG-006, CTL-HLD-003 |
 | C7 | Summon three chest minecarts with `{LootTable: "minecraft:chests/abandoned_mineshaft", LootTableSeed: 7L}`. Open the first. Hit the second in creative mode. Set `entity_drops` to false and run `kill` on the third. | the stacks of the open; the item entities of each removal | CTL-TRG-002, CTL-TRG-007, CTL-ROL-002 |
-| C8 | Place an unrolled chest with a seed above a hopper. Place an unrolled dropper with a seed and power it. Place an unrolled decorated pot with a seed and use it with an empty hand. Place a second one and use it with a stick. | the hopper slots after 8 ticks; the tick and the item of the dispense; `data get block` on each pot after the use | CTL-TRG-008 |
+| C8 | Place an unrolled chest with a seed above a hopper. Place an unrolled dropper with a seed and power it. Place an unrolled decorated pot with a seed and use it with an empty hand. Place a second one and use it with a stick. Place an unrolled crafter with a seed and power it. | the hopper slots after 8 ticks; the tick and the item of the dispense; `data get block` on each pot after the use; the item that the crafter makes, and `data get block` on it | CTL-TRG-008, CTL-DEV-003 |
 | C9 | Run `loot insert` with `minecraft:empty` into an unrolled chest with a seed. Run `item replace block` on slot 0 of a second one. Run `clone` on a third one, and open the source and the copy. | the stacks of each chest; the equal stacks of the source and the copy | CTL-TRG-009, CTL-TRG-010 |
 | C10 | Make a data pack with the table `test:luck`: one pool, `rolls` 1, the entries `stone` with `quality` 10 and `dirt` with `quality` -10. Place two chests with this table and the seed 3. Open one with the luck 0. Run `attribute @s minecraft:luck base set 2` and open the other. | the item of each chest | CTL-ROL-002 |
 | C11 | With a structure block, save a template of a hopper at the template position `(0, 0, 0)` and a chest with `LootTable` at `(1, 0, 0)`. Load it with the structure block seed 9 two times. Remove the hopper from the template and load it again with the seed 9. Run `place template` with the seed 9 on the first template. | `LootTableSeed` of each loaded chest with `data get block`; compare with the second and the first `next_long()` of a 48-bit generator set to 9 | CTL-GEN-002 |
 | C12 | Place a chest with `{LootTable: "test:absent", LootTableSeed: 1L}`. Open it. Run `data get block`. | the contents; the server log; the fields | CTL-ROL-001, CTL-ROL-004, CTL-ROL-005 |
 | C13 | For each type of CTL-HLD-001, place the block or summon the entity with `{LootTable: "minecraft:chests/simple_dungeon", LootTableSeed: 5L}`. Do the same for a furnace. Run `data get` on each. Then run `execute if items` on slot 0 of each, and run `data get` again. | the fields `LootTable`, `LootTableSeed` and `Items` before and after the command | CTL-HLD-001, CTL-TRG-009 |
-| C14 | Place an empty chest. Run `data merge block` with `{LootTable: "minecraft:chests/simple_dungeon", Items: [{Slot: 0b, id: "minecraft:stone"}]}`. Run `data get block`. Place a second empty chest and run `data merge block` with `{LootTableSeed: 5L}`. Run `data get block`. | the fields of each chest | CTL-HLD-002 |
+| C14 | Place an empty chest. Run `data merge block` with `{LootTable: "minecraft:chests/simple_dungeon", Items: [{Slot: 0b, id: "minecraft:stone"}]}`. Run `data get block`. Place a second empty chest and run `data merge block` with `{LootTableSeed: 5L}`. Run `data get block`. Place a third empty chest and run `data merge block` with `{LootTable: "minecraft:chests/simple_dungeon", Items: []}`. | the fields of each chest; the stacks of the first chest when a player opens it | CTL-HLD-002, CTL-DEV-002 |
 | C15 | Write a function that runs `item replace block <pos> container.13 with minecraft:stone` on an unrolled chest with a seed, and then `data get block <pos>`. Run the function. | the field `Items` of the `data get` in the same function; the absence of `LootTable` | CTL-TRG-001 |
 | C16 | Place a chest with `{LootTable: "minecraft:empty", LootTableSeed: 1L}`. Run `execute if items` on slot 0. Run `data get block`. | the result of the command; the fields | CTL-ROL-001 |
 | C17 | Run `place feature minecraft:monster_room` at a cave position. Run `place structure minecraft:desert_pyramid` and `place structure minecraft:mineshaft`. Run `data get` on each chest and each chest minecart that they place. | `LootTable` and `LootTableSeed` of each container | CTL-GEN-001 |
@@ -493,27 +547,45 @@ structure, or the seed 0.
   stacks over many rolls. A test in exact mode gives the state of the sequence stream as the
   generator.
 
+**CTL-DEV-002.**
+
+- **Rule**: CTL-HLD-002.
+- **Reference**: the load ignores the stacks of a compound with `LootTable` and a non-empty `Items`
+  list or a stack in `item`. The container rolls its table, and the stacks are lost. The load also
+  ignores `LootTableSeed` without `LootTable`, and the next save does not write it. The vanilla
+  server never writes either form.
+- **Visible to the client**: yes, only through a command, a custom template or a custom stack. A
+  `data merge`, `setblock`, `fill`, `summon` or `place template` with such a compound gives an
+  error in place of a container (CTL-HLD-002).
+- **Test**: a conformance test of mcrs runs the commands of C14 and expects the error. A
+  differential test does not use such a compound.
+
+**CTL-DEV-003.**
+
+- **Rule**: CTL-TRG-008, the row of a crafter.
+- **Reference**: the craft of a crafter reads its slots, but it does not roll the table first. An
+  unrolled crafter thus crafts nothing, and it keeps its table reference and its seed.
+- **Visible to the client**: yes, only for a crafter that gets a table from a command or an item.
+  No vanilla source gives a table to a crafter. The player sees a craft from the stacks of the roll.
+- **Test**: a differential test does not activate an unrolled crafter.
+
+**CTL-DEV-004.**
+
+- **Rule**: CTL-TRG-001, the exception, and CTL-ROL-001.
+- **Reference**: a roll that reaches a search runs the search in the tick of the event. The event
+  sees the stacks of the roll in that tick, and the tick takes as long as the search.
+- **Visible to the client**: yes. A container whose table has `exploration_map`, for example
+  `chests/shipwreck_map`, shows its contents some ticks after the open. A hopper, a comparator or a
+  drop of the break gets the stacks some ticks after the event.
+- **Test**: a differential test compares the slots and the stacks after the roll is complete. It
+  does not compare the tick of the stacks.
+
 ### 7.2 Unresolved
 
-- **U2**: a player who breaks a loot container is not in the context of the roll (CTL-TRG-005).
-  The exception is a survival break of a shulker box (CTL-TRG-006). A player who opens the
-  container is in the context. The difference is visible only with a luck other than 0, or with a
-  table that reads `this_entity`. No vanilla chest table does that. The owner decides whether a
-  break by a player gives the player to the context.
-- **U3**: the vanilla server ignores two cases of saved fields at the load (CTL-HLD-002):
-  - a compound has `LootTable` and also `Items`, or `item` for a decorated pot. The load ignores the
-    stacks. The vanilla server never writes both fields;
-  - a compound has `LootTableSeed` and no `LootTable`. The load ignores the seed, and the next save
-    drops it.
-
-  Decision #388 requires a type for each field of a save, and it rejects a field that the server
-  drops in silence. The owner decides whether each such load fails, or ignores the field as the
-  vanilla server does. SAVE-CHUNK-001 of `persistence.md` must then change: issue #738 gives the
-  compound of each loot container the typed fields of CTL-HLD-002 and the decision for these
-  cases.
-- **U4**: the activation of a crafter reads its slots, but the vanilla server does not roll its
-  table first. Thus the crafter crafts nothing. A comparator next to a crafter rolls the table
-  (CTL-TRG-008). No vanilla source gives a table to a crafter, so a player meets this only through
-  a command. The owner decides whether mcrs rolls the table at the activation of a crafter.
+None.
 
 Item U1 is closed: CTL-ROL-007 applies the decision of LOOT-RND-009 to a container with the seed 0.
+Item U2 is closed: CTL-TRG-005 and CTL-TRG-006 state the context of a break. A roll from a saved
+seed must give the stacks of the vanilla server, also for a player with a luck other than 0. Item
+U4 is closed: CTL-TRG-008 rolls the table of a crafter at its activation (CTL-DEV-003). Item U3 is
+closed: CTL-HLD-002 states the load of each form, with CTL-DEV-002.
