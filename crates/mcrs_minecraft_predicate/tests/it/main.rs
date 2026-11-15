@@ -8,5 +8,6 @@
 mod allocation;
 mod distance;
 mod grid;
+mod item_predicate;
 mod location;
 mod state_order;

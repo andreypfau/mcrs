@@ -5,8 +5,11 @@ use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_game_registries::item::definitions::{ItemCorpusError, from_files};
 use mcrs_minecraft_item::ItemDefinitions;
 use mcrs_minecraft_item::definition::CORPUS_DIRECTORY;
+use mcrs_minecraft_item_stack::NameLookup;
+use mcrs_minecraft_item_stack::NameTable;
 use mcrs_minecraft_item_table::{BakeError, DefinitionFile, ItemTable, bake};
 use mcrs_minecraft_registries::Registries;
+use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::registry_names::RegistryNames;
 
@@ -26,6 +29,13 @@ pub enum ItemLoadError {
     /// The corpus was read but does not bake into an item table.
     #[error(transparent)]
     Table(#[from] BakeError),
+    /// Item `id` of the corpus and item `id` of the item registry have different names, so a
+    /// stack kind and a registry id would name different items.
+    #[error("item {id} of the item corpus is not item {id} of the item registry")]
+    ItemIdMismatch {
+        /// The first id whose two names differ.
+        id: u16,
+    },
 }
 
 /// The item definitions of the corpus and the table of the item prototypes that the same files
@@ -65,8 +75,27 @@ pub fn load_items(
             .map(|(name, bytes)| DefinitionFile { name, bytes }),
         &RegistryNames::without_items(registries),
     )?;
+    check_item_ids(&baked.table, registries)?;
     Ok(LoadedItems {
         definitions: from_files(files, registries, blocks)?,
         table: baked.table,
     })
+}
+
+fn check_item_ids(table: &ItemTable, registries: &Registries) -> Result<(), ItemLoadError> {
+    let registry: &[_] = ResourceLocation::read("minecraft:item")
+        .ok()
+        .and_then(|key| registries.names_of(key))
+        .unwrap_or_default();
+    for id in 0..=u16::MAX {
+        let corpus = table.name(NameTable::Item, id);
+        let registered = registry.get(usize::from(id)).map(|name| name.as_location());
+        if corpus != registered {
+            return Err(ItemLoadError::ItemIdMismatch { id });
+        }
+        if corpus.is_none() {
+            return Ok(());
+        }
+    }
+    Ok(())
 }
