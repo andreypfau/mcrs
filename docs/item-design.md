@@ -95,13 +95,13 @@ All crate names are **(proposal)**. The layer numbers are those of `CLAUDE.md`.
 | `mcrs_minecraft_jukebox_song` | 3, data | none | `JukeboxSong<I>` and its keys | sound, text, resource |
 | `mcrs_minecraft_painting_variant` | 3, data | none | `PaintingVariant<I>`, its keys and its tag keys | text, resource |
 | `mcrs_minecraft_trim` | 3, data | none | `TrimMaterial<I>`, `TrimPattern<I>` and their keys | text, resource |
-| `mcrs_minecraft_dialog` | 3, data | none | `Dialog`, the dialog reference, the keys of the five dialog registries, the map between the hover forms | `mcrs_minecraft_item_stack`, text, NBT, registries |
+| `mcrs_minecraft_dialog` | 3, data | none | `Dialog` and the keys of the five dialog registries | `mcrs_minecraft_item_stack`, text, NBT, registries |
 
 - Each layer 3 crate starts as `#![no_std]` with `alloc`. If a dependency forbids it, the crate
   states which one.
 - `I` is the type parameter of the text (`TextTypes` of the text crate). `mcrs_minecraft_item_stack`
-  depends on the five crates from `mcrs_minecraft_banner_pattern` to `mcrs_minecraft_trim` and gives
-  its item template as `I`.
+  depends on the five crates from `mcrs_minecraft_banner_pattern` to `mcrs_minecraft_trim`.
+  `ItemHover` of the text crate is `I` (section 10.3.4).
 - The protocol crates and the save crate depend on `mcrs_minecraft_item_stack` only.
 - A proxy or a tool takes `mcrs_minecraft_item_stack` alone. A bot adds the table and the engine
   crate.
@@ -559,7 +559,7 @@ The design keeps the cost of the rare case out of the regular case: no stack wit
 | 14 | A request holds a fixed number of operations inline. | Keep it, with a `// chisle:` comment. The transaction specification gives the real maximum. |
 | 15 | Questions Q1–Q7 and undecided points U1–U5 of `spec/item-stack.md` section 10. | Their answers belong to the specification. Q6 (float equality) changes point 1 and the merge check. |
 | 16 | 28 experiments of `spec/item-stack.md` section 11 are not run. | Run them before the codec step is complete. A codec rule without a captured result stays marked in its test. |
-| 17 | The item template and the dialog refer to each other. The text of a template names a dialog; a dialog holds texts and item templates. | Decided: the template holds the dialog as a type parameter. The dialog lives in the crate `mcrs_minecraft_dialog`, above `mcrs_minecraft_item_stack`. |
+| 17 | The item template and the dialog refer to each other. The text of a template names a dialog; a dialog holds texts and item templates. | Decided, and replaced by section 10.3.4: a text holds `ItemHover` and `DialogRef`, and `mcrs_minecraft_text::Text` is the one text type. The dialog lives in the crate `mcrs_minecraft_dialog`, above `mcrs_minecraft_item_stack`. |
 | 18 | The groups that section 10.1 keeps in `mcrs_minecraft_item_stack`: enchantment, patterns, instrument, jukebox song, painting variant, trim. | Decided as a rule: many small crates are better than one large crate. Section 10.2 gives each registry its own crate. An id or a type parameter breaks each cycle. Only the three discriminator tables stay, and section 10.2 states the reason. |
 | 19 | The order of the hidden types of `TooltipDisplay`. | Decided: the value keeps the input order, because the hashed stack hashes that order. The equality and the hash for the merge check ignore the order. Sub-step 4.12 changes the type. |
 | 20 | Public fields of the numeric components against range checks. | Decided: the fields stay public. Each codec checks the range at the edge and returns an error. |
@@ -585,32 +585,15 @@ in parallel.
 8. `mcrs_minecraft_engine_item`, request: `Request`, the commit, `RequestResult`. Needs step 1.
 9. `mcrs_minecraft_engine_item`, `Selected` and the projection of `Equipped`. Parallel with step 8.
 10. The Miri run and the test with a counting allocator for the hopper path.
-11. **(c)** Migrate the users of the old crate, one group for each pull request: the protocol and
-    save crates; the engine and server crates; the client crates; the worldgen, registry, recipe and
-    tool crates. The key files of section 10.2 that have the mark "step 11" move in these pull
-    requests.
+11. **(c)** Migrate the users of the old crate, one group for each pull request. Section 10.3 gives
+    the groups, their order and the new home of each type. The key files of section 10.2 that have
+    the mark "step 11" move in these pull requests.
 12. Delete `mcrs_minecraft_item` and its entry in the workspace manifest, in the pull request that
     moves its last user.
 13. Measure the budgets of section 8 with the real data pack and write them to `PERF.md`.
 14. Add component types in the order of section 4.1.
 
 This is one migration. The old path and the new path exist together only from step 6 to step 12.
-
-Migration surface: the crates that depend on `mcrs_minecraft_item` today.
-
-```text
-crates/  block_entity  chat_client  client  client_entity  client_gui  client_world  enchantment
-         engine  engine_brain  engine_physics  engine_registries  engine_world  entity_render
-         environment  game_registries  light_color  light_render  model  particle  protocol_game
-         recipe  registry_catalog  save  server  worldgen_builtin
-         worldgen_feature_place  worldgen_structure  worldgen_structure_place
-tools/   mcrs_minecraft_client_recorder  mcrs_minecraft_update
-```
-
-Each name in `crates/` has the prefix `mcrs_minecraft_`. Step 3 removes four names from the
-surface: `worldgen_structure_place`, `engine_brain`, `vanilla_worldgen` and
-`mcrs_minecraft_client_recorder`. Each other crate uses the item ids or a stack type, and step 11
-moves it.
 
 ## 10.1 Step 3: the data that is not an item
 
@@ -679,7 +662,8 @@ After step 3 the old crate holds the item stack files and the groups of section 
 
 `mcrs_minecraft_item_stack` names a registry entry by a numeric id newtype, and a codec gets the
 names through a lookup parameter. Thus no item component needs a key file, and each group below
-leaves the item stack. Each target crate is a layer 3 data crate without Bevy.
+leaves the item stack. Each target crate is a layer 3 data crate without Bevy. For the wire forms,
+the decision of section 10.3.3 replaces this lookup parameter: the wire forms use no table.
 
 | Group | Files of the old crate | Target crate | What breaks the cycle | Dependents |
 |-|-|-|-|-|
@@ -696,7 +680,7 @@ leaves the item stack. Each target crate is a layer 3 data crate without Bevy.
 | Trim | `TrimMaterial`, `TrimPattern` of `component/trim.rs`, two key files | `mcrs_minecraft_trim`, new | type parameter `I` | `model`, `protocol_game` |
 | Enchantment | `enchantment.rs`, two key files | `mcrs_minecraft_enchantment`, existing | numeric id `EnchantmentId` | `protocol_game` |
 | Recipe type | `recipe.rs` | `mcrs_minecraft_recipe`, existing | none needed: the recipes component holds names | none |
-| Dialog | `dialog.rs`, six key files, `item_hover_map.rs`, `tests/it/item_hover.rs` | `mcrs_minecraft_dialog`, new | type parameter of the item template | `game_registries`, `registry_catalog`, `chat_client`, `client_gui`, `client_world`, `server` |
+| Dialog | `dialog.rs`, six key files | `mcrs_minecraft_dialog`, new | none needed: a text names a dialog by `DialogRef` (section 10.3.4) | `game_registries`, `registry_catalog`, `chat_client`, `client_gui`, `client_world`, `server` |
 
 - The discriminators stay because each one selects a shape that the item stack crate owns. No
   value refers to one of them as a registry entry. They add the dependency on
@@ -748,15 +732,17 @@ are in that file.
 - **4.14 Saved form.** Spec section 6.1: the frame, the error enum, the name lookup parameter, the
   bytes of a type without a Rust type, and the 12 types without text. Needs: 4.12. Check: as 4.12.
 - **4.15 Wire form.** Spec sections 6.3 to 6.5 for the same 12 types. Needs: 4.14. Check: as 4.12.
-- **4.16 Item template.** Spec section 6.6, with the dialog as a type parameter. Needs: 4.14.
+- **4.16 Item template.** Spec section 6.6. The template has no type parameter: a text names a
+  dialog by `DialogRef` (section 10.3.4). Needs: 4.14.
   Check: as 4.12.
 - **4.17 Hashed stack.** Spec section 6.7 for the same 12 types. Needs: 4.13 and 4.15. Check: as
   4.12.
 - **4.18 Text-bearing types.** `CustomName`, `ItemName` and `Lore` in the four formats. Needs: 4.14
   to 4.17, and a specification of the text component (`spec/item-stack.md`, Q8). Check: as 4.12 and
   `-p mcrs_minecraft_text`.
-- **4.19 Dialog.** New crate `mcrs_minecraft_dialog` with the dialog types over the new template
-  and the type that closes the recursion. No key file. Needs: 4.16 and the text specification.
+- **4.19 Dialog.** New crate `mcrs_minecraft_dialog` with `Dialog`, which has one form and holds
+  `Text` and `ItemTemplate`. Its reader gets the lookup through `DeserializeSeed`. No key file.
+  Needs: 4.16 and the text specification.
   Check: `-p mcrs_minecraft_dialog`.
 
 The item table.
@@ -787,6 +773,362 @@ Fixtures:
   section 11 (open point 16).
 - `harness.rs` of the old crate holds sample values of the old types as Rust code. It is not data,
   and the new crate does not reuse it. Step 12 deletes it.
+
+## 10.3 Step 11: the order and the types
+
+This section gives the order of step 11. The facts are those of the commit `bf3f9d028`. Each new
+type and each new home in this section is a **(proposal)**. A line with the mark **(owner)** needs a
+decision of the owner before its group starts.
+
+### 10.3.1 What the code has today
+
+27 crates name the old crate in their manifest. `mcrs_minecraft_save` names it as a development
+dependency and imports it in no file. 63 crates depend on the old crate, directly or through
+other crates.
+
+The table gives the items that each crate imports from the old crate. "Through" gives the items
+that a crate imports through `mcrs_minecraft_protocol_game::item`, which exports the whole old
+crate again.
+
+| Crate | Files | Items of the old crate |
+|-|-|-|
+| `block_entity` | 5 | `ItemStackWithSlot`, `ItemStackValue`, `ComponentPatch` |
+| `chat_client` | 1 | `ItemHoverMap` |
+| `client` | 2 | `Items`, `ProtoStack`, `JukeboxSong`, `JukeboxPlayable`, `EquipmentSlot` |
+| `client_entity` | 2 | `ProtoStack` |
+| `client_gui` | 6 | `Items`, `ItemStack`, `StackRevision`, `Held`, `SlotTable`, `SelectedHotbarSlot`, `slots`, `Template`, `ItemHoverMap`, `DataComponentType`, `value`, the damage functions. Through: 11 component types |
+| `client_world` | 4 | `Items`, `ItemStack`, `StackRevision`, `Held`, `SlotTable`, `SelectedHotbarSlot`, `slots`, `ProtoStack`, `ItemHoverMap`, `DataComponentType`, `value`. Through: `ItemStackValue`, `WireLookup` |
+| `enchantment` | 2 | `Text`, `EquipmentSlotGroup`, the marker `Enchantment` |
+| `engine` | 1 | `ItemStack` |
+| `engine_registries` | 4 | `Items`, `ItemDefinitions`, `CORPUS_DIRECTORY` |
+| `engine_world` | 1 | `ItemStack` |
+| `entity_render` | 1 | `Items`, `Equippable`, `EquipmentSlot` |
+| `entity_visual` | 1 | `ProtoStack`, `ItemComponentValue`, `DataComponentType`, `EquipmentSlot` |
+| `environment` | 2 | `Text` |
+| `game_registries` | 7 | `Template`, the dialog types, `ItemDefinitions`, `ItemEntry`, `ItemTableError`, `ItemDefinitionFile`, `ComponentMap`, `InstrumentValue`, `PaintingVariantValue`, `JukeboxSong`, `TrimMaterial`, `TrimPattern`, 12 component types in tests |
+| `light_color` | 2 | `Items`, `ItemDefinitions` |
+| `light_render` | 1 | `Items` |
+| `loot_table` | 5 | the marker `Enchantment` |
+| `model` | 2 | `Items`, `ItemStack`, `ItemComponentValue`, `ComponentPredicate`, the two discriminator enums, `RgbInt`, `DyeColor`, `TrimMaterial`, 13 component types, the effective value functions |
+| `particle` | 2 | `Template`, `RgbInt`, `ArgbInt` |
+| `protocol_game` | 7, and 15 of tests | `ProtoStack`, `Template`, `Text`, `DelimitedStack`, `HashedStack`, `ComponentMap`, `DataComponentType`, `PaintingVariantValue`, `TrimPatternRef`, `GlobalPos`, `DyeColor`, `EquipmentSlot`, the marker `Enchantment`, and the export of the whole crate |
+| `recipe` | 1 | `ItemRef` |
+| `registry_catalog` | 1 | the entries and the registry keys of seven discriminator and dialog registries |
+| `save` | 0 | none: the manifest entry has no user |
+| `server` | 9 | `ItemHoverMap`, `ItemStack`, `Items`, `Template` (eight files are tests) |
+| `vanilla_block_place` | 1 | `Items` |
+| `vanilla_falling_block` | 2 | `Items` |
+| `worldgen_structure` | 1 | `MinMaxBounds`, which the old crate exports again from `mcrs_minecraft_value_provider` |
+
+`mcrs_minecraft_vanilla_inventory` does not name the old crate. Six of its files use old types
+through `protocol_game::item`: `HashedStack`, `ItemStackValue` and `ItemStackWithSlot`.
+
+The dependencies between the 27 crates follow. An arrow points to the dependency.
+
+```text
+protocol_game  -> particle, recipe
+environment    -> particle
+registry_catalog -> enchantment, environment, particle, recipe
+game_registries  -> enchantment, environment, loot_table, registry_catalog
+engine_registries -> environment, game_registries
+engine_world   -> block_entity
+worldgen_structure -> block_entity
+engine         -> block_entity, engine_registries, engine_world, environment, game_registries,
+                  protocol_game, save
+save           -> environment, game_registries, protocol_game
+vanilla_block_place, vanilla_falling_block -> engine, engine_world, protocol_game
+vanilla_falling_block -> vanilla_block_place
+server         -> engine, engine_world, loot_table, vanilla_block_place, vanilla_falling_block
+chat_client    -> protocol_game
+client_world   -> block_entity, chat_client, engine_registries, engine_world, entity_visual,
+                  environment, game_registries, protocol_game
+client_entity  -> client_world, entity_visual, protocol_game
+entity_render  -> entity_visual, game_registries, model
+light_render   -> light_color
+client_gui     -> block_entity, chat_client, client_world, engine_world, entity_render,
+                  entity_visual, model, protocol_game
+client         -> each client crate, engine, server, save, protocol_game
+```
+
+`block_entity`, `enchantment`, `entity_visual`, `light_color`, `loot_table`, `model`, `particle`,
+`recipe` depend on no other crate of the set.
+
+Five facts fix the order.
+
+1. **A type flow decides a group, not a crate.** A public type of a crate changes together with
+   each user of that type. Thus `protocol_game` and `save` cannot go first: `protocol_game` gets
+   the old template from `particle` and the old item reference from `recipe`.
+2. **The old model has three forms of each value.** The type parameter `M` of
+   `mcrs_minecraft_registries` selects the form: `Named` is the form of a file, `Wire` is the form
+   of a packet, `Resolved` is the checked form. `ItemParticle<M>`, `SlotDisplay<M>`,
+   `DisplayInfo<M>`, `MerchantOffer<M>` and `ItemCost<M>` hold an old stack type in each form. The
+   new stack has one form, which holds numeric ids.
+3. **The new wire reader needs a lookup.** `read_wire`, `write_wire` and `read_hashed` take a
+   `NameLookup`. The old `ProtoStack<Wire>` decodes with no lookup, because the old crate has the
+   component types as a generated enum. That difference is the cause of four byte round trips:
+   `vanilla_inventory/src/sent_stack.rs:23`, `decode_click.rs:64`,
+   `set_creative_mode_slot.rs:57` and `vanilla_item_entity/src/wire_stack.rs:25`.
+4. **The new crate reads 15 of the 122 component types.** The bare wire form has no length prefix.
+   Thus `read_wire` gives an error for each of the other 107 types. The old crate reads all 122.
+5. **The old item entry holds more than components.** `ItemEntry` holds the placed block, the
+   number of container slots and the crafting remainder. `ItemTable` holds prototypes only.
+
+### 10.3.2 The type mapping
+
+"Exists" means that the type is in the workspace today.
+
+Stack values:
+
+| Old type | New home | State |
+|-|-|-|
+| `ProtoStack` (`Resolved`) | `Option<ItemStack>` of `mcrs_minecraft_item_stack` | exists |
+| `ProtoStack<Wire>` | `WireStack`, the bare wire form, in `mcrs_minecraft_item_stack` | proposal |
+| `DelimitedStack` | `PrefixedStack`, the wire form with length prefix, in `mcrs_minecraft_item_stack` | proposal |
+| `stack::HashedStack`, `HashedPatchMap` | `HashedStack` of `mcrs_minecraft_item_stack`, with `Encode` and `Decode` | exists; the two traits are a proposal |
+| `ItemStackValue`, `ComponentPatch` | `ItemStack`, `PatchEntry` | exists |
+| `ItemStackWithSlot` | `SlotStack` | exists |
+| `Template` (`Resolved`) | `ItemTemplate` in `mcrs_minecraft_item_stack` (sub-step 4.16) | proposal |
+| `Template<Wire>` | `WireTemplate` in `mcrs_minecraft_item_stack` | proposal |
+| `Template<Named>`, and the item of a hover | `ItemHover` of `mcrs_minecraft_text` | exists |
+| `ComponentMap` of a prototype | `Prototype` of `mcrs_minecraft_item_table` | exists |
+| `ComponentMap` of `ItemCost` | `WireComponents`, a list of `Builtin`, in `mcrs_minecraft_item_stack` | proposal |
+| `ItemComponentValue`, `ItemDataComponent`, `for_each_data_component` | `Builtin`, `ItemComponent`, `for_each_builtin` | exists |
+| `DataComponentType` | `ComponentType` and `BuiltinKey`; the generated key file moves to `mcrs_minecraft_item_stack` (sub-step 4.7) | exists; the move is step 11 |
+| A component type | the type of the same name in `mcrs_minecraft_item_stack` | 15 exist; step 14 adds the others |
+| `ItemPredicate`, `ComponentPredicate`, `BlockPredicate`, `AdventureModePredicate`, `CanPlaceOn`, `DataComponentPredicateType` | `mcrs_minecraft_item_stack`; the gate W2 adds them | proposal |
+| `hash_ops` | `hash_stack`, `matches_hashed` and the private hash files of `mcrs_minecraft_item_stack` | exists |
+| `harness` | none: step 12 deletes it | |
+
+Text and registry values:
+
+| Old type | New home | State |
+|-|-|-|
+| `Text<M>` | `Text` of `mcrs_minecraft_text`, which is `Text<ItemHover>` | exists |
+| `ItemHoverMap` | none: the two text types are one type | |
+| `dialog::DialogRef<M>` | `DialogRef` of `mcrs_minecraft_text` | exists |
+| `Dialog`, `DialogBody`, `Input`, `Action`, the six dialog key files | `mcrs_minecraft_dialog` (sub-step 4.19) | proposal |
+| `InstrumentValue` | `Instrument<ItemHover>` of `mcrs_minecraft_instrument` | exists |
+| `JukeboxSong` | `JukeboxSong<ItemHover>` of `mcrs_minecraft_jukebox_song` | exists |
+| `PaintingVariantValue` | `PaintingVariant<ItemHover>` of `mcrs_minecraft_painting_variant` | exists |
+| `TrimMaterial`, `TrimPattern` | the types of `mcrs_minecraft_trim` over `ItemHover` | exists |
+| `TrimPatternRef` | `TrimPatternRef` in `mcrs_minecraft_trim` | proposal |
+| the marker `Enchantment`, its two key files | `mcrs_minecraft_enchantment` | section 10.2 |
+
+Small values:
+
+| Old type | New home | State |
+|-|-|-|
+| `RgbInt`, `ArgbInt` | `mcrs_minecraft_core` | proposal |
+| `DyeColor` | `mcrs_minecraft_core` | proposal |
+| `EquipmentSlot` | `mcrs_minecraft_core` | proposal |
+| `EquipmentSlotGroup` | `SlotGroup` of `mcrs_minecraft_item_stack`, with a serde implementation | exists; serde is a proposal |
+| `GlobalPos` | `mcrs_minecraft_core`, with the dimension as `ResourceLocationBuf` | proposal |
+| `MinMaxBounds` | `mcrs_minecraft_value_provider` | exists |
+| `stack::ItemRef` | `mcrs_minecraft_item_key` | proposal |
+
+Item definitions and the entity form:
+
+| Old type | New home | State |
+|-|-|-|
+| `ItemDefinitions`, `ItemEntry`, `Items`, `ItemTableError`, `ItemDefinitionFile` | `ItemTable`, `Prototype`, `BakedItems`, `BakeError`, `DefinitionFile` of `mcrs_minecraft_item_table` | exists |
+| `ItemEntry::block_placer`, `container_slots`, `crafting_remainder` | `ItemLinks`, a second dense table by `Kind`, in `mcrs_minecraft_item_table` | proposal **(owner)** |
+| `ItemStack` (the old component), `StackRevision`, `Held`, `Holds`, `SlotTable`, `SelectedHotbarSlot`, `slots`, the modules `value` and `effective` | the entity form of `mcrs_minecraft_engine_item` (section 4.4) | exists |
+| `ItemStack` in the block drop messages of `engine_world` | `ItemStack` of `mcrs_minecraft_item_stack`; the messages lose `Copy` | proposal |
+
+### 10.3.3 A stack in a game packet
+
+`mcrs_minecraft_registries` states the rule that each other packet value obeys (`wire.rs:91`): the
+wire form encodes and decodes with no registry, and one later step checks the value against the
+registries. The dispatcher of the network layer decodes each frame before it raises the event
+(`mcrs_minecraft_network/src/event.rs:52`), and it has no lookup.
+
+| Option | What it is | Cost | Rules |
+|-|-|-|-|
+| (a) Bytes in the packet | The packet field borrows the bytes of the stack from the frame. The edge calls `read_wire` with the table. | No allocation and no change of `mcrs_minecraft_item_stack`. A decoder cannot find the end of a bare stack, because that form has no length prefix. Thus the option fails for a list of stacks and for a stack before another field. A test cannot compare two packets as values. | Breaks `.agents/rules/codec.md`: raw bytes are not a substitute for a symmetric codec. Obeys each layer rule. |
+| (b) A context parameter | `Decode` and `Encode` get a second form that takes a lookup. | The derive, the packet table and the dispatcher of each packet change. A proxy cannot decode a packet without game data. The lookup must reach each place that decodes a frame. | Breaks the rule of layer 1 and layer 2: a frame decodes with no game data. |
+| (c) A wire form with no table | The reader takes the component types from the generated key table of the pinned version. It keeps each other id as a number. The edge then checks the value with the lookup. | The signatures of sub-step 4.15 change. The key table of the component types comes to `mcrs_minecraft_item_stack` before the old crate goes. The decode allocates the patch of a stack that has one. | Obeys each layer rule, the codec rule and the rule of `wire.rs:91`. |
+
+**Decided: option (c).** It replaces the lookup parameter of section 10.2 for the wire formats.
+
+- `WireStack`, `PrefixedStack` and `WireTemplate` implement `Encode` and `Decode`. Each one holds
+  the stack that the frame gives, not checked. A packet field for the encode direction borrows the
+  stack, as `ClientboundSectionBlocksUpdate` borrows its blocks. Thus a send allocates nothing.
+- `HashedStack` implements `Encode` and `Decode`. Its reader needs the key table only.
+- The component type ids come from `data_component_type_keys.rs`. The key tool writes that file
+  to `mcrs_minecraft_item_stack` as a second output until step 12 deletes the old one.
+- `ItemStack` and `ItemTemplate` implement `FromWire` and `Resolve` of
+  `mcrs_minecraft_registries`. `FromWire` is the one check of a decoded stack: the item exists, a
+  stack of air becomes the empty stack, and STK-NET-009 holds. The edge calls it, as for each other
+  packet value. No second check function exists. The saved formats keep the lookup parameter,
+  because they hold names.
+- The `Wire` form is `WireStack` or `WireTemplate`. The `Named` form is `ItemHover`. Then
+  `ItemParticle<M>`, `SlotDisplay<M>`, `DisplayInfo<M>` and `MerchantOffer<M>` keep their derives
+  and hold `M::Value<ItemTemplate>` or `M::Value<ItemStack>`. `ParticleOptions<Named>` of
+  `mcrs_minecraft_environment` needs the `Named` form.
+- These implementations add the dependency `mcrs_minecraft_item_stack -> mcrs_minecraft_registries`.
+  The discriminators of section 10.2 add the same dependency.
+- The implementations read the names through `NameLookup`. `mcrs_minecraft_item_stack` implements
+  `NameLookup` for each `Resolver + Namer`, as `engine_registries/src/registry_names.rs` does for
+  `Registries` today: `NameTable` gives the name of its registry, and `Resolver` and `Namer` get
+  one method each that takes a registry name, as `Registries::id_of` and `names_of` do. That code
+  moves down, and `RegistryNames` goes.
+- Option (a) stays in one place, which exists: a component with no Rust type in the form with
+  length prefix (`UndecodedWireValue`).
+
+### 10.3.4 The item of a hover and the dialog
+
+| Option | What it is | Cost |
+|-|-|-|
+| (a) `ItemHover` and `DialogRef` | A text holds the hover item as the wire holds it: the name, the count and each component as its tag. A text names a dialog by its id or holds it as a compound. | A text decodes with no table and has no form parameter. A bad hover item is not a decode error of the text. |
+| (b) `Text<ItemTemplate>` | A text holds the typed template, as open point 17 decided. | A hover holds names and the template holds numeric ids. Thus each text codec needs a lookup, also in a chat packet. This is the problem of section 10.3.3 for each text. |
+| (c) A `Named` template type | The new crate gets a template with names, as the old crate has. | The three forms that the new model removed come back. |
+
+**Decided: option (a).** It replaces the answer of open point 17.
+
+- `mcrs_minecraft_text::Text` is the one text type. `CustomName`, `ItemName` and `Lore` of
+  `mcrs_minecraft_item_stack` hold it today. `protocol_game::Text` becomes the same type. No
+  code maps a whole text between two text types, and `ItemHoverMap` goes with the old crate.
+- The four registry crates with the parameter `I` take `ItemHover` as `I`.
+- `mcrs_minecraft_item_stack` gives one function that reads an `ItemHover` into an `ItemTemplate`
+  with a `NameLookup`. A loader of registry data calls it for each hover of each text, so a bad
+  hover item fails at load. A client calls it before it draws the hover.
+- `Dialog` of `mcrs_minecraft_dialog` has no type parameter and one form. It holds `Text` and,
+  for an item body, `ItemTemplate`. Its reader gets the lookup through `DeserializeSeed`.
+  `mcrs_minecraft_text::DialogRef` holds an inline dialog as a compound; the same reader makes a
+  `Dialog` from that compound at the edge.
+- `mcrs_minecraft_registries/src/text.rs` maps a text between forms. The old crate is its last
+  user, and group 10 deletes it.
+
+### 10.3.5 The groups
+
+Each group is one pull request that builds alone. The numbers give the order. A gate is work in
+the new crates that a different step of section 10 owns.
+
+Gates:
+
+- **W1**: the decision of section 10.3.3 and its code in `mcrs_minecraft_item_stack`.
+- **W2**: the wire codec of each of the 122 component types (step 14, wire format). The types of
+  the gate C1 come first.
+- **T1**: `ItemTemplate` and its codecs (sub-step 4.16), and the `Resolve` and `FromWire`
+  implementations of section 10.3.3.
+- **D1**: `mcrs_minecraft_dialog` (sub-step 4.19).
+- **L1**: the table `ItemLinks` of `mcrs_minecraft_item_table`.
+- **C1**: a Rust type in `mcrs_minecraft_item_stack` for each component type that the client reads:
+  `Equippable`, `DyedColor`, `Trim`, `CustomModelData`, `PotionContents`, `FireworkExplosion`,
+  `Bees`, `BlockState`, `EnchantmentGlintOverride`, `JukeboxPlayable`.
+
+| # | Group | Crates that change | Old types that go | Crates that drop the old crate from their manifest | Gate | Files |
+|-|-|-|-|-|-|-|
+| 1 | Values move down | the old crate, `core`, `item_key`, `recipe`, `worldgen_structure`, `save`, `particle`, `protocol_game`, `model`, `client`, `entity_render`, `entity_visual` | `RgbInt`, `ArgbInt`, `DyeColor`, `EquipmentSlot`, `GlobalPos`, `ItemRef`, the export of `MinMaxBounds` | `recipe`, `worldgen_structure`, `save` | none | 20 |
+| 2 | Text | `environment`, `enchantment`, `game_registries`, `protocol_game`, `chat_client`, `client_world`, `client_gui`, `client_entity`, `server` | `Text<M>` outside the old crate, each use of `ItemHoverMap` on a whole text | `environment`, `chat_client` | none | 40 |
+| 3 | Enchantment (K) | `enchantment`, `loot_table`, `protocol_game`, the old crate | the marker `Enchantment` and its key files, `EquipmentSlotGroup` outside the old crate | `enchantment`, `loot_table` | group 2 | 16 |
+| 4 | Stacks of serverbound packets | `protocol_game`, `vanilla_inventory`, `server` (tests) | none: `stack::HashedStack`, `HashedPatchMap` and `DelimitedStack` leave the packets | none | W1 | 10 |
+| 5 | Item links | `item_table`, `engine_registries`, `vanilla_block_place`, `vanilla_falling_block`, `light_color`, `light_render` | `Items` in these crates | `vanilla_block_place`, `vanilla_falling_block`, `light_color`, `light_render` | L1 | 14 |
+| 6 | Drops and block entities | `engine`, `engine_world`, `block_entity`, the readers of the drop messages | the old component `ItemStack` in messages, `ItemStackWithSlot`, `ItemStackValue` | `engine`, `engine_world`, `block_entity` | none | 15 |
+| 7 | Registry values (K) | `game_registries`, `registry_catalog`, `protocol_game`, `client` (tests), `model`, the four crates with `I`, `dialog`, the old crate | the dialog types, `InstrumentValue`, `PaintingVariantValue`, `JukeboxSong`, `TrimMaterial`, `TrimPattern`, their key files | none | D1, group 2 | 30 |
+| 8 | Client state and the stacks and templates of clientbound packets | `client_world`, `client_entity`, `client_gui`, `client`, `model` (`EntityStack`, `Evaluator`), `entity_visual`, `particle`, `protocol_game`, `vanilla_inventory`, `vanilla_item_entity`, `replication`, `engine`, `server` (tests) | the old entity form, `ProtoStack<M>`, `stack::HashedStack`, `HashedPatchMap`, `DelimitedStack`, `TrimPatternRef`, `DataComponentType` in packets, the export `protocol_game::item`; `Template<M>` and `ComponentMap` leave the packets | `particle`, `protocol_game`, `client_world`, `client_entity`, `client_gui`, `entity_visual` | W1, W2, T1, C1 | 65 |
+| 9 | Model and render | `model`, `entity_render`, `client` | `ItemComponentValue`, the old component types, `Items` on the client | `model`, `entity_render`, `client` | C1, group 8 | 8 |
+| 10 | The end (K), step 12 | `item_stack`, `registry_catalog`, `engine_registries`, `game_registries`, `server` | the discriminator enums, `Items`, `ItemDefinitions`, `Template`, `ComponentMap`, `harness` | each crate that is left; the old crate is deleted | each group | 15, and the old crate |
+
+Before group 4, one small pull request fixes the lookup of the edge (open point 8 of section
+10.3.8). `sent_stack.rs` and `vanilla_item_entity/src/wire_stack.rs` pass to `write_wire` one
+`NameLookup` that joins `ItemTable` for the item names and `RegistryNames` of
+`mcrs_minecraft_engine_registries` for the other tables. `RegistryNames` becomes public. A test at
+the edge sends a stack with a component patch and reads it back with its patch.
+
+Notes for each group:
+
+- **Group 1.** Each type moves to a crate below the old crate, and the old crate imports it, as
+  in step 3. Each other crate of the group changes its imports only. No codec changes, so each
+  test of today proves the bytes.
+- **Group 2.** The new type of each field is `mcrs_minecraft_text::Text`. The proof of the bytes
+  is the fixture `text_vanilla`, the chat packet goldens and `tests/it/item_hover.rs` of the old
+  crate. That test shows that the two forms give one tag.
+- **Group 3.** The old crate depends on `mcrs_minecraft_enchantment` after this group. The proof is
+  the enchantment corpus test of `game_registries` and the loot tests.
+- **Group 4.** `ServerboundContainerClick` holds `HashedStack` of the new crate, and
+  `ServerboundSetCreativeModeSlot` holds `PrefixedStack`. No client crate builds these packets. The
+  proof is the fixture `inventory_packets`. The old types stay for the tests `golden.rs` and
+  `scaffold.rs` of `protocol_game` until group 8 deletes them.
+- **Group 5.** `engine_registries` inserts `Items` and `ItemTable` until group 10. The proof is
+  the item corpus test: `ItemLinks` and `ItemDefinitions` give the same block for each item.
+- **Group 6.** A block entity file holds stacks with names. Its reader gets the lookup through a
+  `DeserializeSeed` and calls `read_saved_with_slot`. A component with no Rust type stays as its
+  saved bytes. The proof is the block entity goldens of `block_entity`.
+- **Group 7.** The key tool moves each key file. `protocol_game` (`entity.rs`), the tests of
+  `client` and `model` (`item_model_asset.rs`) import `PaintingVariantValue`, `JukeboxSong` and
+  `TrimMaterial`, so they change their imports in this group. The proof is the registry corpus
+  tests of `game_registries` and the snapshot of the registry data packet.
+- **Group 8.** Decided: client state and the clientbound packets are one pull request. The client
+  holds its stacks in the entity form of `mcrs_minecraft_engine_item` and reads them from the new
+  packet types. No temporary byte seam exists on the client. The proof is the fixtures
+  `inventory_packets`, `item_plain` and `item_nested`, and the goldens of the recipe, advancement,
+  particle and entity packets. This group moves the tests of section 10.3.6. The pull request is
+  under the limit of 100 files of the review bot only if the estimate of 65 files holds. If it does
+  not, split off the templates first: `Template<M>` in `particle` and in the recipe, advancement
+  and particle packets, with their tests. That part holds no client stack.
+- **Group 9.** `model` takes `ComponentPredicate` and `DataComponentPredicateType` from
+  `mcrs_minecraft_item_stack`. No byte changes. The proof is the model and render tests of today.
+- **Group 10.** Sub-step 4.7 runs here. No byte changes.
+
+Parallel work: groups 1, 2, 4, 5 and 6 share no type. Group 7 runs in parallel with groups 1, 4,
+5 and 6 after its gate.
+Groups 3 and 7 share `owners.rs` and run one after the other. All groups are one migration.
+
+### 10.3.6 The tests of the component codecs
+
+`protocol_game/tests/it/item/` holds 4,897 lines in 17 files. They test the old crate through the
+export `protocol_game::item`.
+
+| Files | Lines | What happens |
+|-|-|-|
+| `advancement.rs`, `particle.rs`, `recipe_packets.rs` | 976 | They test packets. They stay in `protocol_game`, and group 8 writes them over the new types with the same goldens. |
+| `plain.rs`, `nested.rs`, `golden.rs`, `records.rs`, `registry_refs.rs`, `holders.rs`, `slotted.rs`, `symmetry.rs`, `table.rs` | 2,455 | They test component codecs. They do not move. Each pull request of step 14 adds its types to the table tests of `mcrs_minecraft_item_stack/tests/it/`, which read the goldens `item_plain` and `item_nested`. |
+| `predicate.rs` | 335 | It moves with the predicate types to `mcrs_minecraft_item_stack`. |
+| `corpus.rs` | 224 | The bake test of `mcrs_minecraft_item_table` replaces it when sub-step 5.4 is complete. |
+| `scaffold.rs`, `harness.rs`, `mod.rs` | 907 | Test support of the old types. Group 8 deletes them. |
+
+- The old tests run against the old crate until group 8. They stay the proof of the old codecs
+  while a client uses them.
+- Group 8 deletes a file of the second row only when the new table test reads each case of the
+  golden. The new test fails for a case of a type that has no codec. Thus the gate W2 is a test,
+  not a list.
+- `tools/fixtures.json` gets `mcrs_minecraft_item_stack` as an output of `item_plain` and
+  `item_nested`. Group 8 removes the output to `protocol_game`.
+
+### 10.3.7 The byte round trips
+
+Four round trips exist, two for each direction.
+
+- **Serverbound**: `decode_click.rs:64` and `set_creative_mode_slot.rs:57`. Group 4 removes them.
+  It is the smallest group: about 10 files. It needs the gate W1 only, because the hashed form and
+  the form with length prefix state their lengths. It can come first.
+- **Clientbound**: `sent_stack.rs:23` and `vanilla_item_entity/src/wire_stack.rs:25`. Group 8
+  removes them. It cannot come early. A client must read each stack that a server sends, and the
+  bare form needs the codec of each component type (gate W2).
+
+One early variant exists for the clientbound direction, and open point 4 of section 10.3.8
+rejects it.
+The packet field holds the bytes of the stack, and its decoder finds the end with the old reader.
+The server then sends with no parse. Each user of the packets changes two times: at the variant
+and at group 8.
+
+### 10.3.8 Open points of step 11
+
+| # | Point | Recommended answer |
+|-|-|-|
+| 1 | The wire form of a stack in a packet. | Decided: option (c) of section 10.3.3. |
+| 2 | The hover item and the dialog. This replaces the answer of open point 17. | Decided: option (a) of section 10.3.4. |
+| 3 | `Resolver` and `Namer` select a registry by a marker type. `NameLookup` selects it by `NameTable`. `mcrs_minecraft_item_stack` cannot name the markers of the block and the enchantment crates. | Decided in section 10.3.3: the code of `engine_registries/src/registry_names.rs`, which implements `NameLookup` over `Registries`, moves down as the implementation for each `Resolver + Namer`. |
+| 4 | The clientbound packets need the gate W2, which is all of step 14 for the wire format. | Decided: group 8 waits for the wire codecs of all 122 component types. Step 14 gives the types of the gate C1 first, then the other types. The early variant of section 10.3.7 is not used. |
+| 5 | A separate group for the client state adds one byte round trip on the client. | Decided: the client state and the clientbound packets are one pull request, group 8, with about 65 files. No temporary byte seam exists on the client. |
+| 6 | **(owner)** The home of the placed block, the container slots and the crafting remainder. | `ItemLinks` in `mcrs_minecraft_item_table`, baked from the same files as the prototypes. |
+| 7 | The home of the item predicates. | `mcrs_minecraft_item_stack`. `CanPlaceOn`, `CanBreak` and `Lock` are component types of the stack, and `ComponentPredicate` matches the component types of the stack. Thus a crate below the stack cannot hold them, and a crate above cannot give them to the stack. The gate W2 adds them; group 9 moves `model` to them. |
+| 8 | Verified: `ItemTable` is the lookup of the edge today, and it answers `NameTable::Item` only (`item_table.rs:80-93`). `sent_stack.rs:30` passes it to `write_wire`. For a stack with one patch entry, `type_id` finds no component type (`wire.rs:313`), and the edge sends the empty stack. No test at the edge covers it; `item_stack/tests/it/wire.rs:461` tests the kernel half only. | Fix it before group 4 in its own small pull request (section 10.3.5): the edge passes `ItemTable` joined with `RegistryNames` of `engine_registries`, with a test at the edge. Option (c) then removes the cause for the wire. |
+| 9 | The homes of `RgbInt`, `ArgbInt`, `DyeColor`, `EquipmentSlot` and `GlobalPos`. | `mcrs_minecraft_core` for each one (section 10.3.2). `Equippable` holds `EquipmentSlot` and `lodestone_tracker` holds `GlobalPos`, so their home is below `mcrs_minecraft_item_stack`. `mcrs_minecraft_entity` and `mcrs_minecraft_dimension` pull the biome, the sound and the block crates into the stack; `core` adds no dependency. A new crate for one enum is not necessary. |
+| 10 | `ItemHover` becomes the form with names of each item template, not only of a hover. | Keep the name until group 8. Then decide one new name with the owner; a new name earlier touches each text user two times. |
+| 11 | The drop messages of `engine_world` lose `Copy`. | Accept it. A stack with an empty patch owns no heap memory. |
+| 12 | The list "Migration surface" of section 10 names crates that step 3 removed and misses four crates. | Done: the table of section 10.3.1 replaces it, and section 10 no longer has the list. |
 
 # 11. Evidence
 
