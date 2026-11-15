@@ -1,18 +1,25 @@
-//! The modifier operations of entity attributes and the computation of an attribute value.
+//! The entity attributes, their modifier operations and the computation of an attribute value.
 #![no_std]
 
-// std: the codecs of mcrs_minecraft_wire write to `std::io::Write`.
-#[cfg(feature = "wire")]
+// std: the codecs of mcrs_minecraft_wire write to `std::io::Write`, and the lookup of an
+// attribute by location is a std `HashMap`.
+#[cfg(any(feature = "std", feature = "wire"))]
 extern crate std;
 
+mod attribute_definition;
+#[rustfmt::skip]
+pub mod attribute_keys;
 mod attribute_modifier;
 mod fold;
 mod home_slot;
 mod modifier;
 mod modifier_operation;
+#[rustfmt::skip]
+pub mod registry_keys;
 mod unknown_operation;
 mod value_range;
 
+pub use attribute_definition::AttributeDefinition;
 pub use attribute_modifier::AttributeModifier;
 pub use fold::fold;
 pub use home_slot::HomeSlot;

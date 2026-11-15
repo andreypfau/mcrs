@@ -16,9 +16,9 @@ bevy_app.workspace = true
 bevy_ecs.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_attribute.workspace = true
 mcrs_minecraft_entity_key.workspace = true
 mcrs_minecraft_resource.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-mcrs_minecraft_entity_attribute.workspace = true

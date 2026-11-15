@@ -1,5 +1,5 @@
 use mcrs_minecraft_entity::AttributeInstance;
-use mcrs_minecraft_entity::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 
 /// The instance of a syncable attribute of an entity, after a change in a tick or at its spawn.
 #[derive(Clone, Debug, PartialEq)]

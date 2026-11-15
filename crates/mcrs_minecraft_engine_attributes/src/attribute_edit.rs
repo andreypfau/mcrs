@@ -1,5 +1,5 @@
 use bevy_ecs::message::Message;
-use mcrs_minecraft_entity::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 
 use crate::attribute_target::AttributeTarget;
 use crate::instance_edit::InstanceEdit;

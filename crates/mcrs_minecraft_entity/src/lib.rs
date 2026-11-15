@@ -1,4 +1,3 @@
-pub mod attribute;
 mod attribute_base_table;
 mod attribute_bases;
 mod attribute_error;
@@ -16,8 +15,6 @@ mod pose;
 mod precise_sync;
 mod sprint_modifier;
 mod variant_indices;
-#[rustfmt::skip]
-pub mod attribute_keys;
 #[rustfmt::skip]
 pub mod cat_sound_variant_keys;
 #[rustfmt::skip]
@@ -70,7 +67,6 @@ pub mod variant;
 pub mod villager;
 mod wire;
 
-pub use attribute::AttributeDefinition;
 pub use attribute_bases::AttributeBases;
 pub use attribute_error::AttributeError;
 pub use attribute_instance::AttributeInstance;

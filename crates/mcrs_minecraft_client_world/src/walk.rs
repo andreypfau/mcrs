@@ -97,7 +97,7 @@ fn keys(input: MovementInput) -> Keys {
 mod tests {
     use super::*;
     use crate::test_session::{FLOOR_TOP, OWN_PLAYER, TestSession, login, receive};
-    use mcrs_minecraft_entity::attribute_keys::Attribute;
+    use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
     use mcrs_minecraft_protocol::VarInt;
     use mcrs_minecraft_protocol_game::clientbound::{
         AttributeSnapshot, ClientboundPlayerAbilities, ClientboundUpdateAttributes,

@@ -20,6 +20,7 @@ mcrs_minecraft_chunk.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_enchantment.workspace = true
 mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_attribute.workspace = true
 mcrs_minecraft_environment.workspace = true
 mcrs_minecraft_game_rule.workspace = true
 mcrs_minecraft_inventory_menu.workspace = true

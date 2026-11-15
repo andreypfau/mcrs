@@ -1,9 +1,9 @@
 use mcrs_minecraft_engine_attributes::{
     AttributeChanged, AttributeTarget, Attributes, InstanceEdit,
 };
-use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::{InstanceModifier, ModifierKind};
 use mcrs_minecraft_entity_attribute::ModifierOperation;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 
 use crate::fixture::{app, edit, spawn_player};

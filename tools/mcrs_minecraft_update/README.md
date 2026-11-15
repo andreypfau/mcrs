@@ -148,7 +148,12 @@ implementation, and each registry gets `src/<registry>_keys.rs` and, with tags,
 modules are:
 
 - a static registry with entries is a `mcrs_minecraft_registries::static_registry!` enum of its
-  entries, numbered by protocol id, with their locations in `ENTRIES`;
+  entries, numbered by protocol id, with their locations in `ENTRIES`. In a
+  `no_std` owner the enum has only the items of `static_registry_core!`, and
+  the items of `static_registry!` when the owner's feature `std` is on. An
+  owner that `OWNERS` marks as `NoStdEnum` depends on
+  `mcrs_minecraft_static_registry` and declares the feature
+  `std = ["mcrs_minecraft_static_registry/std"]`;
 - a data registry with entries in `names.json` is a module of `ResourceKey`
   constants, except `minecraft:recipe` and `minecraft:advancement`.
 

@@ -1,6 +1,6 @@
 use mcrs_minecraft_entity::AttributeBases;
-use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_fixtures::fixture;
 use serde::Deserialize;
 

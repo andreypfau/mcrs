@@ -228,8 +228,8 @@ sample_registries_table! {
         [("skeletons" => ["skeleton"])];
     mcrs_minecraft_block::registry_keys::BLOCK_ENTITY_TYPE => "block_entity_type" ["chest", "sign"] [];
     mcrs_minecraft_potion::registry_keys::POTION => "potion" numbered mcrs_minecraft_potion::potion_keys::Potion::ENTRIES ["water", "swiftness", "healing"] [];
-    mcrs_minecraft_entity::registry_keys::ATTRIBUTE => "attribute"
-        numbered mcrs_minecraft_entity::attribute_keys::Attribute::ENTRIES ["armor", "attack_damage"] [];
+    mcrs_minecraft_entity_attribute::registry_keys::ATTRIBUTE => "attribute"
+        numbered mcrs_minecraft_entity_attribute::attribute_keys::Attribute::ENTRIES ["armor", "attack_damage"] [];
     mcrs_minecraft_banner_pattern::registry_keys::BANNER_PATTERN => "banner_pattern" ["globe", "creeper"]
         [("pattern_item/globe" => ["globe"])];
     mcrs_minecraft_block_transformer::registry_keys::BLOCK_TRANSFORMER => "block_transformer" ["axe", "shovel"] [];

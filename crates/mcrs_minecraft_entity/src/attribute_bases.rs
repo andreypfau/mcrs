@@ -1,6 +1,6 @@
 use crate::attribute_base_table;
-use crate::attribute_keys::Attribute;
 use crate::entity_type_keys::EntityType;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 
 /// The attribute set of a living entity type and the base of the type of each attribute in it
 /// (`attributes.md`, ATR-BASE-001 to ATR-BASE-003).

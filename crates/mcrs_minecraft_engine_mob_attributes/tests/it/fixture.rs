@@ -7,7 +7,7 @@ use mcrs_minecraft_engine_attributes::{
 use mcrs_minecraft_engine_mob_attributes::MobAttributesPlugin;
 use mcrs_minecraft_engine_physics::{Mob, Mobs, mob_body, mob_row};
 use mcrs_minecraft_entity::EntityTypeData;
-use mcrs_minecraft_entity::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_key::{EntityId, EntityKey};
 use mcrs_minecraft_entity_rows::RowStore;
 use mcrs_minecraft_protocol_game::entity::MobLooks;

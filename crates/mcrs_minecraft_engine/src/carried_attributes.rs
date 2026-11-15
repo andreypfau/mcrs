@@ -1,8 +1,8 @@
 use mcrs_minecraft_engine_attributes::Attributes;
-use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::{AttributeBases, AttributeSet, InstanceModifier, ModifierKind};
 use mcrs_minecraft_entity_attribute::ModifierOperation;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::{Deserialize, Serialize};
 

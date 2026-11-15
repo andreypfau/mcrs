@@ -1,9 +1,9 @@
 use mcrs_minecraft_engine_attributes::{AttributeTarget, InstanceEdit};
 use mcrs_minecraft_engine_mob_attributes::RowAttributes;
-use mcrs_minecraft_entity::attribute_keys::Attribute;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::{InstanceModifier, ModifierKind};
 use mcrs_minecraft_entity_attribute::ModifierOperation;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_entity_rows::{Placed, RowStore};
 use mcrs_minecraft_physics::Rest;

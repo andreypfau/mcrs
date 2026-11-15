@@ -18,6 +18,7 @@ mcrs_minecraft_engine_attributes.workspace = true
 mcrs_minecraft_engine_physics.workspace = true
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_attribute.workspace = true
 mcrs_minecraft_entity_key.workspace = true
 mcrs_minecraft_entity_rows = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_physics.workspace = true
@@ -25,6 +26,5 @@ rustc-hash.workspace = true
 
 [dev-dependencies]
 glam = { workspace = true, features = ["std"] }
-mcrs_minecraft_entity_attribute.workspace = true
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_minecraft_resource.workspace = true

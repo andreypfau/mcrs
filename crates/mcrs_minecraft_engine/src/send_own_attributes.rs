@@ -6,7 +6,7 @@ use bevy_ecs::system::{Local, Query, ResMut};
 use mcrs_engine_muxer::EntityEvent;
 use mcrs_minecraft_engine_attributes::{AttributeChanged, AttributeTarget, Attributes};
 use mcrs_minecraft_engine_world::session::Owner;
-use mcrs_minecraft_entity::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_replication::{AttributeState, PlayerData, own_attributes};
 

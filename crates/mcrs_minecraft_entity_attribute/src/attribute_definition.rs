@@ -1,4 +1,4 @@
-use mcrs_minecraft_entity_attribute::ValueRange;
+use crate::ValueRange;
 
 /// The data of one attribute (`attributes.md`, ATR-DEF-001).
 #[derive(Clone, Copy, Debug, PartialEq)]
