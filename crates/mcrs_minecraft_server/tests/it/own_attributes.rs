@@ -1,3 +1,6 @@
+use std::path::Path;
+use std::time::{Duration, Instant};
+
 use bevy_app::App;
 use bevy_ecs::change_detection::{DetectChanges, DetectChangesMut};
 use bevy_ecs::entity::Entity;
@@ -5,18 +8,22 @@ use bevy_ecs::message::Messages;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
-use mcrs_minecraft_engine::bus::PacketPayload;
+use mcrs_minecraft_engine::bus::{InboundPlayerDespawn, PacketPayload};
+use mcrs_minecraft_engine::channel_types::ToDim;
 use mcrs_minecraft_engine::coordinator::default_game_mode::DefaultGameMode;
 use mcrs_minecraft_engine::network_id::player_network_id;
+use mcrs_minecraft_engine::persisted_registry::{PersistedRegistry, PersistedSnapshot};
 use mcrs_minecraft_engine::player_sprinting::PlayerSprinting;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
 use mcrs_minecraft_engine_world::session::PlayerSession;
+use mcrs_minecraft_engine_world::world::world_save::WorldSave;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{
     AttributeInstances, InstanceEdit, InstanceModifier, ModifierKind, ModifierOperation,
 };
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBundleDelimiter;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Decode, Packet, VarInt};
@@ -25,6 +32,7 @@ use mcrs_minecraft_protocol_game::clientbound::{
 };
 use mcrs_minecraft_protocol_game::serverbound::{PlayerCommandAction, ServerboundPlayerCommand};
 use mcrs_minecraft_resource::{ResourceKeyBuf, ResourceLocationBuf};
+use mcrs_minecraft_save::{PlayerDat, read_player_dat};
 use mcrs_minecraft_server::{
     VanillaCreativeRangePlugin, VanillaEntityAttributesPlugin, VanillaSprintAttributePlugin,
 };
@@ -525,5 +533,88 @@ fn a_modifier_of_a_player_holds_after_a_change_of_dimension() {
                 )],
             }],
         }]
+    );
+}
+
+fn leave_and_read_file(server: &mut PlayServer, anchor: Entity, uuid: Uuid) -> PlayerDat {
+    let save_dir = std::env::temp_dir().join(format!("mcrs-attributes-leave-{uuid}"));
+    std::fs::create_dir_all(&save_dir).unwrap();
+    server.world().insert_resource(WorldSave(save_dir.clone()));
+    let session = server.session_of(anchor).unwrap();
+    let dim = server.dim;
+    server.submit_to(dim, ToDim::Despawn(InboundPlayerDespawn { session }));
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let dat = loop {
+        server.ticks_all(1);
+        if let Some(dat) = read_player_dat(&save_dir, uuid).unwrap() {
+            break dat;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the leave never wrote the player file"
+        );
+    };
+    let _ = std::fs::remove_dir_all(save_dir);
+    dat
+}
+
+#[test]
+fn a_new_player_that_leaves_has_an_empty_attribute_list_in_its_file() {
+    let mut app = host_app::make_host_app();
+    app.add_plugins(VanillaEntityAttributesPlugin);
+    let mut server = PlayServer::start_in(app, &[(OVERWORLD, OVERWORLD)], &[], 0);
+    let uuid = Uuid::new_v4();
+    let (anchor, _) = server.join(uuid, "Fresh");
+    server.ticks(anchor, 1);
+
+    let dat = leave_and_read_file(&mut server, anchor, uuid);
+    let attributes = dat.get("attributes").and_then(NbtTag::extract_list);
+    assert_eq!(attributes.map(<[NbtTag]>::len), Some(0));
+}
+
+/// ATR-SAV-001 and ATR-SAV-002: the leave writes a changed base and a permanent modifier to the
+/// player file, and a join with that file holds them again.
+#[test]
+fn a_player_that_leaves_and_joins_again_keeps_its_base_and_permanent_modifier() {
+    let mut app = host_app::make_host_app();
+    app.add_plugins(VanillaEntityAttributesPlugin);
+    let mut server = PlayServer::start_in(app, &[(OVERWORLD, OVERWORLD)], &[], 0);
+    let uuid = Uuid::new_v4();
+    let (anchor, _) = server.join(uuid, "Keeper");
+    let player = server.player(anchor);
+    let lucky = || {
+        InstanceModifier::new(
+            ResourceLocationBuf::read("test:a").unwrap(),
+            1.0,
+            ModifierOperation::AddValue,
+            ModifierKind::Permanent,
+        )
+    };
+    let edited = {
+        let mut instances = server
+            .world()
+            .get_mut::<AttributeInstances>(player)
+            .unwrap();
+        let _ = instances.apply(Attribute::MaxHealth, &InstanceEdit::SetBase(30.0));
+        let _ = instances.apply(Attribute::Luck, &InstanceEdit::Put(lucky()));
+        instances.clone()
+    };
+    server.ticks(anchor, 1);
+
+    let dat = leave_and_read_file(&mut server, anchor, uuid);
+    let registry = server.app.world().resource::<PersistedRegistry>();
+    let file = PersistedSnapshot::from_dat(&dat, registry, Path::new("player.dat")).unwrap();
+    let arrival = Arrival {
+        uuid,
+        name: "Keeper",
+        position: DVec3::new(8.5, 64.0, 8.5),
+        view_distance: 2,
+    };
+    let anchor = host_app::admit_with_file(&mut server.app, server.dim, &arrival, &file);
+    server.ticks(anchor, 3);
+    let player = server.player(anchor);
+    assert_eq!(
+        server.world().get::<AttributeInstances>(player),
+        Some(&edited)
     );
 }
