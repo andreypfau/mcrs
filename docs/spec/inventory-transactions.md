@@ -13,7 +13,8 @@ not at all. The request does not depend on an edition. This document also states
 Java Edition and a stack request of Bedrock Edition become operations. It does not prescribe an
 architecture.
 
-Scope: the operations, their conditions and results, the rejection reasons, and atomicity.
+Scope: the operations, their conditions and results, the rejection reasons, the denial, and
+atomicity.
 Section 8 lists what this document does not state. `item-stack.md` states the stack. This document
 refers to its rules by id.
 
@@ -39,8 +40,16 @@ refers to its rules by id.
 - **Take filter**: a condition of a slot that permits the removal of items (ITX-LIM-004).
 - **Place filter**: a condition of a slot that permits a given stack to enter (ITX-LIM-005).
 - **Dropped stack**: a stack that a `drop` operation removes from the slots (ITX-OP-020).
-- **Rejection**: the result of a request that does not apply. It has a reason and the index of an
-  operation.
+- **Rejection**: the result of a request that the server examines and that does not apply. It has
+  a reason and the index of an operation.
+- **Plugin**: code that a user of the library adds to the server.
+- **Actor**: the entity that made a request. For a request of an edge, the actor is the player of
+  the connection. For a request of a command, of a plugin or of the vanilla gameplay, the actor is
+  the entity that made the request.
+- **Request source**: the identity that an edge or a plugin holds as a sender of requests.
+- **Denial point**: the point where a plugin can stop a request before the server examines it
+  (ITX-ATM-008).
+- **Denial**: the result of a request that a plugin stops at the denial point (ITX-ATM-008).
 - **Edge**: the part of the server that changes the packets of one edition into requests.
 - **Clicked slot**: the slot that a `container_click` packet names.
 - **Menu**: the ordered set of slots that a player has open. A later specification defines it.
@@ -114,7 +123,8 @@ the same operations.
 - the take filter and the place filter of each such slot (ITX-LIM-004, ITX-LIM-005).
 
 The result of a request is a function of the operations and of these inputs. It does not depend
-on time, on a random number or on the edition of the sender.
+on time, on a random number or on the edition of the sender. A denial (ITX-ATM-008) is not a
+result of this rule. A plugin decides it from inputs that this document does not state.
 
 **ITX-MOD-004** (`design`, semantic). A request has at most 128 operations. Reason: the longest
 list that a click of section 6 gives has 99 operations (ITX-JAV-011, ITX-JAV-014). A fixed
@@ -268,7 +278,7 @@ operation. The index of the first operation is 0.
 | `no_room` | the count is larger than the capacity (`split`), `m` is 0 (`merge`), or a count is larger than a slot limit (`swap`) | `split`, `merge`, `swap` |
 
 No other reason exists. An edge can refuse to make a request from a packet. That refusal is not a
-rejection of this document (ITX-MOD-006).
+rejection of this document (ITX-MOD-006). A denial is also not a rejection (ITX-ATM-008).
 
 **ITX-REJ-002** (`design`, semantic). When more than one reason applies to one operation, the
 rejection has the reason that comes first in this order:
@@ -311,7 +321,8 @@ dropped stacks. When one operation is a rejection, no slot changes and no droppe
 **ITX-ATM-003** (`design`, semantic). No other change to the slots that the request names occurs
 between the first operation and the last operation of one request.
 
-**ITX-ATM-004** (`design`, semantic). A request with an empty list is applied. It changes no slot.
+**ITX-ATM-004** (`design`, semantic). A request with an empty list is applied when no plugin
+denies it (ITX-ATM-008). It changes no slot.
 
 **ITX-ATM-005** (`design`, semantic). An applied request keeps the items. For each item and
 component patch, this sum is the same before and after the request: the counts of the slots that
@@ -319,15 +330,72 @@ the request names, plus the counts of the dropped stacks. No operation of this d
 destroys an item.
 
 **ITX-ATM-006** (`design`, semantic). The result of a request has the request id, and one of
-these two:
+these three:
 
 - applied: each slot whose stack changed, with the stack before and the stack after, and the
   dropped stacks in order;
-- rejection: the reason and the index of the operation.
+- rejection: the reason and the index of the operation;
+- denial: the two values of ITX-ATM-009. A denial has no reason of ITX-REJ-001 and no index of an
+  operation.
 
-**ITX-ATM-007** (`design`, semantic). After a rejection, the client must get the stack that the
-server holds for each slot that the request names. The edge of each edition sends it
-(ITX-JAV-005, ITX-BED-004). Reason: the client showed its own result before the answer came.
+A denial is a result of its own, not a reason of ITX-REJ-001. Reason: each reason of ITX-REJ-001
+is a function of the inputs of ITX-MOD-003 and names one operation. A denial depends on other
+inputs, names no operation, and does not show a defect of the edge (ITX-JAV-003).
+
+**ITX-ATM-007** (`design`, semantic). After a rejection or a denial, the client must get the
+stack that the server holds for each slot that the client changed before the answer. The edge of
+each edition sends it (ITX-JAV-005, ITX-JAV-022, ITX-BED-004, ITX-BED-006). Reason: the client
+showed its own result before the answer came.
+
+**ITX-ATM-008** (`design`, semantic). The server gives each request to the denial point one
+time. The moves of a close are the one exception (ITX-ATM-012). Each request has an actor: the
+request of an edge, of a command, of a plugin and of the vanilla gameplay. Thus a plugin that
+denies by actor has an effect on each request of that actor. At the denial point, each plugin can
+read the request and its actor. A plugin can then deny the request.
+
+A request that a plugin denies has the result denial, and the server does not examine its
+operations. A request that no plugin denies continues with ITX-REJ-003. When no plugin denies, no
+request has a denial, and the server behaves as the reference (deviation D5). Reason: a plugin
+must be able to stop an action that the filters cannot see, for example the clicks and the hand
+actions of a frozen player. A filter reads only the slot, the player and the stack (ITX-LIM-006).
+
+**ITX-ATM-009** (`design`, semantic). A denial has two values: the request source that the
+plugin holds, and a code in the range `0..65535` that this plugin selects. The result gives the
+two values to each reader of the result. When two or more plugins deny one request, the result
+keeps the first denial. A later denial of the same request changes nothing. A plugin cannot
+cancel a denial.
+
+**ITX-ATM-010** (`design`, semantic). A denied request does not apply (ITX-ATM-002).
+No slot changes, and no dropped stack exists. The server does these steps for each packet, in
+this order:
+
+1. The edge does the checks of the packet, for example ITX-JAV-001 and INV-CRE-003, and makes the
+   request. A packet that fails a check makes no request, so it does not reach the denial point.
+2. The request reaches the denial point (ITX-ATM-008).
+3. When no plugin denies the request, the server examines `too_many_ops` (ITX-REJ-003) and then
+   the operations (ITX-REJ-004).
+
+The requests of one actor reach the denial point in the order of ITX-MOD-005. A request reaches
+it after each earlier request of that actor has a result. A denial does not stop the next request
+of the actor. That request reads the slots that the denial did not change.
+
+**ITX-ATM-011** (`design`, semantic). At the denial point, a plugin must not change a slot that
+the request names. The result of a request after such a change is not specified. A plugin that
+must change a slot when it denies makes the change after the request has its result. Reason: the
+edge computed the operations from these slots, and ITX-JAV-003 permits no change between the read
+and the request.
+
+**ITX-ATM-012** (`design`, semantic). The moves of a close never reach the denial point, and a
+plugin cannot deny them. These moves are steps 1 and 2 of INV-CLS-001. This rule applies to each
+close:
+
+- a close after a `container_close` packet (INV-CLS-001);
+- a close when the player leaves the server (INV-CLS-003);
+- a close at a dimension change (INV-CLS-003).
+
+Thus the cursor stack and the stacks of the craft grid always go where INV-CLS-001 states.
+Reason: decision of the owner (section 10, Q7). The player file does not hold the cursor and the
+craft grid (INV-SAV-001), so a denial at a leave would destroy them.
 
 ## 6. Java Edition: the click
 
@@ -358,7 +426,9 @@ the server does not stop the click. See experiment E5.
 
 **ITX-JAV-003** (`design`, semantic). The edge reads the slots and the server applies the request
 with no other change to those slots between the two. A request of a click that the edge makes
-correctly has no rejection. A rejection of such a request shows a defect of the edge.
+correctly has no rejection. A rejection of such a request shows a defect of the edge. The denial
+point is between the read and the examination (ITX-ATM-010). A denial is not a defect of the
+edge.
 
 **ITX-JAV-004** (`source_suggested`, client agreement). After the request, the server compares
 the packet with the slots. A stack of the server matches a hashed stack of the packet as
@@ -565,6 +635,50 @@ that number is 0 or less, the cursor holds the empty stack. The click thus makes
 that the cursor did not hold. No operation of this document states it (ITX-ATM-005).
 `inventory.md` states its operations (INV-CRE-005). See experiment E12.
 
+### 6.4 The denial
+
+**ITX-JAV-021** (`source_suggested`, client agreement). The vanilla client changes some slots
+before the answer of the server comes. This table lists them for each packet that gives a request.
+
+| Packet of the client | What the client changes before the answer |
+|----------------------|-------------------------------------------|
+| `container_click` | each slot that the packet lists as changed, and the cursor (ITX-JAV-004) |
+| `player_action`, status 4 or 5 | `P[n]`, the selected slot: it removes the items of the drop (INV-SEL-004) |
+| `player_action`, status 7 | nothing; the client waits for the server |
+| `set_creative_mode_slot` | the slot of the packet (INV-CRE-004) |
+
+`P[n]` and `M[i]` are as `inventory.md`, section 0.5, states. The moves of a close are not in the
+table, because a plugin cannot deny them (ITX-ATM-012). See experiment E17.
+
+**ITX-JAV-022** (`design`, client agreement). When a plugin denies a request of the Java edge, the
+server does what this table states. The comparison is that of INV-SYN-003.
+
+| Input | After the denial |
+|-------|------------------|
+| a click (ITX-JAV-002) | The server does ITX-JAV-004, as after a rejection (ITX-JAV-005). The client gets each slot and the cursor that it changed. ITX-JAV-024 states the drag. |
+| a drop, status 4 or 5 (INV-SEL-004) | The client view of `P[n]` becomes not known. The comparison sends `P[n]`. |
+| the hand swap, status 7 (INV-SEL-005) | The server does INV-SEL-006, as after a rejection. The comparison sends `P[n]` and `P[40]`. The client changed neither slot (ITX-JAV-021), so the two packets carry the stacks that it holds. The use of an item does not stop. |
+| a creative set (INV-CRE-004) | The client view of `M[i]` is the stack of the packet, as INV-CRE-006 states for a failed check. The comparison sends `M[i]` when the two stacks differ. |
+
+A denied request gives no dropped stack, so no item entity appears. The edge sends no other
+packet for a denial, and the player stays connected. No packet of Java Edition carries the two
+values of a denial. A plugin that denies can send a message to the player itself. Reason:
+ITX-ATM-007, and each cause of a change reaches the client by one path (INV-SYN-004).
+
+**ITX-JAV-024** (`design`, semantic). Each quick craft packet gives one request (ITX-JAV-002).
+At stage 0 and at stage 1, that request has an empty list. When a plugin denies the request of a
+quick craft packet, the drag becomes idle with an empty set:
+
+- stage 0: the drag does not open;
+- stage 1: the server does not add the slot to the set;
+- stage 2: the drag resets, as row 6 of ITX-JAV-016 states.
+
+A denied click of each other click kind resets an open drag, as ITX-JAV-016 states for each such
+click. After a denied stage 0 or stage 1, row 1 of ITX-JAV-016 resets the drag at each later
+packet of that drag. The end packet then gives an empty list, and ITX-JAV-004 corrects the client.
+Reason: where ITX-JAV-016 gives a result, a denial keeps it. Where it gives none, a reset keeps no
+state of a denied request.
+
 ## 7. Bedrock Edition: the stack request
 
 The public protocol documentation names the packet `ItemStackRequest`. One request of that packet
@@ -606,6 +720,11 @@ specification of the Bedrock edge states which result value each reason gives.
 than the capacity has the rejection `no_room` (ITX-OP-002). The server must not accept a count
 that the stack does not permit. Reason: the limits of a stack are the same for each edition.
 
+**ITX-BED-006** (`design`, semantic). When a plugin denies a Bedrock request, the edge sends the
+answer of ITX-BED-004: the request id and a result that is not a success. No slot changes. The
+later specification of the Bedrock edge states the result value of a denial, as it does for each
+reason.
+
 ## 8. What this document does not state
 
 A later specification states each of these items. A rule above names the place where each one
@@ -631,6 +750,7 @@ menu, the insert rule, the operations that make items, the state id and the clos
 - The cursor stack when a menu closes, and when a player leaves.
 - The state id of a menu: when it changes and what the server sends without a click.
 - The wire form of each packet that this document names.
+- The result value of a denial in the answer of Bedrock Edition (ITX-BED-006).
 
 ## 9. Intentional deviations
 
@@ -668,6 +788,15 @@ menu, the insert rule, the operations that make items, the state id and the clos
   stack and refuses an equal stack. The specification of each menu must examine this.
 - **Test**: a differential test must not use such a destination until that specification exists.
 
+**D5.**
+
+- **Rule**: ITX-ATM-008 to ITX-ATM-011, ITX-JAV-022, ITX-JAV-024 and ITX-BED-006.
+- **Reference**: the reference has no denial point. A plugin cannot stop a click, a hand action or
+  a creative set. Each such packet that passes the checks of the server has its effect.
+- **Visible to the client**: yes, when a plugin denies: the slots that the client changed return
+  to the stacks of the server. With no such plugin, the server behaves as the reference.
+- **Test**: a differential test runs with no plugin that denies.
+
 ## 10. Open questions
 
 For the owner:
@@ -690,6 +819,10 @@ For the owner:
   Does a `Swap` join two equal stacks? Experiment E16.
 - **Q6**: ITX-JAV-005. Is a rejection of a click request only a correction to the client, or
   does the server also write a warning to the log?
+- **Q7**: answered by a decision of the owner. The moves of a close never reach the denial point,
+  at a `container_close` packet, at a leave and at a dimension change (ITX-ATM-012). The owner
+  did not select two other options: item entities at the player for a denied move, or stacks that
+  stay in the cursor and that a leave destroys.
 
 Not decided by an experiment yet:
 
@@ -709,6 +842,13 @@ packet of the menu. `tools/vanilla-oracle` has no such harness now. The first st
 "server" experiment adds it. An experiment of the kind "bedrock" needs a Bedrock server and a
 scripted Bedrock client.
 
+An experiment of the kind "client" uses a vanilla client that the input agent of
+`tools/vanilla-client` plays. The client joins through a proxy in front of a vanilla server, as
+`tools/mcrs_minecraft_client_recorder` does. The proxy removes a given serverbound packet. The
+proxy has no such function now. The first step of each
+"client" experiment adds it. After each action, a `container_click` packet of the client shows in
+its hashed stacks what the client holds.
+
 | Experiment | Kind | Steps | Record |
 |------------|------|-------|--------|
 | E1 | server | Open a brewing stand and a chest. Hold 64 potions that have `max_stack_size` 64, and 64 stone. Click primary on a bottle slot and on a chest slot. Repeat with stone that has `max_stack_size` 16 in the patch. | The count of each slot and of the cursor after each click. |
@@ -727,3 +867,4 @@ scripted Bedrock client.
 | E14 | server | With 5 stone in the cursor, send drag packets: start, 3 slots, end. Repeat with: no start packet; two start packets; a pick up click after the second slot; 7 slots; a slot two times; a slot that holds dirt; the stage 3; the drag kind 2 in survival mode. | Each slot and the cursor after each sequence. |
 | E15 | server | With 10 stone in the cursor, drag with the drag kind 0 over 3 slots, of which one holds 62 stone. Repeat with the drag kind 1. Repeat each with one slot only. | The count of each slot and of the cursor. |
 | E16 | bedrock | Send stack requests: a `Take` of 5 from a slot of 10 to the cursor; a `Place` on a slot that holds a different item; a `Place` that makes a count of 65; a `Swap` of two equal stacks; a request with one valid and one bad action. | The result value and the slots of each answer; the slots that the server holds after it. |
+| E17 | client | Case 1: (1) Put 10 stone in `P[0]`. (2) Select `P[0]`. (3) Press the drop key one time. (4) Remove the `player_action` packet at the proxy. (5) Open the inventory screen. (6) Click primary on `M[36]`. Case 2: (1) Put a helmet in `P[0]` and a shield in `P[40]`. (2) Select `P[0]`. (3) Press the swap key. (4) Remove the `player_action` packet at the proxy. (5) Open the inventory screen. (6) Click primary on `M[45]`. | The changed slots and the cursor of each `container_click` packet, as hashed stacks. |

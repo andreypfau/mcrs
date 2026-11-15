@@ -26,7 +26,7 @@ id. Section 9 lists what this document does not state.
   defines them.
 - **Holder**, **slot**, **slot reference**, **cursor**, **operation**, **request**, **slot limit**,
   **capacity**, **take filter**, **place filter**, **dropped stack**, **edge**, **clicked slot**,
-  **drag**: as `inventory-transactions.md`, section 0.1, defines them.
+  **drag**, **plugin**, **denial**: as `inventory-transactions.md`, section 0.1, defines them.
 - **Player inventory**: the holder of a player that has the 41 slots of INV-SLT-001.
 - **Hotbar**: the slots 0 through 8 of the player inventory.
 - **Main slots**: the slots 0 through 35 of the player inventory. The hotbar is a part of them.
@@ -219,7 +219,8 @@ with the status 4 or 5 drops from the selected slot. `n` is the selected slot. T
 the request `drop(P[n], count(P[n]))`. The status 5 gives the request `drop(P[n], 1)`. When
 `P[n]` holds the empty stack, the server does nothing. The server ignores the packet of a
 spectator. IEN-SPN-001 states the item entity. After the drop, the client view of `P[n]` is the
-stack that the server holds. See experiment E5.
+stack that the server holds. ITX-JAV-022 states the result when a plugin denies the request. See
+experiment E5.
 
 **INV-SEL-005** (`design`, semantic). The `player_action` packet with the status 7 gives the
 request `swap(P[n], P[40])`, where `n` is the selected slot. When the two slots hold the empty
@@ -227,10 +228,12 @@ stack, the server does nothing. When the request applies and the player uses an 
 stops. The server ignores the packet of a spectator. Reason: a request is the only path that
 changes a slot, so the filters of the two slots apply with no other rule. See experiment E5.
 
-**INV-SEL-006** (`design`, client agreement). When the request of INV-SEL-005 has a rejection,
-the client view of `P[n]` and of `P[40]` becomes not known. The comparison of INV-SYN-003 then
-sends the two stacks. Reason: the client showed the exchange before the answer came
-(ITX-ATM-007). The place filter of INV-SLT-005 is the only cause of such a rejection.
+**INV-SEL-006** (`design`, client agreement). When the request of INV-SEL-005 has a rejection or
+a denial (ITX-JAV-022), the client view of `P[n]` and of `P[40]` becomes not known. The
+comparison of INV-SYN-003 then sends the two stacks. Reason: the server does not know what the
+client shows for the two slots, so it sends both. ITX-JAV-021 states that the vanilla client
+changes neither slot before the answer. Experiment E17 of `inventory-transactions.md` decides
+it. The place filter of INV-SLT-005 is the only cause of such a rejection.
 
 ## 4. The insert rule
 
@@ -317,7 +320,8 @@ slot number `i` in the range `0..45` is a claim of the client. The client view o
 the stack of the packet. The comparison of INV-SYN-003 then sends the stack that the server holds,
 when the two differ. A packet with each other slot number changes no client view. Reason: a
 refusal has the path of each other change (INV-SYN-004), and the client must not keep a stack
-that the server does not hold. See deviation D3.
+that the server does not hold. A denial of the request of INV-CRE-004 has the same result
+(ITX-JAV-022). See deviation D3.
 
 ## 6. The state id and the client view
 
@@ -397,7 +401,7 @@ steps:
 3. The open menu becomes the inventory menu.
 
 The inventory menu continues to exist after the packet. IEN-SPN-006 states the same result for the
-cursor stack. See experiment E9.
+cursor stack. A plugin cannot deny the moves of steps 1 and 2 (ITX-ATM-012). See experiment E9.
 
 **INV-CLS-002** (`source_suggested`, semantic). The server sends no packet as an answer to
 `container_close`. The comparison of INV-SYN-003 sends the slots that step 1 and step 2 changed.
