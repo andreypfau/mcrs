@@ -173,7 +173,9 @@ decision #388. Two exceptions exist: the compounds of block entities (SAVE-CHUNK
 entity save compounds in a player file (SAVE-PLAYER-001). Issue #738 removes both. The known field
 set of each file is in SAVE-LEVEL-001, SAVE-DATA-001, SAVE-CHUNK-001 and SAVE-PLAYER-001.
 
-A file that exists and does not read back is not replaced with defaults. A `level.dat` that is missing is
+A file that exists and does not read back is not replaced with defaults. In the list `attributes` of
+a player file, only an unknown key is such a failure; the other rows of ATR-SAV-002 of `attributes.md`
+give their stated results. A `level.dat` that is missing is
 created with the default level name and the current game time.
 
 Provenance: `design`. Kind: durability. Confidence: high. The reason: a field that the server
@@ -748,7 +750,7 @@ a position near `spawn.pos`, and the yaw and pitch of `spawn`.
 | `Health` | float | the maximum health | always |
 | `HurtTime`, `DeathTime` | short | 0 | always |
 | `AbsorptionAmount` | float | 0 | always |
-| `attributes` | list of attribute compounds | empty | always |
+| `attributes` | list of attribute compounds | empty | always, when the player has attribute instances |
 | `active_effects` | list of effect compounds | empty | only when not empty |
 | `FallFlying` | byte | false | always |
 | `sleeping_pos` | Position | none | only when the player sleeps |
@@ -766,7 +768,13 @@ An attribute compound has the string `id` (required), the double `base` (default
 `modifiers` (default empty). A modifier is a compound with the string `id`, the double `amount` and
 the string `operation`. All three are required. `operation` is `add_value`, `add_multiplied_base`
 or `add_multiplied_total`. ATR-SAV-002 of `attributes.md` states the load of a compound with an
-unknown attribute, a bad field, or two modifiers with one `id`.
+unknown attribute, an unknown key, a bad field, or two modifiers with one `id`.
+
+The key `attributes` is written always for a player that has attribute instances. The list is empty
+when no instance differs from the entity type (ATR-SAV-001 of `attributes.md`). A host without the
+attribute plugin gives a player no attribute instances and writes no key `attributes`. A file that
+holds the list keeps it: the load gives the player the instances. Provenance `design`: the engine
+does not force attributes on a host. The owner has not confirmed this decision.
 
 An effect compound has the string `id` (required), the ubyte `amplifier` (default 0), the int
 `duration` (default 0), the byte `ambient` (default false) and the byte `show_particles` (default
