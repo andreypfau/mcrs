@@ -1,15 +1,16 @@
 use glam::DVec3;
 use mcrs_minecraft_item::enchantment::Enchantment;
 use mcrs_minecraft_item_key::item_keys::Item;
-use mcrs_minecraft_predicate::LocationView;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_resource::Id;
 use mcrs_voxel::{BlockPos, BlockStateId};
 
 use crate::context_param::ContextParam;
 use crate::context_params::ContextParams;
+use crate::float_provider::FloatProvider;
 use crate::loot_context::LootContext;
-use crate::number_provider::NumberProvider;
+use crate::loot_world::LootWorld;
+use crate::named_providers::NamedProviders;
 use crate::tool::Tool;
 
 /// A baked loot condition. Its test takes the draws of its rule in `loot-conditions.md`.
@@ -24,7 +25,7 @@ pub(crate) enum Test {
     AnyOf(Box<[Test]>),
     AllOf(Box<[Test]>),
     SurvivesExplosion,
-    RandomChance(NumberProvider),
+    RandomChance(FloatProvider),
     TableBonus {
         enchantment: Option<Id<Enchantment>>,
         chances: Box<[f32]>,
@@ -42,14 +43,16 @@ pub(crate) enum Test {
 }
 
 impl Condition {
-    /// Tests the condition in `context`, with the draws from `random`.
-    pub fn test<E, W: LocationView, R: Random>(
+    /// Tests the condition in `context`, with the draws from `random`. `providers` are the
+    /// named providers that the bake resolved the keys against.
+    pub fn test<E, W: LootWorld<E>, R: Random>(
         &self,
+        providers: &NamedProviders,
         context: &LootContext<'_, E>,
         world: &W,
         random: &mut R,
     ) -> bool {
-        self.0.test(context, world, random)
+        self.0.test(providers, context, world, random)
     }
 
     /// The parameters that the condition reads, for the check of LOOT-CTX-013.
@@ -60,22 +63,27 @@ impl Condition {
 }
 
 impl Test {
-    fn test<E, W: LocationView, R: Random>(
+    fn test<E, W: LootWorld<E>, R: Random>(
         &self,
+        providers: &NamedProviders,
         context: &LootContext<'_, E>,
         world: &W,
         random: &mut R,
     ) -> bool {
         match self {
             Test::Never => false,
-            Test::Inverted(term) => !term.test(context, world, random),
-            Test::AnyOf(terms) => terms.iter().any(|term| term.test(context, world, random)),
-            Test::AllOf(terms) => terms.iter().all(|term| term.test(context, world, random)),
+            Test::Inverted(term) => !term.test(providers, context, world, random),
+            Test::AnyOf(terms) => terms
+                .iter()
+                .any(|term| term.test(providers, context, world, random)),
+            Test::AllOf(terms) => terms
+                .iter()
+                .all(|term| term.test(providers, context, world, random)),
             Test::SurvivesExplosion => context
                 .explosion_radius
                 .is_none_or(|radius| random.next_f32() <= 1.0 / radius),
             Test::RandomChance(chance) => {
-                let chance = chance.read_float(context, world, random);
+                let chance = chance.read(providers, context, world, random);
                 random.next_f32() < chance
             }
             Test::TableBonus {

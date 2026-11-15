@@ -5,9 +5,9 @@ use mcrs_minecraft_item_stack::{
     Damage, EnchantmentId, EnchantmentLevel, Enchantments, Kind, MaxDamage, Unbreakable,
 };
 use mcrs_minecraft_loot_condition::{
-    Condition, ContextParam, ContextParams, NumberProvider, Tool, between, binomial, bounded,
+    Condition, ContextParam, ContextParams, FloatProvider, IntProvider, LootWorld, Tool, between,
+    binomial, bounded,
 };
-use mcrs_minecraft_predicate::LocationView;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_resource::Id;
 
@@ -38,13 +38,13 @@ pub(crate) enum ModifierOp {
     // after one of them is not exact; lifted by the evaluation of each type.
     Pending,
     SetCount {
-        count: NumberProvider,
+        count: IntProvider,
         add: bool,
     },
     ExplosionDecay,
     Limit {
-        min: Option<NumberProvider>,
-        max: Option<NumberProvider>,
+        min: Option<IntProvider>,
+        max: Option<IntProvider>,
     },
     OreDrops(Option<Id<Enchantment>>),
     UniformBonus {
@@ -62,7 +62,7 @@ pub(crate) enum ModifierOp {
     Discard,
     SetItem(Kind),
     SetDamage {
-        damage: NumberProvider,
+        damage: FloatProvider,
         add: bool,
     },
     EnchantRandomly {
@@ -80,14 +80,14 @@ pub(crate) enum ModifierOp {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct SetLevel {
     pub(crate) enchantment: EnchantmentId,
-    pub(crate) level: NumberProvider,
+    pub(crate) level: IntProvider,
 }
 
 impl ModifierOp {
     /// The parameters that the operation reads, without its condition and without the modifiers
     /// of a sequence, for the check of LOOT-CTX-013.
     pub(crate) fn reads(&self) -> ContextParams {
-        fn providers<'a>(providers: impl Iterator<Item = &'a NumberProvider>) -> ContextParams {
+        fn providers<'a>(providers: impl Iterator<Item = &'a IntProvider>) -> ContextParams {
             providers.fold(ContextParams::EMPTY, |reads, provider| {
                 reads.union(provider.reads())
             })
@@ -118,18 +118,19 @@ impl ModifierOp {
 
 impl Modifier {
     /// Applies the modifier to `stack` with the draws of its rule (LOOT-MOD-009, LOOT-MOD-012).
-    pub(crate) fn apply<E, W: LocationView, R: Random>(
+    pub(crate) fn apply<E, W: LootWorld<E>, R: Random>(
         &self,
         stack: &mut WorkStack,
         evaluation: &Evaluation<'_, '_, E, W>,
         random: &mut R,
     ) {
+        let providers = evaluation.providers;
         let context = evaluation.context;
         let world = evaluation.world;
         if self
             .condition
             .as_ref()
-            .is_some_and(|condition| !condition.test(context, world, random))
+            .is_some_and(|condition| !condition.test(providers, context, world, random))
         {
             return;
         }
@@ -137,7 +138,7 @@ impl Modifier {
         match &self.op {
             ModifierOp::Unresolved | ModifierOp::Pending | ModifierOp::EnchantedCountIncrease => {}
             ModifierOp::SetCount { count: value, add } => {
-                let value = value.read_int(context, world, random);
+                let value = value.read(providers, context, world, random);
                 stack.count = if *add {
                     count.saturating_add(value)
                 } else {
@@ -153,8 +154,12 @@ impl Modifier {
                 }
             }
             ModifierOp::Limit { min, max } => {
-                let floor = min.as_ref().map(|min| min.read_int(context, world, random));
-                let ceiling = max.as_ref().map(|max| max.read_int(context, world, random));
+                let floor = min
+                    .as_ref()
+                    .map(|min| min.read(providers, context, world, random));
+                let ceiling = max
+                    .as_ref()
+                    .map(|max| max.read(providers, context, world, random));
                 stack.count = match (floor, ceiling) {
                     (None, None) => count,
                     (None, Some(ceiling)) => count.min(ceiling),
@@ -236,9 +241,9 @@ fn apply_bonus<R: Random>(op: &ModifierOp, tool: Tool<'_>, count: i32, random: &
 }
 
 /// LOOT-MOD-016, in f32.
-fn set_damage<E, W: LocationView, R: Random>(
+fn set_damage<E, W: LootWorld<E>, R: Random>(
     stack: &mut WorkStack,
-    damage: &NumberProvider,
+    damage: &FloatProvider,
     add: bool,
     evaluation: &Evaluation<'_, '_, E, W>,
     random: &mut R,
@@ -256,7 +261,12 @@ fn set_damage<E, W: LocationView, R: Random>(
     ) else {
         return;
     };
-    let value = damage.read_float(evaluation.context, evaluation.world, random);
+    let value = damage.read(
+        evaluation.providers,
+        evaluation.context,
+        evaluation.world,
+        random,
+    );
     #[expect(clippy::cast_precision_loss, reason = "the rule calculates in f32")]
     let (max_f32, current_f32) = (max as f32, current.clamp(0, max) as f32);
     let base = if add {
@@ -271,9 +281,9 @@ fn set_damage<E, W: LocationView, R: Random>(
 }
 
 /// The component that LOOT-MOD-018 raises, or `None` when it is not a typed component.
-fn raised_enchantments(
+fn raised_enchantments<E, W>(
     stack: &WorkStack,
-    evaluation: &Evaluation<'_, '_, impl Sized, impl LocationView>,
+    evaluation: &Evaluation<'_, '_, E, W>,
 ) -> Option<Enchantments> {
     let read = stack.read()?;
     // chisle: `minecraft:stored_enchantments` has no typed component in the value-form stack, so
@@ -308,7 +318,7 @@ fn level_of(enchantments: &Enchantments, enchantment: EnchantmentId) -> u8 {
 }
 
 /// LOOT-MOD-019.
-fn enchant_randomly<E, W: LocationView, R: Random>(
+fn enchant_randomly<E, W: LootWorld<E>, R: Random>(
     stack: &mut WorkStack,
     options: Option<&[EnchantmentId]>,
     only_compatible: bool,
@@ -361,7 +371,7 @@ fn enchant_randomly<E, W: LocationView, R: Random>(
 }
 
 /// The raise of LOOT-MOD-018.
-fn raise<E, W: LocationView>(
+fn raise<E, W: LootWorld<E>>(
     stack: &mut WorkStack,
     enchantment: EnchantmentId,
     level: i32,
@@ -382,7 +392,7 @@ fn raise<E, W: LocationView>(
 }
 
 /// LOOT-MOD-022.
-fn set_enchantments<E, W: LocationView, R: Random>(
+fn set_enchantments<E, W: LootWorld<E>, R: Random>(
     stack: &mut WorkStack,
     levels: &[SetLevel],
     add: bool,
@@ -400,9 +410,12 @@ fn set_enchantments<E, W: LocationView, R: Random>(
         return;
     };
     for entry in levels {
-        let value = entry
-            .level
-            .read_int(evaluation.context, evaluation.world, random);
+        let value = entry.level.read(
+            evaluation.providers,
+            evaluation.context,
+            evaluation.world,
+            random,
+        );
         let current = i32::from(level_of(&enchantments, entry.enchantment));
         let new = if add {
             current.saturating_add(value)
@@ -422,7 +435,7 @@ mod tests {
     use mcrs_minecraft_item_stack::Builtin;
     use mcrs_minecraft_item_table::ItemTable;
     use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
-    use mcrs_minecraft_loot_condition::LootContext;
+    use mcrs_minecraft_loot_condition::{LootContext, NamedProviders};
     use mcrs_minecraft_predicate::NoWorld;
     use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 
@@ -438,6 +451,7 @@ mod tests {
         let context = LootContext::<()>::try_new(ContextKeySet::Empty).expect("a source key set");
         let evaluation = Evaluation {
             tables: &[],
+            providers: &NamedProviders::default(),
             context: &context,
             world: &NoWorld,
             rules: &rules,

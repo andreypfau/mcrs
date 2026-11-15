@@ -9,16 +9,20 @@ use mcrs_minecraft_engine::block_simulation::{
 };
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
 use mcrs_minecraft_engine_world::block_drops::{BlockDrops, DroppingBlock};
+use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
 use mcrs_minecraft_item::ItemStack;
 use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_item_stack::{Count, ItemStack as StackValue, Kind};
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
-use mcrs_minecraft_loot_condition::{LootContext, Tool};
+use mcrs_minecraft_loot_condition::{
+    EnvironmentView, LootContext, NbtNumber, ScoreHolder, ScoreView, StorageView, Tool,
+};
 use mcrs_minecraft_loot_table::{KeyedSeed, LootScratch, LootTables};
+use mcrs_minecraft_nbt_path::NbtPath;
 use mcrs_minecraft_predicate::LocationView;
 use mcrs_minecraft_registries::CurrentRegistries;
-use mcrs_minecraft_resource::Id;
+use mcrs_minecraft_resource::{Id, ResourceLocation};
 use mcrs_minecraft_simulation::{BlockBehaviour, BlockFacts, Cx, SimulationVolume};
 use mcrs_voxel::{BlockPos, BlockStateId};
 
@@ -207,6 +211,32 @@ impl<F: Fn(BlockPos) -> Option<BlockStateId>> LocationView for BlockAt<F> {
         _: &mut mcrs_minecraft_nbt::compound::NbtCompound,
     ) -> bool {
         false
+    }
+}
+
+// chisle: the drop reads no scoreboard; a scoreboard view of the server lifts it.
+impl<F, E> ScoreView<E> for BlockAt<F> {
+    fn score(&self, _: ScoreHolder<'_, E>, _: &str) -> Option<i32> {
+        None
+    }
+}
+
+// chisle: the drop reads no command storage; a storage view of the server lifts it.
+impl<F> StorageView for BlockAt<F> {
+    fn storage_number(&self, _: ResourceLocation<'_>, _: &NbtPath) -> Option<NbtNumber> {
+        None
+    }
+}
+
+// chisle: the drop reads the default value of each environment attribute; the attributes of the
+// dimension lift it.
+impl<F> EnvironmentView for BlockAt<F> {
+    fn environment_int(&self, _: EnvironmentAttribute, _: Option<DVec3>) -> Option<i32> {
+        None
+    }
+
+    fn environment_float(&self, _: EnvironmentAttribute, _: Option<DVec3>) -> Option<f32> {
+        None
     }
 }
 

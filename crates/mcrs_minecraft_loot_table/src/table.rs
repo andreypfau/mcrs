@@ -1,6 +1,8 @@
 use mcrs_minecraft_item_stack::{ItemStack, Kind};
-use mcrs_minecraft_loot_condition::{Condition, DynamicName, LootContext, NumberProvider, bounded};
-use mcrs_minecraft_predicate::LocationView;
+use mcrs_minecraft_loot_condition::{
+    Condition, DynamicName, FloatProvider, IntProvider, LootContext, LootWorld, NamedProviders,
+    bounded,
+};
 use mcrs_minecraft_random::Random;
 
 use crate::item_rules::ItemRules;
@@ -27,8 +29,8 @@ pub(crate) struct Table {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Pool {
     pub(crate) condition: Option<Condition>,
-    pub(crate) rolls: NumberProvider,
-    pub(crate) bonus_rolls: NumberProvider,
+    pub(crate) rolls: IntProvider,
+    pub(crate) bonus_rolls: FloatProvider,
     pub(crate) entries: Span,
     pub(crate) modifiers: Box<[Modifier]>,
 }
@@ -86,6 +88,7 @@ pub(crate) struct Candidate {
 /// The parts of one evaluation that do not change while it runs.
 pub(crate) struct Evaluation<'e, 'c, E, W> {
     pub(crate) tables: &'e [Table],
+    pub(crate) providers: &'e NamedProviders,
     pub(crate) context: &'e LootContext<'c, E>,
     pub(crate) world: &'e W,
     pub(crate) rules: &'e ItemRules,
@@ -118,7 +121,7 @@ impl Table {
     }
 }
 
-impl<E, W: LocationView> Evaluation<'_, '_, E, W> {
+impl<E, W: LootWorld<E>> Evaluation<'_, '_, E, W> {
     /// Adds the stacks of one evaluation of `table`, which is not nested, to `stacks`
     /// (LOOT-EVL-001).
     pub(crate) fn root<R: Random>(
@@ -159,10 +162,12 @@ impl<E, W: LocationView> Evaluation<'_, '_, E, W> {
         if !self.passes(pool.condition.as_ref(), random) {
             return;
         }
-        let rolls = pool.rolls.read_int(self.context, self.world, random);
+        let rolls = pool
+            .rolls
+            .read(self.providers, self.context, self.world, random);
         let bonus_rolls = pool
             .bonus_rolls
-            .read_float(self.context, self.world, random);
+            .read(self.providers, self.context, self.world, random);
         #[expect(
             clippy::cast_possible_truncation,
             reason = "the cast saturates, and a count beyond the i32 range is no real roll count"
@@ -346,7 +351,9 @@ impl<E, W: LocationView> Evaluation<'_, '_, E, W> {
     }
 
     fn passes<R: Random>(&self, condition: Option<&Condition>, random: &mut R) -> bool {
-        condition.is_none_or(|condition| condition.test(self.context, self.world, random))
+        condition.is_none_or(|condition| {
+            condition.test(self.providers, self.context, self.world, random)
+        })
     }
 }
 

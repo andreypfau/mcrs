@@ -2,8 +2,9 @@ use mcrs_minecraft_block::definition::{BlockDefinitions, LootId};
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_loot::loot::LootTable;
-use mcrs_minecraft_loot_condition::{ContextParam, ContextParams, LootContext};
-use mcrs_minecraft_predicate::LocationView;
+use mcrs_minecraft_loot_condition::{
+    ContextParam, ContextParams, LootContext, LootWorld, NamedProviders,
+};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_registries::Registries;
@@ -25,14 +26,15 @@ pub struct LootTables {
     /// The tables of the registry at the index of their id, then the inline tables.
     tables: Box<[Table]>,
     named: usize,
+    providers: NamedProviders,
     by_block: Box<[Option<Id<LootTable>>]>,
     rules: ItemRules,
 }
 
 impl LootTables {
-    /// Bakes each table of the registry `loot_table` of `registries`, maps each loot id of
-    /// `definitions` to the table that it names, and takes the components of each item from `items`
-    /// for the modifiers and the division (LOOT-OUT-001).
+    /// Bakes each named provider and each table of the registry `loot_table` of `registries`, maps
+    /// each loot id of `definitions` to the table that it names, and takes the components of each
+    /// item from `items` for the modifiers and the division (LOOT-OUT-001).
     #[must_use]
     pub fn bake(
         definitions: &BlockDefinitions,
@@ -42,7 +44,14 @@ impl LootTables {
         let mut issues = Vec::new();
         let files = registries.registry::<LootTableFile>();
         let rules = ItemRules::bake(registries, items);
-        let tables = baker::bake(definitions, registries, &mut issues).into_boxed_slice();
+        let (providers, provider_issues) = NamedProviders::bake(definitions, registries);
+        issues.extend(provider_issues.into_iter().map(|issue| LootIssue {
+            table: issue.provider,
+            path: String::new(),
+            problem: LootProblem::Condition(issue.problem),
+        }));
+        let tables =
+            baker::bake(definitions, registries, &providers, &mut issues).into_boxed_slice();
         let named = files.map_or(0, |files| files.len());
         let by_block = (0..definitions.loot_table_count())
             .map(|number| {
@@ -63,6 +72,7 @@ impl LootTables {
         let loot = Self {
             tables,
             named,
+            providers,
             by_block,
             rules,
         };
@@ -90,7 +100,7 @@ impl LootTables {
     /// its stacks are divided only once they leave `table` (LOOT-EVL-010). A context that lacks
     /// a parameter that its key set requires, or holds one that it does not allow, is refused
     /// before any draw (LOOT-CTX-012). The type of the table has no part in this check.
-    pub fn roll<E, W: LocationView, R: Random>(
+    pub fn roll<E, W: LootWorld<E>, R: Random>(
         &self,
         table: Id<LootTable>,
         context: &LootContext<'_, E>,
@@ -103,6 +113,7 @@ impl LootTables {
         check(context)?;
         let evaluation = Evaluation {
             tables: &self.tables,
+            providers: &self.providers,
             context,
             world,
             rules: &self.rules,
@@ -120,7 +131,7 @@ impl LootTables {
 }
 
 fn check<E>(context: &LootContext<'_, E>) -> Result<(), RollError> {
-    let held = held(context);
+    let held = context.held();
     let required = ContextParams::required(context.key_set());
     let allowed = ContextParams::allowed(context.key_set());
     for param in ContextParam::ALL {
@@ -132,20 +143,4 @@ fn check<E>(context: &LootContext<'_, E>) -> Result<(), RollError> {
         }
     }
     Ok(())
-}
-
-fn held<E>(context: &LootContext<'_, E>) -> ContextParams {
-    [
-        (context.origin.is_some(), ContextParam::Origin),
-        (context.this_entity.is_some(), ContextParam::ThisEntity),
-        (context.tool.is_some(), ContextParam::Tool),
-        (context.block_state.is_some(), ContextParam::BlockState),
-        (
-            context.explosion_radius.is_some(),
-            ContextParam::ExplosionRadius,
-        ),
-    ]
-    .into_iter()
-    .filter(|&(present, _)| present)
-    .fold(ContextParams::EMPTY, |held, (_, param)| held.with(param))
 }

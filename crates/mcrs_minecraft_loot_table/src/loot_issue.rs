@@ -9,6 +9,7 @@ use crate::table_links::MAX_NESTING;
 /// part that names it never pass or make nothing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LootIssue {
+    /// The table with the problem, or the named provider for a problem of a named provider.
     pub table: ResourceLocationBuf,
     /// The part of the table with the problem, as `pools[2].entries[0].condition`. It is empty
     /// for the table as a whole.
@@ -39,6 +40,9 @@ pub enum LootProblem {
     /// The `loot_table` entry names a table whose chain of nested tables is already as long as
     /// the bake allows.
     TooDeep,
+    /// A provider of the part makes a reference chain from some start longer than
+    /// [`MAX_NESTING`] (LOOT-CTX-017).
+    ProviderChainTooLong,
     /// A composite entry without children (LOOT-CTX-016).
     NoChildren,
     /// A child of an `alternatives` entry, other than the last child, without a condition
@@ -72,6 +76,12 @@ impl fmt::Display for LootIssue {
             }
             LootProblem::TooDeep => {
                 write!(f, "more than {MAX_NESTING} nested loot tables in one chain")
+            }
+            LootProblem::ProviderChainTooLong => {
+                write!(
+                    f,
+                    "a provider makes a reference chain longer than {MAX_NESTING}"
+                )
             }
             LootProblem::NoChildren => f.write_str("the composite entry has no children"),
             LootProblem::AlternativeWithoutCondition => {

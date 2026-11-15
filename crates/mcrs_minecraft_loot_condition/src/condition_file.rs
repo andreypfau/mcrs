@@ -5,7 +5,7 @@ use mcrs_minecraft_resource::{ResourceLocationBuf, TagKeyBuf};
 use serde::Deserialize;
 use serde::de::IgnoredAny;
 
-use crate::number_file::NumberFile;
+use crate::float_provider_file::FloatProviderFile;
 use crate::one_or_many::OneOrMany;
 
 /// A loot condition as a data pack writes it: the key of a registered predicate, or an inline
@@ -64,7 +64,7 @@ pub(crate) enum TypedCondition {
     #[serde(rename = "minecraft:survives_explosion", alias = "survives_explosion")]
     SurvivesExplosion,
     #[serde(rename = "minecraft:random_chance", alias = "random_chance")]
-    RandomChance { chance: NumberFile },
+    RandomChance { chance: FloatProviderFile },
     #[serde(rename = "minecraft:table_bonus", alias = "table_bonus")]
     TableBonus {
         enchantment: ResourceLocationBuf,

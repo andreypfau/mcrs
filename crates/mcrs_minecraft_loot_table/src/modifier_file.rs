@@ -10,7 +10,7 @@ use mcrs_minecraft_item::component::fireworks::FireworkExplosion;
 use mcrs_minecraft_item::component::nbt_wire::CustomData;
 use mcrs_minecraft_item::component::predicate::ItemPredicate;
 use mcrs_minecraft_item::patch::ComponentPatch;
-use mcrs_minecraft_loot_condition::{ConditionFile, NumberFile};
+use mcrs_minecraft_loot_condition::{ConditionFile, FloatProviderFile, IntProviderFile};
 use mcrs_minecraft_registries::Named;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::Deserialize;
@@ -70,7 +70,7 @@ pub enum KeySetFile {
 pub enum ModifierKind {
     #[serde(rename = "minecraft:set_count", alias = "set_count")]
     SetCount {
-        count: NumberFile,
+        count: IntProviderFile,
         #[serde(default)]
         add: bool,
     },
@@ -81,7 +81,7 @@ pub enum ModifierKind {
         alias = "enchant_with_levels"
     )]
     EnchantWithLevels {
-        levels: NumberFile,
+        levels: IntProviderFile,
         options: Option<KeySetFile>,
         #[serde(default)]
         include_additional_cost_component: bool,
@@ -116,13 +116,13 @@ pub enum ModifierKind {
     )]
     EnchantedCountIncrease {
         enchantment: ResourceLocationBuf,
-        count: NumberFile,
+        count: FloatProviderFile,
         #[serde(default)]
         limit: i32,
     },
     #[serde(rename = "minecraft:set_damage", alias = "set_damage")]
     SetDamage {
-        damage: NumberFile,
+        damage: FloatProviderFile,
         #[serde(default)]
         add: bool,
     },
@@ -219,7 +219,7 @@ pub enum ModifierKind {
     #[serde(rename = "minecraft:set_potion", alias = "set_potion")]
     SetPotion { id: ResourceLocationBuf },
     #[serde(rename = "minecraft:set_random_dyes", alias = "set_random_dyes")]
-    SetRandomDyes { number_of_dyes: NumberFile },
+    SetRandomDyes { number_of_dyes: IntProviderFile },
     #[serde(rename = "minecraft:set_random_potion", alias = "set_random_potion")]
     SetRandomPotion { options: Option<KeySetFile> },
     #[serde(rename = "minecraft:set_instrument", alias = "set_instrument")]
@@ -280,13 +280,13 @@ pub enum ModifierKind {
         rename = "minecraft:set_ominous_bottle_amplifier",
         alias = "set_ominous_bottle_amplifier"
     )]
-    SetOminousBottleAmplifier { amplifier: NumberFile },
+    SetOminousBottleAmplifier { amplifier: IntProviderFile },
     #[serde(
         rename = "minecraft:set_custom_model_data",
         alias = "set_custom_model_data"
     )]
     SetCustomModelData {
-        floats: Option<StandaloneList<NumberFile>>,
+        floats: Option<StandaloneList<FloatProviderFile>>,
         flags: Option<StandaloneList<bool>>,
         strings: Option<StandaloneList<String>>,
         colors: Option<StandaloneList<ColorFile>>,
@@ -298,8 +298,8 @@ pub enum ModifierKind {
 pub enum LimitFile {
     Exact(i32),
     Range {
-        min: Option<NumberFile>,
-        max: Option<NumberFile>,
+        min: Option<IntProviderFile>,
+        max: Option<IntProviderFile>,
     },
 }
 
@@ -345,7 +345,7 @@ pub struct BinomialParameters {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum ColorFile {
-    Provider(NumberFile),
+    Provider(IntProviderFile),
     Rgb(RgbInt),
 }
 
@@ -353,7 +353,7 @@ pub enum ColorFile {
 pub struct AttributeFile {
     pub attribute: ResourceLocationBuf,
     pub id: ResourceLocationBuf,
-    pub amount: NumberFile,
+    pub amount: FloatProviderFile,
     pub operation: AttributeOperation,
     pub slot: SlotsFile,
 }
@@ -427,7 +427,7 @@ pub enum NameTarget {
 pub struct StewEffectFile {
     #[serde(rename = "type")]
     pub effect: ResourceLocationBuf,
-    pub duration: NumberFile,
+    pub duration: IntProviderFile,
 }
 
 /// The component that `set_contents` and `modify_contents` write (REG-FLD-760).

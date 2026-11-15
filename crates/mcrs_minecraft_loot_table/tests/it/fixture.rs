@@ -4,6 +4,7 @@ use std::sync::LazyLock;
 use glam::DVec3;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_engine_registries::{test_corpus, test_item_table};
+use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_item::enchantment::Enchantment;
 use mcrs_minecraft_item_key::item_keys::Item;
@@ -12,8 +13,11 @@ use mcrs_minecraft_item_stack::{
 };
 use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 use mcrs_minecraft_loot::loot::LootTable;
-use mcrs_minecraft_loot_condition::{LootContext, Tool};
+use mcrs_minecraft_loot_condition::{
+    EnvironmentView, LootContext, NbtNumber, ScoreHolder, ScoreView, StorageView, Tool,
+};
 use mcrs_minecraft_loot_table::{KeyedSeed, LootIssue, LootTables};
+use mcrs_minecraft_nbt_path::NbtPath;
 use mcrs_minecraft_predicate::LocationView;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_resource::{Id, ResourceLocation};
@@ -170,5 +174,27 @@ impl LocationView for Around<'_> {
         _: &mut mcrs_minecraft_nbt::compound::NbtCompound,
     ) -> bool {
         false
+    }
+}
+
+impl<E> ScoreView<E> for Around<'_> {
+    fn score(&self, _: ScoreHolder<'_, E>, _: &str) -> Option<i32> {
+        None
+    }
+}
+
+impl StorageView for Around<'_> {
+    fn storage_number(&self, _: ResourceLocation<'_>, _: &NbtPath) -> Option<NbtNumber> {
+        None
+    }
+}
+
+impl EnvironmentView for Around<'_> {
+    fn environment_int(&self, _: EnvironmentAttribute, _: Option<DVec3>) -> Option<i32> {
+        None
+    }
+
+    fn environment_float(&self, _: EnvironmentAttribute, _: Option<DVec3>) -> Option<f32> {
+        None
     }
 }

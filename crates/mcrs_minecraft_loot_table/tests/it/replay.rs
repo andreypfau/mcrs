@@ -12,7 +12,8 @@ use mcrs_minecraft_item_stack::{ItemStack, read_saved};
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 use mcrs_minecraft_loot_condition::{
-    Condition, ConditionBaker, ConditionFile, LootContext, NumberFile, NumberProvider, Tool,
+    Condition, ConditionBaker, ConditionFile, FloatProvider, FloatProviderFile, IntProvider,
+    IntProviderFile, LootContext, NamedProviders, Tool,
 };
 use mcrs_minecraft_loot_table::{LootIssue, LootScratch, LootTableFile, LootTables};
 use mcrs_minecraft_predicate::NoWorld;
@@ -28,26 +29,22 @@ use crate::fixture::{blocks, state};
 
 const MAGIC: &[u8; 8] = b"MCLOOTR0";
 
-const UNEVALUATED_TYPES: [&str; 4] = [
+const UNEVALUATED_TYPES: [&str; 2] = [
     "minecraft:enchant_with_levels",
     "minecraft:random_chance_with_enchanted_bonus",
-    "minecraft:weighted_list",
-    "minecraft:add",
 ];
 
 /// The value-form stack has no typed component for the enchantments of a book, so a case whose
 /// stacks have it compares them without their component patch.
 const STORED_ENCHANTMENTS: &str = "minecraft:stored_enchantments";
 
-const REPLAYED: usize = 69;
+const REPLAYED: usize = 78;
 
 const REPLAYED_WITHOUT_STORED_ENCHANTMENTS: usize = 3;
 
-const PENDING: [(&str, usize); 5] = [
-    ("minecraft:add", 3),
+const PENDING: [(&str, usize); 3] = [
     ("minecraft:enchant_with_levels", 6),
     ("minecraft:random_chance_with_enchanted_bonus", 3),
-    ("minecraft:weighted_list", 6),
     ("the container spread", 80),
 ];
 
@@ -484,17 +481,27 @@ fn without_problems<T>(baker: &mut ConditionBaker, baked: T) -> Result<T, String
     }
 }
 
+static PROVIDERS: LazyLock<NamedProviders> =
+    LazyLock::new(|| NamedProviders::bake(blocks(), test_registries()).0);
+
 fn condition(case: &Case) -> Result<Condition, String> {
     let file: ConditionFile = source_file(case);
-    let mut baker = ConditionBaker::new(blocks(), test_registries());
+    let mut baker = ConditionBaker::new(blocks(), test_registries(), &PROVIDERS);
     let condition = baker.condition(&file);
     without_problems(&mut baker, condition)
 }
 
-fn provider(case: &Case) -> Result<NumberProvider, String> {
-    let file: NumberFile = source_file(case);
-    let mut baker = ConditionBaker::new(blocks(), test_registries());
-    let provider = baker.number(&file);
+fn int_provider(case: &Case) -> Result<IntProvider, String> {
+    let file: IntProviderFile = source_file(case);
+    let mut baker = ConditionBaker::new(blocks(), test_registries(), &PROVIDERS);
+    let provider = baker.int_provider(&file);
+    without_problems(&mut baker, provider)
+}
+
+fn float_provider(case: &Case) -> Result<FloatProvider, String> {
+    let file: FloatProviderFile = source_file(case);
+    let mut baker = ConditionBaker::new(blocks(), test_registries(), &PROVIDERS);
+    let provider = baker.float_provider(&file);
     without_problems(&mut baker, provider)
 }
 
@@ -557,25 +564,25 @@ fn differences(index: usize, case: &Case, replay: &Replay) -> Result<(), String>
             let condition = condition(case)?;
             let tests: Vec<bool> = expected
                 .iter()
-                .map(|_| condition.test(&context, &NoWorld, &mut random))
+                .map(|_| condition.test(&PROVIDERS, &context, &NoWorld, &mut random))
                 .collect();
             (&tests != expected).then(|| format!("tests {tests:?}, expected {expected:?}"))
         }
         Outcome::Ints(expected) => {
-            let provider = provider(case)?;
+            let provider = int_provider(case)?;
             let ints: Vec<i32> = expected
                 .iter()
-                .map(|_| provider.read_int(&context, &NoWorld, &mut random))
+                .map(|_| provider.read(&PROVIDERS, &context, &NoWorld, &mut random))
                 .collect();
             (&ints != expected).then(|| format!("ints {ints:?}, expected {expected:?}"))
         }
         Outcome::Floats(expected) => {
-            let provider = provider(case)?;
+            let provider = float_provider(case)?;
             let floats: Vec<u32> = expected
                 .iter()
                 .map(|_| {
                     provider
-                        .read_float(&context, &NoWorld, &mut random)
+                        .read(&PROVIDERS, &context, &NoWorld, &mut random)
                         .to_bits()
                 })
                 .collect();
