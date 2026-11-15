@@ -21,6 +21,7 @@ fn degenerate() -> vec4<f32> {
 const VERTICES_PER_QUAD: u32 = 6u;
 const CORNERS_PER_QUAD: u32 = 4u;
 const MODEL_WORDS_PER_VERTEX: u32 = 3u;
+const GREEDY_EDGE_OVERLAP: f32 = 1.0 / 128.0;
 
 /// Two triangles a quad, wound over its corners as 1, 2, 0 and 0, 2, 3.
 fn corner_index(vertex: u32) -> u32 {
@@ -82,9 +83,9 @@ struct GreedyCorner {
     quad_uv: vec2<f32>,
 }
 
-/// One corner of a greedy quad against the camera's section. The cull and the vertex shaders
-/// both place corners here, so a quad is tested exactly where it is drawn.
-fn greedy_corner(words: array<u32, QUAD_WORDS>, origin: vec3<f32>, scale: f32, corner: u32) -> GreedyCorner {
+/// One corner of a greedy quad against the camera's section. The cull uses a conservative
+/// overlap even for quads drawn without it.
+fn greedy_corner(words: array<u32, QUAD_WORDS>, origin: vec3<f32>, scale: f32, corner: u32, overlap: f32) -> GreedyCorner {
     let local = vec3<f32>(
         f32(bits(words[QUAD_X_WORD], QUAD_X_SHIFT, QUAD_X_BITS)),
         f32(bits(words[QUAD_Y_WORD], QUAD_Y_SHIFT, QUAD_Y_BITS)),
@@ -102,13 +103,15 @@ fn greedy_corner(words: array<u32, QUAD_WORDS>, origin: vec3<f32>, scale: f32, c
     if (face >= 2u) {
         quad_uv.y = max(quad_uv.y, drop / size.y);
     }
-    let c = quad_uv * size;
+    let fluid = bits(words[QUAD_FLUID_WORD], QUAD_FLUID_SHIFT, QUAD_FLUID_BITS);
+    // Cover rasterization gaps where neighbouring quads meet with different edge subdivisions.
+    let margin = select(0.0, overlap, fluid == 0u && drop == 0.0);
+    let c = quad_uv * size + (quad_uv * 2.0 - vec2<f32>(1.0)) * margin;
     var world = origin + (local + face_u_dir(face) * c.x + face_v_dir(face) * c.y) * scale;
     if (face == 1u) {
         world.y -= drop;
     }
     // A fluid face shares a plane with the block face behind it, so it is pulled in slightly.
-    let fluid = bits(words[QUAD_FLUID_WORD], QUAD_FLUID_SHIFT, QUAD_FLUID_BITS);
     world -= face_normal(face) * (FLUID_INSET * f32(fluid));
     return GreedyCorner(world, quad_uv);
 }
@@ -122,4 +125,12 @@ fn model_position(x: u32, y: u32, z: u32) -> vec3<f32> {
         f32(bits(y, MODEL_Y_SHIFT, MODEL_Y_BITS)),
         f32(bits(z, MODEL_Z_SHIFT, MODEL_Z_BITS)),
     ) / MODEL_STEPS - MODEL_OVERHANG;
+}
+
+fn expanded_quad_uv(u: vec3<f32>, v: vec3<f32>, quad_uv: vec2<f32>, overlap: f32) -> vec2<f32> {
+    let margin = vec2<f32>(
+        overlap / max(length(u), 1e-4),
+        overlap / max(length(v), 1e-4),
+    );
+    return quad_uv + (quad_uv * 2.0 - vec2<f32>(1.0)) * margin;
 }
