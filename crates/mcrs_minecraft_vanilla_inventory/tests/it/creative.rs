@@ -2,17 +2,23 @@ use bevy_app::FixedUpdate;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
+use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_item_stack::write_wire_with_length;
+use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundSetCreativeModeSlot;
+use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::click::joined;
 use crate::click::sent;
 use crate::fixture::STONE;
 use crate::fixture::app;
 use crate::fixture::dropped;
+use crate::fixture::patched_stone;
+use crate::fixture::slot_stack;
 use crate::fixture::stacks;
 
 /// Sends `set_creative_mode_slot` for `slot` with `count` items of `kind`, or the empty stack for
@@ -133,6 +139,36 @@ fn inv_cre_004_the_creative_packet_sets_an_entry_after_its_checks() {
         assert_eq!(dropped(world), case.dropped, "{}", case.name);
         assert_eq!(sent(world), case.sent, "{}", case.name);
     }
+}
+
+/// INV-CRE-004: a set keeps the component patch of the stack of the packet.
+#[test]
+fn inv_cre_004_the_creative_packet_sets_a_stack_with_its_patch() {
+    let mut app = app();
+    let world = app.world_mut();
+    let player = joined(world);
+    world
+        .entity_mut(player)
+        .insert(PlayerGameMode(GameMode::Creative));
+    let mut body = 36_i16.to_be_bytes().to_vec();
+    let names = RegistryNames::new(
+        world.resource::<CurrentRegistries>(),
+        world.resource::<ItemTable>(),
+    );
+    write_wire_with_length(Some(&patched_stone()), &names, &mut body).expect("the stack encodes");
+    world.trigger(Received::<ServerboundSetCreativeModeSlot>::new(
+        player,
+        body.into(),
+    ));
+    world.flush();
+
+    world.run_schedule(FixedUpdate);
+
+    assert_eq!(
+        slot_stack(world, player, 0),
+        Some(patched_stone()),
+        "the set stack holds the patch"
+    );
 }
 
 /// IEN-SPN-007: a burst throws 74 creative drops; the counter then falls by one each tick.

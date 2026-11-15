@@ -1,8 +1,10 @@
+use std::num::NonZeroU8;
 use std::sync::LazyLock;
 
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::query::With;
+use bevy_ecs::system::RunSystemOnce;
 use bevy_ecs::world::Mut;
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine::persisted_registry::CaptureCause;
@@ -13,10 +15,15 @@ use mcrs_minecraft_engine_item::ItemCommandsExt;
 use mcrs_minecraft_engine_item::ItemPlugin;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::StackCommandsExt;
+use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_item_stack::Count;
+use mcrs_minecraft_item_stack::CustomName;
+use mcrs_minecraft_item_stack::EnchantmentId;
+use mcrs_minecraft_item_stack::EnchantmentLevel;
+use mcrs_minecraft_item_stack::Enchantments;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_item_table::DefinitionFile;
@@ -27,6 +34,7 @@ use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol_game::item::ItemStackValue;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_registries::Named;
+use mcrs_minecraft_text::Text;
 use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
 use mcrs_minecraft_vanilla_inventory::PlayerHolders;
 use mcrs_minecraft_vanilla_inventory::VanillaInventoryPlugin;
@@ -134,6 +142,27 @@ pub fn stacks(world: &World, holder: Entity) -> Vec<(usize, Kind, u8)> {
             Some((index, kind, count))
         })
         .collect()
+}
+
+/// Three stone named `Rock` with the first enchantment at level 2: a patch with a component that
+/// the saved form writes by the name of a registry entry.
+pub fn patched_stone() -> ItemStack {
+    let enchantment = EnchantmentLevel {
+        enchantment: EnchantmentId(0),
+        level: NonZeroU8::new(2).expect("a level above 0"),
+    };
+    ItemStack::new(STONE, Count::new(3).expect("a count above 0"))
+        .set(CustomName(Text::text("Rock")))
+        .set(Enchantments::new([enchantment]).expect("one enchantment"))
+}
+
+/// The value of the stack in the slot `index` of `holder`.
+pub fn slot_stack(world: &mut World, holder: Entity, index: usize) -> Option<ItemStack> {
+    let slots = world.get::<Slots>(holder).expect("a holder has slots");
+    let stack = slots.iter().nth(index).flatten()?;
+    world
+        .run_system_once(move |mut stacks: Stacks| stacks.to_value(stack))
+        .expect("the stack reads")
 }
 
 /// The item, the count and the pickup delay of each stack that lies in the world.

@@ -5,8 +5,10 @@ use mcrs_minecraft_engine::UnreadablePlayerDat;
 use mcrs_minecraft_engine::apply_join_snapshot;
 use mcrs_minecraft_engine::persisted_registry::CaptureCause;
 use mcrs_minecraft_engine::persisted_registry::PersistedSnapshot;
+use mcrs_minecraft_engine_item::ItemCommandsExt;
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_item::Slots;
+use mcrs_minecraft_engine_item::StackCommandsExt;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_protocol_game::item::ItemStackValue;
 use mcrs_minecraft_protocol_game::item::ItemStackWithSlot;
@@ -17,8 +19,10 @@ use crate::fixture::STONE;
 use crate::fixture::app;
 use crate::fixture::capture_file;
 use crate::fixture::holders;
+use crate::fixture::patched_stone;
 use crate::fixture::restore;
 use crate::fixture::saved;
+use crate::fixture::slot_stack;
 use crate::fixture::stacks;
 
 /// INV-SAV-001, INV-SAV-002: a load puts each stack of the file in its slot with no filter and no
@@ -98,6 +102,31 @@ fn inv_sav_001_002_a_file_loads_into_its_slots_and_an_autosave_writes_it_back() 
             "the selected slot"
         );
     }
+}
+
+/// INV-SAV-001, INV-SAV-002: a stack with a component patch keeps its patch through a save and a
+/// load.
+#[test]
+fn inv_sav_001_002_a_stack_keeps_its_patch_through_the_file() {
+    let mut saving = app();
+    let saving = saving.world_mut();
+    let player = restore(saving, &PersistedSnapshot::new());
+    saving
+        .commands()
+        .spawn_stack(patched_stone())
+        .put_at(player, 9);
+    saving.flush();
+
+    let file = capture_file(saving, player, CaptureCause::Autosave);
+
+    let mut loading = app();
+    let loading = loading.world_mut();
+    let player = restore(loading, &file);
+    assert_eq!(
+        slot_stack(loading, player, 9),
+        Some(patched_stone()),
+        "the loaded stack holds the patch"
+    );
 }
 
 /// INV-SLT-002: a player with no file gets four empty holders and the selected slot 0.

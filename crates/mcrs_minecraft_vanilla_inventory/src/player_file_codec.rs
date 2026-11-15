@@ -4,8 +4,10 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
 use mcrs_minecraft_engine::persisted_registry::CaptureCause;
 use mcrs_minecraft_engine::persisted_registry::PersistedError;
+use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_registries::CurrentRegistries;
 
 use crate::capture_holders::capture_holders;
 use crate::kept_equipment::KeptEquipment;
@@ -22,15 +24,17 @@ pub(crate) fn capture_player_file(
     player: Entity,
     cause: CaptureCause,
 ) -> Result<Option<NbtTag>, PersistedError> {
-    let table = item_table(world).ok_or_else(|| encode_error(INVENTORY_KEY, NO_TABLE))?;
+    // The capture queues moves and drops of stacks, so a missing lookup must fail before it runs.
+    registry_names(world).map_err(|missing| encode_error(INVENTORY_KEY, missing))?;
     let Some(stacks) = world
         .run_system_cached_with(capture_holders, (player, cause))
         .map_err(|error| encode_error(INVENTORY_KEY, error))?
     else {
         return Ok(None);
     };
+    let names = registry_names(world).map_err(|missing| encode_error(INVENTORY_KEY, missing))?;
     let mut file = PlayerFile::default();
-    stacks.write(&mut file, &table)?;
+    stacks.write(&mut file, &names)?;
     if let Some(kept) = world.get::<KeptEquipment>(player) {
         for (key, saved) in &kept.0.child_tags {
             file.equipment.put(key, saved.clone());
@@ -49,13 +53,13 @@ pub(crate) fn apply_player_file(
     player: Entity,
     tag: &NbtTag,
 ) -> Result<(), PersistedError> {
-    let table = item_table(world).ok_or_else(|| decode_error(INVENTORY_KEY, NO_TABLE))?;
+    let names = registry_names(world).map_err(|missing| decode_error(INVENTORY_KEY, missing))?;
     let file: PlayerFile =
         mcrs_minecraft_nbt::from_tag(tag.clone()).map_err(|source| PersistedError::Decode {
             key: INVENTORY_KEY,
             source,
         })?;
-    let stacks = PlayerStacks::read(&file, &table)?;
+    let stacks = PlayerStacks::read(&file, &names)?;
     let mut kept = file.equipment;
     kept.child_tags.retain(|(key, _)| !is_slot_key(key));
     world
@@ -67,10 +71,16 @@ pub(crate) fn apply_player_file(
         .map_err(|error| decode_error(INVENTORY_KEY, error))
 }
 
-pub(crate) const NO_TABLE: &str = "the world has no item table";
+const NO_TABLE: &str = "the world has no item table";
 
-pub(crate) fn item_table(world: &World) -> Option<ItemTable> {
-    world.get_resource::<ItemTable>().copied()
+const NO_REGISTRIES: &str = "the world has no registries";
+
+pub(crate) fn registry_names(world: &World) -> Result<RegistryNames<'_>, &'static str> {
+    let table = world.get_resource::<ItemTable>().ok_or(NO_TABLE)?;
+    let registries = world
+        .get_resource::<CurrentRegistries>()
+        .ok_or(NO_REGISTRIES)?;
+    Ok(RegistryNames::new(registries, table))
 }
 
 pub(crate) fn encode_error(key: &'static str, cause: impl Display) -> PersistedError {
