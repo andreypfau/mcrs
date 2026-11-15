@@ -11,6 +11,7 @@ mod placement;
 mod player_file;
 mod request;
 mod round_trip;
+mod slot_changed;
 mod usage;
 mod write_in_place;
 

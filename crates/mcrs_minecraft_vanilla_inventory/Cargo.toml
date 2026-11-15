@@ -37,4 +37,9 @@ serde.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
+mcrs_test_alloc.workspace = true
 mcrs_voxel.workspace = true
+
+[[bench]]
+name = "sync_menus"
+harness = false

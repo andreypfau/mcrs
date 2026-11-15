@@ -1,17 +1,22 @@
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::lifecycle::HookContext;
+use bevy_ecs::message::Messages;
 use bevy_ecs::world::DeferredWorld;
 use bevy_ecs::world::World;
 
 use crate::Dropped;
+use crate::SlotChanged;
+use crate::SlotRef;
 use crate::Slots;
+use crate::slot_changed::write_slot_changed;
 
 /// The slot of a holder that holds the stack. Only the placement commands of this crate make one.
 ///
 /// An insert that names an occupied slot takes the slot from the stack in it, which stays alive
 /// without placement. An insert that names a slot that does not exist is removed again. An insert
-/// removes [`Dropped`]. The despawn of the stack empties its slot.
+/// removes [`Dropped`]. The despawn of the stack empties its slot. Each insert and each removal
+/// that changes the content of a slot writes [`SlotChanged`].
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[component(immutable, on_insert = occupy, on_discard = vacate)]
 pub struct InSlot {
@@ -34,6 +39,13 @@ impl InSlot {
     pub fn index(&self) -> u16 {
         self.index
     }
+
+    pub(crate) fn slot_ref(self) -> SlotRef {
+        SlotRef {
+            holder: self.holder,
+            index: self.index,
+        }
+    }
 }
 
 fn occupy(mut world: DeferredWorld, context: HookContext) {
@@ -43,6 +55,12 @@ fn occupy(mut world: DeferredWorld, context: HookContext) {
     };
     let previous = (world.get_mut::<Slots>(slot.holder))
         .and_then(|mut slots| slots.replace(slot.index, Some(stack)));
+    if previous.is_some_and(|evicted| evicted != Some(stack)) {
+        write_slot_changed(
+            world.get_resource_mut::<Messages<SlotChanged>>(),
+            slot.slot_ref(),
+        );
+    }
     let detached = match previous {
         None => Some(stack),
         Some(evicted) => evicted.filter(|evicted| *evicted != stack),
@@ -67,6 +85,10 @@ fn vacate(mut world: DeferredWorld, context: HookContext) {
     };
     if slots.get(usize::from(slot.index)) == Some(stack) {
         slots.replace(slot.index, None);
+        write_slot_changed(
+            world.get_resource_mut::<Messages<SlotChanged>>(),
+            slot.slot_ref(),
+        );
     }
 }
 

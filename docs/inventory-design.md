@@ -129,7 +129,7 @@ the prefix `mcrs_minecraft_`.
 | `inventory_player` | 3, rules, `no_std` | none | changed | the 41 slots, the vanilla slot rules as data, the insert rule, the close moves |
 | `inventory_click` | 3, rules, `no_std` | none | no change | Java click kinds to operations; the traits `Menu` and `Slots` |
 | `inventory_menu` | 3, data | feature `bevy`: derives only | changed | menu registry keys, `MenuLayout`, `MenuEntry`, the layout of the inventory menu |
-| `inventory_client_view` | 3 | none | no change | `StateId`, `ClientView`, `Mismatches` |
+| `inventory_client_view` | 3 | none | changed | `StateId`, `ClientView` |
 | `inventory_file` | 3, data | none | new | `PlayerItems`, the inventory keys of a player file |
 | `inventory_predict` | 3, rules | none | new, with #129 | slots as values, the prediction of a click |
 | `engine_item` | 4 | required | changed | stacks as entities, `SlotChanged`, `SlotPolicy`, gates, `RequestCheck`, request sources |

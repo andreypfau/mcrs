@@ -1145,6 +1145,29 @@ times a spawn of rows. The moving entities that are not living therefore stay co
 `mcrs_minecraft_engine_entity_motion`. `docs/physics-architecture.md` §6.1
 records the decision, and that mob rows are abandoned.
 
+## Inventory sync of unchanged inventories
+
+Scenario: the bench `crates/mcrs_minecraft_vanilla_inventory/benches/sync_menus.rs`. It runs the
+whole `FixedUpdate` of an `App` with `ItemPlugin`, `VanillaInventoryPlugin` and
+`InventoryPersistencePlugin`. Each player has 36 filled slots and an open inventory menu, and no
+slot changes. The bench warms up for 20 ticks, then measures 200 ticks and takes the median. It
+asserts that no packet goes out. Bench profile, Apple M4 Max, 2026-11-15.
+
+Command: `cargo bench -p mcrs_minecraft_vanilla_inventory --bench sync_menus`.
+
+| players | median tick | per player |
+|---|---|---|
+| 100 | 0.230 ms | 2.30 µs |
+| 1,000 | 1.93 ms | 1.93 µs |
+| 10,000 | 8.28 ms | 0.83 µs |
+
+The sync compares each slot of each open menu in place and builds a stack value only to send it.
+Before this change, the sync built a value of each slot to compare it: 2.8 µs per player, 2.8 ms at
+1,000 and 28 ms at 10,000. The budget is 3 µs per player and 3 ms at 1,000.
+
+The machine was not idle. The 1-minute load average was 38.6 at the start. Thus each time is an
+upper bound.
+
 ## Findings not yet acted on
 
 - UI layout and its siblings cost about 130 µs per frame with nothing visible.

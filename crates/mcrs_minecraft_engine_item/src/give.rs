@@ -12,6 +12,7 @@ use crate::Slots;
 use crate::merge_into::Offer;
 use crate::merge_into::merge_into;
 use crate::placement::Placement;
+use crate::slot_changed::touch;
 use crate::spawn_stack::spawn_stack;
 
 /// What happens to the items that find no room.
@@ -54,7 +55,7 @@ enum Origin {
 
 /// Merges `stack` into the stacks of `holder`, then moves the rest to the first free slot. A rest
 /// without a free slot keeps its placement, or is dropped. A stack that gives all its items
-/// despawns.
+/// despawns. Each changed slot gets [`SlotChanged`](crate::SlotChanged).
 pub(crate) fn put_in(
     world: &mut World,
     holder: Entity,
@@ -77,6 +78,7 @@ pub(crate) fn put_in(
     let mut entity = world.get_entity_mut(stack).ok()?;
     if entity.get::<Count>() != Some(&rest) {
         entity.insert(rest);
+        touch(&mut entity);
     }
     let in_holder = entity
         .get::<InSlot>()

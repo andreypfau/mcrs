@@ -7,11 +7,12 @@ use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::bus::PacketTarget;
 use mcrs_minecraft_engine::persisted_registry::PersistedSnapshot;
+use mcrs_minecraft_engine_item::ItemCommandsExt;
 use mcrs_minecraft_engine_item::Selected;
+use mcrs_minecraft_engine_item::StackCommandsExt;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::session::PlayerSession;
-use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_inventory_client_view::SlotView;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
@@ -20,14 +21,12 @@ use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::item::ItemStackWithSlot;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundSetCarriedItem;
 use mcrs_minecraft_vanilla_inventory::InventoryMenuSync;
-use mcrs_minecraft_vanilla_item_entity::PickedUp;
 use mcrs_minecraft_wire::Encode;
 
 use crate::fixture::DIRT;
 use crate::fixture::STONE;
 use crate::fixture::app;
 use crate::fixture::apply;
-use crate::fixture::put;
 use crate::fixture::restore;
 use crate::fixture::saved;
 
@@ -182,28 +181,76 @@ fn inv_syn_005_a_restored_player_gets_its_full_state_and_a_client_view() {
     );
 }
 
-/// INV-SYN-004: a pickup into the inventory reaches the client of the collector.
+/// INV-SYN-003, INV-SYN-004: a placement and a consume by a command, with no click, request or
+/// give, reach the client in the sync of the tick that applies them.
 #[test]
-fn inv_syn_004_a_pickup_sends_the_slot_it_filled() {
+fn inv_syn_004_a_command_write_of_a_slot_reaches_the_client_in_the_same_tick() {
     let mut app = app();
     let world = app.world_mut();
     let player = world.spawn((Player, Owner(SESSION))).id();
     apply(world, player, &PersistedSnapshot::new());
     world.run_schedule(FixedUpdate);
     sent(world);
-
-    put(world, player, 0, STONE, 3);
-    world.write_message(PickedUp {
-        item: EntityId(9),
-        collector: player,
-        count: 3,
-    });
-    world.run_schedule(FixedUpdate);
-
-    let packets = sent(world);
-    let [PacketPayload::ContainerSetSlot(set)] = packets.as_slice() else {
-        panic!("one container_set_slot packet, not {packets:?}");
+    let slot_packets = |world: &mut World| -> Vec<(i16, u16, i32)> {
+        world.run_schedule(FixedUpdate);
+        sent(world)
+            .iter()
+            .map(|packet| match packet {
+                PacketPayload::ContainerSetSlot(set) => {
+                    (set.slot, set.item.id.number(), set.item.count)
+                }
+                other => panic!("only container_set_slot packets, not {other:?}"),
+            })
+            .collect()
     };
-    assert_eq!(set.slot, 36, "P[0] at its menu index");
-    assert_eq!((set.item.id.number(), set.item.count), (1, 3));
+
+    let stack = world
+        .commands()
+        .spawn_stack(ItemStack::new(
+            DIRT,
+            Count::new(4).expect("a count above 0"),
+        ))
+        .put_at(player, 9)
+        .id();
+    world.flush();
+    assert_eq!(slot_packets(world), [(9, 2, 4)], "the placed stack in P[9]");
+
+    world.commands().entity(stack).consume(1);
+    world.flush();
+    assert_eq!(
+        slot_packets(world),
+        [(9, 2, 3)],
+        "the count after the consume"
+    );
+    assert_eq!(slot_packets(world), [], "nothing changed");
+}
+
+/// A stack without a wire form goes once as the empty stack, not again in each later tick.
+#[test]
+fn a_stack_without_a_wire_form_is_sent_once_per_change() {
+    let mut app = app();
+    let world = app.world_mut();
+    let player = world.spawn((Player, Owner(SESSION))).id();
+    apply(world, player, &PersistedSnapshot::new());
+    world.run_schedule(FixedUpdate);
+    sent(world);
+    let over_the_saved_count = Count::new(100).expect("a count above 0");
+    world
+        .commands()
+        .spawn_stack(ItemStack::new(STONE, over_the_saved_count))
+        .put_at(player, 9);
+    world.flush();
+
+    let mut slots = Vec::new();
+    for _ in 0..2 {
+        world.run_schedule(FixedUpdate);
+        for packet in sent(world) {
+            let PacketPayload::ContainerSetSlot(set) = packet else {
+                panic!("only container_set_slot packets, not {packet:?}");
+            };
+            slots.push((set.slot, set.item.is_empty()));
+        }
+    }
+
+    assert_eq!(slots, [(9, true)], "one empty stack in P[9] in two ticks");
 }
