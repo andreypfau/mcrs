@@ -67,7 +67,7 @@ scripts/hooks/run-checks commit
 | `lint` | `parity`, `fmt`, `keys` |
 | `clippy` | `clippy` |
 | `test` | Тесты измененных крейтов и тех, что от них зависят. |
-| `portability` | `no-bevy`, `layers`, `wasm32`, `no-std` |
+| `portability` | `no-bevy`, `layers`, `example-dependencies`, `wasm32`, `no-std` |
 
 `fmt` и `clippy` запускают одноименные команды Cargo. Остальные проверки написаны для mcrs, а списки пакетов, по которым они идут, лежат в `xtask/src/checks.rs`.
 
@@ -78,6 +78,7 @@ scripts/hooks/run-checks commit
 | `no-bevy` | 100 пакетов должны собираться без Bevy. |
 | `no-std` | 9 пакетов должны собираться под таргет без std. |
 | `wasm32` | 11 пакетов должны собираться под wasm32. |
+| `example-dependencies` | Пакеты в `examples/` соблюдают ограничения обычных зависимостей из `examples/dependencies.json`. При ошибке выводится цепочка зависимостей. |
 | `layers` | Крейты уровней wire и network не должны линковать игровые данные, чтобы прокси или бот могли взять только их. |
 
 ## Перезапишите устаревший blessed-файл через MCRS_BLESS

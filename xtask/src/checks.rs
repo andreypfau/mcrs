@@ -340,6 +340,7 @@ pub fn run(ctx: &Context, check: Check) -> Outcome {
         Check::Test => test(ctx),
         Check::NoBevy => no_bevy(ctx),
         Check::Layers => layers(ctx),
+        Check::ExampleDependencies => crate::example_dependencies::check(&ctx.root),
         Check::NoStd => build_for(
             ctx,
             "wasm32v1-none",
