@@ -317,9 +317,14 @@ particular arrangement of text nodes when the same visible content and hover dat
 
 ## 5. Intentional Deviations
 
-- **`D6` (Creative overflow, shared with [item-entity.md](item-entity.md))**: For a creative target with no room, vanilla destroys the items and shows a display item.
-  Under `D6`, `mcrs` uses the uniform survival overflow rule so uninserted parts drop on the ground.
-  See `Q6` in [item-entity.md](item-entity.md) for the interaction between `D6` and `IEN-PCK-006`.
+**`D6` (Creative overflow, shared with [item-entity.md](item-entity.md))**
+
+- **Rule**: `CMD-GIVE-008`; the shared item-entity rule is `IEN-SPN-004`.
+- **Reference**: For a creative target with no room, vanilla destroys the items and shows a display item.
+- **Visible to the client**: Yes. In vanilla the player gets nothing and no message; under `D6`, uninserted items drop on the ground.
+- **Test**: A differential test skips `give` to a creative player with a full inventory, as specified for `IEN-SPN-004` in [item-entity.md](item-entity.md).
+
+Under `D6`, `mcrs` uses the uniform survival overflow rule. See `Q6` in [item-entity.md](item-entity.md) for the interaction between `D6` and `IEN-PCK-006`.
 
 ---
 
