@@ -37,17 +37,14 @@ pub(crate) const FORWARDED_ID: Uuid = uuid!("00112233-4455-6677-8899-aabbccddeef
 pub(crate) const FORWARDED_ADDRESS: &str = "203.0.113.7";
 
 /// The signature and the signed data of the version 4 vector of the forwarding specification.
-const PAYLOAD_HEX: &str = "0be13f34759c06934e5a85851568731bf3aa5267c3f7511e0b33d16ea4b81459\
-    040b3230332e302e3131332e370011223344556677 8899aabbccddeeff0553746576650108746578747572657304\
-    6533303d00";
-
-pub(crate) fn forwarded_payload() -> Vec<u8> {
-    let digits: Vec<u8> = PAYLOAD_HEX.bytes().filter(u8::is_ascii_hexdigit).collect();
-    digits
-        .chunks(2)
-        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
-        .collect()
-}
+pub(crate) const FORWARDED_PAYLOAD: [u8; 83] = [
+    0x0b, 0xe1, 0x3f, 0x34, 0x75, 0x9c, 0x06, 0x93, 0x4e, 0x5a, 0x85, 0x85, 0x15, 0x68, 0x73, 0x1b,
+    0xf3, 0xaa, 0x52, 0x67, 0xc3, 0xf7, 0x51, 0x1e, 0x0b, 0x33, 0xd1, 0x6e, 0xa4, 0xb8, 0x14, 0x59,
+    0x04, 0x0b, 0x32, 0x30, 0x33, 0x2e, 0x30, 0x2e, 0x31, 0x31, 0x33, 0x2e, 0x37, 0x00, 0x11, 0x22,
+    0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x05, 0x53, 0x74,
+    0x65, 0x76, 0x65, 0x01, 0x08, 0x74, 0x65, 0x78, 0x74, 0x75, 0x72, 0x65, 0x73, 0x04, 0x65, 0x33,
+    0x30, 0x3d, 0x00,
+];
 
 pub(crate) fn forwarded_properties() -> Vec<Property> {
     vec![Property {
@@ -153,10 +150,9 @@ async fn fakeproxy(
     let query = CustomQuery::decode(&mut &body[..]).unwrap();
     assert_eq!(query.channel, FORWARDING_CHANNEL);
     assert_eq!(query.data.0.0, [4]);
-    let payload = forwarded_payload();
     io.send_packet(&ServerboundCustomQueryAnswer {
         message_id: query.message_id,
-        payload: Some(Bounded(RawBytes(&payload))),
+        payload: Some(Bounded(RawBytes(&FORWARDED_PAYLOAD))),
     })
     .await
     .unwrap();

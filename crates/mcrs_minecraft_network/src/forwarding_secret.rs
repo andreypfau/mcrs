@@ -1,5 +1,6 @@
 use std::net::IpAddr;
 
+use hmac::{Hmac, KeyInit, Mac};
 use mcrs_minecraft_protocol::packets::login::clientbound::CustomQuery;
 use mcrs_minecraft_protocol::packets::login::serverbound::ServerboundCustomQueryAnswer;
 use mcrs_minecraft_protocol::profile::Property;
@@ -7,11 +8,11 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, Decode, RawBytes, VarInt};
 use mcrs_minecraft_resource::{ResourceLocation, rl};
 use mcrs_minecraft_text::Text;
-use sha2::{Digest, Sha256};
+use sha2::Sha256;
 
 pub const FORWARDING_CHANNEL: ResourceLocation<'static> = rl!("velocity:player_info");
-pub const REQUESTED_FORWARDING_VERSION: u8 = 4;
-pub const FORWARDING_QUERY_ID: i32 = 0;
+const REQUESTED_FORWARDING_VERSION: u8 = 4;
+const FORWARDING_QUERY_ID: i32 = 0;
 
 const SIGNATURE_LEN: usize = 32;
 const MAX_FORWARDED_PROPERTIES: i32 = 16;
@@ -102,9 +103,11 @@ impl ForwardingSecret {
         let (signature, mut signed) = payload
             .split_first_chunk::<SIGNATURE_LEN>()
             .ok_or(ForwardingRefusal::Unverified)?;
-        if !same_bytes(signature, &hmac_sha256(&self.0, signed)) {
-            return Err(ForwardingRefusal::Unverified);
-        }
+        let mut mac =
+            Hmac::<Sha256>::new_from_slice(&self.0).map_err(|_| ForwardingRefusal::Unverified)?;
+        mac.update(signed);
+        mac.verify_slice(signature)
+            .map_err(|_| ForwardingRefusal::Unverified)?;
         let version = VarInt::decode(&mut signed).map_err(|_| ForwardingRefusal::Malformed)?;
         if !matches!(version.0, 1 | 4) {
             return Err(ForwardingRefusal::UnsupportedVersion);
@@ -144,40 +147,12 @@ fn read_player(r: &mut &[u8]) -> Option<ForwardedPlayer> {
     })
 }
 
-// RFC 2104 over SHA-256, whose block is 64 bytes.
-fn hmac_sha256(key: &[u8], data: &[u8]) -> [u8; 32] {
-    let mut block = [0u8; 64];
-    if key.len() > block.len() {
-        block
-            .iter_mut()
-            .zip(Sha256::digest(key))
-            .for_each(|(b, k)| *b = k);
-    } else {
-        block.iter_mut().zip(key).for_each(|(b, k)| *b = *k);
-    }
-    let pad = |byte: u8| block.map(|k| k ^ byte);
-    let inner = Sha256::new()
-        .chain_update(pad(0x36))
-        .chain_update(data)
-        .finalize();
-    Sha256::new()
-        .chain_update(pad(0x5c))
-        .chain_update(inner)
-        .finalize()
-        .into()
-}
-
-// Reads every byte, so the time does not tell where the first difference is.
-fn same_bytes(a: &[u8; 32], b: &[u8; 32]) -> bool {
-    let difference = a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y));
-    std::hint::black_box(difference) == 0
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use mcrs_minecraft_protocol::Encode;
 
+    const KEY: &str = "example-secret";
     const SIGNED_V4: &str = "040b3230332e302e3131332e37001122334455667788\
         99aabbccddeeff0553746576650108746578747572657304653330 3d00";
     const SIGNATURE_V4: &str = "0be13f34759c06934e5a85851568731bf3aa5267c3f7511e0b33d16ea4b81459";
@@ -191,12 +166,14 @@ mod tests {
             .collect()
     }
 
-    fn secret() -> ForwardingSecret {
-        ForwardingSecret::new("example-secret").unwrap()
+    fn signature(key: &str, data: &[u8]) -> Vec<u8> {
+        let mut mac = Hmac::<Sha256>::new_from_slice(key.as_bytes()).unwrap();
+        mac.update(data);
+        mac.finalize().into_bytes().to_vec()
     }
 
     fn signed(key: &str, data: &[u8]) -> Vec<u8> {
-        let mut payload = hmac_sha256(key.as_bytes(), data).to_vec();
+        let mut payload = signature(key, data);
         payload.extend_from_slice(data);
         payload
     }
@@ -205,10 +182,12 @@ mod tests {
         message_id: i32,
         payload: Option<&[u8]>,
     ) -> Result<ForwardedPlayer, ForwardingRefusal> {
-        secret().check(&ServerboundCustomQueryAnswer {
-            message_id: VarInt(message_id),
-            payload: payload.map(|bytes| Bounded(RawBytes(bytes))),
-        })
+        ForwardingSecret::new(KEY)
+            .unwrap()
+            .check(&ServerboundCustomQueryAnswer {
+                message_id: VarInt(message_id),
+                payload: payload.map(|bytes| Bounded(RawBytes(bytes))),
+            })
     }
 
     fn with_version(version: u8) -> Vec<u8> {
@@ -217,18 +196,34 @@ mod tests {
         data
     }
 
+    fn string(text: &str, out: &mut Vec<u8>) {
+        Bounded::<&str, 1_000_000>(text).encode(out).unwrap();
+    }
+
+    /// The signed data of version 4 for `name`, with `count` properties of these field lengths.
+    fn player(name: &str, count: usize, field: [usize; 3]) -> Vec<u8> {
+        let mut data = vec![4];
+        string("203.0.113.7", &mut data);
+        Uuid::nil().encode(&mut data).unwrap();
+        string(name, &mut data);
+        VarInt(i32::try_from(count).unwrap())
+            .encode(&mut data)
+            .unwrap();
+        for _ in 0..count {
+            string(&"n".repeat(field[0]), &mut data);
+            string(&"v".repeat(field[1]), &mut data);
+            true.encode(&mut data).unwrap();
+            string(&"s".repeat(field[2]), &mut data);
+        }
+        data
+    }
+
     #[test]
     fn the_signatures_of_the_test_vectors() {
         let v4 = hex(SIGNED_V4);
         assert_eq!(v4.len(), 51);
-        assert_eq!(
-            hmac_sha256(b"example-secret", &v4).to_vec(),
-            hex(SIGNATURE_V4)
-        );
-        assert_eq!(
-            hmac_sha256(b"example-secret", &with_version(1)).to_vec(),
-            hex(SIGNATURE_V1)
-        );
+        assert_eq!(signature(KEY, &v4), hex(SIGNATURE_V4));
+        assert_eq!(signature(KEY, &with_version(1)), hex(SIGNATURE_V1));
     }
 
     #[test]
@@ -258,8 +253,26 @@ mod tests {
     }
 
     #[test]
-    fn each_failed_check_gives_its_refusal() {
-        let mut flipped = signed("example-secret", &hex(SIGNED_V4));
+    fn a_profile_at_every_limit_is_forwarded() {
+        let name = "a".repeat(16);
+        let payload = signed(KEY, &player(&name, 16, [64, 32767, 1024]));
+        let player = check(FORWARDING_QUERY_ID, Some(&payload)).unwrap();
+        assert_eq!(player.name, name);
+        assert_eq!(player.properties.len(), 16);
+        let property = &player.properties[15];
+        assert_eq!(
+            (
+                property.name.len(),
+                property.value.len(),
+                property.signature.as_deref().map(str::len)
+            ),
+            (64, 32767, Some(1024))
+        );
+    }
+
+    #[test]
+    fn each_failed_check_gives_its_refusal_and_text() {
+        let mut flipped = signed(KEY, &hex(SIGNED_V4));
         if let Some(byte) = flipped.last_mut() {
             *byte ^= 1;
         }
@@ -267,64 +280,57 @@ mod tests {
         trailing.push(0);
         let mut bad_address = Vec::new();
         VarInt(4).encode(&mut bad_address).unwrap();
-        "example.com".encode(&mut bad_address).unwrap();
+        string("example.com", &mut bad_address);
         bad_address.extend_from_slice(&hex(SIGNED_V4)[13..]);
-        let mut too_many_properties = hex(SIGNED_V4)[..35].to_vec();
-        too_many_properties.push(17);
-        let cases: [(i32, Option<Vec<u8>>, ForwardingRefusal); 10] = [
+        let unexpected = Text::translate(
+            "multiplayer.disconnect.unexpected_query_response",
+            Vec::new(),
+        );
+        let velocity = Text::text("This server requires you to connect with Velocity.");
+        let unverified = Text::text("Unable to verify player details");
+        let unsupported = Text::text("Unsupported forwarding version");
+        let malformed = Text::text("Malformed player details");
+        let id = FORWARDING_QUERY_ID;
+        let signed_data = |data: &[u8]| Some(signed(KEY, data));
+        let cases = [
+            (1, signed_data(&hex(SIGNED_V4)), unexpected),
+            (id, None, velocity),
+            (id, Some(vec![0; 31]), unverified.clone()),
+            (id, Some(flipped), unverified.clone()),
             (
-                1,
-                Some(signed("example-secret", &hex(SIGNED_V4))),
-                ForwardingRefusal::UnexpectedAnswer,
-            ),
-            (FORWARDING_QUERY_ID, None, ForwardingRefusal::NoPayload),
-            (
-                FORWARDING_QUERY_ID,
-                Some(vec![0; 31]),
-                ForwardingRefusal::Unverified,
-            ),
-            (
-                FORWARDING_QUERY_ID,
-                Some(flipped),
-                ForwardingRefusal::Unverified,
-            ),
-            (
-                FORWARDING_QUERY_ID,
+                id,
                 Some(signed("example-secret\n", &hex(SIGNED_V4))),
-                ForwardingRefusal::Unverified,
+                unverified,
+            ),
+            (id, signed_data(&with_version(5)), unsupported.clone()),
+            (id, signed_data(&with_version(3)), unsupported),
+            (id, signed_data(&trailing), malformed.clone()),
+            (id, signed_data(&bad_address), malformed.clone()),
+            (
+                id,
+                signed_data(&player(&"a".repeat(17), 0, [0; 3])),
+                malformed.clone(),
             ),
             (
-                FORWARDING_QUERY_ID,
-                Some(signed("example-secret", &with_version(5))),
-                ForwardingRefusal::UnsupportedVersion,
+                id,
+                signed_data(&player("a", 17, [1, 1, 1])),
+                malformed.clone(),
             ),
             (
-                FORWARDING_QUERY_ID,
-                Some(signed("example-secret", &with_version(3))),
-                ForwardingRefusal::UnsupportedVersion,
+                id,
+                signed_data(&player("a", 1, [65, 1, 1])),
+                malformed.clone(),
             ),
             (
-                FORWARDING_QUERY_ID,
-                Some(signed("example-secret", &trailing)),
-                ForwardingRefusal::Malformed,
+                id,
+                signed_data(&player("a", 1, [1, 32768, 1])),
+                malformed.clone(),
             ),
-            (
-                FORWARDING_QUERY_ID,
-                Some(signed("example-secret", &bad_address)),
-                ForwardingRefusal::Malformed,
-            ),
-            (
-                FORWARDING_QUERY_ID,
-                Some(signed("example-secret", &too_many_properties)),
-                ForwardingRefusal::Malformed,
-            ),
+            (id, signed_data(&player("a", 1, [1, 1, 1025])), malformed),
         ];
-        for (message_id, payload, refusal) in cases {
-            assert_eq!(
-                check(message_id, payload.as_deref()),
-                Err(refusal),
-                "{refusal:?}"
-            );
+        for (case, (message_id, payload, text)) in cases.into_iter().enumerate() {
+            let refusal = check(message_id, payload.as_deref()).unwrap_err();
+            assert_eq!(refusal.reason(), text, "case {case}: {refusal:?}");
         }
     }
 

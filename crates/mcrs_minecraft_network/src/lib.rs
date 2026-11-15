@@ -36,8 +36,8 @@ pub use std::time::Instant;
 pub use web_time::Instant;
 
 pub use crate::forwarding_secret::{
-    EmptyForwardingSecret, FORWARDING_CHANNEL, FORWARDING_QUERY_ID, ForwardedPlayer,
-    ForwardingRefusal, ForwardingSecret, REQUESTED_FORWARDING_VERSION, forwarding_query,
+    EmptyForwardingSecret, FORWARDING_CHANNEL, ForwardedPlayer, ForwardingRefusal,
+    ForwardingSecret, forwarding_query,
 };
 #[cfg(not(target_family = "wasm"))]
 pub use crate::outbound::OutboundReceiver;

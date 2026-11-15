@@ -122,7 +122,7 @@ pub(crate) async fn start_accept_loop(shared: SharedNetworkState, listener: TcpL
         };
         match listener.accept().await {
             Ok((socket, remote_addr)) => {
-                if !gate.admit(remote_addr.ip()) {
+                if shared.0.per_ip_accept_limit && !gate.admit(remote_addr.ip()) {
                     continue;
                 }
                 let shared = shared.clone();

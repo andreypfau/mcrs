@@ -1158,7 +1158,7 @@ fn fwd_use_001_002_a_forwarded_login_takes_the_profile_and_the_address_of_the_pr
     let (mut client, message_id) = forwarded_hello(&mut app);
     assert!(app.world().get::<GameProfile>(client.connection).is_none());
 
-    let payload = crate::proxy_forwarding::forwarded_payload();
+    let payload = crate::proxy_forwarding::FORWARDED_PAYLOAD.to_vec();
     send_answer(&mut app, &client, message_id, Some(&payload));
 
     let profile = app
@@ -1196,7 +1196,7 @@ fn fwd_use_001_002_a_forwarded_login_takes_the_profile_and_the_address_of_the_pr
 
 #[test]
 fn fwd_chk_001_a_refused_forwarding_answer_ends_the_login_with_its_reason() {
-    let payload = crate::proxy_forwarding::forwarded_payload();
+    let payload = crate::proxy_forwarding::FORWARDED_PAYLOAD.to_vec();
     let mut flipped = payload.clone();
     *flipped.last_mut().unwrap() ^= 1;
     let unexpected = serde_json::json!({

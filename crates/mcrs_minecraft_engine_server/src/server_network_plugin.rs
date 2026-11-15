@@ -112,6 +112,7 @@ impl Plugin for ServerNetworkPlugin {
             send_buffer_bytes: self.send_buffer_bytes,
             accept_backlog: self.accept_backlog,
             rate_limit: self.rate_limit,
+            per_ip_accept_limit: self.forwarding.is_none(),
         });
         app.insert_resource(self.compression_threshold);
         app.add_plugins(LoginPlugin);

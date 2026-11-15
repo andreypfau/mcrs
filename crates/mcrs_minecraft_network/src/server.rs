@@ -55,6 +55,8 @@ pub struct NetworkPlugin {
     pub accept_backlog: u32,
     /// The largest average of packets per second of one connection; 0 turns the limit off.
     pub rate_limit: InboundRateLimit,
+    /// Turned off behind a proxy, where every player arrives from the proxy's address.
+    pub per_ip_accept_limit: bool,
 }
 
 const SERVER_ICON: &[u8] = include_bytes!(concat!(
@@ -83,6 +85,7 @@ impl Default for NetworkPlugin {
             send_buffer_bytes: 512 * 1024,
             accept_backlog: 1024,
             rate_limit: InboundRateLimit::default(),
+            per_ip_accept_limit: true,
         }
     }
 }
@@ -192,6 +195,7 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
         hide_online_players: plugin.hide_online_players,
         enable_status: plugin.enable_status,
         send_buffer_bytes: plugin.send_buffer_bytes,
+        per_ip_accept_limit: plugin.per_ip_accept_limit,
     }));
     status_send.send_replace(status_frame(&StatusPlayers::default(), &shared_state.0)?);
 
@@ -325,6 +329,7 @@ pub(crate) struct SharedNetworkStateInner {
     pub(crate) hide_online_players: bool,
     pub(crate) enable_status: bool,
     pub(crate) send_buffer_bytes: usize,
+    pub(crate) per_ip_accept_limit: bool,
 }
 
 /// The writers of the server wake on its runtime; without the network plugin, on the thread of
