@@ -32,7 +32,8 @@ Section 10 lists what this document does not state. This document replaces secti
 
 - **Stack**, **empty stack**, **count**, **component patch**, **value entry**, **removal entry**,
   **effective component**, **maximum stack size**: as `item-stack.md`, section 0.1, defines them.
-- **Tag**, **compound**, **key**, **list**: as `snbt.md`, section 0.1, defines them.
+- **Tag**, **tag type**, **numeric tag**, **compound**, **key**, **list**, **array**: as `snbt.md`,
+  section 0.1, defines them. An array is not a list.
 - **Modifier**: an item modifier (REG-FLD-741). Its **type** is the value of its field `type`.
 - **Chain**: an ordered sequence of modifiers that the server applies to one work stack.
 - **Work stack**: the value that a chain changes. It has an item, a count and a component patch.
@@ -648,8 +649,20 @@ name       = 1*unquoted-char / quoted-string
 
 - A `pattern` is the SNBT text of one compound (SNBT-GR-001).
 - An `unquoted-char` is each character except the space, `"`, `'`, `[`, `]`, `.`, `{` and `}`.
-- A `quoted-string` starts with `"` or `'` and has a quoted string body (CMD-RD-007).
-- An `integer` is a decimal int with an optional `-`.
+- A `quoted-string` starts with `"` or `'` and has a quoted string body (CMD-RD-007). The body must
+  have one or more characters. The names `""` and `''` fail.
+- An `integer` is the longest run of the characters `0` to `9`, `-` and `.` after the `[`. The run
+  must be an optional `-` and one or more digits. Its value must be in the range of i32.
+
+The `integer` has these edge cases:
+
+| Text | Result |
+|------|--------|
+| `[007]` | the index 7. Leading zeros are allowed. |
+| `[-0]` | the index 0, the first element. It does not count from the end. |
+| `[+1]` | fails. `+` is not in the run, so the run is empty. |
+| `[1.0]`, `[1-]`, `[--1]` | fails. The run is not an optional `-` and digits. |
+| `[2147483648]` | fails. The value is outside i32. |
 
 A string that this grammar does not accept fails the decode of its entry, as REG-ERR-001 states for
 an entry that fails to decode. A path that is empty, that ends with `.`, or that has a space after a
@@ -672,6 +685,10 @@ selection is empty.
 
 An index below 0 counts from the end: `-1` is the last element.
 
+An element of an array is a numeric tag of the element type of the array: byte, int or long. An
+array gives nothing to `[{p}]`. No node can write into an element that it selects from an array.
+Only a last node of LOOT-MOD-051 changes an array.
+
 **LOOT-MOD-049** (`source_suggested`, semantic, confidence medium). Two operations compare and join
 tags.
 
@@ -680,8 +697,27 @@ A tag `t` **matches** a pattern tag `p` when one of these is true:
 - Both are compounds, and for each key of `p`, `t` has the key with a value that matches the value
   in `p`.
 - Both are lists, `p` is empty and `t` is empty.
-- Both are lists, `p` is not empty, and each element of `p` matches some element of `t`.
-- They have the same tag type, are not compounds or lists, and are equal.
+- Both are lists, `p` is not empty, `t` has at least as many elements as `p`, and each element of
+  `p` matches at least one element of `t`.
+- They have the same tag type, are not compounds or lists, and are equal. Two arrays are equal when
+  they have the same length and the same elements in the same order.
+
+Two numeric tags of different tag types do not match: `1b` does not match `1`, and `1.0f` does not
+match `1.0d`. Two floats, or two doubles, are equal when they have the same value, with two
+exceptions. Each NaN is equal to each NaN, and the bits of a NaN do not matter. `0.0` is not equal
+to `-0.0`. An SNBT pattern cannot hold NaN or `-0.0` (SNBT-VAL-004), but a target tag can.
+
+This is the match of ARG-BLK-011 (`argument-block.md`). In a list match, the order of the elements
+does not matter. One element of `t` can match two or more elements of `p`. These examples show the
+list match:
+
+| `p` | `t` | Result |
+|-----|-----|--------|
+| `[1,1]` | `[1]` | no match: `t` has fewer elements than `p` |
+| `[1,1]` | `[1,2]` | match: the element `1` of `t` matches the two elements of `p` |
+| `[1]` | `[2,1,1]` | match |
+| `[]` | `[1]` | no match |
+| `[1]` | `[I;1]` | no match: an array is not a list |
 
 The **compound merge** of a compound `s` into a compound `t` does this for each key of `s`. When
 both values are compounds, it merges the value of `s` into the value of `t`. Otherwise the key of
@@ -689,8 +725,15 @@ both values are compounds, it merges the value of `s` into the value of `t`. Oth
 
 **LOOT-MOD-050** (`source_suggested`, semantic, confidence medium). The operation "get or create"
 of a path goes through the nodes as the selection does. A node that finds nothing in a tag `t` can
-create a tag. The **new tag** for the last node is the tag that the caller gives. For other nodes,
-it is an empty list when the next node is an index node, and an empty compound otherwise.
+create a tag. The **new tag** for the last node is the tag that the caller gives. For another node,
+the new tag depends on the next node:
+
+| Next node | New tag |
+|-----------|---------|
+| `name`, `name{p}` | an empty compound |
+| `[]`, `[i]`, `[{p}]` | an empty list |
+
+Each creation makes a separate new tag.
 
 | Node | When it creates |
 |------|-----------------|
@@ -701,10 +744,34 @@ it is an empty list when the next node is an index node, and an empty compound o
 | `[i]` | never |
 | `[{p}]` | `t` is a list with no element that matches `p`: it appends a copy of `p` |
 
-When a node gives no tag, the operation fails.
+Get or create never creates an element of an array. In an array, `[]` and `[i]` give the elements
+that the selection gives (LOOT-MOD-048), and an empty array gives nothing. Each new tag is a list or
+a compound, and an element of an array is a numeric tag. `append` and `merge` of LOOT-MOD-045 thus
+never change an array.
+
+In this rule and in LOOT-MOD-051, the **last node** is the last node of the whole path. A node that
+gives no tag has one of these results:
+
+- A node before the last node gives no tag: the operation fails. LOOT-MOD-046 applies to the tags
+  that the operation created. This result is the same for "get or create", for "set", and for
+  `append` and `merge` of LOOT-MOD-045.
+- The last node gives no tag in "get or create": the operation does not fail. It gives no tag, and
+  the tags that the nodes before it created stay.
+
+A list that a node creates for a next node `[i]` is empty, so `[i]` gives no tag in it. These
+examples start with the compound `{}`:
+
+| Path | Result |
+|------|--------|
+| `a[0]` | `a` gets an empty list. The last node `[0]` gives no tag. The operation does not fail, and the result is `{a:[]}`. |
+| `a[0].b` | `a` gets an empty list. The node `[0]` gives no tag before the last node, so the operation fails. |
+| `{z:1}.a` | `{}` does not match `{z:1}`, so the first node gives no tag. The operation fails and creates nothing. The result is `{}`. |
+
+The paths `a[0].b` and `{z:1}.a` fail in the same way under "set", `append` and `merge`.
 
 **LOOT-MOD-051** (`source_suggested`, semantic, confidence medium). The operation "set" of a path to
-a value does "get or create" for each node except the last one. The last node then writes the value
+a value does "get or create" for each node except the last node of the path. A node of these that
+gives no tag fails the operation, as LOOT-MOD-050 states. The last node then writes the value
 to each tag `t` that this gives. Each write after the first one uses a copy of the value.
 
 | Last node | Write |
@@ -712,12 +779,47 @@ to each tag `t` that this gives. Each write after the first one uses a copy of t
 | `{p}` as the first node | none |
 | `name` | `t` is a compound: the key gets the value |
 | `name{p}` | `t` is a compound whose value at the key matches `p`: the key gets the value |
-| `[]` | `t` is an empty list: it adds the value. Otherwise each element of the list becomes the value. |
-| `[i]` | `t` is a list and the index is in range: that element becomes the value |
-| `[{p}]` | `t` is an empty list: it adds the value. Otherwise each element that matches `p` becomes the value. |
+| `[]` | `t` is an empty list: it adds the value. `t` is a list that is not empty: each element of the list becomes the value. `t` is an array: see the table below. |
+| `[i]` | `t` is a list and the index is in range: that element becomes the value. `t` is an array: see the table below. |
+| `[{p}]` | `t` is an empty list: it adds the value. Otherwise each element that matches `p` becomes the value. An array gets no write. |
 
-The operation fails when no write occurs. It also fails when the value is nested too deep: the
-number of nodes plus the nesting depth of the value is 512 or more.
+A write into an array needs a numeric value. The array converts the value to its element type. A
+value that is not a numeric tag gives no write, and the array does not change. LOOT-MDV-004 records
+the reference.
+
+| Last node | Array `t` | Write |
+|-----------|-----------|-------|
+| `[]` | empty | it adds one element, the converted value |
+| `[]` | not empty | each element becomes the converted value. The length does not change. |
+| `[i]` | the index is in range | that element becomes the converted value |
+| `[i]` | the index is not in range | none |
+
+The conversion of a numeric value `v` to the element type is this:
+
+| Element type | `v` is a byte, a short, an int or a long | `v` is a float or a double |
+|--------------|-------------------------------------------|----------------------------|
+| byte | the low 8 bits of `v`, as a signed value | `floor(v)`, clamped to `-128..127` |
+| int | the low 32 bits of `v`, as a signed value | `floor(v)`, clamped to the range of i32 |
+| long | `v` | `floor(v)`, clamped to the range of i64 |
+
+A NaN gives 0. An infinity gives the bound of its sign.
+
+When the last node writes nothing, the operation does not fail. The tags that the nodes before it
+created stay, as LOOT-MOD-050 states. For example, "set" of `a[0]` in `{}` gives `{a:[]}`.
+
+The operation fails when the value is too deep. This test occurs before the first node, so a value
+that is too deep changes nothing. The **level** of a tag in the
+value is this:
+
+- The value itself has the level 0.
+- A value of a compound and an element of a list have the level of their container plus 1.
+- An element of an array has no level.
+
+The value is too deep when the number of nodes of the path plus the highest level in the value is
+512 or more. For example, a path of one node accepts a value with the highest level 510, and it
+rejects 511. The value `{a:[1]}` has the highest level 2. This count is not the depth of
+SNBT-LIM-001: the level starts at 0, and a tag of each type has a level. Only "set" has this test.
+`append` and `merge` of LOOT-MOD-045 do not test the level.
 
 ## 7. Nested modifiers and contents
 
@@ -886,6 +988,16 @@ each type (LOOT-MOD-009). A type that this table does not list takes no draw.
   error. No vanilla table has a negative `bonusMultiplier`.
 - **Test**: a differential test does not use a bound outside `1..2³¹ − 1`.
 
+**LOOT-MDV-004.**
+
+- **Rule**: LOOT-MOD-051.
+- **Reference**: when the last node is `[]`, `t` is an array that is not empty, and the value is
+  not a numeric tag, the reference removes each element of the array. The array becomes empty.
+- **Visible to the client**: no. The author of the data pack sees an empty array in the custom data.
+  No vanilla table writes into an array.
+- **Test**: a differential test does not set a value that is not a numeric tag through `[]` into an
+  array.
+
 ### 11.2 Open questions
 
 None.
@@ -946,3 +1058,11 @@ It records the result stack and the state of the generator after the chain.
 | E20 | `set_components` with a patch that the validation rejects, and `set_custom_data` that makes an empty compound. | LOOT-MOD-024, LOOT-MOD-025 |
 | E21 | Apply each modifier of this list to a stack with the count 2 and a custom name, and to an empty work stack: `copy_state` with a block state, `discard`, `set_item`, `set_name`, `set_banner_pattern`, `set_potion`, `set_ominous_bottle_amplifier` with `uniform` 0 to 9, `set_loot_table`, and each type of LOOT-MOD-040. Apply them as one list, as a `sequence` with a `condition` that passes and one that fails, and as a key of `minecraft:item_modifier`. | LOOT-MOD-005, LOOT-MOD-008, LOOT-MOD-010, LOOT-MOD-014, LOOT-MOD-015, LOOT-MOD-027, LOOT-MOD-031, LOOT-MOD-032, LOOT-MOD-038, LOOT-MOD-039, LOOT-MOD-040 |
 | E22 | Start `tools/vanilla-server` with a data pack of item modifiers. Run `item modify entity @s weapon.mainhand` with `set_name` and `set_lore`, each with `entity` `this` and a text with a `selector` `@s` and a `score` component. Record the name and the lore of the stack. | LOOT-MOD-027, LOOT-MOD-028 |
+| E23 | Decode `copy_custom_data` with each of these `target` paths: `a[007]`, `a[-0]`, `a[+1]`, `a[1.0]`, `a[--1]`, `a[2147483648]`, `""`, `''`, `"".b`. Record which entries decode. For each path that decodes, apply `replace` with the value `0` to the custom data `{a:[1,2,3,4,5,6,7,8]}`. Record the custom data. | LOOT-MOD-047 |
+| E24 | Put `{l:[{t:[1]},{t:[1,2]},{t:[2,1,1]},{t:[]},{t:[I;1]}]}` in a storage. Apply `copy_custom_data` with `append` to the target `out`, with each of these `source` paths: `l[{t:[1,1]}]`, `l[{t:[1]}]`, `l[{t:[]}]`, `l[{t:[1b]}]`. Record `out` for each path. Then run `execute store result storage t:s v double -1 run data get storage t:s zero`, where `zero` holds `0`. Run `execute if data storage t:s {v:0.0d}` and record the reply. | LOOT-MOD-049, ARG-BLK-011 |
+| E25 | Start with the custom data `{b:[B;1b,2b],e:[I;],g:[L;5L]}`. Apply `replace` with each of the values `300`, `-1.5d`, `1e10f`, `"x"` and `{}` to each of the targets `b[]`, `b[0]`, `b[5]`, `e[]`, `g[-1]`, `b[{}]`, `b.x`. Apply `append` and `merge` to `b[]` and to `e[]`. Record the custom data for each case. | LOOT-MOD-048, LOOT-MOD-050, LOOT-MOD-051 |
+| E26 | Apply `replace` to empty custom data with the targets `x.y`, `x[0]`, `x[]`, `x[{k:1}]`, `x{k:1}.y`, `x[].y`, `x[0].y` and `{z:1}.a`. Apply `append` and `merge` to `x[0]`, `x[0].y` and `{z:1}.a`. Then apply `replace` to the targets `a` and `a.b.c` with values whose highest levels are 509, 510 and 511. Record the custom data for each case. | LOOT-MOD-050, LOOT-MOD-051 |
+
+The `replace` cases of E23 to E26 can also run on `tools/vanilla-server` as the command
+`data modify storage <id> <target> set value <value>`, which uses the same paths. The server needs
+the owner to accept the EULA, so these cases did not run.
