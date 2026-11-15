@@ -10,11 +10,15 @@ use mcrs_minecraft_engine::block_simulation::{
 use mcrs_minecraft_engine::world_kinds::WorldKinds;
 use mcrs_minecraft_engine_world::block_drops::{BlockDrops, DroppingBlock};
 use mcrs_minecraft_item::ItemStack;
+use mcrs_minecraft_item_key::item_keys::Item;
+use mcrs_minecraft_item_stack::{Count, ItemStack as StackValue, Kind};
 use mcrs_minecraft_item_table::ItemTable;
+use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 use mcrs_minecraft_loot_condition::{LootContext, Tool};
-use mcrs_minecraft_loot_table::{BlockLoot, LootCause, LootSeed};
+use mcrs_minecraft_loot_table::{KeyedSeed, LootScratch, LootTables};
 use mcrs_minecraft_predicate::LocationView;
 use mcrs_minecraft_registries::CurrentRegistries;
+use mcrs_minecraft_resource::Id;
 use mcrs_minecraft_simulation::{BlockBehaviour, BlockFacts, Cx, SimulationVolume};
 use mcrs_voxel::{BlockPos, BlockStateId};
 
@@ -33,7 +37,8 @@ impl Plugin for VanillaBlocksPlugin {
 /// removes a block that lost its support (SUP-RUN-001).
 #[derive(Clone, Debug)]
 pub struct VanillaBlocks {
-    loot: BlockLoot,
+    loot: LootTables,
+    item_count: usize,
     support: BlockSupport,
     blocks: Blocks,
     air: BlockStateId,
@@ -72,40 +77,70 @@ impl BlockDrops for VanillaBlocks {
         block_at: impl Fn(BlockPos) -> Option<BlockStateId>,
         drops: &mut Vec<ItemStack>,
     ) {
-        let Some(table) = self.blocks.state(block.state).loot else {
+        let table = self
+            .blocks
+            .state(block.state)
+            .loot
+            .and_then(|loot| self.loot.block_table(loot));
+        let Some(table) = table else {
             return;
         };
-        let mut context = LootContext::new();
+        // chisle: a stack holds no enchantments, so each enchantment of the tool has the level 0.
+        let tool = block.tool.and_then(|stack| {
+            Some(StackValue::new(
+                Kind(stack.item.number()),
+                Count::new(stack.count)?,
+            ))
+        });
+        let Some(mut context) = LootContext::try_new(ContextKeySet::Block) else {
+            return;
+        };
         context.origin = Some(DVec3::new(
             f64::from(block.at.x) + 0.5,
             f64::from(block.at.y) + 0.5,
             f64::from(block.at.z) + 0.5,
         ));
         context.block_state = Some(block.state);
-        // chisle: a stack holds no enchantments, so each enchantment of the tool has the level 0.
-        context.tool = Some(Tool {
-            item: block.tool.map(|stack| stack.item),
-            enchantments: &[],
-        });
+        context.tool = Some(tool.as_ref().map_or(Tool::Empty, Tool::Stack));
         context.this_entity = block.breaker;
-        let seed = LootSeed {
+        let random = self.loot.keyed_stream(KeyedSeed {
             world: block.world_seed,
+            table,
+            origin: block.at,
             tick: block.tick,
             cause: match block.breaker {
-                Some(_) => LootCause::Break,
-                None => LootCause::Removal,
+                Some(_) => BREAK,
+                None => REMOVAL,
             },
-        };
+        });
+        // chisle: the buffers are made for each drop; a block source that owns its scratch
+        // lifts it.
         let mut stacks = Vec::new();
-        self.loot
-            .drops(table, &context, &BlockAt(block_at), seed, &mut stacks);
-        drops.extend(
-            stacks
-                .into_iter()
-                .map(|stack| ItemStack::new(stack.item, stack.count)),
-        );
+        let rolled = random.and_then(|mut random| {
+            self.loot.roll(
+                table,
+                &context,
+                &BlockAt(block_at),
+                &mut random,
+                &mut LootScratch::new(),
+                &mut stacks,
+            )
+        });
+        if let Err(error) = rolled {
+            tracing::warn!("a block table did not roll: {error}");
+            return;
+        }
+        drops.extend(stacks.into_iter().flatten().filter_map(|stack| {
+            let item = Id::<Item>::checked(stack.kind.0, self.item_count)?;
+            Some(ItemStack::new(item, stack.count.get()))
+        }));
     }
 }
+
+/// The cause of a survival break with a harvest, in the key of the drop stream.
+const BREAK: u64 = 1;
+/// The cause of a removal that drops, such as a block that lost its support.
+const REMOVAL: u64 = 2;
 
 /// The world of a drop as a location view: the block states that the drop can read.
 struct BlockAt<F>(F);
@@ -130,9 +165,11 @@ fn add_loot_rules(sub_app: &mut SubApp) {
         sub_app.add_plugins(BlockSimulationPlugin::new(InertBlocks));
         return;
     };
-    let (loot, issues) = BlockLoot::bake(blocks, registries, items);
+    let (loot, issues) = LootTables::bake(blocks, registries, items);
+    // chisle: a loot issue must refuse the load (LOOT-CTX-016); the bake at the registry load,
+    // with its refusal, lifts this.
     for issue in &issues {
-        tracing::warn!("{issue}");
+        tracing::error!("{issue}");
     }
     let (support, issues) = BlockSupport::bake(blocks, registries);
     for issue in &issues {
@@ -140,6 +177,7 @@ fn add_loot_rules(sub_app: &mut SubApp) {
     }
     let rules = VanillaBlocks {
         loot,
+        item_count: registries.entries::<Item>().map_or(0, |items| items.len()),
         support: support.clone(),
         air: blocks.default_state_of(Block::Air.id()),
         void_air: blocks.default_state_of(Block::VoidAir.id()),

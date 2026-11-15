@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_loot_table"
-description = "Loot tables as a data pack writes them, and the block tables baked and evaluated"
+description = "Loot tables as a data pack writes them, baked by id and evaluated"
 version.workspace = true
 edition.workspace = true
 
@@ -29,3 +29,4 @@ serde.workspace = true
 glam.workspace = true
 mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
+mcrs_test_alloc.workspace = true

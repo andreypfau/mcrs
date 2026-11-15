@@ -1,123 +1,57 @@
 use std::collections::BTreeMap;
-use std::sync::LazyLock;
 
-use glam::DVec3;
-use mcrs_minecraft_block::definition::BlockDefinitions;
-use mcrs_minecraft_engine_registries::{test_corpus, test_item_table};
-use mcrs_minecraft_game_registries::registry_load::{
-    load_registries, test_additions, test_packs, test_registries,
-};
-use mcrs_minecraft_item::enchantment::Enchantment;
-use mcrs_minecraft_item_key::item_keys::Item;
-use mcrs_minecraft_loot_condition::{ConditionProblem, LootContext, Tool};
-use mcrs_minecraft_loot_table::{BlockLoot, LootCause, LootIssue, LootProblem, LootSeed};
-use mcrs_minecraft_predicate::{LocationView, NoWorld};
-use mcrs_minecraft_resource::{Id, ResourceLocation};
+use mcrs_minecraft_engine_registries::test_item_table;
+use mcrs_minecraft_game_registries::registry_load::{load_registries, test_additions, test_packs};
+use mcrs_minecraft_item_stack::ItemStack;
+use mcrs_minecraft_loot_condition::ConditionProblem;
+use mcrs_minecraft_loot_table::{LootProblem, LootScratch, LootTables};
+use mcrs_minecraft_predicate::NoWorld;
 use mcrs_voxel::{BlockPos, BlockStateId};
 
-static LOOT: LazyLock<(BlockLoot, Vec<LootIssue>)> =
-    LazyLock::new(|| BlockLoot::bake(blocks(), test_registries(), &test_item_table()));
-
-const ORIGIN: DVec3 = DVec3::new(0.5, 64.5, 0.5);
-const EMPTY_HAND: Tool<'static> = Tool {
-    item: None,
-    enchantments: &[],
-};
-
-fn blocks() -> &'static BlockDefinitions {
-    &test_corpus().0.0
-}
-
-fn state(block: &str, values: &[(&str, &str)]) -> BlockStateId {
-    let entry = blocks().block(block).expect("a vanilla block");
-    values
-        .iter()
-        .fold(entry.default_state_id, |state, (name, value)| {
-            entry
-                .with_text(state, name, value)
-                .expect("a property value")
-        })
-}
-
-fn item(name: &str) -> Id<Item> {
-    test_registries()
-        .entries::<Item>()
-        .and_then(|items| items.by_name(ResourceLocation::read(name).ok()?))
-        .expect("a vanilla item")
-}
-
-fn enchantment(name: &str) -> Id<Enchantment> {
-    test_registries()
-        .entries::<Enchantment>()
-        .and_then(|enchantments| enchantments.by_name(ResourceLocation::read(name).ok()?))
-        .expect("a vanilla enchantment")
-}
-
-fn context(state: BlockStateId) -> LootContext<'static, ()> {
-    let mut context = LootContext::new();
-    context.origin = Some(ORIGIN);
-    context.block_state = Some(state);
-    context.tool = Some(EMPTY_HAND);
-    context.this_entity = Some(());
-    context
-}
-
-/// The blocks around the origin of a break.
-struct Around<'a>(&'a [(BlockPos, BlockStateId)]);
-
-impl LocationView for Around<'_> {
-    fn block_state(&self, pos: BlockPos) -> Option<BlockStateId> {
-        self.0
-            .iter()
-            .find(|(at, _)| *at == pos)
-            .map(|&(_, state)| state)
-    }
-}
+use crate::fixture::{Around, LOOT, block_table, blocks, context, names, state, stream, tool};
 
 /// A break of `state` at the origin, with the world `around` it.
 struct Break<'a> {
     state: BlockStateId,
-    tool: Tool<'a>,
+    tool: Option<ItemStack>,
     this_entity: bool,
     explosion_radius: Option<f32>,
     around: &'a [(BlockPos, BlockStateId)],
 }
 
-impl<'a> Break<'a> {
+impl Break<'_> {
     fn of(state: BlockStateId) -> Self {
         Self {
             state,
-            tool: EMPTY_HAND,
+            tool: None,
             this_entity: true,
             explosion_radius: None,
             around: &[],
         }
     }
 
-    /// The drop list of the evaluation at `tick`, as item names and counts.
+    /// The stacks of the drop list of the evaluation at `tick` that are not empty, as item names
+    /// and counts (LOOT-OUT-002).
     fn drops(&self, tick: u64) -> Vec<(String, u8)> {
-        let Some(table) = blocks().state(self.state).loot else {
+        let Some(loot_id) = blocks().state(self.state).loot else {
             return Vec::new();
         };
-        let mut cx = context(self.state);
-        cx.tool = Some(self.tool);
+        let table = LOOT.0.block_table(loot_id).expect("a loaded table");
+        let mut cx = context(self.state, self.tool.as_ref());
         cx.this_entity = self.this_entity.then_some(());
         cx.explosion_radius = self.explosion_radius;
-        let seed = LootSeed {
-            world: 7,
-            tick,
-            cause: LootCause::Break,
-        };
-        let mut out = Vec::new();
+        let mut stacks = Vec::new();
         LOOT.0
-            .drops(table, &cx, &Around(self.around), seed, &mut out);
-        let items = test_registries().entries::<Item>().expect("items");
-        out.iter()
-            .map(|stack| {
-                let name = items.name(stack.item).expect("a named item");
-                (name.as_str().to_owned(), stack.count)
-            })
-            .collect()
+            .roll(
+                table,
+                &cx,
+                &Around(self.around),
+                &mut stream(&LOOT.0, table, tick),
+                &mut LootScratch::new(),
+                &mut stacks,
+            )
+            .expect("a block context");
+        names(stacks.into_iter().filter(Option::is_some))
     }
 
     /// How many of `n` evaluations gave each drop list.
@@ -167,14 +101,10 @@ fn loot_src_003_a_table_without_pools_drops_nothing() {
 fn loot_evl_005_stone_drops_stone_to_silk_touch_and_cobblestone_otherwise() {
     let stone = state("minecraft:stone", &[]);
     assert_eq!(Break::of(stone).drops(0), one("minecraft:cobblestone", 1));
-    let silk_touch = [(enchantment("minecraft:silk_touch"), 1)];
-    let tool = Tool {
-        item: Some(item("minecraft:wooden_pickaxe")),
-        enchantments: &silk_touch,
-    };
+    let tool = tool("minecraft:wooden_pickaxe", &[("minecraft:silk_touch", 1)]);
     assert_eq!(
         Break {
-            tool,
+            tool: Some(tool),
             ..Break::of(stone)
         }
         .drops(0),
@@ -186,13 +116,9 @@ fn loot_evl_005_stone_drops_stone_to_silk_touch_and_cobblestone_otherwise() {
 /// of 2 to 4 with the chance 1/5. Result L1.
 #[test]
 fn loot_mod_004_coal_ore_with_fortune_3_drops_1_to_4_coal() {
-    let fortune = [(enchantment("minecraft:fortune"), 3)];
-    let tool = Tool {
-        item: Some(item("minecraft:diamond_pickaxe")),
-        enchantments: &fortune,
-    };
+    let tool = tool("minecraft:diamond_pickaxe", &[("minecraft:fortune", 3)]);
     let spread = Break {
-        tool,
+        tool: Some(tool),
         ..Break::of(state("minecraft:coal_ore", &[]))
     }
     .spread(4000);
@@ -212,7 +138,7 @@ fn loot_cnd_004_gravel_drops_flint_one_time_in_ten() {
 }
 
 /// LOOT-MOD-001, LOOT-MOD-003, LOOT-MOD-008: glowstone drops 2 to 4 dust; a count below 1 of
-/// a brown mushroom block makes no stack. Result L3.
+/// a brown mushroom block drops no item. Result L3.
 #[test]
 fn loot_mod_003_counts_are_limited_and_a_count_of_0_drops_nothing() {
     let glowstone = Break::of(state("minecraft:glowstone", &[])).spread(900);
@@ -264,21 +190,18 @@ fn loot_cnd_006_a_door_drops_from_its_lower_part() {
 /// LOOT-CND-008, LOOT-SRC-006: tall grass drops from a part whose other part still stands.
 #[test]
 fn loot_cnd_008_tall_grass_drops_while_its_other_part_stands() {
-    let shears = Tool {
-        item: Some(item("minecraft:shears")),
-        enchantments: &[],
-    };
+    let shears = tool("minecraft:shears", &[]);
     let upper = state("minecraft:tall_grass", &[("half", "upper")]);
     let lower = state("minecraft:tall_grass", &[("half", "lower")]);
     let below = [(BlockPos::new(0, 63, 0), lower)];
     let standing = Break {
-        tool: shears,
+        tool: Some(shears.clone()),
         around: &below,
         ..Break::of(upper)
     };
     assert_eq!(standing.drops(0), one("minecraft:short_grass", 2));
     let alone = Break {
-        tool: shears,
+        tool: Some(shears),
         ..Break::of(upper)
     };
     assert_eq!(alone.drops(0), []);
@@ -301,13 +224,9 @@ fn loot_cnd_009_snow_drops_only_to_an_entity() {
 #[test]
 fn loot_cnd_007_match_tool_tests_the_item_of_the_tool() {
     let cluster = state("minecraft:amethyst_cluster", &[]);
-    let pickaxe = Tool {
-        item: Some(item("minecraft:iron_pickaxe")),
-        enchantments: &[],
-    };
     assert_eq!(
         Break {
-            tool: pickaxe,
+            tool: Some(tool("minecraft:iron_pickaxe", &[])),
             ..Break::of(cluster)
         }
         .drops(0),
@@ -400,7 +319,7 @@ fn reg_fld_701_the_terms_of_any_of_and_all_of_may_be_a_predicate_tag() {
     }
     additions.embedded_packs.push("tags".to_owned());
     let (registries, _) = load_registries(&test_packs(), additions).expect("the pack loads");
-    let (loot, issues) = BlockLoot::bake(blocks(), &registries, &test_item_table());
+    let (loot, issues) = LootTables::bake(blocks(), &registries, &test_item_table());
 
     let (looped, issues): (Vec<_>, Vec<_>) = issues
         .into_iter()
@@ -416,15 +335,17 @@ fn reg_fld_701_the_terms_of_any_of_and_all_of_may_be_a_predicate_tag() {
     );
     for (block, kind, terms, passes) in cases {
         let state = state(&format!("minecraft:{block}"), &[]);
-        let table = blocks().state(state).loot.expect("a block table");
-        let cx = context(state);
-        let seed = LootSeed {
-            world: 7,
-            tick: 0,
-            cause: LootCause::Break,
-        };
+        let table = block_table(&loot, state);
         let mut out = Vec::new();
-        loot.drops(table, &cx, &NoWorld, seed, &mut out);
+        loot.roll(
+            table,
+            &context(state, None),
+            &NoWorld,
+            &mut stream(&loot, table, 0),
+            &mut LootScratch::new(),
+            &mut out,
+        )
+        .expect("a block context");
         assert_eq!(!out.is_empty(), passes, "{kind} {terms}");
     }
 }

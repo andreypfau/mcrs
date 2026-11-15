@@ -32,8 +32,11 @@ mcrs_minecraft_falling_block.workspace = true
 mcrs_minecraft_game_mode.workspace = true
 mcrs_minecraft_goals.workspace = true
 mcrs_minecraft_item.workspace = true
+mcrs_minecraft_item_key.workspace = true
+mcrs_minecraft_item_stack.workspace = true
 mcrs_minecraft_item_table = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_block = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_loot.workspace = true
 mcrs_minecraft_loot_condition.workspace = true
 mcrs_minecraft_loot_table.workspace = true
 mcrs_minecraft_predicate.workspace = true
@@ -41,6 +44,7 @@ mcrs_minecraft_block_support = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_physics.workspace = true
 mcrs_minecraft_registries = { workspace = true, features = ["bevy"] }
+mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_simulation.workspace = true
 mcrs_voxel.workspace = true
 mcrs_minecraft_text.workspace = true
