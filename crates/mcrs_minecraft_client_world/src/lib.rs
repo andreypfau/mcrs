@@ -2,6 +2,7 @@
 //! registries, the received columns, the local player, the game mode and the chat.
 // std: bevy
 
+pub mod abilities;
 #[cfg(not(target_family = "wasm"))]
 pub mod asset_source;
 pub mod attack_input;
