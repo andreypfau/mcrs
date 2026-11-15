@@ -773,8 +773,8 @@ unknown attribute, an unknown key, a bad field, or two modifiers with one `id`.
 The key `attributes` is written always for a player that has attribute instances. The list is empty
 when no instance differs from the entity type (ATR-SAV-001 of `attributes.md`). A host without the
 attribute plugin gives a player no attribute instances and writes no key `attributes`. A file that
-holds the list keeps it: the load gives the player the instances. Provenance `design`: the owner
-decided on 2026-11-16 that the engine does not force attributes on a host.
+holds the list keeps it: the load gives the player the instances. Provenance `design`: the engine
+does not force attributes on a host. The owner has not confirmed this decision.
 
 An effect compound has the string `id` (required), the ubyte `amplifier` (default 0), the int
 `duration` (default 0), the byte `ambient` (default false) and the byte `show_particles` (default
