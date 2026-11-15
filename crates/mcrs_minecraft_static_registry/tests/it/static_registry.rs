@@ -1,6 +1,6 @@
 use mcrs_minecraft_resource::Id;
 
-mcrs_minecraft_registries::static_registry! {
+mcrs_minecraft_static_registry::static_registry! {
     pub enum Fruit;
     Zebra = "minecraft:zebra",
     Apple = "minecraft:apple",

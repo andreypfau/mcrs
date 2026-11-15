@@ -133,6 +133,7 @@ mcrs_minecraft_numeric = { path = "crates/mcrs_minecraft_numeric" }
 mcrs_minecraft_datapack = { path = "crates/mcrs_minecraft_datapack" }
 mcrs_minecraft_registries = { path = "crates/mcrs_minecraft_registries" }
 mcrs_minecraft_registries_derive = { path = "crates/mcrs_minecraft_registries_derive" }
+mcrs_minecraft_static_registry = { path = "crates/mcrs_minecraft_static_registry" }
 mcrs_command = { path = "crates/mcrs_command" }
 mcrs_test_alloc = { path = "crates/mcrs_test_alloc" }
 mcrs_minecraft_command = { path = "crates/mcrs_minecraft_command" }

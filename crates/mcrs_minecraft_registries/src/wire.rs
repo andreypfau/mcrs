@@ -7,6 +7,7 @@ use derive_where::derive_where;
 use mcrs_minecraft_core::Bounded;
 use mcrs_minecraft_core::codec::CompactList;
 use mcrs_minecraft_resource::{Id, Registered, ResourceLocationBuf, TagKeyBuf};
+use mcrs_minecraft_static_registry::{decode_registry_id, encode_registry_id};
 use mcrs_minecraft_wire::{Context, Decode, Encode, ErrorKind, Result, VarInt};
 
 use crate::Namer;
@@ -285,17 +286,6 @@ macro_rules! wire_as_named {
             }
         }
     };
-}
-
-pub fn encode_registry_id(id: u16, w: impl Write) -> Result<()> {
-    VarInt(i32::from(id)).encode(w)
-}
-
-pub fn decode_registry_id(r: &mut &[u8]) -> Result<u16> {
-    let VarInt(raw) = VarInt::decode(r)?;
-    u16::try_from(raw)
-        .ok()
-        .with_context(|| format!("registry id {raw} is outside 0..=65535"))
 }
 
 /// A holder writes a registry id one above its number, and zero for an inline value.

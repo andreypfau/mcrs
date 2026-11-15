@@ -6221,6 +6221,7 @@ dependencies = [
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_registries_derive",
  "mcrs_minecraft_resource",
+ "mcrs_minecraft_static_registry",
  "mcrs_minecraft_text",
  "mcrs_minecraft_wire",
  "serde",
@@ -6518,6 +6519,16 @@ dependencies = [
  "mcrs_minecraft_resource",
  "mcrs_minecraft_wire",
  "serde",
+]
+
+[[package]]
+name = "mcrs_minecraft_static_registry"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_resource",
+ "mcrs_minecraft_wire",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
