@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_predicate"
-description = "The keys of the entity predicate and statistic registries, and the views of the world that a predicate reads"
+description = "The keys of the entity predicate and statistic registries, the views of the world that a predicate reads, and the location, block, fluid, light and distance predicates"
 version.workspace = true
 edition.workspace = true
 
@@ -11,6 +11,23 @@ doctest = false
 workspace = true
 
 [dependencies]
-mcrs_minecraft_resource.workspace = true
+fixedbitset.workspace = true
+glam.workspace = true
+mcrs_minecraft_biome.workspace = true
+mcrs_minecraft_block.workspace = true
+mcrs_minecraft_block_predicate.workspace = true
+mcrs_minecraft_core.workspace = true
+mcrs_minecraft_dimension.workspace = true
+mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_item.workspace = true
+mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_resource.workspace = true
+mcrs_minecraft_value_provider.workspace = true
 mcrs_voxel.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
+serde_json.workspace = true
