@@ -31,7 +31,10 @@ mcrs_voxel.workspace = true
 serde.workspace = true
 
 [dev-dependencies]
+mcrs_minecraft_biome.workspace = true
+mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
+mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
 mcrs_test_alloc.workspace = true
 serde_json.workspace = true

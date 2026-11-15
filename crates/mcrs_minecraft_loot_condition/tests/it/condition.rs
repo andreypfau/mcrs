@@ -1,18 +1,29 @@
+use std::num::NonZeroU8;
+
+use glam::DVec3;
 use mcrs_minecraft_engine_registries::test_corpus;
+use mcrs_minecraft_entity::damage_type::DamageType;
+use mcrs_minecraft_environment::{AttributeType, AttributeValue};
 use mcrs_minecraft_game_registries::registry_load::test_registries;
+use mcrs_minecraft_item::enchantment::Enchantment;
 use mcrs_minecraft_item_key::item_keys::Item;
-use mcrs_minecraft_item_stack::{Count, Damage, ItemStack, Kind};
+use mcrs_minecraft_item_stack::{
+    Count, Damage, EnchantmentId, EnchantmentLevel, Enchantments, ItemStack, Kind,
+};
 use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 use mcrs_minecraft_loot_condition::{
-    Condition, ConditionBaker, ConditionFile, ContextParam, LootContext, ParamNotAllowed, Tool,
+    Condition, ConditionBaker, ConditionFile, ContextParam, LootContext, LootInputs,
+    ParamNotAllowed, Tool,
 };
 use mcrs_minecraft_nbt::compound::NbtCompound;
-use mcrs_minecraft_predicate::PredicateScratch;
+use mcrs_minecraft_nbt::tag::NbtTag;
+use mcrs_minecraft_predicate::{DamageSource, PredicateScratch};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
-use mcrs_minecraft_resource::ResourceLocation;
+use mcrs_minecraft_resource::{Id, ResourceLocation};
 use mcrs_voxel::BlockStateId;
 
+use crate::host::{Mob, Mobs};
 use crate::number_provider::{VANILLA, inputs};
 
 /// The condition of `json`, baked against the vanilla entries without a problem.
@@ -287,22 +298,455 @@ fn loot_cnd_009_entity_properties_tests_its_target() {
     let any_this = r#"{"type": "minecraft:entity_properties", "entity": "this", "predicate": {}}"#;
     let any_attacker =
         r#"{"type": "minecraft:entity_properties", "entity": "attacker", "predicate": {}}"#;
-    let pig = r#"{"type": "minecraft:entity_properties", "entity": "this", "predicate": {"entity_type": "minecraft:pig"}}"#;
+    let pig = |target: &str| {
+        format!(
+            r#"{{"type": "minecraft:entity_properties", "entity": "{target}", "predicate": {{"entity_type": "minecraft:pig"}}}}"#
+        )
+    };
     let cases = [
-        (any_this, Some(()), None, true),
-        (any_this, None, Some(()), false),
-        (any_attacker, None, Some(()), true),
-        (any_attacker, Some(()), None, false),
-        (pig, Some(()), None, false),
+        (any_this.to_owned(), Some(Mob::Pig), None, true),
+        (any_this.to_owned(), None, Some(Mob::Pig), false),
+        (any_attacker.to_owned(), None, Some(Mob::Pig), true),
+        (any_attacker.to_owned(), Some(Mob::Pig), None, false),
+        (pig("this"), Some(Mob::Pig), None, true),
+        (pig("this"), Some(Mob::Zombie), None, false),
+        (pig("this"), Some(Mob::Zombie), Some(Mob::Pig), false),
+        (pig("attacker"), Some(Mob::Zombie), Some(Mob::Pig), true),
+        (pig("attacker"), Some(Mob::Pig), Some(Mob::Zombie), false),
     ];
     for (json, this, attacker, expected) in cases {
-        let mut context = empty_context();
+        let mut context = mob_context();
         context.this_entity = this;
         context.attacking_entity = attacker;
+        let (passed, _) = mob_test(&condition(&json), &context, &Mobs::default());
+        assert_eq!(passed, expected, "{json} {this:?} {attacker:?}");
+    }
+}
+
+fn mob_context<'a>() -> LootContext<'a, Mob> {
+    LootContext::try_new(ContextKeySet::Empty).expect("a source key set")
+}
+
+/// The result of `condition` in `context` and `host`, with the generator after the test.
+fn mob_test(
+    condition: &Condition,
+    context: &LootContext<'_, Mob>,
+    host: &Mobs<'_>,
+) -> (bool, XoroshiroRandom) {
+    let mut random = fresh();
+    let inputs = LootInputs {
+        named: &VANILLA,
+        context,
+        world: host,
+    };
+    let passed = condition.test(inputs, &mut random, &mut PredicateScratch::default());
+    (passed, random)
+}
+
+/// An int provider with the value 0 that takes one `F`.
+const INT_DRAW: &str = r#"{"type": "minecraft:binomial", "n": 1, "p": 0.0}"#;
+
+/// A float provider that takes one `F`.
+const FLOAT_DRAW: &str = r#"{"type": "minecraft:uniform", "min": 0.0, "max": 1.0}"#;
+
+fn fresh() -> XoroshiroRandom {
+    XoroshiroRandom::new(42)
+}
+
+fn after_floats(count: usize) -> XoroshiroRandom {
+    let mut random = fresh();
+    for _ in 0..count {
+        random.next_f32();
+    }
+    random
+}
+
+fn enchanted_sword(enchantment: &str, level: u8) -> ItemStack {
+    let id: Id<Enchantment> = test_registries()
+        .entries::<Enchantment>()
+        .and_then(|entries| entries.by_name(ResourceLocation::read(enchantment).ok()?))
+        .expect("a vanilla enchantment");
+    let enchantment = EnchantmentLevel {
+        enchantment: EnchantmentId(id.number()),
+        level: NonZeroU8::new(level).expect("a level above 0"),
+    };
+    ItemStack::new(
+        item("minecraft:iron_sword"),
+        Count::new(1).expect("a count of 1"),
+    )
+    .set(Enchantments::new([enchantment]).expect("one enchantment"))
+}
+
+/// LOOT-CND-010, LOOT-CND-022, LOOT-NUM-021: the chance is the level-based value at the level of
+/// the enchantment in the slots of the enchantment on a living attacker, and `unenchanted_chance`
+/// otherwise; one `F` each time.
+#[test]
+fn loot_cnd_010_the_chance_follows_the_level_on_the_attacker() {
+    let bonus = |enchantment: &str| {
+        condition(&format!(
+            r#"{{"type": "minecraft:random_chance_with_enchanted_bonus", "enchantment": "{enchantment}", "unenchanted_chance": 0.0, "enchanted_chance": {{"type": "minecraft:linear", "base": -1.0, "per_level_above_first": 2.0}}}}"#
+        ))
+    };
+    let looting = bonus("minecraft:looting");
+    let protection = bonus("minecraft:protection");
+    let first = enchanted_sword("minecraft:looting", 1);
+    let second = enchanted_sword("minecraft:looting", 2);
+    let protected = enchanted_sword("minecraft:protection", 2);
+    let plain = ItemStack::new(
+        item("minecraft:iron_sword"),
+        Count::new(1).expect("a count of 1"),
+    );
+    let cases = [
+        (&looting, None, Some(&second), false),
+        (&looting, Some(Mob::Zombie), None, false),
+        (&looting, Some(Mob::Zombie), Some(&plain), false),
+        (&looting, Some(Mob::Zombie), Some(&first), false),
+        (&looting, Some(Mob::Zombie), Some(&second), true),
+        (&looting, Some(Mob::Arrow), Some(&second), false),
+        (&protection, Some(Mob::Zombie), Some(&protected), false),
+    ];
+    for (bonus, attacker, weapon, expected) in cases {
+        let mut context = mob_context();
+        context.attacking_entity = attacker;
+        let host = Mobs {
+            weapon,
+            ..Mobs::default()
+        };
+        let result = mob_test(bonus, &context, &host);
         assert_eq!(
-            passes(&condition(json), &context),
-            expected,
-            "{json} {this:?} {attacker:?}"
+            result,
+            (expected, after_floats(1)),
+            "{attacker:?} {weapon:?}"
+        );
+    }
+}
+
+/// LOOT-CND-011, LOOT-CND-018: a condition on one parameter fails when the parameter is absent,
+/// and takes no draw.
+#[test]
+fn loot_cnd_011_018_a_condition_on_one_parameter() {
+    let killed = r#"{"type": "minecraft:killed_by_player"}"#;
+    let active = r#"{"type": "minecraft:enchantment_active_check", "active": true}"#;
+    let inactive = r#"{"type": "minecraft:enchantment_active_check", "active": false}"#;
+    let cases = [
+        (killed, None, None, false),
+        (killed, Some(Mob::Zombie), None, true),
+        (active, None, None, false),
+        (active, None, Some(true), true),
+        (active, None, Some(false), false),
+        (inactive, None, Some(false), true),
+        (inactive, None, None, false),
+    ];
+    for (json, player, enchantment_active, expected) in cases {
+        let mut context = mob_context();
+        context.last_damage_player = player;
+        context.enchantment_active = enchantment_active;
+        let result = mob_test(&condition(json), &context, &Mobs::default());
+        assert_eq!(
+            result,
+            (expected, fresh()),
+            "{json} {player:?} {enchantment_active:?}"
+        );
+    }
+}
+
+/// LOOT-CND-012, LOOT-CND-021: `entity_scores` tests each score in order and stops at the first
+/// entry that fails, without the draws of the entries after it.
+#[test]
+fn loot_cnd_012_entity_scores_stop_at_the_first_failure() {
+    let scores = |entity: &str, scores: &str| {
+        format!(
+            r#"{{"type": "minecraft:entity_scores", "entity": "{entity}", "scores": {scores}}}"#
+        )
+    };
+    let draw = format!(r#"{{"min": {INT_DRAW}}}"#);
+    let cases = [
+        (scores("this", "{}"), None, false, 0),
+        (scores("this", "{}"), Some(Mob::Pig), true, 0),
+        (
+            scores("this", r#"{"kills": 5}"#),
+            Some(Mob::Zombie),
+            true,
+            0,
+        ),
+        (
+            scores("this", r#"{"kills": {"min": 3, "max": 5}}"#),
+            Some(Mob::Zombie),
+            true,
+            0,
+        ),
+        (
+            scores("this", r#"{"kills": {"min": 6}}"#),
+            Some(Mob::Zombie),
+            false,
+            0,
+        ),
+        (
+            scores("this", r#"{"kills": {"min": 3}}"#),
+            Some(Mob::Pig),
+            false,
+            0,
+        ),
+        (
+            scores("this", r#"{"missing": {}}"#),
+            Some(Mob::Zombie),
+            false,
+            0,
+        ),
+        (
+            scores("attacker", r#"{"kills": 5}"#),
+            Some(Mob::Zombie),
+            false,
+            0,
+        ),
+        (
+            scores("this", &format!(r#"{{"kills": {draw}}}"#)),
+            Some(Mob::Zombie),
+            true,
+            1,
+        ),
+        (
+            scores(
+                "this",
+                &format!(r#"{{"deaths": {{"min": 2}}, "kills": {draw}}}"#),
+            ),
+            Some(Mob::Zombie),
+            false,
+            0,
+        ),
+        (
+            scores(
+                "this",
+                &format!(r#"{{"kills": {draw}, "deaths": {{"min": 2}}}}"#),
+            ),
+            Some(Mob::Zombie),
+            false,
+            1,
+        ),
+    ];
+    let host = Mobs {
+        scores: &[(Mob::Zombie, "kills", 5), (Mob::Zombie, "deaths", 1)],
+        ..Mobs::default()
+    };
+    for (json, this, expected, draws) in cases {
+        let mut context = mob_context();
+        context.this_entity = this;
+        let result = mob_test(&condition(&json), &context, &host);
+        assert_eq!(result, (expected, after_floats(draws)), "{json} {this:?}");
+    }
+}
+
+/// LOOT-CND-013: `damage_source_properties` fails without `damage_source` or `origin`, passes
+/// without a predicate, and gives the entities of the source to the predicate.
+#[test]
+fn loot_cnd_013_damage_source_properties_tests_the_source() {
+    let check =
+        |predicate: &str| format!(r#"{{"type": "minecraft:damage_source_properties"{predicate}}}"#);
+    let zombie_source =
+        check(r#", "predicate": {"source_entity": {"entity_type": "minecraft:zombie"}}"#);
+    let pig_source = check(r#", "predicate": {"source_entity": {"entity_type": "minecraft:pig"}}"#);
+    let arrow_direct =
+        check(r#", "predicate": {"direct_entity": {"entity_type": "minecraft:arrow"}}"#);
+    let arrow = damage_type("minecraft:arrow");
+    let shot = Some(DamageSource {
+        damage_type: arrow,
+        direct_entity: Some(Mob::Arrow),
+        causing_entity: Some(Mob::Zombie),
+    });
+    let cases = [
+        (check(""), shot, Some(DVec3::ZERO), true),
+        (check(""), None, Some(DVec3::ZERO), false),
+        (check(""), shot, None, false),
+        (zombie_source.clone(), shot, Some(DVec3::ZERO), true),
+        (zombie_source, shot, None, false),
+        (pig_source, shot, Some(DVec3::ZERO), false),
+        (arrow_direct, shot, Some(DVec3::ZERO), true),
+    ];
+    for (json, source, origin, expected) in cases {
+        let mut context = mob_context();
+        context.damage_source = source;
+        context.origin = origin;
+        let result = mob_test(&condition(&json), &context, &Mobs::default());
+        assert_eq!(result, (expected, fresh()), "{json} {source:?} {origin:?}");
+    }
+}
+
+fn damage_type(name: &str) -> Id<DamageType> {
+    test_registries()
+        .entries::<DamageType>()
+        .and_then(|entries| entries.by_name(ResourceLocation::read(name).ok()?))
+        .expect("a vanilla damage type")
+}
+
+/// LOOT-CND-014: the world rains above the rain level 0.2 and thunders above the product 0.9;
+/// a host without weather neither rains nor thunders.
+#[test]
+fn loot_cnd_014_weather_check_compares_each_present_field() {
+    let check = |fields: &str| format!(r#"{{"type": "minecraft:weather_check"{fields}}}"#);
+    let raining = check(r#", "raining": true"#);
+    let dry = check(r#", "raining": false"#);
+    let thundering = check(r#", "thundering": true"#);
+    let calm = check(r#", "raining": true, "thundering": false"#);
+    let cases = [
+        (check(""), None, None, true),
+        (raining.clone(), None, None, false),
+        (dry.clone(), None, None, true),
+        (raining.clone(), Some(0.2), None, false),
+        (raining, Some(0.25), None, true),
+        (dry, Some(0.25), None, false),
+        (thundering.clone(), Some(1.0), Some(0.95), true),
+        (thundering.clone(), Some(0.9), Some(1.0), false),
+        (thundering, None, Some(1.0), false),
+        (calm.clone(), Some(1.0), Some(0.5), true),
+        (calm, Some(1.0), Some(1.0), false),
+    ];
+    for (json, rain, thunder, expected) in cases {
+        let host = Mobs {
+            rain,
+            thunder,
+            ..Mobs::default()
+        };
+        let result = mob_test(&condition(&json), &mob_context(), &host);
+        assert_eq!(result, (expected, fresh()), "{json} {rain:?} {thunder:?}");
+    }
+}
+
+/// LOOT-CND-015: `time_check` tests the low 32 bits of the total ticks, after the remainder by
+/// `period` with the sign of the ticks; a clock that the host does not have is at 0.
+#[test]
+fn loot_cnd_015_time_check_tests_the_ticks_of_the_clock() {
+    let check = |period: &str, value: &str| {
+        format!(
+            r#"{{"type": "minecraft:time_check", "clock": "minecraft:overworld"{period}, "value": {value}}}"#
+        )
+    };
+    let day = r#", "period": 24000"#;
+    let cases = [
+        (check("", "0"), None, true, 0),
+        (check("", r#"{"min": 1}"#), None, false, 0),
+        (check(day, r#"{"min": 13000}"#), Some(37_000), true, 0),
+        (check(day, r#"{"min": 13000}"#), Some(36_000), false, 0),
+        (check(day, "-1"), Some(-1), true, 0),
+        (check(day, r#"{"min": 0}"#), Some(-24_001), false, 0),
+        (check("", "5"), Some((1 << 32) + 5), true, 0),
+        (check("", "-1"), Some(u32::MAX.into()), true, 0),
+        (
+            check("", &format!(r#"{{"min": {INT_DRAW}}}"#)),
+            Some(7),
+            true,
+            1,
+        ),
+    ];
+    for (json, clock, expected, draws) in cases {
+        let host = Mobs {
+            clock,
+            ..Mobs::default()
+        };
+        let result = mob_test(&condition(&json), &mob_context(), &host);
+        assert_eq!(result, (expected, after_floats(draws)), "{json} {clock:?}");
+    }
+}
+
+/// LOOT-CND-016, LOOT-CND-017, LOOT-CND-021: a value check reads `value`, then `min`, then `max`;
+/// it does not read `max` below `min`, and reads nothing for a range without bounds.
+#[test]
+fn loot_cnd_016_017_a_value_check_reads_in_order() {
+    let int = |value: &str, test: &str| {
+        format!(r#"{{"type": "minecraft:int_value_check", "value": {value}, "test": {test}}}"#)
+    };
+    let float = |value: &str, test: &str| {
+        format!(r#"{{"type": "minecraft:float_value_check", "value": {value}, "test": {test}}}"#)
+    };
+    let bounds = |min: &str, max: &str| format!(r#"{{"min": {min}, "max": {max}}}"#);
+    let cases = [
+        (int("3", r#"{"min": 1, "max": 5}"#), true, 0),
+        (int("3", "3"), true, 0),
+        (int("3", "4"), false, 0),
+        (int("3", r#"{"min": 4}"#), false, 0),
+        (int("3", r#"{"max": 2}"#), false, 0),
+        (int(INT_DRAW, "{}"), true, 0),
+        (int(INT_DRAW, r#"{"min": 0}"#), true, 1),
+        (int("3", &bounds("4", INT_DRAW)), false, 0),
+        (int("3", &bounds("1", INT_DRAW)), false, 1),
+        (int("3", &bounds(INT_DRAW, "5")), true, 1),
+        (float("0.5", r#"{"min": 0.25, "max": 0.75}"#), true, 0),
+        (float("0.5", r#"{"max": 0.25}"#), false, 0),
+        (float("0.5", "0.5"), true, 0),
+        (float(FLOAT_DRAW, "{}"), true, 0),
+        (float(FLOAT_DRAW, r#"{"max": 1.0}"#), true, 1),
+        (float("-1.0", &bounds(FLOAT_DRAW, FLOAT_DRAW)), false, 1),
+        (float("2.0", &bounds(FLOAT_DRAW, FLOAT_DRAW)), false, 2),
+    ];
+    for (json, expected, draws) in cases {
+        let result = mob_test(&condition(&json), &mob_context(), &Mobs::default());
+        assert_eq!(result, (expected, after_floats(draws)), "{json}");
+    }
+}
+
+/// LOOT-CND-019: a positional attribute reads the value at `origin`, another attribute reads the
+/// dimension value, and a value that the host does not have is the default value; f32 values are
+/// equal by their bits.
+#[test]
+fn loot_cnd_019_environment_attribute_check_reads_by_position() {
+    let check = |attribute: &str, value: &str| {
+        format!(
+            r#"{{"type": "minecraft:environment_attribute_check", "attribute": "minecraft:{attribute}", "value": {value}}}"#
+        )
+    };
+    let fog = |value: &str| check("visual/fog_end_distance", value);
+    let fog_start = |value: &str| check("visual/fog_start_distance", value);
+    let fast_lava = |value: &str| check("gameplay/fast_lava", value);
+    let at = Some(DVec3::new(0.5, 64.5, 0.5));
+    let at_origin = [(at, AttributeValue::Float(8.0))];
+    let in_dimension = [(None, AttributeValue::Float(8.0))];
+    let negative_zero = [(at, AttributeValue::Float(-0.0))];
+    let zero = [(at, AttributeValue::Float(0.0))];
+    let lava_in_dimension = [(None, AttributeValue::Boolean(true))];
+    let ash = |probability: f32| {
+        let particle = NbtCompound::from_iter([("type".to_owned(), "minecraft:ash".into())]);
+        let entry = NbtCompound::from_iter([
+            ("particle".to_owned(), particle.into()),
+            ("probability".to_owned(), probability.into()),
+        ]);
+        let list = NbtTag::List(vec![entry.into()]);
+        AttributeValue::read(AttributeType::AmbientParticles, &list).expect("an ambient particle")
+    };
+    let ash_negative_zero = [(at, ash(-0.0))];
+    let particles = check(
+        "visual/ambient_particles",
+        r#"[{"particle": {"type": "minecraft:ash"}, "probability": 0.0}]"#,
+    );
+    let bed_rule = check(
+        "gameplay/bed_rule",
+        r#"{"can_sleep": "when_dark", "can_set_spawn": "always", "error_message": {"translate": "block.minecraft.bed.no_sleep"}}"#,
+    );
+    let cases: [(String, &[_], _, _); 13] = [
+        (fog("8.0"), &at_origin, at, true),
+        (fog("8.0"), &at_origin, None, false),
+        (fog("1024.0"), &at_origin, None, true),
+        (fog("8.0"), &in_dimension, at, false),
+        (fog_start("0.0"), &negative_zero, at, false),
+        (fog_start("-0.0"), &negative_zero, at, true),
+        (fog_start("-0.0"), &zero, at, false),
+        (particles, &ash_negative_zero, at, false),
+        (bed_rule.clone(), &[], None, true),
+        (bed_rule.replace("when_dark", "never"), &[], None, false),
+        (fast_lava("true"), &lava_in_dimension, at, true),
+        (fast_lava("true"), &[], at, false),
+        (fast_lava("false"), &[], None, true),
+    ];
+    for (json, environment, origin, expected) in cases {
+        let mut context = mob_context();
+        context.origin = origin;
+        let host = Mobs {
+            environment,
+            ..Mobs::default()
+        };
+        let result = mob_test(&condition(&json), &context, &host);
+        assert_eq!(
+            result,
+            (expected, fresh()),
+            "{json} {environment:?} {origin:?}"
         );
     }
 }

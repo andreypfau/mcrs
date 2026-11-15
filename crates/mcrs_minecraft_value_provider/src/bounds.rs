@@ -117,7 +117,7 @@ fn optional_bound<'de, T: Bound, D: Deserializer<'de>>(d: D) -> Result<Option<T>
 impl<'de, T: Bound> Deserialize<'de> for MinMaxBounds<T> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
-        #[serde(deny_unknown_fields, bound = "T: Bound")]
+        #[serde(bound = "T: Bound")]
         struct Range<T> {
             #[serde(default, deserialize_with = "optional_bound")]
             min: Option<T>,
@@ -186,6 +186,19 @@ mod tests {
             assert_eq!(serde_json::to_string(&bounds).unwrap(), json);
         }
         assert!(serde_json::from_str::<MinMaxBounds<f64>>(r#"{"min":2,"max":1}"#).is_err());
+    }
+
+    /// REG-FLD-006: the object form ignores a field that it does not name.
+    #[test]
+    fn reg_fld_006_bounds_ignore_an_unknown_field() {
+        let bounds: MinMaxBounds<i32> = serde_json::from_str(r#"{"min":1,"zzz":2}"#).unwrap();
+        assert_eq!(
+            bounds,
+            MinMaxBounds {
+                min: Some(1),
+                max: None
+            }
+        );
     }
 
     #[test]

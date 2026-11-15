@@ -16,6 +16,7 @@ use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
+use mcrs_minecraft_environment::{AttributeValue, WorldClock};
 use mcrs_minecraft_item::ItemStack;
 use mcrs_minecraft_item::component::equippable::EquipmentSlot;
 use mcrs_minecraft_item_key::item_keys::Item;
@@ -23,7 +24,8 @@ use mcrs_minecraft_item_stack::{Count, ItemStack as StackValue, Kind};
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 use mcrs_minecraft_loot_condition::{
-    EnvironmentView, LootContext, NbtNumber, ScoreHolder, ScoreView, StorageView, Tool,
+    ClockView, EnvironmentView, LootContext, NbtNumber, ScoreHolder, ScoreView, StorageView, Tool,
+    WeatherView,
 };
 use mcrs_minecraft_loot_table::{KeyedSeed, LootScratch, LootTables};
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -349,11 +351,30 @@ impl<F> StorageView for BlockAt<F> {
 // chisle: the drop reads the default value of each environment attribute; the attributes of the
 // dimension lift it.
 impl<F> EnvironmentView for BlockAt<F> {
-    fn environment_int(&self, _: EnvironmentAttribute, _: Option<DVec3>) -> Option<i32> {
+    fn environment_value(
+        &self,
+        _: EnvironmentAttribute,
+        _: Option<DVec3>,
+    ) -> Option<AttributeValue> {
+        None
+    }
+}
+
+impl<F> WeatherView for BlockAt<F> {
+    // chisle: the drop reads no weather; the weather state of the dimension lifts it.
+    fn rain_strength(&self) -> Option<f32> {
         None
     }
 
-    fn environment_float(&self, _: EnvironmentAttribute, _: Option<DVec3>) -> Option<f32> {
+    // chisle: the drop reads no weather; the weather state of the dimension lifts it.
+    fn thunder_strength(&self) -> Option<f32> {
+        None
+    }
+}
+
+impl<F> ClockView for BlockAt<F> {
+    // chisle: the drop reads no clock; the clock state of the dimension lifts it.
+    fn total_ticks(&self, _: Id<WorldClock>) -> Option<i64> {
         None
     }
 }

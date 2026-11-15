@@ -1,4 +1,5 @@
 use glam::DVec3;
+use mcrs_minecraft_environment::AttributeValue;
 use mcrs_minecraft_numeric::{
     ceil_to_i32, cos_nearest, floor_div, floor_mod, max_f32, min_f32, pow_f32, sin_nearest,
 };
@@ -13,7 +14,6 @@ use crate::float_provider::{
     EnvironmentNumber, FloatAggregate, FloatBinary, FloatNode, FloatUnary,
 };
 use crate::int_provider::{IntAggregate, IntBinary, IntNode, IntUnary};
-use crate::level_based::level_based;
 use crate::loot_inputs::LootInputs;
 use crate::loot_world::LootWorld;
 use crate::score_target::ScoreTarget;
@@ -187,10 +187,9 @@ impl<'e, 'i, 'c, E: Copy, W: LootWorld<E>, R: Random> Evaluation<'e, 'i, 'c, E, 
                 Some(number) => Some(number.to_f32()),
                 None => self.float(fallback),
             },
-            FloatNode::EnchantmentLevel(amount) => Some(level_based(
-                amount,
-                self.inputs.context.enchantment_level.unwrap_or(0),
-            )),
+            FloatNode::EnchantmentLevel(amount) => {
+                Some(amount.calculate(self.inputs.context.enchantment_level.unwrap_or(0)))
+            }
         }
     }
 
@@ -286,26 +285,28 @@ impl<'e, 'i, 'c, E: Copy, W: LootWorld<E>, R: Random> Evaluation<'e, 'i, 'c, E, 
     }
 
     fn environment_int(&self, read: &EnvironmentRead<i32>) -> i32 {
-        self.position(read)
-            .and_then(|position| self.inputs.world.environment_int(read.attribute, position))
-            .unwrap_or(read.default)
+        match self.environment_value(read) {
+            Some(AttributeValue::Integer(value)) => value,
+            _ => read.default,
+        }
     }
 
     #[expect(clippy::cast_precision_loss, reason = "toF32 of an integer attribute")]
     fn environment_float(&self, read: &EnvironmentRead<EnvironmentNumber>) -> f32 {
-        let position = self.position(read);
-        match read.default {
-            EnvironmentNumber::Int(default) => position
-                .and_then(|position| self.inputs.world.environment_int(read.attribute, position))
-                .unwrap_or(default) as f32,
-            EnvironmentNumber::Float(default) => position
-                .and_then(|position| {
-                    self.inputs
-                        .world
-                        .environment_float(read.attribute, position)
-                })
-                .unwrap_or(default),
+        match (self.environment_value(read), read.default) {
+            (Some(AttributeValue::Integer(value)), EnvironmentNumber::Int(_)) => value as f32,
+            (Some(AttributeValue::Float(value)), EnvironmentNumber::Float(_)) => value,
+            (_, EnvironmentNumber::Int(default)) => default as f32,
+            (_, EnvironmentNumber::Float(default)) => default,
         }
+    }
+
+    fn environment_value<T>(&self, read: &EnvironmentRead<T>) -> Option<AttributeValue> {
+        self.position(read).and_then(|position| {
+            self.inputs
+                .world
+                .environment_value(read.attribute, position)
+        })
     }
 
     /// The position to read the attribute at; `None` for a positional attribute without an

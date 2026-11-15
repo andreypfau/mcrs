@@ -2,6 +2,7 @@ use glam::DVec3;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_predicate::DamageSource;
 use mcrs_voxel::BlockStateId;
 
 use crate::context_param::ContextParam;
@@ -28,6 +29,8 @@ pub struct LootContext<'a, E> {
     pub block_entity: Option<&'a NbtCompound>,
     pub explosion_radius: Option<f32>,
     pub enchantment_level: Option<i32>,
+    pub damage_source: Option<DamageSource<E>>,
+    pub enchantment_active: Option<bool>,
     /// 0 for a source that gives no luck.
     pub luck: f32,
     /// The stacks of [`DynamicName::Sherds`], in order; `None` is the empty stack.
@@ -59,6 +62,8 @@ impl<'a, E> LootContext<'a, E> {
             block_entity: None,
             explosion_radius: None,
             enchantment_level: None,
+            damage_source: None,
+            enchantment_active: None,
             luck: 0.0,
             sherds: &[],
             contents: &[],
@@ -106,6 +111,8 @@ impl<'a, E> LootContext<'a, E> {
             block_entity,
             explosion_radius,
             enchantment_level,
+            damage_source,
+            enchantment_active,
             luck: _,
             sherds: _,
             contents: _,
@@ -130,6 +137,11 @@ impl<'a, E> LootContext<'a, E> {
             (block_entity.is_some(), ContextParam::BlockEntity),
             (explosion_radius.is_some(), ContextParam::ExplosionRadius),
             (enchantment_level.is_some(), ContextParam::EnchantmentLevel),
+            (damage_source.is_some(), ContextParam::DamageSource),
+            (
+                enchantment_active.is_some(),
+                ContextParam::EnchantmentActive,
+            ),
         ]
         .into_iter()
         .filter(|&(present, _)| present)
