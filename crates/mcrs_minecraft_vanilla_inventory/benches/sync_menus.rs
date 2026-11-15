@@ -1,7 +1,7 @@
-//! The whole `FixedUpdate` of an app with `ItemPlugin`, `VanillaInventoryPlugin` and
-//! `InventoryPersistencePlugin`, for 100, 1,000 and 10,000 players with 36 filled slots each and
-//! no change: 200 measured ticks after 20 warm-up ticks. It prints the median tick and the time
-//! for each player.
+//! The whole `FixedUpdate` of an app with `ItemPlugin`, `VanillaInventoryPlugin`,
+//! `InventoryServerPlugin` and `InventoryPersistencePlugin`, for 100, 1,000 and 10,000 players
+//! with 36 filled slots each and no change: 200 measured ticks after 20 warm-up ticks. It prints
+//! the median tick and the time for each player.
 #![expect(clippy::expect_used, reason = "a bench reports a failure by panicking")]
 
 use std::time::Duration;
@@ -29,6 +29,7 @@ use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_item_table::bake;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
+use mcrs_minecraft_vanilla_inventory::InventoryServerPlugin;
 use mcrs_minecraft_vanilla_inventory::VanillaInventoryPlugin;
 
 const WARM_UP: usize = 20;
@@ -58,6 +59,7 @@ fn app(table: ItemTable, players: u64) -> App {
         .add_plugins((
             ItemPlugin::new(table),
             VanillaInventoryPlugin,
+            InventoryServerPlugin,
             InventoryPersistencePlugin,
         ));
     let world = app.world_mut();

@@ -5,24 +5,19 @@ use bevy_ecs::observer::On;
 use bevy_ecs::system::Commands;
 use bevy_ecs::system::In;
 use bevy_ecs::system::Query;
-use bevy_ecs::system::ResMut;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
 use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_inventory_file::PlayerItems;
 
-use crate::InventoryMenuSync;
 use crate::PlayerHolders;
-use crate::click_drag::ClickDrag;
-use crate::creative_drops::CreativeDrops;
-use crate::full_sends::FullSends;
+use crate::PlayerItemsRestored;
 
 /// Gives the player its four holders with `stacks`. The holders that the player had keep their
-/// entities and lose their stacks. The player then waits for the send of its full state.
+/// entities and lose their stacks.
 pub(crate) fn restore_holders(
     In((player, stacks)): In<(Entity, PlayerItems)>,
     mut commands: Commands,
-    mut sends: ResMut<FullSends>,
     players: Query<Option<&PlayerHolders>>,
 ) {
     let Ok(holders) = players.get(player) else {
@@ -32,12 +27,7 @@ pub(crate) fn restore_holders(
     commands
         .entity(player)
         .load_inventory(stacks.slots.into())
-        .insert(Selected(stacks.selected))
-        .insert_if_new((
-            InventoryMenuSync::default(),
-            ClickDrag::default(),
-            CreativeDrops::default(),
-        ));
+        .insert(Selected(stacks.selected));
     commands
         .entity(holders.cursor)
         .load_inventory(vec![stacks.cursor]);
@@ -47,14 +37,13 @@ pub(crate) fn restore_holders(
     commands
         .entity(holders.craft_result)
         .load_inventory(vec![None]);
-    send_full_state(&mut sends, player);
+    commands.trigger(PlayerItemsRestored { entity: player });
 }
 
 /// Puts the cursor and the craft grid of `stacks` into the holders of the player.
 pub(crate) fn restore_carried(
     In((player, stacks)): In<(Entity, PlayerItems)>,
     mut commands: Commands,
-    mut sends: ResMut<FullSends>,
     players: Query<Option<&PlayerHolders>>,
 ) {
     let Ok(holders) = players.get(player) else {
@@ -67,7 +56,7 @@ pub(crate) fn restore_carried(
     commands
         .entity(holders.craft_grid)
         .load_inventory(stacks.craft_grid.into());
-    send_full_state(&mut sends, player);
+    commands.trigger(PlayerItemsRestored { entity: player });
 }
 
 /// Gives a new player four empty holders and the selected slot 0 (INV-SLT-002). A player file or
@@ -98,10 +87,4 @@ fn holders_of(
     };
     commands.entity(player).insert(holders);
     holders
-}
-
-fn send_full_state(sends: &mut FullSends, player: Entity) {
-    if !sends.0.contains(&player) {
-        sends.0.push(player);
-    }
 }

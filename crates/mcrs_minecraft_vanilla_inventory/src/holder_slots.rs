@@ -20,7 +20,11 @@ impl<'slots> HolderSlots<'slots> {
         holders: &PlayerHolders,
         holder_slots: &'slots Query<&Slots>,
     ) -> Self {
-        let slots_of = |holder| holder_slots.get(holders.entity(player, holder)).ok();
+        let slots_of = |holder| {
+            holder_slots
+                .get(holder_entity(holders, player, holder))
+                .ok()
+        };
         Self {
             inventory,
             cursor: slots_of(Holder::Cursor),
@@ -37,5 +41,15 @@ impl<'slots> HolderSlots<'slots> {
             Holder::CraftResult => self.craft_result,
         };
         slots?.get(usize::from(index))
+    }
+}
+
+/// The entity that holds the slots of `holder` for `player`.
+pub(crate) fn holder_entity(holders: &PlayerHolders, player: Entity, holder: Holder) -> Entity {
+    match holder {
+        Holder::Inventory => player,
+        Holder::Cursor => holders.cursor,
+        Holder::CraftGrid => holders.craft_grid,
+        Holder::CraftResult => holders.craft_result,
     }
 }

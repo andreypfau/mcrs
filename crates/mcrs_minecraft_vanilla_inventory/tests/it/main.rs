@@ -4,6 +4,7 @@ mod allocations;
 mod capture;
 mod click;
 mod close;
+mod commands;
 mod creative;
 mod fixture;
 mod full_state;

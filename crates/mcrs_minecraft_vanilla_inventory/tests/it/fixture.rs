@@ -36,6 +36,7 @@ use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_registries::Named;
 use mcrs_minecraft_text::Text;
 use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
+use mcrs_minecraft_vanilla_inventory::InventoryServerPlugin;
 use mcrs_minecraft_vanilla_inventory::PlayerHolders;
 use mcrs_minecraft_vanilla_inventory::VanillaInventoryPlugin;
 
@@ -67,6 +68,7 @@ pub fn app() -> App {
         .add_plugins((
             ItemPlugin::new(*TABLE),
             VanillaInventoryPlugin,
+            InventoryServerPlugin,
             InventoryPersistencePlugin,
         ));
     app

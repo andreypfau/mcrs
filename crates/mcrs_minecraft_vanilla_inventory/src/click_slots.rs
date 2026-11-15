@@ -17,7 +17,8 @@ use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_item_stack::MaxStackSize;
 
 use crate::PlayerHolders;
-use crate::insert_stack::clamp_stack_size;
+use crate::holder_slots::holder_entity;
+use crate::stack_size::clamp_stack_size;
 
 const HOLDERS: [Holder; 4] = [
     Holder::Inventory,
@@ -66,7 +67,9 @@ impl ClickSlots {
         for holder in HOLDERS {
             let content = match holder {
                 Holder::Inventory => Some(inventory),
-                _ => holder_slots.get(holders.entity(player, holder)).ok(),
+                _ => holder_slots
+                    .get(holder_entity(&holders, player, holder))
+                    .ok(),
             };
             let Some(content) = content else {
                 continue;
@@ -97,7 +100,7 @@ impl ClickSlots {
 
     pub(crate) fn slot_ref(&self, slot: MenuSlot) -> SlotRef {
         SlotRef {
-            holder: self.holders.entity(self.player, slot.holder),
+            holder: holder_entity(&self.holders, self.player, slot.holder),
             index: slot.index,
         }
     }

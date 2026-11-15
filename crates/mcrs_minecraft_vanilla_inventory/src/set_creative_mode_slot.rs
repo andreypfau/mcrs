@@ -1,26 +1,16 @@
-use bevy_ecs::entity::Entity;
 use bevy_ecs::message::MessageWriter;
-use bevy_ecs::message::Messages;
 use bevy_ecs::observer::On;
 use bevy_ecs::system::Commands;
 use bevy_ecs::system::InRef;
 use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::Res;
-use bevy_ecs::world::World;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
-use mcrs_minecraft_engine::game_profile::GameProfile;
-use mcrs_minecraft_engine_item::HolderCommandsExt;
-use mcrs_minecraft_engine_item::ItemCommandsExt;
-use mcrs_minecraft_engine_item::Request;
-use mcrs_minecraft_engine_item::RequestResult;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
-use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_inventory_client_view::SlotView;
 use mcrs_minecraft_inventory_menu::InventoryMenu;
-use mcrs_minecraft_item_entity::Cause;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::read_wire_with_length;
 use mcrs_minecraft_item_table::ItemTable;
@@ -31,10 +21,10 @@ use mcrs_minecraft_wire::Encode;
 use crate::InventoryInput;
 use crate::InventoryMenuSync;
 use crate::PlayerHolders;
+use crate::PlayerInventoryCommandsExt;
 use crate::creative_drops::CreativeDrops;
-use crate::insert_stack::max_stack_size;
-use crate::launch_drops::launch_from_player;
-use crate::request_ids::CREATIVE_REQUEST;
+use crate::holder_slots::holder_entity;
+use crate::stack_size::max_stack_size;
 use crate::wire_names::WireNames;
 
 /// Writes the [`InventoryInput::CreativeSet`] of each `set_creative_mode_slot` packet whose stack
@@ -63,22 +53,16 @@ pub(crate) fn set_creative_mode_slot(
     });
 }
 
-/// Applies a creative set that passes the checks of INV-CRE-003: a set of an entry of the
-/// inventory menu (INV-CRE-004), or a creative drop (IEN-SPN-007). A set that fails a check is a
-/// claim of the client for its entry (INV-CRE-006).
-#[expect(
-    clippy::type_complexity,
-    reason = "one query reads each part of the player that the packet needs"
-)]
-pub(crate) fn apply_creative_set(
+/// Gives the player a creative set or a creative drop for a packet that passes the checks of
+/// INV-CRE-003 and the counter of the connection (IEN-SPN-007). A set of an entry, and a set
+/// that fails a check, is a claim of the client for its entry (INV-CRE-004, INV-CRE-006).
+pub(crate) fn apply_creative_packet(
     InRef(input): InRef<InventoryInput>,
     mut players: Query<(
         &PlayerHolders,
         &mut InventoryMenuSync,
         Option<&PlayerGameMode>,
         &mut CreativeDrops,
-        Option<&Transform>,
-        Option<&GameProfile>,
     )>,
     table: Res<ItemTable>,
     clock: Res<BirthClock>,
@@ -92,8 +76,7 @@ pub(crate) fn apply_creative_set(
     else {
         return;
     };
-    let Ok((holders, mut sync, game_mode, mut drops, transform, profile)) = players.get_mut(player)
-    else {
+    let Ok((holders, mut sync, game_mode, mut drops)) = players.get_mut(player) else {
         return;
     };
     let stack = stack.as_ref();
@@ -107,8 +90,7 @@ pub(crate) fn apply_creative_set(
         if drops.try_drop(clock.0)
             && let Some(stack) = stack
         {
-            let mut entity = commands.spawn_stack(stack.clone());
-            launch_from_player(&mut entity, transform, profile, Cause::Throw);
+            commands.entity(player).creative_drop(stack.clone());
         }
         return;
     }
@@ -117,33 +99,12 @@ pub(crate) fn apply_creative_set(
         && let Some(entry) = entry
     {
         let target = SlotRef {
-            holder: holders.entity(player, entry.holder),
+            holder: holder_entity(holders, player, entry.holder),
             index: entry.index,
         };
-        let spawned = stack.map(|stack| commands.spawn_stack(stack.clone()).id());
-        let count = stack.map_or(0, |stack| stack.count.get());
-        let request = Request::new(CREATIVE_REQUEST).set(target, spawned, count);
-        commands.entity(player).request(request);
-        if let Some(spawned) = spawned {
-            commands.queue(move |world: &mut World| despawn_if_rejected(world, player, spawned));
-        }
-        set_view(&mut sync, slot, stack);
-        return;
+        commands.entity(player).creative_set(target, stack.cloned());
     }
     set_view(&mut sync, slot, stack);
-}
-
-/// Despawns `stack` when the last request result is a rejection of the creative set of `player`,
-/// since a rejected set gives the stack no slot.
-fn despawn_if_rejected(world: &mut World, player: Entity, stack: Entity) {
-    let rejected = (world.get_resource::<Messages<RequestResult>>())
-        .and_then(|results| results.iter_current_update_messages().last())
-        .is_some_and(|result| {
-            result.holder == player && result.id == CREATIVE_REQUEST && result.outcome.is_err()
-        });
-    if rejected {
-        world.despawn(stack);
-    }
 }
 
 /// Makes `stack` the client view of the entry `slot`, when the inventory menu has such an entry.
