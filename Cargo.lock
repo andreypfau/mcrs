@@ -5976,6 +5976,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "mcrs_minecraft_loot_validate"
+version = "0.5.8"
+dependencies = [
+ "anyhow",
+ "mcrs_minecraft_block",
+ "mcrs_minecraft_core",
+ "mcrs_minecraft_datapack",
+ "mcrs_minecraft_fixtures",
+ "mcrs_minecraft_game_registries",
+ "mcrs_minecraft_item_table",
+ "mcrs_minecraft_loot_table",
+ "mcrs_minecraft_registries",
+]
+
+[[package]]
 name = "mcrs_minecraft_map_decoration"
 version = "0.5.8"
 dependencies = [

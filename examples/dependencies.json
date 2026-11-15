@@ -17,6 +17,17 @@
     "mcrs_minecraft_vanilla*",
     "mcrs_minecraft_inventory_server"
   ],
+  "mcrs_minecraft_loot_validate": [
+    "bevy",
+    "bevy_*",
+    "mcrs",
+    "mcrs_engine*",
+    "mcrs_minecraft_engine*",
+    "mcrs_minecraft_server*",
+    "mcrs_minecraft_client",
+    "tokio",
+    "mcrs_minecraft_network*"
+  ],
   "mcrs_minecraft_status_ping": [
     "bevy",
     "bevy_*",
