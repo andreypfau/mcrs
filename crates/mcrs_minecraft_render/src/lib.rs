@@ -266,7 +266,9 @@ pub enum WorldPass {
     /// The entity passes: after the depth pyramid of the full frame, before the lighting.
     Entities,
     Lighting,
-    /// Drawn over the lit frame with the depth of the opaque world, before the translucent layers.
+    /// Drawn into the world image over the lit frame with the depth of the opaque world, before
+    /// the translucent layers. The present pass at the end of `Forward` copies the world image
+    /// over the view target, so a draw straight into the view target here is lost.
     Overlay,
     Forward,
 }

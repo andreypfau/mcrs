@@ -22,6 +22,10 @@ fn molang_constant(bits: u32) -> f32 {
     return molang_flush(bitcast<f32>(bits | molang_zero));
 }
 
+// The quiet NaN. Written as a constant expression it is refused by compilers that evaluate
+// constants at compile time (a NaN is not a value of f32 there), so its bits pass `molang_zero`.
+fn molang_nan() -> f32 { return bitcast<f32>(0x7fc00000u | molang_zero); }
+
 fn molang_opaque(x: f32) -> f32 { return bitcast<f32>(bitcast<u32>(x) | molang_zero); }
 fn molang_add(a: f32, b: f32) -> f32 { return molang_flush(molang_opaque(a) + molang_opaque(b)); }
 fn molang_sub(a: f32, b: f32) -> f32 { return molang_flush(molang_opaque(a) - molang_opaque(b)); }
@@ -105,7 +109,7 @@ fn molang_divide(a: f32, b: f32) -> f32 {
 fn molang_sqrt(x: f32) -> f32 {
     let bits = bitcast<u32>(x);
     if ((bits & 0x7fffffffu) == 0u) { return x; }
-    if ((bits & 0x80000000u) != 0u) { return bitcast<f32>(0x7fc00000u); }
+    if ((bits & 0x80000000u) != 0u) { return molang_nan(); }
     if (bits >= 0x7f800000u) { return x; }
     var exponent = i32(bits >> 23u) - 127;
     var mantissa = (bits & 0x007fffffu) | 0x00800000u;
@@ -143,7 +147,7 @@ fn molang_mod(a: f32, b: f32) -> f32 {
     let ax = ua & 0x7fffffffu;
     let bx = ub & 0x7fffffffu;
     if (bx == 0u) { return 0.0; }
-    if (ax >= 0x7f800000u || bx > 0x7f800000u) { return bitcast<f32>(0x7fc00000u); }
+    if (ax >= 0x7f800000u || bx > 0x7f800000u) { return molang_nan(); }
     if (ax < bx) { return a; }
     if (ax == bx) { return bitcast<f32>(sign); }
     var ex = i32(ax >> 23u);
@@ -257,7 +261,7 @@ fn molang_exp2(value: f32) -> f32 {
 fn molang_ln(x: f32) -> f32 {
     let bits = bitcast<u32>(x);
     if ((bits & 0x80000000u) != 0u || (bits & 0x7fffffffu) == 0u || bits >= 0x7f800000u) {
-        return bitcast<f32>(0x7fc00000u);
+        return molang_nan();
     }
     var exponent = i32(bits >> 23u) - 127;
     var mantissa = bitcast<f32>((bits & 0x007fffffu) | 0x3f800000u);

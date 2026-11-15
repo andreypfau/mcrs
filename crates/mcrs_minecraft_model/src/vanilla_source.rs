@@ -45,7 +45,8 @@ pub fn resource_files() -> &'static Files {
                 .0;
         // The asset index layer lies above the jar: its file of a path replaces the jar's. A corpus
         // without it would fail the tests that need Unifont in confusing ways, so fail here.
-        let layer = mcrs_minecraft_client_jar::font_assets().unwrap();
+        let layer =
+            mcrs_minecraft_client_jar::font_assets(mcrs_minecraft_client_jar::OBJECTS).unwrap();
         files.retain(|(name, _)| layer.iter().all(|(above, _)| above != name));
         files.extend(layer);
         files

@@ -21,7 +21,7 @@ use crate::records::{HIDEABLE_ENTRIES, STATE_HIDDEN_SHIFT, StateRecord, f16_up};
 /// The value of a pair with no image set.
 const NO_IMPOSTOR: u32 = u32::MAX;
 const FIRST_LAYERS: u32 = 8;
-const COVER: &str = include_str!("shaders/impostor_cover.wgsl");
+pub(crate) const COVER: &str = include_str!("shaders/impostor_cover.wgsl");
 /// The most image sets: a layer of the image arrays holds one set.
 const MAX_LAYERS: u32 = 2048;
 const FACE_EAST: u32 = 0;

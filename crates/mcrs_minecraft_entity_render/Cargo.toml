@@ -52,6 +52,7 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 mcrs_minecraft_client_jar.workspace = true
 nv-flip = "0.1.2"
 wgpu = { version = "30", features = ["metal", "wgsl"] }
+wgsl-parse.workspace = true
 
 [[bench]]
 name = "layers"
