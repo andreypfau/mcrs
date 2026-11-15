@@ -217,6 +217,16 @@ const ENTITY_RENDER_FORBIDDEN: [&str; 7] = [
     "mcrs_minecraft_engine_server",
 ];
 
+/// The crates of the packet edge, by prefix. `mcrs_minecraft_vanilla_inventory` has no direct
+/// dependency on them; the rule is direct because `mcrs_minecraft_engine` reaches the network.
+const INVENTORY_EDGE_PREFIXES: [&str; 5] = [
+    "mcrs_minecraft_network",
+    "mcrs_minecraft_protocol",
+    "mcrs_minecraft_inventory_click",
+    "mcrs_minecraft_inventory_client_view",
+    "mcrs_minecraft_inventory_server",
+];
+
 const GAME_DATA_PACKAGES: [&str; 7] = [
     "mcrs_minecraft_block",
     "mcrs_minecraft_chunk",
@@ -498,6 +508,30 @@ fn layers(ctx: &Context) -> Outcome {
         return Err(format!(
             "a model bake links the network, a client or a server ({}); a viewer bakes from the pack alone",
             linked.join(", ")
+        ));
+    }
+    let edge: Vec<String> = ctx
+        .workspace()?
+        .packages
+        .iter()
+        .filter(|package| package.name == "mcrs_minecraft_vanilla_inventory")
+        .flat_map(|package| {
+            package
+                .dependencies
+                .iter()
+                .filter(|dep| dep.kind == Kind::Normal)
+                .filter(|dep| {
+                    INVENTORY_EDGE_PREFIXES
+                        .iter()
+                        .any(|prefix| dep.name.starts_with(prefix))
+                })
+                .map(move |dep| format!("{} on {}", package.name, dep.name))
+        })
+        .collect();
+    if !edge.is_empty() {
+        return Err(format!(
+            "the inventory gameplay depends on the packet edge ({}); move the code that needs it to mcrs_minecraft_inventory_server",
+            edge.join(", ")
         ));
     }
     for package in ENTITY_RENDER_PACKAGES {

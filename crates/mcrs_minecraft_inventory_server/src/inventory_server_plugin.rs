@@ -9,9 +9,8 @@ use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::tick::TickSet;
 
 use crate::InventoryInput;
-use crate::InventoryMenuSync;
 use crate::InventoryServerSet;
-use crate::InventorySet;
+use crate::MenuSync;
 use crate::apply_inventory_input::apply_inventory_input;
 use crate::close_container::close_container;
 use crate::decode_click::decode_click;
@@ -25,6 +24,7 @@ use crate::send_full_state::send_full_state;
 use crate::set_carried_item::set_carried_item;
 use crate::set_creative_mode_slot::set_creative_mode_slot;
 use crate::sync_menus::sync_menus;
+use mcrs_minecraft_vanilla_inventory::InventorySet;
 
 /// Decodes the inventory packets of each player and keeps its client in agreement with its
 /// holders. After each restore of the holders, the next sync sends the player its selected slot
@@ -33,14 +33,14 @@ use crate::sync_menus::sync_menus;
 /// Each inventory packet becomes an [`InventoryInput`], which [`InventorySet::Input`] applies in
 /// the order of arrival (ITX-JAV-003): a `container_click` packet becomes a request of the engine
 /// (ITX-JAV-001 to ITX-JAV-005), and the other packets become the commands of
-/// [`PlayerInventoryCommandsExt`](crate::PlayerInventoryCommandsExt): the drop keys and the hand
+/// [`PlayerInventoryCommandsExt`](mcrs_minecraft_vanilla_inventory::PlayerInventoryCommandsExt): the drop keys and the hand
 /// swap of the `player_action` packet (INV-SEL-004, INV-SEL-005), the `set_carried_item` packet
 /// (INV-SEL-002), the `container_close` packet (INV-CLS-001), and the `set_creative_mode_slot`
 /// packet (INV-CRE-003, INV-CRE-004). In each tick, [`InventoryServerSet::Sync`] then sends each
 /// stack of the inventory menu that the client does not hold, whatever wrote it (INV-SYN-003,
 /// INV-SYN-004).
 ///
-/// Add it beside [`VanillaInventoryPlugin`](crate::VanillaInventoryPlugin), which it needs.
+/// Add it beside [`VanillaInventoryPlugin`](mcrs_minecraft_vanilla_inventory::VanillaInventoryPlugin), which it needs.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct InventoryServerPlugin;
 
@@ -66,7 +66,7 @@ impl Plugin for InventoryServerPlugin {
                         .in_set(InventorySet::Input),
                     (
                         send_full_state.run_if(any_full_send),
-                        sync_menus.run_if(any_with_component::<InventoryMenuSync>),
+                        sync_menus.run_if(any_with_component::<MenuSync>),
                     )
                         .chain()
                         .in_set(InventoryServerSet::Sync),

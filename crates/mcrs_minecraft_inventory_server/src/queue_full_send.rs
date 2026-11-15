@@ -2,11 +2,11 @@ use bevy_ecs::observer::On;
 use bevy_ecs::system::Commands;
 use bevy_ecs::system::ResMut;
 
-use crate::InventoryMenuSync;
-use crate::PlayerItemsRestored;
+use crate::MenuSync;
 use crate::click_drag::ClickDrag;
 use crate::creative_drops::CreativeDrops;
 use crate::full_sends::FullSends;
+use mcrs_minecraft_vanilla_inventory::PlayerItemsRestored;
 
 /// Gives a restored player the state of its connection when it has none, and makes the next sync
 /// send it its full inventory state (INV-SEL-003, INV-SYN-005).
@@ -17,7 +17,7 @@ pub(crate) fn queue_full_send(
 ) {
     let player = restored.entity;
     commands.entity(player).insert_if_new((
-        InventoryMenuSync::default(),
+        MenuSync::default(),
         ClickDrag::default(),
         CreativeDrops::default(),
     ));

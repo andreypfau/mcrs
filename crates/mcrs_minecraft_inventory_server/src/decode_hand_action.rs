@@ -4,8 +4,8 @@ use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::player::PlayerAction;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundPlayerAction;
 
-use crate::HandAction;
 use crate::InventoryInput;
+use mcrs_minecraft_vanilla_inventory::HandAction;
 
 /// Writes the [`InventoryInput::Hand`] of each `player_action` packet with a drop key or the hand
 /// swap.

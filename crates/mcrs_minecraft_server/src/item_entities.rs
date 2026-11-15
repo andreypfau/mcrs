@@ -12,9 +12,9 @@ use mcrs_minecraft_engine_world::world::dimension_builders::{DimensionBuild, Dim
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_inventory_server::InventoryServerPlugin;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_physics::Aabb;
-use mcrs_minecraft_vanilla_inventory::InventoryServerPlugin;
 use mcrs_minecraft_vanilla_inventory::VanillaInventoryPlugin;
 use mcrs_minecraft_vanilla_item_entity::{Collect, ItemCollector, ItemEntityPlugin, ItemEntitySet};
 

@@ -16,9 +16,9 @@ use mcrs_minecraft_inventory_transaction::Planned;
 use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_item_stack::MaxStackSize;
 
-use crate::PlayerHolders;
 use crate::holder_slots::holder_entity;
 use crate::stack_size::clamp_stack_size;
+use mcrs_minecraft_vanilla_inventory::PlayerHolders;
 
 const HOLDERS: [Holder; 4] = [
     Holder::Inventory,

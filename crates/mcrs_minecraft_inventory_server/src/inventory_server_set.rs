@@ -6,7 +6,7 @@ pub enum InventoryServerSet {
     /// Sends the stacks that the client does not hold, and keeps the client view and the state
     /// id of the inventory menu. It runs after
     /// [`TickSet::Project`](mcrs_minecraft_engine_world::tick::TickSet::Project) and
-    /// [`InventorySet::Drops`](crate::InventorySet::Drops), and before
+    /// [`InventorySet::Drops`](mcrs_minecraft_vanilla_inventory::InventorySet::Drops), and before
     /// [`TickSet::Output`](mcrs_minecraft_engine_world::tick::TickSet::Output).
     Sync,
 }

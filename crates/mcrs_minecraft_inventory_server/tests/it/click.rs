@@ -14,6 +14,7 @@ use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_inventory_server::MenuSync;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::CustomName;
 use mcrs_minecraft_item_stack::HashScratch;
@@ -31,7 +32,6 @@ use mcrs_minecraft_protocol_game::serverbound::ServerboundContainerClick;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_registries::Wire;
 use mcrs_minecraft_text::Text;
-use mcrs_minecraft_vanilla_inventory::InventoryMenuSync;
 use mcrs_minecraft_wire::Decode;
 use mcrs_minecraft_wire::Encode;
 use mcrs_minecraft_wire::VarInt;
@@ -179,7 +179,7 @@ pub(crate) fn sent(world: &mut World) -> Vec<String> {
 
 fn state_id(world: &World, player: Entity) -> u16 {
     world
-        .get::<InventoryMenuSync>(player)
+        .get::<MenuSync>(player)
         .expect("a joined player has a client view")
         .state_id()
         .get()

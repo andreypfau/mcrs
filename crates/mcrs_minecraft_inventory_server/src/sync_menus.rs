@@ -19,13 +19,13 @@ use mcrs_minecraft_protocol_game::clientbound::ClientboundContainerSetSlot;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundSetCursorItem;
 use mcrs_minecraft_wire::VarInt;
 
-use crate::InventoryMenuSync;
-use crate::PlayerHolders;
+use crate::MenuSync;
 use crate::holder_slots::HolderSlots;
 use crate::menu_content::menu_content;
 use crate::menu_queue::MenuQueue;
 use crate::sent_stack::SentStack;
 use crate::wire_names::WireNames;
+use mcrs_minecraft_vanilla_inventory::PlayerHolders;
 
 #[derive(Default)]
 pub(crate) struct SyncScratch {
@@ -39,13 +39,7 @@ pub(crate) struct SyncScratch {
 /// gets the content of the menu instead (INV-SYN-005).
 pub(crate) fn sync_menus(
     mut queue: ResMut<MenuQueue>,
-    mut players: Query<(
-        Entity,
-        &Owner,
-        &Slots,
-        &PlayerHolders,
-        &mut InventoryMenuSync,
-    )>,
+    mut players: Query<(Entity, &Owner, &Slots, &PlayerHolders, &mut MenuSync)>,
     holders: Query<&Slots>,
     mut stacks: Stacks,
     wire_names: WireNames,
@@ -87,7 +81,7 @@ pub(crate) fn sync_menus(
                 *view = SlotView::Stack(sent.stack);
             }
             let packet = ClientboundContainerSetSlot {
-                container_id: VarInt(i32::from(InventoryMenu::CONTAINER_ID)),
+                container_id: VarInt(i32::from(sync.container_id())),
                 state_seqno: VarInt(i32::from(sync.state_id.get())),
                 slot,
                 item: sent.wire,

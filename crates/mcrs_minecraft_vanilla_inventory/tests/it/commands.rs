@@ -1,16 +1,19 @@
 use bevy_ecs::system::RunSystemOnce;
 use mcrs_minecraft_engine::persisted_registry::PersistedSnapshot;
 use mcrs_minecraft_engine_item::Slots;
+use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_inventory_file::PlayerItems;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
+use mcrs_minecraft_vanilla_inventory::HandAction;
 use mcrs_minecraft_vanilla_inventory::PlayerInventories;
 use mcrs_minecraft_vanilla_inventory::PlayerInventoryCommandsExt;
 
 use crate::fixture::DIRT;
 use crate::fixture::STONE;
 use crate::fixture::app;
+use crate::fixture::gameplay_app;
 use crate::fixture::holders;
 use crate::fixture::patched_stone;
 use crate::fixture::put;
@@ -83,4 +86,40 @@ fn capture_gives_back_the_restored_items() {
 
     assert_eq!(captured.0, Some(items), "the restored values come back");
     assert_eq!(captured.1, None, "an entity without holders is no player");
+}
+
+#[test]
+fn hand_swap_and_close_change_the_slots_without_the_packet_edge() {
+    let mut app = gameplay_app();
+    let world = app.world_mut();
+    let player = world.spawn(Player).id();
+    world.flush();
+    let holders = holders(world, player);
+    put(world, player, 0, STONE, 5);
+    put(world, player, 40, DIRT, 1);
+    put(world, holders.cursor, 0, STONE, 2);
+
+    world
+        .commands()
+        .entity(player)
+        .hand_action(HandAction::SwapHands);
+    world.flush();
+    assert_eq!(
+        stacks(world, player),
+        vec![(0, DIRT, 1), (40, STONE, 5)],
+        "the selected slot 0 and the off hand exchange their stacks"
+    );
+
+    world.commands().entity(player).close_menu();
+    world.flush();
+    assert_eq!(
+        stacks(world, player),
+        vec![(0, DIRT, 1), (40, STONE, 7)],
+        "the cursor stack joins the alike stack of the off hand, not the unlike selected slot"
+    );
+    assert_eq!(
+        stacks(world, holders.cursor),
+        Vec::new(),
+        "the cursor is empty after the close"
+    );
 }

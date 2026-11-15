@@ -7,10 +7,10 @@ use bevy_ecs::system::Commands;
 use bevy_ecs::world::World;
 
 use crate::InventoryInput;
-use crate::PlayerInventoryCommandsExt;
 use crate::apply_click::apply_click;
 use crate::click_drag::ClickDrag;
 use crate::set_creative_mode_slot::apply_creative_packet;
+use mcrs_minecraft_vanilla_inventory::PlayerInventoryCommandsExt;
 
 /// Applies each [`InventoryInput`] in the order of arrival, as one queued command each. A command
 /// commits its request before the next command reads the slots (ITX-JAV-003, ITX-MOD-005).

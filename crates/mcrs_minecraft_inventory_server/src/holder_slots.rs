@@ -3,7 +3,7 @@ use bevy_ecs::system::Query;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_inventory_player::Holder;
 
-use crate::PlayerHolders;
+use mcrs_minecraft_vanilla_inventory::PlayerHolders;
 
 /// The slots of the four holders of a player.
 pub(crate) struct HolderSlots<'slots> {

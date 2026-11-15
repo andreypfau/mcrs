@@ -21,6 +21,7 @@ use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
+use mcrs_minecraft_inventory_server::InventoryServerPlugin;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;
@@ -29,7 +30,6 @@ use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_item_table::bake;
 use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
-use mcrs_minecraft_vanilla_inventory::InventoryServerPlugin;
 use mcrs_minecraft_vanilla_inventory::VanillaInventoryPlugin;
 
 const WARM_UP: usize = 20;

@@ -12,12 +12,12 @@ use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundSetHeldSlot;
 use mcrs_minecraft_wire::VarInt;
 
-use crate::InventoryMenuSync;
-use crate::PlayerHolders;
+use crate::MenuSync;
 use crate::full_sends::FullSends;
 use crate::holder_slots::HolderSlots;
 use crate::menu_content::menu_content;
 use crate::wire_names::WireNames;
+use mcrs_minecraft_vanilla_inventory::PlayerHolders;
 
 /// Sends each restored player its selected slot and the content of its inventory menu with the
 /// cursor, and records them as its client view (INV-SEL-003, INV-SYN-005).
@@ -29,7 +29,7 @@ pub(crate) fn send_full_state(
     mut sends: ResMut<FullSends>,
     players: Query<(&Owner, &Slots, &Selected, &PlayerHolders)>,
     holders: Query<&Slots>,
-    mut syncs: Query<&mut InventoryMenuSync>,
+    mut syncs: Query<&mut MenuSync>,
     mut stacks: Stacks,
     wire_names: WireNames,
     mut packets: MessageWriter<OutboundPlayerPacket>,

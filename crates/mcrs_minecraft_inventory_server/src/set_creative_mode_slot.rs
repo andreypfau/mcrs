@@ -19,13 +19,13 @@ use mcrs_minecraft_protocol_game::serverbound::ServerboundSetCreativeModeSlot;
 use mcrs_minecraft_wire::Encode;
 
 use crate::InventoryInput;
-use crate::InventoryMenuSync;
-use crate::PlayerHolders;
-use crate::PlayerInventoryCommandsExt;
+use crate::MenuSync;
 use crate::creative_drops::CreativeDrops;
 use crate::holder_slots::holder_entity;
 use crate::stack_size::max_stack_size;
 use crate::wire_names::WireNames;
+use mcrs_minecraft_vanilla_inventory::PlayerHolders;
+use mcrs_minecraft_vanilla_inventory::PlayerInventoryCommandsExt;
 
 /// Writes the [`InventoryInput::CreativeSet`] of each `set_creative_mode_slot` packet whose stack
 /// decodes.
@@ -60,7 +60,7 @@ pub(crate) fn apply_creative_packet(
     InRef(input): InRef<InventoryInput>,
     mut players: Query<(
         &PlayerHolders,
-        &mut InventoryMenuSync,
+        &mut MenuSync,
         Option<&PlayerGameMode>,
         &mut CreativeDrops,
     )>,
@@ -108,7 +108,7 @@ pub(crate) fn apply_creative_packet(
 }
 
 /// Makes `stack` the client view of the entry `slot`, when the inventory menu has such an entry.
-fn set_view(sync: &mut InventoryMenuSync, slot: i16, stack: Option<&ItemStack>) {
+fn set_view(sync: &mut MenuSync, slot: i16, stack: Option<&ItemStack>) {
     let view = usize::try_from(slot)
         .ok()
         .and_then(|index| sync.view.entry_mut(index));

@@ -5,7 +5,7 @@ use mcrs_minecraft_inventory_client_view::SlotView;
 use mcrs_minecraft_item_stack::ItemStack;
 
 use crate::ClaimedSlot;
-use crate::HandAction;
+use mcrs_minecraft_vanilla_inventory::HandAction;
 
 /// One inventory packet of a player, decoded. The inputs apply in the order that they arrive
 /// (ITX-JAV-003).

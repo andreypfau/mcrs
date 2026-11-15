@@ -19,15 +19,15 @@ use mcrs_minecraft_inventory_menu::MenuSlot;
 use mcrs_minecraft_inventory_player::PlayerMode;
 use mcrs_minecraft_inventory_transaction::Op;
 
-use crate::CLICK_REQUEST;
 use crate::InventoryInput;
-use crate::InventoryMenuSync;
-use crate::PlayerHolders;
+use crate::MenuSync;
 use crate::click_drag::ClickDrag;
 use crate::click_menu::ClickMenu;
 use crate::click_slots::ClickSlots;
 use crate::click_slots::StackHandle;
 use crate::menu_queue::MenuQueue;
+use mcrs_minecraft_vanilla_inventory::CLICK_REQUEST;
+use mcrs_minecraft_vanilla_inventory::PlayerHolders;
 
 /// Makes the request of a click in the inventory menu and records what the client claims to hold
 /// after it (ITX-JAV-001, ITX-JAV-002, ITX-JAV-004).
@@ -39,7 +39,7 @@ pub(crate) fn apply_click(
         &PlayerHolders,
         &Selected,
         Option<&PlayerGameMode>,
-        &mut InventoryMenuSync,
+        &mut MenuSync,
         &mut ClickDrag,
     )>,
     holders: Query<&Slots>,

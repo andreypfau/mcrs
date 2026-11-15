@@ -36,7 +36,6 @@ use mcrs_minecraft_registries::CurrentRegistries;
 use mcrs_minecraft_registries::Named;
 use mcrs_minecraft_text::Text;
 use mcrs_minecraft_vanilla_inventory::InventoryPersistencePlugin;
-use mcrs_minecraft_vanilla_inventory::InventoryServerPlugin;
 use mcrs_minecraft_vanilla_inventory::PlayerHolders;
 use mcrs_minecraft_vanilla_inventory::VanillaInventoryPlugin;
 
@@ -63,14 +62,16 @@ static TABLE: LazyLock<ItemTable> = LazyLock::new(|| {
 });
 
 pub fn app() -> App {
+    let mut app = gameplay_app();
+    app.add_plugins(InventoryPersistencePlugin);
+    app
+}
+
+/// The items and the gameplay of the player inventory, with no persistence.
+pub fn gameplay_app() -> App {
     let mut app = App::new();
     app.insert_resource(CurrentRegistries::new(test_registries().clone()))
-        .add_plugins((
-            ItemPlugin::new(*TABLE),
-            VanillaInventoryPlugin,
-            InventoryServerPlugin,
-            InventoryPersistencePlugin,
-        ));
+        .add_plugins((ItemPlugin::new(*TABLE), VanillaInventoryPlugin));
     app
 }
 

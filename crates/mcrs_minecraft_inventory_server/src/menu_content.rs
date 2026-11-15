@@ -6,14 +6,14 @@ use mcrs_minecraft_inventory_player::Holder;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundContainerSetContent;
 use mcrs_minecraft_wire::VarInt;
 
-use crate::InventoryMenuSync;
+use crate::MenuSync;
 use crate::holder_slots::HolderSlots;
 use crate::sent_stack::SentStack;
 
 /// The `container_set_content` packet of the inventory menu under the next state id. Each sent
 /// stack becomes the client view of its entry or of the cursor (INV-SYN-001, INV-SYN-005).
 pub(crate) fn menu_content(
-    sync: &mut InventoryMenuSync,
+    sync: &mut MenuSync,
     slots: &HolderSlots,
     stacks: &mut Stacks,
     names: &RegistryNames<'_>,
@@ -37,7 +37,7 @@ pub(crate) fn menu_content(
     let carried = SentStack::of(cursor, names, bytes);
     *sync.view.cursor_mut() = SlotView::Stack(carried.stack);
     ClientboundContainerSetContent {
-        container_id: VarInt(i32::from(InventoryMenu::CONTAINER_ID)),
+        container_id: VarInt(i32::from(sync.container_id())),
         state_seqno: VarInt(i32::from(sync.state_id.get())),
         slot_data,
         carried_item: carried.wire,

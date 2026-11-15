@@ -8,14 +8,14 @@ use mcrs_minecraft_inventory_menu::MenuSlot;
 use mcrs_minecraft_inventory_player::Holder;
 use mcrs_minecraft_inventory_player::OFF_HAND;
 
-use crate::HAND_SWAP_REQUEST;
-use crate::InventoryMenuSync;
+use crate::MenuSync;
+use mcrs_minecraft_vanilla_inventory::HAND_SWAP_REQUEST;
 
 /// Makes the client view of the hand and of the off hand not known when their swap has a
 /// rejection, because the client showed the swap before the answer came (INV-SEL-006).
 pub(crate) fn forget_rejected_swap(
     result: On<RequestResult>,
-    mut players: Query<(&Selected, &mut InventoryMenuSync)>,
+    mut players: Query<(&Selected, &mut MenuSync)>,
 ) {
     if result.id != HAND_SWAP_REQUEST || result.outcome.is_ok() {
         return;
