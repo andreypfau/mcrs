@@ -355,6 +355,11 @@ unspecified. A parity test must not compare the last bits of such a value. Norma
 give that many modifiers. The part `order_cases` of the fixture `attributes.json` holds 37 orders
 of the game, and the part `value_cases` holds 68 values as bits.
 
+The owner decided on 2026-11-15 that this order is a requirement, not an accident of the game. The
+server and the client of this project take the modifiers of each step in the order of this rule.
+For at most 24 modifiers of one operation, the value must have the bits of the value of the game.
+A parity test compares these bits. It has no tolerance of one unit in the last place.
+
 **ATR-VAL-003** (`source_suggested_black_box_confirmed`, client agreement, confidence: high). The
 result for `r` is:
 
@@ -564,7 +569,7 @@ entries have no effect on a client:
 | the entity id has no entity | ignores the packet | ignores the packet |
 | the entity is not a living entity | fails | ignores the packet |
 | the attribute of an entry is not in the attribute set of the entity type | ignores the entry, and applies the other entries | the same |
-| the numeric id of an attribute is not in the registry | fails to decode the packet | the same |
+| the numeric id of an attribute is not in the registry | fails to decode the packet | ignores the entry, and applies the other entries (ATR-CLI-006) |
 | two modifiers of one entry have the same identifier | fails | keeps the first one and ignores the others |
 
 The server must not send an input of the rows 2, 4 and 5. ATR-NET-001 and ATR-NET-002 prevent
@@ -606,6 +611,25 @@ A recording of the packets does not show the instances of the client itself. In 
 the entries of ATR-NET-005 come in the client tick of the respawn. Thus no client tick reads the
 instances that the client copies from the old local player for those attributes. An experiment
 that reads the values on the client after a respawn decides this rule (section 13, A6).
+
+**ATR-CLI-006** (`design`, semantic, confidence: high). The attribute of an entry of
+`update_attributes` is a numeric id on the wire. The decode of the packet succeeds for each
+numeric id and gives each entry with its id. The client of this project then looks up the id of
+each entry in the registry `minecraft:attribute`. When the id of an entry is not in the registry, the
+client does these steps:
+
+1. It ignores that entry. No instance changes for that entry.
+2. It writes a warning to its log.
+3. It applies each other entry of the packet, in order, by ATR-CLI-002.
+
+Thus an unknown id does not stop the decode of the packet. A proxy or a bot that decodes the
+packet with this library gets each entry, also the entry with the unknown id.
+
+Provenance: `design`. The owner decided on 2026-11-15 that the client of this project ignores only
+that entry. The vanilla client fails to decode the packet (ATR-CLI-003, row 4). A vanilla server
+never sends such an id (ATR-NET-001), so a differential test does not see this difference. An
+attribute that a data pack or a server adds is out of scope (section 10). This project has no
+attribute registry that a data pack or a server can extend.
 
 ## 8. The save data
 
@@ -688,7 +712,7 @@ health when `max_health` becomes less than the health.
 | the modifier of the crouch state on `waypoint_transmit_range`, and the two waypoint attributes | waypoints are another domain |
 | the text and the colour of an attribute line in an item tooltip | the tooltip is another domain; ATR-DEF-002 gives it the data |
 | the reaction of each reader to a changed value | section 9 |
-| a data pack that adds an attribute | the registry is static in this game version |
+| a data pack or a server that adds an attribute | the registry is static in this game version |
 
 ## 11. Intentional deviations
 
@@ -720,6 +744,8 @@ health when `max_health` becomes less than the health.
     the difference is in the last bit. Amounts that cancel can give a larger difference.
   - **Test:** a differential test compares the modifiers of an entry as a set. It does not compare
     the value of an instance in which two modifiers of one operation have a home slot conflict.
+    The parity test of ATR-VAL-002 is a different test. It takes the order of the modifiers from the
+    fixture, so this difference does not change its result.
 - **Compounds for instances that did not change.**
   - **Rule:** ATR-SAV-001.
   - **Reference:** it saves each instance that the server read, also with the base of the type.
@@ -729,20 +755,6 @@ health when `max_health` becomes less than the health.
 
 ## 12. Unresolved
 
-- **U1.** ATR-VAL-002 states the order that the game has, and that order comes from a hash of the
-  identifier. A different order changes a value by one unit in the last place of the f64. The author
-  computed 42 combinations on the base value `0.10000000149011612`:
-  - `speed` of the amplifier 0, 1, 2, 3, 4, 5 or 6;
-  - `slowness` of the amplifier 0, 1 or 2;
-  - the sprint modifier, present or absent.
-
-  The author compared the order of ATR-VAL-002 (sprint, `speed`, `slowness`) with the order
-  `speed`, `slowness`, sprint. In 5 combinations the f64 differs: the amplifier pairs (0, 2),
-  (2, 0), (3, 1), (6, 1) and (6, 2) of `speed` and `slowness`, each with the sprint modifier. In
-  none of them the f32 that the movement reads differs. A second order, `slowness`, sprint, `speed`,
-  changes the f64 in 3 of the 42 combinations. An earlier count of 13 is not reproducible from a
-  set that has the sprint modifier present and absent. The owner must decide: keep ATR-VAL-002 as it
-  is, or make the order unspecified with a tolerance of one unit in the last place.
 - **U5.** Experiments A4 and A5 show the time of an entry to the own player after a change
   (ATR-NET-003) and after a respawn (ATR-NET-005). Two points stay open, because the client
   recorder accepts one client and no client that joins again:

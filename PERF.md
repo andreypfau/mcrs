@@ -1142,8 +1142,8 @@ The work of the two sides is not equal:
 The rows pass is faster at 100k: the components cost 1.60 times the rows at rest and 1.44 times in
 flight. At 1M with a quarter awake, the difference is 5%. A spawn through `spawn_batch` costs 0.28
 times a spawn of rows. The moving entities that are not living therefore stay components in
-`mcrs_minecraft_engine_entity_motion`, and mobs stay on rows. `docs/physics-architecture.md` §6.1
-records the decision.
+`mcrs_minecraft_engine_entity_motion`. `docs/physics-architecture.md` §6.1
+records the decision, and that mob rows are abandoned.
 
 ## Findings not yet acted on
 
