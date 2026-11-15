@@ -88,6 +88,9 @@ defines it.
   `data/minecraft/advancement/` and `data/minecraft/enchantment/`.
   `tools/mcrs_minecraft_fixtures` installs it. These files show which predicates the game uses.
   They do not show a result.
+- The generated block definitions of this repository: `assets/mcrs/block_definition/`.
+  `cargo run -p mcrs_minecraft_update` writes them. They list the values of each property of each
+  block, in the order of the block report (PRED-BLK-009).
 
 ### 0.4 ID prefixes
 
@@ -398,8 +401,9 @@ predicate `{}` passes for each state.
 
 **PRED-BLK-007** (`source_suggested`, semantic, confidence medium). An exact entry holds one string.
 The entry passes when the string is the name of a value of the property, and the state has that
-value. The names are the names of the block report, for example `7`, `true` or `north`. A string
-that is not a name of a value of the property fails.
+value. For an integer property, PRED-BLK-009 states the names. For each other property, the names
+are those of the block report, for example `true` or `north`. A string that is not a name of a
+value of the property fails.
 
 **PRED-BLK-008** (`source_suggested`, semantic, confidence medium). A range entry holds an optional
 `min` string and an optional `max` string. Each string that is present must be the name of a value
@@ -407,9 +411,52 @@ of the property. Otherwise the entry fails. The values of a property have an ord
 when the value of the state is not before `min` and not after `max`. For an integer property, the
 order is the numeric order. For a boolean property, `false` is before `true`.
 
-**PRED-BLK-009** (`unresolved`, unspecified). The order of the values of an enumerated property, for
-example `facing` or `half`, is not decided (section 12.3, U1). No predicate of the vanilla data pack
-has a range entry for such a property. A parity test must not compare this case.
+**PRED-BLK-009** (`source_suggested`, semantic, confidence medium). This rule states the limits and
+the order of a range entry (PRED-BLK-008) for each kind of property.
+
+- An absent `min` gives no lower limit. An absent `max` gives no upper limit. Thus the range entry
+  `{}` passes for each state that has the property.
+- A `min` or a `max` that is not the name of a value of the property makes the entry fail for each
+  state. This applies also when a different property has a value with that name. For example,
+  `min: "up"` fails for each state of a furnace, because the `facing` of a furnace has no value
+  `up`.
+- When `min` is after `max`, the entry fails for each state. The decoder accepts such an entry.
+
+The order of the values of a property depends on its kind:
+
+| Kind of property | Order, from first to last |
+|------------------|---------------------------|
+| integer | the numeric order |
+| boolean | `false`, `true` |
+| direction: each property with the name `facing` or `vertical_direction` | `down`, `up`, `north`, `south`, `west`, `east` |
+| each other enumerated property | the listed order of the generated block definition |
+
+All directions have the one order of the table. A property with a part of the directions uses the
+same order for that part. For example, the four values of the `facing` of a furnace have the order
+`north`, `south`, `west`, `east`. Thus `{facing: {min: "north", max: "south"}}` passes for `north`
+and for `south` only.
+
+The generated block definitions of this repository, `assets/mcrs/block_definition/<block>.json`,
+list the values of each property in `minecraft:block.description.properties`. This listed order is
+the order of the block report.
+
+- For an integer property and for each other enumerated property, the listed order is the order
+  of this rule.
+- For a boolean, the listed order is `true`, `false`. This is the reverse of the order of this rule.
+- For a direction, the listed order is not the order of this rule. For example, `dispenser.json`
+  lists `north`, `east`, `south`, `west`, `up`, `down`, and `icicle.json` lists `up`, `down`.
+
+In the held-block form (PRED-BLK-005), the vanilla client uses the same order. No predicate of the
+vanilla data pack has a range entry for an enumerated property or a boolean property.
+
+The name of a value of an integer property is a decimal integer. It can have a sign and leading
+zeros. Thus `7`, `07` and `+7` each name the value 7. This applies to an exact entry (PRED-BLK-007)
+and to each limit of a range entry. A name with no value of the property fails, for example `-1`
+or `x`. These names also apply:
+
+- `-0` and `+0` name the value 0.
+- A decimal integer outside the range `-2147483648` to `2147483647` names no value, for example
+  `2147483648`. The entry fails, as for `x`. Leading zeros do not count for this range.
 
 ### 5.3 The fluid predicate
 
@@ -487,9 +534,23 @@ raw brightness of the position.
 
 **PRED-LOC-007** (`source_suggested`, semantic, confidence medium). The raw brightness of a block
 position is the larger of two integers: the block light, and the sky light minus the sky darkening.
-The sky darkening is the integer part of `15 − a`. `a` is the value of the environment attribute
-`minecraft:gameplay/sky_light_level` in the dimension (`environment-attributes.md`). The raw
-brightness is from 0 to 15.
+The raw brightness is from 0 to 15. The sky darkening is the integer part of `15 − a`. `a` is the
+dimension value of the environment attribute `minecraft:gameplay/sky_light_level` (ENVA-LAYER-002).
+
+- `a` is a value of the dimension, not a value at a position. All block positions of a dimension
+  have the same `a` at one time.
+- The biome of a position does not change `a`. A biome file cannot hold this attribute
+  (REG-FLD-253).
+- `a` comes from these layers of ENVA-LAYER-001: the entry of the dimension type, the timelines of
+  the dimension type and the weather layer. Thus `a` changes with the time of day and with rain
+  and thunder.
+
+Timing (`design`, semantic). A light test uses the value of `a` at the time of the test. A change
+of a clock or of the weather earlier in the same tick changes the result. For example, a function
+that runs `time set midnight` and then a light test gets the sky darkening of midnight. Reason: a
+data pack author expects a test after a change of the time to see the new time. ENVA-LAYER-008
+gives the same result for each other read of an attribute after a change of a clock. PRED-DEV-002
+records the difference from the vanilla server.
 
 ## 7. The distance predicate
 
@@ -939,6 +1000,18 @@ rules of section 9 must give the same result on each host.
 - **Visible to the client**: no. A player is not near a position that is not loaded.
 - **Test**: a differential test does not evaluate `can_see_sky` at a position that is not loaded.
 
+**PRED-DEV-002.**
+
+- **Rule**: PRED-LOC-007, part "Timing".
+- **Reference**: the vanilla server computes the sky darkening one time in each tick of the
+  dimension, after the clocks advance and after the weather changes. Each light test until the next
+  computation uses that value. The tick functions run before this computation. Thus a function that
+  changes the time and then tests the light sees the old sky darkening.
+- **Visible to the client**: no. Only a data pack function or a command sees the difference, for
+  one tick: after `time set` or `weather`, a light test gets the light of the old time or weather.
+- **Test**: a differential test does not run a light test after a change of the time or the weather
+  in the same tick.
+
 ### 12.2 Open questions
 
 Q1 is closed. `registry-fields.md` now states the decode facts that it asked for: `blocked`
@@ -954,10 +1027,9 @@ larger than `max` (REG-FLD-646).
 
 ### 12.3 Unresolved
 
-- **U1**: the order of the values of an enumerated property in a range entry (PRED-BLK-009). The
-  reference suggests the order in which the game declares the values of the type. For a direction,
-  that order is `down`, `up`, `north`, `south`, `west`, `east`. The block report can list the values
-  of a property in a different order. Experiment E5 decides which order a player sees.
+U1 is closed. PRED-BLK-009 states the order of each kind of property and the names of integer
+values. U7 is closed. PRED-LOC-007 states the timing, and PRED-DEV-002 records the reference.
+
 - **U2**: the fields `is_baby` and `is_fall_flying` of `flags` for an entity that is not a living
   entity (PRED-ENT-014). The reference skips the test, so `is_baby: true` passes for an item entity.
   Each other field of `flags` gives false there. Question to the owner: must both fields give false
@@ -992,8 +1064,8 @@ with one scripted client as an operator (`tools/mcrs_minecraft_client_recorder`)
 | E2 | Hold a diamond pickaxe with the damage 100 and Efficiency II. Run `execute if items entity @s weapon.mainhand` with `*[damage~{durability:{min:1461}}]`, with `enchantments` elements of each row of PRED-ITM-012, and with `*[custom_data~{}]`. Repeat the last test with an empty hand. | PRED-ITM-002, PRED-ITM-003, PRED-ITM-010 to PRED-ITM-014 |
 | E3 | Hold a bundle with 3 dirt, 2 stone and 1 stick. Test `bundle_contents` with `contains` of two predicates that one stack satisfies, with `count` and `max: 0`, and with `size`. | PRED-COL-001 to PRED-COL-004, PRED-ITM-015 |
 | E4 | Place a chest with the name `Box`. Run LC with `block` and `nbt: {x: <x>}`, with `components` that hold the custom name, and with `{}` on a stone block. Run LC with `block: {}` at `100000 64 100000`, where no chunk is loaded. | PRED-GEN-001, PRED-BLK-001 to PRED-BLK-004, PRED-NBT-001, PRED-NBT-002, PRED-LOC-001, PRED-LOC-002 |
-| E5 | Place a furnace for each value of `facing`. Run LC with `block.state` equal to `{facing: {min: "north", max: "south"}}` at each furnace. Repeat with `{lit: {min: "false", max: "false"}}` and with `{facing: "up"}`. | PRED-BLK-006 to PRED-BLK-009, U1 |
-| E6 | Run LC with `fluid` at a water source, at flowing water and at air. Run LC with `light` and with `can_see_sky` under a roof, in the open at noon and at midnight, and in the Nether. | PRED-BLK-010, PRED-LOC-005, PRED-LOC-006, PRED-LOC-007 |
+| E5 | Place a furnace for each value of `facing`. Run LC with `block.state` equal to `{facing: {min: "north", max: "south"}}` at each furnace. Repeat with `{facing: {min: "south"}}`, `{facing: {min: "up"}}`, `{facing: {min: "west", max: "north"}}`, `{facing: {}}`, `{lit: {min: "false", max: "false"}}`, `{lit: {max: "false"}}` and `{facing: "up"}`. Place a dispenser for each value of `facing`, and run LC with `{facing: {max: "north"}}` at each. Place a pointed dripstone with each `vertical_direction`, and run LC with `{vertical_direction: {max: "down"}}`. Place wheat with `age` 7, and run LC with `{age: "07"}`, `{age: "+7"}`, `{age: {min: "07"}}`, `{age: {max: "-0"}}` and `{age: {max: "2147483648"}}`. | PRED-BLK-006 to PRED-BLK-009 |
+| E6 | Run LC with `fluid` at a water source, at flowing water and at air. Run LC with `light` and with `can_see_sky` under a roof, in the open at noon and at midnight, and in the Nether. Find two open positions at the same height in a desert and in a swamp, and run LC with the same `light` bounds at both, at noon and in rain. | PRED-BLK-010, PRED-LOC-005, PRED-LOC-006, PRED-LOC-007 |
 | E7 | Build a column with a lit campfire. Run LC with `smokey: true` at 1 to 7 blocks over it. Repeat with a hay bale, with a top slab and with a fence over the campfire, and with an unlit campfire. | PRED-LOC-004 |
 | E8 | Stand on soul sand, on a bottom slab over soul sand, and on a fence. Run EP with `stepping_on` and with `movement_affected_by`, each with `block` and with `position.y`. Repeat in a jump. | PRED-ENT-007, PRED-ENT-008 |
 | E9 | Run EP with `movement` bounds from a repeating command block while the client walks, sprints, stands, falls and rides a pig and a boat. Repeat for an armor stand that falls. | PRED-ENT-010, PRED-ENT-011, U3 |
