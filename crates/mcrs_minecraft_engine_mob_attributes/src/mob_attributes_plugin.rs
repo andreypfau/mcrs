@@ -3,14 +3,14 @@ use std::marker::PhantomData;
 use bevy_app::{App, FixedUpdate, Plugin};
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::common_conditions::on_message;
-use mcrs_minecraft_engine_attributes::{
-    AttributeChanged, AttributeEdit, AttributeEdits, PlayerAttributeEdits,
-};
 use mcrs_minecraft_engine_physics::{MobPublish, Mobs, RowMoves};
 use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_entity_rows::RowStore;
 
 use crate::apply_row_attribute_edits::apply_row_attribute_edits;
+use crate::attribute_changed::AttributeChanged;
+use crate::attribute_edit::AttributeEdit;
+use crate::attribute_edits::AttributeEdits;
 use crate::forget_removed_rows::{any_row_attributes, forget_removed_rows};
 use crate::project_row_motion::project_row_motion;
 use crate::row_attributes::RowAttributes;
@@ -58,9 +58,7 @@ impl<M: Send + Sync + 'static> Plugin for MobAttributesPlugin<M> {
         app.add_systems(
             FixedUpdate,
             (
-                apply_row_attribute_edits
-                    .run_if(on_message::<AttributeEdit>)
-                    .after(PlayerAttributeEdits),
+                apply_row_attribute_edits.run_if(on_message::<AttributeEdit>),
                 project_row_motion::<M>.run_if(on_message::<AttributeChanged>),
             )
                 .chain()

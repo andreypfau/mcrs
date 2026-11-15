@@ -23,7 +23,6 @@ use mcrs_minecraft_block::definition::{BlockDefinitions, BlockStateFlags, Blocks
 use mcrs_minecraft_block::fluid_keys::Fluid;
 use mcrs_minecraft_block_break::{Dig, Finish};
 use mcrs_minecraft_core::Direction;
-use mcrs_minecraft_engine_attributes::Attributes;
 use mcrs_minecraft_engine_world::block_drops::BlockBroken;
 use mcrs_minecraft_engine_world::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -33,6 +32,8 @@ use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::voxel_update::VoxelUpdateSet;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::event::Received;
@@ -140,13 +141,17 @@ fn send_acks(
 }
 
 /// The reach limit of BRK-RCH-001: the value of `block_interaction_range` plus 1. A player
-/// without [`Attributes`] has the base of the type `player`; `None` when that base is missing.
+/// without [`AttributeInstances`] has the base of the type `player`; `None` when that base is
+/// missing.
 #[must_use]
-pub fn reach(attributes: Option<&Attributes>) -> Option<f64> {
-    let fresh = Attributes::default();
-    let range = attributes
-        .unwrap_or(&fresh)
-        .value(Attribute::BlockInteractionRange)?;
+pub fn reach(attributes: Option<&AttributeInstances>) -> Option<f64> {
+    let range = match attributes {
+        Some(attributes) => attributes.value(Attribute::BlockInteractionRange)?,
+        None => {
+            AttributeInstances::new(mcrs_minecraft_entity::attribute_bases(EntityType::Player)?)
+                .value(Attribute::BlockInteractionRange)?
+        }
+    };
     Some(range + 1.0)
 }
 
@@ -391,7 +396,7 @@ fn break_blocks(
     mut players: Query<(
         &Owner,
         &PlayerGameMode,
-        Option<&Attributes>,
+        Option<&AttributeInstances>,
         &InDimension,
         &Transform,
         &ClientOnGround,

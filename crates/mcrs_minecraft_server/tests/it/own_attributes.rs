@@ -1,20 +1,20 @@
 use bevy_app::App;
-use bevy_ecs::change_detection::DetectChangesMut;
+use bevy_ecs::change_detection::{DetectChanges, DetectChangesMut};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::Messages;
 use bevy_ecs::world::World;
 use bevy_math::DVec3;
+use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::coordinator::default_game_mode::DefaultGameMode;
 use mcrs_minecraft_engine::network_id::player_network_id;
 use mcrs_minecraft_engine::player_sprinting::PlayerSprinting;
-use mcrs_minecraft_engine_attributes::{AttributeEdit, AttributeTarget, Attributes};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{
-    InstanceEdit, InstanceModifier, ModifierKind, ModifierOperation,
+    AttributeInstances, InstanceEdit, InstanceModifier, ModifierKind, ModifierOperation,
 };
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_protocol::packets::game::clientbound::ClientboundBundleDelimiter;
@@ -131,6 +131,67 @@ fn atr_net_003_the_own_player_gets_each_change_of_its_sprint_modifier() {
     );
     assert_eq!(stopped, [speed(Vec::new())]);
     assert_eq!(idle, []);
+}
+
+/// ATR-SRC-001: a source that runs for a player whose instance it leaves as it is sends nothing
+/// and leaves the instances unchanged for every other reader.
+#[test]
+fn a_sprint_stop_without_a_sprint_sends_nothing_and_changes_nothing() {
+    let mut app = host_app::make_host_app();
+    app.add_plugins((VanillaEntityAttributesPlugin, VanillaSprintAttributePlugin));
+    let mut server = PlayServer::start(app, &[], 0);
+    let (anchor, _) = server.join(Uuid::from_u128(1), "Walker");
+    let player = server.player(anchor);
+    server.ticks(anchor, 2);
+    let last_changed = |server: &mut PlayServer| {
+        server
+            .world()
+            .entity(player)
+            .get_ref::<AttributeInstances>()
+            .unwrap()
+            .last_changed()
+    };
+    let before = last_changed(&mut server);
+
+    server
+        .world()
+        .get_mut::<PlayerSprinting>(player)
+        .unwrap()
+        .set_changed();
+    let packets = server.ticks(anchor, 2);
+
+    assert_eq!(own_updates(&packets), []);
+    assert_eq!(last_changed(&mut server), before);
+}
+
+/// ATR-NET-002 and ATR-NET-003: two instances that change in one tick go out in one packet, in
+/// the order of their numeric ids.
+#[test]
+fn two_instances_changed_in_one_tick_go_out_in_one_packet_in_id_order() {
+    let mut app = host_app::make_host_app();
+    app.add_plugins((VanillaEntityAttributesPlugin, VanillaCreativeRangePlugin));
+    let mut server = PlayServer::start(app, &[], 0);
+    server
+        .world()
+        .insert_resource(DefaultGameMode(GameMode::Survival));
+    let (anchor, _) = server.join(Uuid::from_u128(2), "Builder");
+    let player = server.player(anchor);
+    server.ticks(anchor, 2);
+
+    server
+        .world()
+        .get_mut::<PlayerGameMode>(player)
+        .unwrap()
+        .set_if_neq(PlayerGameMode(GameMode::Creative));
+    let updates = own_updates(&server.ticks(anchor, 2));
+
+    assert_eq!(
+        updates,
+        [OwnUpdate {
+            entity_id: player_network_id(server.session_of(anchor).unwrap()),
+            entries: creative_ranges().into(),
+        }]
+    );
 }
 
 /// The `update_attributes` of the muxer in `packets`.
@@ -350,7 +411,7 @@ fn a_sprinter_that_crosses_a_cell_border_keeps_its_sprint_modifier_until_it_stop
     );
     let (world, player) = held(&mut app, label, sprinter);
     let speed = world
-        .get::<Attributes>(player)
+        .get::<AttributeInstances>(player)
         .unwrap()
         .value(Attribute::MovementSpeed)
         .unwrap();
@@ -410,14 +471,11 @@ fn a_modifier_of_a_player_holds_after_a_change_of_dimension() {
             ModifierKind::Permanent,
         )
     };
-    server
+    let _ = server
         .world()
-        .resource_mut::<Messages<AttributeEdit>>()
-        .write(AttributeEdit {
-            target: AttributeTarget::Player(player),
-            attribute: Attribute::MovementSpeed,
-            edit: InstanceEdit::Put(boost()),
-        });
+        .get_mut::<AttributeInstances>(player)
+        .unwrap()
+        .apply(Attribute::MovementSpeed, &InstanceEdit::Put(boost()));
     server.ticks(anchor, 1);
     server
         .world_in(overworld)
@@ -434,7 +492,7 @@ fn a_modifier_of_a_player_holds_after_a_change_of_dimension() {
     let arrived = server.player_in(end, anchor).expect("the player arrived");
     let instance = server
         .world_in(end)
-        .get::<Attributes>(arrived)
+        .get::<AttributeInstances>(arrived)
         .unwrap()
         .set()
         .instance(Attribute::MovementSpeed)

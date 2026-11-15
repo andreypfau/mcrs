@@ -21,11 +21,10 @@ use crate::player_order::{OrderedPlayer, obey_orders};
 use crate::player_sprinting::{PlayerSprinting, handle_player_command};
 use crate::send_own_attributes::{OwnAttributesSet, send_own_attributes};
 use bevy_app::{App, FixedPreUpdate, FixedUpdate, Plugin, Update};
+use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::common_conditions::{
     on_message, resource_exists, resource_exists_and_changed,
 };
-use bevy_ecs::schedule::{IntoScheduleConfigs, SystemCondition};
-use mcrs_minecraft_engine_attributes::{AttributeChanged, AttributeEdits};
 use mcrs_minecraft_engine_world::entity::add_entity_to_chunk;
 use mcrs_minecraft_engine_world::entity::player::ChangeDimensionRequest;
 use mcrs_minecraft_engine_world::entity::player::Player;
@@ -100,13 +99,10 @@ impl Plugin for DimPlayerPlugin {
                     .after(game_mode::send_game_mode),
             ),
         );
-        app.add_message::<AttributeChanged>();
         app.add_systems(
             FixedUpdate,
             send_own_attributes
-                .run_if(on_message::<AttributeChanged>.or_else(on_message::<OpLevelAnnounced>))
                 .in_set(TickSet::Project)
-                .after(AttributeEdits)
                 .in_set(OwnAttributesSet),
         );
         app.add_message::<OutboundPlayerReleased>();

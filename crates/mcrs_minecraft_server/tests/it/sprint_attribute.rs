@@ -1,5 +1,5 @@
 use mcrs_minecraft_engine::network_id::player_network_id;
-use mcrs_minecraft_engine_attributes::Attributes;
+use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_protocol::VarInt;
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -29,7 +29,7 @@ fn atr_src_002_the_sprint_state_moves_movement_speed_and_its_end_restores_it() {
         );
         server
             .world()
-            .get::<Attributes>(player)
+            .get::<AttributeInstances>(player)
             .unwrap()
             .value(Attribute::MovementSpeed)
             .unwrap()

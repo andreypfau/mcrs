@@ -1,4 +1,1 @@
-#![expect(clippy::expect_used, reason = "a test reports a failure by panicking")]
-
-mod edits;
-mod fixture;
+mod player_attributes;
