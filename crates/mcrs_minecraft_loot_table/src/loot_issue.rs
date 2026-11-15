@@ -1,6 +1,6 @@
 use core::fmt;
 
-use mcrs_minecraft_loot_condition::{ConditionProblem, ParamNotAllowed};
+use mcrs_minecraft_loot_condition::{ConditionProblem, MemberKind, ParamNotAllowed};
 use mcrs_minecraft_resource::ResourceLocationBuf;
 
 use crate::table_links::MAX_NESTING;
@@ -9,7 +9,7 @@ use crate::table_links::MAX_NESTING;
 /// part that names it never pass or make nothing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LootIssue {
-    /// The table with the problem, or the named provider for a problem of a named provider.
+    /// The table with the problem, or the named entry for [`LootProblem::Named`].
     pub table: ResourceLocationBuf,
     /// The part of the table with the problem, as `pools[2].entries[0].condition`. It is empty
     /// for the table as a whole.
@@ -31,6 +31,11 @@ pub enum LootProblem {
     UnknownTag(String),
     /// A name in a condition or a provider of the table.
     Condition(ConditionProblem),
+    /// A problem of the named entry of the registry `kind` (LOOT-CTX-016).
+    Named {
+        kind: MemberKind,
+        problem: ConditionProblem,
+    },
     /// The part reads a parameter that the type of the table does not allow, or a nested table
     /// reads one that the type of the table that contains it does not allow (LOOT-CTX-013).
     ParamNotAllowed(ParamNotAllowed),
@@ -40,9 +45,9 @@ pub enum LootProblem {
     /// The `loot_table` entry names a table whose chain of nested tables is already as long as
     /// the bake allows.
     TooDeep,
-    /// A provider of the part makes a reference chain from some start longer than
+    /// The part makes a reference chain from some start longer than
     /// [`MAX_NESTING`] (LOOT-CTX-017).
-    ProviderChainTooLong,
+    ChainTooLong,
     /// A composite entry without children (LOOT-CTX-016).
     NoChildren,
     /// A child of an `alternatives` entry, other than the last child, without a condition
@@ -53,6 +58,9 @@ pub enum LootProblem {
 impl fmt::Display for LootIssue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let table = &self.table;
+        if let LootProblem::Named { kind, problem } = &self.problem {
+            return write!(f, "{kind} {table}: {problem}");
+        }
         if self.path.is_empty() {
             write!(f, "{table}: ")?;
         } else {
@@ -65,7 +73,9 @@ impl fmt::Display for LootIssue {
             LootProblem::SetItemAir => f.write_str("set_item names minecraft:air"),
             LootProblem::UnknownTable(name) => write!(f, "no loot table {name}"),
             LootProblem::UnknownTag(name) => write!(f, "no tag #{name}"),
-            LootProblem::Condition(problem) => write!(f, "{problem}"),
+            LootProblem::Condition(problem) | LootProblem::Named { problem, .. } => {
+                write!(f, "{problem}")
+            }
             LootProblem::ParamNotAllowed(problem) => write!(f, "{problem}"),
             LootProblem::Cycle(tables) => {
                 f.write_str("the loot table refers back to itself through")?;
@@ -77,10 +87,10 @@ impl fmt::Display for LootIssue {
             LootProblem::TooDeep => {
                 write!(f, "more than {MAX_NESTING} nested loot tables in one chain")
             }
-            LootProblem::ProviderChainTooLong => {
+            LootProblem::ChainTooLong => {
                 write!(
                     f,
-                    "a provider makes a reference chain longer than {MAX_NESTING}"
+                    "the part makes a reference chain longer than {MAX_NESTING}"
                 )
             }
             LootProblem::NoChildren => f.write_str("the composite entry has no children"),

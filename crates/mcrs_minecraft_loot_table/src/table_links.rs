@@ -171,7 +171,7 @@ fn check_chains(
         }
         for chain in &link.chains {
             if length.saturating_add(chain.length) > MAX_NESTING {
-                let problem = LootProblem::ProviderChainTooLong;
+                let problem = LootProblem::ChainTooLong;
                 report(links, names, node, &chain.path, problem, issues);
             }
         }

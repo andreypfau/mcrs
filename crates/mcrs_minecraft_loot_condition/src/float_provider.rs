@@ -1,5 +1,6 @@
 use mcrs_minecraft_enchantment::level_based_value::LevelBasedValue;
 use mcrs_minecraft_nbt_path::NbtPath;
+use mcrs_minecraft_predicate::PredicateScratch;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 
@@ -9,9 +10,8 @@ use crate::context_params::ContextParams;
 use crate::dispatch_case::DispatchCase;
 use crate::environment_read::EnvironmentRead;
 use crate::int_provider::{IntNode, environment_reads, union};
-use crate::loot_context::LootContext;
+use crate::loot_inputs::LootInputs;
 use crate::loot_world::LootWorld;
-use crate::named_providers::NamedProviders;
 use crate::provider_evaluation::Evaluation;
 use crate::weighted_entry::WeightedEntry;
 
@@ -103,15 +103,14 @@ impl FloatProvider {
     }
 
     /// The float read (LOOT-NUM-001): an evaluation error, a NaN and an infinity give 0.
-    /// `providers` are the named providers that the bake resolved the keys against.
-    pub fn read<E, W: LootWorld<E>, R: Random>(
+    /// `scratch` holds the buffers of the conditions that the provider tests.
+    pub fn read<E: Copy, W: LootWorld<E>, R: Random>(
         &self,
-        providers: &NamedProviders,
-        context: &LootContext<'_, E>,
-        world: &W,
+        inputs: LootInputs<'_, '_, E, W>,
         random: &mut R,
+        scratch: &mut PredicateScratch,
     ) -> f32 {
-        Evaluation::new(providers, context, world, random)
+        Evaluation::new(inputs, random, scratch)
             .float(&self.0)
             .filter(|value| value.is_finite())
             .unwrap_or(0.0)

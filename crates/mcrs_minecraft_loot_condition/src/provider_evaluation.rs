@@ -2,6 +2,7 @@ use glam::DVec3;
 use mcrs_minecraft_numeric::{
     ceil_to_i32, cos_nearest, floor_div, floor_mod, max_f32, min_f32, pow_f32, sin_nearest,
 };
+use mcrs_minecraft_predicate::PredicateScratch;
 use mcrs_minecraft_random::Random;
 
 use crate::condition::Condition;
@@ -13,34 +14,30 @@ use crate::float_provider::{
 };
 use crate::int_provider::{IntAggregate, IntBinary, IntNode, IntUnary};
 use crate::level_based::level_based;
-use crate::loot_context::LootContext;
+use crate::loot_inputs::LootInputs;
 use crate::loot_world::LootWorld;
-use crate::named_providers::NamedProviders;
 use crate::score_target::ScoreTarget;
 use crate::score_view::ScoreHolder;
 use crate::weighted_entry::WeightedEntry;
 
 /// One evaluation of a provider: `None` is an evaluation error (LOOT-NUM-001), which stops the
 /// evaluation with the draws before it taken.
-pub(crate) struct Evaluation<'e, 'c, E, W, R> {
-    providers: &'e NamedProviders,
-    context: &'e LootContext<'c, E>,
-    world: &'e W,
+pub(crate) struct Evaluation<'e, 'i, 'c, E, W, R> {
+    inputs: LootInputs<'i, 'c, E, W>,
     random: &'e mut R,
+    scratch: &'e mut PredicateScratch,
 }
 
-impl<'e, 'c, E, W: LootWorld<E>, R: Random> Evaluation<'e, 'c, E, W, R> {
+impl<'e, 'i, 'c, E: Copy, W: LootWorld<E>, R: Random> Evaluation<'e, 'i, 'c, E, W, R> {
     pub(crate) fn new(
-        providers: &'e NamedProviders,
-        context: &'e LootContext<'c, E>,
-        world: &'e W,
+        inputs: LootInputs<'i, 'c, E, W>,
         random: &'e mut R,
+        scratch: &'e mut PredicateScratch,
     ) -> Self {
         Self {
-            providers,
-            context,
-            world,
+            inputs,
             random,
+            scratch,
         }
     }
 
@@ -49,8 +46,8 @@ impl<'e, 'c, E, W: LootWorld<E>, R: Random> Evaluation<'e, 'c, E, W, R> {
             IntNode::Fault => None,
             IntNode::Constant(value) => Some(*value),
             IntNode::Named { index, .. } => {
-                let providers = self.providers;
-                self.int(&providers.ints.get(*index)?.node)
+                let named = self.inputs.named;
+                self.int(&named.ints.get(*index)?.node)
             }
             IntNode::Unary(IntUnary::Abs, input) => self.int(input)?.checked_abs(),
             IntNode::Unary(IntUnary::Negate, input) => self.int(input)?.checked_neg(),
@@ -92,7 +89,11 @@ impl<'e, 'c, E, W: LootWorld<E>, R: Random> Evaluation<'e, 'c, E, W, R> {
                 storage,
                 path,
                 fallback,
-            } => match self.world.storage_number(storage.as_location(), path) {
+            } => match self
+                .inputs
+                .world
+                .storage_number(storage.as_location(), path)
+            {
                 Some(number) => Some(number.to_i32()),
                 None => self.int(fallback),
             },
@@ -119,8 +120,8 @@ impl<'e, 'c, E, W: LootWorld<E>, R: Random> Evaluation<'e, 'c, E, W, R> {
             FloatNode::Fault => None,
             FloatNode::Constant(value) => Some(*value),
             FloatNode::Named { index, .. } => {
-                let providers = self.providers;
-                self.float(&providers.floats.get(*index)?.node)
+                let named = self.inputs.named;
+                self.float(&named.floats.get(*index)?.node)
             }
             FloatNode::Unary(op, input) => self.float(input).map(|a| float_unary(*op, a)),
             #[expect(clippy::cast_precision_loss, reason = "toF32 of an i32")]
@@ -178,13 +179,17 @@ impl<'e, 'c, E, W: LootWorld<E>, R: Random> Evaluation<'e, 'c, E, W, R> {
                 storage,
                 path,
                 fallback,
-            } => match self.world.storage_number(storage.as_location(), path) {
+            } => match self
+                .inputs
+                .world
+                .storage_number(storage.as_location(), path)
+            {
                 Some(number) => Some(number.to_f32()),
                 None => self.float(fallback),
             },
             FloatNode::EnchantmentLevel(amount) => Some(level_based(
                 amount,
-                self.context.enchantment_level.unwrap_or(0),
+                self.inputs.context.enchantment_level.unwrap_or(0),
             )),
         }
     }
@@ -247,7 +252,7 @@ impl<'e, 'c, E, W: LootWorld<E>, R: Random> Evaluation<'e, 'c, E, W, R> {
     }
 
     fn test(&mut self, condition: &Condition) -> bool {
-        condition.test(self.providers, self.context, self.world, self.random)
+        condition.test(self.inputs, self.random, self.scratch)
     }
 
     fn conditional<'n, N>(
@@ -282,7 +287,7 @@ impl<'e, 'c, E, W: LootWorld<E>, R: Random> Evaluation<'e, 'c, E, W, R> {
 
     fn environment_int(&self, read: &EnvironmentRead<i32>) -> i32 {
         self.position(read)
-            .and_then(|position| self.world.environment_int(read.attribute, position))
+            .and_then(|position| self.inputs.world.environment_int(read.attribute, position))
             .unwrap_or(read.default)
     }
 
@@ -291,10 +296,14 @@ impl<'e, 'c, E, W: LootWorld<E>, R: Random> Evaluation<'e, 'c, E, W, R> {
         let position = self.position(read);
         match read.default {
             EnvironmentNumber::Int(default) => position
-                .and_then(|position| self.world.environment_int(read.attribute, position))
+                .and_then(|position| self.inputs.world.environment_int(read.attribute, position))
                 .unwrap_or(default) as f32,
             EnvironmentNumber::Float(default) => position
-                .and_then(|position| self.world.environment_float(read.attribute, position))
+                .and_then(|position| {
+                    self.inputs
+                        .world
+                        .environment_float(read.attribute, position)
+                })
                 .unwrap_or(default),
         }
     }
@@ -303,17 +312,17 @@ impl<'e, 'c, E, W: LootWorld<E>, R: Random> Evaluation<'e, 'c, E, W, R> {
     /// `origin`, which takes the default value (LOOT-CND-019).
     fn position<T>(&self, read: &EnvironmentRead<T>) -> Option<Option<DVec3>> {
         match read.positional {
-            true => self.context.origin.map(Some),
+            true => self.inputs.context.origin.map(Some),
             false => Some(None),
         }
     }
 
     fn score(&self, target: &ScoreTarget, objective: &str) -> Option<i32> {
         let holder = match target {
-            ScoreTarget::Entity(param) => ScoreHolder::Entity(self.context.entity(*param)?),
+            ScoreTarget::Entity(param) => ScoreHolder::Entity(self.inputs.context.entity(*param)?),
             ScoreTarget::Name(name) => ScoreHolder::Name(name),
         };
-        self.world.score(holder, objective)
+        self.inputs.world.score(holder, objective)
     }
 }
 

@@ -1,8 +1,9 @@
 use mcrs_minecraft_item_stack::{ItemStack, Kind};
 use mcrs_minecraft_loot_condition::{
-    Condition, DynamicName, FloatProvider, IntProvider, LootContext, LootWorld, NamedProviders,
-    bounded,
+    Condition, DynamicName, FloatProvider, IntProvider, LootContext, LootInputs, LootWorld,
+    NamedEntries, bounded,
 };
+use mcrs_minecraft_predicate::PredicateScratch;
 use mcrs_minecraft_random::Random;
 
 use crate::item_rules::ItemRules;
@@ -88,7 +89,7 @@ pub(crate) struct Candidate {
 /// The parts of one evaluation that do not change while it runs.
 pub(crate) struct Evaluation<'e, 'c, E, W> {
     pub(crate) tables: &'e [Table],
-    pub(crate) providers: &'e NamedProviders,
+    pub(crate) named: &'e NamedEntries,
     pub(crate) context: &'e LootContext<'c, E>,
     pub(crate) world: &'e W,
     pub(crate) rules: &'e ItemRules,
@@ -121,7 +122,15 @@ impl Table {
     }
 }
 
-impl<E, W: LootWorld<E>> Evaluation<'_, '_, E, W> {
+impl<'e, 'c, E: Copy, W: LootWorld<E>> Evaluation<'e, 'c, E, W> {
+    pub(crate) fn inputs(&self) -> LootInputs<'e, 'c, E, W> {
+        LootInputs {
+            named: self.named,
+            context: self.context,
+            world: self.world,
+        }
+    }
+
     /// Adds the stacks of one evaluation of `table`, which is not nested, to `stacks`
     /// (LOOT-EVL-001).
     pub(crate) fn root<R: Random>(
@@ -159,15 +168,15 @@ impl<E, W: LootWorld<E>> Evaluation<'_, '_, E, W> {
         scratch: &mut LootScratch,
         stacks: &mut Vec<Option<ItemStack>>,
     ) {
-        if !self.passes(pool.condition.as_ref(), random) {
+        if !self.passes(pool.condition.as_ref(), random, &mut scratch.predicates) {
             return;
         }
         let rolls = pool
             .rolls
-            .read(self.providers, self.context, self.world, random);
+            .read(self.inputs(), random, &mut scratch.predicates);
         let bonus_rolls = pool
             .bonus_rolls
-            .read(self.providers, self.context, self.world, random);
+            .read(self.inputs(), random, &mut scratch.predicates);
         #[expect(
             clippy::cast_possible_truncation,
             reason = "the cast saturates, and a count beyond the i32 range is no real roll count"
@@ -176,7 +185,7 @@ impl<E, W: LootWorld<E>> Evaluation<'_, '_, E, W> {
         for _ in 0..rolls.saturating_add(bonus) {
             scratch.candidates.clear();
             for index in pool.entries.indices() {
-                self.expand(table, index, random, &mut scratch.candidates);
+                self.expand(table, index, random, scratch);
             }
             if let Some(chosen) = choose(&mut scratch.candidates, random) {
                 let place = Place {
@@ -197,12 +206,12 @@ impl<E, W: LootWorld<E>> Evaluation<'_, '_, E, W> {
         table: &Table,
         index: u32,
         random: &mut R,
-        candidates: &mut Vec<Candidate>,
+        scratch: &mut LootScratch,
     ) -> bool {
         let Some(entry) = table.entry(index) else {
             return false;
         };
-        if !self.passes(entry.condition.as_ref(), random) {
+        if !self.passes(entry.condition.as_ref(), random, &mut scratch.predicates) {
             return false;
         }
         let candidate = |member| Candidate {
@@ -216,22 +225,24 @@ impl<E, W: LootWorld<E>> Evaluation<'_, '_, E, W> {
             | EntryKind::Tag(_)
             | EntryKind::Tables(_)
             | EntryKind::Dynamic(_) => {
-                candidates.push(candidate(None));
+                scratch.candidates.push(candidate(None));
                 true
             }
             EntryKind::ExpandedTag(members) | EntryKind::ExpandedTables(members) => {
-                candidates.extend(members.indices().map(|member| candidate(Some(member))));
+                scratch
+                    .candidates
+                    .extend(members.indices().map(|member| candidate(Some(member))));
                 true
             }
             EntryKind::Alternatives(children) => children
                 .indices()
-                .any(|child| self.expand(table, child, random, candidates)),
+                .any(|child| self.expand(table, child, random, scratch)),
             EntryKind::Sequence(children) => children
                 .indices()
-                .all(|child| self.expand(table, child, random, candidates)),
+                .all(|child| self.expand(table, child, random, scratch)),
             EntryKind::Group(children) => {
                 for child in children.indices() {
-                    self.expand(table, child, random, candidates);
+                    self.expand(table, child, random, scratch);
                 }
                 true
             }
@@ -264,15 +275,17 @@ impl<E, W: LootWorld<E>> Evaluation<'_, '_, E, W> {
             return;
         };
         match &entry.kind {
-            EntryKind::Item(kind) => self.emit(place, WorkStack::one(*kind), random, stacks),
+            EntryKind::Item(kind) => {
+                self.emit(place, WorkStack::one(*kind), random, scratch, stacks)
+            }
             EntryKind::Tag(members) => {
                 for kind in members.indices().filter_map(|index| table.item(index)) {
-                    self.emit(place, WorkStack::one(kind), random, stacks);
+                    self.emit(place, WorkStack::one(kind), random, scratch, stacks);
                 }
             }
             EntryKind::ExpandedTag(_) => {
                 if let Some(kind) = member.and_then(|index| table.item(index)) {
-                    self.emit(place, WorkStack::one(kind), random, stacks);
+                    self.emit(place, WorkStack::one(kind), random, scratch, stacks);
                 }
             }
             EntryKind::Tables(members) => {
@@ -286,7 +299,13 @@ impl<E, W: LootWorld<E>> Evaluation<'_, '_, E, W> {
             }
             EntryKind::Dynamic(name) => {
                 for stack in self.context.dynamic_name(*name) {
-                    self.emit(place, WorkStack::copy(stack.as_ref()), random, stacks);
+                    self.emit(
+                        place,
+                        WorkStack::copy(stack.as_ref()),
+                        random,
+                        scratch,
+                        stacks,
+                    );
                 }
             }
             EntryKind::Empty
@@ -320,40 +339,56 @@ impl<E, W: LootWorld<E>> Evaluation<'_, '_, E, W> {
         place: &Place<'_>,
         mut stack: WorkStack,
         random: &mut R,
+        scratch: &mut LootScratch,
         stacks: &mut Vec<Option<ItemStack>>,
     ) {
         let mut at = Some(place);
         while let Some(place) = at {
-            self.modify(place, &mut stack, random);
+            self.modify(place, &mut stack, random, &mut scratch.predicates);
             at = place.outer;
         }
         stack.divide(&self.rules.items, stacks);
     }
 
-    fn modify<R: Random>(&self, place: &Place<'_>, stack: &mut WorkStack, random: &mut R) {
+    fn modify<R: Random>(
+        &self,
+        place: &Place<'_>,
+        stack: &mut WorkStack,
+        random: &mut R,
+        scratch: &mut PredicateScratch,
+    ) {
         let Some(entry) = place.table.entry(place.leaf) else {
             return;
         };
-        self.apply(&entry.modifiers, stack, random);
+        self.apply(&entry.modifiers, stack, random, scratch);
         let mut parent = entry.parent;
         while let Some(composite) = parent.and_then(|index| place.table.entry(index)) {
-            self.apply(&composite.modifiers, stack, random);
+            self.apply(&composite.modifiers, stack, random, scratch);
             parent = composite.parent;
         }
-        self.apply(&place.pool.modifiers, stack, random);
-        self.apply(&place.table.modifiers, stack, random);
+        self.apply(&place.pool.modifiers, stack, random, scratch);
+        self.apply(&place.table.modifiers, stack, random, scratch);
     }
 
-    fn apply<R: Random>(&self, modifiers: &[Modifier], stack: &mut WorkStack, random: &mut R) {
+    fn apply<R: Random>(
+        &self,
+        modifiers: &[Modifier],
+        stack: &mut WorkStack,
+        random: &mut R,
+        scratch: &mut PredicateScratch,
+    ) {
         for modifier in modifiers {
-            modifier.apply(stack, self, random);
+            modifier.apply(stack, self, random, scratch);
         }
     }
 
-    fn passes<R: Random>(&self, condition: Option<&Condition>, random: &mut R) -> bool {
-        condition.is_none_or(|condition| {
-            condition.test(self.providers, self.context, self.world, random)
-        })
+    fn passes<R: Random>(
+        &self,
+        condition: Option<&Condition>,
+        random: &mut R,
+        scratch: &mut PredicateScratch,
+    ) -> bool {
+        condition.is_none_or(|condition| condition.test(self.inputs(), random, scratch))
     }
 }
 

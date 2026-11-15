@@ -1,4 +1,5 @@
 use mcrs_minecraft_nbt_path::NbtPath;
+use mcrs_minecraft_predicate::PredicateScratch;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 
@@ -8,9 +9,8 @@ use crate::context_params::ContextParams;
 use crate::dispatch_case::DispatchCase;
 use crate::environment_read::EnvironmentRead;
 use crate::float_provider::FloatNode;
-use crate::loot_context::LootContext;
+use crate::loot_inputs::LootInputs;
 use crate::loot_world::LootWorld;
-use crate::named_providers::NamedProviders;
 use crate::provider_evaluation::Evaluation;
 use crate::score_target::ScoreTarget;
 use crate::weighted_entry::WeightedEntry;
@@ -93,16 +93,15 @@ impl IntProvider {
         Self(IntNode::Constant(value))
     }
 
-    /// The int read (LOOT-NUM-001): an evaluation error gives 0. `providers` are the named
-    /// providers that the bake resolved the keys against.
-    pub fn read<E, W: LootWorld<E>, R: Random>(
+    /// The int read (LOOT-NUM-001): an evaluation error gives 0. `scratch` holds the
+    /// buffers of the conditions that the provider tests.
+    pub fn read<E: Copy, W: LootWorld<E>, R: Random>(
         &self,
-        providers: &NamedProviders,
-        context: &LootContext<'_, E>,
-        world: &W,
+        inputs: LootInputs<'_, '_, E, W>,
         random: &mut R,
+        scratch: &mut PredicateScratch,
     ) -> i32 {
-        Evaluation::new(providers, context, world, random)
+        Evaluation::new(inputs, random, scratch)
             .int(&self.0)
             .unwrap_or(0)
     }

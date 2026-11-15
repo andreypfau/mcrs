@@ -13,10 +13,10 @@ use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 use mcrs_minecraft_loot_condition::{
     Condition, ConditionBaker, ConditionFile, FloatProvider, FloatProviderFile, IntProvider,
-    IntProviderFile, LootContext, NamedProviders, Tool,
+    IntProviderFile, LootContext, LootInputs, NamedEntries, Tool,
 };
 use mcrs_minecraft_loot_table::{LootIssue, LootScratch, LootTableFile, LootTables};
-use mcrs_minecraft_predicate::NoWorld;
+use mcrs_minecraft_predicate::{NoWorld, PredicateScratch};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_resource::ResourceLocation;
@@ -481,26 +481,26 @@ fn without_problems<T>(baker: &mut ConditionBaker, baked: T) -> Result<T, String
     }
 }
 
-static PROVIDERS: LazyLock<NamedProviders> =
-    LazyLock::new(|| NamedProviders::bake(blocks(), test_registries()).0);
+static ENTRIES: LazyLock<NamedEntries> =
+    LazyLock::new(|| NamedEntries::bake(blocks(), test_registries(), test_item_table()).0);
 
 fn condition(case: &Case) -> Result<Condition, String> {
     let file: ConditionFile = source_file(case);
-    let mut baker = ConditionBaker::new(blocks(), test_registries(), &PROVIDERS);
+    let mut baker = ConditionBaker::new(blocks(), test_registries(), &ENTRIES);
     let condition = baker.condition(&file);
     without_problems(&mut baker, condition)
 }
 
 fn int_provider(case: &Case) -> Result<IntProvider, String> {
     let file: IntProviderFile = source_file(case);
-    let mut baker = ConditionBaker::new(blocks(), test_registries(), &PROVIDERS);
+    let mut baker = ConditionBaker::new(blocks(), test_registries(), &ENTRIES);
     let provider = baker.int_provider(&file);
     without_problems(&mut baker, provider)
 }
 
 fn float_provider(case: &Case) -> Result<FloatProvider, String> {
     let file: FloatProviderFile = source_file(case);
-    let mut baker = ConditionBaker::new(blocks(), test_registries(), &PROVIDERS);
+    let mut baker = ConditionBaker::new(blocks(), test_registries(), &ENTRIES);
     let provider = baker.float_provider(&file);
     without_problems(&mut baker, provider)
 }
@@ -516,6 +516,12 @@ fn differences(index: usize, case: &Case, replay: &Replay) -> Result<(), String>
     let tool = tool_of(case, replay);
     let context = context(case, &tool);
     let mut random = LegacyRandom::new(case.seed.cast_unsigned());
+    let inputs = LootInputs {
+        named: &ENTRIES,
+        context: &context,
+        world: &NoWorld,
+    };
+    let mut scratch = PredicateScratch::default();
     let differs = match &case.outcome {
         Outcome::Stacks(expected) => {
             let name = format!("replay:case_{index}");
@@ -564,7 +570,7 @@ fn differences(index: usize, case: &Case, replay: &Replay) -> Result<(), String>
             let condition = condition(case)?;
             let tests: Vec<bool> = expected
                 .iter()
-                .map(|_| condition.test(&PROVIDERS, &context, &NoWorld, &mut random))
+                .map(|_| condition.test(inputs, &mut random, &mut scratch))
                 .collect();
             (&tests != expected).then(|| format!("tests {tests:?}, expected {expected:?}"))
         }
@@ -572,7 +578,7 @@ fn differences(index: usize, case: &Case, replay: &Replay) -> Result<(), String>
             let provider = int_provider(case)?;
             let ints: Vec<i32> = expected
                 .iter()
-                .map(|_| provider.read(&PROVIDERS, &context, &NoWorld, &mut random))
+                .map(|_| provider.read(inputs, &mut random, &mut scratch))
                 .collect();
             (&ints != expected).then(|| format!("ints {ints:?}, expected {expected:?}"))
         }
@@ -580,11 +586,7 @@ fn differences(index: usize, case: &Case, replay: &Replay) -> Result<(), String>
             let provider = float_provider(case)?;
             let floats: Vec<u32> = expected
                 .iter()
-                .map(|_| {
-                    provider
-                        .read(&PROVIDERS, &context, &NoWorld, &mut random)
-                        .to_bits()
-                })
+                .map(|_| provider.read(inputs, &mut random, &mut scratch).to_bits())
                 .collect();
             let expected: Vec<u32> = expected.iter().map(|value| value.to_bits()).collect();
             (floats != expected).then(|| format!("float bits {floats:?}, expected {expected:?}"))

@@ -3,7 +3,7 @@ use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_loot::loot::LootTable;
 use mcrs_minecraft_loot_condition::{
-    ContextParam, ContextParams, LootContext, LootWorld, NamedProviders,
+    ContextParam, ContextParams, LootContext, LootWorld, NamedEntries,
 };
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
@@ -26,7 +26,7 @@ pub struct LootTables {
     /// The tables of the registry at the index of their id, then the inline tables.
     tables: Box<[Table]>,
     named: usize,
-    providers: NamedProviders,
+    entries: NamedEntries,
     by_block: Box<[Option<Id<LootTable>>]>,
     rules: ItemRules,
 }
@@ -44,14 +44,16 @@ impl LootTables {
         let mut issues = Vec::new();
         let files = registries.registry::<LootTableFile>();
         let rules = ItemRules::bake(registries, items);
-        let (providers, provider_issues) = NamedProviders::bake(definitions, registries);
-        issues.extend(provider_issues.into_iter().map(|issue| LootIssue {
-            table: issue.provider,
+        let (entries, entry_issues) = NamedEntries::bake(definitions, registries, *items);
+        issues.extend(entry_issues.into_iter().map(|issue| LootIssue {
+            table: issue.entry,
             path: String::new(),
-            problem: LootProblem::Condition(issue.problem),
+            problem: LootProblem::Named {
+                kind: issue.kind,
+                problem: issue.problem,
+            },
         }));
-        let tables =
-            baker::bake(definitions, registries, &providers, &mut issues).into_boxed_slice();
+        let tables = baker::bake(definitions, registries, &entries, &mut issues).into_boxed_slice();
         let named = files.map_or(0, |files| files.len());
         let by_block = (0..definitions.loot_table_count())
             .map(|number| {
@@ -72,7 +74,7 @@ impl LootTables {
         let loot = Self {
             tables,
             named,
-            providers,
+            entries,
             by_block,
             rules,
         };
@@ -100,7 +102,7 @@ impl LootTables {
     /// its stacks are divided only once they leave `table` (LOOT-EVL-010). A context that lacks
     /// a parameter that its key set requires, or holds one that it does not allow, is refused
     /// before any draw (LOOT-CTX-012). The type of the table has no part in this check.
-    pub fn roll<E, W: LootWorld<E>, R: Random>(
+    pub fn roll<E: Copy, W: LootWorld<E>, R: Random>(
         &self,
         table: Id<LootTable>,
         context: &LootContext<'_, E>,
@@ -113,7 +115,7 @@ impl LootTables {
         check(context)?;
         let evaluation = Evaluation {
             tables: &self.tables,
-            providers: &self.providers,
+            named: &self.entries,
             context,
             world,
             rules: &self.rules,

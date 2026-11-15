@@ -12,13 +12,13 @@ use crate::context_params::ContextParams;
 use crate::dispatch_case::DispatchCase;
 use crate::dispatch_case_file::DispatchCaseFile;
 use crate::distribution_file::DistributionFile;
+use crate::entry_kind::EntryKind;
 use crate::float_provider::{FloatAggregate, FloatBinary, FloatNode, FloatProvider, FloatUnary};
 use crate::float_provider_file::{FloatProviderFile, TypedFloat};
 use crate::int_provider::{IntAggregate, IntBinary, IntNode, IntProvider, IntUnary};
 use crate::int_provider_file::{IntProviderFile, TypedInt};
 use crate::named_source::{Dependency, NamedSource};
 use crate::provider_form::ProviderForm;
-use crate::provider_kind::ProviderKind;
 use crate::provider_set_file::{ProviderSetFile, ProviderTag};
 use crate::score_target::ScoreTarget;
 use crate::score_target_file::{ScoreTargetFile, TypedScoreTarget};
@@ -42,6 +42,15 @@ impl<'a> ConditionBaker<'a> {
 
     /// The provider at the place `part` of an inline condition. In the scope of a provider it is a
     /// member of the reference chain; outside one it starts a scope (LOOT-CTX-017).
+    pub(crate) fn condition_int(&mut self, part: &str, file: &IntProviderFile) -> IntProvider {
+        match self.scope {
+            ProviderScope::Inside => IntProvider(*self.int_at(part, file)),
+            ProviderScope::Outside => self.int_provider(file),
+        }
+    }
+
+    /// The provider at the place `part` of an inline condition, as
+    /// [`ConditionBaker::condition_int`] takes it.
     pub(crate) fn condition_float(
         &mut self,
         part: &str,
@@ -78,7 +87,7 @@ impl<'a> ConditionBaker<'a> {
 
     fn named_int(&mut self, key: &ResourceLocationBuf) -> IntNode {
         let registry = self.int_providers;
-        self.named(key, registry, ProviderKind::Int, |index, reads| {
+        self.named(key, registry, EntryKind::Int, |index, reads| {
             IntNode::Named { index, reads }
         })
         .unwrap_or(IntNode::Fault)
@@ -86,7 +95,7 @@ impl<'a> ConditionBaker<'a> {
 
     fn named_float(&mut self, key: &ResourceLocationBuf) -> FloatNode {
         let registry = self.float_providers;
-        self.named(key, registry, ProviderKind::Float, |index, reads| {
+        self.named(key, registry, EntryKind::Float, |index, reads| {
             FloatNode::Named { index, reads }
         })
         .unwrap_or(FloatNode::Fault)
@@ -381,13 +390,13 @@ impl<'a> ConditionBaker<'a> {
         members
     }
 
-    /// A reference to the named provider `key` of the registry `kind`; `None`, with a problem,
-    /// for an unknown key.
-    fn named<F: RegistryValue, N>(
+    /// A reference to the named entry `key` of the registry `kind`; `None`, with a problem, for
+    /// an unknown key.
+    pub(crate) fn named<F: RegistryValue, N>(
         &mut self,
         key: &ResourceLocationBuf,
         registry: Option<&'a Registry<F>>,
-        kind: ProviderKind,
+        kind: EntryKind,
         reference: fn(usize, ContextParams) -> N,
     ) -> Option<N> {
         let index = registry.and_then(|registry| registry.by_name(key.as_location()));
@@ -402,16 +411,19 @@ impl<'a> ConditionBaker<'a> {
                 });
                 Some(ContextParams::EMPTY)
             }
-            (Some(index), NamedSource::Baked(providers)) => {
-                providers.reach(kind, index.index()).map(|reach| {
+            (Some(index), NamedSource::Baked(entries)) => {
+                entries.reach(kind, index.index()).map(|reach| {
                     self.longest = self.longest.max(steps.saturating_add(reach.below));
                     reach.reads
                 })
             }
         };
         let Some((index, reads)) = index.zip(reads) else {
-            self.problems
-                .push(ConditionProblem::UnknownProvider(key.to_string()));
+            let unknown = match kind {
+                EntryKind::Predicate => ConditionProblem::UnknownPredicate,
+                EntryKind::Int | EntryKind::Float => ConditionProblem::UnknownProvider,
+            };
+            self.problems.push(unknown(key.to_string()));
             return None;
         };
         Some(reference(index.index(), reads))
@@ -419,11 +431,10 @@ impl<'a> ConditionBaker<'a> {
 
     /// Bakes one more member of the reference chain; `None`, with a problem, when the chain gets
     /// a length of more than 64. The place that holds the provider is the first member.
-    pub(crate) fn step<N>(&mut self, part: &str, bake: impl FnOnce(&mut Self) -> N) -> Option<N> {
+    fn step<N>(&mut self, part: &str, bake: impl FnOnce(&mut Self) -> N) -> Option<N> {
         if self.chain.len() + 1 >= CHAIN_LIMIT {
             let path = self.path(Some(part));
-            self.problems
-                .push(ConditionProblem::ProviderChainTooLong(path));
+            self.problems.push(ConditionProblem::ChainTooLong(path));
             return None;
         }
         self.chain.push(part.to_owned());
@@ -443,7 +454,7 @@ fn score_target(target: &ScoreTargetFile) -> ScoreTarget {
     match target {
         ScoreTargetFile::Bare(target)
         | ScoreTargetFile::Typed(TypedScoreTarget::Context { target }) => {
-            ScoreTarget::Entity(target.0)
+            ScoreTarget::Entity(target.param())
         }
         ScoreTargetFile::Typed(TypedScoreTarget::Fixed { name }) => {
             ScoreTarget::Name(name.as_str().into())
