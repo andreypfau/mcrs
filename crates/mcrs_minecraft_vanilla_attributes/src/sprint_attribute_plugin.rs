@@ -1,14 +1,14 @@
 use bevy_app::{App, FixedUpdate, Plugin};
-use bevy_ecs::entity::Entity;
-use bevy_ecs::message::MessageWriter;
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::query::Changed;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::Query;
 use mcrs_minecraft_engine::player_sprinting::PlayerSprinting;
-use mcrs_minecraft_engine_attributes::{AttributeEdit, AttributeTarget};
 use mcrs_minecraft_entity::SPRINT_MODIFIER;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
-use mcrs_minecraft_entity_attribute::{InstanceEdit, InstanceModifier};
+use mcrs_minecraft_entity_attribute::{
+    AttributeInstances, InstanceChange, InstanceEdit, InstanceModifier,
+};
 
 use crate::attribute_sources::{AttributeSources, configure_attribute_sources};
 
@@ -19,7 +19,6 @@ pub struct SprintAttributePlugin;
 
 impl Plugin for SprintAttributePlugin {
     fn build(&self, app: &mut App) {
-        app.add_message::<AttributeEdit>();
         configure_attribute_sources(app);
         app.add_systems(
             FixedUpdate,
@@ -31,19 +30,20 @@ impl Plugin for SprintAttributePlugin {
 }
 
 fn give_sprint_modifier(
-    players: Query<(Entity, &PlayerSprinting), Changed<PlayerSprinting>>,
-    mut edits: MessageWriter<AttributeEdit>,
+    mut players: Query<(&PlayerSprinting, &mut AttributeInstances), Changed<PlayerSprinting>>,
 ) {
-    for (player, sprinting) in &players {
+    for (sprinting, mut instances) in &mut players {
         let edit = if sprinting.0 {
             InstanceEdit::Put(InstanceModifier::transient(&SPRINT_MODIFIER))
         } else {
             InstanceEdit::Remove(SPRINT_MODIFIER.id.to_buf())
         };
-        edits.write(AttributeEdit {
-            target: AttributeTarget::Player(player),
-            attribute: Attribute::MovementSpeed,
-            edit,
-        });
+        if instances
+            .bypass_change_detection()
+            .apply(Attribute::MovementSpeed, &edit)
+            == InstanceChange::Changed
+        {
+            instances.set_changed();
+        }
     }
 }

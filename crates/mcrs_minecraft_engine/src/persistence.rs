@@ -4,11 +4,11 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Component, Res, ResMut, Resource, With};
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::VERSION;
-use mcrs_minecraft_engine_attributes::Attributes;
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
+use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -95,7 +95,7 @@ impl Plugin for PlayerPersistencePlugin {
                 PersistScope::TravelOnly,
             )
             .register_persisted::<TeleportState>(TELEPORT_KEYS, PersistScope::TravelOnly)
-            .register_persisted_as::<Attributes, CarriedAttributes>(
+            .register_persisted_as::<AttributeInstances, CarriedAttributes>(
                 ATTRIBUTES_KEYS,
                 PersistScope::TravelOnly,
             )

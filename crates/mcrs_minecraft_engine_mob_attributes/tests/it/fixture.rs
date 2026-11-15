@@ -1,8 +1,9 @@
 use bevy_app::{App, FixedUpdate};
 use bevy_ecs::message::Messages;
 use glam::DVec3;
-use mcrs_minecraft_engine_attributes::{AttributeChanged, AttributeEdit, AttributeTarget};
-use mcrs_minecraft_engine_mob_attributes::MobAttributesPlugin;
+use mcrs_minecraft_engine_mob_attributes::{
+    AttributeChanged, AttributeEdit, AttributeTarget, MobAttributesPlugin,
+};
 use mcrs_minecraft_engine_physics::{Mob, Mobs, mob_body, mob_row};
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity_attribute::InstanceEdit;

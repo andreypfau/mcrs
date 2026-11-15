@@ -1,14 +1,14 @@
-use bevy_ecs::change_detection::{DetectChanges, Ref};
+use bevy_ecs::change_detection::{DetectChanges, DetectChangesMut};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
+use bevy_ecs::query::Changed;
 use bevy_ecs::schedule::SystemSet;
 use bevy_ecs::system::{Local, Query, ResMut};
 use bytes::{BufMut, BytesMut};
 use mcrs_engine_muxer::EntityEvent;
-use mcrs_minecraft_engine_attributes::{AttributeChanged, AttributeTarget, Attributes};
 use mcrs_minecraft_engine_world::session::Owner;
-use mcrs_minecraft_entity_attribute::AttributeSnapshot;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::{AttributeInstances, AttributeSnapshot};
 use mcrs_minecraft_protocol::{Packet, VarInt};
 use mcrs_minecraft_protocol_game::clientbound::ClientboundUpdateAttributes;
 use mcrs_minecraft_replication::{AttributeState, PlayerData};
@@ -25,35 +25,37 @@ use crate::tile_events::TileEvents;
 pub struct OwnAttributesSet;
 
 /// Gives the client of each player one `update_attributes` about its own entity, inside the
-/// probes of its prediction (MVC-PKT-031). It holds the state of each syncable instance that an
-/// edit changed in the tick (ATR-NET-003), and, for a player that a `login` or a `respawn` just
+/// probes of its prediction (MVC-PKT-031). It holds the state of each syncable instance that
+/// changed since the last run (ATR-NET-003), and, for a player that a `login` or a `respawn` just
 /// placed, each stored syncable instance (ATR-NET-005). It also records the state of each changed
-/// instance of a published player for the players that track it (ATR-NET-003).
+/// instance of a published player for the players that track it (ATR-NET-003). It is the one
+/// reader of the changed attributes of a player.
 // A placed player is a new entity whose operator level is announced with the `login` or the
 // `respawn`, which went out before the tick that runs this system.
 pub(crate) fn send_own_attributes(
-    mut changed: MessageReader<AttributeChanged>,
     mut announced: MessageReader<OpLevelAnnounced>,
-    players: Query<(Ref<Attributes>, &Owner, Option<&Replicated>)>,
+    mut players: Query<
+        (Entity, &mut AttributeInstances, &Owner, Option<&Replicated>),
+        Changed<AttributeInstances>,
+    >,
     mut writer: MessageWriter<OutboundPlayerPacket>,
     mut events: Option<ResMut<TileEvents>>,
     mut owed: Local<Vec<(Entity, Attribute)>>,
 ) {
     owed.clear();
-    for change in changed.read() {
-        if let AttributeTarget::Player(player) = change.target
-            && change.attribute.definition().syncable
-        {
-            owed.push((player, change.attribute));
+    for (player, mut attributes, ..) in &mut players {
+        for attribute in attributes.bypass_change_detection().take_dirty().iter() {
+            if attribute.definition().syncable {
+                owed.push((player, attribute));
+            }
         }
     }
     owed.sort_unstable();
-    owed.dedup();
     if let Some(events) = events.as_deref_mut() {
         publish_changes(&owed, &players, events);
     }
     for announcement in announced.read() {
-        let Ok((attributes, ..)) = players.get(announcement.player) else {
+        let Ok((_, attributes, ..)) = players.get_mut(announcement.player) else {
             continue;
         };
         if !attributes.is_added() {
@@ -71,12 +73,12 @@ pub(crate) fn send_own_attributes(
         let Some(&(player, _)) = entries.first() else {
             continue;
         };
-        let Ok((attributes, &Owner(session), _)) = players.get(player) else {
+        let Ok((_, attributes, &Owner(session), _)) = players.get(player) else {
             continue;
         };
         let snapshots: Vec<AttributeSnapshot<'_>> = entries
             .iter()
-            .filter_map(|&(_, attribute)| attributes.instances().snapshot(attribute))
+            .filter_map(|&(_, attribute)| attributes.snapshot(attribute))
             .collect();
         if snapshots.is_empty() {
             continue;
@@ -105,11 +107,14 @@ pub(crate) fn send_own_attributes(
 /// is not published yet carries its instances in its spawn.
 fn publish_changes(
     owed: &[(Entity, Attribute)],
-    players: &Query<(Ref<Attributes>, &Owner, Option<&Replicated>)>,
+    players: &Query<
+        (Entity, &mut AttributeInstances, &Owner, Option<&Replicated>),
+        Changed<AttributeInstances>,
+    >,
     events: &mut TileEvents,
 ) {
     for &(player, attribute) in owed {
-        let Ok((attributes, _, Some(replicated))) = players.get(player) else {
+        let Ok((_, attributes, _, Some(replicated))) = players.get(player) else {
             continue;
         };
         let instance = attributes.set().instance(attribute).cloned();

@@ -1,9 +1,11 @@
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::system::{Res, ResMut};
-use mcrs_minecraft_engine_attributes::{AttributeChanged, AttributeEdit, AttributeTarget};
 use mcrs_minecraft_engine_physics::Mobs;
 use mcrs_minecraft_entity_attribute::{AttributeSet, InstanceChange};
 
+use crate::attribute_changed::AttributeChanged;
+use crate::attribute_edit::AttributeEdit;
+use crate::attribute_target::AttributeTarget;
 use crate::row_attributes::RowAttributes;
 
 /// Applies each edit of a mob row in arrival order and announces each instance that it changed.
@@ -14,9 +16,7 @@ pub(crate) fn apply_row_attribute_edits(
     mobs: Res<Mobs>,
 ) {
     for edit in edits.read() {
-        let AttributeTarget::Row(id) = edit.target else {
-            continue;
-        };
+        let AttributeTarget::Row(id) = edit.target;
         let Some(bases) = mobs
             .0
             .get(&id)

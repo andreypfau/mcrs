@@ -1,14 +1,13 @@
 use bevy_app::{App, FixedUpdate, Plugin};
-use bevy_ecs::entity::Entity;
-use bevy_ecs::message::MessageWriter;
+use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::query::Changed;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::Query;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
-use mcrs_minecraft_engine_attributes::{AttributeEdit, AttributeTarget};
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{
-    InstanceEdit, InstanceModifier, ModifierKind, ModifierOperation,
+    AttributeInstances, InstanceChange, InstanceEdit, InstanceModifier, ModifierKind,
+    ModifierOperation,
 };
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_resource::{ResourceLocation, rl};
@@ -42,7 +41,6 @@ pub struct CreativeRangePlugin;
 
 impl Plugin for CreativeRangePlugin {
     fn build(&self, app: &mut App) {
-        app.add_message::<AttributeEdit>();
         configure_attribute_sources(app);
         app.add_systems(
             FixedUpdate,
@@ -54,10 +52,9 @@ impl Plugin for CreativeRangePlugin {
 }
 
 fn give_creative_ranges(
-    players: Query<(Entity, &PlayerGameMode), Changed<PlayerGameMode>>,
-    mut edits: MessageWriter<AttributeEdit>,
+    mut players: Query<(&PlayerGameMode, &mut AttributeInstances), Changed<PlayerGameMode>>,
 ) {
-    for (player, mode) in &players {
+    for (mode, mut instances) in &mut players {
         for range in &CREATIVE_RANGES {
             let edit = if mode.0 == GameMode::Creative {
                 InstanceEdit::Put(InstanceModifier::new(
@@ -69,11 +66,13 @@ fn give_creative_ranges(
             } else {
                 InstanceEdit::Remove(range.id.to_buf())
             };
-            edits.write(AttributeEdit {
-                target: AttributeTarget::Player(player),
-                attribute: range.attribute,
-                edit,
-            });
+            if instances
+                .bypass_change_detection()
+                .apply(range.attribute, &edit)
+                == InstanceChange::Changed
+            {
+                instances.set_changed();
+            }
         }
     }
 }

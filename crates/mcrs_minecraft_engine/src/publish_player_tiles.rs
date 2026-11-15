@@ -7,11 +7,11 @@ use bevy_ecs::observer::On;
 use bevy_ecs::prelude::{Commands, DetectChanges, Entity, Has, Query, Ref, ResMut, With, Without};
 use bytes::Bytes;
 use mcrs_engine_muxer::{EntityEvent, EntityId, TileKey, ViewerId};
-use mcrs_minecraft_engine_attributes::Attributes;
 use mcrs_minecraft_engine_world::entity::physics::Transform;
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::{Owner, PlayerSession};
 use mcrs_minecraft_engine_world::world::dimension::{DimensionTypeConfig, InDimension};
+use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundSystemChatPacket;
 use mcrs_minecraft_replication::{AttributeState, PlayerData, PlayerSpawn, Pose};
@@ -63,7 +63,7 @@ pub fn publish_player_tiles(
             Option<&ListedGameMode>,
             Has<AnnounceJoin>,
             Option<&CrossedAt>,
-            Option<&Attributes>,
+            Option<&AttributeInstances>,
         ),
         With<Player>,
     >,
@@ -157,7 +157,7 @@ pub fn publish_player_tiles(
     }
 }
 
-fn stored_attributes(attributes: &Attributes) -> Vec<AttributeState> {
+fn stored_attributes(attributes: &AttributeInstances) -> Vec<AttributeState> {
     attributes
         .set()
         .instances()

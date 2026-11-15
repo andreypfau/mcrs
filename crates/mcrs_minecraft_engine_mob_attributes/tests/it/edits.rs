@@ -1,5 +1,4 @@
-use mcrs_minecraft_engine_attributes::AttributeTarget;
-use mcrs_minecraft_engine_mob_attributes::RowAttributes;
+use mcrs_minecraft_engine_mob_attributes::{AttributeTarget, RowAttributes};
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_entity_attribute::{

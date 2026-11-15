@@ -1,35 +1,34 @@
-use bevy_app::{App, FixedUpdate, Plugin};
-use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_ecs::schedule::common_conditions::on_message;
+use bevy_app::{App, Plugin};
 use mcrs_minecraft_engine_world::entity::player::Player;
-use mcrs_minecraft_engine_world::tick::TickSet;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity_attribute::{AttributeBases, AttributeInstances};
 
-use crate::apply_player_attribute_edits::apply_player_attribute_edits;
-use crate::attribute_changed::AttributeChanged;
-use crate::attribute_edit::AttributeEdit;
-use crate::attribute_edits::AttributeEdits;
-use crate::attributes::Attributes;
-use crate::player_attribute_edits::PlayerAttributeEdits;
-
-/// The attribute instances of the players of a dimension world: [`Attributes`] on each
-/// [`Player`]. The edits of a player apply in [`AttributeEdits`].
+/// The attribute instances of the players of a dimension world: each [`Player`] requires an
+/// [`AttributeInstances`] with the bases of the type `player`.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct PlayerAttributesPlugin;
 
 impl Plugin for PlayerAttributesPlugin {
     fn build(&self, app: &mut App) {
-        app.add_message::<AttributeEdit>();
-        app.add_message::<AttributeChanged>();
-        if let Err(error) = app.try_register_required_components::<Player, Attributes>() {
+        if let Err(error) = app
+            .try_register_required_components_with::<Player, AttributeInstances>(player_instances)
+        {
             tracing::error!("a player does not require its attribute instances: {error}");
         }
-        app.configure_sets(FixedUpdate, AttributeEdits.in_set(TickSet::Project));
-        app.configure_sets(FixedUpdate, PlayerAttributeEdits.in_set(AttributeEdits));
-        app.add_systems(
-            FixedUpdate,
-            apply_player_attribute_edits
-                .run_if(on_message::<AttributeEdit>)
-                .in_set(PlayerAttributeEdits),
-        );
     }
 }
+
+fn player_instances() -> AttributeInstances {
+    AttributeInstances::new(PLAYER_BASES)
+}
+
+const PLAYER_BASES: AttributeBases =
+    match mcrs_minecraft_entity::attribute_bases(EntityType::Player) {
+        Some(bases) => bases,
+        None => AttributeBases::new(&[], &[]),
+    };
+
+const _: () = assert!(
+    mcrs_minecraft_entity::attribute_bases(EntityType::Player).is_some(),
+    "a player is a living entity and has bases"
+);
