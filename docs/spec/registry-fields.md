@@ -2866,6 +2866,7 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **Fields left out on write:** none.
 - **Write form notes:**
   - `value` is a required level-based value (REG-FLD-386). `min` and `max` are required numbers.
+  - `max` must be larger than `min`. A value with `max ≤ min` fails the load.
 - **Nested types:** level-based value (REG-FLD-386).
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
@@ -5587,6 +5588,7 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **Write form notes:**
   - `dealt` and `taken` are number bounds (REG-FLD-646) of doubles.
   - `source_entity` is an optional entity predicate (REG-FLD-624). `type` is an optional damage source predicate (REG-FLD-619). They have no default.
+  - `blocked` is an optional boolean and has no default. For example, the advancement `story/deflect_arrow` has `blocked` true.
 - **Nested types:** number bounds (REG-FLD-646), entity predicate (REG-FLD-624), damage source predicate (REG-FLD-619).
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
@@ -5760,7 +5762,7 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **References:** none at this level.
 - **Fields left out on write:** none.
 - **Write form notes:**
-  - `head`, `chest`, `legs`, `feet`, `body`, `mainhand` and `offhand` are optional item predicate (REG-FLD-613) values. They have no default.
+  - `head`, `chest`, `legs`, `feet`, `body`, `saddle`, `mainhand` and `offhand` are optional item predicate (REG-FLD-613) values. They have no default.
 - **Nested types:** item predicate (REG-FLD-613).
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
@@ -5805,6 +5807,8 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **Fields left out on write:** none.
 - **Write form notes:**
   - The value is one object. Each key is a slot range name string. It is not a reference. Each value is an item predicate (REG-FLD-613).
+  - A slot range name is one of these: `contents`; `container.<i>` for `i` in `0..53`; `hotbar.<i>` for `i` in `0..8`; `inventory.<i>` and `enderchest.<i>` for `i` in `0..26`; `mob.inventory.<i>` for `i` in `0..7`; `horse.<i>` for `i` in `0..14`; `player.crafting.<i>` for `i` in `0..3`; `weapon`, `weapon.mainhand`, `weapon.offhand`, `weapon.*`; `armor.head`, `armor.chest`, `armor.legs`, `armor.feet`, `armor.body`, `armor.*`; `saddle`, `horse.chest` and `player.cursor`. Each name with `<i>` also has a form with `*` in place of the index, for example `container.*`. PRED-ENT-020 of `predicates.md` gives the slot numbers of each name.
+  - A key that is not a slot range name fails the load.
 - **Nested types:** item predicate (REG-FLD-613).
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
@@ -5956,6 +5960,7 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
   - The value is a range of integers, of doubles, or of float degrees. The parent rule gives the number kind.
   - The encoder writes a bare number when `min` equals `max`. Else it writes an object `{"min": ..., "max": ...}`.
   - `min` and `max` are optional. The range "any" has no bound and is written as `{}`.
+  - For a range of integers or of doubles, a `min` larger than `max` fails the load. A `min` equal to `max` loads. A range of float degrees accepts a `min` larger than `max`.
 - **Nested types:** none.
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
@@ -6179,9 +6184,10 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **Fields left out on write:** none.
 - **Write form notes:**
   - `period` is an optional long and has no default.
+  - A `period` of 0 fails the decode of the entry (REG-ERR-001, the row of an entry that fails to decode). It is not a loot validation problem. The vanilla server decodes it, and LOOT-CDV-001 of `loot-conditions.md` records the difference.
 - **Nested types:** int range predicate (REG-FLD-720) (`value`).
 
-Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
+Provenance: `source_suggested`, except the rejection of `period` 0, which is `design`: mcrs refuses a condition that the evaluation cannot calculate (LOOT-CND-015 of `loot-conditions.md`). Confidence: medium. Experiment: REG-FLD-009.
 
 ### REG-FLD-716: loot condition `int_value_check`
 
@@ -6469,6 +6475,8 @@ Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.
 - **Fields left out on write:** none.
 - **Write form notes:**
   - `distribution` is a non-empty list of `{data, weight}` objects. It is always a list.
+  - `weight` is required. It is an int from 0 to `2^31 − 1`. A negative `weight` fails the decode.
+  - The sum of the weights must be at least 1 and at most `2^31 − 1`. A list whose weights are all 0, or whose sum is larger, fails the decode.
 - **Nested types:** context int provider (REG-FLD-722), context float provider (REG-FLD-723).
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: REG-FLD-009.

@@ -739,8 +739,7 @@ pick `t:no_such_table` produce nothing.
 | unresolved reference (REG-REF-002) | the load fails | as above |
 | empty registry from REG-SET-004 | the load fails | n/a (stage 1) |
 | registry-wide validation fails (REG-SET-005) | the load fails | n/a (stage 1) |
-| fatal loot validation problem in stage 3 (below) | the load fails | the reload fails |
-| non-fatal loot validation problem (below) | warning logged | warning logged |
+| loot validation problem in stage 3 (below) | the load fails | the reload fails |
 | advancement criterion validation problem | warning logged | warning logged |
 | advancement whose `parent` does not exist (REG-ENTRY-001) | advancement left out of the tree, error logged | same |
 | tag file malformed or schema-invalid | that file is skipped, error logged | same |
@@ -749,25 +748,25 @@ pick `t:no_such_table` produce nothing.
   - "The load fails" means that the server does not start (REG-ERR-003). No partial registry set is used.
   - "The reload fails" means that the server keeps all previous data (REG-ERR-004).
   - A stage 3 entry that fails to decode is not skipped on its own: one broken loot table, recipe or advancement file fails the whole load or reload.
-  - **Loot validation.** After stage 3 loads, every loot table, predicate, item modifier, slot source and context number provider is checked, following references into the others and into tags. Every problem found is logged as a warning naming the path to the problem (the root entry, then each followed reference or tag, field and index). The problems are of two classes:
+  - **Loot validation.** After stage 3 loads, every loot table, predicate, item modifier, slot source and context number provider is checked, following references into the others and into tags. Every problem found is logged with the path to the problem (the root entry, then each followed reference or tag, field and index). Each problem of this table is fatal:
 
-| Problem | Class |
-|---------|-------|
+| Problem | Vanilla class |
+|---------|---------------|
 | an entry refers, directly or through other entries, back to itself | fatal |
 | a tag refers, directly or through other tags or entries, back to an entry being checked | fatal |
 | a part reads a context value that the context it is used in does not provide (for example a block-state condition inside an entity loot table) | non-fatal |
-| a list has fewer elements than the field requires | non-fatal |
-| an alternative of an `alternatives` entry can never be reached, because an earlier alternative always matches | non-fatal |
+| a list has fewer elements than the field requires (the `inputs` of an aggregate number provider is empty) | non-fatal |
+| an alternative of an `alternatives` entry can never be reached, because an earlier alternative has no condition | non-fatal |
 | a composite loot entry has no children | non-fatal |
 
-    If at least one fatal problem was found, the load or reload fails after every problem has been logged. A reference to a loot table, predicate or item modifier that does not exist is not a validation problem; it is an unresolved reference (row above) and fails the load first.
+    If at least one problem was found, the load or reload fails after every problem has been logged. The vanilla server logs the non-fatal problems as warnings and loads. Making them fatal is a `design` choice: the owner decided in issue #72 that every loot issue found at load refuses the load. `loot.md` states the same rule (LOOT-CTX-013, LOOT-CTX-016) and records the difference (LOOT-DEV-100, LOOT-DEV-102). A reference to a loot table, predicate or item modifier that does not exist is not a validation problem; it is an unresolved reference (row above) and fails the load first. A `time_check` with `period` 0 (REG-FLD-715) and an NBT path that LOOT-MOD-047 of `loot-functions.md` does not accept are not validation problems either: each fails the decode of its entry (row "entry fails to decode").
 - **Ordering constraints:**
   - Every entry error in a stage is collected before the stage fails, so one start reports all bad entries of that stage, not only the first.
   - Registry-wide checks (REG-SET-004, REG-SET-005) run only when the stage has no entry, reference or tag error; a report therefore holds errors of one kind or the other, never both.
 - **Conformance tests:**
   - Use two bad damage type files in one pack. One start reports both.
   - A pack with `loot_table/t/a.json` whose only pool entry is `{"type": "minecraft:loot_table", "value": "t:a"}`. Expected: a warning names the recursion and startup fails.
-  - A pack with an entity loot table `t:b` using the condition `minecraft:block_state_property`. Expected: a warning, and the server starts.
+  - A pack with an entity loot table `t:b` using the condition `minecraft:block_state_property`. Expected: the problem is logged, and startup fails. The vanilla server logs a warning and starts.
 
 Provenance: `source_suggested`. Confidence: medium. Experiment: as in the
 conformance tests, plus one case for each row.
@@ -824,7 +823,6 @@ in an enabled pack and run `/reload`. The message appears, and
 | a file ignored for an invalid name (REG-PACK-001) | error (directory pack) or warning (zip pack) | the namespace and the path |
 | a tag file skipped (REG-TAG-004) | error | the tag id, the file and the pack id |
 | a tag that failed (REG-TAG-006) | error | the tag id and every missing member, each with the pack id of the file that listed it |
-| a loot validation problem, non-fatal (REG-ERR-001) | warning | the path from the root entry to the problem, and the problem |
 | an advancement criterion problem | warning | the advancement key and the problems |
 | advancements left out of the tree (REG-ENTRY-001) | error | every advancement left out |
 

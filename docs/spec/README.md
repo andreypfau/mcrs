@@ -155,6 +155,31 @@ An entry in "Intentional deviations" has these parts:
 Do not write an experiment that only confirms an accident. Put the observation in the
 deviation entry.
 
+## Loot documents
+
+The loot rules are in five documents. This table gives the document of each prefix. A rule
+that moves to another document keeps its id.
+
+| Prefix | Numbers | Document |
+|--------|---------|----------|
+| `LOOT-SRC` | all | `block-loot.md` |
+| `LOOT-CTX` | 001 | `block-loot.md` |
+| `LOOT-CTX` | 010 and up | `loot.md` |
+| `LOOT-EVL` | all | `loot.md` |
+| `LOOT-OUT` | 001 | `loot.md` |
+| `LOOT-OUT` | 002 to 004 | `block-loot.md` |
+| `LOOT-RND` | 001, 003 | `block-loot.md` |
+| `LOOT-RND` | 002, 004 and up | `loot.md` |
+| `LOOT-CTR` | all | `loot.md` |
+| `LOOT-DEV` | 001 to 099 | `block-loot.md` |
+| `LOOT-DEV` | 100 to 199 | `loot.md` |
+| `LOOT-CND` | all | `loot-conditions.md` |
+| `LOOT-NUM` | all | `loot-conditions.md` |
+| `LOOT-CDV` | all | `loot-conditions.md` |
+| `LOOT-MOD` | all | `loot-functions.md` |
+| `LOOT-MDV` | all | `loot-functions.md` |
+| `PRED` | all | `predicates.md` |
+
 ## Where these rules do not apply
 
 Tables, code blocks, JSON and NBT examples, and text quoted from the game keep
