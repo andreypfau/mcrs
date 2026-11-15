@@ -173,7 +173,9 @@ decision #388. Two exceptions exist: the compounds of block entities (SAVE-CHUNK
 entity save compounds in a player file (SAVE-PLAYER-001). Issue #738 removes both. The known field
 set of each file is in SAVE-LEVEL-001, SAVE-DATA-001, SAVE-CHUNK-001 and SAVE-PLAYER-001.
 
-A file that exists and does not read back is not replaced with defaults. A `level.dat` that is missing is
+A file that exists and does not read back is not replaced with defaults. In the list `attributes` of
+a player file, only an unknown key is such a failure; the other rows of ATR-SAV-002 of `attributes.md`
+give their stated results. A `level.dat` that is missing is
 created with the default level name and the current game time.
 
 Provenance: `design`. Kind: durability. Confidence: high. The reason: a field that the server
@@ -766,7 +768,7 @@ An attribute compound has the string `id` (required), the double `base` (default
 `modifiers` (default empty). A modifier is a compound with the string `id`, the double `amount` and
 the string `operation`. All three are required. `operation` is `add_value`, `add_multiplied_base`
 or `add_multiplied_total`. ATR-SAV-002 of `attributes.md` states the load of a compound with an
-unknown attribute, a bad field, or two modifiers with one `id`.
+unknown attribute, an unknown key, a bad field, or two modifiers with one `id`.
 
 An effect compound has the string `id` (required), the ubyte `amplifier` (default 0), the int
 `duration` (default 0), the byte `ambient` (default false) and the byte `show_particles` (default
