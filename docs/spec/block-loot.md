@@ -197,8 +197,9 @@ is false, no stack of a block table becomes an item entity (BRK-LOOT-005).
 
 **LOOT-OUT-004** (`source_suggested`, semantic, confidence medium). The order of the item entities
 of one break is the order of the drop list. `add_entity` reaches the breaker in that order. The
-experience orbs come after the items (BRK-LOOT-001). The item entities of a block that loses its
-support come before those of the broken block (BRK-LOOT-003).
+experience orbs come after the items (BRK-LOOT-001), except the orbs of a creaking heart, which come
+first (BRK-LOOT-006). The item entities of a block that loses its support come before those of the
+broken block (BRK-LOOT-003). BDR-ORD-001 of `block-drops.md` states the full order of each cause.
 
 ## 7. Random values
 
@@ -262,7 +263,8 @@ of the evaluation.
 
 - **U1**: the context of the part of a door or a bed that drops when the break hits the other part
   (LOOT-SRC-006). The reference suggests the empty stack and no `this_entity`. No current block
-  table of a door or a bed reads the tool or the entity, so no experiment can show it.
+  table of a door or a bed reads the tool or the entity. Experiment E7 of `block-drops.md` adds a
+  data pack whose tables read them, so it can show the context. E7 did not run.
 - **U2**: the full list of components of a block entity for LOOT-MOD-007 (`loot-functions.md`). The
   required result does
   not depend on this item: LOOT-MOD-006 and result L7 apply. A server that does not store the
