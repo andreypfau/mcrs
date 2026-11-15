@@ -4,6 +4,7 @@
 
 mod equipment_key;
 mod file_error;
+mod player_file;
 mod player_inventory_file;
 mod player_items;
 mod read;

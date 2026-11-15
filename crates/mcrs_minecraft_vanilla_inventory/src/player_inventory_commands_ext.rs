@@ -1,6 +1,7 @@
-use core::fmt::Display;
-
+use bevy_ecs::entity::Entity;
 use bevy_ecs::system::EntityCommands;
+use bevy_ecs::system::In;
+use bevy_ecs::system::IntoSystem;
 use bevy_ecs::world::EntityWorldMut;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_inventory_file::PlayerItems;
@@ -50,78 +51,54 @@ pub trait PlayerInventoryCommandsExt {
 
 impl PlayerInventoryCommandsExt for EntityCommands<'_> {
     fn hand_action(&mut self, action: HandAction) -> &mut Self {
-        self.queue_silenced(move |entity: EntityWorldMut| {
-            let player = entity.id();
-            let applied = entity
-                .into_world_mut()
-                .run_system_cached_with(apply_hand_action, (player, action));
-            warn_unapplied(applied);
-        })
+        queue_system(self, apply_hand_action, move |player| (player, action))
     }
 
     fn select_slot(&mut self, slot: u8) -> &mut Self {
-        self.queue_silenced(move |entity: EntityWorldMut| {
-            let player = entity.id();
-            let applied = entity
-                .into_world_mut()
-                .run_system_cached_with(apply_selected_slot, (player, slot));
-            warn_unapplied(applied);
-        })
+        queue_system(self, apply_selected_slot, move |player| (player, slot))
     }
 
     fn creative_set(&mut self, slot: SlotRef, stack: Option<ItemStack>) -> &mut Self {
-        self.queue_silenced(move |entity: EntityWorldMut| {
-            let player = entity.id();
-            let applied = entity
-                .into_world_mut()
-                .run_system_cached_with(apply_creative_set, (player, slot, stack));
-            warn_unapplied(applied);
+        queue_system(self, apply_creative_set, move |player| {
+            (player, slot, stack)
         })
     }
 
     fn creative_drop(&mut self, stack: ItemStack) -> &mut Self {
-        self.queue_silenced(move |entity: EntityWorldMut| {
-            let player = entity.id();
-            let applied = entity
-                .into_world_mut()
-                .run_system_cached_with(apply_creative_drop, (player, stack));
-            warn_unapplied(applied);
-        })
+        queue_system(self, apply_creative_drop, move |player| (player, stack))
     }
 
     fn close_menu(&mut self) -> &mut Self {
-        self.queue_silenced(move |entity: EntityWorldMut| {
-            let player = entity.id();
-            let applied = entity
-                .into_world_mut()
-                .run_system_cached_with(apply_close, player);
-            warn_unapplied(applied);
-        })
+        queue_system(self, apply_close, |player| player)
     }
 
     fn clear_items(&mut self) -> &mut Self {
-        self.queue_silenced(move |entity: EntityWorldMut| {
-            let player = entity.id();
-            let applied = entity
-                .into_world_mut()
-                .run_system_cached_with(clear_items, player);
-            warn_unapplied(applied);
-        })
+        queue_system(self, clear_items, |player| player)
     }
 
     fn restore_items(&mut self, items: PlayerItems) -> &mut Self {
-        self.queue_silenced(move |entity: EntityWorldMut| {
-            let player = entity.id();
-            let applied = entity
-                .into_world_mut()
-                .run_system_cached_with(restore_holders, (player, items));
-            warn_unapplied(applied);
-        })
+        queue_system(self, restore_holders, move |player| (player, items))
     }
 }
 
-fn warn_unapplied<E: Display>(applied: Result<(), E>) {
-    if let Err(error) = applied {
-        tracing::warn!(%error, "an inventory command did not apply");
-    }
+/// Runs `system` on the player with the input that `input` makes from it, when the command
+/// applies.
+fn queue_system<'commands, 'world, T, M, S>(
+    commands: &'commands mut EntityCommands<'world>,
+    system: S,
+    input: impl FnOnce(Entity) -> T + Send + 'static,
+) -> &'commands mut EntityCommands<'world>
+where
+    T: Send + 'static,
+    S: IntoSystem<In<T>, (), M> + Send + 'static,
+{
+    commands.queue_silenced(move |entity: EntityWorldMut| {
+        let player = entity.id();
+        let applied = entity
+            .into_world_mut()
+            .run_system_cached_with(system, input(player));
+        if let Err(error) = applied {
+            tracing::warn!(%error, "an inventory command did not apply");
+        }
+    })
 }

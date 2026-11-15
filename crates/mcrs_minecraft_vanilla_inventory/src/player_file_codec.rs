@@ -7,6 +7,7 @@ use mcrs_minecraft_engine::persisted_registry::PersistedError;
 use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_inventory_file::FileError;
 use mcrs_minecraft_inventory_file::PlayerInventoryFile;
+use mcrs_minecraft_inventory_player::MAIN;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_nbt::tag::NbtTag;
@@ -57,6 +58,22 @@ pub(crate) fn apply_player_file(
     };
     let file = mcrs_minecraft_inventory_file::read(compound, &names)
         .map_err(|error| decode_error(file_key(error), error))?;
+    let saved = compound.get_list(INVENTORY_KEY).map_or(0, <[NbtTag]>::len);
+    let loaded = file
+        .items
+        .slots
+        .iter()
+        .take(usize::from(MAIN.end))
+        .filter(|slot| slot.is_some())
+        .count();
+    if saved != loaded {
+        tracing::error!(
+            %player,
+            saved,
+            loaded,
+            "stacks of `Inventory` with no slot in the main inventory are lost"
+        );
+    }
     world
         .get_entity_mut(player)
         .map_err(|_| PersistedError::NoEntity(player))?

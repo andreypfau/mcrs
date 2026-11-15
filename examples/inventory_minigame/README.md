@@ -1,7 +1,9 @@
 # Inventory minigame
 
-One headless app with no window and no network. Each feature of the minigame is one
-plugin in its own file, and `src/main.rs` adds the plugins.
+One headless app with no window. It links neither the packet edge of the inventory
+(`mcrs_minecraft_inventory_server`) nor the click and client view crates. The engine
+still links the network crates today. Each feature of the minigame is one plugin in
+its own file, and `src/main.rs` adds the plugins.
 
 - `KitPlugin`: at `EnterGame`, the plugin keeps the items of the player in a
   `KitSnapshot` and gives the player the kit. At `LeaveGame`, the player gets the

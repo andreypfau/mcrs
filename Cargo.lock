@@ -5604,6 +5604,7 @@ dependencies = [
  "mcrs_minecraft_inventory_player",
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_nbt",
+ "serde",
 ]
 
 [[package]]

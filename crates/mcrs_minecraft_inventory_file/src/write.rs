@@ -12,7 +12,7 @@ use crate::equipment_key::EQUIPMENT;
 use crate::equipment_key::EQUIPMENT_KEY;
 use crate::equipment_key::EquipmentKey;
 use crate::equipment_key::INVENTORY_KEY;
-use crate::equipment_key::SELECTED_KEY;
+use crate::player_file::PlayerFile;
 
 /// Writes `Inventory`, `SelectedItemSlot` and `equipment` of `file` into `player`
 /// (INV-SAV-001). It writes `equipment` only when it has a key, and no cursor or craft grid
@@ -23,7 +23,10 @@ pub fn write<L: NameLookup>(
     player: &mut NbtCompound,
 ) -> Result<(), FileError> {
     let items = &file.items;
-    let mut inventory = Vec::new();
+    let mut saved_file = PlayerFile {
+        selected_item_slot: i32::from(items.selected),
+        ..PlayerFile::default()
+    };
     let main = items.slots.iter().take(usize::from(MAIN.end));
     for (slot, stack) in (0..=u8::MAX).zip(main) {
         let Some(stack) = stack else {
@@ -37,27 +40,28 @@ pub fn write<L: NameLookup>(
             key: INVENTORY_KEY,
             cause,
         })?;
-        inventory.push(NbtTag::Compound(saved));
+        saved_file.inventory.push(saved);
     }
-    let mut equipment = NbtCompound::new();
     for EquipmentKey { key, index } in EQUIPMENT {
         if let Some(Some(stack)) = items.slots.get(usize::from(index)) {
             let saved = write_saved(stack, names).map_err(|cause| FileError::Stack {
                 key: EQUIPMENT_KEY,
                 cause,
             })?;
-            equipment.put(key, NbtTag::Compound(saved));
+            saved_file.equipment.put(key, NbtTag::Compound(saved));
         }
     }
     for (key, saved) in &file.kept_equipment.child_tags {
-        equipment.put(key, saved.clone());
+        saved_file.equipment.put(key, saved.clone());
     }
-    player.put_list(INVENTORY_KEY, inventory);
-    player.put(SELECTED_KEY, NbtTag::Int(i32::from(items.selected)));
-    if equipment.is_empty() {
+    let Ok(NbtTag::Compound(written)) = mcrs_minecraft_nbt::to_nbt_tag(&saved_file) else {
+        return Err(FileError::NotACompound);
+    };
+    if written.get(EQUIPMENT_KEY).is_none() {
         player.child_tags.retain(|(key, _)| key != EQUIPMENT_KEY);
-    } else {
-        player.put(EQUIPMENT_KEY, NbtTag::Compound(equipment));
+    }
+    for (key, tag) in written.child_tags {
+        player.put(&key, tag);
     }
     Ok(())
 }

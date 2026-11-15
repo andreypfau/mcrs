@@ -4,6 +4,7 @@ use mcrs_minecraft_inventory_player::OFF_HAND;
 pub(crate) const INVENTORY_KEY: &str = "Inventory";
 pub(crate) const SELECTED_KEY: &str = "SelectedItemSlot";
 pub(crate) const EQUIPMENT_KEY: &str = "equipment";
+pub(crate) const FILE_KEYS: [&str; 3] = [INVENTORY_KEY, SELECTED_KEY, EQUIPMENT_KEY];
 
 /// The keys of `equipment` that hold slots of the player inventory (INV-SAV-001), in the order of
 /// a write. The file keeps each other key.
