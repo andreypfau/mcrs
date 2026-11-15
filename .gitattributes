@@ -24,6 +24,7 @@ crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla/ore_vein.bin
 crates/mcrs_minecraft_worldgen_feature_place/tests/fixtures/vanilla/tree_geometry.bin linguist-generated
 crates/mcrs_minecraft_worldgen_structure/tests/fixtures/vanilla/structure_cells.bin linguist-generated
 crates/mcrs_minecraft_worldgen/tests/fixtures/vanilla/beard.bin linguist-generated
+crates/mcrs_minecraft_loot_table/tests/fixtures/vanilla/loot.bin linguist-generated
 crates/mcrs_minecraft_game_registries/src/entity/fixtures/registry_census.bin linguist-generated
 crates/mcrs_minecraft_anvil/src/fixtures/vanilla/chunk_full.nbt linguist-generated
 crates/mcrs_minecraft_anvil/src/fixtures/vanilla/chunk_terrain.nbt linguist-generated
