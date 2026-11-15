@@ -3,8 +3,8 @@
 This file is part of [mob-brain.md](mob-brain.md). Its terms, target version, fidelity classes,
 provenance conventions, hooks and experiments apply here. All sensor ids use `minecraft:`.
 F means current effective `minecraft:follow_range`; Q means `minecraft:tempt_range` rounded
-to binary32. Attribute defaults are F=32 and Q=10 blocks, each with range [0,2048].
-The base value of F is a parameter of the body type, with the default 16.
+to binary32. The registry defaults of these attributes are 32 and 10 blocks, each with range
+[0,2048]. The base value of F for a body is species data, with the default 16 blocks.
 
 ## 1. Cadence and world queries
 
@@ -152,7 +152,7 @@ It must sort all candidates by feet distance. In order, it must test these condi
 
 It must write the first eligible item to `minecraft:nearest_visible_wanted_item`, or erase it
 when no candidate passes. Follow range must not change this query.
-No independent pickup-delay or ownership filter must apply. The item-desire predicate is a
+An independent pickup-delay or ownership filter must not apply. The item-desire predicate is a
 parameter of the body type.
 There must be no candidate cap.
 
@@ -170,10 +170,10 @@ The new-position count must start at zero for each baby scan. The sensor must co
 It must accept only its first four new positions. Each accepted position must acquire deadline U+40 before path success is known. Already-recorded positions must not increase that count. They must remain excluded even after their deadline, until cleanup actually removes their record. The count must include a fifth new position if one exists. The query can stop after that position.
 
 The sensor must request a route to the accepted targets. Reach tolerance must be the greater of 1 and the
-largest accepted POI valid range. For default home POIs, Manhattan final-node distance <=1
+largest accepted POI valid range. For default `minecraft:home` POIs, Manhattan final-node distance <=1
 must count as reachable. If a reachable route exists and its chosen target still has a POI,
-the sensor must write that target block to `minecraft:nearest_bed`. It need not be the
-Euclidean-nearest bed.
+the sensor must write that target block to `minecraft:nearest_bed`. That block can be a bed
+other than the Euclidean-nearest bed.
 Path-search details remain in [pathfinding.md](pathfinding.md).
 
 When no reachable path exists and the count is below five, the sensor must clean retry records.

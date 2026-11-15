@@ -134,10 +134,10 @@ Observed: motion in both modes, without a unique scan witness.
 Motion alone cannot separate ambient movement from player reaction. The probe remains proposal under U10.
 No nearest-player memory or exact erasure claim gains confirmed provenance from this trial.
 
-### E-B2: Injected expiry, zero boundary, freeze and AI suspension
+### E-B2: Injected expiry, zero boundary and skipped updates
 
-Status: captured. Rules: BRAIN-VAN-004 through BRAIN-VAN-007. Tool: `tools/vanilla-server`.
-No prey or other axolotl must be nearby. Put the subject in water.
+Status: captured (U11). Rules: BRAIN-VAN-004 through BRAIN-VAN-007. Tool: `tools/vanilla-server`.
+Prey and other axolotls must not be nearby. Put the subject in water.
 
 ```console
 /fill -2 64 -2 2 66 2 minecraft:water
@@ -156,8 +156,8 @@ No prey or other axolotl must be nearby. Put the subject in water.
 ```
 
 The first reads must show 2L. With AI enabled, eligible steps 1, 2 and 3 must show 1L, 0L and
-absence respectively. Thus the first post-update save is N-1, not N. Frozen wall time between
-commands must not alter it.
+absence respectively. Thus the first post-update save is N-1, not N. Wall time between
+commands under `/tick freeze` must not alter it.
 
 Repeat with `ttl:0L`, `ttl:-5L` and `ttl:9223372036854775807L`.
 The first two must disappear at the first eligible update. The sentinel must save without `ttl`.
@@ -195,7 +195,7 @@ The merge trial first summoned the same subject without `Brain`, then used this 
 Modified entity data of Axolotl
 ```
 
-Every initial read, a second read after 0.2 seconds frozen, and a read after five `NoAI` steps retained N.
+Every initial read, a second read after 0.2 seconds under `/tick freeze`, and a read after five `NoAI` steps retained N.
 Update 0 below is the read immediately after AI was enabled. A dash means no further read.
 Each entry was observed independently through both input paths.
 
@@ -227,7 +227,7 @@ The sentinel omitted `ttl` immediately and after two eligible updates:
 Axolotl has the following entity data: {memories: {"minecraft:has_hunting_cooldown": {value: 1b}}}
 ```
 
-Expected and observed: for positive finite N, the first post-update expiry is N-1; zero remains present for one update. For positive finite N, absence begins at update N+1 after injection. For N=0 and N=-5, the entry is absent at the first eligible update. Observed: the sentinel `9223372036854775807L` had no `ttl` after two eligible updates. Expected: it never expires. Freeze, reads and `NoAI` do not consume expiry.
+Expected and observed: for positive finite N, the first post-update expiry is N-1; zero remains present for one update. For positive finite N, absence begins at update N+1 after injection. For N=0 and N=-5, the entry is absent at the first eligible update. Observed: the sentinel `9223372036854775807L` had no `ttl` after two eligible updates. Expected: it never expires. `/tick freeze`, reads and `NoAI` do not consume expiry.
 
 BRAIN-VAN-004 is consistent with both input paths. BRAIN-VAN-005 through BRAIN-VAN-007 gain the stated partial evidence.
 
@@ -235,7 +235,7 @@ One merge-40 interval overlapped an unrelated cleanup and was rejected. An isola
 
 ### E-B3: Schedule change with sleep as the observable
 
-Status: captured. Rules: BRAIN-VAN-025, BRAIN-VAN-026, BRAIN-VAN-033. Tool: `tools/vanilla-server`.
+Status: captured (sleep and wake); activity membership stays proposal (U1). Rules: BRAIN-VAN-025, BRAIN-VAN-026, BRAIN-VAN-033. Tool: `tools/vanilla-server`.
 The observation is NBT `sleeping_pos`, not the active activity id.
 
 Start with a fresh subject and an unoccupied bed. Let T be game time at the summon; its initial
@@ -305,12 +305,12 @@ Found no elements matching sleeping_pos
 The adult summon occurred at game time 972; the baby summon occurred at 1016.
 The wake reads therefore occurred at 993 and 1037 respectively.
 Expected and observed: the changed schedule first affects this subject at T+21, with wake in that update.
-This confirms the tested interval of BRAIN-VAN-025 and the sleep consequence of BRAIN-VAN-033.
+This is consistent with the tested interval of BRAIN-VAN-025 and the sleep consequence of BRAIN-VAN-033.
 It does not expose the active activity id or every source of a schedule request.
 
 ### E-B4: Damaged entries, ignored registration and complete replacement
 
-Status: captured. Rules: BRAIN-VAN-001, BRAIN-VAN-006, BRAIN-VAN-007. Tool: `tools/vanilla-server`.
+Status: captured (listed cases, U12). Rules: BRAIN-VAN-001, BRAIN-VAN-006, BRAIN-VAN-007. Tool: `tools/vanilla-server`.
 
 ```console
 /summon minecraft:villager 8.5 64 0.5 {Tags:["brain_load"],NoAI:1b}
@@ -393,7 +393,7 @@ After `save-all flush`, `stop` and one restart, its read still contained only `l
 The command load rejected damaged fields before save; the restart tested persistence of the retained subset.
 No external edit placed damaged NBT on disk.
 Expected and observed: independent rejection, complete replacement, ignored registration and tolerant numeric expiry conversion.
-This confirms these clauses of BRAIN-VAN-006 and BRAIN-VAN-007, without confirming the complete registration inventory.
+This is consistent with these clauses of BRAIN-VAN-006 and BRAIN-VAN-007. It does not cover the complete registration inventory.
 
 ### E-B5: Sensor-written expiry and first appearance
 
@@ -708,7 +708,7 @@ Observed: crowd displacement and intermittent admiration, without a saved route,
 The first displacement did not prove that a route already existed when the gate closed.
 No trial qualified for an exact retry-pause measurement. BRAIN-VAN-034 and BRAIN-VAN-035 remain source-suggested under U5.
 
-### E-B8: Player-passenger freeze and the dying-camel exception
+### E-B8: Player passengers, skipped updates and the dying-camel exception
 
 Status: captured (death); the passenger, control and saddled-death trials are proposals. Rule: BRAIN-VAN-005. Limit: U3.
 Tools: `tools/vanilla-server`; the passenger and control trials also use `tools/vanilla-client`.
@@ -716,7 +716,7 @@ Tools: `tools/vanilla-server`; the passenger and control trials also use `tools/
 A camel or a camel husk updates while dying, unless it has a saddle and any passenger.
 A goat has the default: no update while dying.
 
-Run the death trials while frozen. Use an explicit UUID for each dying subject and query that
+Run the death trials under `/tick freeze`. Use an explicit UUID for each dying subject and query that
 UUID; `@e` excludes these dead subjects.
 
 ```console
@@ -735,8 +735,8 @@ Repeat the camel trial with UUID `[I;1,2,3,4]` and these fields added to its sum
 `equipment:{saddle:{id:"minecraft:saddle",count:1}},Passengers:[{id:"minecraft:armor_stand"}]`.
 The memory must stay present at `DeathTime:1s`. This trial has no capture.
 
-In the passenger and control trials, keep the game frozen and send no `/tick step`.
-The server runs about 20 frozen ticks while the script waits 1 s.
+In the passenger and control trials, keep `/tick freeze` and send no `/tick step`.
+The server runs about 20 ticks under `/tick freeze` while the script waits 1 s.
 
 ```console
 /summon minecraft:axolotl 12.5 64 8.5 {Tags:["brain_ride"],Brain:{memories:{"minecraft:has_hunting_cooldown":{value:1b,ttl:100L}}}}
@@ -749,7 +749,7 @@ The server runs about 20 frozen ticks while the script waits 1 s.
 ```
 
 The script waits 1 s before the second and the fourth read. The second read must show a smaller
-`ttl` than the first: a player passenger exempts the axolotl from freeze. The third and fourth
+`ttl` than the first: a player passenger exempts the axolotl from `/tick freeze`. The third and fourth
 reads must show the same `ttl`.
 
 For the control trial, give a camel a saddle, then mount the player. Client control must suppress
@@ -799,7 +799,7 @@ Goat has the following entity data: 1s
 ```
 
 The later passenger probe used the survival player `brain_probe` of the temporary protocol client
-of E-B1, with the game frozen. These passenger and control observations confirm no rule.
+of E-B1, under `/tick freeze`. These passenger and control observations confirm no rule.
 
 ```text
 > summon minecraft:axolotl 8.5 -59 8.5 {Tags:["passenger"],Brain:{memories:{"minecraft:has_hunting_cooldown":{value:1b,ttl:100L}}}}
@@ -829,7 +829,7 @@ Camel has the following entity data: {memories: {"minecraft:temptation_cooldown_
 ```
 
 The second read after 0.4 seconds and the immediate dismount read still showed 100L.
-Observed: a player passenger permits frozen axolotl AI; client control suppresses camel AI.
+Observed: a player passenger permits axolotl brain updates under `/tick freeze`; client control gives the camel skipped updates.
 Rerun both trials with `tools/vanilla-client`.
 The corpse comparison agrees with the dying camel-family values of section 7.3.
 This does not test replacement/travel retention in BRAIN-VAN-008, an indirect passenger or a
@@ -1004,8 +1004,9 @@ operation.
 
 | Operation | Expected result |
 |-----------|-----------------|
-| Unload/reload or dimension travel | Persisted value and expiry survive; transient value does not. |
-| Any load with a usable `Brain` | Active ids become the core ids plus the default. No stop action occurs. Navigation keeps its route. |
+| Unload/reload or dimension travel | Persisted value and expiry survive; transient value does not. The body has no route. |
+| Any load with a usable `Brain` | Active ids become the core ids plus the default. No stop action occurs. |
+| Entity data edit during a walk | Navigation keeps the route that the dropped walk behaviour started. |
 | Villager load | The fresh brain replaces the old brain before the villager refresh, so the refresh performs no stop action of an old behaviour. |
 | Teleport within the dimension | Both values and the existing brain state survive. |
 | Villager age-boundary or profession refresh | Stop effects occur before preservation; fresh sensors and activities replace the old state. |
@@ -1205,7 +1206,7 @@ start turn must remain eligible. The initial participants of the running pass mu
 For every BRAIN-VAN-039 row, enter its activity with the listed memory present, then leave it.
 That memory must become absent. Repeat with each omitted built-in activity/body pair and an
 unrelated present memory.
-No exit erasure must occur for an empty list. Entry with the required memory absent must fail.
+An empty list must not erase a memory at exit. Entry with the required memory absent must fail.
 
 ### E-B17: Behaviour lifecycle, durations and weighted groups
 
@@ -1223,8 +1224,8 @@ For failed default continuation, expect start and stop together without a tick a
 start can occur at T+1.
 A failed entry must produce no action.
 Fixed duration bounds must give that duration.
-Pause AI past a retained deadline; the first resumed running step must stop without intermediate
-tick actions.
+Give the body skipped updates past a retained deadline. The first running step after them must stop
+the behaviour without intermediate tick actions.
 
 Configure a group with a child that fails, a successful instant behaviour and a successful timed
 child, in that order. BRAIN-DES-004 states the group modes.
@@ -1242,7 +1243,7 @@ Ordered choice must preserve the declaration order.
 Force a group stop with two running children and an exit memory.
 The children must stop in retained order before the exit memory becomes absent.
 Repeat after the activity becomes inactive; ordinary child steps and forced stops must still occur.
-AI suspension alone must produce no stop action. An empty activation must still apply its exit erasure.
+Skipped updates alone must not produce a stop action. An empty activation must still apply its exit erasure.
 
 ### E-B18: Intermediate destinations and home-bias distribution
 
@@ -1308,6 +1309,7 @@ No player was present for the expiry, load, death, first water-scan or sleep pro
 The force-loaded area kept their entities ticking.
 The captures used the temporary protocol client of E-B1 for each player, not `tools/vanilla-client`.
 No raw log of these captures is in the repository; the quoted replies are the only record.
+Thus each capture gives an observation scope, not a confirmation.
 
 Runtime and save metadata agreed:
 
@@ -1342,4 +1344,4 @@ Can't find element 'minecraft:daytime' of type 'minecraft:timeline'...ry daytime
 
 Quoted replies below retain the game's spelling. Field excerpts omit unrelated memories.
 An empty reply means the conditional command did not run.
-A capture confirms only the scope stated in its conclusion.
+The conclusion of a capture states its observation scope. A capture without a committed artefact confirms no rule.

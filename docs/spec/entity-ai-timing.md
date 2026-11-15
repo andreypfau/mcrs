@@ -386,14 +386,10 @@ changes for these triggers:
   When the last recompute was 20 ticks ago or less, the recompute waits. The path follower tries it
   in each tick until 20 ticks passed.
 - Goal: each goal and each behaviour asks for a path on its own timer. AIT-VAN-006 gives the timer
-  of the melee attack. A brain asks for a new path when its walk target moved more than 2 blocks
-  from the target of the current path. The squared distance must be more than 4. The brain checks
-  this in each tick.
-- Stuck or timeout: the path follower stops the path (AIT-VAN-012). Brain movement chooses a
-  retry pause only when it stops with an unreached walk target and stuck navigation. The pause
-  is a uniform integer from 0 to 39 eligible start attempts, not elapsed ticks. Ineligible
-  attempts do not spend it. A failed initial route search does not create that pause
-  (BRAIN-VAN-035 in `mob-brain.md`).
+  of the melee attack. BRAIN-VAN-035 in `mob-brain.md` states when a brain asks for a new path
+  after its walk target moves.
+- Stuck or timeout: the path follower stops the path (AIT-VAN-012). BRAIN-VAN-035 in
+  `mob-brain.md` states the retry pause of brain movement after such a stop.
 - Done: the path ends when the mob reaches the last node.
 
 ### 1.4 Sensors and brain
@@ -402,8 +398,7 @@ changes for these triggers:
 a brain runs with its own period. At brain creation, each sensor chooses an integer offset O
 uniformly from 0 to `P - 1`, where P is its period.
 Number brain updates from 1. The first run is at `max(1, O)`; later runs are P updates apart.
-Thus offsets 0 and 1 both give a first-update run. No brain update means no countdown advance.
-The offset choice has distribution fidelity. The periods are:
+The periods are:
 
 | Sensor type | Period (brain updates) |
 |-------------|----------------|
@@ -415,13 +410,13 @@ The offset choice has distribution fidelity. The periods are:
 The sensor `hurt_by` has the period 20. Thus a mob with a brain sees its own damage up to 19 brain updates
 late. A sensor whose query uses follow range must read the mob's current value.
 BRAIN-VAN-011 through BRAIN-VAN-020 in `mob-brain-sensors.md` define the individual query ranges.
-BRAIN-VAN-010 there states phase recreation and its first-run distribution.
+BRAIN-VAN-010 there states phase recreation, the first-run distribution and its fidelity.
+BRAIN-VAN-005 in `mob-brain.md` states that the countdown does not advance without a brain update.
 
 **AIT-VAN-017** (`source_suggested`, semantic, confidence: medium). The brain tick
 runs in each eligible AI step. It does these steps:
 
-1. Erase each finite memory whose remaining expiry is already at most zero. Otherwise decrease
-   its finite expiry by one. A value that reaches zero remains present until the next update.
+1. Count down the expiry of the memories (BRAIN-VAN-004 in `mob-brain.md`).
 2. Tick each sensor in the mob's declared order (AIT-VAN-016).
 3. Try to start stopped behaviours of active activities, in ascending numeric priority across
    activities. At equal priority, the vanilla order of activities is the reference order, which
@@ -429,8 +424,7 @@ runs in each eligible AI step. It does these steps:
 4. Tick or stop behaviours that run, including newly started behaviours and old behaviours of
    inactive activities, in that same order. Complete all starts before this running pass.
 
-An ordinary timed start chooses an integer duration uniformly from inclusive minimum and maximum bounds.
-That choice has distribution fidelity. An instant behaviour or a group has no generic duration.
+BRAIN-VAN-029 through BRAIN-VAN-032 in `mob-brain.md` state the durations of behaviours.
 Start checks have a period of one brain update. Most inputs are memories that sensors write with periods of five updates or more.
 BRAIN-VAN-004 and BRAIN-VAN-028 through BRAIN-VAN-033 in `mob-brain.md` give exact boundaries.
 BRAIN-DES-005 there states which of them a decision delay can move.
@@ -467,7 +461,7 @@ timers:
 
 **AIT-VAN-020** (`source_suggested`, semantic, confidence: medium). The despawn check of a mob runs
 in each tick, before the tick of the mob. It runs for each entity of the tick list that the tick
-command does not freeze. It runs also when the chunk of the entity does not tick entities. It does
+command `/tick freeze` does not hold. It runs also when the chunk of the entity does not tick entities. It does
 these steps:
 
 1. On the difficulty `peaceful`, remove a mob of a type that cannot exist on that difficulty.
@@ -652,7 +646,8 @@ mob itself sees the open door at the next tick (PHY-DEV-003), as for each block 
 
 **AIT-RFX-005** (`design`, semantic, confidence: medium). The escape from the block that the mob is
 in is a reflex. It contains the float in a fluid and the climb out of powder snow (AIT-VAN-009),
-with their start conditions. The reason: they set the jump input in each tick, and a late jump makes
+with their start conditions. It also contains the brain flotation of BRAIN-VAN-038 in `mob-brain.md`.
+The reason: they set the jump input in each tick, and a late jump makes
 the mob sink. The search of a panic position is a decision (AIT-DEC-001).
 
 **AIT-RFX-006** (`design`, semantic, confidence: medium). The effects of damage on the mob that
@@ -1046,7 +1041,7 @@ apply in each mode except the exact-parity mode. AIT-DEV-006 applies only when t
 - **Rule:** AIT-LAG-008, with the UUID of PHY-CMP-013. The stream of the AI stays separate from
   the stream of PHY-CMP-014.
 - **Reference:** the goals take random values from the random source of the mob.
-  Section 9 of [mob-brain.md](mob-brain.md#9-parallelism-notes) gives the reference random sources for brain choices.
+  Section 9 of [mob-brain.md](mob-brain.md#9-random-sources) gives the reference random sources for brain choices.
 - **Visible to the client:** no, as a distribution. Each chance and each range stays the same.
 - **Test:** a differential test compares distributions over many runs. It does not compare one
   sequence of random values.
@@ -1156,7 +1151,7 @@ each experiment that has a random part at least 200 times, and record the distri
 | E14 | Put five tamed wolves of one player near a zombie. Let the zombie hit one wolf. Record the tick in which each wolf gets the flag "aggressive". | AIT-VAN-024, AIT-CPL-004 |
 | E15 | Put ten cod in water. Record the leader of each cod for 600 ticks. | AIT-VAN-024 |
 | E16 | Put five villagers that slept near a bell, with no iron golem. Record the tick of each golem summon. | AIT-VAN-022 |
-| E17 | Use commands only, with no player or scripted client. Set `pause-when-empty-seconds=-1`, force-load the area, disable natural mob spawning, and freeze ticks. Clear the air around an ordinary ice floor from `(0, 63, 0)` through `(11, 63, 0)`, one block wide, above the flat world surface. Keep block light low. Put a cobweb at `(0, 64, 0)`. Summon a persistent husk with `NoAI:1b` at `(11.5, 64, 0.5)`; do not make it invulnerable. Summon a persistent snow golem at `(0.5, 64, 0.5)` with `OnGround:1b`, `Invulnerable:1b` and `Rotation:[-90.0f,0.0f]`. Run `/tick step 1` and record full-precision `Pos` of both mobs and the golem's `OnGround` after each tick. Record the first snowball with `data get entity`. Set `t0` to the first tick of eastward pursuit, not the summon tick. Keep the acceptance checks through `t0 + 110`: straight, grounded pursuit from near the initial block centre, with the target fixed, visible and more than 10 blocks away. Reject an ambiguous or ungrounded start, a block change, or displacement of at least `1.5625` blocks through `t0 + 101`. For the calibrated comparison, accept only a first snowball at `t0 + 20`; record other offsets as rejected runs. Record horizontal position on every tick through `t0 + 110`, and any later pauses and exit from the cobweb if continuing to `t0 + 320`. Repeat from a rebuilt scene. **Expected result:** `Pos[0]` at `t0 + 101` equals its value at `t0 + 100`, and increases again at `t0 + 102`. The contrasting prediction is an increase of about `0.003586` blocks at `t0 + 101`. | AIT-VAN-012, PATH-FOL-003 |
+| E17 | Use commands only, with no player or scripted client. Set `pause-when-empty-seconds=-1`, force-load the area, disable natural mob spawning, and run `/tick freeze`. Clear the air around an ordinary ice floor from `(0, 63, 0)` through `(11, 63, 0)`, one block wide, above the flat world surface. Keep block light low. Put a cobweb at `(0, 64, 0)`. Summon a persistent husk with `NoAI:1b` at `(11.5, 64, 0.5)`; do not make it invulnerable. Summon a persistent snow golem at `(0.5, 64, 0.5)` with `OnGround:1b`, `Invulnerable:1b` and `Rotation:[-90.0f,0.0f]`. Run `/tick step 1` and record full-precision `Pos` of both mobs and the golem's `OnGround` after each tick. Record the first snowball with `data get entity`. Set `t0` to the first tick of eastward pursuit, not the summon tick. Keep the acceptance checks through `t0 + 110`: straight, grounded pursuit from near the initial block centre, with the target fixed, visible and more than 10 blocks away. Reject an ambiguous or ungrounded start, a block change, or displacement of at least `1.5625` blocks through `t0 + 101`. For the calibrated comparison, accept only a first snowball at `t0 + 20`; record other offsets as rejected runs. Record horizontal position on every tick through `t0 + 110`, and any later pauses and exit from the cobweb if continuing to `t0 + 320`. Repeat from a rebuilt scene. **Expected result:** `Pos[0]` at `t0 + 101` equals its value at `t0 + 100`, and increases again at `t0 + 102`. The contrasting prediction is an increase of about `0.003586` blocks at `t0 + 101`. | AIT-VAN-012, PATH-FOL-003 |
 
 ### 10.2 Tests for this server
 
@@ -1176,7 +1171,7 @@ each experiment that has a random part at least 200 times, and record the distri
 ### E17
 
 The vanilla server of `26.4-snapshot-7` ran without a player. The start log reports
-`26.4 Snapshot 7`. Ticks were frozen and stepped singly, natural mob spawning was disabled,
+`26.4 Snapshot 7`. `/tick freeze` held the ticks, `/tick step 1` advanced them, natural mob spawning was disabled,
 and the route was force-loaded. Time stayed at 18000 with clear weather. Before each run, the
 mobs were killed and the scene rebuilt; no other mob was present.
 
