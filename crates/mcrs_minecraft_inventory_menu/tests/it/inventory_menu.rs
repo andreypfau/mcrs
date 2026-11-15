@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 
-use mcrs_minecraft_menu::InventoryMenu;
-use mcrs_minecraft_menu::MenuSlot;
-use mcrs_minecraft_player_slots::ArmourSlot;
-use mcrs_minecraft_player_slots::EquipSlot;
-use mcrs_minecraft_player_slots::Holder;
+use mcrs_minecraft_inventory_menu::InventoryMenu;
+use mcrs_minecraft_inventory_menu::MenuSlot;
+use mcrs_minecraft_inventory_player::ArmourSlot;
+use mcrs_minecraft_inventory_player::EquipSlot;
+use mcrs_minecraft_inventory_player::Holder;
 
 fn inventory(index: u16) -> Option<MenuSlot> {
     Some(MenuSlot::new(Holder::Inventory, index))

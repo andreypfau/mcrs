@@ -1,4 +1,4 @@
-use mcrs_minecraft_inventory_plan::Filter;
+use mcrs_minecraft_inventory_transaction::Filter;
 
 use crate::ArmourSlot;
 use crate::EquipSlot;

@@ -1,4 +1,4 @@
-use mcrs_minecraft_inventory_plan::Op;
+use mcrs_minecraft_inventory_transaction::Op;
 
 use crate::Click;
 use crate::ClickError;

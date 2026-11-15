@@ -24,11 +24,11 @@ use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_inventory_player::OFF_HAND;
 use mcrs_minecraft_item::Items;
 use mcrs_minecraft_item_stack::{Count, Kind};
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_physics::Aabb;
-use mcrs_minecraft_player_slots::OFF_HAND;
 use mcrs_minecraft_protocol_game::Hand;
 use mcrs_minecraft_protocol_game::block::BlockStateNumber;
 use mcrs_minecraft_protocol_game::clientbound::{

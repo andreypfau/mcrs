@@ -20,7 +20,7 @@ use mcrs_minecraft_core::Look;
 use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_entity::{attribute_keys::Attribute, entity_type_keys::EntityType};
 use mcrs_minecraft_entity_attribute::AttributeModifier;
-use mcrs_minecraft_menu::menu_keys::MenuType;
+use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_particle::ParticleOptions;
 use mcrs_minecraft_protocol::{Bounded, Result, VarInt, VarLong};

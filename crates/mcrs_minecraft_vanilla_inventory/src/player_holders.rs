@@ -1,6 +1,6 @@
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
-use mcrs_minecraft_player_slots::Holder;
+use mcrs_minecraft_inventory_player::Holder;
 
 /// The holders of a player beside its player inventory, which is the
 /// [`Slots`](mcrs_minecraft_engine_item::Slots) of the player itself (INV-SLT-002). Each one is a

@@ -1,6 +1,6 @@
-use mcrs_minecraft_inventory_plan::Filter;
-use mcrs_minecraft_inventory_plan::Loaded;
-use mcrs_minecraft_inventory_plan::Planned;
+use mcrs_minecraft_inventory_transaction::Filter;
+use mcrs_minecraft_inventory_transaction::Loaded;
+use mcrs_minecraft_inventory_transaction::Planned;
 
 /// The slots of the player that clicks and of the menu, read as the planner reads them.
 pub trait Slots {

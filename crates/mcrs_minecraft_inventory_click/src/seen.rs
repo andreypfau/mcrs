@@ -1,5 +1,5 @@
-use mcrs_minecraft_inventory_plan::Filter;
-use mcrs_minecraft_inventory_plan::Planned;
+use mcrs_minecraft_inventory_transaction::Filter;
+use mcrs_minecraft_inventory_transaction::Planned;
 
 /// A slot as the kernel read it before the first operation.
 #[derive(Clone, Copy, Debug)]

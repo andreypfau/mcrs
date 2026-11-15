@@ -8,12 +8,12 @@ use bevy_ecs::system::InRef;
 use bevy_ecs::system::Query;
 use bevy_ecs::system::ResMut;
 use bevy_ecs::world::World;
-use mcrs_minecraft_inventory_plan::Filter;
-use mcrs_minecraft_inventory_plan::Loaded;
-use mcrs_minecraft_inventory_plan::Op;
-use mcrs_minecraft_inventory_plan::Plan;
-use mcrs_minecraft_inventory_plan::Planned;
-use mcrs_minecraft_inventory_plan::plan;
+use mcrs_minecraft_inventory_transaction::Filter;
+use mcrs_minecraft_inventory_transaction::Loaded;
+use mcrs_minecraft_inventory_transaction::Op;
+use mcrs_minecraft_inventory_transaction::Plan;
+use mcrs_minecraft_inventory_transaction::Planned;
+use mcrs_minecraft_inventory_transaction::plan;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
 

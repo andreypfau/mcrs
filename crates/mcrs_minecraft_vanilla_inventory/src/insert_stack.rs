@@ -1,9 +1,9 @@
+use mcrs_minecraft_inventory_player::Slot;
+use mcrs_minecraft_inventory_player::Stacking;
 use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::MaxStackSize;
 use mcrs_minecraft_item_table::ItemTable;
-use mcrs_minecraft_player_slots::Slot;
-use mcrs_minecraft_player_slots::Stacking;
 
 /// The largest value of the component `max_stack_size`.
 const LARGEST_STACK: i32 = 99;
@@ -27,7 +27,7 @@ pub(crate) fn insert_stack(
     } else {
         Stacking::Stacks
     };
-    let end = mcrs_minecraft_player_slots::insert(
+    let end = mcrs_minecraft_inventory_player::insert(
         stack.count.get(),
         max,
         stacking,

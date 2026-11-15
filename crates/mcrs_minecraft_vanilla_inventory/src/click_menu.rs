@@ -1,7 +1,7 @@
 use mcrs_minecraft_inventory_click::Menu;
-use mcrs_minecraft_menu::InventoryMenu;
-use mcrs_minecraft_menu::MenuRange;
-use mcrs_minecraft_menu::MenuSlot;
+use mcrs_minecraft_inventory_menu::InventoryMenu;
+use mcrs_minecraft_inventory_menu::MenuRange;
+use mcrs_minecraft_inventory_menu::MenuSlot;
 
 use crate::click_slots::ClickSlots;
 

@@ -1,9 +1,9 @@
-use mcrs_minecraft_inventory_plan::Op;
-use mcrs_minecraft_inventory_plan::Planned;
-use mcrs_minecraft_player_slots::Slot;
-use mcrs_minecraft_player_slots::Stacking;
-use mcrs_minecraft_player_slots::insert;
-use mcrs_minecraft_player_slots::swap_button_slot;
+use mcrs_minecraft_inventory_player::Slot;
+use mcrs_minecraft_inventory_player::Stacking;
+use mcrs_minecraft_inventory_player::insert;
+use mcrs_minecraft_inventory_player::swap_button_slot;
+use mcrs_minecraft_inventory_transaction::Op;
+use mcrs_minecraft_inventory_transaction::Planned;
 
 use crate::Click;
 use crate::ClickError;

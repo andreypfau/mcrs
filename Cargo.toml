@@ -159,7 +159,7 @@ mcrs_minecraft_block_transformer = { path = "crates/mcrs_minecraft_block_transfo
 mcrs_minecraft_decorated_pot_pattern = { path = "crates/mcrs_minecraft_decorated_pot_pattern" }
 mcrs_minecraft_banner_pattern = { path = "crates/mcrs_minecraft_banner_pattern" }
 mcrs_minecraft_map_decoration = { path = "crates/mcrs_minecraft_map_decoration" }
-mcrs_minecraft_menu = { path = "crates/mcrs_minecraft_menu" }
+mcrs_minecraft_inventory_menu = { path = "crates/mcrs_minecraft_inventory_menu" }
 mcrs_minecraft_instrument = { path = "crates/mcrs_minecraft_instrument" }
 mcrs_minecraft_jukebox_song = { path = "crates/mcrs_minecraft_jukebox_song" }
 mcrs_minecraft_painting_variant = { path = "crates/mcrs_minecraft_painting_variant" }
@@ -209,9 +209,9 @@ mcrs_minecraft_vanilla_falling_block = { path = "crates/mcrs_minecraft_vanilla_f
 mcrs_minecraft_vanilla_block_place = { path = "crates/mcrs_minecraft_vanilla_block_place" }
 mcrs_minecraft_vanilla_attributes = { path = "crates/mcrs_minecraft_vanilla_attributes" }
 mcrs_minecraft_vanilla_inventory = { path = "crates/mcrs_minecraft_vanilla_inventory" }
-mcrs_minecraft_inventory_plan = { path = "crates/mcrs_minecraft_inventory_plan" }
-mcrs_minecraft_player_slots = { path = "crates/mcrs_minecraft_player_slots" }
-mcrs_minecraft_inventory_view = { path = "crates/mcrs_minecraft_inventory_view" }
+mcrs_minecraft_inventory_transaction = { path = "crates/mcrs_minecraft_inventory_transaction" }
+mcrs_minecraft_inventory_player = { path = "crates/mcrs_minecraft_inventory_player" }
+mcrs_minecraft_inventory_client_view = { path = "crates/mcrs_minecraft_inventory_client_view" }
 mcrs_minecraft_inventory_click = { path = "crates/mcrs_minecraft_inventory_click" }
 mcrs_minecraft_item_stack = { path = "crates/mcrs_minecraft_item_stack" }
 mcrs_minecraft_item_table = { path = "crates/mcrs_minecraft_item_table" }

@@ -7,21 +7,21 @@ use mcrs_minecraft_inventory_click::Drag;
 use mcrs_minecraft_inventory_click::Menu;
 use mcrs_minecraft_inventory_click::Operations;
 use mcrs_minecraft_inventory_click::Slots;
-use mcrs_minecraft_inventory_plan::Filter;
-use mcrs_minecraft_inventory_plan::Loaded;
-use mcrs_minecraft_inventory_plan::Op;
-use mcrs_minecraft_inventory_plan::Plan;
-use mcrs_minecraft_inventory_plan::Planned;
-use mcrs_minecraft_menu::InventoryMenu;
-use mcrs_minecraft_menu::MenuRange;
-use mcrs_minecraft_menu::MenuSlot;
-use mcrs_minecraft_player_slots::ArmourLock;
-use mcrs_minecraft_player_slots::ArmourSlot;
-use mcrs_minecraft_player_slots::EquipSlot;
-use mcrs_minecraft_player_slots::Holder;
-use mcrs_minecraft_player_slots::OffHandRule;
-use mcrs_minecraft_player_slots::Offer;
-use mcrs_minecraft_player_slots::PlayerMode;
+use mcrs_minecraft_inventory_menu::InventoryMenu;
+use mcrs_minecraft_inventory_menu::MenuRange;
+use mcrs_minecraft_inventory_menu::MenuSlot;
+use mcrs_minecraft_inventory_player::ArmourLock;
+use mcrs_minecraft_inventory_player::ArmourSlot;
+use mcrs_minecraft_inventory_player::EquipSlot;
+use mcrs_minecraft_inventory_player::Holder;
+use mcrs_minecraft_inventory_player::OffHandRule;
+use mcrs_minecraft_inventory_player::Offer;
+use mcrs_minecraft_inventory_player::PlayerMode;
+use mcrs_minecraft_inventory_transaction::Filter;
+use mcrs_minecraft_inventory_transaction::Loaded;
+use mcrs_minecraft_inventory_transaction::Op;
+use mcrs_minecraft_inventory_transaction::Plan;
+use mcrs_minecraft_inventory_transaction::Planned;
 
 /// The handle of a stack: the parts that the filters and the equality read.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -304,7 +304,7 @@ pub fn send(
 /// The slots after `ops`. Panics when the request has a rejection.
 pub fn apply(player: &Player, ops: &[Operation]) -> Player {
     let mut scratch = Plan::new();
-    let result = mcrs_minecraft_inventory_plan::plan(
+    let result = mcrs_minecraft_inventory_transaction::plan(
         ops.iter().copied(),
         &mut scratch,
         |slot| player.load(slot),

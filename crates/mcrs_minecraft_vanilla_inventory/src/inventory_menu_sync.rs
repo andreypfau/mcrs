@@ -1,7 +1,7 @@
 use bevy_ecs::component::Component;
-use mcrs_minecraft_inventory_view::ClientView;
-use mcrs_minecraft_inventory_view::StateId;
-use mcrs_minecraft_menu::InventoryMenu;
+use mcrs_minecraft_inventory_client_view::ClientView;
+use mcrs_minecraft_inventory_client_view::StateId;
+use mcrs_minecraft_inventory_menu::InventoryMenu;
 
 /// The state id of the inventory menu of a player and its client view: what the server sent last
 /// for each entry and for the cursor (INV-SYN-001, INV-SYN-002).

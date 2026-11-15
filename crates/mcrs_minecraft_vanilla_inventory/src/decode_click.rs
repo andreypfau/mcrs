@@ -5,7 +5,7 @@ use bevy_ecs::system::Res;
 use mcrs_minecraft_inventory_click::Click;
 use mcrs_minecraft_inventory_click::ClickKind;
 use mcrs_minecraft_inventory_click::Clicked;
-use mcrs_minecraft_inventory_view::SlotView;
+use mcrs_minecraft_inventory_client_view::SlotView;
 use mcrs_minecraft_item_stack::read_hashed;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_network::event::Received;

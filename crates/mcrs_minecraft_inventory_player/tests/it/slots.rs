@@ -1,15 +1,15 @@
-use mcrs_minecraft_inventory_plan::Filter;
-use mcrs_minecraft_player_slots::ArmourLock;
-use mcrs_minecraft_player_slots::ArmourSlot;
-use mcrs_minecraft_player_slots::EquipSlot;
-use mcrs_minecraft_player_slots::Holder;
-use mcrs_minecraft_player_slots::OffHandRule;
-use mcrs_minecraft_player_slots::OffHandTag;
-use mcrs_minecraft_player_slots::Offer;
-use mcrs_minecraft_player_slots::PlayerMode;
-use mcrs_minecraft_player_slots::SlotFilter;
-use mcrs_minecraft_player_slots::SlotRule;
-use mcrs_minecraft_player_slots::swap_button_slot;
+use mcrs_minecraft_inventory_player::ArmourLock;
+use mcrs_minecraft_inventory_player::ArmourSlot;
+use mcrs_minecraft_inventory_player::EquipSlot;
+use mcrs_minecraft_inventory_player::Holder;
+use mcrs_minecraft_inventory_player::OffHandRule;
+use mcrs_minecraft_inventory_player::OffHandTag;
+use mcrs_minecraft_inventory_player::Offer;
+use mcrs_minecraft_inventory_player::PlayerMode;
+use mcrs_minecraft_inventory_player::SlotFilter;
+use mcrs_minecraft_inventory_player::SlotRule;
+use mcrs_minecraft_inventory_player::swap_button_slot;
+use mcrs_minecraft_inventory_transaction::Filter;
 
 fn rule(limit: u8, filter: SlotFilter) -> Option<SlotRule> {
     Some(SlotRule { limit, filter })
