@@ -1,6 +1,6 @@
 use bevy_ecs::component::Component;
-use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity::{ClientMotion, EntityTypeData};
 use uuid::Uuid;
 
 /// An entity that the server added to the client, with the id that its packets name.
@@ -25,5 +25,13 @@ impl ClientEntity {
             .map_or(EntityTypeData::DEFAULT_UPDATE_INTERVAL, |data| {
                 data.update_interval
             })
+    }
+
+    /// Whether the client moves the entity between two updates of the server with the step of
+    /// its type, as the type data states.
+    #[must_use]
+    pub fn is_simulated(&self) -> bool {
+        self.type_data()
+            .is_some_and(|data| matches!(data.client_motion, ClientMotion::Simulated(_)))
     }
 }

@@ -4,9 +4,10 @@ use mcrs_minecraft_client_world::attribute_instances::AttributeInstances;
 use mcrs_minecraft_client_world::columns::ColumnStore;
 use mcrs_minecraft_client_world::joined_game::JoinedGame;
 use mcrs_minecraft_entity::attribute_keys::Attribute;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_visual::{
     Age, ClientEntity, Equipment, Living, Motion, PacketPath, Placement, Rotation, SNAP_DISTANCE,
-    ServerTicking, SyncedData, in_ticking_area, move_entity,
+    ServerTicking, SyncedData, in_ticking_area,
 };
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::clientbound::{
@@ -14,14 +15,19 @@ use mcrs_minecraft_protocol_game::clientbound::{
     ClientboundEntityPositionSync, ClientboundHurtAnimation, ClientboundLogin,
     ClientboundMoveEntityPos, ClientboundMoveEntityPosRot, ClientboundMoveEntityRot,
     ClientboundRemoveEntities, ClientboundRespawn, ClientboundRotateHead, ClientboundSetEntityData,
-    ClientboundSetEquipment, ClientboundTeleportEntity, ClientboundTickingState,
-    ClientboundTickingStep, ClientboundUpdateAttributes, VecDelta,
+    ClientboundSetEntityMotion, ClientboundSetEquipment, ClientboundTeleportEntity,
+    ClientboundTickingState, ClientboundTickingStep, ClientboundUpdateAttributes, VecDelta,
 };
 use mcrs_minecraft_protocol_game::{ByteAngle, PositionFlag};
 
+use crate::add_entity_data::AddEntityData;
 use crate::apply_entity_data::apply_entity_data;
 use crate::delta;
+use crate::moved_entity::MovedEntity;
 use crate::network_entities::NetworkEntities;
+use crate::orb_interpolation::OrbInterpolation;
+use crate::simulated_motion::simulated_motion;
+use crate::velocity::Velocity;
 
 /// The largest X and Z of an added entity.
 pub const WORLD_LIMIT: f64 = 3.0e7;
@@ -36,6 +42,7 @@ pub(crate) fn add_observers(app: &mut bevy_app::App) {
         .add_observer(on_move_entity_rot)
         .add_observer(on_position_sync)
         .add_observer(on_teleport_entity)
+        .add_observer(on_set_entity_motion)
         .add_observer(on_rotate_head)
         .add_observer(on_set_entity_data)
         .add_observer(on_set_equipment)
@@ -81,7 +88,20 @@ fn on_add_entity(
         Motion::new(placement, packet.pos),
         Age::default(),
         SyncedData::default(),
+        AddEntityData(packet.data.0),
     ));
+    let velocity = packet.movement.0;
+    match simulated_motion(&client, position, velocity) {
+        Some(motion) => {
+            spawned.insert(motion);
+            if client.kind == EntityType::ExperienceOrb {
+                spawned.insert(OrbInterpolation::default());
+            }
+        }
+        None => {
+            spawned.insert(Velocity::new(velocity));
+        }
+    }
     match client.type_data() {
         Some(data) if data.is_living() => {
             spawned.insert((Living::new(degrees(packet.head_yaw)), Equipment::default()));
@@ -138,33 +158,34 @@ fn on_respawn(
     clear_entities(&mut entities, &mut commands);
 }
 
-/// Starts an interpolation of the entity `network_id` from a relative move.
+/// Applies a relative move to the entity `network_id`.
 fn relative_move(
     network_id: i32,
     motion_delta: Option<&VecDelta>,
     rotation: Option<Rotation>,
     on_ground: bool,
     entities: &NetworkEntities,
-    query: &mut Query<(&ClientEntity, &mut Motion)>,
+    query: &mut Query<MovedEntity>,
 ) {
     let Some(entity) = entities.get(network_id) else {
         return;
     };
-    let Ok((client, mut motion)) = query.get_mut(entity) else {
+    let Ok(mut moved) = query.get_mut(entity) else {
         return;
     };
-    let path = motion_delta.map(|motion_delta| delta::motion_path(motion.delta_base, motion_delta));
+    let path =
+        motion_delta.map(|motion_delta| delta::motion_path(moved.motion.delta_base, motion_delta));
     if let Some(end) = path.as_ref().and_then(PacketPath::end) {
-        motion.delta_base = end;
+        moved.motion.delta_base = end;
     }
-    motion.start(path, rotation, client.update_interval());
-    motion.on_ground = on_ground;
+    moved.update(path, rotation);
+    moved.set_on_ground(on_ground);
 }
 
 fn on_move_entity_pos(
     event: On<Received<ClientboundMoveEntityPos>>,
     entities: Res<NetworkEntities>,
-    mut query: Query<(&ClientEntity, &mut Motion)>,
+    mut query: Query<MovedEntity>,
 ) {
     if let Some(packet) = event.packet() {
         relative_move(
@@ -181,7 +202,7 @@ fn on_move_entity_pos(
 fn on_move_entity_pos_rot(
     event: On<Received<ClientboundMoveEntityPosRot>>,
     entities: Res<NetworkEntities>,
-    mut query: Query<(&ClientEntity, &mut Motion)>,
+    mut query: Query<MovedEntity>,
 ) {
     if let Some(packet) = event.packet() {
         let rotation = Rotation {
@@ -202,7 +223,7 @@ fn on_move_entity_pos_rot(
 fn on_move_entity_rot(
     event: On<Received<ClientboundMoveEntityRot>>,
     entities: Res<NetworkEntities>,
-    mut query: Query<(&ClientEntity, &mut Motion)>,
+    mut query: Query<MovedEntity>,
 ) {
     if let Some(packet) = event.packet() {
         let rotation = Rotation {
@@ -220,11 +241,15 @@ fn on_move_entity_rot(
     }
 }
 
+fn snaps(from: DVec3, to: DVec3) -> bool {
+    from.distance_squared(to) > SNAP_DISTANCE * SNAP_DISTANCE
+}
+
 fn on_position_sync(
     event: On<Received<ClientboundEntityPositionSync>>,
     entities: Res<NetworkEntities>,
     columns: Option<Res<ColumnStore>>,
-    mut query: Query<(&ClientEntity, &mut Motion)>,
+    mut query: Query<MovedEntity>,
 ) {
     let Some(packet) = event.packet() else {
         return;
@@ -232,32 +257,32 @@ fn on_position_sync(
     let Some(entity) = entities.get(packet.entity_id.0) else {
         return;
     };
-    let Ok((client, mut motion)) = query.get_mut(entity) else {
+    let Ok(mut moved) = query.get_mut(entity) else {
         return;
     };
     let path = delta::sync_path(&packet.position);
     let Some(end) = path.end() else {
         return;
     };
-    motion.delta_base = end;
+    moved.motion.delta_base = end;
     let rotation = Rotation {
         yaw: packet.look.yaw,
         pitch: packet.look.pitch,
     };
+    let current = moved.current().position;
     // A frozen entity stays in the ticking area: a capture shows a frozen pig that keeps its path.
-    let ticking_area = in_ticking_area(columns.as_deref(), motion.current.position);
-    if !ticking_area || motion.current.position.distance(end) > SNAP_DISTANCE {
-        motion.snap(Placement::new(end, rotation.yaw, rotation.pitch));
+    if !in_ticking_area(columns.as_deref(), current) || snaps(current, end) {
+        moved.snap(Placement::new(end, rotation.yaw, rotation.pitch), end);
     } else {
-        motion.start(Some(path), Some(rotation), client.update_interval());
+        moved.update(Some(path), Some(rotation));
     }
-    motion.on_ground = packet.on_ground;
+    moved.set_on_ground(packet.on_ground);
 }
 
 fn on_teleport_entity(
     event: On<Received<ClientboundTeleportEntity>>,
     entities: Res<NetworkEntities>,
-    mut query: Query<(&ClientEntity, &mut Motion)>,
+    mut query: Query<MovedEntity>,
 ) {
     let Some(packet) = event.packet() else {
         return;
@@ -265,10 +290,11 @@ fn on_teleport_entity(
     let Some(entity) = entities.get(packet.entity_id.0) else {
         return;
     };
-    let Ok((client, mut motion)) = query.get_mut(entity) else {
+    let Ok(mut moved) = query.get_mut(entity) else {
         return;
     };
-    let current = motion.current;
+    let current = moved.current();
+    let current_velocity = moved.velocity();
     let relative = |flag: PositionFlag, value: f64, base: f64| {
         if packet.relatives.contains(flag) {
             base + value
@@ -291,8 +317,66 @@ fn on_teleport_entity(
         f64::from(packet.look.pitch),
         f64::from(current.pitch),
     ) as f32;
-    move_entity(&mut motion, client, Placement::new(position, yaw, pitch));
-    motion.on_ground = packet.on_ground;
+    let velocity = DVec3::new(
+        relative(PositionFlag::DeltaX, packet.velocity.x, current_velocity.x),
+        relative(PositionFlag::DeltaY, packet.velocity.y, current_velocity.y),
+        relative(PositionFlag::DeltaZ, packet.velocity.z, current_velocity.z),
+    );
+    let placement = Placement::new(position, yaw, pitch);
+    if snaps(current.position, position) {
+        let previous = moved.motion.previous.position;
+        let moved_by = position - current.position;
+        let previous_axis = |flag: PositionFlag, previous: f64, moved_by: f64, new: f64| {
+            if packet.relatives.contains(flag) {
+                previous + moved_by
+            } else {
+                new
+            }
+        };
+        let previous_position = DVec3::new(
+            previous_axis(PositionFlag::X, previous.x, moved_by.x, position.x),
+            previous_axis(PositionFlag::Y, previous.y, moved_by.y, position.y),
+            previous_axis(PositionFlag::Z, previous.z, moved_by.z, position.z),
+        );
+        moved.snap(placement, previous_position);
+    } else {
+        moved.update(
+            Some(PacketPath::Linear(position)),
+            Some(placement.rotation()),
+        );
+    }
+    moved.set_velocity(velocity);
+    moved.set_on_ground(packet.on_ground);
+}
+
+fn on_set_entity_motion(
+    event: On<Received<ClientboundSetEntityMotion>>,
+    entities: Res<NetworkEntities>,
+    connections: Query<&JoinedGame>,
+    mut query: Query<MovedEntity>,
+) {
+    let Some(packet) = event.packet() else {
+        return;
+    };
+    let network_id = packet.entity_id.0;
+    let Some(entity) = entities.get(network_id) else {
+        return;
+    };
+    let own = connections
+        .get(event.entity)
+        .is_ok_and(|joined| joined.player_id == network_id);
+    if own {
+        return;
+    }
+    let Ok(mut moved) = query.get_mut(entity) else {
+        return;
+    };
+    let velocity = packet.velocity.0;
+    if moved.client.kind == EntityType::Player {
+        moved.approach_velocity(velocity);
+    } else {
+        moved.set_velocity(velocity);
+    }
 }
 
 fn on_rotate_head(
