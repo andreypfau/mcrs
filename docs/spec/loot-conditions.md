@@ -273,7 +273,7 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Experiment: 
 
 Provenance: `source_suggested_black_box_confirmed` (result L5 of `block-loot.md`, for a present
 `predicate`). Kind: semantic. Confidence: high for a present `predicate`, medium for an absent
-`predicate`. Experiment: X10. Item U1 records a question about an absent `predicate`.
+`predicate`. Experiment: X10.
 
 ### LOOT-CND-010: `random_chance_with_enchanted_bonus`
 
@@ -896,11 +896,10 @@ and REG-FLD-715 rejects a `time_check` with `period` 0.
 
 ### 7.3 Unresolved
 
-- **U1**: three conditions have an optional `predicate`. With no `predicate`, `match_tool` and
-  `damage_source_properties` fail when their parameter is absent. `entity_properties` with no
-  `predicate` passes also when the entity is absent (LOOT-CND-009). A data pack author can
-  expect that it tests that the entity is present. The owner decides if this is a defect. Until
-  then, LOOT-CND-009 states the reference.
+None.
+
+Item U1 is closed: LOOT-CND-009 states the result with no `predicate`. Each condition with an
+optional `predicate` is consistent in itself, and `{}` already tests that the entity is present.
 
 ## 8. Experiments
 

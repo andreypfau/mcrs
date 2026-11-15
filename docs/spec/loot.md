@@ -345,9 +345,9 @@ names, and only in the evaluation of a block table for a block with this block e
 | `minecraft:contents` | a shulker box | the stack of each slot, in the order of the slots, also the empty stacks |
 
 A side without a decoration gives no stack. A pot from an item without changes has `brick` on each
-side, so it gives four `brick`. Item U2 records a question about this rule. The table of
-`decorated_pot` has `dynamic` only for a cracked pot. A pot that is not cracked drops itself
-(LOOT-MOD-006, `loot-functions.md`). No vanilla table uses `minecraft:contents`.
+side, so it gives four `brick`. The table of `decorated_pot` has `dynamic` only for a cracked pot.
+A pot that is not cracked drops itself (LOOT-MOD-006, `loot-functions.md`). No vanilla table uses
+`minecraft:contents`.
 
 **LOOT-EVL-009** (`source_suggested`, semantic, confidence medium). A `tag` entry names a set of
 items in `items`: a tag, one item or a list of items. The order of a tag is the member order of
@@ -703,12 +703,8 @@ None.
 
 ### 8.3 Unresolved
 
-- **U2**: the stacks of `minecraft:sherds` (LOOT-EVL-007). The reference of this version gives no
-  stack for a side without a decoration. It gives the stacks in the order left, back, front,
-  right. An earlier text of this rule followed the reference of an earlier release. That text gave
-  `brick` for a side without a decoration, and the order back, left, right, front. A pot that
-  `setblock` places without decorations looks like brick on each side. The owner decides whether
-  the missing `brick` is a defect. LOOT-EVL-007 states the order of this version. Experiment X12
-  shows the vanilla result for both points.
+None.
 
-Items U1 and U3 are closed: LOOT-RND-009 and LOOT-CTX-016 state the decisions of the owner.
+Items U1 and U3 are closed: LOOT-RND-009 and LOOT-CTX-016 state the decisions of the owner. Item U2
+is closed: LOOT-EVL-007 states the stacks of this version. The component of this version holds no
+decoration for a side without one, so a `brick` for that side is not in the data.
