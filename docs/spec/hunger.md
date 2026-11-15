@@ -360,6 +360,31 @@ hit as `entity-damage.md`, section 9, states. A hit with the damage type `starve
 and sends `damage_event` with the network id of that type. A heal sends no `damage_event`. The new
 health goes to the client in the entity data (DMG-NET-002) and in `set_health`.
 
+**HNG-NET-004** (`design`, semantic, confidence: medium). A `login` packet and each `respawn`
+packet make a new local player. Until the first `set_health` after that packet, the client uses
+this food level for the new local player:
+
+| Packet | Food level |
+|--------|------------|
+| `login` | none. The player is not fed |
+| `respawn` with the data to keep 0 | 20 |
+| `respawn` with another data to keep | the food level of the old local player |
+
+The player is fed when its food level is more than 6. PHY-INP-008 of `entity-physics.md` reads
+this fact for the sprint. Each `set_health` then gives the food level.
+
+The reason for this choice:
+
+- The server sends `set_health` in its first tick after each of these packets (HNG-NET-001). The
+  load of MVC-PKT-012 of `movement-checks.md` can end before that packet comes.
+- The server sends the data to keep 0 only for a respawn after a death (PLD-NET-002 of
+  `player-death.md`). That respawn gives the food level 20 (HNG-STA-001).
+- A change of dimension keeps the food level (HNG-STA-001). Its `respawn` has the data to keep 3
+  (DIM-CHG-004 of `dimension-change.md`).
+- After a `login`, the client does not know the saved food level. A player that is not fed cannot
+  start a sprint without the fly permission. Thus the client does not sprint when the value of
+  the server forbids it.
+
 ## 8. The saved form
 
 **HNG-SAV-001** (`source_suggested`, semantic, confidence: high). The save file of a player holds

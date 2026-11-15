@@ -129,6 +129,8 @@ the reference implementation. No experiment has confirmed them yet. Section 15 g
   with a captured result in section 16.
 - `source_suggested`: taken from the reference implementation, with no captured result. The
   confidence is at most medium. Section 15 attaches an experiment.
+- `design`: an mcrs choice where the documentation and the reference state nothing. The rule
+  states the reason.
 - `unresolved`: not decided. Section 14 collects these items.
 
 Each rule states its kind and its confidence, for example
@@ -891,7 +893,8 @@ moves in this way when a chunk near the player is not loaded:
    levitation.
 3. The horizontal rules do not change. The ground friction uses the block at the movement position.
    In a chunk that is not loaded, this block is air.
-4. The client does not tick its player before the client has loaded the level.
+4. The client does not tick its player during a load. MVC-PKT-012 of `movement-checks.md` states
+   when a load starts and ends.
 
 On the server, a move can keep the fall distance of a player. This occurs when the box of the
 player, grown by 1 on each side, touches a chunk that is not loaded (PHY-FALL-003).
@@ -1137,6 +1140,22 @@ the modifiers and the range, bit for bit.
 
 The default base for a player is `0.1F` (ATR-BASE-003 of `attributes.md`).
 
+The travel step of the player reads `speed` as `f32` of the value of the `movement_speed` instance
+(PHY-GRV-010). It reads the instance as it is in step 13 of PHY-ORD-001:
+
+1. Before the tick, `update_attributes` can replace the base value and the modifiers
+   (ATR-CLI-002). An entry of `movement_speed` removes the sprint modifier.
+2. In step 6, the client sets the sprint modifier when the sprint state changes to on. It removes
+   it when the sprint state changes to off (ATR-SRC-002).
+3. The client does not set the modifier again in a tick in which the sprint state does not change
+   (ATR-CLI-004).
+
+Thus, after an entry without the sprint modifier, a player with the sprint state on moves at the
+speed without the sprint modifier. The air speed of PHY-INP-007 and the jump boost of PHY-INP-005
+read the sprint state, not the modifier. They keep their sprint values. Provenance of this
+paragraph and the list: `source_suggested` for steps 1 and 2, and the `design` of ATR-CLI-004 for
+step 3. Kind: client agreement. Confidence: medium.
+
 **PHY-INP-007** (`source_suggested`, client agreement, confidence: medium). The air speed of a
 player without the flight state is `0.02F`, or `0.025999999F` with the sprint state on.
 
@@ -1145,7 +1164,8 @@ sprint state when all these conditions are true:
 
 - the sprint state is off, and the forward value of the input is more than `1.0E-5F`;
 - the player does not have the effect `blindness`;
-- the food level is more than 6, or the player has the fly permission;
+- the food level is more than 6, or the player has the fly permission. HNG-NET-004 of
+  `hunger.md` states the food level before the first `set_health`;
 - the player is not in shallow water, unless the flight state is on;
 - the player does not use an item that slows it;
 - the player is not in elytra flight and does not crouch or crawl, unless its eyes are in water;
@@ -1730,6 +1750,34 @@ applies before step 1. The push of PHY-PSH-008 changes the velocity of `S` befor
 The old position and the old rotation are not in `S`. Step 1 of PHY-ORD-001 sets them before a
 rule reads them. Thus they do not change the result of the tick, and step 7 of PHY-SRV-010 does
 not change the physics. An implementation can keep these values outside `S`.
+
+**PHY-ORD-015** (`design`, client agreement, confidence: medium). A `login` packet and each
+`respawn` packet make a new local player (ATR-CLI-005 of `attributes.md`). The new local player
+starts with these values of `S`. A later packet or tick changes them.
+
+| Value | Start value |
+|-------|-------------|
+| the velocity | `(0, 0, 0)` |
+| the fly permission, and the abilities "invulnerable" and "instant build" | the table of CMD-GM-007 of `command-gamemode.md`, for the game mode of the packet |
+| the flight state | the `flying` column of that table. The value "keep" is off |
+| the flight speed and the walking speed | `0.05F` and `0.1F` |
+| the sprint state | off (ATR-CLI-004 of `attributes.md`) |
+| the attributes | ATR-CLI-005 of `attributes.md` |
+| the food level | HNG-NET-004 of `hunger.md` |
+
+No player tick reads the abilities and the velocity of this table when the server sends these
+packets:
+
+- `player_abilities` after the `login` or `respawn` packet and before event 13 of `game_event`.
+  CMD-GM-008 and DIM-CHG-003 of `dimension-change.md` state this order. The recording
+  `crates/mcrs_minecraft_entity/tests/fixtures/vanilla/a4_respawn.txt` shows it for a respawn
+  after a death.
+- `player_position` with an empty relative set before event 13 (PLD-NET-001 of
+  `player-death.md`). It replaces the velocity.
+
+The load of MVC-PKT-012 of `movement-checks.md` cannot end before event 13, except by its
+timeout. Thus the start values above matter only for a server that omits these packets. U12 lists
+the values of `S` that the first player tick reads and that no artefact decides.
 
 **PHY-ORD-008** (`source_suggested`, semantic, confidence: medium). This model does not cover the
 effects in this list. A tick in which one of them can act is not exact. A checker must treat such
@@ -3188,6 +3236,18 @@ for client agreement. A server that computes another result gives false setbacks
   packets.
 - **U11**: two cells of one dimension can accept the same given UUID, because each cell refuses
   only the UUIDs of its own entities (PHY-CMP-024).
+- **U12**: the start values of a new local player that the first player tick reads
+  (PHY-ORD-015). No artefact gives them after a `login` or a `respawn` packet:
+  - the on-ground flag and the other result flags;
+  - the pose and the crouch state;
+  - `shift0`, `jump0` and the forward value of the previous tick;
+  - the sprint timer, the jump timer and the jump delay;
+  - the fall distance, also after a respawn for a dimension change.
+
+  With each key up and a teleport with an empty relative set, each start value gives the same
+  first tick. A key that the player holds across the packet makes the difference. Experiment E56
+  decides the values after a respawn. For a `login`, the client recorder needs a client that joins
+  again (`attributes.md`, section 13, A6).
 
 ## 15. Experiments
 
@@ -3256,6 +3316,7 @@ values are f64 values. Compare them bit for bit with the model.
 | E53 | From the server console, summon an item with `Motion` `[0.1, 0, 0.07]` and `Age` -32768 on stone, ice and a slime block. Read `Motion` and `Pos` after each of the first 400 ticks, then after each 1000 ticks up to 12,000 ticks. | PHY-ORD-005, PHY-SKIP-003, PHY-DEV-014 |
 | E54 | From the server console, with the tick frozen, put dirt in the air and destroy it with `/setblock … air destroy`. Read `Pos` and `Motion` of the item, then remove it. Do this 1000 times. | PHY-CMP-025 |
 | E55 | Set `max_entity_cramming` to 100. With the tick frozen, summon 64 pigs with the base `movement_speed` 0 at one point on a flat floor, then one more at the offset `(-0.0442, +0.0442)`. Step 200 ticks and read `Pos` of each. | PHY-PSH-006, PHY-CMP-027, PHY-DEV-004 |
+| E56 | Run `tools/mcrs_minecraft_client_recorder/record.sh e56` with `AUTOPLAY=true`. In each step, the input agent holds keys from before a death through an immediate respawn: jump; forward; forward and shift; forward and sprint. The respawn rotation has the yaw 0, so forward moves along `+z`. Read the move packets of the first 3 player ticks after the respawn. A `y` above 100 in the first tick means that the on-ground flag starts true. A first step along `z` of `0.098` means the ground speed, and `0.0196` means the air speed. A factor of 0.3 on that step means that the crouch state starts from the held shift key. Also read the tick of `player_command` with action 1. | PHY-ORD-015, U12, ATR-CLI-004 |
 
 The experiment of a supported rule also covers each `source_suggested` rule without a row above:
 

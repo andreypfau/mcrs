@@ -1,0 +1,44 @@
+# The start state of a new local player after a respawn: keys held from before a death through an
+# immediate respawn. Experiment E56 of docs/spec/entity-physics.md: PHY-ORD-015, U12.
+experiment E56
+arena -16 98 -16 16 110 16
+
+step respawn_jump
+instruction After Go, hold Space until Stop. The console kills the player; the client respawns at once.
+input 61 jump
+input 115 none
+fill -16 99 -16 16 99 16 minecraft:stone
+run gamemode survival @a
+run effect clear @a
+run gamerule immediate_respawn true
+run spawnpoint @a 0 100 0
+start 0.5 100 0.5 -90 0
+at 80 kill @a
+ticks 120
+
+step respawn_forward
+instruction After Go, hold W until Stop. The console kills the player; the client respawns at once.
+input 61 forward
+input 105 none
+fill -16 99 -16 16 99 16 minecraft:stone
+start 0.5 100 0.5 -90 0
+at 80 kill @a
+ticks 120
+
+step respawn_forward_shift
+instruction After Go, hold W and Shift until Stop. The console kills the player; the client respawns at once.
+input 61 forward,shift
+input 105 none
+fill -16 99 -16 16 99 16 minecraft:stone
+start 0.5 100 0.5 -90 0
+at 80 kill @a
+ticks 120
+
+step respawn_sprint
+instruction After Go, hold W and Ctrl until Stop. The console kills the player; the client respawns at once.
+input 61 forward,sprint
+input 100 none
+fill -16 99 -16 16 99 16 minecraft:stone
+start 0.5 100 0.5 -90 0
+at 80 kill @a
+ticks 120

@@ -671,7 +671,8 @@ the velocity of a hurt subject after it (`entity-damage.md`, DMG-NET-003, DMG-NE
 
 The order is that of each update in TRK-E1, TRK-E2 and TRK-E7. A passenger and a minecart on rails
 have other forms; they are hooks out of scope. TRK-UPD-014 states the arrow and the accelerated
-projectile.
+projectile. For a player subject, this server sends `update_attributes` after `rotate_head`
+(TRK-DEV-007).
 
 **TRK-UPD-003** (`source_suggested_black_box_confirmed`, wire, confidence: high). Let `P` be the
 position at the end of the tick and `B` the position base. Let `yaw'` and `pitch'` be the packed
@@ -1056,6 +1057,22 @@ rule of section 7.1 or TRK-UPD-007 for a subject of TRK-TYPE-005 shows this to a
 - **Test:** a differential test compares the updates of a subject that moves, and checks that a
   subject at rest sends no move packet after its last change. It does not compare the count of
   packets of a subject at rest.
+
+### TRK-DEV-007: The order of `update_attributes` for a player subject
+
+- **Rule:** TRK-UPD-002, step 3.
+- **Provenance:** `design`, an owner decision of 2026-11-15.
+- **Reference:** each update sends `update_attributes` before `rotate_head`, as TRK-UPD-002 orders.
+- **This server:** for a player subject, `update_attributes` comes after the `rotate_head` of the
+  same tick. A mob subject follows TRK-UPD-002 as written.
+- **Reason:** the move and the head turn of a player subject go out together in the update of its
+  distance tier. That update does not occur in each tick. A change of an attribute instance goes
+  to each viewer in the tick of the change. The order of TRK-UPD-002 delays the attribute entries
+  to the next update of the tier.
+- **Visible to the client:** no. The two packets change independent state of the client, so the
+  result on the client is the same.
+- **Test:** a differential test compares the `update_attributes` of a player subject as present
+  in the tick. It does not compare its position relative to `rotate_head`.
 
 ### Known vanilla quirks
 
