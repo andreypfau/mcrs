@@ -1,15 +1,20 @@
 use glam::DVec3;
 use mcrs_minecraft_entity::Pose;
+use mcrs_minecraft_item::component::equippable::EquipmentSlot;
+use mcrs_minecraft_item_key::item_keys::Item;
+use mcrs_minecraft_item_stack::{Count, ItemStack, Kind};
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_predicate::{
     ActiveEffect, BakedEntityPredicate, EntityPredicate, EntityView, LocationView, NoWorld,
     PredicateIssue, PredicateScratch,
 };
 use mcrs_minecraft_registries::{Named, Resolve};
+use mcrs_minecraft_resource::Id;
 use mcrs_voxel::BlockPos;
 
-use crate::crowd::{Crowd, Mob};
-use crate::grid::{Grid, definitions, id, registries, smoke, state};
+use crate::crowd::{Crowd, Held, Mob, Worn, tables};
+use crate::grid::{Grid, definitions, id, registries, state};
+use crate::item_predicate::{TABLE, sword};
 
 const ORIGIN: DVec3 = DVec3::new(3.5, 64.0, 0.5);
 
@@ -20,7 +25,7 @@ fn decode(json: &str) -> Result<EntityPredicate<Named>, serde_json::Error> {
 fn try_bake(json: &str) -> Result<BakedEntityPredicate, PredicateIssue> {
     let named = decode(json).unwrap_or_else(|error| panic!("{json}: {error}"));
     let predicate = EntityPredicate::resolve(named, registries()).unwrap();
-    predicate.bake(registries(), definitions())
+    predicate.bake(registries(), definitions(), &*TABLE)
 }
 
 fn bake(json: &str) -> BakedEntityPredicate {
@@ -29,7 +34,12 @@ fn bake(json: &str) -> BakedEntityPredicate {
 
 fn passes<W: LocationView + EntityView>(json: &str, world: &W, entity: Option<W::Entity>) -> bool {
     let mut scratch = PredicateScratch::default();
-    bake(json).matches(world, Some(ORIGIN), entity, smoke(), &mut scratch)
+    bake(json).matches(world, Some(ORIGIN), entity, tables(), &mut scratch)
+}
+
+fn stick() -> ItemStack {
+    let item: Id<Item> = id("minecraft:item", "minecraft:stick");
+    ItemStack::new(Kind(item.number()), Count::new(1).unwrap())
 }
 
 /// A zombie at the bottom centre of the air block over a stone block.
@@ -412,7 +422,7 @@ fn each_sub_predicate_adds_its_test_pred_ent_005_to_022() {
 fn distance_fails_without_an_origin_pred_ent_009() {
     let mut scratch = PredicateScratch::default();
     let distance = bake(r#"{"distance": {}}"#);
-    assert!(!distance.matches(&one(zombie()), None, Some(0), smoke(), &mut scratch));
+    assert!(!distance.matches(&one(zombie()), None, Some(0), tables(), &mut scratch));
 }
 
 #[test]
@@ -489,6 +499,8 @@ fn a_test_without_its_host_value_fails_pred_gen_004() {
         r#"{"targeted_entity": {}}"#,
         r#"{"team": ""}"#,
         r#"{"entity_tags": {"none_of": ["red"]}}"#,
+        r#"{"equipment": {"mainhand": {}}}"#,
+        r#"{"slots": {"contents": {}}}"#,
     ];
     for json in passing {
         assert!(passes(json, &NoWorld, Some(())), "{json}");
@@ -633,8 +645,6 @@ fn a_match_fails_past_its_bound_of_nested_entities() {
 fn the_fields_without_a_match_decode_and_fail_at_the_match() {
     let world = one(zombie());
     let cases = [
-        r#"{"equipment": {"mainhand": {"items": "minecraft:stick"}}}"#,
-        r#"{"slots": {"armor.*": {}, "container.53": {}, "player.crafting.*": {}}}"#,
         r#"{"components": {"minecraft:max_stack_size": 3}}"#,
         r#"{"predicates": {"minecraft:damage": {"damage": 2}}}"#,
         r#"{"type_specific/lightning": {"blocks_set_on_fire": 0, "entity_struck": {"entity_type": "minecraft:pig"}}}"#,
@@ -646,5 +656,104 @@ fn the_fields_without_a_match_decode_and_fail_at_the_match() {
     ];
     for json in cases {
         assert!(!passes(json, &world, Some(0)), "{json}");
+    }
+}
+
+#[test]
+fn equipment_tests_the_stack_of_each_slot_pred_ent_015() {
+    let names = [
+        ("head", EquipmentSlot::Head),
+        ("chest", EquipmentSlot::Chest),
+        ("legs", EquipmentSlot::Legs),
+        ("feet", EquipmentSlot::Feet),
+        ("body", EquipmentSlot::Body),
+        ("saddle", EquipmentSlot::Saddle),
+        ("mainhand", EquipmentSlot::MainHand),
+        ("offhand", EquipmentSlot::OffHand),
+    ];
+    let wearing = |slot: EquipmentSlot, stack: Option<ItemStack>| Mob {
+        equipment: Some(vec![Worn { slot, stack }]),
+        ..zombie()
+    };
+    for (name, slot) in names {
+        let stick_in = format!(r#"{{"equipment": {{"{name}": {{"items": "minecraft:stick"}}}}}}"#);
+        let any_in = format!(r#"{{"equipment": {{"{name}": {{}}}}}}"#);
+        let empty_in = format!(r#"{{"equipment": {{"{name}": {{"count": 0}}}}}}"#);
+        let item = Mob {
+            entity_type: Some(id("minecraft:entity_type", "minecraft:item")),
+            living: Some(false),
+            ..wearing(slot, Some(stick()))
+        };
+        let absent = Mob {
+            equipment: None,
+            ..zombie()
+        };
+        let cases: [(&str, Mob, bool); 7] = [
+            (&stick_in, wearing(slot, Some(stick())), true),
+            (&stick_in, wearing(slot, Some(sword())), false),
+            (&empty_in, wearing(slot, None), true),
+            (&stick_in, wearing(slot, None), false),
+            (&any_in, wearing(slot, None), true),
+            (&any_in, item, false),
+            (&any_in, absent, false),
+        ];
+        for (json, mob, expected) in cases {
+            assert_eq!(passes(json, &one(mob), Some(0)), expected, "{json}");
+        }
+    }
+}
+
+#[test]
+fn slots_pass_when_one_slot_of_the_range_passes_pred_ent_019_020() {
+    let held = |slot: u16, stack: Option<ItemStack>| Held { slot, stack };
+    let player = Mob {
+        slots: Some(vec![
+            held(9, Some(sword())),
+            held(10, Some(stick())),
+            held(103, None),
+            held(105, Some(stick())),
+        ]),
+        ..zombie()
+    };
+    let absent = Mob {
+        slots: None,
+        ..zombie()
+    };
+    let cases: [(&str, Mob, bool); 8] = [
+        (
+            r#"{"slots": {"inventory.*": {"items": "minecraft:stick"}}}"#,
+            player.clone(),
+            true,
+        ),
+        (
+            r#"{"slots": {"inventory.0": {"items": "minecraft:stick"}}}"#,
+            player.clone(),
+            false,
+        ),
+        (
+            r#"{"slots": {"inventory.1": {"items": "minecraft:stick"}}}"#,
+            player.clone(),
+            true,
+        ),
+        (
+            r#"{"slots": {"armor.*": {"items": "minecraft:stick"}}}"#,
+            player.clone(),
+            true,
+        ),
+        (
+            r#"{"slots": {"armor.head": {"count": 0}}}"#,
+            player.clone(),
+            true,
+        ),
+        (
+            r#"{"slots": {"inventory.1": {}, "hotbar.*": {"items": "minecraft:stick"}}}"#,
+            player.clone(),
+            false,
+        ),
+        (r#"{"slots": {"enderchest.*": {}}}"#, player, false),
+        (r#"{"slots": {"inventory.*": {}}}"#, absent, false),
+    ];
+    for (json, mob, expected) in cases {
+        assert_eq!(passes(json, &one(mob), Some(0)), expected, "{json}");
     }
 }

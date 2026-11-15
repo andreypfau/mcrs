@@ -4,16 +4,18 @@ use std::cell::Cell;
 use glam::DVec3;
 use mcrs_minecraft_block::definition::FluidState;
 use mcrs_minecraft_block::fluid_keys::Fluid;
+use mcrs_minecraft_item::component::equippable::EquipmentSlot;
 use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_item_stack::Enchantments;
 use mcrs_minecraft_predicate::ItemSubject;
 use mcrs_minecraft_predicate::{
-    ActiveEffect, EntityPredicate, LocationPredicate, PredicateScratch,
+    ActiveEffect, DamageEvent, DamagePredicate, DamageSource, EntityPredicate, LocationPredicate,
+    PredicateScratch,
 };
 use mcrs_minecraft_registries::Resolve;
 use mcrs_voxel::BlockPos;
 
-use crate::crowd::{Crowd, Mob};
+use crate::crowd::{Crowd, Held, Mob, Worn, tables};
 use crate::grid::{Grid, definitions, id, registries, smoke, state};
 use crate::item_predicate::TABLE;
 use crate::item_predicate::bake;
@@ -137,16 +139,18 @@ fn an_item_match_allocates_nothing() {
 
 #[test]
 fn an_entity_match_that_reads_no_saved_data_allocates_nothing_after_warm_up() {
-    let json = r#"{
+    let json = r##"{
         "vehicle": {"entity_type": "minecraft:pig"},
         "passenger": {"entity_tags": {"all_of": ["red"]}},
         "effects": {"minecraft:speed": {"amplifier": 1}},
-        "entity_tags": {"any_of": ["blue"], "none_of": ["green"]}
-    }"#;
+        "entity_tags": {"any_of": ["blue"], "none_of": ["green"]},
+        "equipment": {"mainhand": {"items": "#minecraft:swords", "predicates": {"minecraft:damage": {"durability": {"min": 1}}}}},
+        "slots": {"inventory.*": {"items": "#minecraft:swords"}}
+    }"##;
     let named = serde_json::from_str(json).unwrap();
     let predicate = EntityPredicate::resolve(named, registries())
         .unwrap()
-        .bake(registries(), definitions())
+        .bake(registries(), definitions(), &*TABLE)
         .unwrap();
     let speed = ActiveEffect {
         amplifier: 1,
@@ -163,6 +167,20 @@ fn an_entity_match_that_reads_no_saved_data_allocates_nothing_after_warm_up() {
                 tags: Some(vec!["blue".to_owned()]),
                 vehicle: Some(1),
                 passengers: Some(vec![2]),
+                equipment: Some(vec![Worn {
+                    slot: EquipmentSlot::MainHand,
+                    stack: Some(sword()),
+                }]),
+                slots: Some(vec![
+                    Held {
+                        slot: 9,
+                        stack: None,
+                    },
+                    Held {
+                        slot: 10,
+                        stack: Some(sword()),
+                    },
+                ]),
                 ..Mob::default()
             },
             Mob {
@@ -175,16 +193,50 @@ fn an_entity_match_that_reads_no_saved_data_allocates_nothing_after_warm_up() {
             },
         ],
     };
-    let smoke = smoke();
     let mut scratch = PredicateScratch::default();
     assert!(
-        predicate.matches(&world, None, Some(0), smoke, &mut scratch),
+        predicate.matches(&world, None, Some(0), tables(), &mut scratch),
         "the crowd meets each test"
     );
 
     let (passes, allocations) =
-        allocations_during(|| predicate.matches(&world, None, Some(0), smoke, &mut scratch));
+        allocations_during(|| predicate.matches(&world, None, Some(0), tables(), &mut scratch));
 
     assert!(passes, "the crowd meets each test");
     assert_eq!(allocations, 0, "a match allocated after warm-up");
+
+    let json = r##"{
+        "source_entity": {"vehicle": {"entity_type": "minecraft:pig"}},
+        "type": {
+            "tags": [{"id": "#minecraft:is_projectile", "expected": false}],
+            "direct_entity": {"passenger": {"entity_tags": {"all_of": ["red"]}}},
+            "is_direct": true
+        }
+    }"##;
+    let named = serde_json::from_str(json).unwrap();
+    let damage = DamagePredicate::resolve(named, registries())
+        .unwrap()
+        .bake(registries(), definitions(), &*TABLE)
+        .unwrap();
+    let event = DamageEvent {
+        player: 2,
+        source: DamageSource {
+            damage_type: id("minecraft:damage_type", "minecraft:mob_attack"),
+            direct_entity: Some(0),
+            causing_entity: Some(0),
+        },
+        dealt: 1.0,
+        taken: 1.0,
+        blocked: false,
+    };
+    assert!(
+        damage.matches(&world, &event, tables(), &mut scratch),
+        "the event meets each test"
+    );
+
+    let (passes, allocations) =
+        allocations_during(|| damage.matches(&world, &event, tables(), &mut scratch));
+
+    assert!(passes, "the event meets each test");
+    assert_eq!(allocations, 0, "a damage match allocated after warm-up");
 }

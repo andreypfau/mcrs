@@ -7,6 +7,7 @@
 
 mod allocation;
 mod crowd;
+mod damage;
 mod distance;
 mod entity;
 mod grid;

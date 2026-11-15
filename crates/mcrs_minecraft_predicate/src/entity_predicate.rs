@@ -7,6 +7,7 @@ use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_item::ComponentMap;
 use mcrs_minecraft_item::component::common::NbtPredicate;
 use mcrs_minecraft_item::component::predicate::{ComponentPredicates, MobEffectsPredicate};
+use mcrs_minecraft_item_stack::NameLookup;
 use mcrs_minecraft_registries::{Named, Refs, Registries, Resolve, Resolved};
 use serde::de::{Error as _, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
@@ -167,16 +168,18 @@ fn push(
 impl EntityPredicate {
     /// The matching form: each entry set expanded to ids. Fails when one path of nested entity
     /// predicates (`vehicle`, `passenger`, `targeted_entity`, `entity_struck`, `looking_at`) holds
-    /// more than 32 entity predicates.
-    pub fn bake(
+    /// more than 32 entity predicates. `names` bakes the item predicates of `equipment` and `slots`
+    /// as [`crate::BakedItemPredicate::bake`] does.
+    pub fn bake<L: NameLookup>(
         &self,
         registries: &Registries,
         definitions: &BlockDefinitions,
+        names: &L,
     ) -> Result<BakedEntityPredicate, PredicateIssue> {
         if !self.nesting_fits(1) {
             return Err(PredicateIssue::NestingTooDeep);
         }
-        self.bake_nested(registries, definitions)
+        self.bake_nested(registries, definitions, names)
     }
 
     fn nesting_fits(&self, depth: usize) -> bool {
@@ -197,14 +200,19 @@ impl EntityPredicate {
         relatives.into_iter().flatten().chain(type_specific)
     }
 
-    fn bake_nested(
+    fn bake_nested<L: NameLookup>(
         &self,
         registries: &Registries,
         definitions: &BlockDefinitions,
+        names: &L,
     ) -> Result<BakedEntityPredicate, PredicateIssue> {
         let nested = |predicate: Option<&EntityPredicate>| {
             predicate
-                .map(|predicate| predicate.bake_nested(registries, definitions).map(Box::new))
+                .map(|predicate| {
+                    predicate
+                        .bake_nested(registries, definitions, names)
+                        .map(Box::new)
+                })
                 .transpose()
         };
         let location = |predicate: Option<&LocationPredicate>| {
@@ -218,14 +226,9 @@ impl EntityPredicate {
             .map(|set| id_bits(set, registries, PredicateIssue::UnloadedEntityTypeTags))
             .transpose()?;
         let mut deferred = match self
-            .equipment
+            .components
             .as_ref()
-            .is_some_and(|equipment| !equipment.is_empty())
-            || self.slots.as_ref().is_some_and(|slots| !slots.is_empty())
-            || self
-                .components
-                .as_ref()
-                .is_some_and(|map| !map.0.is_empty())
+            .is_some_and(|map| !map.0.is_empty())
             || self
                 .predicates
                 .as_ref()
@@ -254,6 +257,14 @@ impl EntityPredicate {
             Some(_) => LivingTest::Living,
             None => LivingTest::Any,
         };
+        let equipment = match &self.equipment {
+            Some(equipment) => equipment.bake(registries, names)?,
+            None => Box::default(),
+        };
+        let slots = match &self.slots {
+            Some(slots) => slots.bake(registries, names)?,
+            None => Box::default(),
+        };
         Ok(BakedEntityPredicate {
             entity_type,
             location: location(self.location.as_ref())?,
@@ -265,11 +276,13 @@ impl EntityPredicate {
             nbt: self.nbt.as_ref().map(|nbt| nbt.0.clone()),
             flags: self.flags,
             living,
+            equipment,
             periodic_tick: self.periodic_tick,
             vehicle: nested(self.vehicle.as_deref())?,
             passenger: nested(self.passenger.as_deref())?,
             targeted_entity: nested(self.targeted_entity.as_deref())?,
             team: self.team.clone(),
+            slots,
             entity_tags: self.entity_tags.clone(),
             deferred,
         })

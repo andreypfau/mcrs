@@ -1,9 +1,14 @@
 use mcrs_minecraft_core::codec::unique_entries;
 use mcrs_minecraft_item::component::predicate::ItemPredicate;
-use mcrs_minecraft_registries::{Named, Refs, Resolve, Resolved};
+use mcrs_minecraft_item_stack::NameLookup;
+use mcrs_minecraft_item_table::ItemTable;
+use mcrs_minecraft_registries::{Named, Refs, Registries, Resolve, Resolved};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer};
 
+use crate::baked_item_predicate::BakedItemPredicate;
+use crate::entity_view::EntityView;
+use crate::predicate_issue::PredicateIssue;
 use crate::slot_range::{SlotRange, UnknownSlotRange};
 
 /// An item predicate for each slot range name; each entry needs one slot of its range.
@@ -14,6 +19,13 @@ pub(crate) struct SlotsPredicate<M: Refs = Resolved>(Vec<SlotPredicate<M>>);
 pub(crate) struct SlotPredicate<M: Refs = Resolved> {
     range: SlotRange,
     item: ItemPredicate<M>,
+}
+
+/// The item predicate of one slot range in its matching form.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct BakedSlotTest {
+    range: SlotRange,
+    item: BakedItemPredicate,
 }
 
 impl<'de> Deserialize<'de> for SlotsPredicate<Named> {
@@ -31,7 +43,36 @@ impl<'de> Deserialize<'de> for SlotsPredicate<Named> {
 }
 
 impl SlotsPredicate {
-    pub(crate) fn is_empty(&self) -> bool {
-        self.0.is_empty()
+    pub(crate) fn bake<L: NameLookup>(
+        &self,
+        registries: &Registries,
+        names: &L,
+    ) -> Result<Box<[BakedSlotTest]>, PredicateIssue> {
+        self.0
+            .iter()
+            .map(|slot| {
+                Ok(BakedSlotTest {
+                    range: slot.range,
+                    item: BakedItemPredicate::bake(&slot.item, registries, names)?,
+                })
+            })
+            .collect()
+    }
+}
+
+impl BakedSlotTest {
+    /// A slot that the entity does not have, or whose stack the host does not have, holds no
+    /// passing stack.
+    pub(crate) fn matches<W: EntityView>(
+        &self,
+        world: &W,
+        entity: W::Entity,
+        items: &ItemTable,
+    ) -> bool {
+        self.range.any_slot(|slot| {
+            world
+                .slot(entity, slot)
+                .is_some_and(|stack| self.item.matches(stack, items))
+        })
     }
 }
