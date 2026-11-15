@@ -30,7 +30,7 @@ Section 14 is the implementation plan.
 | Writes and claims | binned by target tile; applied and arbitrated per target tile in parallel; writes at the start of the next tick (PHY-CMP-015), claims after the block domain (PHY-CMP-017) | §3.7 |
 | Frozen state | the grid is written inside the pass into a back buffer; the freeze patches only tiles that changed after the pass | §3.4 |
 | AI | eight reflexes in the hot tick; decisions in an AI stage on an isolated pool at the vanilla periods; versioned snapshot; late decisions applied per tile; proposals per component; `max_lag` 2; `AiDelay::Inline` in exact-parity mode | §5 |
-| Data layout | hybrid: the hot state of mobs in SoA rows of the kernel crate, their cold state in ECS; the moving entities that are not living (items, falling blocks, primed TNT, orbs, projectiles) are ECS entities with components, which one parallel pass steps with a section window per entity; players are rows | §6, §6.9 |
+| Data layout | the moving entities that are not living (items, falling blocks, primed TNT, orbs, projectiles) are ECS entities with components, which one parallel pass steps with a section window per entity; players are rows. Mob rows are abandoned: nothing new is built on mob rows, and mobs move to components on a separate track (§6.1) | §6, §6.9 |
 | Partition | one world per dimension in a process; tiles as work units; cells for placement across processes | §7 |
 | Block domain | block tiles of 4 × 4 columns, 2 × 2 colours, dependency-driven phases, region-only access, undo and re-run for chains that leave the region | §7.4, §7.5 |
 | Players | L0 and L1 on the network threads, per connection in stream order; L2 in the world before the entity pass, so entities see the moves of this tick (PHY-CMP-021); the server copy follows PHY-CMP-023 | §8 |
@@ -544,12 +544,30 @@ The estimate of 1–2 ms for each `Changed<T>` scan is also too high: an earlier
 of the pass, measured 0.10 to 0.23 ms for a scan over 100k. The pass does not scan: each thread
 queues the movers, and one system sorts them.
 
-Decision: mobs stay on rows, because the body grid, the push groups and the AI link read rows. The
-moving entities that are not living are ECS entities with components (§6.3). They push nothing, so
-their pass reads no body grid. A kind from a vanilla plugin or a third-party plugin is then a set
-of components, with no store of its own (§6.9). At 100k the components cost 1.44 to 1.60 times the
-rows pass; at 1M with a quarter awake, they cost 5% more (16.5 ms against 15.7 ms). Each hot field
-has one home.
+Decision: the moving entities that are not living are ECS entities with components (§6.3). They
+push nothing, so their pass reads no body grid. A kind from a vanilla plugin or a third-party
+plugin is then a set of components, with no store of its own (§6.9). At 100k the components cost
+1.44 to 1.60 times the rows pass; at 1M with a quarter awake, they cost 5% more (16.5 ms against
+15.7 ms). Each hot field has one home.
+
+**Mob rows are abandoned (2026-11-15).** An earlier decision of this section kept mobs on rows,
+because the body grid, the push groups and the AI link read rows. That decision is not current.
+The bench above is the first data point (#797). It shows that plain Bevy ECS components give almost
+the same result as rows for much less code:
+
+- 1M items, 25% awake: 16.5 ms with components against 15.7 ms with rows, 1.05 times.
+- 100k items: 1.60 times the rows at rest (0.972 ms against 0.608 ms), 1.44 times in flight
+  (3.42 ms against 2.38 ms).
+- A spawn of 10k items: 0.356 ms with `spawn_batch` against 1.25 ms with rows, 0.28 times.
+
+The bench holds items, not mobs. These rules apply now:
+
+- Nothing new is built on mob rows.
+- The move of mobs to components is a separate track.
+- The pull request that moves mobs to components deletes the crate
+  `mcrs_minecraft_engine_mob_attributes` and `RowAttributes`.
+
+Other parts of this note name the rows of mobs. They describe the abandoned layout: `EntityRows` (§6.2), `TileRows` and the row life cycle (§6.3), the rows of mobs in §6.4, and the row life cycle in §9.
 
 ### 6.2 Resources
 
@@ -1574,6 +1592,10 @@ working. Steps in one track run in sequence; tracks marked ∥ run in parallel w
 | E6 | `mcrs_minecraft_block` | default friction 0.6F | PHY-GRV-017 | definition test | test passes |
 | E7 | `mcrs_minecraft_simulation` | precipitation picks with the group draw | SIM-RND-004 | distribution test (binomial tolerance) | test passes |
 | E8 | `mcrs_minecraft_engine` | probes at write time; no packet dropped | MVC-LAT-001, MVC-TICK-002 | wire-order test of a burst | test passes |
+
+B0 (the row life cycle of mobs), B2 (`EntityRows`), B5 and B7 build on mob rows. The parts of these steps that build on mob rows do not start. The track that moves
+mobs to components plans their replacement. That track also sets the new order of the steps that
+depend on them.
 
 ### Track B — store, keys and the pass (B1 ∥ with K; B2 after K3)
 
