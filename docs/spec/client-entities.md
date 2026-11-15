@@ -401,7 +401,18 @@ Milestone: 1.
   set of relative axes and an on-ground flag.
 - **Behavior:**
   1. The client computes the absolute values of the position, the velocity, the yaw and the
-     pitch. A relative axis adds its value to the current value.
+     pitch with steps 1 to 5 of `entity-physics.md`, PHY-SRV-010. The relative flags have the
+     bits of `player_position` (`movement-checks.md`, MVC-PKT-020). The current velocity is the
+     velocity of the entity. When the entity has an active interpolation, the current position,
+     yaw and pitch are those of its target point `Z` (CENTS-INTERP-001, item 1; CENTS-SIM-004,
+     item 2). Otherwise, they are the values of the entity. Thus:
+     1. When the flag "rotate the velocity" is set, the client first rotates the current
+        velocity. It rotates about the `x` axis by `f32(rad(Pi − Pi'))`, then about the `y` axis
+        by `f32(rad(Ya − Ya'))`. `Ya` and `Pi` are the current yaw and pitch. `Ya'` is the
+        absolute yaw, and `Pi'` is the absolute pitch after the clamp to `[−90, 90]`.
+     2. On an axis with its velocity flag, the velocity is the current velocity of item 1.1 plus
+        the velocity of the packet. On an axis without its velocity flag, the velocity is the
+        velocity of the packet, and the rotation of item 1.1 has no effect on that axis.
   2. Let `D²` be the squared distance from the current position to the new position, as in
      CENTS-MOVE-003, item 2. When `D²` > 4096, the client sets the position, the yaw and the
      pitch to the new values. On an absolute position axis, the previous position becomes the new
@@ -1133,8 +1144,14 @@ Provenance: `source_suggested_black_box_confirmed` by CENTS-E1, CENTS-E2 and CEN
         CENTS-INTERP-004 states for `Z`. The point `A` and the path of that rule do not apply.
      2. Let `a = 1 / r`, in `f64`. The position becomes `lerp(a, position, position of Z)`. The
         yaw becomes `alerp(a, yaw, yaw of Z)`. The pitch becomes `lerp(a, pitch, pitch of Z)`.
+        The client widens the two `f32` angles to `f64` and computes the yaw and the pitch in
+        `f64`, with `a` in `f64`. It then narrows each result to `f32`. The yaw becomes the
+        narrowed yaw `% 360`. The pitch becomes the narrowed pitch `% 360`, clamped to
+        `[−90, 90]`. The operator `%` is the `f32` remainder, with the sign of the dividend.
      3. `r` decreases by 1. `A` becomes the current position, yaw and pitch.
-  6. A snap (CENTS-MOVE-003, CENTS-MOVE-004) does not change `r` or `Z`.
+  6. A snap (CENTS-MOVE-003, CENTS-MOVE-004) does not change `r`, `Z` or `A`. Thus, while
+     `r` > 0, item 5.1 of the next step moves `Z` by the change since `A`. That change includes
+     the distance and the rotation of the snap.
 - **Postconditions:** with no velocity, an orb reaches `Z` at the end of the third tick, at
   `1/3`, `2/3` and all of the distance. The step of the type also moves the orb in each tick,
   and item 5.1 moves `Z` by that movement. A start with no change of position, for example the
@@ -1146,8 +1163,9 @@ Provenance: `source_suggested_black_box_confirmed` by CENTS-E1, CENTS-E2 and CEN
 | interpolation steps | 3 |
 | threshold of item 5.1 | `|Δ|²` > `1e-5` (CENTS-INTERP-004) |
 
-Provenance: `source_suggested_black_box_confirmed` by CENTS-E1 and CENTS-E2 (section 19). Kind:
-semantic. Confidence: high. Milestone: later.
+Provenance: `source_suggested_black_box_confirmed` by CENTS-E1 and CENTS-E2 (section 19); the
+types of item 5.2 and the point `A` of item 6 `source_suggested`. Kind: semantic. Confidence:
+high. Milestone: later.
 
 ### CENTS-SIM-005: Absent chunk data
 
