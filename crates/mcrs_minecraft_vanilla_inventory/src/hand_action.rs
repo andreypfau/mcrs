@@ -11,9 +11,9 @@ use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_item::SlotRef;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_inventory_player::OFF_HAND;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_network::event::Received;
-use mcrs_minecraft_player_slots::OFF_HAND;
 use mcrs_minecraft_protocol_game::player::PlayerAction;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundPlayerAction;
 

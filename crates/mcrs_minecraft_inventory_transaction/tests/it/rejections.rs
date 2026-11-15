@@ -1,8 +1,8 @@
-use mcrs_minecraft_inventory_plan::MAX_OPS;
-use mcrs_minecraft_inventory_plan::Plan;
-use mcrs_minecraft_inventory_plan::Reason;
-use mcrs_minecraft_inventory_plan::Reason::*;
-use mcrs_minecraft_inventory_plan::Rejected;
+use mcrs_minecraft_inventory_transaction::MAX_OPS;
+use mcrs_minecraft_inventory_transaction::Plan;
+use mcrs_minecraft_inventory_transaction::Reason;
+use mcrs_minecraft_inventory_transaction::Reason::*;
+use mcrs_minecraft_inventory_transaction::Rejected;
 
 use crate::holder::DIRT_HANDLE;
 use crate::holder::Operation;

@@ -1,7 +1,7 @@
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::Query;
 use mcrs_minecraft_engine_item::Slots;
-use mcrs_minecraft_player_slots::Holder;
+use mcrs_minecraft_inventory_player::Holder;
 
 use crate::PlayerHolders;
 

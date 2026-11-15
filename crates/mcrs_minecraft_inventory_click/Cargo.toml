@@ -11,8 +11,8 @@ doctest = false
 workspace = true
 
 [dependencies]
-mcrs_minecraft_inventory_plan.workspace = true
-mcrs_minecraft_player_slots.workspace = true
+mcrs_minecraft_inventory_player.workspace = true
+mcrs_minecraft_inventory_transaction.workspace = true
 
 [dev-dependencies]
-mcrs_minecraft_menu.workspace = true
+mcrs_minecraft_inventory_menu.workspace = true

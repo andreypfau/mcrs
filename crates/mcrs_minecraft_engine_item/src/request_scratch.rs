@@ -3,9 +3,9 @@ use alloc::vec::Vec;
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::resource::Resource;
-use mcrs_minecraft_inventory_plan::Op;
-use mcrs_minecraft_inventory_plan::Plan;
-use mcrs_minecraft_inventory_plan::Planned;
+use mcrs_minecraft_inventory_transaction::Op;
+use mcrs_minecraft_inventory_transaction::Plan;
+use mcrs_minecraft_inventory_transaction::Planned;
 
 use crate::SlotRef;
 use crate::commit::Settlement;

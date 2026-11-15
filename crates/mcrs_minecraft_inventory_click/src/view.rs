@@ -1,6 +1,6 @@
-use mcrs_minecraft_inventory_plan::Filter;
-use mcrs_minecraft_inventory_plan::Op;
-use mcrs_minecraft_inventory_plan::Planned;
+use mcrs_minecraft_inventory_transaction::Filter;
+use mcrs_minecraft_inventory_transaction::Op;
+use mcrs_minecraft_inventory_transaction::Planned;
 
 use crate::ClickError;
 use crate::Menu;

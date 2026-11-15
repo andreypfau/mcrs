@@ -79,12 +79,12 @@ All crate names are **(proposal)**. The layer numbers are those of `CLAUDE.md`.
 |-|-|-|-|-|
 | `mcrs_minecraft_item_stack` | 3, data | feature `bevy`: derives only | `ItemStack`, `PatchEntry`, `Kind`, `Count`, one type for each component type, the traits of section 4.1, the codecs of the spec section 6 | wire, NBT, SNBT, text, registry ids |
 | `mcrs_minecraft_item_table` | 3, data | feature `bevy`: one resource derive | `ItemTable`, `Prototype`; the bake from the data pack | `mcrs_minecraft_item_stack`, registries |
-| `mcrs_minecraft_inventory_plan` | 3, rules | none | the planner of an atomic request | nothing (`core` and `alloc`) |
+| `mcrs_minecraft_inventory_transaction` | 3, rules | none | the planner of an atomic request | nothing (`core` and `alloc`) |
 | `mcrs_minecraft_engine_item` | 4, engine | required | the entity form, hooks, commands, read tools, the request command, `Equipped` | the three crates above, `bevy_ecs`, `bevy_app`, `bevy_math` |
 | `mcrs_minecraft_item_behaviour` | 5, vanilla | none | what each item does (later specification) | layer 3 crates |
 | `mcrs_minecraft_vanilla_item` | 5, vanilla | required | the removable plugin that schedules the behaviour | `mcrs_minecraft_engine_item`, `mcrs_minecraft_item_behaviour` |
 | `mcrs_minecraft_recipe` | 3, data | none | `Ingredient`; the keys of the recipe serializers, the recipe book categories, the recipe displays and the slot displays | `mcrs_minecraft_item_stack` (the old crate until step 11), registries, wire |
-| `mcrs_minecraft_menu` | 3, data | none | `MenuType` and the keys of the menu registry; later the slot layout of each menu | resource |
+| `mcrs_minecraft_inventory_menu` | 3, data | none | `MenuType` and the keys of the menu registry; later the slot layout of each menu | resource |
 | `mcrs_minecraft_item_key` | 3, data | none | the enum `Item` and the item tag keys | registries, resource |
 | `mcrs_minecraft_potion` | 3, data | none | the enum `Potion` and the potion tag keys | registries, resource |
 | `mcrs_minecraft_map_decoration` | 3, data | none | the enum `MapDecorationType` | registries |
@@ -180,7 +180,7 @@ impl ItemTable {
 The table has no registry of component operations. The value form compares, hashes and clones a
 `PatchEntry` directly. The rows of `fn` pointers over the entity form belong to the engine crate.
 
-## 4.3 `mcrs_minecraft_inventory_plan`
+## 4.3 `mcrs_minecraft_inventory_transaction`
 
 ```rust
 pub const MAX_OPS: usize = 128;
@@ -570,7 +570,7 @@ The design keeps the cost of the rare case out of the regular case: no stack wit
 Each step is one crate or one change, and one pull request. The steps with the same letter can run
 in parallel.
 
-1. **(a)** `mcrs_minecraft_inventory_plan`: the planner and its tests.
+1. **(a)** `mcrs_minecraft_inventory_transaction`: the planner and its tests.
 2. **(a)** `mcrs_minecraft_item_stack`, types: `Kind`, `Count`, `ItemStack`, `PatchEntry`, the
    traits, the first batch of component types, the canonical order of the patch.
 3. **(a)** Move the data that is not an item out of `mcrs_minecraft_item`: the sub-steps 3.1 to
@@ -626,9 +626,9 @@ Section 10.2 gives the target crate of each other group.
 | Loot | `loot.rs`, `loot_table_keys.rs`, `context_key_set_keys.rs`, `context_int_provider_keys.rs`, `context_float_provider_keys.rs` and the two `*_provider_type_keys.rs` | `mcrs_minecraft_loot` | existing | before | `block_entity`, `worldgen_feature_place`, `worldgen_structure_place`, `registry_catalog` |
 | Entity domain | `damage_type.rs`, `damage_type_keys.rs`, `damage_type_tag_keys.rs`, `mob_effect_keys.rs` | `mcrs_minecraft_entity` | existing | before | `engine_brain`, `server`, `game_registries`, `registry_catalog`, `mcrs_minecraft_client_recorder` |
 | Recipe | `recipe/ingredient.rs`, `recipe_serializer_keys.rs`, `recipe_book_category_keys.rs`, `recipe_display_keys.rs`, `slot_display_keys.rs` | `mcrs_minecraft_recipe` | new | before | `protocol_game`, `registry_catalog` |
-| Menu | `menu_keys.rs` | `mcrs_minecraft_menu` | new | before | `protocol_game`, `registry_catalog` |
+| Menu | `menu_keys.rs` | `mcrs_minecraft_inventory_menu` | new | before | `protocol_game`, `registry_catalog` |
 - The two new crates are layer 3 data crates. They have no Bevy and no `bevy` feature.
-- `mcrs_minecraft_menu` starts as `#![no_std]`. `mcrs_minecraft_recipe` states the dependency that
+- `mcrs_minecraft_inventory_menu` starts as `#![no_std]`. `mcrs_minecraft_recipe` states the dependency that
   prevents `#![no_std]`, if one does.
 - Before step 11, `mcrs_minecraft_recipe` depends on the old crate for the item id and the item
   reference trait. The old crate keeps the type `Recipe` until step 11.
@@ -661,9 +661,9 @@ generated file. Each sub-step deletes the moved files and their `mod` lines from
   dependencies of `registry_catalog` and `protocol_game`. Edit the imports of `protocol_game`. Check:
   `-p mcrs_minecraft_recipe -p mcrs_minecraft_item -p mcrs_minecraft_protocol_game
   -p mcrs_minecraft_registry_catalog -p mcrs_minecraft_update`.
-- **3.4 Menu.** Target: the new crate `mcrs_minecraft_menu`. Move `menu_keys.rs`. Add the crate to
+- **3.4 Menu.** Target: the new crate `mcrs_minecraft_inventory_menu`. Move `menu_keys.rs`. Add the crate to
   the workspace manifest, to `NO_BEVY_PACKAGES` and to the dependencies of `registry_catalog` and
-  `protocol_game`. Edit one import of `protocol_game`. Check: `-p mcrs_minecraft_menu
+  `protocol_game`. Edit one import of `protocol_game`. Check: `-p mcrs_minecraft_inventory_menu
   -p mcrs_minecraft_protocol_game -p mcrs_minecraft_registry_catalog -p mcrs_minecraft_update`.
 - **3.5 Unused dependency.** `vanilla_worldgen` names the old crate in its manifest and uses it in
   no source file. Remove the line. Check: `-p mcrs_minecraft_vanilla_worldgen`.

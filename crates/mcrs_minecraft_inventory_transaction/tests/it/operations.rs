@@ -1,6 +1,6 @@
-use mcrs_minecraft_inventory_plan::Entry;
-use mcrs_minecraft_inventory_plan::Plan;
-use mcrs_minecraft_inventory_plan::Planned;
+use mcrs_minecraft_inventory_transaction::Entry;
+use mcrs_minecraft_inventory_transaction::Plan;
+use mcrs_minecraft_inventory_transaction::Planned;
 
 use crate::holder::Operation;
 use crate::holder::STONE_HANDLE;

@@ -5058,7 +5058,7 @@ dependencies = [
  "mcrs_minecraft_engine",
  "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_engine_world",
- "mcrs_minecraft_inventory_plan",
+ "mcrs_minecraft_inventory_transaction",
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_item_table",
  "mcrs_minecraft_nbt",
@@ -5579,23 +5579,39 @@ dependencies = [
 name = "mcrs_minecraft_inventory_click"
 version = "0.5.8"
 dependencies = [
- "mcrs_minecraft_inventory_plan",
- "mcrs_minecraft_menu",
- "mcrs_minecraft_player_slots",
+ "mcrs_minecraft_inventory_menu",
+ "mcrs_minecraft_inventory_player",
+ "mcrs_minecraft_inventory_transaction",
 ]
 
 [[package]]
-name = "mcrs_minecraft_inventory_plan"
-version = "0.5.8"
-
-[[package]]
-name = "mcrs_minecraft_inventory_view"
+name = "mcrs_minecraft_inventory_client_view"
 version = "0.5.8"
 dependencies = [
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_resource",
  "mcrs_test_alloc",
 ]
+
+[[package]]
+name = "mcrs_minecraft_inventory_menu"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_inventory_player",
+ "mcrs_minecraft_registries",
+ "mcrs_minecraft_resource",
+]
+
+[[package]]
+name = "mcrs_minecraft_inventory_player"
+version = "0.5.8"
+dependencies = [
+ "mcrs_minecraft_inventory_transaction",
+]
+
+[[package]]
+name = "mcrs_minecraft_inventory_transaction"
+version = "0.5.8"
 
 [[package]]
 name = "mcrs_minecraft_item"
@@ -5808,15 +5824,6 @@ dependencies = [
 name = "mcrs_minecraft_map_decoration"
 version = "0.5.8"
 dependencies = [
- "mcrs_minecraft_registries",
- "mcrs_minecraft_resource",
-]
-
-[[package]]
-name = "mcrs_minecraft_menu"
-version = "0.5.8"
-dependencies = [
- "mcrs_minecraft_player_slots",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
 ]
@@ -6038,13 +6045,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mcrs_minecraft_player_slots"
-version = "0.5.8"
-dependencies = [
- "mcrs_minecraft_inventory_plan",
-]
-
-[[package]]
 name = "mcrs_minecraft_potion"
 version = "0.5.8"
 dependencies = [
@@ -6137,9 +6137,9 @@ dependencies = [
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_game_registries",
+ "mcrs_minecraft_inventory_menu",
  "mcrs_minecraft_item",
  "mcrs_minecraft_item_key",
- "mcrs_minecraft_menu",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_particle",
  "mcrs_minecraft_profile",
@@ -6249,12 +6249,12 @@ dependencies = [
  "mcrs_minecraft_entity",
  "mcrs_minecraft_environment",
  "mcrs_minecraft_game_rule",
+ "mcrs_minecraft_inventory_menu",
  "mcrs_minecraft_item",
  "mcrs_minecraft_item_key",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_loot",
  "mcrs_minecraft_map_decoration",
- "mcrs_minecraft_menu",
  "mcrs_minecraft_particle",
  "mcrs_minecraft_potion",
  "mcrs_minecraft_predicate",
@@ -6625,11 +6625,11 @@ dependencies = [
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_game_mode",
+ "mcrs_minecraft_inventory_player",
  "mcrs_minecraft_item",
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_physics",
- "mcrs_minecraft_player_slots",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_text",
@@ -6688,15 +6688,15 @@ dependencies = [
  "mcrs_minecraft_entity_key",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_inventory_click",
- "mcrs_minecraft_inventory_plan",
- "mcrs_minecraft_inventory_view",
+ "mcrs_minecraft_inventory_client_view",
+ "mcrs_minecraft_inventory_menu",
+ "mcrs_minecraft_inventory_player",
+ "mcrs_minecraft_inventory_transaction",
  "mcrs_minecraft_item_entity",
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_item_table",
- "mcrs_minecraft_menu",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
- "mcrs_minecraft_player_slots",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_vanilla_item_entity",
@@ -6723,11 +6723,11 @@ dependencies = [
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_entity_key",
+ "mcrs_minecraft_inventory_player",
  "mcrs_minecraft_item_entity",
  "mcrs_minecraft_item_stack",
  "mcrs_minecraft_item_table",
  "mcrs_minecraft_physics",
- "mcrs_minecraft_player_slots",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_replication",

@@ -1,6 +1,6 @@
 use bevy_ecs::entity::Entity;
-use mcrs_minecraft_inventory_plan::MAX_OPS;
-use mcrs_minecraft_inventory_plan::Op;
+use mcrs_minecraft_inventory_transaction::MAX_OPS;
+use mcrs_minecraft_inventory_transaction::Op;
 
 use crate::RequestId;
 use crate::SlotRef;

@@ -1,8 +1,8 @@
 use mcrs_minecraft_engine_item::Stacks;
-use mcrs_minecraft_inventory_view::SlotView;
+use mcrs_minecraft_inventory_client_view::SlotView;
+use mcrs_minecraft_inventory_menu::InventoryMenu;
+use mcrs_minecraft_inventory_player::Holder;
 use mcrs_minecraft_item_table::ItemTable;
-use mcrs_minecraft_menu::InventoryMenu;
-use mcrs_minecraft_player_slots::Holder;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundContainerSetContent;
 use mcrs_minecraft_wire::VarInt;
 

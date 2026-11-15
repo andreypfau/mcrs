@@ -2,11 +2,11 @@ use bevy_ecs::observer::On;
 use bevy_ecs::system::Query;
 use mcrs_minecraft_engine_item::RequestResult;
 use mcrs_minecraft_engine_item::Selected;
-use mcrs_minecraft_inventory_view::SlotView;
-use mcrs_minecraft_menu::InventoryMenu;
-use mcrs_minecraft_menu::MenuSlot;
-use mcrs_minecraft_player_slots::Holder;
-use mcrs_minecraft_player_slots::OFF_HAND;
+use mcrs_minecraft_inventory_client_view::SlotView;
+use mcrs_minecraft_inventory_menu::InventoryMenu;
+use mcrs_minecraft_inventory_menu::MenuSlot;
+use mcrs_minecraft_inventory_player::Holder;
+use mcrs_minecraft_inventory_player::OFF_HAND;
 
 use crate::InventoryMenuSync;
 use crate::request_ids::HAND_SWAP_REQUEST;

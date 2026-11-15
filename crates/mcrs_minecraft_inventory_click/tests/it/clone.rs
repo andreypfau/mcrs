@@ -1,6 +1,6 @@
 use mcrs_minecraft_inventory_click::ClickKind;
 use mcrs_minecraft_inventory_click::Clicked;
-use mcrs_minecraft_inventory_plan::Op;
+use mcrs_minecraft_inventory_transaction::Op;
 
 use crate::fixture::CURSOR;
 use crate::fixture::Case;

@@ -1,9 +1,9 @@
-use mcrs_minecraft_inventory_plan::Filter;
-use mcrs_minecraft_inventory_plan::Loaded;
-use mcrs_minecraft_inventory_plan::Op;
-use mcrs_minecraft_inventory_plan::Plan;
-use mcrs_minecraft_inventory_plan::Planned;
-use mcrs_minecraft_inventory_plan::Rejected;
+use mcrs_minecraft_inventory_transaction::Filter;
+use mcrs_minecraft_inventory_transaction::Loaded;
+use mcrs_minecraft_inventory_transaction::Op;
+use mcrs_minecraft_inventory_transaction::Plan;
+use mcrs_minecraft_inventory_transaction::Planned;
+use mcrs_minecraft_inventory_transaction::Rejected;
 
 pub type Stack = Option<Planned<u16>>;
 
@@ -125,7 +125,7 @@ pub fn request_in(
     slots: &[Slot],
     ops: impl IntoIterator<Item = Operation>,
 ) -> Outcome {
-    let result = mcrs_minecraft_inventory_plan::plan(
+    let result = mcrs_minecraft_inventory_transaction::plan(
         ops,
         scratch,
         |index| {

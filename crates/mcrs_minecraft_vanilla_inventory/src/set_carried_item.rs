@@ -5,8 +5,8 @@ use bevy_ecs::query::With;
 use bevy_ecs::system::InRef;
 use bevy_ecs::system::Query;
 use mcrs_minecraft_engine_item::Selected;
+use mcrs_minecraft_inventory_player::HOTBAR;
 use mcrs_minecraft_network::event::Received;
-use mcrs_minecraft_player_slots::HOTBAR;
 use mcrs_minecraft_protocol_game::serverbound::ServerboundSetCarriedItem;
 
 use crate::InventoryInput;

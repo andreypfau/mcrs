@@ -1,5 +1,5 @@
 [package]
-name = "mcrs_minecraft_inventory_plan"
+name = "mcrs_minecraft_inventory_transaction"
 description = "The planner of an atomic inventory request: split, merge, swap and drop over slots, applied in full or rejected with a reason"
 version.workspace = true
 edition.workspace = true

@@ -12,7 +12,7 @@ use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::session::Owner;
 use mcrs_minecraft_engine_world::session::PlayerSession;
 use mcrs_minecraft_entity_key::EntityId;
-use mcrs_minecraft_inventory_view::SlotView;
+use mcrs_minecraft_inventory_client_view::SlotView;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::ItemStack;
 use mcrs_minecraft_item_stack::Kind;

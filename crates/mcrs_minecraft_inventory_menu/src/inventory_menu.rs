@@ -1,6 +1,6 @@
-use mcrs_minecraft_player_slots::ArmourSlot;
-use mcrs_minecraft_player_slots::EquipSlot;
-use mcrs_minecraft_player_slots::Holder;
+use mcrs_minecraft_inventory_player::ArmourSlot;
+use mcrs_minecraft_inventory_player::EquipSlot;
+use mcrs_minecraft_inventory_player::Holder;
 
 use crate::MenuOrder;
 use crate::MenuRange;

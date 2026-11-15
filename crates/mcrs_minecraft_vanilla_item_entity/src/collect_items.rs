@@ -17,15 +17,15 @@ use mcrs_minecraft_engine_item::Selected;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::StackCommandsExt;
 use mcrs_minecraft_engine_item::Stacks;
+use mcrs_minecraft_inventory_player::Slot;
+use mcrs_minecraft_inventory_player::Stacking;
+use mcrs_minecraft_inventory_player::insert;
 use mcrs_minecraft_item_entity::ItemEntity;
 use mcrs_minecraft_item_entity::can_pick_up;
 use mcrs_minecraft_item_entity::pickup_box;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::Damage;
 use mcrs_minecraft_physics::Aabb;
-use mcrs_minecraft_player_slots::Slot;
-use mcrs_minecraft_player_slots::Stacking;
-use mcrs_minecraft_player_slots::insert;
 
 use crate::Collect;
 use crate::ItemCollector;

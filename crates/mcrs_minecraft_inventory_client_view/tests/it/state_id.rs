@@ -1,5 +1,5 @@
-use mcrs_minecraft_inventory_view::ClickSync;
-use mcrs_minecraft_inventory_view::StateId;
+use mcrs_minecraft_inventory_client_view::ClickSync;
+use mcrs_minecraft_inventory_client_view::StateId;
 
 fn after(steps: u32) -> StateId {
     (0..steps).fold(StateId::INITIAL, |id, _| id.next())

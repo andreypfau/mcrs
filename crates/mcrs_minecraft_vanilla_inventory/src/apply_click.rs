@@ -13,11 +13,11 @@ use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_inventory_click::ClickError;
 use mcrs_minecraft_inventory_click::ClickPlayer;
 use mcrs_minecraft_inventory_click::Operations;
-use mcrs_minecraft_inventory_plan::Op;
-use mcrs_minecraft_inventory_view::ClickSync;
-use mcrs_minecraft_menu::InventoryMenu;
-use mcrs_minecraft_menu::MenuSlot;
-use mcrs_minecraft_player_slots::PlayerMode;
+use mcrs_minecraft_inventory_client_view::ClickSync;
+use mcrs_minecraft_inventory_menu::InventoryMenu;
+use mcrs_minecraft_inventory_menu::MenuSlot;
+use mcrs_minecraft_inventory_player::PlayerMode;
+use mcrs_minecraft_inventory_transaction::Op;
 
 use crate::InventoryInput;
 use crate::InventoryMenuSync;

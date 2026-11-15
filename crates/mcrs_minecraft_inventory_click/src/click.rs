@@ -1,4 +1,4 @@
-use mcrs_minecraft_player_slots::PlayerMode;
+use mcrs_minecraft_inventory_player::PlayerMode;
 
 /// One `container_click` packet, as far as the kernel reads it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

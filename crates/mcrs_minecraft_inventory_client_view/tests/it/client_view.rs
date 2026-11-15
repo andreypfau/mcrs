@@ -1,7 +1,7 @@
-use mcrs_minecraft_inventory_view::Agreement;
-use mcrs_minecraft_inventory_view::ClientView;
-use mcrs_minecraft_inventory_view::Mismatches;
-use mcrs_minecraft_inventory_view::SlotView;
+use mcrs_minecraft_inventory_client_view::Agreement;
+use mcrs_minecraft_inventory_client_view::ClientView;
+use mcrs_minecraft_inventory_client_view::Mismatches;
+use mcrs_minecraft_inventory_client_view::SlotView;
 use mcrs_minecraft_item_stack::Count;
 use mcrs_minecraft_item_stack::HashScratch;
 use mcrs_minecraft_item_stack::HashedStack;

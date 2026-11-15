@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 
-use mcrs_minecraft_player_slots::Insertion;
-use mcrs_minecraft_player_slots::OFF_HAND;
-use mcrs_minecraft_player_slots::Slot;
-use mcrs_minecraft_player_slots::Stacking;
-use mcrs_minecraft_player_slots::insert;
+use mcrs_minecraft_inventory_player::Insertion;
+use mcrs_minecraft_inventory_player::OFF_HAND;
+use mcrs_minecraft_inventory_player::Slot;
+use mcrs_minecraft_inventory_player::Stacking;
+use mcrs_minecraft_inventory_player::insert;
 
 /// Inserts `count` alike items of maximum 64 into slots that hold the counts of `alike`; each
 /// slot of `others` holds a stack that is not alike.
