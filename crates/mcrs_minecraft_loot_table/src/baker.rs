@@ -1,103 +1,186 @@
+use core::mem;
+
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_item::enchantment::Enchantment;
 use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_item_stack::Kind;
 use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
+use mcrs_minecraft_loot::loot::LootTable;
 use mcrs_minecraft_loot_condition::{
-    Condition, ConditionBaker, ConditionFile, ContextParams, NumberFile, NumberProvider,
+    Condition, ConditionBaker, ConditionFile, ContextParams, DynamicName, NumberFile,
+    NumberProvider,
 };
-use mcrs_minecraft_registries::Registries;
-use mcrs_minecraft_resource::{Id, Registered, ResourceLocation, ResourceLocationBuf};
+use mcrs_minecraft_registries::{Registries, Registry};
+use mcrs_minecraft_resource::{Id, Registered, ResourceLocation, ResourceLocationBuf, TagKey};
 
 use crate::keyed_seed;
 use crate::loot_issue::{LootIssue, LootProblem};
-use crate::loot_table_file::{EntryFile, EntryKind as EntryKindFile, LootTableFile};
+use crate::loot_table_file::{
+    EntryFile, EntryKind as EntryKindFile, ItemSetFile, LootTableFile, PoolFile, TableFile,
+    TableSetFile, TagName,
+};
 use crate::modifier::{Modifier, ModifierOp};
 use crate::modifier_file::{LimitFile, ModifierFile, ModifierKind, ModifierObject};
 use crate::table::{Entry, EntryKind, Pool, Span, Table};
+use crate::table_links::{self, Edge, TableLinks};
 
-/// Bakes the file form of the table `name` and adds its problems to `issues`.
+/// Bakes each table of the registry `loot_table` of `registries`, at the index of its id, and
+/// after them each inline table, and adds the problems of the load to `issues`.
 pub(crate) fn bake(
     definitions: &BlockDefinitions,
     registries: &Registries,
-    name: &ResourceLocationBuf,
-    file: &LootTableFile,
     issues: &mut Vec<LootIssue>,
-) -> Table {
-    let mut baker = Baker {
-        registries,
-        conditions: ConditionBaker::new(definitions, registries),
-        key_set: file.key_set,
-        problems: Vec::new(),
-        entries: Vec::new(),
+) -> Vec<Table> {
+    let files = registries.registry::<LootTableFile>();
+    let named = files.map_or(0, Registry::len);
+    let mut names = Vec::with_capacity(named);
+    let mut tables = Vec::with_capacity(named);
+    let mut links = Vec::with_capacity(named);
+    let mut inline = Inline {
+        first: named,
+        tables: Vec::new(),
+        links: Vec::new(),
     };
-    let pools = file
-        .pools
-        .iter()
-        .enumerate()
-        .map(|(number, pool)| {
-            let path = format!("pools[{number}]");
-            Pool {
-                condition: pool
-                    .condition
-                    .as_ref()
-                    .map(|condition| baker.condition(condition, &format!("{path}.condition"))),
-                rolls: baker.number(&pool.rolls, &format!("{path}.rolls")),
-                bonus_rolls: pool
-                    .bonus_rolls
-                    .as_ref()
-                    .map_or(NumberProvider::constant(0.0), |bonus_rolls| {
-                        baker.number(bonus_rolls, &format!("{path}.bonus_rolls"))
-                    }),
-                entries: baker.entries(&pool.entries, None, &format!("{path}.entries")),
-                modifiers: baker.modifiers(pool.modifier.as_ref(), &format!("{path}.modifier")),
-            }
-        })
-        .collect();
-    let modifiers = baker.modifiers(file.modifier.as_ref(), "modifier");
-    let table = Table {
-        name_key: keyed_seed::name_key(name.as_str()),
-        pools,
-        entries: baker.entries.into_boxed_slice(),
-        modifiers,
-    };
-    issues.extend(baker.problems.into_iter().map(|(path, problem)| LootIssue {
-        table: name.clone(),
-        path,
-        problem,
-    }));
-    table
+    for (id, name, file) in files.into_iter().flat_map(Registry::iter) {
+        let mut baker = Baker {
+            registries,
+            files,
+            conditions: ConditionBaker::new(definitions, registries),
+            key_set: file.key_set,
+            owner: id.index(),
+            problems: Vec::new(),
+            parts: Parts::default(),
+            inline: &mut inline,
+        };
+        let mut baked = baker.table(file, "");
+        baked.table.name_key = keyed_seed::name_key(name.as_str());
+        issues.extend(baker.problems.into_iter().map(|(path, problem)| LootIssue {
+            table: name.clone(),
+            path,
+            problem,
+        }));
+        links.push(TableLinks {
+            owner: id.index(),
+            checked_against: file.key_set,
+            inline: false,
+            reads: baked.reads,
+            edges: baked.edges,
+        });
+        tables.push(baked.table);
+        names.push(name.clone());
+    }
+    tables.append(&mut inline.tables);
+    links.append(&mut inline.links);
+    table_links::check(&links, &mut tables, &names, issues);
+    tables
 }
 
-/// Turns the file form of one table into a table of ids, and checks each part against the type
-/// of the table (LOOT-CTX-013).
-struct Baker<'a> {
+/// The inline tables of the load, which sit after the tables of the registry.
+struct Inline {
+    first: usize,
+    tables: Vec<Table>,
+    links: Vec<TableLinks>,
+}
+
+/// The lists of the table that the bake makes.
+#[derive(Default)]
+struct Parts {
+    entries: Vec<Entry>,
+    items: Vec<Kind>,
+    nested: Vec<Option<u32>>,
+    reads: ContextParams,
+    edges: Vec<Edge>,
+}
+
+struct Baked {
+    table: Table,
+    reads: ContextParams,
+    edges: Vec<Edge>,
+}
+
+/// Turns the file form of one table of the registry and of its inline tables into tables of
+/// ids, and checks each part against the type of the table (LOOT-CTX-013).
+struct Baker<'a, 'i> {
     registries: &'a Registries,
+    files: Option<&'a Registry<LootTableFile>>,
     conditions: ConditionBaker<'a>,
     key_set: ContextKeySet,
+    owner: usize,
     problems: Vec<(String, LootProblem)>,
-    entries: Vec<Entry>,
+    parts: Parts,
+    inline: &'i mut Inline,
 }
 
-impl Baker<'_> {
+impl Baker<'_, '_> {
+    /// Bakes `file` with each path after `prefix`.
+    fn table(&mut self, file: &LootTableFile, prefix: &str) -> Baked {
+        let outer = mem::take(&mut self.parts);
+        let pools = file
+            .pools
+            .iter()
+            .enumerate()
+            .map(|(number, pool)| self.pool(pool, &format!("{prefix}pools[{number}]")))
+            .collect();
+        let modifiers = self.modifiers(file.modifier.as_ref(), &format!("{prefix}modifier"));
+        let Parts {
+            entries,
+            items,
+            nested,
+            reads,
+            edges,
+        } = mem::replace(&mut self.parts, outer);
+        let table = Table {
+            name_key: 0,
+            pools,
+            entries: entries.into_boxed_slice(),
+            items: items.into_boxed_slice(),
+            nested: nested.into_boxed_slice(),
+            modifiers,
+        };
+        Baked {
+            table,
+            reads,
+            edges,
+        }
+    }
+
+    fn pool(&mut self, pool: &PoolFile, path: &str) -> Pool {
+        Pool {
+            condition: pool
+                .condition
+                .as_ref()
+                .map(|condition| self.condition(condition, &format!("{path}.condition"))),
+            rolls: self.number(&pool.rolls, &format!("{path}.rolls")),
+            bonus_rolls: pool
+                .bonus_rolls
+                .as_ref()
+                .map_or(NumberProvider::constant(0.0), |bonus_rolls| {
+                    self.number(bonus_rolls, &format!("{path}.bonus_rolls"))
+                }),
+            entries: self.entries(&pool.entries, None, &format!("{path}.entries")),
+            modifiers: self.modifiers(pool.modifier.as_ref(), &format!("{path}.modifier")),
+        }
+    }
+
     /// Bakes `files` into consecutive places of the entry list, with their children after them.
     fn entries(&mut self, files: &[EntryFile], parent: Option<u32>, path: &str) -> Span {
-        let start = index_of(self.entries.len());
+        let start = index_of(self.parts.entries.len());
         for _ in files {
-            self.entries.push(Entry {
+            self.parts.entries.push(Entry {
                 condition: None,
-                kind: EntryKind::Nothing,
+                kind: EntryKind::Empty,
                 modifiers: Box::new([]),
                 weight: 0,
+                quality: 0,
                 parent,
             });
         }
-        let end = index_of(self.entries.len());
+        let end = index_of(self.parts.entries.len());
         for ((number, file), index) in files.iter().enumerate().zip(start..end) {
             let entry = self.entry(file, index, parent, &format!("{path}[{number}]"));
             let place = usize::try_from(index)
                 .ok()
-                .and_then(|index| self.entries.get_mut(index));
+                .and_then(|index| self.parts.entries.get_mut(index));
             if let Some(place) = place {
                 *place = entry;
             }
@@ -116,13 +199,40 @@ impl Baker<'_> {
                 None => {
                     self.problems
                         .push((path.to_owned(), LootProblem::UnknownItem(name.to_string())));
-                    EntryKind::Nothing
+                    EntryKind::Empty
                 }
             },
-            // chisle: `dynamic` makes nothing, so a cracked decorated pot drops no sherds
-            // (LOOT-EVL-007); a context with the block entity lifts it.
-            EntryKindFile::Empty | EntryKindFile::Other => EntryKind::Nothing,
+            EntryKindFile::Tag { items, expand } => {
+                let members = self.items(items, path);
+                if *expand {
+                    EntryKind::ExpandedTag(members)
+                } else {
+                    EntryKind::Tag(members)
+                }
+            }
+            EntryKindFile::LootTable { value, expand } => {
+                let tables = self.tables(value, path);
+                if *expand {
+                    EntryKind::ExpandedTables(tables)
+                } else {
+                    EntryKind::Tables(tables)
+                }
+            }
+            EntryKindFile::Dynamic { name } => DynamicName::from_location(name.as_location())
+                .map_or(EntryKind::Empty, EntryKind::Dynamic),
+            // chisle: `slots` makes nothing, checks no field of a typed slot source and resolves no
+            // key until the item predicate, container components and `slot_source` registry exist.
+            EntryKindFile::Empty | EntryKindFile::Slots { .. } => EntryKind::Empty,
             EntryKindFile::Alternatives { children } => {
+                let last = children.len().saturating_sub(1);
+                for (number, child) in children.iter().enumerate().take(last) {
+                    if child.condition.is_none() {
+                        self.problems.push((
+                            format!("{path}.children[{number}]"),
+                            LootProblem::AlternativeWithoutCondition,
+                        ));
+                    }
+                }
                 EntryKind::Alternatives(self.children(children, index, path))
             }
             EntryKindFile::Sequence { children } => {
@@ -137,12 +247,135 @@ impl Baker<'_> {
             kind,
             modifiers: self.modifiers(file.modifier.as_ref(), &format!("{path}.modifier")),
             weight: file.weight,
+            quality: file.quality,
             parent,
         }
     }
 
+    /// LOOT-CTX-016: a composite entry without children is a problem.
     fn children(&mut self, children: &[EntryFile], index: u32, path: &str) -> Span {
+        if children.is_empty() {
+            self.problems
+                .push((path.to_owned(), LootProblem::NoChildren));
+        }
         self.entries(children, Some(index), &format!("{path}.children"))
+    }
+
+    /// Adds the items of a `tag` entry to the item list, in the member order of a tag and the
+    /// order of a list (LOOT-EVL-009).
+    fn items(&mut self, set: &ItemSetFile, path: &str) -> Span {
+        let start = index_of(self.parts.items.len());
+        let path = format!("{path}.items");
+        match set {
+            ItemSetFile::Tag(TagName(name)) => {
+                let tags = self.registries.tags::<Item>();
+                let tag = tags.as_ref().and_then(|tags| {
+                    let tag = tags.id(TagKey::new(name.as_location()))?;
+                    Some(tags.members(tag).map(|item| Kind(item.number())))
+                });
+                match tag {
+                    Some(members) => self.parts.items.extend(members),
+                    None => self
+                        .problems
+                        .push((path, LootProblem::UnknownTag(name.to_string()))),
+                }
+            }
+            ItemSetFile::Many(names) => {
+                for name in names {
+                    self.item(name, &path);
+                }
+            }
+            ItemSetFile::One(name) => self.item(name, &path),
+        }
+        Span {
+            start,
+            end: index_of(self.parts.items.len()),
+        }
+    }
+
+    fn item(&mut self, name: &ResourceLocationBuf, path: &str) {
+        match self.lookup::<Item>(name.as_location()) {
+            Some(item) => self.parts.items.push(Kind(item.number())),
+            None => self
+                .problems
+                .push((path.to_owned(), LootProblem::UnknownItem(name.to_string()))),
+        }
+    }
+
+    /// Adds the tables of a `loot_table` entry to the list of nested tables, in the member order
+    /// of a tag and the order of a list (LOOT-EVL-010).
+    fn tables(&mut self, set: &TableSetFile, path: &str) -> Span {
+        let start = index_of(self.parts.nested.len());
+        let path = format!("{path}.value");
+        match set {
+            TableSetFile::Tag(TagName(name)) => {
+                let tags = self.registries.tags::<LootTable>();
+                let tag: Option<Vec<usize>> = tags.as_ref().and_then(|tags| {
+                    let tag = tags.id(TagKey::new(name.as_location()))?;
+                    Some(tags.members(tag).map(Id::index).collect())
+                });
+                match tag {
+                    Some(members) => {
+                        for member in members {
+                            self.nest(Some(member), &path);
+                        }
+                    }
+                    None => self
+                        .problems
+                        .push((path, LootProblem::UnknownTag(name.to_string()))),
+                }
+            }
+            TableSetFile::Many(elements) => {
+                for (number, element) in elements.iter().enumerate() {
+                    self.table_element(element, &format!("{path}[{number}]"));
+                }
+            }
+            TableSetFile::One(element) => self.table_element(element, &path),
+        }
+        Span {
+            start,
+            end: index_of(self.parts.nested.len()),
+        }
+    }
+
+    fn table_element(&mut self, element: &TableFile, path: &str) {
+        match element {
+            TableFile::Key(name) => {
+                let id = self
+                    .files
+                    .and_then(|files| files.by_name(name.as_location()));
+                if id.is_none() {
+                    self.problems
+                        .push((path.to_owned(), LootProblem::UnknownTable(name.to_string())));
+                }
+                self.nest(id.map(Id::index), path);
+            }
+            TableFile::Inline(file) => {
+                let baked = self.table(file, &format!("{path}."));
+                let index = self.inline.first.saturating_add(self.inline.tables.len());
+                self.inline.tables.push(baked.table);
+                self.inline.links.push(TableLinks {
+                    owner: self.owner,
+                    checked_against: self.key_set,
+                    inline: true,
+                    reads: baked.reads,
+                    edges: baked.edges,
+                });
+                self.nest(Some(index), path);
+            }
+        }
+    }
+
+    fn nest(&mut self, table: Option<usize>, path: &str) {
+        let slot = self.parts.nested.len();
+        let table = table.and_then(|table| u32::try_from(table).ok());
+        self.parts.nested.push(table);
+        if table.is_some() {
+            self.parts.edges.push(Edge {
+                slot,
+                path: path.to_owned(),
+            });
+        }
     }
 
     fn modifiers(&mut self, file: Option<&ModifierFile>, path: &str) -> Box<[Modifier]> {
@@ -247,6 +480,7 @@ impl Baker<'_> {
     }
 
     fn check(&mut self, reads: ContextParams, path: &str) {
+        self.parts.reads = self.parts.reads.union(reads);
         if let Err(problem) = reads.check(self.key_set) {
             self.problems
                 .push((path.to_owned(), LootProblem::ParamNotAllowed(problem)));

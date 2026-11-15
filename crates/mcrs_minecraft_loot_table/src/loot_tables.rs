@@ -16,13 +16,15 @@ use crate::loot_issue::{LootIssue, LootProblem};
 use crate::loot_scratch::LootScratch;
 use crate::loot_table_file::LootTableFile;
 use crate::roll_error::RollError;
-use crate::table::Table;
+use crate::table::{Evaluation, Table};
 
 /// The loot tables of one registry load, baked to ids and addressed by their id in the registry
 /// `loot_table`.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct LootTables {
+    /// The tables of the registry at the index of their id, then the inline tables.
     tables: Box<[Table]>,
+    named: usize,
     by_block: Box<[Option<Id<LootTable>>]>,
     max_stack: Box<[u8]>,
 }
@@ -39,11 +41,8 @@ impl LootTables {
     ) -> (Self, Vec<LootIssue>) {
         let mut issues = Vec::new();
         let files = registries.registry::<LootTableFile>();
-        let tables = files
-            .into_iter()
-            .flat_map(|files| files.iter())
-            .map(|(_, name, file)| baker::bake(definitions, registries, name, file, &mut issues))
-            .collect();
+        let tables = baker::bake(definitions, registries, &mut issues).into_boxed_slice();
+        let named = files.map_or(0, |files| files.len());
         let by_block = (0..definitions.loot_table_count())
             .map(|number| {
                 let name = u16::try_from(number)
@@ -73,6 +72,7 @@ impl LootTables {
             .collect();
         let loot = Self {
             tables,
+            named,
             by_block,
             max_stack,
         };
@@ -96,9 +96,10 @@ impl LootTables {
     /// Adds the drop list of one evaluation of `table` to the end of `stacks`, with the draws
     /// from `random` (LOOT-EVL-001, LOOT-RND-008). Each stack is divided at the maximum stack
     /// size of its item; a stack with a count of 0 or less is `None`, the empty stack
-    /// (LOOT-OUT-001). A context that lacks a parameter that its key set requires, or holds one
-    /// that it does not allow, is refused before any draw (LOOT-CTX-012). The type of the table
-    /// has no part in this check.
+    /// (LOOT-OUT-001). A nested table rolls with the same context, generator and buffers, and
+    /// its stacks are divided only once they leave `table` (LOOT-EVL-010). A context that lacks
+    /// a parameter that its key set requires, or holds one that it does not allow, is refused
+    /// before any draw (LOOT-CTX-012). The type of the table has no part in this check.
     pub fn roll<E, W: LocationView, R: Random>(
         &self,
         table: Id<LootTable>,
@@ -110,13 +111,20 @@ impl LootTables {
     ) -> Result<(), RollError> {
         let baked = self.table(table)?;
         check(context)?;
-        baked.evaluate(context, world, &self.max_stack, random, scratch, stacks);
+        let evaluation = Evaluation {
+            tables: &self.tables,
+            context,
+            world,
+            max_stack: &self.max_stack,
+        };
+        evaluation.root(baked, random, scratch, stacks);
         Ok(())
     }
 
     fn table(&self, table: Id<LootTable>) -> Result<&Table, RollError> {
         self.tables
             .get(table.index())
+            .filter(|_| table.index() < self.named)
             .ok_or(RollError::UnknownTable(table))
     }
 }

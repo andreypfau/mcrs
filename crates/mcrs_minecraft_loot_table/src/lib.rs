@@ -10,6 +10,7 @@ mod modifier;
 mod modifier_file;
 mod roll_error;
 mod table;
+mod table_links;
 mod work_stack;
 
 pub use keyed_seed::KeyedSeed;
