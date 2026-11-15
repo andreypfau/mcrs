@@ -8,9 +8,9 @@ Steps, in order:
      request from a fork), but only when the head is the reviewed head given as
      the second argument. Without it, no run is approved.
   2. When the branch is behind its base, update it (`gh pr update-branch`).
-     The runs of the new head are approved only when it is the merge that
-     the update made: parents the reviewed head and the base tip, committed and
-     signed by GitHub. Any other new head stops with exit 9.
+     The runs of the new head are approved only when its parents are the
+     reviewed head and the base tip and its tree is the clean merge of the two
+     (`git merge-tree`). Any other new head stops with exit 9.
   3. Wait for the required checks of the base branch rules (`gh pr checks --watch`).
   4. When `pr-review` is on PATH: `pr-review wait <pr>`, then require
      `pr-review ready <pr>`.
@@ -119,30 +119,38 @@ def bring_up_to_date(number, repo, reviewed):
         old_head = pr["headRefOid"]
         pr = wait_for_new_head(number, old_head)
         if reviewed is not None:
-            if not is_update_merge(repo, pr["headRefOid"], old_head, pr["baseRefName"]):
+            if not is_update_merge(repo, number, pr["headRefOid"], old_head, pr["baseRefName"]):
                 raise Stop(9, f"the new head of #{number} is not the update merge; review it")
             reviewed.approvable = pr["headRefOid"]
             approve_waiting_runs(repo, pr["headRefOid"], reviewed)
     return pr
 
 
-def is_update_merge(repo, head, old_head, base):
-    # Only the merge that the update made, signed by GitHub, joins the reviewed head and the
-    # base tip. A commit that a fork author pushed on top fails one of these tests.
-    commit = json.loads(
-        gh(
-            "api",
-            f"repos/{repo}/commits/{head}",
-            "--jq",
-            "{parents: [.parents[].sha], committer: .committer.login,"
-            " verified: .commit.verification.verified}",
-        )
-    )
+def is_update_merge(repo, number, head, old_head, base):
+    # The new head is trusted only when its tree is the clean automatic merge of the reviewed
+    # head and the base tip. A child commit or a conflict resolution that edits files fails it.
+    parents = gh("api", f"repos/{repo}/commits/{head}", "--jq", "[.parents[].sha]")
     base_tip = gh("api", f"repos/{repo}/commits/{base}", "--jq", ".sha").strip()
+    if json.loads(parents) != [old_head, base_tip]:
+        return False
+    fetch = subprocess.run(
+        ["git", "fetch", "--quiet", "origin", base_tip, f"pull/{number}/head"],
+        capture_output=True,
+    )
+    if fetch.returncode != 0:
+        return False
+    merged = subprocess.run(
+        ["git", "merge-tree", "--write-tree", old_head, base_tip],
+        capture_output=True,
+        text=True,
+    )
+    tree = subprocess.run(
+        ["git", "rev-parse", f"{head}^{{tree}}"], capture_output=True, text=True
+    )
     return (
-        commit["parents"] == [old_head, base_tip]
-        and commit["committer"] == "web-flow"
-        and commit["verified"] is True
+        merged.returncode == 0
+        and tree.returncode == 0
+        and merged.stdout.split("\n", 1)[0].strip() == tree.stdout.strip()
     )
 
 
