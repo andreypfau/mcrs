@@ -1,0 +1,485 @@
+{
+  "version": "26.4-snapshot-7",
+  "protocol": 1073742169,
+  "sound_id": 654,
+  "sound_name": "minecraft:entity.item.pickup",
+  "source": 7,
+  "source_name": "players",
+  "cases": [
+    {
+      "id": "default",
+      "packets": [
+        {
+          "client": "GiveProbeB",
+          "packet": "8f05070000000400000320000000043e4ccccd3fb62c3a431a8b9501646c6c",
+          "sound_id": 654,
+          "source": 7,
+          "raw_pos": [
+            4,
+            800,
+            4
+          ],
+          "pos": [
+            0.5,
+            100.0,
+            0.5
+          ],
+          "volume": 0.2,
+          "pitch": 1.423225
+        },
+        {
+          "client": "GiveProbeA",
+          "packet": "8f05070000000400000320000000043e4ccccd3fb62c3a431a8b9501646c6c",
+          "sound_id": 654,
+          "source": 7,
+          "raw_pos": [
+            4,
+            800,
+            4
+          ],
+          "pos": [
+            0.5,
+            100.0,
+            0.5
+          ],
+          "volume": 0.2,
+          "pitch": 1.423225
+        }
+      ]
+    },
+    {
+      "id": "split",
+      "packets": [
+        {
+          "client": "GiveProbeB",
+          "packet": "8f05070000000400000320000000043e4ccccd4010f56056859e71c1852d6f",
+          "sound_id": 654,
+          "source": 7,
+          "raw_pos": [
+            4,
+            800,
+            4
+          ],
+          "pos": [
+            0.5,
+            100.0,
+            0.5
+          ],
+          "volume": 0.2,
+          "pitch": 2.264977
+        },
+        {
+          "client": "GiveProbeB",
+          "packet": "8f05070000000400000320000000043e4ccccd3fdd09d50af69213469ff089",
+          "sound_id": 654,
+          "source": 7,
+          "raw_pos": [
+            4,
+            800,
+            4
+          ],
+          "pos": [
+            0.5,
+            100.0,
+            0.5
+          ],
+          "volume": 0.2,
+          "pitch": 1.726863
+        },
+        {
+          "client": "GiveProbeA",
+          "packet": "8f05070000000400000320000000043e4ccccd4010f56056859e71c1852d6f",
+          "sound_id": 654,
+          "source": 7,
+          "raw_pos": [
+            4,
+            800,
+            4
+          ],
+          "pos": [
+            0.5,
+            100.0,
+            0.5
+          ],
+          "volume": 0.2,
+          "pitch": 2.264977
+        },
+        {
+          "client": "GiveProbeA",
+          "packet": "8f05070000000400000320000000043e4ccccd3fdd09d50af69213469ff089",
+          "sound_id": 654,
+          "source": 7,
+          "raw_pos": [
+            4,
+            800,
+            4
+          ],
+          "pos": [
+            0.5,
+            100.0,
+            0.5
+          ],
+          "volume": 0.2,
+          "pitch": 1.726863
+        }
+      ]
+    },
+    {
+      "id": "limit",
+      "packets": []
+    },
+    {
+      "id": "air",
+      "packets": []
+    },
+    {
+      "id": "partial_survival",
+      "packets": []
+    },
+    {
+      "id": "full_survival",
+      "packets": []
+    },
+    {
+      "id": "empty_brackets",
+      "packets": [
+        {
+          "client": "GiveProbeB",
+          "packet": "8f05070000000400000320000000043e4ccccd40006943b8ee5d97d03f504b",
+          "sound_id": 654,
+          "source": 7,
+          "raw_pos": [
+            4,
+            800,
+            4
+          ],
+          "pos": [
+            0.5,
+            100.0,
+            0.5
+          ],
+          "volume": 0.2,
+          "pitch": 2.006425
+        },
+        {
+          "client": "GiveProbeA",
+          "packet": "8f05070000000400000320000000043e4ccccd40006943b8ee5d97d03f504b",
+          "sound_id": 654,
+          "source": 7,
+          "raw_pos": [
+            4,
+            800,
+            4
+          ],
+          "pos": [
+            0.5,
+            100.0,
+            0.5
+          ],
+          "volume": 0.2,
+          "pitch": 2.006425
+        }
+      ]
+    },
+    {
+      "id": "modified_air",
+      "packets": []
+    },
+    {
+      "id": "greedy_split_partial",
+      "packets": []
+    },
+    {
+      "id": "greedy_split_one_slot",
+      "packets": [
+        {
+          "client": "GiveProbeB",
+          "packet": "8f05070000000400000320000000043e4ccccd3fbcfe964459d20abf534be7",
+          "sound_id": 654,
+          "source": 7,
+          "raw_pos": [
+            4,
+            800,
+            4
+          ],
+          "pos": [
+            0.5,
+            100.0,
+            0.5
+          ],
+          "volume": 0.2,
+          "pitch": 1.476519
+        },
+        {
+          "client": "GiveProbeA",
+          "packet": "8f05070000000400000320000000043e4ccccd3fbcfe964459d20abf534be7",
+          "sound_id": 654,
+          "source": 7,
+          "raw_pos": [
+            4,
+            800,
+            4
+          ],
+          "pos": [
+            0.5,
+            100.0,
+            0.5
+          ],
+          "volume": 0.2,
+          "pitch": 1.476519
+        }
+      ]
+    },
+    {
+      "id": "mixed_multi_target",
+      "packets": [
+        {
+          "client": "GiveProbeB",
+          "packet": "8f05070000001400000320000000043e4ccccd3fdd28af52cffb764bf2a63e",
+          "sound_id": 654,
+          "source": 7,
+          "raw_pos": [
+            20,
+            800,
+            4
+          ],
+          "pos": [
+            2.5,
+            100.0,
+            0.5
+          ],
+          "volume": 0.2,
+          "pitch": 1.727804
+        },
+        {
+          "client": "GiveProbeA",
+          "packet": "8f05070000001400000320000000043e4ccccd3fdd28af52cffb764bf2a63e",
+          "sound_id": 654,
+          "source": 7,
+          "raw_pos": [
+            20,
+            800,
+            4
+          ],
+          "pos": [
+            2.5,
+            100.0,
+            0.5
+          ],
+          "volume": 0.2,
+          "pitch": 1.727804
+        }
+      ]
+    },
+    {
+      "id": "spectator_target",
+      "packets": [
+        {
+          "client": "GiveProbeB",
+          "packet": "8f05070000001400000320000000043e4ccccd4039f770fb3f0d8f436ddecc",
+          "sound_id": 654,
+          "source": 7,
+          "raw_pos": [
+            20,
+            800,
+            4
+          ],
+          "pos": [
+            2.5,
+            100.0,
+            0.5
+          ],
+          "volume": 0.2,
+          "pitch": 2.905727
+        },
+        {
+          "client": "GiveProbeA",
+          "packet": "8f05070000001400000320000000043e4ccccd4039f770fb3f0d8f436ddecc",
+          "sound_id": 654,
+          "source": 7,
+          "raw_pos": [
+            20,
+            800,
+            4
+          ],
+          "pos": [
+            2.5,
+            100.0,
+            0.5
+          ],
+          "volume": 0.2,
+          "pitch": 2.905727
+        }
+      ]
+    },
+    {
+      "id": "sound_in_range",
+      "packets": [
+        {
+          "client": "GiveProbeB",
+          "packet": "8f05070000000a0000032cffffffea3e4ccccd3ffcf556136596f638e8c08d",
+          "sound_id": 654,
+          "source": 7,
+          "raw_pos": [
+            10,
+            812,
+            -22
+          ],
+          "pos": [
+            1.25,
+            101.5,
+            -2.75
+          ],
+          "volume": 0.2,
+          "pitch": 1.976237
+        },
+        {
+          "client": "GiveProbeA",
+          "packet": "8f05070000000a0000032cffffffea3e4ccccd3ffcf556136596f638e8c08d",
+          "sound_id": 654,
+          "source": 7,
+          "raw_pos": [
+            10,
+            812,
+            -22
+          ],
+          "pos": [
+            1.25,
+            101.5,
+            -2.75
+          ],
+          "volume": 0.2,
+          "pitch": 1.976237
+        }
+      ]
+    },
+    {
+      "id": "sound_at_boundary",
+      "packets": [
+        {
+          "client": "GiveProbeA",
+          "packet": "8f05070000000000000320000000003e4ccccd40491d1006b0f0872fad65d2",
+          "sound_id": 654,
+          "source": 7,
+          "raw_pos": [
+            0,
+            800,
+            0
+          ],
+          "pos": [
+            0.0,
+            100.0,
+            0.0
+          ],
+          "volume": 0.2,
+          "pitch": 3.142399
+        }
+      ]
+    },
+    {
+      "id": "sound_other_dimension",
+      "packets": [
+        {
+          "client": "GiveProbeA",
+          "packet": "8f05070000000400000320000000043e4ccccd401a42b8e514f250827f2e4b",
+          "sound_id": 654,
+          "source": 7,
+          "raw_pos": [
+            4,
+            800,
+            4
+          ],
+          "pos": [
+            0.5,
+            100.0,
+            0.5
+          ],
+          "volume": 0.2,
+          "pitch": 2.410322
+        }
+      ]
+    },
+    {
+      "id": "sound_fraction_positive",
+      "packets": [
+        {
+          "client": "GiveProbeB",
+          "packet": "8f05070000000900000320ffffffeb3e4ccccd402c227ce7dc04cd7d07903b",
+          "sound_id": 654,
+          "source": 7,
+          "raw_pos": [
+            9,
+            800,
+            -21
+          ],
+          "pos": [
+            1.125,
+            100.0,
+            -2.625
+          ],
+          "volume": 0.2,
+          "pitch": 2.689605
+        },
+        {
+          "client": "GiveProbeA",
+          "packet": "8f05070000000900000320ffffffeb3e4ccccd402c227ce7dc04cd7d07903b",
+          "sound_id": 654,
+          "source": 7,
+          "raw_pos": [
+            9,
+            800,
+            -21
+          ],
+          "pos": [
+            1.125,
+            100.0,
+            -2.625
+          ],
+          "volume": 0.2,
+          "pitch": 2.689605
+        }
+      ]
+    },
+    {
+      "id": "sound_fraction_negative",
+      "packets": [
+        {
+          "client": "GiveProbeB",
+          "packet": "8f0507fffffff700000320000000153e4ccccd3fb91abe63441363bb679637",
+          "sound_id": 654,
+          "source": 7,
+          "raw_pos": [
+            -9,
+            800,
+            21
+          ],
+          "pos": [
+            -1.125,
+            100.0,
+            2.625
+          ],
+          "volume": 0.2,
+          "pitch": 1.446129
+        },
+        {
+          "client": "GiveProbeA",
+          "packet": "8f0507fffffff700000320000000153e4ccccd3fb91abe63441363bb679637",
+          "sound_id": 654,
+          "source": 7,
+          "raw_pos": [
+            -9,
+            800,
+            21
+          ],
+          "pos": [
+            -1.125,
+            100.0,
+            2.625
+          ],
+          "volume": 0.2,
+          "pitch": 1.446129
+        }
+      ]
+    }
+  ]
+}

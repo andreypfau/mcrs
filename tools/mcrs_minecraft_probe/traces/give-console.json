@@ -1,0 +1,611 @@
+{
+  "version": "26.4-snapshot-7",
+  "protocol": 1073742169,
+  "cases": [
+    {
+      "id": "default",
+      "commands": [
+        "clear @a",
+        "execute store result score #result give_result store success score #success give_success run give GiveProbeA stone",
+        "data get entity GiveProbeA Inventory",
+        "scoreboard players get #result give_result",
+        "scoreboard players get #success give_success"
+      ],
+      "output": [
+        "Removed 19 item(s) from 2 players",
+        "Gave 1 [Stone] to GiveProbeA",
+        "GiveProbeA has the following entity data: [{count: 1, Slot: 0b, id: \"minecraft:stone\"}]",
+        "#result has 1 [give_result]",
+        "#success has 1 [give_success]"
+      ],
+      "pickup_sounds": 1,
+      "missing": []
+    },
+    {
+      "id": "multiple",
+      "commands": [
+        "clear @a",
+        "execute store result score #result give_result store success score #success give_success run give @a stone 3",
+        "data get entity GiveProbeA Inventory",
+        "data get entity GiveProbeB Inventory",
+        "scoreboard players get #result give_result",
+        "scoreboard players get #success give_success"
+      ],
+      "output": [
+        "Removed 1 item(s) from player GiveProbeA",
+        "Gave 3 [Stone] to 2 players",
+        "GiveProbeA has the following entity data: [{count: 3, Slot: 0b, id: \"minecraft:stone\"}]",
+        "GiveProbeB has the following entity data: [{count: 3, Slot: 0b, id: \"minecraft:stone\"}]",
+        "#result has 2 [give_result]",
+        "#success has 1 [give_success]"
+      ],
+      "pickup_sounds": null,
+      "missing": []
+    },
+    {
+      "id": "split",
+      "commands": [
+        "clear @a",
+        "give GiveProbeA stone[max_stack_size=4] 5",
+        "data get entity GiveProbeA Inventory"
+      ],
+      "output": [
+        "Removed 6 item(s) from 2 players",
+        "Gave 5 [Stone] to GiveProbeA",
+        "GiveProbeA has the following entity data: [{components: {\"minecraft:max_stack_size\": 4}, count: 4, Slot: 0b, id: \"minecraft:stone\"}, {components: {\"minecraft:max_stack_size\": 4}, count: 1, Slot: 1b, id: \"minecraft:stone\"}]"
+      ],
+      "pickup_sounds": 2,
+      "missing": []
+    },
+    {
+      "id": "limit",
+      "commands": [
+        "clear @a",
+        "kill @e[type=item]",
+        "execute store result score #result give_result store success score #success give_success run give @a stone[max_stack_size=4] 401",
+        "data get entity GiveProbeA Inventory",
+        "data get entity GiveProbeB Inventory",
+        "scoreboard players get #result give_result",
+        "scoreboard players get #success give_success",
+        "execute if entity @e[type=item] run say GIVE_FAILED_ITEM_EXISTS"
+      ],
+      "output": [
+        "Removed 5 item(s) from player GiveProbeA",
+        "No entity was found",
+        "Can't give more than 400 of [Stone]",
+        "GiveProbeA has the following entity data: []",
+        "GiveProbeB has the following entity data: []",
+        "#result has 0 [give_result]",
+        "#success has 0 [give_success]"
+      ],
+      "pickup_sounds": 0,
+      "missing": []
+    },
+    {
+      "id": "per_target_limit",
+      "commands": [
+        "clear @a",
+        "kill @e[type=item]",
+        "execute store result score #result give_result store success score #success give_success run give @a stone[max_stack_size=1] 60",
+        "scoreboard players get #result give_result",
+        "scoreboard players get #success give_success"
+      ],
+      "output": [
+        "No items were found on 2 players",
+        "No entity was found",
+        "Gave 60 [Stone] to 2 players",
+        "#result has 2 [give_result]",
+        "#success has 1 [give_success]"
+      ],
+      "pickup_sounds": null,
+      "missing": []
+    },
+    {
+      "id": "limit_inclusive",
+      "commands": [
+        "clear @a",
+        "kill @e[type=item]",
+        "execute store result score #result give_result store success score #success give_success run give GiveProbeA stone[max_stack_size=4] 400",
+        "scoreboard players get #result give_result",
+        "scoreboard players get #success give_success"
+      ],
+      "output": [
+        "Removed 72 item(s) from 2 players",
+        "Killed 48 entities",
+        "Gave 400 [Stone] to GiveProbeA",
+        "#result has 1 [give_result]",
+        "#success has 1 [give_success]"
+      ],
+      "pickup_sounds": null,
+      "missing": []
+    },
+    {
+      "id": "removed_max_stack_size",
+      "commands": [
+        "clear @a",
+        "kill @e[type=item]",
+        "give GiveProbeA stone[!max_stack_size] 2",
+        "data get entity GiveProbeA Inventory"
+      ],
+      "output": [
+        "Removed 144 item(s) from player GiveProbeA",
+        "Killed 64 entities",
+        "Gave 2 [Stone] to GiveProbeA",
+        "GiveProbeA has the following entity data: [{components: {\"!minecraft:max_stack_size\": {}}, count: 1, Slot: 0b, id: \"minecraft:stone\"}, {components: {\"!minecraft:max_stack_size\": {}}, count: 1, Slot: 1b, id: \"minecraft:stone\"}]"
+      ],
+      "pickup_sounds": null,
+      "missing": []
+    },
+    {
+      "id": "air",
+      "commands": [
+        "clear @a",
+        "kill @e[type=item]",
+        "execute store result score #result give_result store success score #success give_success run give GiveProbeA air 100",
+        "execute if entity @e[type=item] run say GIVE_AIR_ITEM_EXISTS",
+        "data get entity GiveProbeA Inventory",
+        "scoreboard players get #result give_result",
+        "scoreboard players get #success give_success",
+        "give GiveProbeA air 101"
+      ],
+      "output": [
+        "Removed 2 item(s) from player GiveProbeA",
+        "No entity was found",
+        "Gave 100 [Air] to GiveProbeA",
+        "GiveProbeA has the following entity data: []",
+        "#result has 1 [give_result]",
+        "#success has 1 [give_success]",
+        "Can't give more than 100 of [Air]"
+      ],
+      "pickup_sounds": 0,
+      "missing": []
+    },
+    {
+      "id": "invalid_component",
+      "commands": [
+        "clear @a",
+        "execute store result score #result give_result store success score #success give_success run give GiveProbeA diamond_sword[max_stack_size=16] 1601",
+        "data get entity GiveProbeA Inventory",
+        "scoreboard players get #result give_result",
+        "scoreboard players get #success give_success"
+      ],
+      "output": [
+        "No items were found on 2 players",
+        "Malformed item: 'Item cannot be both damageable and stackable'",
+        "GiveProbeA has the following entity data: []",
+        "#result has 0 [give_result]",
+        "#success has 0 [give_success]"
+      ],
+      "pickup_sounds": null,
+      "missing": []
+    },
+    {
+      "id": "partial_survival",
+      "commands": [
+        "clear @a",
+        "kill @e[type=item]",
+        "gamemode survival GiveProbeA",
+        "item fill entity GiveProbeA inventory.* with dirt 64",
+        "item fill entity GiveProbeA hotbar.* with dirt 64",
+        "item replace entity GiveProbeA hotbar.0 with stone 63",
+        "execute store result score #result give_result store success score #success give_success run give GiveProbeA stone 10",
+        "data get entity GiveProbeA Inventory[{Slot:0b}]",
+        "data get entity @e[type=item,limit=1,sort=nearest] Item",
+        "scoreboard players get #result give_result",
+        "scoreboard players get #success give_success"
+      ],
+      "output": [
+        "No items were found on 2 players",
+        "No entity was found",
+        "Replaced 27 slot(s) on GiveProbeA with [Dirt]",
+        "Replaced 9 slot(s) on GiveProbeA with [Dirt]",
+        "Replaced 1 slot(s) on GiveProbeA with [Stone]",
+        "Gave 10 [Stone] to GiveProbeA",
+        "GiveProbeA has the following entity data: {count: 64, Slot: 0b, id: \"minecraft:stone\"}",
+        "Stone has the following entity data: {count: 9, id: \"minecraft:stone\"}",
+        "#result has 1 [give_result]",
+        "#success has 1 [give_success]"
+      ],
+      "pickup_sounds": 0,
+      "missing": []
+    },
+    {
+      "id": "full_survival",
+      "commands": [
+        "clear @a",
+        "kill @e[type=item]",
+        "gamemode survival GiveProbeA",
+        "item fill entity GiveProbeA inventory.* with dirt 64",
+        "item fill entity GiveProbeA hotbar.* with dirt 64",
+        "execute store result score #result give_result store success score #success give_success run give GiveProbeA stone 10",
+        "data get entity @e[type=item,limit=1,sort=nearest] Item",
+        "scoreboard players get #result give_result",
+        "scoreboard players get #success give_success"
+      ],
+      "output": [
+        "Removed 2304 item(s) from player GiveProbeA",
+        "Killed Stone",
+        "Replaced 27 slot(s) on GiveProbeA with [Dirt]",
+        "Replaced 9 slot(s) on GiveProbeA with [Dirt]",
+        "Gave 10 [Stone] to GiveProbeA",
+        "Stone has the following entity data: {count: 10, id: \"minecraft:stone\"}",
+        "#result has 1 [give_result]",
+        "#success has 1 [give_success]"
+      ],
+      "pickup_sounds": 0,
+      "missing": []
+    },
+    {
+      "id": "cross_dimension",
+      "commands": [
+        "clear @a",
+        "execute in minecraft:the_nether run tp GiveProbeB 0 120 0",
+        "data get entity GiveProbeB Dimension",
+        "execute store result score #result give_result store success score #success give_success run give @a stone 3",
+        "data get entity GiveProbeA Inventory",
+        "data get entity GiveProbeB Inventory",
+        "scoreboard players get #result give_result",
+        "scoreboard players get #success give_success",
+        "execute in minecraft:overworld run tp GiveProbeB 2 100 0"
+      ],
+      "output": [
+        "Removed 2304 item(s) from player GiveProbeA",
+        "GiveProbeB has made the advancement [We Need to Go Deeper]",
+        "Teleported GiveProbeB to 0.500000, 120.000000, 0.500000",
+        "GiveProbeB has the following entity data: \"minecraft:the_nether\"",
+        "Gave 3 [Stone] to 2 players",
+        "GiveProbeA has the following entity data: [{count: 3, Slot: 0b, id: \"minecraft:stone\"}]",
+        "GiveProbeB has the following entity data: [{count: 3, Slot: 0b, id: \"minecraft:stone\"}]",
+        "#result has 2 [give_result]",
+        "#success has 1 [give_success]",
+        "Teleported GiveProbeB to 2.500000, 100.000000, 0.500000"
+      ],
+      "pickup_sounds": null,
+      "missing": []
+    },
+    {
+      "id": "error_precedence",
+      "commands": [
+        "give NoSuchPlayer no_such_item 0",
+        "give NoSuchPlayer stone 0",
+        "give NoSuchPlayer diamond_sword[max_stack_size=16] 1601"
+      ],
+      "output": [
+        "Unknown item 'minecraft:no_such_item'",
+        "...uchPlayer no_such_item 0<--[HERE]",
+        "Integer must not be less than 1: found 0",
+        "...yer stone 0<--[HERE]",
+        "No player was found"
+      ],
+      "pickup_sounds": null,
+      "missing": []
+    },
+    {
+      "id": "argument_errors",
+      "commands": [
+        "give @a stone 0",
+        "give @e stone",
+        "give @a nonexisting 1",
+        "give NoSuchPlayer stone"
+      ],
+      "output": [
+        "Integer must not be less than 1: found 0",
+        "... @a stone 0<--[HERE]",
+        "Only players may be affected by this command, but the provided selector includes entities",
+        "give @e stone<--[HERE]",
+        "Unknown item 'minecraft:nonexisting'",
+        "give @a nonexisting 1<--[HERE]",
+        "No player was found"
+      ],
+      "pickup_sounds": null,
+      "missing": []
+    },
+    {
+      "id": "empty_brackets",
+      "commands": [
+        "clear @a",
+        "kill @e[type=item]",
+        "give GiveProbeA stone[]",
+        "give GiveProbeA air[]",
+        "data get entity GiveProbeA Inventory"
+      ],
+      "output": [
+        "Removed 6 item(s) from 2 players",
+        "Killed Stone",
+        "Gave 1 [Stone] to GiveProbeA",
+        "Gave 1 [Air] to GiveProbeA",
+        "GiveProbeA has the following entity data: [{count: 1, Slot: 0b, id: \"minecraft:stone\"}]"
+      ],
+      "pickup_sounds": 1,
+      "missing": []
+    },
+    {
+      "id": "modified_air",
+      "commands": [
+        "clear @a",
+        "kill @e[type=item]",
+        "give GiveProbeA air[custom_name=\"TestAir\"]",
+        "give GiveProbeA air[max_stack_size=4] 5",
+        "data get entity GiveProbeA Inventory",
+        "execute if entity @e[type=item] run say GIVE_MOD_AIR_ITEM_EXISTS",
+        "give GiveProbeA air[custom_name=\"TestAir\"] 101",
+        "give GiveProbeA air[max_stack_size=4] 401"
+      ],
+      "output": [
+        "Removed 1 item(s) from player GiveProbeA",
+        "No entity was found",
+        "Gave 1 [Air] to GiveProbeA",
+        "Gave 5 [Air] to GiveProbeA",
+        "GiveProbeA has the following entity data: []",
+        "Can't give more than 100 of [Air]",
+        "Can't give more than 100 of [Air]"
+      ],
+      "pickup_sounds": 0,
+      "missing": []
+    },
+    {
+      "id": "greedy_split_partial",
+      "commands": [
+        "clear @a",
+        "kill @e[type=item]",
+        "gamemode survival GiveProbeA",
+        "item fill entity GiveProbeA inventory.* with dirt 64",
+        "item fill entity GiveProbeA hotbar.* with dirt 64",
+        "item replace entity GiveProbeA hotbar.0 with stone 63",
+        "give GiveProbeA stone 100",
+        "data get entity GiveProbeA Inventory[{Slot:0b}]",
+        "execute as @e[type=item] run data get entity @s Item"
+      ],
+      "output": [
+        "No items were found on 2 players",
+        "No entity was found",
+        "Replaced 27 slot(s) on GiveProbeA with [Dirt]",
+        "Replaced 9 slot(s) on GiveProbeA with [Dirt]",
+        "Replaced 1 slot(s) on GiveProbeA with [Stone]",
+        "Gave 100 [Stone] to GiveProbeA",
+        "GiveProbeA has the following entity data: {count: 64, Slot: 0b, id: \"minecraft:stone\"}",
+        "Stone has the following entity data: {count: 63, id: \"minecraft:stone\"}",
+        "Stone has the following entity data: {count: 36, id: \"minecraft:stone\"}"
+      ],
+      "pickup_sounds": 0,
+      "missing": []
+    },
+    {
+      "id": "greedy_split_one_slot",
+      "commands": [
+        "clear @a",
+        "kill @e[type=item]",
+        "gamemode survival GiveProbeA",
+        "item fill entity GiveProbeA inventory.* with dirt 64",
+        "item fill entity GiveProbeA hotbar.* with dirt 64",
+        "item replace entity GiveProbeA hotbar.0 with air",
+        "give GiveProbeA stone 100",
+        "data get entity GiveProbeA Inventory[{Slot:0b}]",
+        "execute as @e[type=item] run data get entity @s Item"
+      ],
+      "output": [
+        "Removed 2304 item(s) from player GiveProbeA",
+        "Killed 2 entities",
+        "Replaced 27 slot(s) on GiveProbeA with [Dirt]",
+        "Replaced 9 slot(s) on GiveProbeA with [Dirt]",
+        "Replaced 1 slot(s) on GiveProbeA with [Air]",
+        "Gave 100 [Stone] to GiveProbeA",
+        "GiveProbeA has the following entity data: {count: 64, Slot: 0b, id: \"minecraft:stone\"}",
+        "Stone has the following entity data: {count: 1, id: \"minecraft:stone\"}",
+        "Stone has the following entity data: {count: 36, id: \"minecraft:stone\"}"
+      ],
+      "pickup_sounds": 1,
+      "missing": []
+    },
+    {
+      "id": "mixed_multi_target",
+      "commands": [
+        "clear @a",
+        "kill @e[type=item]",
+        "gamemode survival GiveProbeA",
+        "gamemode survival GiveProbeB",
+        "item fill entity GiveProbeA inventory.* with dirt 64",
+        "item fill entity GiveProbeA hotbar.* with dirt 64",
+        "execute store result score #result give_result store success score #success give_success run give @a stone 5",
+        "data get entity GiveProbeB Inventory",
+        "execute as @e[type=item] run data get entity @s Item",
+        "scoreboard players get #result give_result",
+        "scoreboard players get #success give_success"
+      ],
+      "output": [
+        "Removed 2304 item(s) from player GiveProbeA",
+        "Killed Stone",
+        "Replaced 27 slot(s) on GiveProbeA with [Dirt]",
+        "Replaced 9 slot(s) on GiveProbeA with [Dirt]",
+        "Gave 5 [Stone] to 2 players",
+        "GiveProbeB has the following entity data: [{count: 5, Slot: 0b, id: \"minecraft:stone\"}]",
+        "Stone has the following entity data: {count: 5, id: \"minecraft:stone\"}",
+        "Stone has the following entity data: {count: 1, id: \"minecraft:stone\"}",
+        "#result has 2 [give_result]",
+        "#success has 1 [give_success]"
+      ],
+      "pickup_sounds": 1,
+      "missing": []
+    },
+    {
+      "id": "spectator_target",
+      "commands": [
+        "clear @a",
+        "kill @e[type=item]",
+        "gamemode spectator GiveProbeB",
+        "give GiveProbeB stone 3",
+        "data get entity GiveProbeB Inventory",
+        "item fill entity GiveProbeB inventory.* with dirt 64",
+        "item fill entity GiveProbeB hotbar.* with dirt 64",
+        "give GiveProbeB stone 4",
+        "execute as @e[type=item] run data get entity @s Item",
+        "gamemode survival GiveProbeB"
+      ],
+      "output": [
+        "Removed 2309 item(s) from 2 players",
+        "Killed Stone",
+        "Set GiveProbeB's game mode to Spectator Mode",
+        "Gave 3 [Stone] to GiveProbeB",
+        "GiveProbeB has the following entity data: [{count: 3, Slot: 0b, id: \"minecraft:stone\"}]",
+        "Replaced 27 slot(s) on GiveProbeB with [Dirt]",
+        "Replaced 9 slot(s) on GiveProbeB with [Dirt]",
+        "Gave 4 [Stone] to GiveProbeB",
+        "Stone has the following entity data: {count: 1, id: \"minecraft:stone\"}",
+        "Stone has the following entity data: {count: 4, id: \"minecraft:stone\"}",
+        "Set GiveProbeB's game mode to Survival Mode"
+      ],
+      "pickup_sounds": 1,
+      "missing": []
+    },
+    {
+      "id": "sound_in_range",
+      "commands": [
+        "give GiveProbeA stone 1"
+      ],
+      "output": [
+        "Gave 1 [Stone] to GiveProbeA"
+      ],
+      "pickup_sounds": 1,
+      "missing": []
+    },
+    {
+      "id": "sound_at_boundary",
+      "commands": [
+        "give GiveProbeA stone 1"
+      ],
+      "output": [
+        "Gave 1 [Stone] to GiveProbeA"
+      ],
+      "pickup_sounds": 1,
+      "missing": []
+    },
+    {
+      "id": "sound_other_dimension",
+      "commands": [
+        "give GiveProbeA stone 1"
+      ],
+      "output": [
+        "Gave 1 [Stone] to GiveProbeA"
+      ],
+      "pickup_sounds": 1,
+      "missing": []
+    },
+    {
+      "id": "console_precedence",
+      "commands": [
+        "give @s stone",
+        "give @s diamond_sword[max_stack_size=16]",
+        "give NoSuchPlayer stone[max_stack_size=4] 401",
+        "give GiveProbeA stone[!max_stack_size] 101",
+        "give GiveProbeA stone[max_stack_size=100]"
+      ],
+      "output": [
+        "No player was found",
+        "No player was found",
+        "No player was found",
+        "Can't give more than 100 of [Stone]",
+        "Malformed 'minecraft:max_stack_size' component: 'Value must be within range [1;99]: 100'",
+        "...tack_size=100]<--[HERE]"
+      ],
+      "pickup_sounds": null,
+      "missing": []
+    },
+    {
+      "id": "stats_and_advancement",
+      "commands": [
+        "clear @a",
+        "kill @e[type=item]",
+        "gamemode survival GiveProbeA",
+        "scoreboard players get GiveProbeA picked_stone",
+        "give GiveProbeA stone 5",
+        "scoreboard players get GiveProbeA picked_stone",
+        "give GiveProbeA cobblestone 1"
+      ],
+      "output": [
+        "Removed 1 item(s) from player GiveProbeA",
+        "No entity was found",
+        "GiveProbeA has 0 [picked_stone]",
+        "Gave 5 [Stone] to GiveProbeA",
+        "GiveProbeA has 0 [picked_stone]",
+        "GiveProbeA has made the advancement [Stone Age]",
+        "Gave 1 [Cobblestone] to GiveProbeA"
+      ],
+      "pickup_sounds": null,
+      "missing": []
+    },
+    {
+      "id": "dead_target",
+      "commands": [
+        "execute store result score #result give_result store success score #success give_success run give @a stone 2",
+        "execute store result score #r2 give_result store success score #s2 give_success run give GiveProbeB stone 2",
+        "data get entity GiveProbeB Inventory",
+        "scoreboard players get #result give_result",
+        "scoreboard players get #r2 give_result",
+        "scoreboard players get #s2 give_success"
+      ],
+      "output": [
+        "Gave 2 [Stone] to 2 players",
+        "Gave 2 [Stone] to GiveProbeB",
+        "GiveProbeB has the following entity data: [{count: 4, Slot: 0b, id: \"minecraft:stone\"}]",
+        "#result has 2 [give_result]",
+        "#r2 has 1 [give_result]",
+        "#s2 has 1 [give_success]"
+      ],
+      "pickup_sounds": null,
+      "missing": []
+    },
+    {
+      "id": "parse_error_store",
+      "commands": [
+        "scoreboard players set #result give_result 123",
+        "scoreboard players set #success give_success 123",
+        "execute store result score #result give_result store success score #success give_success run give @a stone 0",
+        "scoreboard players get #result give_result",
+        "scoreboard players get #success give_success"
+      ],
+      "output": [
+        "Set [give_result] for #result to 123",
+        "Set [give_success] for #success to 123",
+        "Integer must not be less than 1: found 0",
+        "... @a stone 0<--[HERE]",
+        "#result has 123 [give_result]",
+        "#success has 123 [give_success]"
+      ],
+      "pickup_sounds": null,
+      "missing": []
+    },
+    {
+      "id": "sound_fraction_positive",
+      "commands": [
+        "give GiveProbeA stone 1"
+      ],
+      "output": [
+        "Gave 1 [Stone] to GiveProbeA"
+      ],
+      "pickup_sounds": 1,
+      "missing": [],
+      "setup": [
+        "clear @a",
+        "kill @e[type=item]",
+        "gamemode survival GiveProbeA",
+        "tp GiveProbeA 1.23 100.0 -2.73"
+      ]
+    },
+    {
+      "id": "sound_fraction_negative",
+      "commands": [
+        "give GiveProbeA stone 1"
+      ],
+      "output": [
+        "Gave 1 [Stone] to GiveProbeA"
+      ],
+      "pickup_sounds": 1,
+      "missing": [],
+      "setup": [
+        "clear @a",
+        "kill @e[type=item]",
+        "tp GiveProbeA -1.23 100.0 2.73"
+      ]
+    }
+  ]
+}

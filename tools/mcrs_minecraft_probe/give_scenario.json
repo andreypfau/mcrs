@@ -1,0 +1,166 @@
+{
+  "version": "26.4-snapshot-7",
+  "setup": [
+    "Use a vanilla server with online-mode=false and network-compression-threshold=-1.",
+    "Disable the whitelist on the isolated server.",
+    "Give operator permission to GiveProbeA. GiveProbeB must not be an operator.",
+    "Keep the inventories empty before the scenario."
+  ],
+  "players": [
+    "GiveProbeA",
+    "GiveProbeB"
+  ],
+  "quiet_seconds": 1,
+  "steps": [
+    {
+      "id": "single-default",
+      "client": "GiveProbeA",
+      "command": "give @s stone",
+      "expect_translation": "commands.give.success.single"
+    },
+    {
+      "id": "multiple-targets",
+      "client": "GiveProbeA",
+      "command": "give @a stone 3",
+      "expect_translation": "commands.give.success.multiple"
+    },
+    {
+      "id": "over-limit-tool",
+      "client": "GiveProbeA",
+      "command": "give @s diamond_pickaxe 101",
+      "expect_translation": "commands.give.failed.toomanyitems"
+    },
+    {
+      "id": "zero",
+      "client": "GiveProbeA",
+      "command": "give @s stone 0",
+      "expect_translation": "argument.integer.low"
+    },
+    {
+      "id": "over-limit-patched",
+      "client": "GiveProbeA",
+      "command": "give @s stone[max_stack_size=4] 401",
+      "expect_translation": "commands.give.failed.toomanyitems"
+    },
+    {
+      "id": "air",
+      "client": "GiveProbeA",
+      "command": "give @s minecraft:air",
+      "expect_translation": "commands.give.success.single"
+    },
+    {
+      "id": "malformed-component",
+      "client": "GiveProbeA",
+      "command": "give @s stone[damage=-1]",
+      "expect_translation": "arguments.item.component.malformed"
+    },
+    {
+      "id": "no-permission",
+      "client": "GiveProbeB",
+      "command": "give @s stone",
+      "expect_translation": "command.unknown.command"
+    },
+    {
+      "id": "rarity-uncommon",
+      "client": "GiveProbeA",
+      "command": "give @s stone[rarity=\"uncommon\"]",
+      "expect_translation": "commands.give.success.single"
+    },
+    {
+      "id": "rarity-rare",
+      "client": "GiveProbeA",
+      "command": "give @s stone[rarity=\"rare\"]",
+      "expect_translation": "commands.give.success.single"
+    },
+    {
+      "id": "rarity-epic",
+      "client": "GiveProbeA",
+      "command": "give @s stone[rarity=\"epic\"]",
+      "expect_translation": "commands.give.success.single"
+    },
+    {
+      "id": "custom-name",
+      "client": "GiveProbeA",
+      "command": "give @s stone[custom_name=\"MyStone\"]",
+      "expect_translation": "commands.give.success.single"
+    },
+    {
+      "id": "custom-name-styled",
+      "client": "GiveProbeA",
+      "command": "give @s stone[rarity=\"rare\",custom_name={text:\"Styled\",italic:false,color:\"gold\"}]",
+      "expect_translation": "commands.give.success.single"
+    },
+    {
+      "id": "item-name",
+      "client": "GiveProbeA",
+      "command": "give @s stone[item_name=\"BaseName\"]",
+      "expect_translation": "commands.give.success.single"
+    },
+    {
+      "id": "lore-mixed",
+      "client": "GiveProbeA",
+      "command": "give @s diamond_sword[damage=5,lore=[\"line1\",{text:\"b\",italic:false}]] 2",
+      "expect_translation": "commands.give.success.single"
+    },
+    {
+      "id": "tooltip-hidden",
+      "client": "GiveProbeA",
+      "command": "give @s stone[tooltip_display={hide_tooltip:true}]",
+      "expect_translation": "commands.give.success.single"
+    },
+    {
+      "id": "removed-component",
+      "client": "GiveProbeA",
+      "command": "give @s stone[!max_stack_size] 2",
+      "expect_translation": "commands.give.success.single"
+    },
+    {
+      "id": "empty-brackets",
+      "client": "GiveProbeA",
+      "command": "give @s stone[]",
+      "expect_translation": "commands.give.success.single"
+    },
+    {
+      "id": "modified-air",
+      "client": "GiveProbeA",
+      "command": "give @s minecraft:air[custom_name=\"TestAir\"]",
+      "expect_translation": "commands.give.success.single"
+    },
+    {
+      "id": "air-over-limit",
+      "client": "GiveProbeA",
+      "command": "give @s minecraft:air[custom_name=\"TestAir\"] 101",
+      "expect_translation": "commands.give.failed.toomanyitems"
+    },
+    {
+      "id": "toomanyitems-epic",
+      "client": "GiveProbeA",
+      "command": "give @s diamond_pickaxe[rarity=\"epic\"] 101",
+      "expect_translation": "commands.give.failed.toomanyitems"
+    },
+    {
+      "id": "non-player-selector",
+      "client": "GiveProbeA",
+      "command": "give @e stone",
+      "expect_translation": "argument.player.entities"
+    },
+    {
+      "id": "unknown-item",
+      "client": "GiveProbeA",
+      "command": "give @s unknown_id[x=1] 0",
+      "expect_translation": "argument.item.id.invalid"
+    },
+    {
+      "id": "malformed-strict",
+      "client": "GiveProbeA",
+      "command": "give @s diamond_sword[max_stack_size=16]",
+      "expect_translation": "arguments.item.malformed"
+    },
+    {
+      "id": "offline-before-limit",
+      "client": "GiveProbeA",
+      "command": "give NoSuchPlayer stone[max_stack_size=4] 401",
+      "expect_translation": "argument.entity.notfound.player"
+    }
+  ]
+}
