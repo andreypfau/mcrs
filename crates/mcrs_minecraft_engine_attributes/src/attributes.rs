@@ -32,6 +32,12 @@ impl Attributes {
     pub fn set(&self) -> &AttributeSet {
         self.instances.set()
     }
+
+    /// The instances with the bases of a player.
+    #[must_use]
+    pub fn instances(&self) -> &AttributeInstances {
+        &self.instances
+    }
 }
 
 impl Default for Attributes {

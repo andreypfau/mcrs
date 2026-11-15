@@ -1,10 +1,9 @@
 use bevy::math::{DVec3, IVec3};
 use mcrs_minecraft_core::Direction;
 use mcrs_minecraft_core::voxel_shape::Aabb;
+use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_voxel::BlockPos;
-
-use crate::attribute_instances::AttributeInstances;
 
 /// The ranges of the player, as the attributes `minecraft:block_interaction_range` and
 /// `minecraft:entity_interaction_range` give them.
@@ -213,7 +212,7 @@ mod tests {
         let mut instances = player();
         for entry in [
             AttributeSnapshot {
-                attribute: Attribute::BlockInteractionRange,
+                attribute: Attribute::BlockInteractionRange.into(),
                 base: 4.5,
                 modifiers: vec![AttributeModifier {
                     id: rl!("minecraft:creative_mode_block_range"),
@@ -222,7 +221,7 @@ mod tests {
                 }],
             },
             AttributeSnapshot {
-                attribute: Attribute::EntityInteractionRange,
+                attribute: Attribute::EntityInteractionRange.into(),
                 base: 3.0,
                 modifiers: vec![AttributeModifier {
                     id: rl!("minecraft:creative_mode_entity_range"),
@@ -231,7 +230,9 @@ mod tests {
                 }],
             },
         ] {
-            instances.receive(&entry);
+            let _change = instances
+                .receive(&entry)
+                .expect("each range is in the registry");
         }
         instances
     }

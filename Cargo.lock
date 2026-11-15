@@ -5335,6 +5335,8 @@ dependencies = [
 name = "mcrs_minecraft_entity_attribute"
 version = "0.5.8"
 dependencies = [
+ "bevy_ecs",
+ "mcrs_minecraft_entity_attribute",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_static_registry",

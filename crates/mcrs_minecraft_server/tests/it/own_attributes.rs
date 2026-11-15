@@ -70,7 +70,10 @@ fn decode_update(mut rest: &[u8]) -> OwnUpdate {
             .attributes
             .iter()
             .map(|entry| Entry {
-                attribute: entry.attribute,
+                attribute: entry
+                    .attribute
+                    .resolve()
+                    .expect("the server sends known ids"),
                 base: entry.base,
                 modifiers: entry
                     .modifiers

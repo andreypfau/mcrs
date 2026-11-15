@@ -3,12 +3,15 @@ use bevy_ecs::entity::Entity;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::schedule::SystemSet;
 use bevy_ecs::system::{Local, Query, ResMut};
+use bytes::{BufMut, BytesMut};
 use mcrs_engine_muxer::EntityEvent;
 use mcrs_minecraft_engine_attributes::{AttributeChanged, AttributeTarget, Attributes};
 use mcrs_minecraft_engine_world::session::Owner;
+use mcrs_minecraft_entity_attribute::AttributeSnapshot;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
-use mcrs_minecraft_protocol::VarInt;
-use mcrs_minecraft_replication::{AttributeState, PlayerData, own_attributes};
+use mcrs_minecraft_protocol::{Packet, VarInt};
+use mcrs_minecraft_protocol_game::clientbound::ClientboundUpdateAttributes;
+use mcrs_minecraft_replication::{AttributeState, PlayerData};
 
 use crate::ability::OpLevelAnnounced;
 use crate::bus::{OutboundPlayerPacket, PacketPayload, to};
@@ -71,13 +74,23 @@ pub(crate) fn send_own_attributes(
         let Ok((attributes, &Owner(session), _)) = players.get(player) else {
             continue;
         };
-        let id = VarInt(player_network_id(session));
-        let owed_attributes = entries.iter().map(|&(_, attribute)| attribute);
-        match own_attributes(id, attributes.set(), owed_attributes) {
-            Ok(Some(packet)) => {
+        let snapshots: Vec<AttributeSnapshot<'_>> = entries
+            .iter()
+            .filter_map(|&(_, attribute)| attributes.instances().snapshot(attribute))
+            .collect();
+        if snapshots.is_empty() {
+            continue;
+        }
+        let packet = ClientboundUpdateAttributes {
+            entity_id: VarInt(player_network_id(session)),
+            attributes: snapshots,
+        };
+        let mut bytes = BytesMut::new().writer();
+        match packet.encode_with_id(&mut bytes) {
+            Ok(()) => {
+                let packet = bytes.into_inner().freeze();
                 writer.write(to(session, PacketPayload::OwnEntityState(packet)));
             }
-            Ok(None) => {}
             Err(error) => {
                 tracing::warn!(
                     ?session,

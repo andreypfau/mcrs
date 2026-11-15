@@ -11,6 +11,7 @@ doctest = false
 workspace = true
 
 [dependencies]
+bevy_ecs = { workspace = true, optional = true }
 mcrs_minecraft_resource.workspace = true
 mcrs_minecraft_static_registry.workspace = true
 mcrs_minecraft_wire = { workspace = true, features = ["resource"], optional = true }
@@ -18,11 +19,13 @@ serde = { workspace = true, optional = true }
 
 [features]
 default = []
+bevy = ["dep:bevy_ecs"]
 serde = ["dep:serde"]
 std = ["mcrs_minecraft_static_registry/std"]
 wire = ["dep:mcrs_minecraft_wire"]
 
 [dev-dependencies]
+mcrs_minecraft_entity_attribute = { path = ".", features = ["wire"] }
 mcrs_minecraft_fixtures.workspace = true
 serde.workspace = true
 serde_json.workspace = true

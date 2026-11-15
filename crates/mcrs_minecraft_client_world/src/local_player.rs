@@ -4,8 +4,10 @@ use mcrs_minecraft_engine_world::entity::physics::{
     OldTransform, Rotation, Transform as PhysicsTransform, Velocity,
 };
 use mcrs_minecraft_entity::SPRINT_MODIFIER;
-use mcrs_minecraft_entity_attribute::InstanceModifier;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::{
+    AttributeInstances, InstanceChange, InstanceEdit, InstanceModifier,
+};
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::ClientConnection;
 use mcrs_minecraft_physics::{Orientation, PlayerState, Relative, Teleport, apply_teleport};
@@ -17,7 +19,7 @@ use mcrs_minecraft_protocol_game::serverbound::{
 };
 
 use crate::abilities;
-use crate::attribute_instances::{self, AttributeInstances};
+use crate::attribute_packets;
 use crate::collision_tables::ClientPhysicsTables;
 use crate::columns::ColumnStore;
 use crate::local_motion::{self, LocalMotion};
@@ -94,9 +96,9 @@ impl Plugin for LocalPlayerPlugin {
             app.add_plugins(PlayerViewPlugin);
         }
         app.init_resource::<MovementInput>()
-            .add_observer(attribute_instances::on_login)
-            .add_observer(attribute_instances::on_respawn)
-            .add_observer(attribute_instances::on_update_attributes)
+            .add_observer(attribute_packets::on_login)
+            .add_observer(attribute_packets::on_respawn)
+            .add_observer(attribute_packets::on_update_attributes)
             .add_observer(abilities::on_login)
             .add_observer(abilities::on_respawn)
             .add_observer(abilities::on_game_event)
@@ -238,13 +240,16 @@ fn give_sprint_modifier(
     mut players: Query<(&Sprint, &mut AttributeInstances), (With<Player>, Changed<Sprint>)>,
 ) {
     for (sprint, mut instances) in &mut players {
-        if sprint.active {
-            instances.put_modifier(
-                Attribute::MovementSpeed,
-                InstanceModifier::transient(&SPRINT_MODIFIER),
-            );
+        let edit = if sprint.active {
+            InstanceEdit::Put(InstanceModifier::transient(&SPRINT_MODIFIER))
         } else {
-            instances.remove_modifier(Attribute::MovementSpeed, SPRINT_MODIFIER.id);
+            InstanceEdit::Remove(SPRINT_MODIFIER.id.to_buf())
+        };
+        let change = instances
+            .bypass_change_detection()
+            .apply(Attribute::MovementSpeed, &edit);
+        if change == InstanceChange::Changed {
+            instances.set_changed();
         }
     }
 }
@@ -310,14 +315,16 @@ mod tests {
         set_sprint(&mut app, true);
         assert_eq!(speed(&app), Some(sprinting.to_bits()));
 
-        app.world_mut()
+        let _change = app
+            .world_mut()
             .get_mut::<AttributeInstances>(player)
             .expect("the player has instances")
             .receive(&AttributeSnapshot {
-                attribute: Attribute::MovementSpeed,
+                attribute: Attribute::MovementSpeed.into(),
                 base,
                 modifiers: Vec::new(),
-            });
+            })
+            .expect("movement_speed is in the registry");
         app.update();
         assert_eq!(
             speed(&app),

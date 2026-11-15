@@ -1,10 +1,10 @@
 use bevy_ecs::prelude::*;
 use glam::DVec3;
-use mcrs_minecraft_client_world::attribute_instances::AttributeInstances;
 use mcrs_minecraft_client_world::joined_game::JoinedGame;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::{AttributeInstances, InstanceChange};
 use mcrs_minecraft_entity_visual::{
     Age, ClientEntity, Equipment, Living, Motion, Placement, ServerTicking, SyncedData,
 };
@@ -264,8 +264,18 @@ fn on_update_attributes(
     let Ok((mut instances, data)) = living.get_mut(entity) else {
         return;
     };
+    let mut change = InstanceChange::Unchanged;
     for entry in &packet.attributes {
-        instances.receive(entry);
+        match instances.bypass_change_detection().receive(entry) {
+            Ok(InstanceChange::Changed) => change = InstanceChange::Changed,
+            Ok(InstanceChange::Unchanged) => {}
+            Err(error) => {
+                tracing::warn!(%error, "the server sent an attribute entry that the client skips");
+            }
+        }
+    }
+    if change == InstanceChange::Changed {
+        instances.set_changed();
     }
     if let Some(data) = data
         && let Some(scale) = instances.value(Attribute::Scale)

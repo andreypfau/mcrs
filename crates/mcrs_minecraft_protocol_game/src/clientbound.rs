@@ -19,8 +19,7 @@ use mcrs_minecraft_command_tree::CommandNode;
 use mcrs_minecraft_core::Look;
 use mcrs_minecraft_core::LookAnchor;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
-use mcrs_minecraft_entity_attribute::AttributeModifier;
-use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
+pub use mcrs_minecraft_entity_attribute::AttributeSnapshot;
 use mcrs_minecraft_inventory_menu::menu_keys::MenuType;
 use mcrs_minecraft_nbt::compound::NbtCompound;
 use mcrs_minecraft_particle::ParticleOptions;
@@ -705,13 +704,6 @@ pub struct ClientboundTakeItemEntity {
     pub item_id: VarInt,
     pub player_id: VarInt,
     pub amount: VarInt,
-}
-
-#[derive(Clone, Debug, PartialEq, Encode, Decode)]
-pub struct AttributeSnapshot<'a> {
-    pub attribute: Attribute,
-    pub base: f64,
-    pub modifiers: Vec<AttributeModifier<'a>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Encode, Decode)]
