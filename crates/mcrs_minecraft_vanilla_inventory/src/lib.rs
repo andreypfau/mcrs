@@ -10,6 +10,7 @@ mod capture_holders;
 mod carried_codec;
 mod clear_items;
 mod close_inventory_menu;
+mod close_place;
 mod from_holders;
 mod hand_action;
 mod hand_launch;

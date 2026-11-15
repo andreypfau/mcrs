@@ -166,6 +166,8 @@ fn plan_request(
         let stack = (slots.get(index)).and_then(|stack| planned(&mut stacks, stack));
         let access = access(policy, slot);
         let take = match (access.take, stack) {
+            // The moves of a close read no take filter, so a close always empties its sources.
+            _ if request.kind() == RequestKind::Close => Filter::Permits,
             (Gate::Permits, _) => Filter::Permits,
             (Gate::Refuses, _) => Filter::Refuses,
             // chisle: an empty slot has no stack to ask about, so a stack that enters it and
