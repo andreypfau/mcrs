@@ -271,7 +271,7 @@ mod tests {
     fn the_relative_projection_survives_a_coordinate_f32_cannot_hold() {
         let eye = DVec3::new(30_000_000.9, 16_777_216.9, -30_000_000.9);
         let origin = CameraOrigin::of(eye);
-        let block = (origin.section + IVec3::new(96, -4, -96)) * SECTION_SIZE as i32;
+        let block = (origin.section + IVec3::new(48, -4, -48)) * SECTION_SIZE as i32;
         let rotation =
             Quat::from_rotation_arc(Vec3::NEG_Z, (block.as_dvec3() - eye).normalize().as_vec3())
                 * Quat::from_rotation_y(0.3);
