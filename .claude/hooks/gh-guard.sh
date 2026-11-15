@@ -42,7 +42,7 @@ def merge_targets(cmd):
         positional = []
         args = iter(words[1:])
         for word in args:
-            if word in ("--repo", "--hostname") or word.startswith(("-R", "--repo=", "--hostname=")):
+            if word in ("--repo", "--hostname") or word.startswith(("--repo=", "--hostname=")) or re.match(r"-[A-Za-z]*R", word):
                 deny(PLAIN)
             if word in VALUE_FLAGS:
                 next(args, None)
