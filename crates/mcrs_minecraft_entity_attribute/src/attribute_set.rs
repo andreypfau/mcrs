@@ -1,14 +1,15 @@
+use alloc::vec::Vec;
 use core::mem::size_of;
 
-use mcrs_minecraft_entity_attribute::fold;
 use mcrs_minecraft_resource::ResourceLocation;
 
 use crate::attribute_bases::AttributeBases;
 use crate::attribute_error::AttributeError;
-use crate::attribute_instance::AttributeInstance;
+use crate::attribute_keys::Attribute;
+use crate::fold::fold;
+use crate::instance::Instance;
 use crate::instance_change::InstanceChange;
 use crate::instance_modifier::InstanceModifier;
-use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 
 /// The attribute instances of one entity that differ from those of a new entity of its type
 /// (`attributes.md`, section 3). An attribute of the set of the type with no entry has the base
@@ -16,7 +17,7 @@ use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct AttributeSet {
     /// In the order of the numeric ids of the attributes.
-    instances: Vec<AttributeInstance>,
+    instances: Vec<Instance>,
 }
 
 const _: () = assert!(
@@ -57,7 +58,7 @@ impl AttributeSet {
     }
 
     /// The instances that differ from a new entity of the type, in the order of the numeric ids.
-    pub fn instances(&self) -> impl Iterator<Item = &AttributeInstance> {
+    pub fn instances(&self) -> impl Iterator<Item = &Instance> {
         self.instances.iter()
     }
 
@@ -152,7 +153,7 @@ impl AttributeSet {
 
     /// The instance of `attribute`, or `None` when it has the base of the type and no modifier.
     #[must_use]
-    pub fn instance(&self, attribute: Attribute) -> Option<&AttributeInstance> {
+    pub fn instance(&self, attribute: Attribute) -> Option<&Instance> {
         self.instances
             .iter()
             .find(|instance| instance.attribute == attribute)
@@ -164,7 +165,7 @@ impl AttributeSet {
         &mut self,
         bases: AttributeBases,
         attribute: Attribute,
-        edit: impl FnOnce(&mut AttributeInstance) -> R,
+        edit: impl FnOnce(&mut Instance) -> R,
     ) -> Result<R, AttributeError> {
         let type_base = bases.base(attribute).ok_or(AttributeError::NotInSet)?;
         if let Some(instance) = self
@@ -178,7 +179,7 @@ impl AttributeSet {
             });
             return Ok(result);
         }
-        let mut instance = AttributeInstance::new_of_type(attribute, type_base);
+        let mut instance = Instance::new_of_type(attribute, type_base);
         let result = edit(&mut instance);
         if !instance.is_new_of_type(type_base) {
             self.insert(instance);
@@ -186,7 +187,7 @@ impl AttributeSet {
         Ok(result)
     }
 
-    fn insert(&mut self, instance: AttributeInstance) {
+    fn insert(&mut self, instance: Instance) {
         let number = instance.attribute.id().number();
         let index = self
             .instances
@@ -198,6 +199,6 @@ impl AttributeSet {
     }
 }
 
-fn has_modifier(instance: &AttributeInstance, id: ResourceLocation<'_>) -> bool {
+fn has_modifier(instance: &Instance, id: ResourceLocation<'_>) -> bool {
     instance.modifiers.iter().any(|present| present.id() == id)
 }

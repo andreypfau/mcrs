@@ -1,4 +1,3 @@
-use mcrs_minecraft_entity::AttributeBases;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_fixtures::fixture;
@@ -28,7 +27,8 @@ fn each_living_type_has_the_set_and_the_bases_of_the_game() {
             panic!("a row starts with the id of its type");
         };
         let entity_type = EntityType::read(id).unwrap();
-        let bases = AttributeBases::of(entity_type).unwrap_or_else(|| panic!("{id} has no bases"));
+        let bases = mcrs_minecraft_entity::attribute_bases(entity_type)
+            .unwrap_or_else(|| panic!("{id} has no bases"));
         let expected: Vec<(Attribute, String)> = pairs
             .iter()
             .map(|cell| match cell {
@@ -52,7 +52,7 @@ fn each_living_type_has_the_set_and_the_bases_of_the_game() {
     }
     for entity_type in EntityType::ALL {
         assert_eq!(
-            AttributeBases::of(*entity_type).is_some(),
+            mcrs_minecraft_entity::attribute_bases(*entity_type).is_some(),
             living.contains(entity_type),
             "{entity_type:?} is living exactly when the fixture lists it"
         );

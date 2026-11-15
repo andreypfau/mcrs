@@ -1,14 +1,14 @@
 use bevy_ecs::component::Component;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
-use mcrs_minecraft_entity::{AttributeBases, AttributeSet};
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::{AttributeBases, AttributeInstances, AttributeSet};
 
 /// The attribute instances of a player, with the bases of the type `player`. Each player has it
 /// from its spawn. In a dimension world only [`AttributeEdit`](crate::AttributeEdit) changes it;
 /// a player that arrives from another world takes the set it left with.
-#[derive(Component, Clone, Debug, Default, PartialEq)]
+#[derive(Component, Clone, Debug, PartialEq)]
 pub struct Attributes {
-    pub(crate) set: AttributeSet,
+    pub(crate) instances: AttributeInstances,
 }
 
 impl Attributes {
@@ -16,22 +16,37 @@ impl Attributes {
     /// [`AttributeChanged`](crate::AttributeChanged).
     #[must_use]
     pub fn new(set: AttributeSet) -> Self {
-        Self { set }
+        Self {
+            instances: AttributeInstances::with_set(PLAYER_BASES, set),
+        }
     }
 
     /// The value of ATR-VAL-001, or `None` when the attribute is not in the set of a player.
     #[must_use]
     pub fn value(&self, attribute: Attribute) -> Option<f64> {
-        self.set.value(player_bases()?, attribute)
+        self.instances.value(attribute)
     }
 
     /// The instances that differ from those of a new player.
     #[must_use]
     pub fn set(&self) -> &AttributeSet {
-        &self.set
+        self.instances.set()
     }
 }
 
-pub(crate) const fn player_bases() -> Option<AttributeBases> {
-    AttributeBases::of(EntityType::Player)
+impl Default for Attributes {
+    fn default() -> Self {
+        Self::new(AttributeSet::new())
+    }
 }
+
+const PLAYER_BASES: AttributeBases =
+    match mcrs_minecraft_entity::attribute_bases(EntityType::Player) {
+        Some(bases) => bases,
+        None => AttributeBases::new(&[], &[]),
+    };
+
+const _: () = assert!(
+    mcrs_minecraft_entity::attribute_bases(EntityType::Player).is_some(),
+    "a player is a living entity and has bases"
+);

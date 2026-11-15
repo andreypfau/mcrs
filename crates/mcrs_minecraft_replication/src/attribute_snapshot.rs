@@ -1,7 +1,5 @@
-use mcrs_minecraft_entity::AttributeBases;
-use mcrs_minecraft_entity::AttributeInstance;
-use mcrs_minecraft_entity_attribute::AttributeModifier;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::{AttributeBases, AttributeModifier, Instance};
 use mcrs_minecraft_protocol_game::clientbound::AttributeSnapshot;
 
 /// The entry of the instance of `attribute` (ATR-NET-002): the stored base and every modifier in
@@ -9,7 +7,7 @@ use mcrs_minecraft_protocol_game::clientbound::AttributeSnapshot;
 pub(crate) fn attribute_snapshot(
     bases: Option<AttributeBases>,
     attribute: Attribute,
-    instance: Option<&AttributeInstance>,
+    instance: Option<&Instance>,
 ) -> AttributeSnapshot<'_> {
     let Some(instance) = instance else {
         let base = bases

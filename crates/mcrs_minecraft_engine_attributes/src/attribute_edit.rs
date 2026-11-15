@@ -1,8 +1,8 @@
 use bevy_ecs::message::Message;
+use mcrs_minecraft_entity_attribute::InstanceEdit;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 
 use crate::attribute_target::AttributeTarget;
-use crate::instance_edit::InstanceEdit;
 
 /// Asks to change the instance of `attribute` of `target`. The edits apply in arrival order in
 /// [`AttributeEdits`](crate::AttributeEdits). An edit of an attribute outside the attribute set

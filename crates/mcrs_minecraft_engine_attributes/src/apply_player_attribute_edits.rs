@@ -1,12 +1,12 @@
 use bevy_ecs::change_detection::DetectChangesMut;
 use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::system::Query;
-use mcrs_minecraft_entity::InstanceChange;
+use mcrs_minecraft_entity_attribute::InstanceChange;
 
 use crate::attribute_changed::AttributeChanged;
 use crate::attribute_edit::AttributeEdit;
 use crate::attribute_target::AttributeTarget;
-use crate::attributes::{Attributes, player_bases};
+use crate::attributes::Attributes;
 
 /// Applies each edit of a player in arrival order and announces each instance that it changed.
 /// A system that applies the edits of another target writes [`AttributeChanged`] too, so it runs
@@ -20,14 +20,13 @@ pub(crate) fn apply_player_attribute_edits(
         let AttributeTarget::Player(entity) = edit.target else {
             continue;
         };
-        let (Some(bases), Ok(mut attributes)) = (player_bases(), players.get_mut(entity)) else {
+        let Ok(mut attributes) = players.get_mut(entity) else {
             continue;
         };
-        let change = edit.edit.apply(
-            &mut attributes.bypass_change_detection().set,
-            bases,
-            edit.attribute,
-        );
+        let change = attributes
+            .bypass_change_detection()
+            .instances
+            .apply(edit.attribute, &edit.edit);
         if change == InstanceChange::Changed {
             attributes.set_changed();
             changed.write(AttributeChanged {

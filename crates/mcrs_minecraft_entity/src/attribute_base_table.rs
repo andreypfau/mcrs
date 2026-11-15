@@ -1,10 +1,10 @@
-use crate::attribute_bases::AttributeBases;
-use crate::attribute_bases::TypeBase;
 use crate::entity_type_keys::EntityType;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::{AttributeBases, TypeBase};
 
-/// The bases of `entity_type`, or `None` for a type that is not living.
-pub(crate) const fn of(entity_type: EntityType) -> Option<AttributeBases> {
+/// The bases of `entity_type`, or `None` for a type that is not a living entity type.
+#[must_use]
+pub const fn attribute_bases(entity_type: EntityType) -> Option<AttributeBases> {
     match BY_TYPE.split_at_checked(entity_type.id().number() as usize) {
         Some((_, [bases, ..])) => *bases,
         _ => None,

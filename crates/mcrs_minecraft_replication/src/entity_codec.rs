@@ -19,7 +19,6 @@ use mcrs_engine_muxer::{
     BlobKind, EntityEvent, EntityId, Hold, ReplicationCodec, SubjectEvent, SubjectRange, Tier,
     TileBlob, TileDelta, ViewerBytes, ViewerId,
 };
-use mcrs_minecraft_entity::AttributeBases;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_profile::Property;
@@ -112,7 +111,7 @@ impl EntityCodec {
                 motion: Motion::new(&spawn.pose, self.tick),
                 game_mode: spawn.game_mode,
                 attributes: SubjectAttributes::with_stored(
-                    AttributeBases::of(EntityType::Player),
+                    mcrs_minecraft_entity::attribute_bases(EntityType::Player),
                     spawn.attributes.clone(),
                 ),
             },

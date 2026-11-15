@@ -5,10 +5,11 @@ use bevy_ecs::query::Changed;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::Query;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
-use mcrs_minecraft_engine_attributes::{AttributeEdit, AttributeTarget, InstanceEdit};
-use mcrs_minecraft_entity::{InstanceModifier, ModifierKind};
-use mcrs_minecraft_entity_attribute::ModifierOperation;
+use mcrs_minecraft_engine_attributes::{AttributeEdit, AttributeTarget};
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::{
+    InstanceEdit, InstanceModifier, ModifierKind, ModifierOperation,
+};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_resource::{ResourceLocation, rl};
 

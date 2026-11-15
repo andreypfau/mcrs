@@ -3,7 +3,8 @@ use bevy::prelude::*;
 use mcrs_minecraft_engine_world::entity::physics::{
     OldTransform, Rotation, Transform as PhysicsTransform, Velocity,
 };
-use mcrs_minecraft_entity::{InstanceModifier, SPRINT_MODIFIER};
+use mcrs_minecraft_entity::SPRINT_MODIFIER;
+use mcrs_minecraft_entity_attribute::InstanceModifier;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::client::ClientConnection;
@@ -253,7 +254,6 @@ mod tests {
     use super::*;
     use crate::test_session::{FLOOR_TOP, TestSession, login, spawn_info};
     use mcrs_minecraft_core::Look;
-    use mcrs_minecraft_entity::AttributeBases;
     use mcrs_minecraft_entity::entity_type_keys::EntityType;
     use mcrs_minecraft_game_mode::GameMode;
     use mcrs_minecraft_protocol_game::PositionFlag;
@@ -287,7 +287,8 @@ mod tests {
         let sprinting = base * (1.0 + 0.3_f32 as f64);
         let mut app = App::new();
         app.add_systems(Update, give_sprint_modifier);
-        let bases = AttributeBases::of(EntityType::Player).expect("a player has attributes");
+        let bases = mcrs_minecraft_entity::attribute_bases(EntityType::Player)
+            .expect("a player has attributes");
         let player = app
             .world_mut()
             .spawn((Player, Sprint::default(), AttributeInstances::new(bases)))

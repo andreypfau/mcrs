@@ -2,7 +2,7 @@ use bevy_ecs::message::{MessageReader, MessageWriter};
 use bevy_ecs::system::{Res, ResMut};
 use mcrs_minecraft_engine_attributes::{AttributeChanged, AttributeEdit, AttributeTarget};
 use mcrs_minecraft_engine_physics::Mobs;
-use mcrs_minecraft_entity::{AttributeBases, AttributeSet, InstanceChange};
+use mcrs_minecraft_entity_attribute::{AttributeSet, InstanceChange};
 
 use crate::row_attributes::RowAttributes;
 
@@ -20,7 +20,7 @@ pub(crate) fn apply_row_attribute_edits(
         let Some(bases) = mobs
             .0
             .get(&id)
-            .and_then(|mob| AttributeBases::of(mob.kind.entity_type))
+            .and_then(|mob| mcrs_minecraft_entity::attribute_bases(mob.kind.entity_type))
         else {
             continue;
         };

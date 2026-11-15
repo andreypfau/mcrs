@@ -21,7 +21,7 @@ use mcrs_minecraft_engine::column_change::ColumnChange;
 use mcrs_minecraft_engine::column_streams::ColumnStreams;
 use mcrs_minecraft_engine::muxer::session::SessionConnection;
 use mcrs_minecraft_engine::network_id::player_network_id;
-use mcrs_minecraft_engine_attributes::{AttributeEdit, AttributeTarget, InstanceEdit};
+use mcrs_minecraft_engine_attributes::{AttributeEdit, AttributeTarget};
 use mcrs_minecraft_engine_item::Dropped;
 use mcrs_minecraft_engine_registries::{install_item_table, test_item_table};
 use mcrs_minecraft_engine_world::block_update::BlockSetRequest;
@@ -35,10 +35,10 @@ use mcrs_minecraft_engine_world::world::storage::block_entity::{
 };
 use mcrs_minecraft_engine_world::world::storage::random_ticks::RandomTickIndex;
 use mcrs_minecraft_engine_world::world::storage::section::SectionIndex;
-use mcrs_minecraft_entity::InstanceModifier;
-use mcrs_minecraft_entity::ModifierKind;
-use mcrs_minecraft_entity_attribute::ModifierOperation;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::{
+    InstanceEdit, InstanceModifier, ModifierKind, ModifierOperation,
+};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_game_rule::GameRule;
 use mcrs_minecraft_item_key::item_keys::Item;

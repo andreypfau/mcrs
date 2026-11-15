@@ -1,8 +1,10 @@
 use bevy::prelude::*;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
-use mcrs_minecraft_entity::{AttributeBases, AttributeInstance, AttributeSet, InstanceModifier};
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
-use mcrs_minecraft_entity_attribute::{AttributeModifier, HomeSlot, Modifier, fold};
+use mcrs_minecraft_entity_attribute::{
+    AttributeBases, AttributeModifier, AttributeSet, HomeSlot, Instance, InstanceModifier,
+    Modifier, fold,
+};
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_protocol_game::clientbound::{
     AttributeSnapshot, ClientboundLogin, ClientboundRespawn, ClientboundUpdateAttributes,
@@ -50,7 +52,7 @@ impl AttributeInstances {
         let modifiers: &[InstanceModifier] = self
             .set
             .instance(attribute)
-            .map_or(&[], AttributeInstance::modifiers);
+            .map_or(&[], Instance::modifiers);
         let appended = replacement.map(Modifier::from);
         let kept = modifiers
             .iter()
@@ -102,11 +104,7 @@ impl AttributeInstances {
 
     /// Drops every modifier and keeps every base.
     pub(crate) fn clear_modifiers(&mut self) {
-        let attributes: Vec<Attribute> = self
-            .set
-            .instances()
-            .map(AttributeInstance::attribute)
-            .collect();
+        let attributes: Vec<Attribute> = self.set.instances().map(Instance::attribute).collect();
         for attribute in attributes {
             let _in_set = self.set.clear_modifiers(self.bases, attribute);
         }
@@ -126,7 +124,7 @@ pub(crate) fn on_login(
     if let Some(mut sprint) = sprint {
         sprint.set_if_neq(Sprint::default());
     }
-    if let Some(bases) = AttributeBases::of(EntityType::Player) {
+    if let Some(bases) = mcrs_minecraft_entity::attribute_bases(EntityType::Player) {
         commands
             .entity(player)
             .insert(AttributeInstances::new(bases));

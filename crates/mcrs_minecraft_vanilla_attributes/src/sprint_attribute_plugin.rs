@@ -5,9 +5,10 @@ use bevy_ecs::query::Changed;
 use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::system::Query;
 use mcrs_minecraft_engine::player_sprinting::PlayerSprinting;
-use mcrs_minecraft_engine_attributes::{AttributeEdit, AttributeTarget, InstanceEdit};
-use mcrs_minecraft_entity::{InstanceModifier, SPRINT_MODIFIER};
+use mcrs_minecraft_engine_attributes::{AttributeEdit, AttributeTarget};
+use mcrs_minecraft_entity::SPRINT_MODIFIER;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::{InstanceEdit, InstanceModifier};
 
 use crate::attribute_sources::{AttributeSources, configure_attribute_sources};
 
