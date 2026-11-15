@@ -18,7 +18,8 @@ fn quad_uv_at(projection: mat3x3<f32>, pixel: vec2<f32>, viewport: vec2<f32>, or
 fn quad_edge_contains(distance: f32, inward: vec2<f32>) -> bool {
     let tolerance = length(inward) * EDGE_TOLERANCE_PIXELS;
     // The two inward gradients point to opposite sides of a shared edge.
-    let owns_edge = inward.x > 0.0 || (inward.x == 0.0 && inward.y > 0.0);
+    let nearly_horizontal = abs(inward.x) <= abs(inward.y) * 1e-5;
+    let owns_edge = select(inward.x > 0.0, inward.y > 0.0, nearly_horizontal);
     return distance > tolerance || (distance >= -tolerance && owns_edge);
 }
 

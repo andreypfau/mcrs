@@ -24,7 +24,7 @@ const HEIGHT: u32 = 256;
 const BACKGROUND: [u8; 4] = [0, 0, 0, 255];
 
 const SHADER: &str = r#"
-import package::shaders::include::quad::{GREEDY_EDGE_OVERLAP, affine_quad_uv, expanded_quad_uv};
+import package::shaders::include::quad::{GREEDY_EDGE_OVERLAP, model_quad_uv, expanded_quad_uv};
 import package::shaders::include::quad_coverage::{quad_projection, quad_uv_at, quad_contains};
 import package::shaders::core::greedy::{GreedyOut, greedy_coverage};
 import package::shaders::core::model::{ModelOut, model_coverage};
@@ -94,9 +94,9 @@ fn fragment(in: Vertex) -> @location(0) vec4<f32> {
         return in.color;
     }
     if (in.guarded >= 3.0) {
-        let c = select(vec2<f32>(1.0, 1.0), vec2<f32>(0.0, 1.0), in.guarded > 3.5);
-        let affine = affine_quad_uv(vec2<f32>(0.0, 0.0), vec2<f32>(0.0, 1.0), c, vec2<f32>(1.0, 0.0));
-        return select(vec4<f32>(1.0, 0.0, 0.0, 1.0), vec4<f32>(0.0, 1.0, 0.0, 1.0), affine);
+        let p = select(vec2<f32>(0.25, 0.75), vec2<f32>(0.75, 0.25), in.guarded > 3.5);
+        let uv = model_quad_uv(p, vec2<f32>(0.0, 0.0), vec2<f32>(0.0, 1.0), vec2<f32>(0.3, 0.6), vec2<f32>(1.0, 0.0));
+        return vec4<f32>(uv, 0.0, 1.0);
     }
     let projection = mat3x3<f32>(in.projection0, in.projection1, in.projection2);
     let origin = select(vec2<f32>(0.0), vec2<f32>(37.0, 53.0), in.guarded > 1.5);
@@ -201,8 +201,6 @@ enum Coverage {
     NonAffineUv,
     Greedy,
     Model,
-    GreedyOffset,
-    ModelOffset,
     Expanded,
 }
 
@@ -323,8 +321,6 @@ impl Renderer {
                     Coverage::NonAffineUv => 4.0,
                     Coverage::Greedy => 5.0,
                     Coverage::Model => 6.0,
-                    Coverage::GreedyOffset => 7.0,
-                    Coverage::ModelOffset => 8.0,
                     Coverage::Expanded => 0.0,
                 },
                 0.0,
@@ -336,12 +332,16 @@ impl Renderer {
             usage: BufferUsages::STORAGE,
         });
         let mut camera_words = [0u32; 64];
-        camera_words[50] = (WIDTH as f32).to_bits();
-        camera_words[51] = (HEIGHT as f32).to_bits();
-        if matches!(coverage, Coverage::GreedyOffset | Coverage::ModelOffset) {
-            camera_words[54] = 37.0f32.to_bits();
-            camera_words[55] = 53.0f32.to_bits();
-        }
+        // The camera viewport may differ from the default raster viewport of the target.
+        let camera_scale = if matches!(coverage, Coverage::Greedy | Coverage::Model) {
+            0.5
+        } else {
+            1.0
+        };
+        camera_words[50] = (WIDTH as f32 * camera_scale).to_bits();
+        camera_words[51] = (HEIGHT as f32 * camera_scale).to_bits();
+        camera_words[54] = (WIDTH as f32).to_bits();
+        camera_words[55] = (HEIGHT as f32).to_bits();
         let uniform = self.device.create_buffer_init(&BufferInitDescriptor {
             label: None,
             contents: bytemuck::cast_slice(&camera_words),
@@ -439,7 +439,7 @@ enum Expected {
 }
 
 #[test]
-fn production_terrain_coverage_matches_the_reference_for_shifted_viewports() {
+fn production_terrain_coverage_matches_the_reference() {
     let renderer = Renderer::new();
     let faces = faces();
     let camera = view_camera(DVec3::ZERO, Vec3::new(4.35, 3.2, 6.17));
@@ -449,12 +449,7 @@ fn production_terrain_coverage_matches_the_reference_for_shifted_viewports() {
         renderer.image(&faces, camera, Coverage::Expanded),
         "the scene must expose unguarded overlap"
     );
-    for mode in [
-        Coverage::Greedy,
-        Coverage::Model,
-        Coverage::GreedyOffset,
-        Coverage::ModelOffset,
-    ] {
+    for mode in [Coverage::Greedy, Coverage::Model] {
         assert_eq!(
             expected,
             renderer.image(&faces, camera, mode),
@@ -464,7 +459,7 @@ fn production_terrain_coverage_matches_the_reference_for_shifted_viewports() {
 }
 
 #[test]
-fn model_uv_affinity_rejects_a_non_affine_fourth_corner() {
+fn model_uv_reconstruction_preserves_both_original_triangles() {
     let renderer = Renderer::new();
     let face = [Face::new(
         DVec3::new(-1.0, -1.0, 0.5),
@@ -475,16 +470,8 @@ fn model_uv_affinity_rejects_a_non_affine_fourth_corner() {
     let pixel = ((HEIGHT / 2 * WIDTH + WIDTH / 2) * 4) as usize;
     let affine = renderer.image(&face, Mat4::IDENTITY, Coverage::AffineUv);
     let warped = renderer.image(&face, Mat4::IDENTITY, Coverage::NonAffineUv);
-    assert_eq!(
-        &affine[pixel..pixel + 4],
-        &[0, 255, 0, 255],
-        "affine UVs may use reconstruction"
-    );
-    assert_eq!(
-        &warped[pixel..pixel + 4],
-        &[255, 0, 0, 255],
-        "a distinct fourth UV keeps the original triangles"
-    );
+    assert_eq!(&affine[pixel..pixel + 4], &[19, 166, 0, 255]);
+    assert_eq!(&warped[pixel..pixel + 4], &[147, 38, 0, 255]);
 }
 
 #[test]
@@ -536,6 +523,30 @@ fn a_pixel_on_a_shared_edge_has_the_same_color_in_either_draw_order() {
         } else if shift_pixels >= 0.001 {
             assert_eq!(&first[pixel..pixel + 4], &[255, 0, 0, 255]);
         }
+    }
+    for angle in [
+        0.0,
+        std::f32::consts::FRAC_PI_2,
+        std::f32::consts::FRAC_PI_2 - 1e-6,
+        std::f32::consts::FRAC_PI_2 + 1e-6,
+    ] {
+        let camera =
+            Mat4::from_translation(Vec3::new(1.0 / WIDTH as f32, -1.0 / HEIGHT as f32, 0.0))
+                * Mat4::from_rotation_z(angle);
+        let first = renderer.image(&faces, camera, Coverage::OriginalBounds);
+        faces.reverse();
+        let second = renderer.image(&faces, camera, Coverage::OriginalBounds);
+        faces.reverse();
+        assert_eq!(
+            &first[pixel..pixel + 4],
+            &second[pixel..pixel + 4],
+            "edge angle {angle} depends on draw order"
+        );
+        assert_ne!(
+            &first[pixel..pixel + 4],
+            &BACKGROUND,
+            "edge angle {angle} must remain covered"
+        );
     }
 }
 

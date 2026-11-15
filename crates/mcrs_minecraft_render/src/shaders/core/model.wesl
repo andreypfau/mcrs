@@ -16,7 +16,7 @@ import package::shaders::include::fog::{fog_mix, fog_value};
 import package::shaders::include::frame::{camera, params};
 import package::shaders::include::quad::{
     CORNERS_PER_QUAD, GREEDY_EDGE_OVERLAP, MODEL_WORDS_PER_VERTEX, corner_index, corner_uv,
-    affine_quad_uv, degenerate, expanded_quad_uv, model_position,
+    degenerate, expanded_quad_uv, model_position, model_quad_uv,
 };
 @if(SOLID) import package::shaders::include::quad_coverage::{quad_projection, quad_uv_at, quad_contains};
 import package::shaders::include::section::section_origin;
@@ -42,6 +42,7 @@ struct ModelOut {
     @if(SOLID) @location(11) @interpolate(flat) projection_w: vec3<f32>,
     @if(SOLID) @location(12) @interpolate(flat) uv_origin_u: vec4<f32>,
     @if(SOLID) @location(13) @interpolate(flat) uv_v: vec2<f32>,
+    @if(SOLID) @location(14) @interpolate(flat) uv_cross: vec2<f32>,
 };
 
 fn model_local(base: u32) -> vec3<f32> {
@@ -88,13 +89,11 @@ fn vertex_model(in: TerrainVertex) -> ModelOut {
     let uv1 = model_corner_uv(at.quad, 1u);
     let uv2 = model_corner_uv(at.quad, 2u);
     let uv3 = model_corner_uv(at.quad, 3u);
-    // A non-affine mapping needs the original two triangles and their four UVs.
-    let affine_uv = affine_quad_uv(uv0, uv1, uv2, uv3);
     var quad_uv = corner_uv(corner);
     var world: vec3<f32>;
     var uv: vec2<f32>;
     @if(SOLID) {
-        if (is_parallelogram && affine_uv) {
+        if (is_parallelogram) {
             quad_uv = expanded_quad_uv(u_vec, v_vec, quad_uv, GREEDY_EDGE_OVERLAP);
             world = origin + (p0 + u_vec * quad_uv.x + v_vec * quad_uv.y) * scale;
             let uv_u = uv3 - uv0;
@@ -110,6 +109,7 @@ fn vertex_model(in: TerrainVertex) -> ModelOut {
             out.projection_w = projection[2];
             out.uv_origin_u = vec4<f32>(uv0, uv_u);
             out.uv_v = uv_v;
+            out.uv_cross = uv0 + uv2 - uv1 - uv3;
         } else {
             world = origin + model_local(base) * scale;
             uv = model_corner_uv(at.quad, corner);
@@ -118,6 +118,7 @@ fn vertex_model(in: TerrainVertex) -> ModelOut {
             out.projection_w = vec3<f32>(0.0);
             out.uv_origin_u = vec4<f32>(0.0);
             out.uv_v = vec2<f32>(0.0);
+            out.uv_cross = vec2<f32>(0.0);
         }
     } @else {
         world = origin + model_local(base) * scale;
@@ -161,18 +162,22 @@ fn model_surface(in: ModelOut) -> Surface {
     s.tint_kind = in.tint_kind;
     s.shade = vec3<f32>(1.0);
     s.world_xz = in.world.xz;
-    s.ddx = dpdx(in.uv);
-    s.ddy = dpdy(in.uv);
     @if(SOLID) {
         if (any(in.projection_w != vec3<f32>(0.0))) {
             let clamped = clamp(in.quad_uv, vec2<f32>(0.0), vec2<f32>(1.0));
-            s.uv = in.uv_origin_u.xy + in.uv_origin_u.zw * clamped.x + in.uv_v * clamped.y;
+            let uv0 = in.uv_origin_u.xy;
+            let uv1 = uv0 + in.uv_v;
+            let uv3 = uv0 + in.uv_origin_u.zw;
+            let uv2 = in.uv_cross + uv1 + uv3 - uv0;
+            s.uv = model_quad_uv(clamped, uv0, uv1, uv2, uv3);
         } else {
             s.uv = in.uv;
         }
     } @else {
         s.uv = in.uv;
     }
+    s.ddx = dpdx(s.uv);
+    s.ddy = dpdy(s.uv);
     return s;
 }
 
@@ -190,8 +195,8 @@ fn model_coverage(in: ModelOut) -> ModelCoverage {
     @if(SOLID) {
         if (any(in.projection_w != vec3<f32>(0.0))) {
             let projection = mat3x3<f32>(in.projection_u, in.projection_v, in.projection_w);
-            surface.quad_uv = quad_uv_at(projection, in.clip_position.xy, camera.viewport, camera.viewport_origin);
-            return ModelCoverage(surface, !quad_contains(projection, surface.quad_uv, in.clip_position.xy - camera.viewport_origin, camera.viewport));
+            surface.quad_uv = quad_uv_at(projection, in.clip_position.xy, camera.raster_viewport, vec2<f32>(0.0));
+            return ModelCoverage(surface, !quad_contains(projection, surface.quad_uv, in.clip_position.xy, camera.raster_viewport));
         }
     }
     return ModelCoverage(surface, false);

@@ -1,6 +1,7 @@
 use bevy::math::DVec3;
 use bevy::prelude::*;
 use bevy::render::RenderApp;
+use bevy::render::camera::ExtractedCamera;
 use bevy::render::extract_resource::ExtractResource;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
@@ -69,7 +70,7 @@ pub(super) struct CameraUniform {
     viewport: [f32; 2],
     shade_table: u32,
     render_distance: u32,
-    viewport_origin: [f32; 2],
+    raster_viewport: [f32; 2],
     fog_color: [f32; 3],
     _pad_fog_color: f32,
     fog_environmental: [f32; 2],
@@ -113,9 +114,9 @@ pub fn clip_from_relative(clip_from_view: Mat4, rotation: Quat, offset: Vec3) ->
 pub(super) fn write_frame_view(
     mut commands: Commands,
     origin: Option<Res<CameraOrigin>>,
-    views: Query<&ExtractedView, With<Camera3d>>,
+    views: Query<(&ExtractedView, &ExtractedCamera), With<Camera3d>>,
 ) {
-    let (Some(origin), Some(view)) = (origin, views.iter().next()) else {
+    let (Some(origin), Some((view, _))) = (origin, views.iter().next()) else {
         return;
     };
     commands.insert_resource(FrameView::new(
@@ -133,7 +134,7 @@ pub(super) fn write_frame_view(
 pub(super) fn write_camera(
     terrain: Option<Res<Terrain>>,
     frame_view: Option<Res<FrameView>>,
-    views: Query<&ExtractedView, With<Camera3d>>,
+    views: Query<(&ExtractedView, &ExtractedCamera), With<Camera3d>>,
     occlusion: Res<Occlusion>,
     quad_cull: Res<super::QuadCull>,
     render_distance: Res<super::RenderDistance>,
@@ -166,10 +167,14 @@ pub(super) fn write_camera(
             ],
             hiz_levels: terrain.hiz_levels(&occlusion),
             viewport: frame_view.viewport.to_array(),
-            viewport_origin: views
+            // Terrain renders to the full depth attachment with the default viewport.
+            raster_viewport: views
                 .iter()
                 .next()
-                .map_or([0.0; 2], |view| view.viewport.xy().as_vec2().to_array()),
+                .and_then(|(_, camera)| camera.physical_target_size)
+                .map_or(frame_view.viewport.to_array(), |size| {
+                    size.as_vec2().to_array()
+                }),
             quad_cull: quad_cull.0 as u32,
             shade_table: face_shade::shader_index(shade.0),
             // chisle: only the section cull of the full path reads it; the minimal path draws
@@ -227,8 +232,8 @@ mod tests {
                 mem::offset_of!(CameraUniform, render_distance),
             ),
             (
-                "viewport_origin",
-                mem::offset_of!(CameraUniform, viewport_origin),
+                "raster_viewport",
+                mem::offset_of!(CameraUniform, raster_viewport),
             ),
             ("fog_color", mem::offset_of!(CameraUniform, fog_color)),
             (

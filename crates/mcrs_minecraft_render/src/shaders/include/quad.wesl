@@ -23,8 +23,10 @@ const CORNERS_PER_QUAD: u32 = 4u;
 const MODEL_WORDS_PER_VERTEX: u32 = 3u;
 const GREEDY_EDGE_OVERLAP: f32 = 1.0 / 128.0;
 
-fn affine_quad_uv(a: vec2<f32>, b: vec2<f32>, c: vec2<f32>, d: vec2<f32>) -> bool {
-    return all(abs(a + c - b - d) < vec2<f32>(1e-6));
+// Match the original triangles 1-2-0 and 0-2-3, including non-affine UVs.
+fn model_quad_uv(p: vec2<f32>, uv0: vec2<f32>, uv1: vec2<f32>, uv2: vec2<f32>, uv3: vec2<f32>) -> vec2<f32> {
+    return uv0 + (uv3 - uv0) * p.x + (uv1 - uv0) * p.y
+        + (uv0 + uv2 - uv1 - uv3) * min(p.x, p.y);
 }
 
 /// Two triangles a quad, wound over its corners as 1, 2, 0 and 0, 2, 3.
