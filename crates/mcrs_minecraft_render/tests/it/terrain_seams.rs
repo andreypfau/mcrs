@@ -9,9 +9,9 @@ use wesl::syntax::{ModulePath, PathOrigin};
 use wesl::{CompileOptions, Resolver};
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{
-    BindGroupDescriptor, BindGroupEntry, BufferDescriptor, BufferUsages, Color, ColorTargetState,
-    ColorWrites, CompareFunction, DepthStencilState, Device, DeviceDescriptor, Extent3d,
-    FragmentState, Instance, InstanceDescriptor, LoadOp, MapMode, Operations,
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BufferDescriptor, BufferUsages, Color,
+    ColorTargetState, ColorWrites, CompareFunction, DepthStencilState, Device, DeviceDescriptor,
+    Extent3d, FragmentState, Instance, InstanceDescriptor, LoadOp, MapMode, Operations,
     PipelineCompilationOptions, PollType, Queue, RenderPassColorAttachment,
     RenderPassDepthStencilAttachment, RenderPassDescriptor, RenderPipeline,
     RenderPipelineDescriptor, RequestAdapterOptions, ShaderModuleDescriptor, ShaderSource, StoreOp,
@@ -306,7 +306,7 @@ impl Renderer {
         })
     }
 
-    fn image(&self, faces: &[Face], camera: Mat4, coverage: Coverage) -> Vec<u8> {
+    fn bindings(&self, faces: &[Face], camera: Mat4, coverage: Coverage) -> BindGroup {
         let mut quads = Vec::new();
         for face in faces {
             quads.extend((camera * face.anchor.as_vec3().extend(1.0)).to_array());
@@ -347,7 +347,7 @@ impl Renderer {
             contents: bytemuck::cast_slice(&camera_words),
             usage: BufferUsages::UNIFORM,
         });
-        let group = self.device.create_bind_group(&BindGroupDescriptor {
+        self.device.create_bind_group(&BindGroupDescriptor {
             label: None,
             layout: &self.pipeline.get_bind_group_layout(0),
             entries: &[
@@ -360,7 +360,11 @@ impl Renderer {
                     resource: uniform.as_entire_binding(),
                 },
             ],
-        });
+        })
+    }
+
+    fn image(&self, faces: &[Face], camera: Mat4, coverage: Coverage) -> Vec<u8> {
+        let group = self.bindings(faces, camera, coverage);
         let color = self.target(
             TextureFormat::Rgba8Unorm,
             TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC,
