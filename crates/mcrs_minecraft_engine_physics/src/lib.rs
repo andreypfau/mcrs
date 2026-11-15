@@ -4,7 +4,7 @@
 //! orbs are rows only, with no ECS entity. Mobs are rows with a cold side table; the
 //! changes of the tick wait in [`MobChanges`] for the systems of [`MobPublish`].
 
-mod block_world;
+mod entity_motion_plugin;
 mod entity_physics_plugin;
 mod entity_writes;
 mod mob_damage;
@@ -14,8 +14,7 @@ mod mobs;
 #[cfg(feature = "testing")]
 mod test_scene;
 
-pub use block_world::BlockSection;
-pub use block_world::BlockWorld;
+pub use entity_motion_plugin::EntityMotionPlugin;
 pub use entity_physics_plugin::EntityPass;
 pub use entity_physics_plugin::EntityPhysicsPlugin;
 pub use entity_physics_plugin::MobPublish;

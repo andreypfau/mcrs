@@ -16,23 +16,6 @@ bevy_app.workspace = true
 bevy_ecs.workspace = true
 bevy_utils.workspace = true
 glam = { workspace = true, features = ["std"] }
-mcrs_minecraft_engine_physics.workspace = true
-mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_entity_key.workspace = true
 mcrs_minecraft_physics.workspace = true
 mcrs_voxel.workspace = true
-
-[dev-dependencies]
-# Without it `par_iter` runs on one thread.
-bevy_ecs = { workspace = true, features = ["multi_threaded"] }
-bevy_tasks = { workspace = true, features = ["multi_threaded"] }
-criterion = { version = "0.7", default-features = false }
-mcrs_minecraft_engine_physics = { workspace = true, features = ["testing"] }
-mcrs_minecraft_entity_rows.workspace = true
-mcrs_minecraft_physics = { workspace = true, features = ["testing"] }
-mcrs_minecraft_simulation.workspace = true
-mcrs_minecraft_volume.workspace = true
-
-[[bench]]
-name = "motion_pass"
-harness = false

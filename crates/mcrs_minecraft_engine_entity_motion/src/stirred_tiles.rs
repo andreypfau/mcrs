@@ -1,16 +1,25 @@
-use bevy_ecs::message::MessageReader;
 use bevy_ecs::resource::Resource;
-use bevy_ecs::system::ResMut;
-use mcrs_minecraft_engine_world::voxel_update::BlockPlaced;
 use mcrs_minecraft_entity_key::TileKey;
 
-/// The tiles in which a block changed since the last pass, sorted and without duplicates.
+/// The tiles in which a block changed since the last pass, sorted and without duplicates. A host
+/// replaces them before each [`MotionPass`](crate::MotionPass); the pass wakes the entities in
+/// and around them.
 #[derive(Resource, Debug, Default)]
-pub(crate) struct StirredTiles(Vec<TileKey>);
+pub struct StirredTiles(Vec<TileKey>);
 
 impl StirredTiles {
+    /// Replaces the tiles with `tiles`, sorted and without duplicates.
+    pub fn replace(&mut self, tiles: impl IntoIterator<Item = TileKey>) {
+        let stirred = &mut self.0;
+        stirred.clear();
+        stirred.extend(tiles);
+        stirred.sort_unstable();
+        stirred.dedup();
+    }
+
     /// True when a block changed in `tile` or in one of the 8 tiles around it.
-    pub(crate) fn wakes(&self, tile: TileKey) -> bool {
+    #[must_use]
+    pub fn wakes(&self, tile: TileKey) -> bool {
         if self.0.is_empty() {
             return false;
         }
@@ -21,19 +30,4 @@ impl StirredTiles {
             })
         })
     }
-}
-
-pub(crate) fn stir_tiles(
-    mut placed: MessageReader<BlockPlaced>,
-    mut stirred: ResMut<StirredTiles>,
-) {
-    let tiles = &mut stirred.0;
-    tiles.clear();
-    tiles.extend(
-        placed
-            .read()
-            .map(|block| TileKey::at(block.block_pos.as_dvec3())),
-    );
-    tiles.sort_unstable();
-    tiles.dedup();
 }

@@ -1108,7 +1108,7 @@ outside the noise, and that a change in a dependent crate does not rebuild it.
 
 ## Moving entities: rows against components
 
-Scenario: the bench `crates/mcrs_minecraft_engine_entity_motion/benches/motion_pass.rs`, on the
+Scenario: the bench `crates/mcrs_minecraft_engine_physics/benches/motion_pass.rs`, on the
 items of `TestScene` with seed 11 and no walkers. The component side runs the production
 `EntityMotionPlugin` alone in an `App`, on the sections of the scene. The rows side runs
 `TestScene::step` on the same items with no lifetime. Both sides use the same kernel and the same

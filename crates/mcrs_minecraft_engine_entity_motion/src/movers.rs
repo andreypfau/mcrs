@@ -25,8 +25,8 @@ impl Movers {
     }
 }
 
-/// Replaces the list with what the step queued; it runs even when the step does not, so that the
-/// list of an earlier tick does not stay.
+/// Replaces the list with what the step queued, in each tick and also when the step does not run,
+/// so that the list of an earlier tick does not stay.
 pub(crate) fn collect_movers(mut movers: ResMut<Movers>) {
     let Movers { queues, sorted } = &mut *movers;
     sorted.clear();

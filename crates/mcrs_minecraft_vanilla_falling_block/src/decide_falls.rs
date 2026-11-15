@@ -86,7 +86,7 @@ pub(crate) fn decide_falls(
         entity_drops: entity_drops(game_rules.as_deref()),
     };
     for (entity, Falling(fall), MotionState(motion), outcome) in &falls {
-        if outcome.is_of(*clock)
+        if outcome.is_of(clock.0)
             && let Some(touchdown) = tick.after_move(&mut commands, entity, fall, motion, outcome)
         {
             tick.land(&mut commands, touchdown);

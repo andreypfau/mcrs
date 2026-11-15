@@ -1,3 +1,5 @@
+#![expect(clippy::expect_used, reason = "a test reports a failure by panicking")]
+
 use bevy_app::App;
 use bevy_app::FixedUpdate;
 use bevy_ecs::entity::Entity;
@@ -8,10 +10,10 @@ use bevy_ecs::world::World;
 use bevy_tasks::ComputeTaskPool;
 use bevy_tasks::TaskPool;
 use glam::DVec3;
-use mcrs_minecraft_engine_entity_motion::EntityMotionPlugin;
 use mcrs_minecraft_engine_entity_motion::MotionKind;
 use mcrs_minecraft_engine_entity_motion::MotionState;
 use mcrs_minecraft_engine_entity_motion::StepOutcome;
+use mcrs_minecraft_engine_physics::EntityMotionPlugin;
 use mcrs_minecraft_engine_physics::PhysicsTables;
 use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::palette::ChunkBlocks;
@@ -153,9 +155,12 @@ fn an_entity_in_a_section_that_is_not_loaded_is_not_stepped_and_its_outcome_says
 
     let clock = *app.world().resource::<BirthClock>();
     let outcome = |entity| *app.world().get::<StepOutcome>(entity).expect("an outcome");
-    assert!(outcome(loaded).is_of(clock), "the loaded entity is stepped");
     assert!(
-        !outcome(unloaded).is_of(clock),
+        outcome(loaded).is_of(clock.0),
+        "the loaded entity is stepped"
+    );
+    assert!(
+        !outcome(unloaded).is_of(clock.0),
         "the outcome tells that the entity was not stepped"
     );
     assert_eq!(

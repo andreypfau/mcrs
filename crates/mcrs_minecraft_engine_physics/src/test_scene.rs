@@ -1,6 +1,7 @@
 use bevy_tasks::TaskPool;
 use glam::DVec3;
 use mcrs_engine_muxer::EntityId;
+use mcrs_minecraft_collision_table::BlockWorld;
 use mcrs_minecraft_entity_key::EntityKey;
 use mcrs_minecraft_entity_rows::BodyGrid;
 use mcrs_minecraft_entity_rows::Pass;
@@ -23,7 +24,6 @@ use mcrs_voxel::LocalPos;
 use mcrs_voxel::SectionPos;
 
 use crate::EntityWrites;
-use crate::block_world::BlockWorld;
 
 /// The top of the stone floor of a scene: inside a section, so the floor section has two states.
 pub const FLOOR: i32 = 4;

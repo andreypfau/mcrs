@@ -519,7 +519,7 @@ L0/L1. It waits for the AI stage only at `T + max_lag`, or always in `AiDelay::F
 
 ### 6.1 Options
 
-The bench `motion_pass` of `mcrs_minecraft_engine_entity_motion` measures both options on the
+The bench `motion_pass` of `mcrs_minecraft_engine_physics` measures both options on the
 items of `TestScene`, with the same kernel, the same blocks and the same task pool. The component
 side is the production `EntityMotionPlugin`; the rows side is `TestScene::step`. Neither side holds
 a mob. `PERF.md`, section "Moving entities: rows against components", gives the machine, the
@@ -702,7 +702,14 @@ bit-identical to the scalar path.
 
 `mcrs_minecraft_engine_entity_motion` moves the entities that are not living, and
 `mcrs_minecraft_engine_entity_motion_replication` shows them to viewers. The motion crate does not
-depend on the replication crate. A plugin adds a kind in these steps:
+depend on the replication crate, on `mcrs_minecraft_engine_physics` or on
+`mcrs_minecraft_engine_world`. A host adds `MotionPassPlugin` and places `MotionPass` in its tick.
+In `MotionSteps`, a system of the host calls `MotionStep::run`. `MotionSteps` is the part of
+`MotionPass` after `MotionRelease`. The call takes the block source, the kernel tables, the `Side`
+and the tick of the host. After `MotionSteps`, the plugin replaces the list of `Movers`. Before the pass, the host gives the tiles of the changed blocks to
+`StirredTiles::replace`. On a server,
+`EntityMotionPlugin` of `mcrs_minecraft_engine_physics` does these steps over `BlockWorld`.
+A plugin adds a kind in these steps:
 
 1. Spawn the entity with a `MotionState` and a `MotionKind` that holds the `MotionRow` of the kind.
    An entity that gets them through commands before `MotionPass` moves in the same tick.
@@ -743,9 +750,6 @@ with a `Landed`. A system in these sets changes or cancels a start or a landing.
 
 Open points:
 
-- The pass depends on `mcrs_minecraft_engine_physics` for `PhysicsTables` and `BlockWorld`, so a
-  client cannot take the pass without the server crate. The client pull request of #97 makes the
-  pass generic over the block source.
 - The tracker is not public (#784).
 - Block behaviours from plugins and the automatic start of a fall are open (#785).
 - The order of block packets against entity packets, and `add_transient_block`, are open (#787).
