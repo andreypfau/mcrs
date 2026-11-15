@@ -10,14 +10,23 @@ Its target version, terms, rules and evidence conventions apply here.
 The status under each experiment separates captured observations from proposals. Use the version from `assets/minecraft/version.json`:
 `26.4-snapshot-7`, world version `5127`. Record runtime and save metadata before the first run.
 
+Each `console` block is a script of server console commands. `tools/vanilla-server` starts the
+server, and the script sends each line to its console. The console accepts a leading `/`.
+The console is not an entity, so a command names the player and never uses `@s`.
+Each experiment names its tools. When it needs a player, `tools/vanilla-client` joins the offline
+player `Recorder`. That client presses no key, because the script never shows the title `Go`.
+
 Use a flat world, no unrelated mobs and `pause-when-empty-seconds=-1`.
-Connect a player only when the procedure requires one.
-Execute player commands as that player. Keep it in the Overworld unless a step names another
-dimension. Commands below use a flat platform at y=64, away from spawn interference.
+Keep the player in the Overworld unless a step names another dimension.
+The commands put the subjects on a stone platform at y=63, away from spawn interference.
 
-Remove subjects and restore the test area between independent experiments. E-B8 can reuse E-B2. Run this setup in each world. Remove a test's tagged entities before a repeat. Do not edit a subject's NBT during a measured interval: reload replaces transient state and chooses fresh sensor phases. `/tp` within a dimension does not reload the brain.
+Remove subjects and restore the test area between independent experiments. Remove a test's tagged entities before a repeat. Do not edit a subject's NBT during a measured interval: reload replaces transient state and chooses fresh sensor phases. `/tp` within a dimension does not reload the brain.
 
-```mcfunction
+Run this setup once. The setup force-loads the 5×5 chunk area from chunk (-2,-2) to chunk (2,2).
+For the Nether and the End, run its `forceload` and `fill` lines again with `execute in <dimension> run`.
+A force-loaded chunk keeps the entities of its dimension ticking without a player.
+
+```console
 /tick freeze
 /gamerule spawn_mobs false
 /forceload add -32 -32 32 32
@@ -26,7 +35,9 @@ Remove subjects and restore the test area between independent experiments. E-B8 
 /time of minecraft:overworld set 1000
 ```
 
-After each `/tick step` command, wait for every requested tick to finish before a data read or clock change. Then read the data. Count step completion, not wall time. Use `Brain` for saved memories; read `Pos`, `Motion` and `Rotation` for motion. Transient memories and active activities do not appear in saved NBT.
+After `/tick step N`, the script repeats `time query gametime` until the reply is the value before
+the step plus N. Only then does it read data or change the clock. Do not send `/tick freeze`
+while a step runs, because it ends the step. Use `Brain` for saved memories; read `Pos`, `Motion` and `Rotation` for motion. Transient memories and active activities do not appear in saved NBT.
 
 A negative saved-NBT result must not count as proof that such a transient value is absent.
 Use at least 20 fresh subjects for a sensor probe. Use at least 200 for a distribution estimate.
@@ -34,15 +45,16 @@ Use at least 20 fresh subjects for a sensor probe. Use at least 200 for a distri
 ### E-B1: Nearest-player scan and an observable player reaction
 
 Status: proposal; captured trial is inconclusive. Rules: BRAIN-VAN-010, BRAIN-VAN-013, BRAIN-VAN-009.
+Tools: `tools/vanilla-server` and `tools/vanilla-client`.
 Use one survival player with no disguise, invisibility or other targets. Keep the creaking within
 12 blocks, on a clear route. The probe uses its response to a watched player, then movement toward
-that player after the player turns away. Its activation sound/eyes provide an additional visible
-scan witness. The player must remain connected; a spectator is not a valid positive subject.
+that player after the player turns away. The player must remain connected; a spectator is not a
+valid positive subject.
 
-```mcfunction
-/gamemode survival @s
-/effect clear @s
-/tp @s 0.5 64 6.5 facing 0.5 65 0.5
+```console
+/gamemode survival Recorder
+/effect clear Recorder
+/tp Recorder 0.5 64 6.5 facing 0.5 65 0.5
 /summon minecraft:creaking 0.5 64 0.5 {Tags:["brain_players"],PersistenceRequired:1b}
 /data get entity @e[tag=brain_players,limit=1] Brain
 /data get entity @e[tag=brain_players,limit=1] Pos
@@ -50,13 +62,15 @@ scan witness. The player must remain connected; a spectator is not a valid posit
 /data get entity @e[tag=brain_players,limit=1] Pos
 ```
 
-Repeat the last step/read pair through tick 20. Record the activation reaction each tick.
+Repeat the last step/read pair through tick 20.
 The nearest-player scan must occur at f in 1..19. Observation occurs before the next brain scan,
 so the creaking's reaction to that result must begin by f+1, at most tick 20.
+The activation sound and eyes of the creaking are the scan witness. No command reads them, and the
+recorder does not record them. This step is not runnable by a tool, so E-B1 stays a proposal.
 At tick 20 run this movement probe without an entity-data edit:
 
-```mcfunction
-/tp @s 0.5 64 6.5 0 0
+```console
+/tp Recorder 0.5 64 6.5 0 0
 /tick step 1
 /data get entity @e[tag=brain_players,limit=1] Pos
 /tick step 1
@@ -76,9 +90,9 @@ NBT must omit nearest-player memories even in a successful positive run.
 #### Captured results
 
 Date: 2026-11-11. Version and world: section 12.3.
-The repository's headless join test connected `mcrs_test`, but failed after 121.92 seconds without completion.
-A temporary protocol client then connected `brain_probe`, confirmed teleports and answered keep-alives throughout the probes.
-No repository client code changed. The player had survival mode, no effects and an empty hand.
+A temporary protocol client supplied the player `brain_probe`. It is not a tool of
+[README.md](README.md), section "Experiments", so this trial confirms no rule.
+Rerun the probe with `tools/vanilla-client`. The player had survival mode, no effects and an empty hand.
 
 ```text
 > gamemode survival brain_probe
@@ -122,10 +136,10 @@ No nearest-player memory or exact erasure claim gains confirmed provenance from 
 
 ### E-B2: Injected expiry, zero boundary, freeze and AI suspension
 
-Status: captured. Rules: BRAIN-VAN-003 through BRAIN-VAN-007.
+Status: captured. Rules: BRAIN-VAN-004 through BRAIN-VAN-007. Tool: `tools/vanilla-server`.
 No prey or other axolotl must be nearby. Put the subject in water.
 
-```mcfunction
+```console
 /fill -2 64 -2 2 66 2 minecraft:water
 /summon minecraft:axolotl 0.5 65 0.5 {Tags:["brain_ttl"],NoAI:1b,Brain:{memories:{"minecraft:has_hunting_cooldown":{value:1b,ttl:2L}}}}
 /data get entity @e[tag=brain_ttl,limit=1] Brain
@@ -221,13 +235,13 @@ One merge-40 interval overlapped an unrelated cleanup and was rejected. An isola
 
 ### E-B3: Schedule change with sleep as the observable
 
-Status: captured. Rules: BRAIN-VAN-025, BRAIN-VAN-026, BRAIN-VAN-033.
+Status: captured. Rules: BRAIN-VAN-025, BRAIN-VAN-026, BRAIN-VAN-033. Tool: `tools/vanilla-server`.
 The observation is NBT `sleeping_pos`, not the active activity id.
 
 Start with a fresh subject and an unoccupied bed. Let T be game time at the summon; its initial
 schedule request must occur then. There must be no old sleep behaviour to stop during setup.
 
-```mcfunction
+```console
 /time of minecraft:overworld set 12000
 /setblock 0 64 0 minecraft:red_bed[part=foot,facing=south]
 /setblock 0 64 1 minecraft:red_bed[part=head,facing=south]
@@ -296,9 +310,9 @@ It does not expose the active activity id or every source of a schedule request.
 
 ### E-B4: Damaged entries, ignored registration and complete replacement
 
-Status: captured. Rules: BRAIN-VAN-001, BRAIN-VAN-006, BRAIN-VAN-007.
+Status: captured. Rules: BRAIN-VAN-001, BRAIN-VAN-006, BRAIN-VAN-007. Tool: `tools/vanilla-server`.
 
-```mcfunction
+```console
 /summon minecraft:villager 8.5 64 0.5 {Tags:["brain_load"],NoAI:1b}
 /data modify entity @e[tag=brain_load,limit=1] Brain set value {memories:{"minecraft:last_slept":{value:123L},"minecraft:unknown_brain_probe":{value:1b},"minecraft:attack_target":{value:{}},"minecraft:last_woken":{value:"bad"}}}
 /data get entity @e[tag=brain_load,limit=1] Brain
@@ -311,7 +325,8 @@ Status: captured. Rules: BRAIN-VAN-001, BRAIN-VAN-006, BRAIN-VAN-007.
 ```
 
 No ticks occur between these commands. The villager must retain only `last_slept:123L`, then
-lose it on complete replacement. Record diagnostics for the three bad entries. The axolotl
+lose it on complete replacement. Read the diagnostics of the three bad entries from the server
+log that `tools/vanilla-server` writes. The axolotl
 must retain hunting cooldown permanently and ignore valid but unregistered `liked_player`.
 
 Repeat its replacement with `ttl:2`, `ttl:2.9d` and `ttl:{}`; immediate reads must show 2L, 2L
@@ -382,10 +397,10 @@ This confirms these clauses of BRAIN-VAN-006 and BRAIN-VAN-007, without confirmi
 
 ### E-B5: Sensor-written expiry and first appearance
 
-Status: captured (listed probes). Rules: BRAIN-VAN-004, BRAIN-VAN-010, BRAIN-VAN-018.
+Status: captured (listed probes). Rules: BRAIN-VAN-004, BRAIN-VAN-010, BRAIN-VAN-018. Tool: `tools/vanilla-server`.
 Use a new water enclosure, with no entity-data edit after the summon.
 
-```mcfunction
+```console
 /fill 7 64 7 13 67 13 minecraft:glass
 /fill 8 64 8 12 66 12 minecraft:water
 /summon minecraft:frog 10.5 65 10.5 {Tags:["brain_water"]}
@@ -398,7 +413,7 @@ Repeat step/read through tick 19. `minecraft:is_in_water` must first appear at f
 with no `ttl`. Tick 1 must have probability 2/20; each other possible tick must have 1/20.
 For finite inside-write expiry use a separate subject:
 
-```mcfunction
+```console
 /summon minecraft:armadillo 12.5 64 0.5 {Tags:["brain_danger"]}
 /summon minecraft:zombie 14.5 64 0.5 {Tags:["brain_threat"],NoAI:1b,Silent:1b}
 /tick step 1
@@ -408,7 +423,7 @@ For finite inside-write expiry use a separate subject:
 Repeat until `minecraft:danger_detected_recently` first appears at tick T. Its first saved
 `ttl` must be 80L, not 79L. Immediately move the threat away:
 
-```mcfunction
+```console
 /tp @e[tag=brain_threat,limit=1] 30.5 64 30.5
 /tick step 1
 /data get entity @e[tag=brain_danger,limit=1] Brain
@@ -518,39 +533,45 @@ Expected and observed: an inside-update finite write first saves N, then decreme
 This supports BRAIN-VAN-004, the tested cadence of BRAIN-VAN-010 and the water write/erase of BRAIN-VAN-018.
 Nearest-player cadence and sensor order remain separate proposals.
 
-### E-B6: Partial observation of equal-priority activity order
+### E-B6: Running behaviour across an activity transition
 
-Status: proposal; captured trial is inconclusive. Rule: BRAIN-VAN-027. Limit: U2.
-Use a previously established adult villager with a profession, offers and a claimed accessible
-bed. A player must hold an item accepted by one offer, without a trade screen.
-Require a displayed trade sample before this sequence:
+Status: proposal; captured trial is inconclusive. Rules: BRAIN-VAN-022, BRAIN-VAN-033. Limit: U2.
+Tools: `tools/vanilla-server` and `tools/vanilla-client`.
+Use a fresh adult farmer with one offer and a claimed accessible bed. The player holds the item
+of that offer, without a trade screen.
 
-```mcfunction
-/tag @e[type=minecraft:villager,sort=nearest,limit=1] add brain_order
+```console
+/setblock 4 64 4 minecraft:red_bed[part=foot,facing=south]
+/setblock 4 64 5 minecraft:red_bed[part=head,facing=south]
+/summon minecraft:villager 1.5 64 1.5 {Tags:["brain_order"],VillagerData:{type:"minecraft:plains",profession:"minecraft:farmer",level:1},Xp:1,Brain:{memories:{"minecraft:home":{value:{dimension:"minecraft:overworld",pos:[I;4,64,5]}}}},Offers:{Recipes:[{buy:{id:"minecraft:emerald",count:1},sell:{id:"minecraft:bread",count:1},uses:0,maxUses:1000}]}}
+/gamemode survival Recorder
+/tp Recorder 1.5 64 4.5 facing 1.5 65 1.5
+/item replace entity Recorder weapon.mainhand with minecraft:emerald
 /time of minecraft:overworld set 2000
 /tick step 100
-/tick freeze
+/data get entity @e[tag=brain_order,limit=1] equipment
 /time of minecraft:overworld set 12000
 /tick step 1
-/data get entity @e[tag=brain_order,limit=1] Brain
+/data get entity @e[tag=brain_order,limit=1] equipment
 /data get entity @e[tag=brain_order,limit=1] Pos
 /data get entity @e[tag=brain_order,limit=1] sleeping_pos
 ```
 
-Repeat the step and three reads for 40 ticks. Record the visible held sample and sleep/movement
-order. Expect an old sample-display behaviour to be able to survive selection of rest.
-Rest/core ties must follow first-appearance order (BRAIN-VAN-027); behaviours at earlier priorities
-must act first. Do not compare the reference table of BRAIN-DEV-003.
-A display that survives confirms lack of blanket cancellation, not the whole tie order.
+The first `equipment` read must show `minecraft:bread` in `mainhand`. Otherwise record a setup
+failure and repeat with a fresh subject. Repeat the last step and its three reads for 40 ticks.
+Expect that the display can survive the selection of rest until its own stop condition.
+A display that survives shows that the transition does not cancel running behaviours.
+Use at least 20 fresh subjects.
 
-A complete ordering test needs competing observable actions at the same priority; commands
-alone cannot expose all such participants. Do not mark BRAIN-VAN-027 confirmed from this trial alone.
+The game is not compared for equal-priority order (BRAIN-DEV-003). The mcrs behaviour fixture
+tests BRAIN-VAN-027: two activities write one memory at the same priority. The activity that
+first has a behaviour at that priority must act first, so the other activity makes the last write.
 
 #### Captured results
 
 Date: 2026-11-11. Version and world: section 12.3.
 Twenty fresh farmers had accessible beds and one offer: one emerald buys one bread.
-The protocol player held an emerald. The paused phase was 2000 for 100 updates.
+The player of the temporary protocol client held an emerald. The paused phase was 2000 for 100 updates.
 The setup used a separate home and tag for each farmer.
 
 ```text
@@ -585,15 +606,16 @@ Farmer has the following entity data: [I; 10, -60, 5]
 Expected: a retained display can expose behaviour across an activity transition.
 Observed: a valid display setup, followed by sleep and display erasure; no display persisted together with sleep.
 The capture does not identify the exact activity transition or each display's stop condition.
-It cannot decide equal-priority order or generic cancellation. BRAIN-VAN-027 remains source-suggested; U2 still applies.
+It cannot decide generic cancellation. The player came from the temporary protocol client of E-B1;
+rerun the trial with `tools/vanilla-client`.
 
 ### E-B7: Stuck pursuit pause and target displacement
 
-Status: proposal; captured trial is inconclusive. Rules: BRAIN-VAN-034, BRAIN-VAN-035. Limit: U5.
+Status: proposal; captured trial is inconclusive. Rules: BRAIN-VAN-034, BRAIN-VAN-035. Limits: U5, U15.
+Tool: `tools/vanilla-server`. No player is necessary.
 Use a fresh corridor separate from other subjects. Keep the Overworld clock paused.
 
-```mcfunction
-/gamemode spectator @s
+```console
 /fill -1 64 -1 13 67 1 minecraft:stone
 /fill 0 64 0 12 66 0 minecraft:air
 /summon minecraft:piglin 0.5 64 0.5 {Tags:["brain_walk"],IsImmuneToZombification:1b}
@@ -605,17 +627,25 @@ Use a fresh corridor separate from other subjects. Keep the Overworld clock paus
 Repeat the step/read pair until pursuit starts while the piglin remains before x=3.
 Then close its existing route, allow a genuine stuck stop and reopen it:
 
-```mcfunction
+```console
 /fill 4 64 0 4 66 0 minecraft:stone
 /tick step 1
 /data get entity @e[tag=brain_walk,limit=1] Pos
 /data get entity @e[tag=brain_walk,limit=1] Brain
 ```
 
-Repeat the last three commands until a stationary pursuit interval is established. Record its
-start S as an observation, not proof of the exact internal stuck-stop tick.
+Repeat the last three commands until a stationary pursuit interval is established.
+Predict the stuck stop S from the stuck window of AIT-VAN-012 in the target version (U15):
 
-```mcfunction
+- Let W be the last tick with a next-node advance or the acceptance of a changed path.
+- When the piglin stays motionless with an unfinished path, S is W+101.
+- A recompute after the gate change (AIT-VAN-015) can accept a changed path, and so move W.
+- When that path ends before the gate, navigation finishes and no stuck stop occurs. Reject that trial.
+
+The `Pos` reads show the last displacement, but no read shows W or the path.
+Reopen the gate after S.
+
+```console
 /fill 4 64 0 4 66 0 minecraft:air
 /tp @e[tag=brain_item,limit=1] 10.5 64 0.5
 /tick step 1
@@ -680,36 +710,59 @@ No trial qualified for an exact retry-pause measurement. BRAIN-VAN-034 and BRAIN
 
 ### E-B8: Player-passenger freeze and the dying-camel exception
 
-Status: captured (direct passenger, control and death). Rules: BRAIN-VAN-005. Limit: U3.
-Use E-B2's subject, without a saddle or controlling passenger.
+Status: captured (death); the passenger, control and saddled-death trials are proposals. Rule: BRAIN-VAN-005. Limit: U3.
+Tools: `tools/vanilla-server`; the passenger and control trials also use `tools/vanilla-client`.
+[Section 7.3 of mob-brain.md](mob-brain.md#73-vanilla-species-data) gives the camel-family values.
+A camel or a camel husk updates while dying, unless it has a saddle and any passenger.
+A goat has the default: no update while dying.
 
-```mcfunction
-/data modify entity @e[tag=brain_ttl,limit=1] Brain set value {memories:{"minecraft:has_hunting_cooldown":{value:1b,ttl:100L}}}
-/ride @s mount @e[tag=brain_ttl,limit=1]
-/data get entity @e[tag=brain_ttl,limit=1] Brain
-/data get entity @e[tag=brain_ttl,limit=1] Brain
-/ride @s dismount
-/data get entity @e[tag=brain_ttl,limit=1] Brain
-```
+Run the death trials while frozen. Use an explicit UUID for each dying subject and query that
+UUID; `@e` excludes these dead subjects.
 
-Wait ordinary wall time between the two mounted reads without a tick step. Expected: expiry can
-advance while the player is a passenger, despite freeze. After dismount its expiry must stop.
-A separate saddled, player-controlled camel trial must instead retain expiry during control.
-For a deterministic death-window comparison run these commands while frozen:
-
-```mcfunction
-/summon minecraft:camel 8.5 64 8.5 {Tags:["brain_death"],UUID:[I;1,2,3,1],Health:0f,Brain:{memories:{"minecraft:temptation_cooldown_ticks":{value:1000,ttl:0L}}}}
+```console
+/summon minecraft:camel 8.5 64 8.5 {UUID:[I;1,2,3,1],Health:0f,Brain:{memories:{"minecraft:temptation_cooldown_ticks":{value:1000,ttl:0L}}}}
 /data get entity 00000001-0000-0002-0000-000300000001 Brain
 /tick step 1
 /data get entity 00000001-0000-0002-0000-000300000001 Brain
 /data get entity 00000001-0000-0002-0000-000300000001 DeathTime
 ```
 
-Expected from provisional evidence: present before the first tick step, absent on the first corpse
-update.
-Use an explicit UUID for each dying subject and query that UUID; `@e` excludes these dead subjects.
-Repeat with `minecraft:camel_husk` and `minecraft:goat` with distinct UUIDs. The goat must retain
-its zero-duration memory while dying. Reject trials with grazing/rearing or rider suppression.
+The memory must be present before the step and absent at `DeathTime:1s`. Repeat with
+`minecraft:camel_husk` and `minecraft:goat` with distinct UUIDs. The goat must retain its
+zero-duration memory while dying. Reject trials with grazing or rearing.
+
+Repeat the camel trial with UUID `[I;1,2,3,4]` and these fields added to its summon:
+`equipment:{saddle:{id:"minecraft:saddle",count:1}},Passengers:[{id:"minecraft:armor_stand"}]`.
+The memory must stay present at `DeathTime:1s`. This trial has no capture.
+
+In the passenger and control trials, keep the game frozen and send no `/tick step`.
+The server runs about 20 frozen ticks while the script waits 1 s.
+
+```console
+/summon minecraft:axolotl 12.5 64 8.5 {Tags:["brain_ride"],Brain:{memories:{"minecraft:has_hunting_cooldown":{value:1b,ttl:100L}}}}
+/ride Recorder mount @e[tag=brain_ride,limit=1]
+/data get entity @e[tag=brain_ride,limit=1] Brain
+/data get entity @e[tag=brain_ride,limit=1] Brain
+/ride Recorder dismount
+/data get entity @e[tag=brain_ride,limit=1] Brain
+/data get entity @e[tag=brain_ride,limit=1] Brain
+```
+
+The script waits 1 s before the second and the fourth read. The second read must show a smaller
+`ttl` than the first: a player passenger exempts the axolotl from freeze. The third and fourth
+reads must show the same `ttl`.
+
+For the control trial, give a camel a saddle, then mount the player. Client control must suppress
+its AI, so its `ttl` must stay 100L across a 1 s wait.
+
+```console
+/summon minecraft:camel 12.5 64 12.5 {Tags:["brain_control"],Brain:{memories:{"minecraft:temptation_cooldown_ticks":{value:1000,ttl:100L}}}}
+/item replace entity @e[tag=brain_control,limit=1] saddle with minecraft:saddle
+/ride Recorder mount @e[tag=brain_control,limit=1]
+/data get entity @e[tag=brain_control,limit=1] Brain
+/data get entity @e[tag=brain_control,limit=1] Brain
+/ride Recorder dismount
+```
 
 #### Captured results
 
@@ -745,7 +798,8 @@ Goat has the following entity data: {memories: {"minecraft:temptation_cooldown_t
 Goat has the following entity data: 1s
 ```
 
-The later passenger probe used the connected survival player `brain_probe`, with the game frozen.
+The later passenger probe used the survival player `brain_probe` of the temporary protocol client
+of E-B1, with the game frozen. These passenger and control observations confirm no rule.
 
 ```text
 > summon minecraft:axolotl 8.5 -59 8.5 {Tags:["passenger"],Brain:{memories:{"minecraft:has_hunting_cooldown":{value:1b,ttl:100L}}}}
@@ -775,50 +829,47 @@ Camel has the following entity data: {memories: {"minecraft:temptation_cooldown_
 ```
 
 The second read after 0.4 seconds and the immediate dismount read still showed 100L.
-Expected and observed: a player passenger permits frozen axolotl AI; client control suppresses camel AI.
-The corpse comparison confirms the dying camel-family exception of BRAIN-VAN-005.
-This does not test replacement/travel retention in BRAIN-VAN-008 or an indirect passenger.
+Observed: a player passenger permits frozen axolotl AI; client control suppresses camel AI.
+Rerun both trials with `tools/vanilla-client`.
+The corpse comparison agrees with the dying camel-family values of section 7.3.
+This does not test replacement/travel retention in BRAIN-VAN-008, an indirect passenger or a
+saddled dying camel with a passenger.
 
 ### E-B9: Schedule frame boundaries by age and dimension
 
-Status: partial capture; work/play/meet activity consequences remain proposal. Rules: BRAIN-VAN-025 and BRAIN-VAN-026. Limit: U1.
+Status: captured (interval tables and sleep in three dimensions); activity membership stays proposal. Rules: BRAIN-VAN-025, BRAIN-VAN-026. Limit: U1.
+Tool: `tools/vanilla-server`.
 Repeat E-B3 at each row below with a claimed bed and an established ordinary schedule reader.
+`sleeping_pos` and `Brain` do not show idle, work, meet or play. For these values, the observable
+is the schedule value at the feet of the body. It is the sampled value, not the active activity.
 
-1. Set the paused clock to the before value.
-2. Advance 21 ticks.
-3. Read `sleeping_pos`.
-4. Read `Brain`.
-5. Set the paused clock to the after value.
-6. Advance 21 ticks.
-7. Read `sleeping_pos`.
-8. Read `Brain`.
-9. Advance one more tick.
-10. Read `sleeping_pos`.
-11. Read `Brain`.
-
+Set the before value, advance 21 ticks, set the after value, advance 21 ticks, then advance one more.
+After each advance, read `sleeping_pos` and the schedule value. A read of the schedule value is
+`time query minecraft:villager_schedule` and one predicate test for each of the five values.
 Use these command templates with the literal phase from each table cell:
 
-```mcfunction
+```console
 /time of minecraft:overworld set 9
 /tick step 21
 /data get entity @e[tag=brain_schedule,limit=1] sleeping_pos
-/data get entity @e[tag=brain_schedule,limit=1] Brain
+/time query minecraft:villager_schedule
+/execute at @e[tag=brain_schedule,limit=1] if predicate {type:"minecraft:environment_attribute_check",attribute:"minecraft:gameplay/villager_activity",value:"minecraft:rest"} run time query gametime
 /time of minecraft:overworld set 10
 /tick step 21
-/data get entity @e[tag=brain_schedule,limit=1] sleeping_pos
-/data get entity @e[tag=brain_schedule,limit=1] Brain
-/tick step 1
-/data get entity @e[tag=brain_schedule,limit=1] sleeping_pos
-/data get entity @e[tag=brain_schedule,limit=1] Brain
 ```
+
+Repeat the three reads after the second advance and after one more `/tick step 1`. Repeat the
+predicate line with `minecraft:idle`, `minecraft:work`, `minecraft:meet` and `minecraft:play`. For a baby, use the attribute
+`minecraft:gameplay/baby_villager_activity`. A test that passes prints the game time; a test that
+fails prints nothing. Exactly one test must pass at each read.
 
 For `11999 -> 12000`, a request accepted on post-change update 21 can start sleep on update 22.
 
 | Age/setup | Before -> after | Expected sampled change |
 |-----------|-----------------|-------------------------|
 | Adult with valid job site | 1999 -> 2000 | idle -> work |
-| Adult with valid meeting point | 8999 -> 9000 | work -> meet |
-| Adult | 10999 -> 11000 | meet -> idle |
+| Adult with valid job site and meeting point | 8999 -> 9000 | work -> meet |
+| Adult with valid meeting point | 10999 -> 11000 | meet -> idle |
 | Adult or baby with home | 11999 -> 12000 | awake -> rest, then sleep when eligible |
 | Baby | 2999 -> 3000 | idle -> play |
 | Baby | 5999 -> 6000 | play -> idle |
@@ -827,15 +878,20 @@ For `11999 -> 12000`, a request accepted on post-change update 21 can start slee
 | Adult or baby | 9 -> 10 | rest -> idle, wake |
 
 For a baby, create a distinct subject with `Age:-24000` and its own home before measurement.
-Motion toward a known workstation/meeting point and sleep are consequences, not saved activity
-ids. An absent required site must instead allow default idle. The work/play/meet transitions
-need their species fixtures; the shared sleep probe alone cannot confirm those action lists.
+Give the job site and the meeting point as present `minecraft:job_site` and
+`minecraft:meeting_point` memories in the summon. Without a present required site, entry fails
+and the body falls back to idle. A sampled id that the age lacks, work for a baby or play for an
+adult, also falls back to idle. With the pinned data pack no phase samples such an id; a data pack
+that replaces the sampled value can.
+Motion toward the site and sleep are consequences, not saved activity ids. The work, play and
+meet transitions need their species fixtures.
 
 Repeat bed probes in Nether and End with `/execute in minecraft:the_nether run summon ...`
-and `/execute in minecraft:the_end run summon ...`. Use each world's prepared platform and home
-dimension. Keep a player there and query in that dimension with `/execute in`.
-The paused Overworld clock must control each probe. Each frame value must start at its exact
-clock phase. An accepted request must occur no earlier than 21 game ticks after the last.
+and `/execute in minecraft:the_end run summon ...`. Use each dimension's prepared platform and home
+dimension. The force-loaded chunk keeps the body ticking, so no player is necessary. Query in that
+dimension with `/execute in`. The paused Overworld clock must control each probe. Each frame value
+must start at its exact clock phase. An accepted request must occur no earlier than 21 game ticks
+after the last.
 
 #### Captured results
 
@@ -915,7 +971,7 @@ The original sleep-only probe cannot distinguish those three activities.
 
 ### 12.2 Proposals that need a brain capture facility
 
-E-B10 through E-B19 need a new capture facility in `tools/vanilla-oracle`.
+E-B10 through E-B19 need a new capture facility in `tools/vanilla-oracle`, which is their tool.
 The current tool has no brain capture task. These proposals do not claim that such a task exists.
 
 Each capture must include version metadata and the inputs below. It must report memory values,
@@ -933,13 +989,13 @@ Status: proposal. Rules: BRAIN-VAN-001, BRAIN-VAN-002, BRAIN-VAN-003, BRAIN-VAN-
 1. Configure explicit, sensor-declared and nested behaviour entry ids, with one inactive activity.
 2. Add separate ids only to an activity condition and its exit list.
 3. Capture the registered set.
-4. Exercise each BRAIN-VAN-002 request for a present, absent and unregistered id.
+4. Test each status of BRAIN-VAN-002 for a present, an absent and an unregistered id.
 5. Write false, zero, an empty list and an empty visibility result to their registered kinds.
 6. Rewrite the same finite value with a different expiry.
 7. Capture a read after each write in the same update.
 
 Expect the union in BRAIN-VAN-001, without the two activity-only ids.
-Expect the status table and invalid-request results of BRAIN-VAN-002.
+Expect the status table of BRAIN-VAN-002.
 Only the empty list must erase its memory. The last write must supply both value and expiry.
 
 Use a body with one persisted finite value and one transient value for each independent case below.
@@ -949,6 +1005,8 @@ operation.
 | Operation | Expected result |
 |-----------|-----------------|
 | Unload/reload or dimension travel | Persisted value and expiry survive; transient value does not. |
+| Any load with a usable `Brain` | Active ids become the core ids plus the default. No stop action occurs. Navigation keeps its route. |
+| Villager load | The fresh brain replaces the old brain before the villager refresh, so the refresh performs no stop action of an old behaviour. |
 | Teleport within the dimension | Both values and the existing brain state survive. |
 | Villager age-boundary or profession refresh | Stop effects occur before preservation; fresh sensors and activities replace the old state. |
 | Goat age boundary | The existing brain survives. |
@@ -1026,7 +1084,7 @@ The first requested answer must survive the wall change until the next scan.
 After that scan, the wall must make a fresh sight-required answer fail.
 
 Run separate range cases at equality and just beyond `max(R*V,2)`.
-V must include sneak, invisibility, occupied armour slots and the defined head disguise.
+V must include sneak, invisibility, occupied armour slots and the `minecraft:mob_visibility` factor of GOAL-QRY-002.
 Repeat with the candidate as attack target. Only the V factors must be bypassed.
 For R=0, range must not reject; required sight must still reject the wall.
 
@@ -1111,7 +1169,8 @@ An adult scan must leave output and retry facts unchanged, without a POI query.
 
 ### E-B16: Activity requests and exit effects
 
-Status: proposal. Rules: BRAIN-VAN-021, BRAIN-VAN-022, BRAIN-VAN-023, BRAIN-VAN-024, BRAIN-VAN-027, BRAIN-VAN-039.
+Status: proposal. Rules: BRAIN-VAN-021, BRAIN-VAN-022, BRAIN-VAN-023, BRAIN-VAN-024, BRAIN-VAN-039;
+BRAIN-VAN-027 in the mcrs behaviour fixture only.
 
 1. Configure core, idle and fight activities with a present-memory requirement on fight.
 2. Give idle an unmet entry requirement.
@@ -1133,11 +1192,15 @@ An empty candidate list or a list without eligible activities must leave both me
 ids unchanged.
 A core-id request must retain the other active id.
 
-Use two observable memory writes at equal priority in two activities. Record their first-appearance order at that priority for N=12, 13, 24, 25 and 26.
-First-appearance order (BRAIN-VAN-027) must determine the last write; do not compare the reference table of BRAIN-DEV-003. Repeat with a transition during a start turn and
-during the running pass.
-Later attempts in the current start turn must remain eligible; the running pass's initial
-participants must retain their turns.
+The game capture does not test equal-priority order, because the game order is a deviation
+(BRAIN-DEV-003). The mcrs behaviour fixture tests BRAIN-VAN-027 instead:
+
+1. Give two activities observable memory writes at one priority.
+2. Repeat with N=12, 13, 24, 25 and 26 activities at that priority.
+3. Repeat with a transition during a start turn and during the running pass.
+
+First-appearance order must determine the last write for each N. Later attempts in the current
+start turn must remain eligible. The initial participants of the running pass must keep their turns.
 
 For every BRAIN-VAN-039 row, enter its activity with the listed memory present, then leave it.
 That memory must become absent. Repeat with each omitted built-in activity/body pair and an
@@ -1146,7 +1209,7 @@ No exit erasure must occur for an empty list. Entry with the required memory abs
 
 ### E-B17: Behaviour lifecycle, durations and weighted groups
 
-Status: proposal. Rules: BRAIN-VAN-028, BRAIN-VAN-029, BRAIN-VAN-030, BRAIN-VAN-031, BRAIN-VAN-032, BRAIN-VAN-033.
+Status: proposal. Rules: BRAIN-VAN-028 through BRAIN-VAN-033, BRAIN-DES-004.
 
 1. Configure a timed behaviour with observable start, tick and stop actions.
 2. Set its duration bounds to 0..0 and permit continuation.
@@ -1163,18 +1226,18 @@ Fixed duration bounds must give that duration.
 Pause AI past a retained deadline; the first resumed running step must stop without intermediate
 tick actions.
 
-Configure a group with a child that fails, a successful one-shot and a successful timed child, in
-that order.
-In single-success mode, only the first two must receive attempts.
-In try-all mode, all stopped children must receive attempts. A running child must receive no new
+Configure a group with a child that fails, a successful instant behaviour and a successful timed
+child, in that order. BRAIN-DES-004 states the group modes.
+In first-success mode, only the first two must receive attempts.
+In every-child mode, all stopped children must receive attempts. A running child must receive no new
 start attempt.
-A successful one-shot must act only in the start pass and stop in the running pass.
+A successful instant child must act only in its start attempt, with no tick or stop action.
 A group with no successful children must stop in that update and can restart in the next.
 
-For weighted mode, use two eligible one-shots with weights 1 and 2 over 100,000 fresh activations.
-Record the selected orders. Their distribution must satisfy BRAIN-VAN-031.
+For weighted choice, use two eligible instant children with weights 1 and 2 over 100,000 fresh
+activations. Record the selected orders. Their distribution must satisfy BRAIN-DES-004.
 Repeat with an ineligible child and a running child; eligible stopped children must retain the stated relative-order distribution.
-Ordered mode must preserve its supplied order.
+Ordered choice must preserve the declaration order.
 
 Force a group stop with two running children and an exit memory.
 The children must stop in retained order before the exit memory becomes absent.
@@ -1238,9 +1301,13 @@ The float behaviour must retain unrelated walk and look memories.
 
 The captures above ran on 2026-11-11 against vanilla server `26.4-snapshot-7`, in a flat world with seed 1.
 The server listened only on loopback. Each independent probe removed old subjects and restored its test area.
-The captures used one force-loaded chunk, with its surface at y=-60.
-Nether and End probes used a stone platform at y=63 in their force-loaded chunk.
-No player was present for the expiry, load, death, first water-scan or sleep probes.
+The captures force-loaded the 5×5 chunk area of the setup, chunks -2 to 2 on each axis, in each
+dimension that they used. The Overworld subjects stood on the flat surface at y=-60 in chunk (0,0).
+Nether and End probes used a stone platform at y=63 in that area.
+No player was present for the expiry, load, death, first water-scan or sleep probes, in each dimension.
+The force-loaded area kept their entities ticking.
+The captures used the temporary protocol client of E-B1 for each player, not `tools/vanilla-client`.
+No raw log of these captures is in the repository; the quoted replies are the only record.
 
 Runtime and save metadata agreed:
 
