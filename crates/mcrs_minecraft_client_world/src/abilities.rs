@@ -7,14 +7,15 @@ use mcrs_minecraft_protocol_game::clientbound::{
 use mcrs_minecraft_protocol_game::game_event::GameEventKind;
 use mcrs_minecraft_protocol_game::player::PlayerSpawnInfo;
 
+use crate::local_motion::LocalMotion;
 use crate::player::Player;
 
 /// The abilities of the local [`Player`]: the table of its game mode (CMD-GM-007) and the values
-/// of the last clientbound `player_abilities` (CMD-GM-008). Absent until the login packet.
+/// of the last clientbound `player_abilities` (CMD-GM-008). Absent until the login packet. The
+/// flight state is the one of the kernel, in [`LocalMotion`].
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
 pub struct Abilities {
     pub invulnerable: bool,
-    pub flying: bool,
     pub may_fly: bool,
     pub instant_build: bool,
     /// Not on the wire: only the game mode sets it.
@@ -26,12 +27,11 @@ pub struct Abilities {
 }
 
 impl Abilities {
-    /// The abilities of a new local player in `mode`, which does not fly (PHY-ORD-015).
+    /// The abilities of a new local player in `mode` (PHY-ORD-015).
     #[must_use]
     pub fn new(mode: GameMode) -> Self {
         Self {
             invulnerable: false,
-            flying: false,
             may_fly: false,
             instant_build: false,
             may_build: false,
@@ -41,19 +41,17 @@ impl Abilities {
         .changed_to(mode)
     }
 
-    /// The abilities after a change to `mode`: creative keeps the flight state, and no mode
-    /// changes the speeds (CMD-GM-007).
+    /// The abilities after a change to `mode`: no mode changes the speeds (CMD-GM-007).
     #[must_use]
     pub fn changed_to(self, mode: GameMode) -> Self {
-        let (invulnerable, flying, may_fly, instant_build, may_build) = match mode {
-            GameMode::Survival => (false, false, false, false, true),
-            GameMode::Creative => (true, self.flying, true, true, true),
-            GameMode::Adventure => (false, false, false, false, false),
-            GameMode::Spectator => (true, true, true, false, false),
+        let (invulnerable, may_fly, instant_build, may_build) = match mode {
+            GameMode::Survival => (false, false, false, true),
+            GameMode::Creative => (true, true, true, true),
+            GameMode::Adventure => (false, false, false, false),
+            GameMode::Spectator => (true, true, false, false),
         };
         Self {
             invulnerable,
-            flying,
             may_fly,
             instant_build,
             may_build,
@@ -61,18 +59,27 @@ impl Abilities {
         }
     }
 
-    /// Takes every value of `packet` and keeps `may_build` (MVC-PKT-024).
+    /// Takes every value of `packet` but the flight state and keeps `may_build` (MVC-PKT-024).
     #[must_use]
     pub fn received(self, packet: ClientboundPlayerAbilities) -> Self {
         Self {
             invulnerable: packet.invulnerable,
-            flying: packet.flying,
             may_fly: packet.may_fly,
             instant_build: packet.instant_build,
             flying_speed: packet.flying_speed,
             walking_speed: packet.walking_speed,
             ..self
         }
+    }
+}
+
+/// The flight state after a change from `flying` to `mode`: creative keeps it (CMD-GM-007).
+#[must_use]
+pub(crate) fn flight_after_change(mode: GameMode, flying: bool) -> bool {
+    match mode {
+        GameMode::Survival | GameMode::Adventure => false,
+        GameMode::Creative => flying,
+        GameMode::Spectator => true,
     }
 }
 
@@ -107,25 +114,42 @@ fn spawned(info: &PlayerSpawnInfo, player: Query<Entity, With<Player>>, mut comm
 pub(crate) fn on_game_event(
     event: On<Received<ClientboundGameEvent>>,
     mut abilities: Query<&mut Abilities, With<Player>>,
+    mut motion: Query<&mut LocalMotion, With<Player>>,
 ) {
-    if let Some(packet) = event.packet()
-        && let GameEventKind::ChangeGameMode(mode) = packet.game_event
-        && let Ok(mut abilities) = abilities.single_mut()
-    {
+    let Some(packet) = event.packet() else {
+        return;
+    };
+    let GameEventKind::ChangeGameMode(mode) = packet.game_event else {
+        return;
+    };
+    if let Ok(mut abilities) = abilities.single_mut() {
         let next = abilities.changed_to(mode);
         abilities.set_if_neq(next);
+    }
+    if let Ok(motion) = motion.single_mut() {
+        let flying = flight_after_change(mode, motion.0.flight0);
+        motion
+            .map_unchanged(|motion| &mut motion.0.flight0)
+            .set_if_neq(flying);
     }
 }
 
 pub(crate) fn on_player_abilities(
     event: On<Received<ClientboundPlayerAbilities>>,
     mut abilities: Query<&mut Abilities, With<Player>>,
+    mut motion: Query<&mut LocalMotion, With<Player>>,
 ) {
-    if let Some(packet) = event.packet()
-        && let Ok(mut abilities) = abilities.single_mut()
-    {
+    let Some(packet) = event.packet() else {
+        return;
+    };
+    if let Ok(mut abilities) = abilities.single_mut() {
         let next = abilities.received(packet);
         abilities.set_if_neq(next);
+    }
+    if let Ok(motion) = motion.single_mut() {
+        motion
+            .map_unchanged(|motion| &mut motion.0.flight0)
+            .set_if_neq(packet.flying);
     }
 }
 
@@ -150,7 +174,6 @@ mod tests {
 
     const SURVIVAL: Abilities = Abilities {
         invulnerable: false,
-        flying: false,
         may_fly: false,
         instant_build: false,
         may_build: true,
@@ -169,7 +192,6 @@ mod tests {
     };
     const SPECTATOR: Abilities = Abilities {
         invulnerable: true,
-        flying: true,
         may_fly: true,
         may_build: false,
         ..SURVIVAL
@@ -178,10 +200,11 @@ mod tests {
     struct Row {
         step: Step,
         abilities: Abilities,
+        flight0: bool,
     }
 
     #[test]
-    fn login_game_mode_changes_and_player_abilities_set_the_abilities() {
+    fn login_game_mode_changes_and_player_abilities_set_the_abilities_and_the_flight_state() {
         let flying_creative = ClientboundPlayerAbilities {
             invulnerable: true,
             flying: true,
@@ -194,60 +217,71 @@ mod tests {
             Row {
                 step: Step::Login(GameMode::Survival),
                 abilities: SURVIVAL,
+                flight0: false,
             },
             Row {
                 step: Step::Login(GameMode::Creative),
                 abilities: CREATIVE,
+                flight0: false,
             },
             Row {
                 step: Step::Change(GameMode::Survival),
                 abilities: SURVIVAL,
+                flight0: false,
             },
             Row {
                 step: Step::Change(GameMode::Creative),
                 abilities: CREATIVE,
+                flight0: false,
             },
             Row {
                 step: Step::Change(GameMode::Spectator),
                 abilities: SPECTATOR,
+                flight0: true,
             },
             Row {
                 step: Step::Change(GameMode::Creative),
-                abilities: Abilities {
-                    flying: true,
-                    ..CREATIVE
-                },
+                abilities: CREATIVE,
+                flight0: true,
             },
             Row {
                 step: Step::Change(GameMode::Survival),
                 abilities: SURVIVAL,
+                flight0: false,
             },
             Row {
                 step: Step::Change(GameMode::Adventure),
                 abilities: ADVENTURE,
+                flight0: false,
             },
             Row {
                 step: Step::Packet(flying_creative),
                 abilities: Abilities {
-                    flying: true,
                     may_build: false,
                     flying_speed: 0.1_f32,
                     walking_speed: 0.2_f32,
                     ..CREATIVE
                 },
+                flight0: true,
             },
             Row {
                 step: Step::Change(GameMode::Creative),
                 abilities: Abilities {
-                    flying: true,
                     flying_speed: 0.1_f32,
                     walking_speed: 0.2_f32,
                     ..CREATIVE
                 },
+                flight0: true,
             },
             Row {
                 step: Step::Respawn(GameMode::Creative),
                 abilities: CREATIVE,
+                flight0: false,
+            },
+            Row {
+                step: Step::Respawn(GameMode::Spectator),
+                abilities: SPECTATOR,
+                flight0: true,
             },
         ];
 
@@ -270,6 +304,7 @@ mod tests {
                 Some(&row.abilities),
                 "step {index}"
             );
+            assert_eq!(session.motion().flight0, row.flight0, "step {index}");
         }
     }
 }

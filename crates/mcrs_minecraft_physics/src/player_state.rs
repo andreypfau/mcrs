@@ -29,7 +29,7 @@ pub struct PlayerState {
     pub crouching: bool,
     pub swimming: bool,
     pub item_use: ItemUse,
-    /// The attribute values without the sprint modifier.
+    /// The attribute values; `movement_speed` is the value read while the sprint state is off.
     pub attributes: MotionAttributes,
     pub sprint_speed: SprintSpeed,
     pub effects: MotionEffects,

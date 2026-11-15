@@ -5,7 +5,7 @@ use mcrs_minecraft_dimension::dimension_keys::OVERWORLD;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_network::ConnectionState;
 use mcrs_minecraft_network::metrics::PacketDispatcher;
-use mcrs_minecraft_physics::{Tables, TestBlocks};
+use mcrs_minecraft_physics::{PlayerState, Tables, TestBlocks};
 use mcrs_minecraft_protocol::{Encode, Packet, VarInt};
 use mcrs_minecraft_protocol_game::ColumnPos;
 use mcrs_minecraft_protocol_game::clientbound::ClientboundLogin;
@@ -17,7 +17,9 @@ use crate::collision_tables::ClientPhysicsTables;
 use crate::columns::{AIR, Column, ColumnStore, Extent, Section};
 use crate::game_packets::GAME_CLIENTBOUND;
 use crate::joined_game::JoinedGame;
+use crate::local_motion::LocalMotion;
 use crate::local_player::LocalPlayerPlugin;
+use crate::movement_input::MovementInput;
 use crate::player::spawn_player;
 
 pub(crate) const FLOOR_TOP: f64 = 16.0;
@@ -118,5 +120,22 @@ impl TestSession {
 
     pub(crate) fn receive<P: Packet + Encode>(&mut self, packet: P) {
         receive(&mut self.app, self.connection, packet);
+    }
+
+    /// Runs `ticks` fixed ticks with `input` held.
+    pub(crate) fn ticks(&mut self, input: MovementInput, ticks: usize) {
+        self.app.insert_resource(input);
+        for _ in 0..ticks {
+            self.app.world_mut().run_schedule(FixedUpdate);
+        }
+    }
+
+    /// The kernel state of the player.
+    ///
+    /// # Panics
+    ///
+    /// Before the `login`, which gives the player its kernel state.
+    pub(crate) fn motion(&self) -> PlayerState {
+        self.app.world().get::<LocalMotion>(self.player).unwrap().0
     }
 }

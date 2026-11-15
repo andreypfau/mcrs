@@ -17,6 +17,7 @@ use mcrs_minecraft_protocol_game::serverbound::{
 
 use crate::abilities;
 use crate::attribute_instances::{self, AttributeInstances};
+use crate::local_motion::{self, LocalMotion};
 use crate::movement_input::MovementInput;
 use crate::player::Player;
 use crate::player_view::{PendingTeleports, PlayerViewPlugin, ServerTeleport};
@@ -111,11 +112,18 @@ impl Plugin for LocalPlayerPlugin {
             .add_observer(abilities::on_respawn)
             .add_observer(abilities::on_game_event)
             .add_observer(abilities::on_player_abilities)
+            .add_observer(local_motion::on_login)
+            .add_observer(local_motion::on_respawn)
             .add_systems(
                 FixedUpdate,
                 (
                     accept_teleports.before(LocalPlayerTick),
-                    (capture_old_transform, fly, give_sprint_modifier)
+                    (
+                        capture_old_transform,
+                        local_motion::write_motion_inputs,
+                        fly,
+                        give_sprint_modifier,
+                    )
                         .chain()
                         .in_set(LocalPlayerTick),
                     send_movement.after(LocalPlayerTick),
@@ -125,11 +133,13 @@ impl Plugin for LocalPlayerPlugin {
 }
 
 fn apply_server_teleport(
+    state: &mut PlayerState,
     transform: &mut PhysicsTransform,
     velocity: &mut Velocity,
     teleport: &ServerTeleport,
 ) {
-    let mut state = PlayerState::new(transform.translation);
+    // Until the kernel moves the player, the transform and the velocity are its truth.
+    state.body.position = transform.translation;
     state.body.velocity = velocity.0;
     let mut rotation = Orientation::facing(transform.rotation.yaw(), transform.rotation.pitch());
     let packet = Teleport {
@@ -139,7 +149,7 @@ fn apply_server_teleport(
         pitch: teleport.look.pitch,
         relative: Relative::from_bits_truncate(teleport.flags.bits()),
     };
-    apply_teleport(&mut state, &mut rotation, &packet);
+    apply_teleport(state, &mut rotation, &packet);
     transform.translation = state.body.position;
     transform.rotation = Rotation::new(rotation.yaw, rotation.pitch);
     velocity.0 = state.body.velocity;
@@ -149,7 +159,15 @@ fn apply_server_teleport(
 /// landed on.
 fn accept_teleports(
     mut commands: Commands,
-    player: Single<(&mut PhysicsTransform, &mut Velocity, &mut LastSentMovement), With<Player>>,
+    player: Single<
+        (
+            &mut PhysicsTransform,
+            &mut Velocity,
+            &mut LastSentMovement,
+            &mut LocalMotion,
+        ),
+        With<Player>,
+    >,
     connection: Option<Single<(&mut ClientConnection, &mut PendingTeleports)>>,
     look: Option<Res<LookOverride>>,
     position: Option<Res<PositionOverride>>,
@@ -159,10 +177,10 @@ fn accept_teleports(
     if pending.0.is_empty() {
         return;
     }
-    let (mut transform, mut velocity, mut last_sent) = player.into_inner();
+    let (mut transform, mut velocity, mut last_sent, mut motion) = player.into_inner();
     let mut position = position.map(|position| position.0);
     for teleport in pending.0.drain(..) {
-        apply_server_teleport(&mut transform, &mut velocity, &teleport);
+        apply_server_teleport(&mut motion.0, &mut transform, &mut velocity, &teleport);
         if teleport.flags.is_empty() {
             if let Some(position) = position.take() {
                 transform.translation = position;
@@ -462,7 +480,12 @@ mod tests {
             rotation: Rotation::new(45.0, 10.0),
         };
         let mut velocity = Velocity(DVec3::new(1.0, 0.0, -1.0));
-        apply_server_teleport(&mut transform, &mut velocity, teleport);
+        apply_server_teleport(
+            &mut PlayerState::new(DVec3::ZERO),
+            &mut transform,
+            &mut velocity,
+            teleport,
+        );
         (transform, velocity)
     }
 
