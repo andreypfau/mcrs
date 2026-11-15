@@ -65,6 +65,7 @@ bevy = { version = "0.20.1", default-features = false, features = ["web"] }
 getrandom = { version = "0.4", features = ["wasm_js"] }
 
 [dev-dependencies]
+mcrs_minecraft_physics = { workspace = true, features = ["testing"] }
 mcrs_minecraft_engine_registries = { workspace = true, features = ["test-support"] }
 mcrs_minecraft_game_registries = { workspace = true, features = ["test-support"] }
 bytes.workspace = true
