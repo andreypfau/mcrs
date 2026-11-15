@@ -67,6 +67,16 @@ the reference implementation. No experiment has confirmed them yet. Section 15 g
 - **Shift key state**: the state of the shift key of a player. A player holds this key to sneak.
   The server knows the state from the `player_input` packet.
 - **Flight speed**: the flight speed value of the `player_abilities` packet.
+- **Wheel event**: one event of the mouse wheel that the window system gives to the client. It has
+  a horizontal value and a vertical value. A vertical value above 0 is a turn away from the player.
+- **Notch**: one detent of a mouse wheel.
+- **Notch count**: the integer number of notches on one axis that the client takes from the wheel
+  events (PHY-INP-022).
+- **Spectator menu**: the menu of a spectator that shows in the place of the hotbar. The key
+  `key.spectatorHotbar`, by default the middle mouse button, opens it. This document does not
+  state its content.
+- **Spectator** (for the local player): a local player whose own entry of `player_info_update` has
+  the game mode spectator.
 - **Fly permission**: the permission of a player to start the flight state. Bit 0x04 of the
   clientbound `player_abilities` packet gives it.
 - **Sprint state**: the state of a player that sprints.
@@ -1252,7 +1262,8 @@ The sign in steps 1 to 3 is the sign of the original component.
 **PHY-INP-013** (`source_suggested`, client agreement, confidence: medium). A player with the flight
 state on, on its own client, adds `n × f32(s × 3.0F)` to `v.y` in step 7 of PHY-ORD-001. Here `s` is the
 flight speed, and `n` is +1 for the jump key, -1 for the shift key, and their sum for both. The
-flight speed comes from the `player_abilities` packet. Its default is `0.05F`.
+flight speed comes from the `player_abilities` packet. Its default is `0.05F`. The mouse wheel of a
+spectator also changes it (PHY-INP-023).
 
 **PHY-INP-014** (`source_suggested`, client agreement, confidence: medium). The travel step of a
 player with the flight state on, and that is not a passenger:
@@ -1370,6 +1381,98 @@ the eight blocks with the name `copper_grate`, with the prefixes of oxidation an
 The test of step 3 of PHY-INP-011 uses the collision shape of the state for the player
 (PHY-SHP-003). A block intersects the column when that shape overlaps the shrunk column. The full
 cube overlaps when the column touches the cell with a volume more than zero.
+
+**PHY-INP-022** (`source_suggested`, semantic, confidence: medium). The client takes notch counts
+from the wheel events, and gives them to one target. The observer is a player who turns the wheel.
+The client handles each wheel event when the window system gives it, between two frames. For each
+wheel event:
+
+1. While the overlay of a resource reload shows, the client ignores the event.
+2. While a screen is open, the event goes to the screen (`client-list.md`, SCRL-AREA-002). The
+   client ignores the other steps. The sums of step 5 do not change.
+3. When no local player exists, the client ignores the event.
+4. The client scales the two values of the event. When the option Discrete Scrolling is on, each
+   value becomes its sign. Then the client multiplies each value by the option Scroll Sensitivity
+   `k`.
+5. The client keeps one sum for each axis. Each sum starts at 0. For each axis, when the sum is not
+   0 and the sign of the scaled value is not the sign of the sum, the sum becomes 0. The sign of 0
+   is 0. Then the client adds the scaled value to the sum.
+6. The notch count `n` of each axis is its sum, truncated toward zero. The client subtracts `n`
+   from the sum.
+7. When the notch counts `nx` and `ny` are both 0, the event has no other result.
+8. Let `w` be `ny`. When `ny` is 0, `w` is `-nx`.
+9. The client gives the notch counts to one target:
+   - The local player is a spectator and the spectator menu shows: the menu takes `w`. The flight
+     speed and the selected slot do not change.
+   - The local player is a spectator and the spectator menu does not show: the flight speed
+     changes (PHY-INP-023). The selected slot does not change.
+   - Else: the selected slot (`inventory.md`, INV-SEL-001) changes by one slot. It decreases by 1
+     for `w` > 0 and increases by 1 for `w` < 0. Slot 0 then goes to 8, and slot 8 goes to 0. The
+     flight speed does not change.
+
+The defaults are Discrete Scrolling off and `k` = 1.0. In vanilla, `k` is `10^(i / 100)` for an
+integer `i` from -200 to 100. The mcrs subset of "Mouse Settings" has neither option
+(`client-controls.md`, CTRL-MOUSE-003), so the mcrs client uses the defaults.
+
+Postconditions:
+
+- Only a spectator changes the flight speed with the wheel. In creative mode, also with the flight
+  state on, the wheel selects a hotbar slot.
+- A wheel event while a screen is open, for example the chat screen, does not change the flight
+  speed. It also has no result after the screen closes.
+- With the defaults, one notch of a wheel with notches gives the vertical value ±1, and thus `ny` = ±1.
+- With the defaults, two events of +0.5 give one notch. An event of +0.7 and then an event of -0.2
+  give no notch: the second event sets the vertical sum to 0, and the sum is then -0.2.
+- An event with the horizontal value 0 sets the horizontal sum to 0.
+- One event with `ny` = 3 changes the selected slot by one slot only.
+
+**PHY-INP-023** (`source_suggested`, semantic, confidence: medium). The wheel of a spectator
+changes the flight speed `s` of PHY-INP-013 and PHY-INP-014. The value is the same value that the
+`player_abilities` packet sets. It is not a separate value. For the notch count `ny` of
+PHY-INP-022, step 9:
+
+1. `s` becomes `clamp(s + f32(ny) × 0.005F, 0.0F, 0.2F)`. Each operation is f32.
+2. The change applies at once. The next player tick reads the new value.
+
+| Value | Data |
+|-------|------|
+| Change for each notch | `0.005F` |
+| Lower limit | `0.0F` |
+| Upper limit | `0.2F` |
+| Start value of a new local player | `0.05F` (PHY-ORD-015) |
+
+A turn away from the player makes `s` larger. A turn toward the player makes `s` smaller. A
+horizontal notch count with `ny` = 0 does not change `s` when `s` is in the range [0, 0.2]. Step 1
+applies to that count too, so it brings a value outside that range into the range. Section 14,
+U13, asks whether mcrs keeps this result.
+
+The client does not tell the server about the change:
+
+1. The client sends no packet for the change. The serverbound `player_abilities` carries only the
+   request to fly (`movement-checks.md`, MVC-PKT-007).
+2. The server keeps its own flight speed. It sees only the positions of the move packets.
+3. The client does not write the value to the options file.
+
+The value stays until one of these events replaces it:
+
+1. A clientbound `player_abilities` sets the value of the server (`movement-checks.md`,
+   MVC-PKT-024). A vanilla server sends this packet at the join, at each change of the game mode
+   and at a dimension change. The value of a vanilla server is `0.05F`.
+2. A `login` packet or a `respawn` packet makes a new local player with `0.05F` (PHY-ORD-015). This
+   is also true for a respawn after a death and for a dimension change.
+
+Postconditions:
+
+- From `0.05F`, 30 notches away from the player give `0.19999996F`. The next notch gives `0.2F`.
+- From `0.05F`, 10 notches toward the player give `7.4505806E-9F`. The next notch gives `0.0F`.
+- At the flight speed 0, the movement keys, the jump key and the shift key do not move a spectator.
+  A turn away from the player makes it move again.
+- The wheel changes the steady horizontal speed and the steady vertical speed of a spectator in
+  the same ratio.
+- After a change of the game mode from spectator to creative and back, the flight speed is
+  `0.05F` with a vanilla server. Also, the creative flight does not get the speed of the wheel.
+
+Experiment E57 decides this rule and PHY-INP-022.
 
 ## 8. Fall distance
 
@@ -3248,6 +3351,17 @@ for client agreement. A server that computes another result gives false setbacks
   first tick. A key that the player holds across the packet makes the difference. Experiment E56
   decides the values after a respawn. For a `login`, the client recorder needs a client that joins
   again (`attributes.md`, section 13, A6).
+- **U13**: a server can send a flight speed above `0.2F` or below 0. In the reference, each wheel
+  event with a notch then clamps the value, also an event with `ny` = 0. Thus a horizontal notch
+  changes a flight speed of 0.5 to 0.2. A vanilla server always sends `0.05F`, so a player does not
+  meet this case in normal play. Must the mcrs client copy this clamp for a horizontal notch, or
+  keep the value of the server?
+- **U14**: the vanilla client takes its wheel values from SDL 3. The mcrs client takes the values
+  that its window library gives. The unit and the sign can differ on a platform, for example with
+  the reverse scroll of macOS or with a trackpad. `client-controls.md`, section 9, item 1, asks the
+  same question for the mouse motion.
+- **U15**: the input agent of `tools/vanilla-client` sets only key mappings. It cannot send a wheel
+  event. Thus E57 needs an extension of the agent or a person at the window.
 
 ## 15. Experiments
 
@@ -3317,6 +3431,7 @@ values are f64 values. Compare them bit for bit with the model.
 | E54 | From the server console, with the tick frozen, put dirt in the air and destroy it with `/setblock … air destroy`. Read `Pos` and `Motion` of the item, then remove it. Do this 1000 times. | PHY-CMP-025 |
 | E55 | Set `max_entity_cramming` to 100. With the tick frozen, summon 64 pigs with the base `movement_speed` 0 at one point on a flat floor, then one more at the offset `(-0.0442, +0.0442)`. Step 200 ticks and read `Pos` of each. | PHY-PSH-006, PHY-CMP-027, PHY-DEV-004 |
 | E56 | Run `tools/mcrs_minecraft_client_recorder/record.sh e56` with `AUTOPLAY=true`. In each step, the input agent holds keys from before a death through an immediate respawn: jump; forward; forward and shift; forward and sprint. The respawn rotation has the yaw 0, so forward moves along `+z`. Read the move packets of the first 3 player ticks after the respawn. A `y` above 100 in the first tick means that the on-ground flag starts true. A first step along `z` of `0.098` means the ground speed, and `0.0196` means the air speed. A factor of 0.3 on that step means that the crouch state starts from the held shift key. Also read the tick of `player_command` with action 1. | PHY-ORD-015, U12, ATR-CLI-004 |
+| E57 | Run the client recorder with a spectator in the air, with the default scroll options. (1) Hold forward for 40 ticks and read the displacement along `z` of the last 10 move packets. (2) Turn the wheel 10 notches away from the player, hold forward again and read the displacement. The expected ratio is about 2. (3) Turn the wheel 40 notches away and read the displacement: the expected ratio to (1) is about 4. (4) Open the spectator menu with the middle button, turn the wheel 10 notches toward the player, and hold forward: the displacement of (3) does not change. (5) Let the menu close. Turn the wheel 50 notches toward the player, wait until the position stops changing, and hold forward: the player does not move. (6) Run `/gamemode creative`, fly, and turn the wheel: read `set_carried_item` and the displacement in flight. (7) Run `/gamemode spectator` and do step 1 again: the displacement is that of (1). Read each packet that the client sends after each wheel turn. | PHY-INP-022, PHY-INP-023, U15 |
 
 The experiment of a supported rule also covers each `source_suggested` rule without a row above:
 
