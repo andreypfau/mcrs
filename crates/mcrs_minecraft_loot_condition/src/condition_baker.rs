@@ -1,3 +1,5 @@
+use std::vec;
+
 use glam::DVec3;
 use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::BlockDefinitions;
@@ -65,10 +67,10 @@ impl<'a> ConditionBaker<'a> {
         }
     }
 
-    /// The problems of the bakes so far.
-    #[must_use]
-    pub fn into_problems(self) -> Vec<ConditionProblem> {
-        self.problems
+    /// Takes the problems of the bakes since the last call, so that the caller can tag each
+    /// with the part that it baked.
+    pub fn drain_problems(&mut self) -> vec::Drain<'_, ConditionProblem> {
+        self.problems.drain(..)
     }
 
     /// Bakes `file`; a part that it cannot resolve adds a problem and makes the part fail.

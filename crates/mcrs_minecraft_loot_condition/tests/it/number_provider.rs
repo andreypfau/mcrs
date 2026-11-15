@@ -1,5 +1,6 @@
 use mcrs_minecraft_engine_registries::test_corpus;
 use mcrs_minecraft_game_registries::registry_load::test_registries;
+use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 use mcrs_minecraft_loot_condition::{ConditionBaker, LootContext, NumberFile};
 use mcrs_minecraft_predicate::NoWorld;
 use mcrs_minecraft_random::Random;
@@ -54,7 +55,8 @@ fn loot_num_010_a_uniform_draws_only_for_a_range() {
         ),
     ];
     let mut baker = ConditionBaker::new(&test_corpus().0.0, test_registries());
-    let context: LootContext<'_, ()> = LootContext::new();
+    let context: LootContext<'_, ()> =
+        LootContext::try_new(ContextKeySet::Empty).expect("a source key set");
     for (json, read, value, after) in cases {
         let file: NumberFile = serde_json::from_str(json).expect("a provider");
         let provider = baker.number(&file);

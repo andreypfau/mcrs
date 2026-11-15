@@ -160,17 +160,20 @@ pub(crate) struct EnchantmentTest {
 
 impl ItemTest {
     fn matches(&self, tool: &Tool<'_>) -> bool {
-        let item_matches = match (&self.items, tool.item) {
+        let item_matches = match (&self.items, tool.item()) {
             (None, _) => true,
             (Some(_), None) => false,
-            (Some(items), Some(item)) => items.contains(&item),
+            (Some(items), Some(kind)) => items.iter().any(|item| item.number() == kind.0),
         };
         item_matches
             && self.enchantments.iter().all(|test| {
-                tool.enchantments.iter().any(|&(id, level)| {
+                tool.enchantments().iter().any(|entry| {
+                    let level = u32::from(entry.level.get());
                     level >= test.min.max(1)
                         && level <= test.max
-                        && test.any_of.as_ref().is_none_or(|ids| ids.contains(&id))
+                        && test.any_of.as_ref().is_none_or(|ids| {
+                            ids.iter().any(|id| id.number() == entry.enchantment.0)
+                        })
                 })
             })
     }

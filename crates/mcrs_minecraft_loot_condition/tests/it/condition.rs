@@ -94,7 +94,8 @@ fn loot_cnd_a_condition_without_its_parameter() {
         ),
     ];
     let mut baker = ConditionBaker::new(&test_corpus().0.0, test_registries());
-    let context: LootContext<'_, ()> = LootContext::new();
+    let context: LootContext<'_, ()> =
+        LootContext::try_new(ContextKeySet::Empty).expect("a source key set");
     for (rule, json, passes, after) in cases {
         let file: ConditionFile = serde_json::from_str(json).expect("a condition");
         let condition = baker.condition(&file);

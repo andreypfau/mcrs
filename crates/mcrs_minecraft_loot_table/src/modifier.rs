@@ -1,5 +1,7 @@
 use mcrs_minecraft_item::enchantment::Enchantment;
-use mcrs_minecraft_loot_condition::{Condition, LootContext, NumberProvider, binomial, bounded};
+use mcrs_minecraft_loot_condition::{
+    Condition, ContextParam, ContextParams, LootContext, NumberProvider, binomial, bounded,
+};
 use mcrs_minecraft_predicate::LocationView;
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_resource::Id;
@@ -35,6 +37,27 @@ pub(crate) enum ModifierOp {
         probability: f32,
     },
     Sequence(Box<[Modifier]>),
+}
+
+impl ModifierOp {
+    /// The parameters that the operation reads, without its condition and without the modifiers
+    /// of a sequence, for the check of LOOT-CTX-013.
+    pub(crate) fn reads(&self) -> ContextParams {
+        match self {
+            ModifierOp::Keep | ModifierOp::Sequence(_) => ContextParams::EMPTY,
+            ModifierOp::SetCount { count, .. } => count.reads(),
+            ModifierOp::ExplosionDecay => ContextParams::of(&[ContextParam::ExplosionRadius]),
+            ModifierOp::Limit { min, max } => [min, max]
+                .into_iter()
+                .flatten()
+                .fold(ContextParams::EMPTY, |reads, bound| {
+                    reads.union(bound.reads())
+                }),
+            ModifierOp::OreDrops(_)
+            | ModifierOp::UniformBonus { .. }
+            | ModifierOp::BinomialBonus { .. } => ContextParams::of(&[ContextParam::Tool]),
+        }
+    }
 }
 
 impl Modifier {
@@ -123,6 +146,7 @@ impl Modifier {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
     use mcrs_minecraft_predicate::NoWorld;
     use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 
@@ -148,7 +172,12 @@ mod tests {
             };
             let mut random = XoroshiroRandom::new(7);
             let before = random.clone();
-            let count = modifier.apply(2, &LootContext::<()>::new(), &NoWorld, &mut random);
+            let count = modifier.apply(
+                2,
+                &LootContext::<()>::try_new(ContextKeySet::Empty).expect("a source key set"),
+                &NoWorld,
+                &mut random,
+            );
             assert_eq!((count, &random), (2, &before), "{modifier:?}");
         }
     }

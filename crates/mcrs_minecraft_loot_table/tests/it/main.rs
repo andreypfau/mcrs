@@ -1,3 +1,10 @@
 #![expect(clippy::expect_used, reason = "a test reports a failure by panicking")]
 
 mod block_loot;
+mod fixture;
+mod loot_tables;
+
+use mcrs_test_alloc::CountingAllocator;
+
+#[global_allocator]
+static GLOBAL: CountingAllocator = CountingAllocator;
