@@ -1,0 +1,5820 @@
+{
+  "version": {
+    "name": "26.4 Snapshot 7",
+    "protocol": 1073742169
+  },
+  "steps": [
+    {
+      "id": "join-GiveProbeA",
+      "observed": "joined",
+      "sounds": [],
+      "command_trees": [
+        {
+          "client": "GiveProbeA",
+          "node_count": 26,
+          "roots": []
+        }
+      ]
+    },
+    {
+      "id": "join-GiveProbeB",
+      "observed": "joined",
+      "sounds": [],
+      "command_trees": [
+        {
+          "client": "GiveProbeB",
+          "node_count": 26,
+          "roots": []
+        }
+      ]
+    },
+    {
+      "id": "prepare",
+      "observed": {
+        "console": {
+          "output": [
+            "GiveProbeA joined the game",
+            "GiveProbeB joined the game",
+            "The difficulty has been set to Peaceful",
+            "Created new objective [give_result]",
+            "Created new objective [give_success]",
+            "Created new objective [picked_stone]",
+            "Successfully filled 49 block(s)",
+            "Teleported GiveProbeA to 0.500000, 100.000000, 0.500000",
+            "Teleported GiveProbeB to 2.500000, 100.000000, 0.500000",
+            "Revoked 1919 advancements from 2 players",
+            "No items were found on 2 players",
+            "No entity was found"
+          ]
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "promote",
+      "observed": {
+        "console": {
+          "output": [
+            "Made GiveProbeA a server operator"
+          ]
+        }
+      },
+      "sounds": [],
+      "command_trees": [
+        {
+          "client": "GiveProbeA",
+          "node_count": 2399,
+          "roots": [
+            {
+              "index": 26,
+              "node": "literal",
+              "name": "give",
+              "executable": false,
+              "restricted": true,
+              "children": [
+                {
+                  "index": 270,
+                  "node": "argument",
+                  "name": "targets",
+                  "parser": "minecraft:entity",
+                  "properties": "Entity { single: false, players_only: true }",
+                  "executable": false,
+                  "restricted": false,
+                  "children": [
+                    {
+                      "index": 618,
+                      "node": "argument",
+                      "name": "item",
+                      "parser": "minecraft:item_stack",
+                      "properties": "None",
+                      "executable": true,
+                      "restricted": false,
+                      "children": [
+                        {
+                          "index": 888,
+                          "node": "argument",
+                          "name": "count",
+                          "parser": "brigadier:integer",
+                          "properties": "Integer(NumberRange { min: Some(1), max: None })",
+                          "executable": true,
+                          "restricted": false,
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "client.single-default",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.give.success.single",
+              "with": [
+                1,
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone"
+                  }
+                },
+                {
+                  "text": "GiveProbeA",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell GiveProbeA "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      383791221,
+                      -293194643,
+                      -1279064526,
+                      2036104707
+                    ],
+                    "name": "GiveProbeA"
+                  },
+                  "insertion": "GiveProbeA"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.7415665,
+          "seed": 1793067268071507700
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.7415665,
+          "seed": 1793067268071507700
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "client.multiple-targets",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.give.success.multiple",
+              "with": [
+                3,
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone"
+                  }
+                },
+                2
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.4338908,
+          "seed": -339927159888252607
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.4338908,
+          "seed": -339927159888252607
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.5175822,
+          "seed": 6033389686777304034
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.5175822,
+          "seed": 6033389686777304034
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "client.over-limit-tool",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "text": "",
+              "extra": [
+                {
+                  "translate": "commands.give.failed.toomanyitems",
+                  "with": [
+                    100,
+                    {
+                      "translate": "chat.square_brackets",
+                      "with": [
+                        {
+                          "text": "",
+                          "extra": [
+                            {
+                              "translate": "item.minecraft.diamond_pickaxe"
+                            }
+                          ]
+                        }
+                      ],
+                      "color": "white",
+                      "hover_event": {
+                        "action": "show_item",
+                        "id": "minecraft:diamond_pickaxe"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "color": "red"
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "client.zero",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "text": "",
+              "extra": [
+                {
+                  "translate": "argument.integer.low",
+                  "with": [
+                    1,
+                    0
+                  ]
+                }
+              ],
+              "color": "red"
+            },
+            {
+              "text": "",
+              "extra": [
+                {
+                  "text": "",
+                  "extra": [
+                    "...",
+                    " @s stone ",
+                    {
+                      "text": "0",
+                      "color": "red",
+                      "underlined": true
+                    },
+                    {
+                      "translate": "command.context.here",
+                      "color": "red",
+                      "italic": true
+                    }
+                  ],
+                  "color": "gray",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/give @s stone 0"
+                  }
+                }
+              ],
+              "color": "red"
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "client.over-limit-patched",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "text": "",
+              "extra": [
+                {
+                  "translate": "commands.give.failed.toomanyitems",
+                  "with": [
+                    400,
+                    {
+                      "translate": "chat.square_brackets",
+                      "with": [
+                        {
+                          "text": "",
+                          "extra": [
+                            {
+                              "translate": "block.minecraft.stone"
+                            }
+                          ]
+                        }
+                      ],
+                      "color": "white",
+                      "hover_event": {
+                        "action": "show_item",
+                        "id": "minecraft:stone",
+                        "components": {
+                          "minecraft:max_stack_size": 4
+                        }
+                      }
+                    }
+                  ]
+                }
+              ],
+              "color": "red"
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "client.air",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.give.success.single",
+              "with": [
+                1,
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.air"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "text": "GiveProbeA",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell GiveProbeA "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      383791221,
+                      -293194643,
+                      -1279064526,
+                      2036104707
+                    ],
+                    "name": "GiveProbeA"
+                  },
+                  "insertion": "GiveProbeA"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "client.malformed-component",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "text": "",
+              "extra": [
+                {
+                  "translate": "arguments.item.component.malformed",
+                  "with": [
+                    "minecraft:damage",
+                    "Value must be non-negative: -1"
+                  ]
+                }
+              ],
+              "color": "red"
+            },
+            {
+              "text": "",
+              "extra": [
+                {
+                  "text": "",
+                  "extra": [
+                    "...",
+                    "ne[damage=",
+                    {
+                      "text": "-1]",
+                      "color": "red",
+                      "underlined": true
+                    },
+                    {
+                      "translate": "command.context.here",
+                      "color": "red",
+                      "italic": true
+                    }
+                  ],
+                  "color": "gray",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/give @s stone[damage=-1]"
+                  }
+                }
+              ],
+              "color": "red"
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "client.no-permission",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "text": "",
+              "extra": [
+                {
+                  "translate": "command.unknown.command"
+                }
+              ],
+              "color": "red"
+            },
+            {
+              "text": "",
+              "extra": [
+                {
+                  "text": "",
+                  "extra": [
+                    {
+                      "text": "give @s stone",
+                      "color": "red",
+                      "underlined": true
+                    },
+                    {
+                      "translate": "command.context.here",
+                      "color": "red",
+                      "italic": true
+                    }
+                  ],
+                  "color": "gray",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/give @s stone"
+                  }
+                }
+              ],
+              "color": "red"
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "client.rarity-uncommon",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.give.success.single",
+              "with": [
+                1,
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "yellow",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "components": {
+                      "minecraft:rarity": "uncommon"
+                    }
+                  }
+                },
+                {
+                  "text": "GiveProbeA",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell GiveProbeA "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      383791221,
+                      -293194643,
+                      -1279064526,
+                      2036104707
+                    ],
+                    "name": "GiveProbeA"
+                  },
+                  "insertion": "GiveProbeA"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.2679026,
+          "seed": -6585797891166750009
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.2679026,
+          "seed": -6585797891166750009
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "client.rarity-rare",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.give.success.single",
+              "with": [
+                1,
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "aqua",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "components": {
+                      "minecraft:rarity": "rare"
+                    }
+                  }
+                },
+                {
+                  "text": "GiveProbeA",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell GiveProbeA "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      383791221,
+                      -293194643,
+                      -1279064526,
+                      2036104707
+                    ],
+                    "name": "GiveProbeA"
+                  },
+                  "insertion": "GiveProbeA"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.8257056,
+          "seed": 5470693104706986950
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.8257056,
+          "seed": 5470693104706986950
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "client.rarity-epic",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.give.success.single",
+              "with": [
+                1,
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "light_purple",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "components": {
+                      "minecraft:rarity": "epic"
+                    }
+                  }
+                },
+                {
+                  "text": "GiveProbeA",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell GiveProbeA "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      383791221,
+                      -293194643,
+                      -1279064526,
+                      2036104707
+                    ],
+                    "name": "GiveProbeA"
+                  },
+                  "insertion": "GiveProbeA"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 3.1048646,
+          "seed": 8859091033095697534
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 3.1048646,
+          "seed": 8859091033095697534
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "client.custom-name",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.give.success.single",
+              "with": [
+                1,
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        "MyStone"
+                      ],
+                      "italic": true
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "components": {
+                      "minecraft:custom_name": "MyStone"
+                    }
+                  }
+                },
+                {
+                  "text": "GiveProbeA",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell GiveProbeA "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      383791221,
+                      -293194643,
+                      -1279064526,
+                      2036104707
+                    ],
+                    "name": "GiveProbeA"
+                  },
+                  "insertion": "GiveProbeA"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.8594245,
+          "seed": 7517245930916414302
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.8594245,
+          "seed": 7517245930916414302
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "client.custom-name-styled",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.give.success.single",
+              "with": [
+                1,
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "text": "Styled",
+                          "color": "gold",
+                          "italic": false
+                        }
+                      ],
+                      "italic": true
+                    }
+                  ],
+                  "color": "aqua",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "components": {
+                      "minecraft:rarity": "rare",
+                      "minecraft:custom_name": {
+                        "color": "gold",
+                        "text": "Styled",
+                        "italic": 0
+                      }
+                    }
+                  }
+                },
+                {
+                  "text": "GiveProbeA",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell GiveProbeA "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      383791221,
+                      -293194643,
+                      -1279064526,
+                      2036104707
+                    ],
+                    "name": "GiveProbeA"
+                  },
+                  "insertion": "GiveProbeA"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.5913284,
+          "seed": 869506630545310514
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.5913284,
+          "seed": 869506630545310514
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "client.item-name",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.give.success.single",
+              "with": [
+                1,
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        "BaseName"
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "components": {
+                      "minecraft:item_name": "BaseName"
+                    }
+                  }
+                },
+                {
+                  "text": "GiveProbeA",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell GiveProbeA "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      383791221,
+                      -293194643,
+                      -1279064526,
+                      2036104707
+                    ],
+                    "name": "GiveProbeA"
+                  },
+                  "insertion": "GiveProbeA"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.8661534,
+          "seed": 318462148888933091
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.8661534,
+          "seed": 318462148888933091
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "client.lore-mixed",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.give.success.single",
+              "with": [
+                2,
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "item.minecraft.diamond_sword"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:diamond_sword",
+                    "components": {
+                      "minecraft:lore": [
+                        "line1",
+                        {
+                          "text": "b",
+                          "italic": 0
+                        }
+                      ],
+                      "minecraft:damage": 5
+                    }
+                  }
+                },
+                {
+                  "text": "GiveProbeA",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell GiveProbeA "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      383791221,
+                      -293194643,
+                      -1279064526,
+                      2036104707
+                    ],
+                    "name": "GiveProbeA"
+                  },
+                  "insertion": "GiveProbeA"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.9743657,
+          "seed": -3333396096363794607
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.9743657,
+          "seed": -3333396096363794607
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.3754601,
+          "seed": -2125150906645709973
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.3754601,
+          "seed": -2125150906645709973
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "client.tooltip-hidden",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.give.success.single",
+              "with": [
+                1,
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "components": {
+                      "minecraft:tooltip_display": {
+                        "hide_tooltip": 1
+                      }
+                    }
+                  }
+                },
+                {
+                  "text": "GiveProbeA",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell GiveProbeA "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      383791221,
+                      -293194643,
+                      -1279064526,
+                      2036104707
+                    ],
+                    "name": "GiveProbeA"
+                  },
+                  "insertion": "GiveProbeA"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.6692133,
+          "seed": 3537889165596922610
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.6692133,
+          "seed": 3537889165596922610
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "client.removed-component",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.give.success.single",
+              "with": [
+                2,
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "components": {
+                      "!minecraft:max_stack_size": {}
+                    }
+                  }
+                },
+                {
+                  "text": "GiveProbeA",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell GiveProbeA "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      383791221,
+                      -293194643,
+                      -1279064526,
+                      2036104707
+                    ],
+                    "name": "GiveProbeA"
+                  },
+                  "insertion": "GiveProbeA"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.7002556,
+          "seed": -3886014176365761460
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.7002556,
+          "seed": -3886014176365761460
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.048085,
+          "seed": 735085993435143993
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.048085,
+          "seed": 735085993435143993
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "client.empty-brackets",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.give.success.single",
+              "with": [
+                1,
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone"
+                  }
+                },
+                {
+                  "text": "GiveProbeA",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell GiveProbeA "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      383791221,
+                      -293194643,
+                      -1279064526,
+                      2036104707
+                    ],
+                    "name": "GiveProbeA"
+                  },
+                  "insertion": "GiveProbeA"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.424931,
+          "seed": 2002070692053256048
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.424931,
+          "seed": 2002070692053256048
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "client.modified-air",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.give.success.single",
+              "with": [
+                1,
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.air"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "text": "GiveProbeA",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell GiveProbeA "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      383791221,
+                      -293194643,
+                      -1279064526,
+                      2036104707
+                    ],
+                    "name": "GiveProbeA"
+                  },
+                  "insertion": "GiveProbeA"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "client.air-over-limit",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "text": "",
+              "extra": [
+                {
+                  "translate": "commands.give.failed.toomanyitems",
+                  "with": [
+                    100,
+                    {
+                      "translate": "chat.square_brackets",
+                      "with": [
+                        {
+                          "text": "",
+                          "extra": [
+                            {
+                              "translate": "block.minecraft.air"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "color": "red"
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "client.toomanyitems-epic",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "text": "",
+              "extra": [
+                {
+                  "translate": "commands.give.failed.toomanyitems",
+                  "with": [
+                    100,
+                    {
+                      "translate": "chat.square_brackets",
+                      "with": [
+                        {
+                          "text": "",
+                          "extra": [
+                            {
+                              "translate": "item.minecraft.diamond_pickaxe"
+                            }
+                          ]
+                        }
+                      ],
+                      "color": "light_purple",
+                      "hover_event": {
+                        "action": "show_item",
+                        "id": "minecraft:diamond_pickaxe",
+                        "components": {
+                          "minecraft:rarity": "epic"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ],
+              "color": "red"
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "client.non-player-selector",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "text": "",
+              "extra": [
+                {
+                  "translate": "argument.player.entities"
+                }
+              ],
+              "color": "red"
+            },
+            {
+              "text": "",
+              "extra": [
+                {
+                  "text": "",
+                  "extra": [
+                    {
+                      "text": "give @e stone",
+                      "color": "red",
+                      "underlined": true
+                    },
+                    {
+                      "translate": "command.context.here",
+                      "color": "red",
+                      "italic": true
+                    }
+                  ],
+                  "color": "gray",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/give @e stone"
+                  }
+                }
+              ],
+              "color": "red"
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "client.unknown-item",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "text": "",
+              "extra": [
+                {
+                  "translate": "argument.item.id.invalid",
+                  "with": [
+                    "minecraft:unknown_id"
+                  ]
+                }
+              ],
+              "color": "red"
+            },
+            {
+              "text": "",
+              "extra": [
+                {
+                  "text": "",
+                  "extra": [
+                    "give @s ",
+                    {
+                      "text": "unknown_id[x=1] 0",
+                      "color": "red",
+                      "underlined": true
+                    },
+                    {
+                      "translate": "command.context.here",
+                      "color": "red",
+                      "italic": true
+                    }
+                  ],
+                  "color": "gray",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/give @s unknown_id[x=1] 0"
+                  }
+                }
+              ],
+              "color": "red"
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "client.malformed-strict",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "text": "",
+              "extra": [
+                {
+                  "translate": "arguments.item.malformed",
+                  "with": [
+                    "Item cannot be both damageable and stackable"
+                  ]
+                }
+              ],
+              "color": "red"
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "client.offline-before-limit",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "text": "",
+              "extra": [
+                {
+                  "translate": "argument.entity.notfound.player"
+                }
+              ],
+              "color": "red"
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "default",
+      "observed": {
+        "console": {
+          "output": [
+            "[GiveProbeA: Gave 1 [Stone] to GiveProbeA]",
+            "[GiveProbeA: Gave 3 [Stone] to 2 players]",
+            "[GiveProbeA: Gave 1 [Air] to GiveProbeA]",
+            "[GiveProbeA: Gave 1 [Stone] to GiveProbeA]",
+            "[GiveProbeA: Gave 1 [Stone] to GiveProbeA]",
+            "[GiveProbeA: Gave 1 [Stone] to GiveProbeA]",
+            "[GiveProbeA: Gave 1 [MyStone] to GiveProbeA]",
+            "[GiveProbeA: Gave 1 [Styled] to GiveProbeA]",
+            "[GiveProbeA: Gave 1 [BaseName] to GiveProbeA]",
+            "[GiveProbeA: Gave 2 [Diamond Sword] to GiveProbeA]",
+            "[GiveProbeA: Gave 1 [Stone] to GiveProbeA]",
+            "[GiveProbeA: Gave 2 [Stone] to GiveProbeA]",
+            "[GiveProbeA: Gave 1 [Stone] to GiveProbeA]",
+            "[GiveProbeA: Gave 1 [Air] to GiveProbeA]",
+            "Removed 19 item(s) from 2 players",
+            "Gave 1 [Stone] to GiveProbeA",
+            "GiveProbeA has the following entity data: [{count: 1, Slot: 0b, id: \"minecraft:stone\"}]",
+            "#result has 1 [give_result]",
+            "#success has 1 [give_success]"
+          ]
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.0201132,
+          "seed": 4106159570104370557
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.0201132,
+          "seed": 4106159570104370557
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "multiple",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed 1 item(s) from player GiveProbeA",
+            "Gave 3 [Stone] to 2 players",
+            "GiveProbeA has the following entity data: [{count: 3, Slot: 0b, id: \"minecraft:stone\"}]",
+            "GiveProbeB has the following entity data: [{count: 3, Slot: 0b, id: \"minecraft:stone\"}]",
+            "#result has 2 [give_result]",
+            "#success has 1 [give_success]"
+          ]
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.1079888,
+          "seed": 8665351417838497987
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.1054747,
+          "seed": 6831858637019644441
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.1079888,
+          "seed": 8665351417838497987
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.1054747,
+          "seed": 6831858637019644441
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "split",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed 6 item(s) from 2 players",
+            "Gave 5 [Stone] to GiveProbeA",
+            "GiveProbeA has the following entity data: [{components: {\"minecraft:max_stack_size\": 4}, count: 4, Slot: 0b, id: \"minecraft:stone\"}, {components: {\"minecraft:max_stack_size\": 4}, count: 1, Slot: 1b, id: \"minecraft:stone\"}]"
+          ]
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.3929362,
+          "seed": -474628437305182667
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 0.6816087,
+          "seed": -8214576662048986779
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.3929362,
+          "seed": -474628437305182667
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 0.6816087,
+          "seed": -8214576662048986779
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "limit",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed 5 item(s) from player GiveProbeA",
+            "No entity was found",
+            "Can't give more than 400 of [Stone]",
+            "GiveProbeA has the following entity data: []",
+            "GiveProbeB has the following entity data: []",
+            "#result has 0 [give_result]",
+            "#success has 0 [give_success]"
+          ]
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "per_target_limit",
+      "observed": {
+        "console": {
+          "output": [
+            "No items were found on 2 players",
+            "No entity was found",
+            "Gave 60 [Stone] to 2 players",
+            "#result has 2 [give_result]",
+            "#success has 1 [give_success]"
+          ]
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.1266954,
+          "seed": -4614265314130468722
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.1266954,
+          "seed": -4614265314130468722
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.1575234,
+          "seed": -4444802553211367804
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.9214884,
+          "seed": 5202593286663980952
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.1575234,
+          "seed": -4444802553211367804
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.2054303,
+          "seed": -3381045940777950081
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.9214884,
+          "seed": 5202593286663980952
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.400064,
+          "seed": 5085295582645411344
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.2054303,
+          "seed": -3381045940777950081
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.9936779,
+          "seed": -4333268263767585434
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.400064,
+          "seed": 5085295582645411344
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.0017486,
+          "seed": 428124384130009189
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.9936779,
+          "seed": -4333268263767585434
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.9713362,
+          "seed": -3231379080579540807
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.7967,
+          "seed": -3260387849523979328
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.0017486,
+          "seed": 428124384130009189
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.3877356,
+          "seed": 7230979328754533385
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.9713362,
+          "seed": -3231379080579540807
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.429584,
+          "seed": -8591624825841891004
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.7967,
+          "seed": -3260387849523979328
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.2143155,
+          "seed": -5594561873601338915
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.3877356,
+          "seed": 7230979328754533385
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 3.0391207,
+          "seed": -3336999960115447402
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.429584,
+          "seed": -8591624825841891004
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.040936,
+          "seed": -8607516678345176359
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.2143155,
+          "seed": -5594561873601338915
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 3.0391207,
+          "seed": -3336999960115447402
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.667617,
+          "seed": 7358011328435870879
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.040936,
+          "seed": -8607516678345176359
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 0.9138334,
+          "seed": -241980191770264292
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.667617,
+          "seed": 7358011328435870879
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.8280698,
+          "seed": -9165923988647038576
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 0.9138334,
+          "seed": -241980191770264292
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.1769164,
+          "seed": -5695696280301040150
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.8536434,
+          "seed": 6037504179793038118
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.146273,
+          "seed": 2577520462096683403
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.8280698,
+          "seed": -9165923988647038576
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.7957798,
+          "seed": 7521856123932120111
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.1769164,
+          "seed": -5695696280301040150
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.2263544,
+          "seed": 7392090090331184498
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.8536434,
+          "seed": 6037504179793038118
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.8058481,
+          "seed": 8350601428787271756
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.146273,
+          "seed": 2577520462096683403
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.5645016,
+          "seed": 3975808864576915616
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.6365573,
+          "seed": -836856005323827977
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.7957798,
+          "seed": 7521856123932120111
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.8000236,
+          "seed": -9201284256544764342
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.2263544,
+          "seed": 7392090090331184498
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.8058481,
+          "seed": 8350601428787271756
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.5013015,
+          "seed": 5785387237655828167
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.5645016,
+          "seed": 3975808864576915616
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.1191366,
+          "seed": 6335921139337017017
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.6365573,
+          "seed": -836856005323827977
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.2626672,
+          "seed": -4506217033564559630
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.8000236,
+          "seed": -9201284256544764342
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.6644497,
+          "seed": 8049755385201896049
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.4784511,
+          "seed": -1752975743967015660
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 0.91655004,
+          "seed": -2709624133329251435
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.5013015,
+          "seed": 5785387237655828167
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.1702087,
+          "seed": -1862369712728676050
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.1191366,
+          "seed": 6335921139337017017
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.6773188,
+          "seed": -602073233163718263
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.2626672,
+          "seed": -4506217033564559630
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.71353,
+          "seed": -5523633088488183312
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.6644497,
+          "seed": 8049755385201896049
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 3.214133,
+          "seed": 3484682996839957208
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.4784511,
+          "seed": -1752975743967015660
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 0.91655004,
+          "seed": -2709624133329251435
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.1702087,
+          "seed": -1862369712728676050
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.6773188,
+          "seed": -602073233163718263
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.71353,
+          "seed": -5523633088488183312
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 3.214133,
+          "seed": 3484682996839957208
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.2634447,
+          "seed": 1790397357602120506
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.0555713,
+          "seed": 705212890880944472
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.5029929,
+          "seed": 8811739643121060064
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.3249556,
+          "seed": -8817334668001039220
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.2634447,
+          "seed": 1790397357602120506
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.1840148,
+          "seed": 1493366132738757037
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.0555713,
+          "seed": 705212890880944472
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 0.8149792,
+          "seed": 865462464353713737
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 3.0928388,
+          "seed": 1960363724781749930
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.5029929,
+          "seed": 8811739643121060064
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.54758,
+          "seed": 8105633885574522267
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.3249556,
+          "seed": -8817334668001039220
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.139728,
+          "seed": 650005904350839455
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.1840148,
+          "seed": 1493366132738757037
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.7968191,
+          "seed": 8169190475195659240
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 0.8149792,
+          "seed": 865462464353713737
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 3.0928388,
+          "seed": 1960363724781749930
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.54758,
+          "seed": 8105633885574522267
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.139728,
+          "seed": 650005904350839455
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.5611057,
+          "seed": 3783976897310795226
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.7968191,
+          "seed": 8169190475195659240
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.6154797,
+          "seed": 3918566459467032662
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.5611057,
+          "seed": 3783976897310795226
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.6154797,
+          "seed": 3918566459467032662
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.216299,
+          "seed": 3399706224771514926
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.216299,
+          "seed": 3399706224771514926
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.43047,
+          "seed": 7344007941575271786
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.43047,
+          "seed": 7344007941575271786
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.039536,
+          "seed": -5295451216479943874
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.039536,
+          "seed": -5295451216479943874
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.4432378,
+          "seed": -1380976875370881807
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.4432378,
+          "seed": -1380976875370881807
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.7644513,
+          "seed": -2465116994526619909
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.7644513,
+          "seed": -2465116994526619909
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.9194609,
+          "seed": 5170670545496987170
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.9194609,
+          "seed": 5170670545496987170
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.5957227,
+          "seed": -488898344143365526
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.9945166,
+          "seed": 3275598755520442884
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.5957227,
+          "seed": -488898344143365526
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 3.000482,
+          "seed": -8116137987599544662
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.9945166,
+          "seed": 3275598755520442884
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.6787709,
+          "seed": -3820115750739144179
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 3.000482,
+          "seed": -8116137987599544662
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.7832036,
+          "seed": -1976200302064117195
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.6787709,
+          "seed": -3820115750739144179
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.0531278,
+          "seed": 3128511216169534731
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 0.95667315,
+          "seed": 6727780197333342822
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.7832036,
+          "seed": -1976200302064117195
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.5466576,
+          "seed": -1048010421986812345
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.0531278,
+          "seed": 3128511216169534731
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 3.005767,
+          "seed": 1660603408714746170
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.6430614,
+          "seed": -5195454530008622361
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 0.95667315,
+          "seed": 6727780197333342822
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.0499265,
+          "seed": 6990615947148360538
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.1423345,
+          "seed": 8251634383178004884
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.5466576,
+          "seed": -1048010421986812345
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.5467734,
+          "seed": -4917640438014887336
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 3.005767,
+          "seed": 1660603408714746170
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.5918326,
+          "seed": 3051544147006498908
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.6430614,
+          "seed": -5195454530008622361
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.0499265,
+          "seed": 6990615947148360538
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.0581074,
+          "seed": 4956900698183761721
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.1423345,
+          "seed": 8251634383178004884
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.8931508,
+          "seed": -3882352279598191400
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.5467734,
+          "seed": -4917640438014887336
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.047895,
+          "seed": -1244874491273064141
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.5918326,
+          "seed": 3051544147006498908
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.7963538,
+          "seed": 3496513381091551889
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.0581074,
+          "seed": 4956900698183761721
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.8931508,
+          "seed": -3882352279598191400
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.047895,
+          "seed": -1244874491273064141
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.7963538,
+          "seed": 3496513381091551889
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "limit_inclusive",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed 72 item(s) from 2 players",
+            "Killed 48 entities",
+            "Gave 400 [Stone] to GiveProbeA",
+            "#result has 1 [give_result]",
+            "#success has 1 [give_success]"
+          ]
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.9587532,
+          "seed": -1582891908374238305
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.0831702,
+          "seed": 2514288499309385392
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.4857006,
+          "seed": 4730616084066471827
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.162349,
+          "seed": -816253309160456179
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.3696699,
+          "seed": 8282755120435217558
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 3.33328,
+          "seed": -367771857703477891
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.2628155,
+          "seed": -3514511448137371951
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 0.7575904,
+          "seed": 3288794982363420537
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.4695988,
+          "seed": 7982556738803229200
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.618439,
+          "seed": 7698964123684091527
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.5751374,
+          "seed": 6143311805910585761
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 0.89881814,
+          "seed": 811795962021801915
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.5254261,
+          "seed": -4575689486051812734
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.9587532,
+          "seed": -1582891908374238305
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.7624788,
+          "seed": -4138203298343357055
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.6792707,
+          "seed": 1942328557946555322
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.0831702,
+          "seed": 2514288499309385392
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.9520538,
+          "seed": -1060892798178733926
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.4857006,
+          "seed": 4730616084066471827
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.162349,
+          "seed": -816253309160456179
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.3553522,
+          "seed": -2222917438289768185
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.3696699,
+          "seed": 8282755120435217558
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.962766,
+          "seed": -7704848456230517404
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.6098366,
+          "seed": -3730923991823293512
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 3.33328,
+          "seed": -367771857703477891
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.5348003,
+          "seed": -1666444752606328483
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.8058785,
+          "seed": 938331007978776028
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.2628155,
+          "seed": -3514511448137371951
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 0.7575904,
+          "seed": 3288794982363420537
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.794693,
+          "seed": -6979889296626037527
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.4695988,
+          "seed": 7982556738803229200
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.2441683,
+          "seed": 1398286944426134428
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.618439,
+          "seed": 7698964123684091527
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.0901796,
+          "seed": 5746148977646378323
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.5751374,
+          "seed": 6143311805910585761
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.4438418,
+          "seed": -5253698127507917083
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 0.89881814,
+          "seed": 811795962021801915
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.0905478,
+          "seed": -5452311488348527855
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.5254261,
+          "seed": -4575689486051812734
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.1885564,
+          "seed": 155133853770934601
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.9148998,
+          "seed": 6598480079609954379
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.7624788,
+          "seed": -4138203298343357055
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.6388067,
+          "seed": -852224779228368857
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.6792707,
+          "seed": 1942328557946555322
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.1155381,
+          "seed": 1076857608636453790
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.9520538,
+          "seed": -1060892798178733926
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.1765983,
+          "seed": 7451335078931509000
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.2571952,
+          "seed": 2891331462286746396
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.3553522,
+          "seed": -2222917438289768185
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.3728582,
+          "seed": -7894341048534111156
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.962766,
+          "seed": -7704848456230517404
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.6098366,
+          "seed": -3730923991823293512
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.1317179,
+          "seed": 1471820498975175575
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.5348003,
+          "seed": -1666444752606328483
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.5944185,
+          "seed": 2868232687328445445
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.03134,
+          "seed": -1205224712079929313
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.8058785,
+          "seed": 938331007978776028
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.794693,
+          "seed": -6979889296626037527
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.2441683,
+          "seed": 1398286944426134428
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.0901796,
+          "seed": 5746148977646378323
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.4438418,
+          "seed": -5253698127507917083
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.0905478,
+          "seed": -5452311488348527855
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.1885564,
+          "seed": 155133853770934601
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.9148998,
+          "seed": 6598480079609954379
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.6388067,
+          "seed": -852224779228368857
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.1155381,
+          "seed": 1076857608636453790
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.1765983,
+          "seed": 7451335078931509000
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.2571952,
+          "seed": 2891331462286746396
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.3728582,
+          "seed": -7894341048534111156
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.1317179,
+          "seed": 1471820498975175575
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.5944185,
+          "seed": 2868232687328445445
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.03134,
+          "seed": -1205224712079929313
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "removed_max_stack_size",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed 144 item(s) from player GiveProbeA",
+            "Killed 64 entities",
+            "Gave 2 [Stone] to GiveProbeA",
+            "GiveProbeA has the following entity data: [{components: {\"!minecraft:max_stack_size\": {}}, count: 1, Slot: 0b, id: \"minecraft:stone\"}, {components: {\"!minecraft:max_stack_size\": {}}, count: 1, Slot: 1b, id: \"minecraft:stone\"}]"
+          ]
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.5688151,
+          "seed": 5550469519068265679
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.5984383,
+          "seed": -2626209486814472272
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.5688151,
+          "seed": 5550469519068265679
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.5984383,
+          "seed": -2626209486814472272
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "air",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed 2 item(s) from player GiveProbeA",
+            "No entity was found",
+            "Gave 100 [Air] to GiveProbeA",
+            "GiveProbeA has the following entity data: []",
+            "#result has 1 [give_result]",
+            "#success has 1 [give_success]",
+            "Can't give more than 100 of [Air]"
+          ]
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "invalid_component",
+      "observed": {
+        "console": {
+          "output": [
+            "No items were found on 2 players",
+            "Malformed item: 'Item cannot be both damageable and stackable'",
+            "GiveProbeA has the following entity data: []",
+            "#result has 0 [give_result]",
+            "#success has 0 [give_success]"
+          ]
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "partial_survival",
+      "observed": {
+        "console": {
+          "output": [
+            "No items were found on 2 players",
+            "No entity was found",
+            "Replaced 27 slot(s) on GiveProbeA with [Dirt]",
+            "Replaced 9 slot(s) on GiveProbeA with [Dirt]",
+            "Replaced 1 slot(s) on GiveProbeA with [Stone]",
+            "Gave 10 [Stone] to GiveProbeA",
+            "GiveProbeA has the following entity data: {count: 64, Slot: 0b, id: \"minecraft:stone\"}",
+            "Stone has the following entity data: {count: 9, id: \"minecraft:stone\"}",
+            "#result has 1 [give_result]",
+            "#success has 1 [give_success]"
+          ]
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "full_survival",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed 2304 item(s) from player GiveProbeA",
+            "Killed Stone",
+            "Replaced 27 slot(s) on GiveProbeA with [Dirt]",
+            "Replaced 9 slot(s) on GiveProbeA with [Dirt]",
+            "Gave 10 [Stone] to GiveProbeA",
+            "Stone has the following entity data: {count: 10, id: \"minecraft:stone\"}",
+            "#result has 1 [give_result]",
+            "#success has 1 [give_success]"
+          ]
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "cross_dimension",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed 2304 item(s) from player GiveProbeA",
+            "GiveProbeB has made the advancement [We Need to Go Deeper]",
+            "Teleported GiveProbeB to 0.500000, 120.000000, 0.500000",
+            "GiveProbeB has the following entity data: \"minecraft:the_nether\"",
+            "Gave 3 [Stone] to 2 players",
+            "GiveProbeA has the following entity data: [{count: 3, Slot: 0b, id: \"minecraft:stone\"}]",
+            "GiveProbeB has the following entity data: [{count: 3, Slot: 0b, id: \"minecraft:stone\"}]",
+            "#result has 2 [give_result]",
+            "#success has 1 [give_success]",
+            "Teleported GiveProbeB to 2.500000, 100.000000, 0.500000"
+          ]
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            960,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.6966883,
+          "seed": -3439660783639989273
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.4858975,
+          "seed": 1310741496779750352
+        }
+      ],
+      "command_trees": [
+        {
+          "client": "GiveProbeB",
+          "node_count": 26,
+          "roots": []
+        },
+        {
+          "client": "GiveProbeB",
+          "node_count": 26,
+          "roots": []
+        }
+      ]
+    },
+    {
+      "id": "parse_error_store",
+      "observed": {
+        "console": {
+          "output": [
+            "Set [give_result] for #result to 123",
+            "Set [give_success] for #success to 123",
+            "Integer must not be less than 1: found 0",
+            "... @a stone 0<--[HERE]",
+            "#result has 123 [give_result]",
+            "#success has 123 [give_success]"
+          ]
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "error_precedence",
+      "observed": {
+        "console": {
+          "output": [
+            "Unknown item 'minecraft:no_such_item'",
+            "...uchPlayer no_such_item 0<--[HERE]",
+            "Integer must not be less than 1: found 0",
+            "...yer stone 0<--[HERE]",
+            "No player was found"
+          ]
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "argument_errors",
+      "observed": {
+        "console": {
+          "output": [
+            "Integer must not be less than 1: found 0",
+            "... @a stone 0<--[HERE]",
+            "Only players may be affected by this command, but the provided selector includes entities",
+            "give @e stone<--[HERE]",
+            "Unknown item 'minecraft:nonexisting'",
+            "give @a nonexisting 1<--[HERE]",
+            "No player was found"
+          ]
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "empty_brackets",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed 6 item(s) from 2 players",
+            "Killed Stone",
+            "Gave 1 [Stone] to GiveProbeA",
+            "Gave 1 [Air] to GiveProbeA",
+            "GiveProbeA has the following entity data: [{count: 1, Slot: 0b, id: \"minecraft:stone\"}]"
+          ]
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.3887448,
+          "seed": -1934949821858024935
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.3887448,
+          "seed": -1934949821858024935
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "modified_air",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed 1 item(s) from player GiveProbeA",
+            "No entity was found",
+            "Gave 1 [Air] to GiveProbeA",
+            "Gave 5 [Air] to GiveProbeA",
+            "GiveProbeA has the following entity data: []",
+            "Can't give more than 100 of [Air]",
+            "Can't give more than 100 of [Air]"
+          ]
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "greedy_split_partial",
+      "observed": {
+        "console": {
+          "output": [
+            "No items were found on 2 players",
+            "No entity was found",
+            "Replaced 27 slot(s) on GiveProbeA with [Dirt]",
+            "Replaced 9 slot(s) on GiveProbeA with [Dirt]",
+            "Replaced 1 slot(s) on GiveProbeA with [Stone]",
+            "Gave 100 [Stone] to GiveProbeA",
+            "GiveProbeA has the following entity data: {count: 64, Slot: 0b, id: \"minecraft:stone\"}",
+            "Stone has the following entity data: {count: 63, id: \"minecraft:stone\"}",
+            "Stone has the following entity data: {count: 36, id: \"minecraft:stone\"}"
+          ]
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "greedy_split_one_slot",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed 2304 item(s) from player GiveProbeA",
+            "Killed 2 entities",
+            "Replaced 27 slot(s) on GiveProbeA with [Dirt]",
+            "Replaced 9 slot(s) on GiveProbeA with [Dirt]",
+            "Replaced 1 slot(s) on GiveProbeA with [Air]",
+            "Gave 100 [Stone] to GiveProbeA",
+            "GiveProbeA has the following entity data: {count: 64, Slot: 0b, id: \"minecraft:stone\"}",
+            "Stone has the following entity data: {count: 1, id: \"minecraft:stone\"}",
+            "Stone has the following entity data: {count: 36, id: \"minecraft:stone\"}"
+          ]
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.7371044,
+          "seed": 338978906969249112
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.7371044,
+          "seed": 338978906969249112
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "mixed_multi_target",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed 2304 item(s) from player GiveProbeA",
+            "Killed Stone",
+            "Replaced 27 slot(s) on GiveProbeA with [Dirt]",
+            "Replaced 9 slot(s) on GiveProbeA with [Dirt]",
+            "Gave 5 [Stone] to 2 players",
+            "GiveProbeB has the following entity data: [{count: 5, Slot: 0b, id: \"minecraft:stone\"}]",
+            "Stone has the following entity data: {count: 5, id: \"minecraft:stone\"}",
+            "Stone has the following entity data: {count: 1, id: \"minecraft:stone\"}",
+            "#result has 2 [give_result]",
+            "#success has 1 [give_success]"
+          ]
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.2132666,
+          "seed": -6594907283752038822
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.2132666,
+          "seed": -6594907283752038822
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "spectator_target",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed 2309 item(s) from 2 players",
+            "Killed Stone",
+            "Set GiveProbeB's game mode to Spectator Mode",
+            "Gave 3 [Stone] to GiveProbeB",
+            "GiveProbeB has the following entity data: [{count: 3, Slot: 0b, id: \"minecraft:stone\"}]",
+            "Replaced 27 slot(s) on GiveProbeB with [Dirt]",
+            "Replaced 9 slot(s) on GiveProbeB with [Dirt]",
+            "Gave 4 [Stone] to GiveProbeB",
+            "Stone has the following entity data: {count: 1, id: \"minecraft:stone\"}",
+            "Stone has the following entity data: {count: 4, id: \"minecraft:stone\"}",
+            "Set GiveProbeB's game mode to Survival Mode"
+          ]
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.4497235,
+          "seed": -445219353257194621
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.4497235,
+          "seed": -445219353257194621
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "sound_fraction_positive.setup",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed 2304 item(s) from player GiveProbeB",
+            "Killed Stone",
+            "Teleported GiveProbeA to 1.230000, 100.000000, -2.730000"
+          ]
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "sound_fraction_positive",
+      "observed": {
+        "console": {
+          "output": [
+            "Gave 1 [Stone] to GiveProbeA"
+          ]
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            9,
+            800,
+            -21
+          ],
+          "volume": 0.2,
+          "pitch": 1.4470474,
+          "seed": 28773274503228190
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            9,
+            800,
+            -21
+          ],
+          "volume": 0.2,
+          "pitch": 1.4470474,
+          "seed": 28773274503228190
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "sound_fraction_negative.setup",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed 1 item(s) from player GiveProbeA",
+            "No entity was found",
+            "Teleported GiveProbeA to -1.230000, 100.000000, 2.730000"
+          ]
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "sound_fraction_negative",
+      "observed": {
+        "console": {
+          "output": [
+            "Gave 1 [Stone] to GiveProbeA"
+          ]
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            -9,
+            800,
+            21
+          ],
+          "volume": 0.2,
+          "pitch": 1.9839132,
+          "seed": 3653494944639702942
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            -9,
+            800,
+            21
+          ],
+          "volume": 0.2,
+          "pitch": 1.9839132,
+          "seed": 3653494944639702942
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "sound_in_range.setup",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed 1 item(s) from player GiveProbeA",
+            "No entity was found",
+            "Teleported GiveProbeA to 1.250000, 101.500000, -2.750000",
+            "Teleported GiveProbeB to 15.250000, 101.500000, -2.750000"
+          ]
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "sound_in_range",
+      "observed": {
+        "console": {
+          "output": [
+            "Gave 1 [Stone] to GiveProbeA"
+          ]
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            10,
+            812,
+            -22
+          ],
+          "volume": 0.2,
+          "pitch": 2.1475465,
+          "seed": -3597861148760228404
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            10,
+            812,
+            -22
+          ],
+          "volume": 0.2,
+          "pitch": 2.1475465,
+          "seed": -3597861148760228404
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "sound_at_boundary.setup",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed 1 item(s) from player GiveProbeA",
+            "No entity was found",
+            "Teleported GiveProbeA to 0.000000, 100.000000, 0.000000",
+            "Teleported GiveProbeB to 16.000000, 100.000000, 0.000000"
+          ]
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "sound_at_boundary",
+      "observed": {
+        "console": {
+          "output": [
+            "Gave 1 [Stone] to GiveProbeA"
+          ]
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            0,
+            800,
+            0
+          ],
+          "volume": 0.2,
+          "pitch": 2.2433581,
+          "seed": -5297823969156333936
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "sound_other_dimension.setup",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed 1 item(s) from player GiveProbeA",
+            "No entity was found",
+            "Teleported GiveProbeA to 0.500000, 100.000000, 0.500000",
+            "Teleported GiveProbeB to 0.500000, 100.000000, 0.500000"
+          ]
+        }
+      },
+      "sounds": [],
+      "command_trees": [
+        {
+          "client": "GiveProbeB",
+          "node_count": 26,
+          "roots": []
+        }
+      ]
+    },
+    {
+      "id": "sound_other_dimension",
+      "observed": {
+        "console": {
+          "output": [
+            "Gave 1 [Stone] to GiveProbeA"
+          ]
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.0051389,
+          "seed": -2283450998182765543
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "console_precedence.setup",
+      "observed": {
+        "console": {
+          "output": [
+            "Teleported GiveProbeB to 2.500000, 100.000000, 0.500000"
+          ]
+        }
+      },
+      "sounds": [],
+      "command_trees": [
+        {
+          "client": "GiveProbeB",
+          "node_count": 26,
+          "roots": []
+        }
+      ]
+    },
+    {
+      "id": "console_precedence",
+      "observed": {
+        "console": {
+          "output": [
+            "No player was found",
+            "No player was found",
+            "No player was found",
+            "Can't give more than 100 of [Stone]",
+            "Malformed 'minecraft:max_stack_size' component: 'Value must be within range [1;99]: 100'",
+            "...tack_size=100]<--[HERE]"
+          ]
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "stats_and_advancement.setup",
+      "observed": {
+        "console": {
+          "output": [
+            "Couldn't revoke advancement [Stone Age] from GiveProbeA as they don't have it"
+          ]
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "stats_and_advancement",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed 1 item(s) from player GiveProbeA",
+            "No entity was found",
+            "Can't get value of picked_stone for GiveProbeA; none is set",
+            "Gave 5 [Stone] to GiveProbeA",
+            "Can't get value of picked_stone for GiveProbeA; none is set",
+            "GiveProbeA has made the advancement [Stone Age]",
+            "Gave 1 [Cobblestone] to GiveProbeA"
+          ]
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.0869195,
+          "seed": -8969714965258976995
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.5964888,
+          "seed": 1121047136969852462
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.0869195,
+          "seed": -8969714965258976995
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.5964888,
+          "seed": 1121047136969852462
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "dead_target.setup",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed 6 item(s) from player GiveProbeA",
+            "No entity was found",
+            "Game rule immediate_respawn is already set to false",
+            "Killed GiveProbeB"
+          ]
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    },
+    {
+      "id": "dead_target",
+      "observed": {
+        "console": {
+          "output": [
+            "Gave 2 [Stone] to 2 players",
+            "Gave 2 [Stone] to GiveProbeB",
+            "GiveProbeB has the following entity data: [{count: 4, Slot: 0b, id: \"minecraft:stone\"}]",
+            "#result has 2 [give_result]",
+            "#r2 has 1 [give_result]",
+            "#s2 has 1 [give_success]"
+          ]
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.9781764,
+          "seed": -370654296928922919
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.7826922,
+          "seed": -6693285250243505856
+        },
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.94064,
+          "seed": 3065082724947276768
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 1.9781764,
+          "seed": -370654296928922919
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.7826922,
+          "seed": -6693285250243505856
+        },
+        {
+          "client": "GiveProbeA",
+          "sound": "minecraft:entity.item.pickup",
+          "source": 7,
+          "position": [
+            20,
+            800,
+            4
+          ],
+          "volume": 0.2,
+          "pitch": 2.94064,
+          "seed": 3065082724947276768
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "dead_target_full.setup",
+      "observed": {
+        "console": {
+          "output": [
+            "Removed 6 item(s) from 2 players",
+            "No entity was found",
+            "Game rule keep_inventory is now set to true",
+            "Game rule immediate_respawn is already set to false",
+            "Replaced 27 slot(s) on GiveProbeA with [Dirt]",
+            "Replaced 9 slot(s) on GiveProbeA with [Dirt]",
+            "GiveProbeA was killed",
+            "Killed GiveProbeA"
+          ]
+        }
+      },
+      "sounds": [
+        {
+          "client": "GiveProbeB",
+          "sound": "minecraft:entity.player.death",
+          "source": 7,
+          "position": [
+            4,
+            800,
+            4
+          ],
+          "volume": 1.0,
+          "pitch": 1.0,
+          "seed": 8118580362651068841
+        }
+      ],
+      "command_trees": []
+    },
+    {
+      "id": "dead_target_full",
+      "observed": {
+        "console": {
+          "output": [
+            "Gave 10 [Stone] to GiveProbeA",
+            "Stone has the following entity data: {count: 10, id: \"minecraft:stone\"}",
+            "GiveProbeA has the following entity data: [{count: 64, Slot: 0b, id: \"minecraft:dirt\"}, {count: 64, Slot: 1b, id: \"minecraft:dirt\"}, {count: 64, Slot: 2b, id: \"minecraft:dirt\"}, {count: 64, Slot: 3b, id: \"minecraft:dirt\"}, {count: 64, Slot: 4b, id: \"minecraft:dirt\"}, {count: 64, Slot: 5b, id: \"minecraft:dirt\"}, {count: 64, Slot: 6b, id: \"minecraft:dirt\"}, {count: 64, Slot: 7b, id: \"minecraft:dirt\"}, {count: 64, Slot: 8b, id: \"minecraft:dirt\"}, {count: 64, Slot: 9b, id: \"minecraft:dirt\"}, {count: 64, Slot: 10b, id: \"minecraft:dirt\"}, {count: 64, Slot: 11b, id: \"minecraft:dirt\"}, {count: 64, Slot: 12b, id: \"minecraft:dirt\"}, {count: 64, Slot: 13b, id: \"minecraft:dirt\"}, {count: 64, Slot: 14b, id: \"minecraft:dirt\"}, {count: 64, Slot: 15b, id: \"minecraft:dirt\"}, {count: 64, Slot: 16b, id: \"minecraft:dirt\"}, {count: 64, Slot: 17b, id: \"minecraft:dirt\"}, {count: 64, Slot: 18b, id: \"minecraft:dirt\"}, {count: 64, Slot: 19b, id: \"minecraft:dirt\"}, {count: 64, Slot: 20b, id: \"minecraft:dirt\"}, {count: 64, Slot: 21b, id: \"minecraft:dirt\"}, {count: 64, Slot: 22b, id: \"minecraft:dirt\"}, {count: 64, Slot: 23b, id: \"minecraft:dirt\"}, {count: 64, Slot: 24b, id: \"minecraft:dirt\"}, {count: 64, Slot: 25b, id: \"minecraft:dirt\"}, {count: 64, Slot: 26b, id: \"minecraft:dirt\"}, {count: 64, Slot: 27b, id: \"minecraft:dirt\"}, {count: 64, Slot: 28b, id: \"minecraft:dirt\"}, {count: 64, Slot: 29b, id: \"minecraft:dirt\"}, {count: 64, Slot: 30b, id: \"minecraft:dirt\"}, {count: 64, Slot: 31b, id: \"minecraft:dirt\"}, {count: 64, Slot: 32b, id: \"minecraft:dirt\"}, {count: 64, Slot: 33b, id: \"minecraft:dirt\"}, {count: 64, Slot: 34b, id: \"minecraft:dirt\"}, {count: 64, Slot: 35b, id: \"minecraft:dirt\"}]"
+          ]
+        }
+      },
+      "sounds": [],
+      "command_trees": []
+    }
+  ]
+}
