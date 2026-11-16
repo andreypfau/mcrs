@@ -180,6 +180,22 @@ impl SpriteRegistry {
             return Ok(index);
         }
         if self.arrays.len() >= MAX_SPRITE_ARRAYS {
+            // chisle: the sprite goes into the finest coarser array, scaled up by a power of two;
+            // this fails again once that array is full too, and more bound arrays lift it.
+            let coarser = |array: &SpriteArray| {
+                array.size > side
+                    && array.size.is_multiple_of(side)
+                    && (array.size / side).is_power_of_two()
+                    && array.layers.len() + layers <= ARRAY_LAYERS
+            };
+            let finest = self
+                .arrays
+                .iter()
+                .enumerate()
+                .filter(|(_, array)| coarser(array));
+            if let Some((index, _)) = finest.min_by_key(|(_, array)| array.size) {
+                return Ok(index);
+            }
             return Err(SpriteError::TooManyArrays {
                 id: id.to_owned(),
                 needed: self.arrays.len() + 1,
@@ -260,7 +276,13 @@ impl SpriteRegistry {
         array
             .layers
             .extend(std::iter::repeat_n(opacity, frames.len()));
-        array.pixels.extend_from_slice(&pixels);
+        if array.size == side {
+            array.pixels.extend_from_slice(&pixels);
+        } else {
+            array
+                .pixels
+                .extend(scale_up(&pixels, side, array.size / side));
+        }
         let animation = (!sequence.frames.is_empty()).then(|| {
             self.animations.push(Animation {
                 array: index as u8,
@@ -488,6 +510,22 @@ fn opacity_of(pixels: &[u8]) -> Opacity {
     }
 }
 
+/// `side`-square RGBA layers with every texel repeated `factor` times on both axes. A face samples
+/// the whole layer, so it shows the same pixels; with a power-of-two `factor` the mip that many
+/// times smaller is the original.
+fn scale_up(pixels: &[u8], side: u32, factor: u32) -> impl Iterator<Item = u8> + '_ {
+    let (side, factor) = (side as usize, factor as usize);
+    pixels.chunks_exact(side * 4).flat_map(move |row| {
+        let wide = row
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .flat_map(move |texel| std::iter::repeat_n(texel, factor))
+            .flatten();
+        std::iter::repeat_n(wide, factor).flatten().copied()
+    })
+}
+
 impl SpriteArray {
     pub fn layers(&self) -> u32 {
         self.layers.len() as u32
@@ -652,6 +690,30 @@ mod tests {
 
     fn level_coverage(level: &[u8]) -> f32 {
         coverage(level, level.len() / 4, 1.0)
+    }
+
+    #[test]
+    fn a_sprite_past_a_full_array_goes_into_the_finest_coarser_one() {
+        let mut registry = SpriteRegistry::default();
+        for size in [16, 256, 48, 32] {
+            registry.arrays.push(SpriteArray {
+                size,
+                layers: Vec::new(),
+                pixels: Vec::new(),
+            });
+        }
+        registry.arrays[0].layers = vec![Opacity::Solid; ARRAY_LAYERS];
+        assert_eq!(registry.array_with_room("a", 16, 1).unwrap(), 3);
+        registry.arrays[3].layers = vec![Opacity::Solid; ARRAY_LAYERS];
+        assert_eq!(registry.array_with_room("b", 16, 1).unwrap(), 1);
+        assert!(registry.array_with_room("c", 20, 1).is_err());
+    }
+
+    #[test]
+    fn scaling_up_repeats_every_texel_on_both_axes() {
+        let pixels: Vec<u8> = (0..4u8).flat_map(|texel| [texel; 4]).collect();
+        let scaled: Vec<u8> = scale_up(&pixels, 2, 2).step_by(4).collect();
+        assert_eq!(scaled, [0, 0, 1, 1, 0, 0, 1, 1, 2, 2, 3, 3, 2, 2, 3, 3]);
     }
 
     #[test]

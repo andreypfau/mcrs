@@ -75,6 +75,7 @@ impl PluginGroup for ClientPlugins {
             .add(input::ClientInputPlugin)
             .add(local_player::LocalPlayerPlugin)
             .add(block_breaking::BlockBreakingPlugin)
+            .add(mcrs_minecraft_client_world::hotbar_sync::HotbarSyncPlugin)
             .add(options::ClientOptionsPlugin {
                 options: self.0.options(),
                 file: self.0.options_file(),

@@ -2,23 +2,13 @@
 //! against the scalar VM, the optimised program against the direct lowering, and the scalar VM
 //! against molangjs.
 
-#![expect(clippy::unwrap_used, reason = "a test reports a failure by panicking")]
-#![expect(
-    clippy::indexing_slicing,
-    reason = "a test reports a failure by panicking"
-)]
-#![expect(
-    clippy::disallowed_methods,
-    reason = "the case count comes from the environment of proptest"
-)]
-
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
-use generator::{NUMBER_QUERIES, Profile, VARIABLES, program, registry};
+use crate::generator::{NUMBER_QUERIES, Profile, VARIABLES, program, registry};
 use mcrs_molang::{
     BatchOutput, BatchQueries, BatchSubjects, BatchVariables, BatchVm, CompileOptions, Expression,
     Milestone, QueryRegistry, QuerySlot, QueryValues, ScalarVm, Source, Subject, Value, ValueType,
@@ -27,8 +17,6 @@ use mcrs_molang::{
 use proptest::prelude::*;
 use proptest::test_runner::{Config, TestCaseError, TestRunner};
 use serde::{Deserialize, Serialize};
-
-mod generator;
 
 const LANES: usize = 64;
 /// A small deterministic generator for the inputs of the lanes.
