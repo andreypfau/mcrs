@@ -1,6 +1,5 @@
 //! The vanilla argument set, its errors, its parsers on the wire and the client tree.
 
-// std: mcrs_minecraft_core needs it.
 mod client;
 mod error;
 mod nbt_compound_argument;

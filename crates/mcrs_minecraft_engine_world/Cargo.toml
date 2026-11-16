@@ -34,7 +34,6 @@ mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_simulation.workspace = true
 mcrs_minecraft_volume.workspace = true
 rustc-hash.workspace = true
-smallvec.workspace = true
 tracing.workspace = true
 uuid = { workspace = true, features = ["v4"] }
 
@@ -42,7 +41,7 @@ uuid = { workspace = true, features = ["v4"] }
 telemetry-tracy = []
 
 [dev-dependencies]
-criterion = { version = "0.7", default-features = false }
+criterion = { workspace = true }
 mcrs_minecraft_random.workspace = true
 
 [[bench]]

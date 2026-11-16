@@ -27,7 +27,6 @@ anyhow.workspace = true
 glam = { workspace = true, features = ["std"] }
 libc.workspace = true
 mcrs_minecraft_bench_support.workspace = true
-mcrs_minecraft_core.workspace = true
 mcrs_minecraft_entity.workspace = true
 mcrs_minecraft_network.workspace = true
 mcrs_minecraft_protocol.workspace = true

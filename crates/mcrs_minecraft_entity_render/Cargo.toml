@@ -45,7 +45,7 @@ wgpu = { version = "30", default-features = false, features = ["wgsl"] }
 
 [dev-dependencies]
 naga = { workspace = true, features = ["wgsl-in"] }
-criterion = { version = "0.7", features = ["html_reports"] }
+criterion = { workspace = true }
 mcrs_minecraft_fixtures.workspace = true
 futures-lite = "2"
 image = { version = "0.25", default-features = false, features = ["png"] }

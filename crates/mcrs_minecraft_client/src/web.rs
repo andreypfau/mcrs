@@ -113,15 +113,10 @@ pub fn run() {
     app.insert_resource(knobs.clone());
     register_asset_source(&mut app);
     vanilla::register(&mut app);
-    app.add_plugins(
-        DefaultPlugins
-            .set(WindowPlugin {
-                primary_window: Some(window()),
-                ..default()
-            })
-            .disable::<bevy::pbr::PbrPlugin>()
-            .disable::<bevy::light::LightPlugin>(),
-    )
+    app.add_plugins(DefaultPlugins.set(WindowPlugin {
+        primary_window: Some(window()),
+        ..default()
+    }))
     .add_plugins(ClientPlugins(knobs.clone()))
     .insert_resource(Time::<Fixed>::from_hz(local_player::TICKS_PER_SECOND))
     .insert_resource(WorldClocks::default())

@@ -19,7 +19,7 @@ mcrs_minecraft_move_validate.workspace = true
 rustc-hash.workspace = true
 
 [dev-dependencies]
-criterion = { version = "0.7", default-features = false }
+criterion = { workspace = true }
 mcrs_minecraft_client_ticks.workspace = true
 mcrs_minecraft_physics = { workspace = true, features = ["testing"] }
 

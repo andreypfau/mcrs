@@ -34,7 +34,6 @@ mcrs_minecraft_replication.workspace = true
 mcrs_minecraft_wire.workspace = true
 rustc-hash.workspace = true
 tracing.workspace = true
-uuid.workspace = true
 
 [dev-dependencies]
 bevy_tasks.workspace = true

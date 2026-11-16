@@ -82,7 +82,7 @@ flume = { version = "0.12.0", default-features = false }
 rayon = "1"
 libm = { version = "0.2.16", default-features = false }
 proptest = "1.11.0"
-criterion = "0.7"
+criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
 bytemuck = "1"
 futures-lite = "2"
 naga = "30"
@@ -352,6 +352,12 @@ opt-level = 3
 
 [profile.release.build-override]
 opt-level = 3
+
+[profile.dist]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+strip = true
 
 # `package."*"` only covers external dependencies; workspace members inherit
 # [profile.dev] opt-level 0. Both paths a column can arrive by are far too hot

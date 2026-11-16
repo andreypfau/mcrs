@@ -12,6 +12,5 @@ workspace = true
 
 [dependencies]
 mcrs_minecraft_entity_key.workspace = true
-mcrs_voxel.workspace = true
 glam = { workspace = true, features = ["nostd-libm"] }
 libm.workspace = true

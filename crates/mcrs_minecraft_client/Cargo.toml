@@ -54,7 +54,6 @@ bevy = { version = "0.20.1", default-features = false, features = [
     "bevy_winit",
     "bevy_render",
     "bevy_core_pipeline",
-    "bevy_pbr",
     "bevy_image",
     "keyboard",
     "mouse",
@@ -74,8 +73,6 @@ mcrs_minecraft_game_registries.workspace = true
 mcrs_minecraft_chunk = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_engine_world.workspace = true
 mcrs_minecraft_game_mode.workspace = true
-# Bevy gives no name to the query-set and pass-timestamp types, and timing a pass needs both.
-wgpu = { version = "30", default-features = false }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 mcrs_minecraft_save.workspace = true
@@ -106,6 +103,8 @@ web-sys = { version = "0.3", features = ["Window", "Location", "UrlSearchParams"
 
 [features]
 default = ["singleplayer", "dev"]
+# The PBR material and light path. Only the block viewer example needs it; the client does not.
+pbr = ["bevy/bevy_pbr"]
 singleplayer = ["dep:mcrs_minecraft_server", "dep:mcrs_minecraft_engine_server", "dep:mcrs_minecraft_engine", "dep:mcrs_minecraft_server_settings", "dep:mcrs_minecraft_vanilla_worldgen"]
 dev = []
 # The graphics API of the browser build; `scripts/build-web.sh` picks one. `webgl2` wins nothing
@@ -143,6 +142,7 @@ objc2-foundation = { version = "0.3", default-features = false, features = ["std
 [[example]]
 name = "block_viewer"
 path = "examples/block_viewer/main.rs"
+required-features = ["pbr"]
 
 [[test]]
 name = "scene_frames"

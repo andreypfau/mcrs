@@ -12,7 +12,6 @@ workspace = true
 anyhow.workspace = true
 glam = { workspace = true, features = ["std"] }
 mcrs_minecraft_bench_support.workspace = true
-mcrs_minecraft_network.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_protocol_game.workspace = true
 mcrs_voxel.workspace = true
