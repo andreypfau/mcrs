@@ -1051,7 +1051,8 @@ None of these experiments has been run. Each one needs `tools/vanilla-server`. I
   Expected, if U3 holds: the answers of step 5 equal those of step 2, and the game writes the
   `poi` files again. Record each difference, and the log lines about `poi`.
 - **P7.** Confirms the forms of SAVE-POOL-001 and SAVE-POOL-002 that no fixture shows.
-  1. Make a data pack with one jigsaw structure and four pools. Pool A has a
+  1. Make a data pack with four pools and four jigsaw structures. The start pool of each structure
+     is a different pool. Pool A has a
      `single_pool_element` with the inline list `{"processors": [<one rule processor>]}`. Pool B
      has the same element with the list form `[<the same processor>]`. Pool C has a
      `feature_pool_element` with an inline placed feature. Pool D has a `single_pool_element` whose
@@ -1069,6 +1070,8 @@ None of these experiments has been run. Each one needs `tools/vanilla-server`. I
   1. With the data pack of P7, generate starts of pool A and pool D with pieces in more than one
      column. Stop the server before the game places the blocks of each column.
   2. In the data pack, change the rule processor of pool A, and change the processor list that the
-     registry id of pool D names. Start the server and load the other columns.
-  3. Record the blocks of the pieces. Expected: the inline element places with the processor of
-     the save, and the element with the registry id places with the changed list.
+     registry id of pool D names. Each old and each new processor replaces a block of the piece
+     template, and the old and the new output blocks are different. Start the server and load the
+     other columns.
+  3. Record the blocks of the pieces. Expected: the inline element places the output block of the
+     old processor, and the element with the registry id places the output block of the new list.
