@@ -182,8 +182,9 @@ A v1 header is one line of US-ASCII bytes. Each separator is exactly one space (
   between `UNKNOWN ` and CR LF.
   - `PROXY UNKNOWN` and then CR LF;
   - `PROXY UNKNOWN`, a space, other bytes, and then CR LF.
-- **Behavior:** each other family, an empty field, two spaces in a row, and a space before CR
-  LF are malformed.
+- **Behavior:** each other family is malformed. For `TCP4` and `TCP6`, an empty field, two
+  spaces in a row, and a space before CR LF are malformed. These rules do not apply to the
+  ignored bytes of an `UNKNOWN` line.
 
 Provenance: `documentation` (PP 2.1). Kind: wire. Confidence: high.
 
@@ -333,6 +334,7 @@ complete input before the Minecraft stream.
 | V1-4 | `PROXY UNKNOWN` CR LF (15 bytes) | client address `198.51.100.1:40000` |
 | V1-5 | `PROXY UNKNOWN ffff:f:: ffff:f:: 1 2` CR LF (37 bytes) | client address `198.51.100.1:40000` |
 | V1-6 | `PROXY UNKNOWN `, 91 bytes `a`, CR LF (107 bytes) | client address `198.51.100.1:40000` |
+| V1-9 | `PROXY UNKNOWN a  b` CR LF (20 bytes, two spaces) | client address `198.51.100.1:40000` |
 | V1-7 | V1-1, then the bytes of a handshake frame, in one segment | V1-1; the handshake frame is read |
 | V1-8 | V1-1, sent one byte at a time | V1-1 |
 | V2-1 | hex block A (35 bytes) | client address `203.0.113.7:51234` |

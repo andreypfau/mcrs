@@ -22,6 +22,9 @@ pub(crate) async fn read_proxy_header<R: AsyncRead + Unpin>(
     if !start.starts_with(V1_SIGNATURE) {
         return Err(malformed());
     }
+    if start.contains(&b'\n') {
+        return Err(malformed());
+    }
     let mut line = start.to_vec();
     while line.last() != Some(&b'\n') {
         if line.len() == V1_MAX_LEN {
@@ -160,7 +163,7 @@ mod tests {
         let mut long_unknown = b"PROXY UNKNOWN ".to_vec();
         long_unknown.extend([b'a'; 91]);
         long_unknown.extend(b"\r\n");
-        let cases: [(Vec<u8>, Option<SocketAddr>); 8] = [
+        let cases: [(Vec<u8>, Option<SocketAddr>); 9] = [
             (v1_tcp4.clone(), client("203.0.113.7:51234")),
             (
                 b"PROXY TCP6 2001:db8::7 2001:db8::1 51234 25565\r\n".to_vec(),
@@ -172,6 +175,7 @@ mod tests {
             ),
             (b"PROXY UNKNOWN\r\n".to_vec(), None),
             (b"PROXY UNKNOWN ffff:f:: ffff:f:: 1 2\r\n".to_vec(), None),
+            (b"PROXY UNKNOWN a  b\r\n".to_vec(), None),
             (long_unknown, None),
             (hex(BLOCK_A), client("203.0.113.7:51234")),
             (hex(BLOCK_B), None),

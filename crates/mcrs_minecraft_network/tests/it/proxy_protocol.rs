@@ -80,10 +80,13 @@ fn pxp_con_001_a_header_from_another_address_is_a_malformed_handshake() {
 #[test]
 fn pxp_use_002_the_per_ip_limit_charges_the_client_address_of_the_header() {
     let (_app, address) = server(Ipv4Addr::LOCALHOST.into());
-    let admitted = (0..6)
-        .map(|_| answered(address, &v1("203.0.113.7")))
-        .collect::<Vec<_>>();
-    assert_eq!(admitted, [true, true, true, true, true, false]);
-    assert!(answered(address, &v1("203.0.113.8")));
-    assert!(answered(address, V2_LOCAL));
+    // The bucket holds 5 and refills 0.5 a second, so these hold unless the test stalls 30 s.
+    assert!(
+        (1..=20).all(|n| answered(address, &v1(&format!("203.0.113.{n}")))),
+        "the upstream itself is not charged"
+    );
+    assert!(
+        !(0..20).all(|_| answered(address, &v1("203.0.113.100"))),
+        "one client address is charged"
+    );
 }

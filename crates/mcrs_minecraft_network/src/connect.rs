@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
+use tokio::io::AsyncRead;
 use tokio::net::TcpListener;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::time::timeout;
@@ -165,8 +166,8 @@ pub(crate) async fn start_accept_loop(shared: SharedNetworkState, listener: TcpL
     }
 }
 
-async fn client_behind_proxy(
-    socket: &mut tokio::net::TcpStream,
+async fn client_behind_proxy<R: AsyncRead + Unpin>(
+    socket: &mut R,
     socket_addr: std::net::SocketAddr,
     gate: &AcceptGate,
     per_ip_limit: bool,
@@ -235,6 +236,58 @@ mod tests {
             .collect();
         kept.sort();
         assert_eq!(kept, [drained, IpAddr::V4(Ipv4Addr::new(10, 0, 1, 0))]);
+    }
+
+    #[test]
+    fn pxp_use_002_the_header_address_is_charged_and_the_upstream_is_not() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let client = |header: &[u8], gate: &AcceptGate, per_ip_limit: bool| {
+            let upstream = "198.51.100.1:40000".parse().unwrap();
+            runtime.block_on(client_behind_proxy(
+                &mut &header[..],
+                upstream,
+                gate,
+                per_ip_limit,
+            ))
+        };
+        let header =
+            |source: &str| format!("PROXY TCP4 {source} 192.0.2.10 51234 25565\r\n").into_bytes();
+        let gate = AcceptGate::new();
+        let drained: IpAddr = "203.0.113.7".parse().unwrap();
+        // A refill time in the future stops the bucket from refilling during the test.
+        gate.buckets.lock().unwrap().per_ip.insert(
+            drained,
+            TokenBucket {
+                tokens: 0.0,
+                last_refill: Instant::now() + Duration::from_secs(3600),
+            },
+        );
+
+        assert_eq!(client(&header("203.0.113.7"), &gate, true), None);
+        assert_eq!(
+            client(&header("203.0.113.7"), &gate, false),
+            Some("203.0.113.7:51234".parse().unwrap())
+        );
+        assert_eq!(
+            client(&header("203.0.113.8"), &gate, true),
+            Some("203.0.113.8:51234".parse().unwrap())
+        );
+        assert_eq!(
+            client(b"\r\n\r\n\0\r\nQUIT\n\x20\x00\x00\x00", &gate, true),
+            Some("198.51.100.1:40000".parse().unwrap())
+        );
+        let mut charged: Vec<_> = gate
+            .buckets
+            .lock()
+            .unwrap()
+            .per_ip
+            .keys()
+            .copied()
+            .collect();
+        charged.sort();
+        assert_eq!(charged, [drained, "203.0.113.8".parse::<IpAddr>().unwrap()]);
     }
 
     #[test]
