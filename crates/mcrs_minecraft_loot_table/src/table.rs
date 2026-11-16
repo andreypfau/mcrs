@@ -8,7 +8,7 @@ use mcrs_minecraft_random::Random;
 
 use crate::item_rules::ItemRules;
 use crate::loot_scratch::LootScratch;
-use crate::modifier::Modifier;
+use crate::modifier::{Modifier, apply_all};
 use crate::work_stack::WorkStack;
 
 /// A baked table. Its entries sit in one list; a composite entry names the span of its children
@@ -114,7 +114,7 @@ impl Table {
         self.items.get(usize::try_from(index).ok()?).copied()
     }
 
-    fn nested(&self, index: u32) -> Option<u32> {
+    pub(crate) fn nested(&self, index: u32) -> Option<u32> {
         self.nested
             .get(usize::try_from(index).ok()?)
             .copied()
@@ -360,26 +360,15 @@ impl<'e, 'c, E: Copy, W: LootWorld<E>> Evaluation<'e, 'c, E, W> {
         let Some(entry) = place.table.entry(place.leaf) else {
             return;
         };
-        self.apply(&entry.modifiers, stack, random, scratch);
+        let table = place.table;
+        apply_all(&entry.modifiers, table, stack, self, random, scratch);
         let mut parent = entry.parent;
-        while let Some(composite) = parent.and_then(|index| place.table.entry(index)) {
-            self.apply(&composite.modifiers, stack, random, scratch);
+        while let Some(composite) = parent.and_then(|index| table.entry(index)) {
+            apply_all(&composite.modifiers, table, stack, self, random, scratch);
             parent = composite.parent;
         }
-        self.apply(&place.pool.modifiers, stack, random, scratch);
-        self.apply(&place.table.modifiers, stack, random, scratch);
-    }
-
-    fn apply<R: Random>(
-        &self,
-        modifiers: &[Modifier],
-        stack: &mut WorkStack,
-        random: &mut R,
-        scratch: &mut PredicateScratch,
-    ) {
-        for modifier in modifiers {
-            modifier.apply(stack, self, random, scratch);
-        }
+        apply_all(&place.pool.modifiers, table, stack, self, random, scratch);
+        apply_all(&table.modifiers, table, stack, self, random, scratch);
     }
 
     fn passes<R: Random>(

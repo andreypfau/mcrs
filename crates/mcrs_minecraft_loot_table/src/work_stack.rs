@@ -4,6 +4,7 @@ use mcrs_minecraft_item_stack::{
     Builtin, Count, ItemComponent, ItemStack, Kind, MaxStackSize, PatchEntry,
 };
 use mcrs_minecraft_item_table::ItemTable;
+use mcrs_minecraft_predicate::{BakedItemPredicate, ItemSubject};
 
 /// A stack while the evaluation makes it: its count can be 0, negative or above the maximum
 /// stack size until the division (LOOT-EVL-011, LOOT-OUT-001). The item and the component patch
@@ -55,6 +56,15 @@ impl<'a> WorkStack<'a> {
 
     pub(crate) fn kind(&self) -> Option<Kind> {
         self.read().map(|stack| stack.kind)
+    }
+
+    /// True when the work stack, with its count, passes `filter`; an empty work stack tests as
+    /// the empty stack.
+    pub(crate) fn passes(&self, filter: &BakedItemPredicate, items: &ItemTable) -> bool {
+        match self.read() {
+            Some(stack) => filter.matches_count(stack, self.count, items),
+            None => filter.matches(ItemSubject::Empty, items),
+        }
     }
 
     /// Writes `value` to the component patch, also of an empty work stack, and keeps the patch in

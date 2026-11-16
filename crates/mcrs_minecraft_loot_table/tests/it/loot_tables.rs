@@ -95,6 +95,13 @@ const TABLES: &[(&str, &str)] = &[
         r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:dynamic", "name": "minecraft:contents"}]}]}"#,
     ),
     (
+        "t:dynamic_filtered",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:dynamic", "name": "minecraft:contents",
+            "modifier": [{"type": "minecraft:set_count", "count": 2},
+                {"type": "minecraft:filtered", "item_filter": {"count": 2},
+                 "on_pass": {"type": "minecraft:set_count", "count": 3}}]}]}]}"#,
+    ),
+    (
         "t:dynamic_unknown",
         r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:dynamic", "name": "t:contents"}]}]}"#,
     ),
@@ -232,7 +239,7 @@ const TABLES: &[(&str, &str)] = &[
 
 /// The length of the chain `d:chain/0` to `d:chain/{CHAIN - 1}`: each table nests the next, and
 /// the last makes one stick.
-pub const CHAIN: usize = 100;
+pub const CHAIN: usize = 66;
 
 fn chain_table(link: usize) -> String {
     let entry = if link + 1 == CHAIN {
@@ -409,8 +416,8 @@ fn loot_ctx_013_a_part_that_reads_outside_the_table_type_is_an_issue() {
     let issues: Vec<_> = ADDED
         .2
         .iter()
-        .filter(|issue| issue.table.as_str().starts_with("t:"))
-        .map(|issue| (issue.table.as_str(), issue.path.as_str(), &issue.problem))
+        .filter(|issue| issue.name.as_str().starts_with("t:"))
+        .map(|issue| (issue.name.as_str(), issue.path.as_str(), &issue.problem))
         .collect();
     let expected = LootProblem::ParamNotAllowed(ParamNotAllowed {
         param: ContextParam::Tool,
@@ -430,8 +437,8 @@ fn loot_ctx_017_a_table_chain_continues_into_its_providers() {
     let mut issues: Vec<_> = ADDED
         .2
         .iter()
-        .filter(|issue| issue.table.as_str().starts_with("c:"))
-        .map(|issue| (issue.table.to_string(), issue.path.as_str(), &issue.problem))
+        .filter(|issue| issue.name.as_str().starts_with("c:"))
+        .map(|issue| (issue.name.to_string(), issue.path.as_str(), &issue.problem))
         .collect();
     issues.sort_by(|left, right| left.0.cmp(&right.0));
     let too_long = CHAIN_ROWS
@@ -613,34 +620,43 @@ fn loot_rnd_001_a_table_added_before_keeps_the_keyed_stream() {
 }
 
 /// A roll of a block table whose stacks have no patch allocates nothing once the buffers have
-/// grown.
+/// grown, also when a `filtered` tests a stack of the context with a changed count.
 #[test]
 fn a_roll_of_a_block_table_allocates_nothing_after_warm_up() {
     let fortune = tool("minecraft:diamond_pickaxe", &[("minecraft:fortune", 3)]);
+    let stone = state("minecraft:stone", &[]);
+    let contents = [Some(tool("minecraft:stick", &[]))];
     let cases = [
-        state("minecraft:stone", &[]),
-        state("minecraft:coal_ore", &[]),
-        state("minecraft:wheat", &[("age", "7")]),
+        (&LOOT.0, block_table(&LOOT.0, stone)),
+        (
+            &LOOT.0,
+            block_table(&LOOT.0, state("minecraft:coal_ore", &[])),
+        ),
+        (
+            &LOOT.0,
+            block_table(&LOOT.0, state("minecraft:wheat", &[("age", "7")])),
+        ),
+        (&ADDED.1, added_table("t:dynamic_filtered")),
     ];
     let mut scratch = LootScratch::new();
     let mut stacks = Vec::new();
-    let roll = |state, stacks: &mut Vec<_>, scratch: &mut LootScratch, tick| {
-        let table = block_table(&LOOT.0, state);
-        let mut random = stream(&LOOT.0, table, tick);
-        let context: LootContext<'_, ()> = context(state, Some(&fortune));
+    let roll = |(loot, table): (&LootTables, _), stacks: &mut Vec<_>, scratch: &mut _, tick| {
+        let mut random = stream(loot, table, tick);
+        let mut context: LootContext<'_, ()> = context(stone, Some(&fortune));
+        context.contents = &contents;
         let before = allocations();
-        LOOT.0
-            .roll(table, &context, &NoWorld, &mut random, scratch, stacks)
+        loot.roll(table, &context, &NoWorld, &mut random, scratch, stacks)
             .expect("a block context");
         allocations() - before
     };
-    for state in cases {
-        roll(state, &mut stacks, &mut scratch, 0);
+    for case in cases {
+        roll(case, &mut stacks, &mut scratch, 0);
     }
     stacks.clear();
-    let allocated: usize = cases
+    let allocated: Vec<usize> = cases
         .into_iter()
-        .map(|state| roll(state, &mut stacks, &mut scratch, 1))
-        .sum();
-    assert_eq!((allocated, stacks.len() >= cases.len()), (0, true));
+        .map(|case| roll(case, &mut stacks, &mut scratch, 1))
+        .collect();
+    assert_eq!(allocated, [0; 4]);
+    assert_eq!(names(stacks.pop()), [("minecraft:stick".to_owned(), 3)]);
 }

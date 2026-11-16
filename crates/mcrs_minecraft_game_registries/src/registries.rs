@@ -33,7 +33,7 @@ use mcrs_minecraft_item::{
     InstrumentValue, JukeboxSong, PaintingVariantValue, TrimMaterial, TrimPattern,
 };
 use mcrs_minecraft_loot_condition::{ConditionFile, FloatProviderFile, IntProviderFile};
-use mcrs_minecraft_loot_table::LootTableFile;
+use mcrs_minecraft_loot_table::{LootTableFile, ModifierFile};
 use mcrs_minecraft_registries::{Declaration, Stage};
 use mcrs_minecraft_sound::BlockSoundSet;
 use serde::Deserialize;
@@ -110,6 +110,7 @@ fn typed_declarations() -> Vec<Declaration> {
         Declaration::data::<MultiNoiseBiomeSourceParameterList>().into(),
         Declaration::data::<WorldPreset>().into(),
         Declaration::data::<LootTableFile>().into(),
+        Declaration::data::<ModifierFile>().into(),
         Declaration::data::<ConditionFile>().into(),
         Declaration::data::<IntProviderFile>().into(),
         Declaration::data::<FloatProviderFile>().into(),

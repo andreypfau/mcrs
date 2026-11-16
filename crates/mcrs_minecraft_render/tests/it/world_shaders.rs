@@ -148,11 +148,15 @@ const FULL: &[RenderPath] = &[RenderPath::Full];
 
 /// Each shader the minimal path draws with, the defs of a pipeline that uses it beside those of
 /// the path, and the paths that build that pipeline.
-const PIPELINES: [(&str, &[&str], &[RenderPath]); 15] = [
+const PIPELINES: [(&str, &[&str], &[RenderPath]); 19] = [
     ("greedy", &[], BOTH),
+    ("greedy", &["SOLID"], BOTH),
+    ("greedy", &["SOLID", "WIREFRAME"], BOTH),
     ("greedy", &["WIREFRAME"], BOTH),
     ("greedy", &["IMPROVED"], BOTH),
     ("model", &[], BOTH),
+    ("model", &["SOLID"], BOTH),
+    ("model", &["SOLID", "WIREFRAME"], BOTH),
     ("model", &["WIREFRAME"], BOTH),
     ("model", &["IMPROVED"], BOTH),
     ("lighting_pass", &[], BOTH),

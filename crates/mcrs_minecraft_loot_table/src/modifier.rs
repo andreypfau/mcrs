@@ -1,18 +1,20 @@
 use core::num::NonZeroU8;
 
+use mcrs_minecraft_item::component::equippable::EquipmentSlot;
 use mcrs_minecraft_item::enchantment::Enchantment;
 use mcrs_minecraft_item_stack::{
     Damage, EnchantmentId, EnchantmentLevel, Enchantments, Kind, MaxDamage, Unbreakable,
 };
 use mcrs_minecraft_loot_condition::{
     Condition, ContextParam, ContextParams, FloatProvider, IntProvider, LootWorld, Tool, between,
-    binomial, bounded,
+    binomial, bounded, equipment_level,
 };
-use mcrs_minecraft_predicate::PredicateScratch;
+use mcrs_minecraft_predicate::{BakedItemPredicate, PredicateScratch};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_resource::Id;
 
-use crate::table::Evaluation;
+use crate::set_attribute::{SetAttribute, set_attributes};
+use crate::table::{Evaluation, Table};
 use crate::work_stack::WorkStack;
 
 /// A baked item modifier.
@@ -26,14 +28,13 @@ pub(crate) struct Modifier {
 pub(crate) enum ModifierOp {
     /// A modifier whose name the bake could not resolve; it changes nothing.
     Unresolved,
-    // chisle: `furnace_smelt`, `set_attributes`, `set_name`, `exploration_map`,
-    // `set_stew_effect`, `copy_name`, `set_contents`, `modify_contents`, `filtered`,
-    // `set_loot_table`, `set_lore`, `fill_player_head`, `copy_custom_data`, `copy_state`,
-    // `set_banner_pattern`, `set_potion`, `set_random_dyes`, `set_random_potion`,
-    // `set_instrument`, `copy_components`, the firework and book types, `toggle_tooltips`,
-    // `set_ominous_bottle_amplifier`, `set_custom_model_data`, `set_components`,
-    // `set_custom_data` and `enchant_with_levels` keep the stack. Of them, `enchant_with_levels`,
-    // `set_attributes`, `set_stew_effect`, `set_contents`, `modify_contents`, `filtered`,
+    // chisle: `furnace_smelt`, `set_name`, `exploration_map`, `set_stew_effect`, `copy_name`,
+    // `set_contents`, `modify_contents`, `set_loot_table`, `set_lore`, `fill_player_head`,
+    // `copy_custom_data`, `copy_state`, `set_banner_pattern`, `set_potion`, `set_random_dyes`,
+    // `set_random_potion`, `set_instrument`, `copy_components`, the firework and book types,
+    // `toggle_tooltips`, `set_ominous_bottle_amplifier`, `set_custom_model_data`,
+    // `set_components`, `set_custom_data` and `enchant_with_levels` keep the stack. Of them,
+    // `enchant_with_levels`, `set_stew_effect`, `set_contents`, `modify_contents`,
     // `set_random_dyes`, `set_random_potion`, `set_instrument`, `set_ominous_bottle_amplifier`
     // and `set_custom_model_data` skip the draws of section 9 of `loot-functions.md`, so a roll
     // after one of them is not exact; lifted by the evaluation of each type.
@@ -57,9 +58,15 @@ pub(crate) enum ModifierOp {
         extra: i32,
         probability: f32,
     },
-    // chisle: the context holds no `attacking_entity`, so the modifier always stops at step 1
-    // of LOOT-MOD-013; lifted by a context parameter that gives the equipment of the attacker.
-    EnchantedCountIncrease,
+    /// The entry of the registry `item_modifier` at this slot of the list `nested` of the table
+    /// that holds the modifier (LOOT-MOD-010).
+    Named(u32),
+    EnchantedCountIncrease(CountIncrease),
+    Filtered {
+        filter: Box<BakedItemPredicate>,
+        on_pass: Box<[Modifier]>,
+        on_fail: Box<[Modifier]>,
+    },
     Discard,
     SetItem(Kind),
     SetDamage {
@@ -76,6 +83,20 @@ pub(crate) enum ModifierOp {
         add: bool,
     },
     Sequence(Box<[Modifier]>),
+    SetAttributes {
+        elements: Box<[SetAttribute]>,
+        replace: bool,
+    },
+}
+
+/// The fields of `enchanted_count_increase` (LOOT-MOD-013).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct CountIncrease {
+    pub(crate) enchantment: Option<Id<Enchantment>>,
+    /// The slots that the `slots` of the enchantment names.
+    pub(crate) slots: Box<[EquipmentSlot]>,
+    pub(crate) count: FloatProvider,
+    pub(crate) limit: i32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -97,6 +118,8 @@ impl ModifierOp {
             ModifierOp::Unresolved
             | ModifierOp::Pending
             | ModifierOp::Sequence(_)
+            | ModifierOp::Named(_)
+            | ModifierOp::Filtered { .. }
             | ModifierOp::Discard
             | ModifierOp::SetItem(_) => ContextParams::EMPTY,
             ModifierOp::SetCount { count, .. } => count.reads(),
@@ -106,10 +129,15 @@ impl ModifierOp {
             ModifierOp::OreDrops(_)
             | ModifierOp::UniformBonus { .. }
             | ModifierOp::BinomialBonus { .. } => ContextParams::of(&[ContextParam::Tool]),
-            ModifierOp::EnchantedCountIncrease => {
-                ContextParams::of(&[ContextParam::AttackingEntity])
+            ModifierOp::EnchantedCountIncrease(increase) => {
+                ContextParams::of(&[ContextParam::AttackingEntity]).union(increase.count.reads())
             }
             ModifierOp::EnchantRandomly { .. } => ContextParams::EMPTY,
+            ModifierOp::SetAttributes { elements, .. } => elements
+                .iter()
+                .fold(ContextParams::EMPTY, |reads, element| {
+                    reads.union(element.amount.reads())
+                }),
             ModifierOp::SetEnchantments { levels, .. } => {
                 providers(levels.iter().map(|level| &level.level))
             }
@@ -118,9 +146,11 @@ impl ModifierOp {
 }
 
 impl Modifier {
-    /// Applies the modifier to `stack` with the draws of its rule (LOOT-MOD-009, LOOT-MOD-012).
+    /// Applies the modifier of `holder` to `stack` with the draws of its rule (LOOT-MOD-009,
+    /// LOOT-MOD-012).
     pub(crate) fn apply<E: Copy, W: LootWorld<E>, R: Random>(
         &self,
+        holder: &Table,
         stack: &mut WorkStack,
         evaluation: &Evaluation<'_, '_, E, W>,
         random: &mut R,
@@ -137,7 +167,7 @@ impl Modifier {
         }
         let count = stack.count();
         match &self.op {
-            ModifierOp::Unresolved | ModifierOp::Pending | ModifierOp::EnchantedCountIncrease => {}
+            ModifierOp::Unresolved | ModifierOp::Pending => {}
             ModifierOp::SetCount { count: value, add } => {
                 let value = value.read(inputs, random, scratch);
                 stack.count = if *add {
@@ -194,11 +224,87 @@ impl Modifier {
                 set_enchantments(stack, levels, *add, evaluation, random, scratch);
             }
             ModifierOp::Sequence(modifiers) => {
-                for modifier in modifiers {
-                    modifier.apply(stack, evaluation, random, scratch);
+                apply_all(modifiers, holder, stack, evaluation, random, scratch);
+            }
+            ModifierOp::Named(slot) => {
+                let target = holder
+                    .nested(*slot)
+                    .and_then(|target| evaluation.tables.get(usize::try_from(target).ok()?));
+                if let Some(target) = target {
+                    let modifiers = &target.modifiers;
+                    apply_all(modifiers, target, stack, evaluation, random, scratch);
                 }
             }
+            ModifierOp::EnchantedCountIncrease(increase) => {
+                increase.apply(stack, evaluation, random, scratch);
+            }
+            ModifierOp::SetAttributes { elements, replace } => {
+                set_attributes(stack, elements, *replace, evaluation, random, scratch);
+            }
+            ModifierOp::Filtered {
+                filter,
+                on_pass,
+                on_fail,
+            } => {
+                let branch = match stack.passes(filter, &evaluation.rules.items) {
+                    true => on_pass,
+                    false => on_fail,
+                };
+                apply_all(branch, holder, stack, evaluation, random, scratch);
+            }
         }
+    }
+}
+
+/// Applies each of `modifiers` of `holder` in order.
+pub(crate) fn apply_all<E: Copy, W: LootWorld<E>, R: Random>(
+    modifiers: &[Modifier],
+    holder: &Table,
+    stack: &mut WorkStack,
+    evaluation: &Evaluation<'_, '_, E, W>,
+    random: &mut R,
+    scratch: &mut PredicateScratch,
+) {
+    for modifier in modifiers {
+        modifier.apply(holder, stack, evaluation, random, scratch);
+    }
+}
+
+impl CountIncrease {
+    /// LOOT-MOD-013.
+    fn apply<E: Copy, W: LootWorld<E>, R: Random>(
+        &self,
+        stack: &mut WorkStack,
+        evaluation: &Evaluation<'_, '_, E, W>,
+        random: &mut R,
+        scratch: &mut PredicateScratch,
+    ) {
+        let level = evaluation
+            .context
+            .attacking_entity
+            .zip(self.enchantment)
+            .map_or(0, |(attacker, enchantment)| {
+                equipment_level(evaluation.world, attacker, enchantment, &self.slots)
+            });
+        if level > 0 {
+            let per_level = self.count.read(evaluation.inputs(), random, scratch);
+            stack.count = count_increase(stack.count(), level, per_level, self.limit);
+        }
+    }
+}
+
+/// Steps 5 and 6 of LOOT-MOD-013, in f32.
+fn count_increase(count: i32, level: u32, per_level: f32, limit: i32) -> i32 {
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "the rule multiplies the level as a 32-bit float"
+    )]
+    let product = level as f32 * per_level;
+    #[expect(clippy::cast_possible_truncation, reason = "the cast saturates")]
+    let increased = count.saturating_add((product + 0.5).floor() as i32);
+    match limit > 0 && increased > limit {
+        true => limit,
+        false => increased,
     }
 }
 
@@ -470,7 +576,16 @@ mod tests {
             let before = random.clone();
             let mut stack = WorkStack::one(Kind(0));
             stack.count = 2;
+            let holder = Table {
+                name_key: 0,
+                pools: Box::new([]),
+                entries: Box::new([]),
+                items: Box::new([]),
+                nested: Box::new([]),
+                modifiers: Box::new([]),
+            };
             modifier.apply(
+                &holder,
                 &mut stack,
                 &evaluation,
                 &mut random,
