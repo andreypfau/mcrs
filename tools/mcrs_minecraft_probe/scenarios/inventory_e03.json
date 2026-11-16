@@ -1,0 +1,709 @@
+{
+  "target": {
+    "operators": [
+      "inve03probeplyr"
+    ]
+  },
+  "observe": {
+    "inventory": true
+  },
+  "steps": [
+    {
+      "id": "join",
+      "join": "inve03probeplyr"
+    },
+    {
+      "id": "peaceful",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "difficulty peaceful"
+      }
+    },
+    {
+      "id": "teleport_to_origin",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "tp @s 0.5 -60 0.5"
+      }
+    },
+    {
+      "id": "survival",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "gamemode survival"
+      }
+    },
+    {
+      "id": "cursor_stone_10",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s player.cursor with stone 10"
+      }
+    },
+    {
+      "id": "click_result_slot_with_stone",
+      "click": {
+        "client": "inve03probeplyr",
+        "slot": 0,
+        "button": 0,
+        "mode": "pickup",
+        "carried": {
+          "item": "minecraft:stone",
+          "count": 10
+        }
+      }
+    },
+    {
+      "id": "clear_after_result_click",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "clear @s"
+      }
+    },
+    {
+      "id": "helmet_m9_clear",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "clear @s"
+      }
+    },
+    {
+      "id": "helmet_m9_stone_40_in_m10",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s inventory.1 with stone 40"
+      }
+    },
+    {
+      "id": "helmet_m9_stone_40_in_m40",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s hotbar.4 with stone 40"
+      }
+    },
+    {
+      "id": "helmet_m9_helmet",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s inventory.0 with iron_helmet"
+      }
+    },
+    {
+      "id": "helmet_m9_quick_move_empty_head",
+      "click": {
+        "client": "inve03probeplyr",
+        "slot": 9,
+        "button": 0,
+        "mode": "quick_move"
+      }
+    },
+    {
+      "id": "helmet_m9_read_equipment",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "data get entity @s equipment"
+      }
+    },
+    {
+      "id": "helmet_m9_full_head_clear",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "clear @s"
+      }
+    },
+    {
+      "id": "helmet_m9_full_head_stone_40_in_m10",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s inventory.1 with stone 40"
+      }
+    },
+    {
+      "id": "helmet_m9_full_head_stone_40_in_m40",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s hotbar.4 with stone 40"
+      }
+    },
+    {
+      "id": "helmet_m9_full_head_gold",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s armor.head with golden_helmet"
+      }
+    },
+    {
+      "id": "helmet_m9_full_head_helmet",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s inventory.0 with iron_helmet"
+      }
+    },
+    {
+      "id": "helmet_m9_quick_move_full_head",
+      "click": {
+        "client": "inve03probeplyr",
+        "slot": 9,
+        "button": 0,
+        "mode": "quick_move"
+      }
+    },
+    {
+      "id": "shield_m36_clear",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "clear @s"
+      }
+    },
+    {
+      "id": "shield_m36_stone_40_in_m10",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s inventory.1 with stone 40"
+      }
+    },
+    {
+      "id": "shield_m36_stone_40_in_m40",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s hotbar.4 with stone 40"
+      }
+    },
+    {
+      "id": "shield_m36_shield",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s hotbar.0 with shield"
+      }
+    },
+    {
+      "id": "shield_m36_quick_move",
+      "click": {
+        "client": "inve03probeplyr",
+        "slot": 36,
+        "button": 0,
+        "mode": "quick_move"
+      }
+    },
+    {
+      "id": "stone_m9_clear",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "clear @s"
+      }
+    },
+    {
+      "id": "stone_m9_stone_40_in_m10",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s inventory.1 with stone 40"
+      }
+    },
+    {
+      "id": "stone_m9_stone_40_in_m40",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s hotbar.4 with stone 40"
+      }
+    },
+    {
+      "id": "stone_m9_stone_64",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s inventory.0 with stone 64"
+      }
+    },
+    {
+      "id": "stone_m9_quick_move",
+      "click": {
+        "client": "inve03probeplyr",
+        "slot": 9,
+        "button": 0,
+        "mode": "quick_move"
+      }
+    },
+    {
+      "id": "stone_m9_read_inventory",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "data get entity @s Inventory"
+      }
+    },
+    {
+      "id": "stone_m36_clear",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "clear @s"
+      }
+    },
+    {
+      "id": "stone_m36_stone_40_in_m10",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s inventory.1 with stone 40"
+      }
+    },
+    {
+      "id": "stone_m36_stone_40_in_m40",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s hotbar.4 with stone 40"
+      }
+    },
+    {
+      "id": "stone_m36_stone_64",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s hotbar.0 with stone 64"
+      }
+    },
+    {
+      "id": "stone_m36_quick_move",
+      "click": {
+        "client": "inve03probeplyr",
+        "slot": 36,
+        "button": 0,
+        "mode": "quick_move"
+      }
+    },
+    {
+      "id": "stone_m36_read_inventory",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "data get entity @s Inventory"
+      }
+    },
+    {
+      "id": "stone_m1_clear",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "clear @s"
+      }
+    },
+    {
+      "id": "stone_m1_stone_40_in_m10",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s inventory.1 with stone 40"
+      }
+    },
+    {
+      "id": "stone_m1_stone_40_in_m40",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s hotbar.4 with stone 40"
+      }
+    },
+    {
+      "id": "stone_m1_stone_64",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s player.crafting.0 with stone 64"
+      }
+    },
+    {
+      "id": "stone_m1_quick_move",
+      "click": {
+        "client": "inve03probeplyr",
+        "slot": 1,
+        "button": 0,
+        "mode": "quick_move"
+      }
+    },
+    {
+      "id": "stone_m1_read_inventory",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "data get entity @s Inventory"
+      }
+    },
+    {
+      "id": "stone_m45_clear",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "clear @s"
+      }
+    },
+    {
+      "id": "stone_m45_stone_40_in_m10",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s inventory.1 with stone 40"
+      }
+    },
+    {
+      "id": "stone_m45_stone_40_in_m40",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s hotbar.4 with stone 40"
+      }
+    },
+    {
+      "id": "stone_m45_stone_64",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s weapon.offhand with stone 64"
+      }
+    },
+    {
+      "id": "stone_m45_quick_move",
+      "click": {
+        "client": "inve03probeplyr",
+        "slot": 45,
+        "button": 0,
+        "mode": "quick_move"
+      }
+    },
+    {
+      "id": "stone_m45_read_inventory",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "data get entity @s Inventory"
+      }
+    },
+    {
+      "id": "helmet_m5_clear",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "clear @s"
+      }
+    },
+    {
+      "id": "helmet_m5_stone_40_in_m10",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s inventory.1 with stone 40"
+      }
+    },
+    {
+      "id": "helmet_m5_stone_40_in_m40",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s hotbar.4 with stone 40"
+      }
+    },
+    {
+      "id": "helmet_m5_helmet",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s armor.head with iron_helmet"
+      }
+    },
+    {
+      "id": "helmet_m5_quick_move",
+      "click": {
+        "client": "inve03probeplyr",
+        "slot": 5,
+        "button": 0,
+        "mode": "quick_move"
+      }
+    },
+    {
+      "id": "helmet_m5_read_inventory",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "data get entity @s Inventory"
+      }
+    },
+    {
+      "id": "result_m0_clear",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "clear @s"
+      }
+    },
+    {
+      "id": "result_m0_stone_40_in_m10",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s inventory.1 with stone 40"
+      }
+    },
+    {
+      "id": "result_m0_stone_40_in_m40",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s hotbar.4 with stone 40"
+      }
+    },
+    {
+      "id": "result_m0_log_in_grid",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s player.crafting.0 with oak_log 1"
+      }
+    },
+    {
+      "id": "result_m0_quick_move",
+      "click": {
+        "client": "inve03probeplyr",
+        "slot": 0,
+        "button": 0,
+        "mode": "quick_move"
+      }
+    },
+    {
+      "id": "result_m0_read_inventory",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "data get entity @s Inventory"
+      }
+    },
+    {
+      "id": "zombie_helmet_m9_clear",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "clear @s"
+      }
+    },
+    {
+      "id": "zombie_helmet_m9_stone_40_in_m10",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s inventory.1 with stone 40"
+      }
+    },
+    {
+      "id": "zombie_helmet_m9_stone_40_in_m40",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s hotbar.4 with stone 40"
+      }
+    },
+    {
+      "id": "zombie_helmet_m9_helmet",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s inventory.0 with iron_helmet[equippable={slot:\"head\",allowed_entities:\"minecraft:zombie\"}]"
+      }
+    },
+    {
+      "id": "zombie_helmet_m9_quick_move_empty_head",
+      "click": {
+        "client": "inve03probeplyr",
+        "slot": 9,
+        "button": 0,
+        "mode": "quick_move"
+      }
+    },
+    {
+      "id": "zombie_helmet_m9_read_inventory",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "data get entity @s Inventory"
+      }
+    },
+    {
+      "id": "zombie_helmet_m9_read_equipment",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "data get entity @s equipment"
+      }
+    },
+    {
+      "id": "pick_up_all_clear",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "clear @s"
+      }
+    },
+    {
+      "id": "pick_up_all_log_in_grid",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s player.crafting.0 with oak_log 1"
+      }
+    },
+    {
+      "id": "pick_up_all_planks_10_in_m9",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s inventory.0 with oak_planks 10"
+      }
+    },
+    {
+      "id": "pick_up_all_cursor_planks_3",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s player.cursor with oak_planks 3"
+      }
+    },
+    {
+      "id": "pick_up_all_on_empty_m20",
+      "click": {
+        "client": "inve03probeplyr",
+        "slot": 20,
+        "button": 0,
+        "mode": "pickup_all"
+      }
+    },
+    {
+      "id": "pick_up_all_read_inventory",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "data get entity @s Inventory"
+      }
+    },
+    {
+      "id": "drag_clear",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "clear @s"
+      }
+    },
+    {
+      "id": "drag_cursor_stone_8",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s player.cursor with stone 8"
+      }
+    },
+    {
+      "id": "drag_start",
+      "click": {
+        "client": "inve03probeplyr",
+        "slot": -999,
+        "button": 0,
+        "mode": "quick_craft",
+        "carried": {
+          "item": "minecraft:stone",
+          "count": 8
+        }
+      }
+    },
+    {
+      "id": "drag_add_m0",
+      "click": {
+        "client": "inve03probeplyr",
+        "slot": 0,
+        "button": 1,
+        "mode": "quick_craft",
+        "carried": {
+          "item": "minecraft:stone",
+          "count": 8
+        }
+      }
+    },
+    {
+      "id": "drag_add_m2",
+      "click": {
+        "client": "inve03probeplyr",
+        "slot": 2,
+        "button": 1,
+        "mode": "quick_craft",
+        "carried": {
+          "item": "minecraft:stone",
+          "count": 8
+        }
+      }
+    },
+    {
+      "id": "drag_add_m5",
+      "click": {
+        "client": "inve03probeplyr",
+        "slot": 5,
+        "button": 1,
+        "mode": "quick_craft",
+        "carried": {
+          "item": "minecraft:stone",
+          "count": 8
+        }
+      }
+    },
+    {
+      "id": "drag_add_m11",
+      "click": {
+        "client": "inve03probeplyr",
+        "slot": 11,
+        "button": 1,
+        "mode": "quick_craft",
+        "carried": {
+          "item": "minecraft:stone",
+          "count": 8
+        }
+      }
+    },
+    {
+      "id": "drag_add_m45",
+      "click": {
+        "client": "inve03probeplyr",
+        "slot": 45,
+        "button": 1,
+        "mode": "quick_craft",
+        "carried": {
+          "item": "minecraft:stone",
+          "count": 8
+        }
+      }
+    },
+    {
+      "id": "drag_end",
+      "click": {
+        "client": "inve03probeplyr",
+        "slot": -999,
+        "button": 2,
+        "mode": "quick_craft"
+      }
+    },
+    {
+      "id": "drag_read_inventory",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "data get entity @s Inventory"
+      }
+    },
+    {
+      "id": "drag_read_equipment",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "data get entity @s equipment"
+      }
+    },
+    {
+      "id": "binding_m5_clear",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "clear @s"
+      }
+    },
+    {
+      "id": "binding_m5_helmet",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "item replace entity @s armor.head with iron_helmet[enchantments={\"minecraft:binding_curse\":1}]"
+      }
+    },
+    {
+      "id": "binding_m5_quick_move",
+      "click": {
+        "client": "inve03probeplyr",
+        "slot": 5,
+        "button": 0,
+        "mode": "quick_move"
+      }
+    },
+    {
+      "id": "binding_m5_read_equipment",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "data get entity @s equipment"
+      }
+    },
+    {
+      "id": "binding_m5_read_inventory",
+      "command": {
+        "client": "inve03probeplyr",
+        "line": "data get entity @s Inventory"
+      }
+    },
+    {
+      "id": "empty_m20_quick_move",
+      "click": {
+        "client": "inve03probeplyr",
+        "slot": 20,
+        "button": 0,
+        "mode": "quick_move"
+      }
+    }
+  ]
+}

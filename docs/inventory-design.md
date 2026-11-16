@@ -42,8 +42,8 @@ Decisions of the owner **(decided)**:
 - The `clear` command empties the cursor slot also.
 - The Java data pack is the canonical model. The Bedrock edge maps to it; no crate below the
   Bedrock edge knows Bedrock.
-- The game rules `mcrs:offhand_accepts_any_item` and `mcrs:spectators_open_menus` have the default
-  value true.
+- The game rule `mcrs:spectators_open_menus` has the default value true.
+- The off-hand slot has no take filter and no place filter in each edition (INV-SLT-005).
 
 In scope: the change source of a slot, the split of `mcrs_minecraft_vanilla_inventory`, the slot
 policy and the cancel point, the menu as data, the player file crate, the request ids, and the
@@ -71,7 +71,8 @@ The line numbers are those of the commit `9ceac16cd`.
 8. Armour slots refuse each place (`click_slots.rs:46`). The off-hand rule is fixed to `AnyItem`.
    No code reads `mcrs:spectators_open_menus`. No system sends `set_held_slot` when the server
    writes `Selected` (INV-SEL-003). The commands `clear`, `give` and `item` do not exist.
-9. No experiment of INV section 12 or ITX section 11 has a recorded result.
+9. Of the experiments of INV section 12 and ITX section 11, only E3, E8, E9 and E11 of INV and E9
+   of ITX have a recorded result.
 10. Four more ceilings have a `chisle:` mark: `sync_menus.rs:110`, `close_container.rs:44`,
     `engine_item/src/request.rs:10`, `engine_item/src/spawn_stack.rs:16`.
 
@@ -388,7 +389,7 @@ cursor stack enters the player inventory by the insert rule. When the closed men
 the craft grid does the same. At a leave and at a dimension change, the observer does the steps for
 the open menu and then for the first menu (INV-CLS-003).
 
-`VanillaInventoryPlugin` reads the two game rules of section 1 from the game rules of the world.
+`VanillaInventoryPlugin` reads the game rule of section 1 from the game rules of the world.
 The serial numbers of its requests are public constants beside `HandAction`.
 
 ## 4.6 `mcrs_minecraft_inventory_server` (layer 5, edge)
@@ -573,8 +574,8 @@ point 2, states the alternative.
 A gate is a `fn` pointer in a table. It is not a trait object. `GateQuery` gives it the three
 inputs that ITX-LIM-006 permits. A gate that reads other state breaks the contract of that rule.
 
-`vanilla_inventory` registers three gates: the armour place gate (INV-SLT-003), the armour take
-gate (INV-SLT-004) and the off-hand place gate (INV-SLT-005). It builds the policy of the player
+`vanilla_inventory` registers two gates: the armour place gate (INV-SLT-003) and the armour take
+gate (INV-SLT-004). The off-hand slot has no gate (INV-SLT-005). It builds the policy of the player
 inventory from `Holder::slot` of `inventory_player`. The craft result has `place: Gate::Refuses`
 (INV-SLT-006).
 
@@ -644,7 +645,7 @@ Section 2 names the writer of each stored thing. These rules add to it:
 - A plugin changes a slot through a command. A system that writes a slotted stack in place calls
   `touch`.
 - `SlotPolicy` has one writer for each entry. `vanilla_inventory` writes the entries of the player
-  holders at the spawn. A game rule change writes the off-hand entry again. The entry of the cursor
+  holders at the spawn. The entry of the cursor
   holder always permits each take and each place (ITX-LIM-004, ITX-LIM-005). By this rule, no
   other plugin writes it. Another plugin can
   write an entry only if `vanilla_inventory` never writes it after the spawn.
@@ -719,9 +720,9 @@ list it.
 | 7 | `EntryPressed::button` carries the Java button number. | Keep it until the Bedrock edge exists. Then replace it by an enum of both editions. |
 | 8 | The `equippable` component. `item-stack.md` lists it in a table row only; no rule states its fields. | A specification check of `item-stack.md` first (step 5). The armour place gate waits for it. |
 | 9 | The commands `clear`, `give` and `item` have no specification (INV section 9). | A specification before the commands. `clear_items` exists first, because the decision about the cursor is fixed. |
-| 10 | How a game rule outside the `minecraft` namespace is registered. `mcrs_minecraft_game_rule` holds generated keys only. | Step 5 finds the path. If none exists, the two rules are fields of `VanillaInventoryPlugin` until it does. |
+| 10 | How a game rule outside the `minecraft` namespace is registered. `mcrs_minecraft_game_rule` holds generated keys only. | Step 5 finds the path. If none exists, the rule is a field of `VanillaInventoryPlugin` until it does. |
 | 11 | `mcrs:spectators_open_menus` belongs to the specification of the block menus (INV section 9). | `vanilla_inventory` reads it where it calls `open_menu`. The rule has no effect until #63. |
-| 12 | U1 of `inventory.md`: the entries of the item tag `mcrs:offhand_allowed`. | The Bedrock edge gives the list. Not necessary for the default value of the rule. |
+| 12 | U1 of `inventory.md`: the items that the off-hand slot accepts. | **Decided by the owner: each item.** The off-hand slot has no filter (INV-SLT-005), and no game rule or tag changes it. |
 | 13 | U2 of `inventory.md`: the place of the comparison in the tick. | Experiment E7 and E8. Until then: after `TickSet::Project`. |
 | 14 | Q2 of `inventory-transactions.md`: is 128 the maximum of operations? It also limits a close (`close_container.rs:44`). | Keep 128. A close with more moves sends two `Close` requests. Change only when the craft specification needs more. |
 | 15 | Q3: `docs/item-design.md` section 4.3 differs from the transaction specification. | The code follows the specification (`Op::Drop`, `Op::Set`, the reasons). Section 4.3 of that document changes. |
@@ -789,7 +790,7 @@ dependents.
   `slot_policy.rs`, `gate.rs`, `request_check.rs`; `inventory_player/src/slot_filter.rs`;
   `inventory_server/src/click_slots.rs`; the holder spawn of `vanilla_inventory`.
 - Done: a request to a locked slot gives `Reason::TakeDenied` or `Reason::PlaceDenied`. A hand
-  swap under the off-hand rule "tagged items" has a rejection for an item outside the tag. An
+  swap with a place filter of a plugin on the off-hand slot has a rejection. An
   observer denies a request, and no slot changes. The click path and the commit read the same
   policy; `ClickSlots` holds no filter of its own. The example `inventory_minigame` gets a plugin
   with a locked slot and a veto.
@@ -814,11 +815,13 @@ dependents.
 - Crates: `mcrs_minecraft_item_stack`, `mcrs_minecraft_vanilla_inventory`,
   `mcrs_minecraft_inventory_server`, `mcrs_minecraft_game_rule` or the engine crate that holds the
   game rules.
-- Files: the component type in `item_stack`; the three gates of `vanilla_inventory`; the quick
+- Files: the component type in `item_stack`; the two armour gates of `vanilla_inventory`; the
+  removal of the off-hand rule and its gate (INV-SLT-005); the quick
   move call in the edge that passes `None` for the equip slot today (`click_menu.rs:26`); the
   sent selected slot in the sync.
 - Done: a helmet enters the head slot by a click and by a quick move (INV-SLT-003, INV-MNU-004).
-  The two game rules exist with the default value true. A system that writes `Selected` causes one
+  The game rule `mcrs:spectators_open_menus` exists with the default value true. The off-hand
+  slot accepts each item, and no switch for it exists. A system that writes `Selected` causes one
   `set_held_slot` packet. The `chisle:` mark of `click_slots.rs:46` is gone.
 
 **Step 6: the request ids.**
@@ -833,8 +836,8 @@ dependents.
 
 **Step 7: the experiments.**
 
-- Tool: `tools/vanilla-oracle` gets the `container_click` harness (ITX section 11).
-- Run E1 to E10 of `inventory.md` and E1 to E15 of `inventory-transactions.md`. E16 needs a
+- Tool: `tools/mcrs_minecraft_probe` sends the inventory packets and records the menu packets.
+- Run E1 to E11 of `inventory.md` and E1 to E15 of `inventory-transactions.md`. E16 needs a
   Bedrock server and waits for the Bedrock edge.
 - Done: each experiment has a recorded result as a fixture. Each rule that a result contradicts
   is a question to the specification author. U2 of `inventory.md` and U1 of
