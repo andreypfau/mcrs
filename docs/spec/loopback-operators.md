@@ -188,6 +188,9 @@ Provenance: `design` (the owner kept the behaviour of mcrs before issue #913, in
 
 ## 5. The vanilla server
 
+This section is informative. It states no rule, and no rule of this document depends on it.
+Its sources are the public pages on `ops.json`, `server.properties` and "Open to LAN".
+
 The vanilla dedicated server reads the operators only from `ops.json`. The `op` and `deop`
 commands and the console edit that file. No rule of the vanilla dedicated server reads the
 client address to give an operator level. A player who joins from `127.0.0.1` without an entry
@@ -198,21 +201,7 @@ commands in the world. A player who joins a world that is open to LAN gets no le
 address, also when the player joins from the same machine. The `local` profile has no vanilla
 counterpart.
 
-Provenance: `documentation` (the public pages on `ops.json`, `server.properties` and "Open to
-LAN"). Kind: semantic. Confidence: medium. Experiment: E1.
-
-## 6. Experiments and checks
-
-### E1: vanilla dedicated server
-
-1. Start `tools/vanilla-server` in offline mode with an empty `ops.json`.
-2. Let the input agent of `tools/vanilla-client` join from `127.0.0.1`.
-3. Record the `entity_event` for the entity of the player.
-4. Expect the event 24 (level `all`).
-5. Add the player to `ops.json` with the level 2, and restart the server.
-6. Join again. Expect the event 26.
-
-This experiment did not run.
+## 6. Checks
 
 ### Checks of the implementation
 
