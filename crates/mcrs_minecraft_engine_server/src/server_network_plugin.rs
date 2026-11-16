@@ -1,4 +1,4 @@
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use bevy_app::{App, Plugin};
 use mcrs_minecraft_engine::banlist::BanList;
@@ -53,6 +53,7 @@ pub struct ServerNetworkPlugin {
     /// Set, every login takes the player's profile and address from the proxy that shares this
     /// secret.
     pub forwarding: Option<ForwardingSecret>,
+    pub proxy_upstreams: Vec<IpAddr>,
 }
 
 impl ServerNetworkPlugin {
@@ -89,6 +90,7 @@ impl Default for ServerNetworkPlugin {
             banlist: BanList::default(),
             profile: ServerProfile::default(),
             forwarding: None,
+            proxy_upstreams: Vec::new(),
         }
     }
 }
@@ -113,6 +115,7 @@ impl Plugin for ServerNetworkPlugin {
             accept_backlog: self.accept_backlog,
             rate_limit: self.rate_limit,
             per_ip_accept_limit: self.forwarding.is_none(),
+            proxy_upstreams: self.proxy_upstreams.clone(),
         });
         app.insert_resource(self.compression_threshold);
         app.add_plugins(LoginPlugin);
