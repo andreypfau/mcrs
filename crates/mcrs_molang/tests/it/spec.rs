@@ -1,19 +1,10 @@
-#![expect(clippy::panic, reason = "a test reports a failure by panicking")]
-#![expect(
-    clippy::indexing_slicing,
-    reason = "a test reports a failure by panicking"
-)]
-
 use mcrs_molang::{
     Arguments, CompileOptions, ErrorKind, Milestone, QueryDeclaration, QueryRegistry, QuerySlot,
     QueryValues, Rate, ScalarVm, Source, Subject, UseContext, Value, ValueType, VariableLayout,
     Variables, WarningKind, compile, compile_text, string_hash,
 };
 
-#[expect(dead_code, reason = "this test reads the table, not the registry")]
-mod entity_queries;
-
-use entity_queries::{ENTITY_QUERIES, PoseInput};
+use crate::entity_queries::{ENTITY_QUERIES, PoseInput};
 
 struct Run {
     value: Value,

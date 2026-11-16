@@ -31,9 +31,11 @@ use crate::item_resolve::{GuiVertex, ItemRenderLayers};
 use crate::language::ClientLanguage;
 use crate::sprite::{GuiSprite, Scaling};
 use crate::tooltip::Tooltip;
+use mcrs_minecraft_client_world::game_mode::LocalGameMode;
 use mcrs_minecraft_client_world::player::Player;
 use mcrs_minecraft_client_world::screen::Screen;
 use mcrs_minecraft_entity_render::{EntitySlotSystems, FigureView};
+use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_model::atlas::{MISSING_SIZE, decode_png, missing_pixels, rgba};
 use mcrs_minecraft_model::resource_set::ResourceSet;
 
@@ -575,14 +577,16 @@ fn draw_tooltip(atlas: Option<Res<GuiAtlas>>, mut scene: ResMut<GuiScene>) {
 
 fn draw_screens(
     screen: Res<Screen>,
-    player: Query<(&SlotTable, &SelectedHotbarSlot), With<Player>>,
+    player: Query<(&SlotTable, &SelectedHotbarSlot, Option<&LocalGameMode>), With<Player>>,
     mut scene: ResMut<GuiScene>,
 ) {
     let scene = &mut *scene;
-    let Ok((slots, selected)) = player.single() else {
+    let Ok((slots, selected, mode)) = player.single() else {
         return;
     };
-    hotbar(scene.size, selected.0, slots, &mut scene.quads);
+    if mode.is_none_or(|mode| mode.current != GameMode::Spectator) {
+        hotbar(scene.size, selected.0, slots, &mut scene.quads);
+    }
     if *screen == Screen::Inventory {
         inventory_screen(scene.size, scene.cursor, slots, &mut scene.quads);
     }

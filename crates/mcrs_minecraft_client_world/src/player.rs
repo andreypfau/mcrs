@@ -6,9 +6,11 @@ use mcrs_minecraft_engine_world::entity::physics::{
 };
 use mcrs_minecraft_item::{SelectedHotbarSlot, SlotTable, slots};
 
+use crate::hotbar_sync::LastSentHotbarSlot;
 use crate::local_player::{LastSentMovement, Sprint};
 
 #[derive(Component)]
+#[require(LastSentHotbarSlot)]
 pub struct Player;
 
 /// The unit vector a look of `yaw` and `pitch`, in Minecraft degrees, points along: yaw 0 faces
