@@ -15,10 +15,16 @@ workspace = true
 [dependencies]
 anyhow.workspace = true
 mcrs_minecraft_core.workspace = true
+mcrs_minecraft_inventory_menu.workspace = true
+mcrs_minecraft_item_key.workspace = true
+mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_network.workspace = true
 mcrs_minecraft_protocol.workspace = true
 mcrs_minecraft_protocol_game.workspace = true
+mcrs_minecraft_registries.workspace = true
+mcrs_minecraft_snbt.workspace = true
 mcrs_minecraft_text.workspace = true
+mcrs_voxel.workspace = true
 md-5.workspace = true
 serde.workspace = true
 serde_json.workspace = true
