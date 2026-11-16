@@ -24,8 +24,6 @@ use rayon::ThreadPool;
 use rayon::ThreadPoolBuilder;
 use rayon::prelude::*;
 
-const TICKS: u32 = 200;
-
 fn scene() -> PenConfig {
     PenConfig {
         side: 256,
@@ -42,9 +40,15 @@ fn stage_config(wake: WakeMode) -> StageConfig {
     config.with_delay(2, AiDelay::Fixed(1)).unwrap_or(config)
 }
 
-fn run_on(pool: &ThreadPool, tiles_per_task: usize, scope: HashScope, wake: WakeMode) -> Vec<u64> {
+fn run_on(
+    pool: &ThreadPool,
+    ticks: u32,
+    tiles_per_task: usize,
+    scope: HashScope,
+    wake: WakeMode,
+) -> Vec<u64> {
     let mut pen = PigPen::new(scene(), stage_config(wake));
-    (0..TICKS)
+    (0..ticks)
         .map(|_| {
             pen.step(
                 |work: &mut [TileWork<'_, PigBrain>], cx: &TickContext<'_, FlatGround>| {
@@ -59,26 +63,27 @@ fn run_on(pool: &ThreadPool, tiles_per_task: usize, scope: HashScope, wake: Wake
         .collect()
 }
 
-#[test]
-fn one_eight_and_sixteen_threads_give_equal_hashes_in_each_tick() {
-    let serial = {
+/// Compares the hash of each tick under every `(threads, tiles_per_task)` layout with the serial
+/// run, and returns the decisions that the serial run makes.
+fn assert_thread_layouts_agree(ticks: u32, layouts: &[(usize, usize)]) -> u64 {
+    let (serial, decisions) = {
         let mut pen = PigPen::new(scene(), stage_config(WakeMode::Sleep));
-        let hashes: Vec<u64> = (0..TICKS)
+        let hashes: Vec<u64> = (0..ticks)
             .map(|_| {
                 pen.step(run_tiles);
                 pen.state_hash(HashScope::Everything)
             })
             .collect();
-        assert!(pen.decisions() > 1_000, "the scene makes decisions");
-        hashes
+        (hashes, pen.decisions())
     };
-    for (threads, tiles_per_task) in [(1, 64), (8, 1), (8, 3), (16, 2), (16, 7)] {
+    for &(threads, tiles_per_task) in layouts {
         let pool = ThreadPoolBuilder::new()
             .num_threads(threads)
             .build()
             .unwrap();
         let hashes = run_on(
             &pool,
+            ticks,
             tiles_per_task,
             HashScope::Everything,
             WakeMode::Sleep,
@@ -89,11 +94,12 @@ fn one_eight_and_sixteen_threads_give_equal_hashes_in_each_tick() {
             "{threads} threads with {tiles_per_task} tiles per task"
         );
     }
+    decisions
 }
 
-/// C-G5: a group of pigs takes a hit, and a player walks through the pen, so idle times reset,
-/// strolls end by the idle time and pigs look at the player.
-fn walk_and_hit(pen: &mut PigPen, tick: u64) {
+/// C-G5: a group of pigs takes a hit at `hit_tick`, and a player walks through the pen, so idle
+/// times reset, strolls end by the idle time and pigs look at the player.
+fn walk_and_hit(pen: &mut PigPen, tick: u64, hit_tick: u64) {
     let mut players: Vec<PlayerRow> = (0..2)
         .map(|index| PlayerRow {
             player: EntityId(100 + index),
@@ -115,24 +121,24 @@ fn walk_and_hit(pen: &mut PigPen, tick: u64) {
         vehicle: None,
     });
     pen.set_players(players);
-    if tick == 150 {
+    if tick == hit_tick {
         for index in 0..300 {
             pen.hurt(index, DamageCause::Panic);
         }
     }
 }
 
-fn run_scene(wake: WakeMode) -> (Vec<u64>, u64) {
+fn run_scene(wake: WakeMode, ticks: u32, hit_tick: u64) -> (Vec<u64>, u64) {
     let config = PenConfig {
         hurt_chance: 1.0 / 2000.0,
         players: 0,
         ..scene()
     };
     let mut pen = PigPen::new(config, stage_config(wake));
-    let hashes = (0..WALK_TICKS)
+    let hashes = (0..ticks)
         .map(|_| {
             let tick = pen.tick();
-            walk_and_hit(&mut pen, tick);
+            walk_and_hit(&mut pen, tick, hit_tick);
             pen.step(run_tiles);
             pen.state_hash(HashScope::Decisions)
         })
@@ -140,12 +146,9 @@ fn run_scene(wake: WakeMode) -> (Vec<u64>, u64) {
     (hashes, pen.stage().evaluations())
 }
 
-const WALK_TICKS: u32 = 640;
-
-#[test]
-fn sleep_gives_the_decisions_of_polling_tick_for_tick_with_fewer_evaluations() {
-    let (sleep, asleep) = run_scene(WakeMode::Sleep);
-    let (poll, awake) = run_scene(WakeMode::Poll);
+fn assert_sleep_matches_poll(ticks: u32, hit_tick: u64) {
+    let (sleep, asleep) = run_scene(WakeMode::Sleep, ticks, hit_tick);
+    let (poll, awake) = run_scene(WakeMode::Poll, ticks, hit_tick);
     let first_difference = sleep.iter().zip(&poll).position(|(a, b)| a != b);
     assert_eq!(
         first_difference, None,
@@ -155,4 +158,31 @@ fn sleep_gives_the_decisions_of_polling_tick_for_tick_with_fewer_evaluations() {
         asleep * 5 < awake,
         "sleep runs a fraction of the polled evaluations: {asleep} against {awake}"
     );
+}
+
+#[test]
+fn one_and_eight_threads_give_equal_hashes_in_a_short_run() {
+    let decisions = assert_thread_layouts_agree(40, &[(1, 64), (8, 1)]);
+    assert!(decisions > 0, "the scene makes decisions");
+}
+
+#[test]
+fn sleep_gives_the_decisions_of_polling_in_a_short_walk() {
+    assert_sleep_matches_poll(40, 20);
+}
+
+mod exhaustive {
+    use super::*;
+
+    #[test]
+    fn one_eight_and_sixteen_threads_give_equal_hashes_in_each_tick() {
+        let decisions =
+            assert_thread_layouts_agree(200, &[(1, 64), (8, 1), (8, 3), (16, 2), (16, 7)]);
+        assert!(decisions > 1_000, "the scene makes decisions");
+    }
+
+    #[test]
+    fn sleep_gives_the_decisions_of_polling_tick_for_tick_with_fewer_evaluations() {
+        assert_sleep_matches_poll(640, 150);
+    }
 }
