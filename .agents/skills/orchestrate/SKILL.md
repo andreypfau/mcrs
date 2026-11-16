@@ -35,6 +35,9 @@ as a larger model: use the next model at `medium` instead of `xhigh` or `max`.
 
 - Set the model of one job with the `model` parameter of the agent call. Do not edit the agent
   file for one job.
+- The hook `.claude/hooks/agent-guard.sh` enforces the routing. It denies a call without
+  `subagent_type`, and a `general-purpose` call without `model`. It runs `Explore` and
+  `log-reader` on Haiku.
 - A small model gets only work with an output that is easy to check. A code edit with written
   steps (a rename, a file move, a written list of fixes) goes to Sonnet. A code edit that needs
   a decision stays on Opus or Fable. Measured on one issue: Sonnet as `implementer` used as many tokens as
@@ -99,7 +102,8 @@ Report: commit, files changed, the tail of the check output, open points. At mos
 
 ## The main session
 
-- At 200k tokens, write a prompt for a new session (the skill `handoff`) and stop. Do not
-  compact and continue.
+- A session that starts its second agent loads this skill first.
+- At 150k tokens, write a prompt for a new session (the skill `handoff`) and stop. Do not
+  compact and continue. The hook `.claude/hooks/context-guard.sh` gives the signal.
 - Findings from another session go into a new session with the findings file, not into the
   session that wrote the code.
