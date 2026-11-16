@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | `draft` |
+| Status | `ready` |
 | Issue | #913 |
 
 This document states when a player who joins from a loopback address becomes an operator with
@@ -61,7 +61,6 @@ Out of scope:
 
 - the owner of an integrated server (`login.md`, LOGIN-CFG-002). The host application puts the
   owner on the op list. That entry is a listed player for this document.
-- other settings that a profile can select in the future;
 - the `op` and `deop` commands, except for their effect on an automatic operator.
 
 ## 1. Server inputs
@@ -77,7 +76,20 @@ Out of scope:
 - **Postconditions:** a library user who adds the plugin with its default gets no automatic
   operator.
 
+- **Behavior:** the profile changes only the result of a loopback join (section 3). It does
+  not change other settings of the server.
+
 This document does not state the name or the type of the field.
+
+Provenance: `design` (issue #913). Kind: semantic. Confidence: high.
+
+### LOOP-CFG-002: The profile of the server binary
+
+- **Behavior:** the `mcrs` server binary uses the `public` profile, unless its configuration
+  selects `local` explicitly.
+- **Behavior:** an environment variable does not select `local` (LOOP-CFG-001). The binary
+  reads its settings only from environment variables until the configuration file of issue
+  #918 exists. Until then, the binary always uses `public`.
 
 Provenance: `design` (issue #913). Kind: semantic. Confidence: high.
 
@@ -164,6 +176,18 @@ Provenance: `design`. Kind: semantic. Confidence: medium.
 Provenance: `design` (the behaviour of mcrs before issue #913). Kind: semantic. Confidence:
 high.
 
+### LOOP-FILE-002: `op` on an automatic operator
+
+- **Behavior:** an `op` of an automatic operator succeeds with the message
+  `commands.op.success`, as for a player who is not an operator.
+- **Behavior:** after the `op`, the player is a listed player at the level that the `op`
+  command gives (`command-permissions.md`, PERM-LEVEL-002). The server writes the player to the
+  ops file.
+- **Behavior:** an `op` of a listed player fails with `commands.op.failed`, as before.
+- **Postconditions:** the player stays an operator after a restart of the server.
+
+Provenance: `design` (issue #913). Kind: semantic. Confidence: high.
+
 ## 5. The vanilla server
 
 The vanilla dedicated server reads the operators only from `ops.json`. The `op` and `deop`
@@ -209,9 +233,12 @@ client address of a connection, sends `hello`, and reads the op list. Each row i
 | C8 | `local` | `127.0.0.1` | empty, then an `op` of another player | the ops file names only the other player | LOOP-FILE-001 |
 | C9 | `local` | socket `127.0.0.1`, forwarded `203.0.113.7` | empty | not an operator | LOOP-ADDR-001 |
 | C10 | `public` | socket `127.0.0.1`, forwarded `127.0.0.1` | empty | not an operator | LOOP-ADDR-001, LOOP-GRANT-002 |
+| C11 | `local` | `127.0.0.1` | empty, then an `op` of that player | `commands.op.success`; the ops file names the player | LOOP-FILE-002 |
+| C12 | the `mcrs` binary with its defaults | n/a | n/a | the network plugin has the `public` profile | LOOP-CFG-002 |
 
-C1 to C4 are the checks that the issue names. C8 to C10 can stay in the integration tests of
-`mcrs_minecraft_server`, which have the ops file and the forwarding setup. When PR #927 is
+C1 to C4 are the checks that the issue names. C8 to C11 can stay in the integration tests of
+`mcrs_minecraft_server` or of the command crate, which have the ops file, the forwarding setup
+and the `op` command. When PR #927 is
 merged, add a check like C9 with a PROXY protocol header in place of forwarding.
 
 ## 7. Intentional deviations
@@ -224,14 +251,4 @@ merged, add a check like C9 with a PROXY protocol header in place of forwarding.
 
 ## 8. Unresolved
 
-- **LU-01: the profile of the server binary.** Today the `mcrs` binary sets the grant for each
-  start. It is not decided which profile the binary uses, and how an operator of the binary
-  selects it. LOOP-CFG-001 does not let an environment variable select it. The proposal: the
-  binary uses `public`, and the configuration file of issue #918 can select `local`. Until
-  #918, the binary has no way to select `local`. Question to the owner.
-- **LU-02: other settings of a profile.** It is not decided whether the profile also selects
-  other defaults, for example the limits of issue #915. This document gives the profile one
-  effect only.
-- **LU-03: `op` on an automatic operator.** An `op` of an automatic operator changes nothing
-  today, so the ops file still does not hold that player. It is not decided whether such an
-  `op` must write the player to the ops file. Question to the owner.
+None.
