@@ -1,11 +1,5 @@
-import package::shaders::include::gbuffer_encode::{GBuffer, octahedral_encode, sign_not_zero};
-import package::shaders::include::lighting::lightmap;
-
-fn octahedral_decode(e: vec2<f32>) -> vec3<f32> {
-    let z = 1.0 - abs(e.x) - abs(e.y);
-    let xy = select(e, (1.0 - abs(e.yx)) * sign_not_zero(e), z < 0.0);
-    return normalize(vec3<f32>(xy, z));
-}
+import mcrs_minecraft_render::shaders::include::gbuffer_encode::{GBuffer, octahedral_encode};
+import mcrs_minecraft_render::shaders::include::lighting::lightmap;
 
 /// The alpha of the light target on a terrain pixel. Every other opaque draw writes 0 there.
 const TERRAIN_MARK: f32 = 1.0;

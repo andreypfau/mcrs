@@ -1,21 +1,11 @@
 use bevy::prelude::Res;
-use bevy::render::render_resource::binding_types::texture_2d;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice, ViewQuery};
 use bevy::render::view::ViewTarget;
 
 use crate::gbuffer::DeferredFrame;
 use crate::pipeline::DeferredPipelines;
-
-pub(crate) fn present_layout() -> BindGroupLayoutDescriptor {
-    BindGroupLayoutDescriptor::new(
-        "present",
-        &BindGroupLayoutEntries::single(
-            ShaderStages::FRAGMENT,
-            texture_2d(TextureSampleType::Float { filterable: false }),
-        ),
-    )
-}
+use crate::shared_bindings::present;
 
 pub(crate) fn present_bind_group(
     world: &TextureView,
@@ -24,8 +14,8 @@ pub(crate) fn present_bind_group(
 ) -> BindGroup {
     device.create_bind_group(
         "present",
-        &cache.get_bind_group_layout(&present_layout()),
-        &BindGroupEntries::single(world),
+        &cache.get_bind_group_layout(&present::layout()),
+        &present::entries(present::Entries { world }),
     )
 }
 

@@ -1,3 +1,6 @@
+import mcrs_minecraft_render::shaders::include::sprites_layout::{
+    ANIMATION_WORDS, AnimationFrame, SPRITE_WORDS, STILL, SpriteEntry,
+};
 @if(MINIMAL) import mcrs_minecraft_render::shaders::include::words::word_texel;
 
 struct GuiUniform {
@@ -6,19 +9,6 @@ struct GuiUniform {
     scale: f32,
     glint_alpha: f32,
 }
-
-struct AnimationFrame {
-    layer: u32,
-    next: u32,
-    blend: f32,
-}
-
-struct SpriteEntry {
-    array_layer: u32,
-    animation: u32,
-}
-
-const STILL: u32 = 0xFFFFFFFFu;
 
 @group(0) @binding(0) var<uniform> gui: GuiUniform;
 @group(0) @binding(1) var atlas0: texture_2d_array<f32>;
@@ -55,8 +45,6 @@ fn sprite_word(index: u32) -> u32 {
     return sprites[index];
 }
 
-const ANIMATION_WORDS: u32 = 4u;
-
 fn animation_frame(animation: u32) -> AnimationFrame {
     let base = animation * ANIMATION_WORDS;
     return AnimationFrame(
@@ -67,7 +55,8 @@ fn animation_frame(animation: u32) -> AnimationFrame {
 }
 
 fn sprite_entry(sprite: u32) -> SpriteEntry {
-    return SpriteEntry(sprite_word(sprite * 2u), sprite_word(sprite * 2u + 1u));
+    let base = sprite * SPRITE_WORDS;
+    return SpriteEntry(sprite_word(base), sprite_word(base + 1u));
 }
 
 const GUI_ATLAS_BIT: u32 = 0x80000000u;

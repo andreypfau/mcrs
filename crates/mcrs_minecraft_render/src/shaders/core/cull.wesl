@@ -1,62 +1,35 @@
 
-import package::shaders::include::fields::{
-    SECTION_SIZE,
-    BOUNDS_HI_X_SHIFT, BOUNDS_HI_X_BITS, BOUNDS_HI_Y_SHIFT, BOUNDS_HI_Y_BITS,
-    BOUNDS_HI_Z_SHIFT, BOUNDS_HI_Z_BITS, BOUNDS_LO_X_SHIFT, BOUNDS_LO_X_BITS,
-    BOUNDS_LO_Y_SHIFT, BOUNDS_LO_Y_BITS, BOUNDS_LO_Z_SHIFT, BOUNDS_LO_Z_BITS,
-    FACE_NONE, MODEL_OVERHANG, MODEL_X_WORD, MODEL_Y_WORD, MODEL_Z_WORD, QUAD_WORDS,
+import mcrs_minecraft_render::shaders::include::cull_layout::{
+    DRAW_KINDS, ROW_CANDIDATES, ROW_CANDIDATE_DISPATCH, ROW_FIRST_PASS_DRAWS,
+    ROW_FIRST_PASS_QUAD_DISPATCH, ROW_FIRST_PASS_SURVIVORS, ROW_SECOND_PASS_DRAWS,
+    ROW_SECOND_PASS_QUAD_DISPATCH, ROW_SECOND_PASS_SURVIVORS, args, batches, candidates,
+    cave_visible, groups, hiz, model_words, quad_words, sections, visible,
 };
-import package::shaders::include::frame::{PARAMS_MODEL, PARAMS_QUAD_CULL, camera, params};
-import package::shaders::include::quad::{
+import mcrs_minecraft_render::shaders::include::fields::{
+    BOUNDS_HI_X_BITS, BOUNDS_HI_X_SHIFT, BOUNDS_HI_Y_BITS, BOUNDS_HI_Y_SHIFT,
+    BOUNDS_HI_Z_BITS, BOUNDS_HI_Z_SHIFT, BOUNDS_LO_X_BITS, BOUNDS_LO_X_SHIFT,
+    BOUNDS_LO_Y_BITS, BOUNDS_LO_Y_SHIFT, BOUNDS_LO_Z_BITS, BOUNDS_LO_Z_SHIFT,
+    FACE_NONE, Group, MODEL_OVERHANG, MODEL_X_WORD, MODEL_Y_WORD, MODEL_Z_WORD, QUAD_WORDS,
+    SECTION_SIZE,
+};
+import mcrs_minecraft_render::shaders::include::frame::{PARAMS_MODEL, PARAMS_QUAD_CULL, camera, params};
+import mcrs_minecraft_render::shaders::include::quad::{
     CORNERS_PER_QUAD, GREEDY_EDGE_OVERLAP, MODEL_WORDS_PER_VERTEX, corner_uv, expanded_quad_uv,
     face_normal, greedy_corner, model_position,
 };
-import package::shaders::include::section::{SectionDesc, section_origin};
-import package::shaders::include::visibility::{
+import mcrs_minecraft_render::shaders::include::section::section_origin;
+import mcrs_minecraft_render::shaders::include::section_layout::SectionDesc;
+import mcrs_minecraft_render::shaders::include::visibility::{
     Footprint, box_outside, cover, empty_footprint, occluded,
 };
 
-struct Group {
-    quad_base: u32,
-    quad_count: u32,
-    section: u32,
-    face: u32,
-    bounds: u32,
-}
-
-struct DrawArgs {
-    vertex_count: atomic<u32>,
-    instance_count: u32,
-    first_vertex: u32,
-    first_instance: u32,
-}
-
 const VERTICES_PER_QUAD: u32 = 6u;
-
-@group(1) @binding(0) var<storage, read> groups: array<Group>;
-@group(1) @binding(1) var<storage, read_write> visible: array<vec2<u32>>;
-@group(1) @binding(2) var<storage, read_write> args: array<DrawArgs>;
-/// Two bitsets over the section table: the cave walk's, then this frame's, which also leaves out
-/// every section off the screen.
-@group(1) @binding(3) var<storage, read_write> cave_visible: array<u32>;
-@group(1) @binding(4) var<storage, read> sections: array<SectionDesc>;
-@group(1) @binding(5) var<storage, read_write> batches: array<u32>;
-/// The depth pyramid: last frame's for the first pass, rebuilt from what the first pass drew
-/// before the second.
-@group(1) @binding(6) var hiz: texture_2d<f32>;
-/// Two words a group: which of its quads the first pass left to the second, a bit a quad, so a
-/// group holds no more quads than a word has bits; and a place in the list of groups a pass's
-/// group cull kept.
-@group(1) @binding(7) var<storage, read_write> candidates: array<u32>;
-@group(1) @binding(8) var<storage, read> quad_words: array<u32>;
-@group(1) @binding(9) var<storage, read> model_words: array<u32>;
 
 /// The dispatch does not scale with the world: a fixed grid of workgroups strides over the group
 /// arena a batch of `CULL_THREADS` groups at a time, so a resident world of any size is covered
 /// by the same command and the 65535-per-dimension cap on a dispatch can never be reached.
 const CULL_THREADS: u32 = constants::CULL_THREADS;
 const GROUP_THREADS: u32 = constants::GROUP_THREADS;
-const STREAMS: u32 = constants::STREAMS;
 const CAVE_WORDS: u32 = constants::CAVE_WORDS;
 const SECTION_SLOTS: u32 = constants::SECTION_SLOTS;
 /// The most workgroups one dimension of a dispatch may ask for. A kernel reading a list strides
@@ -365,19 +338,21 @@ fn load(first: u32, local: u32, tally: bool) -> bool {
 /// the groups each pass's group cull kept, the groups the first pass left quads of, and the
 /// workgroups the kernels reading those lists dispatch.
 fn survivors_counted(second: bool) -> u32 {
-    return select(3u, 4u, second) * STREAMS + params.args_index;
+    return select(ROW_FIRST_PASS_SURVIVORS, ROW_SECOND_PASS_SURVIVORS, second) * DRAW_KINDS
+        + params.args_index;
 }
 
 fn candidates_counted() -> u32 {
-    return 5u * STREAMS + params.args_index;
+    return ROW_CANDIDATES * DRAW_KINDS + params.args_index;
 }
 
 fn quad_dispatch(second: bool) -> u32 {
-    return select(6u, 7u, second) * STREAMS + params.args_index;
+    return select(ROW_FIRST_PASS_QUAD_DISPATCH, ROW_SECOND_PASS_QUAD_DISPATCH, second) * DRAW_KINDS
+        + params.args_index;
 }
 
 fn candidate_dispatch() -> u32 {
-    return 8u * STREAMS + params.args_index;
+    return ROW_CANDIDATE_DISPATCH * DRAW_KINDS + params.args_index;
 }
 
 /// A group's three words: the quads the first pass left to the second, then its place in the
@@ -535,11 +510,11 @@ fn quad_cull(workgroup: u32, grid: u32, local: u32, second: bool) {
         survivors_total = atomicLoad(&args[survivors_counted(second)].vertex_count);
     }
     let survivors = workgroupUniformLoad(&survivors_total);
-    var args_slot = params.args_index;
+    var args_slot = ROW_FIRST_PASS_DRAWS * DRAW_KINDS + params.args_index;
     var offset = 0u;
     if (second) {
-        offset = atomicLoad(&args[params.args_index].vertex_count) / VERTICES_PER_QUAD;
-        args_slot = params.args_index + STREAMS;
+        offset = atomicLoad(&args[args_slot].vertex_count) / VERTICES_PER_QUAD;
+        args_slot = ROW_SECOND_PASS_DRAWS * DRAW_KINDS + params.args_index;
         if (workgroup == 0u && local == 0u) {
             args[args_slot].first_vertex = offset * VERTICES_PER_QUAD;
         }
@@ -656,7 +631,7 @@ fn cull_quads_second(
 /// packed by a prefix sum over the batches rather than by an atomic: `count_ordered` writes each
 /// batch's surviving quads, `scan_ordered` turns them into where each batch starts, and
 /// `scatter_ordered` writes the quads there. A batch's index is its first group's slot in the
-/// arena over `CULL_THREADS`, which a stream's block, aligned to a power of two, keeps exact.
+/// arena over `CULL_THREADS`, which a bucket's block, aligned to a power of two, keeps exact.
 @compute @workgroup_size(CULL_THREADS)
 fn count_ordered(
     @builtin(workgroup_id) workgroup: vec3<u32>,
@@ -710,7 +685,7 @@ fn scan_ordered(@builtin(local_invocation_index) local: u32) {
         running = running + here;
     }
     if (local == CULL_THREADS - 1u) {
-        atomicStore(&args[params.args_index].vertex_count, running * VERTICES_PER_QUAD);
+        atomicStore(&args[ROW_FIRST_PASS_DRAWS * DRAW_KINDS + params.args_index].vertex_count, running * VERTICES_PER_QUAD);
     }
 }
 

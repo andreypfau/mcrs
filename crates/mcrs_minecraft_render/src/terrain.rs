@@ -17,8 +17,7 @@ use super::render_path::RenderPath;
 use super::shaders::Shaders;
 use super::sprites::Sprites;
 use super::texture;
-use super::{Brightness, Occlusion};
-use super::{Budget, TerrainBudget};
+use super::{Brightness, Budget, Occlusion, TerrainBudget};
 
 #[derive(Resource)]
 pub struct Terrain {
@@ -149,7 +148,7 @@ pub(super) fn init_terrain(
         Cull::new(
             &budget,
             &arenas,
-            &super::binds::view_layout(),
+            &super::shared_bindings::terrain_view::layout(),
             &device,
             &asset_server,
             &pipeline_cache,

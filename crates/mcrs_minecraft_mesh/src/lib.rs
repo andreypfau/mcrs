@@ -12,6 +12,7 @@ mod connectivity;
 mod cube;
 pub mod face_shade;
 mod fluid;
+mod group;
 mod model;
 pub mod pack;
 mod scratch;
@@ -33,54 +34,122 @@ use mcrs_minecraft_core::CardinalLight;
 use mcrs_minecraft_volume::{BlockVolume, LightVolume};
 
 pub use connectivity::{CONNECT_ALL, Connectivity, OPEN, SEALED, along};
+pub use group::Group;
 pub use scratch::Scratch;
 
 pub const SECTION_SIZE: usize = mcrs_voxel::SectionPos::SIZE;
 pub const SECTION_VOLUME: usize = mcrs_voxel::SectionPos::VOLUME;
 
-pub const STREAMS: usize = Pass::COUNT * 2;
+/// Geometry encoding used to draw a terrain quad bucket.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug)]
+#[repr(u8)]
+pub enum QuadFormat {
+    #[default]
+    Greedy = 0,
+    Model = 1,
+}
+
+impl QuadFormat {
+    pub const COUNT: usize = 2;
+
+    pub const ALL: [Self; Self::COUNT] = [Self::Greedy, Self::Model];
+
+    #[must_use]
+    pub const fn from_index(index: usize) -> Option<Self> {
+        match index {
+            0 => Some(Self::Greedy),
+            1 => Some(Self::Model),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Greedy => "greedy",
+            Self::Model => "model",
+        }
+    }
+}
+
+/// Pair of render layer and quad encoding that identifies one indirect terrain draw.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug)]
+pub struct DrawKind {
+    pub layer: Pass,
+    pub format: QuadFormat,
+}
+
+impl DrawKind {
+    pub const COUNT: usize = Pass::COUNT * QuadFormat::COUNT;
+
+    pub const ALL: [Self; Self::COUNT] = [
+        Self::new(Pass::Solid, QuadFormat::Greedy),
+        Self::new(Pass::Solid, QuadFormat::Model),
+        Self::new(Pass::Cutout, QuadFormat::Greedy),
+        Self::new(Pass::Cutout, QuadFormat::Model),
+        Self::new(Pass::Translucent, QuadFormat::Greedy),
+        Self::new(Pass::Translucent, QuadFormat::Model),
+    ];
+
+    #[must_use]
+    pub const fn new(layer: Pass, format: QuadFormat) -> Self {
+        Self { layer, format }
+    }
+
+    #[must_use]
+    pub const fn index(self) -> usize {
+        self.layer as usize * QuadFormat::COUNT + self.format as usize
+    }
+
+    #[must_use]
+    pub const fn from_index(index: usize) -> Option<Self> {
+        let (Some(layer), Some(format)) = (
+            Pass::from_index(index / QuadFormat::COUNT),
+            QuadFormat::from_index(index % QuadFormat::COUNT),
+        ) else {
+            return None;
+        };
+        Some(Self::new(layer, format))
+    }
+
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match (self.layer, self.format) {
+            (Pass::Solid, QuadFormat::Greedy) => "solid greedy",
+            (Pass::Solid, QuadFormat::Model) => "solid model",
+            (Pass::Cutout, QuadFormat::Greedy) => "cutout greedy",
+            (Pass::Cutout, QuadFormat::Model) => "cutout model",
+            (Pass::Translucent, QuadFormat::Greedy) => "translucent greedy",
+            (Pass::Translucent, QuadFormat::Model) => "translucent model",
+        }
+    }
+
+    #[must_use]
+    pub const fn writes_depth(self) -> bool {
+        self.layer.writes_depth()
+    }
+
+    #[must_use]
+    pub const fn translucent(self) -> bool {
+        self.layer.translucent()
+    }
+}
 
 /// Most quads a group holds. The cull tests a group as one box, so a small group hugs its quads
 /// and hides behind terrain that a whole section's worth of them would reach past.
 pub const GROUP_QUADS: usize = 32;
 
-pub const STREAM_NAMES: [&str; STREAMS] = [
-    "solid greedy",
-    "solid model",
-    "cutout greedy",
-    "cutout model",
-    "translucent greedy",
-    "translucent model",
-];
-
-pub const fn stream_pass(stream: u32) -> Pass {
-    Pass::from_index(stream as usize / 2)
-}
-
-pub const fn stream_is_model(stream: u32) -> bool {
-    stream % 2 == 1
-}
-
-#[derive(Copy, Clone, Default, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-pub struct Group {
-    pub quad_base: u32,
-    pub quad_count: u32,
-    pub section: u32,
-    pub face: u32,
-    /// The box its quads lie in, packed by the `BOUNDS_*` fields.
-    pub bounds: u32,
-}
-
-#[derive(Copy, Clone, Default, Debug)]
-pub struct StreamSpan {
+/// Groups and quads belonging to one [`DrawKind`] inside a meshed section.
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq)]
+pub struct SectionDraw {
     pub group_count: u32,
     pub quad_count: u32,
 }
 
-#[derive(Copy, Clone, Default, Debug)]
+/// Range of contiguous groups in a resident [`DrawKind`] bucket prepared for indirect rendering.
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq)]
 pub struct Draw {
-    pub stream: u32,
+    pub kind: DrawKind,
     pub first_group: u32,
     pub group_count: u32,
     pub quad_count: u32,
@@ -88,17 +157,17 @@ pub struct Draw {
 
 pub struct SectionMesh {
     pub section: [i32; 3],
-    pub simple: Vec<[u32; QUAD_WORDS]>,
+    pub greedy: Vec<[u32; QUAD_WORDS]>,
     pub faces: Vec<[u32; FACE_WORDS]>,
-    pub complex: Vec<u32>,
+    pub models: Vec<u32>,
     pub groups: Vec<Group>,
-    pub spans: [StreamSpan; STREAMS],
+    pub draws: [SectionDraw; DrawKind::COUNT],
     pub connectivity: Connectivity,
 }
 
 impl SectionMesh {
     pub fn model_quads(&self) -> usize {
-        self.complex.len() / model::WORDS_PER_QUAD
+        self.models.len() / model::WORDS_PER_QUAD
     }
 }
 
@@ -125,23 +194,23 @@ fn axis_mut<T>(point: &mut [T; 3], axis: u8) -> &mut T {
 }
 
 struct Sink {
-    simple: Vec<[u32; QUAD_WORDS]>,
-    complex: Vec<u32>,
-    groups: Vec<(u32, Group)>,
+    greedy: Vec<[u32; QUAD_WORDS]>,
+    models: Vec<u32>,
+    groups: Vec<(DrawKind, Group)>,
     slot: u32,
 }
 
 impl Sink {
     fn group(
         &mut self,
-        stream: usize,
+        kind: DrawKind,
         face: u64,
         quad_base: usize,
         quad_count: usize,
         bounds: u32,
     ) {
         self.groups.push((
-            stream as u32,
+            kind,
             Group {
                 quad_base: quad_base as u32,
                 quad_count: quad_count as u32,
@@ -152,33 +221,35 @@ impl Sink {
         ));
     }
 
-    fn simple(&mut self, pass: usize, face: u64, quads: &[[u32; QUAD_WORDS]]) {
+    fn greedy(&mut self, pass: Pass, face: u64, quads: &[[u32; QUAD_WORDS]]) {
+        let kind = DrawKind::new(pass, QuadFormat::Greedy);
         for run in quads.chunks(GROUP_QUADS) {
-            let base = self.simple.len();
+            let base = self.greedy.len();
             let mut bounds = Bounds::EMPTY;
             for quad in run {
                 bounds.cover_greedy(quad[0]);
             }
-            self.group(pass * 2, face, base, run.len(), bounds.pack());
-            self.simple.extend_from_slice(run);
+            self.group(kind, face, base, run.len(), bounds.pack());
+            self.greedy.extend_from_slice(run);
         }
     }
 
-    fn complex(&mut self, pass: usize, face: u64, verts: &[u32]) {
+    fn model(&mut self, pass: Pass, face: u64, verts: &[u32]) {
+        let kind = DrawKind::new(pass, QuadFormat::Model);
         for run in verts.chunks(GROUP_QUADS * model::WORDS_PER_QUAD) {
-            let base = self.complex.len() / model::WORDS_PER_QUAD;
+            let base = self.models.len() / model::WORDS_PER_QUAD;
             let mut bounds = Bounds::EMPTY;
             for vertex in run.chunks(model::WORDS_PER_QUAD / 4) {
                 bounds.cover_model(vertex);
             }
             self.group(
-                pass * 2 + 1,
+                kind,
                 face,
                 base,
                 run.len() / model::WORDS_PER_QUAD,
                 bounds.pack(),
             );
-            self.complex.extend_from_slice(run);
+            self.models.extend_from_slice(run);
         }
     }
 }
@@ -270,8 +341,8 @@ pub fn mesh_section(
     scratch.load(world, catalog, section.map(|n| n * SECTION_SIZE as i32));
 
     let mut sink = Sink {
-        simple: Vec::new(),
-        complex: Vec::new(),
+        greedy: Vec::new(),
+        models: Vec::new(),
         groups: Vec::new(),
         slot,
     };
@@ -286,17 +357,17 @@ pub fn mesh_section(
     model::emit(scratch, &mut sink);
 
     let mut groups = Vec::with_capacity(sink.groups.len());
-    let mut spans = [StreamSpan::default(); STREAMS];
-    for (stream, span) in spans.iter_mut().enumerate() {
+    let mut draws = [SectionDraw::default(); DrawKind::COUNT];
+    for (&kind, draw) in DrawKind::ALL.iter().zip(&mut draws) {
         let first = groups.len();
         let mut quads = 0u32;
         for &(from, group) in &sink.groups {
-            if from as usize == stream {
+            if from == kind {
                 quads += group.quad_count;
                 groups.push(group);
             }
         }
-        *span = StreamSpan {
+        *draw = SectionDraw {
             group_count: (groups.len() - first) as u32,
             quad_count: quads,
         };
@@ -304,11 +375,11 @@ pub fn mesh_section(
 
     SectionMesh {
         section,
-        simple: sink.simple,
+        greedy: sink.greedy,
         faces: std::mem::take(&mut scratch.section_faces),
-        complex: sink.complex,
+        models: sink.models,
         groups,
-        spans,
+        draws,
         connectivity: connectivity::connectivity(&scratch.occludes),
     }
 }
@@ -377,17 +448,17 @@ impl LightVolume for OneSection {
 
 #[cfg(test)]
 pub struct Batch {
-    pub simple: Vec<[u32; QUAD_WORDS]>,
+    pub greedy: Vec<[u32; QUAD_WORDS]>,
     pub faces: Vec<[u32; FACE_WORDS]>,
     pub face_base: Vec<u32>,
     pub quad_section: Vec<u32>,
-    pub complex: Vec<u32>,
+    pub models: Vec<u32>,
 }
 
 #[cfg(test)]
 impl Batch {
     pub fn model_quads(&self) -> usize {
-        self.complex.len() / model::WORDS_PER_QUAD
+        self.models.len() / model::WORDS_PER_QUAD
     }
 }
 
@@ -400,11 +471,11 @@ pub fn mesh_world(
     scratch: &mut Scratch,
 ) -> Batch {
     let mut batch = Batch {
-        simple: Vec::new(),
+        greedy: Vec::new(),
         faces: Vec::new(),
         face_base: Vec::new(),
         quad_section: Vec::new(),
-        complex: Vec::new(),
+        models: Vec::new(),
     };
     for &section in sections {
         let slot = batch.face_base.len() as u32;
@@ -417,9 +488,9 @@ pub fn mesh_world(
             CardinalLight::Default,
             scratch,
         );
-        batch.simple.extend_from_slice(&mesh.simple);
-        batch.quad_section.resize(batch.simple.len(), slot);
-        batch.complex.extend_from_slice(&mesh.complex);
+        batch.greedy.extend_from_slice(&mesh.greedy);
+        batch.quad_section.resize(batch.greedy.len(), slot);
+        batch.models.extend_from_slice(&mesh.models);
         batch.face_base.push(batch.faces.len() as u32);
         batch.faces.extend_from_slice(&mesh.faces);
     }
@@ -498,8 +569,8 @@ mod tests {
         );
 
         assert_eq!(fresh.faces, again.faces, "face attributes");
-        assert_eq!(fresh.simple, again.simple, "greedy quads");
-        assert_eq!(fresh.complex, again.complex, "model vertices");
+        assert_eq!(fresh.greedy, again.greedy, "greedy quads");
+        assert_eq!(fresh.models, again.models, "model vertices");
         assert_eq!(fresh.groups.len(), again.groups.len(), "groups");
         assert_eq!(fresh.connectivity, again.connectivity, "connectivity");
     }
@@ -656,7 +727,7 @@ mod tests {
             &mut Scratch::new(),
         );
         let tops: Vec<_> = mesh
-            .simple
+            .greedy
             .iter()
             .filter(|quad| QUAD_FACE.read(*quad) == 1)
             .collect();
@@ -710,29 +781,30 @@ mod tests {
         );
 
         assert!(
-            mesh.spans[0].quad_count > 0 && mesh.spans[3].quad_count > 0,
+            mesh.draws[0].quad_count > 0 && mesh.draws[3].quad_count > 0,
             "the fixture has to reach both a greedy and a model bucket"
         );
         let mut at = 0usize;
-        for stream in 0..STREAMS {
-            let run = mesh.spans[stream].group_count as usize;
+        for (draw, &kind) in mesh.draws.iter().zip(&DrawKind::ALL) {
+            let run = draw.group_count as usize;
             let held = &mesh.groups[at..at + run];
             at += run;
             let mut quads = 0u32;
             let mut covered = 0u32;
             for group in held {
-                assert_eq!(group.quad_base, covered, "stream {stream} leaves a hole");
+                assert_eq!(group.quad_base, covered, "{} leaves a hole", kind.label());
                 quads += group.quad_count;
                 covered += group.quad_count;
             }
-            assert_eq!(quads, mesh.spans[stream].quad_count);
-            let total = match stream_is_model(stream as u32) {
-                true => mesh.model_quads(),
-                false => mesh.simple.len(),
+            assert_eq!(quads, draw.quad_count);
+            let total = match kind.format {
+                QuadFormat::Model => mesh.model_quads(),
+                QuadFormat::Greedy => mesh.greedy.len(),
             };
             assert!(
                 covered as usize <= total,
-                "stream {stream} names more quads than the section holds"
+                "{} names more quads than the section holds",
+                kind.label()
             );
         }
         assert_eq!(at, mesh.groups.len(), "a group belongs to no bucket");

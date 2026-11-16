@@ -4,32 +4,34 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use bevy::prelude::*;
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
-use mcrs_minecraft_mesh::STREAMS;
-use mcrs_minecraft_render::{DrawArgs, FrameCounts, Terrain, VERTICES_PER_QUAD};
+use mcrs_minecraft_mesh::DrawKind;
+use mcrs_minecraft_render::{DrawArgRow, DrawArgs, FrameCounts, Terrain, VERTICES_PER_QUAD};
 
 use crate::readback::{self, Gate, Reader};
 
 const TRIANGLES_PER_QUAD: u32 = 2;
 
+fn row_slice(args: &[DrawArgs], row: DrawArgRow) -> &[DrawArgs] {
+    let start = row.first_slot();
+    args.get(start..start + DrawKind::COUNT).unwrap_or(&[])
+}
+
 fn drawn_quads(args: &[DrawArgs]) -> u32 {
-    args.iter()
-        .take(2 * STREAMS)
+    [DrawArgRow::FirstPassDraws, DrawArgRow::SecondPassDraws]
+        .into_iter()
+        .flat_map(|row| row_slice(args, row))
         .map(|draw| draw.vertex_count / VERTICES_PER_QUAD)
         .sum()
 }
 
 /// Quads the last frame's depth hid and this frame's did not revive.
 fn hidden_quads(args: &[DrawArgs]) -> u32 {
-    let hidden: u32 = args
+    let hidden: u32 = row_slice(args, DrawArgRow::HiddenQuads)
         .iter()
-        .skip(2 * STREAMS)
-        .take(STREAMS)
         .map(|draw| draw.vertex_count)
         .sum();
-    let revived: u32 = args
+    let revived: u32 = row_slice(args, DrawArgRow::SecondPassDraws)
         .iter()
-        .skip(STREAMS)
-        .take(STREAMS)
         .map(|draw| draw.vertex_count / VERTICES_PER_QUAD)
         .sum();
     hidden.saturating_sub(revived)
@@ -152,8 +154,9 @@ mod tests {
     fn the_triangle_count_is_two_per_drawn_quad() {
         let counted = Counted::default();
         let mut args = args_reset();
-        args[0].vertex_count = 3 * VERTICES_PER_QUAD;
-        args[1].vertex_count = 5 * VERTICES_PER_QUAD;
+        let draws = DrawKind::ALL;
+        args[DrawArgRow::FirstPassDraws.slot(draws[0])].vertex_count = 3 * VERTICES_PER_QUAD;
+        args[DrawArgRow::FirstPassDraws.slot(draws[1])].vertex_count = 5 * VERTICES_PER_QUAD;
         counted.read(bytemuck::cast_slice(&args));
         assert_eq!(counted.triangles.load(Ordering::Relaxed), 16);
     }

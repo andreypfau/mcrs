@@ -1,6 +1,4 @@
-@group(0) @binding(0) var depth: texture_depth_2d;
-@group(0) @binding(1) var level_out: texture_storage_2d<r32float, write>;
-@group(0) @binding(2) var level_in: texture_2d<f32>;
+import mcrs_minecraft_render::shaders::include::hiz_layout::{depth, level_in, level_out};
 
 /// Reverse-Z: the farthest surface in a footprint is its smallest depth, and a box has to be
 /// nearer than that everywhere in its footprint to show at all. A source of odd size gives its

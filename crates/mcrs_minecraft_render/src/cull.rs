@@ -1,12 +1,8 @@
 use bevy::prelude::*;
-use bevy::render::render_resource::binding_types::{
-    storage_buffer_read_only_sized, storage_buffer_sized, texture_2d,
-};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
 use bevy::shader::ShaderDefVal;
 
-use mcrs_minecraft_mesh::{STREAM_NAMES, STREAMS};
 use wgpu::ComputePassTimestampWrites;
 
 use super::arenas::{Arenas, Geometry, HEADROOM};
@@ -15,7 +11,9 @@ use super::draws::{DrawList, PARAMS_STRIDE};
 use super::hiz::Hiz;
 use super::layer::LayerGroup;
 use super::pipeline::MODEL_DEPTH_BIAS;
-use super::stats::{DISPATCH_BYTES, DISPATCHES, DRAW_ARGS_SIZE, args_reset};
+use super::shared_bindings::cull as cull_bindings;
+use super::shared_types::DrawArgRow;
+use super::stats::{DISPATCH_BYTES, DISPATCHES, args_reset, dispatch_offset};
 use super::{Budget, DrawMask, PassSlot, PassTimestamps, VISIBLE_BYTES};
 
 /// Entries the visible list starts at, and the granularity it grows in.
@@ -29,11 +27,6 @@ const GROUPS_PER_STEP: u32 = 2;
 // The quad cull gives each quad of a group a lane, and each quad a pass leaves a bit of one word.
 const _: () =
     assert!(mcrs_minecraft_mesh::GROUP_QUADS <= CULL_THREADS as usize && CULL_THREADS <= 32);
-
-/// Where each kernel reading a list finds its dispatch size in the copied table.
-const QUADS_FIRST: u64 = 0;
-const QUADS_SECOND: u64 = STREAMS as u64;
-const GROUPS_SECOND: u64 = 2 * STREAMS as u64;
 
 struct Pipelines {
     sections: CachedComputePipelineId,
@@ -122,51 +115,6 @@ fn cull_grid(limits: &WgpuLimits, threads: u32) -> u32 {
         .max(1)
 }
 
-fn ordered_layout() -> BindGroupLayoutDescriptor {
-    BindGroupLayoutDescriptor::new(
-        "terrain cull data",
-        &BindGroupLayoutEntries::sequential(
-            ShaderStages::COMPUTE,
-            (
-                storage_buffer_read_only_sized(false, None),
-                storage_buffer_sized(false, None),
-                storage_buffer_sized(false, None),
-                storage_buffer_sized(false, None),
-                storage_buffer_read_only_sized(false, None),
-                storage_buffer_sized(false, None),
-                texture_2d(TextureSampleType::Float { filterable: false }),
-                storage_buffer_sized(false, None),
-            ),
-        ),
-    )
-}
-
-/// The cull that tests quads one by one reads the geometry, and keeps under eight storage buffers
-/// a stage by leaving out the batch counts only the ordered cull needs. The binding numbers are
-/// the ones `cull.wesl` gives them.
-fn quad_layout() -> BindGroupLayoutDescriptor {
-    BindGroupLayoutDescriptor::new(
-        "terrain quad cull data",
-        &BindGroupLayoutEntries::with_indices(
-            ShaderStages::COMPUTE,
-            (
-                (0, storage_buffer_read_only_sized(false, None)),
-                (1, storage_buffer_sized(false, None)),
-                (2, storage_buffer_sized(false, None)),
-                (3, storage_buffer_sized(false, None)),
-                (4, storage_buffer_read_only_sized(false, None)),
-                (
-                    6,
-                    texture_2d(TextureSampleType::Float { filterable: false }),
-                ),
-                (7, storage_buffer_sized(false, None)),
-                (8, storage_buffer_read_only_sized(false, None)),
-                (9, storage_buffer_read_only_sized(false, None)),
-            ),
-        ),
-    )
-}
-
 impl Pipelines {
     fn new(
         view_layout: &BindGroupLayoutDescriptor,
@@ -184,7 +132,6 @@ impl Pipelines {
             ShaderDefVal::UInt("CULL_THREADS".into(), CULL_THREADS),
             ShaderDefVal::UInt("GROUP_THREADS".into(), GROUP_THREADS),
             ShaderDefVal::UInt("GROUPS_PER_STEP".into(), GROUPS_PER_STEP),
-            ShaderDefVal::UInt("STREAMS".into(), STREAMS as u32),
             ShaderDefVal::UInt("SECTION_SLOTS".into(), section_slots as u32),
             ShaderDefVal::UInt("CAVE_WORDS".into(), section_slots.div_ceil(32) as u32),
             ShaderDefVal::UInt(
@@ -239,31 +186,31 @@ impl Binds {
             ordered: device.create_bind_group(
                 "terrain cull",
                 &cache.get_bind_group_layout(&layouts.ordered),
-                &BindGroupEntries::sequential((
-                    arenas.groups.words.binding(),
-                    lists.visible.as_entire_binding(),
-                    lists.args.as_entire_binding(),
-                    lists.cave.as_entire_binding(),
-                    arenas.sections.binding(),
-                    lists.batches.words.binding(),
-                    &hiz.view,
-                    lists.candidates.words.binding(),
-                )),
+                &cull_bindings::ordered_entries(cull_bindings::OrderedEntries {
+                    groups: &arenas.groups.words,
+                    visible: &lists.visible,
+                    args: &lists.args,
+                    cave_visible: &lists.cave,
+                    sections: &arenas.sections,
+                    batches: &lists.batches.words,
+                    hiz: &hiz.view,
+                    candidates: &lists.candidates.words,
+                }),
             ),
             quad: device.create_bind_group(
                 "terrain quad cull",
                 &cache.get_bind_group_layout(&layouts.quad),
-                &BindGroupEntries::with_indices((
-                    (0, arenas.groups.words.binding()),
-                    (1, lists.visible.as_entire_binding()),
-                    (2, lists.args.as_entire_binding()),
-                    (3, lists.cave.as_entire_binding()),
-                    (4, arenas.sections.binding()),
-                    (6, BindingResource::TextureView(&hiz.view)),
-                    (7, lists.candidates.words.binding()),
-                    (8, arenas.quads.words.binding()),
-                    (9, arenas.vertices.words.binding()),
-                )),
+                &cull_bindings::quad_entries(cull_bindings::QuadEntries {
+                    groups: &arenas.groups.words,
+                    visible: &lists.visible,
+                    args: &lists.args,
+                    cave_visible: &lists.cave,
+                    sections: &arenas.sections,
+                    hiz: &hiz.view,
+                    candidates: &lists.candidates.words,
+                    quad_words: &arenas.quads.words,
+                    model_words: &arenas.vertices.words,
+                }),
             ),
         }
     }
@@ -300,8 +247,8 @@ impl Cull {
         };
         let hiz = Hiz::new(device, asset_server, pipeline_cache);
         let layouts = Layouts {
-            ordered: ordered_layout(),
-            quad: quad_layout(),
+            ordered: cull_bindings::ordered_layout(),
+            quad: cull_bindings::quad_layout(),
         };
         let limits = device.limits();
         Self {
@@ -494,7 +441,7 @@ impl Cull {
                 LayerGroup::Opaque,
                 quads,
                 mask,
-                QUADS_FIRST,
+                DrawArgRow::FirstPassQuadDispatch,
             );
         }
     }
@@ -527,7 +474,15 @@ impl Cull {
             );
             pass.set_bind_group(1, &self.binds.quad, &[]);
             for group in LayerGroup::ALL {
-                self.cull_indirect(&mut pass, binds, list, group, groups, mask, GROUPS_SECOND);
+                self.cull_indirect(
+                    &mut pass,
+                    binds,
+                    list,
+                    group,
+                    groups,
+                    mask,
+                    DrawArgRow::CandidateDispatch,
+                );
             }
         }
         self.copy_dispatches(encoder);
@@ -538,7 +493,15 @@ impl Cull {
         );
         pass.set_bind_group(1, &self.binds.quad, &[]);
         for group in LayerGroup::ALL {
-            self.cull_indirect(&mut pass, binds, list, group, quads, mask, QUADS_SECOND);
+            self.cull_indirect(
+                &mut pass,
+                binds,
+                list,
+                group,
+                quads,
+                mask,
+                DrawArgRow::SecondPassQuadDispatch,
+            );
         }
     }
 
@@ -553,7 +516,7 @@ impl Cull {
     }
 
     /// Dispatches `pipeline` once a draw of `group`, as many workgroups as the cull counted into
-    /// the draw's row of `table`.
+    /// the draw's row of the dispatch table.
     #[expect(
         clippy::too_many_arguments,
         reason = "the pass, the view bindings and the draws of one layer group, the kernel, the draw mask and the row of the dispatch table"
@@ -566,26 +529,19 @@ impl Cull {
         group: LayerGroup,
         pipeline: &'pass ComputePipeline,
         mask: &DrawMask,
-        table: u64,
+        row: DrawArgRow,
     ) {
         pass.set_pipeline(pipeline);
         for (index, draw) in list.drawn(group, mask) {
-            pass.push_debug_group(stream_name(draw.stream));
+            let Some(offset) = dispatch_offset(row, draw.kind) else {
+                continue;
+            };
+            pass.push_debug_group(draw.kind.label());
             pass.set_bind_group(0, &binds.view, &[index as u32 * PARAMS_STRIDE]);
-            pass.dispatch_workgroups_indirect(
-                &self.dispatch,
-                (table + index as u64) * DRAW_ARGS_SIZE,
-            );
+            pass.dispatch_workgroups_indirect(&self.dispatch, offset);
             pass.pop_debug_group();
         }
     }
-}
-
-pub(super) fn stream_name(stream: u32) -> &'static str {
-    STREAM_NAMES
-        .get(stream as usize)
-        .copied()
-        .unwrap_or("terrain")
 }
 
 fn timed_compute<'e>(
@@ -619,12 +575,12 @@ fn cull_group<'pass>(
     pass.set_pipeline(pipeline);
     let mut open = None;
     for (index, draw) in list.drawn(group, mask) {
-        if open != Some(draw.stream) {
+        if open != Some(draw.kind) {
             if open.is_some() {
                 pass.pop_debug_group();
             }
-            pass.push_debug_group(stream_name(draw.stream));
-            open = Some(draw.stream);
+            pass.push_debug_group(draw.kind.label());
+            open = Some(draw.kind);
         }
         pass.set_bind_group(0, &binds.view, &[index as u32 * PARAMS_STRIDE]);
         pass.dispatch_workgroups(

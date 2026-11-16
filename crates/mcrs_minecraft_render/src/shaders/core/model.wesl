@@ -1,5 +1,5 @@
 
-import package::shaders::include::fields::{
+import mcrs_minecraft_render::shaders::include::fields::{
     MODEL_BLOCK_LIGHT_WORD, MODEL_BLOCK_LIGHT_SHIFT, MODEL_BLOCK_LIGHT_BITS,
     MODEL_SHADE_WORD, MODEL_SHADE_SHIFT, MODEL_SHADE_BITS,
     MODEL_SKY_LIGHT_WORD, MODEL_SKY_LIGHT_SHIFT, MODEL_SKY_LIGHT_BITS,
@@ -10,18 +10,18 @@ import package::shaders::include::fields::{
     MODEL_V_WORD, MODEL_V_SHIFT, MODEL_V_BITS,
     MODEL_X_WORD, MODEL_Y_WORD, MODEL_Z_WORD,
 };
-import package::shaders::include::fog::{fog_mix, fog_value};
-@if(IMPROVED) import package::shaders::include::fog::fog_values;
-@if(IMPROVED) import package::shaders::include::transparency::transparent_fog;
-import package::shaders::include::frame::{camera, params};
-import package::shaders::include::quad::{
+import mcrs_minecraft_render::shaders::include::fog::{fog_mix, fog_value};
+@if(IMPROVED) import mcrs_minecraft_render::shaders::include::fog::fog_values;
+@if(IMPROVED) import mcrs_minecraft_render::shaders::include::transparency::transparent_fog;
+import mcrs_minecraft_render::shaders::include::frame::{camera, params};
+import mcrs_minecraft_render::shaders::include::quad::{
     CORNERS_PER_QUAD, GREEDY_EDGE_OVERLAP, MODEL_WORDS_PER_VERTEX, corner_index, corner_uv,
     degenerate, expanded_quad_uv, model_position, model_quad_uv,
 };
-@if(SOLID) import package::shaders::include::quad_coverage::{quad_projection, quad_uv_at, quad_contains};
-import package::shaders::include::section::section_origin;
-import package::shaders::include::surface::{Surface, shade_surface};
-import package::shaders::include::terrain_bindings::{
+@if(SOLID) import mcrs_minecraft_render::shaders::include::quad_coverage::{quad_projection, quad_uv_at, quad_contains};
+import mcrs_minecraft_render::shaders::include::section::section_origin;
+import mcrs_minecraft_render::shaders::include::surface::{Surface, shade_surface};
+import mcrs_minecraft_render::shaders::include::terrain_bindings::{
     TerrainVertex, model_field, model_word, quad_ref, section_desc,
 };
 
@@ -181,8 +181,8 @@ fn model_surface(in: ModelOut) -> Surface {
     return s;
 }
 
-fn model_gbuffer(in: ModelOut, albedo: vec3<f32>) -> package::shaders::include::gbuffer_encode::GBuffer {
-    return package::shaders::include::deferred::gbuffer(albedo, in.shade, in.normal, in.block_light, in.sky_light);
+fn model_gbuffer(in: ModelOut, albedo: vec3<f32>) -> mcrs_minecraft_render::shaders::include::gbuffer_encode::GBuffer {
+    return mcrs_minecraft_render::shaders::include::deferred::gbuffer(albedo, in.shade, in.normal, in.block_light, in.sky_light);
 }
 
 struct ModelCoverage {
@@ -203,9 +203,9 @@ fn model_coverage(in: ModelOut) -> ModelCoverage {
 }
 
 @fragment
-fn fragment_model_solid(in: ModelOut) -> package::shaders::include::gbuffer_encode::GBuffer {
+fn fragment_model_solid(in: ModelOut) -> mcrs_minecraft_render::shaders::include::gbuffer_encode::GBuffer {
     let coverage = model_coverage(in);
-    let wireframe_discards = package::shaders::include::finish::wireframe_discards(coverage.surface.quad_uv);
+    let wireframe_discards = mcrs_minecraft_render::shaders::include::finish::wireframe_discards(coverage.surface.quad_uv);
     let color = shade_surface(model_surface(coverage.surface));
     if (coverage.outside || wireframe_discards) {
         discard;
@@ -214,9 +214,9 @@ fn fragment_model_solid(in: ModelOut) -> package::shaders::include::gbuffer_enco
 }
 
 @fragment
-fn fragment_model_cutout(in: ModelOut) -> package::shaders::include::gbuffer_encode::GBuffer {
+fn fragment_model_cutout(in: ModelOut) -> mcrs_minecraft_render::shaders::include::gbuffer_encode::GBuffer {
     let coverage = model_coverage(in);
-    let wireframe_discards = package::shaders::include::finish::wireframe_discards(coverage.surface.quad_uv);
+    let wireframe_discards = mcrs_minecraft_render::shaders::include::finish::wireframe_discards(coverage.surface.quad_uv);
     let color = shade_surface(model_surface(coverage.surface));
     if (coverage.outside || color.a < 0.5 || wireframe_discards) {
         discard;
@@ -226,12 +226,12 @@ fn fragment_model_cutout(in: ModelOut) -> package::shaders::include::gbuffer_enc
 
 @fragment
 fn fragment_model_translucent(in: ModelOut) -> @location(0) vec4<f32> {
-    let wireframe_discards = package::shaders::include::finish::wireframe_discards(in.quad_uv);
+    let wireframe_discards = mcrs_minecraft_render::shaders::include::finish::wireframe_discards(in.quad_uv);
     let color = shade_surface(model_surface(in));
     if (wireframe_discards) {
         discard;
     }
-    let lit = package::shaders::include::deferred::shade(color.rgb, in.shade, in.block_light, in.sky_light);
+    let lit = mcrs_minecraft_render::shaders::include::deferred::shade(color.rgb, in.shade, in.block_light, in.sky_light);
     @if(IMPROVED) {
         let values = fog_values(in.world - camera.offset, camera.fog_environmental, camera.fog_render_distance);
         let pixel = vec2<i32>(in.clip_position.xy);

@@ -10,11 +10,12 @@ use bevy::render::view::ExtractedView;
 use super::Occlusion;
 use super::WorldFog;
 use super::draws::PARAMS_STRIDE;
-use super::frame_view::{FrameView, SIDE_PLANES};
+use super::frame_view::FrameView;
+use super::shared_types::{CAMERA_SIZE, CameraUniform};
 use super::terrain::Terrain;
 use mcrs_minecraft_core::CardinalLight;
 use mcrs_minecraft_mesh::face_shade;
-use mcrs_minecraft_mesh::{SECTION_SIZE, STREAMS};
+use mcrs_minecraft_mesh::{DrawKind, SECTION_SIZE};
 
 /// The camera split into the section it stands in and where it stands inside that section, so
 /// the terrain shaders never need an absolute world coordinate in f32.
@@ -52,33 +53,6 @@ impl TerrainShade {
     }
 }
 
-/// The frame's view, expressed against the origin of the section the camera stands in. Nothing
-/// here is an absolute world coordinate: at the edge of the world f32 has no block left to give.
-#[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-pub(super) struct CameraUniform {
-    clip_from_relative: [f32; 16],
-    frustum: [[f32; 4]; SIDE_PLANES],
-    section: [i32; 3],
-    _pad_section: i32,
-    offset: [f32; 3],
-    _pad_offset: f32,
-    tint_origin: [f32; 2],
-    tint_scale: [f32; 2],
-    hiz_levels: u32,
-    quad_cull: u32,
-    viewport: [f32; 2],
-    shade_table: u32,
-    render_distance: u32,
-    raster_viewport: [f32; 2],
-    fog_color: [f32; 3],
-    _pad_fog_color: f32,
-    fog_environmental: [f32; 2],
-    fog_render_distance: [f32; 2],
-}
-
-pub(super) const CAMERA_SIZE: u64 = size_of::<CameraUniform>() as u64;
-
 pub(super) struct Frame {
     pub params: Buffer,
     pub camera: Buffer,
@@ -98,7 +72,7 @@ impl Frame {
         Self {
             params: uniform(
                 "terrain draw params",
-                STREAMS as u64 * PARAMS_STRIDE as u64,
+                DrawKind::COUNT as u64 * PARAMS_STRIDE as u64,
                 device,
             ),
             camera: uniform("terrain camera", CAMERA_SIZE, device),
@@ -190,8 +164,6 @@ pub(super) fn write_camera(
 
 #[cfg(test)]
 mod tests {
-    use std::mem;
-
     use bevy::math::proj;
     use bevy::math::{DMat4, DVec3};
 
@@ -199,58 +171,6 @@ mod tests {
 
     fn ndc(clip: Vec4) -> Vec2 {
         clip.xy() / clip.w
-    }
-
-    #[test]
-    fn the_camera_uniform_has_the_layout_of_the_shader_camera() {
-        let module =
-            naga::front::wgsl::parse_str(include_str!("shaders/include/frame.wesl")).unwrap();
-        let Some(naga::TypeInner::Struct { members, span }) = module
-            .types
-            .iter()
-            .find(|(_, ty)| ty.name.as_deref() == Some("Camera"))
-            .map(|(_, ty)| &ty.inner)
-        else {
-            panic!("frame.wesl declares the struct Camera");
-        };
-        let rust = [
-            (
-                "clip_from_relative",
-                mem::offset_of!(CameraUniform, clip_from_relative),
-            ),
-            ("frustum", mem::offset_of!(CameraUniform, frustum)),
-            ("section", mem::offset_of!(CameraUniform, section)),
-            ("offset", mem::offset_of!(CameraUniform, offset)),
-            ("tint_origin", mem::offset_of!(CameraUniform, tint_origin)),
-            ("tint_scale", mem::offset_of!(CameraUniform, tint_scale)),
-            ("hiz_levels", mem::offset_of!(CameraUniform, hiz_levels)),
-            ("quad_cull", mem::offset_of!(CameraUniform, quad_cull)),
-            ("viewport", mem::offset_of!(CameraUniform, viewport)),
-            ("shade_table", mem::offset_of!(CameraUniform, shade_table)),
-            (
-                "render_distance",
-                mem::offset_of!(CameraUniform, render_distance),
-            ),
-            (
-                "raster_viewport",
-                mem::offset_of!(CameraUniform, raster_viewport),
-            ),
-            ("fog_color", mem::offset_of!(CameraUniform, fog_color)),
-            (
-                "fog_environmental",
-                mem::offset_of!(CameraUniform, fog_environmental),
-            ),
-            (
-                "fog_render_distance",
-                mem::offset_of!(CameraUniform, fog_render_distance),
-            ),
-        ];
-        let shader: Vec<(&str, usize)> = members
-            .iter()
-            .map(|member| (member.name.as_deref().unwrap_or(""), member.offset as usize))
-            .collect();
-        assert_eq!(shader, rust);
-        assert_eq!(*span as usize, size_of::<CameraUniform>());
     }
 
     #[test]

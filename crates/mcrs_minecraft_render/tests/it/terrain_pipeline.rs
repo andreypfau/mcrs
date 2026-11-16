@@ -2,6 +2,8 @@ use bevy::math::{Mat4, Vec3};
 use bevy::shader::ShaderDefVal;
 use bevy::tasks::block_on;
 use mcrs_minecraft_mesh::pack;
+use mcrs_minecraft_render::shared_bindings::{terrain_draw, terrain_view};
+use mcrs_minecraft_render::{CameraUniform, Params, SectionDesc, SpriteEntry};
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::*;
 
@@ -112,27 +114,31 @@ fn pipeline(device: &Device, model: bool, fragment: Fragment) -> RenderPipeline 
 }
 
 fn frame_group(device: &Device, pipeline: &RenderPipeline) -> BindGroup {
-    let mut camera = [0u32; 64];
     let transform = Mat4::from_translation(Vec3::new(-1.5, -1.5, 0.5));
-    for (word, value) in camera.iter_mut().zip(transform.to_cols_array()) {
-        *word = value.to_bits();
-    }
-    camera[50] = (SIZE as f32 / 2.0).to_bits();
-    camera[51] = (SIZE as f32 / 2.0).to_bits();
-    camera[54] = (SIZE as f32).to_bits();
-    camera[55] = (SIZE as f32).to_bits();
-    let params = buffer(device, &[0; 6], BufferUsages::UNIFORM);
-    let camera = buffer(device, &camera, BufferUsages::UNIFORM);
+    let mut camera_data = CameraUniform::default();
+    camera_data.clip_from_relative = transform.to_cols_array();
+    camera_data.viewport = [SIZE as f32 / 2.0; 2];
+    camera_data.raster_viewport = [SIZE as f32; 2];
+    let params = buffer(
+        device,
+        bytemuck::cast_slice(&[Params::default()]),
+        BufferUsages::UNIFORM,
+    );
+    let camera = buffer(
+        device,
+        bytemuck::cast_slice(&[camera_data]),
+        BufferUsages::UNIFORM,
+    );
     device.create_bind_group(&BindGroupDescriptor {
         label: None,
         layout: &pipeline.get_bind_group_layout(0),
         entries: &[
             BindGroupEntry {
-                binding: 0,
+                binding: terrain_view::PARAMS,
                 resource: params.as_entire_binding(),
             },
             BindGroupEntry {
-                binding: 1,
+                binding: terrain_view::CAMERA,
                 resource: camera.as_entire_binding(),
             },
         ],
@@ -196,23 +202,47 @@ fn terrain_group(
     );
     let visible = buffer(device, &[0, 0], BufferUsages::STORAGE);
     let faces = buffer(device, &[0; 3], BufferUsages::STORAGE);
-    let sections = buffer(device, &[0, 0, 0, 1, 0], BufferUsages::STORAGE);
+    let sections = buffer(
+        device,
+        bytemuck::cast_slice(&[SectionDesc {
+            section: [0, 0, 0],
+            scale: 1,
+            face_base: 0,
+        }]),
+        BufferUsages::STORAGE,
+    );
     let animations = buffer(device, &[0; 4], BufferUsages::STORAGE);
-    let sprites = buffer(device, &[0, u32::MAX], BufferUsages::STORAGE);
+    let sprites = buffer(
+        device,
+        bytemuck::cast_slice(&[SpriteEntry {
+            array_layer: 0,
+            animation: u32::MAX,
+        }]),
+        BufferUsages::STORAGE,
+    );
     let view = atlas(device, queue);
     let sampler = device.create_sampler(&SamplerDescriptor::default());
     let mut entries = vec![
         BindGroupEntry {
-            binding: if model { 1 } else { 0 },
+            binding: if model {
+                terrain_draw::VERTICES
+            } else {
+                terrain_draw::QUADS
+            },
             resource: geometry.as_entire_binding(),
         },
         BindGroupEntry {
-            binding: 2,
+            binding: terrain_draw::VISIBLE,
             resource: visible.as_entire_binding(),
         },
     ];
     if !expanded_only {
-        for binding in 3..=6 {
+        for binding in [
+            terrain_draw::ATLAS0,
+            terrain_draw::ATLAS1,
+            terrain_draw::ATLAS2,
+            terrain_draw::ATLAS3,
+        ] {
             entries.push(BindGroupEntry {
                 binding,
                 resource: BindingResource::TextureView(&view),
@@ -220,35 +250,35 @@ fn terrain_group(
         }
         entries.extend([
             BindGroupEntry {
-                binding: 7,
+                binding: terrain_draw::ATLAS_SAMPLER,
                 resource: BindingResource::Sampler(&sampler),
             },
             BindGroupEntry {
-                binding: 8,
+                binding: terrain_draw::TINTS,
                 resource: BindingResource::TextureView(&view),
             },
             BindGroupEntry {
-                binding: 9,
+                binding: terrain_draw::TINT_SAMPLER,
                 resource: BindingResource::Sampler(&sampler),
             },
             BindGroupEntry {
-                binding: 10,
+                binding: terrain_draw::ANIMATIONS,
                 resource: animations.as_entire_binding(),
             },
             BindGroupEntry {
-                binding: 11,
+                binding: terrain_draw::SPRITES,
                 resource: sprites.as_entire_binding(),
             },
         ]);
         if !model {
             entries.push(BindGroupEntry {
-                binding: 12,
+                binding: terrain_draw::FACES,
                 resource: faces.as_entire_binding(),
             });
         }
     }
     entries.push(BindGroupEntry {
-        binding: 13,
+        binding: terrain_draw::SECTIONS,
         resource: sections.as_entire_binding(),
     });
     device.create_bind_group(&BindGroupDescriptor {

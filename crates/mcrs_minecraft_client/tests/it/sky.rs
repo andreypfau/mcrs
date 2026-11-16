@@ -7,8 +7,7 @@ use mcrs_minecraft_dimension_environment::environment::WeatherLevel;
 use mcrs_minecraft_environment::{ClockTime, WorldClock, WorldClocks};
 use mcrs_minecraft_fog::FogRamp;
 use mcrs_minecraft_network::ConnectionState;
-use mcrs_minecraft_render::sky::SkyUniform;
-use mcrs_minecraft_render::{RenderDistance, WorldFog};
+use mcrs_minecraft_render::{RenderDistance, SkyUniform, WorldFog};
 use mcrs_minecraft_resource::{Id, ResourceKeyBuf, ResourceLocationBuf};
 
 use crate::boot::{boot, receive_registries, received_id};

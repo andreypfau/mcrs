@@ -1,7 +1,7 @@
-use bevy::prelude::*;
+use bevy::asset::{AssetServer, Handle};
 use bevy::shader::Shader;
 
-use super::layer::Shape;
+use mcrs_minecraft_mesh::QuadFormat;
 
 pub(super) struct Shaders {
     pub greedy: Handle<Shader>,
@@ -16,10 +16,10 @@ impl Shaders {
         }
     }
 
-    pub fn shape(&self, shape: Shape) -> &Handle<Shader> {
-        match shape {
-            Shape::Greedy => &self.greedy,
-            Shape::Model => &self.model,
+    pub fn format(&self, format: QuadFormat) -> &Handle<Shader> {
+        match format {
+            QuadFormat::Greedy => &self.greedy,
+            QuadFormat::Model => &self.model,
         }
     }
 }

@@ -332,7 +332,7 @@ pub(super) fn models(catalog: &[BlockInfo], scratch: &mut Scratch) {
             Pass::Translucent
         };
         let tint = if fluid.lava { 0 } else { Tint::Water.index() };
-        let out = &mut pass.of_mut(&mut scratch.complex_by_pass)[UNGROUPED];
+        let out = &mut pass.of_mut(&mut scratch.models_by_pass)[UNGROUPED];
 
         let mut corners = slope.corners;
         let facing = |face: usize| {
@@ -541,7 +541,7 @@ mod tests {
         let batch = mesh_world(&world, &blocks, &[[0, 0, 0]], &mut scratch);
         let models = batch.model_quads();
         let mut surfaces = Vec::new();
-        for quad in &batch.simple {
+        for quad in &batch.greedy {
             if QUAD_FACE.read(quad) == 1 {
                 surfaces.push((
                     QUAD_W.read(quad) + 1,
@@ -574,7 +574,7 @@ mod tests {
 
             let mut scratch = Scratch::new();
             mesh_world(&world, &blocks, &[[0, 0, 0]], &mut scratch)
-                .simple
+                .greedy
                 .iter()
                 .filter(|quad| QUAD_FACE.read(*quad) == Dir::Up as u64)
                 .count()

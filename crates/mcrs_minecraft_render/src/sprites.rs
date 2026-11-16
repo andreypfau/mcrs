@@ -3,6 +3,7 @@ use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 
 use super::render_path::RenderPath;
+use super::shared_types::AnimationFrame;
 use super::terrain::Terrain;
 use super::texture::{
     AtlasSlot, AtlasWriter, array_view, atlas_sampler, atlas_staging, blank_atlas, create_lightmap,
@@ -14,20 +15,11 @@ use mcrs_minecraft_mesh::pack::{MAX_SPRITE_ARRAYS, MAX_SPRITES};
 
 const TICKS_PER_SECOND: f64 = 20.0;
 
-#[derive(Copy, Clone, Debug, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-struct AnimationFrame {
-    layer: u32,
-    next: u32,
-    blend: f32,
-    _pad: u32,
-}
-
 const UNWRITTEN: AnimationFrame = AnimationFrame {
     layer: u32::MAX,
     next: u32::MAX,
     blend: 0.0,
-    _pad: 0,
+    _pad_12: 0,
 };
 
 impl Animation {
@@ -43,7 +35,7 @@ impl Animation {
             } else {
                 0.0
             },
-            _pad: 0,
+            _pad_12: 0,
         }
     }
 }

@@ -1,6 +1,5 @@
 use bevy::core_pipeline::FullscreenShader;
 use bevy::prelude::*;
-use bevy::render::render_resource::binding_types::{sampler, texture_2d};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice};
 use bevy::render::view::{ExtractedView, ViewDepthStencilTexture};
@@ -9,6 +8,7 @@ use bevy::shader::ShaderDefVal;
 use crate::gbuffer::{WORLD_IMAGE_FORMAT, nearest_sampler};
 use crate::pass::loaded;
 use crate::pipeline::descriptor;
+use crate::shared_bindings::show;
 use crate::terrain::Terrain;
 
 /// Draws reverse-Z depth over the whole view as greyscale: near white, far dark, sky black.
@@ -60,7 +60,10 @@ impl DepthDisplay {
         let bind_group = device.create_bind_group(
             "show depth",
             &cache.get_bind_group_layout(&self.layout),
-            &BindGroupEntries::sequential((&texture, &self.nearest)),
+            &show::entries(show::Entries {
+                source: &texture,
+                nearest: &self.nearest,
+            }),
         );
         let color_attachments = [Some(loaded(target))];
         let mut pass = ctx.begin_tracked_render_pass(RenderPassDescriptor {
@@ -84,16 +87,7 @@ pub(crate) fn init_depth_display(
 ) {
     commands.insert_resource(DepthDisplay {
         shader: asset_server.load("embedded://mcrs_minecraft_render/shaders/core/show.wesl"),
-        layout: BindGroupLayoutDescriptor::new(
-            "show depth",
-            &BindGroupLayoutEntries::sequential(
-                ShaderStages::FRAGMENT,
-                (
-                    texture_2d(TextureSampleType::Float { filterable: false }),
-                    sampler(SamplerBindingType::NonFiltering),
-                ),
-            ),
-        ),
+        layout: show::layout(),
         nearest: nearest_sampler(&device),
         depth: None,
         pyramid: None,

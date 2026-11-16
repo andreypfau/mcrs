@@ -8,20 +8,20 @@ use bevy::mesh::VertexBufferLayout;
 use bevy::prelude::*;
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 use bevy::render::render_asset::RenderAssets;
-use bevy::render::render_resource::binding_types::{sampler, texture_2d, uniform_buffer_sized};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice, RenderQueue, ViewQuery};
 use bevy::render::texture::GpuImage;
 use bevy::render::view::ViewDepthStencilTexture;
 use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 use bevy::shader::Shader;
-use std::num::NonZeroU64;
 
 use crate::frame::write_frame_view;
 use crate::frame_view::FrameView;
 use crate::gbuffer::{DeferredFrame, WORLD_IMAGE_FORMAT};
 use crate::pass::loaded;
 use crate::pipeline::descriptor;
+use crate::shared_bindings::{world_text_textures, world_text_view};
+use crate::shared_types::{TEXT_FRAME_SIZE, TextFrame};
 use crate::terrain::Terrain;
 use crate::{DEPTH_COMPARE, WorldPass};
 
@@ -54,7 +54,7 @@ pub struct WorldTextPlugin;
 
 impl Plugin for WorldTextPlugin {
     fn build(&self, app: &mut App) {
-        embedded_asset!(app, "shaders/world_text.wgsl");
+        embedded_asset!(app, "shaders/world_text.wesl");
         app.init_resource::<WorldText>()
             .add_plugins(ExtractResourcePlugin::<WorldText>::default());
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
@@ -91,45 +91,17 @@ struct TextPass {
     texture: Option<(AssetId<Image>, TextureViewId, BindGroup)>,
 }
 
-/// The view of the frame as the terrain has it: nothing here is an absolute world coordinate.
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct TextFrame {
-    clip_from_relative: [f32; 16],
-    section: [i32; 3],
-    _pad: i32,
-}
-
-const VIEW_BYTES: u64 = size_of::<TextFrame>() as u64;
-
 fn init_text(mut commands: Commands, asset_server: Res<AssetServer>, device: Res<RenderDevice>) {
     commands.insert_resource(TextPass {
-        view_layout: BindGroupLayoutDescriptor::new(
-            "world text view",
-            &BindGroupLayoutEntries::sequential(
-                ShaderStages::VERTEX,
-                (uniform_buffer_sized(false, NonZeroU64::new(VIEW_BYTES)),),
-            ),
-        ),
-        texture_layout: BindGroupLayoutDescriptor::new(
-            "world text texture",
-            &BindGroupLayoutEntries::sequential(
-                ShaderStages::FRAGMENT,
-                (
-                    texture_2d(TextureSampleType::Float { filterable: true }),
-                    sampler(SamplerBindingType::Filtering),
-                    texture_2d(TextureSampleType::Float { filterable: true }),
-                    sampler(SamplerBindingType::Filtering),
-                ),
-            ),
-        ),
+        view_layout: world_text_view::layout(),
+        texture_layout: world_text_textures::layout(),
         view_buffer: device.create_buffer(&BufferDescriptor {
             label: Some("world text view"),
-            size: VIEW_BYTES,
+            size: TEXT_FRAME_SIZE,
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         }),
-        shader: asset_server.load("embedded://mcrs_minecraft_render/shaders/world_text.wgsl"),
+        shader: asset_server.load("embedded://mcrs_minecraft_render/shaders/world_text.wesl"),
         pipeline: None,
         buffer: None,
         capacity: 0,
@@ -160,7 +132,7 @@ fn prepare_text(
             bytemuck::bytes_of(&TextFrame {
                 clip_from_relative: frame_view.clip_from_relative.to_cols_array(),
                 section: frame_view.camera_section.to_array(),
-                _pad: 0,
+                _pad_76: 0,
             }),
         );
     }
@@ -265,7 +237,9 @@ fn prepare_text_bind_groups(
         let bind_group = device.create_bind_group(
             "world text view",
             &cache.get_bind_group_layout(&pass.view_layout),
-            &BindGroupEntries::sequential((pass.view_buffer.as_entire_buffer_binding(),)),
+            &world_text_view::entries(world_text_view::Entries {
+                frame: &pass.view_buffer,
+            }),
         );
         pass.view = Some(bind_group);
     }
@@ -286,12 +260,12 @@ fn prepare_text_bind_groups(
     let bind_group = device.create_bind_group(
         "world text texture",
         &cache.get_bind_group_layout(&pass.texture_layout),
-        &BindGroupEntries::sequential((
-            &gpu.texture_view,
-            &gpu.sampler,
-            lightmap,
-            &terrain.sprites.lightmap_sampler,
-        )),
+        &world_text_textures::entries(world_text_textures::Entries {
+            font_page: &gpu.texture_view,
+            font_sampler: &gpu.sampler,
+            lightmap_levels: lightmap,
+            lightmap_sampler: &terrain.sprites.lightmap_sampler,
+        }),
     );
     pass.texture = Some((texture.id(), lightmap.id(), bind_group));
 }

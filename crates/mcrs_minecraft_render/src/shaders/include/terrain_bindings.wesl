@@ -1,47 +1,15 @@
-import package::shaders::include::fields::QUAD_WORDS;
-import package::shaders::include::frame::params;
-import package::shaders::include::quad::quad_of;
-import package::shaders::include::section::SectionDesc;
-import package::shaders::include::words::bits;
-@if(MINIMAL) import package::shaders::include::words::word_texel;
-
-struct AnimationFrame {
-    layer: u32,
-    next: u32,
-    blend: f32,
+import mcrs_minecraft_render::shaders::include::fields::QUAD_WORDS;
+import mcrs_minecraft_render::shaders::include::frame::params;
+import mcrs_minecraft_render::shaders::include::quad::quad_of;
+import mcrs_minecraft_render::shaders::include::section_layout::{SECTION_WORDS, SectionDesc};
+import mcrs_minecraft_render::shaders::include::sprites_layout::{
+    ANIMATION_WORDS, AnimationFrame, SPRITE_WORDS, SpriteEntry,
 };
-
-struct SpriteEntry {
-    array_layer: u32,
-    animation: u32,
+import mcrs_minecraft_render::shaders::include::terrain_layout::{
+    animations, faces, quads, sections, sprites, vertices, visible,
 };
-
-const STILL: u32 = 0xFFFFFFFFu;
-
-// The arrays of words are storage buffers on the full path and integer textures on the minimal
-// one, read through the functions below either way.
-@if(MINIMAL) @group(1) @binding(0) var quads: texture_2d_array<u32>;
-@else @group(1) @binding(0) var<storage, read> quads: array<u32>;
-@if(MINIMAL) @group(1) @binding(1) var vertices: texture_2d_array<u32>;
-@else @group(1) @binding(1) var<storage, read> vertices: array<u32>;
-@if(!MINIMAL) @group(1) @binding(2) var<storage, read> visible: array<vec2<u32>>;
-@group(1) @binding(3) var atlas0: texture_2d_array<f32>;
-@group(1) @binding(4) var atlas1: texture_2d_array<f32>;
-@group(1) @binding(5) var atlas2: texture_2d_array<f32>;
-@group(1) @binding(6) var atlas3: texture_2d_array<f32>;
-@group(1) @binding(7) var atlas_sampler: sampler;
-@group(1) @binding(8) var tints: texture_2d_array<f32>;
-@group(1) @binding(9) var tint_sampler: sampler;
-@if(MINIMAL) @group(1) @binding(10) var animations: texture_2d_array<u32>;
-@else @group(1) @binding(10) var<storage, read> animations: array<u32>;
-@if(MINIMAL) @group(1) @binding(11) var sprites: texture_2d_array<u32>;
-@else @group(1) @binding(11) var<storage, read> sprites: array<u32>;
-@if(MINIMAL) @group(1) @binding(12) var faces: texture_2d_array<u32>;
-@else @group(1) @binding(12) var<storage, read> faces: array<u32>;
-@if(MINIMAL) @group(1) @binding(13) var sections: texture_2d_array<u32>;
-@else @group(1) @binding(13) var<storage, read> sections: array<u32>;
-@group(1) @binding(14) var lightmap_levels: texture_2d<f32>;
-@group(1) @binding(16) var lightmap_sampler: sampler;
+import mcrs_minecraft_render::shaders::include::words::bits;
+@if(MINIMAL) import mcrs_minecraft_render::shaders::include::words::word_texel;
 
 @if(MINIMAL)
 fn quad_word(index: u32) -> u32 {
@@ -103,8 +71,6 @@ fn animation_word(index: u32) -> u32 {
     return animations[index];
 }
 
-const SECTION_WORDS: u32 = 5u;
-
 fn section_desc(slot: u32) -> SectionDesc {
     let base = slot * SECTION_WORDS;
     return SectionDesc(
@@ -117,10 +83,9 @@ fn section_desc(slot: u32) -> SectionDesc {
 }
 
 fn sprite_entry(sprite: u32) -> SpriteEntry {
-    return SpriteEntry(sprite_word(sprite * 2u), sprite_word(sprite * 2u + 1u));
+    let base = sprite * SPRITE_WORDS;
+    return SpriteEntry(sprite_word(base), sprite_word(base + 1u));
 }
-
-const ANIMATION_WORDS: u32 = 4u;
 
 fn animation_frame(animation: u32) -> AnimationFrame {
     let base = animation * ANIMATION_WORDS;

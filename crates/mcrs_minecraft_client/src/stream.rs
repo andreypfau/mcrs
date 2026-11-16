@@ -26,7 +26,7 @@ use mcrs_minecraft_mesh::arena::{Arena, Block};
 use mcrs_minecraft_mesh::block::BlockInfo;
 use mcrs_minecraft_mesh::pack::QUAD_WORDS;
 use mcrs_minecraft_mesh::smooth_light::SmoothLight;
-use mcrs_minecraft_mesh::{self as mesh, Connectivity, Draw, Group, STREAMS, Scratch, SectionMesh};
+use mcrs_minecraft_mesh::{Connectivity, Draw, DrawKind, Group, QuadFormat, Scratch, SectionMesh};
 use mcrs_minecraft_model::atlas::SpriteArray;
 use mcrs_minecraft_model::block_catalog::{self, Catalog};
 use mcrs_minecraft_model::item_model_bake::{ItemModels, bake_all as bake_items};
@@ -142,11 +142,11 @@ pub struct Loader {
     /// replacements land, so their records die, and their room and slot come back, only behind
     /// those records.
     replaced: Vec<Resident>,
-    /// Group blocks of rebuilt streams, which the GPU draws until the new draw list lands.
+    /// Group blocks of rebuilt buckets, which the GPU draws until the new draw list lands.
     retired_blocks: Vec<Block>,
     meshing: Vec<MeshingSection>,
     scratches: Vec<Scratch>,
-    streams: [Stream; STREAMS],
+    buckets: [DrawBucket; DrawKind::COUNT],
     owners: Vec<[i32; 3]>,
     slots: usize,
     free_slots: Vec<u32>,
@@ -201,8 +201,8 @@ struct Resident {
     faces: Block,
     slot: u32,
     connectivity: Connectivity,
-    /// Where this section's records sit in each stream's list: first index and count.
-    groups: [(u32, u32); STREAMS],
+    /// Where this section's records sit in each bucket's list: first index and count.
+    groups: [(u32, u32); DrawKind::COUNT],
 }
 
 /// A section's drawn mesh and what the pipeline does for it, apart: a relit section stays
@@ -227,16 +227,16 @@ enum Work {
     Deferred,
 }
 
-/// One stream's group records as the GPU holds them, dead ones kept as records with no quads
-/// until the stream is rebuilt, so a change only ever writes the records it touched.
-struct Stream {
+/// One draw bucket's group records as the GPU holds them, dead ones kept as records with no quads
+/// until the bucket is rebuilt, so a change only ever writes the records it touched.
+struct DrawBucket {
     groups: Vec<Group>,
     block: Block,
     quads_end: u32,
     dead: usize,
     touched: Vec<(u32, u32)>,
     rebuild: bool,
-    /// The arena had no room for a new block beside the one the GPU draws, so the stream
+    /// The arena had no room for a new block beside the one the GPU draws, so the bucket
     /// draws what its block holds; set to warn once.
     starved: bool,
 }
@@ -316,7 +316,7 @@ impl Loader {
             retired_blocks: Vec::new(),
             meshing: Vec::new(),
             scratches: Vec::new(),
-            streams: std::array::from_fn(|_| Stream::new()),
+            buckets: std::array::from_fn(|_| DrawBucket::new()),
             owners: vec![[0; 3]; budget.sections],
             slots: budget.sections,
             free_slots: Vec::new(),
@@ -367,9 +367,9 @@ impl Loader {
         if self.camera_section() == was {
             return;
         }
-        for (index, stream) in self.streams.iter_mut().enumerate() {
-            if blended(index) && stream.live() != 0 {
-                stream.rebuild = true;
+        for (index, bucket) in self.buckets.iter_mut().enumerate() {
+            if blended(index) && bucket.live() != 0 {
+                bucket.rebuild = true;
                 self.dirty = true;
             }
         }
@@ -533,9 +533,9 @@ impl Loader {
     fn release(&mut self, section: [i32; 3], held: Resident, cave: &mut CaveCull) {
         if held.slot != NO_SLOT {
             self.doom(&held);
-            for (stream, &(first, count)) in self.streams.iter_mut().zip(&held.groups) {
-                kill(stream, first, count);
-                stream.touched.push((first, first + count));
+            for (bucket, &(first, count)) in self.buckets.iter_mut().zip(&held.groups) {
+                kill(bucket, first, count);
+                bucket.touched.push((first, first + count));
             }
             self.free_slots.push(held.slot);
         }
@@ -544,13 +544,13 @@ impl Loader {
         self.evicted += 1;
     }
 
-    /// Counts a mesh's records dead before they are zeroed, so a stream they fill with dead
+    /// Counts a mesh's records dead before they are zeroed, so a bucket they fill with dead
     /// records is rebuilt.
     fn doom(&mut self, held: &Resident) {
-        for (stream, &(_, count)) in self.streams.iter_mut().zip(&held.groups) {
-            stream.dead += count as usize;
-            if count != 0 && stream.dead * 2 >= stream.groups.len() {
-                stream.rebuild = true;
+        for (bucket, &(_, count)) in self.buckets.iter_mut().zip(&held.groups) {
+            bucket.dead += count as usize;
+            if count != 0 && bucket.dead * 2 >= bucket.groups.len() {
+                bucket.rebuild = true;
             }
         }
         self.dirty = true;
@@ -652,7 +652,7 @@ impl Loader {
     }
 
     fn reserve(&mut self, mesh: &SectionMesh) -> Option<[Block; 3]> {
-        let quads = self.quads.alloc(mesh.simple.len());
+        let quads = self.quads.alloc(mesh.greedy.len());
         let models = self.models.alloc(mesh.model_quads());
         let faces = self.faces.alloc(mesh.faces.len());
         match (quads, models, faces) {
@@ -686,25 +686,24 @@ impl Loader {
 
         let mut placed = mesh.groups;
         let mut first = 0usize;
-        let mut ranges = [(0u32, 0u32); STREAMS];
-        for (index, stream) in self.streams.iter_mut().enumerate() {
-            let run = mesh.spans[index].group_count as usize;
-            let base = if index % 2 == 0 {
-                quads.offset
-            } else {
-                models.offset
+        let mut ranges = [(0u32, 0u32); DrawKind::COUNT];
+        for ((index, bucket), kind) in self.buckets.iter_mut().enumerate().zip(DrawKind::ALL) {
+            let run = mesh.draws[index].group_count as usize;
+            let base = match kind.format {
+                QuadFormat::Greedy => quads.offset,
+                QuadFormat::Model => models.offset,
             } as u32;
             for group in &mut placed[first..first + run] {
                 group.quad_base += base;
-                stream.quads_end += group.quad_count;
+                bucket.quads_end += group.quad_count;
             }
             if run != 0 {
-                let at = stream.groups.len() as u32;
-                stream.groups.extend_from_slice(&placed[first..first + run]);
+                let at = bucket.groups.len() as u32;
+                bucket.groups.extend_from_slice(&placed[first..first + run]);
                 ranges[index] = (at, run as u32);
-                stream.touched.push((at, at + run as u32));
-                if blended(index) || stream.groups.len() > stream.block.capacity() {
-                    stream.rebuild = true;
+                bucket.touched.push((at, at + run as u32));
+                if kind.translucent() || bucket.groups.len() > bucket.block.capacity() {
+                    bucket.rebuild = true;
                 }
             }
             first += run;
@@ -718,8 +717,8 @@ impl Loader {
             self.dirty = true;
             self.owners[slot as usize] = section;
             self.geometry.push(Placement {
-                quads: ((quads.offset * QUAD_WORDS * 4) as u64, mesh.simple),
-                vertices: ((models.offset * 4 * 3 * 4) as u64, mesh.complex),
+                quads: ((quads.offset * QUAD_WORDS * 4) as u64, mesh.greedy),
+                vertices: ((models.offset * 4 * 3 * 4) as u64, mesh.models),
                 faces: ((faces.offset * FACE_BYTES) as u64, mesh.faces),
                 sections: (
                     (slot as usize * size_of::<SectionDesc>()) as u64,
@@ -761,13 +760,13 @@ impl Loader {
         Ok(())
     }
 
-    /// The touched records of every stream as runs to write into its block. What lies past a
-    /// stream's block waits for the rebuild that reaches it.
+    /// The touched records of every draw bucket as runs to write into its block. What lies past
+    /// a bucket's block waits for the rebuild that reaches it.
     fn touched_runs(&mut self) -> Vec<(u64, Vec<Group>)> {
         let mut runs = Vec::new();
-        for stream in &mut self.streams {
-            let capacity = stream.block.capacity() as u32;
-            let mut ranges = std::mem::take(&mut stream.touched);
+        for bucket in &mut self.buckets {
+            let capacity = bucket.block.capacity() as u32;
+            let mut ranges = std::mem::take(&mut bucket.touched);
             ranges.sort_unstable();
             let mut merged: Vec<(u32, u32)> = Vec::new();
             for (first, end) in ranges.drain(..) {
@@ -781,22 +780,22 @@ impl Loader {
                 }
             }
             for (first, end) in merged {
-                stream.write(first, end, &mut runs);
+                bucket.write(first, end, &mut runs);
             }
-            stream.touched = ranges;
+            bucket.touched = ranges;
         }
         runs
     }
 
     fn draws(&self) -> Vec<Draw> {
-        self.streams
+        self.buckets
             .iter()
-            .enumerate()
-            .map(|(index, stream)| Draw {
-                stream: index as u32,
-                first_group: stream.block.offset as u32,
-                group_count: stream.groups.len().min(stream.block.capacity()) as u32,
-                quad_count: stream.quads_end,
+            .zip(DrawKind::ALL)
+            .map(|(bucket, kind)| Draw {
+                kind,
+                first_group: bucket.block.offset as u32,
+                group_count: bucket.groups.len().min(bucket.block.capacity()) as u32,
+                quad_count: bucket.quads_end,
             })
             .collect()
     }
@@ -808,11 +807,11 @@ impl Loader {
     /// 1. The touched records, killing released meshes before their room is written again.
     ///    New records lie past the draw list the GPU holds, so they draw nothing yet.
     /// 2. The geometry of the meshes placed.
-    /// 3. Rebuilt streams in fresh blocks, and the draw list, which the GPU swaps in only once
+    /// 3. Rebuilt buckets in fresh blocks, and the draw list, which the GPU swaps in only once
     ///    the whole upload has landed.
     /// 4. The kills of replaced meshes, which the GPU draws until the swap.
     ///
-    /// Replaced room and slots and the blocks rebuilt streams left come back once all of it
+    /// Replaced room and slots and the blocks rebuilt buckets left come back once all of it
     /// is queued.
     fn flush_to(&mut self, uploads: &Uploads) {
         if !self.dirty {
@@ -837,9 +836,9 @@ impl Loader {
         }));
         let mut replaced = std::mem::take(&mut self.replaced);
         for held in replaced.drain(..) {
-            for (stream, &(first, count)) in self.streams.iter_mut().zip(&held.groups) {
-                kill(stream, first, count);
-                stream.touched.push((first, first + count));
+            for (bucket, &(first, count)) in self.buckets.iter_mut().zip(&held.groups) {
+                kill(bucket, first, count);
+                bucket.touched.push((first, first + count));
             }
             self.free_room(&held);
             self.free_slots.push(held.slot);
@@ -888,55 +887,55 @@ impl Loader {
         }
     }
 
-    /// Gives a fresh block to every stream that outgrew the one it has or filled it with dead
+    /// Gives a fresh block to every draw bucket that outgrew the one it has or filled it with dead
     /// records. The GPU draws the old block until the new draw list lands, so the new block is
-    /// taken beside it, and a stream the arena has no such room for draws what its block holds.
+    /// taken beside it, and a bucket the arena has no such room for draws what its block holds.
     fn rebuild_blocks(&mut self) {
-        for index in 0..STREAMS {
-            let stream = &mut self.streams[index];
-            if !stream.rebuild {
+        for index in 0..DrawKind::COUNT {
+            let bucket = &mut self.buckets[index];
+            if !bucket.rebuild {
                 continue;
             }
-            let Some(block) = self.groups.alloc(stream.live().max(MIN_BLOCK)) else {
-                if !stream.starved {
-                    stream.starved = true;
+            let Some(block) = self.groups.alloc(bucket.live().max(MIN_BLOCK)) else {
+                if !bucket.starved {
+                    bucket.starved = true;
                     warn!(
-                        stream = index,
-                        live = stream.live(),
+                        draw = index,
+                        live = bucket.live(),
                         held = self.groups.held(),
                         capacity = self.groups.capacity(),
-                        "the group arena has no room to rebuild this stream; it draws only what \
+                        "the group arena has no room to rebuild this draw bucket; it draws only what \
                          its block holds and the rest of its sections stay off the screen"
                     );
                 }
                 continue;
             };
-            stream.starved = false;
+            bucket.starved = false;
             self.retired_blocks
-                .push(std::mem::replace(&mut stream.block, block));
-            // A replaced mesh leaves a rebuilt stream with the old block rather than by a kill.
+                .push(std::mem::replace(&mut bucket.block, block));
+            // A replaced mesh leaves a rebuilt bucket with the old block rather than by a kill.
             for held in &mut self.replaced {
                 let (first, count) = std::mem::take(&mut held.groups[index]);
-                kill(stream, first, count);
+                kill(bucket, first, count);
             }
-            self.pack_stream(index);
+            self.pack_bucket(index);
         }
     }
 
-    /// Packs a stream's live records into the block it holds, keeping their order, or for a
-    /// blended stream putting the farthest section first, and telling each resident section
+    /// Packs a bucket's live records into the block it holds, keeping their order, or for a
+    /// blended bucket putting the farthest section first, and telling each resident section
     /// where its records went.
-    fn pack_stream(&mut self, index: usize) {
+    fn pack_bucket(&mut self, index: usize) {
         let camera = IVec3::from_array(self.camera_section());
         let Self {
-            streams,
+            buckets,
             owners,
             sections,
             ..
         } = self;
-        let stream = &mut streams[index];
-        let live = stream.live();
-        let mut packed: Vec<Group> = std::mem::take(&mut stream.groups)
+        let bucket = &mut buckets[index];
+        let live = bucket.live();
+        let mut packed: Vec<Group> = std::mem::take(&mut bucket.groups)
             .into_iter()
             .filter(|group| group.quad_count != 0)
             .collect();
@@ -960,16 +959,16 @@ impl Loader {
             last_slot = group.section;
             quads += group.quad_count;
         }
-        stream.groups = packed;
-        stream.quads_end = quads;
-        stream.dead = 0;
-        stream.touched.clear();
-        stream.touched.push((0, live as u32));
-        stream.rebuild = false;
+        bucket.groups = packed;
+        bucket.quads_end = quads;
+        bucket.dead = 0;
+        bucket.touched.clear();
+        bucket.touched.push((0, live as u32));
+        bucket.rebuild = false;
     }
 }
 
-impl Stream {
+impl DrawBucket {
     fn new() -> Self {
         Self {
             groups: Vec::new(),
@@ -982,7 +981,7 @@ impl Stream {
         }
     }
 
-    /// The records the stream still draws, the dead ones it has not been rebuilt out of aside.
+    /// The records the bucket still draws, the dead ones it has not been rebuilt out of aside.
     fn live(&self) -> usize {
         self.groups.len() - self.dead
     }
@@ -999,8 +998,8 @@ impl Stream {
 
 /// Stops drawing the records from `first` on. Only the count is zeroed, so a record the
 /// budget cuts in two reads either its own quads or none.
-fn kill(stream: &mut Stream, first: u32, count: u32) {
-    if let Some(groups) = stream
+fn kill(bucket: &mut DrawBucket, first: u32, count: u32) {
+    if let Some(groups) = bucket
         .groups
         .get_mut(first as usize..first as usize + count as usize)
     {
@@ -1215,8 +1214,12 @@ impl ColumnTints {
 
 /// Touched runs of records this close together are written as one copy.
 const RUN_GAP: u32 = 64;
-/// The smallest block a stream is rebuilt into, in records.
+/// The smallest block a draw bucket is rebuilt into, in records.
 const MIN_BLOCK: usize = 256;
+
+fn blended(index: usize) -> bool {
+    DrawKind::from_index(index).is_some_and(DrawKind::translucent)
+}
 
 /// Every section the loader knows of by what it is doing, with the queue's buckets and the
 /// counts the status reads kept beside the states by the only code that changes them.
@@ -1468,10 +1471,6 @@ fn heap_key(camera_section: [i32; 3], section: [i32; 3]) -> u32 {
     distance_from(middle, section).to_bits()
 }
 
-fn blended(stream: usize) -> bool {
-    mesh::stream_pass(stream as u32).translucent()
-}
-
 fn distance_from(camera: Vec3, section: [i32; 3]) -> f32 {
     let min = Vec3::from_array(section.map(|n| (n * SECTION_SIZE as i32) as f32));
     let max = min + Vec3::splat(SECTION_SIZE as f32);
@@ -1718,7 +1717,7 @@ fn admit_meshing(
             at,
             slot,
             pool.spawn(async move {
-                let mesh = mesh::mesh_section(
+                let mesh = mcrs_minecraft_mesh::mesh_section(
                     &world,
                     &blocks,
                     at,
@@ -1740,7 +1739,7 @@ mod tests {
     use mcrs_minecraft_chunk::PalettedContainer;
     use mcrs_minecraft_client_world::registries::LastConfiguration;
     use mcrs_minecraft_game_registries::registry_load::{sent_by, test_registries};
-    use mcrs_minecraft_mesh::StreamSpan;
+    use mcrs_minecraft_mesh::SectionDraw;
     use mcrs_minecraft_registries::Received;
 
     fn session(edit: impl FnOnce(&mut Received)) -> CurrentRegistries {
@@ -1862,16 +1861,16 @@ mod tests {
     }
 
     fn one_greedy_group(section: [i32; 3], slot: u32, quads: u32) -> SectionMesh {
-        let mut spans = [Default::default(); STREAMS];
-        spans[0] = StreamSpan {
+        let mut draws = [Default::default(); DrawKind::COUNT];
+        draws[0] = SectionDraw {
             group_count: 1,
             quad_count: quads,
         };
         SectionMesh {
             section,
-            simple: vec![[0; QUAD_WORDS]; quads as usize],
+            greedy: vec![[0; QUAD_WORDS]; quads as usize],
             faces: vec![[0; mcrs_minecraft_mesh::pack::FACE_WORDS]; 4],
-            complex: Vec::new(),
+            models: Vec::new(),
             groups: vec![Group {
                 quad_base: 0,
                 quad_count: quads,
@@ -1879,7 +1878,7 @@ mod tests {
                 face: 0,
                 bounds: 0,
             }],
-            spans,
+            draws,
             connectivity: mcrs_minecraft_mesh::OPEN,
         }
     }
@@ -1917,7 +1916,7 @@ mod tests {
         gpu.flush(&mut loader, |_| {});
         assert_eq!(
             gpu.draws.len(),
-            STREAMS,
+            DrawKind::COUNT,
             "one draw a bucket, however many sections"
         );
         assert_eq!(gpu.draws[0].quad_count, 8);
@@ -2017,7 +2016,7 @@ mod tests {
             check(self);
         }
 
-        /// The records the greedy stream draws.
+        /// The records the solid greedy draw bucket draws.
         fn drawn(&self) -> Vec<Group> {
             let Some(greedy) = self.draws.first() else {
                 return Vec::new();
@@ -2036,8 +2035,8 @@ mod tests {
         }
     }
 
-    fn blended_sections(loader: &Loader, stream: usize) -> Vec<[i32; 3]> {
-        loader.streams[stream]
+    fn blended_sections(loader: &Loader, bucket: usize) -> Vec<[i32; 3]> {
+        loader.buckets[bucket]
             .groups
             .iter()
             .filter(|group| group.quad_count != 0)
@@ -2047,7 +2046,7 @@ mod tests {
 
     #[test]
     fn blended_records_run_from_the_farthest_section_whatever_order_they_landed_in() {
-        let blended_stream = (0..STREAMS).find(|&index| blended(index)).unwrap();
+        let blended_bucket = (0..DrawKind::COUNT).find(|&index| blended(index)).unwrap();
         let mut loader = loader();
         let mut cave = CaveCull::new(1 << 8, true);
         loader.look_from(Vec3::splat(8.0));
@@ -2055,14 +2054,14 @@ mod tests {
         let landed = [[1, 0, 0], [-3, 0, 0], [0, 0, 2], [3, 0, 0], [0, 1, 0]];
         for (slot, at) in landed.into_iter().enumerate() {
             let mut mesh = one_greedy_group(at, slot as u32, 1);
-            mesh.spans.swap(0, blended_stream);
+            mesh.draws.swap(0, blended_bucket);
             loader
                 .place(mesh, slot as u32, &mut cave)
                 .unwrap_or_else(|_| panic!("the arena has room"));
         }
         flushed(&mut loader);
         assert_eq!(
-            blended_sections(&loader, blended_stream),
+            blended_sections(&loader, blended_bucket),
             [[-3, 0, 0], [3, 0, 0], [0, 0, 2], [0, 1, 0], [1, 0, 0]],
             "farthest first, and a tie in distance goes by position"
         );
@@ -2070,7 +2069,7 @@ mod tests {
         loader.look_from(Vec3::new(4.0 * 16.0 + 8.0, 8.0, 8.0));
         flushed(&mut loader);
         assert_eq!(
-            blended_sections(&loader, blended_stream),
+            blended_sections(&loader, blended_bucket),
             [[-3, 0, 0], [0, 0, 2], [0, 1, 0], [1, 0, 0], [3, 0, 0]],
             "a camera in another section orders them again"
         );
@@ -2078,17 +2077,17 @@ mod tests {
         loader.evict([0, 1, 0], &mut cave);
         flushed(&mut loader);
         assert_eq!(
-            blended_sections(&loader, blended_stream),
+            blended_sections(&loader, blended_bucket),
             [[-3, 0, 0], [0, 0, 2], [1, 0, 0], [3, 0, 0]],
             "an evicted section takes its own records with it and nobody else's"
         );
     }
 
-    /// A mesh whose records land in the three greedy streams, so many at a time.
+    /// A mesh whose records land in the three greedy buckets, so many at a time.
     fn greedy_groups(section: [i32; 3], slot: u32, counts: [u32; 3]) -> SectionMesh {
-        let mut spans = [StreamSpan::default(); STREAMS];
+        let mut draws = [SectionDraw::default(); DrawKind::COUNT];
         for (index, count) in counts.iter().enumerate() {
-            spans[index * 2] = StreamSpan {
+            draws[index * 2] = SectionDraw {
                 group_count: *count,
                 quad_count: *count,
             };
@@ -2096,9 +2095,9 @@ mod tests {
         let total = counts.iter().sum::<u32>();
         SectionMesh {
             section,
-            simple: vec![[0; QUAD_WORDS]; total as usize],
+            greedy: vec![[0; QUAD_WORDS]; total as usize],
             faces: vec![[0; mcrs_minecraft_mesh::pack::FACE_WORDS]; 4],
-            complex: Vec::new(),
+            models: Vec::new(),
             groups: (0..total)
                 .map(|quad| Group {
                     quad_base: quad,
@@ -2108,13 +2107,13 @@ mod tests {
                     bounds: 0,
                 })
                 .collect(),
-            spans,
+            draws,
             connectivity: mcrs_minecraft_mesh::OPEN,
         }
     }
 
     #[test]
-    fn streams_growing_together_reach_every_record_the_arena_has_room_for() {
+    fn buckets_growing_together_reach_every_record_the_arena_has_room_for() {
         let mut loader = Loader::new(&Budget {
             quads: 1 << 12,
             models: 1 << 12,
@@ -2126,7 +2125,7 @@ mod tests {
         });
         let mut cave = CaveCull::new(1 << 10, true);
 
-        // Each stream takes its new block beside the one the GPU draws, from an arena sized to
+        // Each bucket takes its new block beside the one the GPU draws, from an arena sized to
         // hold two of each, and gives the old one back behind the draw list that leaves it.
         let counts = [1u32, 3, 2];
         let placed = 342u32;
@@ -2314,7 +2313,7 @@ mod tests {
         gpu.flush(&mut loader, |_| {});
 
         // The first relight finds the arena full and evicts the far section, whose room the
-        // new mesh takes; the second finds the room the first gave back, and leaves the stream
+        // new mesh takes; the second finds the room the first gave back, and leaves the bucket
         // dead enough to be rebuilt.
         for _ in 0..2 {
             loader.stale.insert(relit);
@@ -2536,7 +2535,7 @@ mod tests {
         use super::*;
 
         #[test]
-        fn a_stream_the_arena_cannot_rebuild_beside_its_block_stops_sending_itself_again() {
+        fn a_bucket_the_arena_cannot_rebuild_beside_its_block_stops_sending_itself_again() {
             let mut loader = Loader::new(&Budget {
                 quads: 1 << 13,
                 models: 1 << 12,
@@ -2548,7 +2547,7 @@ mod tests {
             });
             let mut cave = CaveCull::new(1 << 13, true);
 
-            // Past 2048 records the stream wants the whole arena, which it cannot take while
+            // Past 2048 records the bucket wants the whole arena, which it cannot take while
             // the GPU still draws the block it has.
             let mut last = Vec::new();
             for index in 0..3000u32 {
@@ -2569,7 +2568,7 @@ mod tests {
             assert_eq!(
                 draws[0].group_count,
                 1 << 11,
-                "a stream past what the arena can give it draws what its block holds"
+                "a bucket past what the arena can give it draws what its block holds"
             );
             assert!(
                 last.iter().all(|placement| placement.groups.is_empty()),

@@ -1,4 +1,8 @@
 use bevy::tasks::block_on;
+use mcrs_minecraft_render::shared_bindings::{
+    cull as cull_bindings, present as present_bindings, terrain_view,
+};
+use mcrs_minecraft_render::{CameraUniform, SectionDesc};
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource, BlendState, Buffer,
@@ -17,12 +21,6 @@ const SECTION_SLOTS: u32 = 64;
 const CAVE_WORDS: usize = 2;
 /// Slots between two columns of a run, so a run reaches the second word of the bitset.
 const COLUMN_STRIDE: usize = 4;
-/// Word places in the `Camera` uniform of `frame.wesl`.
-const CAMERA_WORDS: usize = 64;
-const FRUSTUM_WORD: usize = 16;
-const FRUSTUM_PLANES: usize = 5;
-const SECTION_WORD: usize = 36;
-const RENDER_DISTANCE_WORD: usize = 53;
 const CAMERA_SECTION: [i32; 3] = [5, 4, -3];
 
 struct Column {
@@ -306,28 +304,26 @@ impl Gpu {
     /// The bitset the kernel leaves for `run`, with every section reached by the cave walk and a
     /// frustum that holds everything.
     fn shown(&self, pipeline: &ComputePipeline, run: &Run) -> u64 {
-        let mut camera = [0u32; CAMERA_WORDS];
-        for plane in 0..FRUSTUM_PLANES {
-            camera[FRUSTUM_WORD + plane * 4 + 3] = 1.0f32.to_bits();
-        }
-        for (axis, &coordinate) in CAMERA_SECTION.iter().enumerate() {
-            camera[SECTION_WORD + axis] = bytemuck::cast(coordinate);
-        }
-        camera[RENDER_DISTANCE_WORD] = u32::from(run.render_distance);
-        let mut sections = [[0i32; 5]; SECTION_SLOTS as usize];
+        let mut camera_data = CameraUniform::default();
+        camera_data.frustum = [[0.0, 0.0, 0.0, 1.0]; 5];
+        camera_data.section = CAMERA_SECTION;
+        camera_data.render_distance = u32::from(run.render_distance);
+        let mut sections = [SectionDesc::default(); SECTION_SLOTS as usize];
         for (desc, column) in sections.iter_mut().step_by(COLUMN_STRIDE).zip(run.columns) {
-            *desc = [
-                CAMERA_SECTION[0] + column.offset[0],
-                0,
-                CAMERA_SECTION[2] + column.offset[1],
-                1,
-                0,
-            ];
+            *desc = SectionDesc {
+                section: [
+                    CAMERA_SECTION[0] + column.offset[0],
+                    0,
+                    CAMERA_SECTION[2] + column.offset[1],
+                ],
+                scale: 1,
+                face_base: 0,
+            };
         }
         let mut cave = [0u32; 2 * CAVE_WORDS];
         cave[..CAVE_WORDS].fill(u32::MAX);
 
-        let camera = self.buffer(bytemuck::cast_slice(&camera), BufferUsages::UNIFORM);
+        let camera = self.buffer(bytemuck::bytes_of(&camera_data), BufferUsages::UNIFORM);
         let sections = self.buffer(bytemuck::cast_slice(&sections), BufferUsages::STORAGE);
         let cave = self.buffer(
             bytemuck::cast_slice(&cave),
@@ -339,8 +335,15 @@ impl Gpu {
             usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let view = self.bind(pipeline, 0, &[(1, &camera)]);
-        let terrain = self.bind(pipeline, 1, &[(3, &cave), (4, &sections)]);
+        let view = self.bind(pipeline, 0, &[(terrain_view::CAMERA, &camera)]);
+        let terrain = self.bind(
+            pipeline,
+            1,
+            &[
+                (cull_bindings::CAVE_VISIBLE, &cave),
+                (cull_bindings::SECTIONS, &sections),
+            ],
+        );
         let mut encoder = self.device.create_command_encoder(&Default::default());
         {
             let mut pass = encoder.begin_compute_pass(&Default::default());
@@ -509,7 +512,7 @@ impl Gpu {
             label: None,
             layout: &presented.get_bind_group_layout(0),
             entries: &[BindGroupEntry {
-                binding: 0,
+                binding: present_bindings::WORLD,
                 resource: BindingResource::TextureView(&world),
             }],
         });

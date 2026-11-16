@@ -1,34 +1,14 @@
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderQueue;
 
-use mcrs_minecraft_mesh::{Draw, STREAMS, stream_is_model, stream_pass};
+use mcrs_minecraft_mesh::{Draw, DrawKind, QuadFormat};
 
 use super::DrawMask;
 use super::layer::LayerGroup;
+use super::shared_types::{DrawArgRow, PARAMS_MODEL, PARAMS_QUAD_CULL, PARAMS_SIZE, Params};
 
 pub(super) const PARAMS_STRIDE: u32 = 256;
-pub(super) const PARAMS_SIZE: u64 = 32;
 const _: () = assert!(size_of::<Params>() as u64 == PARAMS_SIZE);
-
-#[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-pub(super) struct Params {
-    group_base: u32,
-    group_count: u32,
-    visible_base: u32,
-    args_index: u32,
-    counter: u32,
-    flags: u32,
-    /// Keeps the struct a 16-byte multiple, which every backend lays a uniform
-    /// out to whatever the member alignments alone would allow.
-    padding: [u32; 2],
-}
-
-/// The draw's quads are models, with four corners of their own rather than a greedy rectangle.
-const MODEL: u32 = 1;
-/// The draw writes depth and culls back faces, so a quad is tested on its own: blended quads
-/// keep the order the blend needs and go through by group.
-const QUAD_CULL: u32 = 2;
 
 pub(super) struct DrawList {
     pub draws: Vec<Draw>,
@@ -49,7 +29,7 @@ impl DrawList {
         Self {
             draws: Vec::new(),
             visible_entries: 0,
-            params: Vec::with_capacity(STREAMS),
+            params: Vec::with_capacity(DrawKind::COUNT),
             dirty: false,
         }
     }
@@ -57,23 +37,22 @@ impl DrawList {
     pub fn rebuild(&mut self) {
         self.params.clear();
         let mut visible_base = 0u32;
-        for (index, draw) in self.draws.iter().enumerate() {
+        for draw in &self.draws {
+            let mut flags = 0u32;
+            if draw.kind.format == QuadFormat::Model {
+                flags |= PARAMS_MODEL;
+            }
+            if draw.kind.writes_depth() {
+                flags |= PARAMS_QUAD_CULL;
+            }
             self.params.push(Params {
                 group_base: draw.first_group,
                 group_count: draw.group_count,
                 visible_base,
-                args_index: index as u32,
-                counter: 2 * STREAMS as u32 + index as u32,
-                flags: if stream_is_model(draw.stream) {
-                    MODEL
-                } else {
-                    0
-                } | if stream_pass(draw.stream).writes_depth() {
-                    QUAD_CULL
-                } else {
-                    0
-                },
-                padding: [0; 2],
+                args_index: draw.kind.index() as u32,
+                counter: DrawArgRow::HiddenQuads.slot(draw.kind) as u32,
+                flags,
+                _pad_24: [0; 2],
             });
             visible_base += draw.quad_count;
         }
@@ -105,7 +84,7 @@ impl DrawList {
         mask: &'a DrawMask,
     ) -> impl Iterator<Item = (usize, &'a Draw)> {
         self.draws.iter().enumerate().filter(move |(_, draw)| {
-            draw.quad_count != 0 && group.holds(draw.stream) && mask.drawn(draw.stream)
+            draw.quad_count != 0 && group.holds(draw.kind) && mask.drawn(draw.kind)
         })
     }
 }
