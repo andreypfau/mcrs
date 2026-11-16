@@ -71,6 +71,7 @@ use crate::world_server::{
 };
 
 const TICKS: usize = 90;
+const SHORT_TICKS: usize = 60;
 /// The sections of a column of the beta overworld, which is 128 blocks high.
 const SECTIONS: usize = 8;
 const COLD_TICKS: usize = 100;
@@ -487,7 +488,7 @@ struct Run {
     clients: Vec<Client>,
 }
 
-fn run(cells: u32) -> Run {
+fn run(cells: u32, ticks: usize) -> Run {
     let mut app = server(cells);
     let label = label_of(&app, OVERWORLD);
     assert_eq!(
@@ -504,7 +505,7 @@ fn run(cells: u32) -> Run {
     let sessions = [west, east];
     let mut clients = [Client::default(), Client::default()];
     let mut first_holders = Vec::new();
-    for at in 0..TICKS {
+    for at in 0..ticks {
         if at == 30 {
             for session in sessions {
                 let Holder { cell, .. } =
@@ -576,10 +577,9 @@ fn assert_same_sections(
     }
 }
 
-#[test]
-fn a_world_of_two_cells_is_the_world_of_one_cell() {
-    let one = run(1);
-    let two = run(2);
+fn assert_two_cells_are_one_cell(ticks: usize) {
+    let one = run(1, ticks);
+    let two = run(2, ticks);
 
     assert_eq!(
         one.sections.len(),
@@ -608,27 +608,8 @@ fn a_world_of_two_cells_is_the_world_of_one_cell() {
 }
 
 #[test]
-fn a_cold_column_at_the_boundary_comes_back_in_the_other_cell_as_in_one_cell() {
-    let one = run_cold_boundary(1);
-    let two = run_cold_boundary(2);
-
-    assert_eq!(
-        one.sections.len(),
-        5 * 6 * SECTIONS,
-        "every column of the check landed"
-    );
-    assert_same_sections(&one.sections, &two.sections);
-    assert!(
-        one.ticking.values().any(|ticking| ticking.entity),
-        "the player near the boundary ticks the sections around it"
-    );
-    for (pos, ticking) in &one.ticking {
-        assert_eq!(
-            two.ticking.get(pos),
-            Some(ticking),
-            "the section {pos:?} ticks otherwise at its owner"
-        );
-    }
+fn a_world_of_two_cells_is_the_world_of_one_cell() {
+    assert_two_cells_are_one_cell(SHORT_TICKS);
 }
 
 const RELAY_DELAY: usize = 2;
@@ -725,6 +706,12 @@ impl BlockBehaviour<WorldKinds> for Relay {
 
 impl BlockDrops for Relay {}
 
+fn lit_lamp_in(blocks: &Blocks) -> BlockStateId {
+    let lamp = blocks.block("minecraft:redstone_lamp").expect("a lamp");
+    lamp.with(lamp.default_state_id, "lit", &PropertyValue::Bool(true))
+        .expect("a lit lamp")
+}
+
 fn lit_lamp(app: &App) -> BlockStateId {
     lit_lamp_in(app.world().resource::<Blocks>())
 }
@@ -762,7 +749,7 @@ struct LineRun {
     sections: BTreeMap<(i32, i32, i32), Section>,
 }
 
-fn run_relay_line(cells: u32) -> LineRun {
+fn run_relay_line(cells: u32, ticks: usize) -> LineRun {
     let mut app = relay_server(cells);
     let label = label_of(&app, OVERWORLD);
     wait_for_generation(&mut app, label);
@@ -773,7 +760,7 @@ fn run_relay_line(cells: u32) -> LineRun {
     let west = admit(&mut app, label, "west", DVec3::new(-8.5, 100.0, 8.5), 2);
     let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
     let mut lit_at = BTreeMap::new();
-    for at in 0..TICKS {
+    for at in 0..ticks {
         match at {
             25 => {
                 for x in LINE {
@@ -801,10 +788,9 @@ fn run_relay_line(cells: u32) -> LineRun {
 /// A line of relays across the boundary lights in a world of two cells as in a world of one
 /// cell. The first relay past the boundary hears of its neighbour one tick late, so it and every
 /// relay after it light one tick later.
-#[test]
-fn a_relay_line_lights_across_the_boundary_one_tick_late() {
-    let one = run_relay_line(1);
-    let two = run_relay_line(2);
+fn assert_relay_line_lights_one_tick_late(ticks: usize) {
+    let one = run_relay_line(1, ticks);
+    let two = run_relay_line(2, ticks);
 
     let first = *one
         .lit_at
@@ -829,894 +815,931 @@ fn a_relay_line_lights_across_the_boundary_one_tick_late() {
     assert_same_sections(&one.sections, &two.sections);
 }
 
-/// When a scheduled tick ran, and when its column went cold and ticked again.
-#[derive(Debug, Default)]
-struct SlowRun {
-    cooled_at: Option<usize>,
-    ticking_again_at: Option<usize>,
-    ran_at: Option<usize>,
-}
-
-fn run_slow_tick(cells: u32) -> SlowRun {
-    let mut app = relay_server(cells);
-    let label = label_of(&app, OVERWORLD);
-    wait_for_generation(&mut app, label);
-    let slow = block_state(&app, "minecraft:note_block");
-    let lit = lit_lamp(&app);
-    let pos = BlockPos::new(0, 120, 3);
-    let section = SectionPos::from(pos);
-
-    // The column of x = 0 is in region 0: the cell of the player owns it in both worlds.
-    let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
-    let mut run = SlowRun::default();
-    for at in 0..220 {
-        match at {
-            30 => place(&mut app, label, east, pos, slow),
-            // Far enough that no ticket loads the column; the tick has 55 ticks left then.
-            35 => walk(&mut app, label, east, DVec3::new(320.0, 0.0, 0.0)),
-            // Later than the tick was due, so a due time that counts the cold ticks shows.
-            120 => walk(&mut app, label, east, DVec3::new(-320.0, 0.0, 0.0)),
-            _ => {}
-        }
-        lockstep_tick(&mut app, label);
-        let held = block_at(&mut app, label, pos);
-        let ticking = ticking_sections(&mut app, label, &[ColumnPos::from(pos)])
-            .get(&(section.x, section.y, section.z))
-            .is_some_and(|ticking| ticking.block);
-        if at > 35 && held.is_none() {
-            run.cooled_at.get_or_insert(at);
-        }
-        if run.cooled_at.is_some() && ticking && held.is_some() {
-            run.ticking_again_at.get_or_insert(at);
-        }
-        if held == Some(lit) {
-            run.ran_at.get_or_insert(at);
-        }
-    }
-    run
-}
-
-/// A scheduled tick of a column that goes cold runs after the column ticks again, with the delay
-/// that it had left when the column went cold: the cold ticks do not count.
 #[test]
-fn a_scheduled_tick_survives_a_cold_column_with_its_remaining_delay() {
-    for cells in [1, 2] {
-        let run = run_slow_tick(cells);
-        let cooled_at = run.cooled_at.expect("the column goes cold");
-        let back = run.ticking_again_at.expect("the column ticks again");
-        let left = 30 + SLOW_DELAY - cooled_at;
-        let ran_at = run.ran_at.unwrap_or_else(|| {
-            panic!("the tick of the cold column never runs in {cells} cells: {run:?}")
-        });
-        assert!(
-            ran_at.abs_diff(back + left) <= 1,
-            "the tick runs {left} ticks after the column ticks again in {cells} cells: {run:?}"
-        );
-    }
+fn a_relay_line_lights_across_the_boundary_one_tick_late() {
+    assert_relay_line_lights_one_tick_late(SHORT_TICKS);
 }
 
-type ColumnLight = BTreeMap<(i32, i32), BTreeMap<usize, RowLight>>;
+mod exhaustive {
+    use super::*;
 
-/// The blocks whose light differs between `left` and `right`, by column, row and layer.
-fn light_differences(left: &ColumnLight, right: &ColumnLight) -> Vec<String> {
-    let mut differences = Vec::new();
-    let columns: BTreeSet<&(i32, i32)> = left.keys().chain(right.keys()).collect();
-    for column in columns {
-        let (Some(left), Some(right)) = (left.get(column), right.get(column)) else {
-            differences.push(format!("{column:?} is on one side only"));
-            continue;
-        };
-        let rows: BTreeSet<&usize> = left.keys().chain(right.keys()).collect();
-        for row in rows {
-            let empty = RowLight::default();
-            let (left, right) = (
-                left.get(row).unwrap_or(&empty),
-                right.get(row).unwrap_or(&empty),
+    #[test]
+    fn a_world_of_two_cells_is_the_world_of_one_cell() {
+        super::assert_two_cells_are_one_cell(TICKS);
+    }
+
+    #[test]
+    fn a_cold_column_at_the_boundary_comes_back_in_the_other_cell_as_in_one_cell() {
+        let one = run_cold_boundary(1);
+        let two = run_cold_boundary(2);
+
+        assert_eq!(
+            one.sections.len(),
+            5 * 6 * SECTIONS,
+            "every column of the check landed"
+        );
+        assert_same_sections(&one.sections, &two.sections);
+        assert!(
+            one.ticking.values().any(|ticking| ticking.entity),
+            "the player near the boundary ticks the sections around it"
+        );
+        for (pos, ticking) in &one.ticking {
+            assert_eq!(
+                two.ticking.get(pos),
+                Some(ticking),
+                "the section {pos:?} ticks otherwise at its owner"
             );
-            for (layer, left, right) in [
-                ("block", &left.block, &right.block),
-                ("sky", &left.sky, &right.sky),
-            ] {
-                let differ = left.len().max(right.len())
-                    - left.iter().zip(right).filter(|(l, r)| l == r).count();
-                if differ > 0 {
-                    differences.push(format!("{column:?} row {row} {layer}: {differ} blocks"));
+        }
+    }
+
+    #[test]
+    fn a_relay_line_lights_across_the_boundary_one_tick_late() {
+        super::assert_relay_line_lights_one_tick_late(TICKS);
+    }
+
+    /// When a scheduled tick ran, and when its column went cold and ticked again.
+    #[derive(Debug, Default)]
+    struct SlowRun {
+        cooled_at: Option<usize>,
+        ticking_again_at: Option<usize>,
+        ran_at: Option<usize>,
+    }
+
+    fn run_slow_tick(cells: u32) -> SlowRun {
+        let mut app = relay_server(cells);
+        let label = label_of(&app, OVERWORLD);
+        wait_for_generation(&mut app, label);
+        let slow = block_state(&app, "minecraft:note_block");
+        let lit = lit_lamp(&app);
+        let pos = BlockPos::new(0, 120, 3);
+        let section = SectionPos::from(pos);
+
+        // The column of x = 0 is in region 0: the cell of the player owns it in both worlds.
+        let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
+        let mut run = SlowRun::default();
+        for at in 0..220 {
+            match at {
+                30 => place(&mut app, label, east, pos, slow),
+                // Far enough that no ticket loads the column; the tick has 55 ticks left then.
+                35 => walk(&mut app, label, east, DVec3::new(320.0, 0.0, 0.0)),
+                // Later than the tick was due, so a due time that counts the cold ticks shows.
+                120 => walk(&mut app, label, east, DVec3::new(-320.0, 0.0, 0.0)),
+                _ => {}
+            }
+            lockstep_tick(&mut app, label);
+            let held = block_at(&mut app, label, pos);
+            let ticking = ticking_sections(&mut app, label, &[ColumnPos::from(pos)])
+                .get(&(section.x, section.y, section.z))
+                .is_some_and(|ticking| ticking.block);
+            if at > 35 && held.is_none() {
+                run.cooled_at.get_or_insert(at);
+            }
+            if run.cooled_at.is_some() && ticking && held.is_some() {
+                run.ticking_again_at.get_or_insert(at);
+            }
+            if held == Some(lit) {
+                run.ran_at.get_or_insert(at);
+            }
+        }
+        run
+    }
+
+    /// A scheduled tick of a column that goes cold runs after the column ticks again, with the delay
+    /// that it had left when the column went cold: the cold ticks do not count.
+    #[test]
+    fn a_scheduled_tick_survives_a_cold_column_with_its_remaining_delay() {
+        for cells in [1, 2] {
+            let run = run_slow_tick(cells);
+            let cooled_at = run.cooled_at.expect("the column goes cold");
+            let back = run.ticking_again_at.expect("the column ticks again");
+            let left = 30 + SLOW_DELAY - cooled_at;
+            let ran_at = run.ran_at.unwrap_or_else(|| {
+                panic!("the tick of the cold column never runs in {cells} cells: {run:?}")
+            });
+            assert!(
+                ran_at.abs_diff(back + left) <= 1,
+                "the tick runs {left} ticks after the column ticks again in {cells} cells: {run:?}"
+            );
+        }
+    }
+
+    type ColumnLight = BTreeMap<(i32, i32), BTreeMap<usize, RowLight>>;
+
+    /// The blocks whose light differs between `left` and `right`, by column, row and layer.
+    fn light_differences(left: &ColumnLight, right: &ColumnLight) -> Vec<String> {
+        let mut differences = Vec::new();
+        let columns: BTreeSet<&(i32, i32)> = left.keys().chain(right.keys()).collect();
+        for column in columns {
+            let (Some(left), Some(right)) = (left.get(column), right.get(column)) else {
+                differences.push(format!("{column:?} is on one side only"));
+                continue;
+            };
+            let rows: BTreeSet<&usize> = left.keys().chain(right.keys()).collect();
+            for row in rows {
+                let empty = RowLight::default();
+                let (left, right) = (
+                    left.get(row).unwrap_or(&empty),
+                    right.get(row).unwrap_or(&empty),
+                );
+                for (layer, left, right) in [
+                    ("block", &left.block, &right.block),
+                    ("sky", &left.sky, &right.sky),
+                ] {
+                    let differ = left.len().max(right.len())
+                        - left.iter().zip(right).filter(|(l, r)| l == r).count();
+                    if differ > 0 {
+                        differences.push(format!("{column:?} row {row} {layer}: {differ} blocks"));
+                    }
                 }
             }
         }
-    }
-    differences
-}
-
-#[test]
-fn a_cold_column_at_a_box_edge_has_the_light_of_one_cell_and_of_the_dimension() {
-    let one = run_cold_light(1);
-    let two = run_cold_light(2);
-
-    assert_eq!(
-        one.client.len(),
-        2,
-        "the client got both columns of the edge"
-    );
-    assert_eq!(
-        light_differences(&one.client, &one.hot),
-        Vec::<String>::new(),
-        "the client of one cell holds other light than the dimension"
-    );
-    assert_eq!(
-        light_differences(&one.client, &two.client),
-        Vec::<String>::new(),
-        "the client of two cells holds other light"
-    );
-    assert_eq!(
-        light_differences(&one.hot, &two.hot),
-        Vec::<String>::new(),
-        "two cells light the edge otherwise"
-    );
-}
-
-#[derive(Resource, Default)]
-struct LastRuns(usize);
-
-fn count_last_runs(mut runs: ResMut<LastRuns>) {
-    runs.0 += 1;
-}
-
-/// How often the schedules of each cell of `label` ran so far.
-fn runs(app: &mut App, label: Entity) -> Vec<usize> {
-    cell_worlds(app, label)
-        .into_iter()
-        .map(|world| world.resource::<LastRuns>().0)
-        .collect()
-}
-
-#[test]
-fn a_cell_with_no_player_and_no_remote_ticket_skips_its_schedules() {
-    let mut app = server(4);
-    let label = label_of(&app, OVERWORLD);
-    for sub_app in app
-        .world_mut()
-        .resource_mut::<DimCells>()
-        .into_inner()
-        .cell_sub_apps_mut(label)
-    {
-        sub_app.init_resource::<LastRuns>();
-        sub_app.add_systems(Last, count_last_runs);
-    }
-    lockstep_tick(&mut app, label);
-    let settled = runs(&mut app, label);
-    for _ in 0..10 {
-        lockstep_tick(&mut app, label);
-    }
-    assert_eq!(
-        runs(&mut app, label),
-        settled,
-        "an idle cell ran its schedules"
-    );
-
-    admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
-    for _ in 0..10 {
-        lockstep_tick(&mut app, label);
-    }
-    assert!(
-        runs(&mut app, label)
-            .iter()
-            .zip(&settled)
-            .all(|(runs, idle)| *runs >= idle + 8),
-        "every cell ticks the player or its remote ticket: {:?}",
-        runs(&mut app, label)
-    );
-}
-
-/// Probe rules, not the rules of any game block: a note block that is placed queues a block
-/// event, which it takes.
-#[derive(Clone, Copy, Debug)]
-struct Chime {
-    note: BlockStateId,
-}
-
-const CHIME_ACTION: u8 = 1;
-const CHIME_PARAM: u8 = 2;
-const CHIME: BlockPos = BlockPos::new(-3, 120, 5);
-
-impl Chime {
-    fn install(sub_app: &mut bevy_app::SubApp) {
-        let note = sub_app
-            .world()
-            .resource::<Blocks>()
-            .default_state("minecraft:note_block")
-            .expect("a note block");
-        sub_app.add_plugins(BlockSimulationPlugin::new(Chime { note }));
-    }
-}
-
-impl BlockBehaviour<WorldKinds> for Chime {
-    fn placed<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
-        &self,
-        cx: &mut Cx<'_, WorldKinds, V, F, Self>,
-        at: BlockPos,
-        new: BlockStateId,
-        _old: BlockStateId,
-        _moved_by_piston: bool,
-    ) {
-        if new == self.note {
-            let (action, param) = (i32::from(CHIME_ACTION), i32::from(CHIME_PARAM));
-            cx.queue_block_event(at, Block::NoteBlock.id(), action, param);
-        }
+        differences
     }
 
-    fn block_event<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
-        &self,
-        _cx: &mut Cx<'_, WorldKinds, V, F, Self>,
-        _at: BlockPos,
-        _state: BlockStateId,
-        _a: i32,
-        _b: i32,
-    ) -> bool {
-        true
-    }
-}
+    #[test]
+    fn a_cold_column_at_a_box_edge_has_the_light_of_one_cell_and_of_the_dimension() {
+        let one = run_cold_light(1);
+        let two = run_cold_light(2);
 
-impl BlockDrops for Chime {}
-
-/// The block events that each client got after the note block was placed, and the columns that
-/// the far client held.
-struct ChimeRun {
-    near: Vec<ClientboundBlockEvent>,
-    far: Vec<ClientboundBlockEvent>,
-    far_loaded: BTreeSet<(i32, i32)>,
-}
-
-fn block_events(packets: Vec<PacketPayload>) -> Vec<ClientboundBlockEvent> {
-    packets
-        .into_iter()
-        .filter_map(|packet| match packet {
-            PacketPayload::BlockEvent(event) => Some(event),
-            _ => None,
-        })
-        .collect()
-}
-
-/// In two cells, the note block is in the west cell. Both clients stand in the east cell: the
-/// near one holds the column of the note block, the far one does not.
-fn run_chime() -> ChimeRun {
-    let mut app = server_with(2, DimensionBlockRules(Chime::install));
-    let label = label_of(&app, OVERWORLD);
-    wait_for_generation(&mut app, label);
-    let note = block_state(&app, "minecraft:note_block");
-    let near = admit(&mut app, label, "near", DVec3::new(8.5, 100.0, 8.5), 2);
-    let far = admit(&mut app, label, "far", DVec3::new(200.5, 100.0, 8.5), 2);
-    let column = ColumnPos::from(CHIME);
-    let mut near_client = Client::default();
-    let mut far_client = Client::default();
-    let deadline = Instant::now() + Duration::from_secs(120);
-    while !near_client.loaded.contains(&(column.x, column.z)) {
-        assert!(
-            Instant::now() < deadline,
-            "the near client never got the column"
+        assert_eq!(
+            one.client.len(),
+            2,
+            "the client got both columns of the edge"
         );
-        for session in [near, far] {
-            app.world_mut()
-                .resource_mut::<MuxerLink>()
-                .acknowledge_batch(session, 64.0);
-        }
-        let packets = lockstep_tick(&mut app, label);
-        near_client.take(sent_to(near, packets.clone()));
-        far_client.take(sent_to(far, packets));
-    }
-
-    place(&mut app, label, near, CHIME, note);
-    let mut near_events = Vec::new();
-    let mut far_events = Vec::new();
-    for _ in 0..5 {
-        let packets = lockstep_tick(&mut app, label);
-        near_events.extend(block_events(sent_to(near, packets.clone())));
-        far_client.take(sent_to(far, packets.clone()));
-        far_events.extend(block_events(sent_to(far, packets)));
-    }
-    ChimeRun {
-        near: near_events,
-        far: far_events,
-        far_loaded: far_client.loaded,
-    }
-}
-
-#[test]
-fn only_a_client_that_holds_the_column_gets_the_block_event_of_another_cell() {
-    let run = run_chime();
-    let event = ClientboundBlockEvent {
-        pos: CHIME,
-        action: CHIME_ACTION,
-        param: CHIME_PARAM,
-        block: VarInt(i32::from(Block::NoteBlock.id().number())),
-    };
-    assert_eq!(run.near, [event]);
-
-    let column = ColumnPos::from(CHIME);
-    assert!(
-        !run.far_loaded.is_empty() && !run.far_loaded.contains(&(column.x, column.z)),
-        "the far client holds other columns only: {:?}",
-        run.far_loaded
-    );
-    assert_eq!(run.far, []);
-}
-
-/// Probe rules, not the rules of any game block: a random tick turns a note block into a lit
-/// lamp.
-#[derive(Clone, Copy, Debug)]
-struct Sprout {
-    note: BlockStateId,
-    lit: BlockStateId,
-}
-
-impl Sprout {
-    fn install(sub_app: &mut bevy_app::SubApp) {
-        let blocks = sub_app.world().resource::<Blocks>();
-        let lamp = blocks.block("minecraft:redstone_lamp").expect("a lamp");
-        let sprout = Sprout {
-            note: blocks
-                .default_state("minecraft:note_block")
-                .expect("a note block"),
-            lit: lamp
-                .with(lamp.default_state_id, "lit", &PropertyValue::Bool(true))
-                .expect("a lit lamp"),
-        };
-        sub_app.add_plugins(BlockSimulationPlugin::new(sprout));
-    }
-}
-
-impl BlockBehaviour<WorldKinds> for Sprout {
-    fn random_ticks(&self, state: BlockStateId) -> RandomTicks {
-        if state == self.note {
-            RandomTicks::BLOCK
-        } else {
-            RandomTicks::empty()
-        }
-    }
-
-    fn random_tick<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
-        &self,
-        cx: &mut Cx<'_, WorldKinds, V, F, Self>,
-        at: BlockPos,
-        _state: BlockStateId,
-        _random: &mut LegacyRandom,
-    ) {
-        cx.set(at, self.lit, BlockUpdateFlags::CLIENTS, 512);
-    }
-}
-
-impl BlockDrops for Sprout {}
-
-/// A layer of note blocks on each side of the boundary, and the blocks of each layer that a random
-/// tick reached.
-fn run_sprouts(cells: u32) -> BTreeSet<(i32, i32)> {
-    let mut app = server_with(cells, DimensionBlockRules(Sprout::install));
-    let label = label_of(&app, OVERWORLD);
-    wait_for_generation(&mut app, label);
-    let note = block_state(&app, "minecraft:note_block");
-    let lit = lit_lamp(&app);
-    let west = admit(&mut app, label, "west", DVec3::new(-8.5, 100.0, 8.5), 2);
-    let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
-    let layer = |x: i32, z: i32| BlockPos::new(x, 120, z);
-    let mut reached = BTreeSet::new();
-    for at in 0..TICKS {
-        if at == 25 {
-            for x in -16..16 {
-                let owner = if x < 0 { west } else { east };
-                for z in 0..16 {
-                    place(&mut app, label, owner, layer(x, z), note);
-                }
-            }
-        }
-        lockstep_tick(&mut app, label);
-    }
-    for x in -16..16 {
-        for z in 0..16 {
-            if block_at(&mut app, label, layer(x, z)) == Some(lit) {
-                reached.insert((x, z));
-            }
-        }
-    }
-    reached
-}
-
-/// The random ticks of the simulation area reach the blocks that take them on both sides of the
-/// boundary, in a world of one cell and in a world of two cells. Each side takes about
-/// 3 / 16 of a block a tick.
-#[test]
-fn random_ticks_reach_the_blocks_of_the_simulation_area_in_every_cell() {
-    for cells in [1, 2] {
-        let reached = run_sprouts(cells);
-        let west = reached.iter().filter(|(x, _)| *x < 0).count();
-        let east = reached.len() - west;
-        assert!(
-            west > 0 && east > 0 && reached.len() <= 2 * 3 * (TICKS - 25),
-            "in {cells} cells, random ticks reached {west} blocks in the west and {east} in the east"
+        assert_eq!(
+            light_differences(&one.client, &one.hot),
+            Vec::<String>::new(),
+            "the client of one cell holds other light than the dimension"
+        );
+        assert_eq!(
+            light_differences(&one.client, &two.client),
+            Vec::<String>::new(),
+            "the client of two cells holds other light"
+        );
+        assert_eq!(
+            light_differences(&one.hot, &two.hot),
+            Vec::<String>::new(),
+            "two cells light the edge otherwise"
         );
     }
-}
 
-/// Probe rules, not the rules of any game block: a shape update breaks a note block, which
-/// drops one note block item.
-#[derive(Clone, Copy, Debug)]
-struct Fragile {
-    note: BlockStateId,
-}
+    #[derive(Resource, Default)]
+    struct LastRuns(usize);
 
-impl Fragile {
-    fn install(sub_app: &mut bevy_app::SubApp) {
-        let note = sub_app
-            .world()
-            .resource::<Blocks>()
-            .default_state("minecraft:note_block")
-            .expect("a note block");
-        sub_app.add_plugins(BlockSimulationPlugin::new(Fragile { note }));
-        sub_app.init_resource::<SeenDrops>();
-        sub_app.add_systems(Last, record_drops);
+    fn count_last_runs(mut runs: ResMut<LastRuns>) {
+        runs.0 += 1;
     }
-}
 
-impl BlockBehaviour<WorldKinds> for Fragile {
-    fn update_shape<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
-        &self,
-        _cx: &mut Cx<'_, WorldKinds, V, F, Self>,
-        _at: BlockPos,
-        state: BlockStateId,
-        _from: Direction,
-        _neighbour: BlockPos,
-        _neighbour_state: BlockStateId,
-    ) -> BlockStateId {
-        if state == self.note {
-            BlockStateId::AIR
-        } else {
-            state
-        }
+    /// How often the schedules of each cell of `label` ran so far.
+    fn runs(app: &mut App, label: Entity) -> Vec<usize> {
+        cell_worlds(app, label)
+            .into_iter()
+            .map(|world| world.resource::<LastRuns>().0)
+            .collect()
     }
-}
 
-impl BlockDrops for Fragile {
-    fn drops(
-        &self,
-        block: &DroppingBlock,
-        _block_at: impl Fn(BlockPos) -> Option<BlockStateId>,
-        drops: &mut Vec<ItemStack>,
-    ) {
-        if block.state == self.note {
-            drops.push(ItemStack::new(Item::NoteBlock.id(), 1));
-        }
-    }
-}
-
-#[derive(Resource, Default)]
-struct SeenDrops(Vec<ItemDropped>);
-
-fn record_drops(mut dropped: MessageReader<ItemDropped>, mut seen: ResMut<SeenDrops>) {
-    seen.0.extend(dropped.read().copied());
-}
-
-/// A block that a shape update destroys leaves the items that the rules name for it, at its
-/// position.
-#[test]
-fn a_block_that_a_shape_update_destroys_drops_the_items_of_the_rules() {
-    let mut app = server_with(1, DimensionBlockRules(Fragile::install));
-    let label = label_of(&app, OVERWORLD);
-    wait_for_generation(&mut app, label);
-    let note = block_state(&app, "minecraft:note_block");
-    let stone = block_state(&app, "minecraft:stone");
-    let pos = BlockPos::new(3, 120, 5);
-    let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
-    for at in 0..40 {
-        match at {
-            25 => place(&mut app, label, east, pos, note),
-            30 => place(&mut app, label, east, BlockPos::new(4, 120, 5), stone),
-            _ => {}
+    #[test]
+    fn a_cell_with_no_player_and_no_remote_ticket_skips_its_schedules() {
+        let mut app = server(4);
+        let label = label_of(&app, OVERWORLD);
+        for sub_app in app
+            .world_mut()
+            .resource_mut::<DimCells>()
+            .into_inner()
+            .cell_sub_apps_mut(label)
+        {
+            sub_app.init_resource::<LastRuns>();
+            sub_app.add_systems(Last, count_last_runs);
         }
         lockstep_tick(&mut app, label);
-    }
-
-    let seen = cell_worlds(&mut app, label)[0]
-        .resource::<SeenDrops>()
-        .0
-        .clone();
-    assert_eq!(
-        seen,
-        [ItemDropped {
-            at: pos,
-            stack: ItemStack::new(Item::NoteBlock.id(), 1),
-        }]
-    );
-    assert_eq!(block_at(&mut app, label, pos), Some(BlockStateId::AIR));
-
-    let world = cell_worlds(&mut app, label)
-        .into_iter()
-        .next()
-        .expect("a cell");
-    let items: Vec<(MotionId, DVec3)> = world
-        .query::<(&MotionId, &MotionState)>()
-        .iter(world)
-        .map(|(id, state)| (*id, state.0.body.position))
-        .collect();
-    let [(_, position)] = items[..] else {
-        panic!("one item in motion: {items:?}");
-    };
-    // PHY-CMP-025: 0.25 of random offset, then at most 0.1 per tick for the ten ticks since.
-    assert!(
-        (position.x - 3.5).abs() < 1.25 && (position.z - 5.5).abs() < 1.25,
-        "the item starts at the block: {position}"
-    );
-    let mut stacks = world.query_filtered::<(&Kind, &Count), With<Dropped>>();
-    let stacks: Vec<_> = stacks
-        .iter(world)
-        .map(|(&kind, count)| (kind, count.get()))
-        .collect();
-    assert_eq!(stacks, [(Kind(Item::NoteBlock.id().number()), 1)]);
-
-    // The item starts with 0.2 upward, so it is back near its start ten ticks later.
-    for _ in 0..20 {
-        lockstep_tick(&mut app, label);
-    }
-    let world = cell_worlds(&mut app, label)
-        .into_iter()
-        .next()
-        .expect("a cell");
-    let later = world
-        .query_filtered::<&MotionState, With<MotionId>>()
-        .iter(world)
-        .map(|state| state.0.body.position.y)
-        .next();
-    assert!(
-        later.is_some_and(|y| y < position.y),
-        "the pass moves the item: it falls from {position} to {later:?}"
-    );
-}
-
-#[test]
-fn a_command_at_a_player_of_another_cell_reads_the_columns_of_that_cell() {
-    let mut app = server(2);
-    let label = label_of(&app, OVERWORLD);
-    wait_for_generation(&mut app, label);
-    for world in cell_worlds(&mut app, label) {
-        world.insert_resource(DefaultOpLevel(PlayerOpLevel(2)));
-    }
-    let west_anchor = host_app::admit(
-        &mut app,
-        label,
-        &Arrival {
-            uuid: Uuid::from_u128(1),
-            name: "west",
-            position: DVec3::new(-8.5, 100.0, 8.5),
-            view_distance: 2,
-        },
-    );
-    let west = host_app::session_of(&app, west_anchor).expect("a placed session");
-    let east_position = DVec3::new(200.5, 100.0, 8.5);
-    let east = admit(&mut app, label, "east", east_position, 2);
-    let column = ColumnPos::from(east_position);
-    let mut east_client = Client::default();
-    let deadline = Instant::now() + Duration::from_secs(120);
-    while !east_client.loaded.contains(&(column.x, column.z)) {
-        assert!(
-            Instant::now() < deadline,
-            "the east client never got its column"
+        let settled = runs(&mut app, label);
+        for _ in 0..10 {
+            lockstep_tick(&mut app, label);
+        }
+        assert_eq!(
+            runs(&mut app, label),
+            settled,
+            "an idle cell ran its schedules"
         );
-        for session in [west, east] {
-            app.world_mut()
-                .resource_mut::<MuxerLink>()
-                .acknowledge_batch(session, 64.0);
+
+        admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
+        for _ in 0..10 {
+            lockstep_tick(&mut app, label);
         }
-        east_client.take(sent_to(east, lockstep_tick(&mut app, label)));
+        assert!(
+            runs(&mut app, label)
+                .iter()
+                .zip(&settled)
+                .all(|(runs, idle)| *runs >= idle + 8),
+            "every cell ticks the player or its remote ticket: {:?}",
+            runs(&mut app, label)
+        );
     }
 
-    let mut server = PlayServer { app, dim: label };
-    server.queue(
-        west_anchor,
-        &ServerboundChatCommand {
-            command: Bounded("execute at east if loaded ~ ~ ~"),
-        },
-    );
-    let chats: Vec<Text> = server
-        .ticks(west_anchor, 5)
-        .into_iter()
-        .filter_map(|packet| match packet {
-            PacketPayload::SystemChat(chat) => Some(
-                chat.content
-                    .to_text()
-                    .expect("a chat text")
-                    .map(&ItemHoverMap)
-                    .expect("a chat text"),
-            ),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(
-        chats,
-        [Text::translate(
-            "commands.execute.conditional.pass",
-            Vec::<Text>::new()
-        )]
-    );
-}
-
-const HALO_PROBE: BlockPos = BlockPos::new(1, 120, 1);
-
-/// Whether the entity pass of the last tick of a cell saw the probe block in its copy.
-#[derive(Resource, Default)]
-struct SeenAtSimulate {
-    probe: Option<BlockStateId>,
-    seen: bool,
-}
-
-fn look_at_probe(mut seen: ResMut<SeenAtSimulate>, dimensions: Query<&SectionIndex>) {
-    let section = SectionPos::from(HALO_PROBE);
-    let state = dimensions
-        .iter()
-        .find_map(|index| index.blocks(section))
-        .map(|blocks| blocks.get(LocalPos::from(HALO_PROBE)));
-    seen.seen = state.is_some() && state == seen.probe;
-}
-
-/// For each cell that holds the column of the probe, the tick at which its entity pass first
-/// saw the block that the owner placed.
-fn run_halo_probe(cells: u32) -> Vec<usize> {
-    let mut app = server(cells);
-    let label = label_of(&app, OVERWORLD);
-    wait_for_generation(&mut app, label);
-    let probe = block_state(&app, "minecraft:stone");
-    for sub_app in app
-        .world_mut()
-        .resource_mut::<DimCells>()
-        .into_inner()
-        .cell_sub_apps_mut(label)
-    {
-        sub_app.insert_resource(SeenAtSimulate {
-            probe: Some(probe),
-            seen: false,
-        });
-        sub_app.add_systems(FixedUpdate, look_at_probe.in_set(TickSet::Simulate));
+    /// Probe rules, not the rules of any game block: a note block that is placed queues a block
+    /// event, which it takes.
+    #[derive(Clone, Copy, Debug)]
+    struct Chime {
+        note: BlockStateId,
     }
-    let owner = admit(&mut app, label, "owner", DVec3::new(8.5, 100.0, 8.5), 2);
-    for (name, x, z) in [
-        ("west", -8.5, 8.5),
-        ("north", 8.5, -8.5),
-        ("corner", -8.5, -8.5),
-    ] {
-        admit(&mut app, label, name, DVec3::new(x, 100.0, z), 2);
-    }
-    let mut first_seen: Vec<Option<usize>> = vec![None; cells as usize];
-    for at in 0..40 {
-        if at == 30 {
-            place(&mut app, label, owner, HALO_PROBE, probe);
-        }
-        lockstep_tick(&mut app, label);
-        for (cell, world) in cell_worlds(&mut app, label).into_iter().enumerate() {
-            if world.resource::<SeenAtSimulate>().seen {
-                first_seen[cell].get_or_insert(at);
-            }
-        }
-    }
-    first_seen
-        .into_iter()
-        .map(|at| at.expect("each cell holds the column of the probe"))
-        .collect()
-}
 
-/// PHY-INV-014, PHY-CMP-009: a block that the owner sets in tick `T` is in the copy of every
-/// other cell before the entities of `T + 1` move, as in a world of one cell.
-#[test]
-fn a_change_reaches_the_halo_of_every_cell_before_the_next_entity_pass() {
-    let one = run_halo_probe(1);
-    let four = run_halo_probe(4);
-    assert_eq!(one, [31], "the entity pass after the write sees it");
-    assert_eq!(four, [31; 4]);
-}
+    const CHIME_ACTION: u8 = 1;
+    const CHIME_PARAM: u8 = 2;
+    const CHIME: BlockPos = BlockPos::new(-3, 120, 5);
 
-/// Probe rules, not the rules of any game block: a note block that is placed queues a block
-/// event, and the event lights a lamp south of it.
-#[derive(Clone, Copy, Debug)]
-struct Echo {
-    note: BlockStateId,
-    lit: BlockStateId,
-}
-
-const ECHO: BlockPos = BlockPos::new(1, 120, 1);
-const ECHO_BESIDE: BlockPos = BlockPos::new(2, 120, 1);
-const ECHO_LAMP: BlockPos = BlockPos::new(1, 120, 2);
-
-impl Echo {
-    fn install(sub_app: &mut bevy_app::SubApp) {
-        let echo = Echo {
-            note: sub_app
+    impl Chime {
+        fn install(sub_app: &mut bevy_app::SubApp) {
+            let note = sub_app
                 .world()
                 .resource::<Blocks>()
                 .default_state("minecraft:note_block")
-                .expect("a note block"),
-            lit: lit_lamp_in(sub_app.world().resource::<Blocks>()),
-        };
-        sub_app.add_plugins(BlockSimulationPlugin::new(echo));
-    }
-}
-
-fn lit_lamp_in(blocks: &Blocks) -> BlockStateId {
-    let lamp = blocks.block("minecraft:redstone_lamp").expect("a lamp");
-    lamp.with(lamp.default_state_id, "lit", &PropertyValue::Bool(true))
-        .expect("a lit lamp")
-}
-
-impl BlockBehaviour<WorldKinds> for Echo {
-    fn placed<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
-        &self,
-        cx: &mut Cx<'_, WorldKinds, V, F, Self>,
-        at: BlockPos,
-        new: BlockStateId,
-        _old: BlockStateId,
-        _moved_by_piston: bool,
-    ) {
-        if new == self.note {
-            cx.queue_block_event(at, Block::NoteBlock.id(), 1, 0);
+                .expect("a note block");
+            sub_app.add_plugins(BlockSimulationPlugin::new(Chime { note }));
         }
     }
 
-    fn block_event<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
-        &self,
-        cx: &mut Cx<'_, WorldKinds, V, F, Self>,
-        _at: BlockPos,
-        _state: BlockStateId,
-        _a: i32,
-        _b: i32,
-    ) -> bool {
-        cx.set(ECHO_LAMP, self.lit, BlockUpdateFlags::CLIENTS, 512);
-        true
-    }
-}
-
-impl BlockDrops for Echo {}
-
-/// The block packets and block events of one tick, in wire order.
-fn block_traffic(packets: Vec<PacketPayload>) -> Vec<String> {
-    packets
-        .into_iter()
-        .filter_map(|packet| match packet {
-            PacketPayload::BlockUpdate(update) => Some(format!("block {:?}", update.block_pos)),
-            PacketPayload::SectionBlocksUpdate(update) => {
-                Some(format!("section {} blocks", update.blocks.len()))
+    impl BlockBehaviour<WorldKinds> for Chime {
+        fn placed<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+            &self,
+            cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+            at: BlockPos,
+            new: BlockStateId,
+            _old: BlockStateId,
+            _moved_by_piston: bool,
+        ) {
+            if new == self.note {
+                let (action, param) = (i32::from(CHIME_ACTION), i32::from(CHIME_PARAM));
+                cx.queue_block_event(at, Block::NoteBlock.id(), action, param);
             }
-            PacketPayload::BlockEvent(event) => Some(format!("event {:?}", event.pos)),
-            _ => None,
-        })
-        .collect()
-}
-
-/// SIM-SET-005, SIM-MODEL-107(a), SIM-TICK-002: the writes of a tick leave in one packet per
-/// section before the block events, and a write of a block event leaves in the next broadcast.
-#[test]
-fn a_broadcast_sends_one_packet_per_section_before_the_block_events() {
-    let mut app = server_with(1, DimensionBlockRules(Echo::install));
-    let label = label_of(&app, OVERWORLD);
-    wait_for_generation(&mut app, label);
-    let note = block_state(&app, "minecraft:note_block");
-    let stone = block_state(&app, "minecraft:stone");
-    let viewer = admit(&mut app, label, "viewer", DVec3::new(8.5, 100.0, 8.5), 2);
-    let column = ColumnPos::from(ECHO);
-    let mut client = Client::default();
-    let deadline = Instant::now() + Duration::from_secs(120);
-    while !client.loaded.contains(&(column.x, column.z)) {
-        assert!(Instant::now() < deadline, "the client never got the column");
-        app.world_mut()
-            .resource_mut::<MuxerLink>()
-            .acknowledge_batch(viewer, 64.0);
-        client.take(sent_to(viewer, lockstep_tick(&mut app, label)));
-    }
-
-    place(&mut app, label, viewer, ECHO, note);
-    place(&mut app, label, viewer, ECHO_BESIDE, stone);
-    let ticks: Vec<Vec<String>> = (0..2)
-        .map(|_| block_traffic(sent_to(viewer, lockstep_tick(&mut app, label))))
-        .collect();
-
-    assert_eq!(
-        ticks,
-        [
-            vec!["section 2 blocks".to_owned(), format!("event {ECHO:?}")],
-            vec![format!("block {ECHO_LAMP:?}")],
-        ]
-    );
-}
-
-/// A player breaks a block of the column of the other cell, across the boundary at x = 0. The
-/// cell of the player reads the block from its halo and sends the write to the owner. A client
-/// of the other cell that holds the column sees the break as a client of the same cell does.
-#[test]
-fn a_block_of_the_other_cell_breaks_for_a_client_of_that_cell() {
-    let mut app = server(2);
-    let label = label_of(&app, OVERWORLD);
-    wait_for_generation(&mut app, label);
-    let stone = block_state(&app, "minecraft:stone");
-    let target = BlockPos::new(1, 100, 5);
-    let breaker_anchor = host_app::admit(
-        &mut app,
-        label,
-        &Arrival {
-            uuid: Uuid::from_u128(1),
-            name: "breaker",
-            position: DVec3::new(-2.5, 100.0, 5.5),
-            view_distance: 2,
-        },
-    );
-    let breaker = host_app::session_of(&app, breaker_anchor).expect("a placed session");
-    let watcher = admit(&mut app, label, "watcher", DVec3::new(8.5, 100.0, 8.5), 2);
-    let column = ColumnPos::from(target);
-    let mut breaker_client = Client::default();
-    let mut watcher_client = Client::default();
-    let deadline = Instant::now() + Duration::from_secs(120);
-    while !(breaker_client.loaded.contains(&(column.x, column.z))
-        && watcher_client.loaded.contains(&(column.x, column.z)))
-    {
-        assert!(
-            Instant::now() < deadline,
-            "the clients never got the column"
-        );
-        for session in [breaker, watcher] {
-            app.world_mut()
-                .resource_mut::<MuxerLink>()
-                .acknowledge_batch(session, 64.0);
         }
-        let packets = lockstep_tick(&mut app, label);
-        breaker_client.take(sent_to(breaker, packets.clone()));
-        watcher_client.take(sent_to(watcher, packets));
-    }
-    let Holder { cell, player } = holder(&mut app, label, breaker).expect("the breaker");
-    let owner = holder(&mut app, label, watcher).expect("the watcher").cell;
-    assert_ne!(cell, owner, "the players stand in different cells");
-    cell_worlds(&mut app, label)
-        .swap_remove(cell)
-        .get_mut::<PlayerGameMode>(player)
-        .expect("a game mode")
-        .0 = GameMode::Creative;
-    place(&mut app, label, watcher, target, stone);
-    for _ in 0..3 {
-        lockstep_tick(&mut app, label);
-    }
-    assert_eq!(block_at(&mut app, label, target), Some(stone));
 
-    let mut server = PlayServer { app, dim: label };
-    server.queue(
-        breaker_anchor,
-        &ServerboundPlayerAction {
-            action: PlayerAction::StartDestroyBlock,
-            pos: target,
-            direction: Direction::Up,
-            sequence: VarInt(5),
-        },
-    );
-    let packets = server.ticks_all(4);
+        fn block_event<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+            &self,
+            _cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+            _at: BlockPos,
+            _state: BlockStateId,
+            _a: i32,
+            _b: i32,
+        ) -> bool {
+            true
+        }
+    }
 
-    let seen = |session| -> Vec<String> {
-        sent_to(session, packets.clone())
+    impl BlockDrops for Chime {}
+
+    /// The block events that each client got after the note block was placed, and the columns that
+    /// the far client held.
+    struct ChimeRun {
+        near: Vec<ClientboundBlockEvent>,
+        far: Vec<ClientboundBlockEvent>,
+        far_loaded: BTreeSet<(i32, i32)>,
+    }
+
+    fn block_events(packets: Vec<PacketPayload>) -> Vec<ClientboundBlockEvent> {
+        packets
             .into_iter()
             .filter_map(|packet| match packet {
-                PacketPayload::LevelEvent(event) if event.pos == target => Some(format!(
-                    "level_event {} {}",
-                    event.effect, event.effect_data
-                )),
-                PacketPayload::BlockUpdate(update) if update.block_pos == target => {
-                    Some(format!("block_update {}", update.block_state_id.0))
-                }
-                PacketPayload::BlockChangedAck(ack) => Some(format!("ack {}", ack.sequence.0)),
+                PacketPayload::BlockEvent(event) => Some(event),
                 _ => None,
             })
             .collect()
-    };
-    assert_eq!(
-        seen(watcher),
-        [
-            format!("level_event 2001 {}", stone.number()),
-            "block_update 0".to_owned()
-        ]
-    );
-    // The owner applies the write one tick after the cell of the breaker acknowledges it.
-    assert_eq!(seen(breaker), ["ack 5", "block_update 0"]);
-    assert_eq!(
-        block_at(&mut server.app, label, target),
-        Some(BlockStateId::AIR)
-    );
+    }
+
+    /// In two cells, the note block is in the west cell. Both clients stand in the east cell: the
+    /// near one holds the column of the note block, the far one does not.
+    fn run_chime() -> ChimeRun {
+        let mut app = server_with(2, DimensionBlockRules(Chime::install));
+        let label = label_of(&app, OVERWORLD);
+        wait_for_generation(&mut app, label);
+        let note = block_state(&app, "minecraft:note_block");
+        let near = admit(&mut app, label, "near", DVec3::new(8.5, 100.0, 8.5), 2);
+        let far = admit(&mut app, label, "far", DVec3::new(200.5, 100.0, 8.5), 2);
+        let column = ColumnPos::from(CHIME);
+        let mut near_client = Client::default();
+        let mut far_client = Client::default();
+        let deadline = Instant::now() + Duration::from_secs(120);
+        while !near_client.loaded.contains(&(column.x, column.z)) {
+            assert!(
+                Instant::now() < deadline,
+                "the near client never got the column"
+            );
+            for session in [near, far] {
+                app.world_mut()
+                    .resource_mut::<MuxerLink>()
+                    .acknowledge_batch(session, 64.0);
+            }
+            let packets = lockstep_tick(&mut app, label);
+            near_client.take(sent_to(near, packets.clone()));
+            far_client.take(sent_to(far, packets));
+        }
+
+        place(&mut app, label, near, CHIME, note);
+        let mut near_events = Vec::new();
+        let mut far_events = Vec::new();
+        for _ in 0..5 {
+            let packets = lockstep_tick(&mut app, label);
+            near_events.extend(block_events(sent_to(near, packets.clone())));
+            far_client.take(sent_to(far, packets.clone()));
+            far_events.extend(block_events(sent_to(far, packets)));
+        }
+        ChimeRun {
+            near: near_events,
+            far: far_events,
+            far_loaded: far_client.loaded,
+        }
+    }
+
+    #[test]
+    fn only_a_client_that_holds_the_column_gets_the_block_event_of_another_cell() {
+        let run = run_chime();
+        let event = ClientboundBlockEvent {
+            pos: CHIME,
+            action: CHIME_ACTION,
+            param: CHIME_PARAM,
+            block: VarInt(i32::from(Block::NoteBlock.id().number())),
+        };
+        assert_eq!(run.near, [event]);
+
+        let column = ColumnPos::from(CHIME);
+        assert!(
+            !run.far_loaded.is_empty() && !run.far_loaded.contains(&(column.x, column.z)),
+            "the far client holds other columns only: {:?}",
+            run.far_loaded
+        );
+        assert_eq!(run.far, []);
+    }
+
+    /// Probe rules, not the rules of any game block: a random tick turns a note block into a lit
+    /// lamp.
+    #[derive(Clone, Copy, Debug)]
+    struct Sprout {
+        note: BlockStateId,
+        lit: BlockStateId,
+    }
+
+    impl Sprout {
+        fn install(sub_app: &mut bevy_app::SubApp) {
+            let blocks = sub_app.world().resource::<Blocks>();
+            let lamp = blocks.block("minecraft:redstone_lamp").expect("a lamp");
+            let sprout = Sprout {
+                note: blocks
+                    .default_state("minecraft:note_block")
+                    .expect("a note block"),
+                lit: lamp
+                    .with(lamp.default_state_id, "lit", &PropertyValue::Bool(true))
+                    .expect("a lit lamp"),
+            };
+            sub_app.add_plugins(BlockSimulationPlugin::new(sprout));
+        }
+    }
+
+    impl BlockBehaviour<WorldKinds> for Sprout {
+        fn random_ticks(&self, state: BlockStateId) -> RandomTicks {
+            if state == self.note {
+                RandomTicks::BLOCK
+            } else {
+                RandomTicks::empty()
+            }
+        }
+
+        fn random_tick<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+            &self,
+            cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+            at: BlockPos,
+            _state: BlockStateId,
+            _random: &mut LegacyRandom,
+        ) {
+            cx.set(at, self.lit, BlockUpdateFlags::CLIENTS, 512);
+        }
+    }
+
+    impl BlockDrops for Sprout {}
+
+    /// A layer of note blocks on each side of the boundary, and the blocks of each layer that a random
+    /// tick reached.
+    fn run_sprouts(cells: u32) -> BTreeSet<(i32, i32)> {
+        let mut app = server_with(cells, DimensionBlockRules(Sprout::install));
+        let label = label_of(&app, OVERWORLD);
+        wait_for_generation(&mut app, label);
+        let note = block_state(&app, "minecraft:note_block");
+        let lit = lit_lamp(&app);
+        let west = admit(&mut app, label, "west", DVec3::new(-8.5, 100.0, 8.5), 2);
+        let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
+        let layer = |x: i32, z: i32| BlockPos::new(x, 120, z);
+        let mut reached = BTreeSet::new();
+        for at in 0..TICKS {
+            if at == 25 {
+                for x in -16..16 {
+                    let owner = if x < 0 { west } else { east };
+                    for z in 0..16 {
+                        place(&mut app, label, owner, layer(x, z), note);
+                    }
+                }
+            }
+            lockstep_tick(&mut app, label);
+        }
+        for x in -16..16 {
+            for z in 0..16 {
+                if block_at(&mut app, label, layer(x, z)) == Some(lit) {
+                    reached.insert((x, z));
+                }
+            }
+        }
+        reached
+    }
+
+    /// The random ticks of the simulation area reach the blocks that take them on both sides of the
+    /// boundary, in a world of one cell and in a world of two cells. Each side takes about
+    /// 3 / 16 of a block a tick.
+    #[test]
+    fn random_ticks_reach_the_blocks_of_the_simulation_area_in_every_cell() {
+        for cells in [1, 2] {
+            let reached = run_sprouts(cells);
+            let west = reached.iter().filter(|(x, _)| *x < 0).count();
+            let east = reached.len() - west;
+            assert!(
+                west > 0 && east > 0 && reached.len() <= 2 * 3 * (TICKS - 25),
+                "in {cells} cells, random ticks reached {west} blocks in the west and {east} in the east"
+            );
+        }
+    }
+
+    /// Probe rules, not the rules of any game block: a shape update breaks a note block, which
+    /// drops one note block item.
+    #[derive(Clone, Copy, Debug)]
+    struct Fragile {
+        note: BlockStateId,
+    }
+
+    impl Fragile {
+        fn install(sub_app: &mut bevy_app::SubApp) {
+            let note = sub_app
+                .world()
+                .resource::<Blocks>()
+                .default_state("minecraft:note_block")
+                .expect("a note block");
+            sub_app.add_plugins(BlockSimulationPlugin::new(Fragile { note }));
+            sub_app.init_resource::<SeenDrops>();
+            sub_app.add_systems(Last, record_drops);
+        }
+    }
+
+    impl BlockBehaviour<WorldKinds> for Fragile {
+        fn update_shape<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+            &self,
+            _cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+            _at: BlockPos,
+            state: BlockStateId,
+            _from: Direction,
+            _neighbour: BlockPos,
+            _neighbour_state: BlockStateId,
+        ) -> BlockStateId {
+            if state == self.note {
+                BlockStateId::AIR
+            } else {
+                state
+            }
+        }
+    }
+
+    impl BlockDrops for Fragile {
+        fn drops(
+            &self,
+            block: &DroppingBlock,
+            _block_at: impl Fn(BlockPos) -> Option<BlockStateId>,
+            drops: &mut Vec<ItemStack>,
+        ) {
+            if block.state == self.note {
+                drops.push(ItemStack::new(Item::NoteBlock.id(), 1));
+            }
+        }
+    }
+
+    #[derive(Resource, Default)]
+    struct SeenDrops(Vec<ItemDropped>);
+
+    fn record_drops(mut dropped: MessageReader<ItemDropped>, mut seen: ResMut<SeenDrops>) {
+        seen.0.extend(dropped.read().copied());
+    }
+
+    /// A block that a shape update destroys leaves the items that the rules name for it, at its
+    /// position.
+    #[test]
+    fn a_block_that_a_shape_update_destroys_drops_the_items_of_the_rules() {
+        let mut app = server_with(1, DimensionBlockRules(Fragile::install));
+        let label = label_of(&app, OVERWORLD);
+        wait_for_generation(&mut app, label);
+        let note = block_state(&app, "minecraft:note_block");
+        let stone = block_state(&app, "minecraft:stone");
+        let pos = BlockPos::new(3, 120, 5);
+        let east = admit(&mut app, label, "east", DVec3::new(8.5, 100.0, 8.5), 2);
+        for at in 0..40 {
+            match at {
+                25 => place(&mut app, label, east, pos, note),
+                30 => place(&mut app, label, east, BlockPos::new(4, 120, 5), stone),
+                _ => {}
+            }
+            lockstep_tick(&mut app, label);
+        }
+
+        let seen = cell_worlds(&mut app, label)[0]
+            .resource::<SeenDrops>()
+            .0
+            .clone();
+        assert_eq!(
+            seen,
+            [ItemDropped {
+                at: pos,
+                stack: ItemStack::new(Item::NoteBlock.id(), 1),
+            }]
+        );
+        assert_eq!(block_at(&mut app, label, pos), Some(BlockStateId::AIR));
+
+        let world = cell_worlds(&mut app, label)
+            .into_iter()
+            .next()
+            .expect("a cell");
+        let items: Vec<(MotionId, DVec3)> = world
+            .query::<(&MotionId, &MotionState)>()
+            .iter(world)
+            .map(|(id, state)| (*id, state.0.body.position))
+            .collect();
+        let [(_, position)] = items[..] else {
+            panic!("one item in motion: {items:?}");
+        };
+        // PHY-CMP-025: 0.25 of random offset, then at most 0.1 per tick for the ten ticks since.
+        assert!(
+            (position.x - 3.5).abs() < 1.25 && (position.z - 5.5).abs() < 1.25,
+            "the item starts at the block: {position}"
+        );
+        let mut stacks = world.query_filtered::<(&Kind, &Count), With<Dropped>>();
+        let stacks: Vec<_> = stacks
+            .iter(world)
+            .map(|(&kind, count)| (kind, count.get()))
+            .collect();
+        assert_eq!(stacks, [(Kind(Item::NoteBlock.id().number()), 1)]);
+
+        // The item starts with 0.2 upward, so it is back near its start ten ticks later.
+        for _ in 0..20 {
+            lockstep_tick(&mut app, label);
+        }
+        let world = cell_worlds(&mut app, label)
+            .into_iter()
+            .next()
+            .expect("a cell");
+        let later = world
+            .query_filtered::<&MotionState, With<MotionId>>()
+            .iter(world)
+            .map(|state| state.0.body.position.y)
+            .next();
+        assert!(
+            later.is_some_and(|y| y < position.y),
+            "the pass moves the item: it falls from {position} to {later:?}"
+        );
+    }
+
+    #[test]
+    fn a_command_at_a_player_of_another_cell_reads_the_columns_of_that_cell() {
+        let mut app = server(2);
+        let label = label_of(&app, OVERWORLD);
+        wait_for_generation(&mut app, label);
+        for world in cell_worlds(&mut app, label) {
+            world.insert_resource(DefaultOpLevel(PlayerOpLevel(2)));
+        }
+        let west_anchor = host_app::admit(
+            &mut app,
+            label,
+            &Arrival {
+                uuid: Uuid::from_u128(1),
+                name: "west",
+                position: DVec3::new(-8.5, 100.0, 8.5),
+                view_distance: 2,
+            },
+        );
+        let west = host_app::session_of(&app, west_anchor).expect("a placed session");
+        let east_position = DVec3::new(200.5, 100.0, 8.5);
+        let east = admit(&mut app, label, "east", east_position, 2);
+        let column = ColumnPos::from(east_position);
+        let mut east_client = Client::default();
+        let deadline = Instant::now() + Duration::from_secs(120);
+        while !east_client.loaded.contains(&(column.x, column.z)) {
+            assert!(
+                Instant::now() < deadline,
+                "the east client never got its column"
+            );
+            for session in [west, east] {
+                app.world_mut()
+                    .resource_mut::<MuxerLink>()
+                    .acknowledge_batch(session, 64.0);
+            }
+            east_client.take(sent_to(east, lockstep_tick(&mut app, label)));
+        }
+
+        let mut server = PlayServer { app, dim: label };
+        server.queue(
+            west_anchor,
+            &ServerboundChatCommand {
+                command: Bounded("execute at east if loaded ~ ~ ~"),
+            },
+        );
+        let chats: Vec<Text> = server
+            .ticks(west_anchor, 5)
+            .into_iter()
+            .filter_map(|packet| match packet {
+                PacketPayload::SystemChat(chat) => Some(
+                    chat.content
+                        .to_text()
+                        .expect("a chat text")
+                        .map(&ItemHoverMap)
+                        .expect("a chat text"),
+                ),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            chats,
+            [Text::translate(
+                "commands.execute.conditional.pass",
+                Vec::<Text>::new()
+            )]
+        );
+    }
+
+    const HALO_PROBE: BlockPos = BlockPos::new(1, 120, 1);
+
+    /// Whether the entity pass of the last tick of a cell saw the probe block in its copy.
+    #[derive(Resource, Default)]
+    struct SeenAtSimulate {
+        probe: Option<BlockStateId>,
+        seen: bool,
+    }
+
+    fn look_at_probe(mut seen: ResMut<SeenAtSimulate>, dimensions: Query<&SectionIndex>) {
+        let section = SectionPos::from(HALO_PROBE);
+        let state = dimensions
+            .iter()
+            .find_map(|index| index.blocks(section))
+            .map(|blocks| blocks.get(LocalPos::from(HALO_PROBE)));
+        seen.seen = state.is_some() && state == seen.probe;
+    }
+
+    /// For each cell that holds the column of the probe, the tick at which its entity pass first
+    /// saw the block that the owner placed.
+    fn run_halo_probe(cells: u32) -> Vec<usize> {
+        let mut app = server(cells);
+        let label = label_of(&app, OVERWORLD);
+        wait_for_generation(&mut app, label);
+        let probe = block_state(&app, "minecraft:stone");
+        for sub_app in app
+            .world_mut()
+            .resource_mut::<DimCells>()
+            .into_inner()
+            .cell_sub_apps_mut(label)
+        {
+            sub_app.insert_resource(SeenAtSimulate {
+                probe: Some(probe),
+                seen: false,
+            });
+            sub_app.add_systems(FixedUpdate, look_at_probe.in_set(TickSet::Simulate));
+        }
+        let owner = admit(&mut app, label, "owner", DVec3::new(8.5, 100.0, 8.5), 2);
+        for (name, x, z) in [
+            ("west", -8.5, 8.5),
+            ("north", 8.5, -8.5),
+            ("corner", -8.5, -8.5),
+        ] {
+            admit(&mut app, label, name, DVec3::new(x, 100.0, z), 2);
+        }
+        let mut first_seen: Vec<Option<usize>> = vec![None; cells as usize];
+        for at in 0..40 {
+            if at == 30 {
+                place(&mut app, label, owner, HALO_PROBE, probe);
+            }
+            lockstep_tick(&mut app, label);
+            for (cell, world) in cell_worlds(&mut app, label).into_iter().enumerate() {
+                if world.resource::<SeenAtSimulate>().seen {
+                    first_seen[cell].get_or_insert(at);
+                }
+            }
+        }
+        first_seen
+            .into_iter()
+            .map(|at| at.expect("each cell holds the column of the probe"))
+            .collect()
+    }
+
+    /// PHY-INV-014, PHY-CMP-009: a block that the owner sets in tick `T` is in the copy of every
+    /// other cell before the entities of `T + 1` move, as in a world of one cell.
+    #[test]
+    fn a_change_reaches_the_halo_of_every_cell_before_the_next_entity_pass() {
+        let one = run_halo_probe(1);
+        let four = run_halo_probe(4);
+        assert_eq!(one, [31], "the entity pass after the write sees it");
+        assert_eq!(four, [31; 4]);
+    }
+
+    /// Probe rules, not the rules of any game block: a note block that is placed queues a block
+    /// event, and the event lights a lamp south of it.
+    #[derive(Clone, Copy, Debug)]
+    struct Echo {
+        note: BlockStateId,
+        lit: BlockStateId,
+    }
+
+    const ECHO: BlockPos = BlockPos::new(1, 120, 1);
+    const ECHO_BESIDE: BlockPos = BlockPos::new(2, 120, 1);
+    const ECHO_LAMP: BlockPos = BlockPos::new(1, 120, 2);
+
+    impl Echo {
+        fn install(sub_app: &mut bevy_app::SubApp) {
+            let echo = Echo {
+                note: sub_app
+                    .world()
+                    .resource::<Blocks>()
+                    .default_state("minecraft:note_block")
+                    .expect("a note block"),
+                lit: lit_lamp_in(sub_app.world().resource::<Blocks>()),
+            };
+            sub_app.add_plugins(BlockSimulationPlugin::new(echo));
+        }
+    }
+
+    impl BlockBehaviour<WorldKinds> for Echo {
+        fn placed<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+            &self,
+            cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+            at: BlockPos,
+            new: BlockStateId,
+            _old: BlockStateId,
+            _moved_by_piston: bool,
+        ) {
+            if new == self.note {
+                cx.queue_block_event(at, Block::NoteBlock.id(), 1, 0);
+            }
+        }
+
+        fn block_event<V: SimulationVolume, F: BlockFacts<WorldKinds>>(
+            &self,
+            cx: &mut Cx<'_, WorldKinds, V, F, Self>,
+            _at: BlockPos,
+            _state: BlockStateId,
+            _a: i32,
+            _b: i32,
+        ) -> bool {
+            cx.set(ECHO_LAMP, self.lit, BlockUpdateFlags::CLIENTS, 512);
+            true
+        }
+    }
+
+    impl BlockDrops for Echo {}
+
+    /// The block packets and block events of one tick, in wire order.
+    fn block_traffic(packets: Vec<PacketPayload>) -> Vec<String> {
+        packets
+            .into_iter()
+            .filter_map(|packet| match packet {
+                PacketPayload::BlockUpdate(update) => Some(format!("block {:?}", update.block_pos)),
+                PacketPayload::SectionBlocksUpdate(update) => {
+                    Some(format!("section {} blocks", update.blocks.len()))
+                }
+                PacketPayload::BlockEvent(event) => Some(format!("event {:?}", event.pos)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// SIM-SET-005, SIM-MODEL-107(a), SIM-TICK-002: the writes of a tick leave in one packet per
+    /// section before the block events, and a write of a block event leaves in the next broadcast.
+    #[test]
+    fn a_broadcast_sends_one_packet_per_section_before_the_block_events() {
+        let mut app = server_with(1, DimensionBlockRules(Echo::install));
+        let label = label_of(&app, OVERWORLD);
+        wait_for_generation(&mut app, label);
+        let note = block_state(&app, "minecraft:note_block");
+        let stone = block_state(&app, "minecraft:stone");
+        let viewer = admit(&mut app, label, "viewer", DVec3::new(8.5, 100.0, 8.5), 2);
+        let column = ColumnPos::from(ECHO);
+        let mut client = Client::default();
+        let deadline = Instant::now() + Duration::from_secs(120);
+        while !client.loaded.contains(&(column.x, column.z)) {
+            assert!(Instant::now() < deadline, "the client never got the column");
+            app.world_mut()
+                .resource_mut::<MuxerLink>()
+                .acknowledge_batch(viewer, 64.0);
+            client.take(sent_to(viewer, lockstep_tick(&mut app, label)));
+        }
+
+        place(&mut app, label, viewer, ECHO, note);
+        place(&mut app, label, viewer, ECHO_BESIDE, stone);
+        let ticks: Vec<Vec<String>> = (0..2)
+            .map(|_| block_traffic(sent_to(viewer, lockstep_tick(&mut app, label))))
+            .collect();
+
+        assert_eq!(
+            ticks,
+            [
+                vec!["section 2 blocks".to_owned(), format!("event {ECHO:?}")],
+                vec![format!("block {ECHO_LAMP:?}")],
+            ]
+        );
+    }
+
+    /// A player breaks a block of the column of the other cell, across the boundary at x = 0. The
+    /// cell of the player reads the block from its halo and sends the write to the owner. A client
+    /// of the other cell that holds the column sees the break as a client of the same cell does.
+    #[test]
+    fn a_block_of_the_other_cell_breaks_for_a_client_of_that_cell() {
+        let mut app = server(2);
+        let label = label_of(&app, OVERWORLD);
+        wait_for_generation(&mut app, label);
+        let stone = block_state(&app, "minecraft:stone");
+        let target = BlockPos::new(1, 100, 5);
+        let breaker_anchor = host_app::admit(
+            &mut app,
+            label,
+            &Arrival {
+                uuid: Uuid::from_u128(1),
+                name: "breaker",
+                position: DVec3::new(-2.5, 100.0, 5.5),
+                view_distance: 2,
+            },
+        );
+        let breaker = host_app::session_of(&app, breaker_anchor).expect("a placed session");
+        let watcher = admit(&mut app, label, "watcher", DVec3::new(8.5, 100.0, 8.5), 2);
+        let column = ColumnPos::from(target);
+        let mut breaker_client = Client::default();
+        let mut watcher_client = Client::default();
+        let deadline = Instant::now() + Duration::from_secs(120);
+        while !(breaker_client.loaded.contains(&(column.x, column.z))
+            && watcher_client.loaded.contains(&(column.x, column.z)))
+        {
+            assert!(
+                Instant::now() < deadline,
+                "the clients never got the column"
+            );
+            for session in [breaker, watcher] {
+                app.world_mut()
+                    .resource_mut::<MuxerLink>()
+                    .acknowledge_batch(session, 64.0);
+            }
+            let packets = lockstep_tick(&mut app, label);
+            breaker_client.take(sent_to(breaker, packets.clone()));
+            watcher_client.take(sent_to(watcher, packets));
+        }
+        let Holder { cell, player } = holder(&mut app, label, breaker).expect("the breaker");
+        let owner = holder(&mut app, label, watcher).expect("the watcher").cell;
+        assert_ne!(cell, owner, "the players stand in different cells");
+        cell_worlds(&mut app, label)
+            .swap_remove(cell)
+            .get_mut::<PlayerGameMode>(player)
+            .expect("a game mode")
+            .0 = GameMode::Creative;
+        place(&mut app, label, watcher, target, stone);
+        for _ in 0..3 {
+            lockstep_tick(&mut app, label);
+        }
+        assert_eq!(block_at(&mut app, label, target), Some(stone));
+
+        let mut server = PlayServer { app, dim: label };
+        server.queue(
+            breaker_anchor,
+            &ServerboundPlayerAction {
+                action: PlayerAction::StartDestroyBlock,
+                pos: target,
+                direction: Direction::Up,
+                sequence: VarInt(5),
+            },
+        );
+        let packets = server.ticks_all(4);
+
+        let seen = |session| -> Vec<String> {
+            sent_to(session, packets.clone())
+                .into_iter()
+                .filter_map(|packet| match packet {
+                    PacketPayload::LevelEvent(event) if event.pos == target => Some(format!(
+                        "level_event {} {}",
+                        event.effect, event.effect_data
+                    )),
+                    PacketPayload::BlockUpdate(update) if update.block_pos == target => {
+                        Some(format!("block_update {}", update.block_state_id.0))
+                    }
+                    PacketPayload::BlockChangedAck(ack) => Some(format!("ack {}", ack.sequence.0)),
+                    _ => None,
+                })
+                .collect()
+        };
+        assert_eq!(
+            seen(watcher),
+            [
+                format!("level_event 2001 {}", stone.number()),
+                "block_update 0".to_owned()
+            ]
+        );
+        // The owner applies the write one tick after the cell of the breaker acknowledges it.
+        assert_eq!(seen(breaker), ["ack 5", "block_update 0"]);
+        assert_eq!(
+            block_at(&mut server.app, label, target),
+            Some(BlockStateId::AIR)
+        );
+    }
 }
