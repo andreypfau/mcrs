@@ -11,6 +11,7 @@ use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_resource::Id;
 
 use crate::baker;
+use crate::issue_owner::IssueOwner;
 use crate::item_rules::ItemRules;
 use crate::keyed_seed::{self, KeyedSeed};
 use crate::loot_issue::{LootIssue, LootProblem};
@@ -46,12 +47,10 @@ impl LootTables {
         let rules = ItemRules::bake(registries, items);
         let (entries, entry_issues) = NamedEntries::bake(definitions, registries, *items);
         issues.extend(entry_issues.into_iter().map(|issue| LootIssue {
-            table: issue.entry,
+            name: issue.entry,
+            owner: IssueOwner::Named(issue.kind),
             path: String::new(),
-            problem: LootProblem::Named {
-                kind: issue.kind,
-                problem: issue.problem,
-            },
+            problem: LootProblem::Condition(issue.problem),
         }));
         let tables = baker::bake(definitions, registries, &entries, &mut issues).into_boxed_slice();
         let named = files.map_or(0, |files| files.len());
@@ -63,7 +62,8 @@ impl LootTables {
                 let id = files.and_then(|files| files.by_name(name.as_location()));
                 if id.is_none() {
                     issues.push(LootIssue {
-                        table: name.clone(),
+                        name: name.clone(),
+                        owner: IssueOwner::Table,
                         path: String::new(),
                         problem: LootProblem::MissingTable,
                     });

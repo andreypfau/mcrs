@@ -129,12 +129,17 @@ pub fn names(stacks: impl IntoIterator<Item = Option<ItemStack>>) -> Vec<(String
         .collect()
 }
 
-/// The blocks around the origin of a break.
-pub struct Around<'a>(pub &'a [(BlockPos, BlockStateId)]);
+/// The blocks around the origin of a break, and the stack in the main hand of the entity of the
+/// context. With a stack the entity is living and has no other equipment; without one it is not
+/// living.
+pub struct Around<'a> {
+    pub blocks: &'a [(BlockPos, BlockStateId)],
+    pub main_hand: Option<&'a ItemStack>,
+}
 
 impl LocationView for Around<'_> {
     fn block_state(&self, pos: BlockPos) -> Option<BlockStateId> {
-        self.0
+        self.blocks
             .iter()
             .find(|(at, _)| *at == pos)
             .map(|&(_, state)| state)
@@ -241,7 +246,7 @@ impl EntityView for Around<'_> {
     }
 
     fn is_living(&self, (): ()) -> Option<bool> {
-        None
+        self.main_hand.map(|_| true)
     }
 
     fn is_fall_flying(&self, (): ()) -> Option<bool> {
@@ -260,8 +265,12 @@ impl EntityView for Around<'_> {
         None
     }
 
-    fn equipment(&self, (): (), _: EquipmentSlot) -> Option<ItemSubject<'_>> {
-        None
+    fn equipment(&self, (): (), slot: EquipmentSlot) -> Option<ItemSubject<'_>> {
+        let stack = self.main_hand?;
+        Some(match slot {
+            EquipmentSlot::MainHand => ItemSubject::Stack(stack),
+            _ => ItemSubject::Empty,
+        })
     }
 
     fn slot(&self, (): (), _: u16) -> Option<ItemSubject<'_>> {

@@ -1,6 +1,6 @@
 use fixedbitset::FixedBitSet;
 use mcrs_minecraft_item_key::item_keys::Item;
-use mcrs_minecraft_item_stack::NameLookup;
+use mcrs_minecraft_item_stack::{ItemStack, NameLookup};
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_registries::Registries;
 
@@ -65,14 +65,22 @@ impl BakedItemPredicate {
     /// components of the item of the stack. A match allocates nothing.
     #[must_use]
     pub fn matches(&self, subject: ItemSubject<'_>, table: &ItemTable) -> bool {
-        let (item, count, holder) = match subject {
-            ItemSubject::Stack(stack) => (
-                stack.kind.0,
-                i32::from(stack.count.get()),
-                ComponentHolder::Stack { stack, table },
-            ),
-            ItemSubject::Empty => (Item::Air.id().number(), 0, ComponentHolder::Empty),
-        };
+        match subject {
+            ItemSubject::Stack(stack) => {
+                self.matches_count(stack, i32::from(stack.count.get()), table)
+            }
+            ItemSubject::Empty => self.test(Item::Air.id().number(), 0, ComponentHolder::Empty),
+        }
+    }
+
+    /// As [`matches`](Self::matches) for `stack` with `count` in place of the count of `stack`, for
+    /// a count that a stack cannot hold. A match allocates nothing.
+    #[must_use]
+    pub fn matches_count(&self, stack: &ItemStack, count: i32, table: &ItemTable) -> bool {
+        self.test(stack.kind.0, count, ComponentHolder::Stack { stack, table })
+    }
+
+    fn test(&self, item: u16, count: i32, holder: ComponentHolder<'_>) -> bool {
         self.items
             .as_ref()
             .is_none_or(|bits| bits.contains(usize::from(item)))

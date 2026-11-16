@@ -64,6 +64,7 @@ pub use context_param::ContextParam;
 pub use context_params::ContextParams;
 pub use draw::{between, binomial, bounded};
 pub use dynamic_name::DynamicName;
+pub use enchanted_bonus::{equipment_level, equipment_slots};
 pub use environment_view::EnvironmentView;
 pub use float_provider::FloatProvider;
 pub use float_provider_file::FloatProviderFile;

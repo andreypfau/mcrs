@@ -268,7 +268,8 @@ impl<'a> ConditionBaker<'a> {
         }
     }
 
-    fn item_predicate(&mut self, named: &ItemPredicate<Named>) -> Option<BakedItemPredicate> {
+    /// Bakes the item predicate `named`; `None`, with a problem, when a name does not resolve.
+    pub fn item_predicate(&mut self, named: &ItemPredicate<Named>) -> Option<BakedItemPredicate> {
         let predicate = self.resolved::<ItemPredicate>(Some("predicate"), named)?;
         let baked = BakedItemPredicate::bake(&predicate, self.registries, &self.items);
         self.baked(baked)
