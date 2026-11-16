@@ -12,7 +12,7 @@ use mcrs_minecraft_physics::InsideShape;
 use mcrs_minecraft_physics::ShapeClass;
 use mcrs_voxel::BlockStateId;
 
-mod common;
+use crate::common;
 
 use common::definitions;
 use common::table;

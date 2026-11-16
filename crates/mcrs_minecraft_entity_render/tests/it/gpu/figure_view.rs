@@ -1,7 +1,7 @@
 //! The figure view draws a player into a target of its host with the fixed light of the figure.
 //!
 //! ```sh
-//! cargo nextest run -p mcrs_minecraft_entity_render --test it --run-ignored all
+//! cargo nextest run --profile gpu -p mcrs_minecraft_entity_render
 //! ```
 use crate::support;
 use glam::{Mat4, Vec3};
@@ -19,7 +19,6 @@ const CLEAR: [u8; 4] = [0, 0, 0, 0];
 const FRONT_FACTOR: f32 = 0.8201;
 
 #[test]
-#[ignore = "needs a GPU"]
 fn a_player_in_the_figure_view_draws_with_the_face_factor_of_the_figure_inside_the_scissor() {
     let Some(gpu) = support::Gpu::new() else {
         eprintln!("skipped: no adapter, the figure view test needs a GPU");
