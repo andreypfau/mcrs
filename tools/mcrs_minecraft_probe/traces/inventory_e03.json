@@ -1,0 +1,6263 @@
+{
+  "version": {
+    "name": "26.4 Snapshot 7",
+    "protocol": 1073742169
+  },
+  "steps": [
+    {
+      "id": "join",
+      "observed": "joined",
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "set_held_slot",
+          "slot": 0
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_content",
+          "container": 0,
+          "state_id": 1,
+          "slots": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "carried": null
+        }
+      ]
+    },
+    {
+      "id": "peaceful",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.difficulty.success",
+              "with": [
+                {
+                  "translate": "options.difficulty.peaceful"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "teleport_to_origin",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.teleport.success.location.single",
+              "with": [
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                "0.500000",
+                "-60.000000",
+                "0.500000"
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "survival",
+      "observed": {
+        "command": {
+          "replies": [],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "cursor_stone_10",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 10
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "set_cursor_item",
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 10,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "click_result_slot_with_stone",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "clear_after_result_click",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.clear.success.single",
+              "with": [
+                10,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "set_cursor_item",
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 2,
+          "slot": 0,
+          "stack": null
+        }
+      ]
+    },
+    {
+      "id": "helmet_m9_clear",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "text": "",
+              "extra": [
+                {
+                  "translate": "clear.failed.single",
+                  "with": [
+                    {
+                      "text": "inve03probeplyr",
+                      "click_event": {
+                        "action": "suggest_command",
+                        "command": "/tell inve03probeplyr "
+                      },
+                      "hover_event": {
+                        "action": "show_entity",
+                        "id": "minecraft:player",
+                        "uuid": [
+                          692957280,
+                          -693882189,
+                          -2101459945,
+                          -1678873862
+                        ],
+                        "name": "inve03probeplyr"
+                      },
+                      "insertion": "inve03probeplyr"
+                    }
+                  ]
+                }
+              ],
+              "color": "red"
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 3,
+          "slot": 0,
+          "stack": null
+        }
+      ]
+    },
+    {
+      "id": "helmet_m9_stone_40_in_m10",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 40
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 4,
+          "slot": 10,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 40,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "helmet_m9_stone_40_in_m40",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 40
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 5,
+          "slot": 40,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 40,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "helmet_m9_helmet",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "chat.type.advancement.task",
+              "with": [
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "translate": "advancements.story.obtain_armor.title",
+                      "hover_event": {
+                        "action": "show_text",
+                        "value": {
+                          "translate": "advancements.story.obtain_armor.title",
+                          "extra": [
+                            "\n",
+                            {
+                              "translate": "advancements.story.obtain_armor.description"
+                            }
+                          ],
+                          "color": "green"
+                        }
+                      }
+                    }
+                  ],
+                  "color": "green"
+                }
+              ]
+            },
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "item.minecraft.iron_helmet"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:iron_helmet"
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 6,
+          "slot": 9,
+          "stack": {
+            "item": "minecraft:iron_helmet",
+            "count": 1,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "helmet_m9_quick_move_empty_head",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 7,
+          "slot": 5,
+          "stack": {
+            "item": "minecraft:iron_helmet",
+            "count": 1,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 8,
+          "slot": 9,
+          "stack": null
+        }
+      ]
+    },
+    {
+      "id": "helmet_m9_read_equipment",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "{",
+                    "",
+                    {
+                      "text": "head",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "1",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:iron_helmet",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    "}"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "helmet_m9_full_head_clear",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.clear.success.single",
+              "with": [
+                81,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 9,
+          "slot": 5,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 10,
+          "slot": 10,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 11,
+          "slot": 40,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 12,
+          "slot": 0,
+          "stack": null
+        }
+      ]
+    },
+    {
+      "id": "helmet_m9_full_head_stone_40_in_m10",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 40
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 13,
+          "slot": 10,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 40,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "helmet_m9_full_head_stone_40_in_m40",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 40
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 14,
+          "slot": 40,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 40,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "helmet_m9_full_head_gold",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "item.minecraft.golden_helmet"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:golden_helmet"
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 15,
+          "slot": 5,
+          "stack": {
+            "item": "minecraft:golden_helmet",
+            "count": 1,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "helmet_m9_full_head_helmet",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "item.minecraft.iron_helmet"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:iron_helmet"
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 16,
+          "slot": 9,
+          "stack": {
+            "item": "minecraft:iron_helmet",
+            "count": 1,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "helmet_m9_quick_move_full_head",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 17,
+          "slot": 9,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 18,
+          "slot": 36,
+          "stack": {
+            "item": "minecraft:iron_helmet",
+            "count": 1,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "shield_m36_clear",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.clear.success.single",
+              "with": [
+                82,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 19,
+          "slot": 5,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 20,
+          "slot": 10,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 21,
+          "slot": 36,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 22,
+          "slot": 40,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 23,
+          "slot": 0,
+          "stack": null
+        }
+      ]
+    },
+    {
+      "id": "shield_m36_stone_40_in_m10",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 40
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 24,
+          "slot": 10,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 40,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "shield_m36_stone_40_in_m40",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 40
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 25,
+          "slot": 40,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 40,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "shield_m36_shield",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "item.minecraft.shield"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:shield"
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 26,
+          "slot": 36,
+          "stack": {
+            "item": "minecraft:shield",
+            "count": 1,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "shield_m36_quick_move",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 27,
+          "slot": 36,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 28,
+          "slot": 45,
+          "stack": {
+            "item": "minecraft:shield",
+            "count": 1,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "stone_m9_clear",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.clear.success.single",
+              "with": [
+                81,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 29,
+          "slot": 10,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 30,
+          "slot": 40,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 31,
+          "slot": 45,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 32,
+          "slot": 0,
+          "stack": null
+        }
+      ]
+    },
+    {
+      "id": "stone_m9_stone_40_in_m10",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 40
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 33,
+          "slot": 10,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 40,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "stone_m9_stone_40_in_m40",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 40
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 34,
+          "slot": 40,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 40,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "stone_m9_stone_64",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 64
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 35,
+          "slot": 9,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "stone_m9_quick_move",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 36,
+          "slot": 9,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 37,
+          "slot": 36,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 40,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 38,
+          "slot": 40,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "stone_m9_read_inventory",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "40",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "0",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "64",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "4",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "40",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "10",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    "]"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "stone_m36_clear",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.clear.success.single",
+              "with": [
+                144,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 39,
+          "slot": 10,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 40,
+          "slot": 36,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 41,
+          "slot": 40,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 42,
+          "slot": 0,
+          "stack": null
+        }
+      ]
+    },
+    {
+      "id": "stone_m36_stone_40_in_m10",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 40
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 43,
+          "slot": 10,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 40,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "stone_m36_stone_40_in_m40",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 40
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 44,
+          "slot": 40,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 40,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "stone_m36_stone_64",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 64
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 45,
+          "slot": 36,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "stone_m36_quick_move",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 46,
+          "slot": 9,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 40,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 47,
+          "slot": 10,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 48,
+          "slot": 36,
+          "stack": null
+        }
+      ]
+    },
+    {
+      "id": "stone_m36_read_inventory",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "40",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "4",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "40",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "9",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "64",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "10",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    "]"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "stone_m1_clear",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.clear.success.single",
+              "with": [
+                144,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 49,
+          "slot": 9,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 50,
+          "slot": 10,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 51,
+          "slot": 40,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 52,
+          "slot": 0,
+          "stack": null
+        }
+      ]
+    },
+    {
+      "id": "stone_m1_stone_40_in_m10",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 40
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 53,
+          "slot": 10,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 40,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "stone_m1_stone_40_in_m40",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 40
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 54,
+          "slot": 40,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 40,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "stone_m1_stone_64",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 64
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 55,
+          "slot": 0,
+          "stack": {
+            "item": "minecraft:stone_button",
+            "count": 1,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 56,
+          "slot": 0,
+          "stack": {
+            "item": "minecraft:stone_button",
+            "count": 1,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 57,
+          "slot": 1,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "stone_m1_quick_move",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 58,
+          "slot": 0,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 59,
+          "slot": 1,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 60,
+          "slot": 9,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 16,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 61,
+          "slot": 10,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 62,
+          "slot": 40,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "stone_m1_read_inventory",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "64",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "4",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "16",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "9",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "64",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "10",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    "]"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "stone_m45_clear",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.clear.success.single",
+              "with": [
+                144,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 63,
+          "slot": 9,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 64,
+          "slot": 10,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 65,
+          "slot": 40,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 66,
+          "slot": 0,
+          "stack": null
+        }
+      ]
+    },
+    {
+      "id": "stone_m45_stone_40_in_m10",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 40
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 67,
+          "slot": 10,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 40,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "stone_m45_stone_40_in_m40",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 40
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 68,
+          "slot": 40,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 40,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "stone_m45_stone_64",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 64
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 69,
+          "slot": 45,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "stone_m45_quick_move",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 70,
+          "slot": 9,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 16,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 71,
+          "slot": 10,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 72,
+          "slot": 40,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 64,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 73,
+          "slot": 45,
+          "stack": null
+        }
+      ]
+    },
+    {
+      "id": "stone_m45_read_inventory",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "64",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "4",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "16",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "9",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "64",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "10",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    "]"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "helmet_m5_clear",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.clear.success.single",
+              "with": [
+                144,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 74,
+          "slot": 9,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 75,
+          "slot": 10,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 76,
+          "slot": 40,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 77,
+          "slot": 0,
+          "stack": null
+        }
+      ]
+    },
+    {
+      "id": "helmet_m5_stone_40_in_m10",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 40
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 78,
+          "slot": 10,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 40,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "helmet_m5_stone_40_in_m40",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 40
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 79,
+          "slot": 40,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 40,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "helmet_m5_helmet",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "item.minecraft.iron_helmet"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:iron_helmet"
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 80,
+          "slot": 5,
+          "stack": {
+            "item": "minecraft:iron_helmet",
+            "count": 1,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "helmet_m5_quick_move",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 81,
+          "slot": 5,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 82,
+          "slot": 9,
+          "stack": {
+            "item": "minecraft:iron_helmet",
+            "count": 1,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "helmet_m5_read_inventory",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "40",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "4",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "1",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "9",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:iron_helmet",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "40",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "10",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    "]"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "result_m0_clear",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.clear.success.single",
+              "with": [
+                81,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 83,
+          "slot": 9,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 84,
+          "slot": 10,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 85,
+          "slot": 40,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 86,
+          "slot": 0,
+          "stack": null
+        }
+      ]
+    },
+    {
+      "id": "result_m0_stone_40_in_m10",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 40
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 87,
+          "slot": 10,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 40,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "result_m0_stone_40_in_m40",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 40
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 88,
+          "slot": 40,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 40,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "result_m0_log_in_grid",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.oak_log"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:oak_log"
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 89,
+          "slot": 0,
+          "stack": {
+            "item": "minecraft:oak_planks",
+            "count": 4,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 90,
+          "slot": 0,
+          "stack": {
+            "item": "minecraft:oak_planks",
+            "count": 4,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 91,
+          "slot": 1,
+          "stack": {
+            "item": "minecraft:oak_log",
+            "count": 1,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "result_m0_quick_move",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 92,
+          "slot": 0,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 93,
+          "slot": 1,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 94,
+          "slot": 44,
+          "stack": {
+            "item": "minecraft:oak_planks",
+            "count": 4,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "result_m0_read_inventory",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "40",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "4",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "4",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "8",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:oak_planks",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "40",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "10",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    "]"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "zombie_helmet_m9_clear",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.clear.success.single",
+              "with": [
+                84,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 95,
+          "slot": 10,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 96,
+          "slot": 40,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 97,
+          "slot": 44,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 98,
+          "slot": 0,
+          "stack": null
+        }
+      ]
+    },
+    {
+      "id": "zombie_helmet_m9_stone_40_in_m10",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 40
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 99,
+          "slot": 10,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 40,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "zombie_helmet_m9_stone_40_in_m40",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 40
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 100,
+          "slot": 40,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 40,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "zombie_helmet_m9_helmet",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "item.minecraft.iron_helmet"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:iron_helmet",
+                    "components": {
+                      "minecraft:equippable": {
+                        "allowed_entities": "minecraft:zombie",
+                        "slot": "head"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 101,
+          "slot": 9,
+          "stack": {
+            "item": "minecraft:iron_helmet",
+            "count": 1,
+            "components": {
+              "added": [
+                "minecraft:equippable"
+              ],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "zombie_helmet_m9_quick_move_empty_head",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "zombie_helmet_m9_read_inventory",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "40",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "4",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "components",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "{",
+                    "",
+                    {
+                      "text": "\"",
+                      "extra": [
+                        {
+                          "text": "minecraft:equippable",
+                          "color": "aqua"
+                        },
+                        "\""
+                      ]
+                    },
+                    ":",
+                    " ",
+                    "{",
+                    "",
+                    {
+                      "text": "allowed_entities",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:zombie",
+                      "color": "green"
+                    },
+                    "\"",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "head",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "1",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "9",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:iron_helmet",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "40",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "10",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    "]"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "zombie_helmet_m9_read_equipment",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "text": "",
+              "extra": [
+                {
+                  "translate": "arguments.nbtpath.nothing_found",
+                  "with": [
+                    "equipment"
+                  ]
+                }
+              ],
+              "color": "red"
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "pick_up_all_clear",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.clear.success.single",
+              "with": [
+                81,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 102,
+          "slot": 9,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 103,
+          "slot": 10,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 104,
+          "slot": 40,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 105,
+          "slot": 0,
+          "stack": null
+        }
+      ]
+    },
+    {
+      "id": "pick_up_all_log_in_grid",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.oak_log"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:oak_log"
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 106,
+          "slot": 0,
+          "stack": {
+            "item": "minecraft:oak_planks",
+            "count": 4,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 107,
+          "slot": 0,
+          "stack": {
+            "item": "minecraft:oak_planks",
+            "count": 4,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 108,
+          "slot": 1,
+          "stack": {
+            "item": "minecraft:oak_log",
+            "count": 1,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "pick_up_all_planks_10_in_m9",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.oak_planks"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:oak_planks",
+                    "count": 10
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 109,
+          "slot": 9,
+          "stack": {
+            "item": "minecraft:oak_planks",
+            "count": 10,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "pick_up_all_cursor_planks_3",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.oak_planks"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:oak_planks",
+                    "count": 3
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "set_cursor_item",
+          "stack": {
+            "item": "minecraft:oak_planks",
+            "count": 3,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "pick_up_all_on_empty_m20",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 110,
+          "slot": 9,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "set_cursor_item",
+          "stack": {
+            "item": "minecraft:oak_planks",
+            "count": 13,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "pick_up_all_read_inventory",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "[",
+                    "]"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "drag_clear",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.clear.success.single",
+              "with": [
+                14,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 111,
+          "slot": 0,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 112,
+          "slot": 1,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "set_cursor_item",
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 113,
+          "slot": 0,
+          "stack": null
+        }
+      ]
+    },
+    {
+      "id": "drag_cursor_stone_8",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 8
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "set_cursor_item",
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 8,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "drag_start",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "drag_add_m0",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "drag_add_m2",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "drag_add_m5",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "drag_add_m11",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "drag_add_m45",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "drag_end",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 114,
+          "slot": 0,
+          "stack": {
+            "item": "minecraft:stone_button",
+            "count": 1,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 115,
+          "slot": 2,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 2,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 116,
+          "slot": 11,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 2,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 117,
+          "slot": 45,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 2,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "set_cursor_item",
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 2,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "drag_read_inventory",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "[",
+                    "",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "2",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "Slot",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "11",
+                      "color": "gold"
+                    },
+                    {
+                      "text": "b",
+                      "color": "red"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    "]"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "drag_read_equipment",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "{",
+                    "",
+                    {
+                      "text": "offhand",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "{",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "2",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:stone",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    "}"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "binding_m5_clear",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.clear.success.single",
+              "with": [
+                8,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 118,
+          "slot": 0,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 119,
+          "slot": 2,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 120,
+          "slot": 11,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 121,
+          "slot": 45,
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "set_cursor_item",
+          "stack": null
+        },
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 122,
+          "slot": 0,
+          "stack": null
+        }
+      ]
+    },
+    {
+      "id": "binding_m5_helmet",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "item.minecraft.iron_helmet"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "aqua",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:iron_helmet",
+                    "components": {
+                      "minecraft:enchantments": {
+                        "minecraft:binding_curse": 1
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve03probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 123,
+          "slot": 5,
+          "stack": {
+            "item": "minecraft:iron_helmet",
+            "count": 1,
+            "components": {
+              "added": [
+                "minecraft:enchantments"
+              ],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "binding_m5_quick_move",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "binding_m5_read_equipment",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "{",
+                    "",
+                    {
+                      "text": "head",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "{",
+                    "",
+                    {
+                      "text": "components",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "{",
+                    "",
+                    {
+                      "text": "\"",
+                      "extra": [
+                        {
+                          "text": "minecraft:enchantments",
+                          "color": "aqua"
+                        },
+                        "\""
+                      ]
+                    },
+                    ":",
+                    " ",
+                    "{",
+                    "",
+                    {
+                      "text": "\"",
+                      "extra": [
+                        {
+                          "text": "minecraft:binding_curse",
+                          "color": "aqua"
+                        },
+                        "\""
+                      ]
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "1",
+                      "color": "gold"
+                    },
+                    "}",
+                    "}",
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "count",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    {
+                      "text": "1",
+                      "color": "gold"
+                    },
+                    ",",
+                    " ",
+                    "",
+                    {
+                      "text": "id",
+                      "color": "aqua"
+                    },
+                    ":",
+                    " ",
+                    "\"",
+                    {
+                      "text": "minecraft:iron_helmet",
+                      "color": "green"
+                    },
+                    "\"",
+                    "}",
+                    "}"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "binding_m5_read_inventory",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.data.entity.query",
+              "with": [
+                {
+                  "text": "inve03probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve03probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      692957280,
+                      -693882189,
+                      -2101459945,
+                      -1678873862
+                    ],
+                    "name": "inve03probeplyr"
+                  },
+                  "insertion": "inve03probeplyr"
+                },
+                {
+                  "text": "",
+                  "extra": [
+                    "[",
+                    "]"
+                  ]
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "empty_m20_quick_move",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    }
+  ]
+}

@@ -1,10 +1,17 @@
+use std::iter;
 use std::num::NonZeroU8;
 use std::sync::LazyLock;
 
 use glam::DVec3;
 use mcrs_minecraft_block::definition::BlockDefinitions;
 use mcrs_minecraft_engine_registries::{test_corpus, test_item_table};
+use mcrs_minecraft_entity::Pose;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
+use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
+use mcrs_minecraft_environment::{AttributeValue, WorldClock};
 use mcrs_minecraft_game_registries::registry_load::test_registries;
+use mcrs_minecraft_item::component::equippable::EquipmentSlot;
 use mcrs_minecraft_item::enchantment::Enchantment;
 use mcrs_minecraft_item_key::item_keys::Item;
 use mcrs_minecraft_item_stack::{
@@ -12,9 +19,14 @@ use mcrs_minecraft_item_stack::{
 };
 use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 use mcrs_minecraft_loot::loot::LootTable;
-use mcrs_minecraft_loot_condition::{LootContext, Tool};
+use mcrs_minecraft_loot_condition::{
+    ClockView, EnvironmentView, LootContext, NbtNumber, ScoreHolder, ScoreView, StorageView, Tool,
+    WeatherView,
+};
 use mcrs_minecraft_loot_table::{KeyedSeed, LootIssue, LootTables};
-use mcrs_minecraft_predicate::LocationView;
+use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt_path::NbtPath;
+use mcrs_minecraft_predicate::{ActiveEffect, EntityView, ItemSubject, LocationView};
 use mcrs_minecraft_random::xoroshiro::XoroshiroRandom;
 use mcrs_minecraft_resource::{Id, ResourceLocation};
 use mcrs_voxel::{BlockPos, BlockStateId};
@@ -117,12 +129,17 @@ pub fn names(stacks: impl IntoIterator<Item = Option<ItemStack>>) -> Vec<(String
         .collect()
 }
 
-/// The blocks around the origin of a break.
-pub struct Around<'a>(pub &'a [(BlockPos, BlockStateId)]);
+/// The blocks around the origin of a break, and the stack in the main hand of the entity of the
+/// context. With a stack the entity is living and has no other equipment; without one it is not
+/// living.
+pub struct Around<'a> {
+    pub blocks: &'a [(BlockPos, BlockStateId)],
+    pub main_hand: Option<&'a ItemStack>,
+}
 
 impl LocationView for Around<'_> {
     fn block_state(&self, pos: BlockPos) -> Option<BlockStateId> {
-        self.0
+        self.blocks
             .iter()
             .find(|(at, _)| *at == pos)
             .map(|&(_, state)| state)
@@ -170,5 +187,155 @@ impl LocationView for Around<'_> {
         _: &mut mcrs_minecraft_nbt::compound::NbtCompound,
     ) -> bool {
         false
+    }
+}
+
+impl EntityView for Around<'_> {
+    type Entity = ();
+
+    fn entity_type(&self, (): ()) -> Option<Id<EntityType>> {
+        None
+    }
+
+    fn position(&self, (): ()) -> Option<DVec3> {
+        None
+    }
+
+    fn is_on_ground(&self, (): ()) -> Option<bool> {
+        None
+    }
+
+    fn support_position(&self, (): ()) -> Option<BlockPos> {
+        None
+    }
+
+    fn movement_position(&self, (): ()) -> Option<BlockPos> {
+        None
+    }
+
+    fn reported_movement(&self, (): ()) -> Option<DVec3> {
+        None
+    }
+
+    fn fall_distance(&self, (): ()) -> Option<f64> {
+        None
+    }
+
+    fn saved_data(&self, (): (), _: &mut NbtCompound) -> bool {
+        false
+    }
+
+    fn is_burning(&self, (): ()) -> Option<bool> {
+        None
+    }
+
+    fn pose(&self, (): ()) -> Option<Pose> {
+        None
+    }
+
+    fn is_sprinting(&self, (): ()) -> Option<bool> {
+        None
+    }
+
+    fn is_swimming(&self, (): ()) -> Option<bool> {
+        None
+    }
+
+    fn is_in_water(&self, (): ()) -> Option<bool> {
+        None
+    }
+
+    fn is_living(&self, (): ()) -> Option<bool> {
+        self.main_hand.map(|_| true)
+    }
+
+    fn is_fall_flying(&self, (): ()) -> Option<bool> {
+        None
+    }
+
+    fn has_flying_ability(&self, (): ()) -> Option<bool> {
+        None
+    }
+
+    fn is_baby(&self, (): ()) -> Option<bool> {
+        None
+    }
+
+    fn active_effect(&self, (): (), _: Id<MobEffect>) -> Option<ActiveEffect> {
+        None
+    }
+
+    fn equipment(&self, (): (), slot: EquipmentSlot) -> Option<ItemSubject<'_>> {
+        let stack = self.main_hand?;
+        Some(match slot {
+            EquipmentSlot::MainHand => ItemSubject::Stack(stack),
+            _ => ItemSubject::Empty,
+        })
+    }
+
+    fn slot(&self, (): (), _: u16) -> Option<ItemSubject<'_>> {
+        None
+    }
+
+    fn tick_count(&self, (): ()) -> Option<u32> {
+        None
+    }
+
+    fn vehicle(&self, (): ()) -> Option<()> {
+        None
+    }
+
+    fn passengers(&self, (): ()) -> Option<impl Iterator<Item = ()>> {
+        None::<iter::Empty<()>>
+    }
+
+    fn attack_target(&self, (): ()) -> Option<()> {
+        None
+    }
+
+    fn team(&self, (): ()) -> Option<&str> {
+        None
+    }
+
+    fn has_scoreboard_tag(&self, (): (), _: &str) -> Option<bool> {
+        None
+    }
+}
+
+impl<E> ScoreView<E> for Around<'_> {
+    fn score(&self, _: ScoreHolder<'_, E>, _: &str) -> Option<i32> {
+        None
+    }
+}
+
+impl StorageView for Around<'_> {
+    fn storage_number(&self, _: ResourceLocation<'_>, _: &NbtPath) -> Option<NbtNumber> {
+        None
+    }
+}
+
+impl EnvironmentView for Around<'_> {
+    fn environment_value(
+        &self,
+        _: EnvironmentAttribute,
+        _: Option<DVec3>,
+    ) -> Option<AttributeValue> {
+        None
+    }
+}
+
+impl WeatherView for Around<'_> {
+    fn rain_strength(&self) -> Option<f32> {
+        None
+    }
+
+    fn thunder_strength(&self) -> Option<f32> {
+        None
+    }
+}
+
+impl ClockView for Around<'_> {
+    fn total_ticks(&self, _: Id<WorldClock>) -> Option<i64> {
+        None
     }
 }

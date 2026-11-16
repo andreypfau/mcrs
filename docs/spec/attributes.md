@@ -637,8 +637,10 @@ attribute registry that a data pack or a server can extend.
 living entity has the list `attributes`. `persistence.md` states the fields of an attribute
 compound. The list must have a compound for each instance of which one of these is true:
 
-- the base value differs from the base of the type;
+- the bits of the base value differ from the bits of the base of the type;
 - the instance has a permanent modifier.
+
+The comparison of bits is `source_suggested` until A7 `base_negative_zero_saved` runs.
 
 The list can have compounds for other instances. A compound holds the name of the attribute as
 `id` and the stored base value as `base`. It holds the permanent modifiers as `modifiers`, in the
@@ -655,9 +657,11 @@ The trace of experiment A3 shows these saves:
 | `creative_saved` | `block_interaction_range` in creative mode | `base` 4.5, no `modifiers` |
 | `baby_zombie_saved` | `movement_speed` of a baby `zombie` | `base` `0.23000000417232513`, no `modifiers` |
 
-**ATR-SAV-002** (`source_suggested_black_box_confirmed`, semantic, confidence: high). The load of a
-living entity reads each compound of `attributes`. For a compound whose attribute is in the
-attribute set of the entity type, the load does this:
+**ATR-SAV-002** (`source_suggested_black_box_confirmed` for the rows with A3 evidence,
+`source_suggested` for the rows with A7 evidence, `design` for the unknown key; semantic,
+confidence: high). The load of a
+living entity reads each compound of `attributes`, in the order of the list. For a compound whose
+attribute is in the attribute set of the entity type, the load does this:
 
 1. It sets the base value to `base`, as given (ATR-INS-002).
 2. It sets each modifier of `modifiers` as a permanent modifier, in the order of the list
@@ -667,24 +671,59 @@ An instance with no compound keeps the base of the type and has no modifier. A c
 attribute is not in the attribute set has no effect. The load adds no transient modifier. The
 sources of section 5 set their transient modifiers again while their conditions are true.
 
-A correct save does not have the compounds of the table below. The load reads each compound and
-each modifier alone, so a bad one does not stop the load of the others.
+A correct save does not have the inputs of the table below. The load reads each compound and
+each modifier alone, so a bad one does not stop the load of the others. A bad compound or a bad
+modifier does not stop the load of the entity, except an unknown key (the last row). The column "Evidence" gives the step of the trace
+that shows the row.
 
-| Input | Result of the load |
-|-------|--------------------|
-| the `id` of a compound is not a name of ATR-DEF-001 | the compound has no effect |
-| `base` is not a number | the base value is 0, the default of `persistence.md` |
-| a modifier has an `operation` that is not a name of ATR-INS-003 | that modifier has no effect; the other modifiers of the compound load |
-| two modifiers of one compound have the same `id` | the instance has one modifier of that identifier: the last one of the list |
+| Input | Result of the load | Evidence |
+|-------|--------------------|----------|
+| the value of `attributes` is not a list | no instance changes; the other keys of the entity load | A7 `attributes_not_list_scale` |
+| an element of `attributes` is not a compound | that element has no effect | A7 `element_not_compound_saved` |
+| the `id` of a compound is absent, is not a string, or is not a name of ATR-DEF-001 | the compound has no effect; the other compounds load | A3 `pig_unknown_attribute_saved`; A7 `compound_no_id_saved` |
+| `base` is absent | the base value is 0, the default of `persistence.md`, not the base of the type | A7 `base_absent_saved` |
+| `base` is not a number | the base value is 0; the modifiers of the compound load | A3 `pig_bad_base_saved` |
+| `base` or `amount` is a number of an NBT type other than double | the base value or the amount is that number as an f64 | A7 `base_int_saved` |
+| `modifiers` is absent, or is not a list | the compound gives no modifier; `base` loads | A3 `pig_with_bases_saved`; A7 `modifiers_not_list_saved` |
+| an element of `modifiers` is not a compound | that element has no effect; the other modifiers of the compound load | A7 `modifier_not_compound_saved` |
+| a modifier has no `id`, no `amount` or no `operation` | that modifier has no effect; the other modifiers of the compound load | A7 `modifier_no_id_saved`, `modifier_no_amount_saved`, `modifier_no_operation_saved` |
+| the `id` of a modifier is not a valid identifier, or `amount` is not a number | that modifier has no effect; the other modifiers of the compound load | A7 `modifier_bad_id_saved`, `modifier_bad_amount_saved` |
+| a modifier has an `operation` that is not a name of ATR-INS-003, for example a number | that modifier has no effect; the other modifiers of the compound load | A3 `pig_bad_operation_saved`, `pig_good_and_bad_modifier_saved`; A7 `modifier_operation_number_saved` |
+| two modifiers of one compound have the same `id` | the instance has one modifier of that identifier: the last one of the list | A3 `pig_two_modifiers_one_id_saved` |
+| two compounds have the same `id` | both compounds apply, in the order of the list: the base value of the last compound, and the modifiers of both compounds | A7 `two_compounds_one_id_saved` |
+| a compound or a modifier has a key that `persistence.md` does not list | the read of the list fails with an error that names the key; in a player file, the load of the file fails (SAVE-FILE-002 of `persistence.md`) | `design`; A7 `unknown_keys_saved` records the game |
+
+In a player file these rows apply too. SAVE-FILE-002 makes only an unknown key a load error.
 
 Step 2 is a set, not an add. Thus the last modifier of one identifier replaces the earlier one,
-and no error stops the load.
+and no error stops the load. That modifier gets the position that a set gives (ATR-INS-004). The
+same is true for a modifier of the second compound of one attribute. An `id` with no namespace, of
+a compound or of a modifier, has the namespace `minecraft` (A7 `id_no_namespace_saved`).
 
-The trace of experiment A3 shows each row of this rule. A `pig` loads `max_health` 30 and ignores
-`attack_damage`, which its attribute set does not have (step `pig_with_bases_saved`). The other
-steps are `pig_unknown_attribute_saved`, `pig_bad_base_saved`, `pig_bad_operation_saved`,
-`pig_good_and_bad_modifier_saved` and `pig_two_modifiers_one_id_saved`. Each of these pigs comes
-from `/summon` with the data of the compounds, and `/data get` reads its save.
+The save keeps the bits of each base value and each amount, and a load gives the same bits. Thus a
+base value of -0.0 stays -0.0 (A7 `base_negative_zero_saved`). The bits of -0.0 differ from the
+bits of the base 0 of `armor`. Thus the save has a compound for the base value -0.0 of `armor`
+(ATR-SAV-001).
+
+A save after a load is not always byte-equal to the file that the load read. A compound with the
+base of the type and no modifier can be absent from the save (ATR-SAV-001, and the deviation
+"Compounds for instances that did not change" in section 11). The rows of the table above also
+give a save that differs from the file.
+
+The trace of experiment A3 shows the rows with A3 evidence. A `pig` loads `max_health` 30 and
+ignores `attack_damage`, which its attribute set does not have (step `pig_with_bases_saved`). Each
+pig of A3 and A7 comes from `/summon` with the data of the compounds, and `/data get` reads its
+save. The rows with A7 evidence and the paragraphs after the table have the provenance
+`source_suggested`, with confidence high, until experiment A7 runs. In the row of the `id` of a
+compound, an `id` that is absent or is not a string is also `source_suggested` until A7 runs.
+
+The row of the unknown key is the rule of the reader of a player file. Provenance: `design`. The
+owner decided on 2026-11-16 that SAVE-FILE-002 of `persistence.md` applies to the list
+`attributes` with no exception (decision #388). Thus one rule applies to an unknown key in each
+typed part of a player file. An entity save compound in a player file stays opaque (SAVE-FILE-002).
+A player file that a vanilla server wrote has only the keys of
+`persistence.md`, so it loads. The game ignores such a key, and its next save does not hold it
+(section 11, "Unknown keys in the list `attributes`").
 
 ## 9. Readers
 
@@ -752,6 +791,14 @@ health when `max_health` becomes less than the health.
   - **Visible to the client:** no. A save tool sees more compounds.
   - **Test:** a differential test drops each compound that has the base of the type and no
     modifier.
+- **Unknown keys in the list `attributes`.**
+  - **Rule:** ATR-SAV-002.
+  - **Reference:** it ignores a key that `persistence.md` does not list in an attribute compound or
+    in a modifier. The load goes on, and the next save does not hold the key.
+  - **Visible to the client:** no. A tool that writes such a key into a player file sees that the
+    load of the file fails.
+  - **Test:** a differential test gives only player files with the keys of `persistence.md`. A test
+    of the reader of a player file gives a file with an unknown key and expects the loud error.
 
 ## 12. Unresolved
 
@@ -764,6 +811,9 @@ health when `max_health` becomes less than the health.
     (ATR-NET-003, ATR-NET-004).
 
   Section 13 states the change of the tool that A4 and A5 need.
+- **U7.** The result of an unknown key in the list `attributes` of entity data from a source other
+  than a player file is not decided. Examples are a mob in a saved chunk and the data of a command.
+  The change that adds the save of mob entities decides it (ATR-SAV-002).
 
 ## 13. Experiments
 
@@ -775,14 +825,21 @@ health when `max_health` becomes less than the health.
 | A4 | The client recorder, scenario `a4`. Give the player a base value of 30 for `max_health`, a modifier of `/attribute` on `luck` and the effect `speed` with the infinite duration. Kill the player; the rule `immediate_respawn` respawns it. Record each `update_attributes` for the own player, with its tick. The recording is `crates/mcrs_minecraft_entity/tests/fixtures/vanilla/a4_respawn.txt`. | the respawn ran on `26.4-snapshot-7`; the leave and the join did not run | ATR-NET-003, ATR-NET-005, PLD-RST-004 |
 | A5 | The client recorder, scenario `a5`. Give the player the effect `slowness`, then let it sprint for 20 ticks. Record each `update_attributes`, with its tick. The recording is `crates/mcrs_minecraft_entity/tests/fixtures/vanilla/a5_slowness_sprint.txt`. | the own player ran on `26.4-snapshot-7`; the second client did not run | ATR-NET-002, ATR-NET-003 |
 | A6 | Not yet possible. Repeat A4 with a leave and a join before the death. Repeat A5 with a second client that tracks the first player. In each client, read the values of the local player after each packet. | not run | ATR-NET-003, ATR-NET-004, ATR-NET-005, ATR-CLI-005, U5 |
+| A7 | `tools/mcrs_minecraft_probe` with the scenario `scenarios/attributes_load.json`. Each step summons a `pig` with an `attributes` list that is not well formed, then reads its field `attributes` or a base value. The step `compound_no_id` gives one compound with no `id`, one compound with an `id` that is not a string, and one good compound. Record each reply. The trace is `tools/mcrs_minecraft_probe/traces/attributes_load.json`. Compare each reply with the row of ATR-SAV-002 that names the step. | not run | ATR-SAV-001, ATR-SAV-002 |
 
-A3, A4 and A5 need a vanilla server. `tools/vanilla-server` starts one only when the person that
+A3, A4, A5 and A7 need a vanilla server. `tools/vanilla-server` starts one only when the person that
 runs it accepts the EULA of the game. Run A4 and A5 with this command, with `a5` in place of `a4`
 for A5:
 
 ```sh
 MINECRAFT_EULA=true AUTOPLAY=true MAX_FPS=20 tools/mcrs_minecraft_client_recorder/record.sh a4 \
     crates/mcrs_minecraft_entity/tests/fixtures/vanilla
+```
+
+Run A7 with this command. The person that runs it sets `MINECRAFT_EULA=true` to accept the EULA:
+
+```sh
+MINECRAFT_EULA=true tools/mcrs_minecraft_probe/record.sh attributes_load
 ```
 
 A6 needs these changes of the client recorder. They are more than an input file:

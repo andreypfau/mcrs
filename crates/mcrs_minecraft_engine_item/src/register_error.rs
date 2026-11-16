@@ -1,7 +1,7 @@
 use core::error::Error;
 use core::fmt;
 
-/// Why a custom item component type was not registered.
+/// Why a custom item component type or a slot gate was not registered.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum RegisterError {
     /// A registered type has the same key.
@@ -10,6 +10,8 @@ pub enum RegisterError {
     MaskFull,
     /// The type is not stored in tables.
     UnsupportedStorage,
+    /// The world has 65,535 slot gates.
+    GateTableFull,
 }
 
 impl fmt::Display for RegisterError {
@@ -18,6 +20,7 @@ impl fmt::Display for RegisterError {
             Self::DuplicateKey => "an item component type with this key is registered",
             Self::MaskFull => "the world has the maximum number of item component types",
             Self::UnsupportedStorage => "an item component type must be stored in tables",
+            Self::GateTableFull => "the world has the maximum number of slot gates",
         })
     }
 }

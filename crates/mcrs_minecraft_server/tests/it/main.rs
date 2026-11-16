@@ -62,6 +62,7 @@ mod persistence;
 mod play_state_delivery;
 mod player_file;
 mod probe_bans;
+mod proxy_forwarding;
 mod run_server_loop_exit;
 mod schedule_ambiguity;
 mod session_lifecycle;

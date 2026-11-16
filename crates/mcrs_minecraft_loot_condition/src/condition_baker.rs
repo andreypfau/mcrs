@@ -1,69 +1,117 @@
+use core::mem;
 use std::vec;
 
 use glam::DVec3;
-use mcrs_minecraft_block::block_keys::Block;
 use mcrs_minecraft_block::definition::BlockDefinitions;
+use mcrs_minecraft_item::component::predicate::{BlockPredicate, ItemPredicate};
 use mcrs_minecraft_item::enchantment::Enchantment;
-use mcrs_minecraft_item_key::item_keys::Item;
+use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_loot::condition::LootCondition;
-use mcrs_minecraft_registries::{Registries, Registry};
-use mcrs_minecraft_resource::{Id, Registered, ResourceLocation, ResourceLocationBuf, TagKey};
-
-use crate::condition::{Condition, EnchantmentTest, ItemTest, StateSet, Test};
-use crate::condition_file::{
-    BlockPredicateFile, ConditionFile, ConditionForm, ItemPredicateFile, LevelsFile, OtherFields,
-    PredicateTag, StateValue, Terms, TypedCondition,
+use mcrs_minecraft_predicate::{
+    BakedBlockPredicate, BakedEntityPredicate, BakedItemPredicate, BakedLocationPredicate,
+    EntityPredicate, LocationPredicate, PredicateIssue, SmokeTable,
 };
+use mcrs_minecraft_registries::{Named, Registries, Registry, Resolve};
+use mcrs_minecraft_resource::{Id, Registered, ResourceLocation, ResourceLocationBuf};
+
+use crate::condition::{Condition, Test};
+use crate::condition_file::{ConditionFile, ConditionForm, PredicateTag, Terms, TypedCondition};
 use crate::condition_problem::ConditionProblem;
 use crate::context_param::ContextParam;
-use crate::number_file::{NumberFile, NumberForm, TypedNumber};
-use crate::number_provider::{NumberProvider, Provider};
-use crate::one_or_many::OneOrMany;
-
-/// How deep registered predicates may name each other before the bake takes a cycle.
-const PREDICATE_DEPTH: u8 = 16;
-
-/// How many registered predicates one baker may expand, so that siblings which name each other
-/// cannot multiply the work up to the depth limit.
-const PREDICATE_EXPANSIONS: u32 = 4096;
-
-const LOCATION_PARTS: &[&str] = &[
-    "position",
-    "biomes",
-    "structures",
-    "dimension",
-    "smokey",
-    "light",
-    "fluid",
-    "can_see_sky",
-];
-
-fn unsupported(other: &OtherFields, parts: &[&str]) -> bool {
-    other.keys().any(|key| parts.contains(&key.as_str()))
-}
+use crate::context_params::ContextParams;
+use crate::entity_target::EntityTarget;
+use crate::entry_kind::EntryKind;
+use crate::float_provider_file::FloatProviderFile;
+use crate::int_provider_file::IntProviderFile;
+use crate::named_entries::NamedEntries;
+use crate::named_source::{Dependency, NamedSource};
 
 /// Turns the file form of conditions and providers into their baked form, with the ids and the
-/// registered predicates of one load. Use one baker for each table.
+/// named entries of one load. Use one baker for each table.
 pub struct ConditionBaker<'a> {
-    definitions: &'a BlockDefinitions,
-    registries: &'a Registries,
-    predicates: Option<&'a Registry<ConditionFile>>,
-    problems: Vec<ConditionProblem>,
-    depth: u8,
-    expansions: u32,
+    pub(crate) definitions: &'a BlockDefinitions,
+    pub(crate) registries: &'a Registries,
+    pub(crate) predicates: Option<&'a Registry<ConditionFile>>,
+    pub(crate) int_providers: Option<&'a Registry<IntProviderFile>>,
+    pub(crate) float_providers: Option<&'a Registry<FloatProviderFile>>,
+    pub(crate) items: ItemTable,
+    /// Why the load has no smoke table, which each location predicate borrows.
+    smoke: Option<PredicateIssue>,
+    pub(crate) problems: Vec<ConditionProblem>,
+    /// The parts of the provider that the bake is in, after the place that holds the provider.
+    pub(crate) chain: Vec<String>,
+    pub(crate) longest: usize,
+    pub(crate) scope: ProviderScope,
+    pub(crate) named: NamedSource<'a>,
+}
+
+/// Whether the bake is in the scope of a provider, where an inline provider is a member of the
+/// reference chain (LOOT-CTX-017).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ProviderScope {
+    Outside,
+    Inside,
 }
 
 impl<'a> ConditionBaker<'a> {
-    /// A baker that resolves names against `definitions` and `registries`, with no problem yet.
+    /// A baker that resolves names against `definitions` and `registries`, and each key to its
+    /// entry in `entries`, with no problem yet.
     #[must_use]
-    pub fn new(definitions: &'a BlockDefinitions, registries: &'a Registries) -> Self {
+    pub fn new(
+        definitions: &'a BlockDefinitions,
+        registries: &'a Registries,
+        entries: &'a NamedEntries,
+    ) -> Self {
+        let smoke = entries.smoke.as_ref().err().copied();
+        let named = NamedSource::Baked(entries);
+        Self::with_named(definitions, registries, entries.items, smoke, named)
+    }
+
+    /// A baker for the bake of the named entries, which records each key.
+    pub(crate) fn recording(
+        definitions: &'a BlockDefinitions,
+        registries: &'a Registries,
+        items: ItemTable,
+        smoke: Result<&SmokeTable, &PredicateIssue>,
+    ) -> Self {
+        let smoke = smoke.err().copied();
+        let named = NamedSource::Recording(Vec::new());
+        Self::with_named(definitions, registries, items, smoke, named)
+    }
+
+    fn with_named(
+        definitions: &'a BlockDefinitions,
+        registries: &'a Registries,
+        items: ItemTable,
+        smoke: Option<PredicateIssue>,
+        named: NamedSource<'a>,
+    ) -> Self {
         Self {
             definitions,
             registries,
             predicates: registries.registry::<ConditionFile>(),
+            int_providers: registries.registry::<IntProviderFile>(),
+            float_providers: registries.registry::<FloatProviderFile>(),
+            items,
+            smoke,
             problems: Vec::new(),
-            depth: 0,
-            expansions: 0,
+            chain: Vec::new(),
+            longest: 0,
+            scope: ProviderScope::Outside,
+            named,
+        }
+    }
+
+    /// The most members that the keys and the providers of the bakes since the last call add to
+    /// the reference chain that leads to the part that holds them (LOOT-CTX-017).
+    pub fn take_longest_chain(&mut self) -> usize {
+        mem::take(&mut self.longest)
+    }
+
+    pub(crate) fn take_dependencies(&mut self) -> Vec<Dependency> {
+        match &mut self.named {
+            NamedSource::Recording(dependencies) => mem::take(dependencies),
+            NamedSource::Baked(_) => Vec::new(),
         }
     }
 
@@ -78,12 +126,7 @@ impl<'a> ConditionBaker<'a> {
         Condition(self.test(file))
     }
 
-    /// Bakes `file`; a provider type that the bake does not evaluate gives 0.
-    pub fn number(&mut self, file: &NumberFile) -> NumberProvider {
-        NumberProvider(provider(file))
-    }
-
-    fn test(&mut self, file: &ConditionFile) -> Test {
+    pub(crate) fn test(&mut self, file: &ConditionFile) -> Test {
         let typed = match &file.0 {
             ConditionForm::Key(key) => return self.predicate(key),
             ConditionForm::Inline(typed) => typed,
@@ -94,7 +137,7 @@ impl<'a> ConditionBaker<'a> {
             TypedCondition::AllOf { terms } => self.terms(terms).map_or(Test::Never, Test::AllOf),
             TypedCondition::SurvivesExplosion => Test::SurvivesExplosion,
             TypedCondition::RandomChance { chance } => {
-                Test::RandomChance(NumberProvider(provider(chance)))
+                Test::RandomChance(self.condition_float("chance", chance))
             }
             TypedCondition::TableBonus {
                 enchantment,
@@ -103,65 +146,73 @@ impl<'a> ConditionBaker<'a> {
                 enchantment: self.enchantment(enchantment.as_location()),
                 chances: chances.clone().into_boxed_slice(),
             },
-            TypedCondition::MatchBlock(predicate) => {
-                self.states(predicate).map_or(Test::Never, Test::StateIn)
+            TypedCondition::MatchBlock(predicate) => self.match_block(predicate),
+            TypedCondition::MatchTool { predicate } => {
+                match predicate
+                    .as_ref()
+                    .map(|predicate| self.item_predicate(predicate))
+                {
+                    None => Test::MatchTool(None),
+                    Some(None) => Test::Never,
+                    Some(Some(predicate)) => Test::MatchTool(Some(Box::new(predicate))),
+                }
             }
-            TypedCondition::MatchTool { predicate: None } => Test::MatchTool(ItemTest {
-                items: None,
-                enchantments: Box::new([]),
-            }),
-            TypedCondition::MatchTool {
-                predicate: Some(predicate),
-            } => self
-                .item_test(predicate)
-                .map_or(Test::Never, Test::MatchTool),
             TypedCondition::LocationCheck {
                 offset_x,
                 offset_y,
                 offset_z,
                 predicate,
             } => {
-                let offset = DVec3::new(
-                    f64::from(*offset_x),
-                    f64::from(*offset_y),
-                    f64::from(*offset_z),
-                );
-                let block = match predicate {
-                    // chisle: a location predicate with a part other than `block` never passes;
-                    // the location view methods of those parts lift it.
-                    Some(predicate) if unsupported(&predicate.other, LOCATION_PARTS) => {
-                        return Test::Never;
-                    }
-                    Some(predicate) => predicate.block.as_ref(),
-                    None => None,
-                };
-                match block.map(|block| self.states(block)) {
-                    None => Test::BlockAt {
-                        offset,
-                        states: None,
-                    },
+                let offset =
+                    [offset_x, offset_y, offset_z].map(|offset| f64::from(offset.unwrap_or(0)));
+                match predicate
+                    .as_ref()
+                    .map(|predicate| self.location_predicate(predicate))
+                {
                     Some(None) => Test::Never,
-                    Some(Some(states)) => Test::BlockAt {
-                        offset,
-                        states: Some(states),
+                    predicate => Test::LocationCheck {
+                        offset: DVec3::from_array(offset),
+                        predicate: predicate.flatten().map(Box::new),
                     },
                 }
             }
             TypedCondition::EntityProperties { entity, predicate } => {
-                match (entity_target(entity), predicate) {
-                    (None, _) => Test::Never,
-                    (Some(param), None) => Test::EntityUntested(param),
-                    (Some(ContextParam::ThisEntity), Some(predicate)) if predicate.is_empty() => {
-                        Test::ThisEntityPresent
-                    }
-                    // chisle: an entity predicate with a part, or of a target other than `this`,
-                    // never passes; the entity view methods and those parameters lift it.
-                    (Some(_), Some(_)) => Test::Never,
-                }
+                self.entity_properties(*entity, predicate.as_deref())
             }
-            // chisle: each condition type without a variant here never passes; the rules of
-            // those types lift it.
-            TypedCondition::Other => Test::Never,
+            TypedCondition::RandomChanceWithEnchantedBonus {
+                enchantment,
+                unenchanted_chance,
+                enchanted_chance,
+            } => self.enchanted_bonus(
+                enchantment.as_location(),
+                *unenchanted_chance,
+                enchanted_chance,
+            ),
+            TypedCondition::KilledByPlayer => Test::KilledByPlayer,
+            TypedCondition::EntityScores { entity, scores } => self.entity_scores(*entity, scores),
+            TypedCondition::DamageSourceProperties { predicate } => self
+                .damage_source_properties(predicate.as_deref())
+                .unwrap_or(Test::Never),
+            TypedCondition::WeatherCheck {
+                raining,
+                thundering,
+            } => Test::WeatherCheck {
+                raining: *raining,
+                thundering: *thundering,
+            },
+            TypedCondition::TimeCheck {
+                clock,
+                period,
+                value,
+            } => self.time_check(clock, *period, value),
+            TypedCondition::IntValueCheck { value, test } => self.int_value_check(value, test),
+            TypedCondition::FloatValueCheck { value, test } => self.float_value_check(value, test),
+            TypedCondition::EnchantmentActiveCheck { active } => {
+                Test::EnchantmentActiveCheck { active: *active }
+            }
+            TypedCondition::EnvironmentAttributeCheck(check) => {
+                Test::EnvironmentAttributeCheck(Box::new(check.clone()))
+            }
         }
     }
 
@@ -190,112 +241,116 @@ impl<'a> ConditionBaker<'a> {
         Some(members.into_iter().map(|key| self.predicate(key)).collect())
     }
 
+    /// A reference to the registered predicate `key` (LOOT-CND-001).
     fn predicate(&mut self, key: &ResourceLocationBuf) -> Test {
-        let file = self
-            .predicates
-            .and_then(|predicates| predicates.get(predicates.by_name(key.as_location())?));
-        match file {
-            Some(file)
-                if self.depth < PREDICATE_DEPTH && self.expansions < PREDICATE_EXPANSIONS =>
-            {
-                self.expansions += 1;
-                self.depth += 1;
-                let test = self.test(file);
-                self.depth -= 1;
-                test
-            }
-            _ => {
-                self.problems
-                    .push(ConditionProblem::UnknownPredicate(key.to_string()));
-                Test::Never
-            }
-        }
-    }
-
-    /// The states a block predicate accepts; `None` for a predicate with a part that no rule
-    /// states.
-    fn states(&mut self, predicate: &BlockPredicateFile) -> Option<StateSet> {
-        if unsupported(&predicate.other, &["nbt", "components", "predicates"]) {
-            return None;
-        }
-        let blocks: Vec<Id<Block>> = match &predicate.blocks {
-            Some(names) => self.ids::<Block>(names, ConditionProblem::UnknownBlock),
-            None => (0..self.definitions.blocks().len())
-                .filter_map(|number| Id::checked(u16::try_from(number).ok()?, usize::MAX))
-                .collect(),
-        };
-        let mut states = Vec::new();
-        'blocks: for block in blocks {
-            let Some(entry) = self.definitions.entry(block) else {
-                continue;
-            };
-            let mut wanted = Vec::new();
-            for (property, value) in predicate.state.iter().flatten() {
-                let StateValue::Exact(text) = value else {
-                    return None;
-                };
-                if entry.properties.index_of(property).is_none() {
-                    if predicate.blocks.is_some() {
-                        self.problems.push(ConditionProblem::UnknownProperty {
-                            block: entry.identifier.to_string(),
-                            property: property.clone(),
-                        });
-                    }
-                    continue 'blocks;
-                }
-                wanted.push((property.as_str(), text.as_str()));
-            }
-            states.extend((0..entry.state_count).filter_map(|offset| {
-                let state = entry.state_at(offset)?;
-                wanted
-                    .iter()
-                    .all(|(property, text)| {
-                        entry
-                            .value_of(state, property)
-                            .is_some_and(|value| value.renders_to(text))
-                    })
-                    .then_some(state)
-            }));
-        }
-        states.sort_unstable();
-        Some(StateSet(states.into_boxed_slice()))
-    }
-
-    fn item_test(&mut self, predicate: &ItemPredicateFile) -> Option<ItemTest> {
-        let sub = predicate.predicates.as_ref();
-        if unsupported(&predicate.other, &["count", "components"])
-            || sub.is_some_and(|sub| !sub.other.is_empty())
-        {
-            return None;
-        }
-        let items = predicate.items.as_ref().map(|names| {
-            self.ids::<Item>(names, ConditionProblem::UnknownItem)
-                .into_boxed_slice()
-        });
-        let mut enchantments = Vec::new();
-        for test in sub
-            .and_then(|sub| sub.enchantments.as_ref())
-            .into_iter()
-            .flatten()
-        {
-            let (min, max) = match test.levels {
-                None => (1, u32::MAX),
-                Some(LevelsFile::Exact(level)) => (level, level),
-                Some(LevelsFile::Range { min, max }) => (min.unwrap_or(1), max.unwrap_or(u32::MAX)),
-            };
-            let any_of = test.enchantments.as_ref().map(|names| {
-                self.ids::<Enchantment>(names, ConditionProblem::UnknownEnchantment)
-                    .into_boxed_slice()
-            });
-            enchantments.push(EnchantmentTest { any_of, min, max });
-        }
-        Some(ItemTest {
-            items,
-            enchantments: enchantments.into_boxed_slice(),
+        let registry = self.predicates;
+        self.named(key, registry, EntryKind::Predicate, |index, reads| {
+            Test::Named { index, reads }
         })
+        .unwrap_or(Test::Never)
     }
 
-    fn enchantment(&mut self, name: ResourceLocation<'_>) -> Option<Id<Enchantment>> {
+    fn match_block(&mut self, named: &BlockPredicate<Named>) -> Test {
+        let Some(predicate) = self.resolved::<BlockPredicate>(None, named) else {
+            return Test::Never;
+        };
+        let reads = match predicate.nbt.is_some() || !predicate.matchers.is_empty() {
+            true => ContextParams::of(&[ContextParam::BlockState, ContextParam::BlockEntity]),
+            false => ContextParams::of(&[ContextParam::BlockState]),
+        };
+        let baked = BakedBlockPredicate::bake(&predicate, self.registries, self.definitions);
+        match self.baked(baked) {
+            Some(predicate) => Test::MatchBlock {
+                predicate: Box::new(predicate),
+                reads,
+            },
+            None => Test::Never,
+        }
+    }
+
+    /// Bakes the item predicate `named`; `None`, with a problem, when a name does not resolve.
+    pub fn item_predicate(&mut self, named: &ItemPredicate<Named>) -> Option<BakedItemPredicate> {
+        let predicate = self.resolved::<ItemPredicate>(Some("predicate"), named)?;
+        let baked = BakedItemPredicate::bake(&predicate, self.registries, &self.items);
+        self.baked(baked)
+    }
+
+    fn location_predicate(
+        &mut self,
+        named: &LocationPredicate<Named>,
+    ) -> Option<BakedLocationPredicate> {
+        self.needs_smoke()?;
+        let predicate = self.resolved::<LocationPredicate>(Some("predicate"), named)?;
+        let baked = predicate.bake(self.registries, self.definitions);
+        self.baked(baked)
+    }
+
+    fn entity_properties(
+        &mut self,
+        entity: EntityTarget,
+        predicate: Option<&EntityPredicate<Named>>,
+    ) -> Test {
+        match predicate.map(|predicate| self.entity_predicate(predicate)) {
+            Some(None) => Test::Never,
+            predicate => Test::EntityProperties {
+                target: entity.param(),
+                predicate: predicate.flatten().map(Box::new),
+            },
+        }
+    }
+
+    fn entity_predicate(&mut self, named: &EntityPredicate<Named>) -> Option<BakedEntityPredicate> {
+        self.needs_smoke()?;
+        let predicate = self.resolved::<EntityPredicate>(Some("predicate"), named)?;
+        let baked = predicate.bake(self.registries, self.definitions, &self.items);
+        self.baked(baked)
+    }
+
+    /// `None`, with a problem, when the load has no smoke table.
+    pub(crate) fn needs_smoke(&mut self) -> Option<()> {
+        match self.smoke {
+            None => Some(()),
+            Some(issue) => {
+                self.problems.push(ConditionProblem::Predicate(issue));
+                None
+            }
+        }
+    }
+
+    /// The shared predicate `named` with its names resolved; `None`, with a problem at the path of
+    /// the name below `field`, for a name that does not resolve.
+    pub(crate) fn resolved<T: Resolve>(
+        &mut self,
+        field: Option<&str>,
+        named: &T::Named,
+    ) -> Option<T>
+    where
+        T::Named: Clone,
+    {
+        match T::resolve(named.clone(), self.registries) {
+            Ok(resolved) => Some(resolved),
+            Err(error) => {
+                let path = match (field, error.path()) {
+                    (Some(field), Some(path)) => format!("{field}.{path}"),
+                    (Some(field), None) => field.to_owned(),
+                    (None, path) => path.unwrap_or_default().to_owned(),
+                };
+                self.problems.push(ConditionProblem::Unresolved {
+                    path,
+                    message: error.message().to_owned(),
+                });
+                None
+            }
+        }
+    }
+
+    pub(crate) fn baked<B>(&mut self, baked: Result<B, PredicateIssue>) -> Option<B> {
+        baked
+            .map_err(|issue| self.problems.push(ConditionProblem::Predicate(issue)))
+            .ok()
+    }
+
+    pub(crate) fn enchantment(&mut self, name: ResourceLocation<'_>) -> Option<Id<Enchantment>> {
         let id = self.lookup::<Enchantment>(name);
         if id.is_none() {
             self.problems
@@ -304,107 +359,7 @@ impl<'a> ConditionBaker<'a> {
         id
     }
 
-    fn lookup<R: Registered>(&self, name: ResourceLocation<'_>) -> Option<Id<R>> {
+    pub(crate) fn lookup<R: Registered>(&self, name: ResourceLocation<'_>) -> Option<Id<R>> {
         self.registries.entries::<R>()?.by_name(name)
-    }
-
-    /// The ids that `names` lists, each a name or a `#` tag.
-    fn ids<R: Registered>(
-        &mut self,
-        names: &OneOrMany<String>,
-        unknown: fn(String) -> ConditionProblem,
-    ) -> Vec<Id<R>> {
-        let mut ids = Vec::new();
-        for text in names.as_slice() {
-            let found = match text.strip_prefix('#') {
-                Some(tag) => ResourceLocation::read(tag).ok().and_then(|tag| {
-                    let tags = self.registries.tags::<R>()?;
-                    let id = tags.id(TagKey::new(tag))?;
-                    Some(tags.members(id).collect::<Vec<_>>())
-                }),
-                None => ResourceLocation::read(text)
-                    .ok()
-                    .and_then(|name| self.lookup::<R>(name))
-                    .map(|id| vec![id]),
-            };
-            match found {
-                Some(found) => ids.extend(found),
-                None => self.problems.push(unknown(text.clone())),
-            }
-        }
-        ids
-    }
-}
-
-/// The parameter of an entity target (LOOT-CND-020); `None` for an unknown target.
-fn entity_target(target: &str) -> Option<ContextParam> {
-    match target.trim_start_matches("minecraft:") {
-        "this" => Some(ContextParam::ThisEntity),
-        "attacker" => Some(ContextParam::AttackingEntity),
-        "direct_attacker" => Some(ContextParam::DirectAttackingEntity),
-        "attacking_player" => Some(ContextParam::LastDamagePlayer),
-        "target_entity" => Some(ContextParam::TargetEntity),
-        "interacting_entity" => Some(ContextParam::InteractingEntity),
-        _ => None,
-    }
-}
-
-fn provider(file: &NumberFile) -> Provider {
-    match &file.0 {
-        NumberForm::Constant(value) | NumberForm::Typed(TypedNumber::Constant { value }) => {
-            Provider::Constant(*value)
-        }
-        NumberForm::Typed(TypedNumber::Uniform { min, max }) => {
-            Provider::Uniform(Box::new(provider(min)), Box::new(provider(max)))
-        }
-        NumberForm::Typed(TypedNumber::Binomial { n, p }) => {
-            Provider::Binomial(Box::new(provider(n)), Box::new(provider(p)))
-        }
-        // chisle: another provider type and a key of a registered provider count as 0; no block
-        // table names one, and the bake of the provider registries lifts it.
-        NumberForm::Typed(TypedNumber::Other) | NumberForm::Key(_) => Provider::Constant(0.0),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::collections::BTreeMap;
-
-    use mcrs_minecraft_engine_registries::test_corpus;
-    use mcrs_minecraft_game_registries::registry_load::test_registries;
-    use serde::de::IgnoredAny;
-
-    use super::*;
-
-    fn axis_y(other: &[&str]) -> Option<StateSet> {
-        let blocks = &test_corpus().0.0;
-        let predicate = BlockPredicateFile {
-            blocks: None,
-            state: Some(BTreeMap::from([(
-                "axis".to_owned(),
-                StateValue::Exact("y".to_owned()),
-            )])),
-            other: other
-                .iter()
-                .map(|key| ((*key).to_owned(), IgnoredAny))
-                .collect(),
-        };
-        ConditionBaker::new(blocks, test_registries()).states(&predicate)
-    }
-
-    #[test]
-    fn a_state_test_without_blocks_skips_the_blocks_without_the_property() {
-        let blocks = &test_corpus().0.0;
-        let log = blocks.block("minecraft:oak_log").expect("a vanilla block");
-        let y = log
-            .with_text(log.default_state_id, "axis", "y")
-            .expect("an axis");
-        let x = log
-            .with_text(log.default_state_id, "axis", "x")
-            .expect("an axis");
-        let states = axis_y(&["custom_note"]).expect("a state set");
-        assert!(states.0.contains(&y));
-        assert!(!states.0.contains(&x));
-        assert!(axis_y(&["nbt"]).is_none());
     }
 }

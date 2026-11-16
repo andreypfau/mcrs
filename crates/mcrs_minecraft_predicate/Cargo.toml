@@ -1,6 +1,6 @@
 [package]
 name = "mcrs_minecraft_predicate"
-description = "The keys of the entity predicate and statistic registries, the views of the world that a predicate reads, and the location, block, fluid, light and distance predicates"
+description = "The keys of the entity predicate and statistic registries, the views of the world and of the entities that a predicate reads, and the entity, location, block, fluid, light, distance and item predicates"
 version.workspace = true
 edition.workspace = true
 
@@ -19,7 +19,12 @@ mcrs_minecraft_block_predicate.workspace = true
 mcrs_minecraft_core.workspace = true
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_entity.workspace = true
+mcrs_minecraft_entity_attribute.workspace = true
+mcrs_minecraft_game_mode.workspace = true
 mcrs_minecraft_item.workspace = true
+mcrs_minecraft_item_key.workspace = true
+mcrs_minecraft_item_stack.workspace = true
+mcrs_minecraft_item_table.workspace = true
 mcrs_minecraft_nbt.workspace = true
 mcrs_minecraft_registries.workspace = true
 mcrs_minecraft_resource.workspace = true

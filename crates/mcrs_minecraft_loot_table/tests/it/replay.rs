@@ -12,10 +12,11 @@ use mcrs_minecraft_item_stack::{ItemStack, read_saved};
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 use mcrs_minecraft_loot_condition::{
-    Condition, ConditionBaker, ConditionFile, LootContext, NumberFile, NumberProvider, Tool,
+    Condition, ConditionBaker, ConditionFile, FloatProvider, FloatProviderFile, IntProvider,
+    IntProviderFile, LootContext, LootInputs, NamedEntries, Tool,
 };
 use mcrs_minecraft_loot_table::{LootIssue, LootScratch, LootTableFile, LootTables};
-use mcrs_minecraft_predicate::NoWorld;
+use mcrs_minecraft_predicate::{NoWorld, PredicateScratch};
 use mcrs_minecraft_random::legacy::LegacyRandom;
 use mcrs_minecraft_registries::Registries;
 use mcrs_minecraft_resource::ResourceLocation;
@@ -28,24 +29,18 @@ use crate::fixture::{blocks, state};
 
 const MAGIC: &[u8; 8] = b"MCLOOTR0";
 
-const UNEVALUATED_TYPES: [&str; 6] = [
-    "minecraft:set_damage",
-    "minecraft:enchant_randomly",
-    "minecraft:enchant_with_levels",
-    "minecraft:random_chance_with_enchanted_bonus",
-    "minecraft:weighted_list",
-    "minecraft:add",
-];
+const UNEVALUATED_TYPES: [&str; 1] = ["minecraft:enchant_with_levels"];
 
-const REPLAYED: usize = 60;
+/// The value-form stack has no typed component for the enchantments of a book, so a case whose
+/// stacks have it compares them without their component patch.
+const STORED_ENCHANTMENTS: &str = "minecraft:stored_enchantments";
 
-const PENDING: [(&str, usize); 7] = [
-    ("minecraft:add", 3),
-    ("minecraft:enchant_randomly", 6),
+const REPLAYED: usize = 81;
+
+const REPLAYED_WITHOUT_STORED_ENCHANTMENTS: usize = 3;
+
+const PENDING: [(&str, usize); 2] = [
     ("minecraft:enchant_with_levels", 6),
-    ("minecraft:random_chance_with_enchanted_bonus", 3),
-    ("minecraft:set_damage", 3),
-    ("minecraft:weighted_list", 6),
     ("the container spread", 80),
 ];
 
@@ -310,6 +305,15 @@ fn pending(case: &Case) -> Option<String> {
         .map(|&name| name.to_owned())
 }
 
+fn stores_enchantments(case: &Case) -> bool {
+    match &case.outcome {
+        Outcome::Stacks(stacks) => stacks
+            .iter()
+            .any(|stack| stack.patch.contains(STORED_ENCHANTMENTS)),
+        _ => false,
+    }
+}
+
 #[derive(Default)]
 struct TypeNames {
     text: Option<String>,
@@ -473,17 +477,27 @@ fn without_problems<T>(baker: &mut ConditionBaker, baked: T) -> Result<T, String
     }
 }
 
+static ENTRIES: LazyLock<NamedEntries> =
+    LazyLock::new(|| NamedEntries::bake(blocks(), test_registries(), test_item_table()).0);
+
 fn condition(case: &Case) -> Result<Condition, String> {
     let file: ConditionFile = source_file(case);
-    let mut baker = ConditionBaker::new(blocks(), test_registries());
+    let mut baker = ConditionBaker::new(blocks(), test_registries(), &ENTRIES);
     let condition = baker.condition(&file);
     without_problems(&mut baker, condition)
 }
 
-fn provider(case: &Case) -> Result<NumberProvider, String> {
-    let file: NumberFile = source_file(case);
-    let mut baker = ConditionBaker::new(blocks(), test_registries());
-    let provider = baker.number(&file);
+fn int_provider(case: &Case) -> Result<IntProvider, String> {
+    let file: IntProviderFile = source_file(case);
+    let mut baker = ConditionBaker::new(blocks(), test_registries(), &ENTRIES);
+    let provider = baker.int_provider(&file);
+    without_problems(&mut baker, provider)
+}
+
+fn float_provider(case: &Case) -> Result<FloatProvider, String> {
+    let file: FloatProviderFile = source_file(case);
+    let mut baker = ConditionBaker::new(blocks(), test_registries(), &ENTRIES);
+    let provider = baker.float_provider(&file);
     without_problems(&mut baker, provider)
 }
 
@@ -498,11 +512,17 @@ fn differences(index: usize, case: &Case, replay: &Replay) -> Result<(), String>
     let tool = tool_of(case, replay);
     let context = context(case, &tool);
     let mut random = LegacyRandom::new(case.seed.cast_unsigned());
+    let inputs = LootInputs {
+        named: &ENTRIES,
+        context: &context,
+        world: &NoWorld,
+    };
+    let mut scratch = PredicateScratch::default();
     let differs = match &case.outcome {
         Outcome::Stacks(expected) => {
             let name = format!("replay:case_{index}");
             let issues: Vec<&LootIssue> = (replay.issues.iter())
-                .filter(|issue| issue.table.as_str() == name)
+                .filter(|issue| issue.name.as_str() == name)
                 .collect();
             if !issues.is_empty() {
                 return Err(format!("bake issues {issues:?}"));
@@ -526,35 +546,43 @@ fn differences(index: usize, case: &Case, replay: &Replay) -> Result<(), String>
                     &mut stacks,
                 )
                 .expect("the context of the case");
-            let expected: Vec<Option<ItemStack>> =
-                expected.iter().map(|stack| decode(stack, replay)).collect();
+            let expected: Vec<Option<ItemStack>> = expected
+                .iter()
+                .map(|stack| match stack.patch.contains(STORED_ENCHANTMENTS) {
+                    true => decode(
+                        &SavedStack {
+                            item: stack.item.clone(),
+                            count: stack.count,
+                            patch: "{}".to_owned(),
+                        },
+                        replay,
+                    ),
+                    false => decode(stack, replay),
+                })
+                .collect();
             (stacks != expected).then(|| format!("stacks {stacks:?}, expected {expected:?}"))
         }
         Outcome::Tests(expected) => {
             let condition = condition(case)?;
             let tests: Vec<bool> = expected
                 .iter()
-                .map(|_| condition.test(&context, &NoWorld, &mut random))
+                .map(|_| condition.test(inputs, &mut random, &mut scratch))
                 .collect();
             (&tests != expected).then(|| format!("tests {tests:?}, expected {expected:?}"))
         }
         Outcome::Ints(expected) => {
-            let provider = provider(case)?;
+            let provider = int_provider(case)?;
             let ints: Vec<i32> = expected
                 .iter()
-                .map(|_| provider.read_int(&context, &NoWorld, &mut random))
+                .map(|_| provider.read(inputs, &mut random, &mut scratch))
                 .collect();
             (&ints != expected).then(|| format!("ints {ints:?}, expected {expected:?}"))
         }
         Outcome::Floats(expected) => {
-            let provider = provider(case)?;
+            let provider = float_provider(case)?;
             let floats: Vec<u32> = expected
                 .iter()
-                .map(|_| {
-                    provider
-                        .read_float(&context, &NoWorld, &mut random)
-                        .to_bits()
-                })
+                .map(|_| provider.read(inputs, &mut random, &mut scratch).to_bits())
                 .collect();
             let expected: Vec<u32> = expected.iter().map(|value| value.to_bits()).collect();
             (floats != expected).then(|| format!("float bits {floats:?}, expected {expected:?}"))
@@ -577,6 +605,7 @@ fn differences(index: usize, case: &Case, replay: &Replay) -> Result<(), String>
 fn the_captured_loot_cases_replay_in_exact_mode() {
     let mut pending_by_reason: BTreeMap<String, usize> = BTreeMap::new();
     let mut replayed = 0;
+    let mut without_stored_enchantments = 0;
     let mut differences = Vec::new();
     for (index, case) in CASES.iter().enumerate() {
         if let Some(reason) = pending(case) {
@@ -584,6 +613,7 @@ fn the_captured_loot_cases_replay_in_exact_mode() {
             continue;
         }
         replayed += 1;
+        without_stored_enchantments += usize::from(stores_enchantments(case));
         differences.extend(replay(index, case, &REPLAY));
     }
     let expected: BTreeMap<String, usize> = PENDING
@@ -592,5 +622,9 @@ fn the_captured_loot_cases_replay_in_exact_mode() {
         .collect();
     assert_eq!(pending_by_reason, expected);
     assert_eq!(replayed, REPLAYED);
+    assert_eq!(
+        without_stored_enchantments,
+        REPLAYED_WITHOUT_STORED_ENCHANTMENTS
+    );
     assert_eq!(differences, Vec::<String>::new());
 }

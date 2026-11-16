@@ -1,4 +1,7 @@
-use crate::ConnectionState;
+use crate::menu_view::MenuView;
+use crate::pose::Pose;
+use crate::{Click, ConnectionState, MenuPacket, Observe, PredictedStack};
+use anyhow::Context;
 use mcrs_minecraft_core::VERSION;
 use mcrs_minecraft_network::SwitchMode;
 use mcrs_minecraft_network::join::Configuration;
@@ -24,9 +27,19 @@ use mcrs_minecraft_protocol::packets::login::serverbound::{
 use mcrs_minecraft_protocol::setting::{ChatMode, DisplayedSkinParts, MainArm, ParticleStatus};
 use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, CompressionThreshold, Decode, Packet, VarInt, WritePacket};
-use mcrs_minecraft_protocol_game::clientbound::{ClientboundLogin, ClientboundSystemChatPacket};
-use mcrs_minecraft_protocol_game::serverbound::ServerboundChatCommand;
+use mcrs_minecraft_protocol_game::clientbound::{
+    ClientboundChunkBatchFinished, ClientboundLogin, ClientboundPlayerPosition,
+    ClientboundSystemChatPacket,
+};
+use mcrs_minecraft_protocol_game::player::PlayerAction;
+use mcrs_minecraft_protocol_game::serverbound::{
+    ServerboundChatCommand, ServerboundChunkBatchReceived, ServerboundContainerClick,
+    ServerboundContainerClose, ServerboundPlayerAction, ServerboundPlayerLoaded,
+    ServerboundSetCarriedItem, ServerboundSetCreativeModeSlot, ServerboundUseItemOn,
+};
+use mcrs_minecraft_protocol_game::{Direction, Hand};
 use mcrs_minecraft_text::Text;
+use mcrs_voxel::BlockPos;
 use std::io;
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -35,6 +48,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::time;
 
 const CLOSE_LIMIT: Duration = Duration::from_secs(5);
+const CHUNKS_PER_TICK: f32 = 64.0;
 
 pub(crate) enum Login {
     Joined(Box<PacketIo<TcpStream>>),
@@ -47,6 +61,15 @@ pub(crate) enum Login {
 pub(crate) enum Order {
     Command(String),
     Leave,
+    Click(Click),
+    Close(Option<i32>),
+    SelectSlot(i16),
+    PlayerAction(PlayerAction),
+    CreativeSlot {
+        slot: i16,
+        stack: Option<PredictedStack>,
+    },
+    UseBlock([i32; 3]),
 }
 
 pub(crate) struct Event {
@@ -56,8 +79,11 @@ pub(crate) struct Event {
 
 pub(crate) enum Signal {
     Chat(Text),
+    Menu(MenuPacket),
     Disconnected(Text),
     Closed,
+    /// The client closed the connection after an error of its own.
+    Failed(String),
 }
 
 /// Logs in offline and configures, until the first packet of the game state or a refusal.
@@ -181,39 +207,46 @@ async fn acknowledge_login(
 pub(crate) async fn session(
     mut io: PacketIo<TcpStream>,
     client: String,
+    observe: Observe,
     mut orders: UnboundedReceiver<Order>,
     events: UnboundedSender<Event>,
 ) {
+    if observe.inventory
+        && let Err(error) = io.send_packet(&ServerboundPlayerLoaded).await
+    {
+        let signal = failure(&client, &error);
+        let _ = events.send(Event { client, signal });
+        return;
+    }
+    let mut view = MenuView::default();
+    let mut pose = Pose::default();
     let signal = loop {
         tokio::select! {
             frame = io.recv_frame() => {
                 let Ok((id, body)) = frame else {
                     break Signal::Closed;
                 };
-                match read_game_packet(&mut io, id, &body).await {
-                    Ok(Some(Signal::Chat(text))) => {
-                        let event = Event { client: client.clone(), signal: Signal::Chat(text) };
-                        if events.send(event).is_err() {
+                match read_game_packet(&mut io, observe, &mut view, &mut pose, id, &body).await {
+                    Ok(Some(signal @ (Signal::Chat(_) | Signal::Menu(_)))) => {
+                        if events.send(Event { client: client.clone(), signal }).is_err() {
                             return;
                         }
                     }
                     Ok(Some(signal)) => break signal,
                     Ok(None) => {}
-                    Err(error) => {
-                        eprintln!("{client}: {error:#}");
-                        break Signal::Closed;
-                    }
+                    Err(error) => break failure(&client, &error),
                 }
             }
             order = orders.recv() => {
-                if let Some(Order::Command(line)) = order {
-                    let packet = ServerboundChatCommand { command: Bounded(line.as_str()) };
-                    if io.send_packet(&packet).await.is_err() {
+                let order = match order {
+                    Some(Order::Leave) | None => {
+                        let _ = time::timeout(CLOSE_LIMIT, io.close()).await;
                         break Signal::Closed;
                     }
-                } else {
-                    let _ = time::timeout(CLOSE_LIMIT, io.close()).await;
-                    break Signal::Closed;
+                    Some(order) => order,
+                };
+                if let Err(error) = send_order(&mut io, &mut view, order).await {
+                    break failure(&client, &error);
                 }
             }
         }
@@ -221,8 +254,95 @@ pub(crate) async fn session(
     let _ = events.send(Event { client, signal });
 }
 
+fn failure(client: &str, error: &anyhow::Error) -> Signal {
+    eprintln!("{client}: {error:#}");
+    Signal::Failed(format!("{error:#}"))
+}
+
+async fn send_order(
+    io: &mut PacketIo<TcpStream>,
+    view: &mut MenuView,
+    order: Order,
+) -> anyhow::Result<()> {
+    match order {
+        Order::Command(line) => {
+            io.send_packet(&ServerboundChatCommand {
+                command: Bounded(line.as_str()),
+            })
+            .await
+        }
+        Order::Leave => Ok(()),
+        Order::Click(click) => {
+            let changed_slots = click
+                .changed_slots
+                .iter()
+                .map(|changed| (changed.slot, changed.stack.map(PredictedStack::hashed)))
+                .collect();
+            let container = click.container.unwrap_or(view.container());
+            let state_id = view
+                .state_id(container)
+                .checked_add(click.state_id_offset)
+                .context("the state id offset overflows")?;
+            io.send_packet(&ServerboundContainerClick {
+                container_id: VarInt(container),
+                state_seqno: VarInt(state_id),
+                slot_index: click.slot,
+                button: click.button,
+                container_input: click.mode.into(),
+                changed_slots: Bounded(changed_slots),
+                carried_item: click.carried.map(PredictedStack::hashed),
+            })
+            .await
+        }
+        Order::Close(container) => {
+            let container_id = VarInt(container.unwrap_or(view.container()));
+            view.close();
+            io.send_packet(&ServerboundContainerClose { container_id })
+                .await
+        }
+        Order::SelectSlot(slot) => {
+            // The field is a short on the wire; the cast keeps its bits, so -1 is sent as -1.
+            let slot = slot.cast_unsigned();
+            io.send_packet(&ServerboundSetCarriedItem { slot }).await
+        }
+        Order::PlayerAction(action) => {
+            io.send_packet(&ServerboundPlayerAction {
+                action,
+                pos: BlockPos::new(0, 0, 0),
+                direction: Direction::Down,
+                sequence: VarInt(0),
+            })
+            .await
+        }
+        Order::CreativeSlot { slot, stack } => {
+            io.send_packet(&ServerboundSetCreativeModeSlot {
+                slot,
+                item: PredictedStack::delimited(stack),
+            })
+            .await
+        }
+        Order::UseBlock([x, y, z]) => {
+            io.send_packet(&ServerboundUseItemOn {
+                hand: Hand::Main,
+                block_pos: BlockPos::new(x, y, z),
+                face: Direction::Up,
+                cursor_x: 0.5,
+                cursor_y: 1.0,
+                cursor_z: 0.5,
+                inside_block: false,
+                world_border_hit: false,
+                sequence: VarInt(0),
+            })
+            .await
+        }
+    }
+}
+
 async fn read_game_packet(
     io: &mut PacketIo<TcpStream>,
+    observe: Observe,
+    view: &mut MenuView,
+    pose: &mut Pose,
     id: i32,
     body: &[u8],
 ) -> anyhow::Result<Option<Signal>> {
@@ -239,6 +359,19 @@ async fn read_game_packet(
     } else if id == ClientboundDisconnect::ID {
         let packet: ClientboundDisconnect = decode(body)?;
         return Ok(Some(Signal::Disconnected(packet.reason)));
+    } else if !observe.inventory {
+        return Ok(None);
+    } else if id == ClientboundPlayerPosition::ID {
+        let packet: ClientboundPlayerPosition = decode(body)?;
+        io.send_packet(&pose.accept(&packet)).await?;
+    } else if id == ClientboundChunkBatchFinished::ID {
+        io.send_packet(&ServerboundChunkBatchReceived {
+            desired_chunks_per_tick: CHUNKS_PER_TICK,
+        })
+        .await?;
+    } else if let Some(packet) = MenuPacket::read(id, body)? {
+        view.observe(&packet);
+        return Ok(Some(Signal::Menu(packet)));
     }
     Ok(None)
 }

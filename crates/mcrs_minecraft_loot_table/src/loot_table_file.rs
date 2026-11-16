@@ -1,6 +1,6 @@
 use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 use mcrs_minecraft_loot::slot_source_type_keys::SlotSourceType;
-use mcrs_minecraft_loot_condition::{ConditionFile, NumberFile};
+use mcrs_minecraft_loot_condition::{ConditionFile, FloatProviderFile, IntProviderFile};
 use mcrs_minecraft_resource::ResourceLocationBuf;
 use serde::Deserialize;
 
@@ -28,8 +28,8 @@ mcrs_minecraft_registries::resolve_as_is!(LootTableFile);
 pub struct PoolFile {
     pub condition: Option<ConditionFile>,
     pub modifier: Option<ModifierFile>,
-    pub rolls: NumberFile,
-    pub bonus_rolls: Option<NumberFile>,
+    pub rolls: IntProviderFile,
+    pub bonus_rolls: Option<FloatProviderFile>,
     #[serde(default)]
     pub entries: Vec<EntryFile>,
 }

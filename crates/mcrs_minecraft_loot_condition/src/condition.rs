@@ -1,16 +1,26 @@
 use glam::DVec3;
+use mcrs_minecraft_environment::info;
 use mcrs_minecraft_item::enchantment::Enchantment;
-use mcrs_minecraft_item_key::item_keys::Item;
-use mcrs_minecraft_predicate::LocationView;
+use mcrs_minecraft_predicate::{
+    BakedBlockPredicate, BakedDamageSourcePredicate, BakedEntityPredicate, BakedItemPredicate,
+    BakedLocationPredicate, ItemSubject, PredicateScratch, PredicateTables,
+};
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_resource::Id;
-use mcrs_voxel::{BlockPos, BlockStateId};
 
+use crate::attribute_check::AttributeCheck;
 use crate::context_param::ContextParam;
 use crate::context_params::ContextParams;
-use crate::loot_context::LootContext;
-use crate::number_provider::NumberProvider;
-use crate::tool::Tool;
+use crate::enchanted_bonus::EnchantedBonus;
+use crate::float_provider::FloatProvider;
+use crate::int_provider::{IntProvider, environment_reads, union};
+use crate::loot_inputs::LootInputs;
+use crate::loot_world::LootWorld;
+use crate::objective_test::ObjectiveTest;
+use crate::score_view::ScoreHolder;
+use crate::time_check::TimeCheck;
+use crate::value_check::ValueCheck;
+use crate::weather_view::WeatherView;
 
 /// A baked loot condition. Its test takes the draws of its rule in `loot-conditions.md`.
 #[derive(Debug, Clone, PartialEq)]
@@ -18,38 +28,64 @@ pub struct Condition(pub(crate) Test);
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Test {
-    /// A condition of a type or with a part that the bake does not evaluate.
+    /// A condition with a part that the bake could not resolve.
     Never,
+    /// The entry of the registry `predicate` at the index, with what it reads.
+    Named {
+        index: usize,
+        reads: ContextParams,
+    },
     Inverted(Box<Test>),
     AnyOf(Box<[Test]>),
     AllOf(Box<[Test]>),
     SurvivesExplosion,
-    RandomChance(NumberProvider),
+    RandomChance(FloatProvider),
     TableBonus {
         enchantment: Option<Id<Enchantment>>,
         chances: Box<[f32]>,
     },
-    StateIn(StateSet),
-    BlockAt {
-        offset: DVec3,
-        states: Option<StateSet>,
+    MatchBlock {
+        predicate: Box<BakedBlockPredicate>,
+        reads: ContextParams,
     },
-    MatchTool(ItemTest),
-    /// `entity_properties` of `this` with the predicate `{}`.
-    ThisEntityPresent,
-    /// `entity_properties` without a predicate, of the target that names the parameter.
-    EntityUntested(ContextParam),
+    MatchTool(Option<Box<BakedItemPredicate>>),
+    LocationCheck {
+        offset: DVec3,
+        predicate: Option<Box<BakedLocationPredicate>>,
+    },
+    EntityProperties {
+        target: ContextParam,
+        predicate: Option<Box<BakedEntityPredicate>>,
+    },
+    EnchantedBonus(Box<EnchantedBonus>),
+    KilledByPlayer,
+    EntityScores {
+        target: ContextParam,
+        scores: Box<[ObjectiveTest]>,
+    },
+    DamageSourceProperties(Option<Box<BakedDamageSourcePredicate>>),
+    WeatherCheck {
+        raining: Option<bool>,
+        thundering: Option<bool>,
+    },
+    TimeCheck(Box<TimeCheck>),
+    IntValueCheck(Box<ValueCheck<IntProvider>>),
+    FloatValueCheck(Box<ValueCheck<FloatProvider>>),
+    EnchantmentActiveCheck {
+        active: bool,
+    },
+    EnvironmentAttributeCheck(Box<AttributeCheck>),
 }
 
 impl Condition {
-    /// Tests the condition in `context`, with the draws from `random`.
-    pub fn test<E, W: LocationView, R: Random>(
+    /// Tests the condition with `inputs`, the draws from `random` and the buffers of `scratch`.
+    pub fn test<E: Copy, W: LootWorld<E>, R: Random>(
         &self,
-        context: &LootContext<'_, E>,
-        world: &W,
+        inputs: LootInputs<'_, '_, E, W>,
         random: &mut R,
+        scratch: &mut PredicateScratch,
     ) -> bool {
-        self.0.test(context, world, random)
+        self.0.test(inputs, random, scratch)
     }
 
     /// The parameters that the condition reads, for the check of LOOT-CTX-013.
@@ -60,22 +96,31 @@ impl Condition {
 }
 
 impl Test {
-    fn test<E, W: LocationView, R: Random>(
+    pub(crate) fn test<E: Copy, W: LootWorld<E>, R: Random>(
         &self,
-        context: &LootContext<'_, E>,
-        world: &W,
+        inputs: LootInputs<'_, '_, E, W>,
         random: &mut R,
+        scratch: &mut PredicateScratch,
     ) -> bool {
+        let LootInputs {
+            named,
+            context,
+            world,
+        } = inputs;
         match self {
             Test::Never => false,
-            Test::Inverted(term) => !term.test(context, world, random),
-            Test::AnyOf(terms) => terms.iter().any(|term| term.test(context, world, random)),
-            Test::AllOf(terms) => terms.iter().all(|term| term.test(context, world, random)),
+            Test::Named { index, .. } => named
+                .predicates
+                .get(*index)
+                .is_some_and(|entry| entry.node.test(inputs, random, scratch)),
+            Test::Inverted(term) => !term.test(inputs, random, scratch),
+            Test::AnyOf(terms) => terms.iter().any(|term| term.test(inputs, random, scratch)),
+            Test::AllOf(terms) => terms.iter().all(|term| term.test(inputs, random, scratch)),
             Test::SurvivesExplosion => context
                 .explosion_radius
                 .is_none_or(|radius| random.next_f32() <= 1.0 / radius),
             Test::RandomChance(chance) => {
-                let chance = chance.read_float(context, world, random);
+                let chance = chance.read(inputs, random, scratch);
                 random.next_f32() < chance
             }
             Test::TableBonus {
@@ -92,25 +137,68 @@ impl Test {
                     .get(level.min(last))
                     .is_some_and(|&chance| random.next_f32() < chance)
             }
-            Test::StateIn(states) => context
+            Test::MatchBlock { predicate, .. } => context
                 .block_state
-                .is_some_and(|state| states.contains(state)),
-            Test::BlockAt { offset, states } => context.origin.is_some_and(|origin| {
-                states.as_ref().is_none_or(|states| {
-                    world
-                        .block_state(BlockPos::from(origin + *offset))
-                        .is_some_and(|state| states.contains(state))
+                .is_some_and(|state| predicate.matches_state(Some(state), context.block_entity)),
+            Test::MatchTool(predicate) => context.tool.is_some_and(|tool| {
+                predicate.as_ref().is_none_or(|predicate| {
+                    predicate.matches(ItemSubject::from(tool), &named.items)
                 })
             }),
-            Test::MatchTool(test) => context.tool.is_some_and(|tool| test.matches(&tool)),
-            Test::ThisEntityPresent => context.this_entity.is_some(),
-            Test::EntityUntested(_) => true,
+            Test::LocationCheck { offset, predicate } => context.origin.is_some_and(|origin| {
+                let Some(predicate) = predicate else {
+                    return true;
+                };
+                named
+                    .smoke
+                    .as_ref()
+                    .is_ok_and(|smoke| predicate.matches(world, origin + *offset, smoke, scratch))
+            }),
+            Test::EntityProperties { target, predicate } => {
+                let Some(predicate) = predicate else {
+                    return true;
+                };
+                named.smoke.as_ref().is_ok_and(|smoke| {
+                    let entity = context.entity(*target).copied();
+                    let tables = PredicateTables::new(smoke, &named.items);
+                    predicate.matches(world, context.origin, entity, tables, scratch)
+                })
+            }
+            Test::EnchantedBonus(bonus) => {
+                let chance = bonus.chance(world, context.attacking_entity);
+                random.next_f32() < chance
+            }
+            Test::KilledByPlayer => context.last_damage_player.is_some(),
+            Test::EntityScores { target, scores } => {
+                entity_scores(*target, scores, inputs, random, scratch)
+            }
+            Test::DamageSourceProperties(predicate) => {
+                damage_source_properties(predicate.as_deref(), inputs, scratch)
+            }
+            Test::WeatherCheck {
+                raining,
+                thundering,
+            } => weather_check(*raining, *thundering, world),
+            Test::TimeCheck(check) => check.test(inputs, random, scratch),
+            Test::IntValueCheck(check) => {
+                check
+                    .test
+                    .contains_read(&check.value, inputs, random, scratch)
+            }
+            Test::FloatValueCheck(check) => {
+                check
+                    .test
+                    .contains_read(&check.value, inputs, random, scratch)
+            }
+            Test::EnchantmentActiveCheck { active } => context.enchantment_active == Some(*active),
+            Test::EnvironmentAttributeCheck(check) => check.matches(world, context.origin),
         }
     }
 
-    fn reads(&self) -> ContextParams {
+    pub(crate) fn reads(&self) -> ContextParams {
         match self {
             Test::Never => ContextParams::EMPTY,
+            Test::Named { reads, .. } | Test::MatchBlock { reads, .. } => *reads,
             Test::Inverted(term) => term.reads(),
             Test::AnyOf(terms) | Test::AllOf(terms) => {
                 terms.iter().fold(ContextParams::EMPTY, |reads, term| {
@@ -122,59 +210,92 @@ impl Test {
             Test::TableBonus { .. } | Test::MatchTool(_) => {
                 ContextParams::of(&[ContextParam::Tool])
             }
-            Test::StateIn(_) => ContextParams::of(&[ContextParam::BlockState]),
-            Test::BlockAt { .. } => ContextParams::of(&[ContextParam::Origin]),
-            Test::ThisEntityPresent => {
-                ContextParams::of(&[ContextParam::ThisEntity, ContextParam::Origin])
+            Test::LocationCheck { .. } => ContextParams::of(&[ContextParam::Origin]),
+            Test::EntityProperties { target, .. } => {
+                ContextParams::of(&[*target, ContextParam::Origin])
             }
-            Test::EntityUntested(param) => ContextParams::of(&[*param, ContextParam::Origin]),
+            Test::EnchantedBonus(_) => ContextParams::of(&[ContextParam::AttackingEntity]),
+            Test::KilledByPlayer => ContextParams::of(&[ContextParam::LastDamagePlayer]),
+            Test::EntityScores { target, scores } => union(
+                scores
+                    .iter()
+                    .flat_map(|score| score.range.providers())
+                    .map(IntProvider::reads),
+            )
+            .with(*target),
+            Test::DamageSourceProperties(_) => {
+                ContextParams::of(&[ContextParam::DamageSource, ContextParam::Origin])
+            }
+            Test::WeatherCheck { .. } => ContextParams::EMPTY,
+            Test::TimeCheck(check) => union(check.value.providers().map(IntProvider::reads)),
+            Test::IntValueCheck(check) => {
+                union(check.test.providers().map(IntProvider::reads)).union(check.value.reads())
+            }
+            Test::FloatValueCheck(check) => {
+                union(check.test.providers().map(FloatProvider::reads)).union(check.value.reads())
+            }
+            Test::EnchantmentActiveCheck { .. } => {
+                ContextParams::of(&[ContextParam::EnchantmentActive])
+            }
+            Test::EnvironmentAttributeCheck(check) => {
+                environment_reads(info(check.attribute).positional)
+            }
         }
     }
 }
 
-/// The states a block predicate accepts, sorted.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct StateSet(pub(crate) Box<[BlockStateId]>);
-
-impl StateSet {
-    fn contains(&self, state: BlockStateId) -> bool {
-        self.0.binary_search(&state).is_ok()
-    }
+/// LOOT-CND-012: each score of the entity is in its range, in order, until the first that is not.
+fn entity_scores<E: Copy, W: LootWorld<E>, R: Random>(
+    target: ContextParam,
+    scores: &[ObjectiveTest],
+    inputs: LootInputs<'_, '_, E, W>,
+    random: &mut R,
+    scratch: &mut PredicateScratch,
+) -> bool {
+    let Some(entity) = inputs.context.entity(target) else {
+        return false;
+    };
+    scores.iter().all(|score| {
+        inputs
+            .world
+            .score(ScoreHolder::Entity(entity), &score.objective)
+            .is_some_and(|value| score.range.contains(value, inputs, random, scratch))
+    })
 }
 
-/// The parts of an item predicate that block tables use (LOOT-CND-007).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ItemTest {
-    pub(crate) items: Option<Box<[Id<Item>]>>,
-    pub(crate) enchantments: Box<[EnchantmentTest]>,
+/// LOOT-CND-013.
+fn damage_source_properties<E: Copy, W: LootWorld<E>>(
+    predicate: Option<&BakedDamageSourcePredicate>,
+    inputs: LootInputs<'_, '_, E, W>,
+    scratch: &mut PredicateScratch,
+) -> bool {
+    let LootInputs {
+        named,
+        context,
+        world,
+    } = inputs;
+    let (Some(source), Some(origin)) = (context.damage_source, context.origin) else {
+        return false;
+    };
+    let Some(predicate) = predicate else {
+        return true;
+    };
+    named.smoke.as_ref().is_ok_and(|smoke| {
+        let tables = PredicateTables::new(smoke, &named.items);
+        predicate.matches(world, Some(origin), Some(source), tables, scratch)
+    })
 }
 
-/// One element of the sub-predicate `minecraft:enchantments`: any of `any_of`, or any
-/// enchantment when it is `None`, at a level in `min..=max`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct EnchantmentTest {
-    pub(crate) any_of: Option<Box<[Id<Enchantment>]>>,
-    pub(crate) min: u32,
-    pub(crate) max: u32,
-}
-
-impl ItemTest {
-    fn matches(&self, tool: &Tool<'_>) -> bool {
-        let item_matches = match (&self.items, tool.item()) {
-            (None, _) => true,
-            (Some(_), None) => false,
-            (Some(items), Some(kind)) => items.iter().any(|item| item.number() == kind.0),
-        };
-        item_matches
-            && self.enchantments.iter().all(|test| {
-                tool.enchantments().iter().any(|entry| {
-                    let level = u32::from(entry.level.get());
-                    level >= test.min.max(1)
-                        && level <= test.max
-                        && test.any_of.as_ref().is_none_or(|ids| {
-                            ids.iter().any(|id| id.number() == entry.enchantment.0)
-                        })
-                })
-            })
-    }
+/// LOOT-CND-014; a world without a weather value neither rains nor thunders.
+fn weather_check<W: WeatherView>(
+    raining: Option<bool>,
+    thundering: Option<bool>,
+    world: &W,
+) -> bool {
+    let rain = world.rain_strength().unwrap_or(0.0);
+    let thunder = world.thunder_strength().unwrap_or(0.0);
+    let rains = rain > 0.2;
+    let thunders = thunder * rain > 0.9;
+    raining.is_none_or(|raining| raining == rains)
+        && thundering.is_none_or(|thundering| thundering == thunders)
 }

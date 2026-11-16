@@ -45,7 +45,10 @@ impl Break<'_> {
             .roll(
                 table,
                 &cx,
-                &Around(self.around),
+                &Around {
+                    blocks: self.around,
+                    main_hand: None,
+                },
                 &mut stream(&LOOT.0, table, tick),
                 &mut LootScratch::new(),
                 &mut stacks,
@@ -323,8 +326,8 @@ fn reg_fld_701_the_terms_of_any_of_and_all_of_may_be_a_predicate_tag() {
 
     let (looped, issues): (Vec<_>, Vec<_>) = issues
         .into_iter()
-        .map(|issue| (issue.table.to_string(), issue.problem))
-        .partition(|(table, _)| table == "minecraft:blocks/cobblestone");
+        .map(|issue| (issue.name.to_string(), issue.problem))
+        .partition(|(entry, _)| entry.starts_with("t:loop_"));
     assert!(!looped.is_empty());
     assert_eq!(
         issues,

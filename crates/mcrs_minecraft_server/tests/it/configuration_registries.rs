@@ -182,6 +182,7 @@ pub(crate) fn shipped_packs() -> Vec<ShippedPack> {
     let mut local: Vec<_> = std::fs::read_dir(assets.join("mcrs/datapacks"))
         .unwrap()
         .map(|entry| entry.unwrap().path())
+        .filter(|path| path.is_dir())
         .collect();
     local.sort();
     for root in local {

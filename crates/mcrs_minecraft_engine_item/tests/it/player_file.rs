@@ -204,7 +204,7 @@ fn vanilla_player() -> NbtCompound {
                 ]),
                 compound(vec![
                     ("id", s("minecraft:scale")),
-                    ("base", NbtTag::Double(1.0)),
+                    ("base", NbtTag::Double(2.0)),
                 ]),
             ]),
         ),

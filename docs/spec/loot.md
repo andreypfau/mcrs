@@ -50,11 +50,13 @@ Other documents state the parts that a table contains and the sources that evalu
 - **Candidate**: a leaf result that one roll can select (LOOT-EVL-003).
 - **Generator**: the random number generator that one evaluation takes its draws from
   (LOOT-RND-004).
+- **Dimension random**: as `block-simulation.md`, section 0.1, defines it (SIM-RNG-001).
 - **Draw**: one value that the evaluation takes from the generator. LOOT-RND-006 states the kinds
   and their notation. Each loot document uses this notation.
 - **Keyed stream**: a sequence of random values that is a function of a key. The `i`-th draw of an
   evaluation is the `i`-th value of the stream. LOOT-RND-001 and LOOT-RND-009 state the keys.
 - **Free slot**: a slot of a container that holds the empty stack when the spread starts.
+- **Reference chain**, **length** of a reference chain: as LOOT-CTX-017 defines them.
 
 An integer range `a..b` includes `a` and `b`. `floor` rounds toward negative infinity.
 
@@ -198,12 +200,97 @@ The default type is `generic`, which allows each parameter. Reason: the owner de
 that a load with a validation issue is refused. The vanilla data pack has no table that this rule
 refuses. LOOT-DEV-100 records the difference from the vanilla server.
 
-**LOOT-CTX-014** (`source_suggested`, semantic, confidence medium). A table that refers back to
-itself is a fault of the load, as a fatal problem of REG-ERR-001. The reference can go through
-other tables, through tags of tables, through the key of a table, and through inline tables. For
-example, a table `t:a` with the entry `{"type": "minecraft:loot_table", "value": "t:a"}` fails the
-load. A table can name the same nested table two times in different places, for example in two
-pools. That is not a reference back to itself.
+**LOOT-CTX-014** (`source_suggested`, semantic, confidence medium). A reference chain
+(LOOT-CTX-017) refers back to itself when it enters a table, an item modifier, a predicate or a
+named provider that it already entered. That is a fault of the load, as a fatal problem of REG-ERR-001. The reference
+chain does not enter it again. For example, a table `t:a` with the entry
+`{"type": "minecraft:loot_table", "value": "t:a"}` fails the load. The same applies through a tag
+of tables, an inline table, a key of an item modifier, a key of a predicate and a key of a provider.
+
+A table can name the same nested table two times in different places, for example in two pools.
+That is not a reference back to itself, because each place continues its own reference chain.
+
+**LOOT-CTX-017** (`design`, semantic). A **reference chain** is a sequence of tables, item
+modifiers, predicates, named providers and nested inline providers. A named provider is an entry of
+the registry `context_int_provider` or `context_float_provider`. A nested inline provider is an
+inline provider in a provider place inside another provider, as the statements below define it. An
+evaluation enters each member of the sequence from the member before it. The **length** of a reference chain is the number of its members. These
+statements define the length:
+
+- A reference chain starts at each table, item modifier, predicate and named provider that the load
+  checks (LOOT-CTX-016). The start adds 1.
+- Each table that an evaluation enters adds 1. A table that a key names and an inline table add 1
+  alike. A `loot_table` entry enters its tables, in a pool and also in the `entries` of
+  `set_contents` (LOOT-EVL-010, LOOT-MOD-053 of `loot-functions.md`).
+- Each item modifier that an evaluation enters adds 1. The evaluation enters an item modifier when
+  a key of the registry `item_modifier` is in the place of a modifier (LOOT-MOD-010 of
+  `loot-functions.md`).
+- Each predicate that an evaluation enters adds 1. The evaluation enters a predicate when a key of
+  the registry `predicate` is in the place of a condition (LOOT-CND-001 of `loot-conditions.md`).
+- Each named provider that an evaluation enters adds 1. The evaluation enters a named provider when
+  a key of a provider is in the place of a provider (REG-FLD-722, REG-FLD-723, and section 0.1 of
+  `loot-conditions.md`).
+- A key, a tag and a list add 0 by themselves. An inline modifier and an inline condition add 0.
+- A **provider place** is a field, or an element of a list field, whose rule in `registry-fields.md`
+  names the registry `context_int_provider` or `context_float_provider` as its target. A field that
+  takes a plain number is not a provider place, for example `weight` of `weighted_list`
+  (REG-FLD-732). An inline provider is the value in a provider place that is not a key: an object
+  with `type`, or a bare number.
+- The **scope** of a provider is its value: its fields, the elements of its list fields, and each
+  inline condition in them, at each level of nesting. The scope ends at a key. Thus the scope does
+  not continue into a named predicate, a named provider or any other member that a key names.
+- An inline provider in the scope of another provider adds 1. The other provider can be a named
+  provider or an inline provider. A bare number in such a place adds 1.
+- An inline provider in no scope of a provider adds 0, for example a provider in a field of a table,
+  of an item modifier or of a condition of a pool. This also applies to the outermost inline
+  provider of a named predicate that a provider names by key: the key of the predicate adds 1, and
+  the scope starts again in the predicate.
+- A `loot_table` entry that names several tables starts one reference chain for each table. A tag
+  or a list of item modifiers, of predicates or of named providers does the same.
+- The modifier `set_loot_table` names a table, but no evaluation enters that table. It adds 0.
+
+A reference chain has a length of at most 64. A reference chain that gets the length 65 is a fault
+of the load, as a fatal problem of REG-ERR-001. The place of the fault is the part that gives the
+length 65: the `loot_table` entry that names or holds the table, or the key of the item modifier, of
+the predicate or of the named provider, or the inline provider. The load reports the fault one time for each place where a reference chain from
+some start gets the length 65.
+
+For example, take these parts of a data pack:
+
+- The table `t:a` has one pool. Its `loot_table` entry has the `value` list of the key `t:b` and an
+  inline table `X`.
+- The pool of the table `t:b` has the modifier key `t:m`. The item modifier `t:m` is a
+  `set_contents` with one `loot_table` entry for `t:c`.
+- `X` has one `loot_table` entry with the tag `#t:g`, which holds only `t:c`.
+- The pool of the table `t:c` has the condition key `t:p` of a predicate.
+
+From the start `t:a`, the reference chain `t:a`, `t:b`, `t:m`, `t:c`, `t:p` has the length 5. The
+reference chain `t:a`, `X`, `t:c`, `t:p` has the length 4. The list, the keys and the tag add 0.
+
+In a second example, each table `t:ci` names `t:c(i+1)`. The tables `t:c1` to `t:c64` load. The
+tables `t:c1` to `t:c66` give two faults: at the entry of `t:c64` from the start `t:c1`, and at the
+entry of `t:c65` from the start `t:c2`.
+
+In a third example, the named provider `t:n` is a `number_dispatcher` whose `default` is a
+`weighted_list`. The `data` of one element of its `distribution` is the bare number `2`. A pool of the table `t:d` has
+`rolls` equal to the key `t:n`. From the start `t:d`, the reference chain `t:d`, `t:n`, the
+`weighted_list`, the number `2` has the length 4. The same provider written inline in `rolls` gives
+the length 3: the `number_dispatcher` adds 0, the `weighted_list` adds 1 and the number adds 1.
+
+A reference back to itself (LOOT-CTX-014) needs a key. An inline provider cannot name itself, so it
+cannot make such a cycle by itself. An inline provider can be a member of a cycle only between two
+members that keys name.
+
+Inline conditions and inline item modifiers add 0. An inline condition inside an inline condition,
+for example `inverted` inside `inverted`, is a step of the evaluation that the chain does not count.
+The nesting depth of one file bounds these steps (REG-FLD-010 of `registry-fields.md`).
+
+Reason: an evaluation must not exhaust the stack of its thread, and the check of the load must
+stop. An inline provider is a step of the evaluation like a named provider, so the limit must count
+it. Otherwise a provider with deep inline nesting passes the check and can exhaust the stack. The
+longest reference chain of the vanilla data pack has the length 3, also when inline providers count,
+for example from `equipment/trial_chamber_melee` and from the named provider
+`cooking/time_wool_slabs`. LOOT-DEV-105 records the difference from the vanilla server.
 
 **LOOT-CTX-016** (`design`, semantic). Each loot validation problem that the server finds at the
 load is a fault of the load, as a fatal problem of REG-ERR-001. The load or the reload fails. The
@@ -214,6 +301,7 @@ providers. These are the loot validation problems:
 |---------|------|
 | a part reads a parameter that the type of its table does not allow | LOOT-CTX-013 |
 | a table, a predicate, an item modifier or a provider refers back to itself | LOOT-CTX-014, REG-ERR-001 |
+| a reference chain has a length of more than 64 | LOOT-CTX-017 |
 | a composite entry without children | this rule |
 | a child of an `alternatives` entry, other than the last child, that has no `condition` | this rule |
 | an aggregate provider (LOOT-NUM-011, LOOT-NUM-012) whose `inputs` is empty | this rule |
@@ -349,6 +437,15 @@ side, so it gives four `brick`. The table of `decorated_pot` has `dynamic` only 
 A pot that is not cracked drops itself (LOOT-MOD-006, `loot-functions.md`). No vanilla table uses
 `minecraft:contents`.
 
+A source can give the empty stack for a name, for example for an empty slot of a shulker box. In
+the modifiers of LOOT-EVL-011, that stack is an empty work stack with the item `minecraft:air`
+(LOOT-MOD-011 of `loot-functions.md`). Each modifier tests its condition and takes the draws that
+its rule states for an empty work stack. A modifier can give the empty work stack a count of more
+than 0 and a component patch, for example `set_count` 3 and `set_name`. Its item stays
+`minecraft:air`, so it stays an empty work stack until the division. The division makes it the
+empty stack, with no component patch, and keeps it in the drop list (LOOT-OUT-001). Experiment X18
+tests this paragraph.
+
 **LOOT-EVL-009** (`source_suggested`, semantic, confidence medium). A `tag` entry names a set of
 items in `items`: a tag, one item or a list of items. The order of a tag is the member order of
 REG-TAG-005. The order of a list is the order of the file.
@@ -394,7 +491,7 @@ states what each modifier does and its draws.
 A stack whose count becomes 0 or less keeps its item and its component patch through all these
 modifiers, also through the modifiers around a nested table (LOOT-MOD-011 of `loot-functions.md`).
 A later modifier can make its count more than 0 again. The division (LOOT-OUT-001) is the one point
-where a stack with a count of 0 or less becomes the empty stack.
+where a stack with a count of 0 or less, or with the item `minecraft:air`, becomes the empty stack.
 
 **LOOT-EVL-012** (`source_suggested`, semantic, confidence medium). The evaluation makes one stack at
 a time. Each stack goes through all its modifiers of LOOT-EVL-011 and then through the division
@@ -427,8 +524,9 @@ only at the end.
 **LOOT-OUT-001** (`source_suggested`, semantic, confidence medium). The evaluation of a table that is
 not a nested table divides each stack, after the modifier of the table:
 
-- A stack with a count of 0 or less becomes the empty stack. It stays in the drop list, so the drop
-  list can hold empty stacks. Each source states what it does with them.
+- A stack with a count of 0 or less, or with the item `minecraft:air`, becomes the empty stack. The
+  empty stack has no component patch. It stays in the drop list, so the drop list can hold empty
+  stacks. Each source states what it does with them.
 - Another stack whose item is not enabled by the feature flags of the world is removed.
 - Another stack with a count less than its maximum stack size stays one stack.
 - A larger stack becomes stacks of the maximum stack size, in order, and then the rest when it is
@@ -505,10 +603,10 @@ generator.
 
 | Condition | Generator |
 |-----------|-----------|
-| the source gives a generator, for example the level random for the display item of a vault | that generator |
+| the source gives a generator, for example the dimension random (SIM-RNG-001) for the display item of a vault | that generator |
 | the source gives a seed that is not 0, for example the save field `LootTableSeed` of a container or `DeathLootTableSeed` of a mob | a new 48-bit generator (BMR-PICK-003), set to that seed |
 | the table has a `random_sequence` | the sequence stream of that id (LOOT-RND-005) |
-| otherwise | the level random of the dimension (SIM-RNG-001) |
+| otherwise | the dimension random (SIM-RNG-001) |
 
 The seed 0 means "no seed". A nested table uses the generator of the table that contains it
 (LOOT-EVL-010). The spread over a container continues with the same generator (LOOT-CTR-001). In
@@ -568,7 +666,7 @@ There is no draw `B(n)` for a bound `n` outside `1..2³¹ − 1`. A rule that ca
 states its result for it, and that result takes no draw (LOOT-EVL-003, LOOT-NUM-009 of
 `loot-conditions.md`, LOOT-MOD-004 of `loot-functions.md`).
 
-The 48-bit generator and the level random make each kind as follows:
+The 48-bit generator and the dimension random make each kind as follows:
 
 - `B(n)` is `next_int(n)` of BMR-PICK-003;
 - `F` is `next(24) / 2²⁴`;
@@ -639,6 +737,8 @@ These experiments need the vanilla server and a scripted player:
 | X12 | Place a cracked `decorated_pot` with `setblock`, with decorations on the sides left and front only. Break it with an empty hand. Record the order of `add_entity` and the items. Repeat with no decorations. | the stacks and the order of `minecraft:sherds` | LOOT-EVL-007 |
 | X13 | Place a chest with `{LootTable: "minecraft:chests/simple_dungeon", LootTableSeed: 5L}` twice, in two worlds. Open each chest with a player with the luck 0. Compare the contents with the result of X8 for the same table and seed. | the generator of a saved seed | LOOT-RND-004, LOOT-CTR-001 |
 | X15 | Install a data pack with the table `t:luck`: one pool with `rolls` 0, `bonus_rolls` 1 and one `item` entry. Set the attribute `minecraft:luck` of the player to 2. Open a chest with `t:luck`, kill a mob with `DeathLootTable` `t:luck`, and break a block whose table `t:luck` replaces. Record the count of items from each source. | the luck of each source | LOOT-CTX-015 |
+| X17 | Install a data pack with a chain of tables `t:c1` to `t:cN`. Each `t:ci` has one pool with one `loot_table` entry for `t:c(i+1)`, and `t:cN` has one `item` entry `stick`. Use N = 64, 65, 1000 and 10000. Start the server, then run `loot spawn ~ ~ ~ loot t:c1`. Record the log of the load, the reply of the command and the items. Then install a table `t:n` with one pool whose `rolls` is a chain of N inline `negate` providers around the bare number `1`, for N = 63, 64 and 200. Expected in mcrs: N = 63 loads, because the table, the 62 inner providers and the number give the length 64. N = 64 is a fault of the load. Record the result of the vanilla server for each N. | the result of the vanilla server for a long chain | LOOT-CTX-017, LOOT-DEV-105 |
+| X18 | Install a data pack that replaces `blocks/shulker_box` with one pool and the `random_sequence` `t:x18`. The pool has one `dynamic` entry `minecraft:contents` with two modifiers: `set_count` with a `uniform` count from 1 to 64, then `set_name` `"N"` with the condition `random_chance` 0.5. Run A: put one `stone` in the slots 0 and 26 of a shulker box, and leave the other slots empty. Run `random reset t:x18 1`, then break the box with an empty hand. Run B: put one `stone` in each slot, and do the same steps. Record the item entities of each run in the order in which they spawn. | the modifiers of an empty stack of a `dynamic` entry: when the empty slots take the draws of B, the stack of slot 26 in A equals the stack of slot 26 in B; no item entity comes from an empty slot | LOOT-EVL-007, LOOT-MOD-011 |
 | X16 | Install a table with one `slots` entry. Its slot source is a `group` of a `slot_range` `hotbar.*` of `this`, a `contents` of `minecraft:bundle_contents` over `hotbar.*`, and a `limit_slots` 2 over `hotbar.*`. Put a bundle with two stacks in hotbar slot 0, a stick in slot 2, and nothing in slot 1. Run `loot spawn ~ ~ ~ loot t:slots` as the player. Record the items. | the selection of each slot source; a stack without the component; empty slots | LOOT-EVL-013 |
 
 ## 8. Intentional deviations, open questions and unresolved items
@@ -657,9 +757,9 @@ These experiments need the vanilla server and a scripted player:
 
 - **Rule**: LOOT-RND-009.
 - **Reference**: an evaluation without a seed in the save continues the sequence stream of the
-  `random_sequence` of the table (LOOT-RND-005), or takes the level random. The world saves the
-  sequence streams. The drops thus depend on the order of all earlier evaluations of the same
-  sequence, also in other dimensions.
+  `random_sequence` of the table (LOOT-RND-005), or takes the dimension random
+  (SIM-RNG-001). The world saves the sequence streams. The drops thus depend on the order of all
+  earlier evaluations of the same sequence, also in other dimensions.
 - **Visible to the client**: no, as a distribution. A player cannot repeat a drop of the vanilla
   server from the world seed alone.
 - **Test**: a differential test compares the distribution of the results over many evaluations. A
@@ -696,6 +796,20 @@ These experiments need the vanilla server and a scripted player:
   a `group` is a child of `alternatives` or `sequence`. No vanilla table uses `group`.
 - **Test**: a differential test does not use a `group` with one child in `alternatives` or
   `sequence`.
+
+**LOOT-DEV-105.**
+
+- **Rule**: LOOT-CTX-017.
+- **Reference**: the vanilla server has no limit on the length of a reference chain. A reference
+  chain of 65 tables loads, and its evaluation gives the stacks of the last table. A much longer
+  reference chain exhausts the stack of the thread, at the check of the load or at the evaluation.
+  This applies also to a reference chain through keys of item modifiers, of predicates and of
+  providers. The vanilla server also has no limit for inline providers inside a provider. Only the
+  nesting limit of its JSON reader bounds them.
+  Experiment X17 records the length and the result.
+- **Visible to the client**: no. The author of a data pack sees a load fault for a reference chain
+  with a length of 65 or more. No vanilla reference chain has a length of more than 3.
+- **Test**: a differential test does not use a reference chain with a length of more than 64.
 
 ### 8.2 Open questions
 

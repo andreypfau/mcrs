@@ -38,7 +38,8 @@ Section 10 lists what this document does not state. This document replaces secti
 - **Chain**: an ordered sequence of modifiers that the server applies to one work stack.
 - **Work stack**: the value that a chain changes. It has an item, a count and a component patch.
   Its count can be 0 or less, and it can be larger than the maximum stack size.
-- **Empty work stack**: a work stack with a count of 0 or less (LOOT-MOD-011).
+- **Empty work stack**: a work stack with a count of 0 or less, or with the item `minecraft:air`
+  (LOOT-MOD-011).
 - **`c`**: the count of the work stack before the modifier of the rule. `c` is 0 for an empty work
   stack (LOOT-MOD-011).
 - **Context**, **parameter**, **generator**: as `loot.md`, section 0.1, defines them. A parameter is
@@ -156,6 +157,15 @@ an empty work stack becomes the empty stack (STK-EMP-001). For a content stack o
 that point is the division of LOOT-MOD-053. For each other chain, for example a chain of
 `modify_contents`, that point is the end of the chain. No modifier limits the count to the maximum
 stack size. Experiment E2 tests this rule.
+
+A work stack with the item `minecraft:air` is an empty work stack for each count, and `c` is 0 for
+it. A `dynamic` entry can give such a work stack, for an empty slot of a shulker box (LOOT-EVL-007
+of `loot.md`). Each modifier of its chain still tests its condition and takes the draws that its
+rule states for an empty work stack. A modifier can give it a count of more than 0 and a component
+patch. No modifier gives it another item, so it stays an empty work stack to the end of the chain.
+At the point that the paragraph above names, it becomes the empty stack, with no component patch.
+This paragraph has the confidence medium. Experiment X18 of `loot.md`
+tests it.
 
 **LOOT-MOD-012** (`source_suggested`, semantic, confidence medium). A modifier takes its draws from
 the generator in the order that its rule states. A modifier takes no other draw. Where a rule says
@@ -433,8 +443,20 @@ of the length `k`. Some modifiers give a maximum length.
 | `insert` | `old[0..offset)`, then `new`, then `old[offset..n)` | `offset > n`, or `n + k` is larger than the maximum |
 | `append` | `old`, then `new` | `n + k` is larger than the maximum |
 
-Without `size`, `replace_section` uses `k`. A section that ends after `n` ends at `n`. These
-modifiers use a list operation:
+Without `size`, `replace_section` uses `k`. A section that ends after `n` ends at `n`. When the
+result is `old`, the server writes an error line to its log, and the evaluation continues. The
+modifier still sets the component to the result. Thus a stack without lore gets an empty
+`minecraft:lore` after an `insert` with `offset` 1.
+
+The maximum also bounds the decode (REG-FLD-769). A list `new` that is longer than the maximum
+fails the load. A `size` that is larger than the maximum fails the load. `offset` has no maximum at
+the load. Thus `replace_all` never gives `old`, because `k` is at most the maximum.
+
+These examples use the maximum 256 of `set_lore`. `old` has 255 lines. An `append` of 2 lines gives
+`old`, and an `append` of 1 line gives 256 lines. For `set_writable_book_pages`, `old` has 99 pages.
+An `append` of 2 pages gives `old`, and a `replace_all` of 100 pages gives 100 pages.
+
+These modifiers use a list operation:
 
 | Modifier | List | Maximum |
 |----------|------|---------|
@@ -841,7 +863,8 @@ does not change an empty work stack, and then takes no draw. Otherwise it makes 
    it (LOOT-EVL-011, steps 1 and 2). This occurs before the expansion tests the condition of the
    next child or of the next entry.
 3. Each stack then goes through the division of LOOT-OUT-001 (`loot.md`), and the results go at the
-   end of the list.
+   end of the list. A stack with a count of 0 or less, or with the item `minecraft:air`, becomes the
+   empty stack there.
 
 There is no weight, no selection and no roll: each leaf result makes its stacks. `weight` and
 `quality` have no effect. The draws thus follow the order of the expansion. For example, take a
@@ -1129,7 +1152,7 @@ It records the result stack and the state of the generator after the chain.
 | E10 | `set_attributes` with two elements, one with one slot and one with three slots, and a `uniform` amount. | LOOT-MOD-026 |
 | E11 | `set_random_dyes` with 1 and 3 dyes on a leather tunic with and without a colour, with the count 2, and on a stick. | LOOT-MOD-034, LOOT-MOD-035 |
 | E12 | `set_random_potion` with and without `options`, `set_instrument` with a tag, and `set_stew_effect` on a stew and on a bowl. | LOOT-MOD-033, LOOT-MOD-036, LOOT-MOD-037 |
-| E13 | `set_lore` and `set_writable_book_pages` with each `mode`, with an `offset` above the length and with a result above the maximum. | LOOT-MOD-029, LOOT-MOD-030 |
+| E13 | `set_lore` and `set_writable_book_pages` with each `mode`, with an `offset` above the length and with a result above the maximum. Apply each modifier of the examples of LOOT-MOD-030 to a stack with the given list, and record the length of the list and the log. Load a pack with a `set_lore` of 257 lines and a `set_writable_book_pages` with `size` 101, and record the load fault. | LOOT-MOD-029, LOOT-MOD-030, REG-FLD-769 |
 | E14 | `set_custom_model_data` with `uniform` providers in `floats` and `colors`, and an `insert` whose `offset` is above the length. | LOOT-MOD-041 |
 | E15 | `copy_custom_data` from a storage, with each `op` and with each node form in `source` and in `target`. One case has a target that fails. | LOOT-MOD-044 to LOOT-MOD-051 |
 | E16 | `copy_name` and `copy_components` from a named mob, from a player and from the tool. `fill_player_head` on a player head and on a stick. | LOOT-MOD-006, LOOT-MOD-007, LOOT-MOD-042, LOOT-MOD-043 |

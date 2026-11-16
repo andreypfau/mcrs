@@ -14,7 +14,7 @@ path = "src/main.rs"
 workspace = true
 
 [workspace]
-members = ["crates/*", "examples/inventory_minigame", "examples/inventory_save_viewer", "examples/loot_validate", "examples/status_ping", "tools/mcrs_minecraft_bench_support", "tools/mcrs_minecraft_block_entity_oracle", "tools/mcrs_minecraft_client_recorder", "tools/mcrs_minecraft_client_ticks", "tools/mcrs_minecraft_fixtures", "tools/mcrs_minecraft_hotspots", "tools/mcrs_minecraft_probe", "tools/mcrs_minecraft_server_bench", "tools/mcrs_minecraft_update", "tools/mob-bench", "tools/molang-corpus", "xtask"]
+members = ["crates/*", "examples/inventory_minigame", "examples/inventory_save_viewer", "examples/loot_validate", "examples/player_attributes", "examples/status_ping", "tools/mcrs_minecraft_bench_support", "tools/mcrs_minecraft_block_entity_oracle", "tools/mcrs_minecraft_client_recorder", "tools/mcrs_minecraft_client_ticks", "tools/mcrs_minecraft_fixtures", "tools/mcrs_minecraft_hotspots", "tools/mcrs_minecraft_probe", "tools/mcrs_minecraft_server_bench", "tools/mcrs_minecraft_update", "tools/mob-bench", "tools/molang-corpus", "xtask"]
 
 [workspace.package]
 version = "0.5.8"
@@ -76,6 +76,7 @@ tokio = {  version = "1.48.0", features = ["full"] }
 socket2 = "0.6.5"
 md-5 = "0.11.0-rc.3"
 sha2 = "0.11.0"
+hmac = "0.13.0"
 rand_xoshiro = "0.8.0-rc.0"
 flume = { version = "0.12.0", default-features = false }
 rayon = "1"
@@ -413,6 +414,10 @@ opt-level = 3
 # Edge costs sweep about a hundred thousand cells per region in every oracle
 # case, and the GPU bench builds bricks for every section of a fixture.
 [profile.dev.package."mcrs_minecraft_light_color"]
+opt-level = 3
+
+# Block definitions compile and evaluate a Molang condition per state at load.
+[profile.dev.package."mcrs_molang"]
 opt-level = 3
 
 # Every test runs in its own process under nextest, so each one that needs the

@@ -1,5 +1,7 @@
 use alloc::borrow::ToOwned;
 use alloc::string::String;
+use alloc::vec::Vec;
+use core::net::IpAddr;
 use core::num::NonZeroUsize;
 
 use mcrs_minecraft_game_mode::GameMode;
@@ -36,6 +38,11 @@ pub struct ServerSettings {
     pub enable_status: bool,
     /// `HIDE_ONLINE_PLAYERS`: whether the status hides the names of the players.
     pub hide_online_players: bool,
+    /// `FORWARDING`: whether every login takes the player from a Velocity proxy.
+    pub forwarding: bool,
+    /// `FORWARDING_SECRET`: the secret the proxy shares, taken as set, untrimmed.
+    pub forwarding_secret: String,
+    pub proxy_upstreams: Vec<IpAddr>,
 }
 
 impl Default for ServerSettings {
@@ -52,6 +59,9 @@ impl Default for ServerSettings {
             accept_transfers: false,
             enable_status: true,
             hide_online_players: false,
+            forwarding: false,
+            forwarding_secret: String::new(),
+            proxy_upstreams: Vec::new(),
         }
     }
 }
@@ -94,6 +104,15 @@ impl ServerSettings {
             accept_transfers: reader.flag("ACCEPT_TRANSFERS", defaults.accept_transfers),
             enable_status: reader.flag("ENABLE_STATUS", defaults.enable_status),
             hide_online_players: reader.flag("HIDE_ONLINE_PLAYERS", defaults.hide_online_players),
+            forwarding: reader.flag("FORWARDING", defaults.forwarding),
+            forwarding_secret: lookup("FORWARDING_SECRET").unwrap_or(defaults.forwarding_secret),
+            proxy_upstreams: reader
+                .read(
+                    "PROXY_UPSTREAMS",
+                    "IP addresses separated by commas",
+                    |raw| raw.split(',').map(|ip| ip.trim().parse().ok()).collect(),
+                )
+                .unwrap_or(defaults.proxy_upstreams),
         }
     }
 }
@@ -191,6 +210,9 @@ mod tests {
             ("ACCEPT_TRANSFERS", "Yes"),
             ("ENABLE_STATUS", "of f"),
             ("HIDE_ONLINE_PLAYERS", "1"),
+            ("FORWARDING", "on"),
+            ("FORWARDING_SECRET", " secret "),
+            ("PROXY_UPSTREAMS", " 192.0.2.1, ::1 "),
         ]);
         assert_eq!(
             settings,
@@ -206,6 +228,9 @@ mod tests {
                 accept_transfers: true,
                 enable_status: true,
                 hide_online_players: true,
+                forwarding: true,
+                forwarding_secret: " secret ".to_owned(),
+                proxy_upstreams: vec![[192, 0, 2, 1].into(), core::net::Ipv6Addr::LOCALHOST.into()],
             }
         );
         assert_eq!(rejected, ["ENABLE_STATUS"]);
@@ -219,6 +244,8 @@ mod tests {
             ("WORLD_SEED", "18446744073709551615"),
             ("DEFAULT_GAMEMODE", "hardcore"),
             ("MOB_AI", "2"),
+            ("FORWARDING", "enabled"),
+            ("PROXY_UPSTREAMS", "192.0.2.1,localhost"),
         ]);
         assert_eq!(settings.world_seed, u64::MAX, "an unsigned seed reads");
         assert_eq!(
@@ -232,7 +259,14 @@ mod tests {
         );
         assert_eq!(
             rejected,
-            ["PORT", "COMPUTE_THREADS", "DEFAULT_GAMEMODE", "MOB_AI"]
+            [
+                "PORT",
+                "COMPUTE_THREADS",
+                "DEFAULT_GAMEMODE",
+                "MOB_AI",
+                "FORWARDING",
+                "PROXY_UPSTREAMS"
+            ]
         );
     }
 }

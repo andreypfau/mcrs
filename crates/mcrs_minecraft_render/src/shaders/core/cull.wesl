@@ -8,7 +8,8 @@ import package::shaders::include::fields::{
 };
 import package::shaders::include::frame::{PARAMS_MODEL, PARAMS_QUAD_CULL, camera, params};
 import package::shaders::include::quad::{
-    CORNERS_PER_QUAD, MODEL_WORDS_PER_VERTEX, face_normal, greedy_corner, model_position,
+    CORNERS_PER_QUAD, GREEDY_EDGE_OVERLAP, MODEL_WORDS_PER_VERTEX, corner_uv, expanded_quad_uv,
+    face_normal, greedy_corner, model_position,
 };
 import package::shaders::include::section::{SectionDesc, section_origin};
 import package::shaders::include::visibility::{
@@ -107,7 +108,8 @@ fn group_box(g: Group) -> Box {
         f32(extractBits(g.bounds, BOUNDS_HI_Y_SHIFT, BOUNDS_HI_Y_BITS)),
         f32(extractBits(g.bounds, BOUNDS_HI_Z_SHIFT, BOUNDS_HI_Z_BITS)),
     ) - MODEL_OVERHANG;
-    return Box(origin + lo * scale, origin + hi * scale);
+    let margin = vec3<f32>(GREEDY_EDGE_OVERLAP * scale);
+    return Box(origin + lo * scale - margin, origin + hi * scale + margin);
 }
 
 fn section_shown(slot: u32) -> bool {
@@ -221,13 +223,27 @@ fn view_quad(quad: u32, slot: u32) -> QuadView {
     let scale = f32(desc.scale);
     var corners: array<vec3<f32>, CORNERS_PER_QUAD>;
     if ((params.flags & PARAMS_MODEL) != 0u) {
+        var local: array<vec3<f32>, CORNERS_PER_QUAD>;
         for (var k = 0u; k < CORNERS_PER_QUAD; k++) {
             let base = (quad * CORNERS_PER_QUAD + k) * MODEL_WORDS_PER_VERTEX;
-            corners[k] = origin + model_position(
+            local[k] = model_position(
                 model_words[base + MODEL_X_WORD],
                 model_words[base + MODEL_Y_WORD],
                 model_words[base + MODEL_Z_WORD],
-            ) * scale;
+            );
+        }
+        let u = local[3] - local[0];
+        let v = local[1] - local[0];
+        let is_parallelogram = all(abs(local[0] + u + v - local[2]) < vec3<f32>(1e-4))
+            && dot(u, u) > 1e-8
+            && dot(v, v) > 1e-8;
+        for (var k = 0u; k < CORNERS_PER_QUAD; k++) {
+            if (is_parallelogram) {
+                let quad_uv = expanded_quad_uv(u, v, corner_uv(k), GREEDY_EDGE_OVERLAP);
+                corners[k] = origin + (local[0] + u * quad_uv.x + v * quad_uv.y) * scale;
+            } else {
+                corners[k] = origin + local[k] * scale;
+            }
         }
     } else {
         var words: array<u32, QUAD_WORDS>;
@@ -235,7 +251,7 @@ fn view_quad(quad: u32, slot: u32) -> QuadView {
             words[word] = quad_words[quad * QUAD_WORDS + word];
         }
         for (var k = 0u; k < CORNERS_PER_QUAD; k++) {
-            corners[k] = greedy_corner(words, origin, scale, k).world;
+            corners[k] = greedy_corner(words, origin, scale, k, GREEDY_EDGE_OVERLAP).world;
         }
     }
 

@@ -1,5 +1,6 @@
 use mcrs_minecraft_item::enchantment::Enchantment;
 use mcrs_minecraft_item_stack::{Builtin, EnchantmentLevel, ItemStack, Kind, PatchEntry};
+use mcrs_minecraft_predicate::ItemSubject;
 use mcrs_minecraft_resource::Id;
 
 /// The stack of the parameter `tool`.
@@ -46,5 +47,14 @@ impl<'a> Tool<'a> {
             .iter()
             .find(|entry| entry.enchantment.0 == enchantment.number())
             .map_or(0, |entry| u32::from(entry.level.get()))
+    }
+}
+
+impl<'a> From<Tool<'a>> for ItemSubject<'a> {
+    fn from(tool: Tool<'a>) -> Self {
+        match tool {
+            Tool::Empty => ItemSubject::Empty,
+            Tool::Stack(stack) => ItemSubject::Stack(stack),
+        }
     }
 }

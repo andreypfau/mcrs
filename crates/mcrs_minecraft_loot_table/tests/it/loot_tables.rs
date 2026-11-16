@@ -95,6 +95,13 @@ const TABLES: &[(&str, &str)] = &[
         r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:dynamic", "name": "minecraft:contents"}]}]}"#,
     ),
     (
+        "t:dynamic_filtered",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:dynamic", "name": "minecraft:contents",
+            "modifier": [{"type": "minecraft:set_count", "count": 2},
+                {"type": "minecraft:filtered", "item_filter": {"count": 2},
+                 "on_pass": {"type": "minecraft:set_count", "count": 3}}]}]}]}"#,
+    ),
+    (
         "t:dynamic_unknown",
         r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:dynamic", "name": "t:contents"}]}]}"#,
     ),
@@ -155,6 +162,76 @@ const TABLES: &[(&str, &str)] = &[
         r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:loot_table", "value": "f:missing"}]}]}"#,
     ),
     (
+        "m:limit_min_above_max",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:stick"}]}],
+         "modifier": [{"type": "minecraft:set_count", "count": 1},
+          {"type": "minecraft:limit_count", "limit": {"min": 3, "max": 1}}]}"#,
+    ),
+    (
+        "m:empty_then_add",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:iron_sword"}]}],
+         "modifier": [{"type": "minecraft:set_count", "count": -1},
+          {"type": "minecraft:set_damage", "damage": 0.5},
+          {"type": "minecraft:set_item", "item": "minecraft:stick"},
+          {"type": "minecraft:explosion_decay"},
+          {"type": "minecraft:set_count", "count": 2, "add": true}]}"#,
+    ),
+    (
+        "m:failed_condition",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:stick"}]}],
+         "modifier": {"type": "minecraft:sequence",
+          "condition": {"type": "minecraft:inverted", "term": {"type": "minecraft:survives_explosion"}},
+          "functions": [{"type": "minecraft:set_count", "count": {"type": "minecraft:uniform", "min": 2, "max": 9}}]}}"#,
+    ),
+    (
+        "m:discard",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:stick"}]}],
+         "modifier": [{"type": "minecraft:set_count", "count": 3}, {"type": "minecraft:discard"},
+          {"type": "minecraft:set_count", "count": 2}]}"#,
+    ),
+    (
+        "m:set_item",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:iron_sword"}]}],
+         "modifier": [{"type": "minecraft:set_enchantments", "enchantments": {"minecraft:sharpness": 2}},
+          {"type": "minecraft:set_count", "count": 3},
+          {"type": "minecraft:set_item", "item": "minecraft:stick"}]}"#,
+    ),
+    (
+        "m:damage_add",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:iron_sword"}]}],
+         "modifier": [{"type": "minecraft:set_damage", "damage": 0.5},
+          {"type": "minecraft:set_damage", "damage": 0.25, "add": true}]}"#,
+    ),
+    (
+        "m:enchantments",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:iron_sword"}]}],
+         "modifier": [{"type": "minecraft:set_enchantments",
+           "enchantments": {"minecraft:sharpness": 3, "minecraft:unbreaking": 2}},
+          {"type": "minecraft:set_enchantments", "add": true,
+           "enchantments": {"minecraft:sharpness": 2, "minecraft:unbreaking": -5}}]}"#,
+    ),
+    (
+        "m:no_compatible_enchantment",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:stick"}]}],
+         "modifier": {"type": "minecraft:enchant_randomly", "options": "minecraft:sharpness"}}"#,
+    ),
+    (
+        "m:full_durability",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:iron_sword"}]}],
+         "modifier": [{"type": "minecraft:set_damage", "damage": 0.5},
+          {"type": "minecraft:set_damage", "damage": 1}]}"#,
+    ),
+    (
+        "m:enchantment_level_zero",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:iron_sword"}]}],
+         "modifier": {"type": "minecraft:set_enchantments", "enchantments": {"minecraft:sharpness": 0}}}"#,
+    ),
+    (
+        "f:set_item_air",
+        r#"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "minecraft:stick"}]}],
+         "modifier": {"type": "minecraft:set_item", "item": "minecraft:air"}}"#,
+    ),
+    (
         "f:unknown_tag",
         r##"{"pools": [{"rolls": 1, "entries": [{"type": "minecraft:tag", "items": "#f:missing"}]}]}"##,
     ),
@@ -162,7 +239,7 @@ const TABLES: &[(&str, &str)] = &[
 
 /// The length of the chain `d:chain/0` to `d:chain/{CHAIN - 1}`: each table nests the next, and
 /// the last makes one stick.
-pub const CHAIN: usize = 100;
+pub const CHAIN: usize = 66;
 
 fn chain_table(link: usize) -> String {
     let entry = if link + 1 == CHAIN {
@@ -173,6 +250,113 @@ fn chain_table(link: usize) -> String {
     };
     format!(r#"{{"pools": [{{"rolls": 1, "entries": [{entry}]}}]}}"#)
 }
+
+/// The tables `c:{chain}/0` to `c:{chain}/{tables - 1}`, each of which nests the next, where the
+/// last has `rolls` and makes one stick.
+fn table_chain(chain: &str, tables: usize, rolls: &str) -> Vec<(String, String)> {
+    (0..tables)
+        .map(|link| {
+            let next = link + 1;
+            let (rolls, entry) = match next == tables {
+                true => (
+                    rolls.to_owned(),
+                    r#"{"type": "minecraft:item", "name": "minecraft:stick"}"#.to_owned(),
+                ),
+                false => (
+                    "1".to_owned(),
+                    format!(r#"{{"type": "minecraft:loot_table", "value": "c:{chain}/{next}"}}"#),
+                ),
+            };
+            (
+                format!("data/c/loot_table/{chain}/{link}.json"),
+                format!(r#"{{"pools": [{{"rolls": {rolls}, "entries": [{entry}]}}]}}"#),
+            )
+        })
+        .collect()
+}
+
+/// 32 tables whose last rolls the named provider `c:p{chain}/0`; each of the `providers` named
+/// providers takes the absolute value of the next, and the last gives 1.
+fn provider_chain(chain: &str, providers: usize) -> Vec<(String, String)> {
+    let mut files = table_chain(chain, 32, &format!(r#""c:p{chain}/0""#));
+    for link in 0..providers {
+        let path = format!("data/c/context_int_provider/p{chain}/{link}.json");
+        let next = link + 1;
+        let provider = match next == providers {
+            true => "1".to_owned(),
+            false => format!(r#"{{"type": "minecraft:abs", "input": "c:p{chain}/{next}"}}"#),
+        };
+        files.push((path, provider));
+    }
+    files
+}
+
+struct ChainRow {
+    chain: &'static str,
+    tables: usize,
+    rolls: &'static str,
+    too_long: bool,
+}
+
+const CONSTANT: &str = r#"{"type": "minecraft:constant", "value": 1}"#;
+
+/// Each row is a table chain whose last table rolls `rolls`; the named providers and the
+/// predicate that the rows name are in [`CHAIN_FILES`].
+const CHAIN_ROWS: &[ChainRow] = &[
+    ChainRow {
+        chain: "inline",
+        tables: 64,
+        rolls: CONSTANT,
+        too_long: false,
+    },
+    ChainRow {
+        chain: "keyed",
+        tables: 64,
+        rolls: r#""c:one""#,
+        too_long: true,
+    },
+    ChainRow {
+        chain: "nested_once",
+        tables: 63,
+        rolls: r#"{"type": "minecraft:abs", "input": {"type": "minecraft:constant", "value": 1}}"#,
+        too_long: false,
+    },
+    ChainRow {
+        chain: "nested_twice",
+        tables: 63,
+        rolls: r#"{"type": "minecraft:abs", "input": {"type": "minecraft:abs",
+            "input": {"type": "minecraft:constant", "value": 1}}}"#,
+        too_long: true,
+    },
+    ChainRow {
+        chain: "in_condition",
+        tables: 63,
+        rolls: r#"{"type": "minecraft:conditional", "on_true": 1,
+            "condition": {"type": "minecraft:random_chance",
+                "chance": {"type": "minecraft:abs", "input": 1}}}"#,
+        too_long: true,
+    },
+    ChainRow {
+        chain: "via_predicate",
+        tables: 62,
+        rolls: r#""c:via""#,
+        too_long: true,
+    },
+];
+
+/// `c:via` tests the predicate `c:pred`, whose chance is the named provider `c:half`.
+const CHAIN_FILES: &[(&str, &str)] = &[
+    ("data/c/context_int_provider/one.json", "1"),
+    (
+        "data/c/context_int_provider/via.json",
+        r#"{"type": "minecraft:conditional", "condition": "c:pred", "on_true": 1}"#,
+    ),
+    (
+        "data/c/predicate/pred.json",
+        r#"{"type": "minecraft:random_chance", "chance": "c:half"}"#,
+    ),
+    ("data/c/context_float_provider/half.json", "0.5"),
+];
 
 pub static ADDED: LazyLock<(Registries, LootTables, Vec<LootIssue>)> = LazyLock::new(|| {
     let mut additions = test_additions();
@@ -196,6 +380,20 @@ pub static ADDED: LazyLock<(Registries, LootTables, Vec<LootIssue>)> = LazyLock:
             chain_table(link),
         );
     }
+    for (path, text) in provider_chain("a", 32)
+        .into_iter()
+        .chain(provider_chain("b", 33))
+    {
+        additions.files.insert("t", path, text);
+    }
+    for row in CHAIN_ROWS {
+        for (path, text) in table_chain(row.chain, row.tables, row.rolls) {
+            additions.files.insert("t", path, text);
+        }
+    }
+    for &(path, text) in CHAIN_FILES {
+        additions.files.insert("t", path.to_owned(), text);
+    }
     additions.embedded_packs.push("t".to_owned());
     let (registries, _) = load_registries(&test_packs(), additions).expect("the pack loads");
     let (loot, issues) = LootTables::bake(blocks(), &registries, &test_item_table());
@@ -218,8 +416,8 @@ fn loot_ctx_013_a_part_that_reads_outside_the_table_type_is_an_issue() {
     let issues: Vec<_> = ADDED
         .2
         .iter()
-        .filter(|issue| issue.table.as_str().starts_with("t:"))
-        .map(|issue| (issue.table.as_str(), issue.path.as_str(), &issue.problem))
+        .filter(|issue| issue.name.as_str().starts_with("t:"))
+        .map(|issue| (issue.name.as_str(), issue.path.as_str(), &issue.problem))
         .collect();
     let expected = LootProblem::ParamNotAllowed(ParamNotAllowed {
         param: ContextParam::Tool,
@@ -231,8 +429,34 @@ fn loot_ctx_013_a_part_that_reads_outside_the_table_type_is_an_issue() {
     );
 }
 
+/// LOOT-CTX-017: a table chain continues into named providers, named predicates and the inline
+/// providers in the scope of a provider; the chain of 64 members bakes, and the chain of 65
+/// members is an issue at the place of the provider.
+#[test]
+fn loot_ctx_017_a_table_chain_continues_into_its_providers() {
+    let mut issues: Vec<_> = ADDED
+        .2
+        .iter()
+        .filter(|issue| issue.name.as_str().starts_with("c:"))
+        .map(|issue| (issue.name.to_string(), issue.path.as_str(), &issue.problem))
+        .collect();
+    issues.sort_by(|left, right| left.0.cmp(&right.0));
+    let too_long = CHAIN_ROWS
+        .iter()
+        .filter(|row| row.too_long)
+        .map(|row| format!("c:{}/{}", row.chain, row.tables - 1));
+    let mut expected: Vec<_> = ["c:b/31".to_owned()]
+        .into_iter()
+        .chain(too_long)
+        .map(|table| (table, "pools[0].rolls", &LootProblem::ChainTooLong))
+        .collect();
+    expected.sort_by(|left, right| left.0.cmp(&right.0));
+    assert_eq!(issues, expected);
+}
+
 /// LOOT-CTX-012: a context without a parameter that its key set requires, a context with a
-/// parameter that its key set does not allow, and an id that names no table, roll nothing.
+/// parameter that its key set does not allow, and an id that names no table, roll nothing; a
+/// context with each required parameter rolls.
 #[test]
 fn loot_ctx_012_a_context_without_a_required_parameter_is_refused() {
     let stone = state("minecraft:stone", &[]);
@@ -242,25 +466,38 @@ fn loot_ctx_012_a_context_without_a_required_parameter_is_refused() {
     let mut empty_with_origin =
         LootContext::try_new(ContextKeySet::Empty).expect("a source key set");
     empty_with_origin.origin = context(stone, None).origin;
+    let mut attacked_block = context(stone, None);
+    attacked_block.attacking_entity = Some(());
+    let sword = tool("minecraft:iron_sword", &[]);
+    let mut enchanted_item =
+        LootContext::try_new(ContextKeySet::EnchantedItem).expect("a source key set");
+    enchanted_item.tool = context(stone, Some(&sword)).tool;
+    enchanted_item.enchantment_level = Some(1);
     let unknown = Id::checked(u16::MAX, usize::from(u16::MAX) + 1).expect("an id");
-    let mut stacks = Vec::new();
-    for (table, context, error) in [
+    for (table, context, expected) in [
         (
             table,
             without_tool,
-            RollError::MissingParam(ContextParam::Tool),
+            Err(RollError::MissingParam(ContextParam::Tool)),
         ),
         (
             table,
             empty_with_origin,
-            RollError::UnexpectedParam(ContextParam::Origin),
+            Err(RollError::UnexpectedParam(ContextParam::Origin)),
         ),
+        (
+            table,
+            attacked_block,
+            Err(RollError::UnexpectedParam(ContextParam::AttackingEntity)),
+        ),
+        (table, enchanted_item, Ok(())),
         (
             unknown,
             context(stone, None),
-            RollError::UnknownTable(unknown),
+            Err(RollError::UnknownTable(unknown)),
         ),
     ] {
+        let mut stacks = Vec::new();
         let rolled = LOOT.0.roll(
             table,
             &context,
@@ -269,9 +506,11 @@ fn loot_ctx_012_a_context_without_a_required_parameter_is_refused() {
             &mut LootScratch::new(),
             &mut stacks,
         );
-        assert_eq!(rolled, Err(error));
+        assert_eq!(rolled, expected);
+        if expected.is_err() {
+            assert_eq!(stacks, []);
+        }
     }
-    assert_eq!(stacks, []);
 }
 
 fn roll_added(name: &str) -> Vec<(String, u8)> {
@@ -381,34 +620,43 @@ fn loot_rnd_001_a_table_added_before_keeps_the_keyed_stream() {
 }
 
 /// A roll of a block table whose stacks have no patch allocates nothing once the buffers have
-/// grown.
+/// grown, also when a `filtered` tests a stack of the context with a changed count.
 #[test]
 fn a_roll_of_a_block_table_allocates_nothing_after_warm_up() {
     let fortune = tool("minecraft:diamond_pickaxe", &[("minecraft:fortune", 3)]);
+    let stone = state("minecraft:stone", &[]);
+    let contents = [Some(tool("minecraft:stick", &[]))];
     let cases = [
-        state("minecraft:stone", &[]),
-        state("minecraft:coal_ore", &[]),
-        state("minecraft:wheat", &[("age", "7")]),
+        (&LOOT.0, block_table(&LOOT.0, stone)),
+        (
+            &LOOT.0,
+            block_table(&LOOT.0, state("minecraft:coal_ore", &[])),
+        ),
+        (
+            &LOOT.0,
+            block_table(&LOOT.0, state("minecraft:wheat", &[("age", "7")])),
+        ),
+        (&ADDED.1, added_table("t:dynamic_filtered")),
     ];
     let mut scratch = LootScratch::new();
     let mut stacks = Vec::new();
-    let roll = |state, stacks: &mut Vec<_>, scratch: &mut LootScratch, tick| {
-        let table = block_table(&LOOT.0, state);
-        let mut random = stream(&LOOT.0, table, tick);
-        let context: LootContext<'_, ()> = context(state, Some(&fortune));
+    let roll = |(loot, table): (&LootTables, _), stacks: &mut Vec<_>, scratch: &mut _, tick| {
+        let mut random = stream(loot, table, tick);
+        let mut context: LootContext<'_, ()> = context(stone, Some(&fortune));
+        context.contents = &contents;
         let before = allocations();
-        LOOT.0
-            .roll(table, &context, &NoWorld, &mut random, scratch, stacks)
+        loot.roll(table, &context, &NoWorld, &mut random, scratch, stacks)
             .expect("a block context");
         allocations() - before
     };
-    for state in cases {
-        roll(state, &mut stacks, &mut scratch, 0);
+    for case in cases {
+        roll(case, &mut stacks, &mut scratch, 0);
     }
     stacks.clear();
-    let allocated: usize = cases
+    let allocated: Vec<usize> = cases
         .into_iter()
-        .map(|state| roll(state, &mut stacks, &mut scratch, 1))
-        .sum();
-    assert_eq!((allocated, stacks.len() >= cases.len()), (0, true));
+        .map(|case| roll(case, &mut stacks, &mut scratch, 1))
+        .collect();
+    assert_eq!(allocated, [0; 4]);
+    assert_eq!(names(stacks.pop()), [("minecraft:stick".to_owned(), 3)]);
 }

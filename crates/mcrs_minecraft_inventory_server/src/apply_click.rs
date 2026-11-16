@@ -1,17 +1,22 @@
-use bevy_ecs::system::Commands;
+use bevy_ecs::change_detection::DetectChangesMut;
+use bevy_ecs::entity::Entity;
+use bevy_ecs::query::With;
 use bevy_ecs::system::InRef;
 use bevy_ecs::system::Local;
 use bevy_ecs::system::Query;
-use bevy_ecs::system::ResMut;
+use bevy_ecs::system::RegisteredSystemError;
+use bevy_ecs::world::World;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
 use mcrs_minecraft_engine_item::Request;
 use mcrs_minecraft_engine_item::Selected;
+use mcrs_minecraft_engine_item::SlotPolicy;
 use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_engine_item::Stacks;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_inventory_click::ClickError;
 use mcrs_minecraft_inventory_click::ClickPlayer;
+use mcrs_minecraft_inventory_click::Drag;
 use mcrs_minecraft_inventory_click::Operations;
 use mcrs_minecraft_inventory_client_view::ClickSync;
 use mcrs_minecraft_inventory_menu::InventoryMenu;
@@ -29,91 +34,154 @@ use crate::menu_queue::MenuQueue;
 use mcrs_minecraft_vanilla_inventory::CLICK_REQUEST;
 use mcrs_minecraft_vanilla_inventory::PlayerHolders;
 
+/// What a click in the inventory menu gives: the drag state after it, its request, and what the
+/// client view gets.
+pub(crate) struct ClickPlan {
+    drag: Drag,
+    request: Option<Request>,
+    view: ViewChange,
+}
+
+enum ViewChange {
+    /// A spectator changes nothing; the client gets the full content again.
+    FullContent,
+    /// The click names no entry of the menu.
+    Unchanged,
+    /// The state id of the click decides between the claims and the full content.
+    Claims,
+}
+
 /// Makes the request of a click in the inventory menu and records what the client claims to hold
 /// after it (ITX-JAV-001, ITX-JAV-002, ITX-JAV-004).
 pub(crate) fn apply_click(
+    world: &mut World,
+    input: &InventoryInput,
+) -> Result<(), RegisteredSystemError<InRef<'static, InventoryInput>, Option<ClickPlan>>> {
+    let Some(plan) = world.run_system_cached_with(plan_click, input)? else {
+        return Ok(());
+    };
+    let &InventoryInput::Click {
+        player,
+        state_id,
+        ref changed,
+        ref carried,
+        ..
+    } = input
+    else {
+        return Ok(());
+    };
+    set_drag(world, player, plan.drag);
+    if let Some(request) = plan.request {
+        world.commands().entity(player).request(request);
+    }
+    match plan.view {
+        ViewChange::FullContent => {
+            queue_full_content(world, player);
+            return Ok(());
+        }
+        ViewChange::Unchanged => return Ok(()),
+        ViewChange::Claims => {}
+    }
+    let Some(mut sync) = world.get_mut::<MenuSync>(player) else {
+        return Ok(());
+    };
+    if let ClickSync::FullContent = sync.state_id.sync_after_click(state_id) {
+        queue_full_content(world, player);
+        return Ok(());
+    }
+    for claim in changed {
+        if let Some(view) = sync.view.entry_mut(usize::from(claim.index)) {
+            view.clone_from(&claim.view);
+        }
+    }
+    sync.view.cursor_mut().clone_from(carried);
+    Ok(())
+}
+
+/// Plans the click with the world lent to the gates of the slot policies: every parameter beside
+/// `&World` reads only.
+fn plan_click(
     InRef(input): InRef<InventoryInput>,
-    mut queue: ResMut<MenuQueue>,
-    mut players: Query<(
-        &Slots,
-        &PlayerHolders,
-        &Selected,
-        Option<&PlayerGameMode>,
-        &mut MenuSync,
-        &mut ClickDrag,
-    )>,
-    holders: Query<&Slots>,
+    world: &World,
+    players: Query<
+        (
+            &PlayerHolders,
+            &Selected,
+            Option<&PlayerGameMode>,
+            &ClickDrag,
+        ),
+        (With<Slots>, With<MenuSync>),
+    >,
+    holders: Query<(&Slots, Option<&SlotPolicy>)>,
     mut stacks: Stacks,
-    mut commands: Commands,
     mut ops: Local<Operations<MenuSlot, StackHandle>>,
-) {
+) -> Option<ClickPlan> {
     let &InventoryInput::Click {
         player,
         container_id,
-        state_id,
         click,
-        ref changed,
-        ref carried,
+        ..
     } = input
     else {
-        return;
+        return None;
     };
     if container_id != i32::from(InventoryMenu::CONTAINER_ID) {
-        return;
+        return None;
     }
-    let Ok((inventory, player_holders, selected, game_mode, mut sync, mut drag)) =
-        players.get_mut(player)
-    else {
-        return;
-    };
+    let (player_holders, selected, game_mode, drag) = players.get(player).ok()?;
     let game_mode = game_mode.map_or(GameMode::Survival, |game_mode| game_mode.0);
     let mode = match game_mode {
         GameMode::Spectator => {
-            queue.content.push(player);
-            return;
+            return Some(ClickPlan {
+                drag: drag.0,
+                request: None,
+                view: ViewChange::FullContent,
+            });
         }
         GameMode::Creative => PlayerMode::Creative,
         GameMode::Survival | GameMode::Adventure => PlayerMode::NotCreative,
     };
-    let slots = ClickSlots::read(
-        player,
-        inventory,
-        *player_holders,
-        &holders,
-        mode,
-        &mut stacks,
-    );
+    let slots = ClickSlots::read(world, player, *player_holders, &holders, &mut stacks);
     let clicker = ClickPlayer {
         mode,
         selected: selected.0,
     };
+    let mut drag = drag.0;
     let planned = mcrs_minecraft_inventory_click::request(
         click,
         clicker,
         &ClickMenu(&slots),
         &slots,
-        &mut drag.0,
+        &mut drag,
         &mut ops,
     );
-    match planned {
-        Err(ClickError::NoSuchEntry) => return,
-        Err(ClickError::NoSuchSlot | ClickError::TooManyOps) => {}
-        Ok(()) => {
-            if let Some(request) = engine_request(&slots, &ops) {
-                commands.entity(player).request(request);
-            }
+    let request = match planned {
+        Err(ClickError::NoSuchEntry) => {
+            return Some(ClickPlan {
+                drag,
+                request: None,
+                view: ViewChange::Unchanged,
+            });
         }
+        Err(ClickError::NoSuchSlot | ClickError::TooManyOps) => None,
+        Ok(()) => engine_request(&slots, &ops),
+    };
+    Some(ClickPlan {
+        drag,
+        request,
+        view: ViewChange::Claims,
+    })
+}
+
+fn set_drag(world: &mut World, player: Entity, drag: Drag) {
+    if let Some(mut current) = world.get_mut::<ClickDrag>(player) {
+        current.set_if_neq(ClickDrag(drag));
     }
-    match sync.state_id.sync_after_click(state_id) {
-        ClickSync::FullContent => queue.content.push(player),
-        ClickSync::CompareEntries => {
-            for claim in changed {
-                if let Some(view) = sync.view.entry_mut(usize::from(claim.index)) {
-                    view.clone_from(&claim.view);
-                }
-            }
-            sync.view.cursor_mut().clone_from(carried);
-        }
+}
+
+fn queue_full_content(world: &mut World, player: Entity) {
+    if let Some(mut queue) = world.get_resource_mut::<MenuQueue>() {
+        queue.content.push(player);
     }
 }
 

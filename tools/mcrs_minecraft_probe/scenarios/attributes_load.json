@@ -1,0 +1,64 @@
+{
+  "target": {
+    "operators": ["atoperator"],
+    "banned_players": []
+  },
+  "steps": [
+    { "id": "operator_joins", "join": "atoperator" },
+
+    { "id": "unknown_keys", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atl\",\"atl_01\"],UUID:[I;0,0,1,1],NoAI:1b,attributes:[{id:\"minecraft:scale\",base:2.0d,extra:1b,modifiers:[{id:\"test:g\",amount:1.0d,operation:\"add_value\",extra:1b}]}]}" } },
+    { "id": "unknown_keys_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atl_01,limit=1] attributes" } },
+
+    { "id": "base_absent", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atl\",\"atl_02\"],UUID:[I;0,0,1,2],NoAI:1b,attributes:[{id:\"minecraft:scale\",modifiers:[{id:\"test:g\",amount:1.0d,operation:\"add_value\"}]}]}" } },
+    { "id": "base_absent_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atl_02,limit=1] attributes" } },
+
+    { "id": "base_int", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atl\",\"atl_03\"],UUID:[I;0,0,1,3],NoAI:1b,attributes:[{id:\"minecraft:scale\",base:3,modifiers:[{id:\"test:g\",amount:1b,operation:\"add_value\"}]}]}" } },
+    { "id": "base_int_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atl_03,limit=1] attributes" } },
+
+    { "id": "modifiers_not_list", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atl\",\"atl_04\"],UUID:[I;0,0,1,4],NoAI:1b,attributes:[{id:\"minecraft:scale\",base:2.0d,modifiers:\"x\"}]}" } },
+    { "id": "modifiers_not_list_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atl_04,limit=1] attributes" } },
+
+    { "id": "modifier_not_compound", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atl\",\"atl_05\"],UUID:[I;0,0,1,5],NoAI:1b,attributes:[{id:\"minecraft:scale\",base:2.0d,modifiers:[\"x\",{id:\"test:g\",amount:1.0d,operation:\"add_value\"}]}]}" } },
+    { "id": "modifier_not_compound_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atl_05,limit=1] attributes" } },
+
+    { "id": "modifier_no_id", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atl\",\"atl_06\"],UUID:[I;0,0,1,6],NoAI:1b,attributes:[{id:\"minecraft:scale\",base:2.0d,modifiers:[{amount:1.0d,operation:\"add_value\"},{id:\"test:g\",amount:1.0d,operation:\"add_value\"}]}]}" } },
+    { "id": "modifier_no_id_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atl_06,limit=1] attributes" } },
+
+    { "id": "modifier_no_amount", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atl\",\"atl_07\"],UUID:[I;0,0,1,7],NoAI:1b,attributes:[{id:\"minecraft:scale\",base:2.0d,modifiers:[{id:\"test:b\",operation:\"add_value\"},{id:\"test:g\",amount:1.0d,operation:\"add_value\"}]}]}" } },
+    { "id": "modifier_no_amount_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atl_07,limit=1] attributes" } },
+
+    { "id": "modifier_no_operation", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atl\",\"atl_08\"],UUID:[I;0,0,1,8],NoAI:1b,attributes:[{id:\"minecraft:scale\",base:2.0d,modifiers:[{id:\"test:b\",amount:1.0d},{id:\"test:g\",amount:1.0d,operation:\"add_value\"}]}]}" } },
+    { "id": "modifier_no_operation_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atl_08,limit=1] attributes" } },
+
+    { "id": "modifier_bad_id", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atl\",\"atl_09\"],UUID:[I;0,0,1,9],NoAI:1b,attributes:[{id:\"minecraft:scale\",base:2.0d,modifiers:[{id:\"Bad Id\",amount:1.0d,operation:\"add_value\"},{id:\"test:g\",amount:1.0d,operation:\"add_value\"}]}]}" } },
+    { "id": "modifier_bad_id_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atl_09,limit=1] attributes" } },
+
+    { "id": "modifier_bad_amount", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atl\",\"atl_10\"],UUID:[I;0,0,1,10],NoAI:1b,attributes:[{id:\"minecraft:scale\",base:2.0d,modifiers:[{id:\"test:b\",amount:\"x\",operation:\"add_value\"},{id:\"test:g\",amount:1.0d,operation:\"add_value\"}]}]}" } },
+    { "id": "modifier_bad_amount_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atl_10,limit=1] attributes" } },
+
+    { "id": "modifier_operation_number", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atl\",\"atl_11\"],UUID:[I;0,0,1,11],NoAI:1b,attributes:[{id:\"minecraft:scale\",base:2.0d,modifiers:[{id:\"test:b\",amount:1.0d,operation:0},{id:\"test:g\",amount:1.0d,operation:\"add_value\"}]}]}" } },
+    { "id": "modifier_operation_number_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atl_11,limit=1] attributes" } },
+
+    { "id": "two_compounds_one_id", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atl\",\"atl_12\"],UUID:[I;0,0,1,12],NoAI:1b,attributes:[{id:\"minecraft:scale\",base:2.0d,modifiers:[{id:\"test:a\",amount:1.0d,operation:\"add_value\"},{id:\"test:c\",amount:1.0d,operation:\"add_value\"}]},{id:\"minecraft:scale\",base:3.0d,modifiers:[{id:\"test:b\",amount:1.0d,operation:\"add_value\"},{id:\"test:c\",amount:2.0d,operation:\"add_value\"}]}]}" } },
+    { "id": "two_compounds_one_id_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atl_12,limit=1] attributes" } },
+
+    { "id": "attributes_not_list", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atl\",\"atl_13\"],UUID:[I;0,0,1,13],NoAI:1b,attributes:\"x\"}" } },
+    { "id": "attributes_not_list_scale", "command": { "client": "atoperator", "line": "attribute @e[tag=atl_13,limit=1] minecraft:scale base get" } },
+
+    { "id": "element_not_compound", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atl\",\"atl_14\"],UUID:[I;0,0,1,14],NoAI:1b,attributes:[\"x\",{id:\"minecraft:scale\",base:2.0d}]}" } },
+    { "id": "element_not_compound_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atl_14,limit=1] attributes" } },
+
+    { "id": "id_no_namespace", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atl\",\"atl_15\"],UUID:[I;0,0,1,15],NoAI:1b,attributes:[{id:\"scale\",base:2.0d}]}" } },
+    { "id": "id_no_namespace_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atl_15,limit=1] attributes" } },
+
+    { "id": "base_negative_zero", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atl\",\"atl_16\"],UUID:[I;0,0,1,16],NoAI:1b,attributes:[{id:\"minecraft:armor\",base:-0.0d}]}" } },
+    { "id": "base_negative_zero_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atl_16,limit=1] attributes" } },
+
+    { "id": "compound_no_id", "command": { "client": "atoperator", "line": "summon minecraft:pig ~ ~ ~ {Tags:[\"atl\",\"atl_17\"],UUID:[I;0,0,1,17],NoAI:1b,attributes:[{base:2.0d},{id:1b,base:3.0d},{id:\"minecraft:scale\",base:2.0d}]}" } },
+    { "id": "compound_no_id_saved", "command": { "client": "atoperator", "line": "data get entity @e[tag=atl_17,limit=1] attributes" } },
+
+    { "id": "pigs_removed", "command": { "client": "atoperator", "line": "kill @e[type=minecraft:pig,tag=atl]" } },
+
+    { "id": "operator_leaves", "leave": "atoperator" }
+  ]
+}

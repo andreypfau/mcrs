@@ -15,8 +15,8 @@ use mcrs_minecraft_engine::banlist::{BANLIST_FILE, BanList};
 use mcrs_minecraft_engine::coordinator::ops::{OPS_FILE, OpList};
 use mcrs_minecraft_engine::whitelist::{WHITELIST_FILE, Whitelist};
 use mcrs_minecraft_engine_server::{
-    DimensionWorldsPlugin, LoopbackOps, NetworkCompressionThreshold, ServerCorePlugin,
-    ServerNetworkPlugin, ShutdownRequest,
+    DimensionWorldsPlugin, EmptyForwardingSecret, ForwardingSecret, LoopbackOps,
+    NetworkCompressionThreshold, ServerCorePlugin, ServerNetworkPlugin, ShutdownRequest,
 };
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_lang::{EN_US, Language};
@@ -68,10 +68,34 @@ fn serve() -> AppExit {
             return AppExit::error();
         }
     };
+    let mut unreadable_proxy_setting = None;
     let settings = ServerSettings::read(
         |name| std::env::var(format!("MCRS_{name}")).ok(),
-        |error| bevy_log::warn!("{error}"),
+        |error| {
+            if matches!(error.name, "FORWARDING" | "PROXY_UPSTREAMS") {
+                unreadable_proxy_setting.get_or_insert(error);
+            } else {
+                bevy_log::warn!("{error}");
+            }
+        },
     );
+    // A default here changes who the server takes a player's address from, so it must not start.
+    if let Some(error) = unreadable_proxy_setting {
+        bevy_log::error!(
+            "MCRS_{}={:?} is not {}; the server does not start",
+            error.name,
+            error.value,
+            error.expected
+        );
+        return AppExit::error();
+    }
+    let network = match network(&settings) {
+        Ok(network) => network,
+        Err(error) => {
+            bevy_log::error!("{error}");
+            return AppExit::error();
+        }
+    };
     let mut server = MinecraftServerPlugins {
         core: ServerCorePlugin {
             compute_threads: settings.compute_threads,
@@ -86,7 +110,7 @@ fn serve() -> AppExit {
             ..Default::default()
         },
         world_gen: WorldGenPlugin,
-        network: network(&settings),
+        network,
     }
     .build();
     if !settings.mob_ai {
@@ -135,13 +159,17 @@ impl Plugin for LogInsteadOfPanicPlugin {
     }
 }
 
-fn network(settings: &ServerSettings) -> ServerNetworkPlugin {
+fn network(settings: &ServerSettings) -> Result<ServerNetworkPlugin, EmptyForwardingSecret> {
     let defaults = ServerNetworkPlugin::default();
     let mut bind_address = defaults.bind_address;
     if let Some(port) = settings.port {
         bind_address.set_port(port);
     }
-    ServerNetworkPlugin {
+    let forwarding = settings
+        .forwarding
+        .then(|| ForwardingSecret::new(&settings.forwarding_secret))
+        .transpose()?;
+    Ok(ServerNetworkPlugin {
         bind_address,
         announce_on_lan: settings.lan_announce,
         compression_threshold: settings.compression_threshold.map_or_else(
@@ -156,8 +184,10 @@ fn network(settings: &ServerSettings) -> ServerNetworkPlugin {
         // A player who joins from this machine is an operator for the session; the ops file
         // names every other operator.
         loopback_ops: LoopbackOps::Grant,
+        forwarding,
+        proxy_upstreams: settings.proxy_upstreams.clone(),
         ..defaults
-    }
+    })
 }
 
 /// The English language of the installed client jar, for the console answers. Without the jar,

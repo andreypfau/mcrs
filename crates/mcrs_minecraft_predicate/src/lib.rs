@@ -1,5 +1,6 @@
-//! The keys of the predicate registries, the view of the world that a predicate reads, and the
-//! location, block, fluid, light and distance predicates.
+//! The keys of the predicate registries, the views of the world and of the entities that a
+//! predicate reads, and the entity, location, block, fluid, light, distance, item, damage source
+//! and damage predicates.
 // std: mcrs_minecraft_item
 
 #[rustfmt::skip]
@@ -11,28 +12,69 @@ pub mod registry_keys;
 #[rustfmt::skip]
 pub mod stat_type_keys;
 
+mod active_effect;
 mod baked_block_predicate;
+mod baked_collection;
+mod baked_component_predicate;
+mod baked_damage_predicate;
+mod baked_damage_source_predicate;
+mod baked_enchantment_predicate;
+mod baked_entity_predicate;
 mod baked_fluid_predicate;
+mod baked_item_predicate;
 mod baked_location_predicate;
+mod baked_modifier_predicate;
+mod component_holder;
+mod damage_event;
+mod damage_predicate;
+mod damage_source;
+mod damage_source_predicate;
 mod distance_predicate;
+mod entity_flags_predicate;
+mod entity_predicate;
+mod entity_tags_predicate;
+mod entity_view;
+mod equipment_predicate;
+mod exact_component;
 mod fluid_predicate;
 mod id_bits;
+mod item_subject;
 mod light_predicate;
 mod location_predicate;
 mod location_view;
+mod movement_predicate;
 mod no_world;
+mod player_predicate;
 mod predicate_issue;
 mod predicate_scratch;
+mod predicate_tables;
 mod property_order;
+mod slot_range;
+mod slots_predicate;
 mod smoke_table;
+mod type_specific_predicate;
 
+pub use active_effect::ActiveEffect;
+pub use baked_block_predicate::BakedBlockPredicate;
+pub use baked_damage_predicate::BakedDamagePredicate;
+pub use baked_damage_source_predicate::BakedDamageSourcePredicate;
+pub use baked_entity_predicate::BakedEntityPredicate;
+pub use baked_item_predicate::BakedItemPredicate;
 pub use baked_location_predicate::BakedLocationPredicate;
+pub use damage_event::DamageEvent;
+pub use damage_predicate::DamagePredicate;
+pub use damage_source::DamageSource;
+pub use damage_source_predicate::DamageSourcePredicate;
 pub use distance_predicate::DistancePredicate;
+pub use entity_predicate::EntityPredicate;
+pub use entity_view::EntityView;
 pub use fluid_predicate::FluidPredicate;
+pub use item_subject::ItemSubject;
 pub use light_predicate::LightPredicate;
 pub use location_predicate::LocationPredicate;
 pub use location_view::LocationView;
 pub use no_world::NoWorld;
 pub use predicate_issue::PredicateIssue;
 pub use predicate_scratch::PredicateScratch;
+pub use predicate_tables::PredicateTables;
 pub use smoke_table::SmokeTable;

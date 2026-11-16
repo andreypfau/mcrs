@@ -6,8 +6,11 @@ use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
 use mcrs_minecraft_engine::bus::PacketPayload;
 use mcrs_minecraft_engine::persisted_registry::PersistedSnapshot;
+use mcrs_minecraft_engine_item::Gate;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
 use mcrs_minecraft_engine_item::ItemCommandsExt;
+use mcrs_minecraft_engine_item::SlotAccess;
+use mcrs_minecraft_engine_item::SlotPolicy;
 use mcrs_minecraft_engine_item::StackCommandsExt;
 use mcrs_minecraft_engine_registries::RegistryNames;
 use mcrs_minecraft_engine_world::entity::player::Player;
@@ -401,4 +404,57 @@ fn inv_syn_004_a_change_outside_a_click_reaches_the_client() {
 
     assert_eq!(sent(world), ["slot 36 1x8 state 2"]);
     assert_eq!(state_id(world, player), 2);
+}
+
+/// ITX-LIM-005: a quick move reads the slot policy of the commit, so it passes over a slot that a
+/// plugin locks and the client view of both slots is corrected.
+#[test]
+fn itx_lim_005_a_quick_move_passes_over_a_slot_that_refuses_each_place() {
+    struct Case {
+        name: &'static str,
+        locked: bool,
+        inventory: Vec<(usize, Kind, u8)>,
+        sent: Vec<&'static str>,
+    }
+    let cases = [
+        Case {
+            name: "P[9] open",
+            locked: false,
+            inventory: vec![(9, STONE, 5)],
+            sent: vec![],
+        },
+        Case {
+            name: "P[9] locked",
+            locked: true,
+            inventory: vec![(10, STONE, 5)],
+            sent: vec!["slot 9 empty state 2", "slot 10 1x5 state 3"],
+        },
+    ];
+    for case in cases {
+        let mut app = app();
+        let world = app.world_mut();
+        let player = joined(world);
+        if case.locked {
+            let mut policy = world
+                .get_mut::<SlotPolicy>(player)
+                .expect("a player inventory has a policy");
+            let refuses_place = SlotAccess {
+                limit: 99,
+                take: Gate::Permits,
+                place: Gate::Refuses,
+            };
+            policy.set(9, refuses_place);
+        }
+        let quick_move = Packet {
+            input: ContainerInput::QuickMove,
+            ..Packet::pick_up(1, HOTBAR_0)
+        }
+        .claiming(vec![(HOTBAR_0, None), (9, claim(STONE, 5))], None);
+
+        click(world, player, quick_move);
+        world.run_schedule(FixedUpdate);
+
+        assert_eq!(stacks(world, player), case.inventory, "{}", case.name);
+        assert_eq!(sent(world), case.sent, "{}", case.name);
+    }
 }

@@ -164,10 +164,10 @@ fn loot_ctx_016_entry_faults_are_issues_with_their_path() {
     let mut issues: Vec<_> = ADDED
         .2
         .iter()
-        .filter(|issue| issue.table.namespace() == "f")
+        .filter(|issue| issue.name.namespace() == "f")
         .map(|issue| {
             (
-                issue.table.as_str(),
+                issue.name.as_str(),
                 issue.path.as_str(),
                 issue.problem.clone(),
             )
@@ -223,6 +223,7 @@ fn loot_ctx_016_entry_faults_are_issues_with_their_path() {
                 "pools[0].entries[0]",
                 LootProblem::NoChildren
             ),
+            ("f:set_item_air", "modifier", LootProblem::SetItemAir),
             (
                 "f:unknown_table",
                 "pools[0].entries[0].value",
@@ -238,27 +239,26 @@ fn loot_ctx_016_entry_faults_are_issues_with_their_path() {
     assert_eq!(roll_with_stream("f:a"), (vec![], fresh("f:a")));
 }
 
-/// A chain of more than 64 nested tables is an issue at the entry that nests the 65th table, and
-/// that entry makes nothing; a chain of 64 tables still rolls to its end.
+/// LOOT-CTX-017: in a line of 66 tables, the chain from the first table gets 65 members at the
+/// entry of the table 64, and the chain from the second at the entry of the table 65. The cut
+/// keeps each chain of the roll at 64 tables.
 #[test]
-fn a_chain_of_nested_tables_past_the_limit_is_cut() {
-    let cut = CHAIN - 65;
+fn loot_ctx_017_a_chain_of_nested_tables_past_the_limit_is_an_issue_at_each_place() {
     let issues: Vec<_> = ADDED
         .2
         .iter()
-        .filter(|issue| issue.table.namespace() == "d")
-        .map(|issue| (issue.table.as_str(), issue.path.as_str(), &issue.problem))
+        .filter(|issue| issue.name.namespace() == "d")
+        .map(|issue| (issue.name.as_str(), issue.path.as_str(), &issue.problem))
         .collect();
-    let table = format!("d:chain/{cut}");
+    let entry = "pools[0].entries[0].value";
     assert_eq!(
         issues,
-        [(
-            table.as_str(),
-            "pools[0].entries[0].value",
-            &LootProblem::TooDeep
-        )]
+        [
+            ("d:chain/63", entry, &LootProblem::TooDeep),
+            ("d:chain/64", entry, &LootProblem::TooDeep),
+        ]
     );
-    for (link, stacks) in [(0, vec![]), (cut + 1, vec![stick(1)])] {
+    for (link, stacks) in [(0, vec![]), (CHAIN - 64, vec![stick(1)])] {
         let name = format!("d:chain/{link}");
         assert_eq!(roll_with_stream(&name), (stacks, fresh(&name)), "{name}");
     }

@@ -23,7 +23,7 @@ architecture.
   `ex` is `px · W / ww` as a real number, with no floor. `px` and `ww` are as for the mouse
   position. `ey` uses the heights in the same way.
 - **Frame**: as `client-tooltip.md`, section 0.1, defines it.
-- **In a world**: the client shows a level, in singleplayer or in multiplayer.
+- **In a world**: the client shows a world, in singleplayer or in multiplayer.
 - **Screen**: the GUI state that covers the window and takes the input of the mouse and the
   keyboard. It draws a background and a list of widgets. At most one screen is open.
 - **Parent screen**: the screen that a screen opens when it closes. A screen can have no parent

@@ -2,7 +2,7 @@
 #![no_std]
 
 // std: the codecs of mcrs_minecraft_wire write to `std::io::Write`, and the lookup of an
-// attribute by location is a std `HashMap`.
+// attribute by location is a std `HashMap`, which the load of a save needs too.
 #[cfg(any(feature = "std", feature = "wire"))]
 extern crate std;
 
@@ -31,6 +31,14 @@ mod modifier_kind;
 mod modifier_operation;
 #[rustfmt::skip]
 pub mod registry_keys;
+#[cfg(feature = "serde")]
+mod saved_attribute;
+#[cfg(feature = "serde")]
+mod saved_attributes;
+#[cfg(feature = "serde")]
+mod saved_modifier;
+#[cfg(feature = "serde")]
+mod tolerant;
 mod unknown_attribute;
 mod unknown_operation;
 mod value_range;
@@ -55,6 +63,12 @@ pub use instance_modifier::InstanceModifier;
 pub use modifier::Modifier;
 pub use modifier_kind::ModifierKind;
 pub use modifier_operation::ModifierOperation;
+#[cfg(feature = "serde")]
+pub use saved_attribute::SavedAttribute;
+#[cfg(feature = "serde")]
+pub use saved_attributes::SavedAttributes;
+#[cfg(feature = "serde")]
+pub use saved_modifier::SavedModifier;
 pub use unknown_attribute::UnknownAttribute;
 pub use unknown_operation::UnknownOperation;
 pub use value_range::ValueRange;
