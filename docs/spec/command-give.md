@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | `draft` |
-| Last updated | `2026-11-16` |
+| Last updated | `2026-11-17` |
 | Game version | `26.4-snapshot-7` |
 | Protocol version | `1073742169` |
 | World version | `5127` |
@@ -25,9 +25,9 @@ This document specifies wire behavior, client agreement, and execution semantics
 - **Empty stack**: An item stack with item id `minecraft:air`, count `0`, or no non-empty item value ([item-stack.md](item-stack.md)).
 - **Stack size**: Effective `minecraft:max_stack_size` (`1..99`), `1` when removed (`!minecraft:max_stack_size`), or `1` for `minecraft:air`.
 - **Strict validation**: The checks of STK-VAL-001. STK-CMD-006 states their command error.
-- **Display name**: The display name of the source or target, as defined in `command-execute.md`.
+- **Display name**: The display name of the source or target, as defined in [command-execute.md](command-execute.md).
 - **Item text**: The `chat.square_brackets` text component built for an item stack in feedback and errors (`CMD-GIVE-013`).
-- **Result** and **success**: The values of a command run, as defined in `command-execute.md`.
+- **Result** and **success**: The values of a command run, as defined in [command-execute.md](command-execute.md).
 - **Broadcast flag**: Source feedback and admin broadcast controls defined by command execution rules ([commands-packet.md](commands-packet.md), `CMDP-EXEC-004`).
 
 ### 0.2 Evidence
@@ -47,13 +47,13 @@ Every rule carries `Provenance`, `Kind`, and `Confidence` tags per [README.md](R
 
 - The labels of `registry.md`, section 0.3, apply.
 - A reference to a shared rule inherits the provenance and confidence of that rule.
-- **Kind**: `wire`, `client agreement`, `semantic`, `layout`, `deviation`, or `unspecified`.
+- **Kind**: `wire`, `client agreement`, `semantic`, or `unspecified`.
 
 ### 0.4 ID prefixes
 
 - `CMD-GIVE-001` .. `CMD-GIVE-013`: `/give` command syntax, validation, execution, sound, and text rules.
 - `D6`: Intentional deviation shared with [item-entity.md](item-entity.md).
-- `U1` .. `U8`: Open questions in Section 7.
+- `U1`, `U3`, `U6`: Open questions in Section 7.
 
 ---
 
@@ -77,7 +77,8 @@ In the `commands` (`16`) packet, the server publishes one subtree under root for
 | `count` | argument | `6` (`0x06`) | yes | `brigadier:integer` (`3`) | `flags = 1` (`has_min = true`), `min = 1` |
 
 When `<count>` is absent, the command uses `count = 1`.
-The exact item suggestions and their source are unresolved (U5).
+The `item` node has no custom-suggestions flag (`0x10`) in the captured tree (flags `6`).
+The client builds the item and component suggestions locally, and the server sends no suggestion data for `/give`.
 
 - **Provenance**: `black_box_confirmed` (`give-tree.json`, `give-client.json`, `single-default`, and `registries.json`).
 - **Kind**: `wire`, `client agreement`.
@@ -135,8 +136,10 @@ For a non-empty item, the checks act as if the stack has count 1, not the reques
 This specifies the observable result; it does not require a particular internal stack or order of parts.
 Incompatible pairs like `diamond_sword[max_stack_size=16]` fail at runtime with `arguments.item.malformed` (`"Item cannot be both damageable and stackable"`).
 Runtime strict errors send one `system_chat` packet with no `command.context.here`.
+The check always uses count 1 and `S >= 1`, so `/give` never reports `arguments.item.overstacked`.
+This holds for each item and each component patch.
 
-- **Provenance**: `black_box_confirmed` (`give-client.json`: `malformed-component`, `empty-brackets`, `unknown-item`, `malformed-strict`). Also `black_box_confirmed` (`give-console.json`: `empty_brackets`, `invalid_component`, `console_precedence`, `per_target_limit`, `limit_inclusive`) and `source_suggested` (inherited) ([item-stack.md](item-stack.md), `STK-CMD-001..006`, `STK-VAL-001`).
+- **Provenance**: `black_box_confirmed` (`give-client.json`: `malformed-component`, `empty-brackets`, `unknown-item`, `malformed-strict`). Also `black_box_confirmed` (`give-console.json`: `empty_brackets`, `invalid_component`, `console_precedence`, `per_target_limit`, `limit_inclusive`) and `source_suggested` (inherited) ([item-stack.md](item-stack.md), `STK-CMD-001..006`, `STK-VAL-001`). The absence of `arguments.item.overstacked` is `source_suggested`.
 - **Kind**: `semantic`, `wire`.
 - **Confidence**: high for the captured cases; medium for inherited or general rules.
 
@@ -172,8 +175,7 @@ Parse errors follow `CMDP-EXEC-003` and runtime errors follow `CMD-ERR-001` and 
 3. **Strict stack validation**: Runs before the `100 * S` limit; `diamond_sword[max_stack_size=16] 1601` fails with `arguments.item.malformed`.
 4. **Per-target count limit**: Fails with `commands.give.failed.toomanyitems` when `count > 100 * S`.
 
-The captured `/give` cases do not report `arguments.item.overstacked` for a requested count larger than `S`.
-Whether another component patch can produce that error is unresolved (U8).
+The strict check never reports `arguments.item.overstacked` (`CMD-GIVE-004`).
 
 All runtime errors (steps 2 to 4) send one red `system_chat` packet with no `command.context.here`.
 Runtime errors also omit `<--[HERE]` from console output.
@@ -220,10 +222,9 @@ The captured spectator target receives items and overflow drops (`spectator_targ
 The captured dead target receives items into an empty inventory (`dead_target`).
 The full-inventory case for a dead target is unresolved (U6).
 
-**Intentional deviation (`D6`)**: For a creative target with no room, vanilla destroys the items.
-The viewers see a display item as for a success.
-Under `D6` in [item-entity.md](item-entity.md), `mcrs` uses the uniform overflow rule and drops uninserted items.
-See `Q6` in [item-entity.md](item-entity.md) for the link between `D6` and `IEN-PCK-006`.
+**Intentional deviation (`D6`)**: For a creative target with no room, `mcrs` drops the uninserted items.
+The reference and the reason are in [D6](item-entity.md#111-intentional-deviations).
+Whether `IEN-PCK-006` changes too is [Q6](item-entity.md#113-open-questions).
 
 - **Provenance**: `black_box_confirmed` for the cited captures (`give-console.json`: `split`, `partial_survival`, `full_survival`, `greedy_split_partial`, `greedy_split_one_slot`, `mixed_multi_target`, `spectator_target`, `dead_target`; `give-sound.json`). The creative overflow rule is `design` (D6). The shared rules keep their own provenance.
 - **Kind**: `semantic`.
@@ -236,14 +237,16 @@ See `Q6` in [item-entity.md](item-entity.md) for the link between `D6` and `IEN-
 Targets receive inventory updates under INV-SYN-003 through INV-SYN-008 in [inventory.md](inventory.md).
 Item entities follow the rules in `item-entity.md`.
 In particular, a display item does not send `take_item_entity` (IEN-SPN-004).
-A later pickup of a drop follows the rules of section 5 in that document.
+A later pickup of a drop follows section 5 of that document, including its statistic.
 
 The capture reads `minecraft.picked_up:minecraft.stone` before and after a give of five `stone`.
 The value stays at 0.
 A `cobblestone` inserted by `give` triggers the `Stone Age` advancement.
-The capture does not decide every statistic or advancement (U7).
+Insertion by `/give` never increments `minecraft.picked_up`.
+That statistic counts only the pickup of an item entity.
+The inventory-change advancement triggers fire on the insertion.
 
-- **Provenance**: `black_box_confirmed` (`give-console.json`: `stats_and_advancement`). Also `source_suggested` (inherited) ([inventory.md](inventory.md), `INV-SYN-003..008`; [item-entity.md](item-entity.md), `IEN-SPN-004`).
+- **Provenance**: `black_box_confirmed` (`give-console.json`: `stats_and_advancement`). Also `source_suggested` (inherited) ([inventory.md](inventory.md), `INV-SYN-003..008`; [item-entity.md](item-entity.md), `IEN-SPN-004`). The statement that the statistic stays unchanged for each item is `source_suggested`.
 - **Kind**: `wire`, `semantic`.
 - **Confidence**: high.
 
@@ -257,9 +260,22 @@ For each part where `inserted == k` on a non-air item, the server sends `sound` 
 
 - `sound_id = 654` (`minecraft:entity.item.pickup`, VarInt `655` on the wire),
 - `source = 7` (`players`),
-- fixed-point `x, y, z` for the target position: multiply each coordinate by 8 and truncate toward zero,
+- fixed-point `x, y, z` for the feet position of the target (the entity position, not the eye position): multiply each coordinate by 8 and truncate toward zero,
 - `volume = 0.2` (`f32`),
-- variable `pitch` (`f32`), identical for all viewers of that event.
+- `pitch` (`f32`), identical for all viewers of that event,
+- `seed` (`i64`), the last field of the packet.
+
+The display item entity of the same part starts at the eye height minus `0.3` (hand form, `IEN-SPN-001`). The sound does not use that height.
+
+The server draws the pitch once for each sound event.
+Let `a` and `b` be two independent uniform values in `[0, 1)` from the random source of the target.
+Then `pitch = ((a - b) * 0.7 + 1) * 2`, with range `(0.6, 3.4)`.
+The captured pitch `1.423225` (`give-sound.json`, case `default`) is in this range.
+
+The server draws the `seed` once for each sound event from the random source of the world.
+All viewers of that event get the same value.
+The client uses it to choose the sound variant.
+The captured packets of `default` end with the seed bytes `431a8b9501646c6c`.
 
 Recipients are connected players in the **same dimension** as the target.
 Euclidean distance from the sound position to the viewer must be strictly below `16.0` blocks (`distance < 16.0`).
@@ -267,7 +283,7 @@ In traces, a viewer at `dx = 14.0` receives the packet (`sound_in_range`).
 A viewer at exact `dx = 16.0` or in `minecraft:the_nether` receives no packet (`sound_at_boundary`, `sound_other_dimension`).
 A command that inserts `m` full parts emits `m` `sound` packets per viewer (`split`: `2` sounds).
 
-- **Provenance**: `black_box_confirmed` (`give-sound.json`, 17 cases; `give-console.json`: `split`, `greedy_split_partial`, `greedy_split_one_slot`, `sound_in_range`, `sound_at_boundary`, `sound_other_dimension`, `sound_fraction_positive` and `sound_fraction_negative`). The packet and sound ids come from the registry and packet reports.
+- **Provenance**: `source_suggested_black_box_confirmed` for the pitch formula and the seed (`give-sound.json`, case `default`). `black_box_confirmed` for the other fields (`give-sound.json`, 17 cases; `give-console.json`: `split`, `greedy_split_partial`, `greedy_split_one_slot`, `sound_in_range`, `sound_at_boundary`, `sound_other_dimension`, `sound_fraction_positive` and `sound_fraction_negative`). The packet and sound ids come from the registry and packet reports.
 - **Kind**: `wire`, `semantic`.
 - **Confidence**: high for the captured cases; medium for the general position rule.
 
@@ -330,16 +346,8 @@ particular arrangement of text nodes when the same visible content and hover dat
 
 ## 5. Intentional Deviations
 
-**`D6` (Creative overflow, shared with [item-entity.md](item-entity.md))**
-
-- **Rule**: `CMD-GIVE-008`; the shared item-entity rule is `IEN-SPN-004`.
-- **Reference**: For a creative target with no room, vanilla destroys the items and shows a display item.
-- **Reason**: Uninserted items remain available instead of being destroyed.
-- **Visible to the client**: Yes. In vanilla the player gets no item; under `D6`, uninserted items drop on the ground. Command feedback follows `CMD-GIVE-012`.
-- **Bug reference**: none.
-- **Test**: A differential test skips `give` to a creative player with a full inventory, as specified for `IEN-SPN-004` in [item-entity.md](item-entity.md).
-
-Under `D6`, `mcrs` uses the uniform survival overflow rule. See `Q6` in [item-entity.md](item-entity.md) for the interaction between `D6` and `IEN-PCK-006`.
+This command has one intentional deviation, `D6` (creative overflow).
+Its rule, reference behaviour, reason and test are in [D6](item-entity.md#111-intentional-deviations); `CMD-GIVE-008` applies it.
 
 ---
 
@@ -367,11 +375,5 @@ Key files in the probe suite are:
 ## 7. Unresolved
 
 - **`U1` (Untested item and component pairs)**: Data-pack feature flags and rarer malformed component syntax errors outside `give-client.json` stay unprobed.
-- **U2**: The captures do not decide the pitch range or distribution of the pickup sound.
 - **U3**: The command form of `air` for other commands is open in `item-stack.md`, U3.
-- **U4**: `item-entity.md`, Q6, asks whether creative pickup and `give` use one overflow policy.
-  D6 and IEN-PCK-006 apply until the owner decides. A later pickup can destroy a dropped item.
-- **U5**: Confirm which item and component suggestions need the server.
 - **U6**: Confirm overflow for a dead target with a full inventory.
-- **U7**: Confirm the statistic and advancement effects for items and cases outside the capture.
-- **U8**: Can a `/give` item patch produce `arguments.item.overstacked` for another cause?
