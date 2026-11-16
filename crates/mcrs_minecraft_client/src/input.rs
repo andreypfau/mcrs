@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use mcrs_minecraft_engine_world::entity::physics::{OldTransform, Transform as PhysicsTransform};
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_item::{LAST_HOTBAR_SLOT, SelectedHotbarSlot};
 
 use mcrs_minecraft_client_gui::menu_screens_plugin::MenuScreensPlugin;
 use mcrs_minecraft_client_options::ClientOptions;
@@ -17,9 +18,23 @@ use mcrs_minecraft_client_world::screen::Screen;
 const FLY_SPEED_PER_NOTCH: f32 = 0.005;
 const FLY_SPEED_MIN: f32 = 0.0;
 const FLY_SPEED_MAX: f32 = 0.2;
+const NOTCHES_PER_LOGICAL_PIXEL: f64 = 0.1;
 
 /// Degrees of turn for each unit of mouse motion at a turn factor of 1.
 const DEGREES_PER_MOTION_UNIT: f32 = 0.15;
+
+const HOTBAR_KEYS: [KeyCode; 9] = [
+    KeyCode::Digit1,
+    KeyCode::Digit2,
+    KeyCode::Digit3,
+    KeyCode::Digit4,
+    KeyCode::Digit5,
+    KeyCode::Digit6,
+    KeyCode::Digit7,
+    KeyCode::Digit8,
+    KeyCode::Digit9,
+];
+const TOOLBAR_ACTIVATORS: [KeyCode; 2] = [KeyCode::KeyC, KeyCode::KeyX];
 
 pub struct ClientInputPlugin;
 
@@ -29,15 +44,10 @@ impl Plugin for ClientInputPlugin {
             .add_systems(FixedUpdate, read_movement_keys.before(LocalPlayerTick))
             .add_systems(
                 RunFixedMainLoop,
-                read_attack_input.in_set(RunFixedMainLoopSystems::BeforeFixedMainLoop),
+                (read_attack_input, read_hotbar_keys, read_wheel)
+                    .in_set(RunFixedMainLoopSystems::BeforeFixedMainLoop),
             )
-            .add_systems(
-                Update,
-                (
-                    (apply_mouse_look, grab_cursor_on_click).chain(),
-                    read_fly_speed_wheel,
-                ),
-            );
+            .add_systems(Update, (apply_mouse_look, grab_cursor_on_click).chain());
         #[cfg(not(target_family = "wasm"))]
         app.add_systems(Update, toggle_fullscreen);
     }
@@ -121,21 +131,41 @@ fn take_notches(sum: &mut f64, value: f64) -> i32 {
     notches as i32
 }
 
+/// The slot one notch away: a positive wheel value goes to the slot on the left, and the two ends
+/// of the hotbar wrap (PHY-INP-022, step 9).
+fn slot_after(slot: u8, wheel: i32) -> u8 {
+    match wheel.signum() {
+        1 => slot.checked_sub(1).unwrap_or(LAST_HOTBAR_SLOT),
+        -1 if slot < LAST_HOTBAR_SLOT => slot + 1,
+        -1 => 0,
+        _ => slot,
+    }
+}
+
 fn fly_speed_after(speed: f32, vertical_notches: i32) -> f32 {
     (speed + vertical_notches as f32 * FLY_SPEED_PER_NOTCH).clamp(FLY_SPEED_MIN, FLY_SPEED_MAX)
 }
 
-/// The wheel changes the flying speed of a spectator for each event with a notch (PHY-INP-022,
-/// PHY-INP-023). A wheel event while a screen is open or the pointer is free changes no sum.
-fn read_fly_speed_wheel(
+/// The wheel changes the flying speed of a spectator, and the selected slot of any other player,
+/// for each event with a notch (PHY-INP-022, PHY-INP-023). A wheel event while a screen is open or
+/// the pointer is free changes no sum.
+fn read_wheel(
     mut wheel: MessageReader<MouseWheel>,
     mut sums: Local<WheelSums>,
     screen: Option<Res<Screen>>,
-    cursor: Single<&CursorOptions, With<PrimaryWindow>>,
-    mut player: Query<(&mut Abilities, Option<&LocalGameMode>), With<Player>>,
+    window: Single<(&CursorOptions, &Window), With<PrimaryWindow>>,
+    mut player: Query<
+        (
+            &mut Abilities,
+            &mut SelectedHotbarSlot,
+            Option<&LocalGameMode>,
+        ),
+        With<Player>,
+    >,
 ) {
+    let (cursor, window) = *window;
     let screen_open = cursor.grab_mode == CursorGrabMode::None || !screen_is_none(screen);
-    let Ok((mut abilities, game_mode)) = player.single_mut() else {
+    let Ok((mut abilities, mut selected, game_mode)) = player.single_mut() else {
         wheel.clear();
         return;
     };
@@ -145,22 +175,70 @@ fn read_fly_speed_wheel(
     }
     let spectator = game_mode.is_some_and(|mode| mode.current == GameMode::Spectator);
     let mut speed = abilities.flying_speed;
+    let mut slot = selected.0;
+    let scale = NOTCHES_PER_LOGICAL_PIXEL / f64::from(window.scale_factor());
     for event in wheel.read() {
-        // chisle: a trackpad does not change the speed; a scale of pixel values in the
-        // specification lifts this.
-        if event.unit == MouseScrollUnit::Pixel {
+        let per_unit = match event.unit {
+            MouseScrollUnit::Line => 1.0,
+            MouseScrollUnit::Pixel => scale,
+        };
+        let notches = sums.add(f64::from(event.x) * per_unit, f64::from(event.y) * per_unit);
+        if notches.horizontal == 0 && notches.vertical == 0 {
             continue;
         }
-        let notches = sums.add(f64::from(event.x), f64::from(event.y));
-        if spectator && (notches.horizontal != 0 || notches.vertical != 0) {
+        if spectator {
             speed = fly_speed_after(speed, notches.vertical);
+        } else if notches.vertical != 0 {
+            slot = slot_after(slot, notches.vertical);
+        } else {
+            slot = slot_after(slot, -notches.horizontal);
         }
     }
+    selected.set_if_neq(SelectedHotbarSlot(slot));
     let next = Abilities {
         flying_speed: speed,
         ..*abilities
     };
     abilities.set_if_neq(next);
+}
+
+/// A hotbar key selects its slot outside a screen (CHB-KEY-001). A spectator has no spectator
+/// menu, and a creative player with a toolbar activator down saves no hotbar, so both presses
+/// change nothing.
+fn read_hotbar_keys(
+    keys: Res<ButtonInput<KeyCode>>,
+    screen: Option<Res<Screen>>,
+    cursor: Single<&CursorOptions, With<PrimaryWindow>>,
+    mut player: Query<
+        (
+            &mut SelectedHotbarSlot,
+            Option<&Abilities>,
+            Option<&LocalGameMode>,
+        ),
+        With<Player>,
+    >,
+) {
+    if cursor.grab_mode == CursorGrabMode::None || !screen_is_none(screen) {
+        return;
+    }
+    let Some(slot) = (0..=LAST_HOTBAR_SLOT)
+        .zip(HOTBAR_KEYS)
+        .find_map(|(slot, key)| keys.just_pressed(key).then_some(slot))
+    else {
+        return;
+    };
+    let Ok((mut selected, abilities, game_mode)) = player.single_mut() else {
+        return;
+    };
+    if game_mode.is_some_and(|mode| mode.current == GameMode::Spectator) {
+        return;
+    }
+    if abilities.is_some_and(|abilities| abilities.instant_build)
+        && keys.any_pressed(TOOLBAR_ACTIVATORS)
+    {
+        return;
+    }
+    selected.set_if_neq(SelectedHotbarSlot(slot));
 }
 
 /// Grabbing after the look has been applied drops the motion the pointer made
@@ -266,6 +344,20 @@ mod tests {
             sums.horizontal, 0.0,
             "a horizontal value of 0 resets its sum"
         );
+    }
+
+    #[test]
+    fn each_notch_moves_the_slot_by_one_and_wraps_at_the_ends() {
+        for (slot, wheel, after) in [
+            (3, 1, 2),
+            (3, -1, 4),
+            (0, 1, 8),
+            (8, -1, 0),
+            (5, 3, 4),
+            (5, 0, 5),
+        ] {
+            assert_eq!(slot_after(slot, wheel), after, "slot {slot}, wheel {wheel}");
+        }
     }
 
     #[test]

@@ -56,6 +56,9 @@ pub mod slots {
     }
 }
 
+/// The highest selected slot; the hotbar holds the slots 0 to 8.
+pub const LAST_HOTBAR_SLOT: u8 = (slots::HOTBAR.end - slots::HOTBAR.start - 1) as u8;
+
 #[derive(Component, Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SelectedHotbarSlot(pub u8);
 

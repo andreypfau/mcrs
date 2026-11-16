@@ -20,6 +20,7 @@ mod collision_view;
 pub mod columns;
 pub mod game_mode;
 pub mod game_packets;
+pub mod hotbar_sync;
 pub mod inventory_packets;
 pub mod joined_game;
 pub mod local_motion;

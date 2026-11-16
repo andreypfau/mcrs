@@ -449,7 +449,7 @@ The tests catch regressions with independent oracles. Count is not a goal.
    must be equal bit for bit.
 5. **WGSL equals CPU twin.** Run the lowered channels in a compute shader on a headless device.
    The results must have the bits of the CPU twin, and must agree with the scalar VM within the
-   pose tolerance (`crates/mcrs_molang_wgsl/tests/gpu_fuzz.rs`).
+   pose tolerance (`crates/mcrs_molang_wgsl/tests/it/gpu_fuzz.rs`).
 6. **Fuzzing.** A grammar-based generator feeds checks 3, 4 and the parser round trip. A round
    trip alone does not replace check 2.
 7. **Unit cases** for rules that the corpus does not use: the loop limit, `break`, `continue`,

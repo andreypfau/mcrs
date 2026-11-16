@@ -2,11 +2,6 @@
 //! text expression that classifies as pure lowers to WGSL, and naga validates all of them in one
 //! module. `MCRS_MOLANG_CORPUS` names the corpus file.
 
-#![expect(
-    clippy::disallowed_methods,
-    reason = "the corpus is an artefact outside the repository, named by the environment"
-)]
-
 use std::collections::BTreeMap;
 
 use mcrs_molang::{
@@ -15,7 +10,7 @@ use mcrs_molang::{
 };
 use serde::Deserialize;
 
-#[path = "../../mcrs_molang/tests/entity_queries/mod.rs"]
+#[path = "../../../mcrs_molang/tests/entity_queries/mod.rs"]
 mod entity_queries;
 
 use entity_queries::{ENTITY_QUERIES, PoseInput, registry};

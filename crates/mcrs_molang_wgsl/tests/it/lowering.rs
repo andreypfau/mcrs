@@ -1,9 +1,3 @@
-#![expect(
-    clippy::unwrap_used,
-    clippy::panic,
-    reason = "a test reports a failure by panicking"
-)]
-
 use mcrs_molang::{
     Arguments, ChannelClass, CompileOptions, InputRange, Milestone, PureProgram, QueryDeclaration,
     QueryRegistry, Rate, UseContext, ValueType, VariableLayout, compile_text,

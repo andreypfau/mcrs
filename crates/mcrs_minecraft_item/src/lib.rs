@@ -81,7 +81,7 @@ pub use effective::{
 #[cfg(feature = "bevy")]
 pub use held::{Held, Holds, SlotTable};
 #[cfg(feature = "bevy")]
-pub use inventory::{SelectedHotbarSlot, slots};
+pub use inventory::{LAST_HOTBAR_SLOT, SelectedHotbarSlot, slots};
 pub use item_hover_map::ItemHoverMap;
 #[cfg(feature = "bevy")]
 pub use item_stack::{ItemStack, StackRevision};
