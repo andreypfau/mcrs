@@ -6,25 +6,12 @@
 //! `cargo nextest run --profile gpu --release -p mcrs_molang_wgsl --no-capture`;
 //! `MCRS_GPU_FUZZ_PROGRAMS` sets the number of programs (default 10,000).
 
-#![expect(
-    clippy::unwrap_used,
-    clippy::panic,
-    clippy::indexing_slicing,
-    reason = "a test reports a failure by panicking, and the report reads top to bottom"
-)]
-#![expect(
-    clippy::disallowed_methods,
-    reason = "the program count comes from the environment"
-)]
-
-mod device;
-#[path = "../../mcrs_molang/tests/generator/mod.rs"]
+#[path = "../../../mcrs_molang/tests/generator/mod.rs"]
 #[expect(
     dead_code,
     reason = "this test uses only the GPU profile of the shared generator"
 )]
 mod generator;
-mod twin;
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -39,9 +26,9 @@ use proptest::strategy::{Strategy, ValueTree};
 use proptest::test_runner::TestRunner;
 use wgpu::{BufferDescriptor, BufferUsages, MapMode, PollType};
 
-use device::Gpu;
+use crate::device::{self, Gpu};
+use crate::twin::Twin;
 use generator::{Profile, program, registry};
-use twin::Twin;
 
 const LANES: usize = 64;
 const STRIDE: usize = 8;

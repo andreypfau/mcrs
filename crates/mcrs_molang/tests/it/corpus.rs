@@ -1,21 +1,13 @@
 //! The parse gate over the occurrences of the Bedrock vanilla packs (`docs/molang-corpus.md`,
 //! section 12). The corpus lives outside the repository; `MCRS_MOLANG_CORPUS` names the file.
 
-#![expect(
-    clippy::disallowed_methods,
-    reason = "the corpus is an artefact outside the repository, named by the environment"
-)]
-
 use std::collections::BTreeMap;
 
 use serde::Deserialize;
 
 use mcrs_molang::{CompileOptions, Milestone, VariableLayout, compile_text, parse};
 
-#[expect(dead_code, reason = "this test does not read the GPU pose inputs")]
-mod entity_queries;
-
-use entity_queries::registry;
+use crate::entity_queries::registry;
 
 const TEXT_FORMS: [&str; 3] = ["string", "script_array", "versioned_object"];
 
