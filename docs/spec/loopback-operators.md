@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | `ready` |
+| Status | `draft` |
 | Issue | #913 |
 
 This document states when a player who joins from a loopback address becomes an operator with
@@ -74,11 +74,10 @@ Out of scope:
   has the default `public`.
 - **Behavior:** the engine and its plugins do not read an environment variable for the
   profile. An environment variable that the server binary reads does not change the profile.
-- **Postconditions:** a library user who adds the plugin with its default gets no automatic
-  operator.
-
 - **Behavior:** the profile changes only the result of a loopback join (section 3). It does
   not change other settings of the server.
+- **Postconditions:** a library user who adds the plugin with its default gets no automatic
+  operator.
 
 This document does not state the name or the type of the field.
 
@@ -92,7 +91,8 @@ Provenance: `design` (issue #913). Kind: semantic. Confidence: high.
   reads its settings only from environment variables until the configuration file of issue
   #918 exists. Until then, the binary always uses `public`.
 
-Provenance: `design` (issue #913). Kind: semantic. Confidence: high.
+Provenance: `design` (the owner selected `public` for the binary in the review of 2026-11-16).
+Kind: semantic. Confidence: high.
 
 ## 2. The address of the check
 
@@ -165,8 +165,10 @@ Provenance: `design`. Kind: semantic. Confidence: medium.
   write of the ops file, after an `op` or a `deop` of another player, also leaves the automatic
   operator out.
 - **Behavior:** the automatic operator stays an operator until the process ends or until a
-  `deop` of that player. During this time, a join of that player from another address finds
-  the player an operator.
+  `deop` of that player. An `op` of that player does not change this (LU-01).
+- **Behavior:** during this time, a join of that player from another address finds the player
+  an operator. So that join also passes the whitelist check, as for each operator
+  (`whitelist.md`, WL-JOIN-004).
 - **Behavior:** after a `deop`, the next loopback join of that player on the `local` profile
   makes the player an operator again.
 - **Postconditions:** after a restart of the server, the op list holds only the entries of the
@@ -174,18 +176,6 @@ Provenance: `design`. Kind: semantic. Confidence: medium.
 
 Provenance: `design` (the behaviour of mcrs before issue #913). Kind: semantic. Confidence:
 high.
-
-### LOOP-FILE-002: `op` on an automatic operator
-
-- **Behavior:** an `op` of an automatic operator succeeds with the message
-  `commands.op.success`, as for a player who is not an operator.
-- **Behavior:** after the `op`, the player is a listed player at the level that the `op`
-  command gives (`command-permissions.md`, PERM-LEVEL-002). The server writes the player to the
-  ops file.
-- **Behavior:** an `op` of a listed player fails with `commands.op.failed`, as before.
-- **Postconditions:** the player stays an operator after a restart of the server.
-
-Provenance: `design` (issue #913). Kind: semantic. Confidence: high.
 
 ## 5. The vanilla server
 
@@ -232,12 +222,13 @@ client address of a connection, sends `hello`, and reads the op list. Each row i
 | C8 | `local` | `127.0.0.1` | empty, then an `op` of another player | the ops file names only the other player | LOOP-FILE-001 |
 | C9 | `local` | socket `127.0.0.1`, forwarded `203.0.113.7` | empty | not an operator | LOOP-ADDR-001 |
 | C10 | `public` | socket `127.0.0.1`, forwarded `127.0.0.1` | empty | not an operator | LOOP-ADDR-001, LOOP-GRANT-002 |
-| C11 | `local` | `127.0.0.1` | empty, then an `op` of that player | `commands.op.success`; the ops file names the player | LOOP-FILE-002 |
+| C11 | `local`, whitelist check on | `127.0.0.1` | empty, the player not on the whitelist | login refused, op list empty | LOOP-GRANT-003 |
 
-C1 to C4 are the checks that the issue names. LOOP-CFG-002 has no test of its own: the binary sets no profile, so C7 covers it. C8 to C11 can stay in the integration tests of
-`mcrs_minecraft_server` or of the command crate, which have the ops file, the forwarding setup
-and the `op` command. A PROXY protocol header sets the client address
-before the handshake (PXP-USE-001), so C3 and C6 also cover a join behind such a header.
+C1 to C4 are the checks that the issue names. LOOP-CFG-002 has no test of its own: the
+binary sets no profile, so C7 covers it. C8 to C10 can stay in the integration tests of
+`mcrs_minecraft_server`, which have the ops file and the forwarding setup. C9 is the check of
+the op list in the test of FWD-USE-001 and FWD-USE-002. A PROXY protocol header sets the client
+address before the handshake (PXP-USE-001), so C3 and C6 also cover a join behind such a header.
 
 ## 7. Intentional deviations
 
@@ -252,4 +243,7 @@ before the handshake (PXP-USE-001), so C3 and C6 also cover a join behind such a
 
 ## 8. Unresolved
 
-None.
+- **LU-01: `op` on an automatic operator.** Today an `op` of an automatic operator fails with
+  `commands.op.failed`, so the ops file does not hold that player. It is not decided whether
+  such an `op` must succeed and write the player to the ops file. Issue #913 does not ask for
+  this change. Question to the owner.
