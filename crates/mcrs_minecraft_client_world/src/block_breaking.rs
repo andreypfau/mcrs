@@ -21,6 +21,7 @@ use crate::block_prediction::BlockPredictions;
 use crate::block_target::{BlockHit, Reach, block_target};
 use crate::columns::{AIR, ColumnStore};
 use crate::game_mode::{LocalGameMode, PermissionLevel};
+use crate::hotbar_sync::SendSelectedSlot;
 use crate::local_player::LocalPlayerTick;
 use crate::player::{Player, look_direction};
 
@@ -48,7 +49,10 @@ impl Plugin for BlockBreakingPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<AttackInput>()
             .init_resource::<Attack>()
-            .add_systems(FixedUpdate, attack.before(LocalPlayerTick));
+            .add_systems(
+                FixedUpdate,
+                attack.after(SendSelectedSlot).before(LocalPlayerTick),
+            );
     }
 }
 
