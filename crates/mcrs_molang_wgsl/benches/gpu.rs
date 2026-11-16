@@ -18,7 +18,7 @@
     reason = "a measurement program has no caller to return an error to"
 )]
 
-#[path = "../tests/gpu/mod.rs"]
+#[path = "../tests/device/mod.rs"]
 mod gpu;
 
 use std::fmt::Write as _;

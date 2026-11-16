@@ -7,7 +7,7 @@
 //! `MCRS_CLIENT_JAR`:
 //!
 //! ```sh
-//! cargo test --release -p mcrs_minecraft_entity_render --test impostor_flip -- --ignored --nocapture
+//! cargo nextest run --profile gpu --release -p mcrs_minecraft_entity_render --no-capture
 //! ```
 #![expect(
     clippy::unwrap_used,
@@ -20,8 +20,7 @@
     reason = "the test finds the client jar through the environment"
 )]
 
-#[expect(dead_code, reason = "the test uses a part of the test support")]
-mod support;
+use crate::support;
 
 use glam::camera::rh::proj::directx;
 use glam::camera::rh::view;
@@ -562,7 +561,6 @@ fn mean(values: &[f32]) -> f32 {
 }
 
 #[test]
-#[ignore = "needs a GPU and the client jar"]
 fn an_impostor_looks_like_the_full_rig_below_twelve_pixels() {
     let Some(gpu) = support::Gpu::new() else {
         panic!("no adapter");
@@ -654,7 +652,6 @@ fn an_impostor_looks_like_the_full_rig_below_twelve_pixels() {
 /// draw take: on the surface of the body, the saddle is nearer by a small step, never at the same
 /// depth.
 #[test]
-#[ignore = "needs a GPU and the client jar"]
 fn a_later_layer_wins_on_the_surface_of_an_earlier_one() {
     let Some(gpu) = support::Gpu::new() else {
         panic!("no adapter");

@@ -3,7 +3,7 @@
 //! `docs/spec/entity-animation.md`, EANIM-GPU-003, after the clamp to `[-1e6, 1e6]`. A value at
 //! a discontinuity is counted, not compared, and a subnormal value agrees with zero.
 //!
-//! `cargo test --release -p mcrs_molang_wgsl --test gpu_fuzz -- --ignored --nocapture`;
+//! `cargo nextest run --profile gpu --release -p mcrs_molang_wgsl --no-capture`;
 //! `MCRS_GPU_FUZZ_PROGRAMS` sets the number of programs (default 10,000).
 
 #![expect(
@@ -17,13 +17,13 @@
     reason = "the program count comes from the environment"
 )]
 
+mod device;
 #[path = "../../mcrs_molang/tests/generator/mod.rs"]
 #[expect(
     dead_code,
     reason = "this test uses only the GPU profile of the shared generator"
 )]
 mod generator;
-mod gpu;
 mod twin;
 
 use std::collections::BTreeMap;
@@ -39,8 +39,8 @@ use proptest::strategy::{Strategy, ValueTree};
 use proptest::test_runner::TestRunner;
 use wgpu::{BufferDescriptor, BufferUsages, MapMode, PollType};
 
+use device::Gpu;
 use generator::{Profile, program, registry};
-use gpu::Gpu;
 use twin::Twin;
 
 const LANES: usize = 64;
@@ -561,87 +561,90 @@ struct Counts {
     scalar_not_finite: usize,
 }
 
-#[test]
-#[ignore = "needs a GPU adapter; run with --release"]
-fn gpu_results_have_the_bits_of_the_twin_and_agree_with_the_scalar_vm() {
-    let Some(gpu) = Gpu::new() else {
-        panic!("no adapter");
-    };
-    let count = std::env::var("MCRS_GPU_FUZZ_PROGRAMS")
-        .ok()
-        .and_then(|text| text.parse().ok())
-        .unwrap_or(10_000);
-    let mut census = BTreeMap::new();
-    let cases = generate(count, &mut census);
-    let mut counts = Counts::default();
-    let mut twin = Twin::new();
-    let mut twin_findings = Vec::new();
-    let mut findings = Vec::new();
-    for batch in cases.chunks(BATCH) {
-        let source = kernel(batch);
-        gpu::validate(&source).unwrap_or_else(|error| panic!("naga: {error}"));
-        let values = run(&gpu, &source, batch);
-        for (case_index, case) in batch.iter().enumerate() {
-            for (lane, inputs) in case.inputs.iter().enumerate() {
-                counts.lanes += 1;
-                let gpu_value = values[case_index * LANES + lane];
-                let twin_run = twin.run(&case.program, &inputs[..case.program.inputs().len()]);
-                if !twin_run.stayed_finite {
-                    counts.twin_not_finite += 1;
-                    continue;
-                }
-                if gpu_value.to_bits() == twin_run.value.to_bits() {
-                    counts.twin_equal += 1;
-                } else if same_or_flushed(gpu_value, twin_run.value) {
-                    counts.twin_flushed += 1;
-                } else {
-                    counts.twin_differs += 1;
-                    twin_findings.push(format!(
-                        "twin: {} inputs {:?}: gpu {gpu_value:e} twin {:e}",
-                        case.text,
-                        &inputs[..case.program.inputs().len()],
-                        twin_run.value
-                    ));
-                }
-                let reference = scalar(case, inputs);
-                if !reference.is_finite() {
-                    counts.scalar_not_finite += 1;
-                    continue;
-                }
-                let clamped = pose_clamp(reference);
-                if clamped.to_bits() == gpu_value.to_bits() {
-                    counts.scalar_bit_equal += 1;
-                } else if same_or_flushed(clamped, gpu_value) || close(clamped, gpu_value) {
-                    counts.scalar_within += 1;
-                } else if at_discontinuity(case, inputs, reference, gpu_value) {
-                    counts.scalar_beyond_at_discontinuity += 1;
-                } else if inexact_discontinuity(case, inputs) {
-                    counts.scalar_beyond_inexact_discontinuity += 1;
-                } else {
-                    counts.scalar_beyond_unexplained += 1;
-                    findings.push(format!(
-                        "scalar: {} inputs {:?}: gpu {gpu_value:e} scalar {reference:e}",
-                        case.text,
-                        &inputs[..case.program.inputs().len()]
-                    ));
+mod gpu {
+    use super::*;
+
+    #[test]
+    fn gpu_results_have_the_bits_of_the_twin_and_agree_with_the_scalar_vm() {
+        let Some(gpu) = Gpu::new() else {
+            panic!("no adapter");
+        };
+        let count = std::env::var("MCRS_GPU_FUZZ_PROGRAMS")
+            .ok()
+            .and_then(|text| text.parse().ok())
+            .unwrap_or(10_000);
+        let mut census = BTreeMap::new();
+        let cases = generate(count, &mut census);
+        let mut counts = Counts::default();
+        let mut twin = Twin::new();
+        let mut twin_findings = Vec::new();
+        let mut findings = Vec::new();
+        for batch in cases.chunks(BATCH) {
+            let source = kernel(batch);
+            device::validate(&source).unwrap_or_else(|error| panic!("naga: {error}"));
+            let values = run(&gpu, &source, batch);
+            for (case_index, case) in batch.iter().enumerate() {
+                for (lane, inputs) in case.inputs.iter().enumerate() {
+                    counts.lanes += 1;
+                    let gpu_value = values[case_index * LANES + lane];
+                    let twin_run = twin.run(&case.program, &inputs[..case.program.inputs().len()]);
+                    if !twin_run.stayed_finite {
+                        counts.twin_not_finite += 1;
+                        continue;
+                    }
+                    if gpu_value.to_bits() == twin_run.value.to_bits() {
+                        counts.twin_equal += 1;
+                    } else if same_or_flushed(gpu_value, twin_run.value) {
+                        counts.twin_flushed += 1;
+                    } else {
+                        counts.twin_differs += 1;
+                        twin_findings.push(format!(
+                            "twin: {} inputs {:?}: gpu {gpu_value:e} twin {:e}",
+                            case.text,
+                            &inputs[..case.program.inputs().len()],
+                            twin_run.value
+                        ));
+                    }
+                    let reference = scalar(case, inputs);
+                    if !reference.is_finite() {
+                        counts.scalar_not_finite += 1;
+                        continue;
+                    }
+                    let clamped = pose_clamp(reference);
+                    if clamped.to_bits() == gpu_value.to_bits() {
+                        counts.scalar_bit_equal += 1;
+                    } else if same_or_flushed(clamped, gpu_value) || close(clamped, gpu_value) {
+                        counts.scalar_within += 1;
+                    } else if at_discontinuity(case, inputs, reference, gpu_value) {
+                        counts.scalar_beyond_at_discontinuity += 1;
+                    } else if inexact_discontinuity(case, inputs) {
+                        counts.scalar_beyond_inexact_discontinuity += 1;
+                    } else {
+                        counts.scalar_beyond_unexplained += 1;
+                        findings.push(format!(
+                            "scalar: {} inputs {:?}: gpu {gpu_value:e} scalar {reference:e}",
+                            case.text,
+                            &inputs[..case.program.inputs().len()]
+                        ));
+                    }
                 }
             }
         }
+        eprintln!("adapter: {}", gpu.name);
+        eprintln!(
+            "programs: {} pure of {} generated",
+            cases.len(),
+            census.values().sum::<usize>()
+        );
+        eprintln!("classes: {census:?}");
+        eprintln!("{counts:#?}");
+        for finding in twin_findings.iter().chain(findings.iter().take(40)) {
+            eprintln!("{finding}");
+        }
+        assert_eq!(counts.twin_differs, 0, "the GPU and the twin differ");
+        assert_eq!(
+            counts.scalar_beyond_unexplained, 0,
+            "the GPU leaves the pose tolerance on a well-conditioned input"
+        );
     }
-    eprintln!("adapter: {}", gpu.name);
-    eprintln!(
-        "programs: {} pure of {} generated",
-        cases.len(),
-        census.values().sum::<usize>()
-    );
-    eprintln!("classes: {census:?}");
-    eprintln!("{counts:#?}");
-    for finding in twin_findings.iter().chain(findings.iter().take(40)) {
-        eprintln!("{finding}");
-    }
-    assert_eq!(counts.twin_differs, 0, "the GPU and the twin differ");
-    assert_eq!(
-        counts.scalar_beyond_unexplained, 0,
-        "the GPU leaves the pose tolerance on a well-conditioned input"
-    );
 }

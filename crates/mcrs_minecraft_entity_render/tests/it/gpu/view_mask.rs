@@ -1,7 +1,7 @@
 //! The cull of a view keeps only the slots whose view set holds the bit of the view.
 //!
 //! ```sh
-//! cargo nextest run -p mcrs_minecraft_entity_render --test it --run-ignored all
+//! cargo nextest run --profile gpu -p mcrs_minecraft_entity_render
 //! ```
 use crate::support;
 use mcrs_minecraft_entity_render::{
@@ -12,7 +12,6 @@ use mcrs_minecraft_entity_render::{
 const TICK: u32 = 1000;
 
 #[test]
-#[ignore = "needs a GPU"]
 fn a_view_draws_only_the_slots_whose_view_set_holds_its_bit() {
     let Some(gpu) = support::Gpu::new() else {
         eprintln!("skipped: no adapter, the view mask test needs a GPU");

@@ -3,7 +3,7 @@
 //! of `docs/spec/entity-animation.md`, EANIM-GPU-003. It needs a GPU:
 //!
 //! ```sh
-//! cargo test -p mcrs_minecraft_entity_render --test pose_parity -- --ignored
+//! cargo nextest run --profile gpu -p mcrs_minecraft_entity_render
 //! ```
 #![expect(
     clippy::unwrap_used,
@@ -12,7 +12,7 @@
     reason = "a test reports a failure by panicking"
 )]
 
-mod support;
+use crate::support;
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -367,7 +367,6 @@ fn compare_with_cpu<'a>(
 }
 
 #[test]
-#[ignore = "needs a GPU"]
 fn the_gpu_pose_of_each_case_agrees_with_the_cpu_animation() {
     let Some(gpu) = support::Gpu::new() else {
         panic!("no adapter: the GPU pose parity needs a GPU");

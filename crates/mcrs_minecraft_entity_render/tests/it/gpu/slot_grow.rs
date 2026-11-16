@@ -1,12 +1,10 @@
 //! A slot buffer that grows in a frame keeps the records that the same frame writes.
 //!
 //! ```sh
-//! cargo test -p mcrs_minecraft_entity_render --test slot_grow -- --ignored
+//! cargo nextest run --profile gpu -p mcrs_minecraft_entity_render
 //! ```
-#![expect(clippy::unwrap_used, reason = "a test reports a failure by panicking")]
 
-#[expect(dead_code, reason = "the test uses a part of the test support")]
-mod support;
+use crate::support;
 
 use mcrs_minecraft_entity_render::{
     Capacities, EntityLibrary, RecordRange, SlotUpload, StateRecord,
@@ -30,7 +28,6 @@ fn upload(slot_capacity: u32, flags: u32) -> SlotUpload {
 }
 
 #[test]
-#[ignore = "needs a GPU"]
 fn a_record_written_in_the_frame_of_a_grow_survives_the_copy_of_the_old_buffer() {
     let Some(gpu) = support::Gpu::new() else {
         eprintln!("skipped: no adapter, the slot grow test needs a GPU");
