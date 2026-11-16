@@ -1,12 +1,15 @@
 # /give Command
 
-- **Status**: Draft specification
-- **Last updated**: 2026-11-15
-- **Game version**: `26.4-snapshot-7` (client `protocol_version`: `1073742169`, `world_version`: `5127`)
-- **Permission requirement**: `gamemasters` ([command-permissions.md](command-permissions.md), `PERM-CMD-001`)
-- **Parser ids**: `brigadier:integer` (`3`), `minecraft:entity` (`6`), `minecraft:item_stack` (`14`) ([registries.json](../../assets/mcrs/reports/registries.json))
-- **Clientbound packets**: `add_entity` (`1`), `commands` (`16`), `container_set_content` (`18`), `container_set_slot` (`20`) ([packets.json](../../assets/mcrs/reports/packets.json))
-- **More clientbound packets**: `remove_entities` (`78`), `set_entity_data` (`101`), `sound` (`119`), `system_chat` (`124`), `take_item_entity` (`127`)
+| Field | Value |
+| --- | --- |
+| Status | `draft` |
+| Last updated | `2026-11-16` |
+| Game version | `26.4-snapshot-7` |
+| Protocol version | `1073742169` |
+| World version | `5127` |
+| Permission requirement | `gamemasters` ([command-permissions.md](command-permissions.md), `PERM-CMD-001`) |
+| Parser ids | `brigadier:integer` (`3`), `minecraft:entity` (`6`), `minecraft:item_stack` (`14`) ([registries.json](../../assets/mcrs/reports/registries.json)) |
+| Clientbound packets | `add_entity` (`1`), `commands` (`16`), `container_set_content` (`18`), `container_set_slot` (`20`), `remove_entities` (`78`), `set_entity_data` (`101`), `sound` (`119`), `system_chat` (`124`), `take_item_entity` (`127`) ([packets.json](../../assets/mcrs/reports/packets.json)) |
 
 This document specifies wire behavior, client agreement, and execution semantics of `/give`.
 
@@ -50,7 +53,7 @@ Every rule carries `Provenance`, `Kind`, and `Confidence` tags per [README.md](R
 
 - `CMD-GIVE-001` .. `CMD-GIVE-013`: `/give` command syntax, validation, execution, sound, and text rules.
 - `D6`: Intentional deviation shared with [item-entity.md](item-entity.md).
-- `U1` .. `U7`: Open questions in Section 7.
+- `U1` .. `U8`: Open questions in Section 7.
 
 ---
 
