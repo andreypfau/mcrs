@@ -16,6 +16,7 @@ mod fluid;
 mod group;
 mod model;
 pub mod pack;
+mod pending_group;
 mod quad_format;
 mod scratch;
 mod section_draw;
@@ -32,6 +33,7 @@ use crate::pack::{
     Field, MODEL_OVERHANG, MODEL_STEPS, MODEL_X, MODEL_Y, MODEL_Z, QUAD_DROP, QUAD_FACE,
     QUAD_FLUID, QUAD_H, QUAD_W, QUAD_WORDS, QUAD_X, QUAD_Y, QUAD_Z,
 };
+use crate::pending_group::PendingGroup;
 use crate::smooth_light::SmoothLight;
 use mcrs_minecraft_core::CardinalLight;
 use mcrs_minecraft_volume::{BlockVolume, LightVolume};
@@ -95,11 +97,6 @@ fn axis_mut<T>(point: &mut [T; 3], axis: u8) -> &mut T {
         1 => y,
         _ => z,
     }
-}
-
-struct PendingGroup {
-    kind: DrawKind,
-    group: Group,
 }
 
 struct Sink {
