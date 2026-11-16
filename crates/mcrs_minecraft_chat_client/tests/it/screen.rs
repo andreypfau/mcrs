@@ -4,7 +4,7 @@ use mcrs_minecraft_chat_client::{
     ChatScreen, ClickMode, Closed, History, HistoryChange, InputStyle, Key, Outcome, Outgoing,
     Signing, StyleClick, UnsentDraft, keeps_draft,
 };
-use mcrs_minecraft_client_widget::{Anchor, Step};
+use mcrs_minecraft_client_widget::{Anchor, GuiRect, Step};
 use mcrs_minecraft_protocol_game::text::ClickEvent;
 
 #[test]
@@ -36,6 +36,40 @@ fn the_input_box_rejects_section_signs_and_control_codes_and_holds_256_character
     edit.set("");
     edit.insert(&"\u{1f600}".repeat(300));
     assert_eq!(edit.text().chars().count(), 256);
+}
+
+#[test]
+fn pointer_click_drag_and_double_click_select_chat_input() {
+    let tree = Tree::new().build();
+    let source = source();
+    let cx = context(&tree, &source);
+    let mut screen = ChatScreen::default();
+    let rect = GuiRect::new(4, 0, 30, 12);
+    let width = |text: &str| text.chars().count() as i32;
+    screen.open("foo bar", InputStyle::Plain, &cx);
+
+    screen.click_input(rect, 5.0, Anchor::Move, &width);
+    screen.drag_input(rect, 7.0, &width);
+    assert_eq!(
+        screen.edit().selected(),
+        "oo",
+        "drag selects the input text"
+    );
+
+    screen.select_input_word(rect, 9.0, &width);
+    assert_eq!(
+        screen.edit().selected(),
+        "bar",
+        "double click selects the word"
+    );
+
+    screen.click_input(rect, 4.0, Anchor::Move, &width);
+    screen.click_input(rect, 7.0, Anchor::Keep, &width);
+    assert_eq!(
+        screen.edit().selected(),
+        "foo",
+        "shift click keeps the anchor"
+    );
 }
 
 #[test]

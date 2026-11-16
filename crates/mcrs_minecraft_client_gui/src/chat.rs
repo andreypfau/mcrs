@@ -7,11 +7,13 @@ use mcrs_minecraft_chat::MAX_INPUT;
 use mcrs_minecraft_chat_client::{
     ARGUMENT_COLOURS, ChatScreen, Highlight, Tag, Tooltip as SuggestionTooltip,
 };
+use mcrs_minecraft_client_widget::GuiRect;
 
 use crate::chat_suggestions;
 use crate::font::{self, Font, Hover, Span};
 use crate::item_decorations::WHITE;
 use crate::language::ClientLanguage;
+use crate::menu_draw;
 use crate::scene::{self, GuiAtlas, GuiConfig, GuiQuad, GuiScene, GuiSize};
 use crate::text::{self, Wrap};
 use crate::tooltip::Tooltip;
@@ -297,6 +299,10 @@ fn for_each_input_run(screen: &ChatScreen, mut run: impl FnMut(&str, u32)) {
     }
 }
 
+pub(crate) fn input_bounds(size: GuiSize) -> GuiRect {
+    GuiRect::new(4, size.height - 12, (size.width - 8).max(0), 12)
+}
+
 /// The input box with its caret and ghost text.
 fn input_box(
     size: GuiSize,
@@ -311,34 +317,31 @@ fn input_box(
     });
     let input = screen.input();
     let caret = screen.edit().caret();
-    let visible = size.width - 8;
-    let mut skip = 0;
-    let before = input.get(..caret).unwrap_or_default();
-    for ch in before.chars() {
-        // Measured like it is drawn, formatting codes included.
-        if font.exact_str_width(before.get(skip..).unwrap_or_default()) <= visible as f32 {
-            break;
-        }
-        skip += ch.len_utf8();
-    }
+    let layout = screen
+        .edit()
+        .layout(input_bounds(size), 0, &|text| font.str_width(text));
+    let visible = layout.visible;
     let y = size.height - 12;
     let mut x = 4.0;
     let mut start = 0;
     for_each_input_run(screen, |text, color| {
-        let cut = skip.saturating_sub(start).min(text.len());
+        let from = visible.start.saturating_sub(start).min(text.len());
+        let to = visible.end.saturating_sub(start).min(text.len());
         start += text.len();
         x = font::draw_str(
             font,
             Vec2::new(x, y as f32),
-            text.get(cut..).unwrap_or_default(),
+            text.get(from..to).unwrap_or_default(),
             color,
             false,
             out,
         );
     });
-    let caret_x = 4 + font.str_width(input.get(skip..caret).unwrap_or_default());
+    let caret_x = 4 + font.str_width(input.get(visible.start..caret).unwrap_or_default());
     let at_end = caret == input.len();
+    let in_view = visible.start <= caret && caret <= visible.end;
     if at_end
+        && in_view
         && input.chars().count() < MAX_INPUT
         && let Some(ghost) = screen.commands.list().and_then(|list| list.ghost(input))
     {
@@ -351,7 +354,13 @@ fn input_box(
             out,
         );
     }
-    if caret_on {
+    if let Some(rect) = layout.selection {
+        out.push(GuiQuad::Highlight {
+            rect: menu_draw::irect(rect),
+            invert: screen.edit().invert,
+        });
+    }
+    if caret_on && in_view {
         if at_end {
             font::draw_str(
                 font,
