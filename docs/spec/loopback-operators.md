@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | `draft` |
+| Status | `ready` |
 | Issue | #913 |
 
 This document states when a player who joins from a loopback address becomes an operator with
@@ -165,7 +165,7 @@ Provenance: `design`. Kind: semantic. Confidence: medium.
   write of the ops file, after an `op` or a `deop` of another player, also leaves the automatic
   operator out.
 - **Behavior:** the automatic operator stays an operator until the process ends or until a
-  `deop` of that player. An `op` of that player does not change this (LU-01).
+  `deop` of that player. An `op` of that player does not change this (LOOP-FILE-002).
 - **Behavior:** during this time, a join of that player from another address finds the player
   an operator. So that join also passes the whitelist check, as for each operator
   (`whitelist.md`, WL-JOIN-004).
@@ -176,6 +176,15 @@ Provenance: `design`. Kind: semantic. Confidence: medium.
 
 Provenance: `design` (the behaviour of mcrs before issue #913). Kind: semantic. Confidence:
 high.
+
+### LOOP-FILE-002: `op` on an automatic operator
+
+- **Behavior:** an `op` of an automatic operator fails with `commands.op.failed`, as for each
+  other operator.
+- **Behavior:** the `op` does not write the ops file. The player stays an automatic operator.
+
+Provenance: `design` (the owner kept the behaviour of mcrs before issue #913, in the review of
+2026-11-16). Kind: semantic. Confidence: high.
 
 ## 5. The vanilla server
 
@@ -223,10 +232,11 @@ client address of a connection, sends `hello`, and reads the op list. Each row i
 | C9 | `local` | socket `127.0.0.1`, forwarded `203.0.113.7` | empty | not an operator | LOOP-ADDR-001 |
 | C10 | `public` | socket `127.0.0.1`, forwarded `127.0.0.1` | empty | not an operator | LOOP-ADDR-001, LOOP-GRANT-002 |
 | C11 | `local`, whitelist check on | `127.0.0.1` | empty, the player not on the whitelist | login refused, op list empty | LOOP-GRANT-003 |
+| C12 | `local` | `127.0.0.1` | empty, then an `op` of that player | `commands.op.failed`; the ops file does not name the player | LOOP-FILE-002 |
 
 C1 to C4 are the checks that the issue names. LOOP-CFG-002 has no test of its own: the
-binary sets no profile, so C7 covers it. C8 to C10 can stay in the integration tests of
-`mcrs_minecraft_server`, which have the ops file and the forwarding setup. C9 is the check of
+binary sets no profile, so C7 covers it. C8 to C12 can stay in the integration tests of
+`mcrs_minecraft_server`, which have the ops file, the forwarding setup and the `op` command. C9 is the check of
 the op list in the test of FWD-USE-001 and FWD-USE-002. A PROXY protocol header sets the client
 address before the handshake (PXP-USE-001), so C3 and C6 also cover a join behind such a header.
 
@@ -243,7 +253,4 @@ address before the handshake (PXP-USE-001), so C3 and C6 also cover a join behin
 
 ## 8. Unresolved
 
-- **LU-01: `op` on an automatic operator.** Today an `op` of an automatic operator fails with
-  `commands.op.failed`, so the ops file does not hold that player. It is not decided whether
-  such an `op` must succeed and write the player to the ops file. Issue #913 does not ask for
-  this change. Question to the owner.
+None.
