@@ -26,8 +26,10 @@ PR #927, which is not merged.
   of PERM-LEVEL-001.
 - **Op list**: the operators that the server holds in memory.
 - **Ops file**: the file `ops.json` in the directory of the server. The server reads the op
-  list from it at start, and writes the op list to it after each `op` or `deop`.
-- **Listed player**: a player whose profile id is on the op list, with the level of that entry.
+  list from it at start. After each `op` or `deop`, it writes each entry of the op list to the
+  file, except the entries of automatic operators (LOOP-FILE-001).
+- **Listed player**: a player whose profile id is on the op list, with the level of that entry,
+  and who is not an automatic operator.
 - **Client address**: the address of the client of a connection, after the changes of
   `proxy-protocol.md`, PXP-USE-001, and of `proxy-forwarding.md`, FWD-USE-002. Without these
   changes, it is the address of the socket.
@@ -244,8 +246,11 @@ merged, add a check like C9 with a PROXY protocol header in place of forwarding.
 
 - **Rule:** LOOP-GRANT-001.
   - **Reference:** the vanilla game gives no operator level from the client address.
+  - **Reason:** a developer who runs the server and the client on one machine gets the
+    commands with no edit of `ops.json`. The `public` profile has no such grant.
   - **Visible to the client:** yes, on the `local` profile only. A player from a loopback
     address receives the level `owners` with no entry in `ops.json`.
+  - **Bug reference:** none.
   - **Test:** a differential test runs mcrs on the `public` profile.
 
 ## 8. Unresolved
