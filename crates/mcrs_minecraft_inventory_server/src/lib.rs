@@ -1,0 +1,37 @@
+//! The packet edge of the player inventory: decodes the inventory packets, applies them through
+//! the gameplay of `mcrs_minecraft_vanilla_inventory`, and keeps each client in agreement.
+// std: mcrs_minecraft_engine
+
+mod apply_click;
+mod apply_inventory_input;
+mod claimed_slot;
+mod click_drag;
+mod click_menu;
+mod click_slots;
+mod close_container;
+mod creative_drops;
+mod decode_click;
+mod decode_hand_action;
+mod forget_rejected_swap;
+mod full_sends;
+mod holder_slots;
+mod inventory_input;
+mod inventory_server_plugin;
+mod inventory_server_set;
+mod menu_content;
+mod menu_queue;
+mod menu_sync;
+mod queue_full_send;
+mod send_full_state;
+mod sent_stack;
+mod set_carried_item;
+mod set_creative_mode_slot;
+mod stack_size;
+mod sync_menus;
+mod wire_names;
+
+pub use claimed_slot::ClaimedSlot;
+pub use inventory_input::InventoryInput;
+pub use inventory_server_plugin::InventoryServerPlugin;
+pub use inventory_server_set::InventoryServerSet;
+pub use menu_sync::MenuSync;

@@ -81,7 +81,7 @@ confidence, for example `(source_suggested, semantic, confidence: medium)`. The 
 - `entity-damage.md`, Appendix A: the fire-immune types.
 - `entity-physics.md`: PHY-GRV-014 (the contact test), PHY-RCH-007 (the blocks with an inside
   action), PHY-INP-021 (the blocks that cause suffocation) and PHY-ORD-001, PHY-ORD-002 (the tick).
-- `command-weather.md`: the rain level.
+- `command-weather.md`: the rain strength.
 
 ## 1. The sources and their data
 
@@ -256,7 +256,7 @@ smaller of 0 and the fire ticks (the "clear") in these cases:
 
 Rain at a block means all these conditions:
 
-- the dimension has weather, and its rain level is more than 0.2 (`command-weather.md`);
+- the dimension has weather, and its rain strength is more than 0.2 (`command-weather.md`);
 - the block can see the sky;
 - no block with the property "blocks motion" is above the block;
 - the biome gives rain, and not snow, at that position.

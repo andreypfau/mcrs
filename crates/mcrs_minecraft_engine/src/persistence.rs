@@ -4,11 +4,12 @@ use bevy_ecs::message::MessageWriter;
 use bevy_ecs::prelude::{Component, Res, ResMut, Resource, With};
 use bevy_ecs::world::World;
 use mcrs_minecraft_core::VERSION;
-use mcrs_minecraft_engine_attributes::Attributes;
 use mcrs_minecraft_engine_world::entity::physics::{Rotation, Transform};
 use mcrs_minecraft_engine_world::entity::player::Player;
 use mcrs_minecraft_engine_world::entity::player::chunk_view::PlayerViewDistance;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
+use mcrs_minecraft_entity::entity_type_keys::EntityType;
+use mcrs_minecraft_entity_attribute::{AttributeInstances, SavedAttributes};
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_nbt::tag::NbtTag;
 use mcrs_minecraft_protocol::uuid::Uuid;
@@ -53,7 +54,8 @@ const PROFILE_KEYS: &[&str] = &["mcrs:profile"];
 const CLIENT_INFO_KEYS: &[&str] = &["mcrs:client_info"];
 const VIEW_DISTANCE_KEYS: &[&str] = &["mcrs:view_distance"];
 const TELEPORT_KEYS: &[&str] = &["mcrs:teleport"];
-const ATTRIBUTES_KEYS: &[&str] = &["mcrs:attributes"];
+const SAVED_ATTRIBUTES_KEYS: &[&str] = &["attributes"];
+const CARRIED_ATTRIBUTES_KEYS: &[&str] = &["mcrs:attributes"];
 const SPRINTING_KEYS: &[&str] = &["mcrs:sprinting"];
 const UUID_KEYS: &[&str] = &["UUID"];
 
@@ -95,8 +97,14 @@ impl Plugin for PlayerPersistencePlugin {
                 PersistScope::TravelOnly,
             )
             .register_persisted::<TeleportState>(TELEPORT_KEYS, PersistScope::TravelOnly)
-            .register_persisted_as::<Attributes, CarriedAttributes>(
-                ATTRIBUTES_KEYS,
+            .register_persisted_as::<AttributeInstances, SavedAttributes>(
+                SAVED_ATTRIBUTES_KEYS,
+                PersistScope::Persisted,
+            )
+            // A handover applies the codecs in this order, so the carried form, which keeps the
+            // transient modifiers, replaces what the saved form applied.
+            .register_persisted_as::<AttributeInstances, CarriedAttributes>(
+                CARRIED_ATTRIBUTES_KEYS,
                 PersistScope::TravelOnly,
             )
             .register_persisted::<PlayerSprinting>(SPRINTING_KEYS, PersistScope::TravelOnly);
@@ -254,6 +262,18 @@ impl PersistedForm<PlayerViewDistance> for ViewDistance {
             distance: self.distance,
             vert_distance: self.vert_distance,
         })
+    }
+}
+
+impl PersistedForm<AttributeInstances> for SavedAttributes {
+    fn from_value(instances: &AttributeInstances) -> Self {
+        Self::from_instances(instances)
+    }
+
+    fn into_value(self) -> Result<AttributeInstances, String> {
+        let bases = mcrs_minecraft_entity::attribute_bases(EntityType::Player)
+            .ok_or("the type `player` has no attribute bases")?;
+        Ok(self.into_instances(bases))
     }
 }
 

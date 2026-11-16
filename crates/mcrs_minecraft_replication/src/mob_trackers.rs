@@ -482,7 +482,7 @@ mod tests {
         let attributes = record(&ClientboundUpdateAttributes {
             entity_id: wire_id(MOB),
             attributes: vec![AttributeSnapshot {
-                attribute: Attribute::MovementSpeed,
+                attribute: Attribute::MovementSpeed.into(),
                 base: 0.25,
                 modifiers: vec![AttributeModifier {
                     id: ResourceLocation::new_static("test:slow").unwrap(),

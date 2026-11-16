@@ -1,0 +1,102 @@
+{
+  "target": {
+    "operators": ["invprobeoperator"]
+  },
+  "observe": { "inventory": true },
+  "steps": [
+    { "id": "operator_joins", "join": "invprobeoperator" },
+    {
+      "id": "peaceful",
+      "command": { "client": "invprobeoperator", "line": "difficulty peaceful" }
+    },
+    {
+      "id": "teleport_to_origin",
+      "command": { "client": "invprobeoperator", "line": "tp @s 0.5 -60 0.5" }
+    },
+    {
+      "id": "survival",
+      "command": { "client": "invprobeoperator", "line": "gamemode survival" }
+    },
+    {
+      "id": "give_stone",
+      "command": { "client": "invprobeoperator", "line": "give @s stone 10" }
+    },
+    {
+      "id": "pick_up_stone",
+      "click": {
+        "client": "invprobeoperator",
+        "slot": 36,
+        "button": 0,
+        "mode": "pickup",
+        "changed_slots": [{ "slot": 36, "stack": null }],
+        "carried": { "item": "minecraft:stone", "count": 10 }
+      }
+    },
+    {
+      "id": "put_stone_down",
+      "click": {
+        "client": "invprobeoperator",
+        "slot": 37,
+        "button": 0,
+        "mode": "pickup"
+      }
+    },
+    {
+      "id": "place_chest",
+      "command": { "client": "invprobeoperator", "line": "setblock 1 -60 0 chest" }
+    },
+    {
+      "id": "open_chest",
+      "use_block": { "client": "invprobeoperator", "position": [1, -60, 0] }
+    },
+    { "id": "close_chest", "close": { "client": "invprobeoperator" } },
+    {
+      "id": "pick_up_stone_after_close",
+      "click": {
+        "client": "invprobeoperator",
+        "slot": 37,
+        "button": 0,
+        "mode": "pickup",
+        "changed_slots": [{ "slot": 37, "stack": null }],
+        "carried": { "item": "minecraft:stone", "count": 10 }
+      }
+    },
+    {
+      "id": "put_stone_back_after_close",
+      "click": {
+        "client": "invprobeoperator",
+        "slot": 37,
+        "button": 0,
+        "mode": "pickup",
+        "changed_slots": [{ "slot": 37, "stack": { "item": "minecraft:stone", "count": 10 } }]
+      }
+    },
+    { "id": "select_slot", "select_slot": { "client": "invprobeoperator", "slot": 2 } },
+    {
+      "id": "creative",
+      "command": { "client": "invprobeoperator", "line": "gamemode creative" }
+    },
+    {
+      "id": "creative_slot",
+      "creative_slot": {
+        "client": "invprobeoperator",
+        "slot": 38,
+        "stack": { "item": "minecraft:stone", "count": 5 }
+      }
+    },
+    {
+      "id": "swap_with_offhand",
+      "player_action": { "client": "invprobeoperator", "status": "swap_item_with_offhand" }
+    },
+    {
+      "id": "save",
+      "command": { "client": "invprobeoperator", "line": "save-all flush" },
+      "read_player_file": {
+        "client": "invprobeoperator",
+        "fields": ["Inventory", "equipment", "SelectedItemSlot", "playerGameType"]
+      }
+    },
+    { "id": "restart", "restart_server": {} },
+    { "id": "operator_joins_again", "join": "invprobeoperator" }
+  ]
+}

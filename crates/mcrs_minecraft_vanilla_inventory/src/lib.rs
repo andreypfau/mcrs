@@ -1,54 +1,47 @@
-//! The four holders of each player (INV-SLT-002): built from the player file and the carried
-//! values at each apply, written back at each capture, changed by the clicks of the inventory
-//! menu, and kept in agreement with the client.
+//! The gameplay of the player inventory: the four holders of each player (INV-SLT-002), the hand
+//! actions, the close, the creative set, the drops and the player file.
 // std: mcrs_minecraft_engine
 
-mod apply_click;
-mod apply_inventory_input;
+mod apply_close;
+mod apply_creative_drop;
+mod apply_creative_set;
+mod apply_selected_slot;
 mod capture_holders;
 mod carried_codec;
-mod claimed_slot;
-mod click_drag;
-mod click_menu;
-mod click_slots;
-mod close_container;
+mod clear_items;
 mod close_inventory_menu;
-mod creative_drops;
-mod decode_click;
-mod forget_rejected_swap;
-mod full_sends;
+mod close_place;
+mod from_holders;
 mod hand_action;
 mod hand_launch;
-mod holder_slots;
 mod insert_stack;
-mod inventory_input;
-mod inventory_menu_sync;
 mod inventory_persistence_plugin;
 mod inventory_set;
 mod kept_equipment;
 mod launch_drops;
-mod menu_content;
-mod menu_queue;
+mod off_hand_gate;
 mod player_file;
 mod player_file_codec;
 mod player_holders;
-mod player_stacks;
+mod player_inventories;
+mod player_inventory_commands_ext;
+mod player_items_restored;
+mod player_policy;
 mod request_ids;
 mod restore_holders;
 mod saved_stack;
-mod send_full_state;
-mod sent_stack;
-mod set_carried_item;
-mod set_creative_mode_slot;
-mod sync_menus;
 mod vanilla_inventory_plugin;
-mod wire_names;
 
-pub use claimed_slot::ClaimedSlot;
 pub use hand_action::HandAction;
-pub use inventory_input::InventoryInput;
-pub use inventory_menu_sync::InventoryMenuSync;
 pub use inventory_persistence_plugin::InventoryPersistencePlugin;
 pub use inventory_set::InventorySet;
 pub use player_holders::PlayerHolders;
+pub use player_inventories::PlayerInventories;
+pub use player_inventory_commands_ext::PlayerInventoryCommandsExt;
+pub use player_items_restored::PlayerItemsRestored;
+pub use request_ids::CLICK_REQUEST;
+pub use request_ids::CLOSE_REQUEST;
+pub use request_ids::CREATIVE_REQUEST;
+pub use request_ids::HAND_DROP_REQUEST;
+pub use request_ids::HAND_SWAP_REQUEST;
 pub use vanilla_inventory_plugin::VanillaInventoryPlugin;

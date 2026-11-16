@@ -121,7 +121,7 @@ mod tests {
         session.receive(ClientboundUpdateAttributes {
             entity_id: VarInt(OWN_PLAYER),
             attributes: vec![AttributeSnapshot {
-                attribute: Attribute::MovementSpeed,
+                attribute: Attribute::MovementSpeed.into(),
                 base,
                 modifiers: Vec::new(),
             }],

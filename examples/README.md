@@ -11,6 +11,13 @@ exactly, or by prefix with a final `*`. For example, a network client can forbid
 
 Every example must have an entry, and every entry must name an example workspace
 member. [Status ping](status_ping/) queries a server without Bevy.
+[Inventory save viewer](inventory_save_viewer/) reads a player file without Bevy.
+[Player attributes](player_attributes/) prints and edits the attributes of a player file
+without Bevy or the engine.
+[Inventory minigame](inventory_minigame/) runs inventory plugins without the packet
+edge of the inventory (`mcrs_minecraft_inventory_server`) and without the click and
+client view crates. The engine still links the network crates today.
+[Loot validate](loot_validate/) checks the loot tables of a data pack without the engine.
 
 Run `cargo nextest run -p xtask` to check the policies. The `portability` trigger
 also checks them in CI. The check reads workspace membership through Cargo

@@ -132,6 +132,9 @@ pub(crate) fn terrain_descriptor(
         )
     };
     descriptor.vertex.shader_defs = path.shader_defs();
+    if layer.writes_depth() {
+        descriptor.vertex.shader_defs.push("SOLID".into());
+    }
     if !path.is_full() {
         descriptor.vertex.buffers = vec![VertexBufferLayout {
             array_stride: size_of::<Group>() as u64,
@@ -141,6 +144,9 @@ pub(crate) fn terrain_descriptor(
     }
     if let Some(fragment) = descriptor.fragment.as_mut() {
         fragment.shader_defs = path.shader_defs();
+        if layer.writes_depth() {
+            fragment.shader_defs.push("SOLID".into());
+        }
         if wireframe {
             fragment.shader_defs.push("WIREFRAME".into());
         }

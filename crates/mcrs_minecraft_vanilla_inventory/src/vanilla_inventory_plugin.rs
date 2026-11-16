@@ -2,44 +2,23 @@ use bevy_app::App;
 use bevy_app::FixedUpdate;
 use bevy_app::Plugin;
 use bevy_ecs::schedule::IntoScheduleConfigs;
-use bevy_ecs::schedule::common_conditions::any_with_component;
 use bevy_ecs::schedule::common_conditions::on_message;
-use mcrs_minecraft_engine::bus::OutboundPlayerPacket;
+use mcrs_minecraft_engine_item::Gate;
+use mcrs_minecraft_engine_item::ItemAppExt;
 use mcrs_minecraft_engine_item::RequestDrop;
-use mcrs_minecraft_engine_world::birth_clock::BirthClock;
 use mcrs_minecraft_engine_world::tick::TickSet;
+use mcrs_minecraft_inventory_player::OffHandRule;
 
-use crate::InventoryInput;
-use crate::InventoryMenuSync;
 use crate::InventorySet;
-use crate::apply_inventory_input::apply_inventory_input;
-use crate::close_container::close_container;
-use crate::decode_click::decode_click;
-use crate::forget_rejected_swap::forget_rejected_swap;
-use crate::full_sends::FullSends;
-use crate::full_sends::any_full_send;
-use crate::hand_action::decode_hand_action;
 use crate::launch_drops::launch_drops;
-use crate::menu_queue::MenuQueue;
+use crate::off_hand_gate::OffHandGate;
+use crate::off_hand_gate::tagged_item_gate;
 use crate::restore_holders::hold_new_player;
-use crate::send_full_state::send_full_state;
-use crate::set_carried_item::set_carried_item;
-use crate::set_creative_mode_slot::set_creative_mode_slot;
-use crate::sync_menus::sync_menus;
 
-/// Gives each new player its four holders (INV-SLT-002). After each apply of the holders, the
-/// next tick sends the player its selected slot and its inventory menu (INV-SEL-003,
-/// INV-SYN-005); the `set_carried_item` packet sets the selected slot (INV-SEL-002).
-///
-/// Each inventory packet becomes an [`InventoryInput`], which [`InventorySet::Input`] applies in
-/// the order of arrival (ITX-JAV-003): a `container_click` packet becomes a request of the engine
-/// (ITX-JAV-001 to ITX-JAV-005), the drop keys and the hand swap of the `player_action` packet
-/// are requests too (INV-SEL-004, INV-SEL-005), the `container_close` packet closes the inventory
-/// menu by a request (INV-CLS-001), and the `set_creative_mode_slot` packet sets an entry or
-/// throws a stack (INV-CRE-003, INV-CRE-004). In each tick, [`InventorySet::Sync`] then sends each
-/// stack of the inventory menu that the client does not hold, whatever wrote it (INV-SYN-003,
-/// INV-SYN-004), and each stack that a drop takes out of a holder of a player becomes an item
-/// entity.
+/// Gives each new player its four holders (INV-SLT-002) with their slot policies, and launches
+/// each stack that a drop takes out of a holder of a player as an item entity (IEN-SPN-001). The
+/// actions of a player reach the holders through
+/// [`PlayerInventoryCommandsExt`](crate::PlayerInventoryCommandsExt).
 ///
 /// Add it to each dimension world, beside
 /// [`ItemPlugin`](mcrs_minecraft_engine_item::ItemPlugin), which it needs. It also needs the
@@ -47,48 +26,40 @@ use crate::sync_menus::sync_menus;
 /// world, which the registry snapshot brings. The player file and a
 /// handover reach the holders through [`InventoryPersistencePlugin`](crate::InventoryPersistencePlugin).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct VanillaInventoryPlugin;
+pub struct VanillaInventoryPlugin {
+    /// The value of the game rule `mcrs:offhand_accepts_any_item` (INV-SLT-005).
+    pub off_hand: OffHandRule,
+}
 
 impl Plugin for VanillaInventoryPlugin {
     fn build(&self, app: &mut App) {
-        app.add_message::<OutboundPlayerPacket>()
-            .add_message::<InventoryInput>()
-            .init_resource::<FullSends>()
-            .init_resource::<MenuQueue>()
-            .init_resource::<BirthClock>()
-            .configure_sets(
-                FixedUpdate,
-                (
-                    InventorySet::Input.in_set(TickSet::ClientInput),
-                    InventorySet::Sync
-                        .after(TickSet::Project)
-                        .before(TickSet::Output),
-                )
-                    .chain(),
+        let off_hand = match self.off_hand {
+            OffHandRule::AnyItem => Gate::Permits,
+            OffHandRule::TaggedItems => match app.register_slot_gate(tagged_item_gate) {
+                Ok(id) => Gate::Ask(id),
+                Err(error) => {
+                    tracing::error!(%error, "the off-hand gate is not registered; the off-hand slot refuses each place");
+                    Gate::Refuses
+                }
+            },
+        };
+        app.insert_resource(OffHandGate(off_hand));
+        app.configure_sets(
+            FixedUpdate,
+            (
+                InventorySet::Input.in_set(TickSet::ClientInput),
+                InventorySet::Drops
+                    .after(TickSet::Project)
+                    .before(TickSet::Output),
             )
-            .add_systems(
-                FixedUpdate,
-                (
-                    apply_inventory_input
-                        .run_if(on_message::<InventoryInput>)
-                        .in_set(InventorySet::Input),
-                    launch_drops
-                        .run_if(on_message::<RequestDrop>)
-                        .in_set(InventorySet::Sync),
-                    (
-                        send_full_state.run_if(any_full_send),
-                        sync_menus.run_if(any_with_component::<InventoryMenuSync>),
-                    )
-                        .chain()
-                        .in_set(InventorySet::Sync),
-                ),
-            )
-            .add_observer(hold_new_player)
-            .add_observer(set_carried_item)
-            .add_observer(decode_click)
-            .add_observer(decode_hand_action)
-            .add_observer(close_container)
-            .add_observer(set_creative_mode_slot)
-            .add_observer(forget_rejected_swap);
+                .chain(),
+        )
+        .add_systems(
+            FixedUpdate,
+            launch_drops
+                .run_if(on_message::<RequestDrop>)
+                .in_set(InventorySet::Drops),
+        )
+        .add_observer(hold_new_player);
     }
 }

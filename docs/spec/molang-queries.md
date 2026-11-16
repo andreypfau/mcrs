@@ -283,7 +283,7 @@ semantic. Confidence: high. Milestone: 1.
      In the first frame of the subject it is `0.0`. Outside an entity it is the time from the
      start of the previous frame to the start of the current frame.
   3. `frame_alpha` is `pt`.
-  4. `time_of_day` is `frac(d / 24000 + 0.25)`, where `d` is the day time of the level in
+  4. `time_of_day` is `frac(d / 24000 + 0.25)`, where `d` is the day time of the dimension in
      ticks that the client knows, and `frac(x) = x − floor(x)`. `0.0` is midnight, `0.25` is
      sunrise, `0.5` is noon and `0.75` is sunset.
 - **Postconditions:** `life_time` increases by `1/20` in each tick of the subject, and it

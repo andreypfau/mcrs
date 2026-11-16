@@ -4,15 +4,15 @@ The probe runs one scenario file against a server and writes a trace. A scenario
 of a specification under `docs/spec/`, written as steps of scripted clients. A trace holds what
 each client observes at each step. The clients connect over TCP in offline mode.
 
-The library has the scenario type, the trace type and the driver `run`. The driver takes the
-scenario, the socket address of the server, the quiet window and a function that reads the player
-ban file. It does
+The library has the scenario type, the trace type, the trait `Host` and the driver `run`. The
+driver takes the scenario, the socket address of the server, the quiet window and the host. The
+host reads the player ban file, reads a saved player file and restarts the server. The driver does
 not start a server, and it does not apply the `target` part of the scenario. The host of the
 server does that before it calls the driver.
 
 The binary is the host for the vanilla dedicated server. It starts the server on a new flat world
 in an empty directory. It writes the operators of the scenario to `ops.json` and the bans to
-`banned-players.json` before the start.
+`banned-players.json` before the start. It reads a player file from `world/players/data`.
 
 ## Scenario
 
@@ -22,6 +22,7 @@ A scenario is a JSON file in `scenarios/`.
 |-------|---------|
 | `target.operators` | the names of the players that are operators |
 | `target.banned_players` | the content of the player ban file at the start |
+| `observe.inventory` | `true` records the menu packets of each step; the default is `false` |
 | `steps` | the steps, each with an `id` and one action |
 
 | Action | Effect |
@@ -29,8 +30,47 @@ A scenario is a JSON file in `scenarios/`.
 | `"join": "<name>"` | a new client logs in with this name |
 | `"leave": "<name>"` | the client closes its connection |
 | `"command": { "client": "<name>", "line": "<command>" }` | the client sends a chat command, without the slash |
+| `"click": { "client", "slot", "button", "mode", "container", "state_id_offset", "changed_slots", "carried" }` | the client sends a container click |
+| `"close": { "client", "container" }` | the client sends a container close |
+| `"select_slot": { "client", "slot" }` | the client sends the selected hotbar slot; the value goes on the wire as it is, so 9 and -1 are possible |
+| `"player_action": { "client", "status" }` | the client sends a player action with this status at the position 0 0 0, face down, sequence 0 |
+| `"creative_slot": { "client", "slot", "stack" }` | the client sets a slot in creative mode; the count can be more than 64 |
+| `"use_block": { "client", "position": [x, y, z] }` | the client uses the main hand on the top face of the block, with the cursor at the centre of the face |
+| `"restart_server": {}` | the driver closes the connection of each client; then the host stops the server, which saves the world, and starts it again on the same world and port. A later step of such a client needs a new `join` |
+
+A click has these fields:
+
+- `mode` is the click kind: `pickup`, `quick_move`, `swap`, `clone`, `throw`, `quick_craft` or
+  `pickup_all`. The packet type has no field for a kind outside this list.
+- `container` is optional. The default is the container of the last `open_screen` that the client
+  got. After a close in one of the two directions, the default is 0.
+- Each menu has its own state id: the inventory menu (container 0) and the open container. The
+  client sends the last state id that it got for the container of the click, plus
+  `state_id_offset`. For a container that is not open, the state id is 0. The default offset is 0.
+- `changed_slots` is a list of `{ "slot", "stack" }`, and `carried` is a stack. They are the
+  prediction of the scenario. The defaults are no changed slots and no carried stack.
+
+A stack in a scenario is `null` or `{ "item": "<name>", "count": <n> }`, with no components.
+A close without `container` uses the same default as a click.
+A click and a close need `observe.inventory`. A scenario with a click or a close and without it
+does not load.
+
+The status of a player action is one of `start_destroy_block`, `change_destroy_direction`,
+`abort_destroy_block`, `stop_destroy_block`, `drop_all_items`, `drop_item`, `release_use_item`,
+`swap_item_with_offhand` or `stab`.
+
+The probe does not respawn a client, and it records no health packet and no combat packet. Thus a
+scenario must prevent the death of its players, for example with `difficulty peaceful` as its
+first command.
 
 A step with `"read_player_bans": true` adds the player ban file after the step to the trace.
+A step with `"read_player_file": { "client": "<name>", "fields": [...] }` adds the named top-level
+fields of the saved player file after the step to the trace. The harness does not save the world.
+Put a `save-all flush` command in the step.
+
+With `observe.inventory`, each client answers a position sync with an accept and the end of a
+chunk batch with a receipt. Each client sends the loaded packet once after the join. Without it,
+the clients send none of these packets.
 
 Use long lower-case names that no account holds. The vanilla server asks the account service for
 a name that is not online.
@@ -46,15 +86,41 @@ version. Each step has one result:
 | `refused` | the connection state (`login`, `configuration` or `play`) and the reason; the reason is `null` when the server closes the connection without a disconnect packet |
 | `left` | no content |
 | `command` | `replies`: the system chat messages that the sender gets; `disconnects`: each client that the server disconnects, with the reason |
+| `sent` | `disconnects`, as for `command`; the result of a step that sends a game packet |
+| `restarted` | no content |
+
+With `observe.inventory`, each step also has `inventory`: the menu packets that the clients get
+in the step, in the order of their arrival. A join step has them too. Each entry has the `client`,
+the `kind` and the fields of the packet:
+
+| Kind | Fields |
+|------|--------|
+| `open_screen` | `container`, `menu` (the name of the menu type), `title` (a text component) |
+| `container_close` | `container` |
+| `container_set_content` | `container`, `state_id`, `slots` (a stack for each slot), `carried` |
+| `container_set_slot` | `container`, `state_id`, `slot`, `stack` |
+| `container_set_data` | `container`, `id`, `value` |
+| `set_cursor_item` | `stack` |
+| `set_player_inventory` | `slot`, `stack` |
+| `set_held_slot` | `slot` |
+
+A stack in a trace is `null` or `{ "item", "count", "components" }`. The item is a name.
+`components` has the lists `added` and `removed` with the names of the component types of the
+patch. The trace does not hold the values of the added components.
+
+A step with `read_player_file` has `player_file`: each named field as SNBT text, with the keys of
+each compound in order. A field that the file does not have is `null`.
 
 A text component is stored with its structure: the translation key, the arguments and the style.
 A ban entry has the fields `uuid`, `name`, `source`, `expires` and `reason`. The entries are in
 the order of their names. The trace has no times and no entity ids.
 
-A step is complete when no client gets a chat message, a disconnect or a close for the quiet
-window. The caller of the driver gives the quiet window. The binary uses 1 second for each
-recording. A command and a leave wait at most 10 seconds for the first of these. A command that
-gets none has an empty `replies` list.
+A step is complete when no client gets a chat message, a menu packet, a disconnect or a close for
+the quiet window. The caller of the driver gives the quiet window. The binary uses 1 second for each
+recording. A command and a leave wait at most 10 seconds for the first of these. A step that sends
+a game packet waits at most 2 seconds. With `observe.inventory`, a join also waits at most 2 seconds.
+A command that gets none has an empty `replies` list. When the connection of the sender of a game
+packet closes without a disconnect packet, the run stops with an error.
 
 The trace holds only the chat of the client that sends a command. It does not hold the chat that
 other clients get, or the chat of a `join` or a `leave` step.

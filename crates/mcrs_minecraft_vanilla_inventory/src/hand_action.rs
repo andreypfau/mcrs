@@ -1,8 +1,7 @@
-use bevy_ecs::message::MessageWriter;
-use bevy_ecs::observer::On;
+use bevy_ecs::entity::Entity;
 use bevy_ecs::query::With;
 use bevy_ecs::system::Commands;
-use bevy_ecs::system::InRef;
+use bevy_ecs::system::In;
 use bevy_ecs::system::Query;
 use mcrs_minecraft_engine::ability::PlayerGameMode;
 use mcrs_minecraft_engine_item::HolderCommandsExt;
@@ -13,16 +12,12 @@ use mcrs_minecraft_engine_item::Slots;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_inventory_player::OFF_HAND;
 use mcrs_minecraft_item_stack::Count;
-use mcrs_minecraft_network::event::Received;
-use mcrs_minecraft_protocol_game::player::PlayerAction;
-use mcrs_minecraft_protocol_game::serverbound::ServerboundPlayerAction;
 
-use crate::InventoryInput;
 use crate::PlayerHolders;
 use crate::request_ids::HAND_DROP_REQUEST;
 use crate::request_ids::HAND_SWAP_REQUEST;
 
-/// An action of the `player_action` packet on the hands.
+/// An action of a player on its hands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HandAction {
     /// The drop key: one item of the selected slot.
@@ -33,39 +28,15 @@ pub enum HandAction {
     SwapHands,
 }
 
-/// Writes the [`InventoryInput::Hand`] of each `player_action` packet with a drop key or the hand
-/// swap.
-pub(crate) fn decode_hand_action(
-    received: On<Received<ServerboundPlayerAction>>,
-    mut inputs: MessageWriter<InventoryInput>,
-) {
-    let Some(packet) = received.packet() else {
-        return;
-    };
-    let action = match packet.action {
-        PlayerAction::DropItem => HandAction::DropOne,
-        PlayerAction::DropAllItems => HandAction::DropStack,
-        PlayerAction::SwapItemWithOffhand => HandAction::SwapHands,
-        _ => return,
-    };
-    inputs.write(InventoryInput::Hand {
-        player: received.entity,
-        action,
-    });
-}
-
 /// Makes the request of a drop key or of the hand swap of a player who is no spectator
 /// (INV-SEL-004, INV-SEL-005). A drop from an empty hand and a swap of two empty slots request
 /// nothing.
 pub(crate) fn apply_hand_action(
-    InRef(input): InRef<InventoryInput>,
+    In((player, action)): In<(Entity, HandAction)>,
     players: Query<(&Slots, &Selected, Option<&PlayerGameMode>), With<PlayerHolders>>,
     counts: Query<&Count>,
     mut commands: Commands,
 ) {
-    let &InventoryInput::Hand { player, action } = input else {
-        return;
-    };
     let Ok((slots, selected, game_mode)) = players.get(player) else {
         return;
     };

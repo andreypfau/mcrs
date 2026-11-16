@@ -500,8 +500,8 @@ Provenance: `source_suggested_black_box_confirmed` (environment artefact, `spati
 
 ### ENVA-LAYER-005: Weather layer
 
-- **Inputs:** an attribute, the rain level `R` and the thunder level `T` of the dimension, at
-  the time of the read. `T` here is the thunder level multiplied by the rain level.
+- **Inputs:** an attribute, the rain strength `R` and the thunder strength `T` of the dimension, at
+  the time of the read. `T` here is the thunder strength multiplied by the rain strength.
 - **Behavior:**
   1. The layer exists only when the dimension type has sky light, has no ceiling, and the
      dimension is not `minecraft:the_end`.
@@ -786,7 +786,7 @@ Kind: semantic. Confidence: high. Milestone: 1.
     `{"value", "alpha"}`. A `blend_to_gray` argument is `{"brightness", "factor"}`.
   - In `timelines`, each track has `modifier` and `samples`. A sample is `[tick, argument]`.
     The argument is the sample of ENVA-TL-003, before the modifier applies.
-  - In `weather`, the thunder level is the level that ENVA-LAYER-005 calls `T`. The last
+  - In `weather`, the thunder strength is the value that ENVA-LAYER-005 calls `T`. The last
     element has the base values.
   - In `spatial`, the source `c` is an attribute map with no entries.
   - In `client_clock`, the update is a `set_time` at game time 0. Each step is
@@ -842,5 +842,5 @@ Provenance: `source_suggested`. Kind: semantic. Confidence: medium. Milestone: 1
    includes another tag.
 2. ENVA-LAYER-007: the client reads the camera position for the value of a frame. The camera
    specification owns that position.
-3. ENVA-LAYER-005: the rain level and the thunder level, and how they change, belong to a
+3. ENVA-LAYER-005: the rain strength and the thunder strength, and how they change, belong to a
    weather specification that does not exist yet.

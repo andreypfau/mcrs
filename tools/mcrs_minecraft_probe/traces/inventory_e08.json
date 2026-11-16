@@ -1,0 +1,707 @@
+{
+  "version": {
+    "name": "26.4 Snapshot 7",
+    "protocol": 1073742169
+  },
+  "steps": [
+    {
+      "id": "join",
+      "observed": "joined",
+      "inventory": [
+        {
+          "client": "inve08probeplyr",
+          "kind": "set_held_slot",
+          "slot": 0
+        },
+        {
+          "client": "inve08probeplyr",
+          "kind": "container_set_content",
+          "container": 0,
+          "state_id": 1,
+          "slots": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "carried": null
+        }
+      ]
+    },
+    {
+      "id": "peaceful",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.difficulty.success",
+              "with": [
+                {
+                  "translate": "options.difficulty.peaceful"
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "teleport_to_origin",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.teleport.success.location.single",
+              "with": [
+                {
+                  "text": "inve08probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve08probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      401197201,
+                      -1602470300,
+                      -2105389738,
+                      -1219342870
+                    ],
+                    "name": "inve08probeplyr"
+                  },
+                  "insertion": "inve08probeplyr"
+                },
+                "0.500000",
+                "-60.000000",
+                "0.500000"
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "survival",
+      "observed": {
+        "command": {
+          "replies": [],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "place_chest",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.setblock.success",
+              "with": [
+                1,
+                -60,
+                0
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "stone_5_in_p1_before_open",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve08probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve08probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      401197201,
+                      -1602470300,
+                      -2105389738,
+                      -1219342870
+                    ],
+                    "name": "inve08probeplyr"
+                  },
+                  "insertion": "inve08probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.stone"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:stone",
+                    "count": 5
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve08probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 2,
+          "slot": 37,
+          "stack": {
+            "item": "minecraft:stone",
+            "count": 5,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "open_chest",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve08probeplyr",
+          "kind": "open_screen",
+          "container": 1,
+          "menu": "minecraft:generic_9x3",
+          "title": {
+            "translate": "container.chest"
+          }
+        },
+        {
+          "client": "inve08probeplyr",
+          "kind": "container_set_content",
+          "container": 1,
+          "state_id": 1,
+          "slots": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "item": "minecraft:stone",
+              "count": 5,
+              "components": {
+                "added": [],
+                "removed": []
+              }
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "carried": null
+        }
+      ]
+    },
+    {
+      "id": "chest_open_helmet_to_head",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve08probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve08probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      401197201,
+                      -1602470300,
+                      -2105389738,
+                      -1219342870
+                    ],
+                    "name": "inve08probeplyr"
+                  },
+                  "insertion": "inve08probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "item.minecraft.iron_helmet"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:iron_helmet"
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "chest_open_shield_to_off_hand",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve08probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve08probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      401197201,
+                      -1602470300,
+                      -2105389738,
+                      -1219342870
+                    ],
+                    "name": "inve08probeplyr"
+                  },
+                  "insertion": "inve08probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "item.minecraft.shield"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:shield"
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "chest_open_dirt_to_craft_grid_0",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve08probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve08probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      401197201,
+                      -1602470300,
+                      -2105389738,
+                      -1219342870
+                    ],
+                    "name": "inve08probeplyr"
+                  },
+                  "insertion": "inve08probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.dirt"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:dirt"
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve08probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 3,
+          "slot": 0,
+          "stack": null
+        },
+        {
+          "client": "inve08probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 4,
+          "slot": 0,
+          "stack": null
+        }
+      ]
+    },
+    {
+      "id": "chest_open_dirt_3_to_p0",
+      "observed": {
+        "command": {
+          "replies": [
+            {
+              "translate": "commands.item.entity.replace.success.single.known_item",
+              "with": [
+                1,
+                {
+                  "text": "inve08probeplyr",
+                  "click_event": {
+                    "action": "suggest_command",
+                    "command": "/tell inve08probeplyr "
+                  },
+                  "hover_event": {
+                    "action": "show_entity",
+                    "id": "minecraft:player",
+                    "uuid": [
+                      401197201,
+                      -1602470300,
+                      -2105389738,
+                      -1219342870
+                    ],
+                    "name": "inve08probeplyr"
+                  },
+                  "insertion": "inve08probeplyr"
+                },
+                {
+                  "translate": "chat.square_brackets",
+                  "with": [
+                    {
+                      "text": "",
+                      "extra": [
+                        {
+                          "translate": "block.minecraft.dirt"
+                        }
+                      ]
+                    }
+                  ],
+                  "color": "white",
+                  "hover_event": {
+                    "action": "show_item",
+                    "id": "minecraft:dirt",
+                    "count": 3
+                  }
+                }
+              ]
+            }
+          ],
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve08probeplyr",
+          "kind": "container_set_slot",
+          "container": 1,
+          "state_id": 2,
+          "slot": 54,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 3,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "close_chest",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve08probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 5,
+          "slot": 1,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 1,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "inve08probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 6,
+          "slot": 5,
+          "stack": {
+            "item": "minecraft:iron_helmet",
+            "count": 1,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        },
+        {
+          "client": "inve08probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 7,
+          "slot": 45,
+          "stack": {
+            "item": "minecraft:shield",
+            "count": 1,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "inventory_pick_up_p0_with_prediction",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "inventory_put_back_p0_with_prediction",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": []
+    },
+    {
+      "id": "inventory_pick_up_p0_without_prediction",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve08probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 8,
+          "slot": 36,
+          "stack": null
+        },
+        {
+          "client": "inve08probeplyr",
+          "kind": "set_cursor_item",
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 3,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "inventory_put_back_p0_without_prediction",
+      "observed": {
+        "sent": {
+          "disconnects": []
+        }
+      },
+      "inventory": [
+        {
+          "client": "inve08probeplyr",
+          "kind": "container_set_slot",
+          "container": 0,
+          "state_id": 9,
+          "slot": 36,
+          "stack": {
+            "item": "minecraft:dirt",
+            "count": 3,
+            "components": {
+              "added": [],
+              "removed": []
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

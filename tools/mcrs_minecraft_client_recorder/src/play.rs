@@ -106,9 +106,12 @@ pub(crate) fn decode_clientbound(
             if Some(packet.entity_id.0) != player {
                 return Ok(Play::Events(Vec::new()));
             }
-            return Ok(Play::Events(
-                packet.attributes.iter().map(attribute).collect(),
-            ));
+            let events: Vec<Event> = packet
+                .attributes
+                .iter()
+                .map(attribute)
+                .collect::<anyhow::Result<_>>()?;
+            return Ok(Play::Events(events));
         }
         "update_mob_effect" if is_player(r, player)? => Event::Effect(Effect {
             name: effect_name(VarInt::decode(r)?.0),
@@ -234,7 +237,10 @@ fn vec3(r: &mut &[u8]) -> anyhow::Result<[f64; 3]> {
     Ok([f64::decode(r)?, f64::decode(r)?, f64::decode(r)?])
 }
 
-fn attribute(snapshot: &AttributeSnapshot<'_>) -> Event {
+fn attribute(snapshot: &AttributeSnapshot<'_>) -> anyhow::Result<Event> {
+    let Some(known) = snapshot.attribute.resolve() else {
+        anyhow::bail!("unknown attribute id {}", snapshot.attribute);
+    };
     let modifiers = snapshot
         .modifiers
         .iter()
@@ -244,11 +250,11 @@ fn attribute(snapshot: &AttributeSnapshot<'_>) -> Event {
             operation: u8::from(modifier.operation),
         })
         .collect();
-    Event::Attribute(Attribute {
-        name: snapshot.attribute.as_static_str().to_owned(),
+    Ok(Event::Attribute(Attribute {
+        name: known.as_static_str().to_owned(),
         base: snapshot.base,
         modifiers,
-    })
+    }))
 }
 
 fn effect_name(id: i32) -> String {

@@ -20,7 +20,11 @@ import package::shaders::include::fog::{fog_mix, fog_value};
 @if(IMPROVED) import package::shaders::include::transparency::transparent_fog;
 import package::shaders::include::frame::{camera, params};
 import package::shaders::include::lighting::face_shade;
-import package::shaders::include::quad::{corner_index, degenerate, face_normal, greedy_corner};
+import package::shaders::include::quad::{
+    GREEDY_EDGE_OVERLAP, corner_index, degenerate, face_normal, face_u_dir, face_v_dir,
+    greedy_corner,
+};
+@if(SOLID) import package::shaders::include::quad_coverage::{quad_projection, quad_uv_at, quad_contains};
 import package::shaders::include::section::section_origin;
 import package::shaders::include::surface::{Surface, shade_surface};
 import package::shaders::include::terrain_bindings::{
@@ -35,6 +39,9 @@ struct GreedyOut {
     @location(3) @interpolate(flat) face_span: vec2<u32>,
     @location(4) @interpolate(flat) directional: f32,
     @location(5) @interpolate(flat) face: u32,
+    @if(SOLID) @location(6) @interpolate(flat) projection_u: vec3<f32>,
+    @if(SOLID) @location(7) @interpolate(flat) projection_v: vec3<f32>,
+    @if(SOLID) @location(8) @interpolate(flat) projection_w: vec3<f32>,
 };
 
 @vertex
@@ -53,9 +60,29 @@ fn vertex_greedy(in: TerrainVertex) -> GreedyOut {
         quad_field(quad, QUAD_W_WORD, QUAD_W_SHIFT, QUAD_W_BITS) + 1u,
         quad_field(quad, QUAD_H_WORD, QUAD_H_SHIFT, QUAD_H_BITS) + 1u,
     );
-    let corner = greedy_corner(quad_words(quad), section_origin(desc), f32(desc.scale), corner_index(in.index));
+    @if(SOLID) let overlap = GREEDY_EDGE_OVERLAP;
+    @else let overlap = 0.0;
+    let words = quad_words(quad);
+    let origin = section_origin(desc);
+    let scale = f32(desc.scale);
+    let corner = greedy_corner(words, origin, scale, corner_index(in.index), overlap);
     let world = corner.world;
     let quad_uv = corner.quad_uv;
+    @if(SOLID) {
+        let size = vec2<f32>(span) * scale;
+        let u = face_u_dir(face) * size.x;
+        let v = face_v_dir(face) * size.y;
+        // Corner 2 stays at (1, 1) even on shortened fluid sides where corner 0 shifts by drop / size.y.
+        let anchor = greedy_corner(words, origin, scale, 2u, 0.0).world - u - v;
+        let projection = quad_projection(
+            camera.clip_from_relative * vec4<f32>(anchor, 1.0),
+            camera.clip_from_relative * vec4<f32>(u, 0.0),
+            camera.clip_from_relative * vec4<f32>(v, 0.0),
+        );
+        out.projection_u = projection[0];
+        out.projection_v = projection[1];
+        out.projection_w = projection[2];
+    }
 
     out.clip_position = camera.clip_from_relative * vec4<f32>(world, 1.0);
     out.quad_uv = quad_uv;
@@ -112,7 +139,7 @@ fn greedy_surface(in: GreedyOut) -> Surface {
 /// The sprite coordinates at `uv` of a face whose cell `cell` lays its sprite with the
 /// orientation bits of `UvOrientation`: swap, then mirror u, then mirror v.
 fn oriented_uv(uv: vec2<f32>, cell: vec2<u32>, orientation: u32) -> vec2<f32> {
-    var inside = uv - vec2<f32>(cell);
+    var inside = clamp(uv - vec2<f32>(cell), vec2<f32>(0.0), vec2<f32>(1.0));
     if ((orientation & 1u) != 0u) {
         inside = inside.yx;
     }
@@ -122,7 +149,7 @@ fn oriented_uv(uv: vec2<f32>, cell: vec2<u32>, orientation: u32) -> vec2<f32> {
     if ((orientation & 4u) != 0u) {
         inside.y = 1.0 - inside.y;
     }
-    return vec2<f32>(cell) + inside;
+    return inside;
 }
 
 fn oriented_gradient(gradient: vec2<f32>, orientation: u32) -> vec2<f32> {
@@ -148,7 +175,7 @@ fn greedy_light(in: GreedyOut) -> vec3<f32> {
     for (var k = 0u; k < 4u; k++) {
         corners[k] = corner_light(face.ao, face.block, face.sky, k, in.directional);
     }
-    let f = face.uv - vec2<f32>(face.cell);
+    let f = clamp(face.uv - vec2<f32>(face.cell), vec2<f32>(0.0), vec2<f32>(1.0));
     // Vanilla draws each block face as two triangles split from corner 0 to corner 2, and the
     // colour is interpolated across each triangle on its own, not bilinearly across the face.
     if (f.y > f.x) {
@@ -162,26 +189,44 @@ fn greedy_gbuffer(in: GreedyOut, albedo: vec3<f32>) -> package::shaders::include
     return package::shaders::include::deferred::gbuffer(albedo, light.x, face_normal(in.face), light.y, light.z);
 }
 
+struct GreedyCoverage {
+    surface: GreedyOut,
+    outside: bool,
+};
+
+fn greedy_coverage(in: GreedyOut) -> GreedyCoverage {
+    var surface = in;
+    @if(SOLID) {
+        let projection = mat3x3<f32>(in.projection_u, in.projection_v, in.projection_w);
+        surface.quad_uv = quad_uv_at(projection, in.clip_position.xy, camera.raster_viewport, vec2<f32>(0.0));
+        return GreedyCoverage(surface, !quad_contains(projection, surface.quad_uv, in.clip_position.xy, camera.raster_viewport));
+    } @else {
+        return GreedyCoverage(surface, false);
+    }
+}
+
 @fragment
 fn fragment_greedy_solid(in: GreedyOut) -> package::shaders::include::gbuffer_encode::GBuffer {
-    let wireframe_discards = package::shaders::include::finish::wireframe_discards(in.quad_uv);
-    let color = shade_surface(greedy_surface(in));
-    if (wireframe_discards) {
+    let coverage = greedy_coverage(in);
+    let wireframe_discards = package::shaders::include::finish::wireframe_discards(coverage.surface.quad_uv);
+    let color = shade_surface(greedy_surface(coverage.surface));
+    if (coverage.outside || wireframe_discards) {
         discard;
     }
-    return greedy_gbuffer(in, color.rgb);
+    return greedy_gbuffer(coverage.surface, color.rgb);
 }
 
 @fragment
 fn fragment_greedy_cutout(in: GreedyOut) -> package::shaders::include::gbuffer_encode::GBuffer {
+    let coverage = greedy_coverage(in);
     // Taken before the test: behind a short-circuit the derivative inside would sit in
     // non-uniform control flow, which WebGPU rejects for the whole module.
-    let wireframe_discards = package::shaders::include::finish::wireframe_discards(in.quad_uv);
-    let color = shade_surface(greedy_surface(in));
-    if (color.a < 0.5 || wireframe_discards) {
+    let wireframe_discards = package::shaders::include::finish::wireframe_discards(coverage.surface.quad_uv);
+    let color = shade_surface(greedy_surface(coverage.surface));
+    if (coverage.outside || color.a < 0.5 || wireframe_discards) {
         discard;
     }
-    return greedy_gbuffer(in, color.rgb);
+    return greedy_gbuffer(coverage.surface, color.rgb);
 }
 
 @fragment

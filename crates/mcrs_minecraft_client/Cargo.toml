@@ -91,7 +91,7 @@ mcrs_minecraft_vanilla_worldgen = { workspace = true, optional = true }
 tracing-tracy = { version = "0.12", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-bevy = { version = "0.20.1", default-features = false, features = ["x11"] }
+bevy = { version = "0.20.1", default-features = false, features = ["x11", "wayland"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 bevy = { version = "0.20.1", default-features = false, features = ["web", "bevy_clipboard"] }

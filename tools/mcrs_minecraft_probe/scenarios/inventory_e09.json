@@ -1,0 +1,426 @@
+{
+  "target": {
+    "operators": [
+      "inve09probeplyr"
+    ]
+  },
+  "observe": {
+    "inventory": true
+  },
+  "steps": [
+    {
+      "id": "join",
+      "join": "inve09probeplyr"
+    },
+    {
+      "id": "peaceful",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "difficulty peaceful"
+      }
+    },
+    {
+      "id": "teleport_to_origin",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "tp @s 0.5 -60 0.5"
+      }
+    },
+    {
+      "id": "survival",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "gamemode survival"
+      }
+    },
+    {
+      "id": "cursor_case_stone_5_in_p7",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "item replace entity @s hotbar.7 with stone 5"
+      }
+    },
+    {
+      "id": "cursor_case_cursor_stone_10",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "item replace entity @s player.cursor with stone 10"
+      }
+    },
+    {
+      "id": "cursor_case_close",
+      "close": {
+        "client": "inve09probeplyr"
+      }
+    },
+    {
+      "id": "cursor_case_read_inventory",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "data get entity @s Inventory"
+      }
+    },
+    {
+      "id": "cursor_case_count_item_entities",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "execute if entity @e[type=minecraft:item]"
+      }
+    },
+    {
+      "id": "full_case_clear",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "clear @s"
+      }
+    },
+    {
+      "id": "full_case_dirt_in_each_main_slot",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "give @s dirt 2304"
+      }
+    },
+    {
+      "id": "full_case_cursor_stone_10",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "item replace entity @s player.cursor with stone 10"
+      }
+    },
+    {
+      "id": "full_case_close",
+      "close": {
+        "client": "inve09probeplyr"
+      }
+    },
+    {
+      "id": "full_case_before_pickup_delay_reset_item_list",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "data remove storage mcrs:probe items"
+      }
+    },
+    {
+      "id": "full_case_before_pickup_delay_list_item_entities",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "execute as @e[type=minecraft:item] run data modify storage mcrs:probe items append from entity @s Item"
+      }
+    },
+    {
+      "id": "full_case_before_pickup_delay_read_item_list",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "data get storage mcrs:probe items"
+      }
+    },
+    {
+      "id": "full_case_count_item_entities",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "execute if entity @e[type=minecraft:item]"
+      }
+    },
+    {
+      "id": "full_case_feedback_off",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "gamerule minecraft:send_command_feedback false"
+      }
+    },
+    {
+      "id": "full_case_kill_item_entities_without_feedback",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "kill @e[type=minecraft:item]"
+      }
+    },
+    {
+      "id": "full_case_feedback_on",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "gamerule minecraft:send_command_feedback true"
+      }
+    },
+    {
+      "id": "grid_case_clear",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "clear @s"
+      }
+    },
+    {
+      "id": "grid_case_stone_5_in_p7",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "item replace entity @s hotbar.7 with stone 5"
+      }
+    },
+    {
+      "id": "grid_case_stone_3_in_grid_0",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "item replace entity @s player.crafting.0 with stone 3"
+      }
+    },
+    {
+      "id": "grid_case_dirt_2_in_grid_2",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "item replace entity @s player.crafting.2 with dirt 2"
+      }
+    },
+    {
+      "id": "grid_case_cursor_stone_4",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "item replace entity @s player.cursor with stone 4"
+      }
+    },
+    {
+      "id": "grid_case_close",
+      "close": {
+        "client": "inve09probeplyr"
+      }
+    },
+    {
+      "id": "grid_case_read_inventory",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "data get entity @s Inventory"
+      }
+    },
+    {
+      "id": "grid_case_count_item_entities",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "execute if entity @e[type=minecraft:item]"
+      }
+    },
+    {
+      "id": "full_grid_case_clear",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "clear @s"
+      }
+    },
+    {
+      "id": "full_grid_case_dirt_in_each_main_slot",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "give @s dirt 2304"
+      }
+    },
+    {
+      "id": "full_grid_case_andesite_3_in_grid_0",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "item replace entity @s player.crafting.0 with andesite 3"
+      }
+    },
+    {
+      "id": "full_grid_case_granite_1_in_grid_3",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "item replace entity @s player.crafting.3 with granite 1"
+      }
+    },
+    {
+      "id": "full_grid_case_cursor_stone_4",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "item replace entity @s player.cursor with stone 4"
+      }
+    },
+    {
+      "id": "full_grid_case_close",
+      "close": {
+        "client": "inve09probeplyr"
+      }
+    },
+    {
+      "id": "full_grid_case_before_pickup_delay_reset_item_list",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "data remove storage mcrs:probe items"
+      }
+    },
+    {
+      "id": "full_grid_case_before_pickup_delay_list_item_entities",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "execute as @e[type=minecraft:item] run data modify storage mcrs:probe items append from entity @s Item"
+      }
+    },
+    {
+      "id": "full_grid_case_before_pickup_delay_read_item_list",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "data get storage mcrs:probe items"
+      }
+    },
+    {
+      "id": "full_grid_case_count_item_entities",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "execute if entity @e[type=minecraft:item]"
+      }
+    },
+    {
+      "id": "full_grid_case_feedback_off",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "gamerule minecraft:send_command_feedback false"
+      }
+    },
+    {
+      "id": "full_grid_case_kill_item_entities_without_feedback",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "kill @e[type=minecraft:item]"
+      }
+    },
+    {
+      "id": "full_grid_case_feedback_on",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "gamerule minecraft:send_command_feedback true"
+      }
+    },
+    {
+      "id": "other_id_case_clear",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "clear @s"
+      }
+    },
+    {
+      "id": "other_id_case_cursor_stone_2",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "item replace entity @s player.cursor with stone 2"
+      }
+    },
+    {
+      "id": "other_id_case_close_container_7",
+      "close": {
+        "client": "inve09probeplyr",
+        "container": 7
+      }
+    },
+    {
+      "id": "other_id_case_read_inventory",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "data get entity @s Inventory"
+      }
+    },
+    {
+      "id": "server_close_case_clear",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "clear @s"
+      }
+    },
+    {
+      "id": "server_close_case_place_chest",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "setblock 1 -60 0 chest"
+      }
+    },
+    {
+      "id": "server_close_case_open_chest",
+      "use_block": {
+        "client": "inve09probeplyr",
+        "position": [
+          1,
+          -60,
+          0
+        ]
+      }
+    },
+    {
+      "id": "server_close_case_cursor_stone_6",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "item replace entity @s player.cursor with stone 6"
+      }
+    },
+    {
+      "id": "server_close_case_remove_chest",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "setblock 1 -60 0 air"
+      }
+    },
+    {
+      "id": "server_close_case_read_inventory",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "data get entity @s Inventory"
+      }
+    },
+    {
+      "id": "server_close_case_count_item_entities",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "execute if entity @e[type=minecraft:item]"
+      }
+    },
+    {
+      "id": "other_id_chest_case_clear",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "clear @s"
+      }
+    },
+    {
+      "id": "other_id_chest_case_place_chest",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "setblock 1 -60 0 chest"
+      }
+    },
+    {
+      "id": "other_id_chest_case_open_chest",
+      "use_block": {
+        "client": "inve09probeplyr",
+        "position": [
+          1,
+          -60,
+          0
+        ]
+      }
+    },
+    {
+      "id": "other_id_chest_case_cursor_stone_3",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "item replace entity @s player.cursor with stone 3"
+      }
+    },
+    {
+      "id": "other_id_chest_case_close_container_9",
+      "close": {
+        "client": "inve09probeplyr",
+        "container": 9
+      }
+    },
+    {
+      "id": "other_id_chest_case_dirt_1_in_p1",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "item replace entity @s hotbar.1 with dirt 1"
+      }
+    },
+    {
+      "id": "other_id_chest_case_read_inventory",
+      "command": {
+        "client": "inve09probeplyr",
+        "line": "data get entity @s Inventory"
+      }
+    }
+  ]
+}

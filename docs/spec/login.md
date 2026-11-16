@@ -403,11 +403,15 @@ The capture has no compression packet.
   - the name in `hello` is not equal to the owner's name. The comparison ignores
     case.
 - **Behavior:** in all other cases, the server uses offline mode.
+- **Behavior:** when proxy forwarding is on, the server never uses online mode
+  (`proxy-forwarding.md`, FWD-CFG-002).
 - **Behavior:** when the name is equal to the owner's name, the server uses the
   owner's profile. Otherwise, offline mode uses an offline profile (LOGIN-SEQ-001).
+  When proxy forwarding is on, the forwarded profile replaces both
+  (`proxy-forwarding.md`, FWD-USE-001).
 
-Provenance: `source_suggested`, `documentation` for the property. Confidence:
-high. Experiment: start a dedicated server with `online-mode=false`, and capture a
+Provenance: `source_suggested`, `documentation` for the property. Kind: semantic.
+Confidence: high. Experiment: start a dedicated server with `online-mode=false`, and capture a
 login without `hello` from the server.
 
 ### LOGIN-CFG-003: In-process connection
@@ -694,8 +698,10 @@ whitelisted vanilla server with a name that is not on the whitelist.
   Boolean is false).
 - **Behavior:** when the vanilla server receives `custom_query_answer`, it sends
   `login_disconnect` with `multiplayer.disconnect.unexpected_query_response`.
+- **Behavior:** when proxy forwarding is on, the server sends one `custom_query`
+  and accepts its answer. `proxy-forwarding.md` states this exception.
 
-Provenance: `source_suggested`. Confidence: high. Experiment: a scripted server
+Provenance: `source_suggested`. Kind: wire. Confidence: high. Experiment: a scripted server
 sends `custom_query` with id 7 to a vanilla client. The answer is `0x07 0x00`
 after the packet id.
 
@@ -742,17 +748,23 @@ time to `login_disconnect`.
 | `key` | the server sent the key data and waits for `key` |
 | `options_applied` (26.4) | the server sent `apply_options` and waits for the acknowledgement |
 | `login_acknowledged` | the server sent `login_finished` |
-| `custom_query_answer`, `cookie_response` | never (LOGIN-OTH-002, LOGIN-OTH-003) |
+| `custom_query_answer` | never (LOGIN-OTH-002), except the forwarding answer of `proxy-forwarding.md` |
+| `cookie_response` | never (LOGIN-OTH-003) |
 
-- **Behavior:** at any other point, the packet is an error. The server sends
+- **Behavior:** an answer that this table does not accept, `custom_query_answer` or
+  `cookie_response`, gives `multiplayer.disconnect.unexpected_query_response`
+  (LOGIN-OTH-002, LOGIN-OTH-003). This includes a `custom_query_answer` with a
+  transaction id that is not that of the forwarding query (`proxy-forwarding.md`,
+  FWD-CHK-001).
+- **Behavior:** at any other point, another packet is an error. The server sends
   `login_disconnect` with `disconnect.genericReason` and one argument. Then it
   closes the connection.
 - **Behavior:** an invalid name in `hello` (LOGIN-SEQ-001) has the same result.
 - **Edge cases:** the 26.4 server switches compression on before it checks
   `login_acknowledged` (LOGIN-ERR-002).
 
-Provenance: `source_suggested`. Confidence: high. Experiment: send `key` to an
-offline vanilla server after `hello`.
+Provenance: `source_suggested`. Kind: semantic. Confidence: high. Experiment: send
+`key` to an offline vanilla server after `hello`.
 
 ### LOGIN-ERR-002: Premature `login_acknowledged` (26.4)
 

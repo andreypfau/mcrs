@@ -155,6 +155,18 @@ fn inv_slt_002_a_player_without_a_file_gets_four_empty_holders() {
     assert_eq!(world.get::<Selected>(player), Some(&Selected(0)));
 }
 
+#[test]
+fn a_selected_slot_saved_as_a_byte_loads() {
+    let mut app = app();
+    let world = app.world_mut();
+    let mut file = PersistedSnapshot::new();
+    file.put(&["SelectedItemSlot"], &4_i8)
+        .expect("the selected slot");
+    let player = restore(world, &file);
+
+    assert_eq!(world.get::<Selected>(player), Some(&Selected(4)));
+}
+
 /// A file with a stack that does not load is not applied, so the server never writes over it.
 #[test]
 fn a_file_with_a_stack_that_does_not_load_is_unreadable() {

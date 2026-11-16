@@ -12,6 +12,7 @@ use mcrs_minecraft_engine_world::world::dimension_builders::{DimensionBuild, Dim
 use mcrs_minecraft_entity::EntityTypeData;
 use mcrs_minecraft_entity_key::EntityId;
 use mcrs_minecraft_game_mode::GameMode;
+use mcrs_minecraft_inventory_server::InventoryServerPlugin;
 use mcrs_minecraft_item_table::ItemTable;
 use mcrs_minecraft_physics::Aabb;
 use mcrs_minecraft_vanilla_inventory::VanillaInventoryPlugin;
@@ -41,7 +42,8 @@ fn build_dimension_items(host: &World, _: &DimensionBuild<'_>, sub_app: &mut Sub
     sub_app.add_plugins((
         ItemPlugin::new(table),
         ItemEntityPlugin,
-        VanillaInventoryPlugin,
+        VanillaInventoryPlugin::default(),
+        InventoryServerPlugin,
     ));
     sub_app
         .configure_sets(

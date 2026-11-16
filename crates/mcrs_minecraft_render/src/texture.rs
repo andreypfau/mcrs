@@ -225,8 +225,8 @@ pub(super) fn array_view(texture: &Texture) -> TextureView {
 pub(super) fn atlas_sampler(device: &RenderDevice) -> Sampler {
     device.create_sampler(&SamplerDescriptor {
         label: Some("terrain atlas"),
-        address_mode_u: AddressMode::Repeat,
-        address_mode_v: AddressMode::Repeat,
+        address_mode_u: AddressMode::ClampToEdge,
+        address_mode_v: AddressMode::ClampToEdge,
         mag_filter: FilterMode::Nearest,
         min_filter: FilterMode::Nearest,
         mipmap_filter: MipmapFilterMode::Linear,

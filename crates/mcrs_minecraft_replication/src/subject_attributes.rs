@@ -1,10 +1,9 @@
 use bytes::BytesMut;
-use mcrs_minecraft_entity_attribute::AttributeBases;
 use mcrs_minecraft_entity_attribute::attribute_keys::Attribute;
+use mcrs_minecraft_entity_attribute::{AttributeBases, AttributeSnapshot};
 use mcrs_minecraft_protocol::{Result, VarInt, write_record};
-use mcrs_minecraft_protocol_game::clientbound::{AttributeSnapshot, ClientboundUpdateAttributes};
+use mcrs_minecraft_protocol_game::clientbound::ClientboundUpdateAttributes;
 
-use crate::attribute_snapshot::attribute_snapshot;
 use crate::attribute_state::AttributeState;
 
 /// The syncable attribute instances of a mob or a player that its spawn gave or that changed
@@ -73,11 +72,16 @@ impl SubjectAttributes {
         keep: impl Fn(&AttributeState) -> bool,
         bytes: &mut BytesMut,
     ) -> Result<()> {
+        let Some(bases) = self.bases else {
+            return Ok(());
+        };
         let attributes: Vec<AttributeSnapshot<'_>> = self
             .held
             .iter()
             .filter(|held| keep(held))
-            .map(|held| attribute_snapshot(self.bases, held.attribute, held.instance.as_ref()))
+            .filter_map(|held| {
+                AttributeSnapshot::from_instance(bases, held.attribute, held.instance.as_ref())
+            })
             .collect();
         if attributes.is_empty() {
             return Ok(());

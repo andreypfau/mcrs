@@ -5,8 +5,9 @@
 | Game version | `26.4-snapshot-7` (Minecraft Java Edition, 26.4 Snapshot 7) |
 | Protocol version | `1073742169` |
 | World version | `5127` |
+| Status | `draft` |
 
-Source of these values: `assets/minecraft/version.json`.
+Source of the version values: `assets/minecraft/version.json`.
 
 This document states the request: an ordered list of operations on slots that applies in full or
 not at all. The request does not depend on an edition. This document also states how a click of
@@ -66,7 +67,9 @@ refers to its rules by id.
 - `design`: a choice of this project. The rule states the reason.
 - `unresolved`: not decided. Section 10 collects these items.
 
-No experiment of section 11 has a recorded run. Each one is a proposal.
+Experiment E9 of section 11 has a recorded trace of the vanilla server. A rule that the trace
+confirms cites it by path. A rule can also cite a trace of an experiment of `inventory.md`. Each
+other experiment is a proposal.
 
 ### 0.3 Artefacts cited
 
@@ -397,6 +400,10 @@ Thus the cursor stack and the stacks of the craft grid always go where INV-CLS-0
 Reason: decision of the owner (section 10, Q7). The player file does not hold the cursor and the
 craft grid (INV-SAV-001), so a denial at a leave would destroy them.
 
+The moves of a close also read no take filter (INV-CLS-005). They enter only a slot whose place
+filter permits the stack, as each insert of the player inventory does (INV-INS-003). Thus they
+never have a rejection of ITX-REJ-001, for example `take_denied` or `place_denied`.
+
 ## 6. Java Edition: the click
 
 A `container_click` packet has a container id, a state id, a slot index, a button and a click
@@ -493,7 +500,8 @@ with button 1.
 When `n` is 0 or less, the click gives no operation. In row 11, the click gives no operation
 when `n` is smaller than `count(S)` and `place(S, S)` is false. See experiments E3, E7 and E8.
 
-**ITX-JAV-009** (`source_suggested`, semantic). Quick move on a slot of the menu gives no
+**ITX-JAV-009** (`source_suggested_black_box_confirmed`, semantic). Quick move on a slot of the menu
+gives no
 operation when `take(S)` is false or `S` holds the empty stack. In each other case, the
 specification of the menu gives an ordered list of destination slots for `S`. The edge then makes
 the operations in two steps:
@@ -507,7 +515,25 @@ the operations in two steps:
 
 Deviation D4 applies to the place filter in step 1. A `split` with `n` of 0 or less is not in the list. The
 destination order of each menu, and the repeat of a quick move, are not in this document
-(section 8). See experiment E9.
+(section 8).
+
+The trace `tools/mcrs_minecraft_probe/traces/transactions_e09.json` confirms the two steps. A chest
+of 27 slots is open, and the destinations are its slots in order. The slots 0 and 5 of the chest
+hold 40 stone, and `P[0]` holds 64 stone. A quick move on `P[0]` gives these results:
+
+- Step 1 puts 24 stone in the slot 0 and 24 stone in the slot 5.
+- Step 2 puts the 16 stone that remain in the slot 1, the first empty slot.
+
+When each slot of the chest holds 64 dirt, the same click moves no item.
+
+The trace `tools/mcrs_minecraft_probe/traces/inventory_e03.json` of `inventory.md` confirms the
+cases with no operation. The player is in survival mode, and the inventory menu is open:
+
+- The head slot holds an iron helmet with the curse of binding, so `take(S)` is false
+  (INV-SLT-004). A quick move on that slot moves no item, and the helmet stays in the head slot.
+- A quick move on a slot that holds the empty stack gets no packet back.
+- The head slot holds the empty stack, and the only destination is the head slot. A quick move
+  of a helmet that its place filter refuses moves no item (INV-MNU-004).
 
 **ITX-JAV-010** (`source_suggested`, semantic). Swap with a hotbar key uses the slot `H` of the
 player that the button names. The click gives the operations of the first row whose condition is
@@ -526,8 +552,9 @@ true.
 | 9 | each other case | The stack of `S` goes to the inventory of the player, then `split(H, S, cap(S, H))`. |
 
 In row 9, the stack of `S` enters the inventory of the player by the insert rule of the player
-inventory. The part that does not fit becomes a dropped stack. `inventory.md` states that rule
-(INV-INS-001). See experiment E10.
+inventory. The insert skips each slot whose place filter refuses the stack (INV-INS-003). The part
+that does not fit becomes a dropped stack. `inventory.md` states that rule (INV-INS-001). See
+experiment E10.
 
 **ITX-JAV-011** (`source_suggested`, semantic). Pick up all gives operations when each of these
 conditions is true: the slot index is 0 or more, `C` holds a stack, and `S` holds the empty stack
@@ -838,8 +865,8 @@ Not decided by an experiment yet:
 Each experiment uses the game version of the table at the top of this document. An experiment of
 the kind "server" uses a vanilla server with `online-mode=false` and one scripted client that is
 an operator. The scripted client sends `container_click` packets and records each clientbound
-packet of the menu. `tools/vanilla-oracle` has no such harness now. The first step of each
-"server" experiment adds it. An experiment of the kind "bedrock" needs a Bedrock server and a
+packet of the menu. `tools/mcrs_minecraft_probe` runs such an experiment from a scenario file and
+writes its trace. An experiment of the kind "bedrock" needs a Bedrock server and a
 scripted Bedrock client.
 
 An experiment of the kind "client" uses a vanilla client that the input agent of
@@ -859,7 +886,7 @@ its hashed stacks what the client holds.
 | E6 | server | Send each click kind with the buttons 0, 1, 2, 9 and 40 on a slot that holds 10 stone, with an empty cursor. Send pick up and quick move with the slot index -999 and -1 while the cursor holds 10 stone. | The slots, the cursor and the item entities after each click. |
 | E7 | server | With 40 stone in the cursor, click primary and secondary on: an empty slot, a slot with 30 stone, a slot with 64 stone, a slot with 10 dirt. Repeat with an empty cursor on a slot with 7 stone. | The count of the slot and of the cursor after each click. |
 | E8 | server | Open a crafting table with a recipe ready that gives 4 planks. Click the result slot: primary with an empty cursor, secondary with an empty cursor, primary with 62 planks in the cursor. | The cursor, the result slot and the grid after each click. |
-| E9 | server | Open a chest. Put 40 stone in the slots 0 and 5 of the chest and 64 stone in the player inventory. Quick move the 64 stone. Repeat with a chest that is full of dirt. | The count of each slot after the click. |
+| E9 | server | Open a chest. Put 40 stone in the slots 0 and 5 of the chest and 64 stone in the player inventory. Quick move the 64 stone. Repeat with a chest that is full of dirt. Scenario: `tools/mcrs_minecraft_probe/scenarios/transactions_e09.json`. | The count of each slot after the click. Trace: `tools/mcrs_minecraft_probe/traces/transactions_e09.json`. |
 | E10 | server | Open a brewing stand. Put 16 potions with `max_stack_size` 16 in hotbar slot 0 and one potion of a different kind in a bottle slot. Send a swap click with the button 0 on the bottle slot. Repeat with a full player inventory. Repeat with the button 40. | Each slot, and the item entities, after each click. |
 | E11 | server | Open a chest. Put stone stacks of 10, 64, 20 and 5 in the chest and 3 stone in the cursor. Send pick up all with the button 0 on an empty slot. Repeat with the button 1. Repeat on a slot that holds stone. | The count of each slot and of the cursor; the order in which the slots become empty. |
 | E12 | server | In creative mode, open a chest that holds 5 stone. Send a clone click on that slot. Then send a drag of drag kind 2 over 3 empty slots. Repeat the clone click in survival mode. | The cursor and each slot after each packet. |

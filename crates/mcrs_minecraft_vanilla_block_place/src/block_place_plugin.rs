@@ -13,7 +13,6 @@ use mcrs_minecraft_engine::bus::{OutboundPlayerPacket, PacketPayload, to};
 use mcrs_minecraft_engine::teleport::TeleportState;
 use mcrs_minecraft_engine::use_item_on_request::UseItemOnRequest;
 use mcrs_minecraft_engine::{BlockBreakSet, eye_position, in_reach, reach};
-use mcrs_minecraft_engine_attributes::Attributes;
 use mcrs_minecraft_engine_item::{Selected, Slots, StackCommandsExt};
 use mcrs_minecraft_engine_world::block_update::{BlockSetRequest, remove_block};
 use mcrs_minecraft_engine_world::entity::physics::Transform;
@@ -23,6 +22,7 @@ use mcrs_minecraft_engine_world::tick::TickSet;
 use mcrs_minecraft_engine_world::world::dimension::InDimension;
 use mcrs_minecraft_engine_world::world::storage::view::WorldView;
 use mcrs_minecraft_entity::EntityTypeData;
+use mcrs_minecraft_entity_attribute::AttributeInstances;
 use mcrs_minecraft_game_mode::GameMode;
 use mcrs_minecraft_inventory_player::OFF_HAND;
 use mcrs_minecraft_item::Items;
@@ -74,7 +74,7 @@ const HIGHEST_CURSOR: f32 = 1.5;
 type PlacerItem<'a> = (
     &'a Owner,
     &'a PlayerGameMode,
-    Option<&'a Attributes>,
+    Option<&'a AttributeInstances>,
     &'a InDimension,
     &'a Transform,
     Option<&'a PlayerOpLevel>,

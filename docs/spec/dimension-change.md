@@ -81,8 +81,8 @@ Overworld, and the player is in the Nether without a vehicle.
 | 8 | `initialize_border` | the world border of the new dimension |
 | 9 | `set_time` | the game time and the state of every clock (`command-time.md`) |
 | 10 | `set_default_spawn_position` | the respawn data of the new dimension |
-| 11 | `game_event` × 3 | only when it rains in the new dimension: event 1 (start rain) with 0; event 7 (rain level) with the rain level; event 8 (thunder level) with the thunder level |
-| 12 | `game_event` | event 13 (level chunks load start) with 0 |
+| 11 | `game_event` × 3 | only when it rains in the new dimension: event 1 (start rain) with 0; event 7 (rain strength) with the rain strength; event 8 (thunder strength) with the thunder strength |
+| 12 | `game_event` | event 13 (start of the chunk load) with 0 |
 | 13 | `ticking_state` | the tick rate and the frozen flag of the server |
 | 14 | `ticking_step` | the frozen ticks that remain |
 | 15 | `container_set_content` | the inventory menu of the player, with the carried item |
@@ -123,8 +123,8 @@ that one `update_mob_effect` arrives and that no `forget_level_chunk` arrives.
 - The game mode ids are `survival` 0, `creative` 1, `adventure` 2 and `spectator` 3.
 - The data to keep has two bits. `0x01` tells the client to keep the attribute modifiers.
   `0x02` tells the client to keep the entity data of the player. A dimension change sets both.
-- **Postconditions** (kind: client agreement): the client drops its old level. It makes a new
-  level for the dimension and dimension type of the packet. It keeps its local player, with the
+- **Postconditions** (kind: client agreement): the client drops its old world. It makes a new
+  world for the dimension and dimension type of the packet. It keeps its local player, with the
   attribute modifiers and the entity data. It then waits for chunks
   (DIM-CHG-007).
 - **Edge cases:** the fields before the data to keep are the same fields, in the same order, as

@@ -74,6 +74,23 @@ impl VanillaServer {
     }
 
     pub(crate) fn stop(mut self) -> anyhow::Result<()> {
+        self.shut_down()
+    }
+
+    /// Stops the server, which saves the world, and starts it again in `directory`.
+    pub(crate) fn restart(
+        &mut self,
+        jar: &Path,
+        directory: &Path,
+        port: u16,
+    ) -> anyhow::Result<()> {
+        self.shut_down()?;
+        self.echo();
+        *self = Self::start(jar, directory, port)?;
+        Ok(())
+    }
+
+    fn shut_down(&mut self) -> anyhow::Result<()> {
         writeln!(self.input, "stop")?;
         self.input.flush()?;
         self.child.wait()?;

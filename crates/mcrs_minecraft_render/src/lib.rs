@@ -235,6 +235,7 @@ fn embed_shaders(app: &mut App) {
     load_shader_library!(app, "shaders/include/fog.wesl");
     load_shader_library!(app, "shaders/include/sky.wesl");
     load_shader_library!(app, "shaders/include/quad.wesl");
+    load_shader_library!(app, "shaders/include/quad_coverage.wesl");
     load_shader_library!(app, "shaders/include/lighting.wesl");
     load_shader_library!(app, "shaders/include/terrain_bindings.wesl");
     load_shader_library!(app, "shaders/include/surface.wesl");
