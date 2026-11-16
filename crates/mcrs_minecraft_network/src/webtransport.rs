@@ -91,7 +91,7 @@ pub(crate) fn bind(
 }
 
 pub(crate) async fn start_accept_loop(shared: SharedNetworkState, endpoint: Endpoint<Server>) {
-    let mut gate = AcceptGate::new();
+    let gate = AcceptGate::new();
 
     loop {
         let Some(slot) = gate.handshake_slot().await else {
