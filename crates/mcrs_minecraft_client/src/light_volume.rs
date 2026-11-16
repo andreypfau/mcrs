@@ -850,7 +850,8 @@ mod tests {
         let queue = VolumeQueue::default();
         queue.restart(radius);
         let mut app = App::new();
-        app.add_message::<ColumnChange>()
+        app.add_plugins(bevy::app::TaskPoolPlugin::default())
+            .add_message::<ColumnChange>()
             .insert_resource(store)
             .insert_resource(queue)
             .insert_resource(mcrs_minecraft_engine_registries::test_corpus().0.clone())

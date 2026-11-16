@@ -68,7 +68,15 @@ pub fn load_items(
     registries: &Registries,
     blocks: &BlockDefinitions,
 ) -> Result<LoadedItems, ItemLoadError> {
-    let files = read_corpus(asset_server)?;
+    items_from_files(read_corpus(asset_server)?, registries, blocks)
+}
+
+/// The item definitions and the item table of the given item files, each a path and its bytes.
+pub(crate) fn items_from_files(
+    files: Vec<(String, Vec<u8>)>,
+    registries: &Registries,
+    blocks: &BlockDefinitions,
+) -> Result<LoadedItems, ItemLoadError> {
     let baked = bake(
         files
             .iter()
