@@ -112,14 +112,13 @@ fn a_hurt_pig_panics_at_its_next_evaluation_and_starts_paths_only_while_the_reco
     }
 }
 
-#[test]
-fn the_stroll_starts_after_a_geometric_count_of_evaluations_with_the_chance_one_in_sixty() {
-    let pigs = 800;
+/// The ticks from the end of each stroll of each pig to the start of the next one.
+fn stroll_gaps(pigs: u32, ticks: u64) -> Vec<u64> {
     let mut pen = pen(pigs, 1024, IdleRule::AlwaysNear).unwrap();
     let mut ended = vec![None; pigs as usize];
     let mut walking = vec![false; pigs as usize];
     let mut gaps = Vec::new();
-    while pen.tick() <= 3_000 {
+    while pen.tick() <= ticks {
         let tick = pen.step(run_tiles).tick;
         for (index, was) in walking.iter_mut().enumerate() {
             let walk = pen.pig(index).unwrap().walk_speed;
@@ -136,19 +135,54 @@ fn the_stroll_starts_after_a_geometric_count_of_evaluations_with_the_chance_one_
             *was = now;
         }
     }
+    gaps
+}
+
+fn gap_mean(gaps: &[u64]) -> f64 {
+    gaps.iter().sum::<u64>() as f64 / gaps.len() as f64
+}
+
+fn first_gap_fraction(gaps: &[u64]) -> f64 {
+    gaps.iter().filter(|&&gap| gap <= 3).count() as f64 / gaps.len() as f64
+}
+
+#[test]
+fn a_short_run_of_strolls_has_the_geometric_mean_gap_within_four_standard_errors() {
+    let gaps = stroll_gaps(200, 1_000);
     let count = gaps.len() as f64;
-    let mean = gaps.iter().sum::<u64>() as f64 / count;
+    let mean = gap_mean(&gaps);
+    let variance = gaps
+        .iter()
+        .map(|&gap| (gap as f64 - mean).powi(2))
+        .sum::<f64>()
+        / (count - 1.0);
+    let mean_error = 4.0 * (variance / count).sqrt();
     assert!(
-        count > 8_000.0 && (114.0..=127.0).contains(&mean),
-        "the gap from the end of a stroll to the next start is 1 or 2 ticks to the next \
-         evaluation, 2 ticks for each of the 59 failed gates on average and 1 tick of delay: \
-         120.5; got {mean} over {count} gaps"
+        count > 500.0 && (mean - 120.5).abs() <= mean_error,
+        "the mean gap is 120.5 ticks within {mean_error}; got {mean} over {count} gaps"
     );
-    let first = gaps.iter().filter(|&&gap| gap <= 3).count() as f64 / count;
-    assert!(
-        (0.010..=0.024).contains(&first),
-        "the gate passes in the first examined evaluation with the chance 1/60; got {first}"
-    );
+}
+
+mod exhaustive {
+    use super::*;
+
+    #[test]
+    fn the_stroll_starts_after_a_geometric_count_of_evaluations_with_the_chance_one_in_sixty() {
+        let gaps = stroll_gaps(800, 3_000);
+        let count = gaps.len() as f64;
+        let mean = gap_mean(&gaps);
+        assert!(
+            count > 8_000.0 && (114.0..=127.0).contains(&mean),
+            "the gap from the end of a stroll to the next start is 1 or 2 ticks to the next \
+             evaluation, 2 ticks for each of the 59 failed gates on average and 1 tick of delay: \
+             120.5; got {mean} over {count} gaps"
+        );
+        let first = first_gap_fraction(&gaps);
+        assert!(
+            (0.010..=0.024).contains(&first),
+            "the gate passes in the first examined evaluation with the chance 1/60; got {first}"
+        );
+    }
 }
 
 #[test]

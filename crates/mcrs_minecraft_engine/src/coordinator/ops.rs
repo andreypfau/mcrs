@@ -40,7 +40,7 @@ fn clamped_level<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u8, D::Er
 }
 
 /// The operators. The operators of a loopback join stay out of the file, so they end with the
-/// process and a later join from another address does not find them.
+/// process; until then a later join from any address finds them.
 #[derive(Resource, Clone, Debug, Default)]
 pub struct OpList {
     entries: Arc<FxHashMap<Uuid, OpListEntry>>,

@@ -11,9 +11,9 @@ use crate::configuration::{ConfigurationStatePlugin, KnownPackOffer};
 use crate::dimension_worlds_plugin::DimensionWorldsPlugin;
 use crate::keep_alive::KeepAlivePlugin;
 use crate::login::{
-    LoginPlugin, NetworkCompressionThreshold, ProxyForwarding, SingleplayerProfile,
+    JoinLimits, LoginPlugin, NetworkCompressionThreshold, ProxyForwarding, SingleplayerProfile,
 };
-use crate::loopback_ops::LoopbackOps;
+use crate::loopback_ops::ServerProfile;
 use crate::require::require;
 use crate::status::StatusPlugin;
 
@@ -29,7 +29,8 @@ pub struct ServerNetworkPlugin {
     pub offer_known_packs: bool,
     pub compression_threshold: NetworkCompressionThreshold,
     pub singleplayer_profile: Option<SingleplayerProfile>,
-    pub max_players: u32,
+    /// Its player limit is also the maximum that the status response shows.
+    pub join_limits: JoinLimits,
     pub motd: String,
     pub favicon: Option<String>,
     /// Turned on, a client that a transfer packet sends here logs in; turned off, it gets
@@ -49,7 +50,7 @@ pub struct ServerNetworkPlugin {
     pub rate_limit: InboundRateLimit,
     pub whitelist: Whitelist,
     pub banlist: BanList,
-    pub loopback_ops: LoopbackOps,
+    pub profile: ServerProfile,
     /// Set, every login takes the player's profile and address from the proxy that shares this
     /// secret.
     pub forwarding: Option<ForwardingSecret>,
@@ -77,7 +78,7 @@ impl Default for ServerNetworkPlugin {
             offer_known_packs: true,
             compression_threshold: NetworkCompressionThreshold::default(),
             singleplayer_profile: None,
-            max_players: 20,
+            join_limits: JoinLimits::default(),
             motd: "mcrs Server".to_owned(),
             favicon: Some(default_favicon()),
             accepts_transfers: false,
@@ -88,7 +89,7 @@ impl Default for ServerNetworkPlugin {
             rate_limit: InboundRateLimit::default(),
             whitelist: Whitelist::default(),
             banlist: BanList::default(),
-            loopback_ops: LoopbackOps::default(),
+            profile: ServerProfile::default(),
             forwarding: None,
             proxy_upstreams: Vec::new(),
         }
@@ -105,7 +106,7 @@ impl Plugin for ServerNetworkPlugin {
         app.add_plugins(NetworkPlugin {
             address: self.bind_address,
             announce_on_lan: self.announce_on_lan,
-            max_players: self.max_players,
+            max_players: self.join_limits.max_players,
             motd: self.motd.clone(),
             favicon: self.favicon.clone(),
             accepts_transfers: self.accepts_transfers,
@@ -119,6 +120,7 @@ impl Plugin for ServerNetworkPlugin {
         });
         app.insert_resource(self.compression_threshold);
         app.add_plugins(LoginPlugin);
+        app.insert_resource(self.join_limits);
         app.add_plugins(ConfigurationStatePlugin);
         app.add_plugins(KeepAlivePlugin);
         if !app.is_plugin_added::<ClientInfoPlugin>() {
@@ -128,7 +130,7 @@ impl Plugin for ServerNetworkPlugin {
         app.add_plugins(crate::shutdown::ShutdownPlugin);
         app.insert_resource(self.whitelist.clone());
         app.insert_resource(self.banlist.clone());
-        app.insert_resource(self.loopback_ops);
+        app.insert_resource(self.profile);
         if let Some(secret) = &self.forwarding {
             app.insert_resource(ProxyForwarding(secret.clone()));
         }

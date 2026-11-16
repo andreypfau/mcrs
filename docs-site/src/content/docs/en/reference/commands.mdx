@@ -42,7 +42,7 @@ Every command needs a permission level. There are five levels and they are order
 | 3 | `admins` |
 | 4 | `owners` |
 
-A player who is not an operator has level `all`. An operator has the level that `ops.json` gives, from 0 to 4, and the `op` command gives the default level, which is `owners`. A player who joins from the same machine as the server is an operator for the session. Every command in the next table needs level 2 or 3, so only operators can run them.
+A player who is not an operator has level `all`. An operator has the level that `ops.json` gives, from 0 to 4, and the `op` command gives the default level, which is `owners`. The server binary gives no player operator rights for joining from its own machine; only `ops.json` and the `op` command make operators. Every command in the next table needs level 2 or 3, so only operators can run them.
 
 ## Commands
 
