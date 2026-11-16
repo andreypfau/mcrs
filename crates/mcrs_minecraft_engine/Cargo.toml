@@ -42,7 +42,6 @@ mcrs_minecraft_region_disk.workspace = true
 flume.workspace = true
 mcrs_engine_muxer.workspace = true
 mcrs_minecraft_replication.workspace = true
-bevy_utils.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 mcrs_minecraft_game_mode.workspace = true

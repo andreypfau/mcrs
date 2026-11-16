@@ -4308,7 +4308,6 @@ dependencies = [
  "glam",
  "libm",
  "mcrs_minecraft_entity_key",
- "mcrs_voxel",
 ]
 
 [[package]]
@@ -4437,7 +4436,6 @@ dependencies = [
  "uuid",
  "wasm-bindgen-futures",
  "web-sys",
- "wgpu",
 ]
 
 [[package]]
@@ -4687,7 +4685,6 @@ dependencies = [
  "mcrs_minecraft_block",
  "mcrs_minecraft_command",
  "mcrs_minecraft_command_argument",
- "mcrs_minecraft_core",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_resource",
  "mcrs_minecraft_snbt",
@@ -4704,7 +4701,6 @@ dependencies = [
  "mcrs_command",
  "mcrs_minecraft_command",
  "mcrs_minecraft_command_argument",
- "mcrs_minecraft_core",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_game_mode",
  "mcrs_minecraft_loot",
@@ -4728,7 +4724,6 @@ dependencies = [
  "mcrs_minecraft_command_argument_block",
  "mcrs_minecraft_command_argument_entity",
  "mcrs_minecraft_command_tree",
- "mcrs_minecraft_core",
  "mcrs_minecraft_keys",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_protocol",
@@ -4747,11 +4742,9 @@ version = "0.5.8"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
- "bevy_math",
  "bytes",
  "mcrs_command",
  "mcrs_minecraft_command",
- "mcrs_minecraft_core",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_dimension_environment",
  "mcrs_minecraft_engine",
@@ -4985,7 +4978,6 @@ dependencies = [
  "bevy_platform",
  "bevy_state",
  "bevy_tasks",
- "bevy_utils",
  "bytes",
  "derive_more",
  "flume",
@@ -5314,7 +5306,6 @@ dependencies = [
  "mcrs_minecraft_volume",
  "mcrs_voxel",
  "rustc-hash 2.1.1",
- "smallvec",
  "tracing",
  "uuid",
 ]
@@ -5478,7 +5469,6 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
- "tracing",
 ]
 
 [[package]]
@@ -6057,7 +6047,6 @@ dependencies = [
  "glam",
  "mcrs_minecraft_brain",
  "mcrs_minecraft_entity",
- "mcrs_minecraft_entity_key",
  "mcrs_minecraft_numeric",
  "mcrs_voxel",
 ]
@@ -6069,12 +6058,10 @@ dependencies = [
  "bevy",
  "getrandom 0.4.1",
  "hashbrown 0.16.1",
- "mcrs_minecraft_assets",
  "mcrs_minecraft_block",
  "mcrs_minecraft_block_entity_oracle",
  "mcrs_minecraft_client_jar",
  "mcrs_minecraft_core",
- "mcrs_minecraft_datapack",
  "mcrs_minecraft_dimension",
  "mcrs_minecraft_engine_registries",
  "mcrs_minecraft_entity",
@@ -6603,7 +6590,6 @@ dependencies = [
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_registries",
  "mcrs_minecraft_game_rule",
- "mcrs_minecraft_item",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_resource",
@@ -6730,7 +6716,6 @@ dependencies = [
  "anyhow",
  "glam",
  "mcrs_minecraft_bench_support",
- "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
  "mcrs_voxel",
@@ -7020,7 +7005,6 @@ dependencies = [
  "mcrs_voxel",
  "rustc-hash 2.1.1",
  "tracing",
- "uuid",
 ]
 
 [[package]]
@@ -7038,12 +7022,9 @@ dependencies = [
  "mcrs_minecraft_engine_world",
  "mcrs_minecraft_heightmap",
  "mcrs_minecraft_light_engine",
- "mcrs_minecraft_protocol",
- "mcrs_minecraft_protocol_game",
  "mcrs_voxel",
  "rayon",
  "rustc-hash 2.1.1",
- "smallvec",
  "tracing",
 ]
 
@@ -7076,7 +7057,6 @@ dependencies = [
  "mcrs_minecraft_entity",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_registries",
- "mcrs_minecraft_heightmap",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_region_disk",
  "mcrs_minecraft_registries",
@@ -7318,7 +7298,6 @@ dependencies = [
  "criterion",
  "fixedbitset",
  "glam",
- "mcrs_minecraft_anvil",
  "mcrs_minecraft_biome",
  "mcrs_minecraft_biome_file",
  "mcrs_minecraft_block",
@@ -7326,7 +7305,6 @@ dependencies = [
  "mcrs_minecraft_block_predicate",
  "mcrs_minecraft_chunk",
  "mcrs_minecraft_core",
- "mcrs_minecraft_dimension",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_fixtures",
  "mcrs_minecraft_game_registries",
@@ -7456,7 +7434,6 @@ dependencies = [
  "glam",
  "libc",
  "mcrs_minecraft_bench_support",
- "mcrs_minecraft_core",
  "mcrs_minecraft_entity",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",

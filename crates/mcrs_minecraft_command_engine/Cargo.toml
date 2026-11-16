@@ -18,7 +18,6 @@ mcrs_minecraft_text.workspace = true
 mcrs_minecraft_game_mode.workspace = true
 mcrs_command.workspace = true
 mcrs_minecraft_command.workspace = true
-mcrs_minecraft_core = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_dimension.workspace = true
 mcrs_minecraft_dimension_environment = { workspace = true, features = ["bevy"] }
 mcrs_minecraft_engine.workspace = true
@@ -31,7 +30,6 @@ mcrs_minecraft_wire.workspace = true
 mcrs_voxel.workspace = true
 bevy_app.workspace = true
 bevy_ecs.workspace = true
-bevy_math.workspace = true
 bytes.workspace = true
 rustc-hash.workspace = true
 thiserror.workspace = true

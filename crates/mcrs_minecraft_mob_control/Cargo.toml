@@ -12,7 +12,6 @@ workspace = true
 
 # std: mcrs_minecraft_numeric gives the atan2 and the angle wrap of the reference
 [dependencies]
-mcrs_minecraft_entity_key.workspace = true
 mcrs_voxel.workspace = true
 glam = { workspace = true, features = ["std"] }
 mcrs_minecraft_brain.workspace = true
