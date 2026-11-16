@@ -48,7 +48,7 @@ impl GuiRect {
             && y < top + f64::from(self.height)
     }
 
-    pub(crate) fn contains_point(self, point: GuiPoint) -> bool {
+    pub fn contains_point(self, point: GuiPoint) -> bool {
         let (x, y) = (i64::from(point.x), i64::from(point.y));
         let (left, top) = (i64::from(self.x), i64::from(self.y));
         left <= x

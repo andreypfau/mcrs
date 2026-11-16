@@ -12,7 +12,7 @@ use mcrs_minecraft_chat_client::{
     ChatScreen, ClickMode, Closed, Context, History, HistoryChange, InputStyle, Key, Outcome,
     StyleClick, TabDirection, Tag, UnsentDraft,
 };
-use mcrs_minecraft_client_widget::{Anchor, KeyModifiers, Step};
+use mcrs_minecraft_client_widget::{Anchor, DOUBLE_CLICK_MS, GuiPoint, KeyModifiers, Step};
 use mcrs_minecraft_command::Source;
 use mcrs_minecraft_protocol_game::text::Text;
 
@@ -22,6 +22,7 @@ use crate::cursor_grab::grab;
 use crate::font::{Font, Span};
 use crate::item_decorations::WHITE;
 use crate::language::ClientLanguage;
+use crate::menu_input;
 use crate::scene::{GuiAtlas, GuiScene};
 use crate::text::{self, Wrap};
 use mcrs_minecraft_client_world::chat::{
@@ -154,7 +155,7 @@ struct ChatKeys<'w, 's> {
     scene: Res<'w, GuiScene>,
     last_cursor: Local<'s, IVec2>,
     input_dragging: Local<'s, bool>,
-    last_input_click: Local<'s, Option<u128>>,
+    last_input_click: Local<'s, Option<u64>>,
 }
 
 #[derive(SystemParam)]
@@ -225,8 +226,15 @@ fn chat_keys(
         chat.options,
         &chat.completions,
     );
+    let width = |text: &str| {
+        atlas
+            .as_deref()
+            .map_or(0, |atlas| atlas.0.font.str_width(text))
+    };
+    let rect = chat_view::input_bounds(keys.scene.size);
     if let Some((initial, style)) = opened {
         state.input.0.open(&initial, style, &cx);
+        state.input.0.scroll_input(rect, &width);
         *state.screen = Screen::Chat;
         grab(&mut cursor, false);
         keys.keyboard.clear();
@@ -235,32 +243,35 @@ fn chat_keys(
         capture_keys(&mut keys.keys);
         return;
     }
-    let modifiers = crate::menu_input::modifiers(&keys.keys);
+    let modifiers = menu_input::modifiers(&keys.keys);
     let screen = &mut state.input.0;
     let typed = type_keys(&mut keys, modifiers, screen, &mut chat.history, &cx);
+    if typed.scroll {
+        screen.scroll_input(rect, &width);
+    }
     let moved = *keys.last_cursor != keys.scene.cursor;
     *keys.last_cursor = keys.scene.cursor;
     if let Some(atlas) = atlas.as_deref() {
         let font = &atlas.0.font;
-        let rect = chat_view::input_bounds(keys.scene.size);
-        screen.scroll_input(rect, &|text| font.str_width(text));
-        if !input_mouse(
+        input_mouse(
             &mut keys,
             screen,
             moved,
             modifiers.shift,
             font,
-            time.elapsed().as_millis(),
-        ) {
-            mouse(
-                &keys,
-                moved,
-                screen,
-                &mut state.lines.0,
-                modifiers.shift,
-                font,
-                &cx,
-            );
+            menu_input::menu_clock(&time),
+        );
+        let changed = mouse(
+            &keys,
+            moved,
+            screen,
+            &mut state.lines.0,
+            modifiers.shift,
+            font,
+            &cx,
+        );
+        if changed {
+            screen.scroll_input(rect, &width);
         }
     }
     if typed.page != 0 {
@@ -279,6 +290,8 @@ fn chat_keys(
 struct Typed {
     closed: Option<Closed>,
     page: isize,
+    /// Whether the view must follow the caret; select all leaves the view at the start.
+    scroll: bool,
 }
 
 fn type_keys(
@@ -292,12 +305,14 @@ fn type_keys(
     let mut typed = Typed {
         closed: None,
         page: 0,
+        scroll: false,
     };
     for event in keys.keyboard.read() {
         if event.state != ButtonState::Pressed || typed.closed.is_some() {
             continue;
         }
-        let outcome = if let Some(key) = screen_key(event.key_code, modifiers) {
+        let key = screen_key(event.key_code, modifiers);
+        let outcome = if let Some(key) = key {
             screen.key(key, history, cx)
         } else if modifiers.is_shortcut() && event.key_code == KeyCode::KeyV {
             match keys.clipboard.as_deref_mut().map(|c| c.fetch_text()) {
@@ -311,6 +326,12 @@ fn type_keys(
         } else {
             Outcome::Ignored
         };
+        if !matches!(
+            outcome,
+            Outcome::Ignored | Outcome::Copy(_) | Outcome::Page(_)
+        ) {
+            typed.scroll = key != Some(Key::SelectAll);
+        }
         match outcome {
             Outcome::Closed(how) => typed.closed = Some(how),
             Outcome::Page(direction) => typed.page += direction,
@@ -358,8 +379,8 @@ fn input_mouse(
     moved: bool,
     shift: bool,
     font: &Font,
-    now_ms: u128,
-) -> bool {
+    now_ms: u64,
+) {
     let cursor = keys.scene.cursor;
     let size = keys.scene.size;
     let rect = chat_view::input_bounds(size);
@@ -368,17 +389,14 @@ fn input_mouse(
         *keys.input_dragging = false;
     }
     if keys.buttons.just_pressed(MouseButton::Left) {
-        let inside = cursor.x >= rect.x
-            && cursor.x < rect.x + rect.width
-            && cursor.y >= rect.y
-            && cursor.y < rect.y + rect.height;
-        if !inside {
+        if !rect.contains_point(GuiPoint::new(cursor.x, cursor.y)) {
+            *keys.input_dragging = false;
             *keys.last_input_click = None;
-            return false;
+            return;
         }
         let double = keys
             .last_input_click
-            .is_some_and(|previous| now_ms.saturating_sub(previous) <= 250);
+            .is_some_and(|previous| now_ms.saturating_sub(previous) <= DOUBLE_CLICK_MS);
         *keys.last_input_click = Some(now_ms);
         *keys.input_dragging = true;
         if double {
@@ -387,16 +405,12 @@ fn input_mouse(
             let anchor = if shift { Anchor::Keep } else { Anchor::Move };
             screen.click_input(rect, f64::from(cursor.x), anchor, &width);
         }
-        return true;
-    }
-    if *keys.input_dragging && moved && keys.buttons.pressed(MouseButton::Left) {
+    } else if *keys.input_dragging && moved && keys.buttons.pressed(MouseButton::Left) {
         screen.drag_input(rect, f64::from(cursor.x), &width);
-        return true;
     }
-    false
 }
 
-/// The wheel and the left button over the open chat.
+/// The wheel and the left button over the open chat; returns whether the input changed.
 fn mouse(
     keys: &ChatKeys,
     moved: bool,
@@ -405,8 +419,9 @@ fn mouse(
     shift: bool,
     font: &Font,
     cx: &Context<'_, ClientLookup<'_>>,
-) {
+) -> bool {
     let scene = &*keys.scene;
+    let left = keys.buttons.just_pressed(MouseButton::Left) && !*keys.input_dragging;
     let rows = chat_suggestions::list_rows(scene.size, font, screen);
     let over = rows.as_ref().and_then(|rows| {
         chat_suggestions::row_under(rows.rect, scene.cursor).map(|row| rows.first + row)
@@ -437,18 +452,21 @@ fn mouse(
             list.select(index as isize);
         }
         if let Some(index) = over.filter(|&index| index < list.entries().len())
-            && keys.buttons.just_pressed(MouseButton::Left)
+            && left
         {
             list.select(index as isize);
             screen.insert_suggestion(cx);
             inserted = true;
         }
     }
-    if inserted || over.is_some() || !keys.buttons.just_pressed(MouseButton::Left) {
-        return;
+    if inserted {
+        return true;
+    }
+    if over.is_some() || !left {
+        return false;
     }
     let Some(span) = chat_view::open_chat_span_at(scene.size, log, scene.cursor, font) else {
-        return;
+        return false;
     };
     let style = StyleClick {
         insertion: span.insertion.as_deref(),
@@ -459,7 +477,7 @@ fn mouse(
     } else {
         ClickMode::Plain
     };
-    screen.click_style(style, mode, cx);
+    !matches!(screen.click_style(style, mode, cx), Outcome::Ignored)
 }
 
 #[cfg(test)]
@@ -473,7 +491,7 @@ mod tests {
         capture_keys(&mut keys);
 
         keys.press(KeyCode::KeyA);
-        let modifiers = crate::menu_input::modifiers(&keys);
+        let modifiers = menu_input::modifiers(&keys);
         assert_eq!(screen_key(KeyCode::KeyA, modifiers), Some(Key::SelectAll));
         assert_eq!(
             screen_key(KeyCode::Backspace, modifiers),
@@ -494,7 +512,7 @@ mod tests {
         keys.press(KeyCode::ShiftLeft);
         capture_keys(&mut keys);
         assert_eq!(
-            screen_key(KeyCode::ArrowLeft, crate::menu_input::modifiers(&keys)),
+            screen_key(KeyCode::ArrowLeft, menu_input::modifiers(&keys)),
             Some(Key::Left {
                 step: Step::Char,
                 anchor: Anchor::Keep

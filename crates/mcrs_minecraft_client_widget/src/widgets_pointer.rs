@@ -13,7 +13,8 @@ use crate::widget_placement::WidgetPlacement;
 use crate::widgets::{Drag, Press, Widgets, activate, set_offset};
 use crate::widgets_focus::FocusEntry;
 
-const DOUBLE_CLICK_MS: u64 = 250;
+/// The longest time in milliseconds between the two presses of a double click.
+pub const DOUBLE_CLICK_MS: u64 = 250;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Click {

@@ -125,3 +125,4 @@ pub use widget_list::WidgetList;
 pub use widget_placement::WidgetPlacement;
 pub use widget_sprite::WidgetSprite;
 pub use widgets::Widgets;
+pub use widgets_pointer::DOUBLE_CLICK_MS;

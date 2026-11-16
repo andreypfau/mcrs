@@ -13,6 +13,7 @@ use crate::chat_suggestions;
 use crate::font::{self, Font, Hover, Span};
 use crate::item_decorations::WHITE;
 use crate::language::ClientLanguage;
+use crate::menu_draw;
 use crate::scene::{self, GuiAtlas, GuiConfig, GuiQuad, GuiScene, GuiSize};
 use crate::text::{self, Wrap};
 use crate::tooltip::Tooltip;
@@ -338,7 +339,9 @@ fn input_box(
     });
     let caret_x = 4 + font.str_width(input.get(visible.start..caret).unwrap_or_default());
     let at_end = caret == input.len();
+    let in_view = visible.start <= caret && caret <= visible.end;
     if at_end
+        && in_view
         && input.chars().count() < MAX_INPUT
         && let Some(ghost) = screen.commands.list().and_then(|list| list.ghost(input))
     {
@@ -353,11 +356,11 @@ fn input_box(
     }
     if let Some(rect) = layout.selection {
         out.push(GuiQuad::Highlight {
-            rect: crate::menu_draw::irect(rect),
+            rect: menu_draw::irect(rect),
             invert: screen.edit().invert,
         });
     }
-    if caret_on {
+    if caret_on && in_view {
         if at_end {
             font::draw_str(
                 font,
