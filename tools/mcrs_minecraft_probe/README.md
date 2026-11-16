@@ -23,6 +23,8 @@ A scenario is a JSON file in `scenarios/`.
 | `target.operators` | the names of the players that are operators |
 | `target.banned_players` | the content of the player ban file at the start |
 | `observe.inventory` | `true` records the menu packets of each step; the default is `false` |
+| `observe.sound` | `true` records the sound packets of each step; the default is `false` |
+| `observe.commands` | a list of command names; each step records, for each `commands` packet, the subtree of each named literal child of the root; the default is the empty list |
 | `steps` | the steps, each with an `id` and one action |
 
 | Action | Effect |
@@ -30,6 +32,7 @@ A scenario is a JSON file in `scenarios/`.
 | `"join": "<name>"` | a new client logs in with this name |
 | `"leave": "<name>"` | the client closes its connection |
 | `"command": { "client": "<name>", "line": "<command>" }` | the client sends a chat command, without the slash |
+| `"console": { "lines": ["<command>", ...] }` | the host runs the commands on the server console, in order, without the slash; the step records the replies that the server printed |
 | `"click": { "client", "slot", "button", "mode", "container", "state_id_offset", "changed_slots", "carried" }` | the client sends a container click |
 | `"close": { "client", "container" }` | the client sends a container close |
 | `"select_slot": { "client", "slot" }` | the client sends the selected hotbar slot; the value goes on the wire as it is, so 9 and -1 are possible |
@@ -87,6 +90,7 @@ version. Each step has one result:
 | `left` | no content |
 | `command` | `replies`: the system chat messages that the sender gets; `disconnects`: each client that the server disconnects, with the reason |
 | `sent` | `disconnects`, as for `command`; the result of a step that sends a game packet |
+| `console` | `output`: the reply texts that the server printed for the commands, in order, without the log prefix |
 | `restarted` | no content |
 
 With `observe.inventory`, each step also has `inventory`: the menu packets that the clients get
@@ -108,6 +112,19 @@ A stack in a trace is `null` or `{ "item", "count", "components" }`. The item is
 `components` has the lists `added` and `removed` with the names of the component types of the
 patch. The trace does not hold the values of the added components.
 
+With `observe.sound`, each step also has `sounds`: the sound packets that the clients get in the
+step, in the order of their arrival. Each entry has the `client`, the `sound` (the name of the
+sound event), the `source` (the number of the sound category as sent), the `position` (three
+integers as sent, in eighths of a block), the `volume`, the `pitch` and the `seed`. The seed is
+random in each run. A packet with an inline sound event stops the run with an error.
+
+With `observe.commands`, each step also has `command_trees`: one entry for each `commands` packet
+that the clients get in the step, with the `client`, the `node_count` and `roots`. The roots are
+the subtrees of the named children of the root. A node has its `index` in the packet, `node`
+(`literal` or `argument`), `name`, `executable`, `restricted`, an optional `redirect` index and its
+`children`. An argument also has `parser` (the name of the argument type), `properties` (the
+decoded properties as debug text) and an optional `suggestions` name.
+
 A step with `read_player_file` has `player_file`: each named field as SNBT text, with the keys of
 each compound in order. A field that the file does not have is `null`.
 
@@ -121,6 +138,11 @@ recording. A command and a leave wait at most 10 seconds for the first of these.
 a game packet waits at most 2 seconds. With `observe.inventory`, a join also waits at most 2 seconds.
 A command that gets none has an empty `replies` list. When the connection of the sender of a game
 packet closes without a disconnect packet, the run stops with an error.
+
+A console step does not wait for a chat message, but it waits for the quiet window after the
+server printed the last reply, so that the clients get the sound and tree packets of the commands.
+A console step does not respawn a client: a player that a command kills stays on the respawn
+screen.
 
 The trace holds only the chat of the client that sends a command. It does not hold the chat that
 other clients get, or the chat of a `join` or a `leave` step.
@@ -145,7 +167,8 @@ You need Java 25 or later and `jq`.
 
    The script downloads and verifies the server jar, runs the scenario and writes
    `traces/<scenario>.json`.
-3. Run the script again. Make sure that `git diff` shows no change in the trace.
+3. Run the script again. Make sure that `git diff` shows no change in the trace. A trace with
+   `observe.sound` differs in the seeds and in the player identifiers of the text components.
 4. Commit the trace.
 
 After an update of the game version, record each trace again.

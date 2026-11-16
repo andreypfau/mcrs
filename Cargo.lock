@@ -6313,15 +6313,18 @@ name = "mcrs_minecraft_probe"
 version = "0.5.8"
 dependencies = [
  "anyhow",
+ "mcrs_minecraft_command_tree",
  "mcrs_minecraft_core",
  "mcrs_minecraft_inventory_menu",
  "mcrs_minecraft_item_key",
+ "mcrs_minecraft_keys",
  "mcrs_minecraft_nbt",
  "mcrs_minecraft_network",
  "mcrs_minecraft_protocol",
  "mcrs_minecraft_protocol_game",
  "mcrs_minecraft_registries",
  "mcrs_minecraft_snbt",
+ "mcrs_minecraft_sound",
  "mcrs_minecraft_text",
  "mcrs_voxel",
  "md-5",

@@ -17,12 +17,16 @@ use std::time::Duration;
 use std::time::Instant;
 
 const START_LIMIT: Duration = Duration::from_secs(300);
+const CONSOLE_LIMIT: Duration = Duration::from_secs(120);
+// The server logs the text that a command sends to its console after this prefix.
+const REPLY_PREFIX: &str = "System chat: ";
 
 /// The vanilla dedicated server as a child process, driven through its console.
 pub(crate) struct VanillaServer {
     child: Child,
     input: ChildStdin,
     output: Receiver<String>,
+    marker: u32,
 }
 
 impl VanillaServer {
@@ -61,6 +65,7 @@ impl VanillaServer {
             child,
             input,
             output,
+            marker: 0,
         };
         server.wait_for("Done (", START_LIMIT)?;
         Ok(server)
@@ -71,6 +76,37 @@ impl VanillaServer {
         for line in self.output.try_iter() {
             println!("server: {line}");
         }
+    }
+
+    /// Sends the commands to the console and returns the reply text that the server logged for
+    /// them. A `say` with a counter ends the batch: the console runs commands in order.
+    pub(crate) fn console(&mut self, lines: &[String]) -> anyhow::Result<Vec<String>> {
+        self.marker += 1;
+        let marker = format!("probe-marker-{}", self.marker);
+        for line in lines {
+            writeln!(self.input, "{line}")?;
+        }
+        writeln!(self.input, "say {marker}")?;
+        self.input.flush()?;
+        let deadline = Instant::now() + CONSOLE_LIMIT;
+        let mut replies = Vec::new();
+        while Instant::now() < deadline {
+            let line = match self.output.recv_timeout(Duration::from_secs(1)) {
+                Ok(line) => line,
+                Err(RecvTimeoutError::Timeout) => continue,
+                Err(RecvTimeoutError::Disconnected) => {
+                    bail!("the server ended before it printed `{marker}`")
+                }
+            };
+            println!("server: {line}");
+            if line.contains(&marker) {
+                return Ok(replies);
+            }
+            if let Some((_, reply)) = line.split_once(REPLY_PREFIX) {
+                replies.push(reply.to_owned());
+            }
+        }
+        bail!("the server did not print `{marker}` in {CONSOLE_LIMIT:?}")
     }
 
     pub(crate) fn stop(mut self) -> anyhow::Result<()> {

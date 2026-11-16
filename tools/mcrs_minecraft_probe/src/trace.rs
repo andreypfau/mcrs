@@ -1,4 +1,4 @@
-use crate::{MenuEvent, PlayerBan};
+use crate::{CommandTree, MenuEvent, PlayerBan, SoundPlayed};
 use mcrs_minecraft_text::Text;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -28,6 +28,14 @@ pub struct StepTrace {
     /// arrival, when the scenario observes the inventory.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub inventory: Option<Vec<MenuEvent>>,
+    /// The sound packets that the clients received during the step, in the order of their
+    /// arrival, when the scenario observes sound.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sounds: Option<Vec<SoundPlayed>>,
+    /// The command trees that the clients received during the step, in the order of their
+    /// arrival, when the scenario names the commands to observe.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub command_trees: Option<Vec<CommandTree>>,
     /// The named fields of the saved player file after the step, as SNBT; `null` for a field
     /// that the file does not have.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -56,6 +64,11 @@ pub enum Observed {
     Sent {
         /// The clients the server disconnected, sorted by name.
         disconnects: Vec<Disconnect>,
+    },
+    /// The host ran commands on the console of the server.
+    Console {
+        /// The replies that the server printed, in order.
+        output: Vec<String>,
     },
     /// The host stopped the server and started it again.
     Restarted,

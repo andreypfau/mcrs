@@ -96,6 +96,10 @@ impl Host for VanillaHost {
         Ok(nbt_compress::read_gzip_compound_tag(file)?)
     }
 
+    fn console(&mut self, lines: &[String]) -> anyhow::Result<Vec<String>> {
+        self.server.console(lines)
+    }
+
     fn restart_server(&mut self) -> anyhow::Result<()> {
         self.server.echo();
         self.server.restart(&self.jar, &self.directory, self.port)
