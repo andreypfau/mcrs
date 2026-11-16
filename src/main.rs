@@ -15,8 +15,8 @@ use mcrs_minecraft_engine::banlist::{BANLIST_FILE, BanList};
 use mcrs_minecraft_engine::coordinator::ops::{OPS_FILE, OpList};
 use mcrs_minecraft_engine::whitelist::{WHITELIST_FILE, Whitelist};
 use mcrs_minecraft_engine_server::{
-    DimensionWorldsPlugin, EmptyForwardingSecret, ForwardingSecret, LoopbackOps,
-    NetworkCompressionThreshold, ServerCorePlugin, ServerNetworkPlugin, ShutdownRequest,
+    DimensionWorldsPlugin, EmptyForwardingSecret, ForwardingSecret, NetworkCompressionThreshold,
+    ServerCorePlugin, ServerNetworkPlugin, ShutdownRequest,
 };
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_lang::{EN_US, Language};
@@ -176,9 +176,6 @@ fn network(settings: &ServerSettings) -> Result<ServerNetworkPlugin, EmptyForwar
         enable_status: settings.enable_status,
         whitelist: Whitelist::read(Path::new(WHITELIST_FILE)),
         banlist: BanList::read(Path::new(BANLIST_FILE)),
-        // A player who joins from this machine is an operator for the session; the ops file
-        // names every other operator.
-        loopback_ops: LoopbackOps::Grant,
         forwarding,
         ..defaults
     })
@@ -246,5 +243,21 @@ async fn shutdown_signal() {
     if let Err(error) = tokio::signal::ctrl_c().await {
         bevy_log::error!("Ctrl+C is not handled: {error}");
         std::future::pending::<()>().await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mcrs_minecraft_engine_server::ServerProfile;
+
+    #[test]
+    fn loop_cfg_002_the_binary_uses_the_public_profile_whatever_its_variables_say() {
+        for settings in [
+            ServerSettings::default(),
+            ServerSettings::read(|_| Some("local".to_owned()), |_| {}),
+        ] {
+            assert_eq!(network(&settings).unwrap().profile, ServerProfile::Public);
+        }
     }
 }

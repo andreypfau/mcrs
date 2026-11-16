@@ -132,6 +132,11 @@ impl OpList {
         self.entries.get(uuid)
     }
 
+    /// Whether `uuid` is an operator that the file holds, so not one of a loopback join.
+    pub fn is_listed(&self, uuid: &Uuid) -> bool {
+        self.entries.contains_key(uuid) && !self.loopback.contains(uuid)
+    }
+
     /// The operator with `name`, in any case.
     pub fn find_by_name(&self, name: &str) -> Option<&OpListEntry> {
         self.entries
@@ -145,7 +150,7 @@ impl OpList {
     }
 
     /// Returns whether the operators changed. An add of an operator that is listed changes
-    /// nothing.
+    /// nothing; an add of an operator of a loopback join lists it.
     pub fn apply(&mut self, edit: &EditOps) -> bool {
         match edit {
             EditOps::Add(entry) => self.add(entry.clone()),
@@ -160,18 +165,19 @@ impl OpList {
     /// Makes `entry` an operator for the life of the process, unless it is one. The file does
     /// not hold it.
     pub fn grant_loopback(&mut self, entry: OpListEntry) -> bool {
-        let id = entry.uuid;
-        if !self.add(entry) {
+        if self.entries.contains_key(&entry.uuid) {
             return false;
         }
-        self.loopback.insert(id);
+        self.loopback.insert(entry.uuid);
+        Arc::make_mut(&mut self.entries).insert(entry.uuid, entry);
         true
     }
 
     fn add(&mut self, entry: OpListEntry) -> bool {
-        if self.entries.contains_key(&entry.uuid) {
+        if self.is_listed(&entry.uuid) {
             return false;
         }
+        self.loopback.remove(&entry.uuid);
         Arc::make_mut(&mut self.entries).insert(entry.uuid, entry);
         true
     }

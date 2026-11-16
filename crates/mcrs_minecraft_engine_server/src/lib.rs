@@ -18,7 +18,7 @@ pub mod world_options;
 pub use data_pack::{DataPack, DataPackError};
 pub use dimension_worlds_plugin::DimensionWorldsPlugin;
 pub use login::NetworkCompressionThreshold;
-pub use loopback_ops::LoopbackOps;
+pub use loopback_ops::ServerProfile;
 pub use mcrs_engine_link::Placement;
 #[cfg(feature = "client-jar")]
 pub use mcrs_minecraft_client_jar::ClientJar;
