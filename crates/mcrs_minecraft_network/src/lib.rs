@@ -21,6 +21,8 @@ pub mod lan;
 pub mod metrics;
 mod outbound;
 pub mod packet_io;
+#[cfg(all(feature = "bevy", not(target_family = "wasm")))]
+mod proxy_header;
 mod shared_frames;
 #[cfg(all(feature = "bevy", not(target_family = "wasm")))]
 pub mod webtransport;

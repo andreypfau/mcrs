@@ -180,6 +180,7 @@ fn network(settings: &ServerSettings) -> Result<ServerNetworkPlugin, EmptyForwar
         // names every other operator.
         loopback_ops: LoopbackOps::Grant,
         forwarding,
+        proxy_upstreams: settings.proxy_upstreams.clone(),
         ..defaults
     })
 }

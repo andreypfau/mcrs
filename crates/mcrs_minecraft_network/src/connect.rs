@@ -1,10 +1,11 @@
 use crate::SharedNetworkState;
 use crate::intent::handle_intent;
 use crate::packet_io::PacketIo;
+use crate::proxy_header::read_proxy_header;
 use socket2::SockRef;
 use std::collections::HashMap;
 use std::net::IpAddr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
@@ -53,17 +54,22 @@ impl TokenBucket {
 /// Shared admission control for every listener: a per-IP token bucket plus one
 /// global cap on handshakes still in flight.
 pub(crate) struct AcceptGate {
-    // HashMap is safe without locks: a gate is owned by a single accept task.
-    per_ip_buckets: HashMap<IpAddr, TokenBucket>,
-    last_sweep: Instant,
+    buckets: Mutex<Buckets>,
     handshakes: Arc<Semaphore>,
+}
+
+struct Buckets {
+    per_ip: HashMap<IpAddr, TokenBucket>,
+    last_sweep: Instant,
 }
 
 impl AcceptGate {
     pub(crate) fn new() -> Self {
         Self {
-            per_ip_buckets: HashMap::new(),
-            last_sweep: Instant::now(),
+            buckets: Mutex::new(Buckets {
+                per_ip: HashMap::new(),
+                last_sweep: Instant::now(),
+            }),
             handshakes: Arc::new(Semaphore::new(GLOBAL_HANDSHAKE_CAP)),
         }
     }
@@ -77,18 +83,20 @@ impl AcceptGate {
     }
 
     /// Whether the accepted connection from `ip` may go on to its handshake.
-    pub(crate) fn admit(&mut self, ip: IpAddr) -> bool {
+    pub(crate) fn admit(&self, ip: IpAddr) -> bool {
+        let mut buckets = self.buckets.lock().unwrap_or_else(PoisonError::into_inner);
         // A full bucket behaves as a new one, so dropping it bounds the map by the
         // addresses seen within the last two refill periods: a bucket drained just
         // before a sweep is full only after it, and survives to the next one.
         // Shrinking returns what a flood from many addresses grew the table to.
-        if self.last_sweep.elapsed() >= BUCKET_REFILL_PERIOD {
-            self.per_ip_buckets
+        if buckets.last_sweep.elapsed() >= BUCKET_REFILL_PERIOD {
+            buckets
+                .per_ip
                 .retain(|_, bucket| !bucket.is_full(ACCEPT_BUCKET_CAP, ACCEPT_REFILL_PER_SEC));
-            if self.per_ip_buckets.capacity() > 4 * self.per_ip_buckets.len() {
-                self.per_ip_buckets.shrink_to_fit();
+            if buckets.per_ip.capacity() > 4 * buckets.per_ip.len() {
+                buckets.per_ip.shrink_to_fit();
             }
-            self.last_sweep = Instant::now();
+            buckets.last_sweep = Instant::now();
         }
         // The per-IP bucket blunts remote connection floods. An integrated
         // server reconnects over loopback far faster than its 0.5/s refill,
@@ -96,8 +104,8 @@ impl AcceptGate {
         if ip.is_loopback() {
             return true;
         }
-        let bucket = self
-            .per_ip_buckets
+        let bucket = buckets
+            .per_ip
             .entry(ip)
             .or_insert_with(|| TokenBucket::new(ACCEPT_BUCKET_CAP));
         let admitted = bucket.consume(ACCEPT_BUCKET_CAP, ACCEPT_REFILL_PER_SEC);
@@ -114,27 +122,38 @@ pub(crate) async fn start_accept_loop(shared: SharedNetworkState, listener: TcpL
         Err(e) => error!("Failed to read the listener address: {}", e),
     }
 
-    let mut gate = AcceptGate::new();
+    let gate = Arc::new(AcceptGate::new());
+    let per_ip_limit = shared.0.per_ip_accept_limit;
 
     loop {
         let Some(slot) = gate.handshake_slot().await else {
             return;
         };
         match listener.accept().await {
-            Ok((socket, remote_addr)) => {
-                if shared.0.per_ip_accept_limit && !gate.admit(remote_addr.ip()) {
+            Ok((mut socket, socket_addr)) => {
+                let behind_proxy = shared
+                    .0
+                    .proxy_upstreams
+                    .contains(&socket_addr.ip().to_canonical());
+                if !behind_proxy && per_ip_limit && !gate.admit(socket_addr.ip()) {
                     continue;
                 }
                 let shared = shared.clone();
+                let gate = gate.clone();
                 tokio::spawn(async move {
                     let _slot = slot;
-                    if let Err(e) = timeout(
-                        HANDLE_CONNECTION_TIMEOUT,
-                        handle_connection(shared, socket, remote_addr),
-                    )
-                    .await
-                    {
-                        warn!("{} Failed to handle connection: {}", remote_addr, e);
+                    let connection = async {
+                        let remote_addr = if behind_proxy {
+                            client_behind_proxy(&mut socket, socket_addr, &gate, per_ip_limit).await
+                        } else {
+                            Some(socket_addr)
+                        };
+                        if let Some(remote_addr) = remote_addr {
+                            handle_connection(shared, socket, remote_addr).await;
+                        }
+                    };
+                    if let Err(e) = timeout(HANDLE_CONNECTION_TIMEOUT, connection).await {
+                        warn!("{} Failed to handle connection: {}", socket_addr, e);
                     }
                 });
             }
@@ -142,6 +161,22 @@ pub(crate) async fn start_accept_loop(shared: SharedNetworkState, listener: TcpL
                 error!("Failed to accept connection: {}", e);
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
+        }
+    }
+}
+
+async fn client_behind_proxy(
+    socket: &mut tokio::net::TcpStream,
+    socket_addr: std::net::SocketAddr,
+    gate: &AcceptGate,
+    per_ip_limit: bool,
+) -> Option<std::net::SocketAddr> {
+    match read_proxy_header(socket).await {
+        Ok(None) => Some(socket_addr),
+        Ok(Some(client)) => (!per_ip_limit || gate.admit(client.ip())).then_some(client),
+        Err(e) => {
+            warn!("{socket_addr} sent no valid PROXY header: {e}");
+            None
         }
     }
 }
@@ -170,24 +205,34 @@ mod tests {
 
     #[test]
     fn buckets_full_again_are_dropped_after_a_refill_period() {
-        let mut gate = AcceptGate::new();
+        let gate = AcceptGate::new();
         for i in 0..100 {
             gate.admit(IpAddr::V4(Ipv4Addr::new(10, 0, 0, i)));
         }
-        assert_eq!(gate.per_ip_buckets.len(), 100);
+        assert_eq!(gate.buckets.lock().unwrap().per_ip.len(), 100);
 
         let earlier = Instant::now() - BUCKET_REFILL_PERIOD;
-        gate.last_sweep = earlier;
-        for bucket in gate.per_ip_buckets.values_mut() {
-            bucket.last_refill = earlier;
-        }
         let drained = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 0));
-        let bucket = gate.per_ip_buckets.get_mut(&drained).unwrap();
-        bucket.tokens = 0.0;
-        bucket.last_refill = Instant::now();
+        {
+            let mut buckets = gate.buckets.lock().unwrap();
+            buckets.last_sweep = earlier;
+            for bucket in buckets.per_ip.values_mut() {
+                bucket.last_refill = earlier;
+            }
+            let bucket = buckets.per_ip.get_mut(&drained).unwrap();
+            bucket.tokens = 0.0;
+            bucket.last_refill = Instant::now();
+        }
 
         gate.admit(IpAddr::V4(Ipv4Addr::new(10, 0, 1, 0)));
-        let mut kept: Vec<_> = gate.per_ip_buckets.keys().copied().collect();
+        let mut kept: Vec<_> = gate
+            .buckets
+            .lock()
+            .unwrap()
+            .per_ip
+            .keys()
+            .copied()
+            .collect();
         kept.sort();
         assert_eq!(kept, [drained, IpAddr::V4(Ipv4Addr::new(10, 0, 1, 0))]);
     }

@@ -18,7 +18,7 @@ use mcrs_minecraft_protocol::uuid::Uuid;
 use mcrs_minecraft_protocol::{Bounded, Encode, Packet, WritePacket};
 use mcrs_minecraft_text::Text;
 use socket2::{Domain, Protocol, Socket, Type};
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::runtime::{Handle, Runtime};
@@ -57,6 +57,7 @@ pub struct NetworkPlugin {
     pub rate_limit: InboundRateLimit,
     /// Turned off behind a proxy, where every player arrives from the proxy's address.
     pub per_ip_accept_limit: bool,
+    pub proxy_upstreams: Vec<IpAddr>,
 }
 
 const SERVER_ICON: &[u8] = include_bytes!(concat!(
@@ -86,6 +87,7 @@ impl Default for NetworkPlugin {
             accept_backlog: 1024,
             rate_limit: InboundRateLimit::default(),
             per_ip_accept_limit: true,
+            proxy_upstreams: Vec::new(),
         }
     }
 }
@@ -196,6 +198,11 @@ fn build_plugin(app: &mut App, plugin: &NetworkPlugin) -> anyhow::Result<()> {
         enable_status: plugin.enable_status,
         send_buffer_bytes: plugin.send_buffer_bytes,
         per_ip_accept_limit: plugin.per_ip_accept_limit,
+        proxy_upstreams: plugin
+            .proxy_upstreams
+            .iter()
+            .map(IpAddr::to_canonical)
+            .collect(),
     }));
     status_send.send_replace(status_frame(&StatusPlayers::default(), &shared_state.0)?);
 
@@ -330,6 +337,7 @@ pub(crate) struct SharedNetworkStateInner {
     pub(crate) enable_status: bool,
     pub(crate) send_buffer_bytes: usize,
     pub(crate) per_ip_accept_limit: bool,
+    pub(crate) proxy_upstreams: Box<[IpAddr]>,
 }
 
 /// The writers of the server wake on its runtime; without the network plugin, on the thread of
