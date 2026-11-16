@@ -38,6 +38,8 @@ use crate::world_server::{
 };
 
 const TICKS: usize = 60;
+// The scripted edits end at tick 45; the short case keeps them and the tiles they publish.
+const SHORT_TICKS: usize = 46;
 
 struct Scenario {
     dimension: Entity,
@@ -187,7 +189,7 @@ fn world_hash(world: &mut World, hashed: Hashed) -> u64 {
 
 /// The hash of every cell of the dimension after each tick of the scenario, and of their blocks
 /// after the last.
-fn run(worlds: Placement) -> Vec<u64> {
+fn run(worlds: Placement, ticks: usize) -> Vec<u64> {
     let mut app = WorldServer {
         worlds,
         cells: 2,
@@ -210,8 +212,8 @@ fn run(worlds: Placement) -> Vec<u64> {
 
     app.init_resource::<TileDeltaLog>();
     let mut published_tiles = 0;
-    let mut hashes = Vec::with_capacity(TICKS + 1);
-    for at in 0..TICKS {
+    let mut hashes = Vec::with_capacity(ticks + 1);
+    for at in 0..ticks {
         scenario.script(first_cell(&mut app, label), at);
         lockstep_tick(&mut app, label);
         let mut hasher = DefaultHasher::new();
@@ -271,13 +273,26 @@ fn first_divergence(left: &[u64], right: &[u64]) -> Option<usize> {
         .position(|(left, right)| left != right)
 }
 
-#[test]
-fn the_world_a_tick_produces_does_not_depend_on_the_threads() {
-    let inline = run(Placement::Inline);
-    let threads = run(Placement::Thread);
+fn assert_threads_do_not_change_the_world(ticks: usize) {
+    let inline = run(Placement::Inline, ticks);
+    let threads = run(Placement::Thread, ticks);
     assert_eq!(
         first_divergence(&inline, &threads),
         None,
         "the threads diverge from Inline at the tick shown (the last entry holds the blocks)"
     );
+}
+
+#[test]
+fn the_world_a_tick_produces_does_not_depend_on_the_threads() {
+    assert_threads_do_not_change_the_world(SHORT_TICKS);
+}
+
+mod exhaustive {
+    use super::*;
+
+    #[test]
+    fn the_world_a_tick_produces_does_not_depend_on_the_threads() {
+        super::assert_threads_do_not_change_the_world(TICKS);
+    }
 }
