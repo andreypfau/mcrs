@@ -6,6 +6,7 @@
 | World version (`DataVersion`) | `5127` |
 | Protocol version | `1073742169` |
 | Data pack format | `126.0` |
+| Status | `draft` |
 
 This document states what the server keeps in a save and how it reads that save. It does not state
 an upgrade path from another world version. The vanilla game must be able to open a save that the
@@ -580,10 +581,9 @@ A junction of `jigsaw` is a compound with the ints `source_x`, `source_ground_y`
 value is the default of the structure. The compound `pool_element` has the string `element_type`
 and the keys of that type in the data pack format of a template pool element: `single_pool_element`,
 `legacy_single_pool_element`, `list_pool_element`, `feature_pool_element` and `empty_pool_element`.
-A pool element names its `processors` and its `feature` by registry id only. An inline processor
-list or an inline placed feature is a load error of the column, and the error names the key.
-Provenance: `design`. Reason: the game writes registry ids for both. An inline value comes only
-from a data pack, and a typed form of it needs the whole feature model in the save layer.
+The key `processors` follows SAVE-POOL-001, the key `feature` follows SAVE-POOL-002, and the use
+of both after a load follows SAVE-POOL-003. These rules apply also to each element in the list
+`elements` of a `list_pool_element`.
 
 A start with no pieces, an id that is not a resource location, and a reference more than 8 columns
 from the column are dropped. The rest of the column loads.
@@ -621,6 +621,80 @@ must give the same monument as generation gives, and the save has no room data. 
 `mcrs_minecraft_region_disk::tests::unknown_block_entities_and_structures_round_trip` and
 `mcrs_minecraft_vanilla_worldgen::generation_tests::a_saved_monument_without_its_rooms_gets_the_generated_graph_from_the_seed`.
 Experiments P3 and P5.
+
+## SAVE-POOL-001: The processor list of a saved pool element
+
+The key `processors` of a `single_pool_element` or a `legacy_single_pool_element` in a saved piece
+has one of these three forms:
+
+| Form | Example | Meaning |
+| --- | --- | --- |
+| A string, a registry id | `"minecraft:mossify_10_percent"` | The entry of `worldgen/processor_list` with that id |
+| A compound with the list `processors` | `{processors: []}` | An inline processor list |
+| A list | `[]` | An inline processor list |
+
+Each entry of an inline list is a processor compound in the data pack form of a processor list.
+The server reads each of the three forms. An inline list is not a load error.
+
+The server writes the form that the pool element of the data pack has. For a registry id, it
+writes that id. For an inline list in the data pack, it writes the compound with the list
+`processors`. It writes this compound also when the data pack has the list form. The game does the
+same. Example: the pools of `abandoned_camp` have the inline list `{"processors": []}`. The game
+writes `processors: {processors: []}` into the `pool_element` of each piece of these pools.
+
+A piece that the server reads from a save and writes again keeps its value. An id stays the same
+id. The entries of an inline list stay the same, in the same order. An inline list that the save
+holds in the list form is written in the compound form. The game reads both forms.
+
+Provenance: `source_suggested_black_box_confirmed` for the compound form of an empty inline list,
+which the pieces of `minecraft:abandoned_camp_forest` in
+`crates/mcrs_minecraft_worldgen_generator/src/tests/fixtures/structure_pieces.bin` show.
+`source_suggested` for the read of the list form, for a list with entries and for the write of a
+piece that the server read. Kind: file format. Confidence: high. Test:
+`mcrs_minecraft_worldgen_generator::tests::structure_pieces::exhaustive::structure_pieces_serialise_as_the_reference_writes_them`.
+Experiment P7.
+
+## SAVE-POOL-002: The placed feature of a saved pool element
+
+The key `feature` of a `feature_pool_element` in a saved piece has one of these two forms:
+
+| Form | Meaning |
+| --- | --- |
+| A string, a registry id | The entry of `worldgen/placed_feature` with that id |
+| A compound | An inline placed feature in its data pack form, with the keys `feature` and `placement` |
+
+The key `feature` of an inline placed feature is a registry id of a configured feature or an inline
+configured feature. The server reads both forms of the placed feature. An inline placed feature is
+not a load error.
+
+The server writes the form that the pool element of the data pack has, as SAVE-POOL-001 states for
+a processor list. A piece that the server reads from a save and writes again keeps its value. The
+pools of the vanilla data pack name each placed feature by registry id. An inline placed
+feature comes only from a data pack that adds it.
+
+Provenance: `source_suggested`. Kind: file format. Confidence: high. Test: none yet. Experiment
+P7.
+
+## SAVE-POOL-003: The use of a saved pool element after a load
+
+A saved pool element is complete. The server does not search the pools of the data pack for an
+element that is equal to it. A saved element with no equal element in the current pools is not an
+error. The piece uses the saved element when it places blocks in a column after the load. Until the
+server implements this rule, a saved element with no equal element in the loaded pools fails the
+column load.
+
+- A registry id names the entry of the current registries. When a data pack changes that entry
+  between two runs, the piece uses the new content.
+- An inline processor list or an inline placed feature is the value of the save. A change of the
+  pool in the data pack does not change it.
+
+A registry id that names no entry of the current registries is a load error of the column. The
+error names the key and the id. An inline value that does not read as a processor list or a placed
+feature in the data pack form is a load error of the column, and the error names the key. The game
+skips such a piece and keeps the other pieces of the start (SAVE-COLUMN-003).
+
+Provenance: `source_suggested` for the use of the saved value. `design` for the load error, by
+decision #388 (SAVE-FILE-002). Kind: semantic. Confidence: high. Test: none yet. Experiment P8.
 
 ## SAVE-COLUMN-004: Write order
 
@@ -976,3 +1050,23 @@ None of these experiments has been run. Each one needs `tools/vanilla-server`. I
   7. Stop the server. Record the file names and the sizes in the `poi` directory again.
   Expected, if U3 holds: the answers of step 5 equal those of step 2, and the game writes the
   `poi` files again. Record each difference, and the log lines about `poi`.
+- **P7.** Confirms the forms of SAVE-POOL-001 and SAVE-POOL-002 that no fixture shows.
+  1. Make a data pack with one jigsaw structure and three pools. Pool A has a
+     `single_pool_element` with the inline list `{"processors": [<one rule processor>]}`. Pool B
+     has the same element with the list form `[<the same processor>]`. Pool C has a
+     `feature_pool_element` with an inline placed feature.
+  2. Start the vanilla server on a new world with this data pack. Generate one start of each pool.
+     Stop the server.
+  3. Record the `pool_element` compound of each piece. Expected: pool A and pool B give the same
+     compound form with the list `processors`. Pool C gives the inline placed feature as a compound.
+  4. In the save, replace one `processors` compound with the list form of the same entries. Start
+     the server, load the column, change a block near the piece, save and stop.
+  5. Record the `pool_element` compound again. Expected: the game reads the list form, and it
+     writes the compound form with the same entries in the same order.
+- **P8.** Confirms SAVE-POOL-003.
+  1. With the data pack of P7, generate a start of pool A with pieces in more than one column.
+     Stop the server before the game places the blocks of each column.
+  2. In the data pack, change the rule processor of pool A, and change the processor list that a
+     registry id names in a second element. Start the server and load the other columns.
+  3. Record the blocks of the pieces. Expected: the inline element places with the processor of
+     the save, and the element with the registry id places with the changed list.
