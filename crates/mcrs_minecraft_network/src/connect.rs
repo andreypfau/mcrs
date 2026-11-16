@@ -47,7 +47,7 @@ impl TokenBucket {
         }
     }
 
-    fn is_full(&self, cap: u32, refill_per_sec: f32) -> bool {
+    pub fn is_full(&self, cap: u32, refill_per_sec: f32) -> bool {
         self.tokens + self.last_refill.elapsed().as_secs_f32() * refill_per_sec >= cap as f32
     }
 }

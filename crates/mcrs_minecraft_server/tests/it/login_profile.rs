@@ -19,7 +19,7 @@ use mcrs_minecraft_engine_server::login::{
     LoginPlugin, LoginState, ProxyForwarding, SingleplayerProfile,
 };
 use mcrs_minecraft_engine_server::{
-    ForwardingSecret, LoopbackOps, ShutdownPlugin, ShutdownRequest,
+    ForwardingSecret, ServerProfile, ShutdownPlugin, ShutdownRequest,
 };
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_network::OutboundReceiver;
@@ -761,43 +761,6 @@ fn ban_join_003_a_ban_with_a_future_end_names_its_time() {
 }
 
 #[test]
-fn a_loopback_hello_makes_an_operator_and_a_remote_one_does_not() {
-    let mut app = server(None);
-    app.insert_resource(LoopbackOps::Grant);
-    for (address, name) in [("127.0.0.1:50000", "Local"), ("[::1]:50000", "LocalSix")] {
-        let local = hello_from(&mut app, address, name);
-        assert_eq!(
-            app.world()
-                .resource::<OpList>()
-                .get(&local.id)
-                .map(|op| op.level),
-            Some(4),
-            "{address}"
-        );
-    }
-    let remote = hello_from(&mut app, "192.168.1.20:50000", "Remote");
-    assert!(app.world().resource::<OpList>().get(&remote.id).is_none());
-
-    app.insert_resource(LoopbackOps::Deny);
-    let denied = hello_from(&mut app, "127.0.0.1:50000", "Denied");
-    assert!(app.world().resource::<OpList>().get(&denied.id).is_none());
-}
-
-fn hello_from(app: &mut App, address: &str, username: &str) -> GameProfile {
-    let client = connect(app);
-    app.world_mut()
-        .get_mut::<ServerSideConnection>(client.connection)
-        .unwrap()
-        .raw
-        .remote_addr = address.parse().unwrap();
-    send_hello(app, &client, username, Uuid::new_v4());
-    app.world()
-        .get::<GameProfile>(client.connection)
-        .expect("the hello is accepted")
-        .clone()
-}
-
-#[test]
 fn ban_join_004_an_operator_has_no_exception() {
     let mut app = server(None);
     app.insert_resource(OpList::new([OpListEntry {
@@ -856,6 +819,31 @@ fn wl_join_002_a_player_that_is_not_listed_is_refused() {
     let mut app = server(None);
     app.insert_resource(Whitelist::default().enabled(true));
     assert_not_whitelisted(&mut app, "Steve");
+}
+
+#[test]
+fn loop_grant_003_a_loopback_join_that_the_whitelist_refuses_makes_no_operator() {
+    let mut app = server(None);
+    app.insert_resource(ServerProfile::Local);
+    app.insert_resource(Whitelist::default().enabled(true));
+    let mut client = connect(&mut app);
+    app.world_mut()
+        .get_mut::<ServerSideConnection>(client.connection)
+        .unwrap()
+        .raw
+        .remote_addr = "127.0.0.1:50000".parse().unwrap();
+    send_hello(&mut app, &client, "Steve", Uuid::new_v4());
+    assert_eq!(
+        login_disconnect_reason(&client.received(&mut app)),
+        serde_json::json!({"translate": "multiplayer.disconnect.not_whitelisted"})
+    );
+    assert!(!connected(&app, &client));
+    assert!(
+        app.world()
+            .resource::<OpList>()
+            .find_by_name("Steve")
+            .is_none()
+    );
 }
 
 #[test]
@@ -1154,7 +1142,7 @@ fn forwarded_hello(app: &mut App) -> (Client, i32) {
 #[test]
 fn fwd_use_001_002_a_forwarded_login_takes_the_profile_and_the_address_of_the_proxy() {
     let mut app = forwarding_server();
-    app.insert_resource(LoopbackOps::Grant);
+    app.insert_resource(ServerProfile::Local);
     let (mut client, message_id) = forwarded_hello(&mut app);
     assert!(app.world().get::<GameProfile>(client.connection).is_none());
 
@@ -1191,6 +1179,44 @@ fn fwd_use_001_002_a_forwarded_login_takes_the_profile_and_the_address_of_the_pr
     assert_eq!(
         ids(&client.received(&mut app)),
         [LoginCompression::ID, ClientboundLoginFinished::ID]
+    );
+}
+
+/// The version 4 answer of `FORWARDED_PAYLOAD` with the address `127.0.0.1`, signed with
+/// `SECRET`.
+const LOOPBACK_FORWARDED_PAYLOAD: [u8; 81] = [
+    0xb0, 0x1c, 0x0e, 0x10, 0xd6, 0x5b, 0xf9, 0x14, 0x5d, 0x96, 0x4f, 0xc6, 0x94, 0x2a, 0x32, 0x85,
+    0x55, 0xfc, 0xfa, 0x26, 0xdc, 0x3c, 0xf9, 0x71, 0x6a, 0xad, 0x46, 0x2f, 0x0c, 0x3c, 0x4f, 0xdd,
+    0x04, 0x09, 0x31, 0x32, 0x37, 0x2e, 0x30, 0x2e, 0x30, 0x2e, 0x31, 0x00, 0x11, 0x22, 0x33, 0x44,
+    0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x05, 0x53, 0x74, 0x65, 0x76,
+    0x65, 0x01, 0x08, 0x74, 0x65, 0x78, 0x74, 0x75, 0x72, 0x65, 0x73, 0x04, 0x65, 0x33, 0x30, 0x3d,
+    0x00,
+];
+
+/// The op list entry of the player that a proxy on this machine forwards with `payload`.
+fn forwarded_op(profile: ServerProfile, payload: &[u8]) -> Option<OpListEntry> {
+    let mut app = forwarding_server();
+    app.insert_resource(profile);
+    let (client, message_id) = forwarded_hello(&mut app);
+    send_answer(&mut app, &client, message_id, Some(payload));
+    let id = app
+        .world()
+        .get::<GameProfile>(client.connection)
+        .expect("the forwarded login is accepted")
+        .id;
+    app.world().resource::<OpList>().get(&id).cloned()
+}
+
+#[test]
+fn loop_addr_001_loop_grant_002_a_forwarded_loopback_address_makes_no_operator_on_public() {
+    assert_eq!(
+        forwarded_op(ServerProfile::Public, &LOOPBACK_FORWARDED_PAYLOAD),
+        None
+    );
+    assert_eq!(
+        forwarded_op(ServerProfile::Local, &LOOPBACK_FORWARDED_PAYLOAD).map(|op| op.level),
+        Some(4),
+        "the payload is accepted and its address is loopback"
     );
 }
 
