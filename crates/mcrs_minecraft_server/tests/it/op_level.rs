@@ -217,3 +217,18 @@ fn loop_file_001_a_write_of_the_ops_file_leaves_the_automatic_operator_out() {
     assert_eq!(ops.get(&target_id).map(|entry| entry.level), Some(4));
     std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
 }
+
+#[test]
+fn loop_file_002_op_of_an_automatic_operator_fails_and_writes_nothing() {
+    let target_id = Uuid::new_v4();
+    let (mut server, path) = start_with_ops_file(target_id);
+    let (admin, _) = server.join(ADMIN, "Admin");
+    let (target, _) = server.join(target_id, "Target");
+
+    let op = run(&mut server, admin, target, "op Target");
+    assert_eq!(op.source, [failed("commands.op.failed")]);
+    assert_eq!(names_in(&path), ["Admin"]);
+    let ops = server.app.world().resource::<OpList>();
+    assert_eq!(ops.get(&target_id).map(|entry| entry.level), Some(4));
+    std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
+}
