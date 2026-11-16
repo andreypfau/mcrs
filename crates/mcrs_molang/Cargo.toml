@@ -16,7 +16,7 @@ hashbrown.workspace = true
 libm = { workspace = true, features = ["arch"] }
 
 [dev-dependencies]
-criterion = { workspace = true, features = ["html_reports"] }
+criterion = { workspace = true }
 proptest.workspace = true
 serde.workspace = true
 serde_json.workspace = true

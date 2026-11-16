@@ -20,7 +20,7 @@ mcrs_minecraft_goal_world.workspace = true
 mcrs_minecraft_entity = { workspace = true, optional = true }
 
 [dev-dependencies]
-criterion = { version = "0.7", default-features = false }
+criterion = { workspace = true }
 mcrs_minecraft_goals = { workspace = true, features = ["testing"] }
 rayon.workspace = true
 

@@ -18,7 +18,7 @@ mcrs_minecraft_brain.workspace = true
 mcrs_minecraft_numeric.workspace = true
 
 [dev-dependencies]
-criterion = { version = "0.7", default-features = false }
+criterion = { workspace = true }
 mcrs_minecraft_entity.workspace = true
 
 [[bench]]
