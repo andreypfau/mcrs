@@ -1391,9 +1391,11 @@ wheel event:
 2. While a screen is open, the event goes to the screen (`client-list.md`, SCRL-AREA-002). The
    client ignores the other steps. The sums of step 5 do not change.
 3. When no local player exists, the client ignores the event.
-4. The client scales the two values of the event. When the option Discrete Scrolling is on, each
-   value becomes its sign. Then the client multiplies each value by the option Scroll Sensitivity
-   `k`.
+4. The client scales the two values of the event. A value in pixels, from a trackpad or a mouse
+   with smooth scrolling, first becomes notches: 0.1 notch for each logical pixel (`design`; the
+   window library of vanilla uses this factor on macOS). When the option Discrete Scrolling is on,
+   each value becomes its sign. Then the client multiplies each value by the option Scroll
+   Sensitivity `k`.
 5. The client keeps one sum for each axis. Each sum starts at 0. For each axis, when the sum is not
    0 and the sign of the scaled value is not the sign of the sum, the sum becomes 0. The sign of 0
    is 0. Then the client adds the scaled value to the sum.
