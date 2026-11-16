@@ -1,16 +1,19 @@
 use core::fmt;
 
-use mcrs_minecraft_loot_condition::{ConditionProblem, MemberKind, ParamNotAllowed};
+use mcrs_minecraft_loot_condition::{ConditionProblem, ParamNotAllowed};
 use mcrs_minecraft_resource::ResourceLocationBuf;
 
+use crate::issue_owner::IssueOwner;
 use crate::table_links::MAX_NESTING;
 
 /// A problem that the bake found in a table. A name that the bake could not resolve makes the
 /// part that names it never pass or make nothing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LootIssue {
-    /// The table with the problem, or the named entry for [`LootProblem::Named`].
-    pub table: ResourceLocationBuf,
+    /// The name of the table, the item modifier or the named entry with the problem.
+    pub name: ResourceLocationBuf,
+    /// The registry of `name`.
+    pub owner: IssueOwner,
     /// The part of the table with the problem, as `pools[2].entries[0].condition`. It is empty
     /// for the table as a whole.
     pub path: String,
@@ -27,23 +30,24 @@ pub enum LootProblem {
     SetItemAir,
     /// A `loot_table` entry names a table that the load does not hold.
     UnknownTable(String),
-    /// A tag of items or of tables that the load does not hold.
+    /// A tag of items, of tables or of item modifiers that the load does not hold.
     UnknownTag(String),
-    /// A name in a condition or a provider of the table.
+    /// A key of an item modifier that the load does not hold.
+    UnknownModifier(String),
+    /// A `set_attributes` element names an attribute that the load does not hold, or one whose
+    /// index does not fit an attribute id.
+    UnknownAttribute(String),
+    /// A name in a condition or a provider of the table, or a problem of a named entry.
     Condition(ConditionProblem),
-    /// A problem of the named entry of the registry `kind` (LOOT-CTX-016).
-    Named {
-        kind: MemberKind,
-        problem: ConditionProblem,
-    },
     /// The part reads a parameter that the type of the table does not allow, or a nested table
     /// reads one that the type of the table that contains it does not allow (LOOT-CTX-013).
     ParamNotAllowed(ParamNotAllowed),
-    /// The `loot_table` entry refers back to a table that contains it, through these tables
-    /// from the first to the last; the last refers back to the first (LOOT-CTX-014).
+    /// The `loot_table` entry or the key of an item modifier refers back to a table or an item
+    /// modifier that contains it, through these from the first to the last; the last refers back
+    /// to the first (LOOT-CTX-014).
     Cycle(Vec<ResourceLocationBuf>),
-    /// The `loot_table` entry names a table whose chain of nested tables is already as long as
-    /// the bake allows.
+    /// The `loot_table` entry or the key of an item modifier makes a reference chain from some
+    /// start longer than [`MAX_NESTING`] (LOOT-CTX-017).
     TooDeep,
     /// The part makes a reference chain from some start longer than
     /// [`MAX_NESTING`] (LOOT-CTX-017).
@@ -57,14 +61,16 @@ pub enum LootProblem {
 
 impl fmt::Display for LootIssue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let table = &self.table;
-        if let LootProblem::Named { kind, problem } = &self.problem {
-            return write!(f, "{kind} {table}: {problem}");
+        let name = &self.name;
+        match self.owner {
+            IssueOwner::Named(kind) => write!(f, "{kind} ")?,
+            IssueOwner::ItemModifier => f.write_str("item modifier ")?,
+            IssueOwner::Table => {}
         }
         if self.path.is_empty() {
-            write!(f, "{table}: ")?;
+            write!(f, "{name}: ")?;
         } else {
-            write!(f, "{table} at {}: ", self.path)?;
+            write!(f, "{name} at {}: ", self.path)?;
         }
         match &self.problem {
             LootProblem::MissingTable => f.write_str("the loot table is not loaded"),
@@ -73,19 +79,19 @@ impl fmt::Display for LootIssue {
             LootProblem::SetItemAir => f.write_str("set_item names minecraft:air"),
             LootProblem::UnknownTable(name) => write!(f, "no loot table {name}"),
             LootProblem::UnknownTag(name) => write!(f, "no tag #{name}"),
-            LootProblem::Condition(problem) | LootProblem::Named { problem, .. } => {
-                write!(f, "{problem}")
-            }
+            LootProblem::UnknownModifier(name) => write!(f, "no item modifier {name}"),
+            LootProblem::UnknownAttribute(name) => write!(f, "no attribute {name}"),
+            LootProblem::Condition(problem) => write!(f, "{problem}"),
             LootProblem::ParamNotAllowed(problem) => write!(f, "{problem}"),
             LootProblem::Cycle(tables) => {
-                f.write_str("the loot table refers back to itself through")?;
+                f.write_str("the part refers back to itself through")?;
                 for table in tables {
                     write!(f, " {table}")?;
                 }
                 Ok(())
             }
             LootProblem::TooDeep => {
-                write!(f, "more than {MAX_NESTING} nested loot tables in one chain")
+                write!(f, "more than {MAX_NESTING} nested parts in one chain")
             }
             LootProblem::ChainTooLong => {
                 write!(

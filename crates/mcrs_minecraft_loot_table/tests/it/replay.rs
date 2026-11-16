@@ -522,7 +522,7 @@ fn differences(index: usize, case: &Case, replay: &Replay) -> Result<(), String>
         Outcome::Stacks(expected) => {
             let name = format!("replay:case_{index}");
             let issues: Vec<&LootIssue> = (replay.issues.iter())
-                .filter(|issue| issue.table.as_str() == name)
+                .filter(|issue| issue.name.as_str() == name)
                 .collect();
             if !issues.is_empty() {
                 return Err(format!("bake issues {issues:?}"));

@@ -30,6 +30,12 @@ pub enum ModifierFile {
     One(Box<ModifierObject>),
 }
 
+impl mcrs_minecraft_resource::RegistryValue for ModifierFile {
+    type Registry = mcrs_minecraft_loot::function::LootItemFunction;
+}
+
+mcrs_minecraft_registries::resolve_as_is!(ModifierFile);
+
 /// An element of a list of modifiers: a key or an object. A list is not an element (REG-FLD-780).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]

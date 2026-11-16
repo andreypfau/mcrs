@@ -23,7 +23,7 @@ impl EnchantedBonus {
         let level = attacker
             .zip(self.enchantment)
             .map_or(0, |(entity, enchantment)| {
-                self.level(world, entity, enchantment)
+                equipment_level(world, entity, enchantment, &self.slots)
             });
         let level = i32::try_from(level).unwrap_or(i32::MAX);
         match level > 0 {
@@ -31,30 +31,33 @@ impl EnchantedBonus {
             false => self.unenchanted_chance,
         }
     }
+}
 
-    /// The level of `enchantment` on `entity` (LOOT-CND-022); 0 for an entity that is not living.
-    fn level<W: EntityView>(
-        &self,
-        world: &W,
-        entity: W::Entity,
-        enchantment: Id<Enchantment>,
-    ) -> u32 {
-        if world.is_living(entity) != Some(true) {
-            return 0;
-        }
-        self.slots
-            .iter()
-            .filter_map(|&slot| match world.equipment(entity, slot)? {
-                ItemSubject::Stack(stack) => Some(Tool::Stack(stack).level(enchantment)),
-                ItemSubject::Empty => None,
-            })
-            .max()
-            .unwrap_or(0)
+/// The highest level of `enchantment` in the stacks of `slots` of `entity` (LOOT-CND-022,
+/// LOOT-MOD-013); 0 for an entity that is not living.
+#[must_use]
+pub fn equipment_level<W: EntityView>(
+    world: &W,
+    entity: W::Entity,
+    enchantment: Id<Enchantment>,
+    slots: &[EquipmentSlot],
+) -> u32 {
+    if world.is_living(entity) != Some(true) {
+        return 0;
     }
+    slots
+        .iter()
+        .filter_map(|&slot| match world.equipment(entity, slot)? {
+            ItemSubject::Stack(stack) => Some(Tool::Stack(stack).level(enchantment)),
+            ItemSubject::Empty => None,
+        })
+        .max()
+        .unwrap_or(0)
 }
 
 /// The equipment slots of the slot groups `groups`, in the order of [`EquipmentSlot::ALL`].
-pub(crate) fn equipment_slots(groups: &[EquipmentSlotGroup]) -> Box<[EquipmentSlot]> {
+#[must_use]
+pub fn equipment_slots(groups: &[EquipmentSlotGroup]) -> Box<[EquipmentSlot]> {
     EquipmentSlot::ALL
         .into_iter()
         .filter(|&slot| groups.iter().any(|&group| holds(group, slot)))

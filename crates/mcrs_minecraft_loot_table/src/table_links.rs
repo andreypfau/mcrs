@@ -2,15 +2,18 @@ use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 use mcrs_minecraft_loot_condition::ContextParams;
 use mcrs_minecraft_resource::ResourceLocationBuf;
 
+use crate::issue_owner::IssueOwner;
 use crate::loot_issue::{LootIssue, LootProblem};
 use crate::table::Table;
 
-/// What the bake knows of one baked table for the checks across tables.
+/// What the bake knows of one baked table for the checks across tables. An entry of the registry
+/// `item_modifier` is a table with no pool, whose modifiers are the entry (LOOT-CTX-017).
 #[derive(Debug, Clone)]
 pub(crate) struct TableLinks {
     /// The index of the table of the registry that holds the table: itself, or the table that
     /// holds an inline table.
     pub(crate) owner: usize,
+    pub(crate) kind: IssueOwner,
     /// The type that the parts of the table were checked against: its own type, or the type of
     /// the table that holds an inline table.
     pub(crate) checked_against: ContextKeySet,
@@ -53,11 +56,11 @@ struct Frame {
     next: usize,
 }
 
-/// Reports each reference back to a table that contains it, and each chain of nested tables
-/// longer than [`MAX_NESTING`], and cuts it, so that each evaluation ends in a bounded depth
-/// (LOOT-CTX-014). Then checks each nested table of the registry against the type of the table
-/// that contains it (LOOT-CTX-013), and each place of a provider against the longest table chain
-/// that leads to it (LOOT-CTX-017).
+/// Reports and cuts each reference back to a table that contains it (LOOT-CTX-014), checks each
+/// nested table of the registry against the type of the table that contains it (LOOT-CTX-013),
+/// and reports each place where a reference chain gets more than [`MAX_NESTING`] members
+/// (LOOT-CTX-017). Then cuts each chain of nested tables that is still too long, so that each
+/// evaluation ends in a bounded depth.
 pub(crate) fn check(
     links: &[TableLinks],
     tables: &mut [Table],
@@ -68,6 +71,7 @@ pub(crate) fn check(
     let mut reads = vec![ContextParams::EMPTY; links.len()];
     let mut depths = vec![0; links.len()];
     let mut finished = Vec::with_capacity(links.len());
+    let mut deep = Vec::new();
     let mut stack: Vec<Frame> = Vec::new();
     for root in 0..links.len() {
         if marks.get(root) != Some(&Mark::New) {
@@ -81,7 +85,7 @@ pub(crate) fn check(
         while let Some(frame) = stack.last_mut() {
             let node = frame.node;
             let Some(edge) = links.get(node).and_then(|link| link.edges.get(frame.next)) else {
-                let depth = cut_deep(links, tables, names, &depths, node, issues);
+                let depth = deep_links(links, tables, &depths, node, &mut deep);
                 set(&mut depths, node, depth);
                 let closed = target_reads(links, tables, &reads, node);
                 set(&mut reads, node, closed);
@@ -144,11 +148,14 @@ pub(crate) fn check(
         }
     }
     check_chains(links, tables, names, &finished, issues);
+    for edge in deep {
+        cut(tables, edge.node, edge.slot);
+    }
 }
 
-/// Reports each place of a provider where a table chain and the chain below the place make more
-/// than [`MAX_NESTING`] members. `finished` holds each table after the tables that it nests, so its
-/// reverse visits each table after each table that leads to it.
+/// Reports each link to a nested table and each place of a provider where the longest chain from
+/// some start gets more than [`MAX_NESTING`] members. `finished` holds each table after the tables
+/// that it nests, so its reverse visits each table after each table that leads to it.
 fn check_chains(
     links: &[TableLinks],
     tables: &[Table],
@@ -163,9 +170,13 @@ fn check_chains(
         };
         let length = above.get(node).copied().unwrap_or(1);
         for edge in &link.edges {
-            if let Some(target) = nested(tables, node, edge.slot)
-                && let Some(place) = above.get_mut(target)
-            {
+            let Some(target) = nested(tables, node, edge.slot) else {
+                continue;
+            };
+            if length >= MAX_NESTING {
+                report(links, names, node, &edge.path, LootProblem::TooDeep, issues);
+            }
+            if let Some(place) = above.get_mut(target) {
                 *place = (*place).max(length.saturating_add(1));
             }
         }
@@ -178,15 +189,20 @@ fn check_chains(
     }
 }
 
-/// Reports and cuts each link of the table at `node` to a table at the depth [`MAX_NESTING`];
-/// gives the depth of `node`, which each of its nested tables has given.
-fn cut_deep(
+/// A link to a nested table that the walk cuts after the checks.
+struct DeepLink {
+    node: usize,
+    slot: usize,
+}
+
+/// Adds to `deep` each link of the table at `node` to a table at the depth [`MAX_NESTING`]; gives
+/// the depth of `node`, which each of its other nested tables has given.
+fn deep_links(
     links: &[TableLinks],
-    tables: &mut [Table],
-    names: &[ResourceLocationBuf],
+    tables: &[Table],
     depths: &[usize],
     node: usize,
-    issues: &mut Vec<LootIssue>,
+    deep: &mut Vec<DeepLink>,
 ) -> usize {
     let Some(link) = links.get(node) else {
         return 1;
@@ -198,8 +214,10 @@ fn cut_deep(
         };
         let depth = depths.get(target).copied().unwrap_or(0);
         if depth >= MAX_NESTING {
-            report(links, names, node, &edge.path, LootProblem::TooDeep, issues);
-            cut(tables, node, edge.slot);
+            deep.push(DeepLink {
+                node,
+                slot: edge.slot,
+            });
         } else {
             deepest = deepest.max(depth);
         }
@@ -253,11 +271,15 @@ fn report(
     problem: LootProblem,
     issues: &mut Vec<LootIssue>,
 ) {
-    let Some(table) = links.get(node).and_then(|link| names.get(link.owner)) else {
+    let Some(link) = links.get(node) else {
+        return;
+    };
+    let Some(table) = names.get(link.owner) else {
         return;
     };
     issues.push(LootIssue {
-        table: table.clone(),
+        name: table.clone(),
+        owner: link.kind,
         path: path.to_owned(),
         problem,
     });
