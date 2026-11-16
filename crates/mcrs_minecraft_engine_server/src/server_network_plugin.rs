@@ -11,8 +11,7 @@ use crate::configuration::{ConfigurationStatePlugin, KnownPackOffer};
 use crate::dimension_worlds_plugin::DimensionWorldsPlugin;
 use crate::keep_alive::KeepAlivePlugin;
 use crate::login::{
-    JoinLimits, JoinRate, LoginPlugin, NetworkCompressionThreshold, ProxyForwarding,
-    SingleplayerProfile,
+    JoinLimits, LoginPlugin, NetworkCompressionThreshold, ProxyForwarding, SingleplayerProfile,
 };
 use crate::loopback_ops::ServerProfile;
 use crate::require::require;
@@ -30,13 +29,8 @@ pub struct ServerNetworkPlugin {
     pub offer_known_packs: bool,
     pub compression_threshold: NetworkCompressionThreshold,
     pub singleplayer_profile: Option<SingleplayerProfile>,
-    /// The joined connections the server admits, a connection in login or configuration
-    /// included; the status response shows it as the maximum.
-    pub max_players: u32,
-    /// The joined connections of one address other than loopback; `None` turns the cap off.
-    pub per_ip_join_cap: Option<u32>,
-    /// The logins of one address other than loopback; `None` turns the join rate off.
-    pub join_rate: Option<JoinRate>,
+    /// Its player limit is also the maximum that the status response shows.
+    pub join_limits: JoinLimits,
     pub motd: String,
     pub favicon: Option<String>,
     /// Turned on, a client that a transfer packet sends here logs in; turned off, it gets
@@ -84,9 +78,7 @@ impl Default for ServerNetworkPlugin {
             offer_known_packs: true,
             compression_threshold: NetworkCompressionThreshold::default(),
             singleplayer_profile: None,
-            max_players: JoinLimits::default().max_players,
-            per_ip_join_cap: JoinLimits::default().per_ip,
-            join_rate: JoinLimits::default().join_rate,
+            join_limits: JoinLimits::default(),
             motd: "mcrs Server".to_owned(),
             favicon: Some(default_favicon()),
             accepts_transfers: false,
@@ -114,7 +106,7 @@ impl Plugin for ServerNetworkPlugin {
         app.add_plugins(NetworkPlugin {
             address: self.bind_address,
             announce_on_lan: self.announce_on_lan,
-            max_players: self.max_players,
+            max_players: self.join_limits.max_players,
             motd: self.motd.clone(),
             favicon: self.favicon.clone(),
             accepts_transfers: self.accepts_transfers,
@@ -128,11 +120,7 @@ impl Plugin for ServerNetworkPlugin {
         });
         app.insert_resource(self.compression_threshold);
         app.add_plugins(LoginPlugin);
-        app.insert_resource(JoinLimits {
-            max_players: self.max_players,
-            per_ip: self.per_ip_join_cap,
-            join_rate: self.join_rate,
-        });
+        app.insert_resource(self.join_limits);
         app.add_plugins(ConfigurationStatePlugin);
         app.add_plugins(KeepAlivePlugin);
         if !app.is_plugin_added::<ClientInfoPlugin>() {

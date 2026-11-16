@@ -433,7 +433,7 @@ impl Admission<'_, '_> {
         let joined = || {
             self.session_connections
                 .iter()
-                .filter(|(_, _, login, profile)| **login != LoginState::Hello && profile.id != id)
+                .filter(|(.., profile)| profile.id != id)
         };
         if joined().count() >= self.limits.max_players as usize {
             return Some(server_full_reason());

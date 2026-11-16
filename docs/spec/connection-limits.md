@@ -178,6 +178,18 @@ exception of the same profile id lets a player reconnect while the old session e
 exception is the same as in PXP-USE-002: an integrated server and a local test connect many
 clients from loopback. Kind: semantic. Confidence: high.
 
+### LIM-IP-002: A proxy that does not give the client address
+
+- **Behavior:** when the server is behind a proxy with no Velocity forwarding and no PROXY
+  protocol header, each connection has the address of the proxy. All players then share one
+  address, so LIM-IP-001 refuses the player after the cap, and LIM-RATE-001 refuses a quick
+  login after the capacity of the bucket.
+- **Behavior:** such a setup must turn off the per-IP join cap and the join rate, with no value
+  for the two inputs of LIM-CFG-001. The server does not detect such a setup.
+
+Provenance: `design`. The server cannot tell a proxy from one busy address; only the operator
+knows the setup. Kind: semantic. Confidence: high.
+
 ## 5. The join rate
 
 ### LIM-RATE-001: Join bucket of one address
@@ -225,9 +237,9 @@ Confidence: high.
 
 - **Inputs:** the packet rate limit `L`. The time of arrival of each serverbound packet.
 - **Behavior:** the server counts each serverbound packet that it reads from the connection, in
-  each state: HANDSHAKE, STATUS, LOGIN, CONFIGURATION and PLAY. A packet that the server ignores
-  also counts.
-- **Behavior:** the seconds of a connection start at the arrival of its first packet. Second `k`
+  each state from LOGIN on: LOGIN, CONFIGURATION and PLAY. A packet that the server ignores also
+  counts. The handshake packet and the packets of a STATUS connection do not count.
+- **Behavior:** the seconds of a connection start at the arrival of its first counted packet. Second `k`
   is the time from `t0 + k` seconds to `t0 + k + 1` seconds, where `t0` is that arrival. The
   seconds follow the arrival times, not the ticks of the server.
 - **Behavior:** the connection has an average `a`, at first `0`. At the end of each second with
@@ -255,7 +267,6 @@ property, `rate-limit`, with the same reason text. Kind: semantic. Confidence: h
 
 | State | Packet |
 |-------|--------|
-| HANDSHAKE, STATUS | none: the server closes the connection |
 | LOGIN | `login_disconnect` |
 | CONFIGURATION | `disconnect` of CONFIGURATION |
 | PLAY | `disconnect` of PLAY |
