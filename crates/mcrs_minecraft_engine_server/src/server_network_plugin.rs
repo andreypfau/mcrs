@@ -13,7 +13,7 @@ use crate::keep_alive::KeepAlivePlugin;
 use crate::login::{
     LoginPlugin, NetworkCompressionThreshold, ProxyForwarding, SingleplayerProfile,
 };
-use crate::loopback_ops::ServerProfile;
+use crate::loopback_ops::OperatorProfile;
 use crate::require::require;
 use crate::status::StatusPlugin;
 
@@ -49,7 +49,7 @@ pub struct ServerNetworkPlugin {
     pub rate_limit: InboundRateLimit,
     pub whitelist: Whitelist,
     pub banlist: BanList,
-    pub profile: ServerProfile,
+    pub profile: OperatorProfile,
     /// Set, every login takes the player's profile and address from the proxy that shares this
     /// secret.
     pub forwarding: Option<ForwardingSecret>,
@@ -88,7 +88,7 @@ impl Default for ServerNetworkPlugin {
             rate_limit: InboundRateLimit::default(),
             whitelist: Whitelist::default(),
             banlist: BanList::default(),
-            profile: ServerProfile::default(),
+            profile: OperatorProfile::default(),
             forwarding: None,
             proxy_upstreams: Vec::new(),
         }

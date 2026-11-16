@@ -19,7 +19,7 @@ use mcrs_minecraft_engine_server::login::{
     LoginPlugin, LoginState, ProxyForwarding, SingleplayerProfile,
 };
 use mcrs_minecraft_engine_server::{
-    ForwardingSecret, ServerProfile, ShutdownPlugin, ShutdownRequest,
+    ForwardingSecret, OperatorProfile, ShutdownPlugin, ShutdownRequest,
 };
 use mcrs_minecraft_engine_world::session::{Place, Session, SessionPlacement};
 use mcrs_minecraft_network::OutboundReceiver;
@@ -824,7 +824,7 @@ fn wl_join_002_a_player_that_is_not_listed_is_refused() {
 #[test]
 fn loop_grant_003_a_loopback_join_that_the_whitelist_refuses_makes_no_operator() {
     let mut app = server(None);
-    app.insert_resource(ServerProfile::Local);
+    app.insert_resource(OperatorProfile::Local);
     app.insert_resource(Whitelist::default().enabled(true));
     let mut client = connect(&mut app);
     app.world_mut()
@@ -1142,7 +1142,7 @@ fn forwarded_hello(app: &mut App) -> (Client, i32) {
 #[test]
 fn fwd_use_001_002_a_forwarded_login_takes_the_profile_and_the_address_of_the_proxy() {
     let mut app = forwarding_server();
-    app.insert_resource(ServerProfile::Local);
+    app.insert_resource(OperatorProfile::Local);
     let (mut client, message_id) = forwarded_hello(&mut app);
     assert!(app.world().get::<GameProfile>(client.connection).is_none());
 
@@ -1194,7 +1194,7 @@ const LOOPBACK_FORWARDED_PAYLOAD: [u8; 81] = [
 ];
 
 /// The op list entry of the player that a proxy on this machine forwards with `payload`.
-fn forwarded_op(profile: ServerProfile, payload: &[u8]) -> Option<OpListEntry> {
+fn forwarded_op(profile: OperatorProfile, payload: &[u8]) -> Option<OpListEntry> {
     let mut app = forwarding_server();
     app.insert_resource(profile);
     let (client, message_id) = forwarded_hello(&mut app);
@@ -1210,11 +1210,11 @@ fn forwarded_op(profile: ServerProfile, payload: &[u8]) -> Option<OpListEntry> {
 #[test]
 fn loop_addr_001_loop_grant_002_a_forwarded_loopback_address_makes_no_operator_on_public() {
     assert_eq!(
-        forwarded_op(ServerProfile::Public, &LOOPBACK_FORWARDED_PAYLOAD),
+        forwarded_op(OperatorProfile::Public, &LOOPBACK_FORWARDED_PAYLOAD),
         None
     );
     assert_eq!(
-        forwarded_op(ServerProfile::Local, &LOOPBACK_FORWARDED_PAYLOAD).map(|op| op.level),
+        forwarded_op(OperatorProfile::Local, &LOOPBACK_FORWARDED_PAYLOAD).map(|op| op.level),
         Some(4),
         "the payload is accepted and its address is loopback"
     );
