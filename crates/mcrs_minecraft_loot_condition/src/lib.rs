@@ -3,6 +3,8 @@
 // std: mcrs_minecraft_registries
 
 mod attribute_check;
+mod check_baker;
+mod clock_view;
 mod condition;
 mod condition_baker;
 mod condition_file;
@@ -14,6 +16,7 @@ mod dispatch_case_file;
 mod distribution_file;
 mod draw;
 mod dynamic_name;
+mod enchanted_bonus;
 mod entity_target;
 mod entry_kind;
 mod environment_read;
@@ -33,10 +36,9 @@ mod named_source;
 mod nbt_number;
 mod nbt_path;
 mod number_range;
+mod objective_test;
 mod one_or_many;
 mod param_not_allowed;
-mod pending_baker;
-mod pending_test;
 mod provider_baker;
 mod provider_evaluation;
 mod provider_form;
@@ -47,9 +49,13 @@ mod score_target_file;
 mod score_view;
 mod scores_file;
 mod storage_view;
+mod time_check;
 mod tool;
+mod value_check;
+mod weather_view;
 mod weighted_entry;
 
+pub use clock_view::ClockView;
 pub use condition::Condition;
 pub use condition_baker::ConditionBaker;
 pub use condition_file::ConditionFile;
@@ -74,3 +80,4 @@ pub use param_not_allowed::ParamNotAllowed;
 pub use score_view::{ScoreHolder, ScoreView};
 pub use storage_view::StorageView;
 pub use tool::Tool;
+pub use weather_view::WeatherView;

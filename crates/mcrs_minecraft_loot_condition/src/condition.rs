@@ -1,18 +1,26 @@
 use glam::DVec3;
+use mcrs_minecraft_environment::info;
 use mcrs_minecraft_item::enchantment::Enchantment;
 use mcrs_minecraft_predicate::{
-    BakedBlockPredicate, BakedEntityPredicate, BakedItemPredicate, BakedLocationPredicate,
-    ItemSubject, PredicateScratch, PredicateTables,
+    BakedBlockPredicate, BakedDamageSourcePredicate, BakedEntityPredicate, BakedItemPredicate,
+    BakedLocationPredicate, ItemSubject, PredicateScratch, PredicateTables,
 };
 use mcrs_minecraft_random::Random;
 use mcrs_minecraft_resource::Id;
 
+use crate::attribute_check::AttributeCheck;
 use crate::context_param::ContextParam;
 use crate::context_params::ContextParams;
+use crate::enchanted_bonus::EnchantedBonus;
 use crate::float_provider::FloatProvider;
+use crate::int_provider::{IntProvider, environment_reads, union};
 use crate::loot_inputs::LootInputs;
 use crate::loot_world::LootWorld;
-use crate::pending_test::PendingTest;
+use crate::objective_test::ObjectiveTest;
+use crate::score_view::ScoreHolder;
+use crate::time_check::TimeCheck;
+use crate::value_check::ValueCheck;
+use crate::weather_view::WeatherView;
 
 /// A baked loot condition. Its test takes the draws of its rule in `loot-conditions.md`.
 #[derive(Debug, Clone, PartialEq)]
@@ -49,7 +57,24 @@ pub(crate) enum Test {
         target: ContextParam,
         predicate: Option<Box<BakedEntityPredicate>>,
     },
-    Pending(Box<PendingTest>),
+    EnchantedBonus(Box<EnchantedBonus>),
+    KilledByPlayer,
+    EntityScores {
+        target: ContextParam,
+        scores: Box<[ObjectiveTest]>,
+    },
+    DamageSourceProperties(Option<Box<BakedDamageSourcePredicate>>),
+    WeatherCheck {
+        raining: Option<bool>,
+        thundering: Option<bool>,
+    },
+    TimeCheck(Box<TimeCheck>),
+    IntValueCheck(Box<ValueCheck<IntProvider>>),
+    FloatValueCheck(Box<ValueCheck<FloatProvider>>),
+    EnchantmentActiveCheck {
+        active: bool,
+    },
+    EnvironmentAttributeCheck(Box<AttributeCheck>),
 }
 
 impl Condition {
@@ -139,9 +164,34 @@ impl Test {
                     predicate.matches(world, context.origin, entity, tables, scratch)
                 })
             }
-            // chisle: each type of `PendingTest` fails; the context parameters and the world
-            // views of those types lift it.
-            Test::Pending(_) => false,
+            Test::EnchantedBonus(bonus) => {
+                let chance = bonus.chance(world, context.attacking_entity);
+                random.next_f32() < chance
+            }
+            Test::KilledByPlayer => context.last_damage_player.is_some(),
+            Test::EntityScores { target, scores } => {
+                entity_scores(*target, scores, inputs, random, scratch)
+            }
+            Test::DamageSourceProperties(predicate) => {
+                damage_source_properties(predicate.as_deref(), inputs, scratch)
+            }
+            Test::WeatherCheck {
+                raining,
+                thundering,
+            } => weather_check(*raining, *thundering, world),
+            Test::TimeCheck(check) => check.test(inputs, random, scratch),
+            Test::IntValueCheck(check) => {
+                check
+                    .test
+                    .contains_read(&check.value, inputs, random, scratch)
+            }
+            Test::FloatValueCheck(check) => {
+                check
+                    .test
+                    .contains_read(&check.value, inputs, random, scratch)
+            }
+            Test::EnchantmentActiveCheck { active } => context.enchantment_active == Some(*active),
+            Test::EnvironmentAttributeCheck(check) => check.matches(world, context.origin),
         }
     }
 
@@ -164,7 +214,88 @@ impl Test {
             Test::EntityProperties { target, .. } => {
                 ContextParams::of(&[*target, ContextParam::Origin])
             }
-            Test::Pending(pending) => pending.reads(),
+            Test::EnchantedBonus(_) => ContextParams::of(&[ContextParam::AttackingEntity]),
+            Test::KilledByPlayer => ContextParams::of(&[ContextParam::LastDamagePlayer]),
+            Test::EntityScores { target, scores } => union(
+                scores
+                    .iter()
+                    .flat_map(|score| score.range.providers())
+                    .map(IntProvider::reads),
+            )
+            .with(*target),
+            Test::DamageSourceProperties(_) => {
+                ContextParams::of(&[ContextParam::DamageSource, ContextParam::Origin])
+            }
+            Test::WeatherCheck { .. } => ContextParams::EMPTY,
+            Test::TimeCheck(check) => union(check.value.providers().map(IntProvider::reads)),
+            Test::IntValueCheck(check) => {
+                union(check.test.providers().map(IntProvider::reads)).union(check.value.reads())
+            }
+            Test::FloatValueCheck(check) => {
+                union(check.test.providers().map(FloatProvider::reads)).union(check.value.reads())
+            }
+            Test::EnchantmentActiveCheck { .. } => {
+                ContextParams::of(&[ContextParam::EnchantmentActive])
+            }
+            Test::EnvironmentAttributeCheck(check) => {
+                environment_reads(info(check.attribute).positional)
+            }
         }
     }
+}
+
+/// LOOT-CND-012: each score of the entity is in its range, in order, until the first that is not.
+fn entity_scores<E: Copy, W: LootWorld<E>, R: Random>(
+    target: ContextParam,
+    scores: &[ObjectiveTest],
+    inputs: LootInputs<'_, '_, E, W>,
+    random: &mut R,
+    scratch: &mut PredicateScratch,
+) -> bool {
+    let Some(entity) = inputs.context.entity(target) else {
+        return false;
+    };
+    scores.iter().all(|score| {
+        inputs
+            .world
+            .score(ScoreHolder::Entity(entity), &score.objective)
+            .is_some_and(|value| score.range.contains(value, inputs, random, scratch))
+    })
+}
+
+/// LOOT-CND-013.
+fn damage_source_properties<E: Copy, W: LootWorld<E>>(
+    predicate: Option<&BakedDamageSourcePredicate>,
+    inputs: LootInputs<'_, '_, E, W>,
+    scratch: &mut PredicateScratch,
+) -> bool {
+    let LootInputs {
+        named,
+        context,
+        world,
+    } = inputs;
+    let (Some(source), Some(origin)) = (context.damage_source, context.origin) else {
+        return false;
+    };
+    let Some(predicate) = predicate else {
+        return true;
+    };
+    named.smoke.as_ref().is_ok_and(|smoke| {
+        let tables = PredicateTables::new(smoke, &named.items);
+        predicate.matches(world, Some(origin), Some(source), tables, scratch)
+    })
+}
+
+/// LOOT-CND-014; a world without a weather value neither rains nor thunders.
+fn weather_check<W: WeatherView>(
+    raining: Option<bool>,
+    thundering: Option<bool>,
+    world: &W,
+) -> bool {
+    let rain = world.rain_strength().unwrap_or(0.0);
+    let thunder = world.thunder_strength().unwrap_or(0.0);
+    let rains = rain > 0.2;
+    let thunders = thunder * rain > 0.9;
+    raining.is_none_or(|raining| raining == rains)
+        && thundering.is_none_or(|thundering| thundering == thunders)
 }

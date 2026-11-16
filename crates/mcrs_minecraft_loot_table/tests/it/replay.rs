@@ -29,22 +29,18 @@ use crate::fixture::{blocks, state};
 
 const MAGIC: &[u8; 8] = b"MCLOOTR0";
 
-const UNEVALUATED_TYPES: [&str; 2] = [
-    "minecraft:enchant_with_levels",
-    "minecraft:random_chance_with_enchanted_bonus",
-];
+const UNEVALUATED_TYPES: [&str; 1] = ["minecraft:enchant_with_levels"];
 
 /// The value-form stack has no typed component for the enchantments of a book, so a case whose
 /// stacks have it compares them without their component patch.
 const STORED_ENCHANTMENTS: &str = "minecraft:stored_enchantments";
 
-const REPLAYED: usize = 78;
+const REPLAYED: usize = 81;
 
 const REPLAYED_WITHOUT_STORED_ENCHANTMENTS: usize = 3;
 
-const PENDING: [(&str, usize); 3] = [
+const PENDING: [(&str, usize); 2] = [
     ("minecraft:enchant_with_levels", 6),
-    ("minecraft:random_chance_with_enchanted_bonus", 3),
     ("the container spread", 80),
 ];
 

@@ -9,6 +9,7 @@ use mcrs_minecraft_entity::Pose;
 use mcrs_minecraft_entity::entity_type_keys::EntityType;
 use mcrs_minecraft_entity::mob_effect_keys::MobEffect;
 use mcrs_minecraft_environment::environment_attribute_keys::EnvironmentAttribute;
+use mcrs_minecraft_environment::{AttributeValue, WorldClock};
 use mcrs_minecraft_game_registries::registry_load::test_registries;
 use mcrs_minecraft_item::component::equippable::EquipmentSlot;
 use mcrs_minecraft_item::enchantment::Enchantment;
@@ -19,7 +20,8 @@ use mcrs_minecraft_item_stack::{
 use mcrs_minecraft_loot::context_key_set_keys::ContextKeySet;
 use mcrs_minecraft_loot::loot::LootTable;
 use mcrs_minecraft_loot_condition::{
-    EnvironmentView, LootContext, NbtNumber, ScoreHolder, ScoreView, StorageView, Tool,
+    ClockView, EnvironmentView, LootContext, NbtNumber, ScoreHolder, ScoreView, StorageView, Tool,
+    WeatherView,
 };
 use mcrs_minecraft_loot_table::{KeyedSeed, LootIssue, LootTables};
 use mcrs_minecraft_nbt::compound::NbtCompound;
@@ -304,11 +306,27 @@ impl StorageView for Around<'_> {
 }
 
 impl EnvironmentView for Around<'_> {
-    fn environment_int(&self, _: EnvironmentAttribute, _: Option<DVec3>) -> Option<i32> {
+    fn environment_value(
+        &self,
+        _: EnvironmentAttribute,
+        _: Option<DVec3>,
+    ) -> Option<AttributeValue> {
+        None
+    }
+}
+
+impl WeatherView for Around<'_> {
+    fn rain_strength(&self) -> Option<f32> {
         None
     }
 
-    fn environment_float(&self, _: EnvironmentAttribute, _: Option<DVec3>) -> Option<f32> {
+    fn thunder_strength(&self) -> Option<f32> {
+        None
+    }
+}
+
+impl ClockView for Around<'_> {
+    fn total_ticks(&self, _: Id<WorldClock>) -> Option<i64> {
         None
     }
 }

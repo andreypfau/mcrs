@@ -25,7 +25,6 @@ use crate::float_provider_file::FloatProviderFile;
 use crate::int_provider_file::IntProviderFile;
 use crate::named_entries::NamedEntries;
 use crate::named_source::{Dependency, NamedSource};
-use crate::pending_test::PendingTest;
 
 /// Turns the file form of conditions and providers into their baked form, with the ids and the
 /// named entries of one load. Use one baker for each table.
@@ -184,44 +183,35 @@ impl<'a> ConditionBaker<'a> {
                 enchantment,
                 unenchanted_chance,
                 enchanted_chance,
-            } => pending(PendingTest::RandomChanceWithEnchantedBonus {
-                enchantment: self.enchantment(enchantment.as_location()),
-                unenchanted_chance: *unenchanted_chance,
-                enchanted_chance: enchanted_chance.clone(),
-            }),
-            TypedCondition::KilledByPlayer => pending(PendingTest::KilledByPlayer),
-            TypedCondition::EntityScores { entity, scores } => {
-                pending(self.entity_scores(*entity, scores))
-            }
+            } => self.enchanted_bonus(
+                enchantment.as_location(),
+                *unenchanted_chance,
+                enchanted_chance,
+            ),
+            TypedCondition::KilledByPlayer => Test::KilledByPlayer,
+            TypedCondition::EntityScores { entity, scores } => self.entity_scores(*entity, scores),
             TypedCondition::DamageSourceProperties { predicate } => self
                 .damage_source_properties(predicate.as_deref())
-                .map_or(Test::Never, pending),
+                .unwrap_or(Test::Never),
             TypedCondition::WeatherCheck {
                 raining,
                 thundering,
-            } => pending(PendingTest::WeatherCheck {
+            } => Test::WeatherCheck {
                 raining: *raining,
                 thundering: *thundering,
-            }),
+            },
             TypedCondition::TimeCheck {
                 clock,
                 period,
                 value,
-            } => pending(self.time_check(clock, *period, value)),
-            TypedCondition::IntValueCheck { value, test } => {
-                pending(self.int_value_check(value, test))
-            }
-            TypedCondition::FloatValueCheck { value, test } => {
-                pending(self.float_value_check(value, test))
-            }
+            } => self.time_check(clock, *period, value),
+            TypedCondition::IntValueCheck { value, test } => self.int_value_check(value, test),
+            TypedCondition::FloatValueCheck { value, test } => self.float_value_check(value, test),
             TypedCondition::EnchantmentActiveCheck { active } => {
-                pending(PendingTest::EnchantmentActiveCheck { active: *active })
+                Test::EnchantmentActiveCheck { active: *active }
             }
             TypedCondition::EnvironmentAttributeCheck(check) => {
-                pending(PendingTest::EnvironmentAttributeCheck {
-                    attribute: check.attribute,
-                    value: check.value.clone(),
-                })
+                Test::EnvironmentAttributeCheck(Box::new(check.clone()))
             }
         }
     }
@@ -371,8 +361,4 @@ impl<'a> ConditionBaker<'a> {
     pub(crate) fn lookup<R: Registered>(&self, name: ResourceLocation<'_>) -> Option<Id<R>> {
         self.registries.entries::<R>()?.by_name(name)
     }
-}
-
-fn pending(test: PendingTest) -> Test {
-    Test::Pending(Box::new(test))
 }
