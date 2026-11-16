@@ -406,7 +406,7 @@ mod exhaustive {
                 }
             }
         }
-        assert_eq!((cases, present, biome_ok), (5 * 21 * 16, 866, 446));
+        assert_eq!((cases, present, biome_ok), (5 * 21 * 16, 866, 447));
     }
 
     /// Every set whose entries all have a site, which since the mineshaft's port
@@ -438,7 +438,7 @@ mod exhaustive {
                 }
             }
         }
-        assert_eq!((cases, selected), (5 * 21 * 16, 659));
+        assert_eq!((cases, selected), (5 * 21 * 16, 660));
     }
 
     #[test]
