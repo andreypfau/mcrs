@@ -25,7 +25,7 @@ pub enum DrawArgRow {
 impl DrawArgRow {
     pub const COUNT: usize = 9;
     pub const TOTAL_SLOTS: usize = Self::COUNT * DrawKind::COUNT;
-    pub const DRAW_ARGS_BYTES: u64 = size_of::<DrawArgs>() as u64;
+    pub(crate) const DRAW_ARGS_BYTES: u64 = size_of::<DrawArgs>() as u64;
 
     #[must_use]
     pub const fn index(self) -> usize {
@@ -53,7 +53,7 @@ impl DrawArgRow {
     }
 
     #[must_use]
-    pub const fn byte_len(rows: usize) -> u64 {
+    pub(crate) const fn byte_len(rows: usize) -> u64 {
         (rows * DrawKind::COUNT) as u64 * Self::DRAW_ARGS_BYTES
     }
 }

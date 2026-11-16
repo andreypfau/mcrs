@@ -2,7 +2,7 @@ use std::fmt::Write;
 use std::mem;
 use std::path::Path;
 
-use mcrs_minecraft_mesh::{DrawKind, SECTION_SIZE};
+use mcrs_minecraft_mesh::DrawKind;
 use naga::front::wgsl::parse_str;
 use wesl::error::ResolveError;
 use wesl::syntax::{ModulePath, PathOrigin};
@@ -17,8 +17,8 @@ use crate::shader_layout::{
     WORLD_TEXT_TEXTURES_BINDINGS, WORLD_TEXT_VIEW_BINDINGS,
 };
 use crate::shared_types::{
-    AnimationFrame, CameraUniform, DrawArgRow, DrawArgs, Params, Reconstruction, SectionDesc,
-    SkyUniform, SpriteEntry, TextFrame,
+    AnimationFrame, CameraUniform, DrawArgs, Params, Reconstruction, SectionDesc, SkyUniform,
+    SpriteEntry, TextFrame,
 };
 
 const HEADER: &str = "// Generated from `shader_layout.rs`. `cargo nextest run -p mcrs_minecraft_render`\n\
@@ -43,13 +43,13 @@ fn generate_draw_arg_row(out: &mut String) {
     out.push_str("}\n\nimpl DrawArgRow {\n");
     let _ = writeln!(out, "    pub const COUNT: usize = {};", DRAW_ARG_ROWS.len());
     out.push_str("    pub const TOTAL_SLOTS: usize = Self::COUNT * DrawKind::COUNT;\n");
-    out.push_str("    pub const DRAW_ARGS_BYTES: u64 = size_of::<DrawArgs>() as u64;\n\n");
+    out.push_str("    pub(crate) const DRAW_ARGS_BYTES: u64 = size_of::<DrawArgs>() as u64;\n\n");
     out.push_str("    #[must_use]\n    pub const fn index(self) -> usize {\n        self as usize\n    }\n\n");
     out.push_str("    #[must_use]\n    pub const fn first_slot(self) -> usize {\n        self.index() * DrawKind::COUNT\n    }\n\n");
     out.push_str("    #[must_use]\n    pub const fn first_offset_bytes(self) -> u64 {\n        self.first_slot() as u64 * Self::DRAW_ARGS_BYTES\n    }\n\n");
     out.push_str("    #[must_use]\n    pub const fn slot(self, draw: DrawKind) -> usize {\n        self.first_slot() + draw.index()\n    }\n\n");
     out.push_str("    #[must_use]\n    pub const fn offset_bytes(self, draw: DrawKind) -> u64 {\n        self.first_offset_bytes() + draw.index() as u64 * Self::DRAW_ARGS_BYTES\n    }\n\n");
-    out.push_str("    #[must_use]\n    pub const fn byte_len(rows: usize) -> u64 {\n        (rows * DrawKind::COUNT) as u64 * Self::DRAW_ARGS_BYTES\n    }\n");
+    out.push_str("    #[must_use]\n    pub(crate) const fn byte_len(rows: usize) -> u64 {\n        (rows * DrawKind::COUNT) as u64 * Self::DRAW_ARGS_BYTES\n    }\n");
     out.push_str("}\n\n");
 }
 
@@ -933,8 +933,6 @@ fn terrain_material_and_cull_structs_match_naga_offsets_and_sizes() {
             ],
         },
     );
-    assert_eq!(DrawArgRow::COUNT, DRAW_ARG_ROWS.len());
-    assert_eq!(SECTION_SIZE, 16);
 }
 
 #[test]

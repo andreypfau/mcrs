@@ -681,17 +681,18 @@ impl Loader {
         cave: &mut CaveCull,
     ) -> Result<(), Box<SectionMesh>> {
         let mut first = 0usize;
-        for (bucket, draw) in self.buckets.iter().zip(&mesh.draws) {
+        let mut ends = [0u32; DrawKind::COUNT];
+        for ((bucket, draw), end) in self.buckets.iter().zip(&mesh.draws).zip(&mut ends) {
             let run = draw.group_count as usize;
             let Some(groups) = mesh.groups.get(first..first + run) else {
                 return Err(Box::new(mesh));
             };
-            let mut end = bucket.quads_end;
+            *end = bucket.quads_end;
             for group in groups {
                 let Some(next) = end.checked_add(group.quad_count) else {
                     return Err(Box::new(mesh));
                 };
-                end = next;
+                *end = next;
             }
             first += run;
         }
@@ -703,17 +704,21 @@ impl Loader {
         let mut placed = mesh.groups;
         let mut first = 0usize;
         let mut ranges = [(0u32, 0u32); DrawKind::COUNT];
-        for ((index, bucket), kind) in self.buckets.iter_mut().enumerate().zip(DrawKind::ALL) {
+        for (((index, bucket), kind), end) in self
+            .buckets
+            .iter_mut()
+            .enumerate()
+            .zip(DrawKind::ALL)
+            .zip(ends)
+        {
             let run = mesh.draws[index].group_count as usize;
             let base = match kind.format {
                 QuadFormat::Greedy => quads.offset,
                 QuadFormat::Model => models.offset,
             } as u32;
+            bucket.quads_end = end;
             for group in &mut placed[first..first + run] {
                 group.quad_base += base;
-                if let Some(next) = bucket.quads_end.checked_add(group.quad_count) {
-                    bucket.quads_end = next;
-                }
             }
             if run != 0 {
                 let at = bucket.groups.len() as u32;
