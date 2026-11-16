@@ -394,6 +394,20 @@ mod tests {
         }
     }
 
+    mod exhaustive {
+        use super::*;
+
+        #[test]
+        fn every_item_bakes_after_every_block_state() {
+            // A world with every block fills the 16-pixel array before the items come.
+            let (pack, definitions) = (ResourceSet::corpus(), crate::block_catalog::corpus());
+            let mut catalog = crate::block_catalog::empty();
+            let states: Vec<u16> = (0..definitions.state_count() as u16).collect();
+            crate::block_catalog::extend(pack, &mut catalog, definitions, &states);
+            bake_all(pack, &mut catalog.sprites).unwrap();
+        }
+    }
+
     fn a_generated_item_is_extruded_and_front_lit(models: &ItemModels) {
         let BakedNode::Model {
             model, transform, ..
