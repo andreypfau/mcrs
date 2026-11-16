@@ -1,14 +1,12 @@
-use std::num::NonZeroU64;
-
 use bevy::prelude::*;
-use bevy::render::render_resource::binding_types::{sampler, texture_2d, uniform_buffer_sized};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::view::ViewDepthStencilTexture;
 
 use crate::pipeline::DeferredPipelines;
 use crate::present::present_bind_group;
-use crate::reconstruct::LIGHTING_UNIFORM_SIZE;
+use crate::shared_bindings::gbuffer;
+use crate::shared_types::RECONSTRUCTION_SIZE;
 use crate::terrain::Terrain;
 use crate::transparency_targets::TransparencyTargets;
 use crate::uniform_buffer;
@@ -27,23 +25,6 @@ pub const GBUFFER_FORMATS: [TextureFormat; 3] = [
 /// The world is drawn and blended in image values, and the present pass encodes it once for the
 /// view target.
 pub(crate) const WORLD_IMAGE_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
-
-pub(crate) fn gbuffer_layout() -> BindGroupLayoutDescriptor {
-    BindGroupLayoutDescriptor::new(
-        "deferred gbuffer",
-        &BindGroupLayoutEntries::sequential(
-            ShaderStages::FRAGMENT,
-            (
-                texture_2d(TextureSampleType::Float { filterable: false }),
-                texture_2d(TextureSampleType::Float { filterable: false }),
-                texture_2d(TextureSampleType::Float { filterable: false }),
-                texture_2d(TextureSampleType::Float { filterable: false }),
-                uniform_buffer_sized(false, NonZeroU64::new(LIGHTING_UNIFORM_SIZE)),
-                sampler(SamplerBindingType::NonFiltering),
-            ),
-        ),
-    )
-}
 
 /// Everything the deferred path allocates. Nothing else may hold a clone of these
 /// textures or the bind group, or a resize would not free the ones it replaces.
@@ -70,7 +51,7 @@ impl DeferredFrame {
         let targets = targets(size, device);
         let world = world_image(size, device);
         let present = present_bind_group(&world, device, cache);
-        let lighting = uniform_buffer("deferred lighting", LIGHTING_UNIFORM_SIZE, device);
+        let lighting = uniform_buffer("deferred lighting", RECONSTRUCTION_SIZE, device);
         let nearest = nearest_sampler(device);
         let bind_group = bind_group(&targets, &lighting, &nearest, depth, device, cache);
         Self {
@@ -191,18 +172,19 @@ fn bind_group(
     device: &RenderDevice,
     cache: &PipelineCache,
 ) -> BindGroup {
+    let [albedo_ao, normal_motion, light] = targets;
     let depth_view = depth_view(depth.texture());
     device.create_bind_group(
         "deferred gbuffer",
-        &cache.get_bind_group_layout(&gbuffer_layout()),
-        &BindGroupEntries::sequential((
-            &targets[0],
-            &targets[1],
-            &targets[2],
-            &depth_view,
-            lighting.as_entire_binding(),
+        &cache.get_bind_group_layout(&gbuffer::layout()),
+        &gbuffer::entries(gbuffer::Entries {
+            albedo_ao,
+            normal_motion,
+            light,
+            depth: &depth_view,
+            reconstruction: lighting,
             nearest,
-        )),
+        }),
     )
 }
 

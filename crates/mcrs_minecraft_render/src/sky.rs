@@ -1,4 +1,3 @@
-use std::num::NonZeroU64;
 use std::sync::atomic::Ordering;
 
 use bevy::asset::embedded_asset;
@@ -7,41 +6,20 @@ use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssets;
 use bevy::render::render_phase::TrackedRenderPass;
-use bevy::render::render_resource::binding_types::{
-    sampler, texture_2d, texture_2d_array, uniform_buffer_sized,
-};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::render::texture::GpuImage;
-use bevy::render::view::{ExtractedView, ViewUniform, ViewUniforms};
+use bevy::render::view::{ExtractedView, ViewUniforms};
 use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 use bevy::shader::Shader;
 use bitflags::bitflags;
 
 use crate::gbuffer::WORLD_IMAGE_FORMAT;
 use crate::pipeline::descriptor;
+use crate::shared_bindings::{sky_textures, sky_view};
+use crate::shared_types::SKY_SIZE;
 use crate::transparency_targets::CLOUD_IMAGE_FORMAT;
-use crate::{DEPTH_COMPARE, FrameCounts, ImprovedTransparency, uniform_buffer};
-
-/// The per-frame GPU block. Its colours are in linear light, but `disc` and `fog`, which are image
-/// values; the shader turns the linear ones into image values before the world image blends them.
-#[repr(C)]
-#[derive(Copy, Clone, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct SkyUniform {
-    pub disc: [f32; 4],
-    pub sunrise: [f32; 4],
-    pub angles: [f32; 4],
-    pub moon: [f32; 4],
-    pub fog: [f32; 4],
-    pub cloud_color: [f32; 4],
-    pub cloud: [f32; 4],
-    pub sky_light: [f32; 4],
-    pub block_light: [f32; 4],
-    pub ambient: [f32; 4],
-    /// The two elevations in degrees over which the occluder fades in, then 1 when the frame has
-    /// a sky occluder and 0 when it has none.
-    pub occluder: [f32; 4],
-}
+use crate::{DEPTH_COMPARE, FrameCounts, ImprovedTransparency, SkyUniform, uniform_buffer};
 
 bitflags! {
     /// Which of the sky draws exist at all. A draw whose effect is off is not
@@ -224,29 +202,10 @@ pub(crate) struct SkyBindGroups {
 
 fn init_sky(mut commands: Commands, asset_server: Res<AssetServer>, device: Res<RenderDevice>) {
     commands.insert_resource(Sky {
-        view_layout: BindGroupLayoutDescriptor::new(
-            "sky view",
-            &BindGroupLayoutEntries::sequential(
-                ShaderStages::VERTEX_FRAGMENT,
-                (
-                    uniform_buffer_sized(true, Some(ViewUniform::min_size())),
-                    uniform_buffer_sized(false, NonZeroU64::new(size_of::<SkyUniform>() as u64)),
-                ),
-            ),
-        ),
-        texture_layout: BindGroupLayoutDescriptor::new(
-            "sky textures",
-            &BindGroupLayoutEntries::sequential(
-                ShaderStages::VERTEX_FRAGMENT,
-                (
-                    texture_2d_array(TextureSampleType::Float { filterable: true }),
-                    sampler(SamplerBindingType::Filtering),
-                    texture_2d(TextureSampleType::Float { filterable: true }),
-                ),
-            ),
-        ),
+        view_layout: sky_view::layout(),
+        texture_layout: sky_textures::layout(),
         shader: asset_server.load("embedded://mcrs_minecraft_render/shaders/sky.wesl"),
-        uniform: uniform_buffer("sky", size_of::<SkyUniform>() as u64, &device),
+        uniform: uniform_buffer("sky", SKY_SIZE, &device),
         pipelines: None,
         cloud_image: None,
         textures: None,
@@ -361,11 +320,11 @@ fn prepare_sky_bind_groups(
             let bind_group = device.create_bind_group(
                 "sky textures",
                 &pipeline_cache.get_bind_group_layout(&sky.texture_layout),
-                &BindGroupEntries::sequential((
-                    &celestials.texture_view,
-                    &celestials.sampler,
-                    &clouds.texture_view,
-                )),
+                &sky_textures::entries(sky_textures::Entries {
+                    celestials: &celestials.texture_view,
+                    celestial_sampler: &celestials.sampler,
+                    clouds: &clouds.texture_view,
+                }),
             );
             sky.textures = Some((extracted.celestials, extracted.clouds, bind_group.clone()));
             bind_group
@@ -377,14 +336,10 @@ fn prepare_sky_bind_groups(
             let bind_group = device.create_bind_group(
                 "sky view",
                 &pipeline_cache.get_bind_group_layout(&sky.view_layout),
-                &BindGroupEntries::sequential((
-                    BufferBinding {
-                        buffer: view_buffer,
-                        offset: 0,
-                        size: Some(ViewUniform::min_size()),
-                    },
-                    sky.uniform.as_entire_buffer_binding(),
-                )),
+                &sky_view::entries(sky_view::Entries {
+                    view: view_buffer,
+                    sky: &sky.uniform,
+                }),
             );
             sky.view = Some((view_buffer.id(), bind_group.clone()));
             bind_group

@@ -17,8 +17,7 @@ use super::render_path::RenderPath;
 use super::shaders::Shaders;
 use super::sprites::Sprites;
 use super::texture;
-use super::{Brightness, Occlusion};
-use super::{Budget, TerrainBudget};
+use super::{Brightness, Budget, Occlusion, TerrainBudget};
 
 #[derive(Resource)]
 pub struct Terrain {
@@ -117,7 +116,13 @@ impl Terrain {
     /// per-draw parameters, so a world that has grown is drawn whole rather
     /// than up to a share of a fixed list.
     pub(crate) fn rebuild_params(&mut self, device: &RenderDevice, pipeline_cache: &PipelineCache) {
-        self.list.rebuild();
+        if let Err(kind) = self.list.rebuild() {
+            error!(
+                ?kind,
+                "cannot rebuild draw params with duplicate DrawKind; each kind owns one args row"
+            );
+            return;
+        }
         let entries = self.list.visible_entries;
         let Some(cull) = self
             .cull
@@ -149,7 +154,7 @@ pub(super) fn init_terrain(
         Cull::new(
             &budget,
             &arenas,
-            &super::binds::view_layout(),
+            &super::shared_bindings::terrain_view::layout(),
             &device,
             &asset_server,
             &pipeline_cache,

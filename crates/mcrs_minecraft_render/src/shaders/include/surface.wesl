@@ -1,8 +1,9 @@
-import package::shaders::include::fields::{BIOME_TINTS, FIXED_TINTS};
-import package::shaders::include::frame::camera;
-import package::shaders::include::terrain_bindings::{
-    STILL, animation_frame, atlas0, atlas1, atlas2, atlas3, atlas_sampler, sprite_entry,
-    tint_sampler, tints,
+import mcrs_minecraft_render::shaders::include::fields::{BIOME_TINTS, FIXED_TINTS};
+import mcrs_minecraft_render::shaders::include::frame::camera;
+import mcrs_minecraft_render::shaders::include::sprites_layout::STILL;
+import mcrs_minecraft_render::shaders::include::terrain_bindings::{animation_frame, sprite_entry};
+import mcrs_minecraft_render::shaders::include::terrain_layout::{
+    atlas0, atlas1, atlas2, atlas3, atlas_sampler, tint_sampler, tints,
 };
 
 struct Surface {

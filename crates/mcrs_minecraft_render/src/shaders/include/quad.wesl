@@ -1,4 +1,4 @@
-import package::shaders::include::fields::{
+import mcrs_minecraft_render::shaders::include::fields::{
     FLUID_INSET,
     MODEL_OVERHANG, MODEL_STEPS,
     MODEL_X_SHIFT, MODEL_X_BITS, MODEL_Y_SHIFT, MODEL_Y_BITS, MODEL_Z_SHIFT, MODEL_Z_BITS,
@@ -12,7 +12,7 @@ import package::shaders::include::fields::{
     QUAD_Y_WORD, QUAD_Y_SHIFT, QUAD_Y_BITS,
     QUAD_Z_WORD, QUAD_Z_SHIFT, QUAD_Z_BITS,
 };
-import package::shaders::include::words::bits;
+import mcrs_minecraft_render::shaders::include::words::bits;
 
 fn degenerate() -> vec4<f32> {
     return vec4<f32>(0.0, 0.0, 0.0, 1.0);

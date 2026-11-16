@@ -66,6 +66,10 @@ impl Variant {
         Self::SkyLight,
         Self::Grid,
     ];
+
+    pub const fn is_gbuffer_view(self) -> bool {
+        !matches!(self, Self::LightingTerm)
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

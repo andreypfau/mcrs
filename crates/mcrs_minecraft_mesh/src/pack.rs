@@ -184,10 +184,46 @@ const COUNTS: &[(&str, u32)] = &[
 ];
 
 #[cfg(test)]
+struct LayoutField {
+    name: &'static str,
+    ty: &'static str,
+    doc: Option<&'static str>,
+}
+
+#[cfg(test)]
+const GROUP_FIELDS: &[LayoutField] = &[
+    LayoutField {
+        name: "quad_base",
+        ty: "u32",
+        doc: None,
+    },
+    LayoutField {
+        name: "quad_count",
+        ty: "u32",
+        doc: None,
+    },
+    LayoutField {
+        name: "section",
+        ty: "u32",
+        doc: None,
+    },
+    LayoutField {
+        name: "face",
+        ty: "u32",
+        doc: None,
+    },
+    LayoutField {
+        name: "bounds",
+        ty: "u32",
+        doc: Some("The box its quads lie in, packed by the `BOUNDS_*` fields."),
+    },
+];
+
+#[cfg(test)]
 fn wgsl_fields() -> String {
     let mut out = String::from(
-        "// Generated from the field table in pack.rs. `cargo test -p \
-mcrs_minecraft_client`\n// checks it; `MCRS_BLESS=1 cargo test -p mcrs_minecraft_client` \
+        "// Generated from the field table in pack.rs. `cargo nextest run -p \
+mcrs_minecraft_mesh`\n// checks it; `MCRS_BLESS=1 cargo nextest run -p mcrs_minecraft_mesh` \
 rewrites it.\n",
     );
     let mut group = "";
@@ -221,7 +257,46 @@ rewrites it.\n",
         fixed.len(),
         colors.join(", ")
     ));
+    out.push_str("\nstruct Group {\n");
+    for field in GROUP_FIELDS {
+        out.push_str(&format!("    {}: {},\n", field.name, field.ty));
+    }
+    out.push_str("}\n");
     out
+}
+
+#[cfg(test)]
+fn rust_group() -> String {
+    let mut out = String::from(
+        "// Generated from `GROUP_FIELDS` in pack.rs. `cargo nextest run -p \
+mcrs_minecraft_mesh`\n// checks it; `MCRS_BLESS=1 cargo nextest run -p mcrs_minecraft_mesh` \
+rewrites it.\n\n/// A batch of up to [`crate::GROUP_QUADS`] quads in one section and face, tested together by GPU culling.\n\
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, bytemuck::Pod, bytemuck::Zeroable)]\n\
+#[repr(C)]\npub struct Group {\n",
+    );
+    for field in GROUP_FIELDS {
+        if let Some(doc) = field.doc {
+            out.push_str(&format!("    /// {doc}\n"));
+        }
+        out.push_str(&format!("    pub {}: {},\n", field.name, field.ty));
+    }
+    out.push_str("}\n");
+    out
+}
+
+#[cfg(test)]
+fn bless_or_check(path: &std::path::Path, generated: &str) {
+    if std::env::var("MCRS_BLESS").is_ok_and(|value| value == "1") {
+        std::fs::write(path, generated).expect("cannot rewrite the generated file");
+        return;
+    }
+    let checked_in = std::fs::read_to_string(path).unwrap_or_default();
+    assert_eq!(
+        checked_in,
+        generated,
+        "{} is stale; rerun with MCRS_BLESS=1 to rewrite it",
+        path.display()
+    );
 }
 
 #[cfg(test)]
@@ -231,19 +306,16 @@ mod tests {
 
     #[test]
     fn the_generated_field_header_matches_the_field_table() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../mcrs_minecraft_render/src/shaders/include/fields.wesl");
-        let generated = wgsl_fields();
-        if std::env::var("MCRS_BLESS").is_ok() {
-            std::fs::write(&path, &generated).expect("cannot rewrite the generated header");
-            return;
-        }
-        let checked_in = std::fs::read_to_string(&path).unwrap_or_default();
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        bless_or_check(
+            &root.join("../mcrs_minecraft_render/src/shaders/include/fields.wesl"),
+            &wgsl_fields(),
+        );
+        bless_or_check(&root.join("src/group.rs"), &rust_group());
         assert_eq!(
-            checked_in,
-            generated,
-            "{} is stale; rerun with MCRS_BLESS=1 to rewrite it",
-            path.display()
+            std::mem::size_of::<crate::Group>(),
+            GROUP_FIELDS.len() * std::mem::size_of::<u32>(),
+            "Group size must match GROUP_FIELDS"
         );
     }
 

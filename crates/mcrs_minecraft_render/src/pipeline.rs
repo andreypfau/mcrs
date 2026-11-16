@@ -9,27 +9,22 @@ use bevy::render::view::ExtractedView;
 use bevy::shader::ShaderCacheError;
 
 use mcrs_minecraft_mesh::block::Pass;
-use mcrs_minecraft_mesh::{Group, stream_pass};
+use mcrs_minecraft_mesh::{DrawKind, Group, QuadFormat};
 
 use super::binds::Bindings;
-use super::gbuffer::{DeferredFrame, GBUFFER_FORMATS, WORLD_IMAGE_FORMAT, gbuffer_layout};
-use super::layer::{Shape, blend};
-use super::present::present_layout;
+use super::gbuffer::{DeferredFrame, GBUFFER_FORMATS, WORLD_IMAGE_FORMAT};
+use super::layer::blend;
 use super::render_path::RenderPath;
 use super::shaders::Shaders;
+use super::shared_bindings::{gbuffer, present, transparency, transparent_gbuffer};
 use super::terrain::Terrain;
-use super::transparency_targets::{transparency_layout, transparent_gbuffer_layout};
 use super::views::Variant;
 use super::{ImprovedTransparency, LightTint};
 
-pub const TERRAIN_PIPELINES: usize = Pass::COUNT * Shape::ALL.len() * 2;
+pub const TERRAIN_PIPELINES: usize = DrawKind::COUNT * 2;
 
-pub const fn terrain_slot(layer: Pass, shape: Shape, wireframe: bool) -> usize {
-    (layer as usize * Shape::ALL.len() + shape as usize) * 2 + wireframe as usize
-}
-
-pub fn stream_slot(stream: u32, wireframe: bool) -> usize {
-    terrain_slot(stream_pass(stream), Shape::of_stream(stream), wireframe)
+pub const fn terrain_slot(kind: DrawKind, wireframe: bool) -> usize {
+    kind.index() * 2 + wireframe as usize
 }
 
 pub fn common(
@@ -98,41 +93,39 @@ pub(crate) fn terrain_descriptor(
     binds: &Bindings,
     shaders: &Shaders,
     path: RenderPath,
-    layer: Pass,
-    shape: Shape,
+    kind: DrawKind,
     wireframe: bool,
 ) -> RenderPipelineDescriptor {
     let mut descriptor = RenderPipelineDescriptor {
         primitive: PrimitiveState {
             topology: PrimitiveTopology::TriangleList,
             front_face: FrontFace::Ccw,
-            cull_mode: layer.writes_depth().then_some(Face::Back),
+            cull_mode: kind.writes_depth().then_some(Face::Back),
             ..default()
         },
         depth_stencil: Some(DepthStencilState {
             format: CORE_3D_DEPTH_FORMAT,
-            depth_write_enabled: Some(layer.writes_depth()),
+            depth_write_enabled: Some(kind.writes_depth()),
             depth_compare: Some(super::DEPTH_COMPARE),
             stencil: default(),
-            bias: model_depth_bias(layer, shape),
+            bias: model_depth_bias(kind),
         }),
         ..descriptor(
             format!(
-                "terrain {} {}{}",
-                layer.label(),
-                shape.label(),
+                "terrain {}{}",
+                kind.label(),
                 if wireframe { " wireframe" } else { "" }
             ),
             vec![binds.view_layout.clone(), binds.draw_layout.clone()],
-            shaders.shape(shape),
-            format!("vertex_{}", shape.label()),
-            format!("fragment_{}_{}", shape.label(), layer.label()),
+            shaders.format(kind.format),
+            format!("vertex_{}", kind.format.label()),
+            format!("fragment_{}_{}", kind.format.label(), kind.layer.label()),
             WORLD_IMAGE_FORMAT,
-            blend(layer),
+            blend(kind.layer),
         )
     };
     descriptor.vertex.shader_defs = path.shader_defs();
-    if layer.writes_depth() {
+    if kind.writes_depth() {
         descriptor.vertex.shader_defs.push("SOLID".into());
     }
     if !path.is_full() {
@@ -144,13 +137,13 @@ pub(crate) fn terrain_descriptor(
     }
     if let Some(fragment) = descriptor.fragment.as_mut() {
         fragment.shader_defs = path.shader_defs();
-        if layer.writes_depth() {
+        if kind.writes_depth() {
             fragment.shader_defs.push("SOLID".into());
         }
         if wireframe {
             fragment.shader_defs.push("WIREFRAME".into());
         }
-        if layer != Pass::Translucent {
+        if kind.layer != Pass::Translucent {
             fragment.targets = GBUFFER_FORMATS
                 .map(|format| {
                     Some(ColorTargetState {
@@ -173,8 +166,8 @@ pub(super) const MODEL_DEPTH_BIAS: DepthBiasState = DepthBiasState {
     clamp: 0.0,
 };
 
-fn model_depth_bias(layer: Pass, shape: Shape) -> DepthBiasState {
-    if shape == Shape::Model && layer.writes_depth() {
+fn model_depth_bias(kind: DrawKind) -> DepthBiasState {
+    if kind.format == QuadFormat::Model && kind.writes_depth() {
         MODEL_DEPTH_BIAS
     } else {
         default()
@@ -196,7 +189,7 @@ pub(crate) struct DeferredPipelines {
 /// Queued once, on the first frame with Improved Transparency on, after the deferred pipelines.
 pub(crate) struct TransparencyPipelines {
     pub lighting: CachedRenderPipelineId,
-    translucent: [CachedRenderPipelineId; Shape::ALL.len()],
+    translucent: [CachedRenderPipelineId; QuadFormat::COUNT],
 }
 
 impl TransparencyPipelines {
@@ -210,10 +203,10 @@ impl TransparencyPipelines {
 
     pub fn translucent<'cache>(
         &self,
-        stream: u32,
+        format: QuadFormat,
         cache: &'cache PipelineCache,
     ) -> Option<&'cache RenderPipeline> {
-        cache.get_render_pipeline(*self.translucent.get(Shape::of_stream(stream) as usize)?)
+        cache.get_render_pipeline(*self.translucent.get(format as usize)?)
     }
 }
 
@@ -351,11 +344,10 @@ pub(crate) fn prepare_deferred_pipelines(
     }
 }
 
-fn queue_pipelines(
+fn queue_lighting_and_views(
     pipelines: &mut DeferredPipelines,
     tint_layout: Option<&BindGroupLayoutDescriptor>,
     terrain: &Terrain,
-    view: &ExtractedView,
     fullscreen: &FullscreenShader,
     asset_server: &AssetServer,
     cache: &PipelineCache,
@@ -365,62 +357,56 @@ fn queue_pipelines(
         asset_server.load("embedded://mcrs_minecraft_render/shaders/core/lighting_pass.wesl");
     let show =
         asset_server.load("embedded://mcrs_minecraft_render/shaders/core/gbuffer_views.wesl");
-    let layout: Vec<_> = [
+    let lighting_layout: Vec<_> = [
         terrain.view_layout().clone(),
         terrain.draw_layout().clone(),
-        gbuffer_layout(),
+        gbuffer::layout(),
     ]
     .into_iter()
     .chain(tint_layout.cloned())
     .collect();
-    let fullscreen_pipeline =
-        |label: &str, shader: &Handle<Shader>, entry: &str, def: &'static str| {
-            let mut descriptor = RenderPipelineDescriptor {
-                vertex: fullscreen.to_vertex_state(),
-                ..descriptor(
-                    label.into(),
-                    layout.clone(),
-                    shader,
-                    String::new(),
-                    entry.into(),
-                    WORLD_IMAGE_FORMAT,
-                    None,
-                )
-            };
-            if let Some(fragment) = descriptor.fragment.as_mut() {
-                fragment.shader_defs = terrain.path().shader_defs();
-                if !def.is_empty() {
-                    fragment.shader_defs.push(def.into());
-                }
-                if tint_layout.is_some() {
-                    fragment.shader_defs.push("LIGHT_TINT".into());
-                }
-            }
-            cache.queue_render_pipeline(descriptor)
+    let views_layout = vec![terrain.view_layout().clone(), gbuffer::layout()];
+    let fullscreen_pipeline = |label: &str,
+                               layout: Vec<BindGroupLayoutDescriptor>,
+                               shader: &Handle<Shader>,
+                               entry: &str,
+                               def: &'static str,
+                               tinted: bool| {
+        let mut descriptor = RenderPipelineDescriptor {
+            vertex: fullscreen.to_vertex_state(),
+            ..descriptor(
+                label.into(),
+                layout,
+                shader,
+                String::new(),
+                entry.into(),
+                WORLD_IMAGE_FORMAT,
+                None,
+            )
         };
-    let present = asset_server.load("embedded://mcrs_minecraft_render/shaders/core/present.wesl");
-    pipelines.present = Some(cache.queue_render_pipeline(RenderPipelineDescriptor {
-        vertex: fullscreen.to_vertex_state(),
-        ..common(
-            "present".into(),
-            vec![present_layout()],
-            &present,
-            String::new(),
-            "present".into(),
-            view,
-            None,
-        )
-    }));
+        if let Some(fragment) = descriptor.fragment.as_mut() {
+            fragment.shader_defs = terrain.path().shader_defs();
+            if !def.is_empty() {
+                fragment.shader_defs.push(def.into());
+            }
+            if tinted {
+                fragment.shader_defs.push("LIGHT_TINT".into());
+            }
+        }
+        cache.queue_render_pipeline(descriptor)
+    };
     pipelines.lighting = Some(fullscreen_pipeline(
         "deferred lighting",
+        lighting_layout.clone(),
         &lighting,
         "lighting",
         "",
+        tint_layout.is_some(),
     ));
     for variant in Variant::ALL {
         let (shader, entry, def, label) = match variant {
             Variant::LightingTerm => (&lighting, "lighting", "LIGHTING_TERM", "lighting term"),
-            Variant::Unlit => (&lighting, "lighting", "UNLIT", "unlit"),
+            Variant::Unlit => (&show, "show", "SHOW_UNLIT", "unlit"),
             Variant::Albedo => (&show, "show", "SHOW_ALBEDO", "albedo"),
             Variant::Ao => (&show, "show", "SHOW_AO", "AO"),
             Variant::Normals => (&show, "show", "SHOW_NORMAL", "normals"),
@@ -428,28 +414,63 @@ fn queue_pipelines(
             Variant::SkyLight => (&show, "show", "SHOW_SKY_LIGHT", "sky light"),
             Variant::Grid => (&show, "show", "SHOW_GRID", "block grid"),
         };
+        let (layout, tinted) = if variant.is_gbuffer_view() {
+            (views_layout.clone(), false)
+        } else {
+            (lighting_layout.clone(), tint_layout.is_some())
+        };
         if let Some(slot) = pipelines.variants.get_mut(variant as usize) {
             *slot = Some(fullscreen_pipeline(
                 &format!("deferred {label}"),
+                layout,
                 shader,
                 entry,
                 def,
+                tinted,
             ));
         }
     }
-    for (layer, shape, wireframe) in gbuffer_slots().chain(forward_slots()) {
+}
+
+fn queue_pipelines(
+    pipelines: &mut DeferredPipelines,
+    tint_layout: Option<&BindGroupLayoutDescriptor>,
+    terrain: &Terrain,
+    view: &ExtractedView,
+    fullscreen: &FullscreenShader,
+    asset_server: &AssetServer,
+    cache: &PipelineCache,
+) {
+    let present = asset_server.load("embedded://mcrs_minecraft_render/shaders/core/present.wesl");
+    pipelines.present = Some(cache.queue_render_pipeline(RenderPipelineDescriptor {
+        vertex: fullscreen.to_vertex_state(),
+        ..common(
+            "present".into(),
+            vec![present::layout()],
+            &present,
+            String::new(),
+            "present".into(),
+            view,
+            None,
+        )
+    }));
+    queue_lighting_and_views(
+        pipelines,
+        tint_layout,
+        terrain,
+        fullscreen,
+        asset_server,
+        cache,
+    );
+    for (kind, wireframe) in gbuffer_slots().chain(forward_slots()) {
         let descriptor = terrain_descriptor(
             &terrain.binds,
             &terrain.shaders,
             terrain.path(),
-            layer,
-            shape,
+            kind,
             wireframe,
         );
-        if let Some(slot) = pipelines
-            .terrain
-            .get_mut(terrain_slot(layer, shape, wireframe))
-        {
+        if let Some(slot) = pipelines.terrain.get_mut(terrain_slot(kind, wireframe)) {
             *slot = Some(cache.queue_render_pipeline(descriptor));
         }
     }
@@ -473,7 +494,7 @@ fn queue_transparency(
             groups
                 .iter()
                 .cloned()
-                .chain([transparent_gbuffer_layout()])
+                .chain([transparent_gbuffer::layout()])
                 .chain(tint_layout.cloned())
                 .collect(),
             &lighting_shader,
@@ -490,17 +511,17 @@ fn queue_transparency(
             fragment.shader_defs.push("LIGHT_TINT".into());
         }
     }
-    let translucent = Shape::ALL.map(|shape| {
+    let translucent = QuadFormat::ALL.map(|format| {
+        let kind = DrawKind::new(Pass::Translucent, format);
         let mut descriptor = terrain_descriptor(
             &terrain.binds,
             &terrain.shaders,
             terrain.path(),
-            Pass::Translucent,
-            shape,
+            kind,
             false,
         );
-        descriptor.label = Some(format!("terrain translucent {} improved", shape.label()).into());
-        descriptor.layout.push(transparency_layout());
+        descriptor.label = Some(format!("terrain translucent {} improved", format.label()).into());
+        descriptor.layout.push(transparency::layout());
         if let Some(fragment) = descriptor.fragment.as_mut() {
             fragment.shader_defs.push("IMPROVED".into());
         }
@@ -513,18 +534,20 @@ fn queue_transparency(
     }
 }
 
-fn gbuffer_slots() -> impl Iterator<Item = (Pass, Shape, bool)> {
+fn gbuffer_slots() -> impl Iterator<Item = (DrawKind, bool)> {
     [Pass::Solid, Pass::Cutout].into_iter().flat_map(|layer| {
-        Shape::ALL
-            .into_iter()
-            .flat_map(move |shape| [false, true].map(move |wireframe| (layer, shape, wireframe)))
+        QuadFormat::ALL.into_iter().flat_map(move |format| {
+            let kind = DrawKind::new(layer, format);
+            [false, true].map(move |wireframe| (kind, wireframe))
+        })
     })
 }
 
-fn forward_slots() -> impl Iterator<Item = (Pass, Shape, bool)> {
-    Shape::ALL
-        .into_iter()
-        .flat_map(|shape| [false, true].map(move |wireframe| (Pass::Translucent, shape, wireframe)))
+fn forward_slots() -> impl Iterator<Item = (DrawKind, bool)> {
+    QuadFormat::ALL.into_iter().flat_map(|format| {
+        let kind = DrawKind::new(Pass::Translucent, format);
+        [false, true].map(move |wireframe| (kind, wireframe))
+    })
 }
 
 #[cfg(test)]
@@ -535,23 +558,19 @@ mod tests {
     fn the_deferred_table_fills_every_terrain_slot_exactly_once() {
         let mut slots: Vec<usize> = gbuffer_slots()
             .chain(forward_slots())
-            .map(|(layer, shape, wireframe)| terrain_slot(layer, shape, wireframe))
+            .map(|(kind, wireframe)| terrain_slot(kind, wireframe))
             .collect();
         slots.sort_unstable();
         assert_eq!(slots, (0..TERRAIN_PIPELINES).collect::<Vec<_>>());
-        assert!(gbuffer_slots().all(|(layer, _, _)| layer != Pass::Translucent));
-        assert!(forward_slots().all(|(layer, _, _)| layer == Pass::Translucent));
+        assert!(gbuffer_slots().all(|(kind, _)| kind.layer != Pass::Translucent));
+        assert!(forward_slots().all(|(kind, _)| kind.layer == Pass::Translucent));
     }
 
     #[test]
-    fn the_table_holds_one_pipeline_per_layer_shape_and_wireframe() {
-        let mut slots: Vec<usize> = Pass::ALL
+    fn the_table_holds_one_pipeline_per_draw_kind_and_wireframe() {
+        let mut slots: Vec<usize> = DrawKind::ALL
             .iter()
-            .flat_map(|&layer| {
-                Shape::ALL.iter().flat_map(move |&shape| {
-                    [false, true].map(|wireframe| terrain_slot(layer, shape, wireframe))
-                })
-            })
+            .flat_map(|&kind| [false, true].map(|wireframe| terrain_slot(kind, wireframe)))
             .collect();
         slots.sort_unstable();
         assert_eq!(slots, (0..TERRAIN_PIPELINES).collect::<Vec<_>>());

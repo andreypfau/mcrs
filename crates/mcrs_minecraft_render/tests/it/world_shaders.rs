@@ -3,8 +3,8 @@ use std::fmt::Write as _;
 use std::path::Path;
 
 use bevy::shader::ShaderDefVal;
-use mcrs_minecraft_mesh::STREAMS;
 use mcrs_minecraft_render::RenderPath;
+use mcrs_minecraft_render::shared_bindings::{hiz, world_text_textures, world_text_view};
 use naga::back::glsl;
 use naga::valid::{Capabilities, ValidationFlags, Validator};
 use wesl::error::ResolveError;
@@ -28,13 +28,6 @@ const BEVY_VIEW: &str = "struct View {
     view_from_clip: mat4x4<f32>,
 };";
 
-/// The light volume module, which imports this crate by name. The resolver keys a module on its
-/// path, and a package import never reaches the absolute origin of this crate's own modules, so the
-/// volume module is served beside them and imports them through `package`.
-const LIGHT_VOLUME_IMPORT: &str = "mcrs_minecraft_light_render::shaders::volume";
-const LIGHT_VOLUME_LOCAL_IMPORT: &str = "package::light_volume";
-const LIGHT_VOLUME: &str = "light_volume";
-
 /// The crate's shader files by module path, Bevy's fullscreen module, and the `constants` module
 /// Bevy writes from the pipeline's shader defs.
 struct Sources {
@@ -42,37 +35,43 @@ struct Sources {
 }
 
 impl Resolver for Sources {
-    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, ResolveError> {
+    fn canonical_path(&self, path: &ModulePath) -> ModulePath {
         match &path.origin {
-            PathOrigin::Package(package) if package == "constants" => {
-                return Ok(Cow::Borrowed(&self.constants));
-            }
-            PathOrigin::Package(package) if package == "bevy_core_pipeline" => {
-                return Ok(Cow::Borrowed(FULLSCREEN_VERTEX_OUTPUT));
-            }
-            PathOrigin::Package(package) if package == "bevy_render" => {
-                match path.components.as_slice() {
+            PathOrigin::Package(package) if package.contains('/') => ModulePath {
+                origin: PathOrigin::Package(
+                    package.rsplit('/').next().unwrap_or(package).to_owned(),
+                ),
+                components: path.components.clone(),
+            },
+            _ => path.clone(),
+        }
+    }
+
+    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, ResolveError> {
+        let path = self.canonical_path(path);
+        if let PathOrigin::Package(package) = &path.origin {
+            match package.as_str() {
+                "constants" => return Ok(Cow::Borrowed(&self.constants)),
+                "bevy_core_pipeline" => return Ok(Cow::Borrowed(FULLSCREEN_VERTEX_OUTPUT)),
+                "bevy_render" => match path.components.as_slice() {
                     [module] if module == "maths" => return Ok(Cow::Borrowed(BEVY_MATHS)),
                     [module] if module == "view" => return Ok(Cow::Borrowed(BEVY_VIEW)),
                     _ => {}
+                },
+                "mcrs_minecraft_light_render" if path.components == ["shaders", "volume"] => {
+                    return Ok(Cow::Borrowed(include_str!(
+                        "../../../mcrs_minecraft_light_render/src/shaders/volume.wesl"
+                    )));
                 }
+                _ => {}
             }
-            PathOrigin::Absolute if path.components == [LIGHT_VOLUME] => {
-                return Ok(Cow::Owned(
-                    include_str!("../../../mcrs_minecraft_light_render/src/shaders/volume.wesl")
-                        .replace("mcrs_minecraft_render::", "package::"),
-                ));
-            }
-            _ => {}
         }
         let file = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("src")
             .join(path.components.join("/"))
             .with_extension("wesl");
         std::fs::read_to_string(&file)
-            .map(|source| {
-                Cow::Owned(source.replace(LIGHT_VOLUME_IMPORT, LIGHT_VOLUME_LOCAL_IMPORT))
-            })
+            .map(Cow::Owned)
             .map_err(|error| ResolveError::ModuleNotFound(path.clone(), error.to_string()))
     }
 }
@@ -104,7 +103,7 @@ fn wgsl_at(components: &[&str], defs: Vec<ShaderDefVal>) -> String {
         writeln!(constants, "const {name} = {value};").unwrap();
     }
     let main = ModulePath {
-        origin: PathOrigin::Absolute,
+        origin: PathOrigin::Package("mcrs_minecraft_render".to_owned()),
         components: components.iter().map(|&part| part.to_owned()).collect(),
     };
     wesl::compile(&main, &options, &Sources { constants })
@@ -123,7 +122,6 @@ pub(crate) fn cull_defs(section_slots: u32) -> Vec<ShaderDefVal> {
         ShaderDefVal::UInt("CULL_THREADS".into(), 32),
         ShaderDefVal::UInt("GROUP_THREADS".into(), 256),
         ShaderDefVal::UInt("GROUPS_PER_STEP".into(), 2),
-        ShaderDefVal::UInt("STREAMS".into(), STREAMS as u32),
         ShaderDefVal::UInt("SECTION_SLOTS".into(), section_slots),
         ShaderDefVal::UInt("CAVE_WORDS".into(), section_slots.div_ceil(32)),
         ShaderDefVal::UInt("MAX_WORKGROUPS".into(), 65535),
@@ -293,5 +291,71 @@ fn the_cull_shader_compiles_for_the_full_path() {
         Validator::new(ValidationFlags::all(), Capabilities::default()).validate(&module)
     {
         panic!("cull: {error:?}");
+    }
+}
+
+fn assert_bindings(module: &naga::Module, expected: &[(u32, u32)]) {
+    let mut actual: Vec<(u32, u32)> = module
+        .global_variables
+        .iter()
+        .filter_map(|(_, var)| var.binding.map(|binding| (binding.group, binding.binding)))
+        .collect();
+    actual.sort_unstable();
+    let mut expected = expected.to_vec();
+    expected.sort_unstable();
+    assert_eq!(actual, expected, "shader resource bindings mismatch");
+}
+
+#[test]
+fn the_hiz_and_world_text_shaders_compile_and_gbuffer_views_drops_unread_groups() {
+    let hiz_module = compile("hiz", Vec::new());
+    Validator::new(ValidationFlags::all(), Capabilities::default())
+        .validate(&hiz_module)
+        .expect("hiz");
+    assert_bindings(
+        &hiz_module,
+        &[(0, hiz::DEPTH), (0, hiz::LEVEL_OUT), (0, hiz::LEVEL_IN)],
+    );
+
+    let text_source = wgsl_at(&["shaders", "world_text"], Vec::new());
+    let text_module = naga::front::wgsl::parse_str(&text_source).expect("world_text parses");
+    let text_info = Validator::new(ValidationFlags::all(), Capabilities::default())
+        .validate(&text_module)
+        .expect("world_text validates");
+    assert_writes_for_webgl2("world_text", &text_module, &text_info);
+    assert_bindings(
+        &text_module,
+        &[
+            (0, world_text_view::FRAME),
+            (1, world_text_textures::FONT_PAGE),
+            (1, world_text_textures::FONT_SAMPLER),
+            (1, world_text_textures::LIGHTMAP_LEVELS),
+            (1, world_text_textures::LIGHTMAP_SAMPLER),
+        ],
+    );
+
+    for def in [
+        "SHOW_UNLIT",
+        "SHOW_ALBEDO",
+        "SHOW_AO",
+        "SHOW_NORMAL",
+        "SHOW_BLOCK_LIGHT",
+        "SHOW_SKY_LIGHT",
+        "SHOW_GRID",
+    ] {
+        let views = compile("gbuffer_views", vec![ShaderDefVal::from(def)]);
+        Validator::new(ValidationFlags::all(), Capabilities::default())
+            .validate(&views)
+            .unwrap_or_else(|error| panic!("gbuffer_views {def}: {error:?}"));
+        for (_, var) in views.global_variables.iter() {
+            if let Some(binding) = &var.binding {
+                assert!(
+                    binding.group <= 1,
+                    "gbuffer_views {def} must not bind unread groups (saw @group({}) @binding({}))",
+                    binding.group,
+                    binding.binding
+                );
+            }
+        }
     }
 }

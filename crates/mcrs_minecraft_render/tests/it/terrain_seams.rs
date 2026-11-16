@@ -4,6 +4,7 @@ use std::path::Path;
 use bevy::math::{DMat4, DVec3, DVec4, Mat4, Vec3, proj};
 use bevy::prelude::Transform;
 use bevy::tasks::block_on;
+use mcrs_minecraft_render::CameraUniform;
 use wesl::error::ResolveError;
 use wesl::syntax::{ModulePath, PathOrigin};
 use wesl::{CompileOptions, Resolver};
@@ -24,10 +25,10 @@ const HEIGHT: u32 = 256;
 const BACKGROUND: [u8; 4] = [0, 0, 0, 255];
 
 const SHADER: &str = r#"
-import package::shaders::include::quad::{GREEDY_EDGE_OVERLAP, model_quad_uv, expanded_quad_uv};
-import package::shaders::include::quad_coverage::{quad_projection, quad_uv_at, quad_contains};
-import package::shaders::core::greedy::{GreedyOut, greedy_coverage};
-import package::shaders::core::model::{ModelOut, model_coverage};
+import mcrs_minecraft_render::shaders::include::quad::{GREEDY_EDGE_OVERLAP, model_quad_uv, expanded_quad_uv};
+import mcrs_minecraft_render::shaders::include::quad_coverage::{quad_projection, quad_uv_at, quad_contains};
+import mcrs_minecraft_render::shaders::core::greedy::{GreedyOut, greedy_coverage};
+import mcrs_minecraft_render::shaders::core::model::{ModelOut, model_coverage};
 
 struct Quad {
     anchor: vec4<f32>,
@@ -112,7 +113,7 @@ struct Sources;
 
 impl Resolver for Sources {
     fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, ResolveError> {
-        if path.components == ["terrain_seams"] {
+        if path.origin == PathOrigin::Absolute && path.components == ["terrain_seams"] {
             return Ok(Cow::Borrowed(SHADER));
         }
         let file = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -331,20 +332,18 @@ impl Renderer {
             contents: bytemuck::cast_slice(&quads),
             usage: BufferUsages::STORAGE,
         });
-        let mut camera_words = [0u32; 64];
         // The camera viewport may differ from the default raster viewport of the target.
         let camera_scale = if matches!(coverage, Coverage::Greedy | Coverage::Model) {
             0.5
         } else {
             1.0
         };
-        camera_words[50] = (WIDTH as f32 * camera_scale).to_bits();
-        camera_words[51] = (HEIGHT as f32 * camera_scale).to_bits();
-        camera_words[54] = (WIDTH as f32).to_bits();
-        camera_words[55] = (HEIGHT as f32).to_bits();
+        let mut camera = CameraUniform::default();
+        camera.viewport = [WIDTH as f32 * camera_scale, HEIGHT as f32 * camera_scale];
+        camera.raster_viewport = [WIDTH as f32, HEIGHT as f32];
         let uniform = self.device.create_buffer_init(&BufferInitDescriptor {
             label: None,
-            contents: bytemuck::cast_slice(&camera_words),
+            contents: bytemuck::bytes_of(&camera),
             usage: BufferUsages::UNIFORM,
         });
         self.device.create_bind_group(&BindGroupDescriptor {

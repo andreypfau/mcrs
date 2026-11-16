@@ -17,7 +17,14 @@ mod pipeline;
 mod present;
 mod reconstruct;
 mod render_path;
+#[cfg(test)]
+mod shader_layout;
+#[cfg(test)]
+mod shader_layout_emit;
 mod shaders;
+#[doc(hidden)]
+pub mod shared_bindings;
+mod shared_types;
 mod shared_wgsl;
 mod show;
 pub mod sky;
@@ -50,19 +57,22 @@ use bevy::render::{Render, RenderApp, RenderStartup, RenderSystems};
 
 use render_path::full_path;
 
-use mcrs_minecraft_mesh::STREAMS;
+use mcrs_minecraft_mesh::DrawKind;
 
 pub use frame::{CameraOrigin, TerrainShade, clip_from_relative};
 pub use frame_view::{FrameView, SIDE_PLANES};
 pub use gbuffer::{DeferredFrame, GBUFFER_FORMATS};
 pub use improved_transparency::ImprovedTransparency;
-pub use layer::{LayerGroup, Shape};
+pub use layer::LayerGroup;
 pub use pass::draw_layer_group;
-pub use pipeline::{TERRAIN_PIPELINES, stream_slot, terrain_slot};
+pub use pipeline::{TERRAIN_PIPELINES, terrain_slot};
 pub use render_path::RenderPath;
+pub use shared_types::{
+    CameraUniform, DrawArgRow, DrawArgs, Params, SectionDesc, SkyUniform, SpriteEntry,
+};
 pub use shared_wgsl::{GBUFFER_ENCODE_WGSL, VISIBILITY_WGSL};
 pub use show::{DepthDisplay, DepthSource};
-pub use stats::{DrawArgs, FrameCounts, VERTICES_PER_QUAD, args_reset};
+pub use stats::{FrameCounts, VERTICES_PER_QUAD, args_reset};
 pub use terrain::Terrain;
 pub use timestamps::{PassSlot, PassTimestamps};
 pub use upload::{Placement, Upload, Uploads};
@@ -81,7 +91,6 @@ const _: () = assert!(matches!(CORE_3D_DEPTH_FORMAT, TextureFormat::Depth32Float
 pub const QUAD_BYTES: usize = mcrs_minecraft_mesh::pack::QUAD_WORDS * 4;
 pub const MODEL_BYTES: usize = 4 * 3 * 4;
 pub const FACE_BYTES: usize = mcrs_minecraft_mesh::pack::FACE_WORDS * 4;
-pub(crate) const SECTION_BYTES: usize = size_of::<SectionDesc>();
 pub(crate) const VISIBLE_BYTES: usize = 8;
 
 pub struct Budget {
@@ -95,16 +104,6 @@ pub struct Budget {
     /// The tint texture is a window of this many blocks a side that the world wraps into, so
     /// it follows the camera for nothing; it only has to be wider than what is resident.
     pub tint_size: [u32; 2],
-}
-
-/// One row of the section table: where a section sits in the world, how many blocks one of its
-/// samples covers, and where its face attributes begin.
-#[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-pub struct SectionDesc {
-    pub section: [i32; 3],
-    pub scale: u32,
-    pub face_base: u32,
 }
 
 /// The layers one array gained since the last update, from `first` up to `layers`, as a full
@@ -136,24 +135,15 @@ pub struct SpriteUpload {
     pub animations: Vec<Animation>,
 }
 
-/// One row of the GPU sprite table: the array in the high half-word and the layer in the low,
-/// and the animation index or `STILL`.
-#[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-pub struct SpriteEntry {
-    pub array_layer: u32,
-    pub animation: u32,
-}
-
 #[derive(Resource, Clone, Copy, ExtractResource)]
 #[extract_app(RenderApp)]
 pub struct DrawMask(pub u32);
 
 impl DrawMask {
-    pub(crate) const ALL: u32 = (1 << STREAMS) - 1;
+    pub(crate) const ALL: u32 = (1 << DrawKind::COUNT) - 1;
 
-    fn drawn(&self, stream: u32) -> bool {
-        self.0 & (1 << stream) != 0
+    fn drawn(&self, kind: DrawKind) -> bool {
+        self.0 & (1 << kind.index()) != 0
     }
 }
 
@@ -230,25 +220,39 @@ fn embed_shaders(app: &mut App) {
     use bevy::shader::load_shader_library;
     load_shader_library!(app, "shaders/include/fields.wesl");
     load_shader_library!(app, "shaders/include/words.wesl");
+    load_shader_library!(app, "shaders/include/section_layout.wesl");
     load_shader_library!(app, "shaders/include/section.wesl");
     load_shader_library!(app, "shaders/include/frame.wesl");
     load_shader_library!(app, "shaders/include/fog.wesl");
     load_shader_library!(app, "shaders/include/sky.wesl");
+    load_shader_library!(app, "shaders/include/sky_layout.wesl");
     load_shader_library!(app, "shaders/include/quad.wesl");
     load_shader_library!(app, "shaders/include/quad_coverage.wesl");
-    load_shader_library!(app, "shaders/include/lighting.wesl");
+    load_shader_library!(app, "shaders/include/lightmap.wesl");
+    load_shader_library!(app, "shaders/include/sprites_layout.wesl");
+    load_shader_library!(app, "shaders/include/terrain_layout.wesl");
     load_shader_library!(app, "shaders/include/terrain_bindings.wesl");
+    load_shader_library!(app, "shaders/include/lighting.wesl");
     load_shader_library!(app, "shaders/include/surface.wesl");
     load_shader_library!(app, "shaders/include/finish.wesl");
     load_shader_library!(app, "shaders/include/gbuffer_encode.wesl");
     load_shader_library!(app, "shaders/include/depth.wesl");
     load_shader_library!(app, "shaders/include/visibility.wesl");
+    load_shader_library!(app, "shaders/include/cull_layout.wesl");
     load_shader_library!(app, "shaders/include/deferred.wesl");
+    load_shader_library!(app, "shaders/include/reconstruct.wesl");
+    load_shader_library!(app, "shaders/include/gbuffer_layout.wesl");
+    load_shader_library!(app, "shaders/include/gbuffer_views_layout.wesl");
+    load_shader_library!(app, "shaders/include/transparency_layout.wesl");
     load_shader_library!(app, "shaders/include/transparency.wesl");
+    load_shader_library!(app, "shaders/include/hiz_layout.wesl");
+    load_shader_library!(app, "shaders/include/present_layout.wesl");
+    load_shader_library!(app, "shaders/include/show_layout.wesl");
+    load_shader_library!(app, "shaders/include/world_text_layout.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/greedy.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/model.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/cull.wesl");
-    bevy::asset::embedded_asset!(app, "shaders/core/hiz.wgsl");
+    bevy::asset::embedded_asset!(app, "shaders/core/hiz.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/show.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/lighting_pass.wesl");
     bevy::asset::embedded_asset!(app, "shaders/core/gbuffer_views.wesl");

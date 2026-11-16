@@ -12,16 +12,16 @@ use bevy::render::render_resource::*;
 use bevy::render::renderer::{RenderContext, RenderDevice, ViewQuery};
 use bevy::render::view::{ExtractedView, ViewDepthStencilTexture, ViewTarget, ViewUniformOffset};
 
-use mcrs_minecraft_mesh::{GROUP_QUADS, Group, STREAMS};
+use mcrs_minecraft_mesh::{DrawKind, GROUP_QUADS, Group};
 
-use super::cull::stream_name;
 use super::draws::PARAMS_STRIDE;
 use super::gbuffer::DeferredFrame;
 use super::layer::LayerGroup;
-use super::pipeline::{DeferredPipelines, TransparencyPipelines, stream_slot};
+use super::pipeline::{DeferredPipelines, TransparencyPipelines, terrain_slot};
+use super::shared_types::DrawArgRow;
 use super::show::{DepthDisplay, DepthSource};
 use super::sky::SkyDraws;
-use super::stats::{DRAW_ARGS_SIZE, FrameCounts, VERTICES_PER_QUAD};
+use super::stats::{FrameCounts, VERTICES_PER_QUAD};
 use super::terrain::Terrain;
 use super::transparency_targets::TransparencyTargets;
 use super::upload::{UploadParams, apply_uploads};
@@ -123,38 +123,34 @@ pub(super) fn build_occlusion(
 const GROUP_VERTICES: u32 = GROUP_QUADS as u32 * VERTICES_PER_QUAD;
 const GROUP_BYTES: u64 = size_of::<Group>() as u64;
 
-/// `phase` picks the first pass's args or the second's, which follow them; the minimal path has
-/// one phase and draws every group of a draw in it. A stream `pipeline_of` has no pipeline for is
-/// skipped.
+/// `row` picks the first pass's draw args or the second's; the minimal path draws every group of
+/// a draw directly. A [`DrawKind`] `pipeline_of` has no pipeline for is skipped.
 pub fn draw_layer_group<'pass>(
     pass: &mut TrackedRenderPass<'pass>,
     terrain: &'pass Terrain,
     group: LayerGroup,
-    phase: u64,
+    row: DrawArgRow,
     mask: &DrawMask,
-    pipeline_of: impl Fn(u32) -> Option<&'pass RenderPipeline>,
+    pipeline_of: impl Fn(DrawKind) -> Option<&'pass RenderPipeline>,
 ) -> u32 {
     pass.set_bind_group(1, &terrain.binds.draw, &[]);
     let mut open = None;
     let mut draws = 0;
     for (index, draw) in terrain.list.drawn(group, mask) {
-        let Some(pipeline) = pipeline_of(draw.stream) else {
+        let Some(pipeline) = pipeline_of(draw.kind) else {
             continue;
         };
-        if open != Some(draw.stream) {
+        if open != Some(draw.kind) {
             if open.is_some() {
                 pass.pop_debug_group();
             }
-            pass.push_debug_group(stream_name(draw.stream));
-            open = Some(draw.stream);
+            pass.push_debug_group(draw.kind.label());
+            open = Some(draw.kind);
         }
         pass.set_render_pipeline(pipeline);
         pass.set_bind_group(0, &terrain.binds.view, &[index as u32 * PARAMS_STRIDE]);
         match (&terrain.cull, terrain.arenas.groups.words.buffer()) {
-            (Some(cull), _) => pass.draw_indirect(
-                cull.args(),
-                (phase * STREAMS as u64 + index as u64) * DRAW_ARGS_SIZE,
-            ),
+            (Some(cull), _) => pass.draw_indirect(cull.args(), row.offset_bytes(draw.kind)),
             (None, Some(groups)) => {
                 // The draw's block of the group arena is its instances, from instance zero: a
                 // first instance is not something every backend adds to the instance index.
@@ -221,20 +217,13 @@ impl DeferredParams<'_> {
         &'pass self,
         pass: &mut TrackedRenderPass<'pass>,
         terrain: &'pass Terrain,
-        phase: u64,
+        row: DrawArgRow,
     ) {
         let wireframe = self.display().wireframe;
-        let draws = draw_layer_group(
-            pass,
-            terrain,
-            LayerGroup::Opaque,
-            phase,
-            &self.mask,
-            |stream| {
-                self.pipelines
-                    .terrain(stream_slot(stream, wireframe), &self.cache)
-            },
-        );
+        let draws = draw_layer_group(pass, terrain, LayerGroup::Opaque, row, &self.mask, |kind| {
+            self.pipelines
+                .terrain(terrain_slot(kind, wireframe), &self.cache)
+        });
         self.counts
             .terrain_draws
             .fetch_add(draws, Ordering::Relaxed);
@@ -380,7 +369,7 @@ pub(crate) fn draw_gbuffer(
 
     let mut pass = gbuffer_pass(&mut ctx, "gbuffer", frame, depth, true);
     if let Some(terrain) = params.terrain.as_deref() {
-        params.draw_opaque(&mut pass, terrain, 0);
+        params.draw_opaque(&mut pass, terrain, DrawArgRow::FirstPassDraws);
     }
 }
 
@@ -397,7 +386,7 @@ pub(crate) fn draw_gbuffer_second(
     }
     let (_, depth, _, _) = view.into_inner();
     let mut pass = gbuffer_pass(&mut ctx, "gbuffer second", frame, depth, false);
-    params.draw_opaque(&mut pass, terrain, 1);
+    params.draw_opaque(&mut pass, terrain, DrawArgRow::SecondPassDraws);
     drop(pass);
     // The next frame's first pass tests against this: built from the whole frame's depth,
     // what this pass revived is not hidden again there only to be revived once more.
@@ -461,17 +450,25 @@ pub(crate) fn draw_lighting(
         occlusion_query_set: None,
         multiview_mask: None,
     });
+    let is_gbuffer_view = matches!(
+        params.display().lighting,
+        Lighting::Variant(variant) if variant.is_gbuffer_view()
+    );
     pass.set_render_pipeline(pipeline);
     pass.set_bind_group(0, terrain.view_bind_group(), &[0]);
-    pass.set_bind_group(1, terrain.draw_bind_group(), &[]);
-    let gbuffer = transparency
-        .as_ref()
-        .map_or(&frame.bind_group, |transparency| {
-            &transparency.targets.lighting
-        });
-    pass.set_bind_group(2, gbuffer, &[]);
-    if let Some(tint) = tint {
-        pass.set_bind_group(3, tint, &[]);
+    if is_gbuffer_view {
+        pass.set_bind_group(1, &frame.bind_group, &[]);
+    } else {
+        pass.set_bind_group(1, terrain.draw_bind_group(), &[]);
+        let gbuffer = transparency
+            .as_ref()
+            .map_or(&frame.bind_group, |transparency| {
+                &transparency.targets.lighting
+            });
+        pass.set_bind_group(2, gbuffer, &[]);
+        if let Some(tint) = tint {
+            pass.set_bind_group(3, tint, &[]);
+        }
     }
     pass.draw(0..3, 0..1);
 }
@@ -490,10 +487,10 @@ pub(crate) fn draw_forward_deferred(
     let (Some(terrain), Some(frame)) = (params.terrain.as_deref(), params.frame.as_deref()) else {
         return;
     };
-    let phases: &[u64] = if terrain.second_pass(&params.occlusion, &params.cache) {
-        &[0, 1]
+    let rows: &[DrawArgRow] = if terrain.second_pass(&params.occlusion, &params.cache) {
+        &[DrawArgRow::FirstPassDraws, DrawArgRow::SecondPassDraws]
     } else {
-        &[0]
+        &[DrawArgRow::FirstPassDraws]
     };
     let (_, depth, _, view_offset) = view.into_inner();
     let diagnostics = ctx.diagnostic_recorder();
@@ -519,18 +516,20 @@ pub(crate) fn draw_forward_deferred(
             .sky
             .draw_clouds(&mut pass, view_offset.offset, &params.cache),
     };
-    for &phase in phases {
+    for &row in rows {
         draws += draw_layer_group(
             &mut pass,
             terrain,
             LayerGroup::Translucent,
-            phase,
+            row,
             &params.mask,
-            |stream| match &transparency {
-                Some(transparency) => transparency.pipelines.translucent(stream, &params.cache),
+            |kind| match &transparency {
+                Some(transparency) => transparency
+                    .pipelines
+                    .translucent(kind.format, &params.cache),
                 None => params
                     .pipelines
-                    .terrain(stream_slot(stream, false), &params.cache),
+                    .terrain(terrain_slot(kind, false), &params.cache),
             },
         );
     }

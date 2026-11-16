@@ -15,8 +15,9 @@ pub struct Fluid {
     pub overlay: Option<u16>,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug)]
 pub enum Pass {
+    #[default]
     Solid = 0,
     Cutout = 1,
     Translucent = 2,
@@ -27,6 +28,7 @@ impl Pass {
 
     pub const ALL: [Pass; Pass::COUNT] = [Pass::Solid, Pass::Cutout, Pass::Translucent];
 
+    #[must_use]
     pub const fn label(self) -> &'static str {
         match self {
             Pass::Solid => "solid",
@@ -35,10 +37,12 @@ impl Pass {
         }
     }
 
+    #[must_use]
     pub const fn translucent(self) -> bool {
         matches!(self, Pass::Translucent)
     }
 
+    #[must_use]
     pub const fn writes_depth(self) -> bool {
         !self.translucent()
     }
@@ -53,11 +57,13 @@ impl Pass {
         }
     }
 
-    pub const fn from_index(index: usize) -> Pass {
+    #[must_use]
+    pub const fn from_index(index: usize) -> Option<Pass> {
         match index {
-            0 => Pass::Solid,
-            1 => Pass::Cutout,
-            _ => Pass::Translucent,
+            0 => Some(Pass::Solid),
+            1 => Some(Pass::Cutout),
+            2 => Some(Pass::Translucent),
+            _ => None,
         }
     }
 }

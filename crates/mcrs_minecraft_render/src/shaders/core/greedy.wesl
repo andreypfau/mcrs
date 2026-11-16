@@ -1,5 +1,5 @@
 
-import package::shaders::include::fields::{
+import mcrs_minecraft_render::shaders::include::fields::{
     FACE_AO_WORD, FACE_AO_SHIFT, FACE_AO_BITS, FACE_AO_CORNER_BITS,
     FACE_BLOCK_LIGHT_WORD, FACE_BLOCK_LIGHT_SHIFT, FACE_BLOCK_LIGHT_BITS,
     FACE_LIGHT_CORNER_BITS,
@@ -15,19 +15,19 @@ import package::shaders::include::fields::{
     QUAD_W_WORD, QUAD_W_SHIFT, QUAD_W_BITS,
     QUAD_WORDS,
 };
-import package::shaders::include::fog::{fog_mix, fog_value};
-@if(IMPROVED) import package::shaders::include::fog::fog_values;
-@if(IMPROVED) import package::shaders::include::transparency::transparent_fog;
-import package::shaders::include::frame::{camera, params};
-import package::shaders::include::lighting::face_shade;
-import package::shaders::include::quad::{
+import mcrs_minecraft_render::shaders::include::fog::{fog_mix, fog_value};
+@if(IMPROVED) import mcrs_minecraft_render::shaders::include::fog::fog_values;
+@if(IMPROVED) import mcrs_minecraft_render::shaders::include::transparency::transparent_fog;
+import mcrs_minecraft_render::shaders::include::frame::{camera, params};
+import mcrs_minecraft_render::shaders::include::lighting::face_shade;
+import mcrs_minecraft_render::shaders::include::quad::{
     GREEDY_EDGE_OVERLAP, corner_index, degenerate, face_normal, face_u_dir, face_v_dir,
     greedy_corner,
 };
-@if(SOLID) import package::shaders::include::quad_coverage::{quad_projection, quad_uv_at, quad_contains};
-import package::shaders::include::section::section_origin;
-import package::shaders::include::surface::{Surface, shade_surface};
-import package::shaders::include::terrain_bindings::{
+@if(SOLID) import mcrs_minecraft_render::shaders::include::quad_coverage::{quad_projection, quad_uv_at, quad_contains};
+import mcrs_minecraft_render::shaders::include::section::section_origin;
+import mcrs_minecraft_render::shaders::include::surface::{Surface, shade_surface};
+import mcrs_minecraft_render::shaders::include::terrain_bindings::{
     TerrainVertex, face_field, quad_field, quad_ref, quad_words, section_desc,
 };
 
@@ -184,9 +184,9 @@ fn greedy_light(in: GreedyOut) -> vec3<f32> {
     return corners[0] + (corners[3] - corners[0]) * f.x + (corners[2] - corners[3]) * f.y;
 }
 
-fn greedy_gbuffer(in: GreedyOut, albedo: vec3<f32>) -> package::shaders::include::gbuffer_encode::GBuffer {
+fn greedy_gbuffer(in: GreedyOut, albedo: vec3<f32>) -> mcrs_minecraft_render::shaders::include::gbuffer_encode::GBuffer {
     let light = greedy_light(in);
-    return package::shaders::include::deferred::gbuffer(albedo, light.x, face_normal(in.face), light.y, light.z);
+    return mcrs_minecraft_render::shaders::include::deferred::gbuffer(albedo, light.x, face_normal(in.face), light.y, light.z);
 }
 
 struct GreedyCoverage {
@@ -206,9 +206,9 @@ fn greedy_coverage(in: GreedyOut) -> GreedyCoverage {
 }
 
 @fragment
-fn fragment_greedy_solid(in: GreedyOut) -> package::shaders::include::gbuffer_encode::GBuffer {
+fn fragment_greedy_solid(in: GreedyOut) -> mcrs_minecraft_render::shaders::include::gbuffer_encode::GBuffer {
     let coverage = greedy_coverage(in);
-    let wireframe_discards = package::shaders::include::finish::wireframe_discards(coverage.surface.quad_uv);
+    let wireframe_discards = mcrs_minecraft_render::shaders::include::finish::wireframe_discards(coverage.surface.quad_uv);
     let color = shade_surface(greedy_surface(coverage.surface));
     if (coverage.outside || wireframe_discards) {
         discard;
@@ -217,11 +217,11 @@ fn fragment_greedy_solid(in: GreedyOut) -> package::shaders::include::gbuffer_en
 }
 
 @fragment
-fn fragment_greedy_cutout(in: GreedyOut) -> package::shaders::include::gbuffer_encode::GBuffer {
+fn fragment_greedy_cutout(in: GreedyOut) -> mcrs_minecraft_render::shaders::include::gbuffer_encode::GBuffer {
     let coverage = greedy_coverage(in);
     // Taken before the test: behind a short-circuit the derivative inside would sit in
     // non-uniform control flow, which WebGPU rejects for the whole module.
-    let wireframe_discards = package::shaders::include::finish::wireframe_discards(coverage.surface.quad_uv);
+    let wireframe_discards = mcrs_minecraft_render::shaders::include::finish::wireframe_discards(coverage.surface.quad_uv);
     let color = shade_surface(greedy_surface(coverage.surface));
     if (coverage.outside || color.a < 0.5 || wireframe_discards) {
         discard;
@@ -231,13 +231,13 @@ fn fragment_greedy_cutout(in: GreedyOut) -> package::shaders::include::gbuffer_e
 
 @fragment
 fn fragment_greedy_translucent(in: GreedyOut) -> @location(0) vec4<f32> {
-    let wireframe_discards = package::shaders::include::finish::wireframe_discards(in.quad_uv);
+    let wireframe_discards = mcrs_minecraft_render::shaders::include::finish::wireframe_discards(in.quad_uv);
     let color = shade_surface(greedy_surface(in));
     if (wireframe_discards) {
         discard;
     }
     let light = greedy_light(in);
-    let lit = package::shaders::include::deferred::shade(color.rgb, light.x, light.y, light.z);
+    let lit = mcrs_minecraft_render::shaders::include::deferred::shade(color.rgb, light.x, light.y, light.z);
     @if(IMPROVED) {
         let values = fog_values(in.world - camera.offset, camera.fog_environmental, camera.fog_render_distance);
         let pixel = vec2<i32>(in.clip_position.xy);

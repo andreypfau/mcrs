@@ -1,22 +1,11 @@
 import bevy_core_pipeline::fullscreen_vertex_shader::FullscreenVertexOutput;
-import package::shaders::include::deferred::octahedral_decode;
-import package::shaders::include::depth::depth_at;
-import package::shaders::include::fields::SECTION_SIZE;
-import package::shaders::include::frame::camera;
-
-struct Reconstruction {
-    relative_from_clip: mat4x4<f32>,
-    viewport: vec2<f32>,
-}
-
-@group(2) @binding(0) var albedo_ao: texture_2d<f32>;
-@group(2) @binding(1) var normal_motion: texture_2d<f32>;
-@group(2) @binding(2) var light: texture_2d<f32>;
-// Read as a float texture rather than a depth one: GLSL, which WebGL2 speaks, loads no texel
-// of a depth texture.
-@group(2) @binding(3) var depth: texture_2d<f32>;
-@group(2) @binding(4) var<uniform> reconstruction: Reconstruction;
-@group(2) @binding(5) var nearest: sampler;
+import mcrs_minecraft_render::shaders::include::depth::depth_at;
+import mcrs_minecraft_render::shaders::include::fields::SECTION_SIZE;
+import mcrs_minecraft_render::shaders::include::frame::camera;
+import mcrs_minecraft_render::shaders::include::gbuffer_encode::octahedral_decode;
+import mcrs_minecraft_render::shaders::include::gbuffer_views_layout::{
+    albedo_ao, depth, light, nearest, normal_motion, reconstruction,
+};
 
 // Block and sky light are stored in sixteenths of a level.
 const FULL_LIGHT: f32 = 240.0;
@@ -47,7 +36,9 @@ fn show(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     if (d == 0.0) {
         discard;
     }
-    @if(SHOW_ALBEDO) {
+    @if(SHOW_UNLIT) {
+        let colour = vec3<f32>(0.0);
+    } @elif(SHOW_ALBEDO) {
         let colour = textureLoad(albedo_ao, pixel, 0).rgb;
     } @elif(SHOW_AO) {
         let colour = vec3<f32>(textureLoad(albedo_ao, pixel, 0).a);

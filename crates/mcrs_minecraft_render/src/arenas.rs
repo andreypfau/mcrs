@@ -4,10 +4,11 @@ use bevy::render::renderer::RenderDevice;
 use mcrs_minecraft_mesh::Group;
 use mcrs_minecraft_mesh::pack::QUAD_WORDS;
 
+use super::Budget;
 use super::render_path::RenderPath;
+use super::shared_types::SECTION_BYTES;
 use super::upload::{Pending, Placement};
 use super::words::Words;
-use super::{Budget, SECTION_BYTES};
 
 /// Room left above what a growth was asked for, so an arena that creeps up by a
 /// group at a time is not reallocated every frame. Rounding to the next power
@@ -107,7 +108,7 @@ impl Arenas {
             sections: Words::new(
                 path,
                 "terrain sections",
-                (budget.sections * SECTION_BYTES) as u64,
+                budget.sections as u64 * SECTION_BYTES,
                 device,
             ),
             pending: None,

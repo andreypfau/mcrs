@@ -1,6 +1,6 @@
 use std::num::NonZeroU32;
 
-use mcrs_minecraft_mesh::STREAMS;
+use mcrs_minecraft_mesh::DrawKind;
 use mcrs_minecraft_render::sky::SkyEffects;
 
 use crate::config::{Knobs, reject};
@@ -73,8 +73,8 @@ impl Knobs {
         let mut mask = 0;
         for name in spec.split(',') {
             match name.trim().parse::<u32>() {
-                Ok(draw) if (draw as usize) < STREAMS => mask |= 1 << draw,
-                _ => eprintln!("MCRS_DRAWS takes draw numbers 0..{}", STREAMS - 1),
+                Ok(draw) if (draw as usize) < DrawKind::COUNT => mask |= 1 << draw,
+                _ => eprintln!("MCRS_DRAWS takes draw numbers 0..{}", DrawKind::COUNT - 1),
             }
         }
         Some(mask)

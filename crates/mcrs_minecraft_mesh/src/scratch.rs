@@ -47,9 +47,9 @@ pub struct Scratch {
     pub(super) passes: Box<[u8; GRID]>,
     pub(super) attrs: Box<[[u32; FACE_WORDS]; GRID]>,
     pub(super) used: Box<[bool; GRID]>,
-    pub(super) simple_by_pass: [Vec<[u32; QUAD_WORDS]>; Pass::COUNT],
+    pub(super) greedy_by_pass: [Vec<[u32; QUAD_WORDS]>; Pass::COUNT],
     pub(super) section_faces: Vec<[u32; FACE_WORDS]>,
-    pub(super) complex_by_pass: [[Vec<u32>; FACE_GROUPS]; Pass::COUNT],
+    pub(super) models_by_pass: [[Vec<u32>; FACE_GROUPS]; Pass::COUNT],
     pub(super) smooth_light: SmoothLight,
     pub(super) shade: CardinalLight,
 }
@@ -82,9 +82,9 @@ impl Scratch {
             passes: Box::new([0; GRID]),
             attrs: Box::new([[0; FACE_WORDS]; GRID]),
             used: Box::new([false; GRID]),
-            simple_by_pass: Default::default(),
+            greedy_by_pass: Default::default(),
             section_faces: Vec::new(),
-            complex_by_pass: Default::default(),
+            models_by_pass: Default::default(),
             smooth_light: SmoothLight::default(),
             shade: CardinalLight::default(),
         }

@@ -1,11 +1,9 @@
-import package::shaders::include::depth::depth_at;
-import package::shaders::include::finish::from_target;
-import package::shaders::include::fog::{cloud_over, improved_fog_mix};
-
-@group(2) @binding(6) var sky_image: texture_2d<f32>;
-@group(2) @binding(7) var cloud_image: texture_2d<f32>;
-@group(2) @binding(8) var cloud_depth: texture_2d<f32>;
-@group(2) @binding(9) var cloud_nearest: sampler;
+import mcrs_minecraft_render::shaders::include::depth::depth_at;
+import mcrs_minecraft_render::shaders::include::finish::from_target;
+import mcrs_minecraft_render::shaders::include::fog::{cloud_over, improved_fog_mix};
+import mcrs_minecraft_render::shaders::include::transparency_layout::{
+    cloud_depth, cloud_image, cloud_nearest, sky_image,
+};
 
 fn sky_texel(pixel: vec2<i32>) -> vec4<f32> {
     return textureLoad(sky_image, pixel, 0);

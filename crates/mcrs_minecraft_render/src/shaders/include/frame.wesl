@@ -1,3 +1,6 @@
+// Generated from `shader_layout.rs`. `cargo nextest run -p mcrs_minecraft_render`
+// checks it; `MCRS_BLESS=1 cargo nextest run -p mcrs_minecraft_render` rewrites it.
+
 struct Params {
     group_base: u32,
     group_count: u32,
@@ -6,7 +9,6 @@ struct Params {
     counter: u32,
     flags: u32,
 }
-
 const PARAMS_MODEL: u32 = 1u;
 const PARAMS_QUAD_CULL: u32 = 2u;
 

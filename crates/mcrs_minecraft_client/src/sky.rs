@@ -23,10 +23,8 @@ use crate::vanilla::VanillaAssets;
 use mcrs_minecraft_client_world::registries::{SessionSet, entered_configuration};
 use mcrs_minecraft_fog::{FogInputs, FogParameters};
 use mcrs_minecraft_model::vanilla_source;
-use mcrs_minecraft_render::sky::{
-    ExtractedSky, SkyDrawsOnly, SkyEffects, SkyRenderPlugin, SkyUniform,
-};
-use mcrs_minecraft_render::{RenderDistance, WorldFog};
+use mcrs_minecraft_render::sky::{ExtractedSky, SkyDrawsOnly, SkyEffects, SkyRenderPlugin};
+use mcrs_minecraft_render::{RenderDistance, SkyUniform, WorldFog};
 
 const SUN: &str = "minecraft/textures/environment/celestial/sun.png";
 

@@ -38,6 +38,7 @@ pub struct Placement {
     pub groups: Vec<(u64, Vec<Group>)>,
     /// A whole new draw list, swapped in only once its group block has landed, so a draw never
     /// spends a frame pointing at a block that is still being written.
+    /// Holds at most one `Draw` per `DrawKind`, since each kind maps to one args row.
     pub draws: Option<Vec<Draw>>,
 }
 
@@ -258,8 +259,13 @@ pub(super) fn apply_uploads(params: &mut UploadParams, encoder: &mut CommandEnco
             terrain.arenas.pending = Some(pending);
             break;
         }
-        if let Some(draws) = pending.placement.draws {
-            terrain.list.draws = draws;
+        if let Some(draws) = pending.placement.draws
+            && let Err(kind) = terrain.list.set_draws(draws)
+        {
+            error!(
+                ?kind,
+                "ignored draw list with duplicate DrawKind; each kind owns one args row"
+            );
         }
         let _rebuilding = info_span!("upload rebuild params").entered();
         terrain.rebuild_params(device, pipeline_cache);

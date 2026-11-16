@@ -1,13 +1,10 @@
 import bevy_core_pipeline::fullscreen_vertex_shader::FullscreenVertexOutput;
-import package::shaders::include::depth::depth_at;
+import mcrs_minecraft_render::shaders::include::depth::depth_at;
+import mcrs_minecraft_render::shaders::include::show_layout::{nearest, source};
 
 // Reverse-Z depth is the near plane over the distance, so each octave of distance is one step of
 // log2(depth), and 14 octaves span from the near plane past the farthest render distance.
 const DEPTH_OCTAVES: f32 = 14.0;
-
-// The view depth is read as a float texture too: GLSL loads no texel of a depth texture.
-@group(0) @binding(0) var source: texture_2d<f32>;
-@group(0) @binding(1) var nearest: sampler;
 
 fn shown_depth(pixel: vec2<u32>) -> f32 {
     @if(PYRAMID) {

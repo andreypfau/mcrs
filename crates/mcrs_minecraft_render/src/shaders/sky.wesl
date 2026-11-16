@@ -1,15 +1,9 @@
 import bevy_render::maths::{HALF_PI, PI};
-import bevy_render::view::View;
-import package::shaders::include::finish::from_target;
-import package::shaders::include::quad::degenerate;
-import package::shaders::include::sky::Sky;
-
-@group(0) @binding(0) var<uniform> view: View;
-@group(0) @binding(1) var<uniform> sky: Sky;
-
-@group(1) @binding(0) var celestials: texture_2d_array<f32>;
-@group(1) @binding(1) var celestial_sampler: sampler;
-@group(1) @binding(2) var clouds: texture_2d<f32>;
+import mcrs_minecraft_render::shaders::include::finish::from_target;
+import mcrs_minecraft_render::shaders::include::quad::degenerate;
+import mcrs_minecraft_render::shaders::include::sky_layout::{
+    celestial_sampler, celestials, clouds, sky, view,
+};
 
 const SKY_DISC_Y: f32 = 16.0;
 const SKY_DISC_RADIUS: f32 = 512.0;
