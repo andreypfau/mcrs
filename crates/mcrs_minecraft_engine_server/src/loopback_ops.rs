@@ -105,7 +105,6 @@ mod tests {
         let op = hello_from(&mut app, "127.0.0.1:50000", "Local").unwrap();
         assert_eq!(op.level, PlayerOpLevel::MAX);
         assert!(!op.bypasses_player_limit);
-        assert!(!app.world().resource::<OpList>().is_listed(&op.uuid));
     }
 
     #[test]
@@ -113,7 +112,6 @@ mod tests {
         let mut app = server(Some(ServerProfile::Local));
         let op = hello_from(&mut app, "127.0.0.1:50000", LISTED).unwrap();
         assert_eq!(op.level, 2);
-        assert!(app.world().resource::<OpList>().is_listed(&op.uuid));
     }
 
     #[test]

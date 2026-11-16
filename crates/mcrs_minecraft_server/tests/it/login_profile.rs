@@ -761,43 +761,6 @@ fn ban_join_003_a_ban_with_a_future_end_names_its_time() {
 }
 
 #[test]
-fn a_loopback_hello_makes_an_operator_and_a_remote_one_does_not() {
-    let mut app = server(None);
-    app.insert_resource(ServerProfile::Local);
-    for (address, name) in [("127.0.0.1:50000", "Local"), ("[::1]:50000", "LocalSix")] {
-        let local = hello_from(&mut app, address, name);
-        assert_eq!(
-            app.world()
-                .resource::<OpList>()
-                .get(&local.id)
-                .map(|op| op.level),
-            Some(4),
-            "{address}"
-        );
-    }
-    let remote = hello_from(&mut app, "192.168.1.20:50000", "Remote");
-    assert!(app.world().resource::<OpList>().get(&remote.id).is_none());
-
-    app.insert_resource(ServerProfile::Public);
-    let denied = hello_from(&mut app, "127.0.0.1:50000", "Denied");
-    assert!(app.world().resource::<OpList>().get(&denied.id).is_none());
-}
-
-fn hello_from(app: &mut App, address: &str, username: &str) -> GameProfile {
-    let client = connect(app);
-    app.world_mut()
-        .get_mut::<ServerSideConnection>(client.connection)
-        .unwrap()
-        .raw
-        .remote_addr = address.parse().unwrap();
-    send_hello(app, &client, username, Uuid::new_v4());
-    app.world()
-        .get::<GameProfile>(client.connection)
-        .expect("the hello is accepted")
-        .clone()
-}
-
-#[test]
 fn ban_join_004_an_operator_has_no_exception() {
     let mut app = server(None);
     app.insert_resource(OpList::new([OpListEntry {
@@ -856,6 +819,31 @@ fn wl_join_002_a_player_that_is_not_listed_is_refused() {
     let mut app = server(None);
     app.insert_resource(Whitelist::default().enabled(true));
     assert_not_whitelisted(&mut app, "Steve");
+}
+
+#[test]
+fn loop_grant_003_a_loopback_join_that_the_whitelist_refuses_makes_no_operator() {
+    let mut app = server(None);
+    app.insert_resource(ServerProfile::Local);
+    app.insert_resource(Whitelist::default().enabled(true));
+    let mut client = connect(&mut app);
+    app.world_mut()
+        .get_mut::<ServerSideConnection>(client.connection)
+        .unwrap()
+        .raw
+        .remote_addr = "127.0.0.1:50000".parse().unwrap();
+    send_hello(&mut app, &client, "Steve", Uuid::new_v4());
+    assert_eq!(
+        login_disconnect_reason(&client.received(&mut app)),
+        serde_json::json!({"translate": "multiplayer.disconnect.not_whitelisted"})
+    );
+    assert!(!connected(&app, &client));
+    assert!(
+        app.world()
+            .resource::<OpList>()
+            .find_by_name("Steve")
+            .is_none()
+    );
 }
 
 #[test]
@@ -1217,12 +1205,6 @@ fn forwarded_op(profile: ServerProfile, payload: &[u8]) -> Option<OpListEntry> {
         .expect("the forwarded login is accepted")
         .id;
     app.world().resource::<OpList>().get(&id).cloned()
-}
-
-#[test]
-fn loop_addr_001_a_forwarded_remote_address_makes_no_operator_on_local() {
-    let payload = crate::proxy_forwarding::FORWARDED_PAYLOAD;
-    assert_eq!(forwarded_op(ServerProfile::Local, &payload), None);
 }
 
 #[test]

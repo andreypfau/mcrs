@@ -88,12 +88,13 @@ pub(crate) fn run(
     let name = context.arg(&call.invocation, handle)?;
     let name = name.as_unescaped().ok_or_else(CommandFailure::failed)?;
     let entry = profile(&targets, ops, name);
+    let listed = ops.get(&entry.uuid).is_some();
     let (success, edit) = match call.branch {
-        Branch::Op if ops.is_listed(&entry.uuid) => {
+        Branch::Op if listed => {
             return Err(CommandFailure::translate("commands.op.failed", vec![]));
         }
         Branch::Op => ("commands.op.success", EditOps::Add(entry.clone())),
-        Branch::Deop if ops.get(&entry.uuid).is_none() => {
+        Branch::Deop if !listed => {
             return Err(CommandFailure::translate("commands.deop.failed", vec![]));
         }
         Branch::Deop => ("commands.deop.success", EditOps::Remove(entry.uuid)),
