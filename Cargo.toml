@@ -341,8 +341,17 @@ debug = false
 [profile.dev.build-override]
 opt-level = 3
 
+[profile.release]
+strip = "debuginfo"
+
 [profile.release.build-override]
 opt-level = 3
+
+[profile.dist]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+strip = true
 
 # `package."*"` only covers external dependencies; workspace members inherit
 # [profile.dev] opt-level 0. Both paths a column can arrive by are far too hot
