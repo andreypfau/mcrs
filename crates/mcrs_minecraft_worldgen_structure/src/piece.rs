@@ -65,7 +65,7 @@ impl<'a> WantedElement<'a> {
                                 mcrs_minecraft_nbt::from_tag::<StructureProcessor>(
                                     NbtTag::Compound(compound.clone()),
                                 )
-                                .map_err(E::custom)?,
+                                .map_err(|error| E::custom(format!("`processors`: {error}")))?,
                             );
                         }
                         WantedProcessors::Inline(parsed)

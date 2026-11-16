@@ -20,9 +20,9 @@ use crate::structures::index::StructureIndex;
 
 const MAGIC: &[u8; 8] = b"MCSTRPC0";
 
-/// Fields the reference fills in at placement from the live world, which the
-/// layout fixes here from the density heights instead: they are dropped from
-/// both sides before a piece is compared, keyed by the piece's `id`.
+/// Fields the reference fills in at placement from the live world, and keys only
+/// this server writes, which the fixtures lack. Both are dropped from each side
+/// before a piece is compared, keyed by the piece's `id`.
 const PLACEMENT_FIXED_FIELDS: [(&str, &[&str]); 7] = [
     ("minecraft:tedp", &["HPos"]),
     ("minecraft:tejp", &["HPos"]),

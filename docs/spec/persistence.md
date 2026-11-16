@@ -1051,22 +1051,24 @@ None of these experiments has been run. Each one needs `tools/vanilla-server`. I
   Expected, if U3 holds: the answers of step 5 equal those of step 2, and the game writes the
   `poi` files again. Record each difference, and the log lines about `poi`.
 - **P7.** Confirms the forms of SAVE-POOL-001 and SAVE-POOL-002 that no fixture shows.
-  1. Make a data pack with one jigsaw structure and three pools. Pool A has a
+  1. Make a data pack with one jigsaw structure and four pools. Pool A has a
      `single_pool_element` with the inline list `{"processors": [<one rule processor>]}`. Pool B
      has the same element with the list form `[<the same processor>]`. Pool C has a
-     `feature_pool_element` with an inline placed feature.
+     `feature_pool_element` with an inline placed feature. Pool D has a `single_pool_element` whose
+     `processors` is the registry id of a processor list of the data pack.
   2. Start the vanilla server on a new world with this data pack. Generate one start of each pool.
      Stop the server.
   3. Record the `pool_element` compound of each piece. Expected: pool A and pool B give the same
      compound form with the list `processors`. Pool C gives the inline placed feature as a compound.
+     Pool D gives the registry id as a string.
   4. In the save, replace one `processors` compound with the list form of the same entries. Start
      the server, load the column, change a block near the piece, save and stop.
   5. Record the `pool_element` compound again. Expected: the game reads the list form, and it
      writes the compound form with the same entries in the same order.
 - **P8.** Confirms SAVE-POOL-003.
-  1. With the data pack of P7, generate a start of pool A with pieces in more than one column.
-     Stop the server before the game places the blocks of each column.
-  2. In the data pack, change the rule processor of pool A, and change the processor list that a
-     registry id names in a second element. Start the server and load the other columns.
+  1. With the data pack of P7, generate starts of pool A and pool D with pieces in more than one
+     column. Stop the server before the game places the blocks of each column.
+  2. In the data pack, change the rule processor of pool A, and change the processor list that the
+     registry id of pool D names. Start the server and load the other columns.
   3. Record the blocks of the pieces. Expected: the inline element places with the processor of
      the save, and the element with the registry id places with the changed list.
