@@ -24,8 +24,8 @@ use mcrs_minecraft_physics::View;
 use mcrs_minecraft_physics::push_entity;
 use mcrs_minecraft_physics::tick_entity;
 
-mod common;
-mod fixture;
+use crate::common;
+use crate::fixture;
 
 use fixture::Failure;
 use fixture::Fixture;

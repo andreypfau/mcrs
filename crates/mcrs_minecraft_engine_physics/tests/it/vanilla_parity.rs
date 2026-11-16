@@ -21,10 +21,8 @@ use mcrs_voxel::BlockPos;
 use mcrs_voxel::BlockStateId;
 use mcrs_voxel::SectionPos;
 
-#[path = "../../mcrs_minecraft_collision_table/tests/common/mod.rs"]
-mod common;
-#[path = "../../mcrs_minecraft_collision_table/tests/fixture/mod.rs"]
-mod fixture;
+use crate::common;
+use crate::fixture;
 
 use fixture::Failure;
 use fixture::Fixture;
