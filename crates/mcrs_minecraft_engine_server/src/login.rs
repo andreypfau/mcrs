@@ -22,7 +22,7 @@ use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
 
-use crate::loopback_ops::{LoopbackOps, grant_loopback_ops};
+use crate::loopback_ops::{ServerProfile, grant_loopback_ops};
 
 use mcrs_minecraft_engine::banlist::{BanEntry, BanList, EnforceBans};
 use mcrs_minecraft_engine::coordinator::ops::OpList;
@@ -58,7 +58,7 @@ impl bevy_app::Plugin for LoginPlugin {
         app.init_resource::<Whitelist>();
         app.init_resource::<BanList>();
         app.init_resource::<OpList>();
-        app.init_resource::<LoopbackOps>();
+        app.init_resource::<ServerProfile>();
         app.init_resource::<NetworkCompressionThreshold>();
         app.init_resource::<JoinLimits>();
         app.init_resource::<JoinBuckets>();

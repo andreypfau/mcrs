@@ -14,7 +14,7 @@ use crate::login::{
     JoinLimits, JoinRate, LoginPlugin, NetworkCompressionThreshold, ProxyForwarding,
     SingleplayerProfile,
 };
-use crate::loopback_ops::LoopbackOps;
+use crate::loopback_ops::ServerProfile;
 use crate::require::require;
 use crate::status::StatusPlugin;
 
@@ -56,7 +56,7 @@ pub struct ServerNetworkPlugin {
     pub rate_limit: InboundRateLimit,
     pub whitelist: Whitelist,
     pub banlist: BanList,
-    pub loopback_ops: LoopbackOps,
+    pub profile: ServerProfile,
     /// Set, every login takes the player's profile and address from the proxy that shares this
     /// secret.
     pub forwarding: Option<ForwardingSecret>,
@@ -97,7 +97,7 @@ impl Default for ServerNetworkPlugin {
             rate_limit: InboundRateLimit::default(),
             whitelist: Whitelist::default(),
             banlist: BanList::default(),
-            loopback_ops: LoopbackOps::default(),
+            profile: ServerProfile::default(),
             forwarding: None,
             proxy_upstreams: Vec::new(),
         }
@@ -142,7 +142,7 @@ impl Plugin for ServerNetworkPlugin {
         app.add_plugins(crate::shutdown::ShutdownPlugin);
         app.insert_resource(self.whitelist.clone());
         app.insert_resource(self.banlist.clone());
-        app.insert_resource(self.loopback_ops);
+        app.insert_resource(self.profile);
         if let Some(secret) = &self.forwarding {
             app.insert_resource(ProxyForwarding(secret.clone()));
         }
