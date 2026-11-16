@@ -21,7 +21,10 @@ use crate::shared_types::{
 use crate::words::Words;
 
 pub mod terrain_view {
-    use super::*;
+    use super::{
+        BindGroupEntry, BindGroupLayoutDescriptor, BindingResource, Buffer, BufferBinding,
+        CAMERA_SIZE, NonZeroU64, PARAMS_SIZE, ShaderStages, uniform_buffer_sized,
+    };
 
     pub const PARAMS: u32 = 0;
     pub const CAMERA: u32 = 1;
@@ -66,7 +69,11 @@ pub mod terrain_view {
 }
 
 pub mod terrain_draw {
-    use super::*;
+    use super::{
+        BindGroupEntry, BindGroupLayoutDescriptor, BindingResource, Buffer, RenderPath, Sampler,
+        SamplerBindingType, ShaderStages, TextureSampleType, TextureView, Words, sampler,
+        storage_buffer_read_only_sized, texture_2d, texture_2d_array,
+    };
 
     pub const QUADS: u32 = 0;
     pub const VERTICES: u32 = 1;
@@ -211,7 +218,11 @@ pub mod terrain_draw {
 }
 
 pub mod cull {
-    use super::*;
+    use super::{
+        BindGroupEntry, BindGroupLayoutDescriptor, BindingResource, Buffer, ShaderStages,
+        TextureSampleType, TextureView, Words, storage_buffer_read_only_sized,
+        storage_buffer_sized, texture_2d,
+    };
 
     pub const GROUPS: u32 = 0;
     pub const VISIBLE: u32 = 1;
@@ -364,7 +375,11 @@ pub mod cull {
 }
 
 pub mod gbuffer {
-    use super::*;
+    use super::{
+        BindGroupEntry, BindGroupLayoutDescriptor, BindingResource, Buffer, NonZeroU64,
+        RECONSTRUCTION_SIZE, Sampler, SamplerBindingType, ShaderStages, TextureSampleType,
+        TextureView, sampler, texture_2d, uniform_buffer_sized,
+    };
 
     pub const ALBEDO_AO: u32 = 0;
     pub const NORMAL_MOTION: u32 = 1;
@@ -432,7 +447,10 @@ pub mod gbuffer {
 }
 
 pub(crate) mod transparency {
-    use super::*;
+    use super::{
+        BindGroupEntry, BindGroupLayoutDescriptor, BindingResource, Sampler, SamplerBindingType,
+        ShaderStages, TextureSampleType, TextureView, sampler, texture_2d,
+    };
 
     pub const SKY_IMAGE: u32 = 6;
     pub const CLOUD_IMAGE: u32 = 7;
@@ -485,7 +503,11 @@ pub(crate) mod transparency {
 }
 
 pub(crate) mod transparent_gbuffer {
-    use super::*;
+    use super::{
+        BindGroupEntry, BindGroupLayoutDescriptor, BindingResource, Buffer, NonZeroU64,
+        RECONSTRUCTION_SIZE, Sampler, SamplerBindingType, ShaderStages, TextureSampleType,
+        TextureView, sampler, texture_2d, uniform_buffer_sized,
+    };
 
     pub const ALBEDO_AO: u32 = 0;
     pub const NORMAL_MOTION: u32 = 1;
@@ -585,7 +607,10 @@ pub(crate) mod transparent_gbuffer {
 }
 
 pub(crate) mod sky_view {
-    use super::*;
+    use super::{
+        BindGroupEntry, BindGroupLayoutDescriptor, BindingResource, Buffer, BufferBinding,
+        NonZeroU64, SKY_SIZE, ShaderStages, ShaderType, ViewUniform, uniform_buffer_sized,
+    };
 
     pub const VIEW: u32 = 0;
     pub const SKY: u32 = 1;
@@ -626,7 +651,10 @@ pub(crate) mod sky_view {
 }
 
 pub(crate) mod sky_textures {
-    use super::*;
+    use super::{
+        BindGroupEntry, BindGroupLayoutDescriptor, BindingResource, Sampler, SamplerBindingType,
+        ShaderStages, TextureSampleType, TextureView, sampler, texture_2d, texture_2d_array,
+    };
 
     pub const CELESTIALS: u32 = 0;
     pub const CELESTIAL_SAMPLER: u32 = 1;
@@ -671,7 +699,11 @@ pub(crate) mod sky_textures {
 }
 
 pub mod hiz {
-    use super::*;
+    use super::{
+        BindGroupEntry, BindGroupLayoutDescriptor, BindingResource, ShaderStages,
+        StorageTextureAccess, TextureFormat, TextureSampleType, TextureView, texture_2d,
+        texture_depth_2d, texture_storage_2d,
+    };
 
     pub const DEPTH: u32 = 0;
     pub const LEVEL_OUT: u32 = 1;
@@ -738,7 +770,10 @@ pub mod hiz {
 }
 
 pub mod present {
-    use super::*;
+    use super::{
+        BindGroupEntry, BindGroupLayoutDescriptor, BindingResource, ShaderStages,
+        TextureSampleType, TextureView, texture_2d,
+    };
 
     pub const WORLD: u32 = 0;
 
@@ -763,7 +798,10 @@ pub mod present {
 }
 
 pub(crate) mod show {
-    use super::*;
+    use super::{
+        BindGroupEntry, BindGroupLayoutDescriptor, BindingResource, Sampler, SamplerBindingType,
+        ShaderStages, TextureSampleType, TextureView, sampler, texture_2d,
+    };
 
     pub const SOURCE: u32 = 0;
     pub const NEAREST: u32 = 1;
@@ -799,7 +837,10 @@ pub(crate) mod show {
 }
 
 pub mod world_text_view {
-    use super::*;
+    use super::{
+        BindGroupEntry, BindGroupLayoutDescriptor, Buffer, NonZeroU64, ShaderStages,
+        TEXT_FRAME_SIZE, uniform_buffer_sized,
+    };
 
     pub const FRAME: u32 = 0;
 
@@ -826,7 +867,10 @@ pub mod world_text_view {
 }
 
 pub mod world_text_textures {
-    use super::*;
+    use super::{
+        BindGroupEntry, BindGroupLayoutDescriptor, BindingResource, Sampler, SamplerBindingType,
+        ShaderStages, TextureSampleType, TextureView, sampler, texture_2d,
+    };
 
     pub const FONT_PAGE: u32 = 0;
     pub const FONT_SAMPLER: u32 = 1;

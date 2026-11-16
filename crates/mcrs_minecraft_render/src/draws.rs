@@ -34,7 +34,14 @@ impl DrawList {
         }
     }
 
-    pub fn rebuild(&mut self) {
+    pub fn set_draws(&mut self, draws: Vec<Draw>) -> Result<(), DrawKind> {
+        unique_draw_kinds(&draws)?;
+        self.draws = draws;
+        Ok(())
+    }
+
+    pub fn rebuild(&mut self) -> Result<(), DrawKind> {
+        unique_draw_kinds(&self.draws)?;
         self.params.clear();
         let mut visible_base = 0u32;
         for draw in &self.draws {
@@ -58,6 +65,7 @@ impl DrawList {
         }
         self.visible_entries = visible_base as usize;
         self.dirty = true;
+        Ok(())
     }
 
     pub fn flush(&mut self, params: &Buffer, queue: &RenderQueue) {
@@ -86,5 +94,62 @@ impl DrawList {
         self.draws.iter().enumerate().filter(move |(_, draw)| {
             draw.quad_count != 0 && group.holds(draw.kind) && mask.drawn(draw.kind)
         })
+    }
+}
+
+fn unique_draw_kinds(draws: &[Draw]) -> Result<(), DrawKind> {
+    let mut seen = [false; DrawKind::COUNT];
+    for draw in draws {
+        if let Some(slot) = seen.get_mut(draw.kind.index()) {
+            if *slot {
+                return Err(draw.kind);
+            }
+            *slot = true;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mcrs_minecraft_mesh::block::Pass;
+
+    #[test]
+    fn duplicate_draw_kind_is_rejected_without_corrupting_params() {
+        let kind = DrawKind::new(Pass::Solid, QuadFormat::Greedy);
+        let mut list = DrawList::new();
+        assert_eq!(
+            list.set_draws(vec![Draw {
+                kind,
+                first_group: 0,
+                group_count: 1,
+                quad_count: 4,
+            }]),
+            Ok(())
+        );
+        assert_eq!(list.rebuild(), Ok(()));
+        assert_eq!(list.visible_entries, 4);
+
+        let dup = vec![
+            Draw {
+                kind,
+                first_group: 0,
+                group_count: 1,
+                quad_count: 4,
+            },
+            Draw {
+                kind,
+                first_group: 1,
+                group_count: 1,
+                quad_count: 8,
+            },
+        ];
+        assert_eq!(list.set_draws(dup.clone()), Err(kind));
+        assert_eq!(list.draws.len(), 1);
+
+        list.draws = dup;
+        assert_eq!(list.rebuild(), Err(kind));
+        assert_eq!(list.visible_entries, 4);
     }
 }

@@ -680,6 +680,22 @@ impl Loader {
         slot: u32,
         cave: &mut CaveCull,
     ) -> Result<(), Box<SectionMesh>> {
+        let mut first = 0usize;
+        for (bucket, draw) in self.buckets.iter().zip(&mesh.draws) {
+            let run = draw.group_count as usize;
+            let Some(groups) = mesh.groups.get(first..first + run) else {
+                return Err(Box::new(mesh));
+            };
+            let mut end = bucket.quads_end;
+            for group in groups {
+                let Some(next) = end.checked_add(group.quad_count) else {
+                    return Err(Box::new(mesh));
+                };
+                end = next;
+            }
+            first += run;
+        }
+
         let Some([quads, models, faces]) = self.reserve(&mesh) else {
             return Err(Box::new(mesh));
         };
@@ -695,7 +711,9 @@ impl Loader {
             } as u32;
             for group in &mut placed[first..first + run] {
                 group.quad_base += base;
-                bucket.quads_end += group.quad_count;
+                if let Some(next) = bucket.quads_end.checked_add(group.quad_count) {
+                    bucket.quads_end = next;
+                }
             }
             if run != 0 {
                 let at = bucket.groups.len() as u32;
@@ -957,7 +975,7 @@ impl Loader {
                 resident.groups[index].1 += 1;
             }
             last_slot = group.section;
-            quads += group.quad_count;
+            quads = quads.saturating_add(group.quad_count);
         }
         bucket.groups = packed;
         bucket.quads_end = quads;

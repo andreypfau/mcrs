@@ -10,12 +10,15 @@ pub mod arena;
 pub mod block;
 mod connectivity;
 mod cube;
+mod draw_kind;
 pub mod face_shade;
 mod fluid;
 mod group;
 mod model;
 pub mod pack;
+mod quad_format;
 mod scratch;
+mod section_draw;
 pub mod smooth_light;
 pub mod state_variants;
 mod sweep;
@@ -34,117 +37,18 @@ use mcrs_minecraft_core::CardinalLight;
 use mcrs_minecraft_volume::{BlockVolume, LightVolume};
 
 pub use connectivity::{CONNECT_ALL, Connectivity, OPEN, SEALED, along};
+pub use draw_kind::DrawKind;
 pub use group::Group;
+pub use quad_format::QuadFormat;
 pub use scratch::Scratch;
+pub use section_draw::SectionDraw;
 
 pub const SECTION_SIZE: usize = mcrs_voxel::SectionPos::SIZE;
 pub const SECTION_VOLUME: usize = mcrs_voxel::SectionPos::VOLUME;
 
-/// Geometry encoding used to draw a terrain quad bucket.
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug)]
-#[repr(u8)]
-pub enum QuadFormat {
-    #[default]
-    Greedy = 0,
-    Model = 1,
-}
-
-impl QuadFormat {
-    pub const COUNT: usize = 2;
-
-    pub const ALL: [Self; Self::COUNT] = [Self::Greedy, Self::Model];
-
-    #[must_use]
-    pub const fn from_index(index: usize) -> Option<Self> {
-        match index {
-            0 => Some(Self::Greedy),
-            1 => Some(Self::Model),
-            _ => None,
-        }
-    }
-
-    #[must_use]
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Greedy => "greedy",
-            Self::Model => "model",
-        }
-    }
-}
-
-/// Pair of render layer and quad encoding that identifies one indirect terrain draw.
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug)]
-pub struct DrawKind {
-    pub layer: Pass,
-    pub format: QuadFormat,
-}
-
-impl DrawKind {
-    pub const COUNT: usize = Pass::COUNT * QuadFormat::COUNT;
-
-    pub const ALL: [Self; Self::COUNT] = [
-        Self::new(Pass::Solid, QuadFormat::Greedy),
-        Self::new(Pass::Solid, QuadFormat::Model),
-        Self::new(Pass::Cutout, QuadFormat::Greedy),
-        Self::new(Pass::Cutout, QuadFormat::Model),
-        Self::new(Pass::Translucent, QuadFormat::Greedy),
-        Self::new(Pass::Translucent, QuadFormat::Model),
-    ];
-
-    #[must_use]
-    pub const fn new(layer: Pass, format: QuadFormat) -> Self {
-        Self { layer, format }
-    }
-
-    #[must_use]
-    pub const fn index(self) -> usize {
-        self.layer as usize * QuadFormat::COUNT + self.format as usize
-    }
-
-    #[must_use]
-    pub const fn from_index(index: usize) -> Option<Self> {
-        let (Some(layer), Some(format)) = (
-            Pass::from_index(index / QuadFormat::COUNT),
-            QuadFormat::from_index(index % QuadFormat::COUNT),
-        ) else {
-            return None;
-        };
-        Some(Self::new(layer, format))
-    }
-
-    #[must_use]
-    pub const fn label(self) -> &'static str {
-        match (self.layer, self.format) {
-            (Pass::Solid, QuadFormat::Greedy) => "solid greedy",
-            (Pass::Solid, QuadFormat::Model) => "solid model",
-            (Pass::Cutout, QuadFormat::Greedy) => "cutout greedy",
-            (Pass::Cutout, QuadFormat::Model) => "cutout model",
-            (Pass::Translucent, QuadFormat::Greedy) => "translucent greedy",
-            (Pass::Translucent, QuadFormat::Model) => "translucent model",
-        }
-    }
-
-    #[must_use]
-    pub const fn writes_depth(self) -> bool {
-        self.layer.writes_depth()
-    }
-
-    #[must_use]
-    pub const fn translucent(self) -> bool {
-        self.layer.translucent()
-    }
-}
-
 /// Most quads a group holds. The cull tests a group as one box, so a small group hugs its quads
 /// and hides behind terrain that a whole section's worth of them would reach past.
 pub const GROUP_QUADS: usize = 32;
-
-/// Groups and quads belonging to one [`DrawKind`] inside a meshed section.
-#[derive(Copy, Clone, Default, Debug, PartialEq, Eq)]
-pub struct SectionDraw {
-    pub group_count: u32,
-    pub quad_count: u32,
-}
 
 /// Range of contiguous groups in a resident [`DrawKind`] bucket prepared for indirect rendering.
 #[derive(Copy, Clone, Default, Debug, PartialEq, Eq)]
@@ -193,10 +97,15 @@ fn axis_mut<T>(point: &mut [T; 3], axis: u8) -> &mut T {
     }
 }
 
+struct PendingGroup {
+    kind: DrawKind,
+    group: Group,
+}
+
 struct Sink {
     greedy: Vec<[u32; QUAD_WORDS]>,
     models: Vec<u32>,
-    groups: Vec<(DrawKind, Group)>,
+    groups: Vec<PendingGroup>,
     slot: u32,
 }
 
@@ -209,16 +118,16 @@ impl Sink {
         quad_count: usize,
         bounds: u32,
     ) {
-        self.groups.push((
+        self.groups.push(PendingGroup {
             kind,
-            Group {
+            group: Group {
                 quad_base: quad_base as u32,
                 quad_count: quad_count as u32,
                 section: self.slot,
                 face: face as u32,
                 bounds,
             },
-        ));
+        });
     }
 
     fn greedy(&mut self, pass: Pass, face: u64, quads: &[[u32; QUAD_WORDS]]) {
@@ -361,7 +270,7 @@ pub fn mesh_section(
     for (&kind, draw) in DrawKind::ALL.iter().zip(&mut draws) {
         let first = groups.len();
         let mut quads = 0u32;
-        for &(from, group) in &sink.groups {
+        for &PendingGroup { kind: from, group } in &sink.groups {
             if from == kind {
                 quads += group.quad_count;
                 groups.push(group);

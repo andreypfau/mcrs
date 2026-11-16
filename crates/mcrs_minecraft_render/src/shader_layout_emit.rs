@@ -207,6 +207,116 @@ fn emit_group_subset(
     emit_subset_entries(out, &subset, entries_struct, entries_fn);
 }
 
+fn collect_identifiers(body: &str) -> std::collections::BTreeSet<String> {
+    let mut tokens = std::collections::BTreeSet::new();
+    let mut in_string = false;
+    let mut escaped = false;
+    let mut word = String::new();
+    for ch in body.chars() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+        if ch == '"' {
+            in_string = true;
+            if !word.is_empty() {
+                tokens.insert(std::mem::take(&mut word));
+            }
+            continue;
+        }
+        if ch.is_ascii_alphanumeric() || ch == '_' {
+            word.push(ch);
+        } else if !word.is_empty() {
+            tokens.insert(std::mem::take(&mut word));
+        }
+    }
+    if !word.is_empty() {
+        tokens.insert(word);
+    }
+    tokens
+}
+
+fn emit_module_super_imports(out: &mut String, body: &str) {
+    const SYMBOLS: &[&str] = &[
+        "BindGroupEntry",
+        "BindGroupLayoutDescriptor",
+        "BindingResource",
+        "Buffer",
+        "BufferBinding",
+        "CAMERA_SIZE",
+        "NonZeroU64",
+        "PARAMS_SIZE",
+        "RECONSTRUCTION_SIZE",
+        "RenderPath",
+        "SKY_SIZE",
+        "Sampler",
+        "SamplerBindingType",
+        "ShaderStages",
+        "ShaderType",
+        "StorageTextureAccess",
+        "TEXT_FRAME_SIZE",
+        "TextureFormat",
+        "TextureSampleType",
+        "TextureView",
+        "ViewUniform",
+        "Words",
+        "sampler",
+        "storage_buffer_read_only_sized",
+        "storage_buffer_sized",
+        "texture_2d",
+        "texture_2d_array",
+        "texture_depth_2d",
+        "texture_storage_2d",
+        "uniform_buffer_sized",
+    ];
+    let tokens = collect_identifiers(body);
+
+    let used: Vec<&str> = SYMBOLS
+        .iter()
+        .copied()
+        .filter(|sym| {
+            tokens.contains(*sym) || (*sym == "ShaderType" && tokens.contains("ViewUniform"))
+        })
+        .collect();
+    if used.is_empty() {
+        return;
+    }
+    if used.len() == 1 {
+        let _ = writeln!(out, "    use super::{};\n", used[0]);
+        return;
+    }
+    let single = format!("    use super::{{{}}};", used.join(", "));
+    if single.len() <= 100 {
+        out.push_str(&single);
+        out.push_str("\n\n");
+        return;
+    }
+    out.push_str("    use super::{\n");
+    let mut line = String::from("       ");
+    for sym in used {
+        if line.len() + 1 + sym.len() + 1 >= 100 {
+            out.push_str(&line);
+            out.push('\n');
+            line.clear();
+            line.push_str("       ");
+        }
+        line.push(' ');
+        line.push_str(sym);
+        line.push(',');
+    }
+    if line.len() > 7 {
+        out.push_str(&line);
+        out.push('\n');
+    }
+    out.push_str("    };\n\n");
+}
+
 fn emit_simple_group_module(
     out: &mut String,
     visibility: &str,
@@ -215,9 +325,13 @@ fn emit_simple_group_module(
     bindings: &[BindingDef],
 ) {
     let _ = writeln!(out, "{visibility} mod {mod_name} {{");
-    out.push_str("    use super::*;\n\n");
-    emit_binding_consts(out, bindings);
-    emit_group_subset(out, label, bindings, None, "Entries", "layout", "entries");
+    let mut body = String::new();
+    emit_binding_consts(&mut body, bindings);
+    emit_group_subset(
+        &mut body, label, bindings, None, "Entries", "layout", "entries",
+    );
+    emit_module_super_imports(out, &body);
+    out.push_str(&body);
     out.push_str("}\n\n");
 }
 
@@ -289,20 +403,23 @@ fn emit_terrain_draw_entries(out: &mut String) {
 }
 
 fn emit_terrain_draw_module(out: &mut String) {
-    out.push_str("pub mod terrain_draw {\n    use super::*;\n\n");
-    emit_binding_consts(out, TERRAIN_DRAW_BINDINGS);
-    out.push_str("    pub struct Entries<'a> {\n");
+    out.push_str("pub mod terrain_draw {\n");
+    let mut body = String::new();
+    emit_binding_consts(&mut body, TERRAIN_DRAW_BINDINGS);
+    body.push_str("    pub struct Entries<'a> {\n");
     for binding in TERRAIN_DRAW_BINDINGS {
         let param_ty = binding.kind.entry_param_ty();
         if binding.cond == BindingCond::FullOnly {
-            let _ = writeln!(out, "        pub {}: Option<{param_ty}>,", binding.name);
+            let _ = writeln!(body, "        pub {}: Option<{param_ty}>,", binding.name);
         } else {
-            let _ = writeln!(out, "        pub {}: {param_ty},", binding.name);
+            let _ = writeln!(body, "        pub {}: {param_ty},", binding.name);
         }
     }
-    out.push_str("    }\n\n");
-    emit_terrain_draw_layout(out);
-    emit_terrain_draw_entries(out);
+    body.push_str("    }\n\n");
+    emit_terrain_draw_layout(&mut body);
+    emit_terrain_draw_entries(&mut body);
+    emit_module_super_imports(out, &body);
+    out.push_str(&body);
     out.push_str("}\n\n");
 }
 
@@ -329,10 +446,11 @@ fn emit_shared_bindings_header(out: &mut String) {
 }
 
 fn emit_cull_bindings(out: &mut String) {
-    out.push_str("pub mod cull {\n    use super::*;\n\n");
-    emit_binding_consts(out, CULL_BINDINGS);
+    out.push_str("pub mod cull {\n");
+    let mut body = String::new();
+    emit_binding_consts(&mut body, CULL_BINDINGS);
     emit_group_subset(
-        out,
+        &mut body,
         "terrain cull data",
         CULL_BINDINGS,
         Some(CULL_ORDERED),
@@ -340,9 +458,9 @@ fn emit_cull_bindings(out: &mut String) {
         "ordered_layout",
         "ordered_entries",
     );
-    out.push('\n');
+    body.push('\n');
     emit_group_subset(
-        out,
+        &mut body,
         "terrain quad cull data",
         CULL_BINDINGS,
         Some(CULL_QUAD),
@@ -350,14 +468,17 @@ fn emit_cull_bindings(out: &mut String) {
         "quad_layout",
         "quad_entries",
     );
+    emit_module_super_imports(out, &body);
+    out.push_str(&body);
     out.push_str("}\n\n");
 }
 
 fn emit_hiz_bindings(out: &mut String) {
-    out.push_str("pub mod hiz {\n    use super::*;\n\n");
-    emit_binding_consts(out, HIZ_BINDINGS);
+    out.push_str("pub mod hiz {\n");
+    let mut body = String::new();
+    emit_binding_consts(&mut body, HIZ_BINDINGS);
     emit_group_subset(
-        out,
+        &mut body,
         "hiz from depth",
         HIZ_BINDINGS,
         Some(HIZ_FROM_DEPTH),
@@ -365,9 +486,9 @@ fn emit_hiz_bindings(out: &mut String) {
         "from_depth_layout",
         "from_depth_entries",
     );
-    out.push('\n');
+    body.push('\n');
     emit_group_subset(
-        out,
+        &mut body,
         "hiz down",
         HIZ_BINDINGS,
         Some(HIZ_DOWN),
@@ -375,6 +496,8 @@ fn emit_hiz_bindings(out: &mut String) {
         "down_layout",
         "down_entries",
     );
+    emit_module_super_imports(out, &body);
+    out.push_str(&body);
     out.push_str("}\n\n");
 }
 
