@@ -148,7 +148,7 @@ join the server in offline mode.
 Look at block models without a world:
 
 ```bash
-cargo run --release -p mcrs_minecraft_client --example block_viewer
+cargo run --release -p mcrs_minecraft_client --example block_viewer --features pbr
 ```
 
 ## Development

@@ -5,8 +5,8 @@
 //! Pass the blockstate to render as the first argument, in the same form the game writes it:
 //!
 //! ```text
-//! cargo run --example block_viewer -- "minecraft:oak_log[axis=x]"
-//! cargo run --example block_viewer -- glass
+//! cargo run --example block_viewer --features pbr -- "minecraft:oak_log[axis=x]"
+//! cargo run --example block_viewer --features pbr -- glass
 //! ```
 //!
 //! Drag with the left mouse button to orbit, scroll to zoom, press `F` to drop the block onto a

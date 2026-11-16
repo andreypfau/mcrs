@@ -209,9 +209,7 @@ pub fn run() -> AppExit {
                 ExitCondition::OnAllClosed
             },
             ..default()
-        })
-        .disable::<bevy::pbr::PbrPlugin>()
-        .disable::<bevy::light::LightPlugin>();
+        });
     app.add_plugins(if scene.is_some() {
         // With the window feature on, the default plugins add no runner of their own.
         defaults
