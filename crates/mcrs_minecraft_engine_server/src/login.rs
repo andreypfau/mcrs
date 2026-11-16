@@ -8,6 +8,7 @@ use bevy_ecs::schedule::IntoScheduleConfigs;
 use bevy_ecs::schedule::common_conditions::any_with_component;
 use bevy_ecs::system::{Commands, Res, ResMut, SystemParam};
 use mcrs_minecraft_network::client::offline_player_uuid;
+use mcrs_minecraft_network::connect::TokenBucket;
 use mcrs_minecraft_network::event::Received;
 use mcrs_minecraft_network::{
     ConnectionState, ForwardingRefusal, ForwardingSecret, ServerSideConnection, forwarding_query,
@@ -17,7 +18,9 @@ use mcrs_minecraft_protocol::packets::login::serverbound::{
 };
 use mcrs_minecraft_protocol::{CompressionThreshold, WritePacket, uuid};
 use mcrs_minecraft_text::Text;
-use std::net::SocketAddr;
+use std::collections::HashMap;
+use std::net::{IpAddr, SocketAddr};
+use std::time::Duration;
 
 use crate::loopback_ops::{ServerProfile, grant_loopback_ops};
 
@@ -57,6 +60,8 @@ impl bevy_app::Plugin for LoginPlugin {
         app.init_resource::<OpList>();
         app.init_resource::<ServerProfile>();
         app.init_resource::<NetworkCompressionThreshold>();
+        app.init_resource::<JoinLimits>();
+        app.init_resource::<JoinBuckets>();
         app.add_systems(
             bevy_app::First,
             advance_server_ticks.after(bevy_ecs::message::MessageUpdateSystems),
@@ -229,6 +234,54 @@ pub fn duplicate_login_reason() -> Text {
     Text::translate("multiplayer.disconnect.duplicate_login", Vec::new())
 }
 
+fn server_full_reason() -> Text {
+    Text::translate("multiplayer.disconnect.server_full", Vec::new())
+}
+
+fn too_many_connections_reason() -> Text {
+    Text::text("Too many connections from your address")
+}
+
+fn too_many_logins_reason() -> Text {
+    Text::text("Too many logins from your address. Wait a few seconds and try again.")
+}
+
+/// The limits a login meets after the ban and whitelist checks.
+#[derive(Resource, Clone, Copy, Debug, PartialEq)]
+pub struct JoinLimits {
+    /// The joined connections of the server, a connection still in login or configuration
+    /// included.
+    pub max_players: u32,
+    /// The joined connections of one address other than loopback; `None` turns the cap off.
+    pub per_ip: Option<u32>,
+    /// `None` turns the join rate off.
+    pub join_rate: Option<JoinRate>,
+}
+
+impl Default for JoinLimits {
+    fn default() -> Self {
+        Self {
+            max_players: 20,
+            per_ip: Some(5),
+            join_rate: Some(JoinRate {
+                capacity: 3,
+                period: Duration::from_secs(4),
+            }),
+        }
+    }
+}
+
+/// A bucket of `capacity` logins for each address other than loopback, which gains one login
+/// back in each `period`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct JoinRate {
+    pub capacity: u32,
+    pub period: Duration,
+}
+
+#[derive(Resource, Default)]
+struct JoinBuckets(HashMap<IpAddr, TokenBucket>);
+
 /// The protocol the client decodes. It switches on receiving the packet that ends a phase, while
 /// the server's state follows only on the client's acknowledgement.
 pub(crate) fn client_protocol(
@@ -354,11 +407,14 @@ pub struct Admission<'w, 's> {
             &'static mut ServerSideConnection,
             &'static ConnectionState,
             &'static LoginState,
+            &'static GameProfile,
         ),
     >,
     sessions: SessionsById<'w, 's>,
     replies: LoginReplies<'w>,
     join_check: JoinCheck<'w>,
+    limits: Res<'w, JoinLimits>,
+    join_buckets: ResMut<'w, JoinBuckets>,
     commands: Commands<'w, 's>,
 }
 
@@ -368,6 +424,47 @@ impl Admission<'_, '_> {
         self.commands
             .entity(connection)
             .remove::<ServerSideConnection>();
+    }
+
+    /// The player limit, the per-IP join cap and the join rate, in this order. A joined
+    /// connection under `id` does not count, since this login ends it.
+    fn limit_refusal(&mut self, ip: IpAddr, id: uuid::Uuid) -> Option<Text> {
+        let ip = ip.to_canonical();
+        let joined = || {
+            self.session_connections
+                .iter()
+                .filter(|(.., profile)| profile.id != id)
+        };
+        if joined().count() >= self.limits.max_players as usize {
+            return Some(server_full_reason());
+        }
+        if ip.is_loopback() {
+            return None;
+        }
+        if let Some(cap) = self.limits.per_ip {
+            let from_ip = joined()
+                .filter(|(con, ..)| con.remote_addr().ip().to_canonical() == ip)
+                .count();
+            if from_ip >= cap as usize {
+                return Some(too_many_connections_reason());
+            }
+        }
+        if let Some(rate) = self.limits.join_rate {
+            let refill = 1.0 / rate.period.as_secs_f32();
+            // A full bucket behaves as a new one, so dropping it bounds the map.
+            self.join_buckets
+                .0
+                .retain(|_, bucket| !bucket.is_full(rate.capacity, refill));
+            let bucket = self
+                .join_buckets
+                .0
+                .entry(ip)
+                .or_insert_with(|| TokenBucket::new(rate.capacity));
+            if !bucket.consume(rate.capacity, refill) {
+                return Some(too_many_logins_reason());
+            }
+        }
+        None
     }
 
     fn admit(&mut self, connection: Entity, con: &mut ServerSideConnection, profile: GameProfile) {
@@ -382,12 +479,17 @@ impl Admission<'_, '_> {
             self.refuse(connection, con, not_whitelisted_reason());
             return;
         }
+        if let Some(reason) = self.limit_refusal(con.remote_addr().ip(), profile.id) {
+            tracing::info!(name = %profile.username, "login refused: {reason:?}");
+            self.refuse(connection, con, reason);
+            return;
+        }
         tracing::debug!(?profile, "login hello");
         self.replies.announce_compression(con);
         let mut must_wait = self.sessions.saving(profile.id);
         for (_, place, other) in self.sessions.of(profile.id) {
             let other = other.and_then(|entity| {
-                let (con, &state, _) = self.session_connections.get_mut(entity).ok()?;
+                let (con, &state, ..) = self.session_connections.get_mut(entity).ok()?;
                 Some((entity, con, state))
             });
             let in_play = matches!(other, Some((_, _, ConnectionState::Game)));
@@ -451,7 +553,8 @@ pub fn handle_custom_query_answer(
 ) {
     let connection = event.entity;
     let Ok((mut con, awaiting)) = query.get_mut(connection) else {
-        if let Ok((mut con, &state, &login)) = admission.session_connections.get_mut(connection) {
+        if let Ok((mut con, &state, &login, _)) = admission.session_connections.get_mut(connection)
+        {
             disconnect(
                 &mut con,
                 client_protocol(state, Some(&login)),
