@@ -279,8 +279,6 @@ pub struct JoinRate {
     pub period: Duration,
 }
 
-// chisle: one bucket stays for each address that ever reached the join rate; dropping idle
-// buckets (#305) bounds the map.
 #[derive(Resource, Default)]
 struct JoinBuckets(HashMap<IpAddr, TokenBucket>);
 
@@ -452,12 +450,17 @@ impl Admission<'_, '_> {
             }
         }
         if let Some(rate) = self.limits.join_rate {
+            let refill = 1.0 / rate.period.as_secs_f32();
+            // A full bucket behaves as a new one, so dropping it bounds the map.
+            self.join_buckets
+                .0
+                .retain(|_, bucket| !bucket.is_full(rate.capacity, refill));
             let bucket = self
                 .join_buckets
                 .0
                 .entry(ip)
                 .or_insert_with(|| TokenBucket::new(rate.capacity));
-            if !bucket.consume(rate.capacity, 1.0 / rate.period.as_secs_f32()) {
+            if !bucket.consume(rate.capacity, refill) {
                 return Some(too_many_logins_reason());
             }
         }
