@@ -5,6 +5,9 @@ mod vanilla_server;
 
 use anyhow::Context;
 use anyhow::bail;
+use mcrs_minecraft_nbt::compound::NbtCompound;
+use mcrs_minecraft_nbt::nbt_compress;
+use mcrs_minecraft_probe::Host;
 use mcrs_minecraft_probe::PlayerBan;
 use mcrs_minecraft_probe::Scenario;
 use operator::Operator;
@@ -20,6 +23,7 @@ use tokio::runtime::Runtime;
 use vanilla_server::VanillaServer;
 
 const PLAYER_BANS: &str = "banned-players.json";
+const PLAYER_DATA: &str = "world/players/data";
 // Each recorded trace is made with this quiet window.
 const QUIET: Duration = Duration::from_secs(1);
 
@@ -33,9 +37,8 @@ fn main() -> anyhow::Result<()> {
         .with_context(|| format!("{scenario_path} is not a scenario"))?;
 
     let directory = work_directory(&jar)?;
-    let bans_path = directory.join(PLAYER_BANS);
     fs::write(
-        &bans_path,
+        directory.join(PLAYER_BANS),
         serde_json::to_string_pretty(&scenario.target.banned_players)?,
     )?;
     let operators: Vec<Operator> = scenario
@@ -50,19 +53,53 @@ fn main() -> anyhow::Result<()> {
     )?;
     let address = SocketAddr::from((Ipv4Addr::LOCALHOST, free_port()?));
     let server = VanillaServer::start(&jar, &directory, address.port())?;
+    let mut host = VanillaHost {
+        server,
+        jar,
+        directory,
+        port: address.port(),
+    };
 
-    let trace =
-        Runtime::new()?.block_on(mcrs_minecraft_probe::run(&scenario, address, QUIET, || {
-            let bans: Vec<PlayerBan> = serde_json::from_str(&fs::read_to_string(&bans_path)?)?;
-            Ok(bans)
-        }));
-    server.echo();
-    server.stop()?;
+    let trace = Runtime::new()?.block_on(mcrs_minecraft_probe::run(
+        &scenario, address, QUIET, &mut host,
+    ));
+    host.server.echo();
+    let stopped = host.server.stop();
+    let trace = trace?;
+    stopped?;
 
-    let mut text = serde_json::to_string_pretty(&trace?)?;
+    let mut text = serde_json::to_string_pretty(&trace)?;
     text.push('\n');
     fs::write(trace_path, text)?;
     Ok(())
+}
+
+struct VanillaHost {
+    server: VanillaServer,
+    jar: PathBuf,
+    directory: PathBuf,
+    port: u16,
+}
+
+impl Host for VanillaHost {
+    fn read_player_bans(&mut self) -> anyhow::Result<Vec<PlayerBan>> {
+        let text = fs::read_to_string(self.directory.join(PLAYER_BANS))?;
+        Ok(serde_json::from_str(&text)?)
+    }
+
+    fn read_player_file(&mut self, player: &str) -> anyhow::Result<NbtCompound> {
+        let path = self
+            .directory
+            .join(PLAYER_DATA)
+            .join(format!("{}.dat", operator::offline_profile_id(player)));
+        let file = fs::File::open(&path).with_context(|| format!("no player file at {path:?}"))?;
+        Ok(nbt_compress::read_gzip_compound_tag(file)?)
+    }
+
+    fn restart_server(&mut self) -> anyhow::Result<()> {
+        self.server.echo();
+        self.server.restart(&self.jar, &self.directory, self.port)
+    }
 }
 
 /// An empty directory beside the jar, so that each recording starts from a new world and new
