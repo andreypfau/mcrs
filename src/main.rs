@@ -15,8 +15,8 @@ use mcrs_minecraft_engine::banlist::{BANLIST_FILE, BanList};
 use mcrs_minecraft_engine::coordinator::ops::{OPS_FILE, OpList};
 use mcrs_minecraft_engine::whitelist::{WHITELIST_FILE, Whitelist};
 use mcrs_minecraft_engine_server::{
-    DimensionWorldsPlugin, EmptyForwardingSecret, ForwardingSecret, LoopbackOps,
-    NetworkCompressionThreshold, ServerCorePlugin, ServerNetworkPlugin, ShutdownRequest,
+    DimensionWorldsPlugin, EmptyForwardingSecret, ForwardingSecret, NetworkCompressionThreshold,
+    ServerCorePlugin, ServerNetworkPlugin, ShutdownRequest,
 };
 use mcrs_minecraft_engine_world::world::sub_app::AddDimensionPlugins;
 use mcrs_minecraft_lang::{EN_US, Language};
@@ -181,9 +181,6 @@ fn network(settings: &ServerSettings) -> Result<ServerNetworkPlugin, EmptyForwar
         enable_status: settings.enable_status,
         whitelist: Whitelist::read(Path::new(WHITELIST_FILE)),
         banlist: BanList::read(Path::new(BANLIST_FILE)),
-        // A player who joins from this machine is an operator for the session; the ops file
-        // names every other operator.
-        loopback_ops: LoopbackOps::Grant,
         forwarding,
         proxy_upstreams: settings.proxy_upstreams.clone(),
         ..defaults
